@@ -1,1 +1,1 @@
-RomFS root. Baked assets go in romfs/baked/ (generated, gitignored).
+RomFS root. romfs/baked/ holds assets baked from ref/resources by tools/pipeline (Disney-owned; see THIRD_PARTY_NOTICES.md).

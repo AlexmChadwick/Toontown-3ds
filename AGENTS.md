@@ -213,8 +213,8 @@ Key decisions:
    - The APT hook pauses the sim and net heartbeat logic correctly on HOME and sleep.
      Heartbeats keep flowing while suspended where possible; otherwise we reconnect.
 7. **Storage.** A small boot set goes in RomFS (UI, fonts, the default toon). Zones and
-   audio live on SD at `sdmc:/3ds/toontown3ds/data/` and are streamed. The CIA and 3DSX
-   stay small, and users bake assets themselves (licensing).
+   audio live on SD at `sdmc:/3ds/toontown3ds/data/` and are streamed, so the CIA and
+   3DSX stay small.
 8. **Render rules.**
    - Every target is cleared every frame (`C3D_RenderTargetClear` / `C2D_TargetClear`).
    - Call `C2D_Prepare()` before 2D drawing after any custom shader use.
@@ -398,5 +398,8 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
   in per-frame paths. Use fixed pools and arenas, all in `namespace tt`. 4-space indent.
 - Files are named `snake_case`. Types are `PascalCase`, functions `camelCase`,
   constants `kName`.
-- Never commit anything from `ref/` or any baked asset. Disney owns them.
+- **Licensing.** `ref/` holds pinned submodules: never vendor their files into the
+  tree. Baked Disney assets may be committed under `romfs/baked/` (the owner's
+  decision, 2026-10-23). They stay outside the MIT license; keep
+  `THIRD_PARTY_NOTICES.md` current when adding upstream-derived code or data.
 - Keep this file current. A decision that is not written here does not exist.

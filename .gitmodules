@@ -1,0 +1,8 @@
+[submodule "ref/open-toontown"]
+	path = ref/open-toontown
+	url = https://github.com/open-toontown/open-toontown.git
+	shallow = true
+[submodule "ref/resources"]
+	path = ref/resources
+	url = https://github.com/open-toontown/resources.git
+	shallow = true

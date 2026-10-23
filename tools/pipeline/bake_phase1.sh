@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Bake the Phase 1 RomFS asset set from ref/resources into romfs/baked/ (gitignored).
+# Bake the Phase 1 RomFS asset set from ref/resources into romfs/baked/ (committed; re-run after baker changes).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 PY=.venv/bin/python

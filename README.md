@@ -10,9 +10,9 @@ and a five-tab touch UI on the bottom screen. There is no collision, animation o
 networking yet. See [AGENTS.md](AGENTS.md) for architecture, budgets and the phase
 plan, and [docs/test-log.md](docs/test-log.md) for measured results.
 
-> Toontown assets belong to The Walt Disney Company. This repo ships **no** game
-> assets. You bake them locally from the upstream `resources` repo; the output
-> (`romfs/baked/`, `sdmc-out/`) is gitignored and must not be redistributed.
+> Toontown Online assets belong to The Walt Disney Company. The baked assets in
+> `romfs/baked/` and the `ref/resources` submodule are included as-is and are **not**
+> covered by this project's MIT license; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Prerequisites
 
@@ -38,17 +38,17 @@ plan, and [docs/test-log.md](docs/test-log.md) for measured results.
    uv venv -p 3.12 .venv
    uv pip install --python .venv panda3d==1.10.15
    ```
-4. **Upstream reference repos** (read-only, gitignored):
+4. **Upstream reference repos** live in `ref/` as pinned, shallow git submodules.
+   You need them only to re-bake assets or regenerate `dc_generated.h`. The
+   resources submodule is about 670 MB:
    ```bash
-   git clone --depth 1 https://github.com/open-toontown/open-toontown.git ref/open-toontown
-   ```
-   ```bash
-   git clone --depth 1 https://github.com/open-toontown/resources.git ref/resources
+   git submodule update --init --depth 1
    ```
 
 ## Build
 
-Bake the assets first. They come from `ref/resources` and are gitignored:
+Pre-baked Phase 1 assets are committed in `romfs/baked/`. To re-bake them from
+`ref/resources` (needs the submodules and the Python venv), run:
 ```bash
 make assets
 ```
@@ -97,4 +97,10 @@ see [docs/test-log.md](docs/test-log.md). Record results there.
 | `tools/dev` | dev helpers (render-target dump decoder) |
 | `tools/toolchain` | from-source devkitARM bootstrap |
 | `meta` | icon, banner, CIA `app.rsf` |
-| `ref` | upstream clones (gitignored) |
+| `ref` | upstream submodules: open-toontown (code) and resources (assets) |
+
+## License
+
+This project's code is MIT-licensed ([LICENSE](LICENSE)). Parts derived from Open
+Toontown keep its BSD 3-Clause notice, and the Toontown game assets remain Disney's.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
