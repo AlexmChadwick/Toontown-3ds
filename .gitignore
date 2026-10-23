@@ -1,0 +1,16 @@
+# Upstream reference clones (Disney-owned assets; never commit)
+/ref/
+# Build output
+/build/
+*.3dsx
+*.cia
+*.smdh
+*.elf
+*.cxi
+*.shbin
+*.t3x
+# Baked game assets (generated locally from ref/resources by tools/pipeline)
+/romfs/baked/
+/sdmc-out/
+__pycache__/
+.venv/

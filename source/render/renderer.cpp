@@ -1,0 +1,216 @@
+#include "render/renderer.h"
+
+#include <cmath>
+
+#include "core/log.h"
+#include "world_shbin.h"
+
+namespace tt::render {
+
+namespace {
+
+constexpr u32 kClearSky = 0x6AB0D9FF; // RGBA8; Toontown-ish sky blue
+constexpr u32 kVertexStride = 16;
+// Depth bias per "draw in front" layer (eyes over face, pupils over eyes).
+// Positive = nearer, because citro3d's perspective + GPU_GREATER is reversed-Z.
+constexpr float kLayerDepthBias = 0.00005f;
+// Leave headroom in the command buffer: citro3d panics on overflow.
+constexpr float kCmdBufLimit = 0.9f;
+
+constexpr u32 kDisplayTransferFlags =
+    GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
+    GX_TRANSFER_IN_FORMAT(GX_TRANSFER_FMT_RGBA8) | GX_TRANSFER_OUT_FORMAT(GX_TRANSFER_FMT_RGB8) |
+    GX_TRANSFER_SCALING(GX_TRANSFER_SCALE_NO);
+
+C3D_FVec normalizePlane(C3D_FVec p) {
+    const float len = sqrtf(p.x * p.x + p.y * p.y + p.z * p.z);
+    return FVec4_New(p.x / len, p.y / len, p.z / len, p.w / len);
+}
+
+} // namespace
+
+bool Renderer::init() {
+    topLeft_ = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    topRight_ = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
+    if (!topLeft_ || !topRight_) {
+        TT_LOG("renderer: cannot create render targets");
+        return false;
+    }
+    C3D_RenderTargetSetOutput(topLeft_, GFX_TOP, GFX_LEFT, kDisplayTransferFlags);
+    C3D_RenderTargetSetOutput(topRight_, GFX_TOP, GFX_RIGHT, kDisplayTransferFlags);
+
+    shaderDvlb_ = DVLB_ParseFile(reinterpret_cast<u32*>(const_cast<u8*>(world_shbin)), world_shbin_size);
+    if (!shaderDvlb_) return false;
+    shaderProgramInit(&program_);
+    shaderProgramSetVsh(&program_, &shaderDvlb_->DVLE[0]);
+    uProjection_ = shaderInstanceGetUniformLocation(program_.vertexShader, "projection");
+    uModelView_ = shaderInstanceGetUniformLocation(program_.vertexShader, "modelView");
+    uTint_ = shaderInstanceGetUniformLocation(program_.vertexShader, "tint");
+    return true;
+}
+
+void Renderer::shutdown() {
+    shaderProgramFree(&program_);
+    if (shaderDvlb_) DVLB_Free(shaderDvlb_);
+    if (topLeft_) C3D_RenderTargetDelete(topLeft_);
+    if (topRight_) C3D_RenderTargetDelete(topRight_);
+    shaderDvlb_ = nullptr;
+    topLeft_ = topRight_ = nullptr;
+}
+
+void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
+                          int eyeSign) {
+    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, kClearSky, 0);
+    C3D_FrameDrawOn(target);
+
+    // citro2d rebinds its own shader/attributes/texenv every frame, so rebind ours.
+    C3D_BindProgram(&program_);
+    C3D_AttrInfo* attr = C3D_GetAttrInfo();
+    AttrInfo_Init(attr);
+    AttrInfo_AddLoader(attr, 0, GPU_SHORT, 4); // position (w = pad, overridden in shader)
+    AttrInfo_AddLoader(attr, 1, GPU_SHORT, 2); // uv
+    AttrInfo_AddLoader(attr, 2, GPU_UNSIGNED_BYTE, 4); // rgba
+
+    C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+                   GPU_ONE_MINUS_SRC_ALPHA);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+    C3D_DepthMap(true, -1.0f, 0.0f);
+
+    const float fovy = C3D_AngleFromDegrees(kFovYDeg);
+    if (eyeSign == 0) {
+        Mtx_PerspTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, kFar, false);
+    } else {
+        Mtx_PerspStereoTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, kFar, eyeSign * iod, 2.0f, false);
+    }
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uProjection_, &projection_);
+
+    // Panda/Toontown world space: Z up, right-handed.
+    Mtx_LookAt(&view_, eye, lookAt, FVec3_New(0.0f, 0.0f, 1.0f), false);
+
+    // Frustum planes from clip = P * V (Gribb/Hartmann). PICA clip z range is [-w, 0].
+    C3D_Mtx clip;
+    Mtx_Multiply(&clip, &projection_, &view_);
+    const C3D_FVec r0 = clip.r[0], r1 = clip.r[1], r2 = clip.r[2], r3 = clip.r[3];
+    // Mtx_PerspTilt rotates x/y for the sideways framebuffer; both axes are bounded
+    // by |x| <= w and |y| <= w, so the plane set is the same either way.
+    frustum_[0] = normalizePlane(FVec4_Add(r3, r0));
+    frustum_[1] = normalizePlane(FVec4_Subtract(r3, r0));
+    frustum_[2] = normalizePlane(FVec4_Add(r3, r1));
+    frustum_[3] = normalizePlane(FVec4_Subtract(r3, r1));
+    frustum_[4] = normalizePlane(FVec4_Negate(r2)); // z <= 0
+    frustum_[5] = normalizePlane(FVec4_Add(r3, r2)); // z >= -w
+}
+
+void Renderer::endWorld() {
+    C3D_AlphaTest(false, GPU_ALWAYS, 0);
+    C3D_DepthMap(true, -1.0f, 0.0f);
+    C3D_CullFace(GPU_CULL_NONE);
+}
+
+bool Renderer::sphereVisible(const C3D_FVec& c, float radius) const {
+    for (const C3D_FVec& p : frustum_) {
+        if (p.x * c.x + p.y * c.y + p.z * c.z + p.w < -radius) return false;
+    }
+    return true;
+}
+
+void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints) {
+    if (!model.loaded()) return;
+
+    // Bounding sphere in world space (model bounds are axis-aligned in model space).
+    const float* lo = model.boundsMin();
+    const float* hi = model.boundsMax();
+    const C3D_FVec localCenter = FVec4_New((lo[0] + hi[0]) * 0.5f, (lo[1] + hi[1]) * 0.5f, (lo[2] + hi[2]) * 0.5f, 1.0f);
+    const C3D_FVec worldCenter = Mtx_MultiplyFVec4(&world, localCenter);
+    const float dx = hi[0] - lo[0], dy = hi[1] - lo[1], dz = hi[2] - lo[2];
+    const float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz); // assumes no scaling in `world`
+    if (!sphereVisible(worldCenter, radius)) {
+        stats_.modelsCulled++;
+        return;
+    }
+    if (C3D_GetCmdBufUsage() > kCmdBufLimit) {
+        stats_.modelsSkipped++;
+        return;
+    }
+    stats_.modelsDrawn++;
+
+    // modelView = view * world * dequantize
+    C3D_Mtx dequant, worldQ, modelView;
+    Mtx_Identity(&dequant);
+    Mtx_Translate(&dequant, model.posOffset()[0], model.posOffset()[1], model.posOffset()[2], true);
+    Mtx_Scale(&dequant, model.posScale()[0], model.posScale()[1], model.posScale()[2]);
+    Mtx_Multiply(&worldQ, &world, &dequant);
+    Mtx_Multiply(&modelView, &view_, &worldQ);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uModelView_, &modelView);
+
+    int boundTexture = -2;
+    int boundBlend = -1;
+    int boundLayer = -1;
+    int boundTint = -1;
+    int boundCull = -1;
+    const u8* vbase = static_cast<const u8*>(model.vertices());
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    if (model.absoluteIndices()) {
+        BufInfo_Init(buf);
+        BufInfo_Add(buf, vbase, kVertexStride, 3, 0x210);
+    }
+
+    for (u32 i = 0; i < model.numBatches(); i++) {
+        const Batch& b = model.batch(i);
+
+        const int tint = tints ? b.tint : 0;
+        if (tint != boundTint) {
+            if (tint == 0) {
+                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint_, 1.0f, 1.0f, 1.0f, 1.0f);
+            } else {
+                const float* c = tints->rgba[tint];
+                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint_, c[0], c[1], c[2], c[3]);
+            }
+            boundTint = tint;
+        }
+
+        const int texIndex = b.texture == 0xFFFF ? -1 : b.texture;
+        if (texIndex != boundTexture) {
+            C3D_TexEnv* env = C3D_GetTexEnv(0);
+            C3D_TexEnvInit(env);
+            if (texIndex >= 0) {
+                C3D_TexBind(0, model.texture(b.texture));
+                C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+            } else {
+                C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+            }
+            boundTexture = texIndex;
+        }
+
+        if (b.blend != boundBlend) {
+            C3D_AlphaTest(b.blend == kBlendAlphaTest, GPU_GREATER, 127);
+            C3D_DepthTest(true, GPU_GREATER, b.blend == kBlendAlpha ? GPU_WRITE_COLOR : GPU_WRITE_ALL);
+            boundBlend = b.blend;
+        }
+        if (b.layer != boundLayer) {
+            C3D_DepthMap(true, -1.0f, kLayerDepthBias * b.layer);
+            boundLayer = b.layer;
+        }
+        const int cull = (b.flags & 1) ? GPU_CULL_NONE : GPU_CULL_BACK_CCW;
+        if (cull != boundCull) {
+            C3D_CullFace(static_cast<GPU_CULLMODE>(cull));
+            boundCull = cull;
+        }
+
+        if (!model.absoluteIndices()) {
+            BufInfo_Init(buf);
+            BufInfo_Add(buf, vbase + b.firstVertex * kVertexStride, kVertexStride, 3, 0x210);
+        }
+        C3D_DrawElements(GPU_TRIANGLES, b.numIndices, C3D_UNSIGNED_SHORT, model.indices() + b.firstIndex);
+
+        stats_.drawCalls++;
+        stats_.triangles += b.numIndices / 3;
+    }
+
+    if (boundLayer != 0) C3D_DepthMap(true, -1.0f, 0.0f);
+}
+
+} // namespace tt::render

@@ -1,0 +1,184 @@
+#include "render/model.h"
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+#include "core/log.h"
+
+namespace tt::render {
+
+namespace {
+
+constexpr u16 kVersion = 1;
+constexpr u32 kVertexSize = 16;
+
+struct Header {
+    char magic[4];
+    u16 version;
+    u16 flags;
+    u16 numTextures;
+    u16 numBatches;
+    u32 numVertices;
+    u32 numIndices;
+    float posScale[3];
+    float posOffset[3];
+    u32 texTableOffset;
+    u32 batchTableOffset;
+    u32 vertexOffset;
+    u32 indexOffset;
+    u32 reserved;
+};
+static_assert(sizeof(Header) == 64, "must match ttm.py header");
+
+struct TexEntry {
+    u16 width;
+    u16 height;
+    u8 format;
+    u8 mipLevels;
+    u8 wrapS;
+    u8 wrapT;
+    u32 dataOffset;
+    u32 dataSize;
+    char name[32];
+};
+static_assert(sizeof(TexEntry) == 48, "must match ttm.py texture entry");
+
+bool readAt(FILE* f, u32 offset, void* dst, u32 size) {
+    return fseek(f, offset, SEEK_SET) == 0 && fread(dst, 1, size, f) == size;
+}
+
+} // namespace
+
+void Tints::setAll(float r, float g, float b) {
+    for (auto& t : rgba) {
+        t[0] = r;
+        t[1] = g;
+        t[2] = b;
+        t[3] = 1.0f;
+    }
+}
+
+Model::~Model() { unload(); }
+
+void Model::unload() {
+    if (textures_) {
+        for (u16 i = 0; i < numTextures_; i++) {
+            if (textures_[i].data) C3D_TexDelete(&textures_[i]);
+        }
+        free(textures_);
+    }
+    free(batches_);
+    if (vertices_) linearFree(vertices_);
+    if (indices_) linearFree(indices_);
+    textures_ = nullptr;
+    batches_ = nullptr;
+    vertices_ = nullptr;
+    indices_ = nullptr;
+    numTextures_ = numBatches_ = 0;
+    numVertices_ = numIndices_ = 0;
+    linearBytes_ = 0;
+    absoluteIndices_ = false;
+}
+
+bool Model::load(const char* path) {
+    unload();
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        TT_LOG("model: cannot open %s", path);
+        return false;
+    }
+    // Large reads go straight to their destination; a bigger stdio buffer cuts
+    // per-call overhead on RomFS/SD.
+    setvbuf(f, nullptr, _IOFBF, 32 * 1024);
+
+    Header h;
+    TexEntry* texEntries = nullptr;
+    bool ok = readAt(f, 0, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 && h.version == kVersion;
+    if (!ok) {
+        TT_LOG("model: bad header in %s", path);
+        fclose(f);
+        return false;
+    }
+
+    numTextures_ = h.numTextures;
+    numBatches_ = h.numBatches;
+    numVertices_ = h.numVertices;
+    numIndices_ = h.numIndices;
+    memcpy(posScale_, h.posScale, sizeof(posScale_));
+    memcpy(posOffset_, h.posOffset, sizeof(posOffset_));
+    for (int i = 0; i < 3; i++) {
+        boundsMin_[i] = posOffset_[i] - 32767.0f * posScale_[i];
+        boundsMax_[i] = posOffset_[i] + 32767.0f * posScale_[i];
+    }
+
+    batches_ = static_cast<Batch*>(malloc(sizeof(Batch) * numBatches_));
+    texEntries = static_cast<TexEntry*>(malloc(sizeof(TexEntry) * (numTextures_ ? numTextures_ : 1)));
+    textures_ = static_cast<C3D_Tex*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(C3D_Tex)));
+    vertices_ = linearAlloc(numVertices_ * kVertexSize);
+    indices_ = static_cast<u16*>(linearAlloc(numIndices_ * sizeof(u16)));
+    ok = batches_ && texEntries && textures_ && vertices_ && indices_;
+    ok = ok && readAt(f, h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
+    ok = ok && readAt(f, h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
+    ok = ok && readAt(f, h.vertexOffset, vertices_, numVertices_ * kVertexSize);
+    ok = ok && readAt(f, h.indexOffset, indices_, numIndices_ * sizeof(u16));
+    if (ok && numVertices_ <= 0x10000) {
+        // Rebase batch-relative indices to absolute so the renderer binds one vertex
+        // buffer per model instead of one per batch (keeps the GPU command buffer small).
+        for (u16 b = 0; b < numBatches_; b++) {
+            u16* idx = indices_ + batches_[b].firstIndex;
+            const u32 base = batches_[b].firstVertex;
+            for (u32 i = 0; i < batches_[b].numIndices; i++) idx[i] = static_cast<u16>(idx[i] + base);
+        }
+        absoluteIndices_ = true;
+    }
+    if (ok) {
+        linearBytes_ = numVertices_ * kVertexSize + numIndices_ * sizeof(u16);
+        GSPGPU_FlushDataCache(vertices_, numVertices_ * kVertexSize);
+        GSPGPU_FlushDataCache(indices_, numIndices_ * sizeof(u16));
+    }
+
+    for (u16 i = 0; ok && i < numTextures_; i++) {
+        const TexEntry& e = texEntries[i];
+        C3D_TexInitParams p{};
+        p.width = e.width;
+        p.height = e.height;
+        p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
+        p.format = static_cast<GPU_TEXCOLOR>(e.format);
+        p.type = GPU_TEX_2D;
+        p.onVram = false;
+        C3D_Tex& tex = textures_[i];
+        if (!C3D_TexInitWithParams(&tex, nullptr, p)) {
+            TT_LOG("model: out of linear memory for texture %.32s", e.name);
+            ok = false;
+            break;
+        }
+        const u32 total = C3D_TexCalcTotalSize(tex.size, tex.maxLevel);
+        if (total != e.dataSize) {
+            TT_LOG("model: texture %.32s size mismatch %lu != %lu", e.name, (unsigned long)total,
+                   (unsigned long)e.dataSize);
+            ok = false;
+            break;
+        }
+        ok = readAt(f, e.dataOffset, tex.data, total);
+        C3D_TexFlush(&tex);
+        C3D_TexSetFilter(&tex, GPU_LINEAR, GPU_LINEAR);
+        if (tex.maxLevel > 0) C3D_TexSetFilterMipmap(&tex, GPU_LINEAR);
+        C3D_TexSetWrap(&tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
+                       static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
+        linearBytes_ += total;
+    }
+
+    free(texEntries);
+    fclose(f);
+    if (!ok) {
+        TT_LOG("model: failed to load %s", path);
+        unload();
+        return false;
+    }
+    TT_LOG("model: %s: %lu tris, %u batches, %u tex, %lu KB linear", path, (unsigned long)numTriangles(),
+           numBatches_, numTextures_, (unsigned long)(linearBytes_ / 1024));
+    return true;
+}
+
+} // namespace tt::render

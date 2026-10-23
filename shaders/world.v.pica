@@ -1,0 +1,39 @@
+; World/static mesh vertex shader. Vertex layout matches tools/pipeline/ttm.py:
+;   v0 = s16 position (quantized; dequantization is folded into modelView)
+;   v1 = s16 uv (x/1024)
+;   v2 = u8 rgba
+.fvec projection[4], modelView[4]
+.fvec tint
+
+; x = 1/255 (color), y = 1/1024 (uv), z = 1, w = 0
+.constf consts(0.003921569, 0.0009765625, 1.0, 0.0)
+.alias  ones consts.zzzz
+
+.out outpos position
+.out outtc0 texcoord0
+.out outclr color
+
+.alias inpos v0
+.alias intex v1
+.alias inclr v2
+
+.proc main
+    mov r0.xyz, inpos
+    mov r0.w, ones
+
+    dp4 r1.x, modelView[0], r0
+    dp4 r1.y, modelView[1], r0
+    dp4 r1.z, modelView[2], r0
+    dp4 r1.w, modelView[3], r0
+
+    dp4 outpos.x, projection[0], r1
+    dp4 outpos.y, projection[1], r1
+    dp4 outpos.z, projection[2], r1
+    dp4 outpos.w, projection[3], r1
+
+    mul outtc0, consts.yyyy, intex
+
+    mul r2, consts.xxxx, inclr
+    mul outclr, tint, r2
+    end
+.end
