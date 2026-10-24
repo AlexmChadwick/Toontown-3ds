@@ -47,6 +47,24 @@ int main(int argc,char** argv) {
     }
     fclose(points);
     assert(tested>0 && events.count>0);
+    // The gridded cellAt() must equal the full floor scan everywhere: random points over (and
+    // beyond) the zone bounds at several heights and reaches, then jitter around the samples.
+    {
+        uint32_t rng=12345u;
+        auto next=[&rng]() { rng=rng*1664525u+1013904223u; return static_cast<float>(rng>>8)/16777216.0f; };
+        const float* lo=zone.boundsMin(); const float* hi=zone.boundsMax();
+        const float reaches[3]={0.0f,tt::world::kFloorReach,100.0f};
+        int hits=0,total=0;
+        for (int i=0;i<30000;++i) {
+            const tt::world::Vec3 p{lo[0]-20+next()*(hi[0]-lo[0]+40),lo[1]-20+next()*(hi[1]-lo[1]+40),lo[2]-10+next()*(hi[2]-lo[2]+30)};
+            const float reach=reaches[i%3];
+            const int a=zone.cellAt(p,reach),b=zone.cellAtReference(p,reach);
+            assert(a==b);
+            hits+=a>=0; ++total;
+        }
+        assert(hits>0);
+        printf("cellAt grid == full scan on %d random queries (%d with a floor)\n",total,hits);
+    }
     const int current=zone.currentCell();
     assert(zone.update({1e9f,1e9f,0}) && zone.currentCell()==current);
     for (int i=0;i<zone.numTriggers();++i) {

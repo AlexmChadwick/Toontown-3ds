@@ -13,6 +13,7 @@
 #include "core/config.h"
 #include "core/log.h"
 #include "core/memory.h"
+#include "core/profile.h"
 #include "core/screenshot.h"
 #include "game/front_end.h"
 #include "net/client.h"
@@ -297,7 +298,10 @@ int main() {
     TT_LOG("boot: heap %u KB used, linear %lu KB free", static_cast<unsigned>(mallinfo().uordblks / 1024),
            static_cast<unsigned long>(linearSpaceFree() / 1024));
 
+    tt::prof::init();
     while (aptMainLoop()) {
+        tt::prof::frameBegin();
+        tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
         const u64 now = svcGetSystemTick();
         float dt = static_cast<float>(now - lastTick) / SYSCLOCK_ARM11;
         lastTick = now;
@@ -481,6 +485,7 @@ int main() {
             in.held &= ~(KEY_A | KEY_B);
             in.down &= ~(KEY_A | KEY_B);
         }
+        tt::prof::lap(tt::prof::kInput);
         if (shop.active()) { // standing at the counter: no walking or jumping while the panel is open
             in.pad.dx = 0;
             in.pad.dy = 0;
@@ -509,6 +514,7 @@ int main() {
             footstepAnim = anim;
         }
         localToon.update(dt);
+        tt::prof::lap(tt::prof::kPlayer);
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
         place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
@@ -588,6 +594,7 @@ int main() {
         toastAge += dt;
         if (toastAge > 3.0f) toast = nullptr;
 
+        tt::prof::lap(tt::prof::kPlace);
         if (netStarted) {
             const u32 nowMs = tt::net::plat::nowMs();
             net.update(nowMs);
@@ -670,12 +677,15 @@ int main() {
             }
         }
         pendingSpeech = -1;
+        tt::prof::lap(tt::prof::kNet);
         remoteToons.update(dt);
+        tt::prof::lap(tt::prof::kRemote);
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
+        tt::prof::lap(tt::prof::kActors);
 
         const float slider = osGet3DSliderState();
         const bool wantStereo = uiState.stereo && slider > 0.0f;
@@ -684,7 +694,9 @@ int main() {
             stereoActive = wantStereo;
         }
 
+        tt::prof::lap(tt::prof::kActors); // stereo toggle
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        tt::prof::lap(tt::prof::kWait);
         if (shotName) {
             // Previous frame is complete after FrameBegin; dump it before clearing.
             char path[96];
@@ -703,6 +715,7 @@ int main() {
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
             place.draw(renderer, player.cameraEye());
+            tt::prof::lap(tt::prof::kDrawPlace);
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
             {
@@ -727,6 +740,7 @@ int main() {
                 }
                 renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
             }
+            tt::prof::lap(tt::prof::kDrawShadow);
             player.worldMatrix(&m);
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
@@ -734,10 +748,12 @@ int main() {
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
             remoteToons.draw(renderer, player.x(), player.y());
+            tt::prof::lap(tt::prof::kDrawToons);
             zoneActors.draw(renderer, player.cameraEye());
             boat.draw(renderer);
             cchars.draw(renderer);
             suits.draw(renderer);
+            tt::prof::lap(tt::prof::kDrawActors);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
             const float fx = -sinf(h), fy = cosf(h); // forward
@@ -749,6 +765,7 @@ int main() {
                 propMatrix(p, &m);
                 stressToons[i].draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
+            tt::prof::lap(tt::prof::kDrawToons);
         }
         renderer.endWorld();
         lastStats = renderer.stats();
@@ -775,6 +792,7 @@ int main() {
             suits.addBalloons(balloons, proj, view);
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
+            tt::prof::lap(tt::prof::kBalloons);
             tt::ui::HudValues hv;
             hv.online = netStarted && net.inZone();
             if (hv.online) {
@@ -796,6 +814,7 @@ int main() {
                 }
                 C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // as hud.cpp / balloons.cpp restore it
             }
+            tt::prof::lap(tt::prof::kHud);
         }
         const struct mallinfo mi = mallinfo();
         tt::ui::Context ctx{};
@@ -857,9 +876,12 @@ int main() {
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ui.draw(bottom, uiState, ctx);
+        tt::prof::lap(tt::prof::kBottomUi);
 
         C3D_FrameEnd(0);
+        tt::prof::lap(tt::prof::kFrameEnd);
         tt::audio::update();
+        tt::prof::lap(tt::prof::kAudio);
     }
 
     frontEnd.shutdown();
