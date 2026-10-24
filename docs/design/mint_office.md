@@ -40,3 +40,17 @@ or elevator `minLaff=0` can be used to force entry.
 Generated assets live under
 `sdmc:/3ds/toontown3ds/data/mint/` and
 `sdmc:/3ds/toontown3ds/data/stage/`, with `room_spec.bin` in each directory.
+
+## Playable room path
+
+Mint and DA room bakes now include per-room TTC collision. Room generation places
+the toon at the room entrance, keeps the regular follow camera, sends nearby room
+entity interactions, and presents the first active room suit to the shared battle
+runtime. Room objects remain authoritative for progression, defeated state, and the
+exit back to HQ; the native client only streams the current room and its compact
+props.
+
+Autotest labels are `mint_room1`, `mint_battle`, `mint_next`, `da_room1`,
+`da_battle`, and `da_exit`. Run with `AI_DEV=1 tools/server/start.sh`; use the
+Cashbot or Lawbot access/disguise requirements on stock AI, or the AI_DEV/local
+test account bypass when checking the labels.

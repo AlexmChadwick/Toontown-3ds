@@ -56,6 +56,19 @@ def bake_one(base, source, out, node_name=None):
     return stats
 
 
+def bake_collision(base, source, out, node_name=None):
+    import collide
+    model = base.loader.loadModel(str(source))
+    if node_name:
+        model = model.find("**/" + node_name)
+    if model.isEmpty():
+        raise FileNotFoundError(source)
+    mesh = collide.extract(model, fallback_floor=True)
+    stats = mesh.write(str(out), cell_size=8.0, max_bytes=1024 * 1024)
+    model.removeNode()
+    return stats
+
+
 def write_level_table(out):
     path = out / "level_spec.bin"
     with path.open("wb") as f:
@@ -92,6 +105,7 @@ def main():
     manifest = {"budgets": {"max_triangles": MAX_TRIS, "max_batches": MAX_BATCHES}, "models": {}}
     for stem, source in sources.items():
         manifest["models"][stem] = {"source": str(source), **bake_one(base, source, out / f"{stem}.ttm")}
+    manifest["collision"] = bake_collision(base, sources["factory"], out / "factory.ttc")
     # Keep the runtime's cell contract explicit. The source factory is a single
     # authored scene; the table gives the visibility/entity partitioning.
     interior = resources / "phase_9/models/cogHQ/SelbotLegFactory.bam"

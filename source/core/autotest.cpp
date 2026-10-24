@@ -72,6 +72,18 @@ const Step kScript[] = {
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "tailor visit", "tailor"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "go factory", "factory_ext"},
     {30.0f, 0, 0, 0, 0, -1, -1, 0, "factory: board", "factory_in"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "factory: entities", "factory_entities"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "factory: battle", "factory_battle"},
+    {15.0f, 0, 0, 0, 0, -1, -1, 0, "factory: exit", "factory_exit"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: floor", "cog_floor"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: battle", "cog_battle"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: exit", "cog_exit"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "mint: room 1", "mint_room1"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "mint: battle", "mint_battle"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "mint: next room", "mint_next"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "da office: room 1", "da_room1"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "da office: battle", "da_battle"},
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "da office: exit", "da_exit"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);

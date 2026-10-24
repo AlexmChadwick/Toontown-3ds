@@ -945,8 +945,19 @@ int main() {
             cogInterior.update(net, nowMs);
             factory.update(net, player.x(), player.y(), player.z(), nowMs);
             mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);
-            if (cogInterior.active() || factory.active() || mintOffice.active()) player.setCollision(nullptr);
+            const bool facilityActive = cogInterior.active() || factory.active() || mintOffice.active();
+            if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
+            else if (factory.active() && factory.collision()) player.setCollision(factory.collision());
+            else if (mintOffice.active() && mintOffice.collision()) player.setCollision(mintOffice.collision());
             else player.setCollision(&place.collision());
+            if (facilityActive) {
+                float sx, sy, sz, sh;
+                if (cogInterior.spawnPose(&sx, &sy, &sz, &sh) ||
+                    factory.spawnPose(&sx, &sy, &sz, &sh) ||
+                    mintOffice.spawnPose(&sx, &sy, &sz, &sh)) {
+                    player.reset(sx, sy, sz, sh);
+                }
+            }
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
                 tt::net::FriendEvent fe;
@@ -1070,6 +1081,17 @@ int main() {
             // walking into someone else's fight joins it.
             if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active() && !minigame.active() &&
                 !trolley.seated()) {
+                uint32_t facilityCog = 0;
+                float facilityX = 0, facilityY = 0, facilityZ = 0, facilityH = 0;
+                bool hasFacilityCog = factory.battleTarget(net, &facilityCog, &facilityX, &facilityY,
+                                                           &facilityZ, &facilityH) ||
+                    cogInterior.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH) ||
+                    mintOffice.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH);
+                const float fdx = player.x() - facilityX, fdy = player.y() - facilityY;
+                if (hasFacilityCog && fdx * fdx + fdy * fdy < 36.0f) {
+                    battle.requestBattle(net, facilityCog, facilityX, facilityY, facilityZ, facilityH,
+                                         player.x(), player.y(), player.z(), player.headingDeg(), nowMs);
+                }
                 if (const u32 cog = suits.touching(player.x(), player.y(), player.z())) {
                     float cx, cy, cz, ch;
                     if (suits.pose(cog, &cx, &cy, &cz, &ch)) {

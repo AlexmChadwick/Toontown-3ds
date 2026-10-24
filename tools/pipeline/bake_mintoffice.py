@@ -23,6 +23,16 @@ def bake(base, source, out, node=None):
     model.removeNode()
     if stats["triangles"] > 30000 or stats["batches"] > 256: raise RuntimeError(stats)
     return stats
+
+
+def bake_collision(base, source, out):
+    import collide
+    model = base.loader.loadModel(str(source))
+    if model.isEmpty(): raise FileNotFoundError(source)
+    stats = collide.extract(model, fallback_floor=True).write(str(out), cell_size=8.0,
+                                                               max_bytes=1024 * 1024)
+    model.removeNode()
+    return stats
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--resources", default=str(resources_default()))
     ap.add_argument("--out", default=str(ROOT / "sdmc-out/3ds/toontown3ds/data"))
@@ -37,10 +47,17 @@ def main():
     stage_src = r/"phase_11/models/lawbotHQ"
     for i in range(3, 32):
         p = mint_src/f"ZONE{i:02d}a.bam"
-        if p.exists(): manifest["mint"][str(i)] = {"source": str(p), **bake(base, p, mint/f"room_{i:02d}.ttm")}
-    for name in ("LB_Zone03a.bam","LB_Zone04a.bam","LB_Zone7a.bam","LB_Zone7av2.bam","LB_Zone08a.bam","LB_Zone13a.bam","LB_Zone22a.bam"):
+        if p.exists():
+            manifest["mint"][str(i)] = {"source": str(p), **bake(base, p, mint/f"room_{i:02d}.ttm")}
+            manifest.setdefault("collision", {}).setdefault("mint", {})[str(i)] = bake_collision(
+                base, p, mint/f"room_{i:02d}.ttc")
+    for index, name in enumerate(("LB_Zone03a.bam","LB_Zone04a.bam","LB_Zone7a.bam","LB_Zone7av2.bam","LB_Zone08a.bam","LB_Zone13a.bam","LB_Zone22a.bam")):
         p = stage_src/name
-        if p.exists(): manifest["stage"][name] = {"source": str(p), **bake(base, p, stage/(name[:-4]+".ttm"))}
+        if p.exists():
+            target = stage / f"room_{index:02d}.ttm"
+            manifest["stage"][str(index)] = {"source": str(p), **bake(base, p, target)}
+            manifest.setdefault("collision", {}).setdefault("stage", {})[name] = bake_collision(
+                base, p, stage/f"room_{index:02d}.ttc")
     props = {"gear": mint_src/"MintGear.bam", "shelf": mint_src/"shelf_A1.bam",
              "laser": stage_src/"LB_wall_panel.bam", "camera": stage_src/"LB_torch_lampA.bam"}
     for name, p in props.items():

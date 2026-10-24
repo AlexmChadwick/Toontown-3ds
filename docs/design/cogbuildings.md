@@ -54,3 +54,14 @@ phase-11 Lawbot elevator, writing `sdmc-out/3ds/toontown3ds/data/cogbldg/`.
 The baker emits `shell_{c,l,m,s}.ttm`, `elevator.ttm`, `floor_0.ttm` through
 `floor_2.ttm`, and `manifest.json`; it fails if a file exceeds the 15,000-triangle
 or 150-batch envelope from `AGENTS.md:130-134`.
+
+## Playable interior path
+
+Each generated floor also has a TTC collision file. On `DistributedSuitInterior`
+creation the client acknowledges the avatar, places the toon at the elevator
+entrance, and swaps the player to the floor collision while preserving the normal
+follow camera. Floor state changes reload the room; the first server-provided suit
+is offered to the shared battle state machine, and elevator/reserve acknowledgements
+remain one-shot. The server owns the floor reward and street exit transition.
+
+Autotest labels are `cog_floor`, `cog_battle`, and `cog_exit`.
