@@ -506,9 +506,11 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
     moviePlaying_ = true;
 }
 
-void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value) {
+const char* const kBattleClipNames[kNumBattleClips] = {"throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose"};
+
+void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track) {
     if (numFx_ >= kMaxFx) return;
-    fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value)};
+    fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value), int8_t(track)};
 }
 
 // Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
@@ -538,7 +540,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
             else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
-        addFx(t, kFxAttack, who, target, 2200);
+        addFx(t, kFxAttack, who, target, 2200, a.track);
         const uint32_t hitAt = t + 1500;
         bool any = false;
         if (a.track == kTrackHeal) {
@@ -617,6 +619,7 @@ void Battle::runFx(uint32_t nowMs) {
         case kFxAttack: {
             a->attackStart = nowMs;
             a->attackEnd = nowMs + uint32_t(f.value);
+            a->attackTrack = f.track;
             if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
                 a->faceUntil = a->attackEnd + 300;
@@ -625,6 +628,7 @@ void Battle::runFx(uint32_t nowMs) {
         }
         case kFxHit:
             if (!a->isToon) a->damage += f.value;
+            if (a->isToon) a->reactUntil = nowMs + 1500, a->reactHit = true; // MovieSuitAttacks: cringe
             a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
             snprintf(text, sizeof(text), "-%d", int(f.value));
             addPopup(*a, text, kColorDamage, nowMs);
@@ -633,7 +637,10 @@ void Battle::runFx(uint32_t nowMs) {
             snprintf(text, sizeof(text), "+%d", int(f.value));
             addPopup(*a, text, kColorHeal, nowMs);
             break;
-        case kFxMiss: addPopup(*a, "Miss", kColorMiss, nowMs); break;
+        case kFxMiss:
+            addPopup(*a, "Miss", kColorMiss, nowMs);
+            if (a->isToon) a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
+            break;
         case kFxDie:
             a->dying = true;
             a->dieStart = nowMs;
@@ -883,8 +890,22 @@ void Battle::computePoses(uint32_t nowMs) {
         out->scale = scale;
         out->flash = flash;
         out->hidden = hidden;
-        if (isToon) out->anim = attacking ? kBattleAnimAttack : (a.moving ? kBattleAnimRun : kBattleAnimNeutral);
-        else out->anim = a.moving ? uint8_t(kSuitWalk) : uint8_t(kSuitNeutral);
+        if (isToon) {
+            // MovieThrow: pie-throw; MovieSquirt (flower): press-button; others: wave for now.
+            uint8_t anim = a.moving ? kBattleAnimRun : kBattleAnimNeutral;
+            if (attacking) {
+                anim = a.attackTrack == kTrackThrow    ? uint8_t(kBattleAnimClip0 + kClipThrow)
+                       : a.attackTrack == kTrackSquirt ? uint8_t(kBattleAnimClip0 + kClipPushButton)
+                                                       : kBattleAnimAttack;
+            } else if (a.reactUntil && int32_t(a.reactUntil - nowMs) > 0) {
+                anim = kBattleAnimClip0 + (a.reactHit ? kClipCringe : kClipSidestep);
+            } else if (phase_ == BattlePhase::Reward) {
+                anim = kBattleAnimClip0 + kClipVictory;
+            }
+            out->anim = anim;
+        } else {
+            out->anim = a.moving ? uint8_t(kSuitWalk) : uint8_t(kSuitNeutral);
+        }
     };
     numSuitPoses_ = numToonPoses_ = 0;
     for (Actor& a : suits_) {

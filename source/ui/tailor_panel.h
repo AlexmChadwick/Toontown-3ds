@@ -14,6 +14,11 @@ public:
     void shutdown();
     void setPreview(world::ToonCache* cache, world::ToonLook* look);
     bool active() const { return active_; }
+    // Puts the original clothes back and closes (sent on the next update). Also used by the
+    // autotest: the stock AI crashes if a client vanishes with a tailor session open.
+    void cancel() {
+        if (active_ && !pendingSend_) pendingSend_ = 2;
+    }
     void onMovie(const net::Client& client, uint32_t nowMs);
     void update(net::Client& client, uint32_t nowMs);
     u32 handleInput(u32 keysDown, const touchPosition& touch);

@@ -30,6 +30,7 @@ public:
     // A script started part-way ("from <label>") holds still until the game is in a zone.
     void setReady() { ready_ = true; }
     bool waiting() const { return active_ && !ready_; }
+    float stepTime() const { return t_; } // seconds into the current step
     // Non-null for one frame when the script wants a screenshot.
     const char* pendingShot() const { return pendingShot_; }
 

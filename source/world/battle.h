@@ -24,7 +24,11 @@ namespace tt::world {
 constexpr uint8_t kBattleAnimNeutral = 0;
 constexpr uint8_t kBattleAnimWalk = 1;
 constexpr uint8_t kBattleAnimRun = 2;
-constexpr uint8_t kBattleAnimAttack = 4; // the wave clip stands in for throw/squirt/cringe
+constexpr uint8_t kBattleAnimAttack = 4; // the wave clip: gags without their own clip yet
+// Battle clips (bake_toon.py ANIMS; loaded for the local toon by ToonClipSet, kBattleClipNames).
+constexpr uint8_t kBattleAnimClip0 = 10;
+enum BattleClip : uint8_t { kClipThrow = 0, kClipPushButton, kClipCringe, kClipSidestep, kClipVictory, kClipLose, kNumBattleClips };
+extern const char* const kBattleClipNames[kNumBattleClips];
 
 // ToontownBattleGlobals track ids and BattleBase special values.
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
@@ -177,6 +181,9 @@ private:
         // Cogs: damage shown by this battle's movies since the AI last sent setHP (upstream
         // lowers suit.currHP locally; the AI only resends it after the battle).
         int damage = 0;
+        int8_t attackTrack = -1;     // toons: gag of the current attack (picks the clip)
+        uint32_t reactUntil = 0;     // toons: cringe (hit) / sidestep (miss) until then
+        bool reactHit = false;
         int baseHp = -1;
         uint32_t faceUntil = 0;
         float faceH = 0;
@@ -188,6 +195,7 @@ private:
         uint32_t who;    // actor doId
         uint32_t other;  // target doId (attacks)
         int16_t value;   // damage / heal / attack length in ms
+        int8_t track;    // attacks: gag track (ToontownBattleGlobals), -1 for cogs
     };
 
     // geometry
@@ -202,7 +210,7 @@ private:
     void startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs);
     void buildMovie(const net::BattleMovie& m);
     void runFx(uint32_t nowMs);
-    void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value);
+    void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track = -1);
     void addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs = 1600,
                   float rise = 28.0f);
     void computePoses(uint32_t nowMs);

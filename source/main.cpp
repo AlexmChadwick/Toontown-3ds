@@ -342,6 +342,7 @@ int main() {
     fishing.init(&player, &net);
     // Street cog battles (world/battle.*, docs/design/combat.md); the panel is ui/battle_panel.*.
     static tt::world::Battle battle;
+    static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
     trolley.setZone(kStartZone);
@@ -549,6 +550,9 @@ int main() {
                 talk.chooseQuest(0);
             }
         }
+        if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
+            tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
+        }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
             // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
             static u32 tailorNextMs = 0;
@@ -731,11 +735,33 @@ int main() {
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
-        localToon.play(anim, animRate);
+        if (!battle.inBattle()) localToon.play(anim, animRate); // in battle the movie picks the clip
         if (minigame.inScene()) localToon.play(minigame.toonRunning() ? tt::world::kAnimRun : tt::world::kAnimNeutral, 1.0f);
         if (battle.inBattle()) { // the battle movie animates the toon
+            if (!battleClips.count && localLook.ready()) {
+                battleClips.load(localLook, tt::world::kBattleClipNames, tt::world::kNumBattleClips);
+            }
             tt::world::BattleActorPose lp;
-            if (battle.localPose(&lp)) localToon.play(static_cast<tt::world::ToonAnim>(lp.anim), 1.0f);
+            if (battle.localPose(&lp)) {
+                if (lp.anim >= tt::world::kBattleAnimClip0) {
+                    const int clip = lp.anim - tt::world::kBattleAnimClip0;
+                    localToon.playClip(&battleClips, clip, clip == tt::world::kClipVictory);
+                } else {
+                    localToon.play(static_cast<tt::world::ToonAnim>(lp.anim), 1.0f);
+                }
+            }
+        } else if (autotest.active() && !strncmp(autotest.label(), "clip: ", 6)) {
+            // Test-only: play one battle clip on the local toon ("clip: throw", ...).
+            if (!battleClips.count && localLook.ready()) {
+                battleClips.load(localLook, tt::world::kBattleClipNames, tt::world::kNumBattleClips);
+            }
+            for (int i = 0; i < tt::world::kNumBattleClips; i++) {
+                if (!strcmp(autotest.label() + 6, tt::world::kBattleClipNames[i])) localToon.playClip(&battleClips, i, true);
+            }
+        } else if (battleClips.count) {
+            localToon.play(tt::world::kAnimNeutral, 1.0f);
+            C3D_FrameSync(); // the last frame may still be drawing with them
+            battleClips.unload();
         }
         if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
             TT_LOG("player: anim %d at %.1f,%.1f,%.2f (ground %.2f)", int(anim), double(player.x()), double(player.y()),
