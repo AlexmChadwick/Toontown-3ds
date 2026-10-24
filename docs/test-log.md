@@ -460,3 +460,43 @@ need hardware.
   local + eight remotes, all emotes and sparse parts, fishing/trolley/minigames,
   teleport and battle clips. Precise new hand props, facial assets and teleport
   hole/clipping choreography remain separate asset work and are not claimed tested.
+
+## 2026-10-24 — merges (animrt, racing, golf, battlefx, shtiker) and the Sellbot factory as a real level
+
+Azahar, Old 3DS mode, muted, against the local stock server (`AI_DEV=1`). Builds at main
+`c7ecc22`…`HEAD` (this entry), zero warnings in `source/`.
+
+- **15 fps regression (animrt) fixed.** `ToonCache::pump()` called `C3D_FrameSync()` at the
+  loop top, a second vsync wait per frame next to `C3D_FrameBegin(SYNCDRAW)`: 15.0 fps with
+  29 ms in the "audio" lap. pump now runs right after FrameBegin (which already fenced the
+  previous GPU frame): 29.9 fps in TTC; 26–30 fps during emote/clip shots (the dips are the
+  ~100 ms shot dumps). Racing's own build held 29.9 fps.
+- **Emotes (animrt):** autotest `emote: 0 wave`, `6 dance`, `13 bow`, `12 belly flop`,
+  `9 applause` all play (dev AI grants the 25 emotes); screenshots show each pose.
+- **Battle FX (battlefx):** in a Silly Street fight (0.25 s shot series) the tart sits in
+  the toon's right hand (JNT `def_joint_right_hold` on the drawn torso) and lands on the
+  Cog's chest with the purple tart splat during the pie-small react. The Cog-death burst is
+  now upstream's `explosion.bam` (0.4, eye billboard, 0.6 s) instead of a screen-filling
+  kapow. Effects are small at the current fixed battle camera (MovieCamera port pending,
+  Antigravity task `battlecam`).
+- **Golf (golf):** Acorn Acres loads; the `golf: board` helper did not seat the toon in a
+  kart on the stock server (no golf log lines) — open; to re-test with the golf author's
+  checklist (`docs/design/golf.md`).
+- **Sellbot factory (`world/level.*`, bake_level.py):**
+  - Interior is SelbotLegFactory as 94 zone chunks (worst visible set 10,065 tris / 84
+    draws / 748 KB textures); entrance placement (20.7, 21.2, 3.7) matches
+    FactoryLevelMgr's first InterestingLocation (20, 21, 0).
+  - Visibility interest follows the zone underfoot (4–6 zones); the entrance door
+    (CogDoorHandShake, DistributedDoorEntity) opens on contact, blocks while closed, and its
+    VisibilityExtender shows the Lobby; the Lobby desk collision stops the toon as upstream.
+  - Lobby Cold Callers / Mover & Shaker / Name Dropper generate as DistributedFactorySuit,
+    walk their GoonPathData paths and are drawn as real Cogs. Touching one sent
+    `DistributedFactorySuit.requestBattle`; the level battle generated on its spec battle
+    cell (20.8, 157.4) with all three cell cogs joining (faceoff taunt "Hold it, Toon!").
+    With the dev gag pouch the toon won (Reward → Resume, stays in the factory); dead cogs
+    vanish (a stale nametag fixed afterwards: cogs in a battle are left to world/battle.*).
+  - The entrance-hall button (CogDoor_Button) is a floor the toon stands on; stepping on it
+    sends requestInteract and the AI's "playing" state sinks it and turns it green.
+  - 26.9–29.9 fps inside, heap 2.9–3.9 MB, linear free 17.9 MB.
+  - Not yet: stompers, lifts, barrels, goons, crates, gears/conveyor/paint mixers, the
+    foreman and the factory end; mint / DA office / country-club rooms on the same runtime.
