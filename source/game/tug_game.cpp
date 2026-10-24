@@ -37,8 +37,7 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     won_ = false;
     tracker_.reset();
 
-    // Client must report ready on side 0 (toons are side 0 in toon vs cog)
-    client.sendTugPlayerReady(0);
+    readySent_ = false; // reportPlayerReady waits for setGameStart (see update)
 
     snprintf(lines_[0], sizeof(lines_[0]), "Tug-of-War!");
     snprintf(lines_[1], sizeof(lines_[1]), "Alternate buttons as fast as you can!");
@@ -57,7 +56,14 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
     const net::Minigame* mg = client.minigame();
 
     if (state_ == State::WaitGo) {
-        if ((mg && (mg->tugGo || mg->started)) || (nowMs - startMs_) > 4000) {
+        // The AI's game FSM only enters waitClientsReady on setGameStart; a reportPlayerReady
+        // before that is lost and the contest never gets its sendGoSignal.
+        if (mg && mg->started && !readySent_) {
+            client.sendTugPlayerReady(0); // toons are side 0 in toon vs cog
+            readySent_ = true;
+            startMs_ = nowMs;
+        }
+        if ((mg && mg->tugGo) || (readySent_ && nowMs - startMs_ > 15000)) {
             state_ = State::Tugging;
             startMs_ = nowMs;
             lastUpdateMs_ = nowMs;

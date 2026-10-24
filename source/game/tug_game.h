@@ -30,6 +30,7 @@ private:
     State state_ = State::WaitGo;
     bool done_ = false;
     bool autoPlay_ = false;
+    bool readySent_ = false;
     uint32_t startMs_ = 0;
     uint32_t lastUpdateMs_ = 0;
 
