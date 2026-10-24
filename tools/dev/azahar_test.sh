@@ -26,7 +26,8 @@ trap restore EXIT
 
 sed -i '' -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=true/is_new_3ds\\default=false/' \
     -e 's/^resolution_factor=[0-9]*/resolution_factor=1/' -e 's/^layout_option=[0-9]*/layout_option=0/' \
-    -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' "$CFG"
+    -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' \
+    -e 's/^volume=.*/volume=0/' "$CFG" # muted (the user's volume comes back with the config restore)
 
 rm -f "$SD/log.txt" "$SD"/shot_*.bin
 if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" > "$SD/autotest"; else touch "$SD/autotest"; fi

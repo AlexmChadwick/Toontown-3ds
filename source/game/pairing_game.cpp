@@ -58,6 +58,7 @@ void PairingGame::update(net::Client& client, const circlePosition& pad, u32 kDo
     if (timeRemaining_ <= 0.0f) {
         timeRemaining_ = 0.0f;
         done_ = true;
+        client.sendPairingDone(); // DistributedPairingGame.timerExpired: reportDone
     }
 
     // Lazy deck generation once seed arrives
@@ -129,7 +130,19 @@ void PairingGame::update(net::Client& client, const circlePosition& pad, u32 kDo
         if (cursor_ >= 0 && cursor_ < totalCards_ && cardStatus_[cursor_] == FaceDown) {
             cardStatus_[cursor_] = FaceUp;
             flips_++;
-            client.sendPairingOpenCard((int16_t)cursor_, -1);
+            // DistributedPairingGame.moveBonusGlowTask: the glow walks calcBonusTraversal's order
+            // (8 x 5 grid, column pairs) every 0.5 s. The AI rejects an index outside the deck,
+            // and its rejection path (logSuspicious) crashes the stock AI, so always send one.
+            int traversal[pairing::kSoloDeckCards];
+            int n = 0;
+            for (int i = 0; i < 4; ++i)
+                for (int j = 0; j < 2; ++j)
+                    for (int row = 0; row < 5; ++row) {
+                        const int card = row * 8 + i + j * 4;
+                        if (card < totalCards_ && n < pairing::kSoloDeckCards) traversal[n++] = card;
+                    }
+            const int glowIndex = n ? static_cast<int>((nowMs - startMs_) / 500u) % n : 0;
+            client.sendPairingOpenCard((int16_t)cursor_, (int16_t)(n ? traversal[glowIndex] : 0));
 
             // Local match resolution for responsive gameplay
             if (openCard1_ < 0) {
