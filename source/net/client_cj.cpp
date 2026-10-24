@@ -114,7 +114,10 @@ bool Client::sendCjCannon(uint32_t cannonId, CjCannonAction action, float rotati
     }
     if (!finish(writer)) return false;
     if (action == CjCannonAction::Fire) cannon->pendingFire = true;
-    if (action == CjCannonAction::Landed) cannon->inFlight = false;
+    if (action == CjCannonAction::Landed) {
+        cannon->inFlight = false;
+        cannon->pendingFire = true; // Wait for the next server LOAD/ammunition acknowledgement.
+    }
     return true;
 }
 

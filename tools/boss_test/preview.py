@@ -10,7 +10,7 @@ import numpy as np
 import preview_ttm
 from panda3d.core import BamCache, GeomVertexWriter, Mat4, loadPrcFileData
 BamCache.getGlobalPtr().setActive(False)
-loadPrcFileData('', 'model-cache-dir\n')
+loadPrcFileData('', 'model-cache-dir\nwindow-type offscreen\n')
 from direct.showbase.ShowBase import ShowBase
 OUT = ROOT / 'sdmc-out/3ds/toontown3ds/data/boss'
 base = ShowBase()
@@ -43,7 +43,7 @@ def part(name, parent, clip, frame):
         return child
     return node
 
-prefix = 'cfo' if '--cfo' in sys.argv else 'vp'
+prefix = 'cj' if '--cj' in sys.argv else 'cfo' if '--cfo' in sys.argv else 'vp'
 legs = part(prefix + '_legs', base.render, 'Ff_speech', 8)
 torso = part(prefix + '_torso', legs, 'Ff_speech', 8)
 part(prefix + '_head', torso, 'Ff_speech', 8)
@@ -52,7 +52,7 @@ base.camera.setPos(38, -65, 28)
 base.camera.lookAt(0, 0, 13)
 base.graphicsEngine.renderFrame()
 base.graphicsEngine.renderFrame()
-base.win.saveScreenshot(str(ROOT / f'sdmc-out/bosses3/{prefix}_preview.png'))
+base.win.saveScreenshot(str(ROOT / f'sdmc-out/bosses4/{prefix}_preview.png'))
 if prefix == 'cfo':
     for child in list(base.render.getChildren()):
         if child != base.camera:
@@ -63,5 +63,31 @@ if prefix == 'cfo':
     base.camera.lookAt(120, -315, 8)
     base.graphicsEngine.renderFrame()
     base.graphicsEngine.renderFrame()
-    base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses3/cfo_arena_preview.png'))
-print(f'decoded {prefix} preview: sdmc-out/bosses3/{prefix}_preview.png')
+    base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses4/cfo_arena_preview.png'))
+print(f'decoded {prefix} preview: sdmc-out/bosses4/{prefix}_preview.png')
+
+if prefix == 'cj':
+    import json
+    for child in list(base.render.getChildren()):
+        if child != base.camera:
+            child.removeNode()
+    for name in ('arena', 'jury_box'):
+        preview_ttm.load(str(OUT / f'cj_{name}.ttm'), {}).reparentTo(base.render)
+    metadata = json.loads((OUT / 'cj_manifest.json').read_text())
+    root = base.render.attachNewNode('scale')
+    root.setPos(-3, 12, 0)
+    root.setH(90)
+    root.setScale(1.75, 1.75, 1.5)
+    preview_ttm.load(str(OUT / 'cj_scale_stand.ttm'), {}).reparentTo(root)
+    beam = root.attachNewNode('beam')
+    beam.setPos(*metadata['scene_vectors'][1])
+    preview_ttm.load(str(OUT / 'cj_scale_beam.ttm'), {}).reparentTo(beam)
+    for index, name in enumerate(('defense', 'prosecution')):
+        pan = beam.attachNewNode(name)
+        pan.setPos(*metadata['scene_vectors'][index + 2])
+        preview_ttm.load(str(OUT / f'cj_scale_{name}.ttm'), {}).reparentTo(pan)
+    base.camera.setPos(-60, -85, 28)
+    base.camera.lookAt(0, 20, 10)
+    for _ in range(2):
+        base.graphicsEngine.renderFrame()
+    base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses4/cj_arena_preview.png'))

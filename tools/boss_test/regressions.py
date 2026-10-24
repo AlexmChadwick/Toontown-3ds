@@ -7,7 +7,7 @@ import subprocess
 import sys
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / 'sdmc-out/bosses3/regressions'
+OUT = ROOT / 'sdmc-out/bosses4/regressions'
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / 'tmp').mkdir(exist_ok=True)
 wrapper = OUT / 'python'

@@ -45,6 +45,7 @@ static void testCj(Client& client, RecordingTransport& transport) {
     assert(!client.sendCjChair(600, 11));
     assert(client.sendCjCannon(600, Client::CjCannonAction::Landed));
     assert(!client.sendCjCannon(600, Client::CjCannonAction::Landed));
+    assert(!client.sendCjCannon(600, Client::CjCannonAction::Fire));
     std::strcpy(client.boss_.phase, "BattleThree");
     assert(!client.sendCjCannon(600, Client::CjCannonAction::Fire));
     assert(client.sendCjEvidence(Client::CjEvidence::Witness));
@@ -56,6 +57,53 @@ static void testCj(Client& client, RecordingTransport& transport) {
     assert(!client.sendCjZap(0, 0, 0, 90, 20));
     client.bossLeaving(600);
     assert(!client.findCjChild(600));
+    uint8_t summons[34] = {32, 0, 1, 2, 4, 7};
+    DatagramReader inventory(summons, sizeof(summons));
+    assert(client.bossOwnField(inventory, dc::DistributedToon::k_setCogSummonsEarned));
+    assert(inventory.ok() && client.bossSummonsCount() == 6);
+    for (unsigned length = 0; length < sizeof(summons); ++length) {
+        DatagramReader truncated(summons, length);
+        assert(client.bossOwnField(truncated, dc::DistributedToon::k_setCogSummonsEarned));
+        assert(!truncated.ok() && client.bossSummonsCount() == 6);
+    }
+    Battle battle{};
+    battle.bossId = 100;
+    battle.bossRound = 1;
+    client.positionBossBattle(battle);
+    assert(std::fabs(battle.x + 2.798f) < .001f && battle.y == -85 && battle.sy == -84);
+    battle.bossRound = 2;
+    battle.bossSide = 1;
+    client.positionBossBattle(battle);
+    assert(battle.y == 114 && battle.sy == 113 && std::fabs(battle.z - 19.145f) < .001f);
+    FILE* vectors = std::fopen("sdmc-out/boss-test/cj_enters.bin", "rb");
+    assert(vectors);
+    uint32_t objectId = 0;
+    int count = 0;
+    while (std::fread(&objectId, 4, 1, vectors) == 1) {
+        uint16_t classId = 0;
+        uint32_t size = 0;
+        uint8_t payload[1024];
+        assert(std::fread(&classId, 2, 1, vectors) == 1);
+        assert(std::fread(&size, 4, 1, vectors) == 1 && size <= sizeof(payload));
+        assert(std::fread(payload, 1, size, vectors) == size);
+        const dc::ClassDesc* cls = findClass(classId);
+        assert(cls);
+        DatagramReader enter(payload, size);
+        assert(client.handleBossEnter(objectId, classId, enter, requiredOther(*cls), cls->otherCount, true));
+        assert(enter.ok() && !enter.remaining());
+        assert(client.findCjChild(objectId));
+        const CjChild before = *client.findCjChild(objectId);
+        for (uint32_t length = 0; length < size; ++length) {
+            DatagramReader bad(payload, length);
+            assert(client.handleBossEnter(objectId, classId, bad, requiredOther(*cls), cls->otherCount, true));
+            assert(std::memcmp(client.findCjChild(objectId), &before, sizeof(before)) == 0);
+        }
+        client.bossLeaving(objectId);
+        assert(!client.findCjChild(objectId));
+        ++count;
+    }
+    std::fclose(vectors);
+    assert(count == 4);
     client.boss_.kind = BossKind::Sellbot;
     std::puts("CJ real Client: control/phase guards, cannon wire/flight, chair ownership, evidence and zap: PASS");
 }

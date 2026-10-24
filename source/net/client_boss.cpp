@@ -74,8 +74,22 @@ bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fie
 bool Client::bossOwnField(DatagramReader& reader, uint16_t fieldId) {
     if (fieldId == dc::DistributedToon::k_setNumPies) bossPies_ = reader.u16();
     else if (fieldId == dc::DistributedToon::k_setPieType) bossPieType_ = reader.u8();
+    else if (fieldId == dc::DistributedToon::k_setCogSummonsEarned) {
+        const Bytes values = reader.blob();
+        if (values.len != sizeof(bossSummons_)) reader.fail();
+        if (reader.ok()) std::memcpy(bossSummons_, values.data, sizeof(bossSummons_));
+    }
     else return false;
     return true;
+}
+
+unsigned Client::bossSummonsCount() const {
+    unsigned count = 0;
+    for (uint8_t value : bossSummons_) {
+        // DistributedToonAI.addCogSummonsEarned: single=1, building=2, invasion=4.
+        for (unsigned bit = 0; bit < 3; ++bit) count += (value >> bit) & 1;
+    }
+    return count;
 }
 
 bool Client::bossParticipant() const {
@@ -156,6 +170,16 @@ void Client::positionBossBattle(Battle& battle) {
         battle.sx = battle.x + (battle.bossSide ? 1 : -1);
         battle.sy = battle.y;
         battle.sz = 0;
+        return;
+    }
+    if (boss_.kind == BossKind::Lawbot) {
+        // BossCogBattle[AB]PosHpr under LawbotBossBattleOne/TwoPosHpr (H=0).
+        battle.x = -2.798f;
+        battle.y = (battle.bossRound == 1 ? -60.0f : 89.0f) + (battle.bossSide ? 25.0f : -25.0f);
+        battle.z = battle.bossRound == 1 ? 0 : 19.145f;
+        battle.sx = battle.x;
+        battle.sy = battle.y + (battle.bossSide ? -1 : 1);
+        battle.sz = battle.z;
         return;
     }
     if (boss_.kind != BossKind::Sellbot) return;

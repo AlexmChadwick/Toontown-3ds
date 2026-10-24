@@ -1758,6 +1758,7 @@ private:
 public:
     const BossState* boss() const { return boss_.active ? &boss_ : nullptr; }
     uint16_t bossPies() const { return bossPies_; }
+    unsigned bossSummonsCount() const;
     uint8_t bossPieType() const { return bossPieType_; }
     const CjChild& cjChildSlot(int index) const { return cjChildren_[index]; }
     const CjChild* findCjChild(uint32_t doId) const;
@@ -1816,6 +1817,7 @@ private:
     BossState boss_;
     uint16_t bossPies_ = 0;
     uint8_t bossPieType_ = 0;
+    uint8_t bossSummons_[32] = {}; // Owner inventory, updated only by the AI.
     // ===================== end boss protocol =====================
 
 };

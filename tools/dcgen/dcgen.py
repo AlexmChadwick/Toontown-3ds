@@ -403,7 +403,7 @@ for _name, _fields in _BOSS_FIELDS.items():
     WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))
     if _name not in TABLE_CLASSES:
         TABLE_CLASSES.append(_name)
-WANTED['DistributedToon'] += ['setPieType', 'setNumPies']
+WANTED['DistributedToon'] += ['setPieType', 'setNumPies', 'setCogSummonsEarned']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

@@ -100,3 +100,26 @@ for offset, name in enumerate(('DistributedCashbotBossCrane', 'DistributedCashbo
     enters.append(struct.pack('<IHI', 400 + offset, cls.getNumber(), len(payload)) + payload)
 (out / 'cfo_enters.bin').write_bytes(b''.join(enters))
 print(f'{len(records)} independent Panda boss field vectors')
+# Independent required+RAM child enters, including embedded-NUL suit DNA.
+cj_enters = []
+for offset, name in enumerate(('DistributedLawbotCannon', 'DistributedLawbotChair',
+                               'DistributedLawbotBossGavel', 'DistributedLawbotBossSuit')):
+    cls = dc.getClassByName(name)
+    required = []
+    optional = []
+    for index in range(cls.getNumInheritedFields()):
+        field = cls.getInheritedField(index)
+        if field.asMolecularField() is not None or not (field.isRequired() or field.isRam()):
+            continue
+        value = bytes(field.getDefaultValue())
+        samples = {'setBossCogId': '(100)', 'setIndex': '(3)', 'setState': '(78)',
+                   'setPosHpr': '(-80,10,0,-90,0,0)'}
+        if field.getName() in samples:
+            value = bytes(field.parseString(samples[field.getName()]))
+        if field.isRequired():
+            required.append(value)
+        else:
+            optional.append(struct.pack('<H', field.getNumber()) + value)
+    payload = b''.join(required) + struct.pack('<H', len(optional)) + b''.join(optional)
+    cj_enters.append(struct.pack('<IHI', 700 + offset, cls.getNumber(), len(payload)) + payload)
+(out / 'cj_enters.bin').write_bytes(b''.join(cj_enters))
