@@ -354,3 +354,29 @@ All of these were checked to exist under `ref/resources/`.
 | District picker | 1 |
 | SpeedChat whispers send/receive + history | 1.5 |
 | Friends list | 0 (server does not support it; reserve the UI slot only) |
+
+## Minimap
+
+M2.5. The Map tab draws a baked top-down picture of the current exterior zone under the
+existing markers, our arrow and the teleport row. No picture means the old marker-only view.
+
+- **Bake:** `.venv/bin/python -I tools/pipeline/bake_minimap.py [ZONE ...]` reads each
+  `sdmc-out/3ds/toontown3ds/data/zones/<zone>.tz`, decodes the far-LOD chunk TTMs (near
+  if a chunk has none, via `street_preview.load_model`), renders them orthographically
+  from above with Panda's software offscreen buffer (4x supersampled, +X right, +Y up),
+  box-filters, and encodes one ETC1 level. Options: `--zones-dir`, `--out-dir`,
+  `--preview-dir` (PNGs, default `sdmc-out/previews/minimap/`). Output is deterministic and
+  independent of zone order; ETC1 uses at most 4 threads. All 25 zones take about 75 s.
+- **Image size:** per aspect ratio of the floor bounds plus 8 units margin: 256x256,
+  256x128 / 128x256 (>= 1.5:1), 256x64 / 64x256 (>= 3:1). Pixels are square.
+- **`.tmap` v1** (little endian, `<zone>.tmap` beside `<zone>.tz`): `"TMAP"`, u16 version
+  = 1, u16 flags; u16 width, height; u8 gpuFormat (0xC ETC1), u8 mips = 1, u16 pad;
+  f32 minX, minY, maxX, maxY (the world rectangle the image covers exactly); u32
+  dataOffset (128), u32 dataSize; zero padding to 128; then PICA-tiled ETC1 data.
+  World to image: `u = (x - minX) / (maxX - minX)`, `v = (maxY - y) / (maxY - minY)`.
+- **Install:** copy to `sdmc:/3ds/toontown3ds/data/zones/` with the `.tz` files (25 files,
+  16-33 KB each, about 0.6 MB). Street cells use their branch's file (2101 -> 2100);
+  interiors have none.
+- **Runtime:** `Ui::setMapZone(fileZone)` (called from `main.cpp` every frame, a no-op while
+  the id is unchanged) loads the texture with `render::loadTexture` into a `C3D_Tex`
+  (about 32 KB linear) and `drawMap` places markers with the `.tmap` rectangle.

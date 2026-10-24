@@ -4,8 +4,10 @@
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 
 #include "core/log.h"
+#include "core/memory.h"
 
 namespace tt::ui {
 
@@ -71,6 +73,7 @@ bool Ui::init() {
 }
 
 void Ui::shutdown() {
+    unloadMap();
     chat_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
@@ -183,17 +186,96 @@ void Ui::drawTabs(const State& s) {
     }
 }
 
+void Ui::unloadMap() {
+    if (hasMap_) {
+        mem::LinearGuard g;
+        C3D_TexDelete(&mapTex_);
+    }
+    mapTex_ = C3D_Tex{};
+    mapImage_ = C2D_Image{};
+    hasMap_ = false;
+}
+
+// .tmap v1, see tools/pipeline/bake_minimap.py.
+void Ui::setMapZone(unsigned fileZone) {
+    if (fileZone == mapZone_) return;
+    mapZone_ = fileZone;
+    unloadMap();
+    if (!fileZone) return;
+    char path[80];
+    snprintf(path, sizeof path, "sdmc:/3ds/toontown3ds/data/zones/%u.tmap", fileZone);
+    FILE* f = fopen(path, "rb");
+    if (!f) return;
+    unsigned char h[48];
+    bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h, "TMAP", 4) == 0;
+    u16 version = 0, w = 0, ht = 0;
+    float rect[4] = {};
+    u32 dataOffset = 0, dataSize = 0;
+    if (ok) {
+        memcpy(&version, h + 4, 2);
+        memcpy(&w, h + 8, 2);
+        memcpy(&ht, h + 10, 2);
+        memcpy(rect, h + 16, sizeof rect);
+        memcpy(&dataOffset, h + 32, 4);
+        memcpy(&dataSize, h + 36, 4);
+        ok = version == 1 && h[12] == GPU_ETC1 && w >= 8 && ht >= 8 && w <= 256 && ht <= 256 &&
+             rect[2] > rect[0] && rect[3] > rect[1];
+    }
+    if (ok) {
+        render::TexEntry e{};
+        e.width = w;
+        e.height = ht;
+        e.format = GPU_ETC1;
+        e.mipLevels = 1;
+        e.wrapS = e.wrapT = GPU_CLAMP_TO_EDGE;
+        e.dataOffset = dataOffset;
+        e.dataSize = dataSize;
+        snprintf(e.name, sizeof e.name, "minimap %u", fileZone);
+        ok = render::loadTexture(f, e, &mapTex_);
+    }
+    fclose(f);
+    if (!ok) {
+        TT_LOG("map: bad or unreadable %s", path);
+        mapTex_ = C3D_Tex{};
+        return;
+    }
+    mapSub_.width = w;
+    mapSub_.height = ht;
+    mapSub_.left = 0.0f;
+    mapSub_.top = 1.0f;
+    mapSub_.right = 1.0f;
+    mapSub_.bottom = 0.0f;
+    mapImage_.tex = &mapTex_;
+    mapImage_.subtex = &mapSub_;
+    mapW_ = w;
+    mapH_ = ht;
+    mapMinX_ = rect[0];
+    mapMinY_ = rect[1];
+    mapMaxX_ = rect[2];
+    mapMaxY_ = rect[3];
+    hasMap_ = true;
+    TT_LOG("map: %s %ux%u", path, w, ht);
+}
+
 void Ui::drawMap(const Context& c) {
-    // Fit zone bounds into the content area, preserving aspect. Map +Y is up.
-    const float areaX = 8, areaY = 8, areaW = kW - 16, areaH = kHoodRowY - 14;
-    const float zw = c.zoneMaxX - c.zoneMinX, zh = c.zoneMaxY - c.zoneMinY;
-    const float scale = fminf(areaW / zw, areaH / zh);
+    // Fit the map (baked image rectangle, else zone bounds) into the content area,
+    // preserving aspect. Map +Y is up.
+    const float areaX = 4, areaY = 4, areaW = kW - 8, areaH = kHoodRowY - 8;
+    const float minX = hasMap_ ? mapMinX_ : c.zoneMinX, maxX = hasMap_ ? mapMaxX_ : c.zoneMaxX;
+    const float minY = hasMap_ ? mapMinY_ : c.zoneMinY, maxY = hasMap_ ? mapMaxY_ : c.zoneMaxY;
+    const float zw = maxX - minX, zh = maxY - minY;
+    const float scale = hasMap_ ? fminf(areaW / mapW_, areaH / mapH_) * mapW_ / zw
+                                : fminf(areaW / zw, areaH / zh);
     const float ox = areaX + (areaW - zw * scale) * 0.5f;
     const float oy = areaY + (areaH - zh * scale) * 0.5f;
-    auto mx = [&](float x) { return ox + (x - c.zoneMinX) * scale; };
-    auto my = [&](float y) { return oy + (c.zoneMaxY - y) * scale; };
+    auto mx = [&](float x) { return ox + (x - minX) * scale; };
+    auto my = [&](float y) { return oy + (maxY - y) * scale; };
 
-    C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
+    if (hasMap_) {
+        C2D_DrawImageAt(mapImage_, ox, oy, 0.45f, nullptr, zw * scale / mapW_, zh * scale / mapH_);
+    } else {
+        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
+    }
     // Squares, not C2D_DrawCircleSolid: citro2d circles use the procedural-texture
     // unit and did not render after the 3D pass in Azahar (unverified on hardware).
     for (int i = 0; i < c.numMarkers; i++) {
