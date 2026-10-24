@@ -57,6 +57,23 @@ def render_preview(ttm_path, png, view):
     base.win.saveScreenshot(png)
 
 
+# Named anchor nodes the runtime needs: NPC origins (DistributedNPCToonBase parents the NPC
+# to render.find('**/npc_origin_<posIndex>')), tunnels (linktunnel_<hood>_<zone>) and
+# fishing spots. Text format, one per line: "<name> <x> <y> <z> <h>" in zone space.
+POINT_PATTERNS = ['**/npc_*origin_*', '**/party_person_*', '**/linktunnel_*', '**/fishing_spot*']
+
+
+def write_points(root, path):
+    lines = []
+    for pattern in POINT_PATTERNS:
+        for np_ in root.findAllMatches(pattern):
+            p, h = np_.getPos(root), np_.getH(root)
+            lines.append(f'{np_.getName()} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+    with open(path, 'w') as f:
+        f.write('\n'.join(lines) + '\n')
+    return len(lines)
+
+
 def main():
     if len(sys.argv) == 5 and sys.argv[1] == '--render-preview':
         render_preview(sys.argv[2], sys.argv[3], sys.argv[4])
@@ -98,6 +115,7 @@ def main():
     ex.add(root)
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     stats = ttm.write(args.out, ex.textures, ex.batches())
+    stats['points'] = write_points(root, os.path.splitext(args.out)[0] + '.pts')
     stats['collision_nodes'] = root.findAllMatches('**/+CollisionNode').getNumPaths()
     stats['visgroups'] = [np_.getTag(assemble.VISGROUP_TAG)
                           for np_ in root.findAllMatches('**/=' + assemble.VISGROUP_TAG)]

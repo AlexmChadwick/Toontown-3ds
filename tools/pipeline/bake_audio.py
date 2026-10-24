@@ -45,6 +45,8 @@ ASSETS = [
     ('footstep_walk', 'phase_3.5/audio/sfx/AV_footstep_walkloop.ogg', 'sfx', True),
     ('footstep_run', 'phase_3.5/audio/sfx/AV_footstep_runloop.ogg', 'sfx', True),
     ('gui_click', 'phase_3/audio/sfx/GUI_create_toon_fwd.ogg', 'sfx', False),
+    # DistributedTTTreasure.grabSoundPath (toontown/safezone/DistributedTTTreasure.py).
+    ('treasure_grab', 'phase_4/audio/sfx/SZ_DD_treasure.ogg', 'sfx', False),
     ('gui_rollover', 'phase_3/audio/sfx/GUI_rollover.ogg', 'sfx', False),
     ('gui_back', 'phase_3/audio/sfx/GUI_create_toon_back.ogg', 'sfx', False),
     ('gui_popup', 'phase_3/audio/sfx/GUI_balloon_popup.ogg', 'sfx', False),

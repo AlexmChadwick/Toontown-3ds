@@ -21,6 +21,7 @@
 #include "render/renderer.h"
 #include "render/ui.h"
 #include "ui/balloons.h"
+#include "ui/hud.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
 #include "world/player.h"
@@ -28,6 +29,7 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "world/zone_actors.h"
 
 namespace {
 
@@ -118,6 +120,14 @@ int main() {
     localToon.setLook(&localLook, &toonCache.fallback());
     static tt::world::RemoteToons remoteToons;
     remoteToons.init(&toonCache);
+    // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
+    static tt::world::ZoneActors zoneActors;
+    zoneActors.init(&toonCache, "romfs:/baked/ttc_sz.pts", "romfs:/baked/icecream.ttm");
+    const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
+    u32 grabRequested = 0;
+    u32 grabRequestMs = 0;
+    tt::ui::Hud hud;
+    hud.init();
 
     // Multiplayer: Open Toontown server from sdmc:/3ds/toontown3ds/server.txt.
     const tt::config::Settings settings = tt::config::load();
@@ -309,7 +319,14 @@ int main() {
             const u32 nowMs = tt::net::plat::nowMs();
             net.update(nowMs);
             tt::net::Event ev;
-            while (net.pollEvent(ev)) remoteToons.handleEvent(ev, net);
+            while (net.pollEvent(ev)) {
+                remoteToons.handleEvent(ev, net);
+                zoneActors.handleEvent(ev, net);
+                if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
+                    tt::audio::playSfx(sfxTreasure);
+                    grabRequested = 0;
+                }
+            }
             if (net.inZone() && !localLookFromServer) {
                 tt::world::ToonDna dna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
@@ -339,12 +356,21 @@ int main() {
                     sentState = netState;
                 }
                 if (pendingSpeech >= 0) net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
+                // Walking into a treasure asks the AI for it (DistributedTreasure.handleEnterSphere);
+                // re-ask at most every 2 s if the answer got lost.
+                const u32 touching = zoneActors.touchingTreasure(player.x(), player.y(), player.z());
+                if (touching && (touching != grabRequested || nowMs - grabRequestMs > 2000)) {
+                    net.sendRequestGrab(touching);
+                    grabRequested = touching;
+                    grabRequestMs = nowMs;
+                }
             } else {
                 sentState = nullptr; // resend after (re)entering
             }
         }
         pendingSpeech = -1;
         remoteToons.update(dt);
+        zoneActors.update(dt);
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
 
@@ -382,6 +408,7 @@ int main() {
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
             remoteToons.draw(renderer, player.x(), player.y());
+            zoneActors.draw(renderer, player.cameraEye());
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
             const float fx = -sinf(h), fy = cosf(h); // forward
@@ -414,8 +441,20 @@ int main() {
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
             remoteToons.addBalloons(balloons, proj, view);
+            zoneActors.addBalloons(balloons, proj, view);
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
+            tt::ui::HudValues hv;
+            hv.online = netStarted && net.inZone();
+            if (hv.online) {
+                const tt::net::OwnStats& st = net.ownStats();
+                hv.hp = st.hp;
+                hv.maxHp = st.maxHp;
+                hv.money = st.money;
+                hv.maxMoney = st.maxMoney;
+                for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
+            }
+            hud.draw(renderer.topLeft(), hv);
         }
         const struct mallinfo mi = mallinfo();
         tt::ui::Context ctx{};
@@ -457,6 +496,8 @@ int main() {
     }
 
     frontEnd.shutdown();
+    hud.shutdown();
+    zoneActors.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
     remoteToons.clear();

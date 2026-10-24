@@ -77,6 +77,11 @@ enum class EventType : uint8_t {
     Chat,         // RemoteToon::chat updated
     EnteredZone,  // we are in the playground and may send movement
     LeftZone,     // connection lost or ejected; all remote toons were despawned
+    NpcSpawn,     // an NPC toon generated (npcs(); doId)
+    NpcDespawn,
+    TreasureSpawn, // a treasure generated (treasures(); doId)
+    TreasureGone,  // grabbed or deleted
+    Stats,         // our laff/jellybeans changed (ownStats())
 };
 
 struct Event {
@@ -89,6 +94,34 @@ enum class State : uint8_t {
     EnterZone, InZone, Backoff, Failed,
 };
 const char* stateName(State s);
+
+// NPC toons (DistributedNPCToonBase family: shopkeepers, Fisherman, Party Planners...).
+// Upstream parents them to the zone node npc_origin_<posIndex> (Fisherman:
+// npc_fisherman_origin_<posIndex>; Party Planner: party_person_left/right by parity).
+struct NpcToon {
+    uint32_t doId;
+    uint16_t classId;
+    char name[kNameLen];
+    uint8_t dna[kDnaSize];
+    bool hasDna;
+    uint8_t posIndex;
+    bool active;
+};
+constexpr int kMaxNpcs = 16;
+
+// Treasures (DistributedTreasure family): walk into one to grab it (+laff).
+struct Treasure {
+    uint32_t doId;
+    float x, y, z;
+    bool active;
+};
+constexpr int kMaxTreasures = 16;
+
+// Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
+struct OwnStats {
+    int16_t hp = 15, maxHp = 15;
+    int16_t money = 0, maxMoney = 40, bankMoney = 0;
+};
 
 struct ClientConfig {
     const char* host = "127.0.0.1";
@@ -187,6 +220,13 @@ public:
     bool sendAnimState(const char* name, float rate);
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
+    // DistributedTreasure.requestGrab (clsend): the AI answers with setGrab(avId) or setReject.
+    bool sendRequestGrab(uint32_t treasureDoId);
+
+    const NpcToon& npcSlot(int i) const { return npcs_[i]; }
+    const NpcToon* findNpc(uint32_t doId) const;
+    const Treasure& treasureSlot(int i) const { return treasures_[i]; }
+    const OwnStats& ownStats() const { return ownStats_; }
 
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
@@ -269,6 +309,14 @@ private:
     bool ownerReceived_ = false;
     uint32_t shardId_ = 0;
     char ownName_[kNameLen] = {};
+    OwnStats ownStats_{};
+    NpcToon npcs_[kMaxNpcs] = {};
+    Treasure treasures_[kMaxTreasures] = {};
+    bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
+                        const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
+    bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
+    bool applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId);
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
     uint32_t tutorialManagerId_ = 0;

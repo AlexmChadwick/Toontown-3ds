@@ -54,6 +54,17 @@ TT_SIG(DistributedToon, setName, "string");
 TT_SIG(DistributedToon, setDNAString, "blob");
 TT_SIG(DistributedToon, setAnimState, "string,i16/1000,i16");
 TT_SIG(DistributedToon, setTalk, "u32,u32,string,string,{u16,u16}[],u8");
+TT_SIG(DistributedToon, setHp, "i16");
+TT_SIG(DistributedToon, setMaxHp, "i16");
+TT_SIG(DistributedToon, setMoney, "i16");
+TT_SIG(DistributedToon, setMaxMoney, "i16");
+TT_SIG(DistributedToon, setBankMoney, "i16");
+TT_SIG(DistributedNPCToonBase, setName, "string");
+TT_SIG(DistributedNPCToonBase, setDNAString, "blob");
+TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
+TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
+TT_SIG(DistributedTreasure, requestGrab, "");
+TT_SIG(DistributedTreasure, setGrab, "u32");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -324,6 +335,14 @@ void Client::resetWorld() {
         t.active = false;
     }
     numToons_ = 0;
+    for (NpcToon& n : npcs_) {
+        if (n.active) pushEvent(EventType::NpcDespawn, n.doId);
+        n.active = false;
+    }
+    for (Treasure& t : treasures_) {
+        if (t.active) pushEvent(EventType::TreasureGone, t.doId);
+        t.active = false;
+    }
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
@@ -593,6 +612,15 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         maybeSkipTutorial();
         return;
     }
+    // Families are recognized by their base class's fields (every subclass inherits them).
+    if (classHasField(*cls, dc::DistributedNPCToonBase::k_setPositionIndex)) {
+        handleNpcEnter(*cls, doId, classId, r, req, reqCount, other);
+        return;
+    }
+    if (classHasField(*cls, dc::DistributedTreasure::k_requestGrab)) {
+        handleTreasureEnter(doId, r, req, reqCount, other);
+        return;
+    }
 }
 
 void Client::maybeSkipTutorial() {
@@ -608,6 +636,18 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
         return;
+    }
+    for (Treasure& t : treasures_) {
+        if (t.active && t.doId == doId) {
+            if (fieldId == dc::DistributedTreasure::k_setGrab) {
+                const uint32_t who = r.u32();
+                if (!r.ok()) return;
+                t.active = false;
+                if (who == avatarId_) TT_LOG("net: grabbed treasure %u", unsigned(doId));
+                pushEvent(EventType::TreasureGone, doId);
+            }
+            return;
+        }
     }
     if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
         if (fieldId == dc::TutorialManager::k_skipTutorialResponse) {
@@ -661,6 +701,18 @@ void Client::handleLeaving(uint32_t doId) {
     }
     if (doId == timeManagerId_) timeManagerId_ = 0;
     if (doId == tutorialManagerId_) tutorialManagerId_ = 0;
+    for (NpcToon& n : npcs_) {
+        if (n.active && n.doId == doId) {
+            n.active = false;
+            pushEvent(EventType::NpcDespawn, doId);
+        }
+    }
+    for (Treasure& t : treasures_) {
+        if (t.active && t.doId == doId) {
+            t.active = false;
+            pushEvent(EventType::TreasureGone, doId);
+        }
+    }
 }
 
 void Client::handleInterestDone(uint32_t context, uint16_t handle) {
@@ -859,10 +911,118 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
         Bytes b = r.blob();
         if (r.ok()) memcpy(ownDna_, b.data, b.len < kDnaSize ? b.len : kDnaSize);
+    } else if (fieldId == dc::DistributedToon::k_setHp || fieldId == dc::DistributedToon::k_setMaxHp ||
+               fieldId == dc::DistributedToon::k_setMoney || fieldId == dc::DistributedToon::k_setMaxMoney ||
+               fieldId == dc::DistributedToon::k_setBankMoney) {
+        const int16_t v = r.i16();
+        if (!r.ok()) return false;
+        if (fieldId == dc::DistributedToon::k_setHp) ownStats_.hp = v;
+        if (fieldId == dc::DistributedToon::k_setMaxHp) ownStats_.maxHp = v;
+        if (fieldId == dc::DistributedToon::k_setMoney) ownStats_.money = v;
+        if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
+        if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
+        pushEvent(EventType::Stats, avatarId_);
     } else {
         skipField(r, fieldId);
     }
     return r.ok();
+}
+
+bool Client::applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedNPCToonBase::k_setName) {
+        r.string(n.name, sizeof(n.name));
+    } else if (fieldId == dc::DistributedNPCToonBase::k_setDNAString) {
+        Bytes b = r.blob();
+        if (!r.ok()) return false;
+        n.hasDna = b.len == kDnaSize;
+        memcpy(n.dna, b.data, b.len < kDnaSize ? b.len : kDnaSize);
+    } else if (fieldId == dc::DistributedNPCToonBase::k_setPositionIndex) {
+        n.posIndex = r.u8();
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+bool Client::applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedTreasure::k_setPosition) {
+        t.x = r.i16() / 10.0f;
+        t.y = r.i16() / 10.0f;
+        t.z = r.i16() / 10.0f;
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+bool Client::handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
+                            const uint16_t* req, uint16_t reqCount, bool other) {
+    (void)cls;
+    NpcToon* n = nullptr;
+    for (NpcToon& s : npcs_) {
+        if (s.active && s.doId == doId) n = &s;
+    }
+    for (NpcToon& s : npcs_) {
+        if (!n && !s.active) n = &s;
+    }
+    if (!n) return false;
+    NpcToon tmp{};
+    tmp.doId = doId;
+    tmp.classId = classId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyNpcField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyNpcField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: NPC %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    *n = tmp;
+    TT_LOG("net: NPC %u \"%s\" at origin %u", unsigned(doId), n->name, unsigned(n->posIndex));
+    pushEvent(EventType::NpcSpawn, doId);
+    return true;
+}
+
+bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                                 bool other) {
+    Treasure* t = nullptr;
+    for (Treasure& s : treasures_) {
+        if (s.active && s.doId == doId) t = &s;
+    }
+    for (Treasure& s : treasures_) {
+        if (!t && !s.active) t = &s;
+    }
+    if (!t) return false;
+    Treasure tmp{};
+    tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyTreasureField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyTreasureField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) return false;
+    tmp.active = true;
+    *t = tmp;
+    pushEvent(EventType::TreasureSpawn, doId);
+    return true;
+}
+
+const NpcToon* Client::findNpc(uint32_t doId) const {
+    for (const NpcToon& n : npcs_) {
+        if (n.active && n.doId == doId) return &n;
+    }
+    return nullptr;
+}
+
+bool Client::sendRequestGrab(uint32_t treasureDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, treasureDoId, DistributedTreasure, requestGrab);
+    return finish(w);
 }
 
 bool Client::applyDistrictField(District& d, DatagramReader& r, uint16_t fieldId) {
