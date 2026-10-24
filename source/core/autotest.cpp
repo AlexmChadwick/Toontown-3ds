@@ -38,8 +38,8 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},
     {2.0f, 0, 0, 0, 0, -1, -1, 0, "clip: victory", "clip_victory"},
     // "emote: <TTEmote index> <name>": sent and played like the SpeedChat Emotes menu.
-    {2.0f, 0, 0, 0, 0, -1, -1, 0, "emote: 0 wave", "emote_wave"},
-    {3.0f, 0, 0, 0, 0, -1, -1, 0, "emote: 6 dance", "emote_dance"},
+    {1.2f, 0, 0, 0, 0, -1, -1, 0, "emote: 0 wave", "emote_wave"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "emote: 6 dance", "emote_dance"},
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 13 bow", "emote_bow"},
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 12 belly flop", "emote_flop"},
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 9 applause", "emote_applause"},

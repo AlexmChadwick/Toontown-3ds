@@ -20,7 +20,9 @@ import extract
 import ttm
 
 ROOT = Path(__file__).resolve().parents[2]
-RESOURCES = ROOT / "ref" / "ref" / "resources"
+# Main checkout: ref/resources; agent worktrees link the main ref/ as ref/ref.
+RESOURCES = next((p for p in (ROOT / "ref" / "resources", ROOT / "ref" / "ref" / "resources")
+                  if (p / "phase_6").exists()), ROOT / "ref" / "resources")
 OUT_DEFAULT = ROOT / "sdmc-out" / "3ds" / "toontown3ds" / "data" / "golf"
 
 HOLES = [

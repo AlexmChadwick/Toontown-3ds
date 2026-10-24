@@ -406,7 +406,6 @@ int main() {
 
     tt::prof::init();
     while (aptMainLoop()) {
-        toonCache.pump(); // publish whole streamed poses after the previous GPU frame
         tt::prof::frameBegin();
         tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
         const u64 now = svcGetSystemTick();
@@ -452,6 +451,7 @@ int main() {
             }
             if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            toonCache.pump(); // previous GPU frame is complete: publish streamed poses
             if (shotName) {
                 char path[96];
                 snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
@@ -724,6 +724,7 @@ int main() {
         static const char* emoteStep = nullptr; // autotest "emote: <TTEmote id> <name>", once per step
         if (autotest.active() && !strncmp(autotest.label(), "emote: ", 7) && autotest.label() != emoteStep) {
             emoteStep = autotest.label();
+            if (localToon.emoteActive()) localToon.cancel(); // back-to-back steps; shots land mid-clip
             tryEmote(atoi(autotest.label() + 7));
         }
         int speechMsg;
@@ -1302,6 +1303,7 @@ int main() {
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         tt::prof::lap(tt::prof::kWait);
         if (shotName) {
             // Previous frame is complete after FrameBegin; dump it before clearing.

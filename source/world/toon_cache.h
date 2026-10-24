@@ -96,7 +96,10 @@ public:
     bool acquire(const ToonDna& dna, ToonLod lod, ToonLook* out);
     void release(ToonLook* look);
 
-    // Before FrameBegin, main thread only. Fences old GPU readers and publishes complete poses.
+    // Main thread only, right after C3D_FrameBegin(C3D_FRAME_SYNCDRAW) and before any toon is
+    // drawn: FrameBegin has waited for the previous frame's GPU queue, so this is the fence for
+    // recycling and for publishing complete streamed poses. (It must not C3D_FrameSync itself:
+    // that is a second vsync wait per frame and halves the frame rate.)
     void pump();
     struct Pose {
         const render::Anim* parts[3] = {};

@@ -460,7 +460,8 @@ void ToonCache::loadClothing(ToonClothing& c) {
 }
 
 void ToonCache::pump() {
-    C3D_FrameSync(); // all frees/recycling and staging publication follow this main-thread fence
+    // The caller's C3D_FrameBegin(SYNCDRAW) fenced the previous frame's GPU work: all frees,
+    // recycling and staging publication follow it.
     {
     Lock lock(lock_);
     ++frame_;
