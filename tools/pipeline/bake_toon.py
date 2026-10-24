@@ -57,6 +57,15 @@ import struct
 import subprocess
 import sys
 
+# Optional reference locations and read-only-cache mode for isolated worktree bakes.
+_reference_options = argparse.ArgumentParser(add_help=False)
+_reference_options.add_argument('--resources')
+_reference_options.add_argument('--upstream')
+_reference_options.add_argument('--no-cache', action='store_true')
+_reference_args, _ = _reference_options.parse_known_args()
+if _reference_args.no_cache:
+    sys.dont_write_bytecode = True
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 
@@ -66,6 +75,12 @@ from panda3d.core import NodePath, loadPrcFileData  # noqa: E402
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 RESOURCES = os.path.join(ROOT, 'ref', 'resources')
 UPSTREAM = os.path.join(ROOT, 'ref', 'open-toontown')
+RESOURCES = os.path.abspath(_reference_args.resources or RESOURCES)
+UPSTREAM = os.path.abspath(_reference_args.upstream or UPSTREAM)
+if _reference_args.no_cache:
+    from panda3d.core import BamCache
+    BamCache.getGlobalPtr().setActive(False)
+    loadPrcFileData('', 'model-cache-dir')
 loadPrcFileData('', f'window-type none\naudio-library-name null\nnotify-level warning\n'
                     f'model-path {RESOURCES}\ndefault-model-extension .bam')
 from direct.actor.Actor import Actor  # noqa: E402
@@ -105,6 +120,24 @@ ANIMS = {'neutral': ('neutral', 3), 'run': ('run', 3), 'walk': ('walk', 3.5),
          'duck': ('duck', 3.5), 'victory': ('victory-dance', 3.5),
          'lose': ('lose', 5), 'sad-walk': ('losewalk', 4),
          'teleport': ('teleport', 3.5), 'book': ('book', 3.5)}
+# Append-only feature clips. Keep the legacy order and --battle-only selection stable.
+LEGACY_ANIMS = tuple(ANIMS)
+ANIMS.update({
+    'jump': ('jump', 3.5), 'jump-squat': ('jump-zstart', 3.5),
+    'jump-land': ('jump-zend', 3.5), 'shrug': ('shrug', 3.5), 'angry': ('angry', 3.5),
+    'sit-start': ('intoSit', 4), 'sit': ('sit', 4), 'swim': ('swim', 4),
+    'tug-o-war': ('tug-o-war', 4), 'sad-neutral': ('sad-neutral', 4),
+    'left': ('left', 4), 'applause': ('applause', 4), 'confused': ('confused', 4),
+    'bow': ('bow', 4), 'curtsy': ('curtsy', 4), 'bored': ('bored', 4), 'think': ('think', 4),
+    'castlong': ('castlong', 4), 'cast': ('cast', 4),
+    'fish-neutral': ('fishneutral', 4), 'fish-again': ('fishAGAIN', 4),
+    'fish-end': ('fishEND', 4), 'reel': ('reel', 4), 'reel-H': ('reelH', 4),
+    'reel-neutral': ('reelneutral', 4), 'pole': ('pole', 4), 'pole-neutral': ('poleneutral', 4),
+    'slip-forward': ('slip-forward', 4), 'slip-backward': ('slip-backward', 4),
+    'catch-neutral': ('gameneutral', 4), 'catch-run': ('gamerun', 4),
+    'catch-eatneutral': ('eat_neutral', 4), 'catch-eatnrun': ('eatnrun', 4),
+    'bad-putt': ('bad-putt', 6),
+})
 BAKE_FPS = 12.0
 LODS = ('500', '250')
 
@@ -436,6 +469,13 @@ def worker(args):
     kind, code = args.worker
     lods, anims = args.lods.split(','), [a for a in args.anims.split(',') if a]
     out = {}
+    if args.available_anims and kind in ('legs', 'torso', 'head'):
+        # Upstream lists bow/curtsy for every style, but the shipped assets are
+        # intentionally sparse. Do not substitute another body's skeleton.
+        if kind == 'torso':
+            anims = [a for a in anims if a != ('bow' if code.endswith('d') else 'curtsy')]
+        elif kind == 'head' and code.startswith('d'):
+            anims = [a for a in anims if a != ('bow' if code == 'dss' else 'curtsy')]
     if kind in ('legs', 'torso', 'head'):
         bake = {'legs': bake_legs, 'torso': bake_torso, 'head': bake_head}[kind]
         for lod in lods:
@@ -455,6 +495,11 @@ def run_jobs(args, jobs):
         cmd = [sys.executable, '-I', os.path.abspath(__file__), '--worker', kind, code, '--out-dir', out_dir,
                '--lods', args.lods, '--anims', args.anims, '--max-tex', str(args.max_tex),
                '--clothes-max-tex', str(args.clothes_max_tex)]
+        cmd += ['--resources', RESOURCES, '--upstream', UPSTREAM]
+        if args.no_cache:
+            cmd.append('--no-cache')
+        if not args.available_anims:
+            cmd.append('--no-available-anims')
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode:
             raise SystemExit(f'{kind} {code} failed:\n{r.stdout[-2000:]}{r.stderr[-4000:]}')
@@ -465,6 +510,9 @@ def run_jobs(args, jobs):
 
 def main():
     ap = argparse.ArgumentParser()
+    ap.add_argument('--resources', default=RESOURCES)
+    ap.add_argument('--upstream', default=UPSTREAM)
+    ap.add_argument('--no-cache', action='store_true', help='disable bytecode and Panda model cache writes')
     ap.add_argument('--out-dir', required=True)
     ap.add_argument('--boot-dir', help='also write the boot set (dog/m/ms LOD 500) here')
     ap.add_argument('--heads', '--head', default=','.join(ToonDNA.toonHeadTypes))
@@ -472,6 +520,9 @@ def main():
     ap.add_argument('--legs', default=','.join(LEGS))
     ap.add_argument('--lods', '--lod', default=','.join(LODS))
     ap.add_argument('--anims', default=','.join(ANIMS))
+    ap.add_argument('--available-anims', action=argparse.BooleanOptionalAction, default=True,
+                    help='respect the shipped per-style bow/curtsy availability')
+    ap.add_argument('--legacy-only', action='store_true', help='the original 17 clips only')
     ap.add_argument('--battle-only', action='store_true',
                     help='battle clips plus neutral as the unchanged base-mesh pose')
     ap.add_argument('--max-tex', type=int, default=128)
@@ -482,8 +533,10 @@ def main():
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     ap.add_argument('--worker', nargs=2, metavar=('KIND', 'CODE'), help=argparse.SUPPRESS)
     args = ap.parse_args()
+    if args.legacy_only:
+        args.anims = ','.join(LEGACY_ANIMS)
     if args.battle_only:
-        args.anims = ','.join(a for a in ANIMS if a not in ('run', 'walk', 'jump-idle', 'wave'))
+        args.anims = ','.join(a for a in LEGACY_ANIMS if a not in ('run', 'walk', 'jump-idle', 'wave'))
     if args.worker:
         return worker(args)
     heads = csv(args.heads, ToonDNA.toonHeadTypes)
