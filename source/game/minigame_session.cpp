@@ -14,8 +14,12 @@ namespace {
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 constexpr u16 kCannonGameId = 2;    // ToontownGlobals.CannonGameId
 constexpr u16 kRingGameId = 5;      // ToontownGlobals.RingGameId
+constexpr u16 kMazeGameId = 6;      // ToontownGlobals.MazeGameId
 constexpr u16 kTugGameId = 7;       // ToontownGlobals.TugOfWarGameId
 constexpr u16 kCatchGameId = 8;     // ToontownGlobals.CatchGameId
+constexpr u16 kDivingGameId = 9;    // ToontownGlobals.DivingGameId
+constexpr u16 kPairingGameId = 11;  // ToontownGlobals.PairingGameId
+constexpr u16 kVineGameId = 12;     // ToontownGlobals.VineGameId
 
 constexpr float kRulesSec = 4.0f;   // our rules screen
 constexpr float kToonCatchRadius = 0.7f;
@@ -42,6 +46,10 @@ void MinigameSession::unloadCurrent() {
     if (isCannon_) cannon_.shutdown();
     if (isTug_) tug_.shutdown();
     if (isRing_) ring_.shutdown();
+    if (isMaze_) maze_.shutdown();
+    if (isPairing_) pairing_.shutdown();
+    if (isDiving_) diving_.shutdown();
+    if (isVine_) vine_.shutdown();
 }
 
 void MinigameSession::shutdown() {
@@ -59,6 +67,10 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
     isCannon_ = (gameId == kCannonGameId);
     isTug_ = (gameId == kTugGameId);
     isRing_ = (gameId == kRingGameId);
+    isMaze_ = (gameId == kMazeGameId);
+    isPairing_ = (gameId == kPairingGameId);
+    isDiving_ = (gameId == kDivingGameId);
+    isVine_ = (gameId == kVineGameId);
 
     joinedSent_ = readySent_ = doneSent_ = exitedSent_ = purchaseExitSent_ = false;
     fruitsCaught_ = anvilsHit_ = 0;
@@ -74,6 +86,10 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
                       : isCannon_ ? "Cannon Game"
                       : isTug_ ? "Tug-of-War"
                       : isRing_ ? "Ring Game"
+                      : isMaze_ ? "Maze Game"
+                      : isPairing_ ? "Match Minnie"
+                      : isDiving_ ? "Diving Game"
+                      : isVine_ ? "Jungle Vines"
                       : "Trolley game";
     snprintf(title_, sizeof(title_), "%s", gName);
     snprintf(lines_[0], sizeof(lines_[0]), "Off to the game...");
@@ -137,6 +153,22 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isRing_) {
             ring_.init(client, nowMs, autoPlay_);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isMaze_) {
+            maze_.init(client, nowMs, autoPlay_);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isPairing_) {
+            pairing_.init(client, nowMs, autoPlay_);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isDiving_) {
+            diving_.init(client, nowMs, autoPlay_);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isVine_) {
+            vine_.init(client, nowMs, autoPlay_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else {
@@ -237,6 +269,46 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         if (isRing_) {
             ring_.update(client, pad, kDown, dt, nowMs);
             if (ring_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isMaze_) {
+            maze_.update(client, pad, kDown, dt, nowMs);
+            if (maze_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isPairing_) {
+            pairing_.update(client, pad, kDown, dt, nowMs);
+            if (pairing_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isDiving_) {
+            diving_.update(client, pad, kDown, dt, nowMs);
+            if (diving_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isVine_) {
+            vine_.update(client, pad, kDown, dt, nowMs);
+            if (vine_.isDone() && !doneSent_) {
                 doneSent_ = true;
                 setPhase(Phase::Done);
                 phaseMs_ = nowMs;
@@ -367,6 +439,14 @@ void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
         tug_.toonPose(x, y, z, h);
     } else if (isRing_) {
         ring_.toonPose(x, y, z, h);
+    } else if (isMaze_) {
+        maze_.toonPose(x, y, z, h);
+    } else if (isPairing_) {
+        pairing_.toonPose(x, y, z, h);
+    } else if (isDiving_) {
+        diving_.toonPose(x, y, z, h);
+    } else if (isVine_) {
+        vine_.toonPose(x, y, z, h);
     } else {
         *x = tx_;
         *y = ty_;
@@ -379,6 +459,10 @@ bool MinigameSession::toonRunning() const {
     if (isCannon_) return cannon_.toonRunning();
     if (isTug_) return tug_.toonRunning();
     if (isRing_) return ring_.toonRunning();
+    if (isMaze_) return maze_.toonRunning();
+    if (isPairing_) return pairing_.toonRunning();
+    if (isDiving_) return diving_.toonRunning();
+    if (isVine_) return vine_.toonRunning();
     return speed_ > 0.5f;
 }
 
@@ -389,6 +473,14 @@ void MinigameSession::camera(C3D_FVec* eye, C3D_FVec* target) const {
         tug_.camera(eye, target);
     } else if (isRing_) {
         ring_.camera(eye, target);
+    } else if (isMaze_) {
+        maze_.camera(eye, target);
+    } else if (isPairing_) {
+        pairing_.camera(eye, target);
+    } else if (isDiving_) {
+        diving_.camera(eye, target);
+    } else if (isVine_) {
+        vine_.camera(eye, target);
     } else {
         const float back = 29.36f, up = 28.17f, pitch = 35.0f * 3.14159265f / 180.0f;
         *eye = FVec3_New(0.0f, -back, up);
@@ -403,6 +495,10 @@ const char* MinigameSession::line(int i) const {
     if (isCannon_) return cannon_.line(i);
     if (isTug_) return tug_.line(i);
     if (isRing_) return ring_.line(i);
+    if (isMaze_) return maze_.line(i);
+    if (isPairing_) return pairing_.line(i);
+    if (isDiving_) return diving_.line(i);
+    if (isVine_) return vine_.line(i);
     return (i >= 0 && i < 3) ? lines_[i] : "";
 }
 
@@ -419,6 +515,22 @@ void MinigameSession::draw(render::Renderer& renderer) {
     }
     if (isRing_) {
         ring_.draw(renderer);
+        return;
+    }
+    if (isMaze_) {
+        maze_.draw(renderer);
+        return;
+    }
+    if (isPairing_) {
+        pairing_.draw(renderer);
+        return;
+    }
+    if (isDiving_) {
+        diving_.draw(renderer);
+        return;
+    }
+    if (isVine_) {
+        vine_.draw(renderer);
         return;
     }
 

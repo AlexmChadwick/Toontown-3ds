@@ -3003,6 +3003,113 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         m.ringGroupResult = r.u8();
         if (!r.ok()) return false;
         if (announce) pushEventArg(EventType::RingGroupResults, m.doId, m.ringGroupResult);
+
+    // ---- DistributedMazeGame ----
+    } else if (fieldId == dc::DistributedMazeGame::k_setTreasureGrabbed) {
+        m.mazeGrabbedAv = r.u32();
+        m.mazeGrabbedTreasure = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::MazeTreasureGrabbed, m.mazeGrabbedAv, int32_t(m.mazeGrabbedTreasure));
+    } else if (fieldId == dc::DistributedMazeGame::k_allTreasuresTaken) {
+        m.mazeAllTaken = true;
+        if (announce) pushEvent(EventType::MazeAllTreasuresTaken, m.doId);
+    } else if (fieldId == dc::DistributedMazeGame::k_hitBySuit) {
+        const uint32_t av = r.u32();
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::MazeHitBySuit, av, int32_t(ts));
+
+    // ---- DistributedPairingGame ----
+    } else if (fieldId == dc::DistributedPairingGame::k_setDeckSeed) {
+        m.pairingDeckSeed = r.u32();
+    } else if (fieldId == dc::DistributedPairingGame::k_setMaxOpenCards) {
+        m.pairingMaxOpenCards = r.u8();
+    } else if (fieldId == dc::DistributedPairingGame::k_openCardResult) {
+        m.pairingCardToTurnUp = r.i16();
+        m.pairingOpenAvId = r.u32();
+        m.pairingMatchingCard = r.i16();
+        m.pairingPoints = r.i8();
+        const uint16_t downBytes = r.u16();
+        m.pairingTurnDownCount = 0;
+        for (uint16_t i = 0; i < downBytes / 2 && r.ok(); ++i) {
+            int16_t card = r.i16();
+            if (m.pairingTurnDownCount < 4) m.pairingCardsToTurnDown[m.pairingTurnDownCount++] = card;
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::PairingOpenCardResult, m.pairingOpenAvId, int32_t(m.pairingCardToTurnUp));
+    } else if (fieldId == dc::DistributedPairingGame::k_setEveryoneDone) {
+        m.pairingEveryoneDone = true;
+        if (announce) pushEvent(EventType::PairingEveryoneDone, m.doId);
+
+    // ---- DistributedDivingGame ----
+    } else if (fieldId == dc::DistributedDivingGame::k_setTreasureGrabbed) {
+        m.divingGrabbedAv = r.u32();
+        m.divingGrabbedChest = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingTreasureGrabbed, m.divingGrabbedAv, int32_t(m.divingGrabbedChest));
+    } else if (fieldId == dc::DistributedDivingGame::k_incrementScore) {
+        m.divingScoreAv = r.u32();
+        m.divingScoreNewSpot = r.u32();
+        r.i16(); // ts
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingIncrementScore, m.divingScoreAv, int32_t(m.divingScoreNewSpot));
+    } else if (fieldId == dc::DistributedDivingGame::k_fishSpawn) {
+        m.divingFishSpawnTs = r.i16();
+        m.divingFishSpawnCode = r.u32();
+        m.divingFishSpawnerId = r.u32();
+        m.divingFishSpawnOffset = r.u16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingFishSpawn, m.doId, int32_t((m.divingFishSpawnerId << 16) | (m.divingFishSpawnCode & 0xffff)));
+    } else if (fieldId == dc::DistributedDivingGame::k_setCrabMoving) {
+        m.divingCrabId = r.u32();
+        r.i16(); // ts
+        m.divingCrabRand1 = r.i8();
+        m.divingCrabRand2 = r.i8();
+        m.divingCrabX = r.i16();
+        m.divingCrabDir = r.i8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingCrabMoving, m.doId, int32_t(m.divingCrabId));
+    } else if (fieldId == dc::DistributedDivingGame::k_setTreasureDropped) {
+        const uint32_t av = r.u32();
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingTreasureDropped, av, int32_t(ts));
+    } else if (fieldId == dc::DistributedDivingGame::k_performFishCollision) {
+        const uint32_t av = r.u32();
+        r.u32(); // spawnId
+        r.u32(); // spawnerId
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingPerformFishCollision, av, int32_t(ts));
+    } else if (fieldId == dc::DistributedDivingGame::k_performCrabCollision) {
+        const uint32_t av = r.u32();
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::DivingPerformCrabCollision, av, int32_t(ts));
+
+    // ---- DistributedVineGame ----
+    } else if (fieldId == dc::DistributedVineGame::k_setVineSections) {
+        const uint16_t bytes = r.u16();
+        m.vineSectionCount = 0;
+        for (uint16_t i = 0; i < bytes && r.ok(); ++i) {
+            uint8_t sec = r.u8();
+            if (m.vineSectionCount < 8) m.vineSections[m.vineSectionCount++] = sec;
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::VineSetVineSections, m.doId);
+    } else if (fieldId == dc::DistributedVineGame::k_setScore) {
+        m.vineScoreAv = r.u32();
+        m.vineScoreVal = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::VineSetScore, m.vineScoreAv, int32_t(m.vineScoreVal));
+    } else if (fieldId == dc::DistributedVineGame::k_allAtEndVine) {
+        m.vineAllAtEnd = true;
+        if (announce) pushEvent(EventType::VineAllAtEnd, m.doId);
+    } else if (fieldId == dc::DistributedVineGame::k_setTreasureGrabbed) {
+        m.vineGrabbedAv = r.u32();
+        m.vineGrabbedTreasure = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::VineTreasureGrabbed, m.vineGrabbedAv, int32_t(m.vineGrabbedTreasure));
     } else {
         skipField(r, fieldId); // setStartingVotes, setMetagameRound, game-specific fields
     }
@@ -3248,6 +3355,115 @@ bool Client::sendRingToonGotRing(uint8_t success) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, minigame_.doId, DistributedRingGame, setToonGotRing);
     w.u8(success);
+    return finish(w);
+}
+
+// DistributedMazeGame
+bool Client::sendMazeClaimTreasure(uint32_t treasureNum) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMazeGame, claimTreasure);
+    w.u32(treasureNum);
+    return finish(w);
+}
+
+bool Client::sendMazeHitBySuit(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMazeGame, hitBySuit);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+
+// DistributedPairingGame
+bool Client::sendPairingOpenCard(int16_t deckIndex, int16_t bonusGlowCard) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPairingGame, openCardRequest);
+    w.i16(deckIndex);
+    w.i16(bonusGlowCard);
+    return finish(w);
+}
+
+bool Client::sendPairingDone() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPairingGame, reportDone);
+    return finish(w);
+}
+
+// DistributedDivingGame
+bool Client::sendDivingPickupTreasure(uint32_t chestId) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedDivingGame, pickupTreasure);
+    w.u32(chestId);
+    return finish(w);
+}
+
+bool Client::sendDivingTreasureRecovered() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedDivingGame, treasureRecovered);
+    return finish(w);
+}
+
+bool Client::sendDivingFishCollision(uint32_t avId, uint32_t spawnId, uint32_t spawnerId, const char* status) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedDivingGame, handleFishCollision);
+    w.u32(avId);
+    w.u32(spawnId);
+    w.u32(spawnerId);
+    w.string(status);
+    return finish(w);
+}
+
+bool Client::sendDivingCrabCollision(uint32_t avId, const char* status) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedDivingGame, handleCrabCollision);
+    w.u32(avId);
+    w.string(status);
+    return finish(w);
+}
+
+bool Client::sendDivingGetCrabMoving(uint32_t crabId, int16_t crabX, int8_t dir) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedDivingGame, getCrabMoving);
+    w.u32(crabId);
+    w.i16(crabX);
+    w.i8(dir);
+    return finish(w);
+}
+
+// DistributedVineGame
+bool Client::sendVineNewVine(uint32_t avId, int8_t vineIndex, float vineT, int8_t facingRight) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setNewVine);
+    w.u32(avId);
+    w.i8(vineIndex);
+    w.u32(uint32_t(vineT * 10000.0f));
+    w.i8(facingRight);
+    return finish(w);
+}
+
+bool Client::sendVineReachedEndVine(int8_t vineIndex) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, reachedEndVine);
+    w.i8(vineIndex);
+    return finish(w);
+}
+
+bool Client::sendVineClaimTreasure(uint32_t treasureNum) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, claimTreasure);
+    w.u32(treasureNum);
     return finish(w);
 }
 
