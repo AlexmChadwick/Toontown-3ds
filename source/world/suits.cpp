@@ -1,5 +1,8 @@
 #include "world/suits.h"
 
+#include "core/memory.h"
+#include "world/suit_assets.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +20,7 @@ constexpr float kDegToRad = 3.14159265f / 180.0f;
 constexpr float kNametagMaxDistance = 90.0f;
 constexpr const char* kModelPath = "romfs:/baked/suit_placeholder.ttm";
 constexpr const char* kGraphDir = "sdmc:/3ds/toontown3ds/data/zones/";
+constexpr const char* kSuitDir = "sdmc:/3ds/toontown3ds/data/suit/";
 
 // Department index in "clms" order: tint of the stand-in box and nametag colour (ABGR).
 int deptIndex(char dept) {
@@ -50,11 +54,101 @@ bool raycastLeg(u8 type) {
 } // namespace
 
 bool SuitActors::init() {
+    loadDepartments();
     if (!model_.load(kModelPath)) {
         TT_LOG("suits: no %s, cogs stay invisible", kModelPath);
         return false;
     }
     return true;
+}
+
+// departments.ttx: TTX1 with four tables (c, l, m, s) of three textures (blazer, sleeve, legs).
+void SuitActors::loadDepartments() {
+    char path[96];
+    snprintf(path, sizeof(path), "%sdepartments.ttx", kSuitDir);
+    FILE* f = fopen(path, "rb");
+    if (!f) return;
+    struct {
+        char magic[4];
+        u16 version, numTextures, counts[4];
+        u32 mapOffset, texOffset, reserved[2];
+    } h;
+    static_assert(sizeof(h) == 32, "TTX1 header");
+    u16 map[12];
+    render::TexEntry entries[12];
+    bool ok = fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 &&
+              h.counts[0] == 3 && h.counts[1] == 3 && h.counts[2] == 3 && h.counts[3] == 3 && h.numTextures <= 12 &&
+              fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, 2, 12, f) == 12 && fseek(f, h.texOffset, SEEK_SET) == 0 &&
+              fread(entries, sizeof(render::TexEntry), h.numTextures, f) == h.numTextures;
+    for (int d = 0; ok && d < 4; d++) {
+        for (int e = 0; ok && e < 3; e++) {
+            const u16 t = map[d * 3 + e];
+            ok = t < h.numTextures && render::loadTexture(f, entries[t], &deptTex_[d][e]);
+        }
+    }
+    fclose(f);
+    deptLoaded_ = ok;
+    TT_LOG("suits: department pack %s", ok ? "loaded" : "missing or bad");
+}
+
+bool SuitActors::loadBody(int b) {
+    Body& body = bodies_[b];
+    if (body.tried) return body.model.loaded();
+    body.tried = true;
+    const char letter = static_cast<char>('A' + b);
+    char path[96];
+    snprintf(path, sizeof(path), "%ssuit%c_full.ttm", kSuitDir, letter);
+    if (!body.model.load(path)) return false;
+    snprintf(path, sizeof(path), "%ssuit%c_full_neutral.tta", kSuitDir, letter);
+    body.neutral.load(path);
+    snprintf(path, sizeof(path), "%ssuit%c_full_walk.tta", kSuitDir, letter);
+    body.walk.load(path);
+    return true;
+}
+
+SuitActors::Head* SuitActors::head(const char* code) {
+    for (Head& h : heads_)
+        if (h.tried && !strcmp(h.code, code)) return h.model.loaded() ? &h : nullptr;
+    for (Head& h : heads_) {
+        if (h.tried) continue;
+        h.tried = true;
+        snprintf(h.code, sizeof(h.code), "%s", code);
+        char path[96];
+        snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
+        return h.model.load(path) ? &h : nullptr;
+    }
+    return nullptr; // cache full (a street rarely shows more than a dozen head types)
+}
+
+// actor transform * species scale * body morph; head at the body clip's attach matrix.
+void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world) {
+    const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
+    const int b = info ? info->body - 'a' : -1;
+    Body& body = bodies_[b < 0 ? 0 : b];
+    render::Tints tints;
+    tints.setAll(1.0f, 1.0f, 1.0f);
+    for (int i = 0; i < 4; i++) tints.rgba[render::kTintLeg][i] = info ? info->hand[i] : 1.0f; // slot 4: hands
+    const int d = deptIndex(a.dept);
+    const C3D_Tex* slot[render::kTexSlotCount] = {nullptr, &deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2]};
+    C3D_Mtx m = world;
+    Mtx_Scale(&m, info->scale, info->scale, info->scale);
+    const render::Anim& clip = a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
+    if (clip.loaded() && clip.numVertices() == body.model.numVertices()) {
+        u32 fa, fb;
+        float blend;
+        render::sampleClip(clip, a.animTime, &fa, &fb, &blend);
+        renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, deptLoaded_ ? slot : nullptr);
+        if (clip.hasAttach()) {
+            if (Head* h = head(info->code)) {
+                C3D_Mtx attach, hm;
+                clip.attach(fa, fb, blend, &attach);
+                Mtx_Multiply(&hm, &m, &attach);
+                renderer.drawModel(h->model, hm);
+            }
+        }
+    } else {
+        renderer.drawModel(body.model, m, &tints, deptLoaded_ ? slot : nullptr);
+    }
 }
 
 void SuitActors::shutdown() {
@@ -65,6 +159,25 @@ void SuitActors::shutdown() {
     graph_.unload();
     graphBranch_ = 0;
     model_.unload();
+    C3D_FrameSync();
+    for (Body& b : bodies_) {
+        b.model.unload();
+        b.neutral.unload();
+        b.walk.unload();
+        b.tried = false;
+    }
+    for (Head& h : heads_) {
+        h.model.unload();
+        h.tried = false;
+    }
+    if (deptLoaded_) {
+        for (auto& d : deptTex_)
+            for (C3D_Tex& t : d) {
+                tt::mem::LinearGuard g;
+                C3D_TexDelete(&t);
+            }
+    }
+    deptLoaded_ = false;
 }
 
 void SuitActors::setZone(u32 zoneId) {
@@ -265,9 +378,9 @@ void SuitActors::evaluate(Actor& a, u32 nowMs, const CollisionWorld* collision) 
 }
 
 void SuitActors::update(float dt, u32 nowMs, const CollisionWorld* collision) {
-    (void)dt;
     for (Actor& a : actors_) {
         if (!a.active) continue;
+        a.animTime += dt;
         if (a.needBuild) buildPath(a);
         evaluate(a, nowMs, collision);
     }
@@ -278,6 +391,16 @@ void SuitActors::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     for (const Actor& a : actors_) {
         if (!a.active || !a.poseValid || !a.pose.visible || a.pose.alpha <= 0.0f) continue;
+        const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
+        if (info && loadBody(info->body - 'a')) {
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
+            Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
+            const float f = a.flash;
+            renderer.setBaseTint(1.0f, 1.0f - f * 0.6f, 1.0f - f * 0.6f, 1.0f); // hit flash
+            drawReal(renderer, a, m);
+            continue;
+        }
         const float h = heightOf(a), w = suitWidth(h);
         const float* tint = kDeptTint[deptIndex(a.dept)];
         const float f = a.flash;
@@ -351,6 +474,22 @@ void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool
         a.mode = Mode::Frozen; // the battle owns it now; a later setPathState resumes the walk
         a.flash = flash;
     }
+}
+
+void SuitActors::drawShowcase(render::Renderer& renderer, const char* code, float x, float y, float z, float h,
+                              bool walk, float t) {
+    Actor a;
+    for (int i = 0; i < kNumSuitTypes; i++)
+        if (!strcmp(kSuitTypes[i].code, code)) a.type = i, a.dept = kSuitTypes[i].dept;
+    const SuitAsset* info = a.type >= 0 ? findSuitAsset(code) : nullptr;
+    if (!info || !loadBody(info->body - 'a')) return;
+    a.pose.anim = walk ? kSuitWalk : kSuitNeutral;
+    a.animTime = t;
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, x, y, z, true);
+    Mtx_RotateZ(&m, h * kDegToRad, true);
+    drawReal(renderer, a, m);
 }
 
 void SuitActors::logState() const {

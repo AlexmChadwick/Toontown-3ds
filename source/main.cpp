@@ -569,7 +569,7 @@ int main() {
         }
         if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
             float cx, cy, cz;
-            if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 14.0f);
+            if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
             static u32 lastLog = 0;
             if (tt::net::plat::nowMs() - lastLog > 1000) {
                 suits.logState();
@@ -1113,6 +1113,17 @@ int main() {
             if (netStarted) trolley.draw(renderer, net, tt::net::plat::nowMs());
             fishing.draw(renderer);
             suits.draw(renderer);
+            if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
+                // Test-only: four real Cogs (one per department) in front of the toon.
+                static const char* const kShow[4] = {"f", "bf", "sc", "cc"};
+                const float hh = player.headingDeg() * kDegToRad;
+                for (int i = 0; i < 4; i++) {
+                    const float side = (i - 1.5f) * 4.0f, ahead = 12.0f;
+                    suits.drawShowcase(renderer, kShow[i], player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                       player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
+                                       player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
+                }
+            }
             tt::prof::lap(tt::prof::kDrawActors);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;

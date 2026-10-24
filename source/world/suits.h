@@ -14,6 +14,7 @@
 #include <citro3d.h>
 
 #include "net/client.h"
+#include "render/anim.h"
 #include "render/model.h"
 #include "render/renderer.h"
 #include "ui/balloons.h"
@@ -42,6 +43,8 @@ public:
     // Autotest helper: position of the first visible cog, false when none.
     bool firstPosition(float* x, float* y, float* z) const;
     void logState() const; // one log line per cog (debugging)
+    // Test-only: draw the real Cog for head `code` at a pose (asset check without a server cog).
+    void drawShowcase(render::Renderer& renderer, const char* code, float x, float y, float z, float h, bool walk, float t);
     // A walking cog whose body tube the toon at (x, y, z) touches (DistributedSuit's
     // CollisionTube, combat.md section 3), or 0. Only cogs on a street walk leg can fight.
     u32 touching(float x, float y, float z) const;
@@ -82,6 +85,7 @@ private:
         bool poseValid = false;
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
+        float animTime = 0.0f;
     };
     void refresh(Actor& a, const net::Suit& s, const net::Client& client, u32 nowMs);
     void enterState(Actor& a, s8 state, u32 nowMs);
@@ -92,7 +96,27 @@ private:
 
     Actor actors_[kMax];
     SuitGraph graph_;
-    render::Model model_;
+    render::Model model_; // stand-in box when the Cog bake is not installed
+    // Real Cogs (docs/design/cogs.md): one body per type, heads per code, shared department pack.
+    struct Body {
+        bool tried = false;
+        render::Model model;
+        render::Anim neutral, walk;
+    };
+    struct Head {
+        char code[4] = {};
+        bool tried = false;
+        render::Model model;
+    };
+    static constexpr int kMaxHeads = 12;
+    bool loadBody(int b);
+    Head* head(const char* code);
+    void loadDepartments();
+    void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
+    Body bodies_[3];
+    Head heads_[kMaxHeads];
+    C3D_Tex deptTex_[4][3] = {}; // [c l m s][blazer, sleeve, legs]
+    bool deptLoaded_ = false;
     u32 branch_ = 0;
     u32 graphBranch_ = 0;
     bool graphFailed_ = false;
