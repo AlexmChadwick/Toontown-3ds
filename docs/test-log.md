@@ -407,6 +407,14 @@ need hardware.
   - Cog building elevators now hand off when their doors close with us aboard (the
     interior zone from the building block), but that path has not been exercised.
 
+### 2026-10-24 — Estates: client merged, server side missing
+- **Server side missing.** Copilot's estate client is merged, but stock Open Toontown
+  never generates an EstateManager. `toontown/estate/EstateManagerAI.py`,
+  `DistributedEstateAI.py` and `DistributedHouseAI.py` are empty 5-line classes.
+- **Home button.** Map → Home now says "Estates aren't available on this server". The
+  estate, house, closet and pet code is unexercised until a server implements estates.
+- **Assets.** The estate models were baked without textures; this needs a rebake.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

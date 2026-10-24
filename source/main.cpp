@@ -567,6 +567,9 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
         }
+        if (autotest.active() && !strcmp(autotest.label(), "go home") && autotest.stepTime() < 0.05f) {
+            uiState.homeRequest = true; // test-only: the Map tab's Home button
+        }
         if (autotest.active() && !strcmp(autotest.label(), "go factory") && place.zoneId() != 11200 &&
             !uiState.teleportRequest && fadeDir == 0) {
             uiState.teleportRequest = 11200; // test-only: Sellbot factory exterior
@@ -844,7 +847,12 @@ int main() {
             fadeWalk = true;
         }
         if (uiState.homeRequest && fadeDir == 0 && netStarted) {
-            net.requestHome();
+            if (!net.requestHome()) {
+                // Stock Open Toontown never generates an EstateManager (its estate AI classes
+                // are empty stubs), so there is no home to go to on that server.
+                toast = "Estates aren't available on this server.";
+                toastAge = 0.0f;
+            }
             uiState.homeRequest = false;
         }
         uiState.teleportRequest = 0;
