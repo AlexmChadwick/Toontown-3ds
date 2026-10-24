@@ -65,7 +65,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init()) return false;
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !fishingPanel_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
@@ -77,6 +77,7 @@ void Ui::shutdown() {
     unloadMap();
     chat_.shutdown();
     shop_.shutdown();
+    fishingPanel_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -171,6 +172,11 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_SceneBegin(target);
     if (shop_.active()) {
         shop_.draw();
+        return;
+    }
+    if (c.fishing) {
+        fishingPanel_.draw(*c.fishing, kTabY);
+        drawTabs(s);
         return;
     }
     switch (s.tab) {

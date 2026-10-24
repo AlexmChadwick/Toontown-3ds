@@ -21,6 +21,12 @@ public:
     // Optional: without collision the toon walks on a flat z=0 plane.
     void setCollision(const CollisionWorld* world) { collision_ = world; }
     void reset(float x, float y, float z, float headingDeg);
+    void setHeading(float headingDeg) { heading_ = headingDeg; }
+    // Replaces this frame's follow camera (call after update; e.g. fishing's pond view).
+    void overrideCamera(const C3D_FVec& eye, const C3D_FVec& target) {
+        camEye_ = eye;
+        camTarget_ = target;
+    }
     // Moving platform (Donald's Dock boat). `deck` is the platform's collision in its own frame;
     // (x, y, z, headingDeg) is the platform's current pose in the world (boat-local -> world is
     // translate * rotateZ). Pass deck = nullptr when there is none. Call every frame before update().

@@ -91,6 +91,20 @@ TT_SIG(DistributedDale, setFollowChip, "string,string,i16,i16/100,i16/100");
 TT_SIG(DistributedDale, setChipId, "u32");
 TT_SIG(DistributedJailbirdDale, setFollowChip, "string,string,i16,i16/100,i16/100");
 TT_SIG(DistributedJailbirdDale, setChipId, "u32");
+TT_SIG(DistributedFishingPond, setArea, "u32");
+TT_SIG(DistributedFishingPond, hitTarget, "u32");
+TT_SIG(DistributedFishingSpot, setPondDoId, "u32");
+TT_SIG(DistributedFishingSpot, setPosHpr, "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10");
+TT_SIG(DistributedFishingSpot, requestEnter, "");
+TT_SIG(DistributedFishingSpot, requestExit, "");
+TT_SIG(DistributedFishingSpot, setOccupied, "u32");
+TT_SIG(DistributedFishingSpot, doCast, "u8/255,i16/100");
+TT_SIG(DistributedFishingSpot, sellFish, "");
+TT_SIG(DistributedFishingSpot, sellFishComplete, "u8,u16");
+TT_SIG(DistributedFishingSpot, setMovie, "u8,u8,u16,u16,u16,u8/100,i16/100");
+TT_SIG(DistributedToon, setFishingRod, "u8");
+TT_SIG(DistributedToon, setMaxFishTank, "u8");
+TT_SIG(DistributedToon, setFishTank, "u8[],u8[],u16[]");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -384,6 +398,7 @@ void Client::resetWorld() {
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
+    clearFishing();
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
     avatarId_ = 0;
@@ -676,6 +691,10 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleBoatEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (classId == dc::DistributedFishingPond::kClassId || classId == dc::DistributedFishingSpot::kClassId) {
+        handleFishingEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
     if (classId == dc::DistributedSuit::kClassId) {
         handleSuitEnter(doId, zone, r, req, reqCount, other);
         return;
@@ -770,6 +789,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
             return;
         }
     }
+    if (handleFishingField(r, doId, fieldId)) return;
     if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
         if (fieldId == dc::TutorialManager::k_skipTutorialResponse) {
             uint8_t ok = r.u8();
@@ -853,6 +873,7 @@ void Client::handleLeaving(uint32_t doId) {
     for (SuitPlanner& sp : planners_) {
         if (sp.active && sp.doId == doId) sp.active = false;
     }
+    handleFishingLeaving(doId);
 }
 
 void Client::handleInterestDone(uint32_t context, uint16_t handle) {
@@ -1108,6 +1129,9 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setMaxCarry) {
         ownStats_.maxCarry = r.u8();
+    } else if (fieldId == dc::DistributedToon::k_setFishingRod || fieldId == dc::DistributedToon::k_setMaxFishTank ||
+               fieldId == dc::DistributedToon::k_setFishTank) {
+        applyOwnFishField(r, fieldId);
     } else {
         skipField(r, fieldId);
     }
@@ -1720,6 +1744,7 @@ void Client::dropZoneObjects() {
     }
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
+    clearFishing();
     clearSuits();
 }
 
@@ -1897,5 +1922,224 @@ bool Client::avatarPos(uint32_t doId, float* x, float* y, float* z) const {
     }
     return false;
 }
+
+// ====================================================================== fishing
+// DistributedFishingPond / DistributedFishingSpot (docs/design/fishing.md). Additive section:
+// everything fishing-specific in this file lives here, plus the small hooks in handleEnter,
+// handleSetField, handleLeaving, resetWorld, dropZoneObjects and applyOwnField.
+
+const FishingSpot* Client::findFishSpot(uint32_t doId) const {
+    for (const FishingSpot& s : fishSpots_) {
+        if (s.active && s.doId == doId) return &s;
+    }
+    return nullptr;
+}
+
+void Client::clearFishing() {
+    for (FishingSpot& s : fishSpots_) {
+        if (s.active) pushEvent(EventType::FishSpotGone, s.doId);
+        s.active = false;
+    }
+    pond_.active = false;
+}
+
+bool Client::applyFishSpotField(FishingSpot& s, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedFishingSpot::k_setPondDoId) {
+        s.pondDoId = r.u32();
+    } else if (fieldId == dc::DistributedFishingSpot::k_setPosHpr) {
+        s.x = r.i16() / 10.0f;
+        s.y = r.i16() / 10.0f;
+        s.z = r.i16() / 10.0f;
+        s.h = r.i16() / 10.0f;
+        s.p = r.i16() / 10.0f;
+        s.r = r.i16() / 10.0f;
+    } else if (fieldId == dc::DistributedFishingSpot::k_setOccupied) {
+        s.occupant = r.u32();
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+bool Client::handleFishingEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                uint16_t reqCount, bool other) {
+    if (classId == dc::DistributedFishingPond::kClassId) {
+        FishingPond tmp{};
+        tmp.doId = doId;
+        for (uint16_t i = 0; i < reqCount && r.ok(); ++i) {
+            if (req[i] == dc::DistributedFishingPond::k_setArea) tmp.area = r.u32();
+            else skipField(r, req[i]);
+        }
+        if (other) {
+            uint16_t n = r.u16();
+            for (uint16_t i = 0; i < n && r.ok(); ++i) {
+                const uint16_t fid = r.u16();
+                if (fid == dc::DistributedFishingPond::k_setArea) tmp.area = r.u32();
+                else skipField(r, fid);
+            }
+        }
+        if (!r.ok()) return false;
+        tmp.active = true;
+        pond_ = tmp;
+        TT_LOG("net: fishing pond %u area %u", unsigned(doId), unsigned(tmp.area));
+        pushEvent(EventType::FishPondUp, doId);
+        return true;
+    }
+    FishingSpot* spot = nullptr;
+    for (FishingSpot& s : fishSpots_) {
+        if (s.active && s.doId == doId) spot = &s;
+    }
+    for (FishingSpot& s : fishSpots_) {
+        if (!spot && !s.active) spot = &s;
+    }
+    if (!spot) {
+        TT_LOG("net: no room for fishing spot %u", unsigned(doId));
+        return false;
+    }
+    FishingSpot tmp{};
+    tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyFishSpotField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t n = r.u16();
+        for (uint16_t i = 0; i < n && ok && r.ok(); ++i) ok = applyFishSpotField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: fishing spot %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    *spot = tmp;
+    TT_LOG("net: fishing spot %u at %.1f,%.1f,%.1f h %.0f", unsigned(doId), double(tmp.x), double(tmp.y), double(tmp.z),
+           double(tmp.h));
+    pushEvent(EventType::FishSpotSpawn, doId);
+    return true;
+}
+
+// Returns true when doId is one of our spots (the field was consumed).
+bool Client::handleFishingField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    FishingSpot* spot = nullptr;
+    for (FishingSpot& s : fishSpots_) {
+        if (s.active && s.doId == doId) spot = &s;
+    }
+    if (!spot) return false;
+    switch (fieldId) {
+    case dc::DistributedFishingSpot::k_setOccupied:
+        if (applyFishSpotField(*spot, r, fieldId)) pushEvent(EventType::FishOccupied, doId);
+        break;
+    case dc::DistributedFishingSpot::k_setPosHpr:
+    case dc::DistributedFishingSpot::k_setPondDoId:
+        applyFishSpotField(*spot, r, fieldId);
+        break;
+    case dc::DistributedFishingSpot::k_setMovie: {
+        // setMovie(mode, code, itemDesc1, itemDesc2, itemDesc3, power/100, h/100)
+        FishMovieMsg m{};
+        m.spotDoId = doId;
+        m.mode = r.u8();
+        m.code = r.u8();
+        m.item1 = r.u16();
+        m.item2 = r.u16();
+        m.item3 = r.u16();
+        m.power = r.u8() / 100.0f;
+        m.heading = r.i16() / 100.0f;
+        if (!r.ok()) break;
+        m.seq = fishMovie_.seq + 1;
+        fishMovie_ = m;
+        pushEvent(EventType::FishMovie, doId);
+        break;
+    }
+    case dc::DistributedFishingSpot::k_rejectEnter:
+        pushEvent(EventType::FishReject, doId);
+        break;
+    case dc::DistributedFishingSpot::k_sellFishComplete:
+        fishSellTrophy_ = r.u8() != 0;
+        fishSellCount_ = r.u16();
+        if (r.ok()) pushEvent(EventType::FishSold, doId);
+        break;
+    default:
+        skipField(r, fieldId);
+        break;
+    }
+    return true;
+}
+
+void Client::handleFishingLeaving(uint32_t doId) {
+    for (FishingSpot& s : fishSpots_) {
+        if (s.active && s.doId == doId) {
+            s.active = false;
+            pushEvent(EventType::FishSpotGone, doId);
+        }
+    }
+    if (pond_.active && pond_.doId == doId) pond_.active = false;
+}
+
+// setFishingRod(u8), setMaxFishTank(u8), setFishTank(u8[] genus, u8[] species, u16[] weight).
+bool Client::applyOwnFishField(DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedToon::k_setFishingRod) {
+        ownFish_.rod = r.u8();
+    } else if (fieldId == dc::DistributedToon::k_setMaxFishTank) {
+        ownFish_.maxTank = r.u8();
+    } else {
+        const Bytes g = r.blob();
+        const Bytes sp = r.blob();
+        const Bytes w = r.blob();
+        if (!r.ok()) return false;
+        uint32_t n = g.len < sp.len ? g.len : sp.len;
+        if (n > w.len / 2) n = w.len / 2;
+        if (n > uint32_t(kMaxFishTank)) n = kMaxFishTank;
+        ownFish_.tankCount = uint8_t(n);
+        for (uint32_t i = 0; i < n; ++i) {
+            ownFish_.genus[i] = g.data[i];
+            ownFish_.species[i] = sp.data[i];
+            ownFish_.weight[i] = uint16_t(w.data[2 * i] | (w.data[2 * i + 1] << 8));
+        }
+    }
+    if (r.ok()) pushEvent(EventType::FishStats, avatarId_);
+    return r.ok();
+}
+
+// DistributedFishingSpot.d_requestEnter / d_requestExit / d_doCast / sellFish: clsend, to the spot.
+bool Client::sendFishRequestEnter(uint32_t spotDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, spotDoId, DistributedFishingSpot, requestEnter);
+    return finish(w);
+}
+
+bool Client::sendFishRequestExit(uint32_t spotDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, spotDoId, DistributedFishingSpot, requestExit);
+    return finish(w);
+}
+
+// power01 in [0, 1] (sent as uint8/255), headingDeg = the aim angle local to the spot
+// (angleNP.getH(), within +-FishGlobals.FishingAngleMax; sent as int16/100).
+bool Client::sendFishCast(uint32_t spotDoId, float power01, float headingDeg) {
+    if (state_ != State::InZone) return false;
+    if (power01 < 0.0f) power01 = 0.0f;
+    if (power01 > 1.0f) power01 = 1.0f;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, spotDoId, DistributedFishingSpot, doCast);
+    w.u8(uint8_t(std::floor(power01 * 255.0f + 0.5f)));
+    w.i16(packFixed(headingDeg, 100.0f));
+    return finish(w);
+}
+
+bool Client::sendFishSell(uint32_t spotDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, spotDoId, DistributedFishingSpot, sellFish);
+    return finish(w);
+}
+
+bool Client::sendFishHitTarget(uint32_t pondDoId, uint32_t targetDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, pondDoId, DistributedFishingPond, hitTarget);
+    w.u32(targetDoId);
+    return finish(w);
+}
+// ================================================================== end fishing
 
 } // namespace tt::net

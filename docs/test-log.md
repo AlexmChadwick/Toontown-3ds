@@ -235,6 +235,24 @@ need hardware.
   AI's chatter timer did not fire during the run.
 - No PANIC.
 
+### 2026-10-24 — Fishing, sounds, profiler, shop, boat riding (wave 2 merges)
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **Fishing (TTC pond).** The toon walks onto a fishing spot (`.pts` anchor), sits, and
+  the rod appears with the fishing panel. A cast at 78 % power lands the bob 21.8 units
+  out, and a bite catches a Five Star Fish (57 oz, practice mode). B leaves the spot.
+  Stock Open Toontown generates the pond but no DistributedFishingSpot, so the catch is
+  rolled locally with FishGlobals' rules and nothing is credited. 29.9 fps.
+- **Gag Shop clerk.** Touching Clerk Clara sends avatarEnter. The AI answers setMovie
+  mode 3 (NO_MONEY) for a toon with 0 jellybeans, which is correct, so the purchase
+  panel was not exercised.
+- **Profiler.** At the fishing spot the main thread is busy for 3.2 ms of the 33.4 ms
+  frame, of which zone drawing is 1.2 ms.
+- **Sounds.** Music and ambience load per place. Door, teleport and chat sounds are
+  wired in but have not been listened to (the emulator runs muted).
+- **Boat.** The boat model and deck load asynchronously ("boat: model ready"). The
+  autotest's deck drop missed (it landed in the water), so boarding is still untested.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

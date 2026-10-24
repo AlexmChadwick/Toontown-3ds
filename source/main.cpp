@@ -30,6 +30,7 @@
 #include "world/boat.h"
 #include "world/cchar.h"
 #include "world/suits.h"
+#include "world/fishing.h"
 #include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
@@ -241,6 +242,8 @@ int main() {
     static tt::world::CCharActors cchars;
     static tt::world::BoatActor boat; // Donald's Dock ship (DistributedBoat) with Donald aboard
     cchars.setZone(kStartZone);
+    // Fishing spots at the playground ponds (docs/design/fishing.md).
+    static tt::world::Fishing fishing;
     cchars.setBoat(&boat);
     remoteToons.setBoat(&boat);
     // Cogs walking the street's suit paths (DistributedSuit); a box stands in for the model.
@@ -326,6 +329,8 @@ int main() {
     };
 
     tt::world::Player player;
+    fishing.init(&player, &net);
+    fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
     tt::ui::State uiState;
@@ -491,6 +496,11 @@ int main() {
                 player.reset(cx + ux * dist, cy + uy * dist, cz, atan2f(ux, -uy) / kDegToRad + 30.0f);
             }
         };
+        if (autotest.active() && !strcmp(autotest.label(), "go fishing") && !fishing.active()) {
+            // Test-only: walk onto the nearest fishing spot.
+            float sx, sy, sz, sh;
+            if (fishing.nearestSpot(player.x(), player.y(), &sx, &sy, &sz, &sh)) player.reset(sx, sy, sz + 0.5f, sh);
+        }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
@@ -568,7 +578,9 @@ int main() {
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
+        fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         player.update(in, dt);
+        fishing.applyCamera();
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
@@ -654,6 +666,7 @@ int main() {
             if (place.load(travelTarget)) {
                 zoneActors.loadPoints(place.pointsPath());
                 cchars.setZone(travelTarget);
+                fishing.setZone(travelTarget, place.pointsPath());
                 suits.setZone(travelTarget);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
@@ -684,6 +697,7 @@ int main() {
                 remoteToons.handleEvent(ev, net);
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
+                fishing.handleEvent(ev);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::ShopMovie) {
@@ -833,6 +847,7 @@ int main() {
             zoneActors.draw(renderer, player.cameraEye());
             boat.draw(renderer);
             cchars.draw(renderer);
+            fishing.draw(renderer);
             suits.draw(renderer);
             tt::prof::lap(tt::prof::kDrawActors);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
@@ -956,6 +971,7 @@ int main() {
             ui.setMapZone(kind == tt::world::PlaceKind::Interior ? 0
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
+        ctx.fishing = fishing.view();
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
 
@@ -969,6 +985,7 @@ int main() {
     hud.shutdown();
     zoneActors.shutdown();
     cchars.shutdown();
+    fishing.shutdown();
     boat.shutdown();
     tt::world::AssetLoader::shutdown();
     suits.shutdown();
