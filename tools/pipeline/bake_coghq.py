@@ -21,11 +21,14 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+sys.dont_write_bytecode = True
 import tempfile
 
 os.environ['TT_ETC1_THREADS'] = '3'
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 ROOT = HERE.parent.parent
@@ -185,11 +188,17 @@ def bake(zone_id, args, base):
     with tempfile.TemporaryDirectory() as tmp:
         for chunk, bs in zip(chunks, batches):
             chunk['model'], chunk['stats'] = pack(bs, tmp)
+    # Triangle ownership uses centroids, not clipping. A long triangle can cross
+    # the camera's cell while belonging several cells away. A fixed 3x3 PVS
+    # discarded such geometry, leaving exposed stair edges and missing surfaces.
+    # Match playground PVS: full chunk bounds against the cell plus camera reach.
     for i, c in enumerate(chunks):
-        cx, cy = c['grid']
+        lo = np.array(c['grid']) * args.grid_size
+        hi = lo + args.grid_size
         for j, d in enumerate(chunks):
-            dx, dy = d['grid']
-            if max(abs(cx - dx), abs(cy - dy)) <= 1:
+            bmin,bmax = map(np.array,d['stats']['bounds'])
+            delta = np.maximum(np.maximum(bmin[:2]-hi,lo-bmax[:2]),0)
+            if i==j or np.linalg.norm(delta)<=args.distance+38:
                 c['vis'].append(j)
     low, lod_report = street_lod.make_low(chunks, batches)
     with tempfile.TemporaryDirectory() as tmp:
@@ -218,8 +227,11 @@ def bake(zone_id, args, base):
                          'name': t.name, 'owner': t.owner})
     report = tz.write(out / f'{zone_id}.tz', zone_id, chunks, floors, triggers, collision)
     num_points = write_points(root, cfg, out / f'{zone_id}.pts')
+    import hq_arrivals
+    arrival = hq_arrivals.write_anchor(args.resources, zone_id, out/f'{zone_id}.pts', whole)
+    num_points += int(arrival is not None)
     report.update({
-        'version': 2, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
+        'arrival': arrival, 'version': 2, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
         'before': before['worst'], 'low': low_report['worst'], 'planned_worst': planned, 'lod': lod_report,
         'points': num_points, 'floor_triangles': len(floors), 'triggers': len(triggers),
         'trigger_list': [{k: t[k] for k in ('kind', 'name', 'owner')} for t in triggers],
@@ -257,12 +269,13 @@ def main():
     ap.add_argument('--zone', default='all', help='all or comma-separated zone ids')
     ap.add_argument('--resources', default=default_resources())
     ap.add_argument('--out', default=str(ROOT / 'sdmc-out/3ds/toontown3ds/data/zones'))
-    ap.add_argument('--grid-size', type=float, default=96)
+    ap.add_argument('--grid-size', type=float, default=None,
+                    help='cell size (Cashbot 12000: 192; other HQ zones: 96)')
     ap.add_argument('--distance', type=float, default=120)
     ap.add_argument('--preview', action='store_true')
     ap.add_argument('--audio', action='store_true', help='also bake the four HQ music tracks')
     args = ap.parse_args()
-    if args.grid_size <= 0 or args.distance <= 0:
+    if (args.grid_size is not None and args.grid_size <= 0) or args.distance <= 0:
         ap.error('grid size and distance must be positive')
     zones = coghq_catalog.ZONES if args.zone == 'all' else tuple(int(z) for z in args.zone.split(','))
     for z in zones:
@@ -272,14 +285,16 @@ def main():
         for z in zones:
             command = [sys.executable, '-I', str(Path(__file__).resolve()), '--zone', str(z),
                        '--resources', args.resources, '--out', args.out,
-                       '--grid-size', str(args.grid_size), '--distance', str(args.distance)]
+                       '--grid-size', str(args.grid_size or (192 if z==12000 else 96)), '--distance', str(args.distance)]
             if args.preview:
                 command.append('--preview')
             subprocess.run(command, check=True)
         if args.audio:
             bake_music(args.out, args.resources)
         return
-    from panda3d.core import loadPrcFileData, Filename, getModelPath
+    args.grid_size = args.grid_size or (192 if zones[0]==12000 else 96)
+    from panda3d.core import loadPrcFileData, Filename, getModelPath, BamCache
+    BamCache.getGlobalPtr().setActive(False)
     loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\n'
                     'textures-power-2 none\nmodel-cache-dir')
     from direct.showbase.ShowBase import ShowBase

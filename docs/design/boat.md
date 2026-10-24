@@ -135,9 +135,8 @@ and `BoatActor`. `audio::loadSfx/freeSfx` now take the linear guard too.
 
 ## What remains
 
-- **Piers.** `east_pier` / `west_pier` stay static (pitched -44.26 in the zone model); they should be
-  baked as separate pieces with their collision and animated as above (the creak already plays).
-  Until then a toon boarding from the dock walks over the static tilted pier.
+- **Piers.** The bake split is complete (contract below). Runtime must load, rotate and
+  collide against both separate pieces; the new zone contains no static pier fallback.
 - Boarding only happens over the deck floor; the hull (z 0..12, y -10..2) and rails are walls for a
   toon already aboard but not for one on the dock approaching from the side (upstream's pusher would
   block it; the zone collision has no boat walls).
@@ -172,3 +171,56 @@ Run from the repo root (the worktree's `ref/` may be empty; point `--resources` 
 - Built clean (`make -j4`, zero source warnings). **Not run in Azahar.** To exercise: enter zone 1000 on
   the local server, expect log lines `net: boat <id> state <n>` and the ship moving through the cycle
   (state 1 DockedEast, 2 SailingWest, 3 DockedWest, 4 SailingEast) with Donald on deck.
+
+## Bakefix pier handoff — 2026-10-24
+
+`bake_street.py --zone 1000 --separate-boat` now also excludes both pier subtrees
+from static render **and collision** data. Install these additional files beside
+`1000.tz` and its updated `.pts`/`.json`:
+
+- `1000_pier_east.ttm`, `1000_pier_west.ttm`: each 188 triangles, 3 draws,
+  24,512 texture bytes. East uses 5,272 geometry bytes / 30,464 file bytes;
+  west uses 4,856 geometry bytes / 30,080 file bytes.
+- `1000_pier_east.ttc`, `1000_pier_west.ttc`: each 1,120 bytes, two floor triangles
+  and four wall triangles, no camera triangles. Coordinates are pier-pivot local.
+- `1000_moving.json`: measured authored transforms and animation parent frame.
+  `.pts` includes `pier_east` and `pier_west` world pivot anchors.
+
+The DD terrain DNA transforms its BAM by position `(-25,10,0)`, H `180`.
+Consequently raw BAM pivot coordinates must **not** be used directly as zone coordinates:
+
+| Pier | World pivot XYZ | Authored world H/P/R | Runtime world H |
+|---|---|---|---|
+| east | (-105.389381,-7.499506,5.267346) | (-90.000488,-44.259930,-0.000198) | -90 |
+| west | (55.554008,12.140208,5.279396) | (89.601013,-47.567295,-0.185445) | 90 |
+
+TTM/TTC omit the authored root HPR. Animate about the above fixed world pivot;
+replace authored HPR with the upstream absolute rotation, rather than adding pitch
+to the already raised pose. In parent-BAM space east H=90 and west H=-90, R=0;
+in zone space use the world H column and R=0. Scale is one. Pitch is **0.25 degrees
+flat**, **-44.2601 degrees raised**, linearly interpolated over **5 seconds**.
+The west BAM's authored -47.567295 pitch is not the upstream raised target.
+
+`DistributedBoat.setupTracks` uses `ParallelEndTogether`, so seek from synchronized
+boat state time (clamp to interval endpoints), including late joins:
+
+| Boat state | East pier | West pier |
+|---|---|---|
+| DockedEast | flat | raised |
+| SailingWest, duration D | flat -> raised during t=0..5, then raised | raised until D-5, then -> flat at D |
+| DockedWest | raised | flat |
+| SailingEast, duration D | raised until D-5, then -> flat at D | flat -> raised during t=0..5, then raised |
+
+Use the existing sampled boat path durations (~20 seconds), with arrival at **D-5**,
+not an assumed exactly 15 seconds. Play pier creak at departure t=0 and arrival D-5,
+subject to the runtime's existing late-join audio policy.
+
+Runtime must apply the **same full HPR** to collision vertices and normals. A
+heading-only transformed `groundHeight` query is insufficient for a pitching ramp;
+rotate these six triangles into world space for floor and capsule queries (or use
+an equivalent full-transform collision implementation). Support riders in pier-local
+space while the ramp moves. The static bake no longer supplies a tilted ghost ramp.
+The boat assets/path header are unchanged by this task; retain the existing
+`1000_boat.ttm/.ttc`, boat path tables and Donald assets. See `streets.md` for
+combined mover memory/draw reservations. Only offline/host checks were run here;
+no make or Azahar run was permitted.

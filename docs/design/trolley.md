@@ -153,12 +153,27 @@ BR, DG, DL equivalents). All six models have the same node structure (checked wi
   `phase_4/audio/bgm/trolley_song.ogg` exists but no python in this tree references it
   (UNVERIFIED use).
 
-**Bake gap (open).** Our zone bake merges the whole prop as static geometry, so the car is
-currently frozen in its parked pose and cannot drive in and out. The baker needs to split
-`trolley_car` (with `key`/wheel nodes as separate small batches, or skip the wheel and key
-spin) into its own `.ttm`, record the station transform per hood in the `.pts` sidecar, and
-leave the 60-tri platform static. Station-local coordinates in 1.4 are relative to the
-station DNA node, so the `.pts` entry needs pos, H and the hood id.
+**Bake gap closed (2026-10-24, bakefix).** `bake_street.py` now excludes the entire
+`trolley_car` subtree before static geometry and collision extraction in the six zones
+above. The 60-triangle platform and `trolley_sphere` remain in the zone. Each zone gets
+`<zone>_trolley.ttm`, `<zone>_trolley.ttc`, `<zone>_moving.json` and a `trolley_station`
+entry in `<zone>.pts`. These files are in `sdmc-out/3ds/toontown3ds/data/zones/`.
+
+The TTM is **car-pivot local**, with the car's own transform removed. Runtime matrix:
+`station(position,H) * translate(carPosition) * rotateH(90 degrees)`. All six stations
+have unit scale and zero pitch/roll. The parked authored car position is
+`(15.751000,14.158800,-0.984615)`; its authored **H is 90**, not zero. Preserve that
+heading during upstream position intervals: enter `(-20,14,-1)` to `(15,14,-1)` in
+2 seconds, ease-out; leave `(15,14,-1)` to `(50,14,-1)` in 5 seconds, ease-in.
+Use server state time to seek the interval. Wheels/key are merged and do not spin.
+Seat/camera coordinates in section 1.4 are relative to this transformed car.
+
+Every car is 1,421 triangles / 14 draws / 171,406 geometry bytes / 130,976 texture
+bytes (304,512-byte file). The optional 768-byte TTC contains three intangible
+trigger polygons, **no solid floor/wall**; do not use it as a rideable floor.
+The boarding sphere remains static and uses its existing upstream event rule.
+Read the `.pts` station anchor, never add the old parked car a second time.
+See `streets.md`'s bakefix table and moving-prop frame reservations before drawing.
 
 ### 1.4 Client flow (what to implement)
 

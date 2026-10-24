@@ -247,7 +247,78 @@ if (strstr(t.name, "door") && strstr(t.name, "trigger") &&
        {3000, 35.0f, -32.0f, 6.2f, 138.0f},   {4000, 86.0f, 44.0f, -13.5f, 121.1f},
        {5000, 0.0f, 0.0f, 0.0f, -10.5f},      {6000, -165.8f, 108.0f, 0.025f, 252.0f},
        {8000, -0.7f, 62.0f, 0.08f, 182.0f},   {9000, 77.0f, 91.0f, 0.0f, 124.4f},
-       {10000, 0.0f, -70.0f, 0.0f, 0.0f},     {11000, 0.0f, -200.0f, 0.0f, 0.0f},
-       {12000, 100.0f, -500.0f, -48.0f, 0.0f}, {13000, 0.0f, -250.0f, 0.0f, 0.0f},
+       {10000, 0.0f, 0.0f, 0.0f, 0.0f},       {11000, 64.0f, -128.0f, 0.26f, 36.0f},
+       {12000, 102.0f, -437.0f, -23.439f, 0.0f}, {13000, 77.5f, 129.13f, -68.4f, -166.6f},
    };
    ```
+
+## Bakefix handoff — 2026-10-24
+
+Only 12000 was rebaked in this task. Install this worktree's
+`sdmc-out/3ds/toontown3ds/data/zones/12000.{tz,pts,json}` together.
+TZ remains version 2 (the v1 compatibility tests also pass); no runtime format
+change or source edit was made.
+
+### Cashbot diagnosis and repair
+
+Matching source-BAM and decoded high/planned previews at eye `(100,-520,-40)`,
+look `(100,-400,-45)` separate two problems:
+
+1. The old arrival `(100,-500,-48)` has **no floor hit and no zone cell**. The
+   tunnel walkway is narrow (x about 105.8..126 there); x=100 looks through the
+   open backs of `BigStairs2`, whose authentic tread edges appear as horizontal
+   lines even in the original BAM. Removing these triangles would delete stairs.
+2. The old HQ baker used only the owning centroid cell and its eight neighbours
+   as PVS, even though render triangles are not clipped to cell boundaries.
+   Planned previews therefore omitted whole crossing/background surfaces and
+   exposed the edges against sky. The baker now includes chunk **bounds** within
+   draw distance + 30-unit camera orbit + 8-unit LOD margin, as playgrounds do.
+
+The conservative PVS cannot meet 150 draws with Cashbot's old 96-unit grid
+(191 far draws even at the coarsest tested LOD). Its new default is **192 units**,
+with distance still 120; far voxel spacing is 0.75, maximum displacement 0.64952.
+Worst planned budgets are **14,554 triangles / 105 draws / 785,916 geometry bytes /
+1,404,992 texture bytes**. Old figures were 6,382 / 57 / 344,628 / 652,288 because
+surfaces were missing. File size falls from 18,969,088 to 8,433,152 bytes through
+fewer duplicated per-cell model/texture records. Collision is not simplified.
+
+`hq_arrivals.py` reads `HoodMgr.py` with `ast`, without executing upstream Python.
+An HQ bake now emits `hq_drop` in `.pts` and refuses an arrival without a standable
+floor within 0.15 units of its upstream Z. Cashbot gets
+`hq_drop 102.000000 -437.000000 -23.439000 0.000000`.
+The runtime must consume it (or apply the table below); an asset rebake alone
+cannot replace the old hardcoded arrival in `place.cpp`.
+
+### Exact runtime arrival replacements
+
+Replace only these four rows of `source/world/place.cpp`'s `kDropPoints`;
+keep XYZ at the upstream values and retain normal gravity/floor offset handling:
+
+| Zone | X | Y | Z | H degrees | Upstream policy | Measured collision floor |
+|---|---:|---:|---:|---:|---|---:|
+| 10000 | 0 | 0 | 0 | 0 | `HoodMgr.DefaultDropPoint`; Bossbot has no `dropPoints` entry | 0 |
+| 11000 | 64 | -128 | 0.26 | 36 | `HoodMgr.dropPoints[SellbotHQ][0]` | 0.242134 |
+| 12000 | 102 | -437 | -23.439 | 0 | `HoodMgr.dropPoints[CashbotHQ][0]`; 360 normalized to 0 | -23.463799 |
+| 13000 | 77.5 | 129.13 | -68.4 | -166.6 | `HoodMgr.dropPoints[LawbotHQ][0]` | -68.392204 |
+
+Evidence: `toontown/distributed/HoodMgr.py` lines 677, 713, 737, 802 and
+846..852; `coghq/CogHQExterior.py:101..102` calls that policy. Bossbot's loader
+rotates the tunnel origin; it does not provide an alternative teleport drop.
+The first upstream choice is selected deterministically; the stock client picks
+among its list. All four have zero displacement for a radius-1.4, height-6 capsule,
+and at least 20 units of camera-mask clearance along the proposed heading at
+floor+4. 10000/11000/13000 were checked against the existing main-checkout bakes;
+12000 was checked against the new bake. Main may optionally prefer `hq_drop`
+when present and use these corrected rows as fallback for the other three.
+
+### Verification
+
+`tools/zone_test/run.py --zones=1000,2000,3000,4000,5000,9000,12000` passes format,
+real C++ loader/collision, floor-cell selection, 30,000 grid-vs-full-scan queries
+per version per zone, hard budgets and ten malformed-file cases per zone.
+`tools/zone_test/bakefix_checks.py` compares all eight separated meshes and
+anchors against source transforms, verifies local pier collision and conservative
+Cashbot PVS (1,615 missing cell/mesh pairs in the original bake, zero in the new bake),
+rejects the old unsafe arrival, and runs `hq_drop_test.cpp` with
+ASan/UBSan against all four proposed arrivals. Outputs/logs/previews stay in
+this worktree's ignored `sdmc-out/`; no make, emulator, or hardware test was run.

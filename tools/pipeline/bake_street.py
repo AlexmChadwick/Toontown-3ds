@@ -11,11 +11,14 @@ import math
 import os
 from pathlib import Path
 import sys
+sys.dont_write_bytecode = True
 import tempfile
 
 os.environ['TT_ETC1_THREADS'] = '3'
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
+os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+os.environ['MKL_NUM_THREADS'] = '1'
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 ROOT = HERE.parent.parent
@@ -58,6 +61,8 @@ def bake(zone_id, args, base):
         # skipped by findAllMatches, so neither its geometry nor its collision reach the .tz.
         for n in root.findAllMatches('**/donalds_boat'):
             n.stash()
+    import bake_moving_props
+    movers = bake_moving_props.split(root, zone_id, args.out)
     ex = street_atlas.Extractor()
     chunks, raw, floors = [],[],[]
     whole_collision = collide.extract(root)
@@ -195,7 +200,8 @@ def bake(zone_id, args, base):
         sign_views.append({'letters':letters,'look':centre.tolist(),'eye':eye.tolist()})
     from bake_zone import write_points
     num_points=write_points(root,str(out/f'{zone_id}.pts'))
-    report.update({'version':2,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
+    num_points += bake_moving_props.append_points(out/f'{zone_id}.pts', movers)
+    report.update({'moving_props':movers,'version':2,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
@@ -233,7 +239,8 @@ def main():
                 command.append('--separate-boat')
             subprocess.run(command,check=True)
         return
-    from panda3d.core import loadPrcFileData
+    from panda3d.core import loadPrcFileData, BamCache
+    BamCache.getGlobalPtr().setActive(False)
     loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\ntextures-power-2 none\nmodel-cache-dir')
     from direct.showbase.ShowBase import ShowBase
     base=ShowBase()

@@ -292,3 +292,73 @@ codes and no skipped text baselines in these bakes. Doors/tunnel volumes, full
 collision and anchor extraction remain intact. This work does not add interiors,
 animated boats/water, new gameplay, extra music, stereo polish or public-server
 support. No push or merge is performed.
+
+## Bakefix assets and budgets — 2026-10-24
+
+Reproduce the seven zones and all moving props (from this worktree root):
+
+```sh
+.venv/bin/python -I -B tools/pipeline/bake_zone_fixes.py --resources ref/ref/resources --baseline /Users/alexchadwick/toontown-3ds/sdmc-out/3ds/toontown3ds/data/zones
+.venv/bin/python -I -B tools/zone_test/run.py --zones=1000,2000,3000,4000,5000,9000,12000
+.venv/bin/python -I -B tools/zone_test/bakefix_checks.py --resources "$PWD/ref/ref/resources" --out "$PWD/sdmc-out/3ds/toontown3ds/data/zones" --baseline /Users/alexchadwick/toontown-3ds/sdmc-out/3ds/toontown3ds/data/zones
+```
+
+The driver serializes zones, disables model/bytecode caches, uses three ETC workers
+and single-thread numerical libraries, and keeps scratch under its output directory.
+No source format, runtime file, shared reference or virtual environment is written.
+The playgrounds retain grid 128/distance 120; DD retains `--separate-boat`.
+Cashbot changes to grid 192/distance 120 for conservative PVS (see `coghq.md`).
+These are conservative **static-zone planned maxima**, each metric maximized
+independently over floor samples. Byte counts are resident bytes, not file size.
+
+| Zone | Triangles before -> after | Draws before -> after | Geometry bytes before -> after | Texture bytes before -> after | New TZ bytes |
+|---|---:|---:|---:|---:|---:|
+| 1000 | 14,735 -> 12,340 | 77 -> 80 | 795,690 -> 666,360 | 2,012,128 -> 2,077,664 | 4,726,144 |
+| 2000 | 14,862 -> 14,889 | 117 -> 120 | 802,548 -> 804,006 | 2,967,200 -> 3,076,384 | 7,558,400 |
+| 3000 | 13,385 -> 11,745 | 88 -> 87 | 722,790 -> 634,230 | 2,648,320 -> 2,582,784 | 5,875,584 |
+| 4000 | 14,003 -> 12,253 | 71 -> 72 | 756,162 -> 661,662 | 1,769,120 -> 1,769,120 | 4,195,968 |
+| 5000 | 14,813 -> 14,937 | 63 -> 68 | 799,902 -> 806,598 | 1,545,408 -> 1,720,128 | 4,772,224 |
+| 9000 | 12,833 -> 11,080 | 84 -> 86 | 692,982 -> 598,320 | 2,260,608 -> 2,391,680 | 5,139,968 |
+| 12000 | 6,382 -> 14,554 | 57 -> 105 | 344,628 -> 785,916 | 652,288 -> 1,404,992 | 8,433,152 |
+
+All static zones pass 15k triangles, 150 draws, 6 MiB geometry and 8 MiB textures.
+Removing the car can change atlas packing and permit different near upgrades;
+planned maxima therefore need not decrease monotonically. The static platform
+and boarding sphere remain; mover collision does not remain as a static ghost.
+
+### Runtime assets and frame reservations
+
+Assets are under `sdmc-out/3ds/toontown3ds/data/zones/` in this worktree. Copy the
+seven `<zone>.tz/.pts/.json` triplets together. Additional assets:
+
+- `{1000,2000,3000,4000,5000,9000}_trolley.ttm`, plus optional matching `.ttc`.
+- `1000_pier_{east,west}.ttm` and matching `.ttc`.
+- `<hood>_moving.json` for the six trolley hoods (offline transform/budget handoff;
+  runtime does not need a JSON parser). `bakefix_budgets.json` and
+  `bakefix_checks.json` are verification reports, not game assets.
+
+Read `trolley_station` from every hood's `.pts`, and `pier_east`/`pier_west` from
+1000. See `trolley.md` for the essential car H=90 transform and `boat.md` for the
+DNA-adjusted pier pivots, full pitch collision and synchronized timing. Existing
+boat assets/path tables are retained and are not regenerated here.
+
+**Main-agent runtime work:** reserve moving props before planning zone LOD or
+loading their buffers. All six cars cost 1,421 triangles / 14 draws / 171,406 geometry
+bytes / 130,976 texture bytes **per loaded hood**, not six simultaneous copies.
+DD's two piers add 376 triangles / 6 draws / 10,128 geometry bytes / 49,024 texture
+bytes (two TTC blobs total 2,240 heap bytes, plus loader/query overhead).
+The static-zone planner must accept reduced limits or equivalent nearest-upgrade
+suppression: at most **13,579 triangles / 136 draws** while a trolley is drawn,
+or **13,203 / 130** for DD trolley+piers; reduce geometry/texture limits by the
+above resident bytes as well. Account for the existing boat, Toons and other
+actors separately. The default planner's 15k limit alone is not a whole-frame
+budget: TTC/DG static maxima plus the new car would exceed it. The far baselines
+remain below 12k; these reservations can be satisfied by declining near upgrades.
+Do not simply draw movers on top of a fully spent static-zone budget.
+
+Only pipeline/test/documentation changes are committed; ignored outputs must be
+copied from this worktree (or regenerated). All seven real zones passed the host
+suite; eight moving meshes were compared to authored geometry and anchor frames.
+An independent repeat bake produced **43 byte-identical files** (seven zone triplets,
+eight TTM/TTC pairs and six moving-prop metadata files). No make, Azahar, push or
+merge was performed.
