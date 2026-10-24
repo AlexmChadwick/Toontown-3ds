@@ -462,6 +462,8 @@ void Client::fail(const char* why, bool retry) {
 }
 
 void Client::resetWorld() {
+    boss_ = BossState{};
+    bossPies_ = 0;
     bool hadWorld = state_ == State::InZone || numToons_ > 0;
     for (RemoteToon& t : toons_) {
         if (t.active) pushEvent(EventType::Despawn, t.doId);
@@ -829,6 +831,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
     if (classId == dc::DistributedFactory::kClassId) {
         handleFactoryEnter(doId, classId, r, req, reqCount, other);
@@ -938,6 +941,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
@@ -1064,6 +1068,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    if (boss_.active && boss_.doId == doId) boss_ = BossState{};
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
     for (RacingBlock& b : racingBlocks_) if (b.active && b.doId == doId) { b = RacingBlock{}; pushEvent(EventType::RacingGone, doId); return; }
@@ -1391,6 +1396,7 @@ uint32_t Client::retryInMs() const {
 }
 
 bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
+    if (bossOwnField(r, fieldId)) return r.ok();
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
@@ -2562,6 +2568,8 @@ void Client::sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uin
 }
 
 void Client::dropZoneObjects() {
+    boss_ = BossState{};
+    bossPies_ = 0;
     // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
     // server also sends OBJECT_LEAVING; unknown ids are ignored then).
     for (RemoteToon& t : toons_) {
@@ -4394,7 +4402,9 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZone ||
                fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZoneForce ||
                fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZone ||
-               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce) {
+               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce ||
+               fieldId == dc::DistributedBossElevator::k_setBossOfficeZone ||
+               fieldId == dc::DistributedBossElevator::k_setBossOfficeZoneForce) {
         e.destZone = r.u32();
         if (r.ok()) pushEvent(EventType::CogElevatorUp, e.doId); // the riders' cue to go
     } else return skipField(r, fieldId);

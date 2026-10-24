@@ -34,6 +34,7 @@
 #include "net/datagram.h"
 #include "net/quest_net.h"
 #include "net/book_net.h"
+#include "net/boss_state.h"
 
 namespace tt::net {
 
@@ -1691,6 +1692,33 @@ private:
     uint32_t droppedEvents_ = 0;
 
     uint32_t bytesIn_ = 0, bytesOut_ = 0, msgsIn_ = 0, msgsOut_ = 0;
+    // ===================== boss protocol (client_boss.cpp) =====================
+public:
+    const BossState* boss() const { return boss_.active ? &boss_ : nullptr; }
+    uint16_t bossPies() const { return bossPies_; }
+    uint8_t bossPieType() const { return bossPieType_; }
+    bool spendBossPie();
+    bool sendBossEnter();
+    bool sendBossExit();
+    bool sendBossNear(bool near);
+    bool sendBossBarrier(uint16_t context);
+    bool sendVpTouchCage();
+    bool sendVpHitInsides();
+    bool sendVpHit();
+    bool sendVpFinalPie();
+    bool sendBossZap(float x, float y, float z, float heading, float directionX,
+                     float directionY, uint8_t attack);
+private:
+    bool handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
+                         const uint16_t* required, uint16_t count, bool other);
+    bool handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fieldId);
+    bool bossOwnField(DatagramReader& reader, uint16_t fieldId);
+    bool bossParticipant() const;
+    BossState boss_;
+    uint16_t bossPies_ = 0;
+    uint8_t bossPieType_ = 0;
+    // ===================== end boss protocol =====================
+
 };
 
 } // namespace tt::net
