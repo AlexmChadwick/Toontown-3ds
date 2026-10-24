@@ -117,6 +117,7 @@ bool Client::friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fi
                                      : fieldId == dc::DistributedToon::k_setWhisperSCCustomFrom ? WhisperKind::Custom
                                                                                                : WhisperKind::Emote;
             logWhisper(from, kind, index, nullptr);
+            TT_LOG("net: whisper %u from %u", unsigned(index), unsigned(from));
             return true;
         }
         if (fieldId == dc::DistributedToon::k_setSystemMessage) {

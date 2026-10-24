@@ -354,6 +354,15 @@ need hardware.
     y 2..18, not the origin.
 - No PANIC.
 
+### 2026-10-24 — Whispers with the PC bot
+- **Setup.** `tools/server/smoke_test.py --whisper 100` whispers phrase 100 to every toon in
+  view every 5 s.
+- **Received.** The 3DS client receives every whisper (`net: whisper 100 from 100000039`)
+  and turns it into a top-screen toast.
+- **Sending.** The Chat tab header's "To:" button cycles through the toons in view; a
+  SpeedChat pick then goes as setWhisperSCFrom to that toon only, with no public balloon.
+  Sending was not exercised by the autotest.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

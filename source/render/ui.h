@@ -26,6 +26,8 @@ struct State {
     int bottomColor = 18;
     // Map tab teleport: hood zone id the player tapped (main clears it), 0 = none.
     unsigned teleportRequest = 0;
+    // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
+    unsigned whisperTo = 0;
 };
 
 struct MapMarker {
@@ -53,6 +55,10 @@ struct Context {
     unsigned zoneId = 0;
     unsigned netInBps = 0, netOutBps = 0;
     int remoteToons = 0;
+    // Toons in view, for the Chat tab's whisper target (name pointers stay valid for the frame).
+    int numNearby = 0;
+    unsigned nearbyIds[8] = {};
+    const char* nearbyNames[8] = {};
     // Our ToonTasks (Toon tab task list); null = offline.
     const net::OwnQuests* quests = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
@@ -147,6 +153,10 @@ private:
     ShopPanel shop_;
     BattlePanel battle_;
     QuestPanel quest_;
+    // Whisper targets seen at the last draw (handleInput runs before draw each frame).
+    int numNearby_ = 0;
+    unsigned nearbyIds_[8] = {};
+    char nearbyNames_[8][24] = {};
     quest::Talk* talk_ = nullptr;
     const world::BattleView* battleView_ = nullptr;
     BattleGags battleGags_{};

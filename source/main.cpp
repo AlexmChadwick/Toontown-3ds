@@ -640,8 +640,10 @@ int main() {
         }
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
-            myPhrase = tt::sc::phraseText(speechMsg);
-            myPhraseAge = 0.0f;
+            if (!uiState.whisperTo) { // whispers are private: no balloon over our head
+                myPhrase = tt::sc::phraseText(speechMsg);
+                myPhraseAge = 0.0f;
+            }
             tt::audio::playSfx(sfxClick);
             pendingSpeech = speechMsg;
         }
@@ -915,7 +917,11 @@ int main() {
                     net.sendAnimState(netState, 1.0f);
                     sentState = netState;
                 }
-                if (pendingSpeech >= 0) net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
+                if (pendingSpeech >= 0) {
+                    // A whisper goes only to that toon (DistributedToon.setWhisperSCFrom), said aloud otherwise.
+                    if (uiState.whisperTo) net.sendWhisperSC(uiState.whisperTo, static_cast<uint16_t>(pendingSpeech));
+                    else net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
+                }
                 // Entering a treasure's sphere asks the AI for it once (DistributedTreasure.
                 // handleEnterSphere). The AI refuses while laff is full (validAvatar: hp < maxHp).
                 const u32 touching = zoneActors.touchingTreasure(player.x(), player.y(), player.z());
@@ -1241,7 +1247,15 @@ int main() {
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();
-        if (netStarted && net.inZone()) ctx.quests = &net.ownQuests();
+        if (netStarted && net.inZone()) {
+            ctx.quests = &net.ownQuests();
+            for (int i = 0; i < tt::net::kMaxRemoteToons && ctx.numNearby < 8; i++) {
+                const tt::net::RemoteToon& t = net.remoteToonSlot(i);
+                if (!t.active) continue;
+                ctx.nearbyIds[ctx.numNearby] = t.doId;
+                ctx.nearbyNames[ctx.numNearby++] = t.name;
+            }
+        }
         if (minigame.active()) {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);

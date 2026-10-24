@@ -136,7 +136,20 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         lastTab_ = s.tab;
         return 0;
     }
-    if (s.tab == kTabChat) return chat_.handleInput(down, held, t, kTabY);
+    if (s.tab == kTabChat) {
+        // Header button: cycle the whisper target through the toons in view.
+        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, kW - 100, 2, 96, 24)) {
+            int next = 0;
+            for (int i = 0; i < numNearby_; i++)
+                if (nearbyIds_[i] == s.whisperTo) next = i + 1;
+            s.whisperTo = next < numNearby_ ? nearbyIds_[next] : 0;
+            return down;
+        }
+        bool stillHere = s.whisperTo == 0;
+        for (int i = 0; i < numNearby_; i++) stillHere |= nearbyIds_[i] == s.whisperTo;
+        if (!stillHere) s.whisperTo = 0;
+        return chat_.handleInput(down, held, t, kTabY);
+    }
     if (!(down & KEY_TOUCH) || t.py >= kTabY) return 0;
 
     switch (s.tab) {
@@ -197,7 +210,21 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     }
     switch (s.tab) {
     case kTabMap: drawMap(c); break;
-    case kTabChat: chat_.draw(kTabY); break;
+    case kTabChat: {
+        chat_.draw(kTabY);
+        numNearby_ = c.numNearby < 8 ? c.numNearby : 8;
+        const char* target = "Everyone";
+        for (int i = 0; i < numNearby_; i++) {
+            nearbyIds_[i] = c.nearbyIds[i];
+            snprintf(nearbyNames_[i], sizeof(nearbyNames_[i]), "%s", c.nearbyNames[i] ? c.nearbyNames[i] : "");
+            if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
+        }
+        if (numNearby_ > 0) {
+            C2D_DrawRectSolid(kW - 100, 2, 0.5f, 96, 24, s.whisperTo ? kAccent : kPanel);
+            text(kW - 96, 7, 0.4f, s.whisperTo ? kBg : kWhite, "To: %.12s", target);
+        }
+        break;
+    }
     case kTabToon: drawToon(s, c); break;
     case kTabGags: drawGags(c); break;
     case kTabSettings: drawSettings(s); break;

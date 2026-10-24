@@ -258,6 +258,8 @@ def main():
     ap.add_argument("--speed", type=float, default=0.5, help="angular speed (rad/s) for --move")
     ap.add_argument("--z", type=float, default=4.0, help="height for --move")
     ap.add_argument("-v", "--verbose", action="store_true", help="dump every field")
+    ap.add_argument("--whisper", type=int, metavar="MSG",
+                    help="every 5 s, SpeedChat-whisper phrase MSG to every other toon in view")
     a = ap.parse_args()
 
     dc = DC()
@@ -321,7 +323,15 @@ def main():
     end = time.time() + a.linger
     t0 = time.time()
     next_move = 0
+    next_whisper = time.time() + 5.0
     while time.time() < end:
+        if a.whisper is not None and time.time() >= next_whisper:
+            # DistributedToon.setWhisperSCFrom(fromId, msgIndex), sent to the other toon's doId.
+            for d, o in list(c.objects.items()):
+                if o["cls"] == "DistributedToon" and d != av_id:
+                    c.set_field(d, "DistributedToon", "setWhisperSCFrom", av_id, a.whisper)
+                    print("whispered %d to %d" % (a.whisper, d))
+            next_whisper = time.time() + 5.0
         if a.move and time.time() >= next_move:
             import math
             ang = (time.time() - t0) * a.speed
