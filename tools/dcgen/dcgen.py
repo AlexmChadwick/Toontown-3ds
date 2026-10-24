@@ -240,6 +240,13 @@ WANTED = {
     'DistributedSecurityCamera': ['setTarget', 'trapFire'],
     'DistributedMaze': ['setRoomDoId', 'setGameStart', 'setGameOver', 'setClientTriggered',
                         'setFinishedMaze', 'toonFinished', 'damageMe'],
+    'DistributedMoleField': ['setGameStart', 'setClientTriggered', 'whackedMole', 'whackedBomb',
+                             'updateMole', 'setScore', 'damageMe', 'setPityWin'],
+    'DistributedGolfGreenGame': ['requestJoin', 'leaveGame', 'acceptJoin', 'requestBoard',
+                                 'startBoard', 'signalDone', 'scoreData', 'setTimerStart'],
+    'DistributedGrid': [],
+    'DistributedGridGoon': ['setPathPts'],
+    'DistributedCrusherEntity': [],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
@@ -341,6 +348,9 @@ WANTED['DistributedElevatorFSM'] = ['setState', 'fillSlot0', 'fillSlot1', 'fillS
 WANTED['DistributedElevatorFloor'] = ['setLocked', 'setLatch']
 WANTED['DistributedClubElevator'] = ['setLocked', 'setLatch']  # the country clubs' (same protocol)
 TABLE_CLASSES += ['DistributedElevatorFloor', 'DistributedClubElevator']
+# ---- facility room games (docs/design/level_games.md) ----
+TABLE_CLASSES += ['DistributedMoleField', 'DistributedGolfGreenGame', 'DistributedGrid',
+                  'DistributedGridGoon', 'DistributedCrusherEntity']
 # ---- end facility levels ----
 
 # ---- Cog boss battles (client_boss.cpp, docs/design/bosses.md) ----
