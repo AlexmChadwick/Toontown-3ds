@@ -276,6 +276,7 @@ int main() {
     autotest.begin();
     const char* shotName = nullptr;
     bool autotestGrabbed = false;
+    bool autotestClerk = false, autotestBoarded = false;
     unsigned netInBps = 0, netOutBps = 0;
     uint32_t lastBytesIn = 0, lastBytesOut = 0;
 
@@ -434,6 +435,19 @@ int main() {
                 suits.logState();
                 lastLog = tt::net::plat::nowMs();
             }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "visit clerk") && !autotestClerk) {
+            // Test-only: step onto the first NPC (the Gag Shop clerk) so the shop opens.
+            float npc[4];
+            if (zoneActors.shadowPositions(npc, 1) == 1) {
+                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
+                autotestClerk = true;
+            }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "ride boat") && boat.active() && !autotestBoarded) {
+            // Test-only: drop onto the middle of the deck.
+            player.reset(boat.x(), boat.y(), boat.z() + 5.0f, boat.heading());
+            autotestBoarded = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "see boat") && boat.active()) {
             autotestFace(boat.x(), boat.y(), boat.z() + 2.0f, 30.0f);
