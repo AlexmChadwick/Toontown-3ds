@@ -624,6 +624,7 @@ void Battle::runFx(uint32_t nowMs) {
             break;
         }
         case kFxHit:
+            if (!a->isToon) a->damage += f.value;
             a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
             snprintf(text, sizeof(text), "-%d", int(f.value));
             addPopup(*a, text, kColorDamage, nowMs);
@@ -820,6 +821,13 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
         }
     }
     if (moviePlaying_) {
+        for (Actor& a : suits_) { // a fresh setHP replaces what our movies took off
+            const net::Suit* s = a.used ? client.findSuit(a.doId) : nullptr;
+            if (s && s->hp != a.baseHp) {
+                a.baseHp = s->hp;
+                a.damage = 0;
+            }
+        }
         runFx(nowMs);
         if (!movieSent_ && int32_t(nowMs - movieEndMs_) >= 0) {
             client.sendBattleMovieDone(battleId_);
@@ -945,6 +953,10 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         c.hp = c.maxHp = 0;
         if (const net::Suit* s = client.findSuit(c.doId)) {
             c.hp = s->hp;
+            for (const Actor& a : suits_) {
+                if (a.used && a.doId == c.doId && a.baseHp == s->hp) c.hp = s->hp - a.damage;
+            }
+            if (c.hp < 0) c.hp = 0;
             if (const SuitInfo* info = s->hasDna ? findSuitType(s->name) : nullptr) {
                 snprintf(c.name, sizeof(c.name), "%s", info->name);
                 c.level = info->baseLevel + s->levelDist + 1;

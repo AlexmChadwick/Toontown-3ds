@@ -174,6 +174,10 @@ private:
         uint32_t flashEnd = 0;
         uint32_t dieStart = 0;
         bool dying = false, hidden = false;
+        // Cogs: damage shown by this battle's movies since the AI last sent setHP (upstream
+        // lowers suit.currHP locally; the AI only resends it after the battle).
+        int damage = 0;
+        int baseHp = -1;
         uint32_t faceUntil = 0;
         float faceH = 0;
     };
