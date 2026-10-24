@@ -263,6 +263,7 @@ constexpr uint16_t k_setPinkSlips = 596;
 constexpr uint16_t k_setNametagStyle = 597;
 constexpr uint16_t k_setFishingRod = 533;
 constexpr uint16_t k_setMaxFishTank = 531;
+constexpr uint16_t k_setFishTank = 532;
 constexpr uint16_t k_setQuests = 522;
 constexpr uint16_t k_setEarnedExperience = 476;
 constexpr uint16_t kw_setName = 0x10b;
@@ -307,6 +308,7 @@ constexpr uint16_t kw_setPinkSlips = 0x089;
 constexpr uint16_t kw_setNametagStyle = 0x00f;
 constexpr uint16_t kw_setFishingRod = 0x08b;
 constexpr uint16_t kw_setMaxFishTank = 0x089;
+constexpr uint16_t kw_setFishTank = 0x089;
 constexpr uint16_t kw_setQuests = 0x08b;
 constexpr uint16_t kw_setEarnedExperience = 0x080;
 constexpr const char* sig_setName = "string";
@@ -351,6 +353,7 @@ constexpr const char* sig_setPinkSlips = "u8";
 constexpr const char* sig_setNametagStyle = "u8";
 constexpr const char* sig_setFishingRod = "u8";
 constexpr const char* sig_setMaxFishTank = "u8";
+constexpr const char* sig_setFishTank = "u8[],u8[],u16[]";
 constexpr const char* sig_setQuests = "u32[]";
 constexpr const char* sig_setEarnedExperience = "u16[]";
 } // namespace DistributedToon
@@ -671,9 +674,46 @@ constexpr const char* sig_setChipId = "u32";
 namespace DistributedFishingPond {
 constexpr uint16_t kClassId = 115;
 constexpr uint16_t k_setArea = 803;
+constexpr uint16_t k_hitTarget = 802;
 constexpr uint16_t kw_setArea = 0x007;
+constexpr uint16_t kw_hitTarget = 0x110;
 constexpr const char* sig_setArea = "u32";
+constexpr const char* sig_hitTarget = "u32";
 } // namespace DistributedFishingPond
+
+namespace DistributedFishingSpot {
+constexpr uint16_t kClassId = 117;
+constexpr uint16_t k_setPondDoId = 806;
+constexpr uint16_t k_setPosHpr = 807;
+constexpr uint16_t k_requestEnter = 808;
+constexpr uint16_t k_rejectEnter = 809;
+constexpr uint16_t k_requestExit = 810;
+constexpr uint16_t k_setOccupied = 811;
+constexpr uint16_t k_doCast = 812;
+constexpr uint16_t k_sellFish = 813;
+constexpr uint16_t k_sellFishComplete = 814;
+constexpr uint16_t k_setMovie = 815;
+constexpr uint16_t kw_setPondDoId = 0x007;
+constexpr uint16_t kw_setPosHpr = 0x007;
+constexpr uint16_t kw_requestEnter = 0x110;
+constexpr uint16_t kw_rejectEnter = 0x000;
+constexpr uint16_t kw_requestExit = 0x110;
+constexpr uint16_t kw_setOccupied = 0x006;
+constexpr uint16_t kw_doCast = 0x110;
+constexpr uint16_t kw_sellFish = 0x110;
+constexpr uint16_t kw_sellFishComplete = 0x000;
+constexpr uint16_t kw_setMovie = 0x006;
+constexpr const char* sig_setPondDoId = "u32";
+constexpr const char* sig_setPosHpr = "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10";
+constexpr const char* sig_requestEnter = "";
+constexpr const char* sig_rejectEnter = "";
+constexpr const char* sig_requestExit = "";
+constexpr const char* sig_setOccupied = "u32";
+constexpr const char* sig_doCast = "u8/255,i16/100";
+constexpr const char* sig_sellFish = "";
+constexpr const char* sig_sellFishComplete = "u8,u16";
+constexpr const char* sig_setMovie = "u8,u8,u16,u16,u16,u8/100,i16/100";
+} // namespace DistributedFishingSpot
 
 namespace DistributedBoat {
 constexpr uint16_t kClassId = 111;
@@ -790,10 +830,6 @@ constexpr uint16_t kClassId = 168;
 namespace WelcomeValleyManager {
 constexpr uint16_t kClassId = 63;
 } // namespace WelcomeValleyManager
-
-namespace DistributedFishingSpot {
-constexpr uint16_t kClassId = 117;
-} // namespace DistributedFishingSpot
 
 namespace DistributedFishingTarget {
 constexpr uint16_t kClassId = 116;

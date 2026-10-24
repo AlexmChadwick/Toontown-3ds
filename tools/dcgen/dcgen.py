@@ -61,7 +61,7 @@ WANTED = {
                         'setDefaultShard', 'setDefaultZone', 'setLastHood', 'setTutorialAck',
                         'setHat', 'setGlasses', 'setBackpack', 'setShoes', 'setCheesyEffect',
                         'setAccessLevel', 'setPinkSlips', 'setNametagStyle', 'setFishingRod',
-                        'setMaxFishTank', 'setQuests', 'setEarnedExperience'],
+                        'setMaxFishTank', 'setFishTank', 'setQuests', 'setEarnedExperience'],
     # ---- zone 2000 objects (source/net/zone_objects.*, docs/design/playground.md) ----
     'DistributedNPCToonBase': ['setName', 'setDNAString', 'setPositionIndex', 'setAnimState',
                                'setPageNumber', 'avatarEnter', 'freeAvatar'],
@@ -90,7 +90,10 @@ WANTED = {
                         'setPathPosition', 'setPathState', 'denyBattle', 'requestBattle'],
     'DistributedDale': ['setFollowChip', 'setChipId'],
     'DistributedJailbirdDale': ['setFollowChip', 'setChipId'],
-    'DistributedFishingPond': ['setArea'],
+    # ---- fishing (source/net/client.cpp "fishing" section, docs/design/fishing.md) ----
+    'DistributedFishingPond': ['setArea', 'hitTarget'],
+    'DistributedFishingSpot': ['setPondDoId', 'setPosHpr', 'requestEnter', 'rejectEnter', 'requestExit',
+                               'setOccupied', 'doCast', 'sellFish', 'sellFishComplete', 'setMovie'],
     'DistributedBoat': ['setState'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],

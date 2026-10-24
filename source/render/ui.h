@@ -6,6 +6,7 @@
 
 #include "render/model.h"
 #include "ui/chat_menu.h"
+#include "ui/fishing_panel.h"
 
 namespace tt::ui {
 
@@ -54,6 +55,8 @@ struct Context {
     const uint8_t (*gagCount)[7] = nullptr;      // [7][7]
     const uint8_t* trackAccess = nullptr;        // [7]
     int maxCarry = 0;
+    // Fishing: non-null while the toon is fishing; replaces the tab content (ui/fishing_panel.h).
+    const FishingView* fishing = nullptr;
 };
 
 constexpr int kNumTeleportHoods = 8;
@@ -121,6 +124,7 @@ private:
     unsigned frame_ = 0;
     int lastTab_ = -1;
     ChatMenu chat_;
+    FishingPanel fishingPanel_;
 };
 
 } // namespace tt::ui
