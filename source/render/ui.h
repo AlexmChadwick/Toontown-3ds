@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 
+#include "render/model.h"
 #include "ui/chat_menu.h"
 
 namespace tt::ui {
@@ -70,6 +71,11 @@ public:
     // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
+    // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
+    // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
+    // interior = none). Loads sdmc:/3ds/toontown3ds/data/zones/<id>.tmap (bake_minimap.py);
+    // if absent the Map tab keeps its marker-only view. Main thread only (allocates linear).
+    void setMapZone(unsigned fileZone);
 
 private:
     struct CachedLine {
@@ -88,6 +94,17 @@ private:
     void drawToon(const State& s);
     void drawSettings(const State& s);
     void drawDebug(const Context& c);
+
+    void unloadMap();
+
+    // Baked minimap (.tmap): one ETC1 texture + the world rectangle it covers.
+    C3D_Tex mapTex_{};
+    Tex3DS_SubTexture mapSub_{};
+    C2D_Image mapImage_{};
+    bool hasMap_ = false;
+    unsigned mapZone_ = 0xFFFFFFFFu;
+    float mapMinX_ = 0, mapMinY_ = 0, mapMaxX_ = 1, mapMaxY_ = 1;
+    unsigned mapW_ = 0, mapH_ = 0;
 
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
