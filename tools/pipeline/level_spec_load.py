@@ -11,7 +11,19 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-COGHQ = ROOT / 'ref/open-toontown/toontown/coghq'
+
+
+def _upstream():
+    # Agent worktrees keep empty submodule dirs and link the main checkout's ref/ as ref/ref.
+    for c in (ROOT / 'ref/open-toontown', ROOT / 'ref/ref/open-toontown',
+              Path('/Users/alexchadwick/toontown-3ds/ref/open-toontown')):
+        if (c / 'toontown').exists():
+            return c
+    return ROOT / 'ref/open-toontown'
+
+
+UPSTREAM = _upstream()
+COGHQ = UPSTREAM / 'toontown/coghq'
 
 
 class _Localizer(types.ModuleType):
@@ -44,7 +56,7 @@ def _toontown_globals():
     if _GLOBALS is None:
         ns = _namespace()
         ns['TTLocalizer'] = _Localizer('TTLocalizer')
-        tree = ast.parse((ROOT / 'ref/open-toontown/toontown/toonbase/ToontownGlobals.py').read_text())
+        tree = ast.parse((UPSTREAM / 'toontown/toonbase/ToontownGlobals.py').read_text())
         for node in tree.body:
             if isinstance(node, (ast.Import, ast.ImportFrom)):
                 continue

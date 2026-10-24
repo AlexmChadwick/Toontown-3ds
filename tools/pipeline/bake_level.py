@@ -55,7 +55,7 @@ def room_levels():
 
 
 def default_resources():
-    for c in (ROOT / 'ref/resources', Path('/Users/alexchadwick/toontown-3ds/ref/resources')):
+    for c in (ROOT / 'ref/resources', ROOT / 'ref/ref/resources', Path('/Users/alexchadwick/toontown-3ds/ref/resources')):
         if (c / 'phase_9').exists():
             return c
     return ROOT / 'ref/resources'
