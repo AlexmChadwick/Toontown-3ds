@@ -54,7 +54,9 @@ public:
         return static_cast<const SuitActors*>(self)->pose(doId, x, y, z, h);
     }
     // Battles place their cogs themselves: call after update() each frame while in battle.
-    void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash);
+    // anim: SuitAnim or a battle clip (world/battle.h kSuitAnim*), clipArg/clipStartMs with it.
+    void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim = 0,
+                      s8 clipArg = -1, u32 clipStartMs = 0);
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.
@@ -86,6 +88,8 @@ private:
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
         float animTime = 0.0f;
+        s8 clipArg = -1;
+        u32 clipStartMs = 0;
     };
     void refresh(Actor& a, const net::Suit& s, const net::Client& client, u32 nowMs);
     void enterState(Actor& a, s8 state, u32 nowMs);
@@ -102,7 +106,12 @@ private:
         bool tried = false;
         render::Model model;
         render::Anim neutral, walk;
+        // Battle clips (react, attacks, lose), loaded the first time a fight needs them.
+        static constexpr int kClips = 10;
+        char clipName[kClips][24] = {};
+        render::Anim clips[kClips];
     };
+    const render::Anim* battleClip(int body, const char* name);
     struct Head {
         char code[4] = {};
         bool tried = false;
@@ -117,6 +126,7 @@ private:
     Head heads_[kMaxHeads];
     C3D_Tex deptTex_[4][3] = {}; // [c l m s][blazer, sleeve, legs]
     bool deptLoaded_ = false;
+    u32 nowMs_ = 0;
     u32 branch_ = 0;
     u32 graphBranch_ = 0;
     bool graphFailed_ = false;

@@ -120,6 +120,21 @@ SuitActors::Head* SuitActors::head(const char* code) {
     return nullptr; // cache full (a street rarely shows more than a dozen head types)
 }
 
+const render::Anim* SuitActors::battleClip(int b, const char* name) {
+    if (!name || !*name || b < 0 || b > 2) return nullptr;
+    Body& body = bodies_[b];
+    for (int i = 0; i < Body::kClips; i++)
+        if (body.clipName[i][0] && !strcmp(body.clipName[i], name)) return body.clips[i].loaded() ? &body.clips[i] : nullptr;
+    for (int i = 0; i < Body::kClips; i++) {
+        if (body.clipName[i][0]) continue;
+        snprintf(body.clipName[i], sizeof(body.clipName[i]), "%s", name);
+        char path[112];
+        snprintf(path, sizeof(path), "%ssuit%c_full_%s.tta", kSuitDir, static_cast<char>('A' + b), name);
+        return body.clips[i].load(path) ? &body.clips[i] : nullptr;
+    }
+    return nullptr;
+}
+
 // actor transform * species scale * body morph; head at the body clip's attach matrix.
 void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world) {
     const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
@@ -132,11 +147,28 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     const C3D_Tex* slot[render::kTexSlotCount] = {nullptr, &deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2]};
     C3D_Mtx m = world;
     Mtx_Scale(&m, info->scale, info->scale, info->scale);
-    const render::Anim& clip = a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
+    // Battle clips (world/battle.h kSuitAnim*) play once from clipStartMs and hold their last frame.
+    const char* battleName = nullptr;
+    switch (a.pose.anim) {
+    case 10: battleName = "pie-small-react"; break;
+    case 11: battleName = "squirt-small-react"; break;
+    case 12: battleName = a.clipArg >= 0 && a.clipArg < 6 && info->attackClips[a.clipArg][0] ? info->attackClips[a.clipArg] : "throw-paper"; break;
+    case 13: battleName = "lose"; break;
+    case 14: battleName = "sidestep-left"; break;
+    default: break;
+    }
+    const render::Anim* battle = battleName ? battleClip(b, battleName) : nullptr;
+    const render::Anim& clip = battle ? *battle : a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
+    float t = a.animTime;
+    if (battle) {
+        t = static_cast<s32>(nowMs_ - a.clipStartMs) / 1000.0f;
+        const float last = (clip.numFrames() - 1) / clip.fps();
+        t = t < 0 ? 0 : t > last ? last : t;
+    }
     if (clip.loaded() && clip.numVertices() == body.model.numVertices()) {
         u32 fa, fb;
         float blend;
-        render::sampleClip(clip, a.animTime, &fa, &fb, &blend);
+        render::sampleClip(clip, t, &fa, &fb, &blend);
         renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, deptLoaded_ ? slot : nullptr);
         if (clip.hasAttach()) {
             if (Head* h = head(info->code)) {
@@ -164,6 +196,10 @@ void SuitActors::shutdown() {
         b.model.unload();
         b.neutral.unload();
         b.walk.unload();
+        for (int i = 0; i < Body::kClips; i++) {
+            b.clips[i].unload();
+            b.clipName[i][0] = 0;
+        }
         b.tried = false;
     }
     for (Head& h : heads_) {
@@ -378,6 +414,7 @@ void SuitActors::evaluate(Actor& a, u32 nowMs, const CollisionWorld* collision) 
 }
 
 void SuitActors::update(float dt, u32 nowMs, const CollisionWorld* collision) {
+    nowMs_ = nowMs;
     for (Actor& a : actors_) {
         if (!a.active) continue;
         a.animTime += dt;
@@ -464,7 +501,8 @@ bool SuitActors::pose(u32 doId, float* x, float* y, float* z, float* h) const {
     return false;
 }
 
-void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash) {
+void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim,
+                              s8 clipArg, u32 clipStartMs) {
     for (Actor& a : actors_) {
         if (!a.active || a.doId != doId) continue;
         a.pose.x = x, a.pose.y = y, a.pose.z = a.pose.groundZ = z, a.pose.h = h;
@@ -473,6 +511,9 @@ void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool
         a.poseValid = true;
         a.mode = Mode::Frozen; // the battle owns it now; a later setPathState resumes the walk
         a.flash = flash;
+        a.pose.anim = anim;
+        a.clipArg = clipArg;
+        a.clipStartMs = clipStartMs;
     }
 }
 

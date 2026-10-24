@@ -29,6 +29,9 @@ constexpr uint8_t kBattleAnimAttack = 4; // the wave clip: gags without their ow
 constexpr uint8_t kBattleAnimClip0 = 10;
 enum BattleClip : uint8_t { kClipThrow = 0, kClipPushButton, kClipCringe, kClipSidestep, kClipVictory, kClipLose, kNumBattleClips };
 extern const char* const kBattleClipNames[kNumBattleClips];
+// Cog battle clips (suit bake; BattleActorPose::clipArg = attack index for kSuitAnimAttack).
+constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAttack = 12, kSuitAnimLose = 13,
+                  kSuitAnimDodge = 14;
 
 // ToontownBattleGlobals track ids and BattleBase special values.
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
@@ -45,7 +48,9 @@ struct BattleActorPose {
     float hop;          // extra height while attacking (shadow stays on the ground)
     float scale;        // 1 = normal
     float flash;        // 0..1 hit tint
-    uint8_t anim;       // kBattleAnim* (toons) or SuitAnim (cogs)
+    uint8_t anim;       // kBattleAnim* (toons) or SuitAnim / kSuitAnim* (cogs)
+    int8_t clipArg;     // cogs: the attack index for kSuitAnimAttack
+    uint32_t clipStartMs; // when this clip started (one-shots play from here)
     bool hidden;
 };
 
@@ -181,7 +186,9 @@ private:
         // Cogs: damage shown by this battle's movies since the AI last sent setHP (upstream
         // lowers suit.currHP locally; the AI only resends it after the battle).
         int damage = 0;
-        int8_t attackTrack = -1;     // toons: gag of the current attack (picks the clip)
+        int8_t attackTrack = -1;     // toons: gag of the current attack; cogs: attack index
+        int8_t reactTrack = -1;      // cogs: the gag track that hit them (pie vs squirt react)
+        uint32_t clipStartMs = 0;
         uint32_t reactUntil = 0;     // toons: cringe (hit) / sidestep (miss) until then
         bool reactHit = false;
         int baseHp = -1;

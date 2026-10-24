@@ -25,7 +25,8 @@ constexpr uint32_t kInputTimeoutMs = 20000;    // CLIENT_INPUT_TIMEOUT
 constexpr uint32_t kRewardAutoMs = 12000;
 constexpr float kJoinRadius = 9.0f;            // DistributedBattleBase battle lockout tube
 constexpr float kFlashSec = 0.35f;
-constexpr float kDieSec = 1.2f;
+constexpr float kDieSec = 0.6f;     // the final shrink (stands in for the gear explosion)
+constexpr float kLoseSec = 5.4f;    // MovieUtil: the lose clip plays, kapow at 5.4 of SUIT_LOSE_DURATION 6
 constexpr float kToonHeight = 4.0f;
 
 // BattleBase.suitPoints / suitPendingPoints / toonPoints / toonPendingPoints: (x, y, heading)
@@ -563,7 +564,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         for (int j = 0; j < m.numSuits; ++j) {
             if ((a.died >> j) & 1) {
                 addFx(hitAt + 500, kFxDie, m.suits[j], 0, 0);
-                dur = 3600;
+                dur = 1500 + 500 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
             }
         }
         t += dur;
@@ -573,7 +574,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         if (s.suitIdx < 0 || s.suitIdx >= m.numSuits || s.attack < 0) continue;
         const uint32_t who = m.suits[s.suitIdx];
         const uint32_t target = (s.target >= 0 && s.target < m.numToons) ? m.toons[s.target] : 0;
-        addFx(t, kFxAttack, who, target, 2000);
+        addFx(t, kFxAttack, who, target, 2000, s.attack);
         const uint32_t hitAt = t + 1200;
         bool any = false;
         for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
@@ -620,6 +621,7 @@ void Battle::runFx(uint32_t nowMs) {
             a->attackStart = nowMs;
             a->attackEnd = nowMs + uint32_t(f.value);
             a->attackTrack = f.track;
+            a->clipStartMs = nowMs;
             if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
                 a->faceUntil = a->attackEnd + 300;
@@ -628,7 +630,12 @@ void Battle::runFx(uint32_t nowMs) {
         }
         case kFxHit:
             if (!a->isToon) a->damage += f.value;
-            if (a->isToon) a->reactUntil = nowMs + 1500, a->reactHit = true; // MovieSuitAttacks: cringe
+            a->reactUntil = nowMs + 1500, a->reactHit = true; // toons cringe; cogs play the gag's react
+            a->clipStartMs = nowMs;
+            if (!a->isToon) {
+                const Actor* by = f.other ? findActor(f.other) : nullptr;
+                a->reactTrack = by ? by->attackTrack : -1;
+            }
             a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
             snprintf(text, sizeof(text), "-%d", int(f.value));
             addPopup(*a, text, kColorDamage, nowMs);
@@ -639,12 +646,13 @@ void Battle::runFx(uint32_t nowMs) {
             break;
         case kFxMiss:
             addPopup(*a, "Miss", kColorMiss, nowMs);
-            if (a->isToon) a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
+            a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
+            a->clipStartMs = nowMs;
             break;
         case kFxDie:
             a->dying = true;
             a->dieStart = nowMs;
-            a->flashEnd = nowMs + uint32_t((kDieSec + 0.2f) * 1000.0f);
+            a->flashEnd = 0;
             break;
         default: break;
         }
@@ -879,10 +887,9 @@ void Battle::computePoses(uint32_t nowMs) {
         if (a.flashEnd == 0 || int32_t(a.flashEnd - nowMs) < 0) flash = 0.0f;
         bool hidden = a.hidden;
         if (a.dying) {
-            const float du = float(int32_t(nowMs - a.dieStart)) / (kDieSec * 1000.0f);
+            const float du = (float(int32_t(nowMs - a.dieStart)) / 1000.0f - kLoseSec) / kDieSec;
             if (du >= 1.0f) hidden = true;
-            scale *= 1.0f - clamp01(du);
-            flash = 1.0f;
+            if (du > 0.0f) scale *= 1.0f - clamp01(du), flash = 1.0f;
         }
         out->doId = a.doId;
         out->x = a.x, out->y = a.y, out->z = a.z, out->h = h;
@@ -904,8 +911,17 @@ void Battle::computePoses(uint32_t nowMs) {
             }
             out->anim = anim;
         } else {
-            out->anim = a.moving ? uint8_t(kSuitWalk) : uint8_t(kSuitNeutral);
+            // MovieThrow/MovieSquirt: pie-small-react / squirt-small-react; MovieSuitAttacks: the
+            // attack's clip; a dodge sidesteps; death plays lose (Suit.py loseActor, simplified).
+            uint8_t anim = a.moving ? uint8_t(kSuitWalk) : uint8_t(kSuitNeutral);
+            if (a.dying) anim = kSuitAnimLose;
+            else if (attacking) anim = kSuitAnimAttack;
+            else if (a.reactUntil && int32_t(a.reactUntil - nowMs) > 0)
+                anim = !a.reactHit ? kSuitAnimDodge : a.reactTrack == kTrackSquirt ? kSuitAnimReactSquirt : kSuitAnimReactPie;
+            out->anim = anim;
         }
+        out->clipArg = a.attackTrack;
+        out->clipStartMs = a.dying ? a.dieStart : a.clipStartMs;
     };
     numSuitPoses_ = numToonPoses_ = 0;
     for (Actor& a : suits_) {

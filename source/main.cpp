@@ -1158,7 +1158,7 @@ int main() {
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
-                suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash);
+                suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash, p.anim, p.clipArg, p.clipStartMs);
             }
             if (const char* m = battle.popMessage()) {
                 toast = m;

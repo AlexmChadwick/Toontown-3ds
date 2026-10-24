@@ -22,13 +22,24 @@ def main():
              '    float scale;      // Suit.py species scale (body and head)',
              '    float hand[4];    // SuitDNA hand colour (TTM tint slot 4)',
              '    float nametagZ;   // Suit.setHeight + 1',
+             '    // Body clip per entry of SuitAttributes[name][\'attacks\'] (the index setMovie sends);',
+             '    // the bake\'s species map, else its fallback clip.',
+             '    const char* attackClips[6];',
              '};', '',
              f'constexpr int kNumSuitAssets = {len(heads)};',
              'constexpr SuitAsset kSuitAssets[kNumSuitAssets] = {']
     for code in sorted(heads):
         h = heads[code]
         hand = ', '.join('%.4ff' % c for c in h['hand_color'])
-        lines.append('    {"%s", \'%s\', %.6ff, {%s}, %.3ff},' % (code, h['body'], h['scale'], hand, h['nametag_z']))
+        body = m['attacks'][h['body']]
+        clips = m['bodies'][h['body']]['full']['clips']
+        names = []
+        for atk in h.get('attacks', [])[:6]:
+            clip = body['species'].get(code, {}).get(atk, body['fallback'])
+            names.append(clip if clip in clips else body['fallback'])
+        names += [''] * (6 - len(names))
+        atk = ', '.join('"%s"' % n for n in names)
+        lines.append('    {"%s", \'%s\', %.6ff, {%s}, %.3ff, {%s}},' % (code, h['body'], h['scale'], hand, h['nametag_z'], atk))
     lines += ['};', '', 'inline const SuitAsset* findSuitAsset(const char* code) {',
               '    for (const SuitAsset& a : kSuitAssets) {',
               '        const char* x = a.code;',
