@@ -59,6 +59,8 @@ constexpr int kMaxStressToons = 64;
 constexpr u32 kPosSendIntervalMs = 200;
 constexpr u32 kStartZone = 2000; // ToontownGlobals.ToontownCentral
 constexpr float kHideToonCameraDistance = 2.5f;
+constexpr float kShadowScale = 0.4f; // ShadowCaster.initializeDropShadow
+constexpr float kShadowGray = 0.5f;  // globalDropShadowGrayLevel
 constexpr int kMaxMapMarkers = 64;
 constexpr float kStressSpacing = 4.0f;
 
@@ -137,6 +139,8 @@ int main() {
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
     static tt::world::ZoneActors zoneActors;
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
+    Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
+    dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;       // exit trigger we're standing in (toast/zone change once per entry)
     const char* toast = nullptr;
     float toastAge = 99.0f;
@@ -491,6 +495,28 @@ int main() {
 
             Mtx_Identity(&m);
             renderer.drawModel(terrain, m);
+
+            // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
+            {
+                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + 1)];
+                int n = 0;
+                pos[0] = player.x();
+                pos[1] = player.y();
+                pos[2] = player.groundZ();
+                pos[3] = localLook.valid() ? localLook.scale : 1.0f;
+                n = 1;
+                n += remoteToons.shadowPositions(pos + 4 * n, tt::net::kMaxRemoteToons);
+                n += zoneActors.shadowPositions(pos + 4 * n, tt::net::kMaxNpcs);
+                renderer.setBaseTint(0.0f, 0.0f, 0.0f, kShadowGray);
+                for (int i = 0; i < n; i++) {
+                    const float sc = kShadowScale * pos[4 * i + 3];
+                    Mtx_Identity(&m);
+                    Mtx_Translate(&m, pos[4 * i], pos[4 * i + 1], pos[4 * i + 2] + 0.05f, true);
+                    Mtx_Scale(&m, sc, sc, sc);
+                    renderer.drawModel(dropShadow, m);
+                }
+                renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+            }
             player.worldMatrix(&m);
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
@@ -603,6 +629,7 @@ int main() {
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();
+    dropShadow.unload();
     place.unload();
     balloons.shutdown();
     ui.shutdown();

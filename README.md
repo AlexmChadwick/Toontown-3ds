@@ -63,6 +63,22 @@ make cia
 ```
 produces `toontown3ds.cia`.
 
+## Install on a 3DS
+
+1. Copy `toontown3ds.3dsx` to `sdmc:/3ds/`, or install `toontown3ds.cia` with FBI.
+2. Copy the SD data set `sdmc-out/3ds/toontown3ds/` to `sdmc:/3ds/toontown3ds/`. It
+   holds every toon species and clothing pack, plus streets and interiors once they are
+   baked. Without it you only get the default toon and the TTC playground from RomFS.
+3. For sound, dump the DSP firmware once with the "DSP1" homebrew
+   (`sdmc:/3ds/dspfirm.cdc`). Without it the game runs silently.
+4. For multiplayer, create `sdmc:/3ds/toontown3ds/server.txt`:
+   ```
+   host=192.168.1.20
+   port=7198
+   token=my-toon
+   ```
+   Point `host` at a machine running `tools/server/start.sh`.
+
 ## Run in Azahar
 
 Load `toontown3ds.3dsx` via File → Load File, or install the `.cia` with

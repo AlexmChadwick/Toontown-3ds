@@ -30,6 +30,7 @@ public:
     // Treasure the toon at (x, y, z) is touching, or 0 (DistributedTreasure sphere r = 2).
     u32 touchingTreasure(float x, float y, float z) const;
     int npcCount() const;
+    int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
 

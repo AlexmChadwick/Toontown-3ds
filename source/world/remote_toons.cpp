@@ -239,6 +239,19 @@ int RemoteToons::mapPositions(float* xy, int maxOut) const {
     return n;
 }
 
+int RemoteToons::shadowPositions(float* xyzs, int maxOut) const {
+    int n = 0;
+    for (const Remote& r : toons_) {
+        if (!r.active || n >= maxOut) continue;
+        xyzs[4 * n] = r.x;
+        xyzs[4 * n + 1] = r.y;
+        xyzs[4 * n + 2] = r.z;
+        xyzs[4 * n + 3] = r.look.valid() ? r.look.scale : 1.0f;
+        n++;
+    }
+    return n;
+}
+
 void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;

@@ -37,6 +37,14 @@ public:
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                    const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
+    // Colour multiplier for batches without a tint slot (default white). Used e.g. to draw
+    // the drop shadow card black and translucent.
+    void setBaseTint(float r, float g, float b, float a) {
+        baseTint_[0] = r;
+        baseTint_[1] = g;
+        baseTint_[2] = b;
+        baseTint_[3] = a;
+    }
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map).
     void endWorld();
 
@@ -64,6 +72,7 @@ private:
     void drawBatches(Model& model, const Tints* tints, const C3D_Tex* const* slotTex, bool perBatchBuffer);
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
+    float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     Program programs_[kModeCount];
     int mode_ = kModeNone;
 

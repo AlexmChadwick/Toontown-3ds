@@ -224,7 +224,7 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
         const int tint = tints ? b.tint : 0;
         if (tint != boundTint) {
             if (tint == 0) {
-                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, 1.0f, 1.0f, 1.0f, 1.0f);
+                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, baseTint_[0], baseTint_[1], baseTint_[2], baseTint_[3]);
             } else {
                 const float* c = tints->rgba[tint];
                 C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, c[0], c[1], c[2], c[3]);

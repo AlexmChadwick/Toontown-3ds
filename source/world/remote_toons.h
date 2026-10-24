@@ -30,6 +30,8 @@ public:
     int count() const { return count_; }
     // Appends up to maxOut map markers (x, y) for active toons; returns how many were written.
     int mapPositions(float* xy, int maxOut) const;
+    // Feet positions + body scale (x, y, z, scale) of active toons, for drop shadows.
+    int shadowPositions(float* xyzs, int maxOut) const;
 
 private:
     struct Remote {

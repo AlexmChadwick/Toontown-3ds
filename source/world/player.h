@@ -28,6 +28,7 @@ public:
     float z() const { return z_; }
     float headingDeg() const { return heading_; }
     bool moving() const { return speed_ != 0.0f; }
+    float groundZ() const { return ground_; }
     bool airborne() const { return z_ > ground_ + 0.01f || vz_ > 0.0f; }
     // Clip + play rate for the current motion (Toon.setSpeed rules: run >= 8, walk > 0.5,
     // reverse = walk at -1, turning in place = walk; airborne = jump-idle).

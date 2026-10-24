@@ -210,6 +210,19 @@ bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* 
     return true;
 }
 
+int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
+    int n = 0;
+    for (const Npc& s : npcs_) {
+        if (!s.active || n >= maxOut) continue;
+        xyzs[4 * n] = s.x;
+        xyzs[4 * n + 1] = s.y;
+        xyzs[4 * n + 2] = s.z;
+        xyzs[4 * n + 3] = s.look.valid() ? s.look.scale : 1.0f;
+        n++;
+    }
+    return n;
+}
+
 int ZoneActors::npcCount() const {
     int n = 0;
     for (const Npc& s : npcs_) n += s.active;
