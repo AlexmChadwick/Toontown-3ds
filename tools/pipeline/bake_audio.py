@@ -125,6 +125,32 @@ SOUNDSCAPE = [
 ALL_ASSETS = [(n, r, k, l, 'romfs') for n, r, k, l in ASSETS] + SOUNDSCAPE
 
 
+# Battle assets are kept separate from the RomFS boot-audio budget. The battle
+# driver streams music and writes these to SD, never to the boot directory.
+BATTLE_ASSETS = [
+    ('encntr_general_bg', 'phase_3.5/audio/bgm/encntr_general_bg.ogg', 'music', True),
+    ('encntr_suit_winning', 'phase_9/audio/bgm/encntr_suit_winning.ogg', 'music', True),
+    ('pie_throw', 'phase_3.5/audio/sfx/AA_pie_throw_only.ogg', 'sfx', False),
+    ('throw_tart_hit', 'phase_3.5/audio/sfx/AA_tart_only.ogg', 'sfx', False),
+    ('throw_slice_hit', 'phase_5/audio/sfx/AA_slice_only.ogg', 'sfx', False),
+    ('throw_miss', 'phase_5/audio/sfx/General_throw_miss.ogg', 'sfx', False),
+    ('squirt_flower_hit', 'phase_3.5/audio/sfx/AA_squirt_flowersquirt.ogg', 'sfx', False),
+    ('squirt_flower_miss', 'phase_5/audio/sfx/AA_squirt_flowersquirt_miss.ogg', 'sfx', False),
+    ('squirt_glass_hit', 'phase_5/audio/sfx/AA_squirt_glasswater.ogg', 'sfx', False),
+    ('squirt_glass_miss', 'phase_5/audio/sfx/AA_squirt_glasswater_miss.ogg', 'sfx', False),
+    ('squirt_gun_hit', 'phase_5/audio/sfx/AA_squirt_neonwatergun.ogg', 'sfx', False),
+    ('squirt_gun_miss', 'phase_5/audio/sfx/AA_squirt_neonwatergun_miss.ogg', 'sfx', False),
+    ('SA_hangup', 'phase_3.5/audio/sfx/SA_hangup.ogg', 'sfx', False),
+    ('Cog_Death', 'phase_3.5/audio/sfx/Cog_Death.ogg', 'sfx', False),
+    ('ENC_propeller_in', 'phase_5/audio/sfx/ENC_propeller_in.ogg', 'sfx', False),
+    ('ENC_propeller_out', 'phase_5/audio/sfx/ENC_propeller_out.ogg', 'sfx', False),
+    ('ENC_cogfall_apart', 'phase_3.5/audio/sfx/ENC_cogfall_apart.ogg', 'sfx', False),
+    ('toon_hit', 'phase_5/audio/sfx/tt_s_ara_cfg_toonHit.ogg', 'sfx', False),
+    ('toon_bodyfall', 'phase_5/audio/sfx/Toon_bodyfall_synergy.ogg', 'sfx', False),
+] + [(f'toon_{species}_ouch', f'phase_3.5/audio/dial/AV_{species}_howl.ogg', 'sfx', False)
+     for species in ('dog', 'cat', 'horse', 'rabbit', 'mouse', 'duck', 'monkey', 'bear', 'pig')]
+
+
 def find_ffmpeg():
     p = shutil.which('ffmpeg') or ('/usr/local/bin/ffmpeg' if os.path.exists('/usr/local/bin/ffmpeg') else None)
     if not p:
