@@ -184,6 +184,41 @@ enum class EventType : uint8_t {
     VineSetScore,
     VineAllAtEnd,
     VineTreasureGrabbed,
+    // ---- Target (DistributedTargetGame) ----
+    TargetSetSeed,
+    TargetRoundDone,
+    TargetSingleScore,
+    TargetGameDone,
+    // ---- Cog Thief (DistributedCogThiefGame) ----
+    CogThiefUpdateGoal,
+    CogThiefCarryBarrel,
+    CogThiefDropBarrel,
+    CogThiefBarrelStolen,
+    // ---- Two-D (DistributedTwoDGame) ----
+    TwoDSetSections,
+    TwoDTreasureGrabbed,
+    TwoDEveryoneDone,
+    // ---- Tag (DistributedTagGame) ----
+    TagSetIt,
+    TagTreasureScore,
+    // ---- Pattern (DistributedPatternGame) ----
+    PatternSetPattern,
+    PatternSetPlayerPatterns,
+    PatternRemoteButton,
+    // ---- Ice (DistributedIceGame) ----
+    IceMatchAndRound,
+    IceNewState,
+    IceTimerStart,
+    IceAvatarChoice,
+    IceTreasureGrabbed,
+    IcePenaltyGrabbed,
+    // ---- Race (DistributedRaceGame) ----
+    RaceTimerStart,
+    RaceAvatarChose,
+    RaceChancePositions,
+    RaceServerChoices,
+    // ---- Photo (DistributedPhotoGame) ----
+    PhotoNewAIScore,
     PurchaseUp,         // a PurchaseManager / NewbiePurchaseManager generated (purchase())
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
@@ -652,6 +687,68 @@ struct Minigame {
     bool vineAllAtEnd = false;
     uint32_t vineGrabbedAv = 0;
     uint32_t vineGrabbedTreasure = 0;
+
+    // Target:
+    uint32_t targetSeed = 0;
+    bool targetRoundDone = false;
+    uint16_t targetSingleScore = 0;
+    uint32_t targetSingleAvId = 0;
+    bool targetGameDone = false;
+
+    // Cog Thief:
+    int8_t cogThiefGoalCog = -1;
+    int8_t cogThiefGoalType = 0;
+    int64_t cogThiefGoalId = -1;
+    float cogThiefGoalPos[3] = {};
+    int8_t cogThiefCarryCog = -1;
+    int8_t cogThiefCarryBarrel = -1;
+    int8_t cogThiefDropCog = -1;
+    int8_t cogThiefDropBarrel = -1;
+    int8_t cogThiefStolenBarrel = -1;
+
+    // Two-D:
+    uint8_t twoDSections[16] = {};
+    int twoDSectionCount = 0;
+    uint32_t twoDGrabbedAv = 0;
+    uint8_t twoDGrabbedSection = 0;
+    uint8_t twoDGrabbedTreasure = 0;
+    bool twoDEveryoneDone = false;
+
+    // Tag:
+    uint32_t tagItAvId = 0;
+    uint16_t tagTreasureScores[kMinigamePlayers] = {};
+
+    // Pattern:
+    uint8_t patternSeq[16] = {};
+    int patternSeqLen = 0;
+    uint32_t patternFastestAvId = 0;
+    uint32_t patternRemoteButtonAv = 0;
+    uint8_t patternRemoteButtonIdx = 0;
+    uint8_t patternRemoteButtonWrong = 0;
+
+    // Ice Slide:
+    int8_t iceMatch = 0;
+    int8_t iceRound = 0;
+    char iceState[32] = {};
+    int16_t iceTimerStart = 0;
+    float iceChoicesForce[kMinigamePlayers] = {};
+    float iceChoicesDir[kMinigamePlayers] = {};
+    uint32_t iceGrabbedAv = 0;
+    uint32_t iceGrabbedItem = 0;
+
+    // Race:
+    int16_t raceTimerStart = 0;
+    uint32_t raceAvatarChose = 0;
+    uint8_t raceChancePositions[kMinigamePlayers] = {};
+    int8_t raceServerChoices[kMinigamePlayers * 4] = {};
+    uint8_t raceServerPositions[kMinigamePlayers * 4] = {};
+    int8_t raceServerRewards[kMinigamePlayers * 4] = {};
+    int raceServerChoiceCount = 0;
+
+    // Photo Fun:
+    uint32_t photoScoreAv = 0;
+    uint8_t photoScoreAssignment = 0;
+    float photoScoreStars = 0.0f;
 };
 // PurchaseManager (176) / NewbiePurchaseManager (177): generated in the minigame's zone when
 // the game ends. minigamePoints[i] is the payout of playerIds[i] (already added to the toon).
@@ -1042,11 +1139,46 @@ public:
     bool sendVineNewVine(uint32_t avId, int8_t vineIndex, float vineT, int8_t facingRight);
     bool sendVineReachedEndVine(int8_t vineIndex);
     bool sendVineClaimTreasure(uint32_t treasureNum);
+    // DistributedTargetGame.
+    bool sendTargetScore(int32_t scoreX, int32_t scoreY);
+    bool sendTargetPlayerDone();
+    // DistributedCogThiefGame.
+    bool sendCogThiefPie(int32_t timestamp, float x, float y, float z, float h);
+    bool sendCogThiefHitBySuit(uint32_t avId, int32_t timestamp, int8_t suitNum, float x, float y, float z);
+    bool sendCogThiefPieHitSuit(uint32_t avId, int32_t timestamp, int8_t suitNum, float x, float y, float z);
+    bool sendCogThiefHitBarrel(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex, float x, float y, float z);
+    bool sendCogThiefAtReturnPos(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex);
+    // DistributedTwoDGame.
+    bool sendTwoDClaimTreasure(uint8_t sectionIndex, uint8_t treasureIndex);
+    bool sendTwoDClaimEnemyShot(uint8_t sectionIndex, uint8_t enemyIndex);
+    bool sendTwoDReportDone();
+    bool sendTwoDHitByEnemy(uint32_t avId, int16_t ts);
+    bool sendTwoDFellDown(uint32_t avId, int16_t ts);
+    bool sendTwoDSquished(uint32_t avId, int16_t ts);
+    bool sendTwoDVictory(uint32_t avId, int16_t ts);
+    // DistributedTagGame.
+    bool sendTag(uint32_t taggedAvId);
+    // DistributedPatternGame.
+    bool sendPatternReady();
+    bool sendPatternButton(uint8_t index, uint8_t wrong);
+    bool sendPatternResult(const uint8_t* pattern, uint8_t len, uint16_t totalTimeMs);
+    // DistributedIceGame.
+    bool sendIceChoice(float force, float direction);
+    bool sendIceEndingPositions(const float* coords, int count);
+    bool sendIceScoringMovieDone();
+    bool sendIceClaimTreasure(uint8_t n);
+    bool sendIceClaimPenalty(uint8_t n);
+    // DistributedRaceGame.
+    bool sendRaceChoice(uint8_t choice);
+    // DistributedPhotoGame.
+    bool sendPhotoScore(uint8_t subjectIndex, const char* pose, float score);
+    bool sendPhotoFilmOut();
     // PurchaseManager: requestExit ("Back to Playground"), then setInventory(done=1) after
     // setPurchaseExit with the inventory and money the server last told us (the payout is
     // already in ownStats().money). False when there is no purchase manager.
     bool sendPurchaseExit();
     bool sendPurchaseInventory();
+    bool sendPurchaseInventory(const uint8_t inv[7][7], int16_t money);
     // ==== quests (docs/design/quests.md) begin ====
     const OwnQuests& ownQuests() const { return ownQuests_; }
     // Oldest unread setMovie addressed to anyone in the zone (the game filters on avId).

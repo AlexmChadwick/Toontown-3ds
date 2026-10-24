@@ -214,6 +214,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         battle_.draw(*battleView_, battleGags_);
         return;
     }
+    if (MinigamePurchasePanel::activeInstance() && MinigamePurchasePanel::activeInstance()->active()) {
+        MinigamePurchasePanel::activeInstance()->draw();
+        return;
+    }
     if (c.infoTitle) {
         drawInfo(c);
         return;

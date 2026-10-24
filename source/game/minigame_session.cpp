@@ -12,14 +12,22 @@ namespace tt::game {
 namespace {
 
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
+constexpr u16 kRaceGameId = 1;      // ToontownGlobals.RaceGameId
 constexpr u16 kCannonGameId = 2;    // ToontownGlobals.CannonGameId
+constexpr u16 kTagGameId = 3;       // ToontownGlobals.TagGameId
+constexpr u16 kPatternGameId = 4;   // ToontownGlobals.PatternGameId
 constexpr u16 kRingGameId = 5;      // ToontownGlobals.RingGameId
 constexpr u16 kMazeGameId = 6;      // ToontownGlobals.MazeGameId
 constexpr u16 kTugGameId = 7;       // ToontownGlobals.TugOfWarGameId
 constexpr u16 kCatchGameId = 8;     // ToontownGlobals.CatchGameId
 constexpr u16 kDivingGameId = 9;    // ToontownGlobals.DivingGameId
+constexpr u16 kTargetGameId = 10;   // ToontownGlobals.TargetGameId
 constexpr u16 kPairingGameId = 11;  // ToontownGlobals.PairingGameId
 constexpr u16 kVineGameId = 12;     // ToontownGlobals.VineGameId
+constexpr u16 kIceGameId = 13;      // ToontownGlobals.IceGameId
+constexpr u16 kCogThiefGameId = 14; // ToontownGlobals.CogThiefGameId
+constexpr u16 kTwoDGameId = 15;     // ToontownGlobals.TwoDGameId
+constexpr u16 kPhotoGameId = 16;    // ToontownGlobals.PhotoGameId
 
 constexpr float kRulesSec = 4.0f;   // our rules screen
 constexpr float kToonCatchRadius = 0.7f;
@@ -50,10 +58,20 @@ void MinigameSession::unloadCurrent() {
     if (isPairing_) pairing_.shutdown();
     if (isDiving_) diving_.shutdown();
     if (isVine_) vine_.shutdown();
+    if (isTarget_) target_.shutdown();
+    if (isCogThief_) cogThief_.shutdown();
+    if (isTwoD_) twoD_.shutdown();
+    if (isTag_) tag_.shutdown();
+    if (isPattern_) pattern_.shutdown();
+    if (isIce_) ice_.shutdown();
+    if (isRace_) race_.shutdown();
+    if (isPhoto_) photo_.shutdown();
+    purchasePanel_.close();
 }
 
 void MinigameSession::shutdown() {
     unloadCurrent();
+    purchasePanel_.shutdown();
     phase_ = Phase::Off;
 }
 
@@ -71,6 +89,14 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
     isPairing_ = (gameId == kPairingGameId);
     isDiving_ = (gameId == kDivingGameId);
     isVine_ = (gameId == kVineGameId);
+    isTarget_ = (gameId == kTargetGameId);
+    isCogThief_ = (gameId == kCogThiefGameId);
+    isTwoD_ = (gameId == kTwoDGameId);
+    isTag_ = (gameId == kTagGameId);
+    isPattern_ = (gameId == kPatternGameId);
+    isIce_ = (gameId == kIceGameId);
+    isRace_ = (gameId == kRaceGameId);
+    isPhoto_ = (gameId == kPhotoGameId);
 
     joinedSent_ = readySent_ = doneSent_ = exitedSent_ = purchaseExitSent_ = false;
     fruitsCaught_ = anvilsHit_ = 0;
@@ -90,6 +116,14 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
                       : isPairing_ ? "Match Minnie"
                       : isDiving_ ? "Diving Game"
                       : isVine_ ? "Jungle Vines"
+                      : isTarget_ ? "Toon Slingshot"
+                      : isCogThief_ ? "Cog Thief"
+                      : isTwoD_ ? "Toon Escape"
+                      : isTag_ ? "Tag Game"
+                      : isPattern_ ? "Match Minnie"
+                      : isIce_ ? "Ice Slide"
+                      : isRace_ ? "Race Game"
+                      : isPhoto_ ? "Photo Fun"
                       : "Trolley game";
     snprintf(title_, sizeof(title_), "%s", gName);
     snprintf(lines_[0], sizeof(lines_[0]), "Off to the game...");
@@ -171,6 +205,38 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             vine_.init(client, nowMs, autoPlay_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
+        } else if (isTarget_) {
+            target_.init(kDir, mg->targetSeed, mg->trolleyZone - mg->trolleyZone % 1000);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isCogThief_) {
+            cogThief_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isTwoD_) {
+            twoD_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isTag_) {
+            tag_.init(kDir, mg->tagItAvId ? mg->tagItAvId : client.avatarId());
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isPattern_) {
+            pattern_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isIce_) {
+            ice_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isRace_) {
+            race_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
+        } else if (isPhoto_) {
+            photo_.init(kDir);
+            setPhase(Phase::Rules);
+            phaseMs_ = nowMs;
         } else {
             // Unsupported minigame: abort it (AI pays 1..7 jellybeans).
             client.sendMinigameExit();
@@ -203,23 +269,43 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
 
     case EventType::PurchaseUp: {
         const net::Purchase* p = client.purchase();
+        uint32_t earnedBeans = 0;
         if (p) {
             for (int i = 0; i < net::kMinigamePlayers; i++) {
                 if (p->playerIds[i] == client.avatarId()) {
-                    snprintf(lines_[1], sizeof(lines_[1]), "You earned %u jellybeans!", unsigned(p->minigamePoints[i]));
+                    earnedBeans = p->minigamePoints[i];
+                    snprintf(lines_[1], sizeof(lines_[1]), "You earned %u jellybeans!", unsigned(earnedBeans));
                 }
             }
         }
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
-        if (!purchaseExitSent_ && client.sendPurchaseExit()) purchaseExitSent_ = true;
+        purchasePanel_.init();
+        purchasePanel_.open(client, earnedBeans, nowMs);
         break;
     }
 
     case EventType::PurchaseExit:
-        client.sendPurchaseInventory();
+        client.sendPurchaseInventory(purchasePanel_.cart().inv, purchasePanel_.cart().money);
+        purchasePanel_.close();
         setPhase(Phase::Leaving);
         phaseMs_ = nowMs;
+        break;
+
+    case EventType::TagSetIt:
+        if (isTag_ && mg) tag_.onTag(client.avatarId(), mg->tagItAvId);
+        break;
+
+    case EventType::PatternSetPattern:
+        if (isPattern_ && mg) pattern_.onSetPattern(mg->patternSeq, mg->patternSeqLen);
+        break;
+
+    case EventType::IceMatchAndRound:
+        if (isIce_ && mg) ice_.onSetMatchAndRound(static_cast<uint8_t>(mg->iceMatch), static_cast<uint8_t>(mg->iceRound));
+        break;
+
+    case EventType::RaceChancePositions:
+        if (isRace_ && mg) race_.onSetChancePositions(mg->raceChancePositions, mg->numParticipants);
         break;
 
     default:
@@ -309,6 +395,86 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         if (isVine_) {
             vine_.update(client, pad, kDown, dt, nowMs);
             if (vine_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isTarget_) {
+            target_.update(client, pad, kDown, dt, nowMs);
+            if (target_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isCogThief_) {
+            cogThief_.update(client, pad, kDown, dt, nowMs);
+            if (cogThief_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isTwoD_) {
+            twoD_.update(client, pad, kDown, dt, nowMs);
+            if (twoD_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isTag_) {
+            tag_.update(client, pad, kDown, dt, nowMs);
+            if (tag_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isPattern_) {
+            pattern_.update(client, pad, kDown, dt, nowMs);
+            if (pattern_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isIce_) {
+            ice_.update(client, pad, kDown, dt, nowMs);
+            if (ice_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isRace_) {
+            race_.update(client, pad, kDown, dt, nowMs);
+            if (race_.isDone() && !doneSent_) {
+                doneSent_ = true;
+                setPhase(Phase::Done);
+                phaseMs_ = nowMs;
+            }
+            break;
+        }
+
+        if (isPhoto_) {
+            photo_.update(client, pad, kDown, dt, nowMs);
+            if (photo_.isDone() && !doneSent_) {
                 doneSent_ = true;
                 setPhase(Phase::Done);
                 phaseMs_ = nowMs;
@@ -409,7 +575,16 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         break;
 
     case Phase::Purchase:
-        if (inPhase > 20.0f) {
+        purchasePanel_.update(client, nowMs);
+        if (purchasePanel_.isDone()) {
+            setPhase(Phase::Leaving);
+            phaseMs_ = nowMs;
+        } else {
+            touchPosition touch;
+            hidTouchRead(&touch);
+            purchasePanel_.handleInput(kDown, touch);
+        }
+        if (inPhase > 30.0f) {
             returnHood_ = home_;
             setPhase(Phase::Off);
         }
@@ -447,6 +622,22 @@ void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
         diving_.toonPose(x, y, z, h);
     } else if (isVine_) {
         vine_.toonPose(x, y, z, h);
+    } else if (isTarget_) {
+        target_.toonPose(x, y, z, h);
+    } else if (isCogThief_) {
+        cogThief_.toonPose(x, y, z, h);
+    } else if (isTwoD_) {
+        twoD_.toonPose(x, y, z, h);
+    } else if (isTag_) {
+        tag_.toonPose(x, y, z, h);
+    } else if (isPattern_) {
+        pattern_.toonPose(x, y, z, h);
+    } else if (isIce_) {
+        ice_.toonPose(x, y, z, h);
+    } else if (isRace_) {
+        race_.toonPose(x, y, z, h);
+    } else if (isPhoto_) {
+        photo_.toonPose(x, y, z, h);
     } else {
         *x = tx_;
         *y = ty_;
@@ -481,6 +672,22 @@ void MinigameSession::camera(C3D_FVec* eye, C3D_FVec* target) const {
         diving_.camera(eye, target);
     } else if (isVine_) {
         vine_.camera(eye, target);
+    } else if (isTarget_) {
+        target_.camera(eye, target);
+    } else if (isCogThief_) {
+        cogThief_.camera(eye, target);
+    } else if (isTwoD_) {
+        twoD_.camera(eye, target);
+    } else if (isTag_) {
+        tag_.camera(eye, target);
+    } else if (isPattern_) {
+        pattern_.camera(eye, target);
+    } else if (isIce_) {
+        ice_.camera(eye, target);
+    } else if (isRace_) {
+        race_.camera(eye, target);
+    } else if (isPhoto_) {
+        photo_.camera(eye, target);
     } else {
         const float back = 29.36f, up = 28.17f, pitch = 35.0f * 3.14159265f / 180.0f;
         *eye = FVec3_New(0.0f, -back, up);
@@ -499,6 +706,14 @@ const char* MinigameSession::line(int i) const {
     if (isPairing_) return pairing_.line(i);
     if (isDiving_) return diving_.line(i);
     if (isVine_) return vine_.line(i);
+    if (isTarget_) return target_.line(i);
+    if (isCogThief_) return cogThief_.line(i);
+    if (isTwoD_) return twoD_.line(i);
+    if (isTag_) return tag_.line(i);
+    if (isPattern_) return pattern_.line(i);
+    if (isIce_) return ice_.line(i);
+    if (isRace_) return race_.line(i);
+    if (isPhoto_) return photo_.line(i);
     return (i >= 0 && i < 3) ? lines_[i] : "";
 }
 
@@ -531,6 +746,38 @@ void MinigameSession::draw(render::Renderer& renderer) {
     }
     if (isVine_) {
         vine_.draw(renderer);
+        return;
+    }
+    if (isTarget_) {
+        target_.draw(renderer);
+        return;
+    }
+    if (isCogThief_) {
+        cogThief_.draw(renderer);
+        return;
+    }
+    if (isTwoD_) {
+        twoD_.draw(renderer);
+        return;
+    }
+    if (isTag_) {
+        tag_.draw(renderer);
+        return;
+    }
+    if (isPattern_) {
+        pattern_.draw(renderer);
+        return;
+    }
+    if (isIce_) {
+        ice_.draw(renderer);
+        return;
+    }
+    if (isRace_) {
+        race_.draw(renderer);
+        return;
+    }
+    if (isPhoto_) {
+        photo_.draw(renderer);
         return;
     }
 

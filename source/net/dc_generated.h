@@ -1352,6 +1352,240 @@ constexpr const char* sig_setFallingFromMidair = "u32,i8,i32/100,i16/100,i16/100
 constexpr const char* sig_setVineSections = "u8[]";
 } // namespace DistributedVineGame
 
+namespace DistributedTargetGame {
+constexpr uint16_t kClassId = 133;
+constexpr uint16_t k_setTimeBase = 921;
+constexpr uint16_t k_setToonGotRing = 922;
+constexpr uint16_t k_setRingGroupResults = 923;
+constexpr uint16_t k_setPlayerDone = 924;
+constexpr uint16_t k_setScore = 925;
+constexpr uint16_t k_setTargetSeed = 926;
+constexpr uint16_t k_setRoundDone = 927;
+constexpr uint16_t k_setSingleScore = 928;
+constexpr uint16_t k_setGameDone = 929;
+constexpr uint16_t kw_setTimeBase = 0x007;
+constexpr uint16_t kw_setToonGotRing = 0x110;
+constexpr uint16_t kw_setRingGroupResults = 0x002;
+constexpr uint16_t kw_setPlayerDone = 0x110;
+constexpr uint16_t kw_setScore = 0x110;
+constexpr uint16_t kw_setTargetSeed = 0x006;
+constexpr uint16_t kw_setRoundDone = 0x002;
+constexpr uint16_t kw_setSingleScore = 0x002;
+constexpr uint16_t kw_setGameDone = 0x002;
+constexpr const char* sig_setTimeBase = "i16";
+constexpr const char* sig_setToonGotRing = "u8";
+constexpr const char* sig_setRingGroupResults = "u8";
+constexpr const char* sig_setPlayerDone = "";
+constexpr const char* sig_setScore = "i32,i32";
+constexpr const char* sig_setTargetSeed = "u32";
+constexpr const char* sig_setRoundDone = "";
+constexpr const char* sig_setSingleScore = "u16,u32";
+constexpr const char* sig_setGameDone = "";
+} // namespace DistributedTargetGame
+
+namespace DistributedCogThiefGame {
+constexpr uint16_t kClassId = 373;
+constexpr uint16_t k_throwingPie = 2112;
+constexpr uint16_t k_hitBySuit = 2113;
+constexpr uint16_t k_pieHitSuit = 2114;
+constexpr uint16_t k_cogHitBarrel = 2115;
+constexpr uint16_t k_cogAtReturnPos = 2116;
+constexpr uint16_t k_updateSuitGoal = 2117;
+constexpr uint16_t k_makeCogCarryBarrel = 2118;
+constexpr uint16_t k_makeCogDropBarrel = 2119;
+constexpr uint16_t k_markBarrelStolen = 2120;
+constexpr uint16_t kw_throwingPie = 0x012;
+constexpr uint16_t kw_hitBySuit = 0x112;
+constexpr uint16_t kw_pieHitSuit = 0x112;
+constexpr uint16_t kw_cogHitBarrel = 0x110;
+constexpr uint16_t kw_cogAtReturnPos = 0x110;
+constexpr uint16_t kw_updateSuitGoal = 0x002;
+constexpr uint16_t kw_makeCogCarryBarrel = 0x002;
+constexpr uint16_t kw_makeCogDropBarrel = 0x002;
+constexpr uint16_t kw_markBarrelStolen = 0x002;
+constexpr const char* sig_throwingPie = "u32,i32,i32/100,i32/100,i32/100,i32/100";
+constexpr const char* sig_hitBySuit = "u32,i32,i8,i32/100,i32/100,i32/100";
+constexpr const char* sig_pieHitSuit = "u32,i32,i8,i32/100,i32/100,i32/100";
+constexpr const char* sig_cogHitBarrel = "i32,i8,i8,i32/100,i32/100,i32/100";
+constexpr const char* sig_cogAtReturnPos = "i32,i8,i8";
+constexpr const char* sig_updateSuitGoal = "i32,i32,i8,i8,i64,i32/100,i32/100,i32/100";
+constexpr const char* sig_makeCogCarryBarrel = "i32,i32,i8,i8,i32/100,i32/100,i32/100";
+constexpr const char* sig_makeCogDropBarrel = "i32,i32,i8,i8,i32/100,i32/100,i32/100";
+constexpr const char* sig_markBarrelStolen = "i32,i32,i8";
+} // namespace DistributedCogThiefGame
+
+namespace DistributedTwoDGame {
+constexpr uint16_t kClassId = 376;
+constexpr uint16_t k_showShootGun = 2128;
+constexpr uint16_t k_toonHitByEnemy = 2129;
+constexpr uint16_t k_toonFellDown = 2130;
+constexpr uint16_t k_toonSquished = 2131;
+constexpr uint16_t k_toonVictory = 2132;
+constexpr uint16_t k_claimTreasure = 2133;
+constexpr uint16_t k_claimEnemyShot = 2134;
+constexpr uint16_t k_reportDone = 2135;
+constexpr uint16_t k_setSectionsSelected = 2136;
+constexpr uint16_t k_setTreasureGrabbed = 2137;
+constexpr uint16_t k_setEnemyShot = 2138;
+constexpr uint16_t k_addVictoryScore = 2139;
+constexpr uint16_t k_setEveryoneDone = 2140;
+constexpr uint16_t kw_showShootGun = 0x012;
+constexpr uint16_t kw_toonHitByEnemy = 0x112;
+constexpr uint16_t kw_toonFellDown = 0x112;
+constexpr uint16_t kw_toonSquished = 0x112;
+constexpr uint16_t kw_toonVictory = 0x112;
+constexpr uint16_t kw_claimTreasure = 0x110;
+constexpr uint16_t kw_claimEnemyShot = 0x110;
+constexpr uint16_t kw_reportDone = 0x110;
+constexpr uint16_t kw_setSectionsSelected = 0x007;
+constexpr uint16_t kw_setTreasureGrabbed = 0x002;
+constexpr uint16_t kw_setEnemyShot = 0x002;
+constexpr uint16_t kw_addVictoryScore = 0x002;
+constexpr uint16_t kw_setEveryoneDone = 0x002;
+constexpr const char* sig_showShootGun = "u32,i16";
+constexpr const char* sig_toonHitByEnemy = "u32,i16";
+constexpr const char* sig_toonFellDown = "u32,i16";
+constexpr const char* sig_toonSquished = "u32,i16";
+constexpr const char* sig_toonVictory = "u32,i16";
+constexpr const char* sig_claimTreasure = "u8,u8";
+constexpr const char* sig_claimEnemyShot = "u8,u8";
+constexpr const char* sig_reportDone = "";
+constexpr const char* sig_setSectionsSelected = "{u8,u8[],{u8,u8}[],u8[],u8[]}[]";
+constexpr const char* sig_setTreasureGrabbed = "u32,u8,u8";
+constexpr const char* sig_setEnemyShot = "u32,u8,u8,u32";
+constexpr const char* sig_addVictoryScore = "u32,u8";
+constexpr const char* sig_setEveryoneDone = "";
+} // namespace DistributedTwoDGame
+
+namespace DistributedTagGame {
+constexpr uint16_t kClassId = 128;
+constexpr uint16_t k_tag = 886;
+constexpr uint16_t k_setIt = 887;
+constexpr uint16_t k_setTreasureScore = 888;
+constexpr uint16_t kw_tag = 0x110;
+constexpr uint16_t kw_setIt = 0x002;
+constexpr uint16_t kw_setTreasureScore = 0x002;
+constexpr const char* sig_tag = "u32";
+constexpr const char* sig_setIt = "u32";
+constexpr const char* sig_setTreasureScore = "u16[]";
+} // namespace DistributedTagGame
+
+namespace DistributedPatternGame {
+constexpr uint16_t kClassId = 126;
+constexpr uint16_t k_reportPlayerReady = 876;
+constexpr uint16_t k_setPattern = 877;
+constexpr uint16_t k_reportPlayerPattern = 878;
+constexpr uint16_t k_setPlayerPatterns = 879;
+constexpr uint16_t k_reportButtonPress = 880;
+constexpr uint16_t k_remoteButtonPressed = 881;
+constexpr uint16_t kw_reportPlayerReady = 0x110;
+constexpr uint16_t kw_setPattern = 0x002;
+constexpr uint16_t kw_reportPlayerPattern = 0x110;
+constexpr uint16_t kw_setPlayerPatterns = 0x002;
+constexpr uint16_t kw_reportButtonPress = 0x110;
+constexpr uint16_t kw_remoteButtonPressed = 0x002;
+constexpr const char* sig_reportPlayerReady = "";
+constexpr const char* sig_setPattern = "u8[]";
+constexpr const char* sig_reportPlayerPattern = "u8[],u16/1000";
+constexpr const char* sig_setPlayerPatterns = "u8[],u8[],u8[],u8[],u32";
+constexpr const char* sig_reportButtonPress = "u8,u8";
+constexpr const char* sig_remoteButtonPressed = "u32,u8,u8";
+} // namespace DistributedPatternGame
+
+namespace DistributedIceGame {
+constexpr uint16_t kClassId = 372;
+constexpr uint16_t k_setForceArrowInfo = 2098;
+constexpr uint16_t k_setAvatarChoice = 2099;
+constexpr uint16_t k_endingPositions = 2100;
+constexpr uint16_t k_reportScoringMovieDone = 2101;
+constexpr uint16_t k_claimTreasure = 2102;
+constexpr uint16_t k_claimPenalty = 2103;
+constexpr uint16_t k_setTimerStartTime = 2105;
+constexpr uint16_t k_setMatchAndRound = 2107;
+constexpr uint16_t k_setNewState = 2109;
+constexpr uint16_t k_setTreasureGrabbed = 2110;
+constexpr uint16_t k_setPenaltyGrabbed = 2111;
+constexpr uint16_t kw_setForceArrowInfo = 0x012;
+constexpr uint16_t kw_setAvatarChoice = 0x110;
+constexpr uint16_t kw_endingPositions = 0x110;
+constexpr uint16_t kw_reportScoringMovieDone = 0x110;
+constexpr uint16_t kw_claimTreasure = 0x110;
+constexpr uint16_t kw_claimPenalty = 0x110;
+constexpr uint16_t kw_setTimerStartTime = 0x002;
+constexpr uint16_t kw_setMatchAndRound = 0x002;
+constexpr uint16_t kw_setNewState = 0x002;
+constexpr uint16_t kw_setTreasureGrabbed = 0x002;
+constexpr uint16_t kw_setPenaltyGrabbed = 0x002;
+constexpr const char* sig_setForceArrowInfo = "u32,i32/100,i32/100";
+constexpr const char* sig_setAvatarChoice = "i32/100,i32/100";
+constexpr const char* sig_endingPositions = "{i32/100000,i32/100000,i32/100000}[]";
+constexpr const char* sig_reportScoringMovieDone = "";
+constexpr const char* sig_claimTreasure = "u8";
+constexpr const char* sig_claimPenalty = "u8";
+constexpr const char* sig_setTimerStartTime = "i16";
+constexpr const char* sig_setMatchAndRound = "i8,i8";
+constexpr const char* sig_setNewState = "string";
+constexpr const char* sig_setTreasureGrabbed = "u32,u32";
+constexpr const char* sig_setPenaltyGrabbed = "u32,u32";
+} // namespace DistributedIceGame
+
+namespace DistributedRaceGame {
+constexpr uint16_t kClassId = 123;
+constexpr uint16_t k_setTimerStartTime = 862;
+constexpr uint16_t k_setAvatarChoice = 863;
+constexpr uint16_t k_setAvatarChose = 864;
+constexpr uint16_t k_setChancePositions = 865;
+constexpr uint16_t k_setServerChoices = 866;
+constexpr uint16_t kw_setTimerStartTime = 0x002;
+constexpr uint16_t kw_setAvatarChoice = 0x110;
+constexpr uint16_t kw_setAvatarChose = 0x002;
+constexpr uint16_t kw_setChancePositions = 0x002;
+constexpr uint16_t kw_setServerChoices = 0x002;
+constexpr const char* sig_setTimerStartTime = "i16";
+constexpr const char* sig_setAvatarChoice = "u8";
+constexpr const char* sig_setAvatarChose = "u32";
+constexpr const char* sig_setChancePositions = "u8[]";
+constexpr const char* sig_setServerChoices = "i8[],u8[],i8[]";
+} // namespace DistributedRaceGame
+
+namespace DistributedPhotoGame {
+constexpr uint16_t kClassId = 125;
+constexpr uint16_t k_newClientPhotoScore = 873;
+constexpr uint16_t k_newAIPhotoScore = 874;
+constexpr uint16_t k_filmOut = 875;
+constexpr uint16_t kw_newClientPhotoScore = 0x110;
+constexpr uint16_t kw_newAIPhotoScore = 0x002;
+constexpr uint16_t kw_filmOut = 0x110;
+constexpr const char* sig_newClientPhotoScore = "u8,string,u32/100";
+constexpr const char* sig_newAIPhotoScore = "u32,u8,u32/100";
+constexpr const char* sig_filmOut = "";
+} // namespace DistributedPhotoGame
+
+namespace DistributedTravelGame {
+constexpr uint16_t kClassId = 343;
+constexpr uint16_t k_setTimerStartTime = 1891;
+constexpr uint16_t k_setAvatarChoice = 1892;
+constexpr uint16_t k_setAvatarChose = 1893;
+constexpr uint16_t k_setServerChoices = 1894;
+constexpr uint16_t k_setMinigames = 1895;
+constexpr uint16_t k_setBonuses = 1896;
+constexpr uint16_t k_setBoardIndex = 1897;
+constexpr uint16_t kw_setTimerStartTime = 0x002;
+constexpr uint16_t kw_setAvatarChoice = 0x110;
+constexpr uint16_t kw_setAvatarChose = 0x002;
+constexpr uint16_t kw_setServerChoices = 0x002;
+constexpr uint16_t kw_setMinigames = 0x002;
+constexpr uint16_t kw_setBonuses = 0x002;
+constexpr uint16_t kw_setBoardIndex = 0x007;
+constexpr const char* sig_setTimerStartTime = "i16";
+constexpr const char* sig_setAvatarChoice = "u16,u8";
+constexpr const char* sig_setAvatarChose = "u32";
+constexpr const char* sig_setServerChoices = "i16[],u8[],u8,u8";
+constexpr const char* sig_setMinigames = "u8[],u8[]";
+constexpr const char* sig_setBonuses = "u8[],u8[]";
+constexpr const char* sig_setBoardIndex = "u8";
+} // namespace DistributedTravelGame
+
 namespace PurchaseManager {
 constexpr uint16_t kClassId = 176;
 constexpr uint16_t k_setPlayerIds = 1133;
@@ -2117,26 +2351,6 @@ namespace DistributedMinigameTemplate {
 constexpr uint16_t kClassId = 122;
 } // namespace DistributedMinigameTemplate
 
-namespace DistributedRaceGame {
-constexpr uint16_t kClassId = 123;
-} // namespace DistributedRaceGame
-
-namespace DistributedPhotoGame {
-constexpr uint16_t kClassId = 125;
-} // namespace DistributedPhotoGame
-
-namespace DistributedPatternGame {
-constexpr uint16_t kClassId = 126;
-} // namespace DistributedPatternGame
-
-namespace DistributedTagGame {
-constexpr uint16_t kClassId = 128;
-} // namespace DistributedTagGame
-
-namespace DistributedTargetGame {
-constexpr uint16_t kClassId = 133;
-} // namespace DistributedTargetGame
-
 namespace NewbiePurchaseManager {
 constexpr uint16_t kClassId = 177;
 } // namespace NewbiePurchaseManager
@@ -2309,10 +2523,6 @@ namespace DistributedMover {
 constexpr uint16_t kClassId = 305;
 } // namespace DistributedMover
 
-namespace DistributedTravelGame {
-constexpr uint16_t kClassId = 343;
-} // namespace DistributedTravelGame
-
 namespace DistributedCogKart {
 constexpr uint16_t kClassId = 359;
 } // namespace DistributedCogKart
@@ -2320,18 +2530,6 @@ constexpr uint16_t kClassId = 359;
 namespace DistributedMoleField {
 constexpr uint16_t kClassId = 362;
 } // namespace DistributedMoleField
-
-namespace DistributedIceGame {
-constexpr uint16_t kClassId = 372;
-} // namespace DistributedIceGame
-
-namespace DistributedCogThiefGame {
-constexpr uint16_t kClassId = 373;
-} // namespace DistributedCogThiefGame
-
-namespace DistributedTwoDGame {
-constexpr uint16_t kClassId = 376;
-} // namespace DistributedTwoDGame
 
 // One entry per field of every class in kClasses, sorted by id.
 // typeOffset indexes kTypeCode (program ends with kOpEnd).
