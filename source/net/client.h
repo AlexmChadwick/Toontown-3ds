@@ -33,6 +33,7 @@
 #include "net/connection.h"
 #include "net/datagram.h"
 #include "net/quest_net.h"
+#include "net/book_net.h"
 
 namespace tt::net {
 
@@ -1113,6 +1114,9 @@ public:
     uint32_t suitPlannerZone(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
+    const OwnBookStats& ownBook() const { return ownBook_; }
+    const District* districts() const { return districts_; }
+    int numDistricts() const { return kMaxDistricts; }
 
     // ---- shop (additive section; keep together) ----
     // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
@@ -1441,6 +1445,7 @@ private:
     // quests section: see client.cpp
     static constexpr int kMovieQueue = 8;
     OwnQuests ownQuests_{};
+    OwnBookStats ownBook_{};
     NpcMovie movies_[kMovieQueue];
     uint32_t movieHead_ = 0, movieTail_ = 0;
     bool handleNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);

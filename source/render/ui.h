@@ -13,6 +13,7 @@
 #include "ui/fishing_panel.h"
 #include "ui/closet_panel.h"
 #include "ui/minigame_purchase_panel.h"
+#include "ui/book.h"
 
 namespace tt::ui {
 
@@ -32,6 +33,11 @@ struct State {
     bool homeRequest = false;
     // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
     unsigned whisperTo = 0;
+    bool debugOverlay = false;
+    int lodBias = 0;
+    int musicVol = 80;
+    int sfxVol = 100;
+    bool quitRequested = false;
 };
 
 struct MapMarker {
@@ -75,6 +81,12 @@ struct Context {
     int maxCarry = 0;
     // Fishing: non-null while the toon is fishing; replaces the tab content (ui/fishing_panel.h).
     const FishingView* fishing = nullptr;
+    // Shtiker Book data (null = offline)
+    const net::OwnStats* stats = nullptr;
+    const net::OwnBookStats* book = nullptr;
+    const net::OwnFish* fish = nullptr;
+    const net::District* districts = nullptr;
+    int numDistricts = 0;
 };
 
 constexpr int kNumTeleportHoods = 8;
@@ -101,6 +113,9 @@ public:
     ShopPanel& shop() { return shop_; }
     TailorPanel& tailor() { return tailor_; }
     ClosetPanel& closet() { return closet_; }
+    Book& book() { return book_; }
+    const Book& book() const { return book_; }
+    void openBookPage(int page) { book_.open(page); }
     // Street battle (world/battle.*): while a view is set the battle panel owns the bottom
     // screen. Call every frame before handleInput (null when not fighting).
     void setBattle(const world::BattleView* view, const BattleGags& gags) {
@@ -170,6 +185,7 @@ private:
     const world::BattleView* battleView_ = nullptr;
     BattleGags battleGags_{};
     FishingPanel fishingPanel_;
+    Book book_;
 };
 
 } // namespace tt::ui
