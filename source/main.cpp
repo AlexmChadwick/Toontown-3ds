@@ -594,8 +594,13 @@ int main() {
         }
         if (autotest.active() && !strcmp(autotest.label(), "ride boat") && boat.active() && !autotestBoarded) {
             // Test-only: drop onto the middle of the deck.
-            player.reset(boat.x(), boat.y(), boat.z() + 5.0f, boat.heading());
+            // Test-only: the deck floor (1000_boat.ttc, z 3.93) spans boat-local y 2..18; land mid-deck.
+            const float bh = boat.heading() * kDegToRad;
+            player.reset(boat.x() - 8.0f * sinf(bh), boat.y() + 8.0f * cosf(bh), boat.z() + 4.5f, boat.heading());
             autotestBoarded = true;
+            TT_LOG("autotest: dropped on the boat at %.1f,%.1f,%.1f (deck %s, aboard %d)", double(player.x()),
+                   double(player.y()), double(player.z()), boat.deck() ? "loaded" : "missing",
+                   int(player.onPlatform()));
         }
         if (autotest.active() && !strcmp(autotest.label(), "see boat") && boat.active()) {
             autotestFace(boat.x(), boat.y(), boat.z() + 2.0f, 30.0f);

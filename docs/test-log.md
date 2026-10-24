@@ -334,6 +334,26 @@ need hardware.
 - **Autotest.** It can now start mid-script: `AUTOTEST_FROM="toon hq" tools/dev/azahar_test.sh ...`.
 - No PANIC.
 
+### 2026-10-24 — Gag purchase, a won battle, riding the boat
+- **Target:** Azahar 2126.2, Old 3DS mode, local server. Each case was started part-way
+  with `AUTOTEST_FROM`.
+- **Gag Shop.**
+  1. Clerk Clara answers avatarEnter with setMovie START.
+  2. The panel opens with 26 beans and 0/20 gags.
+  3. We buy 12 (6 Cupcakes, 6 Squirting Flowers), and Done sends setInventory(done=1).
+  4. The AI completes it (mode 2): 14 beans left, and the inventory is resent.
+- **Battle won.**
+  1. On Silly Street, the toon bumps a level-1 Short Change.
+  2. Two Cupcake throws defeat it, followed by Reward, rewardDone and Resume.
+  3. The cog HP bar now drops with each hit, because the AI only resends setHP after
+     the battle.
+- **Boat.**
+  - The toon dropped mid-deck boards: `onPlatform` is set, and the toon is carried along
+    the dd-w-e path while its heading turns (60 → 30° over 3 s).
+  - The earlier failure was the autotest drop point: the deck floor spans boat-local
+    y 2..18, not the origin.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.
