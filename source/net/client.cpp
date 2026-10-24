@@ -88,6 +88,29 @@ TT_SIG(DistributedDale, setFollowChip, "string,string,i16,i16/100,i16/100");
 TT_SIG(DistributedDale, setChipId, "u32");
 TT_SIG(DistributedJailbirdDale, setFollowChip, "string,string,i16,i16/100,i16/100");
 TT_SIG(DistributedJailbirdDale, setChipId, "u32");
+// ---- trolley section: layouts parsed by hand below (docs/design/trolley.md) ----
+TT_SIG(DistributedTrolley, setState, "string,i16");
+TT_SIG(DistributedTrolley, fillSlot0, "u32");
+TT_SIG(DistributedTrolley, emptySlot0, "u32,i16");
+TT_SIG(DistributedTrolley, requestBoard, "");
+TT_SIG(DistributedTrolley, rejectBoard, "u32");
+TT_SIG(DistributedTrolley, requestExit, "");
+TT_SIG(DistributedTrolley, setMinigameZone, "u32,u16");
+TT_SIG(DistributedMinigame, setParticipants, "u32[]");
+TT_SIG(DistributedMinigame, setTrolleyZone, "u32");
+TT_SIG(DistributedMinigame, setDifficultyOverrides, "i32,i32");
+TT_SIG(DistributedMinigame, setGameStart, "i16");
+TT_SIG(DistributedCatchGame, claimCatch, "u32,u32");
+TT_SIG(DistributedCatchGame, setObjectCaught, "u32,u32");
+TT_SIG(DistributedCatchGame, hitBySuit, "u32,i16");
+TT_SIG(PurchaseManager, setPlayerIds, "u32,u32,u32,u32");
+TT_SIG(PurchaseManager, setMinigamePoints, "u8,u8,u8,u8");
+TT_SIG(PurchaseManager, setPlayerMoney, "u8,u8,u8,u8");
+TT_SIG(PurchaseManager, setPlayerStates, "u8,u8,u8,u8");
+TT_SIG(PurchaseManager, setInventory, "blob,i16,u8");
+static_assert(dc::DistributedTrolley::k_fillSlot3 == dc::DistributedTrolley::k_fillSlot0 + 3, "fillSlot ids");
+static_assert(dc::DistributedTrolley::k_emptySlot3 == dc::DistributedTrolley::k_emptySlot0 + 3, "emptySlot ids");
+// ---- end trolley section ----
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -373,6 +396,7 @@ void Client::resetWorld() {
         t.active = false;
     }
     clearSuits();
+    clearTrolleyObjects();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
@@ -646,6 +670,19 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         maybeSkipTutorial();
         return;
     }
+    // trolley section: the playground trolley, any minigame, the purchase manager.
+    if (classId == dc::DistributedTrolley::kClassId) {
+        handleTrolleyEnter(doId, r, req, reqCount, other);
+        return;
+    }
+    if (classHasField(*cls, dc::DistributedMinigame::k_setAvatarJoined)) {
+        handleMinigameEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
+    if (classHasField(*cls, dc::PurchaseManager::k_setPurchaseExit)) {
+        handlePurchaseEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
     // Families are recognized by their base class's fields (every subclass inherits them).
     if (classHasField(*cls, dc::DistributedNPCToonBase::k_setPositionIndex)) {
         handleNpcEnter(*cls, doId, classId, r, req, reqCount, other);
@@ -713,6 +750,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         handleLoginManagerField(r, fieldId);
         return;
     }
+    if (handleTrolleyField(r, doId, fieldId)) return;
     for (Treasure& t : treasures_) {
         if (t.active && t.doId == doId) {
             if (fieldId == dc::DistributedTreasure::k_setGrab) {
@@ -803,6 +841,7 @@ void Client::handleLeaving(uint32_t doId) {
         if (doId == shardId_) fail("our district went away", true);
         return;
     }
+    if (handleTrolleyLeaving(doId)) return;
     if (doId == timeManagerId_) timeManagerId_ = 0;
     if (doId == tutorialManagerId_) tutorialManagerId_ = 0;
     for (NpcToon& n : npcs_) {
@@ -1648,6 +1687,7 @@ void Client::dropZoneObjects() {
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearSuits();
+    clearTrolleyObjects();
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
@@ -1768,7 +1808,7 @@ namespace {
 // toontown/toonbase/ToontownGlobals.py ToonAnimStates (the subset this client sends).
 // The AI bans (and, on stock Open Toontown, crashes in banManager) on any other name.
 const char* const kAllowedAnimStates[] = {"off", "neutral", "run", "walk", "jumpSquat", "jump", "jumpAirborne",
-                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote"};
+                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote", "Sit", "Catching", "CatchEating"};
 
 bool allowedAnimState(const char* name) {
     for (const char* allowed : kAllowedAnimStates) {
@@ -1823,6 +1863,338 @@ bool Client::avatarPos(uint32_t doId, float* x, float* y, float* z) const {
         return true;
     }
     return false;
+}
+
+// ============================================================== trolley section
+// DistributedTrolley, DistributedMinigame (+ Catch) and PurchaseManager objects, and the
+// handful of clsend fields we answer them with (docs/design/trolley.md sections 1-2).
+// Everything for this feature lives between this banner and the end of the file.
+
+void Client::pushEventArg(EventType type, uint32_t doId, int32_t arg) {
+    if (evHead_ - evTail_ >= uint32_t(kEventQueue)) {
+        ++droppedEvents_;
+        return;
+    }
+    Event e{type, doId};
+    e.arg = arg;
+    events_[evHead_ % kEventQueue] = e;
+    ++evHead_;
+}
+
+void Client::clearTrolleyObjects() {
+    if (trolley_.active) pushEvent(EventType::TrolleyGone, trolley_.doId);
+    if (minigame_.active) pushEvent(EventType::MinigameGone, minigame_.doId);
+    if (purchase_.active) pushEvent(EventType::PurchaseGone, purchase_.doId);
+    trolley_ = Trolley{};
+    minigame_ = Minigame{};
+    purchase_ = Purchase{};
+}
+
+bool Client::applyTrolleyField(Trolley& t, DatagramReader& r, uint16_t fieldId, bool announce) {
+    namespace T = dc::DistributedTrolley;
+    if (fieldId == T::k_setState) {
+        char name[24];
+        r.string(name, sizeof(name));
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        // DistributedTrolley.setState: fsm.request(state, [localElapsedTime(ts)]).
+        t.state = !strcmp(name, "entering")        ? TrolleyState::Entering
+                  : !strcmp(name, "waitEmpty")     ? TrolleyState::WaitEmpty
+                  : !strcmp(name, "waitCountdown") ? TrolleyState::WaitCountdown
+                  : !strcmp(name, "leaving")       ? TrolleyState::Leaving
+                                                   : TrolleyState::Off;
+        t.stateStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        if (announce) pushEvent(EventType::TrolleyState, t.doId);
+    } else if (fieldId >= T::k_fillSlot0 && fieldId <= T::k_fillSlot3) {
+        const uint32_t av = r.u32();
+        if (!r.ok()) return false;
+        const int i = int(fieldId - T::k_fillSlot0);
+        t.slot[i] = av;
+        if (announce && av != 0) pushEventArg(EventType::TrolleyFill, av, i);
+    } else if (fieldId >= T::k_emptySlot0 && fieldId <= T::k_emptySlot3) {
+        const uint32_t av = r.u32();
+        r.i16(); // timestamp
+        if (!r.ok()) return false;
+        const int i = int(fieldId - T::k_emptySlot0);
+        if (av == 0) t.slot[i] = 0; // the seat is free again
+        else if (announce) pushEventArg(EventType::TrolleyEmpty, av, i);
+    } else if (fieldId == T::k_rejectBoard) {
+        const uint32_t av = r.u32();
+        if (!r.ok()) return false;
+        if (announce && av == avatarId_) pushEvent(EventType::TrolleyReject, t.doId);
+    } else if (fieldId == T::k_setMinigameZone) {
+        const uint32_t zone = r.u32();
+        const uint16_t game = r.u16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TrolleyMinigameZone, zone, game);
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+bool Client::handleTrolleyEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                                bool other) {
+    Trolley tmp{};
+    tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyTrolleyField(tmp, r, req[i], false);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyTrolleyField(tmp, r, r.u16(), false);
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: trolley %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    trolley_ = tmp;
+    TT_LOG("net: trolley %u state %d seats %u/%u/%u/%u", unsigned(doId), int(tmp.state), unsigned(tmp.slot[0]),
+           unsigned(tmp.slot[1]), unsigned(tmp.slot[2]), unsigned(tmp.slot[3]));
+    pushEvent(EventType::TrolleyUp, doId);
+    return true;
+}
+
+bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId, bool announce) {
+    namespace M = dc::DistributedMinigame;
+    if (fieldId == M::k_setParticipants) {
+        const uint16_t bytes = r.u16();
+        m.numParticipants = 0;
+        for (uint16_t i = 0; i < bytes / 4 && r.ok(); ++i) {
+            const uint32_t av = r.u32();
+            if (m.numParticipants < kMinigamePlayers) m.participants[m.numParticipants++] = av;
+        }
+    } else if (fieldId == M::k_setTrolleyZone) {
+        m.trolleyZone = r.u32();
+    } else if (fieldId == M::k_setDifficultyOverrides) {
+        m.difficultyOverride = r.i32();
+        m.zoneOverride = r.i32();
+    } else if (fieldId == M::k_setGameReady) {
+        m.gameReady = true;
+        if (announce) pushEvent(EventType::MinigameReady, m.doId);
+    } else if (fieldId == M::k_setGameStart) {
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        m.started = true;
+        m.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        if (announce) pushEvent(EventType::MinigameStart, m.doId);
+    } else if (fieldId == M::k_setGameExit) {
+        m.exitMsg = true;
+        if (announce) pushEvent(EventType::MinigameExit, m.doId);
+    } else if (fieldId == M::k_setGameAbort) {
+        m.aborted = true;
+        if (announce) pushEvent(EventType::MinigameAbort, m.doId);
+    } else if (fieldId == dc::DistributedCatchGame::k_setObjectCaught) {
+        const uint32_t av = r.u32();
+        const uint32_t obj = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::CatchCaught, av, int32_t(obj));
+    } else if (fieldId == dc::DistributedCatchGame::k_setEveryoneDone) {
+        if (announce) pushEvent(EventType::CatchEveryoneDone, m.doId);
+    } else if (fieldId == dc::DistributedCatchGame::k_hitBySuit) {
+        const uint32_t av = r.u32();
+        r.i16();
+        if (!r.ok()) return false;
+        if (announce && av != avatarId_) pushEvent(EventType::CatchHitBySuit, av);
+    } else {
+        skipField(r, fieldId); // setStartingVotes, setMetagameRound, game-specific fields
+    }
+    return r.ok();
+}
+
+bool Client::handleMinigameEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                 uint16_t reqCount, bool other) {
+    Minigame tmp{};
+    tmp.doId = doId;
+    tmp.classId = classId;
+    tmp.difficultyOverride = kNoDifficultyOverride;
+    tmp.zoneOverride = -1;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyMinigameField(tmp, r, req[i], false);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyMinigameField(tmp, r, r.u16(), false);
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: minigame %u (class %u) generate did not parse", unsigned(doId), unsigned(classId));
+        return false;
+    }
+    tmp.active = true;
+    minigame_ = tmp;
+    TT_LOG("net: minigame %u class %u players %d trolley zone %u", unsigned(doId), unsigned(classId),
+           tmp.numParticipants, unsigned(tmp.trolleyZone));
+    pushEvent(EventType::MinigameUp, doId);
+    return true;
+}
+
+bool Client::applyPurchaseField(Purchase& p, DatagramReader& r, uint16_t fieldId, bool announce) {
+    namespace P = dc::PurchaseManager;
+    if (fieldId == P::k_setPlayerIds) {
+        for (int i = 0; i < kMinigamePlayers; ++i) p.playerIds[i] = r.u32();
+    } else if (fieldId == P::k_setMinigamePoints) {
+        for (int i = 0; i < kMinigamePlayers; ++i) p.minigamePoints[i] = r.u8();
+    } else if (fieldId == P::k_setPlayerMoney) {
+        for (int i = 0; i < kMinigamePlayers; ++i) p.playerMoney[i] = r.u8();
+    } else if (fieldId == P::k_setPlayerStates) {
+        for (int i = 0; i < kMinigamePlayers; ++i) p.playerStates[i] = r.u8();
+        if (announce && r.ok()) pushEvent(EventType::PurchaseStates, p.doId);
+    } else if (fieldId == P::k_setPurchaseExit) {
+        p.exitMsg = true;
+        if (announce) pushEvent(EventType::PurchaseExit, p.doId);
+    } else {
+        skipField(r, fieldId); // setNewbieIds, setCountdown, setMetagameRound, setVotesArray, ...
+    }
+    return r.ok();
+}
+
+bool Client::handlePurchaseEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                 uint16_t reqCount, bool other) {
+    Purchase tmp{};
+    tmp.doId = doId;
+    tmp.classId = classId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyPurchaseField(tmp, r, req[i], false);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyPurchaseField(tmp, r, r.u16(), false);
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: purchase manager %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    purchase_ = tmp;
+    TT_LOG("net: purchase manager %u (class %u) points %u/%u/%u/%u", unsigned(doId), unsigned(classId),
+           unsigned(tmp.minigamePoints[0]), unsigned(tmp.minigamePoints[1]), unsigned(tmp.minigamePoints[2]),
+           unsigned(tmp.minigamePoints[3]));
+    pushEvent(EventType::PurchaseUp, doId);
+    return true;
+}
+
+bool Client::handleTrolleyField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (trolley_.active && trolley_.doId == doId) {
+        applyTrolleyField(trolley_, r, fieldId, true);
+        return true;
+    }
+    if (minigame_.active && minigame_.doId == doId) {
+        applyMinigameField(minigame_, r, fieldId, true);
+        return true;
+    }
+    if (purchase_.active && purchase_.doId == doId) {
+        applyPurchaseField(purchase_, r, fieldId, true);
+        return true;
+    }
+    return false;
+}
+
+bool Client::handleTrolleyLeaving(uint32_t doId) {
+    if (trolley_.active && trolley_.doId == doId) {
+        trolley_ = Trolley{};
+        pushEvent(EventType::TrolleyGone, doId);
+        return true;
+    }
+    if (minigame_.active && minigame_.doId == doId) {
+        minigame_.active = false;
+        pushEvent(EventType::MinigameGone, doId);
+        return true;
+    }
+    if (purchase_.active && purchase_.doId == doId) {
+        purchase_.active = false;
+        pushEvent(EventType::PurchaseGone, doId);
+        return true;
+    }
+    return false;
+}
+
+bool Client::sendTrolleyBoard() {
+    if (!trolley_.active || state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, trolley_.doId, DistributedTrolley, requestBoard);
+    return finish(w);
+}
+
+bool Client::sendTrolleyExit() {
+    if (!trolley_.active || state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, trolley_.doId, DistributedTrolley, requestExit);
+    return finish(w);
+}
+
+// The minigame DO arrives while the quiet-zone change is still finishing (the AI generated
+// it before telling us the zone), and upstream answers in announceGenerate, so these only
+// need the object, not State::InZone.
+bool Client::sendMinigameJoined() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMinigame, setAvatarJoined);
+    return finish(w);
+}
+
+bool Client::sendMinigameReady() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMinigame, setAvatarReady);
+    return finish(w);
+}
+
+bool Client::sendMinigameExited() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMinigame, setAvatarExited);
+    return finish(w);
+}
+
+bool Client::sendMinigameExit() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedMinigame, requestExit);
+    return finish(w);
+}
+
+bool Client::sendCatchClaim(uint32_t objNum, uint32_t typeId) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCatchGame, claimCatch);
+    w.u32(objNum);
+    w.u32(typeId);
+    return finish(w);
+}
+
+bool Client::sendCatchDone() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCatchGame, reportDone);
+    return finish(w);
+}
+
+bool Client::sendCatchHitBySuit(uint32_t avId) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCatchGame, hitBySuit);
+    w.u32(avId);
+    w.i16(networkTime(now_));
+    return finish(w);
+}
+
+bool Client::sendPurchaseExit() {
+    if (!purchase_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, purchase_.doId, PurchaseManager, requestExit);
+    return finish(w);
+}
+
+bool Client::sendPurchaseInventory() {
+    if (!purchase_.active) return false;
+    // PurchaseManager.handleDone -> setInventory(inv.makeNetString(), money, done=1). The
+    // money must be what the server last set (payout included): the AI applies newMoney.
+    uint8_t inv[49];
+    for (int i = 0; i < 49; ++i) inv[i] = ownStats_.inventory[i / 7][i % 7];
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, purchase_.doId, PurchaseManager, setInventory);
+    w.blob(inv, sizeof(inv));
+    w.i16(ownStats_.money);
+    w.u8(1);
+    return finish(w);
 }
 
 } // namespace tt::net

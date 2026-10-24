@@ -1,0 +1,931 @@
+case doId=100000001 hood=2000 players=1 diff=0.000000
+const toonSpeed=16.000000 halfW=10.000000 halfH=7.500000 onscreen=2.757353 offscreen=2.757353 period=2.757353 drops=24 fruits=18 anvils=6
+serverFruits=18
+drop 0 t=0.500000 fruit 3 0
+drop 1 t=3.257353 anvil 2 4
+drop 2 t=6.014706 fruit 3 1
+drop 3 t=8.772059 fruit 4 4
+drop 4 t=11.529412 fruit 1 4
+drop 5 t=14.286765 fruit 2 4
+drop 6 t=17.044118 fruit 4 2
+drop 7 t=19.801471 fruit 0 1
+drop 8 t=22.558824 fruit 0 4
+drop 9 t=25.316176 anvil 2 2
+drop 10 t=28.073529 fruit 2 0
+drop 11 t=30.830882 anvil 1 4
+drop 12 t=33.588235 fruit 3 4
+drop 13 t=36.345588 fruit 4 3
+drop 14 t=37.724265 fruit 1 1
+drop 15 t=39.102941 fruit 2 2
+drop 16 t=40.481618 fruit 2 4
+drop 17 t=41.860294 anvil 4 0
+drop 18 t=43.238971 fruit 0 3
+drop 19 t=44.617647 fruit 1 1
+drop 20 t=45.996324 anvil 4 2
+drop 21 t=47.375000 fruit 4 4
+drop 22 t=48.753676 fruit 3 0
+drop 23 t=50.132353 anvil 1 4
+spawnrand 0 0.332901774
+spawnrand 1 0.524955838
+spawnrand 2 0.726698227
+spawnrand 3 0.471261263
+spawnrand 4 0.205497671
+spawnrand 5 0.045632341
+spawnrand 6 0.469172639
+spawnrand 7 0.600076261
+spawnrand 8 0.842872258
+spawnrand 9 0.662176464
+spawnrand 10 0.246407740
+spawnrand 11 0.674228438
+spawnrand 12 0.391813095
+spawnrand 13 0.161032787
+spawnrand 14 0.551565110
+spawnrand 15 0.662467415
+spawnrand 16 0.622908220
+spawnrand 17 0.047771644
+spawnrand 18 0.758250249
+spawnrand 19 0.502320520
+spawnrand 20 0.201424298
+spawnrand 21 0.527025473
+spawnrand 22 0.546693116
+spawnrand 23 0.638046009
+suit 0 delay=5.000000 from=-25.000000,-6.898783 to=25.000000,5.824676 dur=6.449184 kind=0
+suit 1 delay=10.000000 from=25.000000,-5.260596 to=-25.000000,4.345124 dur=6.364292 kind=2
+suit 2 delay=15.000000 from=25.000000,-2.699274 to=-25.000000,0.584638 dur=6.263466 kind=0
+suit 3 delay=20.000000 from=25.000000,3.154693 to=-25.000000,1.834803 dur=6.252177 kind=1
+suit 4 delay=25.000000 from=-25.000000,-6.688109 to=25.000000,-6.642573 dur=6.250003 kind=0
+suit 5 delay=30.000000 from=25.000000,-6.185049 to=-25.000000,-7.439079 dur=6.251965 kind=2
+suit 6 delay=35.000000 from=-25.000000,-5.641398 to=25.000000,-4.459798 dur=6.251745 kind=1
+suit 7 delay=40.000000 from=25.000000,-5.728359 to=-25.000000,-0.430902 dur=6.284981 kind=2
+suit 8 delay=45.000000 from=25.000000,2.057031 to=-25.000000,-4.375509 dur=6.301510 kind=0
+suit 9 delay=50.000000 from=-25.000000,0.051077 to=25.000000,-7.109629 dur=6.313769 kind=1
+suit 10 delay=55.000000 from=25.000000,-7.074265 to=-25.000000,4.705134 dur=6.421101 kind=0
+case doId=100000417 hood=2000 players=1 diff=0.000000
+const toonSpeed=16.000000 halfW=10.000000 halfH=7.500000 onscreen=2.757353 offscreen=2.757353 period=2.757353 drops=24 fruits=18 anvils=6
+serverFruits=18
+drop 0 t=0.500000 anvil 1 3
+drop 1 t=3.257353 fruit 4 0
+drop 2 t=6.014706 fruit 1 3
+drop 3 t=8.772059 fruit 1 0
+drop 4 t=11.529412 fruit 3 0
+drop 5 t=14.286765 fruit 1 3
+drop 6 t=17.044118 fruit 3 0
+drop 7 t=19.801471 fruit 1 3
+drop 8 t=22.558824 fruit 2 1
+drop 9 t=25.316176 anvil 2 0
+drop 10 t=28.073529 anvil 2 4
+drop 11 t=30.830882 fruit 3 3
+drop 12 t=33.588235 anvil 2 0
+drop 13 t=36.345588 anvil 2 3
+drop 14 t=37.724265 fruit 3 1
+drop 15 t=39.102941 fruit 3 2
+drop 16 t=40.481618 fruit 2 0
+drop 17 t=41.860294 fruit 3 4
+drop 18 t=43.238971 fruit 3 3
+drop 19 t=44.617647 fruit 0 0
+drop 20 t=45.996324 anvil 1 2
+drop 21 t=47.375000 fruit 3 0
+drop 22 t=48.753676 fruit 4 4
+drop 23 t=50.132353 fruit 4 3
+spawnrand 0 0.324854861
+spawnrand 1 0.179085305
+spawnrand 2 0.467299768
+spawnrand 3 0.292138317
+spawnrand 4 0.287902935
+spawnrand 5 0.006864083
+spawnrand 6 0.307888196
+spawnrand 7 0.621385703
+spawnrand 8 0.245857348
+spawnrand 9 0.730344907
+spawnrand 10 0.655239869
+spawnrand 11 0.571722650
+spawnrand 12 0.142684335
+spawnrand 13 0.934878616
+spawnrand 14 0.653709368
+spawnrand 15 0.745244098
+spawnrand 16 0.807336475
+spawnrand 17 0.950286889
+spawnrand 18 0.807094733
+spawnrand 19 0.964960480
+spawnrand 20 0.633523923
+spawnrand 21 0.972221592
+spawnrand 22 0.630125080
+spawnrand 23 0.248931751
+suit 0 delay=5.000000 from=-25.000000,-0.568754 to=25.000000,-2.868954 dur=6.256610 kind=0
+suit 1 delay=10.000000 from=25.000000,1.820803 to=-25.000000,-6.412715 dur=6.334172 kind=1
+suit 2 delay=15.000000 from=25.000000,1.519914 to=-25.000000,2.786757 dur=6.252006 kind=0
+suit 3 delay=20.000000 from=-25.000000,-1.787126 to=25.000000,-1.197426 dur=6.250435 kind=2
+suit 4 delay=25.000000 from=-25.000000,6.088627 to=25.000000,-0.006316 dur=6.296264 kind=1
+suit 5 delay=30.000000 from=25.000000,4.246640 to=-25.000000,-2.694916 dur=6.309944 kind=2
+suit 6 delay=35.000000 from=-25.000000,0.693786 to=25.000000,-6.005678 dur=6.305854 kind=1
+suit 7 delay=40.000000 from=25.000000,-4.032736 to=-25.000000,3.008105 dur=6.311663 kind=0
+suit 8 delay=45.000000 from=-25.000000,0.608430 to=25.000000,4.332332 dur=6.267310 kind=1
+suit 9 delay=50.000000 from=25.000000,-3.248012 to=-25.000000,4.125087 dur=6.317588 kind=0
+suit 10 delay=55.000000 from=25.000000,-4.842645 to=-25.000000,1.940848 dur=6.307257 kind=3
+case doId=555555555 hood=1000 players=1 diff=0.200000
+const toonSpeed=17.800000 halfW=10.000000 halfH=7.500000 onscreen=2.478519 offscreen=2.478519 period=2.478519 drops=26 fruits=19 anvils=7
+serverFruits=19
+drop 0 t=0.500000 fruit 4 0
+drop 1 t=2.978519 anvil 0 1
+drop 2 t=5.457039 fruit 4 3
+drop 3 t=7.935558 anvil 4 0
+drop 4 t=10.414078 fruit 1 1
+drop 5 t=12.892597 fruit 2 2
+drop 6 t=15.371117 fruit 2 0
+drop 7 t=17.849636 fruit 4 4
+drop 8 t=20.328156 fruit 3 3
+drop 9 t=22.806675 fruit 3 1
+drop 10 t=25.285195 fruit 3 2
+drop 11 t=27.763714 fruit 4 3
+drop 12 t=30.242234 fruit 3 0
+drop 13 t=32.720753 fruit 2 4
+drop 14 t=35.199273 anvil 0 0
+drop 15 t=37.677792 fruit 2 0
+drop 16 t=38.917052 fruit 4 2
+drop 17 t=40.156312 fruit 2 1
+drop 18 t=41.395572 fruit 3 4
+drop 19 t=42.634831 anvil 1 4
+drop 20 t=43.874091 fruit 4 2
+drop 21 t=45.113351 anvil 3 0
+drop 22 t=46.352611 fruit 3 4
+drop 23 t=47.591870 anvil 2 1
+drop 24 t=48.831130 fruit 1 3
+drop 25 t=50.070390 anvil 0 2
+spawnrand 0 0.982224870
+spawnrand 1 0.992452739
+spawnrand 2 0.767758006
+spawnrand 3 0.349604948
+spawnrand 4 0.360551606
+spawnrand 5 0.823921785
+spawnrand 6 0.703270975
+spawnrand 7 0.955873782
+spawnrand 8 0.271173778
+spawnrand 9 0.093312709
+spawnrand 10 0.197985262
+spawnrand 11 0.956945276
+spawnrand 12 0.841695792
+spawnrand 13 0.975439595
+spawnrand 14 0.748484736
+spawnrand 15 0.869885931
+spawnrand 16 0.807741101
+spawnrand 17 0.717449988
+spawnrand 18 0.712656769
+spawnrand 19 0.361202012
+spawnrand 20 0.656058808
+spawnrand 21 0.179276925
+spawnrand 22 0.736613088
+spawnrand 23 0.331362587
+spawnrand 24 0.279595193
+spawnrand 25 0.528111151
+suit 0 delay=4.600000 from=-25.000000,3.214798 to=25.000000,-5.333487 dur=5.699491 kind=1
+suit 1 delay=9.200000 from=-25.000000,-3.590337 to=25.000000,3.261793 dur=5.670487 kind=2
+suit 2 delay=13.800000 from=-25.000000,3.875413 to=25.000000,7.281696 dur=5.630999 kind=3
+suit 3 delay=18.400000 from=25.000000,-1.756340 to=-25.000000,-4.728077 dur=5.627892 kind=1
+suit 4 delay=23.000000 from=25.000000,-3.775989 to=-25.000000,6.999580 dur=5.746961 kind=3
+suit 5 delay=27.600000 from=-25.000000,1.180000 to=25.000000,2.056059 dur=5.618840 kind=1
+suit 6 delay=32.200000 from=-25.000000,-2.004868 to=25.000000,-4.119313 dur=5.622999 kind=0
+suit 7 delay=36.800000 from=25.000000,2.495141 to=-25.000000,-1.625971 dur=5.637028 kind=3
+suit 8 delay=41.400000 from=-25.000000,-3.905116 to=25.000000,-4.989577 dur=5.619299 kind=2
+suit 9 delay=46.000000 from=-25.000000,6.464459 to=25.000000,5.253664 dur=5.619625 kind=3
+suit 10 delay=50.600000 from=-25.000000,3.894511 to=25.000000,1.289923 dur=5.625595 kind=2
+suit 11 delay=55.200000 from=25.000000,-7.019096 to=-25.000000,-0.798927 dur=5.661283 kind=1
+case doId=123456789 hood=5000 players=2 diff=0.400000
+const toonSpeed=19.600000 halfW=10.000000 halfH=7.500000 onscreen=2.250900 offscreen=2.250900 period=1.286229 drops=51 fruits=38 anvils=13
+serverFruits=38
+drop 0 t=0.500000 fruit 4 2
+drop 1 t=1.786229 fruit 2 0
+drop 2 t=3.072458 fruit 1 1
+drop 3 t=4.358686 fruit 3 4
+drop 4 t=5.644915 fruit 0 3
+drop 5 t=6.931144 fruit 4 0
+drop 6 t=8.217373 fruit 1 2
+drop 7 t=9.503601 fruit 1 0
+drop 8 t=10.789830 fruit 4 3
+drop 9 t=12.076059 fruit 4 0
+drop 10 t=13.362288 fruit 0 2
+drop 11 t=14.648517 anvil 0 0
+drop 12 t=15.934745 fruit 2 4
+drop 13 t=17.220974 fruit 1 4
+drop 14 t=18.507203 fruit 2 2
+drop 15 t=19.793432 fruit 0 0
+drop 16 t=21.079660 anvil 2 4
+drop 17 t=22.365889 fruit 2 0
+drop 18 t=23.652118 anvil 2 2
+drop 19 t=24.938347 fruit 1 0
+drop 20 t=26.224576 fruit 2 3
+drop 21 t=27.510804 fruit 2 0
+drop 22 t=28.797033 anvil 2 4
+drop 23 t=30.083262 anvil 4 1
+drop 24 t=31.369491 anvil 2 3
+drop 25 t=32.655719 fruit 4 0
+drop 26 t=33.941948 anvil 4 2
+drop 27 t=35.228177 fruit 3 4
+drop 28 t=36.514406 fruit 1 3
+drop 29 t=37.157520 fruit 2 0
+drop 30 t=37.800635 fruit 1 1
+drop 31 t=38.443749 fruit 4 2
+drop 32 t=39.086863 fruit 3 2
+drop 33 t=39.729978 fruit 2 4
+drop 34 t=40.373092 anvil 0 0
+drop 35 t=41.016206 anvil 3 3
+drop 36 t=41.659321 anvil 4 0
+drop 37 t=42.302435 anvil 0 1
+drop 38 t=42.945550 fruit 1 2
+drop 39 t=43.588664 fruit 2 2
+drop 40 t=44.231778 fruit 4 4
+drop 41 t=44.874893 anvil 1 0
+drop 42 t=45.518007 fruit 1 4
+drop 43 t=46.161122 fruit 4 0
+drop 44 t=46.804236 fruit 0 1
+drop 45 t=47.447350 fruit 2 2
+drop 46 t=48.090465 fruit 0 2
+drop 47 t=48.733579 fruit 3 4
+drop 48 t=49.376694 fruit 2 1
+drop 49 t=50.019808 anvil 0 4
+drop 50 t=50.662922 fruit 4 0
+spawnrand 0 0.342186253
+spawnrand 1 0.834420494
+spawnrand 2 0.512658850
+spawnrand 3 0.957758218
+spawnrand 4 0.975691214
+spawnrand 5 0.114729736
+spawnrand 6 0.819131650
+spawnrand 7 0.116588779
+spawnrand 8 0.294605741
+spawnrand 9 0.045750845
+spawnrand 10 0.268460578
+spawnrand 11 0.581375717
+spawnrand 12 0.024859233
+spawnrand 13 0.098027463
+spawnrand 14 0.285385975
+spawnrand 15 0.213255131
+spawnrand 16 0.849776191
+spawnrand 17 0.172186617
+spawnrand 18 0.152017380
+spawnrand 19 0.973148624
+spawnrand 20 0.574772771
+spawnrand 21 0.198236436
+spawnrand 22 0.743181705
+spawnrand 23 0.177887361
+spawnrand 24 0.437047059
+spawnrand 25 0.271988942
+spawnrand 26 0.623001059
+spawnrand 27 0.272568069
+spawnrand 28 0.897890960
+spawnrand 29 0.805299497
+spawnrand 30 0.574021251
+spawnrand 31 0.173326551
+spawnrand 32 0.415407164
+spawnrand 33 0.307819241
+spawnrand 34 0.422435574
+spawnrand 35 0.465560715
+spawnrand 36 0.863611860
+spawnrand 37 0.806967163
+spawnrand 38 0.822348326
+spawnrand 39 0.819154476
+spawnrand 40 0.707731471
+spawnrand 41 0.198643427
+spawnrand 42 0.118271168
+spawnrand 43 0.152537475
+spawnrand 44 0.311607494
+spawnrand 45 0.687020378
+spawnrand 46 0.540071434
+spawnrand 47 0.712547869
+spawnrand 48 0.245116193
+spawnrand 49 0.167064108
+spawnrand 50 0.896110655
+suit 0 delay=4.200000 from=25.000000,-6.870187 to=-25.000000,-6.176599 dur=5.102532 kind=1
+suit 1 delay=8.400000 from=25.000000,-6.042937 to=-25.000000,5.459221 dur=5.235300 kind=0
+suit 2 delay=12.600000 from=-25.000000,2.851082 to=25.000000,-2.705034 dur=5.133445 kind=2
+suit 3 delay=16.800000 from=25.000000,-2.147623 to=-25.000000,4.357009 dur=5.145033 kind=3
+suit 4 delay=21.000000 from=25.000000,-1.937772 to=-25.000000,-6.117897 dur=5.119840 kind=2
+suit 5 delay=25.200000 from=25.000000,-6.401947 to=-25.000000,3.615522 dur=5.203431 kind=3
+suit 6 delay=29.400000 from=-25.000000,-2.622130 to=25.000000,0.567952 dur=5.112415 kind=2
+suit 7 delay=33.600000 from=25.000000,-6.620353 to=-25.000000,1.654057 dur=5.171432 kind=1
+suit 8 delay=37.800000 from=-25.000000,2.165058 to=25.000000,5.739432 dur=5.115061 kind=3
+suit 9 delay=42.000000 from=25.000000,2.335122 to=-25.000000,-4.785833 dur=5.153524 kind=0
+suit 10 delay=46.200000 from=25.000000,2.764437 to=-25.000000,4.698132 dur=5.105855 kind=3
+suit 11 delay=50.400000 from=-25.000000,3.290483 to=25.000000,-6.417349 dur=5.197317 kind=1
+suit 12 delay=54.600000 from=25.000000,1.847742 to=-25.000000,5.274503 dur=5.114009 kind=3
+suit 13 delay=58.800000 from=25.000000,-7.340406 to=-25.000000,2.870599 dur=5.207347 kind=1
+case doId=987654321 hood=4000 players=3 diff=0.600000
+const toonSpeed=21.400000 halfW=12.247449 halfH=9.185587 onscreen=2.061572 offscreen=2.061572 period=0.824629 drops=80 fruits=60 anvils=20
+serverFruits=60
+drop 0 t=0.500000 anvil 3 3
+drop 1 t=1.324629 anvil 3 0
+drop 2 t=2.149258 fruit 1 0
+drop 3 t=2.973887 fruit 3 5
+drop 4 t=3.798516 anvil 0 2
+drop 5 t=4.623145 anvil 5 4
+drop 6 t=5.447774 fruit 5 0
+drop 7 t=6.272402 fruit 0 3
+drop 8 t=7.097031 fruit 5 1
+drop 9 t=7.921660 fruit 5 5
+drop 10 t=8.746289 fruit 2 2
+drop 11 t=9.570918 fruit 1 4
+drop 12 t=10.395547 fruit 4 0
+drop 13 t=11.220176 fruit 1 1
+drop 14 t=12.044805 fruit 4 5
+drop 15 t=12.869434 anvil 0 2
+drop 16 t=13.694063 fruit 3 4
+drop 17 t=14.518692 anvil 3 0
+drop 18 t=15.343321 fruit 2 0
+drop 19 t=16.167949 fruit 3 3
+drop 20 t=16.992578 fruit 5 5
+drop 21 t=17.817207 fruit 2 5
+drop 22 t=18.641836 fruit 4 0
+drop 23 t=19.466465 anvil 2 2
+drop 24 t=20.291094 fruit 0 3
+drop 25 t=21.115723 anvil 5 1
+drop 26 t=21.940352 fruit 3 5
+drop 27 t=22.764981 anvil 1 4
+drop 28 t=23.589610 fruit 5 0
+drop 29 t=24.414239 fruit 0 1
+drop 30 t=25.238868 fruit 0 4
+drop 31 t=26.063496 fruit 5 5
+drop 32 t=26.888125 fruit 2 4
+drop 33 t=27.712754 anvil 1 0
+drop 34 t=28.537383 fruit 5 0
+drop 35 t=29.362012 anvil 4 2
+drop 36 t=30.186641 fruit 3 5
+drop 37 t=31.011270 fruit 3 3
+drop 38 t=31.835899 fruit 5 4
+drop 39 t=32.660528 fruit 3 1
+drop 40 t=33.485157 fruit 5 0
+drop 41 t=34.309786 anvil 4 5
+drop 42 t=35.134415 anvil 3 2
+drop 43 t=35.959043 fruit 0 4
+drop 44 t=36.783672 fruit 3 1
+drop 45 t=37.195987 fruit 3 4
+drop 46 t=37.608301 anvil 4 0
+drop 47 t=38.020616 fruit 2 5
+drop 48 t=38.432930 fruit 3 0
+drop 49 t=38.845245 fruit 3 5
+drop 50 t=39.257559 fruit 4 4
+drop 51 t=39.669874 fruit 4 2
+drop 52 t=40.082188 fruit 0 5
+drop 53 t=40.494502 fruit 0 3
+drop 54 t=40.906817 anvil 4 5
+drop 55 t=41.319131 fruit 3 1
+drop 56 t=41.731446 fruit 5 4
+drop 57 t=42.143760 fruit 5 0
+drop 58 t=42.556075 anvil 2 4
+drop 59 t=42.968389 fruit 3 0
+drop 60 t=43.380704 fruit 5 5
+drop 61 t=43.793018 fruit 0 5
+drop 62 t=44.205333 fruit 0 2
+drop 63 t=44.617647 fruit 2 4
+drop 64 t=45.029962 anvil 0 3
+drop 65 t=45.442276 fruit 3 5
+drop 66 t=45.854590 anvil 5 1
+drop 67 t=46.266905 fruit 3 4
+drop 68 t=46.679219 fruit 4 0
+drop 69 t=47.091534 fruit 3 4
+drop 70 t=47.503848 anvil 5 0
+drop 71 t=47.916163 fruit 3 5
+drop 72 t=48.328477 fruit 2 4
+drop 73 t=48.740792 fruit 4 2
+drop 74 t=49.153106 anvil 5 4
+drop 75 t=49.565421 fruit 0 3
+drop 76 t=49.977735 fruit 3 5
+drop 77 t=50.390049 fruit 2 0
+drop 78 t=50.802364 fruit 2 4
+drop 79 t=51.214678 fruit 3 0
+spawnrand 0 0.050718370
+spawnrand 1 0.551144853
+spawnrand 2 0.188737388
+spawnrand 3 0.137119254
+spawnrand 4 0.235111739
+spawnrand 5 0.151654387
+spawnrand 6 0.299082462
+spawnrand 7 0.518809415
+spawnrand 8 0.411514269
+spawnrand 9 0.533728407
+spawnrand 10 0.677167219
+spawnrand 11 0.179206829
+spawnrand 12 0.850989418
+spawnrand 13 0.962729694
+spawnrand 14 0.756337200
+spawnrand 15 0.438756286
+spawnrand 16 0.072617454
+spawnrand 17 0.692631244
+spawnrand 18 0.089353070
+spawnrand 19 0.575613636
+spawnrand 20 0.907403726
+spawnrand 21 0.531883673
+spawnrand 22 0.840105805
+spawnrand 23 0.969177489
+spawnrand 24 0.582849651
+spawnrand 25 0.121025541
+spawnrand 26 0.717179453
+spawnrand 27 0.270628564
+spawnrand 28 0.629419647
+spawnrand 29 0.326761473
+spawnrand 30 0.033841639
+spawnrand 31 0.006076172
+spawnrand 32 0.854136351
+spawnrand 33 0.519167825
+spawnrand 34 0.494871818
+spawnrand 35 0.155304856
+spawnrand 36 0.511518244
+spawnrand 37 0.276475499
+spawnrand 38 0.394015610
+spawnrand 39 0.060991104
+spawnrand 40 0.045888526
+spawnrand 41 0.376232061
+spawnrand 42 0.473957485
+spawnrand 43 0.125046296
+spawnrand 44 0.246513550
+spawnrand 45 0.599167923
+spawnrand 46 0.786856961
+spawnrand 47 0.587365549
+spawnrand 48 0.553980649
+spawnrand 49 0.647259648
+spawnrand 50 0.279342040
+spawnrand 51 0.259971150
+spawnrand 52 0.558039613
+spawnrand 53 0.160912734
+spawnrand 54 0.327925705
+spawnrand 55 0.357758435
+spawnrand 56 0.673861582
+spawnrand 57 0.099495973
+spawnrand 58 0.797546168
+spawnrand 59 0.952834939
+spawnrand 60 0.705503387
+spawnrand 61 0.698881193
+spawnrand 62 0.494589949
+spawnrand 63 0.962776913
+spawnrand 64 0.676389058
+spawnrand 65 0.263707331
+spawnrand 66 0.154285518
+spawnrand 67 0.082342628
+spawnrand 68 0.368750935
+spawnrand 69 0.764501516
+spawnrand 70 0.743265534
+spawnrand 71 0.502712395
+spawnrand 72 0.644735272
+spawnrand 73 0.682480617
+spawnrand 74 0.029595491
+spawnrand 75 0.105839860
+spawnrand 76 0.686695922
+spawnrand 77 0.453319218
+spawnrand 78 0.727194437
+spawnrand 79 0.522081715
+suit 0 delay=3.800000 from=-28.169132,-6.383799 to=28.169132,8.679876 dur=5.450220 kind=3
+suit 1 delay=7.600000 from=-28.169132,1.620461 to=28.169132,1.738341 dur=5.265270 kind=2
+suit 2 delay=11.400000 from=-28.169132,1.685536 to=28.169132,-6.578786 dur=5.321606 kind=0
+suit 3 delay=15.200000 from=-28.169132,-3.851412 to=28.169132,5.758813 dur=5.341313 kind=2
+suit 4 delay=19.000000 from=-28.169132,3.534656 to=28.169132,-3.159233 dur=5.302294 kind=3
+suit 5 delay=22.800000 from=28.169132,6.228842 to=-28.169132,3.456257 dur=5.271631 kind=2
+suit 6 delay=26.600000 from=-28.169132,2.750223 to=28.169132,4.141035 dur=5.266863 kind=3
+suit 7 delay=30.400000 from=-28.169132,-7.132765 to=28.169132,3.264039 dur=5.354164 kind=0
+suit 8 delay=34.200000 from=-28.169132,3.897791 to=28.169132,-3.094241 dur=5.305653 kind=3
+suit 9 delay=38.000000 from=28.169132,0.244946 to=-28.169132,-4.744354 dur=5.285865 kind=0
+suit 10 delay=41.800000 from=-28.169132,7.890233 to=28.169132,5.807415 dur=5.268855 kind=2
+suit 11 delay=45.600000 from=-28.169132,8.910716 to=28.169132,-7.299873 dur=5.478886 kind=0
+suit 12 delay=49.400000 from=-28.169132,1.817077 to=28.169132,7.829998 dur=5.295162 kind=3
+suit 13 delay=53.200000 from=-28.169132,3.252943 to=28.169132,3.626632 dur=5.265374 kind=2
+suit 14 delay=57.000000 from=28.169132,-2.172970 to=-28.169132,-3.849563 dur=5.267589 kind=0
+case doId=424242424 hood=3000 players=4 diff=0.800000
+const toonSpeed=23.200000 halfW=14.142136 halfH=10.606602 onscreen=1.901623 offscreen=1.901623 period=0.585115 drops=114 fruits=85 anvils=29
+serverFruits=85
+drop 0 t=0.500000 fruit 1 4
+drop 1 t=1.085115 anvil 0 0
+drop 2 t=1.670229 fruit 5 5
+drop 3 t=2.255344 fruit 4 0
+drop 4 t=2.840459 fruit 3 2
+drop 5 t=3.425573 fruit 1 3
+drop 6 t=4.010688 fruit 4 4
+drop 7 t=4.595803 fruit 5 4
+drop 8 t=5.180917 anvil 1 1
+drop 9 t=5.766032 fruit 4 5
+drop 10 t=6.351147 fruit 3 0
+drop 11 t=6.936262 fruit 0 2
+drop 12 t=7.521376 fruit 4 3
+drop 13 t=8.106491 fruit 0 5
+drop 14 t=8.691606 fruit 2 4
+drop 15 t=9.276720 fruit 1 0
+drop 16 t=9.861835 anvil 3 5
+drop 17 t=10.446950 anvil 3 0
+drop 18 t=11.032064 fruit 2 2
+drop 19 t=11.617179 anvil 1 3
+drop 20 t=12.202294 fruit 5 4
+drop 21 t=12.787408 fruit 2 5
+drop 22 t=13.372523 fruit 1 0
+drop 23 t=13.957638 anvil 4 5
+drop 24 t=14.542752 anvil 5 0
+drop 25 t=15.127867 anvil 0 1
+drop 26 t=15.712982 anvil 3 3
+drop 27 t=16.298096 fruit 2 5
+drop 28 t=16.883211 anvil 4 4
+drop 29 t=17.468326 fruit 4 1
+drop 30 t=18.053440 anvil 5 5
+drop 31 t=18.638555 anvil 5 0
+drop 32 t=19.223670 fruit 4 2
+drop 33 t=19.808785 fruit 2 3
+drop 34 t=20.393899 fruit 1 4
+drop 35 t=20.979014 fruit 2 5
+drop 36 t=21.564129 fruit 5 1
+drop 37 t=22.149243 fruit 3 5
+drop 38 t=22.734358 fruit 3 0
+drop 39 t=23.319473 fruit 3 2
+drop 40 t=23.904587 fruit 2 3
+drop 41 t=24.489702 fruit 4 4
+drop 42 t=25.074817 fruit 4 4
+drop 43 t=25.659931 anvil 0 0
+drop 44 t=26.245046 fruit 3 5
+drop 45 t=26.830161 fruit 3 0
+drop 46 t=27.415275 anvil 2 2
+drop 47 t=28.000390 anvil 2 3
+drop 48 t=28.585505 fruit 1 4
+drop 49 t=29.170619 anvil 5 4
+drop 50 t=29.755734 fruit 2 0
+drop 51 t=30.340849 fruit 3 5
+drop 52 t=30.925963 fruit 4 0
+drop 53 t=31.511078 fruit 0 2
+drop 54 t=32.096193 anvil 5 3
+drop 55 t=32.681308 anvil 2 5
+drop 56 t=33.266422 fruit 0 5
+drop 57 t=33.851537 fruit 1 1
+drop 58 t=34.436652 fruit 3 5
+drop 59 t=35.021766 fruit 5 0
+drop 60 t=35.606881 fruit 0 1
+drop 61 t=36.191996 fruit 4 3
+drop 62 t=36.484553 fruit 1 4
+drop 63 t=36.777110 fruit 5 2
+drop 64 t=37.069668 fruit 1 4
+drop 65 t=37.362225 fruit 1 1
+drop 66 t=37.654782 fruit 3 1
+drop 67 t=37.947340 fruit 3 0
+drop 68 t=38.239897 fruit 4 5
+drop 69 t=38.532454 anvil 4 5
+drop 70 t=38.825012 fruit 5 0
+drop 71 t=39.117569 fruit 2 4
+drop 72 t=39.410126 fruit 1 2
+drop 73 t=39.702684 fruit 3 3
+drop 74 t=39.995241 anvil 0 3
+drop 75 t=40.287798 fruit 4 4
+drop 76 t=40.580356 fruit 0 1
+drop 77 t=40.872913 fruit 1 4
+drop 78 t=41.165470 fruit 2 1
+drop 79 t=41.458028 anvil 1 1
+drop 80 t=41.750585 fruit 5 0
+drop 81 t=42.043142 anvil 5 5
+drop 82 t=42.335700 fruit 5 5
+drop 83 t=42.628257 anvil 5 0
+drop 84 t=42.920814 fruit 4 4
+drop 85 t=43.213372 fruit 5 2
+drop 86 t=43.505929 fruit 1 3
+drop 87 t=43.798487 fruit 2 3
+drop 88 t=44.091044 fruit 3 4
+drop 89 t=44.383601 fruit 2 2
+drop 90 t=44.676159 fruit 0 5
+drop 91 t=44.968716 fruit 2 0
+drop 92 t=45.261273 fruit 1 1
+drop 93 t=45.553831 fruit 3 0
+drop 94 t=45.846388 anvil 4 5
+drop 95 t=46.138945 anvil 5 5
+drop 96 t=46.431503 fruit 5 0
+drop 97 t=46.724060 fruit 2 4
+drop 98 t=47.016617 anvil 4 2
+drop 99 t=47.309175 fruit 3 3
+drop 100 t=47.601732 fruit 5 3
+drop 101 t=47.894289 fruit 2 5
+drop 102 t=48.186847 fruit 1 2
+drop 103 t=48.479404 fruit 4 4
+drop 104 t=48.771961 anvil 2 1
+drop 105 t=49.064519 fruit 1 0
+drop 106 t=49.357076 fruit 3 0
+drop 107 t=49.649633 fruit 3 5
+drop 108 t=49.942191 fruit 5 5
+drop 109 t=50.234748 anvil 5 0
+drop 110 t=50.527305 fruit 1 4
+drop 111 t=50.819863 fruit 0 1
+drop 112 t=51.112420 anvil 0 4
+drop 113 t=51.404977 fruit 0 3
+spawnrand 0 0.419530600
+spawnrand 1 0.816079197
+spawnrand 2 0.804411776
+spawnrand 3 0.377127535
+spawnrand 4 0.527356345
+spawnrand 5 0.708653671
+spawnrand 6 0.141384033
+spawnrand 7 0.208751864
+spawnrand 8 0.404525305
+spawnrand 9 0.153375472
+spawnrand 10 0.606957649
+spawnrand 11 0.399473833
+spawnrand 12 0.740874987
+spawnrand 13 0.761949760
+spawnrand 14 0.188759229
+spawnrand 15 0.070172177
+spawnrand 16 0.499748019
+spawnrand 17 0.835269534
+spawnrand 18 0.290149507
+spawnrand 19 0.032842662
+spawnrand 20 0.808365130
+spawnrand 21 0.735229469
+spawnrand 22 0.002306754
+spawnrand 23 0.157855915
+spawnrand 24 0.028225779
+spawnrand 25 0.219598209
+spawnrand 26 0.080384416
+spawnrand 27 0.583776138
+spawnrand 28 0.667395324
+spawnrand 29 0.173702083
+spawnrand 30 0.733417673
+spawnrand 31 0.917014855
+spawnrand 32 0.153559267
+spawnrand 33 0.221355618
+spawnrand 34 0.441303961
+spawnrand 35 0.140318390
+spawnrand 36 0.966604171
+spawnrand 37 0.085416373
+spawnrand 38 0.648444433
+spawnrand 39 0.563721431
+spawnrand 40 0.441746973
+spawnrand 41 0.021113710
+spawnrand 42 0.196230923
+spawnrand 43 0.093961330
+spawnrand 44 0.314224907
+spawnrand 45 0.098306279
+spawnrand 46 0.209950929
+spawnrand 47 0.874449544
+spawnrand 48 0.740591213
+spawnrand 49 0.857548411
+spawnrand 50 0.783641488
+spawnrand 51 0.145776272
+spawnrand 52 0.953867377
+spawnrand 53 0.439899744
+spawnrand 54 0.171026961
+spawnrand 55 0.757631994
+spawnrand 56 0.537969862
+spawnrand 57 0.129113647
+spawnrand 58 0.021047324
+spawnrand 59 0.977690604
+spawnrand 60 0.650397423
+spawnrand 61 0.109506387
+spawnrand 62 0.646828681
+spawnrand 63 0.276641697
+spawnrand 64 0.951715541
+spawnrand 65 0.827287173
+spawnrand 66 0.713238533
+spawnrand 67 0.095401913
+spawnrand 68 0.215747868
+spawnrand 69 0.571317628
+spawnrand 70 0.515806022
+spawnrand 71 0.147461817
+spawnrand 72 0.828171635
+spawnrand 73 0.563948992
+spawnrand 74 0.075735642
+spawnrand 75 0.407815839
+spawnrand 76 0.690637430
+spawnrand 77 0.051994873
+spawnrand 78 0.944894465
+spawnrand 79 0.846006220
+spawnrand 80 0.682054880
+spawnrand 81 0.828188795
+spawnrand 82 0.371469790
+spawnrand 83 0.278550651
+spawnrand 84 0.017487136
+spawnrand 85 0.150660193
+spawnrand 86 0.518877950
+spawnrand 87 0.653976272
+spawnrand 88 0.403148780
+spawnrand 89 0.895728298
+spawnrand 90 0.181382918
+spawnrand 91 0.390603535
+spawnrand 92 0.853062306
+spawnrand 93 0.631494034
+spawnrand 94 0.393198150
+spawnrand 95 0.011450459
+spawnrand 96 0.185379206
+spawnrand 97 0.053494799
+spawnrand 98 0.946360459
+spawnrand 99 0.109745545
+spawnrand 100 0.881162312
+spawnrand 101 0.337458676
+spawnrand 102 0.917931923
+spawnrand 103 0.272769304
+spawnrand 104 0.215611731
+spawnrand 105 0.022566789
+spawnrand 106 0.411714163
+spawnrand 107 0.205076057
+spawnrand 108 0.751896421
+spawnrand 109 0.013785680
+spawnrand 110 0.410863665
+spawnrand 111 0.378930107
+spawnrand 112 0.593504235
+spawnrand 113 0.746083622
+suit 0 delay=3.400000 from=-29.698485,-7.124688 to=29.698485,-7.992827 dur=5.120975 kind=3
+suit 1 delay=6.800000 from=29.698485,-5.007533 to=-29.698485,-3.956240 dur=5.121230 kind=2
+suit 2 delay=10.200000 from=29.698485,-0.922503 to=-29.698485,9.259313 dur=5.195115 kind=3
+suit 3 delay=13.600000 from=-29.698485,-3.685016 to=29.698485,4.435975 dur=5.168066 kind=1
+suit 4 delay=17.000000 from=-29.698485,-8.528450 to=29.698485,8.875079 dur=5.335701 kind=0
+suit 5 delay=20.400000 from=-29.698485,-4.811160 to=29.698485,-6.360851 dur=5.122171 kind=2
+suit 6 delay=23.800000 from=-29.698485,4.462754 to=29.698485,2.280326 dur=5.123884 kind=0
+suit 7 delay=27.200000 from=29.698485,-8.839241 to=-29.698485,1.848544 dur=5.202662 kind=2
+suit 8 delay=30.600000 from=29.698485,1.693455 to=-29.698485,8.546369 dur=5.154396 kind=0
+suit 9 delay=34.000000 from=29.698485,-4.871783 to=-29.698485,-0.604391 dur=5.133627 kind=2
+suit 10 delay=37.400000 from=-29.698485,-1.612132 to=29.698485,8.257841 dur=5.190641 kind=1
+suit 11 delay=40.800000 from=29.698485,8.965905 to=-29.698485,-8.831591 dur=5.345350 kind=3
+suit 12 delay=44.200000 from=29.698485,7.201308 to=-29.698485,-8.598970 dur=5.298498 kind=1
+suit 13 delay=47.600000 from=-29.698485,5.449814 to=29.698485,-2.970072 dur=5.171620 kind=0
+suit 14 delay=51.000000 from=29.698485,-8.203526 to=-29.698485,0.593263 dur=5.176280 kind=1
+suit 15 delay=54.400000 from=29.698485,2.287481 to=-29.698485,-0.492766 dur=5.126035 kind=2
+suit 16 delay=57.800000 from=-29.698485,-5.739105 to=29.698485,1.985716 dur=5.163550 kind=1
+case doId=31337 hood=9000 players=1 diff=1.000000
+const toonSpeed=25.000000 halfW=10.000000 halfH=7.500000 onscreen=1.764706 offscreen=1.764706 period=1.764706 drops=38 fruits=28 anvils=10
+serverFruits=28
+drop 0 t=0.500000 anvil 0 3
+drop 1 t=2.264706 fruit 3 2
+drop 2 t=4.029412 anvil 3 0
+drop 3 t=5.794118 fruit 1 1
+drop 4 t=7.558824 fruit 3 0
+drop 5 t=9.323529 fruit 2 4
+drop 6 t=11.088235 fruit 4 3
+drop 7 t=12.852941 fruit 3 2
+drop 8 t=14.617647 fruit 4 0
+drop 9 t=16.382353 fruit 4 4
+drop 10 t=18.147059 fruit 1 3
+drop 11 t=19.911765 fruit 0 2
+drop 12 t=21.676471 fruit 2 0
+drop 13 t=23.441176 fruit 2 3
+drop 14 t=25.205882 anvil 1 1
+drop 15 t=26.970588 fruit 1 3
+drop 16 t=28.735294 fruit 3 4
+drop 17 t=30.500000 anvil 0 3
+drop 18 t=32.264706 anvil 4 4
+drop 19 t=34.029412 fruit 1 1
+drop 20 t=35.794118 fruit 4 4
+drop 21 t=37.558824 fruit 4 0
+drop 22 t=38.441176 fruit 2 1
+drop 23 t=39.323529 fruit 0 4
+drop 24 t=40.205882 fruit 3 2
+drop 25 t=41.088235 fruit 4 0
+drop 26 t=41.970588 fruit 1 0
+drop 27 t=42.852941 anvil 3 4
+drop 28 t=43.735294 fruit 1 3
+drop 29 t=44.617647 anvil 4 2
+drop 30 t=45.500000 fruit 4 1
+drop 31 t=46.382353 fruit 3 4
+drop 32 t=47.264706 anvil 4 3
+drop 33 t=48.147059 fruit 0 2
+drop 34 t=49.029412 fruit 0 0
+drop 35 t=49.911765 anvil 3 4
+drop 36 t=50.794118 anvil 2 0
+drop 37 t=51.676471 fruit 2 3
+spawnrand 0 0.846099855
+spawnrand 1 0.173100209
+spawnrand 2 0.734196144
+spawnrand 3 0.246596938
+spawnrand 4 0.429750107
+spawnrand 5 0.825225040
+spawnrand 6 0.718485676
+spawnrand 7 0.588020085
+spawnrand 8 0.485657836
+spawnrand 9 0.906794101
+spawnrand 10 0.621161401
+spawnrand 11 0.674756554
+spawnrand 12 0.358751564
+spawnrand 13 0.217551068
+spawnrand 14 0.145960287
+spawnrand 15 0.680444879
+spawnrand 16 0.695937347
+spawnrand 17 0.768961640
+spawnrand 18 0.466947536
+spawnrand 19 0.991783276
+spawnrand 20 0.388322256
+spawnrand 21 0.359954333
+spawnrand 22 0.333688923
+spawnrand 23 0.332936130
+spawnrand 24 0.225640544
+spawnrand 25 0.711599234
+spawnrand 26 0.284742768
+spawnrand 27 0.695123482
+spawnrand 28 0.129103314
+spawnrand 29 0.330928519
+spawnrand 30 0.657243925
+spawnrand 31 0.603660127
+spawnrand 32 0.912738300
+spawnrand 33 0.503572620
+spawnrand 34 0.563442250
+spawnrand 35 0.650837148
+spawnrand 36 0.056755906
+spawnrand 37 0.785135685
+suit 0 delay=3.000000 from=-25.000000,7.481393 to=25.000000,7.164675 dur=4.000080 kind=2
+suit 1 delay=6.000000 from=25.000000,-1.367726 to=-25.000000,4.904486 dur=4.031350 kind=1
+suit 2 delay=9.000000 from=-25.000000,6.894533 to=25.000000,-2.430718 dur=4.068974 kind=0
+suit 3 delay=12.000000 from=25.000000,3.149630 to=-25.000000,-7.228349 dur=4.085253 kind=2
+suit 4 delay=15.000000 from=-25.000000,-6.633649 to=25.000000,5.441289 dur=4.114990 kind=3
+suit 5 delay=18.000000 from=-25.000000,2.642305 to=25.000000,4.255741 dur=4.002082 kind=1
+suit 6 delay=21.000000 from=-25.000000,-6.120895 to=25.000000,-2.469047 dur=4.010655 kind=0
+suit 7 delay=24.000000 from=25.000000,2.212253 to=-25.000000,-1.804567 dur=4.012887 kind=3
+suit 8 delay=27.000000 from=-25.000000,-0.486591 to=25.000000,2.582722 dur=4.007529 kind=2
+suit 9 delay=30.000000 from=25.000000,0.354671 to=-25.000000,0.206374 dur=4.000018 kind=0
+suit 10 delay=33.000000 from=-25.000000,-5.216252 to=25.000000,6.882253 dur=4.115433 kind=3
+suit 11 delay=36.000000 from=25.000000,3.833137 to=-25.000000,7.176817 dur=4.008934 kind=2
+suit 12 delay=39.000000 from=-25.000000,-6.597510 to=25.000000,2.231906 dur=4.061888 kind=1
+suit 13 delay=42.000000 from=-25.000000,0.259016 to=25.000000,-5.409483 dur=4.025623 kind=0
+suit 14 delay=45.000000 from=25.000000,5.506299 to=-25.000000,-0.603222 dur=4.029750 kind=2
+suit 15 delay=48.000000 from=25.000000,-3.016264 to=-25.000000,-0.033179 dur=4.007113 kind=0
+suit 16 delay=51.000000 from=-25.000000,-5.726394 to=25.000000,0.747271 dur=4.033387 kind=3
+suit 17 delay=54.000000 from=-25.000000,6.597158 to=25.000000,4.937906 dur=4.002202 kind=0
+suit 18 delay=57.000000 from=25.000000,-2.787541 to=-25.000000,-0.855041 dur=4.002987 kind=2
+case doId=2147483000 hood=2000 players=2 diff=0.000000
+const toonSpeed=16.000000 halfW=10.000000 halfH=7.500000 onscreen=2.757353 offscreen=2.757353 period=1.575630 drops=41 fruits=30 anvils=11
+serverFruits=30
+drop 0 t=0.500000 anvil 4 4
+drop 1 t=2.075630 anvil 3 0
+drop 2 t=3.651261 fruit 1 1
+drop 3 t=5.226891 fruit 3 2
+drop 4 t=6.802521 fruit 4 4
+drop 5 t=8.378151 fruit 3 3
+drop 6 t=9.953782 fruit 3 0
+drop 7 t=11.529412 anvil 0 0
+drop 8 t=13.105042 fruit 0 2
+drop 9 t=14.680672 fruit 2 4
+drop 10 t=16.256303 fruit 1 4
+drop 11 t=17.831933 fruit 1 1
+drop 12 t=19.407563 fruit 4 2
+drop 13 t=20.983193 anvil 3 4
+drop 14 t=22.558824 fruit 3 0
+drop 15 t=24.134454 fruit 2 1
+drop 16 t=25.710084 anvil 4 2
+drop 17 t=27.285714 fruit 2 4
+drop 18 t=28.861345 fruit 3 0
+drop 19 t=30.436975 fruit 1 3
+drop 20 t=32.012605 anvil 3 2
+drop 21 t=33.588235 fruit 2 1
+drop 22 t=35.163866 fruit 3 0
+drop 23 t=36.739496 fruit 2 4
+drop 24 t=37.527311 fruit 0 3
+drop 25 t=38.315126 anvil 4 2
+drop 26 t=39.102941 anvil 1 0
+drop 27 t=39.890756 fruit 2 3
+drop 28 t=40.678571 fruit 3 3
+drop 29 t=41.466387 anvil 2 0
+drop 30 t=42.254202 fruit 4 0
+drop 31 t=43.042017 fruit 3 4
+drop 32 t=43.829832 anvil 3 3
+drop 33 t=44.617647 fruit 3 2
+drop 34 t=45.405462 fruit 0 0
+drop 35 t=46.193277 fruit 4 3
+drop 36 t=46.981092 fruit 4 3
+drop 37 t=47.768908 fruit 4 0
+drop 38 t=48.556723 anvil 2 0
+drop 39 t=49.344538 fruit 4 4
+drop 40 t=50.132353 fruit 4 3
+spawnrand 0 0.057997653
+spawnrand 1 0.705871044
+spawnrand 2 0.237882187
+spawnrand 3 0.133962927
+spawnrand 4 0.234632089
+spawnrand 5 0.038543804
+spawnrand 6 0.559133471
+spawnrand 7 0.808781803
+spawnrand 8 0.461310523
+spawnrand 9 0.246606079
+spawnrand 10 0.474000096
+spawnrand 11 0.884802972
+spawnrand 12 0.243642449
+spawnrand 13 0.313221027
+spawnrand 14 0.725221230
+spawnrand 15 0.168880697
+spawnrand 16 0.484248988
+spawnrand 17 0.424005702
+spawnrand 18 0.088288980
+spawnrand 19 0.626351302
+spawnrand 20 0.585421859
+spawnrand 21 0.118152994
+spawnrand 22 0.783034596
+spawnrand 23 0.357319691
+spawnrand 24 0.156705072
+spawnrand 25 0.193424639
+spawnrand 26 0.579345628
+spawnrand 27 0.674389055
+spawnrand 28 0.283383611
+spawnrand 29 0.128309958
+spawnrand 30 0.574852191
+spawnrand 31 0.489920021
+spawnrand 32 0.252112939
+spawnrand 33 0.096021848
+spawnrand 34 0.203141714
+spawnrand 35 0.470583414
+spawnrand 36 0.855285187
+spawnrand 37 0.526389393
+spawnrand 38 0.897749750
+spawnrand 39 0.091340772
+spawnrand 40 0.815432872
+suit 0 delay=5.000000 from=-25.000000,-2.656676 to=25.000000,-7.126801 dur=6.274928 kind=0
+suit 1 delay=10.000000 from=25.000000,-4.256201 to=-25.000000,-7.046414 dur=6.259724 kind=2
+suit 2 delay=15.000000 from=25.000000,-3.887946 to=-25.000000,-6.756115 dur=6.260275 kind=1
+suit 3 delay=20.000000 from=-25.000000,3.628111 to=25.000000,-3.386868 dur=6.311213 kind=3
+suit 4 delay=25.000000 from=-25.000000,-6.506948 to=25.000000,1.109075 dur=6.322089 kind=1
+suit 5 delay=30.000000 from=25.000000,5.349184 to=-25.000000,0.265145 dur=6.282226 kind=2
+suit 6 delay=35.000000 from=25.000000,5.619743 to=-25.000000,-2.587777 dur=6.333645 kind=0
+suit 7 delay=40.000000 from=-25.000000,6.332336 to=25.000000,-6.203317 dur=6.443435 kind=1
+suit 8 delay=45.000000 from=-25.000000,-3.168095 to=25.000000,0.879328 dur=6.270444 kind=0
+suit 9 delay=50.000000 from=25.000000,6.160873 to=-25.000000,-2.645143 dur=6.346192 kind=2
+suit 10 delay=55.000000 from=25.000000,-5.207023 to=-25.000000,-1.543831 dur=6.266751 kind=1
+score 0/18=1 5/18=3 17/18=9 18/18=13 28/28=21 19/19=15

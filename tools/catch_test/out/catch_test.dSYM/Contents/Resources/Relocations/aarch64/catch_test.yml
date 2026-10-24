@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/alexchadwick/toontown-3ds/.claude/worktrees/agent-a2a93d6ccad8e6b60/tools/catch_test/out/catch_test'
+relocations:     []
+...
