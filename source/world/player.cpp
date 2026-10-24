@@ -13,6 +13,7 @@ constexpr float kReverseSpeed = 8.0f * 1.25f;
 constexpr float kRotateSpeed = 80.0f * 1.25f;
 constexpr float kWalkFraction = 0.4f; // B held: walk
 constexpr float kJumpVelocity = 24.0f;
+constexpr float kStepDown = 1.5f; // largest drop followed without falling (stairs, kerbs)
 constexpr float kGravity = 64.348f; // direct/controls/GravityWalker.py
 
 constexpr float kPadDeadzone = 24.0f;
@@ -64,7 +65,8 @@ void Player::update(const Input& in, float dt) {
     // Panda heading: H=0 faces +Y, positive H turns left (CCW seen from above).
     const float dx = -sinf(h) * speed_ * dt, dy = cosf(h) * speed_ * dt;
     const bool grounded = !airborne();
-    if ((in.down & KEY_A) && grounded) vz_ = kJumpVelocity;
+    const bool jumping = (in.down & KEY_A) && grounded;
+    if (jumping) vz_ = kJumpVelocity;
     vz_ -= kGravity * dt;
 
     if (collision_ && collision_->loaded()) {
@@ -77,6 +79,9 @@ void Player::update(const Input& in, float dt) {
         const float g = collision_->groundHeight(p.x, p.y, p.z, &found);
         if (found) ground_ = g;
         float nz = z_ + vz_ * dt;
+        // Walking down stairs or a kerb: stay on the floor instead of starting a fall
+        // (which would play the jump/fall clip on every step).
+        if (grounded && !jumping && nz > ground_ && nz - ground_ <= kStepDown) nz = ground_;
         if (nz <= ground_) {
             nz = ground_;
             vz_ = 0.0f;

@@ -178,6 +178,7 @@ int main() {
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
+    tt::world::ToonAnim loggedAnim = tt::world::kAnimNeutral;
     // Zone transitions fade the top screen to black (upstream: the toon walks into the
     // tunnel/door while the iris closes), load behind the black frame, then fade back in.
     u32 fadeTarget = 0;
@@ -445,6 +446,11 @@ int main() {
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
         localToon.play(anim, animRate);
+        if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
+            TT_LOG("player: anim %d at %.1f,%.1f,%.2f (ground %.2f)", int(anim), double(player.x()), double(player.y()),
+                   double(player.z()), double(player.groundZ()));
+            loggedAnim = anim;
+        }
         if (anim != footstepAnim) {
             // LocalAvatar: looping walk/run footsteps follow the motion state; none while airborne.
             tt::audio::stopVoice(footsteps);
