@@ -745,6 +745,13 @@ int main() {
             ctx.netInBps = netInBps;
             ctx.netOutBps = netOutBps;
             ctx.remoteToons = remoteToons.count();
+            const tt::net::OwnStats& st = net.ownStats();
+            if (st.hasGags) {
+                ctx.gagExp = st.experience;
+                ctx.gagCount = st.inventory;
+                ctx.trackAccess = st.trackAccess;
+                ctx.maxCarry = st.maxCarry;
+            }
         }
         ui.draw(bottom, uiState, ctx);
 

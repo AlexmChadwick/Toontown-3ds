@@ -1,5 +1,6 @@
 #include "render/ui.h"
 
+#include "ui/gag_data.h"
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -31,7 +32,7 @@ const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR"
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
 constexpr float kTabW = kW / kTabCount;
-const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Setup", "Debug"};
+const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Setup", "Debug"};
 
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
@@ -166,6 +167,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     case kTabMap: drawMap(c); break;
     case kTabChat: chat_.draw(kTabY); break;
     case kTabToon: drawToon(s); break;
+    case kTabGags: drawGags(c); break;
     case kTabSettings: drawSettings(s); break;
     default: drawDebug(c); break;
     }
@@ -246,6 +248,44 @@ void Ui::drawSettings(const State& s) {
     text(kBtnX + kBtnW + 12, kStressY + 10, 0.5f, kWhite, "Stress toons: %d", s.stressToons);
     text(12, 140, 0.45f, kDim, "Stress toons are extra copies of the toon,");
     text(12, 156, 0.45f, kDim, "used to measure the Old 3DS draw budget.");
+}
+
+void Ui::drawGags(const Context& c) {
+    // Like the Shticker Book inventory page: one row per track, counts per gag level.
+    // Text is re-parsed every kDebugRefreshFrames (shares the debug line cache).
+    if (numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
+        C2D_TextBufClear(debugBuf_);
+        numDebugLines_ = 0;
+        if (!c.gagCount) {
+            debugLine(8, 8, 0.5f, kDim, "Gags appear once you are online.");
+        } else {
+            int total = 0;
+            for (int t = 0; t < gags::kTracks; t++)
+                for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
+            debugLine(8, 4, 0.5f, kWhite, "Gags  %d / %d", total, c.maxCarry);
+            for (int t = 0; t < gags::kTracks; t++) {
+                const bool have = c.trackAccess[t];
+                const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
+                char counts[48];
+                int n = 0;
+                for (int l = 0; l < gags::kLevels; l++) {
+                    n += snprintf(counts + n, sizeof(counts) - n, l < levels ? "%3u" : "  -",
+                                  unsigned(c.gagCount[t][l]));
+                }
+                const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
+                debugLine(8, 26 + t * 24, 0.5f, have ? kWhite : kDim, "%-8s%s", gags::kTrackNames[t], counts);
+                if (have && next) {
+                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u/%u", unsigned(c.gagExp[t]), unsigned(next));
+                } else if (have) {
+                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u max", unsigned(c.gagExp[t]));
+                }
+            }
+        }
+    }
+    for (int i = 0; i < numDebugLines_; i++) {
+        const CachedLine& l = debugLines_[i];
+        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.5f, l.scale, l.scale, l.color);
+    }
 }
 
 void Ui::drawDebug(const Context& c) {

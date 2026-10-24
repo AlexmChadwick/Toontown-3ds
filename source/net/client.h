@@ -135,6 +135,12 @@ constexpr int kMaxCChars = 4;
 struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
+    // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
+    uint16_t experience[7] = {};
+    uint8_t inventory[7][7] = {}; // count per track, level
+    uint8_t trackAccess[7] = {0, 0, 0, 0, 1, 1, 0};
+    uint8_t maxCarry = 20;
+    bool hasGags = false; // setInventory received
 };
 
 struct ClientConfig {

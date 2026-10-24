@@ -60,6 +60,10 @@ TT_SIG(DistributedToon, setMaxHp, "i16");
 TT_SIG(DistributedToon, setMoney, "i16");
 TT_SIG(DistributedToon, setMaxMoney, "i16");
 TT_SIG(DistributedToon, setBankMoney, "i16");
+TT_SIG(DistributedToon, setExperience, "blob");
+TT_SIG(DistributedToon, setMaxCarry, "u8");
+TT_SIG(DistributedToon, setInventory, "blob");
+TT_SIG(DistributedToon, setTrackAccess, "u16[]");
 TT_SIG(DistributedNPCToonBase, setName, "string");
 TT_SIG(DistributedNPCToonBase, setDNAString, "blob");
 TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
@@ -970,6 +974,29 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
         if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
         pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setExperience) {
+        // Experience.makeNetString: uint16 per track.
+        Bytes b = r.blob();
+        if (!r.ok()) return false;
+        for (uint32_t t = 0; t < 7 && 2 * t + 1 < b.len; t++)
+            ownStats_.experience[t] = uint16_t(b.data[2 * t] | (b.data[2 * t + 1] << 8));
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setInventory) {
+        // InventoryBase.makeNetString: uint8 count per track and level.
+        Bytes b = r.blob();
+        if (!r.ok()) return false;
+        for (uint32_t i = 0; i < 49 && i < b.len; i++) ownStats_.inventory[i / 7][i % 7] = b.data[i];
+        ownStats_.hasGags = true;
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setTrackAccess) {
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 2 && r.ok(); i++) {
+            const uint16_t v = r.u16();
+            if (i < 7) ownStats_.trackAccess[i] = v ? 1 : 0;
+        }
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setMaxCarry) {
+        ownStats_.maxCarry = r.u8();
     } else {
         skipField(r, fieldId);
     }

@@ -1,4 +1,4 @@
-// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Settings / Debug panels.
+// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
 #pragma once
 
 #include <3ds.h>
@@ -8,7 +8,7 @@
 
 namespace tt::ui {
 
-enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabSettings, kTabDebug, kTabCount };
+enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabSettings, kTabDebug, kTabCount };
 
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
@@ -48,6 +48,11 @@ struct Context {
     unsigned zoneId = 0;
     unsigned netInBps = 0, netOutBps = 0;
     int remoteToons = 0;
+    // Gags tab (owner view of our toon); null = offline.
+    const uint16_t* gagExp = nullptr;            // [7]
+    const uint8_t (*gagCount)[7] = nullptr;      // [7][7]
+    const uint8_t* trackAccess = nullptr;        // [7]
+    int maxCarry = 0;
 };
 
 constexpr int kNumTeleportHoods = 8;
@@ -87,6 +92,7 @@ private:
     void drawMap(const Context& c);
     void drawToon(const State& s);
     void drawSettings(const State& s);
+    void drawGags(const Context& c);
     void drawDebug(const Context& c);
 
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text

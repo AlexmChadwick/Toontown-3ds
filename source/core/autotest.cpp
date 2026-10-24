@@ -10,7 +10,7 @@ namespace {
 
 // Bottom-screen tab centres (render/ui.cpp: 5 tabs across 320 px, bar at y >= 208).
 constexpr int kTabY = 224;
-constexpr int tabX(int i) { return 32 + i * 64; }
+constexpr int tabX(int i) { return 26 + i * 53; } // 6 tabs of 320/6 px
 
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
@@ -23,7 +23,8 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, -1, "tab: map", "map"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "tab: toon"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 8 + 4 * 34 + 15, 44 + 15, -1, "toon: pick color 4", "toon"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(4), kTabY, -1, "tab: debug"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "tab: gags", "gags"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(5), kTabY, -1, "tab: debug"},
     {3.0f, 0, 0, 0, 0, -1, -1, 8, "stress 8 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 16, "stress 16 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 32, "stress 32 toons"},
