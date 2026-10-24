@@ -217,6 +217,24 @@ need hardware.
 - **Not tested:** cogs on screen (Azahar), frame cost, SD load, hardware. The runtime
   (`world/suits.*`) is untested beyond compiling.
 
+### 2026-10-24 — Boat, minimaps, Gags tab, stairs, street cogs, chatter merge
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **Boat (DD).** The AI's DistributedBoat state cycles, and the ship sails `dd-e-w` /
+  `dd-w-e` with Donald at the wheel aboard. The static boat was removed from `1000.tz`.
+  The "see boat" shot shows it. Riding the deck is not yet implemented.
+- **Minimaps.** All 25 `.tmap` files load (256×256 ETC1). The TTC, DD, DG and BR Map
+  tab shots show the baked image with the player arrow.
+- **Gags tab.** Shows the server inventory for a new toon (Cupcake 1, Squirting
+  Flower 1, 2/20 gags) and experience toward the next level.
+- **Stairs.** Running down the steps from the TTC spawn (z 3.3 → 0) no longer switches
+  to the jump/fall clip; only a real jump does.
+- **Street cogs (Silly Street).** The AI generates cogs, the suit planner names street
+  2100, and paths are rebuilt (e.g. 204 legs). Placeholder boxes walk about 4.8 u/s
+  along the street with "Short Change Level 1" nametags. 29.9 fps.
+- **Chatter merge.** The host test passes. In-game chatter has not been seen yet: the
+  AI's chatter timer did not fire during the run.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.
