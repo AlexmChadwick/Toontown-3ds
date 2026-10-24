@@ -129,6 +129,9 @@ enum class EventType : uint8_t {
     FactoryGone,
     MintUp, MintState, MintRoomUp, MintRoomState, MintGone,
     StageUp, StageState, StageRoomUp, StageRoomState, StageGone,
+    EstateManagerUp, EstateZone, EstateUp, EstateState, HouseUp, HouseState,
+    HouseInteriorUp, FurnitureUp, FurnitureState, PetUp, PetState, EstateGone, PetGone,
+    ClosetUp, ClosetGone, MailboxUp, BankUp,
     BattleJoinDenied, // denyLocalToonJoin
     SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
     SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
@@ -339,6 +342,46 @@ struct Stage {
     uint32_t roomDoIds[32] = {};
     uint8_t numRooms = 0;
     bool alert = false, active = false;
+};
+
+struct EstateHouse {
+    uint32_t doId = 0, avatarId = 0;
+    char name[kNameLen] = {};
+    uint8_t pos = 0, type = 0, gardenPos = 0, color = 0;
+    bool active = false;
+};
+constexpr int kMaxEstateHouses = 6;
+struct Estate {
+    uint32_t doId = 0, zoneId = 0;
+    uint8_t estateType = 0, closestHouse = 0xff;
+    uint32_t slotToons[kMaxEstateHouses] = {};
+    EstateHouse houses[kMaxEstateHouses] = {};
+    bool ready = false, active = false;
+};
+struct HouseInterior {
+    uint32_t doId = 0, houseId = 0;
+    uint8_t houseIndex = 0;
+    bool active = false;
+};
+struct EstateFurniture {
+    uint32_t doId = 0, itemId = 0;
+    float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
+    uint8_t mode = 0;
+    bool active = false;
+};
+constexpr int kMaxEstateFurniture = 48;
+struct Pet {
+    uint32_t doId = 0, ownerId = 0, traitSeed = 0, safeZone = 0;
+    char name[kNameLen] = {};
+    int8_t head = -1, ears = -1, nose = -1, tail = -1, body = 0, color = 0, colorScale = 4,
+           eyeColor = 0, gender = 0;
+    float x = 0, y = 0, z = 0, h = 0;
+    bool active = false;
+};
+constexpr int kMaxPets = 8;
+struct Closet {
+    uint32_t doId = 0, ownerId = 0;
+    bool active = false;
 };
 // Street cogs (DistributedSuit; docs/design/combat.md section 3). The AI never broadcasts a
 // position: it sends the endpoints of a path through the street's suit graph, the leg the
@@ -865,6 +908,23 @@ public:
     const FacilityRoom& mintRoomSlot(int n) const { return mintRooms_[n]; }
     const FacilityRoom& stageRoomSlot(int n) const { return stageRooms_[n]; }
     bool sendRoomEntityInteract(uint32_t doId);
+    bool requestHome();
+    bool sendEstateClientReady(uint32_t doId);
+    bool sendHouseEnter(uint32_t doId);
+    bool sendHouseExit(uint32_t doId);
+    bool sendClosetEnter(uint32_t doId);
+    bool sendClosetDNA(uint32_t doId, const uint8_t dna[kDnaSize], int8_t finished, uint8_t which);
+    bool sendClosetExit(uint32_t doId);
+    bool sendMailboxEnter(uint32_t doId);
+    bool sendMailboxExit(uint32_t doId);
+    bool sendBankEnter(uint32_t doId);
+    bool sendBankExit(uint32_t doId);
+    const Estate* estate() const { return estate_.active ? &estate_ : nullptr; }
+    const HouseInterior* houseInterior() const { return houseInterior_.active ? &houseInterior_ : nullptr; }
+    const EstateFurniture& estateFurnitureSlot(int i) const { return furniture_[i]; }
+    const Pet& petSlot(int i) const { return pets_[i]; }
+    const Closet* closet() const { return closet_.active ? &closet_ : nullptr; }
+    uint32_t houseDoorDoId() const { return houseDoorDoId_; }
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
@@ -1174,6 +1234,15 @@ private:
     bool applyRoomField(FacilityRoom& room, DatagramReader& r, uint16_t fieldId, bool mint);
     bool handleFacilityField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     void clearFacilityObjects();
+    bool handleEstateEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
+                           const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleEstateField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool applyEstateField(Estate& e, DatagramReader& r, uint16_t fieldId);
+    bool applyHouseField(EstateHouse& h, DatagramReader& r, uint16_t fieldId);
+    bool applyHouseInteriorField(HouseInterior& h, DatagramReader& r, uint16_t fieldId);
+    bool applyFurnitureField(EstateFurniture& f, DatagramReader& r, uint16_t fieldId);
+    bool applyPetField(Pet& p, DatagramReader& r, uint16_t fieldId);
+    void clearEstateObjects();
     // ---- fishing (see the "fishing" section of client.cpp) ----
     FishingPond pond_ = {};
     FishingSpot fishSpots_[kMaxFishSpots] = {};
@@ -1199,6 +1268,14 @@ private:
     Stage stage_{};
     FacilityRoom mintRooms_[32] = {};
     FacilityRoom stageRooms_[32] = {};
+    uint32_t estateManagerDoId_ = 0, estateZone_ = 0;
+    Estate estate_{};
+    HouseInterior houseInterior_{};
+    Closet closet_{};
+    uint32_t mailboxDoId_ = 0, bankDoId_ = 0;
+    uint32_t houseDoorDoId_ = 0;
+    EstateFurniture furniture_[kMaxEstateFurniture] = {};
+    Pet pets_[kMaxPets] = {};
     uint32_t ownBattleId_ = 0;
     bool handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                            bool other);

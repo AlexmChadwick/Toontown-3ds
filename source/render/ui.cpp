@@ -31,6 +31,7 @@ namespace {
 constexpr float kW = 320.0f;
 // Map tab teleport row (just above the tab bar).
 constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
+constexpr float kHomeY = 148.0f, kHomeH = 24.0f;
 const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
@@ -66,6 +67,7 @@ bool Ui::init() {
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
+        !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
@@ -79,6 +81,7 @@ void Ui::shutdown() {
     chat_.shutdown();
     shop_.shutdown();
     tailor_.shutdown();
+    closet_.shutdown();
     battle_.shutdown();
     quest_.shutdown();
     fishingPanel_.shutdown();
@@ -124,6 +127,7 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
     if (tailor_.active()) return tailor_.handleInput(down, t);
+    if (closet_.active()) return closet_.handleInput(down, t);
     if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
     if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
@@ -157,6 +161,10 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
     switch (s.tab) {
     case kTabMap:
+        if (inRect(t, 4, kHomeY, 76, kHomeH)) {
+            s.homeRequest = true;
+            break;
+        }
         if (t.py >= kHoodRowY && t.py < kHoodRowY + kHoodRowH) {
             const int i = static_cast<int>(t.px / kHoodW);
             if (i >= 0 && i < kNumTeleportHoods) s.teleportRequest = kTeleportHoods[i];
@@ -196,6 +204,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     }
     if (tailor_.active()) {
         tailor_.draw();
+        return;
+    }
+    if (closet_.active()) {
+        closet_.draw();
         return;
     }
     if (battleView_) {
@@ -353,6 +365,8 @@ void Ui::drawMap(const Context& c) {
     C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
+    C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
+    text(18, kHomeY + 6, 0.42f, kBg, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
