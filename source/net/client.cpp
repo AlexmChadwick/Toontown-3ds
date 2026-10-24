@@ -385,6 +385,7 @@ void Client::resetWorld() {
     districtCtx_ = uberCtx_ = zoneCtx_ = 0;
     districtsDone_ = uberDone_ = zoneDone_ = false;
     zoneReadyMs_ = 0;
+    friendsReset(); // friends hook (client_friends.cpp)
 }
 
 void Client::onSessionStart() {
@@ -439,6 +440,7 @@ void Client::update(uint32_t nowMs) {
         if (state_ == State::Backoff || state_ == State::Failed || state_ == State::Idle) return;
     }
 
+    friendsUpdate(); // friends hook (client_friends.cpp)
     maybeFinishEnterZone();
     // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
     if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
@@ -557,6 +559,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
     if (!cls) return; // a class we never look at: the whole message is dropped
     const uint16_t* req = owner ? requiredOwner(*cls) : requiredOther(*cls);
     const uint16_t reqCount = owner ? cls->ownerCount : cls->otherCount;
+    if (friendsHandleEnter(*cls, r, doId, req, reqCount, other)) return; // friends hook (client_friends.cpp)
 
     if (classId == dc::DistributedToon::kClassId) {
         if (doId == avatarId_) {
@@ -709,6 +712,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
         return;
@@ -791,6 +795,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     if (RemoteToon* t = toonById(doId)) {
         t->active = false;
         --numToons_;
@@ -1051,6 +1056,7 @@ uint32_t Client::retryInMs() const {
 }
 
 bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
+    if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
@@ -1476,6 +1482,13 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
     }
     case dc::DistributedNode::k_setParent:
         t.parentToken = r.u32();
+        break;
+    // friends detail panel: laff is broadcast
+    case dc::DistributedToon::k_setHp:
+        t.hp = r.i16();
+        break;
+    case dc::DistributedToon::k_setMaxHp:
+        t.maxHp = r.i16();
         break;
     case dc::DistributedToon::k_setTalk: {
         r.u32(); // from avatar

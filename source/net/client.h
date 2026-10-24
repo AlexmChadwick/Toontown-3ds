@@ -64,6 +64,7 @@ struct RemoteToon {
     char chat[kChatLen];   // last setTalk text (empty when the last chat was SpeedChat)
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
     uint32_t chatMs;
+    int16_t hp, maxHp;     // broadcast setHp/setMaxHp (friends detail panel); 0 until received
     bool active;
 };
 
@@ -192,6 +193,96 @@ struct OwnStats {
     uint8_t maxCarry = 20;
     bool hasGags = false; // setInventory received
 };
+
+// ===================== friends / whispers (docs/design/friends.md) =====================
+// Implemented in client_friends.cpp. Self-contained: own types, own event queue.
+constexpr int kMaxFriends = 50;        // OTPGlobals.MaxFriends
+constexpr int kWhisperLogLen = 16;
+constexpr int kWhisperTextLen = 96;
+
+struct FriendInfo {
+    uint32_t doId;
+    uint8_t code;          // FriendEntry.friendCode (bit 0 = open chat)
+    bool nearby;           // visible in our interest right now (so definitely online)
+    bool hasName, hasDna;  // learned from the friend's own DistributedToon this session
+    char name[kNameLen];
+    uint8_t dna[kDnaSize];
+};
+
+enum class RequestState : uint8_t {
+    Idle,
+    Checking,     // friendQuery sent, waiting for friendConsidering
+    Asking,       // invitee is considering; waiting for friendResponse
+    Yes, No,      // final answers
+    NotAvailable, // friendConsidering 0 / no answer
+    Already, Self, Ignored, NotAccepting, OtherTooMany, TooMany, Maybe,
+    WentAway,     // target left our zone first
+    NoManager,    // this server has no FriendManager object
+};
+struct FriendRequest {
+    RequestState state = RequestState::Idle;
+    uint32_t targetId = 0;
+    char targetName[kNameLen] = {};
+    int32_t context = 0;
+    uint32_t sinceMs = 0;
+};
+// An invitation someone sent us (FriendManager.inviteeFriendQuery).
+struct FriendInvite {
+    bool active = false;
+    uint32_t inviterId = 0;
+    char name[kNameLen] = {};
+    uint8_t dna[kDnaSize] = {};
+    bool hasDna = false;
+    int32_t context = 0;
+    uint32_t sinceMs = 0;
+};
+enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing };
+struct Whisper {
+    uint32_t fromId;       // sender (ourselves for Outgoing)
+    uint32_t toId;         // recipient (ourselves for incoming)
+    WhisperKind kind;
+    uint16_t index;        // SpeedChat/custom/emote index (the UI decodes it); 0 for Typed/System
+    char name[kNameLen];   // the other party
+    char text[kWhisperTextLen]; // Typed and System text; empty for index-only kinds
+    uint32_t ms;
+};
+struct TeleportResult {
+    bool valid = false;
+    uint32_t avId = 0;
+    int8_t available = 0;  // 0 busy, 1 ok, 2 ignored
+    uint32_t shardId = 0, hoodId = 0, zoneId = 0;
+    uint32_t ms = 0;
+};
+enum class FriendEventType : uint8_t {
+    ListChanged,      // setFriendsList arrived, or a friend's name/dna/nearby state changed
+    InviteIn,         // pendingInvite() is set
+    InviteCancelled,  // the inviter withdrew (pendingInvite() cleared)
+    RequestUpdate,    // friendRequest().state changed
+    Whisper,          // a new whisper (last entry of the log); doId = sender
+    TeleportResult,   // teleportResult() updated
+    TeleportAsked,    // someone sent us teleportQuery (we answered automatically); doId = requester
+    Notify,           // friendsNotify: doId = who, see notifyStatus()
+};
+struct FriendEvent {
+    FriendEventType type;
+    uint32_t doId;
+};
+// State (kept in Client::friends_).
+struct FriendsState {
+    uint32_t managerId = 0;                 // a FriendManager object we have seen (0 = none)
+    FriendInfo list[kMaxFriends] = {};
+    int numFriends = 0;
+    FriendRequest request;
+    FriendInvite invite;
+    Whisper log[kWhisperLogLen] = {};
+    int logHead = 0, logCount = 0;          // ring; logHead = oldest
+    TeleportResult teleport;
+    int8_t notifyStatus = 0;
+    FriendEvent events[32] = {};
+    uint32_t evHead = 0, evTail = 0;
+    uint32_t teleportAskId = 0;             // the toon our last teleportQuery went to
+};
+// ===================== end friends types =====================
 
 struct ClientConfig {
     const char* host = "127.0.0.1";
@@ -322,6 +413,33 @@ public:
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
 
+    // ===================== friends / whispers (docs/design/friends.md) =====================
+    // Whispers and teleport queries only reach toons we currently see (Astron ejects updates to
+    // unseen objects), so every send below checks findToon(). friendsAvailable() is false on
+    // the stock server (no FriendManager is ever generated): requestFriend() then sets
+    // RequestState::NoManager and sends nothing.
+    bool friendsAvailable() const { return friends_.managerId != 0; }
+    int numFriends() const { return friends_.numFriends; }
+    const FriendInfo& friendAt(int i) const { return friends_.list[i]; }
+    const FriendInfo* findFriend(uint32_t doId) const;
+    bool isFriend(uint32_t doId) const { return findFriend(doId) != nullptr; }
+    bool sendWhisperSC(uint32_t toDoId, uint16_t msgIndex);
+    bool requestFriend(uint32_t avId);
+    void cancelFriendRequest();          // cancelFriendQuery when in flight, then back to Idle
+    void clearFriendRequest() { friends_.request = FriendRequest(); }
+    const FriendRequest& friendRequest() const { return friends_.request; }
+    const FriendInvite* pendingInvite() const { return friends_.invite.active ? &friends_.invite : nullptr; }
+    bool answerInvite(bool accept);
+    int numWhispers() const { return friends_.logCount; }
+    const Whisper& whisperAt(int i) const { return friends_.log[(friends_.logHead + i) % kWhisperLogLen]; } // 0 = oldest
+    bool sendTeleportQuery(uint32_t avId);
+    void sendTeleportGiveup(uint32_t avId);
+    const TeleportResult& teleportResult() const { return friends_.teleport; }
+    void clearTeleportResult() { friends_.teleport = TeleportResult(); }
+    int8_t notifyStatus() const { return friends_.notifyStatus; }
+    bool pollFriendEvent(FriendEvent& out);
+    // ===================== end friends API =====================
+
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
     uint32_t networkToLocal(int16_t networkTime, uint32_t nowMs) const;
@@ -450,6 +568,23 @@ private:
     RemoteToon toons_[kMaxRemoteToons];
     int numToons_ = 0;
     uint32_t toonOverflow_ = 0;
+
+    // ===================== friends (client_friends.cpp) =====================
+    FriendsState friends_;
+    bool friendsHandleEnter(const dc::ClassDesc& cls, DatagramReader& r, uint32_t doId, const uint16_t* req,
+                            uint16_t reqCount, bool other);
+    bool friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool friendsOwnField(DatagramReader& r, uint16_t fieldId);
+    void friendsHandleLeaving(uint32_t doId);
+    void friendsUpdate();
+    void friendsReset();
+    void friendsPush(FriendEventType type, uint32_t doId);
+    void friendsLogWhisper(uint32_t otherId, WhisperKind kind, uint16_t index, const char* text,
+                           const char* nameIfUnknown = nullptr);
+    void friendsSetRequest(RequestState s);
+    const char* friendsNameOf(uint32_t doId) const;
+    void friendsAnswerTeleportQuery(uint32_t requesterId);
+    // ===================== end friends (private) =====================
 
     Event events_[kEventQueue];
     uint32_t evHead_ = 0, evTail_ = 0;
