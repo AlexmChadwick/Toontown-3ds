@@ -41,6 +41,7 @@ public:
     int count() const;
     // Autotest helper: position of the first visible cog, false when none.
     bool firstPosition(float* x, float* y, float* z) const;
+    void logState() const; // one log line per cog (debugging)
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.

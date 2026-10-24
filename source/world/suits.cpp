@@ -321,6 +321,15 @@ int SuitActors::count() const {
     return n;
 }
 
+void SuitActors::logState() const {
+    for (const Actor& a : actors_) {
+        if (!a.active) continue;
+        TT_LOG("suits: %u mode %d state %d legs %d leg %d type %d valid %d vis %d at %.1f,%.1f,%.1f", unsigned(a.doId),
+               int(a.mode), int(a.state), a.legs.numLegs(), a.legIndex, int(a.legType), int(a.poseValid),
+               int(a.pose.visible), double(a.pose.x), double(a.pose.y), double(a.pose.z));
+    }
+}
+
 bool SuitActors::firstPosition(float* x, float* y, float* z) const {
     for (const Actor& a : actors_) {
         if (!a.active || !a.poseValid || !a.pose.visible) continue;

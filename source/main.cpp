@@ -415,6 +415,15 @@ int main() {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
         }
+        if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
+            float cx, cy, cz;
+            if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 14.0f);
+            static u32 lastLog = 0;
+            if (tt::net::plat::nowMs() - lastLog > 1000) {
+                suits.logState();
+                lastLog = tt::net::plat::nowMs();
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "see boat") && boat.active()) {
             autotestFace(boat.x(), boat.y(), boat.z() + 2.0f, 30.0f);
         }
