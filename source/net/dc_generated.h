@@ -648,6 +648,26 @@ constexpr const char* sig_denyBattle = "";
 constexpr const char* sig_requestBattle = "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10";
 } // namespace DistributedSuit
 
+namespace DistributedDale {
+constexpr uint16_t kClassId = 76;
+constexpr uint16_t k_setFollowChip = 623;
+constexpr uint16_t k_setChipId = 624;
+constexpr uint16_t kw_setFollowChip = 0x006;
+constexpr uint16_t kw_setChipId = 0x007;
+constexpr const char* sig_setFollowChip = "string,string,i16,i16/100,i16/100";
+constexpr const char* sig_setChipId = "u32";
+} // namespace DistributedDale
+
+namespace DistributedJailbirdDale {
+constexpr uint16_t kClassId = 77;
+constexpr uint16_t k_setFollowChip = 623;
+constexpr uint16_t k_setChipId = 624;
+constexpr uint16_t kw_setFollowChip = 0x006;
+constexpr uint16_t kw_setChipId = 0x007;
+constexpr const char* sig_setFollowChip = "string,string,i16,i16/100,i16/100";
+constexpr const char* sig_setChipId = "u32";
+} // namespace DistributedJailbirdDale
+
 namespace DistributedFishingPond {
 constexpr uint16_t kClassId = 115;
 constexpr uint16_t k_setArea = 803;
@@ -826,14 +846,6 @@ constexpr uint16_t kClassId = 74;
 namespace DistributedPoliceChip {
 constexpr uint16_t kClassId = 75;
 } // namespace DistributedPoliceChip
-
-namespace DistributedDale {
-constexpr uint16_t kClassId = 76;
-} // namespace DistributedDale
-
-namespace DistributedJailbirdDale {
-constexpr uint16_t kClassId = 77;
-} // namespace DistributedJailbirdDale
 
 namespace DistributedDonald {
 constexpr uint16_t kClassId = 78;

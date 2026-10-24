@@ -88,6 +88,8 @@ WANTED = {
     'DistributedSuit': ['setDNAString', 'setLevelDist', 'setBrushOff', 'setSkelecog',
                         'setSkeleRevives', 'setHP', 'setSPDoId', 'setPathEndpoints',
                         'setPathPosition', 'setPathState', 'denyBattle', 'requestBattle'],
+    'DistributedDale': ['setFollowChip', 'setChipId'],
+    'DistributedJailbirdDale': ['setFollowChip', 'setChipId'],
     'DistributedFishingPond': ['setArea'],
     'DistributedBoat': ['setState'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
