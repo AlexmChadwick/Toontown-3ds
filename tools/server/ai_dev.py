@@ -30,6 +30,7 @@ def _patch(name, mod):
                 self.b_setHp(self.getMaxHp())
                 if self.getMoney() < 40:
                     self.b_setMoney(40)
+                self.b_setEmoteAccess([1] * 25)  # every SpeedChat emote (normally catalog unlocks)
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate

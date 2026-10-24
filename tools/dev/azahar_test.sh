@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
-#   tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
+#   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
 # Temporarily switches Azahar to Old 3DS / 1x / both screens / no update check,
 # then always restores the user's config. Leaves log.txt and decoded shot PNGs in out-dir.
@@ -30,7 +30,9 @@ sed -i '' -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=t
     -e 's/^volume=.*/volume=0/' "$CFG" # muted (the user's volume comes back with the config restore)
 
 rm -f "$SD/log.txt" "$SD"/shot_*.bin
-if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" > "$SD/autotest"; else touch "$SD/autotest"; fi
+: > "$SD/autotest"
+if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" >> "$SD/autotest"; fi
+if [ -n "${AUTOTEST_UNTIL:-}" ]; then echo "until $AUTOTEST_UNTIL" >> "$SD/autotest"; fi
 ( "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
 sleep "$SECS"
 

@@ -37,6 +37,12 @@ const Step kScript[] = {
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},
     {2.0f, 0, 0, 0, 0, -1, -1, 0, "clip: victory", "clip_victory"},
+    // "emote: <TTEmote index> <name>": sent and played like the SpeedChat Emotes menu.
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "emote: 0 wave", "emote_wave"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "emote: 6 dance", "emote_dance"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 13 bow", "emote_bow"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 12 belly flop", "emote_flop"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 9 applause", "emote_applause"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "grab treasure", "grab"},
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "meet mickey", "mickey"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "go fishing", "fish_sit"},
@@ -122,20 +128,32 @@ bool Runner::begin() {
     frontEnd_ = f != nullptr;
     if (!f) f = fopen("sdmc:/3ds/toontown3ds/autotest", "r");
     if (!f) return false;
-    // Optional first line "from <label prefix>": skip ahead to that step (quicker iteration).
-    char line[64] = {};
-    const bool hasLine = fgets(line, sizeof(line), f) != nullptr;
+    // Optional lines "from <label prefix>" (skip ahead to that step) and "until <label
+    // prefix>" (finish before that step) for quicker iteration.
+    char from[64] = {}, until[64] = {};
+    char line[64];
+    while (fgets(line, sizeof(line), f)) {
+        if (char* nl = strchr(line, '\n')) *nl = 0;
+        if (!strncmp(line, "from ", 5)) snprintf(from, sizeof(from), "%s", line + 5);
+        else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%s", line + 6);
+    }
     fclose(f);
     active_ = true;
     script_ = frontEnd_ ? kFrontEndScript : kScript;
     numSteps_ = frontEnd_ ? kFrontEndSteps : kWorldSteps;
-    if (hasLine && !strncmp(line, "from ", 5)) {
-        char* nl = strchr(line, '\n');
-        if (nl) *nl = 0;
+    if (from[0]) {
         for (int i = 0; i < numSteps_; i++) {
-            if (!strncmp(script_[i].label, line + 5, strlen(line + 5))) {
+            if (!strncmp(script_[i].label, from, strlen(from))) {
                 step_ = i;
                 ready_ = false;
+                break;
+            }
+        }
+    }
+    if (until[0]) {
+        for (int i = step_ + 1; i < numSteps_; i++) {
+            if (!strncmp(script_[i].label, until, strlen(until))) {
+                numSteps_ = i;
                 break;
             }
         }

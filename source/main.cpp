@@ -700,12 +700,24 @@ int main() {
             }
         }
         ui.setEmoteAccess(netStarted && net.ownStats().hasEmotes?net.ownStats().emoteAccess:nullptr);
+        auto tryEmote = [&](int emote) {
+            if(!battle.active() && !fishing.active() && !trolley.seated() && !minigame.active() && fadeDir==0 &&
+               !localToon.emoteActive() && !uiState.whisperTo && (!netStarted || net.sendEmote(emote))) {
+                const bool ok = localToon.playEmote(emote);
+                TT_LOG("emote: %d %s", emote, ok ? "playing" : "no clip");
+            } else {
+                TT_LOG("emote: %d refused", emote);
+            }
+        };
+        static const char* emoteStep = nullptr; // autotest "emote: <TTEmote id> <name>", once per step
+        if (autotest.active() && !strncmp(autotest.label(), "emote: ", 7) && autotest.label() != emoteStep) {
+            emoteStep = autotest.label();
+            tryEmote(atoi(autotest.label() + 7));
+        }
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
             if(speechMsg<0) {
-                const int emote=-1-speechMsg;
-                if(!battle.active() && !fishing.active() && !trolley.seated() && !minigame.active() && fadeDir==0 &&
-                   !localToon.emoteActive() && !uiState.whisperTo && (!netStarted || net.sendEmote(emote))) localToon.playEmote(emote);
+                tryEmote(-1-speechMsg);
                 continue;
             }
             if (!uiState.whisperTo) { // whispers are private: no balloon over our head

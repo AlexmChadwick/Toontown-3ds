@@ -10,7 +10,8 @@ Outputs under sdmc-out/3ds/toontown3ds/data/level/:
                 attributes, plus synthetic cogSpec / reserveCogSpec / battleCell entries.
   <level>.tz    (unless --tlv-only) the level model as TZ v2 with one chunk per spec zone,
                 vis lists from the zone entities' 'visibility', floors tagged with the zone
-                number (the runtime maps zone numbers to the AI's zone ids from setZoneIds).
+                number + ZONE_BASE (TZ zone ids must be nonzero; the branch is ZONE_BASE - 1).
+                The runtime maps zone numbers to the AI's zone ids from setZoneIds.
   <level>.json  budget / content report.
 
 Transforms mirror the client: zone entities are the model's '**/zone<num>;+i' nodes
@@ -52,6 +53,9 @@ def room_levels():
                     cogs = f'{name}_Cogs'
                     out[name] = (name, cogs if (level_spec_load.COGHQ / f'{cogs}.py').exists() else None)
     return out
+
+
+ZONE_BASE = 1000  # TZ chunk/floor zone = spec zone number + ZONE_BASE (UberZone 0 -> 1000)
 
 
 def default_resources():
@@ -171,6 +175,154 @@ def build_tlv(ents, cogs, model, out_path):
     for spec in ents.values():
         types[spec['type']] = types.get(spec['type'], 0) + 1
     report['types'] = dict(sorted(types.items()))
+    return report, nodes
+
+
+CRATE_MODELS = ('phase_9/models/cogHQ/woodCrateB.bam', 'phase_9/models/cogHQ/metal_crateB.bam',
+                'phase_10/models/cashbotHQ/CBMetalCrate.bam', 'phase_10/models/cogHQ/CBMetalCrate2.bam',
+                'phase_10/models/cashbotHQ/CBWoodCrate.bam', 'phase_11/models/lawbotHQ/LB_metal_crate.bam',
+                'phase_11/models/lawbotHQ/LB_metal_crate2.bam')
+
+
+def attach_model_entities(ents, nodes, loader, resources):
+    """otp/level/ModelEntity.loadModel for the static 'model' entities."""
+    out = []
+    for ent_id in sorted(ents):
+        spec = ents[ent_id]
+        if spec['type'] != 'model' or not spec.get('modelPath'):
+            continue
+        path = Path(resources) / spec['modelPath']
+        if path.suffix != '.bam':
+            path = path.with_name(path.name + '.bam')
+        m = loader.loadModel(str(path), noCache=True)
+        if m is None or m.isEmpty():
+            raise FileNotFoundError(path)
+        m.reparentTo(nodes[ent_id])
+        if spec['modelPath'] in CRATE_MODELS:
+            wall = m.find('**/wall')
+            if not wall.isEmpty():
+                wall.setZ(wall, -.75)
+            coll = m.find('**/collision')
+            floor = coll.find('**/floor') if not coll.isEmpty() else coll
+            if not floor.isEmpty():
+                floor2 = floor.copyTo(coll)
+                floor2.setZ(floor2, -.75)
+        hat = spec.get('goonHatType', 'none')
+        if hat == 'hardhat':
+            m.find('**/security_hat').stash()
+        elif hat == 'security':
+            m.find('**/hard_hat').stash()
+        if spec.get('collisionsOnly'):
+            # Hidden but collidable: keep the collision solids, drop the render geometry.
+            for g in m.findAllMatches('**/+GeomNode'):
+                g.stash()
+        out.append({'entId': ent_id, 'model': spec['modelPath'], 'collisionsOnly': bool(spec.get('collisionsOnly'))})
+    return out
+
+
+def bake_tz(level, ents, model, out, args):
+    """TZ v2 with one chunk per spec zone (DistributedLevel.showZone/hideZone units)."""
+    import tempfile
+    import numpy as np
+    import collide
+    import extract
+    import street_atlas
+    import street_lod
+    import ttm
+    import tz
+    zones = zone_nodes(model)
+    spec_zones = sorted(e for e, s in ents.items() if s['type'] == 'zone')
+    missing = [z for z in spec_zones if z not in zones]
+    if missing:
+        raise ValueError(f'{level}: spec zones {missing} not in model')
+    # Uber zone geometry is everything outside the numbered zone nodes; it is always shown.
+    order = spec_zones  # 0 first
+    index = {z: i for i, z in enumerate(order)}
+    whole = collide.extract(model, fallback_floor=False)
+    collision, collision_stats = whole.pack()
+    # Per-texture batches with native repeat (no 32 px atlas tiles: the interiors are close-up
+    # and heavily tiled). Textures are shared; each chunk TTM copies the ones it uses.
+    import assemble
+    ex = extract.Extractor(max_tex=128, layer_rules=assemble.LAYER_RULES)
+    raw, chunks, floors = [], [], []
+    stashed = [zones[z] for z in order if z != 0]
+    for z in order:
+        n = zones[z]
+        if z == 0:
+            for s in stashed:
+                s.stash()
+        ex._groups = {}
+        ex.add(n)
+        bs = ex.batches()
+        mat = n.getMat(model)
+        if z != 0 and not mat.isIdentity():
+            for b in bs:
+                b.verts[:, :3] = [tuple(mat.xformPoint(tuple(p))) for p in b.verts[:, :3]]
+        raw.append(bs)
+        vis = {index[z], index[0]}
+        for v in ents[z].get('visibility', []) if z != 0 else []:
+            if v not in index:
+                raise ValueError(f'{level}: zone {z} sees unknown zone {v}')
+            vis.add(index[v])
+        # The uber chunk (geometry outside every zone node) is in every vis list; its own list
+        # is itself only: it has no floors of its own, so it never becomes the current cell.
+        chunks.append({'name': f'z{z}', 'zone': ZONE_BASE + z, 'vis': sorted(vis)})
+        mesh = collide.extract(n if z != 0 else model, fallback_floor=False)
+        for a, b, c, normal, flags in mesh.tris:
+            if flags & collide.FLOOR and not flags & collide.TRIGGER:
+                tri = np.array([a, b, c])  # collide.extract uses net transforms: level-root space
+                nrm = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+                ln = np.linalg.norm(nrm)
+                if ln > 1e-9 and nrm[2] / ln >= 0.707:
+                    floors.append((tri, index[z], ZONE_BASE + z))
+        if z == 0:
+            for s in stashed:
+                s.unstash()
+    floors.sort(key=lambda f: f[1])
+    textures = ex.textures
+    batches = [[street_atlas.rebase_large_uvs(b, textures) for b in bs] for bs in raw]
+
+    def pack(bs, tmp):
+        if not bs:
+            return b'', {'batches': 0, 'triangles': 0, 'geometry_bytes': 0, 'texture_bytes': 0,
+                         'bounds': [[0, 0, 0], [0, 0, 0]]}
+        used = sorted({b.texture for b in bs if b.texture is not None})
+        mapping = {old: new for new, old in enumerate(used)}
+        copies = [ttm.Batch(mapping[b.texture] if b.texture is not None else None,
+                            b.blend, b.two_sided, b.tint, b.layer, b.verts, b.indices) for b in bs]
+        path = Path(tmp) / 'chunk.ttm'
+        stats = ttm.write(path, [textures[j] for j in used], copies)
+        if stats['uv_clamped']:
+            raise ValueError('UV overflow')
+        return path.read_bytes(), stats
+    with tempfile.TemporaryDirectory() as tmp:
+        for chunk, bs in zip(chunks, batches):
+            chunk['model'], chunk['stats'] = pack(bs, tmp)
+    low, lod_report = street_lod.make_low(chunks, batches)
+    with tempfile.TemporaryDirectory() as tmp:
+        for chunk, bs in zip(chunks, low):
+            chunk['low_model'], chunk['low_stats'] = pack(bs, tmp)
+            if chunk['low_model']:
+                chunk['stats']['bounds'] = [
+                    np.minimum(chunk['stats']['bounds'][0], chunk['low_stats']['bounds'][0]).tolist(),
+                    np.maximum(chunk['stats']['bounds'][1], chunk['low_stats']['bounds'][1]).tolist()]
+    before = tz.report(chunks)
+    low_report = tz.report([dict(c, stats=c['low_stats']) for c in chunks])
+    samples = []
+    for i, c in enumerate(chunks):
+        points = [np.mean(f[0], axis=0) for f in floors if f[1] == i]
+        for p in points[::max(1, len(points) // 8)]:
+            _, metrics = street_lod.plan(chunks, i, p)
+            samples.append(metrics)
+    planned = {k: max((row[k] for row in samples), default=0)
+               for k in ('batches', 'triangles', 'geometry_bytes', 'texture_bytes')}
+    triggers = [{'min': list(t.lo), 'max': list(t.hi), 'kind': 0, 'name': t.name, 'owner': t.owner}
+                for t in whole.triggers]
+    report = tz.write(out / f'{level}.tz', ZONE_BASE - 1, chunks, floors, triggers, collision)
+    report.update({'before': before['worst'], 'low': low_report['worst'], 'planned_worst': planned,
+                   'lod': lod_report, 'floor_triangles': len(floors), 'triggers': len(triggers),
+                   'atlas_pages': len(textures), 'collision': collision_stats,
+                   'file_bytes': (out / f'{level}.tz').stat().st_size})
     return report
 
 
@@ -192,9 +344,14 @@ def bake(level, args, base):
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
-    report['tlv'] = build_tlv(ents, cogs, model, out / f'{level}.tlv')
+    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv')
+    if not args.tlv_only:
+        report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)
+        import assemble
+        assemble.lift_decals(model)
+        report['tz'] = bake_tz(level, ents, model, out, args)
     (out / f'{level}.json').write_text(json.dumps(report, indent=2) + '\n')
-    print(json.dumps(report, indent=2), flush=True)
+    print(json.dumps({k: v for k, v in report.items() if k not in ('tlv',)}, indent=2, default=str)[:4000], flush=True)
     model.removeNode()
 
 
