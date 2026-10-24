@@ -355,8 +355,8 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         if (!placed) toWorld(0.0f, 14.0f, &x, &y);
         a.x = x, a.y = y, a.z = bz_;
         a.h = headingTo(x, y, bx_, by_);
-        const net::Suit* ns = client.findSuit(id);
-        const SuitInfo* info = ns && ns->hasDna ? findSuitType(ns->name) : nullptr;
+        net::Client::CogIdentity ns;
+        const SuitInfo* info = client.cogIdentity(id, &ns) && ns.hasDna ? findSuitType(ns.name) : nullptr;
         a.height = info ? info->height : 5.0f;
     }
     for (int i = 0; i < nb.numToons; ++i) {
@@ -739,7 +739,7 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
     static const int kTrackOrder[7] = {4, 5, 3, 6, 1, 2, 0};
     for (int k = 0; k < 7 && act.kind == BattleAction::Pass; ++k) {
         const int track = kTrackOrder[k];
-        for (int level = 0; level < 7 && act.kind == BattleAction::Pass; ++level) {
+        for (int level = 6; level >= 0 && act.kind == BattleAction::Pass; --level) { // strongest first
             if (!usable(track, level)) continue;
             act.kind = BattleAction::Attack;
             act.track = track;
@@ -905,9 +905,9 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
     }
     if (moviePlaying_) {
         for (Actor& a : suits_) { // a fresh setHP replaces what our movies took off
-            const net::Suit* s = a.used ? client.findSuit(a.doId) : nullptr;
-            if (s && s->hp != a.baseHp) {
-                a.baseHp = s->hp;
+            net::Client::CogIdentity s;
+            if (a.used && client.cogIdentity(a.doId, &s) && s.hp != a.baseHp) {
+                a.baseHp = s.hp;
                 a.damage = 0;
             }
         }
@@ -1056,7 +1056,9 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         snprintf(c.name, sizeof(c.name), "Cog");
         c.level = 0;
         c.hp = c.maxHp = 0;
-        if (const net::Suit* s = client.findSuit(c.doId)) {
+        net::Client::CogIdentity ident;
+        if (client.cogIdentity(c.doId, &ident)) {
+            const net::Client::CogIdentity* s = &ident;
             c.hp = s->hp;
             for (const Actor& a : suits_) {
                 if (a.used && a.doId == c.doId && a.baseHp == s->hp) c.hp = s->hp - a.damage;

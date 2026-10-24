@@ -31,7 +31,11 @@ def _patch(name, mod):
                 if self.getMoney() < 40:
                     self.b_setMoney(40)
                 self.b_setEmoteAccess([1] * 25)  # every SpeedChat emote (normally catalog unlocks)
-                # Full gag pouch for the tracks the toon has, so unattended battles can be won.
+                # Gags up to level 4 (800 exp) and a full pouch, so unattended battles can be won.
+                for track in range(len(self.experience.experience)):
+                    if self.hasTrackAccess(track) and self.experience.getExp(track) < 800:
+                        self.experience.setExp(track, 800)
+                self.b_setExperience(self.experience.makeNetString())
                 self.inventory.maxOutInv(filterUberGags=1)
                 self.b_setInventory(self.inventory.makeNetString())
             except Exception as e:  # never break the district for a test convenience

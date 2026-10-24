@@ -50,6 +50,20 @@ const LevelSuit* Client::findLevelSuit(uint32_t doId) const {
     return nullptr;
 }
 
+bool Client::cogIdentity(uint32_t doId, CogIdentity* out) const {
+    if (const Suit* s = findSuit(doId)) {
+        memcpy(out->name, s->name, sizeof(out->name));
+        out->levelDist = s->levelDist, out->hp = s->hp, out->hasDna = s->hasDna;
+        return true;
+    }
+    if (const LevelSuit* s = findLevelSuit(doId)) {
+        memcpy(out->name, s->name, sizeof(out->name));
+        out->levelDist = s->levelDist, out->hp = s->hp, out->hasDna = s->hasDna;
+        return true;
+    }
+    return false;
+}
+
 bool Client::applyLevelSuitField(LevelSuit& s, DatagramReader& r, uint16_t fieldId) {
     namespace F = dc::DistributedFactorySuit;
     switch (fieldId) {

@@ -1128,6 +1128,9 @@ public:
     // ---- facility levels (client_level.cpp) ----
     const LevelSuit& levelSuitSlot(int n) const { return levelSuits_[n]; }
     const LevelSuit* findLevelSuit(uint32_t doId) const;
+    // Name / level / HP of any cog we know: a street DistributedSuit or a level cog.
+    struct CogIdentity { char name[4]; int16_t levelDist, hp; bool hasDna; };
+    bool cogIdentity(uint32_t doId, CogIdentity* out) const;
     const LevelBlocker& levelBlockerSlot(int n) const { return levelBlockers_[n]; }
     const LevelEntityObj& levelEntitySlot(int n) const { return levelEntities_[n]; }
     bool sendLevelDoorOpen(uint32_t doId); // DistributedDoorEntity.requestOpen (we bumped the door)
