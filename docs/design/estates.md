@@ -15,9 +15,10 @@ color, and garden position. The local house door uses the inherited
 `DistributedHouseInterior`; furniture positions and modes are authoritative
 server state from `DistributedFurnitureItem`. The client renders compact
 terrain, house, interior, and starter-furniture assets from
-`data/estate/`. Mailbox, bank, and closet are represented by their upstream
-distributed classes; the closet reuses the tailor DNA encoding and validates
-owned clothing before sending `setDNA`. Gardening remains protocol/spec-only.
+`data/estate/`. Mailbox and bank use their upstream `avatarEnter` and
+`transferMoney` flows. The closet opens a bottom-screen panel on `enterAvatar`,
+reuses the tailor DNA encoding, and sends `setDNA` for the current owned outfit.
+Gardening remains protocol/spec-only.
 
 Pets inherit `DistributedSmoothNode`. The nine PetDNA values (head, ears, nose,
 tail, body/species, color, color scale, eye color, gender) follow

@@ -918,6 +918,10 @@ int main() {
                 mintOffice.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
                 pets.handleEvent(ev);
+                if (ev.type == tt::net::EventType::ClosetUp) {
+                    net.sendClosetEnter(ev.doId);
+                    ui.closet().open(net, nowMs);
+                }
                 if (ev.type == tt::net::EventType::ShopMovie) {
                     shop.onMovie(net, nowMs);
                     if (const char* note = shop.takeNotice()) {
@@ -939,6 +943,7 @@ int main() {
             }
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
+            ui.closet().update(net);
             cogInterior.update(net, nowMs);
             factory.update(net, player.x(), player.y(), player.z(), nowMs);
             mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);

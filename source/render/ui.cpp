@@ -67,6 +67,7 @@ bool Ui::init() {
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
+        !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
@@ -80,6 +81,7 @@ void Ui::shutdown() {
     chat_.shutdown();
     shop_.shutdown();
     tailor_.shutdown();
+    closet_.shutdown();
     battle_.shutdown();
     quest_.shutdown();
     fishingPanel_.shutdown();
@@ -125,6 +127,7 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
     if (tailor_.active()) return tailor_.handleInput(down, t);
+    if (closet_.active()) return closet_.handleInput(down, t);
     if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
     if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
@@ -201,6 +204,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     }
     if (tailor_.active()) {
         tailor_.draw();
+        return;
+    }
+    if (closet_.active()) {
+        closet_.draw();
         return;
     }
     if (battleView_) {

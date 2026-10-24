@@ -1,6 +1,12 @@
 #include "world/estate.h"
 #include <cstdio>
 namespace tt::world {
+namespace {
+const float kPlotPos[6][3] = {
+    {-18.0f, 18.0f, 0.0f}, {0.0f, 18.0f, 0.0f}, {18.0f, 18.0f, 0.0f},
+    {-18.0f, -18.0f, 0.0f}, {0.0f, -18.0f, 0.0f}, {18.0f, -18.0f, 0.0f},
+};
+}
 void Estate::unload() {
     terrain_.unload(); interior_.unload();
     for (auto& m : houses_) m.unload();
@@ -35,10 +41,10 @@ void Estate::update(net::Client& c, float x, float y, float z, uint32_t now) {
     if (c.houseInterior()) { inInterior_ = true; loadInterior(); }
     if (now - lastInteract_ < 900 || !c.estate()) return;
     const net::Estate* e = c.estate();
-    for (const net::EstateHouse& h : e->houses) if (h.active && h.avatarId == c.avatarId() &&
+    if (c.houseDoorDoId() && e->closestHouse < net::kMaxEstateHouses &&
+        e->houses[e->closestHouse].avatarId == c.avatarId() &&
         x * x + y * y + z * z < 100.0f) {
-        if (c.sendHouseEnter(h.doId)) lastInteract_ = now;
-        break;
+        if (c.sendHouseEnter(c.houseDoorDoId())) lastInteract_ = now;
     }
 }
 void Estate::draw(render::Renderer& renderer, const net::Client& c) const {
@@ -51,8 +57,11 @@ void Estate::draw(render::Renderer& renderer, const net::Client& c) const {
     }
     if (terrain_.loaded()) renderer.drawModel(const_cast<render::Model&>(terrain_), m);
     if (const net::Estate* e = c.estate()) {
-        for (int i = 0; i < 6; ++i) if (e->houses[i].active && houses_[i].loaded())
-            renderer.drawModel(const_cast<render::Model&>(houses_[i]), m);
+        for (int i = 0; i < 6; ++i) if (e->houses[i].active && houses_[e->houses[i].type % 6].loaded()) {
+            Mtx_Translate(&m, kPlotPos[i][0], kPlotPos[i][1], kPlotPos[i][2], false);
+            renderer.drawModel(const_cast<render::Model&>(houses_[e->houses[i].type % 6]), m);
+            Mtx_Translate(&m, -kPlotPos[i][0], -kPlotPos[i][1], -kPlotPos[i][2], false);
+        }
     }
 }
 void Estate::shutdown() { active_ = false; inInterior_ = false; unload(); }

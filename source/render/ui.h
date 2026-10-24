@@ -11,6 +11,7 @@
 #include "ui/shop_panel.h"
 #include "ui/tailor_panel.h"
 #include "ui/fishing_panel.h"
+#include "ui/closet_panel.h"
 
 namespace tt::ui {
 
@@ -97,6 +98,7 @@ public:
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ShopPanel& shop() { return shop_; }
     TailorPanel& tailor() { return tailor_; }
+    ClosetPanel& closet() { return closet_; }
     // Street battle (world/battle.*): while a view is set the battle panel owns the bottom
     // screen. Call every frame before handleInput (null when not fighting).
     void setBattle(const world::BattleView* view, const BattleGags& gags) {
@@ -155,6 +157,7 @@ private:
     ChatMenu chat_;
     ShopPanel shop_;
     TailorPanel tailor_;
+    ClosetPanel closet_;
     BattlePanel battle_;
     QuestPanel quest_;
     // Whisper targets seen at the last draw (handleInput runs before draw each frame).

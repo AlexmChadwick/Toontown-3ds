@@ -7,6 +7,8 @@ text = dc.read_text()
 assert "547155168u" in text
 assert "namespace DistributedEstate" in text
 assert "namespace DistributedPet" in text
+assert "namespace DistributedCloset" in text
+assert "sendClosetDNA" in (ROOT / "source/net/client.h").read_text()
 
 upstream = pathlib.Path("/Users/alexchadwick/toontown-3ds/ref/open-toontown")
 spec = importlib.util.spec_from_file_location("petdna", upstream / "toontown/pets/PetDNA.py")
@@ -20,4 +22,11 @@ except Exception:
     assert "NumFields = 9" in source and "'body': 4" in source
 else:
     assert mod.NumFields == 9 and mod.Fields["body"] == 4
+sys.path.insert(0, str(ROOT / "tools/pipeline"))
+import tz
+asset_dir = ROOT / "sdmc-out/3ds/toontown3ds/data/estate"
+tz_files = list(asset_dir.glob("*.tz"))
+if tz_files:
+    for path in tz_files:
+        tz.validate(path.read_bytes())
 print("estate DC declarations and upstream PetDNA contract: PASS")

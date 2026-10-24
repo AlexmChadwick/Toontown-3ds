@@ -1,0 +1,57 @@
+#include "ui/closet_panel.h"
+namespace tt::ui {
+namespace {
+bool inRect(const touchPosition& t, float x, float y, float w, float h) {
+    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
+}
+}
+bool ClosetPanel::init() { textBuf_ = C2D_TextBufNew(256); return textBuf_ != nullptr; }
+void ClosetPanel::shutdown() {
+    if (textBuf_) C2D_TextBufDelete(textBuf_);
+    textBuf_ = nullptr; active_ = false;
+}
+void ClosetPanel::open(const net::Client& client, uint32_t) {
+    const net::Closet* c = client.closet();
+    if (!c) return;
+    closet_ = c->doId; active_ = true; pending_ = 0;
+    C2D_TextBufClear(textBuf_);
+    C2D_TextParse(&title_, textBuf_, "Closet");
+    C2D_TextParse(&body_, textBuf_, "A saves your current owned clothes. B cancels.");
+    C2D_TextParse(&done_, textBuf_, "Save");
+    C2D_TextParse(&cancel_, textBuf_, "Cancel");
+    C2D_TextOptimize(&title_); C2D_TextOptimize(&body_);
+    C2D_TextOptimize(&done_); C2D_TextOptimize(&cancel_);
+}
+void ClosetPanel::update(net::Client& client) {
+    if (!active_) return;
+    if (!client.closet() || client.closet()->doId != closet_) active_ = false;
+    else if (pending_) {
+        if (pending_ == 1) client.sendClosetDNA(closet_, client.avatarDna(), 2, 15);
+        else client.sendClosetExit(closet_);
+        pending_ = 0; active_ = false;
+    }
+}
+u32 ClosetPanel::handleInput(u32 down, const touchPosition& touch) {
+    if (!active_) return 0;
+    if ((down & KEY_A) || ((down & KEY_TOUCH) && inRect(touch, 160, 196, 76, 36))) {
+        pending_ = 1;
+    } else if ((down & KEY_B) || ((down & KEY_TOUCH) && inRect(touch, 240, 196, 76, 36))) {
+        pending_ = 2;
+    }
+    return 0xFFFFFFFFu;
+}
+void ClosetPanel::draw() {
+    if (!active_) return;
+    const u32 bg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
+    const u32 panel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
+    const u32 accent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
+    const u32 white = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
+    C2D_DrawRectSolid(4, 4, 0.5f, 312, 228, bg);
+    C2D_DrawText(&title_, C2D_WithColor, 10, 12, 0.5f, 0.6f, 0.6f, accent);
+    C2D_DrawText(&body_, C2D_WithColor, 10, 70, 0.5f, 0.45f, 0.45f, white);
+    C2D_DrawRectSolid(160, 196, 0.5f, 76, 36, accent);
+    C2D_DrawRectSolid(240, 196, 0.5f, 76, 36, panel);
+    C2D_DrawText(&done_, C2D_WithColor, 180, 207, 0.5f, 0.52f, 0.52f, bg);
+    C2D_DrawText(&cancel_, C2D_WithColor, 248, 207, 0.5f, 0.46f, 0.46f, white);
+}
+}

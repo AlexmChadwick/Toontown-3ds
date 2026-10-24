@@ -131,6 +131,7 @@ enum class EventType : uint8_t {
     StageUp, StageState, StageRoomUp, StageRoomState, StageGone,
     EstateManagerUp, EstateZone, EstateUp, EstateState, HouseUp, HouseState,
     HouseInteriorUp, FurnitureUp, FurnitureState, PetUp, PetState, EstateGone, PetGone,
+    ClosetUp, ClosetGone, MailboxUp, BankUp,
     BattleJoinDenied, // denyLocalToonJoin
     SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
     SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
@@ -372,6 +373,10 @@ struct Pet {
     bool active = false;
 };
 constexpr int kMaxPets = 8;
+struct Closet {
+    uint32_t doId = 0, ownerId = 0;
+    bool active = false;
+};
 // Street cogs (DistributedSuit; docs/design/combat.md section 3). The AI never broadcasts a
 // position: it sends the endpoints of a path through the street's suit graph, the leg the
 // path was at and when, and a path state. source/world/suits.* rebuilds the walk.
@@ -901,10 +906,19 @@ public:
     bool sendEstateClientReady(uint32_t doId);
     bool sendHouseEnter(uint32_t doId);
     bool sendHouseExit(uint32_t doId);
+    bool sendClosetEnter(uint32_t doId);
+    bool sendClosetDNA(uint32_t doId, const uint8_t dna[kDnaSize], int8_t finished, uint8_t which);
+    bool sendClosetExit(uint32_t doId);
+    bool sendMailboxEnter(uint32_t doId);
+    bool sendMailboxExit(uint32_t doId);
+    bool sendBankEnter(uint32_t doId);
+    bool sendBankExit(uint32_t doId);
     const Estate* estate() const { return estate_.active ? &estate_ : nullptr; }
     const HouseInterior* houseInterior() const { return houseInterior_.active ? &houseInterior_ : nullptr; }
     const EstateFurniture& estateFurnitureSlot(int i) const { return furniture_[i]; }
     const Pet& petSlot(int i) const { return pets_[i]; }
+    const Closet* closet() const { return closet_.active ? &closet_ : nullptr; }
+    uint32_t houseDoorDoId() const { return houseDoorDoId_; }
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
@@ -1251,6 +1265,9 @@ private:
     uint32_t estateManagerDoId_ = 0, estateZone_ = 0;
     Estate estate_{};
     HouseInterior houseInterior_{};
+    Closet closet_{};
+    uint32_t mailboxDoId_ = 0, bankDoId_ = 0;
+    uint32_t houseDoorDoId_ = 0;
     EstateFurniture furniture_[kMaxEstateFurniture] = {};
     Pet pets_[kMaxPets] = {};
     uint32_t ownBattleId_ = 0;

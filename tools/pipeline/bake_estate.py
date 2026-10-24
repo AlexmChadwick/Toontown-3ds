@@ -9,7 +9,7 @@ ROOT = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 
 def bake(base, source, out):
-    import extract, ttm
+    import extract, ttm, tz, collide
     model = base.loader.loadModel(str(source))
     if model.isEmpty():
         raise FileNotFoundError(source)
@@ -20,6 +20,13 @@ def bake(base, source, out):
     ex = extract.Extractor(max_tex=96)
     ex.add(model)
     stats = ttm.write(str(out), ex.textures, ex.batches())
+    blob = Path(out).read_bytes()
+    empty_collision, _ = collide.CollisionMesh().pack()
+    tz.write(str(Path(out).with_suffix(".tz")), 20000, [{
+        "name": Path(out).stem[:12], "zone": 20000, "vis": [0], "model": blob,
+        "low_model": b"", "stats": stats,
+        "low_stats": {"geometry_bytes": 0, "texture_bytes": 0, "batches": 0, "triangles": 0},
+    }], [], [], empty_collision)
     model.removeNode()
     if stats["triangles"] > 30000 or stats["batches"] > 256:
         raise RuntimeError(f"{source}: {stats}")

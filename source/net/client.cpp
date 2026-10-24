@@ -761,6 +761,36 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         classId == dc::DistributedCloset::kClassId ||
         classHasField(*cls, dc::DistributedFurnitureItem::k_setItem) ||
         classHasField(*cls, dc::DistributedPet::k_setHead)) {
+        if (classId == dc::DistributedHouseDoor::kClassId) {
+            houseDoorDoId_ = doId;
+            return;
+        }
+        if (classId == dc::DistributedCloset::kClassId) {
+            closet_ = Closet{}; closet_.doId = doId;
+            for (uint16_t i = 0; i < reqCount && r.ok(); ++i) {
+                if (req[i] == dc::DistributedCloset::k_setOwnerId) closet_.ownerId = r.u32();
+                else skipField(r, req[i]);
+            }
+            if (other) {
+                const uint16_t n = r.u16();
+                for (uint16_t i = 0; i < n && r.ok(); ++i) {
+                    const uint16_t id = r.u16();
+                    if (id == dc::DistributedCloset::k_setOwnerId) closet_.ownerId = r.u32();
+                    else skipField(r, id);
+                }
+            }
+            closet_.active = r.ok();
+            if (closet_.active) pushEvent(EventType::ClosetUp, doId);
+            return;
+        }
+        if (classId == dc::DistributedMailbox::kClassId) {
+            mailboxDoId_ = doId; pushEvent(EventType::MailboxUp, doId);
+            return;
+        }
+        if (classId == dc::DistributedBank::kClassId) {
+            bankDoId_ = doId; pushEvent(EventType::BankUp, doId);
+            return;
+        }
         handleEstateEnter(doId, classId, r, req, reqCount, other);
         return;
     }
@@ -1023,6 +1053,10 @@ void Client::handleLeaving(uint32_t doId) {
         mint_ = Mint{}; pushEvent(EventType::MintGone, doId); return;
     }
     if (estate_.active && estate_.doId == doId) { estate_ = Estate{}; pushEvent(EventType::EstateGone, doId); return; }
+    if (closet_.active && closet_.doId == doId) { closet_ = Closet{}; pushEvent(EventType::ClosetGone, doId); return; }
+    if (mailboxDoId_ == doId) { mailboxDoId_ = 0; return; }
+    if (bankDoId_ == doId) { bankDoId_ = 0; return; }
+    if (houseDoorDoId_ == doId) { houseDoorDoId_ = 0; return; }
     if (houseInterior_.active && houseInterior_.doId == doId) { houseInterior_ = HouseInterior{}; return; }
     for (EstateHouse& h : estate_.houses) if (h.active && h.doId == doId) { h = EstateHouse{}; return; }
     for (EstateFurniture& f : furniture_) if (f.active && f.doId == doId) { f = EstateFurniture{}; return; }
@@ -4133,6 +4167,7 @@ bool Client::handleEstateField(DatagramReader& r, uint32_t doId, uint16_t fieldI
 
 void Client::clearEstateObjects() {
         estateManagerDoId_ = 0; estateZone_ = 0; estate_ = Estate{}; houseInterior_ = HouseInterior{};
+        closet_ = Closet{}; mailboxDoId_ = 0; bankDoId_ = 0; houseDoorDoId_ = 0;
         for (EstateFurniture& f : furniture_) f = EstateFurniture{};
         for (Pet& p : pets_) p = Pet{};
 }
@@ -4164,6 +4199,52 @@ bool Client::sendHouseExit(uint32_t doId) {
         DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
         TT_NET_UPDATE(w, doId, DistributedHouseDoor, requestExit);
         return finish(w);
+}
+
+bool Client::sendClosetEnter(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedCloset, enterAvatar);
+    return finish(w);
+}
+
+bool Client::sendClosetDNA(uint32_t doId, const uint8_t dna[kDnaSize], int8_t finished, uint8_t which) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedCloset, setDNA);
+    w.blob(dna, kDnaSize); w.i8(finished); w.u8(which);
+    return finish(w);
+}
+
+bool Client::sendClosetExit(uint32_t doId) {
+    (void)doId;
+    return state_ == State::InZone;
+}
+
+bool Client::sendMailboxEnter(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMailbox, avatarEnter);
+    return finish(w);
+}
+
+bool Client::sendMailboxExit(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMailbox, avatarExit);
+    return finish(w);
+}
+
+bool Client::sendBankEnter(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedBank, avatarEnter);
+    return finish(w);
+}
+
+bool Client::sendBankExit(uint32_t doId) {
+    (void)doId;
+    return state_ == State::InZone;
 }
 
 void Client::clearFactoryObjects() {
