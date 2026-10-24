@@ -669,6 +669,17 @@ int main() {
         if (autotest.active() && level.active() && !battle.active()) {
             // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
             float cx, cy, cz;
+            // Test-only: drop onto a gear / paint mixer / the conveyor and ride it.
+            struct Drop { const char* label; const char* type; float dz; };
+            static const Drop kDrops[] = {{"factory: gear", "gear", 26.5f},
+                                          {"factory: mixer", "paintMixer", 2.0f},
+                                          {"factory: conveyor", "conveyorBelt", 2.0f}};
+            for (const Drop& drop : kDrops) {
+                float gx, gy, gz;
+                if (!strcmp(autotest.label(), drop.label) && autotest.stepTime() < 0.05f &&
+                    level.specPosition(drop.type, &gx, &gy, &gz))
+                    player.reset(gx, gy, gz + drop.dz, 90.0f);
+            }
             if (!strcmp(autotest.label(), "factory: barrel") && autotest.stepTime() < 0.05f) {
                 float bx, by, bz;
                 if (level.specPosition("gagBarrel", &bx, &by, &bz)) player.reset(bx, by - 4.0f, bz + 0.5f, 0.0f);

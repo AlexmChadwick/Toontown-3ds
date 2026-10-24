@@ -112,7 +112,7 @@ def goon_paths():
     return level_spec_load.load_module('GoonPathData', level_spec_load.UPSTREAM / 'toontown/suit')['Paths']
 
 
-def build_tlv(ents, cogs, model, out_path, family=None):
+def build_tlv(ents, cogs, model, out_path, family=None, spins=()):
     from panda3d.core import NodePath
     import tlv
     zones = zone_nodes(model)
@@ -203,6 +203,10 @@ def build_tlv(ents, cogs, model, out_path, family=None):
             w.add(cell_id, c['parentEntId'], zone_of(c['parentEntId']), 'battleCell', mat12(n, model),
                   vec(c.get('pos'), (0, 0, 0)), [0, 0, 0], [1, 1, 1], {}, flags=tlv.FLAG_SYNTHETIC)
         counts['battleCell'] = len(cogs['BattleCells'])
+    for i, sp in enumerate(spins):
+        w.add(i, sp['zone'], sp['zone'], 'spinProp', sp['world'], [0, 0, 0], [0, 0, 0], [1, 1, 1],
+              {'file': sp['file'], 'axis': sp['axis'], 'rate': sp['rate']}, flags=tlv.FLAG_SYNTHETIC)
+    counts['spinProp'] = len(spins)
     report = w.write(out_path)
     report.update(counts)
     types = {}
@@ -412,6 +416,43 @@ def lift_guards(ents, model):
     return found
 
 
+def spin_props(level, ents, model, out):
+    """otp/level/PropSpinner: every Prop_<name>_<axis>_<[N]rate> node of the spinner's zone turns
+    rate times a minute. They leave the static geometry and become their own models
+    (<level>_spin_<i>.ttm, in the prop node's space) plus synthetic 'spinProp' entries."""
+    import extract
+    import ttm
+    zones = zone_nodes(model)
+    found = []
+    for ent_id, spec in sorted(ents.items()):
+        if spec['type'] != 'propSpinner':
+            continue
+        zone = zones.get(spec.get('parentEntId', 0))
+        if zone is None:
+            continue
+        for n in zone.findAllMatches('**/Prop_*'):
+            parts = n.getName().split('_')
+            if len(parts) < 4 or parts[2] not in ('X', 'Y', 'Z'):
+                continue
+            rate_text = parts[3]
+            neg = rate_text[:1].upper() == 'N'
+            try:
+                rate = int(rate_text[1:] if neg else rate_text)
+            except ValueError:
+                continue
+            i = len(found)
+            name = f'{level}_spin_{i}.ttm'
+            ex = extract.Extractor(max_tex=128)
+            ex.add(n)
+            ttm.write(str(out / name), ex.textures, ex.batches())
+            n.setHpr(0, 0, 0)  # initProps: prop.setHpr(0, 0, 0) before the spin
+            world = [n.getMat(model).getCell(r, c) for r in range(4) for c in range(3)]
+            found.append({'file': name, 'axis': parts[2], 'rate': -rate if neg else rate,
+                          'world': world, 'zone': spec.get('parentEntId', 0)})
+            n.stash()
+    return found
+
+
 def bake(level, args, base):
     import level_spec_load
     spec_name, cog_name = LEVELS[level]
@@ -431,7 +472,10 @@ def bake(level, args, base):
     out.mkdir(parents=True, exist_ok=True)
     report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
     report['lift_guards'] = lift_guards(ents, model)
-    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level))
+    out.mkdir(parents=True, exist_ok=True)
+    spins = spin_props(level, ents, model, out)
+    report['spin_props'] = [s['file'] for s in spins]
+    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level), spins)
     if not args.tlv_only:
         report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)
         import assemble

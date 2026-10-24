@@ -14,6 +14,7 @@ it under the entity node, so the runtime only adds the part's animated offset:
   stomper_*, stomper_lb_*  DistributedStomper.loadModel (square_stomper / LB_square_stomper)
   lift     DistributedLift.initPlatform (Elevator: floor model, floor/ceiling/wall boxes)
   barrel*, gag_icon_<track>_<level>  DistributedBarrelBase (gagTank + its labels)
+  gear_*   GearEntity; paint_mixer_* PaintMixer / PlatformEntity; tread ConveyorBelt
 Deterministic; at most 3 ETC1 encoder threads.
 """
 import json
@@ -196,6 +197,56 @@ def bake_barrels(base, resources, out):
     return report
 
 
+def bake_gears(base, resources, out):
+    """GearEntity.ModelPaths: FactoryGearB / MintGear (scaled by gearScale and spun at runtime).
+    gear_<type>.box: the disc's bounds in model space (radius in X/Y, thickness in Z)."""
+    report = {}
+    for name, path in (('factory', 'phase_9/models/cogHQ/FactoryGearB.bam'),
+                       ('mint', 'phase_10/models/cashbotHQ/MintGear.bam')):
+        model = base.loader.loadModel(str(resources / path), noCache=True)
+        report[f'gear_{name}'] = write_part(model, None, out / f'gear_{name}.ttm')
+        lo, hi = model.getTightBounds()
+        (out / f'gear_{name}.box').write_text(' '.join(f'{v:.4f}' for v in (*lo, *hi)) + '\n')
+        model.removeNode()
+    return report
+
+
+def bake_paint_mixer(base, resources, out):
+    """PaintMixer.start: the top (cup) and the base shaft that shaftScale stretches about
+    PaintMixerBase1. paint_mixer.box: lines "floor|wall minx miny minz maxx maxy maxz" (model
+    space) and "shaft_origin x y z"."""
+    model = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/PaintMixer.bam'), noCache=True)
+    top = model.find('**/PaintMixerTop/+GeomNode')
+    shaft = model.find('**/PaintMixerBase1')
+    report = {'paint_mixer_top': write_part(model, top, out / 'paint_mixer_top.ttm')}
+    origin = shaft.getPos(model)
+    copy = shaft.copyTo(model)
+    copy.clearTransform()  # its geometry in PaintMixerBase1's own space
+    report['paint_mixer_shaft'] = write_part(model, copy, out / 'paint_mixer_shaft.ttm')
+    copy.removeNode()
+    lines = ['floor ' + ' '.join(f'{v:.3f}' for v in collision_box(model.find('**/PaintMixerFloorCollision'), model))]
+    for wall in ('PaintMixerSideCollision', 'PaintMixerBaseSideCollision'):
+        n = model.find('**/' + wall)
+        if not n.isEmpty():
+            lines.append('wall ' + ' '.join(f'{v:.3f}' for v in collision_box(n, model)))
+    lines.append('shaft_origin ' + ' '.join(f'{v:.4f}' for v in origin))
+    (out / 'paint_mixer.box').write_text('\n'.join(lines) + '\n')
+    report['paint_mixer_boxes'] = lines
+    model.removeNode()
+    return report
+
+
+def bake_tread(base, resources, out):
+    """ConveyorBelt.initBelt: platform1 (setSx(widthScale) at runtime) and its floor box."""
+    model = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/platform1.bam'), noCache=True)
+    report = {'tread': write_part(model, model.find('**/platform'), out / 'tread.ttm')}
+    box = collision_box(model.find('**/platformcollision'), model)
+    (out / 'tread.box').write_text(' '.join(f'{v:.3f}' for v in box) + '\n')
+    report['tread_box'] = box
+    model.removeNode()
+    return report
+
+
 def bake_stomper(base, resources, out, name, path):
     """DistributedStomper.loadModel: square_stomper's head (scaled by headScale) and the shaft
     under it (offset, then shaftScale). Head baked in model space; shaft in its node's space.
@@ -263,7 +314,10 @@ def main():
               'stomper_lb': bake_stomper(base, resources, out, 'stomper_lb',
                                          'phase_11/models/lawbotHQ/LB_square_stomper.bam'),
               'lift': bake_lift(base, resources, out),
-              'barrels': bake_barrels(base, resources, out)}
+              'barrels': bake_barrels(base, resources, out),
+              'gears': bake_gears(base, resources, out),
+              'paint_mixer': bake_paint_mixer(base, resources, out),
+              'tread': bake_tread(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}

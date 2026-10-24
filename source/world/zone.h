@@ -37,7 +37,9 @@ public:
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
     // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call
     // it every frame. A chunk changing LOD keeps drawing its old LOD until then.
-    bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
+    // reach: how far below the feet a floor still names the cell (facility levels look far
+    // down: DistributedLevel's camera ray onto the zone floors has no length limit).
+    bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
     bool loading() const; // chunks of the current plan are still in flight
     // Server zones to show (and report in visibleZones) on top of the current cell's PVS,
     // e.g. the rooms behind an open facility door (otp/level/VisibilityExtender). The next

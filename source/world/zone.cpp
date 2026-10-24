@@ -435,10 +435,10 @@ uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
     const int cell=cellAt(p,reach);
     return cell<0 ? 0 : static_cast<uint16_t>(impl_->chunks[cell].zone);
 }
-bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
+bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) {
     if (!impl_) return fail("zone: update before load");
     Impl& z=*impl_;
-    int next=cellAt(feet);
+    int next=cellAt(feet,reach);
     if (next<0 && z.cell<0) {
         // Nothing streamed yet and no tagged floor underfoot (e.g. arriving in a tunnel
         // mouth): use the cell whose bounds contain the toon, else the nearest one.

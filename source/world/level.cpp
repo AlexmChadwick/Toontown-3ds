@@ -108,6 +108,43 @@ void Level::loadProps() {
         snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", kSfxNames[k]);
         sfx_[k] = audio::loadSfx(path);
     }
+    const char* gearNames[2] = {"gear_factory", "gear_mint"};
+    for (int k = 0; k < 2; ++k) {
+        snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, gearNames[k]);
+        gearModels_[k].load(path);
+        snprintf(path, sizeof(path), "%sprops/%s.box", kDir, gearNames[k]);
+        if (FILE* f = fopen(path, "r")) {
+            float b[6];
+            if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(gearBox_[k], b, 24);
+            fclose(f);
+        }
+    }
+    snprintf(path, sizeof(path), "%sprops/paint_mixer_top.ttm", kDir);
+    mixerTop_.load(path);
+    snprintf(path, sizeof(path), "%sprops/paint_mixer_shaft.ttm", kDir);
+    mixerShaft_.load(path);
+    snprintf(path, sizeof(path), "%sprops/paint_mixer.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        char kind[16];
+        float b[6];
+        while (fscanf(f, "%15s", kind) == 1) {
+            if (!strcmp(kind, "shaft_origin")) {
+                if (fscanf(f, "%f %f %f", &b[0], &b[1], &b[2]) == 3) memcpy(mixerShaftOrigin_, b, 12);
+            } else if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) {
+                if (!strcmp(kind, "floor")) memcpy(mixerFloor_, b, 24);
+                else if (numMixerWalls_ < 2) memcpy(mixerWalls_[numMixerWalls_++], b, 24);
+            }
+        }
+        fclose(f);
+    }
+    snprintf(path, sizeof(path), "%sprops/tread.ttm", kDir);
+    treadModel_.load(path);
+    snprintf(path, sizeof(path), "%sprops/tread.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        float b[6];
+        if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(treadBox_, b, 24);
+        fclose(f);
+    }
     snprintf(path, sizeof(path), "%sprops/barrel.ttm", kDir);
     barrelModel_.load(path);
     snprintf(path, sizeof(path), "%sprops/barrel_jar.ttm", kDir);
@@ -285,6 +322,18 @@ void Level::addSolid(const float world[12], const float lo[3], const float hi[3]
     memcpy(b.hi, hi, sizeof(b.hi));
     b.motion[0] = b.motion[1] = b.motion[2] = 0.0f;
     b.wall = wall, b.floor = floor;
+    b.disc = false;
+}
+
+void Level::addDisc(const float world[12], float radius, float y0, float y1) {
+    if (numSolids_ >= kMaxSolids) return;
+    Solid& b = solids_[numSolids_++];
+    memcpy(b.world, world, sizeof(b.world));
+    b.lo[0] = -radius, b.lo[1] = y0, b.lo[2] = -radius;
+    b.hi[0] = radius, b.hi[1] = y1, b.hi[2] = radius;
+    b.motion[0] = b.motion[1] = b.motion[2] = 0.0f;
+    b.wall = b.floor = true;
+    b.disc = true;
 }
 
 bool Level::floorThunk(void* self, float x, float y, float z, float* top) {
@@ -296,7 +345,9 @@ bool Level::floorThunk(void* self, float x, float y, float z, float* top) {
         float p[3];
         toLocal(b.world, x, y, z, p);
         if (p[0] < b.lo[0] || p[0] > b.hi[0] || p[1] < b.lo[1] || p[1] > b.hi[1]) continue;
-        const float local[3] = {p[0], p[1], b.hi[2]};
+        // A disc's top under x is on its circle; a box's is its top face.
+        const float r = b.hi[0];
+        const float local[3] = {p[0], p[1], b.disc ? std::sqrt(std::max(0.0f, r * r - p[0] * p[0])) : b.hi[2]};
         float w[3];
         fromLocal(b.world, local, w);
         if (w[2] > z + kFloorReach || w[2] < z - 20.0f) continue; // above the step-up reach / far below
@@ -312,8 +363,14 @@ void Level::pushThunk(void* self, float* x, float* y, float z, float radius) {
         if (!b.wall) continue;
         float p[3];
         toLocal(b.world, *x, *y, z, p);
-        // Only what the toon cannot step onto and that reaches its body.
-        if (p[2] > b.hi[2] - kFloorReach * 0.25f || p[2] + 2.0f * radius < b.lo[2]) continue;
+        if (b.disc) {
+            // Inside a vertical gear below its rim: out of its thickness band along local Y.
+            const float r = b.hi[0];
+            if (p[0] * p[0] + p[2] * p[2] > r * r) continue;
+            if (p[2] > std::sqrt(std::max(0.0f, r * r - p[0] * p[0])) - kFloorReach * 0.25f) continue;
+        } else if (p[2] > b.hi[2] - kFloorReach * 0.25f || p[2] + 2.0f * radius < b.lo[2]) {
+            continue; // only what the toon cannot step onto and that reaches its body
+        }
         const float* ax = b.world;
         const float* ay = b.world + 3;
         const float sx = std::sqrt(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
@@ -324,8 +381,8 @@ void Level::pushThunk(void* self, float* x, float* y, float z, float radius) {
         if (p[0] <= lx0 || p[0] >= lx1 || p[1] <= ly0 || p[1] >= ly1) continue;
         // Out along the shallowest side.
         const float pen[4] = {(p[0] - lx0) * sx, (lx1 - p[0]) * sx, (p[1] - ly0) * sy, (ly1 - p[1]) * sy};
-        int side = 0;
-        for (int k = 1; k < 4; ++k)
+        int side = b.disc ? (pen[2] < pen[3] ? 2 : 3) : 0;
+        for (int k = 1; k < 4 && !b.disc; ++k)
             if (pen[k] < pen[side]) side = k;
         const float* axis = side < 2 ? ax : ay;
         const float len = side < 2 ? sx : sy;
@@ -770,6 +827,196 @@ void Level::drawBarrels(render::Renderer& renderer) const {
     }
 }
 
+namespace {
+
+// 3x4 entity-local transform composition: out = w * (rotation r, translation t), all in the
+// LevelEntity::world row layout.
+void compose(const float w[12], const float r[9], const float t[3], float out[12]) {
+    float o[12];
+    for (int row = 0; row < 3; ++row)
+        for (int c = 0; c < 3; ++c)
+            o[row * 3 + c] = r[row * 3 + 0] * w[c] + r[row * 3 + 1] * w[3 + c] + r[row * 3 + 2] * w[6 + c];
+    fromLocal(w, t, o + 9);
+    memcpy(out, o, sizeof(o));
+}
+
+// LerpBlendHelpers by name (PlatformEntity motion).
+float blend(const char* mode, float t) {
+    if (!mode) return t;
+    if (!strcmp(mode, "easeIn")) return easeIn(t);
+    if (!strcmp(mode, "easeOut")) return easeOut(t);
+    if (!strcmp(mode, "easeInOut")) return t * t * (3 - 2 * t);
+    return t;
+}
+
+} // namespace
+
+// GearEntity: gearParent (P -90 when vertical) x the spinning model (H rotation) x gearScale,
+// the vertical model first raised 0.15 (model.setZ(0.15) before the scale).
+void Level::gearMatrix(const LevelEntity& e, float t, C3D_Mtx* m) const {
+    const float dps = spec_.number(e, "degreesPerSec", 0.0f);
+    const float scale = spec_.number(e, "gearScale", 1.0f);
+    const char* orientation = spec_.string(e, "orientation");
+    const bool vertical = !orientation || strcmp(orientation, "horizontal") != 0;
+    // rotateIval.setT(frameTime - level.startTime + ivalDur * phaseShift) over 360 / |dps| s.
+    const float angle = dps * t + (dps < 0 ? -360.0f : 360.0f) * spec_.number(e, "phaseShift", 0.0f);
+    toMtx(e.world, m);
+    if (vertical) Mtx_RotateX(m, -90.0f * kDegToRad, true);
+    Mtx_RotateZ(m, std::fmod(angle, 360.0f) * kDegToRad, true);
+    Mtx_Scale(m, scale, scale, scale);
+    if (vertical) Mtx_Translate(m, 0, 0, 0.15f, true);
+}
+
+// PlatformEntity.start: wait 1/2, out 1/2 of the move, wait, back; looping from the level start.
+bool Level::platformOffset(const LevelEntity& e, float t, float out[3]) const {
+    float offset[3] = {0, 0, 0};
+    spec_.getFloats(e, "offset", offset, 3);
+    const float period = spec_.number(e, "period", 0.0f);
+    if (period <= 0.0f) {
+        out[0] = out[1] = out[2] = 0;
+        return false;
+    }
+    const float wait = period * spec_.number(e, "waitPercent", 0.0f), move = period - wait;
+    float u = std::fmod(t + period * spec_.number(e, "phaseShift", 0.0f), period);
+    if (u < 0) u += period;
+    const char* motion = spec_.string(e, "motion");
+    float k;
+    if (u < wait * 0.5f) k = 0;
+    else if (u < (wait + move) * 0.5f) k = blend(motion, clamp01((u - wait * 0.5f) / (move * 0.5f)));
+    else if (u < wait + move * 0.5f) k = 1;
+    else k = 1.0f - blend(motion, clamp01((u - wait - move * 0.5f) / (move * 0.5f)));
+    for (int c = 0; c < 3; ++c) out[c] = offset[c] * k;
+    return true;
+}
+
+void Level::updateMovers(float x, float y, float z, uint32_t nowMs) {
+    (void)x, (void)y, (void)z;
+    const float t = levelTime(nowMs);
+    int slot = 0;
+    for (int i = 0; i < spec_.numEntities(); ++i) {
+        const LevelEntity& e = spec_.entity(i);
+        if (e.flags & kLevelSynthetic) continue;
+        if (!strcmp(e.type, "gear")) {
+            const char* type = spec_.string(e, "modelType");
+            const int k = type && !strcmp(type, "mint") ? 1 : 0;
+            const char* orientation = spec_.string(e, "orientation");
+            const float scale = spec_.number(e, "gearScale", 1.0f);
+            if (!orientation || strcmp(orientation, "horizontal") != 0) {
+                // A vertical gear: a disc about entity Y (model Z after the -90 pitch).
+                const float radius = std::max(gearBox_[k][3], -gearBox_[k][0]) * scale;
+                addDisc(e.world, radius, (gearBox_[k][2] + 0.15f) * scale, (gearBox_[k][5] + 0.15f) * scale);
+            } else {
+                float lo[3] = {gearBox_[k][0] * scale, gearBox_[k][1] * scale, gearBox_[k][2] * scale};
+                float hi[3] = {gearBox_[k][3] * scale, gearBox_[k][4] * scale, gearBox_[k][5] * scale};
+                addSolid(e.world, lo, hi, true, true);
+            }
+        } else if (!strcmp(e.type, "paintMixer")) {
+            float off[3];
+            platformOffset(e, t, off);
+            float scale[3] = {1, 1, 1};
+            if (spec_.getFloats(e, "modelScale", scale, 3) == 1) scale[1] = scale[2] = scale[0];
+            const float r[9] = {scale[0], 0, 0, 0, scale[1], 0, 0, 0, scale[2]};
+            float w[12];
+            compose(e.world, r, off, w);
+            const int first = numSolids_;
+            addSolid(w, mixerFloor_, mixerFloor_ + 3, false, true);
+            if (numSolids_ > first && slot < 64) { // carry riders (MovingPlatform)
+                for (int c = 0; c < 3; ++c) solids_[first].motion[c] = moverPrev_[slot][c] ? w[9 + c] - moverPrev_[slot][c] : 0;
+                memcpy(moverPrev_[slot], w + 9, 12);
+            }
+            ++slot;
+            const float sz = spec_.number(e, "shaftScale", 1.0f);
+            for (int k = 0; k < numMixerWalls_; ++k) {
+                float lo[3], hi[3];
+                memcpy(lo, mixerWalls_[k], 12);
+                memcpy(hi, mixerWalls_[k] + 3, 12);
+                if (hi[2] <= mixerShaftOrigin_[2] + 0.1f) { // the shaft: stretched about its origin
+                    lo[2] = mixerShaftOrigin_[2] + (lo[2] - mixerShaftOrigin_[2]) * sz;
+                    hi[2] = mixerShaftOrigin_[2] + (hi[2] - mixerShaftOrigin_[2]) * sz;
+                }
+                addSolid(w, lo, hi, true, true);
+            }
+        } else if (!strcmp(e.type, "conveyorBelt")) {
+            // The treads as one floor moving along +Y at speed (MovingPlatform per tread upstream).
+            const float width = spec_.number(e, "widthScale", 1.0f);
+            const float length = spec_.number(e, "length", 10.0f);
+            const float tread = spec_.number(e, "treadLength", 10.0f);
+            const float speed = spec_.number(e, "speed", 1.0f);
+            const float lo[3] = {treadBox_[0] * width, -tread * 0.5f, treadBox_[2]};
+            const float hi[3] = {treadBox_[3] * width, length - tread * 0.5f, treadBox_[5]};
+            const int first = numSolids_;
+            addSolid(e.world, lo, hi, false, true);
+            if (numSolids_ > first) {
+                const float dt = moverPrevMs_ ? (nowMs - moverPrevMs_) / 1000.0f : 0.0f;
+                const float d[3] = {0, speed * (dt > 0.1f ? 0.1f : dt), 0};
+                float w0[3], w1[3];
+                const float origin[3] = {0, 0, 0};
+                fromLocal(e.world, origin, w0);
+                fromLocal(e.world, d, w1);
+                for (int c = 0; c < 3; ++c) solids_[first].motion[c] = w1[c] - w0[c];
+            }
+        }
+    }
+    moverPrevMs_ = nowMs;
+}
+
+void Level::drawMovers(render::Renderer& renderer) const {
+    const float t = levelTime(doorNowMs_);
+    C3D_Mtx m;
+    for (int i = 0; i < spec_.numEntities(); ++i) {
+        const LevelEntity& e = spec_.entity(i);
+        if (!strcmp(e.type, "gear")) {
+            const char* type = spec_.string(e, "modelType");
+            render::Model& model = const_cast<render::Model&>(gearModels_[type && !strcmp(type, "mint") ? 1 : 0]);
+            if (!model.loaded()) continue;
+            gearMatrix(e, t, &m);
+            renderer.drawModel(model, m);
+        } else if (!strcmp(e.type, "paintMixer")) {
+            float off[3];
+            platformOffset(e, t, off);
+            float scale[3] = {1, 1, 1};
+            if (spec_.getFloats(e, "modelScale", scale, 3) == 1) scale[1] = scale[2] = scale[0];
+            toMtx(e.world, &m);
+            Mtx_Translate(&m, off[0], off[1], off[2], true);
+            Mtx_Scale(&m, scale[0], scale[1], scale[2]);
+            if (mixerTop_.loaded()) renderer.drawModel(const_cast<render::Model&>(mixerTop_), m);
+            // PaintMixer.start: shaft.setSz(shaftScale) on PaintMixerBase1.
+            Mtx_Translate(&m, mixerShaftOrigin_[0], mixerShaftOrigin_[1], mixerShaftOrigin_[2], true);
+            Mtx_Scale(&m, 1, 1, spec_.number(e, "shaftScale", 1.0f));
+            if (mixerShaft_.loaded()) renderer.drawModel(const_cast<render::Model&>(mixerShaft_), m);
+        } else if (!strcmp(e.type, "conveyorBelt") && treadModel_.loaded()) {
+            // ConveyorBelt.start: numTreads = length / treadLength + 3 treads cycling from
+            // -treadLength; the clip planes at Y 0 and Y length hide the overhang (here: treads
+            // whose middle is outside the belt are not drawn).
+            const float length = spec_.number(e, "length", 10.0f);
+            const float tread = spec_.number(e, "treadLength", 10.0f);
+            const float speed = spec_.number(e, "speed", 1.0f);
+            const float width = spec_.number(e, "widthScale", 1.0f);
+            const int n = int(length / tread) + 3;
+            const float span = n * tread;
+            for (int k = 0; k < n; ++k) {
+                float yk = std::fmod(k * tread + speed * t, span);
+                if (yk < 0) yk += span;
+                yk -= tread;
+                if (yk < -tread * 0.5f || yk > length - tread * 0.5f) continue;
+                toMtx(e.world, &m);
+                Mtx_Translate(&m, 0, yk, 0, true);
+                Mtx_Scale(&m, width, 1, 1);
+                renderer.drawModel(const_cast<render::Model&>(treadModel_), m);
+            }
+        } else if (!strcmp(e.type, "spinProp") && e.entId < uint32_t(kMaxSpins) && spinModels_[e.entId].loaded()) {
+            // PropSpinner: rate turns a minute; axis X spins P, Y spins H, Z spins R.
+            const char* axis = spec_.string(e, "axis");
+            const float a = spec_.number(e, "rate", 0.0f) * 360.0f * t / 60.0f * kDegToRad;
+            toMtx(e.world, &m);
+            if (axis && axis[0] == 'X') Mtx_RotateX(&m, a, true);
+            else if (axis && axis[0] == 'Y') Mtx_RotateZ(&m, a, true);
+            else Mtx_RotateY(&m, a, true);
+            renderer.drawModel(const_cast<render::Model&>(spinModels_[e.entId]), m);
+        }
+    }
+}
+
 bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const {
     if (!active_ || !doorClient_) return false;
     float best = 1e30f;
@@ -871,6 +1118,15 @@ bool Level::load(const char* name) {
     std::sort(zoneNums_, zoneNums_ + numZones_); // LevelMgr.privAssignZoneIds: sorted zone nums
     TT_LOG("level: %s: %d entities, %d zones, %d chunks", name, spec_.numEntities(), numZones_, zone_.numChunks());
     loadProps();
+    // PropSpinner models of this level (bake_level.py spin_props).
+    for (int k = 0; k < kMaxSpins; ++k) spinModels_[k].unload();
+    for (int i = spec_.next("spinProp", -1); i >= 0; i = spec_.next("spinProp", i)) {
+        const LevelEntity& e = spec_.entity(i);
+        const char* file = spec_.string(e, "file");
+        if (!file || e.entId >= uint32_t(kMaxSpins)) continue;
+        snprintf(path, sizeof(path), "%s%s", kDir, file);
+        spinModels_[e.entId].load(path);
+    }
     loaded_ = true;
     return true;
 }
@@ -1110,7 +1366,8 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateStompers(client, x, y, z, nowMs);
     updateLifts(client, x, y, z, nowMs);
     updateBarrels(client, x, y, z, nowMs);
-    zone_.update(Vec3{x, y, z}, &Level::cellChanged, this);
+    updateMovers(x, y, z, nowMs);
+    zone_.update(Vec3{x, y, z}, &Level::cellChanged, this, 200.0f); // rims of gears, lifts, mixers
     if (lockZoneId_ != sentLock_) visDirty_ = true;
     if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
 
@@ -1271,6 +1528,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawStompers(renderer);
     drawLifts(renderer);
     drawBarrels(renderer);
+    drawMovers(renderer);
 }
 
 } // namespace tt::world

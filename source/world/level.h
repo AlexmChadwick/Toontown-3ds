@@ -179,6 +179,23 @@ private:
     void updateBarrels(net::Client& client, float x, float y, float z, uint32_t nowMs);
     void drawBarrels(render::Renderer& renderer) const;
     uint32_t barrelRequestMs_ = 0;
+    // Client-only movers from the spec (no network object): GearEntity, PlatformEntity /
+    // PaintMixer, ConveyorBelt, PropSpinner.
+    render::Model gearModels_[2];         // factory, mint
+    float gearBox_[2][6] = {{-1, -1, -0.304f, 1, 1, 0.0015f}, {-1, -1, 0.004f, 1, 1, 0.31f}};
+    render::Model mixerTop_, mixerShaft_, treadModel_;
+    float mixerFloor_[6] = {}, mixerWalls_[2][6] = {}, mixerShaftOrigin_[3] = {0, 0, -3.52f};
+    int numMixerWalls_ = 0;
+    float treadBox_[6] = {-5, -5, 0, 5, 5, 0.431f};
+    static constexpr int kMaxSpins = 32;
+    render::Model spinModels_[kMaxSpins];
+    float levelTime(uint32_t nowMs) const { return int32_t(nowMs - levelStartMs_) / 1000.0f; }
+    void gearMatrix(const LevelEntity& e, float t, C3D_Mtx* m) const;
+    bool platformOffset(const LevelEntity& e, float t, float out[3]) const;
+    void updateMovers(float x, float y, float z, uint32_t nowMs);
+    void drawMovers(render::Renderer& renderer) const;
+    float moverPrev_[64][3] = {};
+    uint32_t moverPrevMs_ = 0;
     render::Model buttonBase_, buttonTop_;
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)
@@ -207,15 +224,17 @@ private:
     // This frame's moving / interactive solids (oriented boxes in an entity's local space).
     struct Solid {
         float world[12];
-        float lo[3], hi[3];
+        float lo[3], hi[3];  // box; for a disc: radius hi[0] about local Y, band lo[1]..hi[1]
         float motion[3];  // world motion since last frame (carry)
         bool wall, floor;
+        bool disc;        // a vertical gear: circle in local XZ, axis local Y
     };
     static constexpr int kMaxSolids = 64;
     Solid solids_[kMaxSolids];
     int numSolids_ = 0;
     DynamicSolids dynamic_;
     void addSolid(const float world[12], const float lo[3], const float hi[3], bool wall, bool floor);
+    void addDisc(const float world[12], float radius, float y0, float y1);
     static bool floorThunk(void* self, float x, float y, float z, float* top);
     static void pushThunk(void* self, float* x, float* y, float z, float radius);
     static bool carryThunk(void* self, float x, float y, float z, float* dx, float* dy, float* dz);
