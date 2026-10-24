@@ -34,7 +34,9 @@ step "single client"
 start_server
 "$OUT/nettest" client --port "$PORT" --token alice --seconds 25 --expect-zone > "$OUT/client1.log" 2>&1 || fail=1
 stop_server
-grep -E "ENTERED ZONE|SPAWN|summary|client test" "$OUT/client1.log"
+grep -E "ENTERED ZONE|SPAWN|SUIT|summary|client test" "$OUT/client1.log"
+grep -q "test: SUIT spawn 200000021 \"f\" dept c lvlDist 1 hp 12 sp 200000020 path 11->30 len 5..300 leg 3 state" "$OUT/client1.log" || { echo "FAIL: cog did not generate as expected"; fail=1; }
+grep -q "test: SUIT update 200000021 .* state 3" "$OUT/client1.log" || { echo "FAIL: cog setPathState update missing"; fail=1; }
 grep -E "gone:" "$OUT/server.log"
 grep -q "heartbeats=[2-9]" "$OUT/server.log" || { echo "FAIL: expected >= 2 heartbeats in 25 s"; fail=1; }
 grep -q "EJECT" "$OUT/server.log" && { echo "FAIL: client was ejected"; fail=1; }

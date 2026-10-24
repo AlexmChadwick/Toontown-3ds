@@ -83,6 +83,11 @@ WANTED = {
                            'emptySlot0', 'emptySlot1', 'emptySlot2', 'emptySlot3',
                            'requestBoard', 'rejectBoard', 'requestExit', 'setMinigameZone'],
     'DistributedCCharBase': ['setChat', 'fadeAway', 'setWalk', 'avatarEnter', 'avatarExit'],
+    # ---- street cogs (source/world/suits.*, docs/design/combat.md section 3) ----
+    'DistributedSuitPlanner': ['setZoneId'],
+    'DistributedSuit': ['setDNAString', 'setLevelDist', 'setBrushOff', 'setSkelecog',
+                        'setSkeleRevives', 'setHP', 'setSPDoId', 'setPathEndpoints',
+                        'setPathPosition', 'setPathState', 'denyBattle', 'requestBattle'],
     'DistributedFishingPond': ['setArea'],
     'DistributedBoat': ['setState'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
@@ -115,7 +120,9 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  # interiors (2513-2522), reached through DistributedDoor
                  'DistributedToonInterior', 'DistributedToonHallInterior',
                  'DistributedHQInterior', 'DistributedGagshopInterior',
-                 'DistributedPetshopInterior']
+                 'DistributedPetshopInterior',
+                 # street branch zone / visgroup zones (cogs walking the street)
+                 'DistributedSuitPlanner', 'DistributedSuit']
 
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,

@@ -205,6 +205,18 @@ need hardware.
   - teleports to DD, DG and BR
 - No PANIC.
 
+### 2026-10-24 — Street cogs: path search and net parse (host only, no Azahar)
+- **Target:** PC (clang++, macOS arm64), not a 3DS build: `tools/suit_test/run.sh` and the
+  `tools/nettest` single-client scenario. `make -j4` also builds with zero warnings in `source/`.
+- **suit_path vs libtoontown:** 17 streets, 6,800 random queries (5,329 with a path). All
+  paths, all 452,391 legs and 1.3 M walk positions match `panda3d.toontown`
+  (`DNAStorage.getSuitPath`, `SuitLegList`); 0 failures. 0.65 s total on the PC.
+- **nettest:** descriptor vectors 621 checked, 0 failed (includes DistributedSuit/Planner).
+  A fake-server planner plus Flunky generate and update in the client; the events carry
+  the right fields. `tools/nettest/build.sh` did not link (`toon_dna.cpp` missing); fixed.
+- **Not tested:** cogs on screen (Azahar), frame cost, SD load, hardware. The runtime
+  (`world/suits.*`) is untested beyond compiling.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

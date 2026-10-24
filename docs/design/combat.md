@@ -182,7 +182,8 @@ Required-field order in ENTER_OBJECT follows declaration order (inherited fields
   4. Leg types map to the FSM states FromSky, WalkToStreet, WalkFromStreet, Walk, ToSky,
      FromSuitBuilding, ToSuitBuilding, ToToonBuilding, FromCogHQ and ToCogHQ (:420-576).
      Each leg is a linear lerp from A to B, and the heading comes from `calculateHeading`.
-  - **Risk.** `getSuitPath` and `SuitLegList` live in C++ `libtoontown` (imported via
+  - **Risk (resolved, see "Client implementation status").** `getSuitPath` and
+    `SuitLegList` live in C++ `libtoontown` (imported via
     `from panda3d.toontown import *`, `SuitBase.py:2`). Neither is in `ref/`, and the AI
     uses the same code, so a port must reproduce it bit-for-bit (graph search order and leg
     timings).
@@ -495,3 +496,124 @@ assets. All were verified with `find`.
 Full parity (all 7 tracks × 7 levels, lure/trap state, around 100 suit attacks, multi-toon
 join/adjust, SOS/NPC/pets, building battles) is **≈60–90 dev-days**, and it is
 particle-heavy.
+
+## Client implementation status (street cogs walking, no battles)
+
+Branch work, 2026-10-24. Cogs generate, walk their street paths and fly in and out on the
+3DS client. Nothing was run in Azahar or on hardware; every claim below says how it was
+checked. Battles are not started: a cog never sends `requestBattle`.
+
+### What is implemented
+
+| Piece | Where | Checked by |
+|---|---|---|
+| DC surface: `DistributedSuitPlanner`, `DistributedSuit` (all fields in section 1 plus inherited base fields) in `WANTED` and `TABLE_CLASSES` | `tools/dcgen/dcgen.py`, `source/net/dc_generated.h` (DC hash still 547155168) | `tools/nettest` unit: 621 field descriptors against Panda-packed vectors, 0 failures |
+| Net parse: planner `setZoneId`, suit `setDNAString/LevelDist/Skelecog/SkeleRevives/HP/SPDoId/PathEndpoints/PathPosition/PathState`, location changes, leaving | `source/net/client.{h,cpp}` (`Suit`, `SuitPlanner`, `findSuit`, `suitPlannerZone`; events `SuitSpawn/SuitUpdate/SuitGone/SuitPlannerUp`); every layout has a `TT_SIG` static_assert | nettest single-client scenario: `tools/nettest/fake_server.py` now generates a planner and a Flunky; the client logs both |
+| Street suit graph (`.tsp`) for all 17 streets | `tools/pipeline/bake_suit_paths.py` | `bake_suit_paths.py --check`; 274 points / 511 edges for 2100 match section 3 |
+| Path search and leg list | `source/world/suit_path.{h,cpp}` (pure C++, no libctru) | `tools/suit_test/run.sh`: 6,800 random queries against the real libtoontown, see below |
+| Cog table (name, dept, base level, hp, height) | `tools/gen_suit_tables.py` -> `source/world/suit_tables.h` | `--check` |
+| Runtime actors: placeholder box, nametag, shadow | `source/world/suits.{h,cpp}`, `romfs/baked/suit_placeholder.ttm` (`tools/pipeline/bake_suit_placeholder.py`), wiring in `source/main.cpp` | `make -j4`: zero warnings in `source/` |
+
+### The libtoontown question
+
+The section 3 "Risk" no longer applies. The Open Toontown Panda3D fork that
+`tools/server/setup.sh` builds contains the real `DNAStorage::get_suit_path_breadth_first`
+and `SuitLegList` sources (`tools/server/.deps/panda3d-ott/panda/src/{dna,suit}`), and its
+`panda3d.toontown` module is importable from `tools/server/.venv`. So the port is a
+step-for-step reimplementation, not the documented fallback, and it is verified against that
+module (`tools/suit_test/reference.py` records answers, `suit_test.cpp` replays them). The
+sources were read as a specification and nothing was copied. Result on the 17 streets: 6,800
+random (start, end, minLen, maxLen) queries, 5,329 with a path; every path matches point for
+point, all 452,391 legs match (type, start time, leg time, zone, points A/B, block), 1.3
+million walk-leg positions match `SuitLeg.getPosAtTime`, 0 failures.
+
+Details of the search that are easy to get wrong (all reproduced):
+
+- Working paths form a chain. Each generation prepends every new path as it is created, so
+  the next chain is the creation order **reversed**; the first path in chain order that
+  touches the end point wins.
+- The first `minLen - 1` generations only expand: loops allowed, door points
+  (FRONT_DOOR/SIDE_DOOR, "terminal") never entered, never straight back to the previous
+  point, and the end point is not looked for.
+- Later generations check for an edge to the end point **first** (any edge), then extend
+  with the same rules, and each point may be claimed once per generation. The original takes
+  `visited_points` by value, so the set starts empty every generation.
+- Edge order is the order `store_suit_edge` accepted them (dropped: unknown end points,
+  start == end, repeated pairs). That is why the `.tsp` keeps file order.
+- A path is capped at `maxLen` points (the AI uses 40 / 300). Street graphs are mostly one
+  lane wide, so working sets stay tiny (at most a handful of live walks per generation in the
+  pre-pass); the working pool grows on the heap and gives up cleanly at about a million
+  nodes.
+
+### File formats
+
+`.tsp` (`TSP1`, little endian), next to `<branch>.tz` in `sdmc:/3ds/toontown3ds/data/zones/`;
+the authoritative spec is the docstring of `tools/pipeline/bake_suit_paths.py`:
+
+| Section | Size | Contents |
+|---|---|---|
+| Header | 16 | `"TSP1"`, u16 version 1, u16 branch zone, u16 numPoints, u16 numEdges, u16 numCells, u16 0 |
+| Point | 20 each | u16 DNA index, u8 type (0 street, 1 front door, 2 side door, 3 CogHQ in, 4 CogHQ out), u8 0, f32 x y z, u16 landmark block, u16 0 |
+| Edge | 6 each | u16 start index, u16 end index, u16 zone (the visgroup it is in) |
+| Battle cell | 16 each | u16 zone, u8 width, u8 height, f32 x y z |
+
+The 17 files total 115 KB (4–10 KB each); at runtime one graph is resident (about 10 KB).
+Output is in `sdmc-out/3ds/toontown3ds/data/zones/<2100,2200,2300,1100,1200,1300,3100,3200,
+3300,4100,4200,4300,5100,5200,5300,9100,9200>.tsp` (gitignored; regenerate with
+`.venv/bin/python -I tools/pipeline/bake_suit_paths.py`).
+
+### Runtime behaviour
+
+The street graph is chosen by the cog's planner (`suitPlannerZone(spDoId)`), falling back to
+the branch of the zone the player is in. `setPathEndpoints` rebuilds the path (DNA indices go
+straight to `genPath`; `maxPathLen == 0` means no path yet). `setPathPosition(index, ts)`
+gives `elapsed = (now - localTime(ts)) + legStartTime(index)`, using the same
+`Client::networkToLocal` as the classic characters. Each leg's pose follows
+`DistributedSuit.enter<Leg>`:
+
+| Leg | Pose |
+|---|---|
+| Walk | lerp A -> B over the leg time |
+| WalkToStreet / WalkFromStreet | start 2.5 units out of the door / stop 2.5 units short of it (`STAND_OUTSIDE_DOOR`), floor ray on |
+| FromSuitBuilding / ToSuitBuilding | walk out to / in from 2.5 units from the door along the door-to-street line, over `walkSpeed * legTime` more units into the building |
+| ToToonBuilding | stand 2.5 units short of the front door, neutral |
+| FromSky | descend from `6.5 * 4.8 = 31.2` units above point A over 4.375 s, then wait 2.125 s; fade in over 1 s |
+| ToSky | wait 2.125 s, climb 31.2 units over 4.375 s, fade out over the last second |
+| FromCogHQ / ToCogHQ | hidden / neutral (no suit street has CogHQ doors) |
+| Off | hidden |
+
+The fly constants come from `suit{A,B,C}-landing.bam` (79 frames at 24 fps, `groundF` 28), as
+in `DistributedSuitBase.beginSupaFlyMove`. Heading is `calculateHeading(A, B)`. Path states:
+1 walks; 0 and 3 freeze where the cog is (3 is a no-op upstream); 2 flies away from the
+current pose; 4 waits 9.08 s (victory dance) then flies away. The cog is hidden until a path
+state puts it on a leg, like the FSM's Off state.
+
+**Fallback.** If the graph file is missing or no path exists, the cog stands on the battle
+cell of its zone (from the `.tsp`) and is hidden when there is none. It does not wander.
+
+**Nametag.** `"<Name> Level <n>"` through `ui::Balloons`, n = `baseLevel + levelDist + 1`
+(`SuitBase.getActualLevel`), coloured per department. Upstream also shows the department on
+a second line; the single line fits the existing balloon code.
+
+### Remaining
+
+- **Battle start.** Detect contact with the cog's body tube (`CollisionTube(0, 0, 0.5, 0, 0,
+  height - 1, r = 1)`) on Walk/FromSky/ToSky/door legs; go to place state WaitForBattle; send
+  `requestBattle(x, y, z, h, p, r)` through a new `TT_NET_UPDATE(w, suitDoId, DistributedSuit,
+  requestBattle)` (the id and signature are already generated; the whitelist entry and a
+  sender do not exist); handle `denyBattle` (return to walk) and `setBrushOff` (chat bubble).
+  Then everything in sections 4 to 7 (`DistributedBattle` parse, FaceOff, movies, rewards).
+  Position broadcasts must stop while `battleId != 0`.
+- **Real cog models.** Replace the box with the baked suit A/B/C bodies, heads, department
+  textures and the walk, neutral, landing and victory animations; propeller prop and fade
+  (the pose already carries `alpha` and `anim`); door-open animation for the door legs;
+  skelecog look; health bar; `setHP` is parsed but unused.
+- **Shared placeholders:** `kMaxSuits` is 16 (a street visibility set rarely holds more);
+  extra cogs are dropped with a log line.
+- **Not measured:** per-frame cost of up to 16 cogs, SD read of the `.tsp` on hardware,
+  path search time on an Old 3DS (the whole 6,800-query host test, including 7 million pose
+  samples, runs in 0.65 s on the PC).
+  Not run in Azahar or on hardware.
+- **Not parsed:** `DistributedSuit` subclasses of other families (`DistributedFactorySuit`,
+  boss cogs, tutorial suit), `DistributedBuilding` suit takeovers, planner list queries,
+  `debugSuitPosition` (the debug-only resync check).

@@ -72,6 +72,17 @@ TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
 TT_SIG(DistributedCCharBase, setWalk, "string,string,i16");
 TT_SIG(DistributedBoat, setState, "string,i16");
+TT_SIG(DistributedSuitPlanner, setZoneId, "u32");
+TT_SIG(DistributedSuit, setDNAString, "blob");
+TT_SIG(DistributedSuit, setLevelDist, "i16");
+TT_SIG(DistributedSuit, setSkelecog, "u8");
+TT_SIG(DistributedSuit, setSkeleRevives, "u8");
+TT_SIG(DistributedSuit, setHP, "i16");
+TT_SIG(DistributedSuit, setSPDoId, "u32");
+TT_SIG(DistributedSuit, setPathEndpoints, "u16,u16,u16,u16");
+TT_SIG(DistributedSuit, setPathPosition, "u16,i16");
+TT_SIG(DistributedSuit, setPathState, "i8");
+TT_SIG(DistributedSuit, setBrushOff, "i16");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -356,6 +367,7 @@ void Client::resetWorld() {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;
     }
+    clearSuits();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
@@ -507,6 +519,10 @@ void Client::handleMessage(DatagramReader& r) {
             t->zoneId = zone;
             if (parent != shardId_ || zone != cfg_.zoneId) handleLeaving(doId);
         }
+        // A cog crossing into the next visgroup (DistributedSuitAI.sendSetZone).
+        for (Suit& su : suits_) {
+            if (r.ok() && su.active && su.doId == doId) su.zoneId = zone;
+        }
         break;
     }
     case msg::CLIENT_DONE_INTEREST_RESP: {
@@ -642,6 +658,40 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleBoatEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (classId == dc::DistributedSuit::kClassId) {
+        handleSuitEnter(doId, zone, r, req, reqCount, other);
+        return;
+    }
+    if (classId == dc::DistributedSuitPlanner::kClassId) {
+        // One per street, in the branch zone: setZoneId names the street DNA to walk.
+        SuitPlanner* sp = nullptr;
+        for (SuitPlanner& s : planners_) {
+            if (s.active && s.doId == doId) sp = &s;
+        }
+        for (SuitPlanner& s : planners_) {
+            if (!sp && !s.active) sp = &s;
+        }
+        if (!sp) return;
+        sp->doId = doId;
+        sp->zoneId = zone; // overwritten by setZoneId below
+        for (uint16_t i = 0; i < reqCount && r.ok(); ++i) {
+            if (req[i] == dc::DistributedSuitPlanner::k_setZoneId) sp->zoneId = r.u32();
+            else skipField(r, req[i]);
+        }
+        if (other) {
+            uint16_t count = r.u16();
+            for (uint16_t i = 0; i < count && r.ok(); ++i) {
+                const uint16_t fid = r.u16();
+                if (fid == dc::DistributedSuitPlanner::k_setZoneId) sp->zoneId = r.u32();
+                else skipField(r, fid);
+            }
+        }
+        if (!r.ok()) return;
+        sp->active = true;
+        TT_LOG("net: suit planner %u for street %u", unsigned(doId), unsigned(sp->zoneId));
+        pushEvent(EventType::SuitPlannerUp, doId);
+        return;
+    }
 }
 
 void Client::maybeSkipTutorial() {
@@ -682,6 +732,12 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
                 if (applyCCharField(c, r, fieldId)) pushEvent(EventType::CCharWalk, doId);
             }
             return; // setChat / fadeAway / Dale's setFollowChip: not shown yet
+        }
+    }
+    for (Suit& su : suits_) {
+        if (su.active && su.doId == doId) {
+            if (applySuitField(su, r, fieldId)) pushEvent(EventType::SuitUpdate, doId);
+            return;
         }
     }
     if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
@@ -757,6 +813,15 @@ void Client::handleLeaving(uint32_t doId) {
     if (boat_.active && boat_.doId == doId) {
         boat_.active = false;
         pushEvent(EventType::BoatGone, doId);
+    }
+    for (Suit& su : suits_) {
+        if (su.active && su.doId == doId) {
+            su.active = false;
+            pushEvent(EventType::SuitGone, doId);
+        }
+    }
+    for (SuitPlanner& sp : planners_) {
+        if (sp.active && sp.doId == doId) sp.active = false;
     }
 }
 
@@ -1165,6 +1230,59 @@ bool Client::applyBoatField(Boat& b, DatagramReader& r, uint16_t fieldId) {
     return r.ok();
 }
 
+// ---- street cogs (DistributedSuit) ----
+void Client::clearSuits() {
+    for (Suit& su : suits_) {
+        if (su.active) pushEvent(EventType::SuitGone, su.doId);
+        su.active = false;
+    }
+    for (SuitPlanner& sp : planners_) sp.active = false;
+}
+
+bool Client::applySuitField(Suit& s, DatagramReader& r, uint16_t fieldId) {
+    switch (fieldId) {
+    case dc::DistributedSuit::k_setDNAString: {
+        // SuitDNA.makeFromNetString: 's', a 3-byte NUL padded head code, a dept letter.
+        Bytes b = r.blob();
+        if (!r.ok()) return false;
+        s.name[0] = 0;
+        s.dept = 0;
+        s.hasDna = false;
+        if (b.len >= 5 && b.data[0] == 's') {
+            int n = 0;
+            for (int i = 0; i < 3 && b.data[1 + i]; ++i) s.name[n++] = char(b.data[1 + i]);
+            s.name[n] = 0;
+            s.dept = char(b.data[4]);
+            s.hasDna = n > 0;
+        }
+        break;
+    }
+    case dc::DistributedSuit::k_setLevelDist: s.levelDist = r.i16(); break;
+    case dc::DistributedSuit::k_setSkelecog: s.skelecog = r.u8(); break;
+    case dc::DistributedSuit::k_setSkeleRevives: s.skeleRevives = r.u8(); break;
+    case dc::DistributedSuit::k_setHP: s.hp = r.i16(); break;
+    case dc::DistributedSuit::k_setSPDoId: s.spDoId = r.u32(); break;
+    case dc::DistributedSuit::k_setPathEndpoints:
+        s.pathStart = r.u16();
+        s.pathEnd = r.u16();
+        s.pathMinLen = r.u16();
+        s.pathMaxLen = r.u16();
+        break;
+    case dc::DistributedSuit::k_setPathPosition: {
+        s.pathIndex = r.u16();
+        const int16_t ts = r.i16();
+        // pathStartTime = networkToLocalTime(timestamp) - legList.getStartTime(index)
+        s.pathPosMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        break;
+    }
+    case dc::DistributedSuit::k_setPathState: s.pathState = r.i8(); break;
+    default: // setBrushOff (chat only), denyBattle, anything inherited
+        skipField(r, fieldId);
+        break;
+    }
+    return r.ok();
+}
+
 void Client::handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other) {
     Boat tmp{};
     tmp.doId = doId;
@@ -1182,6 +1300,57 @@ void Client::handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* r
     boat_ = tmp;
     TT_LOG("net: boat %u state %d", unsigned(doId), int(tmp.state));
     pushEvent(EventType::BoatSpawn, doId);
+}
+
+bool Client::handleSuitEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                             bool other) {
+    Suit* su = nullptr;
+    for (Suit& s : suits_) {
+        if (s.active && s.doId == doId) su = &s;
+    }
+    for (Suit& s : suits_) {
+        if (!su && !s.active) su = &s;
+    }
+    if (!su) {
+        TT_LOG("net: no room for cog %u", unsigned(doId));
+        return false;
+    }
+    Suit tmp{};
+    tmp.doId = doId;
+    tmp.zoneId = zone;
+    tmp.pathPosMs = now_;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applySuitField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applySuitField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: cog %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    const bool fresh = !su->active;
+    tmp.active = true;
+    *su = tmp;
+    TT_LOG("net: cog %u \"%s\" lvl %d zone %u path %u->%u leg %u state %d", unsigned(doId), su->name,
+           int(su->levelDist), unsigned(zone), unsigned(su->pathStart), unsigned(su->pathEnd), unsigned(su->pathIndex),
+           int(su->pathState));
+    pushEvent(fresh ? EventType::SuitSpawn : EventType::SuitUpdate, doId);
+    return true;
+}
+
+const Suit* Client::findSuit(uint32_t doId) const {
+    for (const Suit& s : suits_) {
+        if (s.active && s.doId == doId) return &s;
+    }
+    return nullptr;
+}
+
+uint32_t Client::suitPlannerZone(uint32_t doId) const {
+    for (const SuitPlanner& sp : planners_) {
+        if (sp.active && sp.doId == doId) return sp.zoneId;
+    }
+    return 0;
 }
 
 const CChar* Client::findCChar(uint32_t doId) const {
@@ -1448,6 +1617,7 @@ void Client::dropZoneObjects() {
     }
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
+    clearSuits();
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {

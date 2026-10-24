@@ -12,6 +12,7 @@ CXX="${CXX:-clang++}"
     "$ROOT/source/net/connection.cpp" \
     "$ROOT/source/net/client.cpp" \
     "$ROOT/source/net/net_platform.cpp" \
+    "$ROOT/source/world/toon_dna.cpp" \
     "$HERE/log_host.cpp" \
     "$HERE/nettest.cpp" \
     -lpthread -o "$HERE/out/nettest"
