@@ -343,6 +343,33 @@ WANTED['DistributedClubElevator'] = ['setLocked', 'setLatch']  # the country clu
 TABLE_CLASSES += ['DistributedElevatorFloor', 'DistributedClubElevator']
 # ---- end facility levels ----
 
+# ---- Cog boss battles (client_boss.cpp, docs/design/bosses.md) ----
+_BOSS_FIELDS = {
+    'DistributedObject': ['setBarrierData', 'setBarrierReady'],
+    'DistributedBossCog': ['setDNAString', 'setToonIds', 'setBattleIds', 'setArenaSide',
+                          'avatarEnter', 'avatarExit', 'avatarNearEnter', 'avatarNearExit',
+                          'toonDied', 'setBattleExperience', 'zapToon', 'showZapToon', 'setAttackCode'],
+    'DistributedSellbotBoss': ['setCagedToonNpcId', 'setDooberIds', 'setBossDamage', 'setState',
+                              'hitBoss', 'hitBossInsides', 'hitToon', 'finalPieSplat', 'touchCage',
+                              'doStrafe', 'cagedToonBattleThree', 'toonPromoted'],
+    'DistributedCashbotBoss': ['setState', 'setBossDamage', 'setRewardId', 'applyReward'],
+    'DistributedLawbotBoss': ['setState', 'setBossDamage', 'touchWitnessStand', 'hitBoss', 'healBoss',
+                             'hitToon', 'hitDefensePan', 'hitProsecutionPan', 'hitChair', 'setLawyerIds',
+                             'setTaunt', 'toonGotHealed', 'enteredBonusState', 'setBattleDifficulty'],
+    'DistributedBossbotBoss': ['setState', 'setBattleDifficulty', 'requestGetFood', 'toonGotFood',
+                             'requestServeFood', 'toonServeFood', 'hitBoss', 'hitToon', 'ballHitBoss',
+                             'setBossDamage', 'setSpeedDamage', 'reachedTable', 'hitTable',
+                             'awayFromTable', 'toonGotHealed', 'requestGetToonup', 'toonGotToonup'],
+    'DistributedBossElevator': ['setBossOfficeZone', 'setBossOfficeZoneForce'],
+    'DistributedVPElevator': [], 'DistributedCFOElevator': [], 'DistributedCJElevator': [],
+    'DistributedBBElevator': [], 'DistributedBattleFinal': ['setBossCogId', 'setBattleNumber', 'setBattleSide'],
+}
+for _name, _fields in _BOSS_FIELDS.items():
+    WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))
+    if _name not in TABLE_CLASSES:
+        TABLE_CLASSES.append(_name)
+WANTED['DistributedToon'] += ['setPieType', 'setNumPies']
+
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.
 WANTED['DistributedToon'] += ['setFriendsList', 'friendsNotify', 'setWhisperSCFrom',

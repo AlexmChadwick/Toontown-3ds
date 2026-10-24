@@ -450,6 +450,13 @@ void Client::fail(const char* why, bool retry) {
     }
     error_ = errorBuf_;
     TT_LOG("net: error in %s: %s", stateName(state_), why);
+    // A VP dynamic zone is destroyed when its riders disconnect. Reconnect to
+    // the static lobby instead of requesting an interest in the abandoned office.
+    if (boss_.active && boss_.kind == BossKind::Sellbot) {
+        cfg_.zoneId = 11100; // ToontownGlobals.SellbotLobby
+        targetZone_ = 11100;
+        numVisZones_ = 0;
+    }
     transport_->disconnect();
     resetWorld();
     if (!retry || fatal_) {
@@ -463,6 +470,8 @@ void Client::fail(const char* why, bool retry) {
 }
 
 void Client::resetWorld() {
+    boss_ = BossState{};
+    bossPies_ = 0;
     bool hadWorld = state_ == State::InZone || numToons_ > 0;
     for (RemoteToon& t : toons_) {
         if (t.active) pushEvent(EventType::Despawn, t.doId);
@@ -830,6 +839,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
     if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
         handleCogBuildingEnter(doId, r, req, reqCount, other);
@@ -923,6 +933,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
@@ -1047,6 +1058,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    if (boss_.active && boss_.doId == doId) boss_ = BossState{};
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
     for (RacingBlock& b : racingBlocks_) if (b.active && b.doId == doId) { b = RacingBlock{}; pushEvent(EventType::RacingGone, doId); return; }
@@ -1350,6 +1362,7 @@ uint32_t Client::retryInMs() const {
 }
 
 bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
+    if (bossOwnField(r, fieldId)) return r.ok();
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
@@ -1886,6 +1899,7 @@ bool Client::parseBattleExperience(Battle& b, DatagramReader& r) {
 }
 
 bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bool live) {
+    if (bossBattleField(b, r, fieldId)) return r.ok();
     switch (fieldId) {
     case dc::DistributedBattle::k_setPosition:
         b.x = r.i16() / 10.0f;
@@ -1973,6 +1987,7 @@ bool Client::handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, 
         TT_LOG("net: battle %u generate did not parse", unsigned(doId));
         return false;
     }
+    positionBossBattle(tmp);
     tmp.active = true;
     // DistributedLevelBattle.setBattleCellId: facility battles sit on their spec battle cell
     // (setPosition is a no-op there); the level runtime knows where that is in our world.
@@ -2531,6 +2546,8 @@ void Client::sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uin
 }
 
 void Client::dropZoneObjects() {
+    boss_ = BossState{};
+    bossPies_ = 0;
     // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
     // server also sends OBJECT_LEAVING; unknown ids are ignored then).
     for (RemoteToon& t : toons_) {
@@ -4372,8 +4389,11 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZone ||
                fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce ||
                fieldId == dc::DistributedCogKart::k_setCountryClubInteriorZone ||
-               fieldId == dc::DistributedCogKart::k_setCountryClubInteriorZoneForce) {
+               fieldId == dc::DistributedCogKart::k_setCountryClubInteriorZoneForce ||
+               fieldId == dc::DistributedBossElevator::k_setBossOfficeZone ||
+               fieldId == dc::DistributedBossElevator::k_setBossOfficeZoneForce) {
         e.destZone = r.u32();
+        e.forcedBossDestination = fieldId == dc::DistributedBossElevator::k_setBossOfficeZoneForce;
         if (r.ok()) pushEvent(EventType::CogElevatorUp, e.doId); // the riders' cue to go
     } else return skipField(r, fieldId);
     return r.ok();

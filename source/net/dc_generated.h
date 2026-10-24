@@ -545,6 +545,8 @@ constexpr uint16_t k_setKartingHistory = 571;
 constexpr uint16_t k_setGolfHistory = 589;
 constexpr uint16_t k_setPackedGolfHoleBest = 590;
 constexpr uint16_t k_setGolfCourseBest = 591;
+constexpr uint16_t k_setPieType = 549;
+constexpr uint16_t k_setNumPies = 550;
 constexpr uint16_t k_setFriendsList = 131;
 constexpr uint16_t k_friendsNotify = 114;
 constexpr uint16_t k_setWhisperSCFrom = 123;
@@ -619,6 +621,8 @@ constexpr uint16_t kw_setKartingHistory = 0x089;
 constexpr uint16_t kw_setGolfHistory = 0x089;
 constexpr uint16_t kw_setPackedGolfHoleBest = 0x089;
 constexpr uint16_t kw_setGolfCourseBest = 0x089;
+constexpr uint16_t kw_setPieType = 0x086;
+constexpr uint16_t kw_setNumPies = 0x086;
 constexpr uint16_t kw_setFriendsList = 0x189;
 constexpr uint16_t kw_friendsNotify = 0x190;
 constexpr uint16_t kw_setWhisperSCFrom = 0x090;
@@ -693,6 +697,8 @@ constexpr const char* sig_setKartingHistory = "u8[16]";
 constexpr const char* sig_setGolfHistory = "u16[18]";
 constexpr const char* sig_setPackedGolfHoleBest = "u8[18]";
 constexpr const char* sig_setGolfCourseBest = "u8[3]";
+constexpr const char* sig_setPieType = "u8";
+constexpr const char* sig_setNumPies = "u16";
 constexpr const char* sig_setFriendsList = "{u32,u8}[]";
 constexpr const char* sig_friendsNotify = "i32,i8";
 constexpr const char* sig_setWhisperSCFrom = "u32,u16";
@@ -2874,6 +2880,255 @@ constexpr const char* sig_setLocked = "u16";
 constexpr const char* sig_setLatch = "u32";
 } // namespace DistributedClubElevator
 
+namespace DistributedObject {
+constexpr uint16_t kClassId = 4;
+constexpr uint16_t k_setBarrierData = 22;
+constexpr uint16_t k_setBarrierReady = 23;
+constexpr uint16_t kw_setBarrierData = 0x006;
+constexpr uint16_t kw_setBarrierReady = 0x110;
+constexpr const char* sig_setBarrierData = "{u16,string,u32[]}[]";
+constexpr const char* sig_setBarrierReady = "u16";
+} // namespace DistributedObject
+
+namespace DistributedBossCog {
+constexpr uint16_t kClassId = 94;
+constexpr uint16_t k_setDNAString = 670;
+constexpr uint16_t k_setToonIds = 671;
+constexpr uint16_t k_setBattleIds = 672;
+constexpr uint16_t k_setArenaSide = 673;
+constexpr uint16_t k_avatarEnter = 674;
+constexpr uint16_t k_avatarExit = 675;
+constexpr uint16_t k_avatarNearEnter = 676;
+constexpr uint16_t k_avatarNearExit = 677;
+constexpr uint16_t k_toonDied = 678;
+constexpr uint16_t k_setBattleExperience = 679;
+constexpr uint16_t k_zapToon = 680;
+constexpr uint16_t k_showZapToon = 681;
+constexpr uint16_t k_setAttackCode = 682;
+constexpr uint16_t kw_setDNAString = 0x00b;
+constexpr uint16_t kw_setToonIds = 0x006;
+constexpr uint16_t kw_setBattleIds = 0x006;
+constexpr uint16_t kw_setArenaSide = 0x006;
+constexpr uint16_t kw_avatarEnter = 0x110;
+constexpr uint16_t kw_avatarExit = 0x110;
+constexpr uint16_t kw_avatarNearEnter = 0x110;
+constexpr uint16_t kw_avatarNearExit = 0x110;
+constexpr uint16_t kw_toonDied = 0x002;
+constexpr uint16_t kw_setBattleExperience = 0x007;
+constexpr uint16_t kw_zapToon = 0x110;
+constexpr uint16_t kw_showZapToon = 0x002;
+constexpr uint16_t kw_setAttackCode = 0x002;
+constexpr const char* sig_setDNAString = "blob";
+constexpr const char* sig_setToonIds = "u32[],u32[],u32[]";
+constexpr const char* sig_setBattleIds = "u8,u32,u32";
+constexpr const char* sig_setArenaSide = "u8";
+constexpr const char* sig_avatarEnter = "";
+constexpr const char* sig_avatarExit = "";
+constexpr const char* sig_avatarNearEnter = "";
+constexpr const char* sig_avatarNearExit = "";
+constexpr const char* sig_toonDied = "u32";
+constexpr const char* sig_setBattleExperience = "i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],u8[],i16[],u32[]";
+constexpr const char* sig_zapToon = "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,i8/100,i8/100,u8,i16";
+constexpr const char* sig_showZapToon = "u32,i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,u8,i16";
+constexpr const char* sig_setAttackCode = "u8,u32";
+} // namespace DistributedBossCog
+
+namespace DistributedSellbotBoss {
+constexpr uint16_t kClassId = 95;
+constexpr uint16_t k_setCagedToonNpcId = 683;
+constexpr uint16_t k_setDooberIds = 684;
+constexpr uint16_t k_setBossDamage = 685;
+constexpr uint16_t k_setState = 686;
+constexpr uint16_t k_hitBoss = 687;
+constexpr uint16_t k_hitBossInsides = 688;
+constexpr uint16_t k_hitToon = 689;
+constexpr uint16_t k_finalPieSplat = 690;
+constexpr uint16_t k_touchCage = 691;
+constexpr uint16_t k_doStrafe = 692;
+constexpr uint16_t k_cagedToonBattleThree = 693;
+constexpr uint16_t k_toonPromoted = 694;
+constexpr uint16_t kw_setCagedToonNpcId = 0x007;
+constexpr uint16_t kw_setDooberIds = 0x006;
+constexpr uint16_t kw_setBossDamage = 0x006;
+constexpr uint16_t kw_setState = 0x006;
+constexpr uint16_t kw_hitBoss = 0x110;
+constexpr uint16_t kw_hitBossInsides = 0x110;
+constexpr uint16_t kw_hitToon = 0x110;
+constexpr uint16_t kw_finalPieSplat = 0x110;
+constexpr uint16_t kw_touchCage = 0x110;
+constexpr uint16_t kw_doStrafe = 0x002;
+constexpr uint16_t kw_cagedToonBattleThree = 0x002;
+constexpr uint16_t kw_toonPromoted = 0x000;
+constexpr const char* sig_setCagedToonNpcId = "u32";
+constexpr const char* sig_setDooberIds = "u32[]";
+constexpr const char* sig_setBossDamage = "u16,u8,i16";
+constexpr const char* sig_setState = "string";
+constexpr const char* sig_hitBoss = "u8";
+constexpr const char* sig_hitBossInsides = "";
+constexpr const char* sig_hitToon = "u32";
+constexpr const char* sig_finalPieSplat = "";
+constexpr const char* sig_touchCage = "";
+constexpr const char* sig_doStrafe = "u8,u8";
+constexpr const char* sig_cagedToonBattleThree = "u16,u32";
+constexpr const char* sig_toonPromoted = "u8";
+} // namespace DistributedSellbotBoss
+
+namespace DistributedCashbotBoss {
+constexpr uint16_t kClassId = 96;
+constexpr uint16_t k_setState = 695;
+constexpr uint16_t k_setBossDamage = 696;
+constexpr uint16_t k_setRewardId = 697;
+constexpr uint16_t k_applyReward = 698;
+constexpr uint16_t kw_setState = 0x006;
+constexpr uint16_t kw_setBossDamage = 0x006;
+constexpr uint16_t kw_setRewardId = 0x006;
+constexpr uint16_t kw_applyReward = 0x110;
+constexpr const char* sig_setState = "string";
+constexpr const char* sig_setBossDamage = "u16";
+constexpr const char* sig_setRewardId = "u16";
+constexpr const char* sig_applyReward = "";
+} // namespace DistributedCashbotBoss
+
+namespace DistributedLawbotBoss {
+constexpr uint16_t kClassId = 328;
+constexpr uint16_t k_setState = 1824;
+constexpr uint16_t k_setBossDamage = 1825;
+constexpr uint16_t k_touchWitnessStand = 1826;
+constexpr uint16_t k_hitBoss = 1827;
+constexpr uint16_t k_healBoss = 1828;
+constexpr uint16_t k_hitToon = 1829;
+constexpr uint16_t k_hitDefensePan = 1830;
+constexpr uint16_t k_hitProsecutionPan = 1831;
+constexpr uint16_t k_hitChair = 1832;
+constexpr uint16_t k_setLawyerIds = 1833;
+constexpr uint16_t k_setTaunt = 1834;
+constexpr uint16_t k_toonGotHealed = 1835;
+constexpr uint16_t k_enteredBonusState = 1836;
+constexpr uint16_t k_setBattleDifficulty = 1837;
+constexpr uint16_t kw_setState = 0x006;
+constexpr uint16_t kw_setBossDamage = 0x006;
+constexpr uint16_t kw_touchWitnessStand = 0x110;
+constexpr uint16_t kw_hitBoss = 0x110;
+constexpr uint16_t kw_healBoss = 0x110;
+constexpr uint16_t kw_hitToon = 0x110;
+constexpr uint16_t kw_hitDefensePan = 0x110;
+constexpr uint16_t kw_hitProsecutionPan = 0x110;
+constexpr uint16_t kw_hitChair = 0x110;
+constexpr uint16_t kw_setLawyerIds = 0x006;
+constexpr uint16_t kw_setTaunt = 0x002;
+constexpr uint16_t kw_toonGotHealed = 0x002;
+constexpr uint16_t kw_enteredBonusState = 0x002;
+constexpr uint16_t kw_setBattleDifficulty = 0x006;
+constexpr const char* sig_setState = "string";
+constexpr const char* sig_setBossDamage = "u16,u8,i16";
+constexpr const char* sig_touchWitnessStand = "";
+constexpr const char* sig_hitBoss = "u8";
+constexpr const char* sig_healBoss = "u8";
+constexpr const char* sig_hitToon = "u32";
+constexpr const char* sig_hitDefensePan = "";
+constexpr const char* sig_hitProsecutionPan = "";
+constexpr const char* sig_hitChair = "u8,u8";
+constexpr const char* sig_setLawyerIds = "u32[]";
+constexpr const char* sig_setTaunt = "i8,i8";
+constexpr const char* sig_toonGotHealed = "u32";
+constexpr const char* sig_enteredBonusState = "";
+constexpr const char* sig_setBattleDifficulty = "u8";
+} // namespace DistributedLawbotBoss
+
+namespace DistributedBossbotBoss {
+constexpr uint16_t kClassId = 358;
+constexpr uint16_t k_setState = 2015;
+constexpr uint16_t k_setBattleDifficulty = 2016;
+constexpr uint16_t k_requestGetFood = 2017;
+constexpr uint16_t k_toonGotFood = 2018;
+constexpr uint16_t k_requestServeFood = 2019;
+constexpr uint16_t k_toonServeFood = 2020;
+constexpr uint16_t k_hitBoss = 2021;
+constexpr uint16_t k_hitToon = 2022;
+constexpr uint16_t k_ballHitBoss = 2023;
+constexpr uint16_t k_setBossDamage = 2024;
+constexpr uint16_t k_setSpeedDamage = 2025;
+constexpr uint16_t k_reachedTable = 2026;
+constexpr uint16_t k_hitTable = 2027;
+constexpr uint16_t k_awayFromTable = 2028;
+constexpr uint16_t k_toonGotHealed = 2029;
+constexpr uint16_t k_requestGetToonup = 2030;
+constexpr uint16_t k_toonGotToonup = 2031;
+constexpr uint16_t kw_setState = 0x006;
+constexpr uint16_t kw_setBattleDifficulty = 0x006;
+constexpr uint16_t kw_requestGetFood = 0x110;
+constexpr uint16_t kw_toonGotFood = 0x002;
+constexpr uint16_t kw_requestServeFood = 0x110;
+constexpr uint16_t kw_toonServeFood = 0x002;
+constexpr uint16_t kw_hitBoss = 0x110;
+constexpr uint16_t kw_hitToon = 0x110;
+constexpr uint16_t kw_ballHitBoss = 0x110;
+constexpr uint16_t kw_setBossDamage = 0x006;
+constexpr uint16_t kw_setSpeedDamage = 0x006;
+constexpr uint16_t kw_reachedTable = 0x110;
+constexpr uint16_t kw_hitTable = 0x110;
+constexpr uint16_t kw_awayFromTable = 0x110;
+constexpr uint16_t kw_toonGotHealed = 0x002;
+constexpr uint16_t kw_requestGetToonup = 0x110;
+constexpr uint16_t kw_toonGotToonup = 0x002;
+constexpr const char* sig_setState = "string";
+constexpr const char* sig_setBattleDifficulty = "u8";
+constexpr const char* sig_requestGetFood = "i8,i8,u32";
+constexpr const char* sig_toonGotFood = "u32,i8,i8,u32";
+constexpr const char* sig_requestServeFood = "i8,i8";
+constexpr const char* sig_toonServeFood = "u32,i8,i8";
+constexpr const char* sig_hitBoss = "u8";
+constexpr const char* sig_hitToon = "u32";
+constexpr const char* sig_ballHitBoss = "u8";
+constexpr const char* sig_setBossDamage = "u16,u8,i16";
+constexpr const char* sig_setSpeedDamage = "u16,u8,i16";
+constexpr const char* sig_reachedTable = "u8";
+constexpr const char* sig_hitTable = "u8";
+constexpr const char* sig_awayFromTable = "u8";
+constexpr const char* sig_toonGotHealed = "u32";
+constexpr const char* sig_requestGetToonup = "i8,i8,u32";
+constexpr const char* sig_toonGotToonup = "u32,i8,i8,u32";
+} // namespace DistributedBossbotBoss
+
+namespace DistributedBossElevator {
+constexpr uint16_t kClassId = 251;
+constexpr uint16_t k_setBossOfficeZone = 1440;
+constexpr uint16_t k_setBossOfficeZoneForce = 1441;
+constexpr uint16_t kw_setBossOfficeZone = 0x000;
+constexpr uint16_t kw_setBossOfficeZoneForce = 0x000;
+constexpr const char* sig_setBossOfficeZone = "u32";
+constexpr const char* sig_setBossOfficeZoneForce = "u32";
+} // namespace DistributedBossElevator
+
+namespace DistributedVPElevator {
+constexpr uint16_t kClassId = 252;
+} // namespace DistributedVPElevator
+
+namespace DistributedCFOElevator {
+constexpr uint16_t kClassId = 253;
+} // namespace DistributedCFOElevator
+
+namespace DistributedCJElevator {
+constexpr uint16_t kClassId = 254;
+} // namespace DistributedCJElevator
+
+namespace DistributedBBElevator {
+constexpr uint16_t kClassId = 255;
+} // namespace DistributedBBElevator
+
+namespace DistributedBattleFinal {
+constexpr uint16_t kClassId = 110;
+constexpr uint16_t k_setBossCogId = 787;
+constexpr uint16_t k_setBattleNumber = 788;
+constexpr uint16_t k_setBattleSide = 789;
+constexpr uint16_t kw_setBossCogId = 0x007;
+constexpr uint16_t kw_setBattleNumber = 0x007;
+constexpr uint16_t kw_setBattleSide = 0x007;
+constexpr const char* sig_setBossCogId = "u32";
+constexpr const char* sig_setBattleNumber = "u8";
+constexpr const char* sig_setBattleSide = "u8";
+} // namespace DistributedBattleFinal
+
 namespace FriendManager {
 constexpr uint16_t kClassId = 28;
 constexpr uint16_t k_friendQuery = 186;
@@ -3125,26 +3380,6 @@ namespace DistributedCogdoElevatorInt {
 constexpr uint16_t kClassId = 250;
 } // namespace DistributedCogdoElevatorInt
 
-namespace DistributedBossElevator {
-constexpr uint16_t kClassId = 251;
-} // namespace DistributedBossElevator
-
-namespace DistributedVPElevator {
-constexpr uint16_t kClassId = 252;
-} // namespace DistributedVPElevator
-
-namespace DistributedCFOElevator {
-constexpr uint16_t kClassId = 253;
-} // namespace DistributedCFOElevator
-
-namespace DistributedCJElevator {
-constexpr uint16_t kClassId = 254;
-} // namespace DistributedCJElevator
-
-namespace DistributedBBElevator {
-constexpr uint16_t kClassId = 255;
-} // namespace DistributedBBElevator
-
 namespace DistributedSwitch {
 constexpr uint16_t kClassId = 279;
 } // namespace DistributedSwitch
@@ -3211,7 +3446,7 @@ struct FieldDesc {
     uint16_t fixedSize;
 };
 
-constexpr int kTypeCodeSize = 4153;
+constexpr int kTypeCodeSize = 4604;
 constexpr uint8_t kTypeCode[kTypeCodeSize] = {
     15, 6, 0, 6, 11, 15, 1, 0, 7, 0, 6, 0, 11, 7, 7, 7, 0, 0, 5, 0, 5, 3, 7, 0,
     5, 0, 11, 0, 11, 12, 12, 0, 6, 6, 6, 11, 7, 7, 11, 6, 6, 7, 7, 7, 7, 11, 2, 2,
@@ -3265,131 +3500,149 @@ constexpr uint8_t kTypeCode[kTypeCodeSize] = {
     0, 7, 2, 0, 7, 2, 0, 7, 2, 0, 0, 7, 0, 0, 7, 6, 0, 7, 0, 0, 15, 1, 0, 5,
     0, 0, 15, 1, 0, 5, 0, 0, 12, 0, 2, 0, 2, 0, 5, 0, 5, 0, 2, 0, 2, 2, 2, 2,
     2, 2, 0, 7, 0, 6, 6, 6, 6, 0, 6, 2, 0, 1, 0, 2, 2, 2, 2, 2, 0, 7, 0, 7,
-    0, 5, 0, 2, 2, 2, 2, 2, 2, 0, 7, 0, 7, 0, 0, 0, 7, 0, 7, 0, 1, 0, 2, 2,
-    2, 0, 7, 0, 2, 2, 2, 0, 15, 1, 0, 7, 11, 11, 11, 11, 11, 15, 1, 0, 7, 11, 11, 11,
-    11, 2, 0, 2, 0, 1, 15, 1, 0, 7, 15, 1, 0, 7, 1, 1, 1, 3, 15, 1, 0, 2, 2, 2,
-    15, 1, 0, 2, 1, 1, 1, 1, 1, 3, 15, 1, 0, 2, 2, 2, 15, 1, 0, 2, 1, 1, 1, 1,
-    1, 3, 15, 1, 0, 2, 2, 2, 15, 1, 0, 2, 1, 1, 1, 1, 1, 3, 15, 1, 0, 2, 2, 2,
-    15, 1, 0, 2, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1,
-    1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1, 1, 0, 15,
-    1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 3, 0, 3, 15, 1, 0, 2, 15, 1, 0,
+    0, 5, 0, 2, 2, 2, 2, 2, 2, 0, 7, 0, 7, 0, 0, 0, 12, 0, 15, 1, 0, 7, 15, 1,
+    0, 7, 15, 1, 0, 7, 0, 5, 7, 7, 0, 5, 0, 0, 0, 0, 0, 7, 0, 3, 15, 1, 0, 2,
+    15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2,
+    15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0,
+    2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1,
+    0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15,
+    1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15,
+    1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2,
+    15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0,
     2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0,
     7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1,
     0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15,
-    1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2,
+    1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 5, 15,
+    1, 0, 2, 15, 1, 0, 7, 0, 2, 2, 2, 2, 2, 2, 1, 1, 5, 2, 0, 7, 2, 2, 2, 2,
+    2, 2, 5, 2, 0, 5, 7, 0, 7, 0, 15, 1, 0, 7, 0, 6, 5, 2, 0, 11, 0, 5, 0, 0,
+    7, 0, 0, 0, 5, 5, 0, 6, 7, 0, 5, 0, 11, 0, 6, 0, 6, 0, 0, 7, 0, 7, 0, 1,
+    0, 2, 2, 2, 0, 7, 0, 2, 2, 2, 0, 15, 1, 0, 7, 11, 11, 11, 11, 11, 15, 1, 0, 7,
+    11, 11, 11, 11, 2, 0, 2, 0, 1, 15, 1, 0, 7, 15, 1, 0, 7, 1, 1, 1, 3, 15, 1, 0,
+    2, 2, 2, 15, 1, 0, 2, 1, 1, 1, 1, 1, 3, 15, 1, 0, 2, 2, 2, 15, 1, 0, 2, 1,
+    1, 1, 1, 1, 3, 15, 1, 0, 2, 2, 2, 15, 1, 0, 2, 1, 1, 1, 1, 1, 3, 15, 1, 0,
+    2, 2, 2, 15, 1, 0, 2, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1, 1, 1, 1, 1, 15, 1,
+    0, 2, 1, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1, 1, 1, 1, 1, 15, 1, 0, 2, 1, 1,
+    1, 0, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 3, 0, 3, 15, 1, 0, 2,
     15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2,
-    15, 1, 0, 7, 15, 1, 0, 5, 15, 1, 0, 2, 15, 1, 0, 7, 0, 0, 5, 0, 11, 2, 0, 0,
-    2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 7, 0, 1, 1, 3, 0, 7, 0, 11, 2, 0, 2, 2, 0,
-    1, 5, 5, 6, 2, 0, 0, 7, 0, 7, 0, 7, 0, 5, 2, 6, 6, 2, 0, 7, 0, 2, 2, 2,
-    2, 2, 2, 0, 0, 0, 0, 7, 0, 5, 2, 0, 0, 5, 6, 0, 5, 5, 6, 6, 6, 5, 2, 0,
-    7, 0, 7, 5, 0, 6, 5, 6, 7, 0, 11, 2, 0, 6, 5, 5, 5, 0, 0, 6, 0, 6, 0, 15,
-    1, 0, 7, 0, 7, 0, 15, 1, 0, 6, 0, 1, 0, 3, 3, 0, 0, 0, 0, 0, 0, 2, 0, 0,
-    0, 2, 0, 5, 0, 7, 0, 15, 1, 0, 5, 0, 15, 1, 0, 1, 15, 1, 0, 5, 15, 1, 0, 1,
-    0, 3, 7, 0, 3, 7, 0, 7, 3, 7, 0, 7, 3, 3, 7, 0, 3, 0, 7, 3, 0, 5, 11, 7,
-    0, 7, 5, 7, 0, 0, 0, 15, 1, 0, 5, 0, 15, 1, 0, 5, 6, 0, 15, 1, 0, 5, 15, 1,
-    0, 5, 15, 1, 0, 5, 15, 1, 0, 5, 7, 0, 5, 5, 0, 7, 5, 5, 0, 2, 0, 1, 1, 1,
-    1, 0, 5, 0, 5, 0, 7, 0, 7, 0, 15, 1, 0, 6, 0, 7, 0, 7, 7, 0, 0, 7, 2, 0,
-    5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7, 15, 1, 0, 7, 0, 5, 5, 0, 5,
-    0, 15, 1, 0, 7, 0, 7, 2, 0, 15, 1, 0, 7, 15, 1, 0, 2, 0, 3, 0, 7, 7, 0, 7,
-    7, 0, 7, 7, 0, 7, 2, 0, 0, 0, 7, 0, 7, 7, 0, 7, 7, 7, 11, 0, 7, 7, 7, 2,
-    0, 7, 11, 0, 7, 2, 0, 7, 2, 0, 2, 7, 7, 6, 0, 7, 0, 7, 2, 1, 0, 7, 2, 1,
-    1, 2, 1, 0, 0, 7, 7, 2, 0, 2, 0, 5, 0, 5, 0, 0, 3, 3, 0, 7, 0, 0, 6, 7,
-    0, 0, 0, 0, 7, 11, 0, 7, 7, 0, 7, 15, 1, 0, 7, 0, 7, 5, 0, 0, 7, 7, 0, 11,
-    0, 0, 0, 5, 0, 5, 0, 15, 1, 0, 7, 0, 0, 7, 0, 7, 0, 7, 0, 15, 5, 0, 5, 5,
-    1, 1, 6, 0, 7, 0, 7, 0, 5, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 15,
-    5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 15, 5, 0,
+    15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0,
+    2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1,
+    0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 3, 15,
+    1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 2, 15, 1, 0, 2, 15, 1, 0, 2, 15,
+    1, 0, 2, 15, 1, 0, 7, 15, 1, 0, 5, 15, 1, 0, 2, 15, 1, 0, 7, 0, 0, 5, 0, 11,
+    2, 0, 0, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 7, 0, 1, 1, 3, 0, 7, 0, 7, 0, 5,
+    0, 5, 0, 11, 2, 0, 2, 2, 0, 1, 5, 5, 6, 2, 0, 0, 7, 0, 7, 0, 7, 0, 5, 2,
+    6, 6, 2, 0, 7, 0, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0, 7, 0, 5, 2, 0, 0, 5, 6,
+    0, 5, 5, 6, 6, 6, 5, 2, 0, 7, 0, 7, 5, 0, 6, 5, 6, 7, 0, 11, 2, 0, 6, 5,
+    5, 5, 0, 0, 6, 0, 6, 0, 15, 1, 0, 7, 0, 7, 0, 15, 1, 0, 6, 0, 1, 0, 3, 3,
+    0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 2, 0, 5, 0, 7, 0, 15, 1, 0, 5, 0, 15, 1, 0,
+    1, 15, 1, 0, 5, 15, 1, 0, 1, 0, 3, 7, 0, 3, 7, 0, 7, 3, 7, 0, 7, 3, 3, 7,
+    0, 3, 0, 7, 3, 0, 5, 11, 7, 0, 7, 5, 7, 0, 0, 0, 15, 1, 0, 5, 0, 15, 1, 0,
+    5, 6, 0, 15, 1, 0, 5, 15, 1, 0, 5, 15, 1, 0, 5, 15, 1, 0, 5, 7, 0, 5, 5, 0,
+    7, 5, 5, 0, 2, 0, 1, 1, 1, 1, 0, 5, 0, 5, 0, 7, 0, 7, 0, 15, 1, 0, 6, 0,
+    7, 0, 7, 7, 0, 0, 7, 2, 0, 5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7,
+    15, 1, 0, 7, 0, 5, 5, 0, 5, 0, 15, 1, 0, 7, 0, 7, 2, 0, 15, 1, 0, 7, 15, 1,
+    0, 2, 0, 3, 0, 7, 7, 0, 7, 7, 0, 7, 7, 0, 7, 2, 0, 0, 0, 7, 0, 7, 7, 0,
+    7, 7, 7, 11, 0, 7, 7, 7, 2, 0, 7, 11, 0, 7, 2, 0, 7, 2, 0, 2, 7, 7, 6, 0,
+    7, 0, 7, 2, 1, 0, 7, 2, 1, 1, 2, 1, 0, 0, 7, 7, 2, 0, 2, 0, 5, 0, 5, 0,
+    0, 3, 3, 0, 7, 0, 0, 6, 7, 0, 0, 0, 0, 7, 11, 0, 7, 7, 0, 7, 15, 1, 0, 7,
+    0, 7, 5, 0, 0, 7, 7, 0, 11, 0, 0, 0, 5, 0, 5, 0, 15, 1, 0, 7, 0, 0, 7, 0,
+    7, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 7, 0, 5, 0, 7, 0, 15, 5, 0,
     5, 5, 1, 1, 6, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 15, 5, 0, 5, 5,
-    1, 1, 6, 0, 15, 1, 0, 7, 0, 5, 0, 7, 0, 5, 0, 0, 0, 11, 0, 5, 0, 5, 0, 5,
-    0, 7, 0, 11, 0, 5, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 5, 0, 0,
-    7, 0, 5, 0, 12, 0, 12, 0, 1, 1, 2, 7, 11, 0, 11, 11, 15, 1, 0, 7, 12, 1, 1, 2,
-    7, 0, 11, 11, 12, 11, 1, 1, 2, 7, 11, 0, 11, 11, 11, 7, 7, 7, 0, 7, 0, 7, 0, 0,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 11, 7, 5, 0, 15, 1, 0, 7, 0, 0, 15, 2, 0, 5,
-    5, 0, 15, 9, 0, 5, 15, 1, 0, 5, 15, 1, 0, 5, 0, 15, 9, 0, 5, 15, 1, 0, 6, 15,
-    1, 0, 6, 0, 15, 9, 0, 5, 15, 1, 0, 6, 15, 1, 0, 6, 0, 15, 12, 0, 5, 15, 8, 0,
-    15, 1, 0, 6, 15, 1, 0, 6, 0, 11, 5, 0, 7, 7, 7, 7, 0, 15, 1, 0, 7, 0, 5, 5,
-    5, 5, 0, 5, 5, 5, 5, 0, 5, 5, 5, 5, 0, 2, 0, 1, 0, 15, 1, 0, 2, 0, 0, 0,
-    12, 2, 5, 0, 0, 7, 0, 0, 0, 0, 0, 0, 5, 0, 7, 7, 7, 7, 0, 0, 0, 0, 2, 2,
-    2, 0, 0, 7, 0, 0, 7, 0, 2, 2, 2, 0, 6, 0, 7, 0, 15, 1, 0, 7, 0, 5, 0, 15,
-    1, 0, 7, 0, 3, 0, 5, 0, 11, 11, 0, 12, 0, 7, 0, 7, 12, 12, 12, 0, 7, 0, 7, 0,
-    7, 0, 0, 0, 0, 7, 0, 11, 3, 0, 0, 6, 7, 0, 1, 1, 1, 0, 15, 1, 0, 7, 0, 11,
-    2, 0, 0, 7, 6, 0, 15, 3, 0, 7, 11, 12, 0, 11, 2, 0, 7, 0, 7, 0, 7, 0, 1, 0,
-    15, 1, 0, 7, 6, 0, 15, 1, 0, 7, 15, 1, 0, 7, 15, 1, 0, 6, 0, 11, 2, 0, 0, 0,
-    0, 7, 6, 0, 12, 0, 5, 0, 7, 6, 0, 7, 6, 0, 7, 7, 0, 1, 0, 5, 0, 5, 0, 7,
-    7, 0, 0, 0, 1, 0, 7, 0, 7, 0, 11, 2, 0, 11, 2, 0, 5, 0, 11, 0, 12, 0, 5, 0,
-    11, 2, 2, 0, 2, 1, 2, 0, 0, 0, 5, 7, 7, 15, 1, 0, 6, 2, 0, 0, 6, 0, 1, 0,
-    5, 7, 7, 15, 1, 0, 6, 2, 0, 0, 6, 0, 1, 0, 11, 5, 7, 5, 5, 0, 5, 7, 7, 2,
-    0, 12, 2, 5, 0, 5, 7, 7, 2, 0, 12, 1, 5, 0, 7, 12, 0, 5, 7, 7, 2, 0, 5, 7,
-    7, 15, 1, 0, 7, 2, 0, 5, 0, 5, 7, 7, 15, 1, 0, 7, 2, 0, 5, 0, 5, 7, 7, 15,
-    1, 0, 7, 2, 0, 15, 1, 0, 7, 0, 5, 7, 0, 0, 0, 0, 5, 7, 7, 15, 1, 0, 7, 2,
-    0, 5, 0, 5, 0, 0, 7, 0, 11, 2, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7,
-    5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2,
-    2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1,
-    2, 2, 0, 0, 7, 5, 0, 0, 7, 0, 5, 0, 5, 0, 7, 0, 11, 2, 0, 7, 0, 7, 0, 7,
-    0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7,
-    1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 0, 7, 5, 0, 0,
-    7, 0, 5, 0, 5, 0, 1, 0, 6, 0, 6, 0, 0, 7, 0, 1, 0, 5, 0, 7, 0, 7, 0, 0,
-    7, 0, 5, 0, 7, 0, 7, 0, 6, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 5, 0,
-    11, 0, 5, 0, 0, 0, 0, 5, 7, 0, 6, 12, 5, 3, 0, 6, 1, 0, 6, 12, 5, 3, 0, 6,
-    1, 0, 6, 8, 0, 6, 8, 0, 8, 0, 7, 0, 11, 0, 7, 0, 12, 0, 12, 0, 12, 0, 12, 0,
-    7, 0, 7, 0, 0, 0, 7, 6, 0, 1, 6, 0, 6, 2, 2, 2, 2, 2, 2, 6, 0, 1, 7, 6,
-    0, 12, 6, 6, 0, 1, 6, 0, 12, 7, 6, 0, 1, 6, 0, 6, 5, 6, 0, 1, 6, 0, 12, 6,
-    6, 0, 1, 6, 0, 5, 6, 0, 1, 6, 0, 6, 5, 6, 0, 1, 6, 0, 5, 5, 6, 0, 1, 6,
-    0, 12, 6, 6, 0, 1, 6, 0, 12, 6, 6, 0, 1, 6, 0, 7, 12, 0, 5, 2, 2, 2, 2, 2,
-    2, 2, 0, 5, 7, 0, 0, 0, 5, 7, 2, 0, 2, 0, 7, 0, 0, 0, 12, 5, 0, 12, 1, 5,
-    0, 5, 7, 7, 11, 15, 1, 0, 5, 15, 1, 0, 5, 0, 5, 7, 2, 0, 0, 7, 12, 0, 6, 0,
-    15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0, 0, 7, 0, 6, 0, 5, 0, 15, 1, 0, 7, 0, 6,
-    0, 6, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0, 0, 7, 0, 6, 0, 6, 0, 5,
-    0, 15, 1, 0, 7, 0, 7, 0, 7, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7,
-    0, 7, 0, 0, 5, 5, 7, 0, 0, 0, 6, 0, 5, 3, 0, 0, 2, 2, 2, 0, 7, 5, 0, 5,
-    2, 15, 1, 0, 7, 0, 15, 1, 0, 7, 0, 0, 0, 7, 0, 0, 5, 7, 0, 5, 0, 0, 0, 7,
-    2, 2, 2, 2, 2, 2, 0, 0, 5, 7, 0, 7, 5, 7, 0, 2, 0, 2, 0, 0, 2, 2, 2, 7,
-    0, 5, 7, 3, 2, 0, 2, 2, 2, 2, 2, 2, 0, 5, 0, 15, 1, 0, 7, 0, 7, 0, 0, 5,
-    5, 0, 15, 1, 0, 5, 0, 5, 0, 1, 1, 1, 1, 0, 0, 5, 0, 15, 1, 0, 7, 0, 15, 1,
-    0, 7, 0, 11, 0, 0, 0, 6, 3, 15, 1, 0, 7, 0, 5, 0, 15, 3, 0, 5, 5, 5, 15, 1,
-    0, 5, 0, 5, 0, 7, 0, 5, 5, 15, 2, 0, 7, 5, 0, 5, 5, 0, 7, 0, 6, 3, 0, 0,
-    5, 0, 2, 0, 11, 0, 7, 0, 11, 0, 7, 0, 7, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0,
-    6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 1, 0, 1, 0, 1, 0, 1, 0,
-    1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 7, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0,
-    6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    0, 2, 0, 2, 0, 15, 1, 0, 6, 0, 5, 2, 0, 7, 0, 5, 7, 2, 0, 0, 7, 0, 10, 7,
-    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 0, 1, 0, 7,
-    0, 6, 0, 6, 0, 15, 1, 0, 6, 0, 15, 1, 0, 7, 0, 15, 1, 0, 5, 0, 5, 0, 0, 15,
-    2, 0, 7, 7, 0, 0, 0, 2, 0, 15, 1, 0, 7, 5, 0, 5, 6, 5, 0, 7, 7, 2, 0, 7,
-    7, 5, 0, 7, 0, 7, 7, 5, 7, 5, 7, 7, 15, 1, 0, 7, 15, 1, 0, 6, 7, 0, 7, 5,
-    7, 7, 7, 15, 1, 0, 7, 0, 0, 7, 7, 0, 5, 5, 5, 0, 7, 0, 7, 1, 6, 2, 0, 3,
-    3, 3, 0, 0, 2, 0, 6, 0, 3, 3, 3, 0, 7, 0, 7, 0, 5, 0, 7, 2, 0, 2, 0, 3,
-    3, 3, 0, 7, 0, 7, 0, 5, 0, 7, 2, 0, 7, 0, 11, 2, 0, 7, 0, 15, 1, 0, 6, 0,
-    2, 0, 7, 0, 2, 2, 2, 2, 2, 2, 0, 5, 0, 5, 0, 5, 0, 0, 7, 0, 5, 0, 0, 2,
-    2, 2, 2, 2, 2, 0, 12, 0, 2, 0, 6, 5, 0, 7, 0, 15, 1, 0, 2, 15, 1, 0, 5, 5,
-    5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 0, 5, 0, 7, 0,
-    5, 0, 2, 2, 0, 2, 7, 2, 1, 15, 1, 0, 2, 0, 0, 0, 7, 0, 1, 0, 7, 1, 7, 1,
-    0, 7, 7, 1, 0, 7, 1, 1, 3, 2, 2, 2, 0, 7, 0, 7, 7, 0, 7, 7, 0, 0, 7, 1,
-    1, 3, 2, 2, 2, 1, 0, 7, 1, 3, 2, 2, 2, 1, 0, 15, 1, 0, 5, 0, 6, 0, 2, 2,
-    2, 2, 2, 2, 0, 7, 0, 7, 0, 7, 0, 15, 1, 0, 5, 0, 6, 0, 6, 0, 5, 0, 15, 1,
-    0, 7, 0, 7, 0, 7, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0,
-    0, 5, 0, 2, 5, 6, 0, 0, 1, 2, 0, 1, 2, 3, 0, 1, 1, 0, 7, 1, 3, 0, 2, 0,
-    0, 0, 1, 0, 6, 0, 6, 0, 0, 7, 0, 7, 0, 2, 0, 0, 0, 0, 7, 5, 5, 0, 0, 7,
-    3, 3, 0, 3, 3, 0, 15, 3, 0, 3, 3, 3, 0, 0, 5, 0, 5, 0, 15, 2, 0, 3, 3, 0,
-    2, 0, 15, 3, 0, 3, 3, 3, 0, 1, 1, 0, 1, 1, 15, 1, 0, 2, 0, 11, 0, 7, 7, 0,
-    7, 7, 0, 7, 3, 3, 3, 3, 3, 0, 7, 3, 1, 3, 3, 3, 0, 7, 3, 1, 3, 3, 3, 0,
-    3, 1, 1, 3, 3, 3, 0, 3, 1, 1, 0, 3, 3, 1, 1, 4, 3, 3, 3, 0, 3, 3, 1, 1,
-    3, 3, 3, 0, 3, 3, 1, 1, 3, 3, 3, 0, 3, 3, 1, 0, 7, 2, 0, 7, 2, 0, 7, 2,
-    0, 7, 2, 0, 7, 2, 0, 5, 5, 0, 5, 5, 0, 0, 15, 18, 0, 5, 15, 1, 0, 5, 15, 2,
-    0, 5, 5, 15, 1, 0, 5, 15, 1, 0, 5, 0, 7, 5, 5, 0, 7, 5, 5, 7, 0, 7, 5, 0,
-    0, 7, 7, 11, 11, 1, 1, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 1, 0,
-    7, 6, 0, 7, 11, 11, 1, 1, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 1,
-    0, 7, 0, 7, 1, 0, 7, 1, 6, 0, 7, 8, 0, 7, 7, 6, 8, 5, 0, 7, 6, 8, 1, 5,
-    0, 8, 1, 0, 7, 8, 1, 0, 7, 8, 1, 1, 0, 8, 1, 1, 0, 8, 1, 0, 7, 8, 1, 0,
-    7, 8, 1, 1, 0, 8, 1, 1, 6, 0, 7, 7, 0, 7, 0, 8, 7, 6, 5, 5, 5, 5, 6, 5,
-    5, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 5, 15, 1, 0, 7,
-    0, 7, 8, 1, 6, 7, 0, 7, 7, 5, 0, 7, 8, 7, 0, 7, 7, 0, 7, 5, 0, 7, 0, 7,
-    7, 0, 7, 7, 0, 7, 7, 0, 7, 8, 7, 7, 11, 0, 7, 0, 7, 0, 7, 0, 7, 8, 7, 7,
-    5, 5, 11, 15, 1, 0, 5, 8, 0, 7, 5, 0, 7, 0, 7, 7, 0, 0, 7, 8, 7, 7, 5, 5,
-    11, 15, 1, 0, 5, 8, 0, 0, 7, 11, 7, 7, 0, 7, 11, 7, 7, 0, 11, 0, 7, 7, 0, 11,
-    0,
+    1, 1, 6, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1,
+    6, 0, 7, 0, 15, 5, 0, 5, 5, 1, 1, 6, 0, 15, 1, 0, 7, 0, 5, 0, 7, 0, 5, 0,
+    0, 0, 11, 0, 5, 0, 5, 0, 5, 0, 7, 0, 11, 0, 5, 0, 12, 0, 12, 0, 12, 0, 12, 0,
+    12, 0, 12, 0, 12, 0, 5, 0, 0, 7, 0, 5, 0, 12, 0, 12, 0, 1, 1, 2, 7, 11, 0, 11,
+    11, 15, 1, 0, 7, 12, 1, 1, 2, 7, 0, 11, 11, 12, 11, 1, 1, 2, 7, 11, 0, 11, 11, 11,
+    7, 7, 7, 0, 7, 0, 7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5, 11, 7, 5, 0, 15,
+    1, 0, 7, 0, 0, 15, 2, 0, 5, 5, 0, 15, 9, 0, 5, 15, 1, 0, 5, 15, 1, 0, 5, 0,
+    15, 9, 0, 5, 15, 1, 0, 6, 15, 1, 0, 6, 0, 15, 9, 0, 5, 15, 1, 0, 6, 15, 1, 0,
+    6, 0, 15, 12, 0, 5, 15, 8, 0, 15, 1, 0, 6, 15, 1, 0, 6, 0, 11, 5, 0, 7, 7, 7,
+    7, 0, 15, 1, 0, 7, 0, 5, 5, 5, 5, 0, 5, 5, 5, 5, 0, 5, 5, 5, 5, 0, 2, 0,
+    1, 0, 15, 1, 0, 2, 0, 0, 0, 12, 2, 5, 0, 0, 7, 0, 0, 0, 0, 0, 0, 5, 0, 7,
+    7, 7, 7, 0, 0, 0, 0, 2, 2, 2, 0, 0, 7, 0, 0, 7, 0, 2, 2, 2, 0, 6, 0, 7,
+    0, 15, 1, 0, 7, 0, 5, 0, 15, 1, 0, 7, 0, 3, 0, 5, 0, 11, 11, 0, 12, 0, 7, 0,
+    7, 12, 12, 12, 0, 7, 0, 7, 0, 7, 0, 0, 0, 0, 7, 0, 11, 3, 0, 0, 6, 7, 0, 1,
+    1, 1, 0, 15, 1, 0, 7, 0, 11, 2, 0, 0, 7, 6, 0, 15, 3, 0, 7, 11, 12, 0, 11, 2,
+    0, 7, 0, 7, 0, 7, 0, 1, 0, 15, 1, 0, 7, 6, 0, 15, 1, 0, 7, 15, 1, 0, 7, 15,
+    1, 0, 6, 0, 11, 2, 0, 0, 0, 0, 7, 6, 0, 12, 0, 5, 0, 7, 6, 0, 7, 6, 0, 7,
+    7, 0, 1, 0, 5, 0, 5, 0, 7, 7, 0, 0, 0, 1, 0, 7, 0, 7, 0, 11, 2, 0, 11, 2,
+    0, 5, 0, 11, 0, 12, 0, 5, 0, 11, 2, 2, 0, 2, 1, 2, 0, 0, 0, 5, 7, 7, 15, 1,
+    0, 6, 2, 0, 0, 6, 0, 1, 0, 5, 7, 7, 15, 1, 0, 6, 2, 0, 0, 6, 0, 1, 0, 11,
+    5, 7, 5, 5, 0, 5, 7, 7, 2, 0, 12, 2, 5, 0, 5, 7, 7, 2, 0, 12, 1, 5, 0, 7,
+    12, 0, 5, 7, 7, 2, 0, 5, 7, 7, 15, 1, 0, 7, 2, 0, 5, 0, 5, 7, 7, 15, 1, 0,
+    7, 2, 0, 5, 0, 5, 7, 7, 15, 1, 0, 7, 2, 0, 15, 1, 0, 7, 0, 5, 7, 0, 0, 0,
+    0, 5, 7, 7, 15, 1, 0, 7, 2, 0, 5, 0, 5, 0, 0, 7, 0, 11, 2, 0, 7, 5, 0, 7,
+    5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 5, 0, 7, 1, 2, 2,
+    0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 7, 1, 2,
+    2, 0, 7, 1, 2, 2, 0, 7, 1, 2, 2, 0, 0, 7, 5, 0, 0, 7, 0, 5, 0, 5, 0, 7,
+    0, 11, 2, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 0, 7, 1, 2, 0,
+    7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0, 7, 1, 2, 0,
+    7, 1, 2, 0, 0, 7, 5, 0, 0, 7, 0, 5, 0, 5, 0, 1, 0, 6, 0, 6, 0, 0, 7, 0,
+    1, 0, 5, 0, 7, 0, 7, 0, 0, 7, 0, 5, 0, 7, 0, 7, 0, 6, 0, 7, 0, 7, 0, 7,
+    0, 7, 0, 7, 0, 7, 0, 5, 0, 11, 0, 5, 0, 0, 0, 0, 5, 7, 0, 6, 12, 5, 3, 0,
+    6, 1, 0, 6, 12, 5, 3, 0, 6, 1, 0, 6, 8, 0, 6, 8, 0, 8, 0, 7, 0, 11, 0, 7,
+    0, 12, 0, 12, 0, 12, 0, 12, 0, 7, 0, 7, 0, 0, 0, 7, 6, 0, 1, 6, 0, 6, 2, 2,
+    2, 2, 2, 2, 6, 0, 1, 7, 6, 0, 12, 6, 6, 0, 1, 6, 0, 12, 7, 6, 0, 1, 6, 0,
+    6, 5, 6, 0, 1, 6, 0, 12, 6, 6, 0, 1, 6, 0, 5, 6, 0, 1, 6, 0, 6, 5, 6, 0,
+    1, 6, 0, 5, 5, 6, 0, 1, 6, 0, 12, 6, 6, 0, 1, 6, 0, 12, 6, 6, 0, 1, 6, 0,
+    7, 12, 0, 5, 2, 2, 2, 2, 2, 2, 2, 0, 5, 7, 0, 0, 0, 5, 7, 2, 0, 2, 0, 7,
+    0, 0, 0, 12, 5, 0, 12, 1, 5, 0, 5, 7, 7, 11, 15, 1, 0, 5, 15, 1, 0, 5, 0, 5,
+    7, 2, 0, 0, 7, 12, 0, 6, 0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0, 0, 7, 0, 6,
+    0, 5, 0, 15, 1, 0, 7, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7,
+    0, 0, 7, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 0, 7, 0, 7, 0, 6, 0, 6, 0, 5,
+    0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0, 0, 5, 5, 7, 0, 0, 0, 6, 0, 5, 3, 0,
+    0, 2, 2, 2, 0, 7, 5, 0, 5, 2, 15, 1, 0, 7, 0, 15, 1, 0, 7, 0, 0, 0, 7, 0,
+    0, 5, 7, 0, 5, 0, 0, 0, 7, 2, 2, 2, 2, 2, 2, 0, 0, 5, 7, 0, 7, 5, 7, 0,
+    2, 0, 2, 0, 0, 2, 2, 2, 7, 0, 5, 7, 3, 2, 0, 2, 2, 2, 2, 2, 2, 0, 5, 0,
+    15, 1, 0, 7, 0, 7, 0, 0, 5, 5, 0, 15, 1, 0, 5, 0, 5, 0, 1, 1, 1, 1, 0, 0,
+    5, 0, 15, 1, 0, 7, 0, 15, 1, 0, 7, 0, 11, 0, 0, 0, 6, 3, 15, 1, 0, 7, 0, 5,
+    0, 15, 3, 0, 5, 5, 5, 15, 1, 0, 5, 0, 5, 0, 7, 0, 5, 5, 15, 2, 0, 7, 5, 0,
+    5, 5, 0, 7, 0, 6, 3, 0, 0, 5, 0, 2, 0, 11, 0, 7, 0, 11, 0, 7, 0, 7, 0, 6,
+    0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6,
+    0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 7, 0, 6, 0, 6,
+    0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 0, 6, 6, 6,
+    6, 6, 6, 6, 6, 6, 6, 6, 6, 0, 2, 0, 2, 0, 15, 1, 0, 6, 0, 5, 2, 0, 7, 0,
+    5, 7, 2, 0, 0, 7, 0, 10, 7, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+    1, 0, 1, 0, 0, 0, 1, 0, 7, 0, 6, 0, 6, 0, 15, 1, 0, 6, 0, 15, 1, 0, 7, 0,
+    15, 1, 0, 5, 0, 5, 0, 0, 15, 2, 0, 7, 7, 0, 0, 0, 2, 0, 15, 1, 0, 7, 5, 0,
+    5, 6, 5, 0, 7, 7, 2, 0, 7, 7, 5, 0, 7, 0, 7, 7, 5, 7, 5, 7, 7, 15, 1, 0,
+    7, 15, 1, 0, 6, 7, 0, 7, 5, 7, 7, 7, 15, 1, 0, 7, 0, 0, 7, 7, 0, 5, 5, 5,
+    0, 7, 0, 7, 1, 6, 2, 0, 3, 3, 3, 0, 0, 2, 0, 6, 0, 3, 3, 3, 0, 7, 0, 7,
+    0, 5, 0, 7, 2, 0, 2, 0, 3, 3, 3, 0, 7, 0, 7, 0, 5, 0, 7, 2, 0, 7, 0, 11,
+    2, 0, 7, 0, 15, 1, 0, 6, 0, 2, 0, 7, 0, 2, 2, 2, 2, 2, 2, 0, 5, 0, 5, 0,
+    5, 0, 0, 7, 0, 5, 0, 0, 2, 2, 2, 2, 2, 2, 0, 12, 0, 11, 0, 6, 5, 2, 0, 0,
+    5, 0, 5, 0, 7, 0, 0, 0, 5, 5, 0, 15, 1, 0, 7, 0, 1, 1, 0, 7, 0, 0, 5, 0,
+    2, 0, 6, 5, 0, 7, 0, 15, 1, 0, 2, 15, 1, 0, 5, 5, 5, 0, 15, 1, 0, 5, 15, 1,
+    0, 5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 0, 5, 0, 7, 0, 5, 0, 2, 2, 0, 2, 7, 2,
+    1, 15, 1, 0, 2, 0, 0, 0, 7, 0, 1, 0, 7, 1, 7, 1, 0, 7, 7, 1, 0, 7, 1, 1,
+    3, 2, 2, 2, 0, 7, 0, 7, 7, 0, 7, 7, 0, 0, 7, 1, 1, 3, 2, 2, 2, 1, 0, 7,
+    1, 3, 2, 2, 2, 1, 0, 15, 1, 0, 5, 0, 11, 0, 5, 0, 1, 1, 7, 0, 7, 1, 1, 7,
+    0, 1, 1, 0, 7, 1, 1, 0, 5, 0, 7, 0, 5, 0, 6, 5, 2, 0, 6, 5, 2, 0, 5, 0,
+    5, 0, 5, 0, 7, 0, 1, 1, 7, 0, 7, 1, 1, 7, 0, 6, 0, 2, 2, 2, 2, 2, 2, 0,
+    7, 0, 7, 0, 7, 0, 15, 1, 0, 5, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 0, 7, 0,
+    7, 0, 6, 0, 6, 0, 5, 0, 15, 1, 0, 7, 15, 1, 0, 7, 0, 7, 0, 0, 5, 0, 2, 5,
+    6, 0, 0, 1, 2, 0, 1, 2, 3, 0, 1, 1, 0, 7, 1, 3, 0, 2, 0, 0, 0, 1, 0, 6,
+    0, 6, 0, 0, 7, 0, 7, 0, 2, 0, 0, 0, 0, 7, 5, 5, 0, 0, 7, 3, 3, 0, 3, 3,
+    0, 15, 3, 0, 3, 3, 3, 0, 0, 5, 0, 5, 0, 15, 2, 0, 3, 3, 0, 2, 0, 15, 3, 0,
+    3, 3, 3, 0, 1, 1, 0, 1, 1, 15, 1, 0, 2, 0, 11, 0, 7, 7, 0, 7, 7, 0, 7, 3,
+    3, 3, 3, 3, 0, 7, 3, 1, 3, 3, 3, 0, 7, 3, 1, 3, 3, 3, 0, 3, 1, 1, 3, 3,
+    3, 0, 3, 1, 1, 0, 3, 3, 1, 1, 4, 3, 3, 3, 0, 3, 3, 1, 1, 3, 3, 3, 0, 3,
+    3, 1, 1, 3, 3, 3, 0, 3, 3, 1, 0, 7, 2, 0, 7, 2, 0, 7, 2, 0, 7, 2, 0, 7,
+    2, 0, 5, 5, 0, 5, 5, 0, 0, 15, 18, 0, 5, 15, 1, 0, 5, 15, 2, 0, 5, 5, 15, 1,
+    0, 5, 15, 1, 0, 5, 0, 7, 5, 5, 0, 7, 5, 5, 7, 0, 7, 5, 0, 0, 7, 7, 11, 11,
+    1, 1, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 1, 0, 7, 6, 0, 7, 11,
+    11, 1, 1, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 1, 0, 7, 0, 7, 1,
+    0, 7, 1, 6, 0, 7, 8, 0, 7, 7, 6, 8, 5, 0, 7, 6, 8, 1, 5, 0, 8, 1, 0, 7,
+    8, 1, 0, 7, 8, 1, 1, 0, 8, 1, 1, 0, 8, 1, 0, 7, 8, 1, 0, 7, 8, 1, 1, 0,
+    8, 1, 1, 6, 0, 7, 7, 0, 7, 0, 8, 7, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5,
+    15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 5, 15, 1, 0, 7, 0, 7, 8, 1, 6,
+    7, 0, 7, 7, 5, 0, 7, 8, 7, 0, 7, 7, 0, 7, 5, 0, 7, 0, 7, 7, 0, 7, 7, 0,
+    7, 7, 0, 7, 8, 7, 7, 11, 0, 7, 0, 7, 0, 7, 0, 7, 8, 7, 7, 5, 5, 11, 15, 1,
+    0, 5, 8, 0, 7, 5, 0, 7, 0, 7, 7, 0, 0, 7, 8, 7, 7, 5, 5, 11, 15, 1, 0, 5,
+    8, 0, 0, 7, 11, 7, 7, 0, 7, 11, 7, 7, 0, 11, 0, 7, 7, 0, 11, 0,
 };
 
-constexpr int kNumFields = 1169;
+constexpr int kNumFields = 1232;
 constexpr FieldDesc kFields[kNumFields] = {
     {22, 0x006, 0, 65535},  // setBarrierData({u16,string,u32[]}[])
     {23, 0x110, 10, 2},  // setBarrierReady(u16)
@@ -3747,819 +4000,882 @@ constexpr FieldDesc kFields[kNumFields] = {
     {667, 0x002, 1260, 4},  // setConfrontToon(u32)
     {668, 0x110, 1262, 0},  // setStrayed()
     {669, 0x002, 1263, 0},  // setReturn()
-    {762, 0x007, 1264, 4},  // setLevelDoId(u32)
-    {763, 0x007, 1266, 4},  // setBattleCellId(u32)
-    {764, 0x007, 1268, 1},  // setInteractivePropTrackBonus(i8)
-    {765, 0x007, 1270, 6},  // setPosition(i16/10,i16/10,i16/10)
-    {766, 0x007, 1274, 4},  // setZoneId(u32)
-    {767, 0x007, 1276, 6},  // setInitialSuitPos(i16/10,i16/10,i16/10)
-    {768, 0x007, 1280, 65535},  // setMembers(u32[],string,string,string,string,string,u32[],string,string,string,string,i16)
-    {769, 0x002, 1299, 2},  // adjust(i16)
-    {770, 0x007, 1301, 65535},  // setMovie(i8,u32[],u32[],i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,
-    {771, 0x006, 1415, 65535},  // setChosenToonAttacks(u32[],i16[],i16[],i32[])
-    {772, 0x007, 1432, 65535},  // setBattleExperience(i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i
-    {773, 0x000, 1577, 0},  // denyLocalToonJoin()
-    {774, 0x007, 1578, 1},  // setBossBattle(u8)
-    {775, 0x007, 1580, 65535},  // setState(string,i16)
-    {776, 0x110, 1583, 0},  // faceOffDone()
-    {777, 0x110, 1584, 6},  // toonRequestJoin(i16/10,i16/10,i16/10)
-    {778, 0x110, 1588, 0},  // toonRequestRun()
-    {779, 0x110, 1589, 0},  // toonDied()
-    {780, 0x110, 1590, 0},  // adjustDone()
-    {781, 0x110, 1591, 0},  // timeout()
-    {782, 0x110, 1592, 0},  // movieDone()
-    {783, 0x110, 1593, 0},  // rewardDone()
-    {784, 0x110, 1594, 4},  // joinDone(u32)
-    {785, 0x110, 1596, 6},  // requestAttack(i8,i8,i32)
-    {786, 0x110, 1600, 4},  // requestPetProxy(u32)
-    {790, 0x007, 1602, 65535},  // setState(string,i16)
-    {791, 0x007, 1605, 4},  // setArea(i16,i16)
-    {792, 0x007, 1608, 7},  // setState(i8,u8,u8,u16/10,i16)
-    {793, 0x110, 1614, 0},  // avatarEnter()
-    {802, 0x110, 1615, 4},  // hitTarget(u32)
-    {803, 0x007, 1617, 4},  // setArea(u32)
-    {804, 0x007, 1619, 4},  // setPondDoId(u32)
-    {805, 0x007, 1621, 9},  // setState(u8,i16/10,u16/100,u16/10,i16)
-    {806, 0x007, 1627, 4},  // setPondDoId(u32)
-    {807, 0x007, 1629, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {808, 0x110, 1636, 0},  // requestEnter()
-    {809, 0x000, 1637, 0},  // rejectEnter()
-    {810, 0x110, 1638, 0},  // requestExit()
-    {811, 0x006, 1639, 4},  // setOccupied(u32)
-    {812, 0x110, 1641, 3},  // doCast(u8/255,i16/100)
-    {813, 0x110, 1644, 0},  // sellFish()
-    {814, 0x000, 1645, 3},  // sellFishComplete(u8,u16)
-    {815, 0x006, 1648, 11},  // setMovie(u8,u8,u16,u16,u16,u8/100,i16/100)
-    {816, 0x007, 1656, 4},  // setPondDoId(u32)
-    {817, 0x000, 1658, 5},  // updateGameState(u32,u8)
-    {818, 0x000, 1661, 9},  // setCardState(u16,u8,u16,u32)
-    {819, 0x000, 1666, 65535},  // setState(string,i16)
-    {820, 0x110, 1669, 5},  // cardUpdate(u16,u8,u8,u8)
-    {821, 0x000, 1674, 0},  // enableBingo()
-    {822, 0x110, 1675, 2},  // handleBingoCall(u16)
-    {823, 0x000, 1677, 2},  // setJackpot(u16)
-    {849, 0x007, 1679, 65535},  // setParticipants(u32[])
-    {850, 0x007, 1684, 4},  // setTrolleyZone(u32)
-    {851, 0x007, 1686, 65535},  // setStartingVotes(u16[])
-    {852, 0x007, 1691, 1},  // setMetagameRound(i8)
-    {853, 0x007, 1693, 8},  // setDifficultyOverrides(i32,i32)
-    {854, 0x110, 1696, 0},  // setAvatarJoined()
-    {855, 0x110, 1697, 0},  // setAvatarReady()
-    {856, 0x110, 1698, 0},  // setAvatarExited()
-    {857, 0x110, 1699, 0},  // requestExit()
-    {858, 0x002, 1700, 0},  // setGameReady()
-    {859, 0x002, 1701, 2},  // setGameStart(i16)
-    {860, 0x002, 1703, 0},  // setGameExit()
-    {861, 0x002, 1704, 0},  // setGameAbort()
-    {862, 0x002, 1705, 2},  // setTimerStartTime(i16)
-    {863, 0x110, 1707, 1},  // setAvatarChoice(u8)
-    {864, 0x002, 1709, 4},  // setAvatarChose(u32)
-    {865, 0x002, 1711, 65535},  // setChancePositions(u8[])
-    {866, 0x002, 1716, 65535},  // setServerChoices(i8[],u8[],i8[])
-    {867, 0x110, 1729, 8},  // setCannonPosition(i32/100,u32/100)
-    {868, 0x110, 1732, 8},  // setCannonLit(i32/100,u32/100)
-    {869, 0x002, 1735, 12},  // updateCannonPosition(u32,i32/100,u32/100)
-    {870, 0x002, 1739, 16},  // setCannonWillFire(u32,i32/100,i32/100,u32/100)
-    {871, 0x110, 1744, 4},  // setToonWillLandInWater(i32/100)
-    {872, 0x002, 1746, 8},  // announceToonWillLandInWater(u32,i32/100)
-    {873, 0x110, 1749, 65535},  // newClientPhotoScore(u8,string,u32/100)
-    {874, 0x002, 1753, 9},  // newAIPhotoScore(u32,u8,u32/100)
-    {875, 0x110, 1757, 0},  // filmOut()
-    {876, 0x110, 1758, 0},  // reportPlayerReady()
-    {877, 0x002, 1759, 65535},  // setPattern(u8[])
-    {878, 0x110, 1764, 65535},  // reportPlayerPattern(u8[],u16/1000)
-    {879, 0x002, 1770, 65535},  // setPlayerPatterns(u8[],u8[],u8[],u8[],u32)
-    {880, 0x110, 1788, 2},  // reportButtonPress(u8,u8)
-    {881, 0x002, 1791, 6},  // remoteButtonPressed(u32,u8,u8)
-    {882, 0x007, 1795, 2},  // setTimeBase(i16)
-    {883, 0x007, 1797, 4},  // setColorIndices(i8,i8,i8,i8)
-    {884, 0x110, 1802, 1},  // setToonGotRing(u8)
-    {885, 0x002, 1804, 1},  // setRingGroupResults(u8)
-    {886, 0x110, 1806, 4},  // tag(u32)
-    {887, 0x002, 1808, 4},  // setIt(u32)
-    {888, 0x002, 1810, 65535},  // setTreasureScore(u16[])
-    {889, 0x110, 1815, 4},  // claimTreasure(u32)
-    {890, 0x002, 1817, 8},  // setTreasureGrabbed(u32,u32)
-    {891, 0x002, 1820, 0},  // allTreasuresTaken()
-    {892, 0x012, 1821, 6},  // hitBySuit(u32,i16)
-    {893, 0x110, 1824, 1},  // reportPlayerReady(u8)
-    {894, 0x002, 1826, 65535},  // sendGoSignal(u8[])
-    {895, 0x002, 1831, 65535},  // sendStopSignal(u32[],u32[],u32[])
-    {896, 0x002, 1844, 2},  // sendGameType(u8,u8)
-    {897, 0x110, 1847, 1},  // reportEndOfContest(u8)
-    {898, 0x110, 1849, 65535},  // sendNewAvIdList(u32[])
-    {899, 0x110, 1854, 6},  // reportCurrentKeyRate(u32,i16/100)
-    {900, 0x002, 1857, 65535},  // sendCurrentPosition(u32[],i16/1000[])
-    {901, 0x002, 1866, 4},  // sendSuitPosition(i32/1000)
-    {902, 0x002, 1868, 8},  // remoteKeyRateUpdate(u32,u32)
-    {903, 0x110, 1871, 8},  // claimCatch(u32,u32)
-    {904, 0x002, 1874, 8},  // setObjectCaught(u32,u32)
-    {905, 0x012, 1877, 6},  // hitBySuit(u32,i16)
-    {906, 0x110, 1880, 0},  // reportDone()
-    {907, 0x002, 1881, 0},  // setEveryoneDone()
-    {908, 0x110, 1882, 4},  // pickupTreasure(u32)
-    {909, 0x002, 1884, 8},  // setTreasureGrabbed(u32,u32)
-    {910, 0x110, 1887, 65535},  // handleFishCollision(u32,u32,u32,string)
-    {911, 0x002, 1892, 14},  // performFishCollision(u32,u32,u32,i16)
-    {912, 0x110, 1897, 65535},  // handleCrabCollision(u32,string)
-    {913, 0x002, 1900, 6},  // performCrabCollision(u32,i16)
-    {914, 0x002, 1903, 6},  // setTreasureDropped(u32,i16)
-    {915, 0x002, 1906, 12},  // fishSpawn(i16,u32,u32,u16)
-    {916, 0x110, 1911, 4},  // removeFish(u32)
-    {917, 0x110, 1913, 7},  // getCrabMoving(u32,i16,i8)
-    {918, 0x002, 1917, 11},  // setCrabMoving(u32,i16,i8,i8,i16,i8)
-    {919, 0x110, 1924, 0},  // treasureRecovered()
-    {920, 0x002, 1925, 10},  // incrementScore(u32,u32,i16)
-    {921, 0x007, 1929, 2},  // setTimeBase(i16)
-    {922, 0x110, 1931, 1},  // setToonGotRing(u8)
-    {923, 0x002, 1933, 1},  // setRingGroupResults(u8)
-    {924, 0x110, 1935, 0},  // setPlayerDone()
-    {925, 0x110, 1936, 8},  // setScore(i32,i32)
-    {926, 0x006, 1939, 4},  // setTargetSeed(u32)
-    {927, 0x002, 1941, 0},  // setRoundDone()
-    {928, 0x002, 1942, 6},  // setSingleScore(u16,u32)
-    {929, 0x002, 1945, 0},  // setGameDone()
-    {930, 0x002, 1946, 0},  // startAprilFools()
-    {931, 0x002, 1947, 0},  // stopAprilFools()
-    {932, 0x110, 1948, 65535},  // getEstateZone(u32,string)
-    {933, 0x000, 1951, 8},  // setEstateZone(u32,u32)
-    {934, 0x002, 1954, 65535},  // setAvHouseId(u32,u32[])
-    {935, 0x000, 1960, 5},  // sendAvToPlayground(u32,u8)
-    {936, 0x110, 1963, 0},  // exitEstate()
-    {937, 0x110, 1964, 8},  // removeFriend(u32,u32)
-    {946, 0x008, 1967, 65535},  // DcObjectType(string)
-    {947, 0x002, 1969, 0},  // setEstateReady()
-    {948, 0x110, 1970, 0},  // setClientReady()
-    {949, 0x00b, 1971, 1},  // setEstateType(u8)
-    {950, 0x110, 1973, 1},  // setClosestHouse(u8)
-    {951, 0x006, 1975, 65535},  // setTreasureIds(u32[])
-    {952, 0x110, 1980, 0},  // requestServerTime()
-    {953, 0x000, 1981, 4},  // setServerTime(u32)
-    {954, 0x007, 1983, 4},  // setDawnTime(u32)
-    {955, 0x006, 1985, 4},  // placeOnGround(u32)
-    {956, 0x109, 1987, 65535},  // setDecorData({u8,u8,i8,i8,u16}[])
-    {957, 0x109, 1996, 4},  // setLastEpochTimeStamp(u32)
-    {958, 0x109, 1998, 4},  // setRentalTimeStamp(u32)
-    {959, 0x109, 2000, 1},  // setRentalType(u8)
-    {960, 0x109, 2002, 4},  // setSlot0ToonId(u32)
-    {961, 0x109, 2004, 65535},  // setSlot0Items({u8,u8,i8,i8,u16}[])
-    {962, 0x109, 2013, 4},  // setSlot1ToonId(u32)
-    {963, 0x109, 2015, 65535},  // setSlot1Items({u8,u8,i8,i8,u16}[])
-    {964, 0x109, 2024, 4},  // setSlot2ToonId(u32)
-    {965, 0x109, 2026, 65535},  // setSlot2Items({u8,u8,i8,i8,u16}[])
-    {966, 0x109, 2035, 4},  // setSlot3ToonId(u32)
-    {967, 0x109, 2037, 65535},  // setSlot3Items({u8,u8,i8,i8,u16}[])
-    {968, 0x109, 2046, 4},  // setSlot4ToonId(u32)
-    {969, 0x109, 2048, 65535},  // setSlot4Items({u8,u8,i8,i8,u16}[])
-    {970, 0x109, 2057, 4},  // setSlot5ToonId(u32)
-    {971, 0x109, 2059, 65535},  // setSlot5Items({u8,u8,i8,i8,u16}[])
-    {972, 0x006, 2068, 65535},  // setIdList(u32[])
-    {973, 0x110, 2073, 1},  // completeFlowerSale(u8)
-    {974, 0x002, 2075, 4},  // awardedTrophy(u32)
-    {975, 0x007, 2077, 1},  // setClouds(u8)
-    {976, 0x002, 2079, 0},  // cannonsOver()
-    {977, 0x002, 2080, 0},  // gameTableOver()
-    {978, 0x008, 2081, 65535},  // DcObjectType(string)
-    {979, 0x003, 2083, 1},  // setHousePos(u8)
-    {980, 0x00b, 2085, 1},  // setHouseType(u8)
-    {981, 0x00b, 2087, 1},  // setGardenPos(u8)
-    {982, 0x00b, 2089, 4},  // setAvatarId(u32)
-    {983, 0x00b, 2091, 65535},  // setName(string)
-    {984, 0x00b, 2093, 1},  // setColor(u8)
-    {985, 0x009, 2095, 65535},  // setAtticItems(blob)
-    {986, 0x009, 2097, 65535},  // setInteriorItems(blob)
-    {987, 0x009, 2099, 65535},  // setAtticWallpaper(blob)
-    {988, 0x009, 2101, 65535},  // setInteriorWallpaper(blob)
-    {989, 0x009, 2103, 65535},  // setAtticWindows(blob)
-    {990, 0x009, 2105, 65535},  // setInteriorWindows(blob)
-    {991, 0x009, 2107, 65535},  // setDeletedItems(blob)
-    {992, 0x001, 2109, 1},  // setCannonEnabled(u8)
-    {993, 0x006, 2111, 0},  // setHouseReady()
-    {994, 0x007, 2112, 4},  // setHouseId(u32)
-    {995, 0x007, 2114, 1},  // setHouseIndex(u8)
-    {996, 0x007, 2116, 65535},  // setWallpaper(blob)
-    {997, 0x007, 2118, 65535},  // setWindows(blob)
-    {1093, 0x110, 2120, 65535},  // requestExecuteMagicWord(i8,i8,i16,u32,string)
-    {1094, 0x000, 2126, 65535},  // executeMagicWord(string,string,u32[],blob,i8,i8,i16,u32)
-    {1095, 0x000, 2138, 65535},  // generateResponse(string,string,blob,string,i8,i8,i16,u32,string)
-    {1096, 0x000, 2148, 65535},  // teleportResponse(string,string,string,u32,u32,u32)
-    {1112, 0x006, 2155, 4},  // setPopulation(u32)
-    {1113, 0x006, 2157, 4},  // setBingoWin(u32)
-    {1114, 0x002, 2159, 0},  // setBingoStart()
-    {1115, 0x002, 2160, 0},  // setBingoEnd()
-    {1116, 0x002, 2161, 0},  // setCircuitRaceStart()
-    {1117, 0x002, 2162, 0},  // setCircuitRaceEnd()
-    {1118, 0x002, 2163, 0},  // setTrolleyHolidayStart()
-    {1119, 0x002, 2164, 0},  // setTrolleyHolidayEnd()
-    {1120, 0x002, 2165, 0},  // setTrolleyWeekendStart()
-    {1121, 0x002, 2166, 0},  // setTrolleyWeekendEnd()
-    {1122, 0x002, 2167, 0},  // setRoamingTrialerWeekendStart()
-    {1123, 0x002, 2168, 0},  // setRoamingTrialerWeekendEnd()
-    {1124, 0x002, 2169, 65535},  // setInvasionStatus(u8,string,u32,u8)
-    {1125, 0x006, 2174, 65535},  // setHolidayIdList(u32[])
-    {1126, 0x002, 2179, 0},  // holidayNotify()
-    {1127, 0x007, 2180, 65535},  // setWeeklyCalendarHolidays({u8,u8}[])
-    {1128, 0x007, 2186, 65535},  // setYearlyCalendarHolidays({u8,u8[],u8[]}[])
-    {1129, 0x007, 2199, 65535},  // setOncelyCalendarHolidays({u8,u16[],u16[]}[])
-    {1130, 0x007, 2212, 65535},  // setRelativelyCalendarHolidays({u8,u16[],u16[]}[])
-    {1131, 0x007, 2225, 65535},  // setMultipleStartHolidays({u8,{u16[],u16[]}[]}[])
-    {1132, 0x006, 2241, 65535},  // sendSystemMessage(string,u8)
-    {1133, 0x007, 2244, 16},  // setPlayerIds(u32,u32,u32,u32)
-    {1134, 0x007, 2249, 65535},  // setNewbieIds(u32[])
-    {1135, 0x007, 2254, 4},  // setMinigamePoints(u8,u8,u8,u8)
-    {1136, 0x007, 2259, 4},  // setPlayerMoney(u8,u8,u8,u8)
-    {1137, 0x007, 2264, 4},  // setPlayerStates(u8,u8,u8,u8)
-    {1138, 0x007, 2269, 2},  // setCountdown(i16)
-    {1139, 0x007, 2271, 1},  // setMetagameRound(i8)
-    {1140, 0x007, 2273, 65535},  // setVotesArray(i16[])
-    {1141, 0x110, 2278, 0},  // requestExit()
-    {1142, 0x110, 2279, 0},  // requestPlayAgain()
-    {1143, 0x110, 2280, 65535},  // setInventory(blob,i16,u8)
-    {1144, 0x002, 2284, 0},  // setPurchaseExit()
-    {1145, 0x007, 2285, 4},  // setOwnedNewbieId(u32)
-    {1146, 0x110, 2287, 0},  // enterSafeZone()
-    {1147, 0x110, 2288, 0},  // exitSafeZone()
-    {1148, 0x110, 2289, 0},  // requestTutorial()
-    {1149, 0x110, 2290, 0},  // rejectTutorial()
-    {1150, 0x110, 2291, 0},  // requestSkipTutorial()
-    {1151, 0x000, 2292, 1},  // skipTutorialResponse(u8)
-    {1152, 0x000, 2294, 16},  // enterTutorial(u32,u32,u32,u32)
-    {1153, 0x110, 2299, 0},  // allDone()
-    {1154, 0x110, 2300, 0},  // toonArrived()
-    {1155, 0x110, 2301, 0},  // startCatalog()
-    {1157, 0x007, 2302, 6},  // setPosition(i16/10,i16/10,i16/10)
-    {1158, 0x110, 2306, 0},  // requestGrab()
-    {1159, 0x006, 2307, 4},  // setGrab(u32)
-    {1160, 0x002, 2309, 0},  // setReject()
-    {1161, 0x007, 2310, 4},  // setGoonId(u32)
-    {1162, 0x007, 2312, 6},  // setFinalPosition(i16/10,i16/10,i16/10)
-    {1163, 0x007, 2316, 2},  // setStyle(u16)
-    {1169, 0x007, 2318, 4},  // setLevelZoneId(u32)
-    {1170, 0x007, 2320, 65535},  // setPlayerIds(u32[])
-    {1171, 0x007, 2325, 1},  // setEntranceId(u8)
-    {1172, 0x006, 2327, 65535},  // setZoneIds(u32[])
-    {1173, 0x006, 2332, 4},  // setStartTimestamp(i32)
-    {1174, 0x110, 2334, 1},  // setOuch(u8)
-    {1175, 0x110, 2336, 65535},  // requestCurrentLevelSpec(string,string)
-    {1176, 0x000, 2339, 65535},  // setSpecDeny(blob)
-    {1177, 0x000, 2341, 4},  // setSpecSenderDoId(u32)
-    {1178, 0x002, 2343, 65535},  // setAttribChange(u32,blob,blob,blob)
-    {1179, 0x007, 2348, 4},  // setLevelDoId(u32)
-    {1180, 0x007, 2350, 4},  // setEntId(u32)
-    {1181, 0x007, 2352, 4},  // setAvatarInteract(u32)
-    {1182, 0x110, 2354, 0},  // requestInteract()
-    {1183, 0x000, 2355, 0},  // rejectInteract()
-    {1184, 0x110, 2356, 0},  // requestExit()
-    {1185, 0x002, 2357, 4},  // avatarExit(u32)
-    {1186, 0x007, 2359, 65535},  // setState(string,i32)
-    {1187, 0x110, 2362, 0},  // requestTrophyScore()
-    {1188, 0x007, 2363, 6},  // setBlock(u16,u32)
-    {1189, 0x007, 2366, 3},  // setSuitData(i8,i8,i8)
-    {1190, 0x006, 2370, 65535},  // setVictorList(u32[])
-    {1191, 0x006, 2375, 65535},  // setState(string,i16)
-    {1192, 0x110, 2378, 0},  // setVictorReady()
-    {1196, 0x007, 2379, 6},  // setZoneIdAndBlock(u32,u16)
-    {1197, 0x007, 2382, 65535},  // setSavedBy({u32,string,blob}[])
-    {1198, 0x007, 2389, 65535},  // setState(string,i16)
-    {1199, 0x007, 2392, 4},  // setZoneId(u32)
-    {1200, 0x007, 2394, 4},  // setExtZoneId(u32)
-    {1201, 0x007, 2396, 4},  // setDistBldgDoId(u32)
-    {1202, 0x007, 2398, 1},  // setNumFloors(i8)
-    {1203, 0x006, 2400, 65535},  // setToons(u32[],u16)
-    {1204, 0x006, 2406, 65535},  // setSuits(u32[],u32[],u16[])
-    {1205, 0x007, 2419, 65535},  // setState(string,i16)
-    {1206, 0x110, 2422, 0},  // setAvatarJoined()
-    {1207, 0x110, 2423, 0},  // elevatorDone()
-    {1208, 0x110, 2424, 0},  // reserveJoinDone()
-    {1319, 0x007, 2425, 6},  // setZoneIdAndBlock(u32,u16)
-    {1320, 0x007, 2428, 65535},  // setLeaderBoard(blob)
-    {1321, 0x007, 2430, 1},  // setTutorial(u8)
-    {1322, 0x007, 2432, 6},  // setZoneIdAndBlock(u32,u16)
-    {1323, 0x007, 2435, 6},  // setZoneIdAndBlock(u32,u16)
-    {1325, 0x007, 2438, 8},  // setZoneIdAndBlock(u32,u32)
-    {1326, 0x007, 2441, 1},  // setSwing(i8)
-    {1327, 0x007, 2443, 1},  // setDoorType(u8)
-    {1328, 0x007, 2445, 1},  // setDoorIndex(u8)
-    {1329, 0x000, 2447, 8},  // setOtherZoneIdAndDoId(u32,u32)
-    {1330, 0x110, 2450, 0},  // requestEnter()
-    {1331, 0x110, 2451, 0},  // requestExit()
-    {1332, 0x000, 2452, 1},  // rejectEnter(i8)
-    {1333, 0x002, 2454, 4},  // avatarEnter(u32)
-    {1334, 0x002, 2456, 4},  // avatarExit(u32)
-    {1335, 0x007, 2458, 65535},  // setState(string,i16)
-    {1336, 0x007, 2461, 65535},  // setExitDoorState(string,i16)
-    {1337, 0x006, 2464, 1},  // informPlayer(u8)
-    {1338, 0x007, 2466, 65535},  // setName(string)
-    {1339, 0x007, 2468, 65535},  // setDNAString(blob)
-    {1340, 0x007, 2470, 1},  // setPositionIndex(u8)
-    {1341, 0x006, 2472, 65535},  // setAnimState(string,i16/1000,i16)
-    {1342, 0x016, 2476, 5},  // setPageNumber(i16,i8,i16)
-    {1343, 0x110, 2480, 0},  // avatarEnter()
-    {1344, 0x000, 2481, 0},  // freeAvatar()
-    {1345, 0x006, 2482, 65535},  // setMovie(u8,u32,u32,u16[],i16)
-    {1346, 0x110, 2491, 0},  // setMovieDone()
-    {1347, 0x110, 2492, 2},  // chooseQuest(u16)
-    {1348, 0x110, 2494, 1},  // chooseTrack(i8)
-    {1349, 0x006, 2496, 65535},  // setMovie(u8,u32,u32,u16[],i16)
-    {1350, 0x110, 2505, 0},  // setMovieDone()
-    {1351, 0x110, 2506, 2},  // chooseQuest(u16)
-    {1352, 0x110, 2508, 1},  // chooseTrack(i8)
-    {1353, 0x042, 2510, 65535},  // setChat(string,u8,u32,u8,u8)
-    {1354, 0x006, 2516, 11},  // setMovie(u8,u32,u32,i16)
-    {1355, 0x110, 2521, 65535},  // setInventory(blob,i16,u8)
-    {1356, 0x006, 2525, 11},  // setMovie(u8,u32,u32,i16)
-    {1357, 0x110, 2530, 65535},  // setDNA(blob,i8,u8)
-    {1358, 0x006, 2534, 65535},  // setCustomerDNA(u32,blob)
-    {1359, 0x006, 2537, 11},  // setMovie(u8,u32,u32,i16)
-    {1360, 0x006, 2542, 65535},  // setMovie(u8,u32,u32,u32[],i16)
-    {1361, 0x110, 2551, 1},  // completeSale(u8)
-    {1362, 0x006, 2553, 65535},  // setMovie(u8,u32,u32,u32[],i16)
-    {1363, 0x110, 2562, 1},  // answer(u8)
-    {1364, 0x006, 2564, 65535},  // setMovie(u8,u32,u32,u32[],i16)
-    {1365, 0x000, 2573, 65535},  // setPetSeeds(u32[])
-    {1366, 0x110, 2578, 5},  // petAdopted(u8,u32)
-    {1367, 0x110, 2581, 0},  // petReturned()
-    {1368, 0x110, 2582, 0},  // fishSold()
-    {1369, 0x110, 2583, 0},  // transactionDone()
-    {1370, 0x006, 2584, 65535},  // setMovie(u8,u32,u32,u32[],i16)
-    {1371, 0x110, 2593, 1},  // buyKart(u8)
-    {1372, 0x110, 2595, 1},  // buyAccessory(u8)
-    {1373, 0x110, 2597, 0},  // transactionDone()
-    {1374, 0x007, 2598, 4},  // setBldgDoId(u32)
-    {1375, 0x006, 2600, 65535},  // setState(string,i16)
-    {1376, 0x006, 2603, 5},  // fillSlot0(u32,u8)
-    {1377, 0x006, 2606, 5},  // fillSlot1(u32,u8)
-    {1378, 0x006, 2609, 5},  // fillSlot2(u32,u8)
-    {1379, 0x006, 2612, 5},  // fillSlot3(u32,u8)
-    {1380, 0x006, 2615, 5},  // fillSlot4(u32,u8)
-    {1381, 0x006, 2618, 5},  // fillSlot5(u32,u8)
-    {1382, 0x006, 2621, 5},  // fillSlot6(u32,u8)
-    {1383, 0x006, 2624, 5},  // fillSlot7(u32,u8)
-    {1384, 0x006, 2627, 9},  // emptySlot0(u32,i8,i16,i16)
-    {1385, 0x006, 2632, 9},  // emptySlot1(u32,i8,i16,i16)
-    {1386, 0x006, 2637, 9},  // emptySlot2(u32,i8,i16,i16)
-    {1387, 0x006, 2642, 9},  // emptySlot3(u32,i8,i16,i16)
-    {1388, 0x006, 2647, 9},  // emptySlot4(u32,i8,i16,i16)
-    {1389, 0x006, 2652, 9},  // emptySlot5(u32,i8,i16,i16)
-    {1390, 0x006, 2657, 9},  // emptySlot6(u32,i8,i16,i16)
-    {1391, 0x006, 2662, 9},  // emptySlot7(u32,i8,i16,i16)
-    {1392, 0x110, 2667, 0},  // requestBoard()
-    {1393, 0x000, 2668, 5},  // rejectBoard(u32,u8)
-    {1394, 0x110, 2671, 0},  // requestExit()
-    {1395, 0x007, 2672, 4},  // setElevatorTripId(u32)
-    {1396, 0x007, 2674, 1},  // setAntiShuffle(u8)
-    {1397, 0x007, 2676, 1},  // setMinLaff(u8)
-    {1398, 0x007, 2678, 4},  // setBldgDoId(u32)
-    {1399, 0x006, 2680, 65535},  // setState(string,i16)
-    {1400, 0x006, 2683, 4},  // fillSlot0(u32)
-    {1401, 0x006, 2685, 4},  // fillSlot1(u32)
-    {1402, 0x006, 2687, 4},  // fillSlot2(u32)
-    {1403, 0x006, 2689, 4},  // fillSlot3(u32)
-    {1404, 0x006, 2691, 4},  // fillSlot4(u32)
-    {1405, 0x006, 2693, 4},  // fillSlot5(u32)
-    {1406, 0x006, 2695, 4},  // fillSlot6(u32)
-    {1407, 0x006, 2697, 4},  // fillSlot7(u32)
-    {1408, 0x006, 2699, 7},  // emptySlot0(u32,i8,i16)
-    {1409, 0x006, 2703, 7},  // emptySlot1(u32,i8,i16)
-    {1410, 0x006, 2707, 7},  // emptySlot2(u32,i8,i16)
-    {1411, 0x006, 2711, 7},  // emptySlot3(u32,i8,i16)
-    {1412, 0x006, 2715, 7},  // emptySlot4(u32,i8,i16)
-    {1413, 0x006, 2719, 7},  // emptySlot5(u32,i8,i16)
-    {1414, 0x006, 2723, 7},  // emptySlot6(u32,i8,i16)
-    {1415, 0x006, 2727, 7},  // emptySlot7(u32,i8,i16)
-    {1416, 0x110, 2731, 0},  // requestBoard()
-    {1417, 0x000, 2732, 5},  // rejectBoard(u32,u8)
-    {1418, 0x110, 2735, 0},  // requestExit()
-    {1419, 0x007, 2736, 4},  // setElevatorTripId(u32)
-    {1420, 0x007, 2738, 1},  // setAntiShuffle(u8)
-    {1421, 0x007, 2740, 1},  // setMinLaff(u8)
-    {1422, 0x006, 2742, 1},  // setFloor(i8)
-    {1423, 0x007, 2744, 2},  // setLocked(u16)
-    {1424, 0x007, 2746, 2},  // setEntering(u16)
-    {1425, 0x002, 2748, 0},  // kickToonsOut()
-    {1426, 0x007, 2749, 4},  // setLatch(u32)
-    {1427, 0x006, 2751, 1},  // setFloor(i8)
-    {1428, 0x007, 2753, 1},  // setEntranceId(u8)
-    {1429, 0x000, 2755, 4},  // setLawOfficeInteriorZone(u32)
-    {1430, 0x000, 2757, 4},  // setLawOfficeInteriorZoneForce(u32)
-    {1431, 0x110, 2759, 0},  // requestBuildingExit()
-    {1432, 0x000, 2760, 4},  // forcedExit(u32)
-    {1433, 0x007, 2762, 1},  // setEntranceId(u8)
-    {1434, 0x000, 2764, 4},  // setFactoryInteriorZone(u32)
-    {1435, 0x000, 2766, 4},  // setFactoryInteriorZoneForce(u32)
-    {1436, 0x007, 2768, 2},  // setMintId(u16)
-    {1437, 0x000, 2770, 4},  // setMintInteriorZone(u32)
-    {1438, 0x000, 2772, 4},  // setMintInteriorZoneForce(u32)
-    {1439, 0x000, 2774, 4},  // setLawOfficeInteriorZone(u32)
-    {1440, 0x000, 2776, 4},  // setBossOfficeZone(u32)
-    {1441, 0x000, 2778, 4},  // setBossOfficeZoneForce(u32)
-    {1479, 0x007, 2780, 4},  // setHouseId(u32)
-    {1480, 0x007, 2782, 1},  // setHousePos(u8)
-    {1481, 0x007, 2784, 65535},  // setName(string)
-    {1482, 0x006, 2786, 1},  // setFullIndicator(u8)
-    {1483, 0x110, 2788, 0},  // avatarEnter()
-    {1484, 0x110, 2789, 0},  // avatarExit()
-    {1485, 0x000, 2790, 0},  // freeAvatar()
-    {1486, 0x006, 2791, 5},  // setMovie(u8,u32)
-    {1487, 0x110, 2794, 65535},  // acceptItemMessage(u16,blob,u8,i32)
-    {1488, 0x000, 2799, 3},  // acceptItemResponse(u16,i8)
-    {1489, 0x110, 2802, 65535},  // discardItemMessage(u16,blob,u8,i32)
-    {1490, 0x000, 2807, 3},  // discardItemResponse(u16,i8)
-    {1491, 0x110, 2810, 10},  // acceptInviteMessage(u16,u64)
-    {1492, 0x110, 2813, 10},  // rejectInviteMessage(u16,u64)
-    {1493, 0x110, 2816, 8},  // markInviteReadButNotReplied(u64)
-    {1494, 0x007, 2818, 4},  // setOwnerId(u32)
-    {1495, 0x007, 2820, 65535},  // setOwnerName(string)
-    {1496, 0x007, 2822, 4},  // setInteriorId(u32)
-    {1497, 0x007, 2824, 65535},  // setAtticItems(blob)
-    {1498, 0x007, 2826, 65535},  // setAtticWallpaper(blob)
-    {1499, 0x007, 2828, 65535},  // setAtticWindows(blob)
-    {1500, 0x007, 2830, 65535},  // setDeletedItems(blob)
-    {1501, 0x110, 2832, 4},  // suggestDirector(u32)
-    {1502, 0x006, 2834, 4},  // setDirector(u32)
-    {1503, 0x110, 2836, 0},  // avatarEnter()
-    {1504, 0x110, 2837, 0},  // avatarExit()
-    {1505, 0x110, 2838, 6},  // moveItemToAtticMessage(u32,u16)
-    {1506, 0x000, 2841, 3},  // moveItemToAtticResponse(i8,u16)
-    {1507, 0x110, 2844, 16},  // moveItemFromAtticMessage(u16,i16/10,i16/10,i16/100,i16/10,i16/10,i16/10,u16)
-    {1508, 0x000, 2853, 7},  // moveItemFromAtticResponse(i8,u32,u16)
-    {1509, 0x110, 2857, 65535},  // deleteItemFromAtticMessage(blob,u16,u16)
-    {1510, 0x000, 2861, 3},  // deleteItemFromAtticResponse(i8,u16)
-    {1511, 0x110, 2864, 65535},  // deleteItemFromRoomMessage(blob,u32,u16)
-    {1512, 0x000, 2868, 3},  // deleteItemFromRoomResponse(i8,u16)
-    {1513, 0x110, 2871, 5},  // moveWallpaperFromAtticMessage(u16,u8,u16)
-    {1514, 0x000, 2875, 3},  // moveWallpaperFromAtticResponse(i8,u16)
-    {1515, 0x110, 2878, 65535},  // deleteWallpaperFromAtticMessage(blob,u16,u16)
-    {1516, 0x000, 2882, 3},  // deleteWallpaperFromAtticResponse(i8,u16)
-    {1517, 0x110, 2885, 3},  // moveWindowToAtticMessage(u8,u16)
-    {1518, 0x000, 2888, 3},  // moveWindowToAtticResponse(i8,u16)
-    {1519, 0x110, 2891, 5},  // moveWindowFromAtticMessage(u16,u8,u16)
-    {1520, 0x000, 2895, 3},  // moveWindowFromAtticResponse(i8,u16)
-    {1521, 0x110, 2898, 4},  // moveWindowMessage(u8,u8,u16)
-    {1522, 0x000, 2902, 3},  // moveWindowResponse(i8,u16)
-    {1523, 0x110, 2905, 65535},  // deleteWindowFromAtticMessage(blob,u16,u16)
-    {1524, 0x000, 2909, 3},  // deleteWindowFromAtticResponse(i8,u16)
-    {1525, 0x110, 2912, 65535},  // recoverDeletedItemMessage(blob,u16,u16)
-    {1526, 0x000, 2916, 3},  // recoverDeletedItemResponse(i8,u16)
-    {1527, 0x007, 2919, 65535},  // setItem(u32,blob)
-    {1528, 0x110, 2922, 15},  // requestPosHpr(u8,i16/10,i16/10,i16/100,i16/10,i16/10,i16/10,i16)
-    {1529, 0x007, 2931, 5},  // setMode(u8,u32)
-    {1530, 0x110, 2934, 0},  // avatarEnter()
-    {1531, 0x000, 2935, 0},  // freeAvatar()
-    {1532, 0x006, 2936, 7},  // setMovie(u8,u32,i16)
-    {1533, 0x110, 2940, 2},  // transferMoney(i16)
-    {1534, 0x007, 2942, 4},  // setOwnerId(u32)
-    {1535, 0x110, 2944, 0},  // enterAvatar()
-    {1536, 0x000, 2945, 0},  // freeAvatar()
-    {1537, 0x110, 2946, 65535},  // removeItem(blob,u8)
-    {1538, 0x110, 2949, 65535},  // setDNA(blob,i8,u8)
-    {1539, 0x006, 2953, 65535},  // setState(u8,u32,u32,string,u8[],u8[])
-    {1540, 0x006, 2966, 7},  // setMovie(u8,u32,i16)
-    {1541, 0x006, 2970, 0},  // resetItemLists()
-    {1542, 0x006, 2971, 65535},  // setCustomerDNA(u32,blob)
-    {1566, 0x007, 2974, 2},  // setFactoryId(u16)
-    {1567, 0x006, 2976, 65535},  // setSuits(u32[],u32[])
-    {1568, 0x006, 2985, 4},  // setForemanConfronted(u32)
-    {1569, 0x006, 2987, 0},  // setDefeated()
-    {1578, 0x007, 2988, 4},  // setZoneId(u32)
-    {1579, 0x007, 2990, 2},  // setMintId(u16)
-    {1580, 0x007, 2992, 1},  // setFloorNum(u8)
-    {1581, 0x006, 2994, 65535},  // setRoomDoIds(u32[])
-    {1582, 0x007, 2999, 2},  // setMintId(u16)
-    {1583, 0x007, 3001, 2},  // setRoomId(u16)
-    {1584, 0x007, 3003, 1},  // setRoomNum(u8)
-    {1585, 0x006, 3005, 65535},  // setSuits(u32[],u32[])
-    {1586, 0x006, 3014, 4},  // setBossConfronted(u32)
-    {1587, 0x006, 3016, 0},  // setDefeated()
-    {1588, 0x007, 3017, 4},  // setZoneId(u32)
-    {1589, 0x007, 3019, 2},  // setStageId(u16)
-    {1590, 0x007, 3021, 2},  // setLayoutIndex(u16)
-    {1591, 0x007, 3023, 1},  // setFloorNum(u8)
-    {1592, 0x006, 3025, 65535},  // setRoomDoIds(u32[])
-    {1593, 0x006, 3030, 4},  // setStageZone(u32)
-    {1594, 0x006, 3032, 4},  // elevatorAlert(u32)
-    {1595, 0x007, 3034, 2},  // setStageId(u16)
-    {1596, 0x007, 3036, 2},  // setRoomId(u16)
-    {1597, 0x007, 3038, 1},  // setRoomNum(u8)
-    {1598, 0x006, 3040, 65535},  // setSuits(u32[],u32[])
-    {1599, 0x006, 3049, 4},  // setBossConfronted(u32)
-    {1600, 0x006, 3051, 0},  // setDefeated()
-    {1609, 0x007, 3052, 6},  // setStateTransition(u8,u8,u32)
-    {1610, 0x110, 3056, 0},  // setAvatarEnter()
-    {1611, 0x110, 3057, 0},  // setAvatarLeave()
-    {1612, 0x007, 3058, 2},  // setLocksState(u16)
-    {1613, 0x007, 3060, 5},  // setDoorState(u8,i32)
-    {1614, 0x110, 3063, 0},  // requestOpen()
-    {1615, 0x006, 3064, 6},  // setPosition(i16/10,i16/10,i16/10)
-    {1616, 0x006, 3068, 5},  // setCrushed(u32,u8)
-    {1617, 0x006, 3071, 65535},  // setMovie(u8,i16,u32[])
-    {1618, 0x006, 3078, 65535},  // setChildren(u32[])
-    {1619, 0x110, 3083, 0},  // setSquash()
-    {1620, 0x110, 3084, 0},  // requestGrab()
-    {1621, 0x006, 3085, 4},  // setGrab(u32)
-    {1622, 0x002, 3087, 0},  // setReject()
-    {1623, 0x006, 3088, 5},  // setState(u8,u32)
-    {1624, 0x110, 3091, 1},  // requestPush(u8)
-    {1625, 0x000, 3093, 0},  // setReject()
-    {1626, 0x002, 3094, 0},  // setAccept()
-    {1627, 0x006, 3095, 16},  // setMoveTo(u32,i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {1628, 0x110, 3103, 0},  // setDone()
-    {1629, 0x110, 3104, 5},  // setOnOff(u8,u32)
-    {1630, 0x006, 3107, 9},  // setSinkMode(u32,u8,u32)
-    {1631, 0x110, 3111, 2},  // requestBattle(i16/10)
-    {1632, 0x110, 3113, 2},  // requestStunned(i16/10)
-    {1633, 0x110, 3115, 0},  // requestResync()
-    {1634, 0x110, 3116, 10},  // setParameterize(i16/10,i16/10,i16/10,u32)
-    {1635, 0x006, 3121, 11},  // setMovie(u8,u32,i32/10,i16)
-    {1636, 0x006, 3126, 12},  // setPathPts(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {1637, 0x007, 3133, 1},  // setActive(u8)
-    {1638, 0x006, 3135, 65535},  // setSuits(u32[])
-    {1639, 0x006, 3140, 4},  // setBattle(u32)
-    {1640, 0x006, 3142, 0},  // setBattleFinished()
-    {1641, 0x007, 3143, 2},  // setGrid(u8,u8)
-    {1642, 0x007, 3146, 65535},  // setField(u8[])
-    {1643, 0x006, 3151, 1},  // setSuccess(u8)
-    {1644, 0x110, 3153, 4},  // hit(i8,i8,i8,i8)
-    {1645, 0x110, 3158, 0},  // trapFire()
-    {1646, 0x006, 3159, 1},  // setActiveLF(u8)
-    {1647, 0x006, 3161, 65535},  // hideSuit(u32[])
-    {1648, 0x006, 3166, 65535},  // showSuit(u32[])
-    {1649, 0x006, 3171, 65535},  // setGridGame(string)
-    {1655, 0x110, 3173, 0},  // requestJoin()
-    {1656, 0x110, 3174, 0},  // leaveGame()
-    {1657, 0x006, 3175, 65535},  // acceptJoin(u16,i32,u32[])
-    {1658, 0x110, 3182, 1},  // requestBoard(u8)
-    {1659, 0x000, 3184, 65535},  // startBoard({u8,u8,u8}[],u8[])
-    {1660, 0x006, 3195, 1},  // signalDone(u8)
-    {1661, 0x000, 3197, 4},  // boardCleared(u32)
-    {1662, 0x006, 3199, 65535},  // scoreData(u8,u8,{u32,u8}[])
-    {1663, 0x000, 3207, 2},  // informGag(u8,u8)
-    {1664, 0x002, 3210, 4},  // helpOthers(u32)
-    {1665, 0x006, 3212, 6},  // setTimerStart(u16,i32)
-    {1666, 0x110, 3215, 0},  // trapFire()
-    {1667, 0x006, 3216, 1},  // setTarget(u8)
-    {1668, 0x006, 3218, 2},  // startMove(i16)
-    {1669, 0x008, 3220, 65535},  // DcObjectType(string)
-    {1670, 0x00b, 3222, 4},  // setOwnerId(u32)
-    {1671, 0x00b, 3224, 65535},  // setPetName(string)
-    {1672, 0x00b, 3226, 4},  // setTraitSeed(u32)
-    {1673, 0x00b, 3228, 4},  // setSafeZone(u32)
-    {1674, 0x00b, 3230, 2},  // setForgetfulness(u16/10000)
-    {1675, 0x00b, 3232, 2},  // setBoredomThreshold(u16/10000)
-    {1676, 0x00b, 3234, 2},  // setRestlessnessThreshold(u16/10000)
-    {1677, 0x00b, 3236, 2},  // setPlayfulnessThreshold(u16/10000)
-    {1678, 0x00b, 3238, 2},  // setLonelinessThreshold(u16/10000)
-    {1679, 0x00b, 3240, 2},  // setSadnessThreshold(u16/10000)
-    {1680, 0x00b, 3242, 2},  // setFatigueThreshold(u16/10000)
-    {1681, 0x00b, 3244, 2},  // setHungerThreshold(u16/10000)
-    {1682, 0x00b, 3246, 2},  // setConfusionThreshold(u16/10000)
-    {1683, 0x00b, 3248, 2},  // setExcitementThreshold(u16/10000)
-    {1684, 0x00b, 3250, 2},  // setAngerThreshold(u16/10000)
-    {1685, 0x00b, 3252, 2},  // setSurpriseThreshold(u16/10000)
-    {1686, 0x00b, 3254, 2},  // setAffectionThreshold(u16/10000)
-    {1687, 0x00b, 3256, 1},  // setHead(i8)
-    {1688, 0x00b, 3258, 1},  // setEars(i8)
-    {1689, 0x00b, 3260, 1},  // setNose(i8)
-    {1690, 0x00b, 3262, 1},  // setTail(i8)
-    {1691, 0x00b, 3264, 1},  // setBodyTexture(i8)
-    {1692, 0x00b, 3266, 1},  // setColor(i8)
-    {1693, 0x00b, 3268, 1},  // setColorScale(i8)
-    {1694, 0x00b, 3270, 1},  // setEyeColor(i8)
-    {1695, 0x00b, 3272, 1},  // setGender(i8)
-    {1696, 0x00b, 3274, 4},  // setLastSeenTimestamp(u32)
-    {1697, 0x00b, 3276, 2},  // setBoredom(u16/1000)
-    {1698, 0x00b, 3278, 2},  // setRestlessness(u16/1000)
-    {1699, 0x00b, 3280, 2},  // setPlayfulness(u16/1000)
-    {1700, 0x00b, 3282, 2},  // setLoneliness(u16/1000)
-    {1701, 0x00b, 3284, 2},  // setSadness(u16/1000)
-    {1702, 0x00b, 3286, 2},  // setAffection(u16/1000)
-    {1703, 0x00b, 3288, 2},  // setHunger(u16/1000)
-    {1704, 0x00b, 3290, 2},  // setConfusion(u16/1000)
-    {1705, 0x00b, 3292, 2},  // setExcitement(u16/1000)
-    {1706, 0x00b, 3294, 2},  // setFatigue(u16/1000)
-    {1707, 0x00b, 3296, 2},  // setAnger(u16/1000)
-    {1708, 0x00b, 3298, 2},  // setSurprise(u16/1000)
-    {1709, 0x00b, 3300, 24},  // setMood(u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000)
-    {1710, 0x042, 3313, 2},  // teleportIn(i16)
-    {1711, 0x042, 3315, 2},  // teleportOut(i16)
-    {1712, 0x00b, 3317, 65535},  // setTrickAptitudes(u16/10000[])
-    {1713, 0x006, 3322, 3},  // doTrick(u8,i16)
-    {1714, 0x000, 3325, 4},  // avatarInteract(u32)
-    {1715, 0x006, 3327, 7},  // setMovie(u8,u32,i16)
-    {1716, 0x000, 3331, 0},  // freeAvatar()
-    {1729, 0x007, 3332, 4},  // setOwner(u32)
-    {1730, 0x006, 3334, 5},  // setState(char,u32)
-    {1731, 0x007, 3337, 1},  // setBodyType(i8)
-    {1732, 0x007, 3339, 1},  // setBodyColor(i8)
-    {1733, 0x007, 3341, 1},  // setAccessoryColor(i8)
-    {1734, 0x007, 3343, 1},  // setEngineBlockType(i8)
-    {1735, 0x007, 3345, 1},  // setSpoilerType(i8)
-    {1736, 0x007, 3347, 1},  // setFrontWheelWellType(i8)
-    {1737, 0x007, 3349, 1},  // setBackWheelWellType(i8)
-    {1738, 0x007, 3351, 1},  // setRimType(i8)
-    {1739, 0x007, 3353, 1},  // setDecalType(i8)
-    {1740, 0x110, 3355, 0},  // requestControl()
-    {1741, 0x110, 3356, 0},  // requestParked()
-    {1742, 0x006, 3357, 1},  // setInput(i8)
-    {1745, 0x007, 3359, 4},  // setZoneId(u32)
-    {1746, 0x007, 3361, 2},  // setTrackId(u16)
-    {1747, 0x007, 3363, 2},  // setRaceType(u16)
-    {1748, 0x007, 3365, 65535},  // setCircuitLoop(u16[])
-    {1749, 0x007, 3370, 65535},  // setAvatars(u32[])
-    {1750, 0x007, 3375, 65535},  // setStartingPlaces(u8[])
-    {1751, 0x007, 3380, 1},  // setLapCount(u8)
-    {1752, 0x006, 3382, 0},  // waitingForJoin()
-    {1753, 0x006, 3383, 65535},  // setEnteredRacers({u32,u32}[])
-    {1754, 0x006, 3389, 0},  // prepForRace()
-    {1755, 0x006, 3390, 0},  // startTutorial()
-    {1756, 0x006, 3391, 2},  // startRace(i16)
-    {1757, 0x006, 3393, 65535},  // goToSpeedway(u32[],u8)
-    {1758, 0x006, 3399, 4},  // genGag(u8,u16,u8)
-    {1759, 0x006, 3403, 10},  // dropAnvilOn(u32,u32,i16)
-    {1760, 0x006, 3407, 9},  // shootPiejectile(u32,u32,u8)
-    {1761, 0x006, 3411, 4},  // racerDisconnected(u32)
-    {1762, 0x006, 3413, 65535},  // setPlace(u32,u32/1000,u8,u32,u8,u32,u32,u32[],u16[],u32/1000)
-    {1763, 0x006, 3430, 65535},  // setCircuitPlace(u32,u8,u32,u32,u32,u32[])
-    {1764, 0x006, 3440, 0},  // endCircuitRace()
-    {1765, 0x000, 3441, 8},  // setRaceZone(u32,u32)
-    {1766, 0x112, 3444, 3},  // hasGag(u8,u8,u8)
-    {1767, 0x116, 3448, 4},  // racerLeft(u32)
-    {1768, 0x112, 3450, 9},  // heresMyT(u32,i8,u16/65535,i16)
-    {1769, 0x110, 3455, 12},  // requestThrow(i32/1000,i32/1000,i32/1000)
-    {1770, 0x110, 3459, 0},  // requestKart()
-    {1771, 0x007, 3460, 2},  // setInitTime(i16)
-    {1772, 0x007, 3462, 2},  // setActivateTime(u16)
-    {1773, 0x007, 3464, 12},  // setPos(i32/1000,i32/1000,i32/1000)
-    {1774, 0x007, 3468, 4},  // setRace(u32)
-    {1775, 0x007, 3470, 4},  // setOwnerId(u32)
-    {1776, 0x007, 3472, 1},  // setType(u8)
-    {1777, 0x112, 3474, 6},  // hitSomebody(u32,i16)
-    {1778, 0x007, 3477, 2},  // setInitTime(i16)
-    {1779, 0x007, 3479, 12},  // setPos(i32/1000,i32/1000,i32/1000)
-    {1780, 0x007, 3483, 4},  // setRace(u32)
-    {1781, 0x007, 3485, 4},  // setOwnerId(u32)
-    {1782, 0x007, 3487, 1},  // setType(u8)
-    {1783, 0x112, 3489, 6},  // hitSomebody(u32,i16)
-    {1784, 0x007, 3492, 4},  // setArea(u32)
-    {1785, 0x007, 3494, 65535},  // setState(string,i16)
-    {1786, 0x000, 3497, 4},  // setRaceZone(u32)
-    {1787, 0x007, 3499, 65535},  // setTrackInfo(u16[])
-    {1788, 0x007, 3504, 2},  // setLastEntered(i16)
-    {1789, 0x007, 3506, 4},  // setPadDoId(u32)
-    {1790, 0x007, 3508, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {1791, 0x007, 3515, 1},  // setPadLocationId(u8)
-    {1792, 0x110, 3517, 1},  // requestEnter(u8)
-    {1793, 0x000, 3519, 1},  // rejectEnter(u8)
-    {1794, 0x110, 3521, 0},  // requestExit()
-    {1795, 0x006, 3522, 4},  // setOccupied(u32)
-    {1796, 0x006, 3524, 1},  // setMovie(u8)
-    {1797, 0x110, 3526, 0},  // movieFinished()
-    {1798, 0x007, 3527, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {1799, 0x006, 3534, 65535},  // setDisplay(blob)
-    {1891, 0x002, 3536, 2},  // setTimerStartTime(i16)
-    {1892, 0x110, 3538, 3},  // setAvatarChoice(u16,u8)
-    {1893, 0x002, 3541, 4},  // setAvatarChose(u32)
-    {1894, 0x002, 3543, 65535},  // setServerChoices(i16[],u8[],u8,u8)
-    {1895, 0x002, 3554, 65535},  // setMinigames(u8[],u8[])
-    {1896, 0x002, 3563, 65535},  // setBonuses(u8[],u8[])
-    {1897, 0x007, 3572, 1},  // setBoardIndex(u8)
-    {1898, 0x007, 3574, 4},  // setDeckSeed(u32)
-    {1899, 0x006, 3576, 1},  // setMaxOpenCards(u8)
-    {1900, 0x110, 3578, 4},  // openCardRequest(i16,i16)
-    {1901, 0x002, 3581, 65535},  // openCardResult(i16,u32,i16,i8,i16[])
-    {1902, 0x110, 3590, 0},  // reportDone()
-    {1903, 0x002, 3591, 0},  // setEveryoneDone()
-    {1904, 0x012, 3592, 4},  // setSignaling(u32)
-    {1969, 0x110, 3594, 1},  // reachedEndVine(i8)
-    {1970, 0x112, 3596, 10},  // setNewVine(u32,i8,u32/10000,i8)
-    {1971, 0x012, 3601, 9},  // setNewVineT(u32,u32/10000,i8)
-    {1972, 0x012, 3605, 16},  // setJumpingFromVine(u32,i8,i8,i32/100,i16/100,i16/100,i16)
-    {1973, 0x110, 3613, 4},  // claimTreasure(u32)
-    {1974, 0x002, 3615, 8},  // setTreasureGrabbed(u32,u32)
-    {1975, 0x002, 3618, 8},  // setScore(u32,u32)
-    {1976, 0x002, 3621, 0},  // allAtEndVine()
-    {1977, 0x012, 3622, 17},  // setFallingFromVine(u32,i8,i8,i32/100,i16/100,i16/100,i16,i8)
-    {1978, 0x012, 3631, 16},  // setFallingFromMidair(u32,i8,i32/100,i16/100,i16/100,i16,i8)
-    {1979, 0x007, 3639, 65535},  // setVineSections(u8[])
-    {2032, 0x007, 3644, 2},  // setCountryClubId(u16)
-    {2033, 0x007, 3646, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
-    {2034, 0x000, 3653, 4},  // setCountryClubInteriorZone(u32)
-    {2035, 0x000, 3655, 4},  // setCountryClubInteriorZoneForce(u32)
-    {2036, 0x007, 3657, 4},  // setZoneId(u32)
-    {2037, 0x007, 3659, 65535},  // setBlockedRooms(u8[])
-    {2038, 0x007, 3664, 2},  // setCountryClubId(u16)
-    {2039, 0x007, 3666, 2},  // setLayoutIndex(u16)
-    {2040, 0x007, 3668, 1},  // setFloorNum(u8)
-    {2041, 0x006, 3670, 65535},  // setRoomDoIds(u32[])
-    {2042, 0x006, 3675, 4},  // setCountryClubZone(u32)
-    {2043, 0x006, 3677, 4},  // elevatorAlert(u32)
-    {2044, 0x007, 3679, 2},  // setCountryClubId(u16)
-    {2045, 0x007, 3681, 2},  // setRoomId(u16)
-    {2046, 0x007, 3683, 1},  // setRoomNum(u8)
-    {2047, 0x006, 3685, 65535},  // setSuits(u32[],u32[])
-    {2048, 0x006, 3694, 4},  // setBossConfronted(u32)
-    {2049, 0x006, 3696, 0},  // setDefeated()
-    {2050, 0x002, 3697, 1},  // forceOuch(u8)
-    {2051, 0x002, 3699, 5},  // setGameStart(i16,u8,u16)
-    {2052, 0x110, 3703, 0},  // setClientTriggered()
-    {2053, 0x110, 3704, 3},  // whackedMole(i8,i16)
-    {2054, 0x110, 3707, 7},  // whackedBomb(i8,i16,i32)
-    {2055, 0x002, 3711, 2},  // updateMole(i8,i8)
-    {2056, 0x002, 3714, 9},  // reportToonHitByBomb(u32,i8,i32)
-    {2057, 0x007, 3718, 2},  // setScore(i16)
-    {2058, 0x110, 3720, 0},  // damageMe()
-    {2059, 0x002, 3721, 0},  // setPityWin()
-    {2060, 0x006, 3722, 1},  // setFloor(i8)
-    {2061, 0x007, 3724, 2},  // setLocked(u16)
-    {2062, 0x007, 3726, 2},  // setEntering(u16)
-    {2063, 0x002, 3728, 0},  // kickToonsOut()
-    {2064, 0x007, 3729, 4},  // setLatch(u32)
-    {2065, 0x007, 3731, 4},  // setRoomDoId(u32)
-    {2066, 0x002, 3733, 2},  // setGameStart(i16)
-    {2067, 0x110, 3735, 0},  // setClientTriggered()
-    {2068, 0x110, 3736, 0},  // setFinishedMaze()
-    {2069, 0x002, 3737, 0},  // setGameOver()
-    {2070, 0x002, 3738, 6},  // toonFinished(u32,u8,u8)
-    {2071, 0x110, 3742, 0},  // damageMe()
-    {2098, 0x012, 3743, 12},  // setForceArrowInfo(u32,i32/100,i32/100)
-    {2099, 0x110, 3747, 8},  // setAvatarChoice(i32/100,i32/100)
-    {2100, 0x110, 3750, 65535},  // endingPositions({i32/100000,i32/100000,i32/100000}[])
-    {2101, 0x110, 3757, 0},  // reportScoringMovieDone()
-    {2102, 0x110, 3758, 1},  // claimTreasure(u8)
-    {2103, 0x110, 3760, 1},  // claimPenalty(u8)
-    {2104, 0x002, 3762, 65535},  // setTireInputs({i32/100,i32/100}[])
-    {2105, 0x002, 3768, 2},  // setTimerStartTime(i16)
-    {2106, 0x002, 3770, 65535},  // setFinalPositions({i32/100000,i32/100000,i32/100000}[])
-    {2107, 0x002, 3777, 2},  // setMatchAndRound(i8,i8)
-    {2108, 0x002, 3780, 65535},  // setScores(i8,i8,i16[])
-    {2109, 0x002, 3787, 65535},  // setNewState(string)
-    {2110, 0x002, 3789, 8},  // setTreasureGrabbed(u32,u32)
-    {2111, 0x002, 3792, 8},  // setPenaltyGrabbed(u32,u32)
-    {2112, 0x012, 3795, 24},  // throwingPie(u32,i32,i32/100,i32/100,i32/100,i32/100)
-    {2113, 0x112, 3802, 21},  // hitBySuit(u32,i32,i8,i32/100,i32/100,i32/100)
-    {2114, 0x112, 3809, 21},  // pieHitSuit(u32,i32,i8,i32/100,i32/100,i32/100)
-    {2115, 0x110, 3816, 18},  // cogHitBarrel(i32,i8,i8,i32/100,i32/100,i32/100)
-    {2116, 0x110, 3823, 6},  // cogAtReturnPos(i32,i8,i8)
-    {2117, 0x002, 3827, 30},  // updateSuitGoal(i32,i32,i8,i8,i64,i32/100,i32/100,i32/100)
-    {2118, 0x002, 3836, 22},  // makeCogCarryBarrel(i32,i32,i8,i8,i32/100,i32/100,i32/100)
-    {2119, 0x002, 3844, 22},  // makeCogDropBarrel(i32,i32,i8,i8,i32/100,i32/100,i32/100)
-    {2120, 0x002, 3852, 9},  // markBarrelStolen(i32,i32,i8)
-    {2128, 0x012, 3856, 6},  // showShootGun(u32,i16)
-    {2129, 0x112, 3859, 6},  // toonHitByEnemy(u32,i16)
-    {2130, 0x112, 3862, 6},  // toonFellDown(u32,i16)
-    {2131, 0x112, 3865, 6},  // toonSquished(u32,i16)
-    {2132, 0x112, 3868, 6},  // toonVictory(u32,i16)
-    {2133, 0x110, 3871, 2},  // claimTreasure(u8,u8)
-    {2134, 0x110, 3874, 2},  // claimEnemyShot(u8,u8)
-    {2135, 0x110, 3877, 0},  // reportDone()
-    {2136, 0x007, 3878, 65535},  // setSectionsSelected({u8,u8[],{u8,u8}[],u8[],u8[]}[])
-    {2137, 0x002, 3900, 6},  // setTreasureGrabbed(u32,u8,u8)
-    {2138, 0x002, 3904, 10},  // setEnemyShot(u32,u8,u8,u32)
-    {2139, 0x002, 3909, 5},  // addVictoryScore(u32,u8)
-    {2140, 0x002, 3912, 0},  // setEveryoneDone()
-    {2207, 0x000, 3913, 65535},  // addParty(u32,u32,string,string,i8,i8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u32[],u16)
-    {2208, 0x110, 3939, 65535},  // addPartyRequest(u32,string,string,i8,i8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u32[])
-    {2209, 0x000, 3963, 5},  // addPartyResponse(u32,i8)
-    {2210, 0x100, 3966, 7},  // addPartyResponseUdToAi(u32,i8,u16)
-    {2211, 0x000, 3970, 12},  // markInviteAsReadButNotReplied(u32,u64)
-    {2212, 0x000, 3973, 19},  // respondToInvite(u32,u32,u16,u64,u8)
-    {2213, 0x100, 3979, 16},  // respondToInviteResponse(u32,u16,u64,i8,u8)
-    {2214, 0x110, 3985, 9},  // changePrivateRequest(u64,i8)
-    {2215, 0x000, 3988, 13},  // changePrivateRequestAiToUd(u32,u64,i8)
-    {2216, 0x100, 3992, 14},  // changePrivateResponseUdToAi(u32,u64,i8,i8)
-    {2217, 0x000, 3997, 10},  // changePrivateResponse(u64,i8,i8)
-    {2218, 0x110, 4001, 9},  // changePartyStatusRequest(u64,i8)
-    {2219, 0x000, 4004, 13},  // changePartyStatusRequestAiToUd(u32,u64,i8)
-    {2220, 0x100, 4008, 14},  // changePartyStatusResponseUdToAi(u32,u64,i8,i8)
-    {2221, 0x000, 4013, 12},  // changePartyStatusResponse(u64,i8,i8,u16)
-    {2222, 0x000, 4018, 8},  // partyInfoOfHostRequestAiToUd(u32,u32)
-    {2223, 0x100, 4021, 4},  // partyInfoOfHostFailedResponseUdToAi(u32)
-    {2224, 0x100, 4023, 65535},  // partyInfoOfHostResponseUdToAi({u64,u32,u16,u8,u8,u8,u8,u16,u8,u8,u8,u8,u8,u8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u8},u32[])
-    {2225, 0x000, 4057, 19},  // givePartyRefundResponse(u32,u64,i8,u16,u32)
-    {2226, 0x110, 4063, 9},  // getPartyZone(u32,u32,u8)
-    {2227, 0x000, 4067, 16},  // receivePartyZone(u32,u64,u32)
-    {2228, 0x110, 4071, 8},  // freeZoneIdFromPlannedParty(u32,u32)
-    {2229, 0x000, 4074, 5},  // sendAvToPlayground(u32,u8)
-    {2230, 0x110, 4077, 4},  // exitParty(u32)
-    {2231, 0x110, 4079, 8},  // removeGuest(u32,u32)
-    {2232, 0x000, 4082, 8},  // partyManagerAIStartingUp(u32,u32)
-    {2233, 0x000, 4085, 8},  // partyManagerAIGoingDown(u32,u32)
-    {2234, 0x000, 4088, 65535},  // partyHasStartedAiToUd(u32,u64,u32,u32,string)
-    {2235, 0x000, 4094, 4},  // toonHasEnteredPartyAiToUd(u32)
-    {2236, 0x000, 4096, 4},  // toonHasExitedPartyAiToUd(u32)
-    {2237, 0x100, 4098, 4},  // partyHasFinishedUdToAllAi(u32)
-    {2238, 0x100, 4100, 65535},  // updateToPublicPartyInfoUdToAllAi(u32,u64,u32,u32,u8,u8,string,u8[],u64)
-    {2239, 0x100, 4113, 5},  // updateToPublicPartyCountUdToAllAi(u32,u8)
-    {2240, 0x110, 4116, 4},  // requestShardIdZoneIdForHostId(u32)
-    {2241, 0x000, 4118, 8},  // sendShardIdZoneIdToAvatar(u32,u32)
-    {2242, 0x100, 4121, 0},  // partyManagerUdStartingUp()
-    {2243, 0x000, 4122, 65535},  // updateAllPartyInfoToUd(u32,u64,u32,u32,u8,u8,string,u8[],u64)
-    {2244, 0x000, 4135, 0},  // forceCheckStart()
-    {2245, 0x000, 4136, 65535},  // requestMw(u32,string,u32,u32)
-    {2246, 0x100, 4141, 65535},  // mwResponseUdToAllAi(u32,string,u32,u32)
-    {2260, 0x007, 4146, 65535},  // setLatestIssueStr(string)
-    {2261, 0x000, 4148, 8},  // inGameNewsMgrAIStartingUp(u32,u32)
-    {2262, 0x100, 4151, 65535},  // newIssueUDtoAI(string)
+    {670, 0x00b, 1264, 65535},  // setDNAString(blob)
+    {671, 0x006, 1266, 65535},  // setToonIds(u32[],u32[],u32[])
+    {672, 0x006, 1279, 9},  // setBattleIds(u8,u32,u32)
+    {673, 0x006, 1283, 1},  // setArenaSide(u8)
+    {674, 0x110, 1285, 0},  // avatarEnter()
+    {675, 0x110, 1286, 0},  // avatarExit()
+    {676, 0x110, 1287, 0},  // avatarNearEnter()
+    {677, 0x110, 1288, 0},  // avatarNearExit()
+    {678, 0x002, 1289, 4},  // toonDied(u32)
+    {679, 0x007, 1291, 65535},  // setBattleExperience(i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i
+    {680, 0x110, 1568, 17},  // zapToon(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,i8/100,i8/100,u8,i16)
+    {681, 0x002, 1579, 19},  // showZapToon(u32,i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,u8,i16)
+    {682, 0x002, 1589, 5},  // setAttackCode(u8,u32)
+    {683, 0x007, 1592, 4},  // setCagedToonNpcId(u32)
+    {684, 0x006, 1594, 65535},  // setDooberIds(u32[])
+    {685, 0x006, 1599, 5},  // setBossDamage(u16,u8,i16)
+    {686, 0x006, 1603, 65535},  // setState(string)
+    {687, 0x110, 1605, 1},  // hitBoss(u8)
+    {688, 0x110, 1607, 0},  // hitBossInsides()
+    {689, 0x110, 1608, 4},  // hitToon(u32)
+    {690, 0x110, 1610, 0},  // finalPieSplat()
+    {691, 0x110, 1611, 0},  // touchCage()
+    {692, 0x002, 1612, 2},  // doStrafe(u8,u8)
+    {693, 0x002, 1615, 6},  // cagedToonBattleThree(u16,u32)
+    {694, 0x000, 1618, 1},  // toonPromoted(u8)
+    {695, 0x006, 1620, 65535},  // setState(string)
+    {696, 0x006, 1622, 2},  // setBossDamage(u16)
+    {697, 0x006, 1624, 2},  // setRewardId(u16)
+    {698, 0x110, 1626, 0},  // applyReward()
+    {762, 0x007, 1627, 4},  // setLevelDoId(u32)
+    {763, 0x007, 1629, 4},  // setBattleCellId(u32)
+    {764, 0x007, 1631, 1},  // setInteractivePropTrackBonus(i8)
+    {765, 0x007, 1633, 6},  // setPosition(i16/10,i16/10,i16/10)
+    {766, 0x007, 1637, 4},  // setZoneId(u32)
+    {767, 0x007, 1639, 6},  // setInitialSuitPos(i16/10,i16/10,i16/10)
+    {768, 0x007, 1643, 65535},  // setMembers(u32[],string,string,string,string,string,u32[],string,string,string,string,i16)
+    {769, 0x002, 1662, 2},  // adjust(i16)
+    {770, 0x007, 1664, 65535},  // setMovie(i8,u32[],u32[],i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,
+    {771, 0x006, 1778, 65535},  // setChosenToonAttacks(u32[],i16[],i16[],i32[])
+    {772, 0x007, 1795, 65535},  // setBattleExperience(i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i
+    {773, 0x000, 1940, 0},  // denyLocalToonJoin()
+    {774, 0x007, 1941, 1},  // setBossBattle(u8)
+    {775, 0x007, 1943, 65535},  // setState(string,i16)
+    {776, 0x110, 1946, 0},  // faceOffDone()
+    {777, 0x110, 1947, 6},  // toonRequestJoin(i16/10,i16/10,i16/10)
+    {778, 0x110, 1951, 0},  // toonRequestRun()
+    {779, 0x110, 1952, 0},  // toonDied()
+    {780, 0x110, 1953, 0},  // adjustDone()
+    {781, 0x110, 1954, 0},  // timeout()
+    {782, 0x110, 1955, 0},  // movieDone()
+    {783, 0x110, 1956, 0},  // rewardDone()
+    {784, 0x110, 1957, 4},  // joinDone(u32)
+    {785, 0x110, 1959, 6},  // requestAttack(i8,i8,i32)
+    {786, 0x110, 1963, 4},  // requestPetProxy(u32)
+    {787, 0x007, 1965, 4},  // setBossCogId(u32)
+    {788, 0x007, 1967, 1},  // setBattleNumber(u8)
+    {789, 0x007, 1969, 1},  // setBattleSide(u8)
+    {790, 0x007, 1971, 65535},  // setState(string,i16)
+    {791, 0x007, 1974, 4},  // setArea(i16,i16)
+    {792, 0x007, 1977, 7},  // setState(i8,u8,u8,u16/10,i16)
+    {793, 0x110, 1983, 0},  // avatarEnter()
+    {802, 0x110, 1984, 4},  // hitTarget(u32)
+    {803, 0x007, 1986, 4},  // setArea(u32)
+    {804, 0x007, 1988, 4},  // setPondDoId(u32)
+    {805, 0x007, 1990, 9},  // setState(u8,i16/10,u16/100,u16/10,i16)
+    {806, 0x007, 1996, 4},  // setPondDoId(u32)
+    {807, 0x007, 1998, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {808, 0x110, 2005, 0},  // requestEnter()
+    {809, 0x000, 2006, 0},  // rejectEnter()
+    {810, 0x110, 2007, 0},  // requestExit()
+    {811, 0x006, 2008, 4},  // setOccupied(u32)
+    {812, 0x110, 2010, 3},  // doCast(u8/255,i16/100)
+    {813, 0x110, 2013, 0},  // sellFish()
+    {814, 0x000, 2014, 3},  // sellFishComplete(u8,u16)
+    {815, 0x006, 2017, 11},  // setMovie(u8,u8,u16,u16,u16,u8/100,i16/100)
+    {816, 0x007, 2025, 4},  // setPondDoId(u32)
+    {817, 0x000, 2027, 5},  // updateGameState(u32,u8)
+    {818, 0x000, 2030, 9},  // setCardState(u16,u8,u16,u32)
+    {819, 0x000, 2035, 65535},  // setState(string,i16)
+    {820, 0x110, 2038, 5},  // cardUpdate(u16,u8,u8,u8)
+    {821, 0x000, 2043, 0},  // enableBingo()
+    {822, 0x110, 2044, 2},  // handleBingoCall(u16)
+    {823, 0x000, 2046, 2},  // setJackpot(u16)
+    {849, 0x007, 2048, 65535},  // setParticipants(u32[])
+    {850, 0x007, 2053, 4},  // setTrolleyZone(u32)
+    {851, 0x007, 2055, 65535},  // setStartingVotes(u16[])
+    {852, 0x007, 2060, 1},  // setMetagameRound(i8)
+    {853, 0x007, 2062, 8},  // setDifficultyOverrides(i32,i32)
+    {854, 0x110, 2065, 0},  // setAvatarJoined()
+    {855, 0x110, 2066, 0},  // setAvatarReady()
+    {856, 0x110, 2067, 0},  // setAvatarExited()
+    {857, 0x110, 2068, 0},  // requestExit()
+    {858, 0x002, 2069, 0},  // setGameReady()
+    {859, 0x002, 2070, 2},  // setGameStart(i16)
+    {860, 0x002, 2072, 0},  // setGameExit()
+    {861, 0x002, 2073, 0},  // setGameAbort()
+    {862, 0x002, 2074, 2},  // setTimerStartTime(i16)
+    {863, 0x110, 2076, 1},  // setAvatarChoice(u8)
+    {864, 0x002, 2078, 4},  // setAvatarChose(u32)
+    {865, 0x002, 2080, 65535},  // setChancePositions(u8[])
+    {866, 0x002, 2085, 65535},  // setServerChoices(i8[],u8[],i8[])
+    {867, 0x110, 2098, 8},  // setCannonPosition(i32/100,u32/100)
+    {868, 0x110, 2101, 8},  // setCannonLit(i32/100,u32/100)
+    {869, 0x002, 2104, 12},  // updateCannonPosition(u32,i32/100,u32/100)
+    {870, 0x002, 2108, 16},  // setCannonWillFire(u32,i32/100,i32/100,u32/100)
+    {871, 0x110, 2113, 4},  // setToonWillLandInWater(i32/100)
+    {872, 0x002, 2115, 8},  // announceToonWillLandInWater(u32,i32/100)
+    {873, 0x110, 2118, 65535},  // newClientPhotoScore(u8,string,u32/100)
+    {874, 0x002, 2122, 9},  // newAIPhotoScore(u32,u8,u32/100)
+    {875, 0x110, 2126, 0},  // filmOut()
+    {876, 0x110, 2127, 0},  // reportPlayerReady()
+    {877, 0x002, 2128, 65535},  // setPattern(u8[])
+    {878, 0x110, 2133, 65535},  // reportPlayerPattern(u8[],u16/1000)
+    {879, 0x002, 2139, 65535},  // setPlayerPatterns(u8[],u8[],u8[],u8[],u32)
+    {880, 0x110, 2157, 2},  // reportButtonPress(u8,u8)
+    {881, 0x002, 2160, 6},  // remoteButtonPressed(u32,u8,u8)
+    {882, 0x007, 2164, 2},  // setTimeBase(i16)
+    {883, 0x007, 2166, 4},  // setColorIndices(i8,i8,i8,i8)
+    {884, 0x110, 2171, 1},  // setToonGotRing(u8)
+    {885, 0x002, 2173, 1},  // setRingGroupResults(u8)
+    {886, 0x110, 2175, 4},  // tag(u32)
+    {887, 0x002, 2177, 4},  // setIt(u32)
+    {888, 0x002, 2179, 65535},  // setTreasureScore(u16[])
+    {889, 0x110, 2184, 4},  // claimTreasure(u32)
+    {890, 0x002, 2186, 8},  // setTreasureGrabbed(u32,u32)
+    {891, 0x002, 2189, 0},  // allTreasuresTaken()
+    {892, 0x012, 2190, 6},  // hitBySuit(u32,i16)
+    {893, 0x110, 2193, 1},  // reportPlayerReady(u8)
+    {894, 0x002, 2195, 65535},  // sendGoSignal(u8[])
+    {895, 0x002, 2200, 65535},  // sendStopSignal(u32[],u32[],u32[])
+    {896, 0x002, 2213, 2},  // sendGameType(u8,u8)
+    {897, 0x110, 2216, 1},  // reportEndOfContest(u8)
+    {898, 0x110, 2218, 65535},  // sendNewAvIdList(u32[])
+    {899, 0x110, 2223, 6},  // reportCurrentKeyRate(u32,i16/100)
+    {900, 0x002, 2226, 65535},  // sendCurrentPosition(u32[],i16/1000[])
+    {901, 0x002, 2235, 4},  // sendSuitPosition(i32/1000)
+    {902, 0x002, 2237, 8},  // remoteKeyRateUpdate(u32,u32)
+    {903, 0x110, 2240, 8},  // claimCatch(u32,u32)
+    {904, 0x002, 2243, 8},  // setObjectCaught(u32,u32)
+    {905, 0x012, 2246, 6},  // hitBySuit(u32,i16)
+    {906, 0x110, 2249, 0},  // reportDone()
+    {907, 0x002, 2250, 0},  // setEveryoneDone()
+    {908, 0x110, 2251, 4},  // pickupTreasure(u32)
+    {909, 0x002, 2253, 8},  // setTreasureGrabbed(u32,u32)
+    {910, 0x110, 2256, 65535},  // handleFishCollision(u32,u32,u32,string)
+    {911, 0x002, 2261, 14},  // performFishCollision(u32,u32,u32,i16)
+    {912, 0x110, 2266, 65535},  // handleCrabCollision(u32,string)
+    {913, 0x002, 2269, 6},  // performCrabCollision(u32,i16)
+    {914, 0x002, 2272, 6},  // setTreasureDropped(u32,i16)
+    {915, 0x002, 2275, 12},  // fishSpawn(i16,u32,u32,u16)
+    {916, 0x110, 2280, 4},  // removeFish(u32)
+    {917, 0x110, 2282, 7},  // getCrabMoving(u32,i16,i8)
+    {918, 0x002, 2286, 11},  // setCrabMoving(u32,i16,i8,i8,i16,i8)
+    {919, 0x110, 2293, 0},  // treasureRecovered()
+    {920, 0x002, 2294, 10},  // incrementScore(u32,u32,i16)
+    {921, 0x007, 2298, 2},  // setTimeBase(i16)
+    {922, 0x110, 2300, 1},  // setToonGotRing(u8)
+    {923, 0x002, 2302, 1},  // setRingGroupResults(u8)
+    {924, 0x110, 2304, 0},  // setPlayerDone()
+    {925, 0x110, 2305, 8},  // setScore(i32,i32)
+    {926, 0x006, 2308, 4},  // setTargetSeed(u32)
+    {927, 0x002, 2310, 0},  // setRoundDone()
+    {928, 0x002, 2311, 6},  // setSingleScore(u16,u32)
+    {929, 0x002, 2314, 0},  // setGameDone()
+    {930, 0x002, 2315, 0},  // startAprilFools()
+    {931, 0x002, 2316, 0},  // stopAprilFools()
+    {932, 0x110, 2317, 65535},  // getEstateZone(u32,string)
+    {933, 0x000, 2320, 8},  // setEstateZone(u32,u32)
+    {934, 0x002, 2323, 65535},  // setAvHouseId(u32,u32[])
+    {935, 0x000, 2329, 5},  // sendAvToPlayground(u32,u8)
+    {936, 0x110, 2332, 0},  // exitEstate()
+    {937, 0x110, 2333, 8},  // removeFriend(u32,u32)
+    {946, 0x008, 2336, 65535},  // DcObjectType(string)
+    {947, 0x002, 2338, 0},  // setEstateReady()
+    {948, 0x110, 2339, 0},  // setClientReady()
+    {949, 0x00b, 2340, 1},  // setEstateType(u8)
+    {950, 0x110, 2342, 1},  // setClosestHouse(u8)
+    {951, 0x006, 2344, 65535},  // setTreasureIds(u32[])
+    {952, 0x110, 2349, 0},  // requestServerTime()
+    {953, 0x000, 2350, 4},  // setServerTime(u32)
+    {954, 0x007, 2352, 4},  // setDawnTime(u32)
+    {955, 0x006, 2354, 4},  // placeOnGround(u32)
+    {956, 0x109, 2356, 65535},  // setDecorData({u8,u8,i8,i8,u16}[])
+    {957, 0x109, 2365, 4},  // setLastEpochTimeStamp(u32)
+    {958, 0x109, 2367, 4},  // setRentalTimeStamp(u32)
+    {959, 0x109, 2369, 1},  // setRentalType(u8)
+    {960, 0x109, 2371, 4},  // setSlot0ToonId(u32)
+    {961, 0x109, 2373, 65535},  // setSlot0Items({u8,u8,i8,i8,u16}[])
+    {962, 0x109, 2382, 4},  // setSlot1ToonId(u32)
+    {963, 0x109, 2384, 65535},  // setSlot1Items({u8,u8,i8,i8,u16}[])
+    {964, 0x109, 2393, 4},  // setSlot2ToonId(u32)
+    {965, 0x109, 2395, 65535},  // setSlot2Items({u8,u8,i8,i8,u16}[])
+    {966, 0x109, 2404, 4},  // setSlot3ToonId(u32)
+    {967, 0x109, 2406, 65535},  // setSlot3Items({u8,u8,i8,i8,u16}[])
+    {968, 0x109, 2415, 4},  // setSlot4ToonId(u32)
+    {969, 0x109, 2417, 65535},  // setSlot4Items({u8,u8,i8,i8,u16}[])
+    {970, 0x109, 2426, 4},  // setSlot5ToonId(u32)
+    {971, 0x109, 2428, 65535},  // setSlot5Items({u8,u8,i8,i8,u16}[])
+    {972, 0x006, 2437, 65535},  // setIdList(u32[])
+    {973, 0x110, 2442, 1},  // completeFlowerSale(u8)
+    {974, 0x002, 2444, 4},  // awardedTrophy(u32)
+    {975, 0x007, 2446, 1},  // setClouds(u8)
+    {976, 0x002, 2448, 0},  // cannonsOver()
+    {977, 0x002, 2449, 0},  // gameTableOver()
+    {978, 0x008, 2450, 65535},  // DcObjectType(string)
+    {979, 0x003, 2452, 1},  // setHousePos(u8)
+    {980, 0x00b, 2454, 1},  // setHouseType(u8)
+    {981, 0x00b, 2456, 1},  // setGardenPos(u8)
+    {982, 0x00b, 2458, 4},  // setAvatarId(u32)
+    {983, 0x00b, 2460, 65535},  // setName(string)
+    {984, 0x00b, 2462, 1},  // setColor(u8)
+    {985, 0x009, 2464, 65535},  // setAtticItems(blob)
+    {986, 0x009, 2466, 65535},  // setInteriorItems(blob)
+    {987, 0x009, 2468, 65535},  // setAtticWallpaper(blob)
+    {988, 0x009, 2470, 65535},  // setInteriorWallpaper(blob)
+    {989, 0x009, 2472, 65535},  // setAtticWindows(blob)
+    {990, 0x009, 2474, 65535},  // setInteriorWindows(blob)
+    {991, 0x009, 2476, 65535},  // setDeletedItems(blob)
+    {992, 0x001, 2478, 1},  // setCannonEnabled(u8)
+    {993, 0x006, 2480, 0},  // setHouseReady()
+    {994, 0x007, 2481, 4},  // setHouseId(u32)
+    {995, 0x007, 2483, 1},  // setHouseIndex(u8)
+    {996, 0x007, 2485, 65535},  // setWallpaper(blob)
+    {997, 0x007, 2487, 65535},  // setWindows(blob)
+    {1093, 0x110, 2489, 65535},  // requestExecuteMagicWord(i8,i8,i16,u32,string)
+    {1094, 0x000, 2495, 65535},  // executeMagicWord(string,string,u32[],blob,i8,i8,i16,u32)
+    {1095, 0x000, 2507, 65535},  // generateResponse(string,string,blob,string,i8,i8,i16,u32,string)
+    {1096, 0x000, 2517, 65535},  // teleportResponse(string,string,string,u32,u32,u32)
+    {1112, 0x006, 2524, 4},  // setPopulation(u32)
+    {1113, 0x006, 2526, 4},  // setBingoWin(u32)
+    {1114, 0x002, 2528, 0},  // setBingoStart()
+    {1115, 0x002, 2529, 0},  // setBingoEnd()
+    {1116, 0x002, 2530, 0},  // setCircuitRaceStart()
+    {1117, 0x002, 2531, 0},  // setCircuitRaceEnd()
+    {1118, 0x002, 2532, 0},  // setTrolleyHolidayStart()
+    {1119, 0x002, 2533, 0},  // setTrolleyHolidayEnd()
+    {1120, 0x002, 2534, 0},  // setTrolleyWeekendStart()
+    {1121, 0x002, 2535, 0},  // setTrolleyWeekendEnd()
+    {1122, 0x002, 2536, 0},  // setRoamingTrialerWeekendStart()
+    {1123, 0x002, 2537, 0},  // setRoamingTrialerWeekendEnd()
+    {1124, 0x002, 2538, 65535},  // setInvasionStatus(u8,string,u32,u8)
+    {1125, 0x006, 2543, 65535},  // setHolidayIdList(u32[])
+    {1126, 0x002, 2548, 0},  // holidayNotify()
+    {1127, 0x007, 2549, 65535},  // setWeeklyCalendarHolidays({u8,u8}[])
+    {1128, 0x007, 2555, 65535},  // setYearlyCalendarHolidays({u8,u8[],u8[]}[])
+    {1129, 0x007, 2568, 65535},  // setOncelyCalendarHolidays({u8,u16[],u16[]}[])
+    {1130, 0x007, 2581, 65535},  // setRelativelyCalendarHolidays({u8,u16[],u16[]}[])
+    {1131, 0x007, 2594, 65535},  // setMultipleStartHolidays({u8,{u16[],u16[]}[]}[])
+    {1132, 0x006, 2610, 65535},  // sendSystemMessage(string,u8)
+    {1133, 0x007, 2613, 16},  // setPlayerIds(u32,u32,u32,u32)
+    {1134, 0x007, 2618, 65535},  // setNewbieIds(u32[])
+    {1135, 0x007, 2623, 4},  // setMinigamePoints(u8,u8,u8,u8)
+    {1136, 0x007, 2628, 4},  // setPlayerMoney(u8,u8,u8,u8)
+    {1137, 0x007, 2633, 4},  // setPlayerStates(u8,u8,u8,u8)
+    {1138, 0x007, 2638, 2},  // setCountdown(i16)
+    {1139, 0x007, 2640, 1},  // setMetagameRound(i8)
+    {1140, 0x007, 2642, 65535},  // setVotesArray(i16[])
+    {1141, 0x110, 2647, 0},  // requestExit()
+    {1142, 0x110, 2648, 0},  // requestPlayAgain()
+    {1143, 0x110, 2649, 65535},  // setInventory(blob,i16,u8)
+    {1144, 0x002, 2653, 0},  // setPurchaseExit()
+    {1145, 0x007, 2654, 4},  // setOwnedNewbieId(u32)
+    {1146, 0x110, 2656, 0},  // enterSafeZone()
+    {1147, 0x110, 2657, 0},  // exitSafeZone()
+    {1148, 0x110, 2658, 0},  // requestTutorial()
+    {1149, 0x110, 2659, 0},  // rejectTutorial()
+    {1150, 0x110, 2660, 0},  // requestSkipTutorial()
+    {1151, 0x000, 2661, 1},  // skipTutorialResponse(u8)
+    {1152, 0x000, 2663, 16},  // enterTutorial(u32,u32,u32,u32)
+    {1153, 0x110, 2668, 0},  // allDone()
+    {1154, 0x110, 2669, 0},  // toonArrived()
+    {1155, 0x110, 2670, 0},  // startCatalog()
+    {1157, 0x007, 2671, 6},  // setPosition(i16/10,i16/10,i16/10)
+    {1158, 0x110, 2675, 0},  // requestGrab()
+    {1159, 0x006, 2676, 4},  // setGrab(u32)
+    {1160, 0x002, 2678, 0},  // setReject()
+    {1161, 0x007, 2679, 4},  // setGoonId(u32)
+    {1162, 0x007, 2681, 6},  // setFinalPosition(i16/10,i16/10,i16/10)
+    {1163, 0x007, 2685, 2},  // setStyle(u16)
+    {1169, 0x007, 2687, 4},  // setLevelZoneId(u32)
+    {1170, 0x007, 2689, 65535},  // setPlayerIds(u32[])
+    {1171, 0x007, 2694, 1},  // setEntranceId(u8)
+    {1172, 0x006, 2696, 65535},  // setZoneIds(u32[])
+    {1173, 0x006, 2701, 4},  // setStartTimestamp(i32)
+    {1174, 0x110, 2703, 1},  // setOuch(u8)
+    {1175, 0x110, 2705, 65535},  // requestCurrentLevelSpec(string,string)
+    {1176, 0x000, 2708, 65535},  // setSpecDeny(blob)
+    {1177, 0x000, 2710, 4},  // setSpecSenderDoId(u32)
+    {1178, 0x002, 2712, 65535},  // setAttribChange(u32,blob,blob,blob)
+    {1179, 0x007, 2717, 4},  // setLevelDoId(u32)
+    {1180, 0x007, 2719, 4},  // setEntId(u32)
+    {1181, 0x007, 2721, 4},  // setAvatarInteract(u32)
+    {1182, 0x110, 2723, 0},  // requestInteract()
+    {1183, 0x000, 2724, 0},  // rejectInteract()
+    {1184, 0x110, 2725, 0},  // requestExit()
+    {1185, 0x002, 2726, 4},  // avatarExit(u32)
+    {1186, 0x007, 2728, 65535},  // setState(string,i32)
+    {1187, 0x110, 2731, 0},  // requestTrophyScore()
+    {1188, 0x007, 2732, 6},  // setBlock(u16,u32)
+    {1189, 0x007, 2735, 3},  // setSuitData(i8,i8,i8)
+    {1190, 0x006, 2739, 65535},  // setVictorList(u32[])
+    {1191, 0x006, 2744, 65535},  // setState(string,i16)
+    {1192, 0x110, 2747, 0},  // setVictorReady()
+    {1196, 0x007, 2748, 6},  // setZoneIdAndBlock(u32,u16)
+    {1197, 0x007, 2751, 65535},  // setSavedBy({u32,string,blob}[])
+    {1198, 0x007, 2758, 65535},  // setState(string,i16)
+    {1199, 0x007, 2761, 4},  // setZoneId(u32)
+    {1200, 0x007, 2763, 4},  // setExtZoneId(u32)
+    {1201, 0x007, 2765, 4},  // setDistBldgDoId(u32)
+    {1202, 0x007, 2767, 1},  // setNumFloors(i8)
+    {1203, 0x006, 2769, 65535},  // setToons(u32[],u16)
+    {1204, 0x006, 2775, 65535},  // setSuits(u32[],u32[],u16[])
+    {1205, 0x007, 2788, 65535},  // setState(string,i16)
+    {1206, 0x110, 2791, 0},  // setAvatarJoined()
+    {1207, 0x110, 2792, 0},  // elevatorDone()
+    {1208, 0x110, 2793, 0},  // reserveJoinDone()
+    {1319, 0x007, 2794, 6},  // setZoneIdAndBlock(u32,u16)
+    {1320, 0x007, 2797, 65535},  // setLeaderBoard(blob)
+    {1321, 0x007, 2799, 1},  // setTutorial(u8)
+    {1322, 0x007, 2801, 6},  // setZoneIdAndBlock(u32,u16)
+    {1323, 0x007, 2804, 6},  // setZoneIdAndBlock(u32,u16)
+    {1325, 0x007, 2807, 8},  // setZoneIdAndBlock(u32,u32)
+    {1326, 0x007, 2810, 1},  // setSwing(i8)
+    {1327, 0x007, 2812, 1},  // setDoorType(u8)
+    {1328, 0x007, 2814, 1},  // setDoorIndex(u8)
+    {1329, 0x000, 2816, 8},  // setOtherZoneIdAndDoId(u32,u32)
+    {1330, 0x110, 2819, 0},  // requestEnter()
+    {1331, 0x110, 2820, 0},  // requestExit()
+    {1332, 0x000, 2821, 1},  // rejectEnter(i8)
+    {1333, 0x002, 2823, 4},  // avatarEnter(u32)
+    {1334, 0x002, 2825, 4},  // avatarExit(u32)
+    {1335, 0x007, 2827, 65535},  // setState(string,i16)
+    {1336, 0x007, 2830, 65535},  // setExitDoorState(string,i16)
+    {1337, 0x006, 2833, 1},  // informPlayer(u8)
+    {1338, 0x007, 2835, 65535},  // setName(string)
+    {1339, 0x007, 2837, 65535},  // setDNAString(blob)
+    {1340, 0x007, 2839, 1},  // setPositionIndex(u8)
+    {1341, 0x006, 2841, 65535},  // setAnimState(string,i16/1000,i16)
+    {1342, 0x016, 2845, 5},  // setPageNumber(i16,i8,i16)
+    {1343, 0x110, 2849, 0},  // avatarEnter()
+    {1344, 0x000, 2850, 0},  // freeAvatar()
+    {1345, 0x006, 2851, 65535},  // setMovie(u8,u32,u32,u16[],i16)
+    {1346, 0x110, 2860, 0},  // setMovieDone()
+    {1347, 0x110, 2861, 2},  // chooseQuest(u16)
+    {1348, 0x110, 2863, 1},  // chooseTrack(i8)
+    {1349, 0x006, 2865, 65535},  // setMovie(u8,u32,u32,u16[],i16)
+    {1350, 0x110, 2874, 0},  // setMovieDone()
+    {1351, 0x110, 2875, 2},  // chooseQuest(u16)
+    {1352, 0x110, 2877, 1},  // chooseTrack(i8)
+    {1353, 0x042, 2879, 65535},  // setChat(string,u8,u32,u8,u8)
+    {1354, 0x006, 2885, 11},  // setMovie(u8,u32,u32,i16)
+    {1355, 0x110, 2890, 65535},  // setInventory(blob,i16,u8)
+    {1356, 0x006, 2894, 11},  // setMovie(u8,u32,u32,i16)
+    {1357, 0x110, 2899, 65535},  // setDNA(blob,i8,u8)
+    {1358, 0x006, 2903, 65535},  // setCustomerDNA(u32,blob)
+    {1359, 0x006, 2906, 11},  // setMovie(u8,u32,u32,i16)
+    {1360, 0x006, 2911, 65535},  // setMovie(u8,u32,u32,u32[],i16)
+    {1361, 0x110, 2920, 1},  // completeSale(u8)
+    {1362, 0x006, 2922, 65535},  // setMovie(u8,u32,u32,u32[],i16)
+    {1363, 0x110, 2931, 1},  // answer(u8)
+    {1364, 0x006, 2933, 65535},  // setMovie(u8,u32,u32,u32[],i16)
+    {1365, 0x000, 2942, 65535},  // setPetSeeds(u32[])
+    {1366, 0x110, 2947, 5},  // petAdopted(u8,u32)
+    {1367, 0x110, 2950, 0},  // petReturned()
+    {1368, 0x110, 2951, 0},  // fishSold()
+    {1369, 0x110, 2952, 0},  // transactionDone()
+    {1370, 0x006, 2953, 65535},  // setMovie(u8,u32,u32,u32[],i16)
+    {1371, 0x110, 2962, 1},  // buyKart(u8)
+    {1372, 0x110, 2964, 1},  // buyAccessory(u8)
+    {1373, 0x110, 2966, 0},  // transactionDone()
+    {1374, 0x007, 2967, 4},  // setBldgDoId(u32)
+    {1375, 0x006, 2969, 65535},  // setState(string,i16)
+    {1376, 0x006, 2972, 5},  // fillSlot0(u32,u8)
+    {1377, 0x006, 2975, 5},  // fillSlot1(u32,u8)
+    {1378, 0x006, 2978, 5},  // fillSlot2(u32,u8)
+    {1379, 0x006, 2981, 5},  // fillSlot3(u32,u8)
+    {1380, 0x006, 2984, 5},  // fillSlot4(u32,u8)
+    {1381, 0x006, 2987, 5},  // fillSlot5(u32,u8)
+    {1382, 0x006, 2990, 5},  // fillSlot6(u32,u8)
+    {1383, 0x006, 2993, 5},  // fillSlot7(u32,u8)
+    {1384, 0x006, 2996, 9},  // emptySlot0(u32,i8,i16,i16)
+    {1385, 0x006, 3001, 9},  // emptySlot1(u32,i8,i16,i16)
+    {1386, 0x006, 3006, 9},  // emptySlot2(u32,i8,i16,i16)
+    {1387, 0x006, 3011, 9},  // emptySlot3(u32,i8,i16,i16)
+    {1388, 0x006, 3016, 9},  // emptySlot4(u32,i8,i16,i16)
+    {1389, 0x006, 3021, 9},  // emptySlot5(u32,i8,i16,i16)
+    {1390, 0x006, 3026, 9},  // emptySlot6(u32,i8,i16,i16)
+    {1391, 0x006, 3031, 9},  // emptySlot7(u32,i8,i16,i16)
+    {1392, 0x110, 3036, 0},  // requestBoard()
+    {1393, 0x000, 3037, 5},  // rejectBoard(u32,u8)
+    {1394, 0x110, 3040, 0},  // requestExit()
+    {1395, 0x007, 3041, 4},  // setElevatorTripId(u32)
+    {1396, 0x007, 3043, 1},  // setAntiShuffle(u8)
+    {1397, 0x007, 3045, 1},  // setMinLaff(u8)
+    {1398, 0x007, 3047, 4},  // setBldgDoId(u32)
+    {1399, 0x006, 3049, 65535},  // setState(string,i16)
+    {1400, 0x006, 3052, 4},  // fillSlot0(u32)
+    {1401, 0x006, 3054, 4},  // fillSlot1(u32)
+    {1402, 0x006, 3056, 4},  // fillSlot2(u32)
+    {1403, 0x006, 3058, 4},  // fillSlot3(u32)
+    {1404, 0x006, 3060, 4},  // fillSlot4(u32)
+    {1405, 0x006, 3062, 4},  // fillSlot5(u32)
+    {1406, 0x006, 3064, 4},  // fillSlot6(u32)
+    {1407, 0x006, 3066, 4},  // fillSlot7(u32)
+    {1408, 0x006, 3068, 7},  // emptySlot0(u32,i8,i16)
+    {1409, 0x006, 3072, 7},  // emptySlot1(u32,i8,i16)
+    {1410, 0x006, 3076, 7},  // emptySlot2(u32,i8,i16)
+    {1411, 0x006, 3080, 7},  // emptySlot3(u32,i8,i16)
+    {1412, 0x006, 3084, 7},  // emptySlot4(u32,i8,i16)
+    {1413, 0x006, 3088, 7},  // emptySlot5(u32,i8,i16)
+    {1414, 0x006, 3092, 7},  // emptySlot6(u32,i8,i16)
+    {1415, 0x006, 3096, 7},  // emptySlot7(u32,i8,i16)
+    {1416, 0x110, 3100, 0},  // requestBoard()
+    {1417, 0x000, 3101, 5},  // rejectBoard(u32,u8)
+    {1418, 0x110, 3104, 0},  // requestExit()
+    {1419, 0x007, 3105, 4},  // setElevatorTripId(u32)
+    {1420, 0x007, 3107, 1},  // setAntiShuffle(u8)
+    {1421, 0x007, 3109, 1},  // setMinLaff(u8)
+    {1422, 0x006, 3111, 1},  // setFloor(i8)
+    {1423, 0x007, 3113, 2},  // setLocked(u16)
+    {1424, 0x007, 3115, 2},  // setEntering(u16)
+    {1425, 0x002, 3117, 0},  // kickToonsOut()
+    {1426, 0x007, 3118, 4},  // setLatch(u32)
+    {1427, 0x006, 3120, 1},  // setFloor(i8)
+    {1428, 0x007, 3122, 1},  // setEntranceId(u8)
+    {1429, 0x000, 3124, 4},  // setLawOfficeInteriorZone(u32)
+    {1430, 0x000, 3126, 4},  // setLawOfficeInteriorZoneForce(u32)
+    {1431, 0x110, 3128, 0},  // requestBuildingExit()
+    {1432, 0x000, 3129, 4},  // forcedExit(u32)
+    {1433, 0x007, 3131, 1},  // setEntranceId(u8)
+    {1434, 0x000, 3133, 4},  // setFactoryInteriorZone(u32)
+    {1435, 0x000, 3135, 4},  // setFactoryInteriorZoneForce(u32)
+    {1436, 0x007, 3137, 2},  // setMintId(u16)
+    {1437, 0x000, 3139, 4},  // setMintInteriorZone(u32)
+    {1438, 0x000, 3141, 4},  // setMintInteriorZoneForce(u32)
+    {1439, 0x000, 3143, 4},  // setLawOfficeInteriorZone(u32)
+    {1440, 0x000, 3145, 4},  // setBossOfficeZone(u32)
+    {1441, 0x000, 3147, 4},  // setBossOfficeZoneForce(u32)
+    {1479, 0x007, 3149, 4},  // setHouseId(u32)
+    {1480, 0x007, 3151, 1},  // setHousePos(u8)
+    {1481, 0x007, 3153, 65535},  // setName(string)
+    {1482, 0x006, 3155, 1},  // setFullIndicator(u8)
+    {1483, 0x110, 3157, 0},  // avatarEnter()
+    {1484, 0x110, 3158, 0},  // avatarExit()
+    {1485, 0x000, 3159, 0},  // freeAvatar()
+    {1486, 0x006, 3160, 5},  // setMovie(u8,u32)
+    {1487, 0x110, 3163, 65535},  // acceptItemMessage(u16,blob,u8,i32)
+    {1488, 0x000, 3168, 3},  // acceptItemResponse(u16,i8)
+    {1489, 0x110, 3171, 65535},  // discardItemMessage(u16,blob,u8,i32)
+    {1490, 0x000, 3176, 3},  // discardItemResponse(u16,i8)
+    {1491, 0x110, 3179, 10},  // acceptInviteMessage(u16,u64)
+    {1492, 0x110, 3182, 10},  // rejectInviteMessage(u16,u64)
+    {1493, 0x110, 3185, 8},  // markInviteReadButNotReplied(u64)
+    {1494, 0x007, 3187, 4},  // setOwnerId(u32)
+    {1495, 0x007, 3189, 65535},  // setOwnerName(string)
+    {1496, 0x007, 3191, 4},  // setInteriorId(u32)
+    {1497, 0x007, 3193, 65535},  // setAtticItems(blob)
+    {1498, 0x007, 3195, 65535},  // setAtticWallpaper(blob)
+    {1499, 0x007, 3197, 65535},  // setAtticWindows(blob)
+    {1500, 0x007, 3199, 65535},  // setDeletedItems(blob)
+    {1501, 0x110, 3201, 4},  // suggestDirector(u32)
+    {1502, 0x006, 3203, 4},  // setDirector(u32)
+    {1503, 0x110, 3205, 0},  // avatarEnter()
+    {1504, 0x110, 3206, 0},  // avatarExit()
+    {1505, 0x110, 3207, 6},  // moveItemToAtticMessage(u32,u16)
+    {1506, 0x000, 3210, 3},  // moveItemToAtticResponse(i8,u16)
+    {1507, 0x110, 3213, 16},  // moveItemFromAtticMessage(u16,i16/10,i16/10,i16/100,i16/10,i16/10,i16/10,u16)
+    {1508, 0x000, 3222, 7},  // moveItemFromAtticResponse(i8,u32,u16)
+    {1509, 0x110, 3226, 65535},  // deleteItemFromAtticMessage(blob,u16,u16)
+    {1510, 0x000, 3230, 3},  // deleteItemFromAtticResponse(i8,u16)
+    {1511, 0x110, 3233, 65535},  // deleteItemFromRoomMessage(blob,u32,u16)
+    {1512, 0x000, 3237, 3},  // deleteItemFromRoomResponse(i8,u16)
+    {1513, 0x110, 3240, 5},  // moveWallpaperFromAtticMessage(u16,u8,u16)
+    {1514, 0x000, 3244, 3},  // moveWallpaperFromAtticResponse(i8,u16)
+    {1515, 0x110, 3247, 65535},  // deleteWallpaperFromAtticMessage(blob,u16,u16)
+    {1516, 0x000, 3251, 3},  // deleteWallpaperFromAtticResponse(i8,u16)
+    {1517, 0x110, 3254, 3},  // moveWindowToAtticMessage(u8,u16)
+    {1518, 0x000, 3257, 3},  // moveWindowToAtticResponse(i8,u16)
+    {1519, 0x110, 3260, 5},  // moveWindowFromAtticMessage(u16,u8,u16)
+    {1520, 0x000, 3264, 3},  // moveWindowFromAtticResponse(i8,u16)
+    {1521, 0x110, 3267, 4},  // moveWindowMessage(u8,u8,u16)
+    {1522, 0x000, 3271, 3},  // moveWindowResponse(i8,u16)
+    {1523, 0x110, 3274, 65535},  // deleteWindowFromAtticMessage(blob,u16,u16)
+    {1524, 0x000, 3278, 3},  // deleteWindowFromAtticResponse(i8,u16)
+    {1525, 0x110, 3281, 65535},  // recoverDeletedItemMessage(blob,u16,u16)
+    {1526, 0x000, 3285, 3},  // recoverDeletedItemResponse(i8,u16)
+    {1527, 0x007, 3288, 65535},  // setItem(u32,blob)
+    {1528, 0x110, 3291, 15},  // requestPosHpr(u8,i16/10,i16/10,i16/100,i16/10,i16/10,i16/10,i16)
+    {1529, 0x007, 3300, 5},  // setMode(u8,u32)
+    {1530, 0x110, 3303, 0},  // avatarEnter()
+    {1531, 0x000, 3304, 0},  // freeAvatar()
+    {1532, 0x006, 3305, 7},  // setMovie(u8,u32,i16)
+    {1533, 0x110, 3309, 2},  // transferMoney(i16)
+    {1534, 0x007, 3311, 4},  // setOwnerId(u32)
+    {1535, 0x110, 3313, 0},  // enterAvatar()
+    {1536, 0x000, 3314, 0},  // freeAvatar()
+    {1537, 0x110, 3315, 65535},  // removeItem(blob,u8)
+    {1538, 0x110, 3318, 65535},  // setDNA(blob,i8,u8)
+    {1539, 0x006, 3322, 65535},  // setState(u8,u32,u32,string,u8[],u8[])
+    {1540, 0x006, 3335, 7},  // setMovie(u8,u32,i16)
+    {1541, 0x006, 3339, 0},  // resetItemLists()
+    {1542, 0x006, 3340, 65535},  // setCustomerDNA(u32,blob)
+    {1566, 0x007, 3343, 2},  // setFactoryId(u16)
+    {1567, 0x006, 3345, 65535},  // setSuits(u32[],u32[])
+    {1568, 0x006, 3354, 4},  // setForemanConfronted(u32)
+    {1569, 0x006, 3356, 0},  // setDefeated()
+    {1578, 0x007, 3357, 4},  // setZoneId(u32)
+    {1579, 0x007, 3359, 2},  // setMintId(u16)
+    {1580, 0x007, 3361, 1},  // setFloorNum(u8)
+    {1581, 0x006, 3363, 65535},  // setRoomDoIds(u32[])
+    {1582, 0x007, 3368, 2},  // setMintId(u16)
+    {1583, 0x007, 3370, 2},  // setRoomId(u16)
+    {1584, 0x007, 3372, 1},  // setRoomNum(u8)
+    {1585, 0x006, 3374, 65535},  // setSuits(u32[],u32[])
+    {1586, 0x006, 3383, 4},  // setBossConfronted(u32)
+    {1587, 0x006, 3385, 0},  // setDefeated()
+    {1588, 0x007, 3386, 4},  // setZoneId(u32)
+    {1589, 0x007, 3388, 2},  // setStageId(u16)
+    {1590, 0x007, 3390, 2},  // setLayoutIndex(u16)
+    {1591, 0x007, 3392, 1},  // setFloorNum(u8)
+    {1592, 0x006, 3394, 65535},  // setRoomDoIds(u32[])
+    {1593, 0x006, 3399, 4},  // setStageZone(u32)
+    {1594, 0x006, 3401, 4},  // elevatorAlert(u32)
+    {1595, 0x007, 3403, 2},  // setStageId(u16)
+    {1596, 0x007, 3405, 2},  // setRoomId(u16)
+    {1597, 0x007, 3407, 1},  // setRoomNum(u8)
+    {1598, 0x006, 3409, 65535},  // setSuits(u32[],u32[])
+    {1599, 0x006, 3418, 4},  // setBossConfronted(u32)
+    {1600, 0x006, 3420, 0},  // setDefeated()
+    {1609, 0x007, 3421, 6},  // setStateTransition(u8,u8,u32)
+    {1610, 0x110, 3425, 0},  // setAvatarEnter()
+    {1611, 0x110, 3426, 0},  // setAvatarLeave()
+    {1612, 0x007, 3427, 2},  // setLocksState(u16)
+    {1613, 0x007, 3429, 5},  // setDoorState(u8,i32)
+    {1614, 0x110, 3432, 0},  // requestOpen()
+    {1615, 0x006, 3433, 6},  // setPosition(i16/10,i16/10,i16/10)
+    {1616, 0x006, 3437, 5},  // setCrushed(u32,u8)
+    {1617, 0x006, 3440, 65535},  // setMovie(u8,i16,u32[])
+    {1618, 0x006, 3447, 65535},  // setChildren(u32[])
+    {1619, 0x110, 3452, 0},  // setSquash()
+    {1620, 0x110, 3453, 0},  // requestGrab()
+    {1621, 0x006, 3454, 4},  // setGrab(u32)
+    {1622, 0x002, 3456, 0},  // setReject()
+    {1623, 0x006, 3457, 5},  // setState(u8,u32)
+    {1624, 0x110, 3460, 1},  // requestPush(u8)
+    {1625, 0x000, 3462, 0},  // setReject()
+    {1626, 0x002, 3463, 0},  // setAccept()
+    {1627, 0x006, 3464, 16},  // setMoveTo(u32,i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {1628, 0x110, 3472, 0},  // setDone()
+    {1629, 0x110, 3473, 5},  // setOnOff(u8,u32)
+    {1630, 0x006, 3476, 9},  // setSinkMode(u32,u8,u32)
+    {1631, 0x110, 3480, 2},  // requestBattle(i16/10)
+    {1632, 0x110, 3482, 2},  // requestStunned(i16/10)
+    {1633, 0x110, 3484, 0},  // requestResync()
+    {1634, 0x110, 3485, 10},  // setParameterize(i16/10,i16/10,i16/10,u32)
+    {1635, 0x006, 3490, 11},  // setMovie(u8,u32,i32/10,i16)
+    {1636, 0x006, 3495, 12},  // setPathPts(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {1637, 0x007, 3502, 1},  // setActive(u8)
+    {1638, 0x006, 3504, 65535},  // setSuits(u32[])
+    {1639, 0x006, 3509, 4},  // setBattle(u32)
+    {1640, 0x006, 3511, 0},  // setBattleFinished()
+    {1641, 0x007, 3512, 2},  // setGrid(u8,u8)
+    {1642, 0x007, 3515, 65535},  // setField(u8[])
+    {1643, 0x006, 3520, 1},  // setSuccess(u8)
+    {1644, 0x110, 3522, 4},  // hit(i8,i8,i8,i8)
+    {1645, 0x110, 3527, 0},  // trapFire()
+    {1646, 0x006, 3528, 1},  // setActiveLF(u8)
+    {1647, 0x006, 3530, 65535},  // hideSuit(u32[])
+    {1648, 0x006, 3535, 65535},  // showSuit(u32[])
+    {1649, 0x006, 3540, 65535},  // setGridGame(string)
+    {1655, 0x110, 3542, 0},  // requestJoin()
+    {1656, 0x110, 3543, 0},  // leaveGame()
+    {1657, 0x006, 3544, 65535},  // acceptJoin(u16,i32,u32[])
+    {1658, 0x110, 3551, 1},  // requestBoard(u8)
+    {1659, 0x000, 3553, 65535},  // startBoard({u8,u8,u8}[],u8[])
+    {1660, 0x006, 3564, 1},  // signalDone(u8)
+    {1661, 0x000, 3566, 4},  // boardCleared(u32)
+    {1662, 0x006, 3568, 65535},  // scoreData(u8,u8,{u32,u8}[])
+    {1663, 0x000, 3576, 2},  // informGag(u8,u8)
+    {1664, 0x002, 3579, 4},  // helpOthers(u32)
+    {1665, 0x006, 3581, 6},  // setTimerStart(u16,i32)
+    {1666, 0x110, 3584, 0},  // trapFire()
+    {1667, 0x006, 3585, 1},  // setTarget(u8)
+    {1668, 0x006, 3587, 2},  // startMove(i16)
+    {1669, 0x008, 3589, 65535},  // DcObjectType(string)
+    {1670, 0x00b, 3591, 4},  // setOwnerId(u32)
+    {1671, 0x00b, 3593, 65535},  // setPetName(string)
+    {1672, 0x00b, 3595, 4},  // setTraitSeed(u32)
+    {1673, 0x00b, 3597, 4},  // setSafeZone(u32)
+    {1674, 0x00b, 3599, 2},  // setForgetfulness(u16/10000)
+    {1675, 0x00b, 3601, 2},  // setBoredomThreshold(u16/10000)
+    {1676, 0x00b, 3603, 2},  // setRestlessnessThreshold(u16/10000)
+    {1677, 0x00b, 3605, 2},  // setPlayfulnessThreshold(u16/10000)
+    {1678, 0x00b, 3607, 2},  // setLonelinessThreshold(u16/10000)
+    {1679, 0x00b, 3609, 2},  // setSadnessThreshold(u16/10000)
+    {1680, 0x00b, 3611, 2},  // setFatigueThreshold(u16/10000)
+    {1681, 0x00b, 3613, 2},  // setHungerThreshold(u16/10000)
+    {1682, 0x00b, 3615, 2},  // setConfusionThreshold(u16/10000)
+    {1683, 0x00b, 3617, 2},  // setExcitementThreshold(u16/10000)
+    {1684, 0x00b, 3619, 2},  // setAngerThreshold(u16/10000)
+    {1685, 0x00b, 3621, 2},  // setSurpriseThreshold(u16/10000)
+    {1686, 0x00b, 3623, 2},  // setAffectionThreshold(u16/10000)
+    {1687, 0x00b, 3625, 1},  // setHead(i8)
+    {1688, 0x00b, 3627, 1},  // setEars(i8)
+    {1689, 0x00b, 3629, 1},  // setNose(i8)
+    {1690, 0x00b, 3631, 1},  // setTail(i8)
+    {1691, 0x00b, 3633, 1},  // setBodyTexture(i8)
+    {1692, 0x00b, 3635, 1},  // setColor(i8)
+    {1693, 0x00b, 3637, 1},  // setColorScale(i8)
+    {1694, 0x00b, 3639, 1},  // setEyeColor(i8)
+    {1695, 0x00b, 3641, 1},  // setGender(i8)
+    {1696, 0x00b, 3643, 4},  // setLastSeenTimestamp(u32)
+    {1697, 0x00b, 3645, 2},  // setBoredom(u16/1000)
+    {1698, 0x00b, 3647, 2},  // setRestlessness(u16/1000)
+    {1699, 0x00b, 3649, 2},  // setPlayfulness(u16/1000)
+    {1700, 0x00b, 3651, 2},  // setLoneliness(u16/1000)
+    {1701, 0x00b, 3653, 2},  // setSadness(u16/1000)
+    {1702, 0x00b, 3655, 2},  // setAffection(u16/1000)
+    {1703, 0x00b, 3657, 2},  // setHunger(u16/1000)
+    {1704, 0x00b, 3659, 2},  // setConfusion(u16/1000)
+    {1705, 0x00b, 3661, 2},  // setExcitement(u16/1000)
+    {1706, 0x00b, 3663, 2},  // setFatigue(u16/1000)
+    {1707, 0x00b, 3665, 2},  // setAnger(u16/1000)
+    {1708, 0x00b, 3667, 2},  // setSurprise(u16/1000)
+    {1709, 0x00b, 3669, 24},  // setMood(u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000,u16/1000)
+    {1710, 0x042, 3682, 2},  // teleportIn(i16)
+    {1711, 0x042, 3684, 2},  // teleportOut(i16)
+    {1712, 0x00b, 3686, 65535},  // setTrickAptitudes(u16/10000[])
+    {1713, 0x006, 3691, 3},  // doTrick(u8,i16)
+    {1714, 0x000, 3694, 4},  // avatarInteract(u32)
+    {1715, 0x006, 3696, 7},  // setMovie(u8,u32,i16)
+    {1716, 0x000, 3700, 0},  // freeAvatar()
+    {1729, 0x007, 3701, 4},  // setOwner(u32)
+    {1730, 0x006, 3703, 5},  // setState(char,u32)
+    {1731, 0x007, 3706, 1},  // setBodyType(i8)
+    {1732, 0x007, 3708, 1},  // setBodyColor(i8)
+    {1733, 0x007, 3710, 1},  // setAccessoryColor(i8)
+    {1734, 0x007, 3712, 1},  // setEngineBlockType(i8)
+    {1735, 0x007, 3714, 1},  // setSpoilerType(i8)
+    {1736, 0x007, 3716, 1},  // setFrontWheelWellType(i8)
+    {1737, 0x007, 3718, 1},  // setBackWheelWellType(i8)
+    {1738, 0x007, 3720, 1},  // setRimType(i8)
+    {1739, 0x007, 3722, 1},  // setDecalType(i8)
+    {1740, 0x110, 3724, 0},  // requestControl()
+    {1741, 0x110, 3725, 0},  // requestParked()
+    {1742, 0x006, 3726, 1},  // setInput(i8)
+    {1745, 0x007, 3728, 4},  // setZoneId(u32)
+    {1746, 0x007, 3730, 2},  // setTrackId(u16)
+    {1747, 0x007, 3732, 2},  // setRaceType(u16)
+    {1748, 0x007, 3734, 65535},  // setCircuitLoop(u16[])
+    {1749, 0x007, 3739, 65535},  // setAvatars(u32[])
+    {1750, 0x007, 3744, 65535},  // setStartingPlaces(u8[])
+    {1751, 0x007, 3749, 1},  // setLapCount(u8)
+    {1752, 0x006, 3751, 0},  // waitingForJoin()
+    {1753, 0x006, 3752, 65535},  // setEnteredRacers({u32,u32}[])
+    {1754, 0x006, 3758, 0},  // prepForRace()
+    {1755, 0x006, 3759, 0},  // startTutorial()
+    {1756, 0x006, 3760, 2},  // startRace(i16)
+    {1757, 0x006, 3762, 65535},  // goToSpeedway(u32[],u8)
+    {1758, 0x006, 3768, 4},  // genGag(u8,u16,u8)
+    {1759, 0x006, 3772, 10},  // dropAnvilOn(u32,u32,i16)
+    {1760, 0x006, 3776, 9},  // shootPiejectile(u32,u32,u8)
+    {1761, 0x006, 3780, 4},  // racerDisconnected(u32)
+    {1762, 0x006, 3782, 65535},  // setPlace(u32,u32/1000,u8,u32,u8,u32,u32,u32[],u16[],u32/1000)
+    {1763, 0x006, 3799, 65535},  // setCircuitPlace(u32,u8,u32,u32,u32,u32[])
+    {1764, 0x006, 3809, 0},  // endCircuitRace()
+    {1765, 0x000, 3810, 8},  // setRaceZone(u32,u32)
+    {1766, 0x112, 3813, 3},  // hasGag(u8,u8,u8)
+    {1767, 0x116, 3817, 4},  // racerLeft(u32)
+    {1768, 0x112, 3819, 9},  // heresMyT(u32,i8,u16/65535,i16)
+    {1769, 0x110, 3824, 12},  // requestThrow(i32/1000,i32/1000,i32/1000)
+    {1770, 0x110, 3828, 0},  // requestKart()
+    {1771, 0x007, 3829, 2},  // setInitTime(i16)
+    {1772, 0x007, 3831, 2},  // setActivateTime(u16)
+    {1773, 0x007, 3833, 12},  // setPos(i32/1000,i32/1000,i32/1000)
+    {1774, 0x007, 3837, 4},  // setRace(u32)
+    {1775, 0x007, 3839, 4},  // setOwnerId(u32)
+    {1776, 0x007, 3841, 1},  // setType(u8)
+    {1777, 0x112, 3843, 6},  // hitSomebody(u32,i16)
+    {1778, 0x007, 3846, 2},  // setInitTime(i16)
+    {1779, 0x007, 3848, 12},  // setPos(i32/1000,i32/1000,i32/1000)
+    {1780, 0x007, 3852, 4},  // setRace(u32)
+    {1781, 0x007, 3854, 4},  // setOwnerId(u32)
+    {1782, 0x007, 3856, 1},  // setType(u8)
+    {1783, 0x112, 3858, 6},  // hitSomebody(u32,i16)
+    {1784, 0x007, 3861, 4},  // setArea(u32)
+    {1785, 0x007, 3863, 65535},  // setState(string,i16)
+    {1786, 0x000, 3866, 4},  // setRaceZone(u32)
+    {1787, 0x007, 3868, 65535},  // setTrackInfo(u16[])
+    {1788, 0x007, 3873, 2},  // setLastEntered(i16)
+    {1789, 0x007, 3875, 4},  // setPadDoId(u32)
+    {1790, 0x007, 3877, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {1791, 0x007, 3884, 1},  // setPadLocationId(u8)
+    {1792, 0x110, 3886, 1},  // requestEnter(u8)
+    {1793, 0x000, 3888, 1},  // rejectEnter(u8)
+    {1794, 0x110, 3890, 0},  // requestExit()
+    {1795, 0x006, 3891, 4},  // setOccupied(u32)
+    {1796, 0x006, 3893, 1},  // setMovie(u8)
+    {1797, 0x110, 3895, 0},  // movieFinished()
+    {1798, 0x007, 3896, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {1799, 0x006, 3903, 65535},  // setDisplay(blob)
+    {1824, 0x006, 3905, 65535},  // setState(string)
+    {1825, 0x006, 3907, 5},  // setBossDamage(u16,u8,i16)
+    {1826, 0x110, 3911, 0},  // touchWitnessStand()
+    {1827, 0x110, 3912, 1},  // hitBoss(u8)
+    {1828, 0x110, 3914, 1},  // healBoss(u8)
+    {1829, 0x110, 3916, 4},  // hitToon(u32)
+    {1830, 0x110, 3918, 0},  // hitDefensePan()
+    {1831, 0x110, 3919, 0},  // hitProsecutionPan()
+    {1832, 0x110, 3920, 2},  // hitChair(u8,u8)
+    {1833, 0x006, 3923, 65535},  // setLawyerIds(u32[])
+    {1834, 0x002, 3928, 2},  // setTaunt(i8,i8)
+    {1835, 0x002, 3931, 4},  // toonGotHealed(u32)
+    {1836, 0x002, 3933, 0},  // enteredBonusState()
+    {1837, 0x006, 3934, 1},  // setBattleDifficulty(u8)
+    {1891, 0x002, 3936, 2},  // setTimerStartTime(i16)
+    {1892, 0x110, 3938, 3},  // setAvatarChoice(u16,u8)
+    {1893, 0x002, 3941, 4},  // setAvatarChose(u32)
+    {1894, 0x002, 3943, 65535},  // setServerChoices(i16[],u8[],u8,u8)
+    {1895, 0x002, 3954, 65535},  // setMinigames(u8[],u8[])
+    {1896, 0x002, 3963, 65535},  // setBonuses(u8[],u8[])
+    {1897, 0x007, 3972, 1},  // setBoardIndex(u8)
+    {1898, 0x007, 3974, 4},  // setDeckSeed(u32)
+    {1899, 0x006, 3976, 1},  // setMaxOpenCards(u8)
+    {1900, 0x110, 3978, 4},  // openCardRequest(i16,i16)
+    {1901, 0x002, 3981, 65535},  // openCardResult(i16,u32,i16,i8,i16[])
+    {1902, 0x110, 3990, 0},  // reportDone()
+    {1903, 0x002, 3991, 0},  // setEveryoneDone()
+    {1904, 0x012, 3992, 4},  // setSignaling(u32)
+    {1969, 0x110, 3994, 1},  // reachedEndVine(i8)
+    {1970, 0x112, 3996, 10},  // setNewVine(u32,i8,u32/10000,i8)
+    {1971, 0x012, 4001, 9},  // setNewVineT(u32,u32/10000,i8)
+    {1972, 0x012, 4005, 16},  // setJumpingFromVine(u32,i8,i8,i32/100,i16/100,i16/100,i16)
+    {1973, 0x110, 4013, 4},  // claimTreasure(u32)
+    {1974, 0x002, 4015, 8},  // setTreasureGrabbed(u32,u32)
+    {1975, 0x002, 4018, 8},  // setScore(u32,u32)
+    {1976, 0x002, 4021, 0},  // allAtEndVine()
+    {1977, 0x012, 4022, 17},  // setFallingFromVine(u32,i8,i8,i32/100,i16/100,i16/100,i16,i8)
+    {1978, 0x012, 4031, 16},  // setFallingFromMidair(u32,i8,i32/100,i16/100,i16/100,i16,i8)
+    {1979, 0x007, 4039, 65535},  // setVineSections(u8[])
+    {2015, 0x006, 4044, 65535},  // setState(string)
+    {2016, 0x006, 4046, 1},  // setBattleDifficulty(u8)
+    {2017, 0x110, 4048, 6},  // requestGetFood(i8,i8,u32)
+    {2018, 0x002, 4052, 10},  // toonGotFood(u32,i8,i8,u32)
+    {2019, 0x110, 4057, 2},  // requestServeFood(i8,i8)
+    {2020, 0x002, 4060, 6},  // toonServeFood(u32,i8,i8)
+    {2021, 0x110, 4064, 1},  // hitBoss(u8)
+    {2022, 0x110, 4066, 4},  // hitToon(u32)
+    {2023, 0x110, 4068, 1},  // ballHitBoss(u8)
+    {2024, 0x006, 4070, 5},  // setBossDamage(u16,u8,i16)
+    {2025, 0x006, 4074, 5},  // setSpeedDamage(u16,u8,i16)
+    {2026, 0x110, 4078, 1},  // reachedTable(u8)
+    {2027, 0x110, 4080, 1},  // hitTable(u8)
+    {2028, 0x110, 4082, 1},  // awayFromTable(u8)
+    {2029, 0x002, 4084, 4},  // toonGotHealed(u32)
+    {2030, 0x110, 4086, 6},  // requestGetToonup(i8,i8,u32)
+    {2031, 0x002, 4090, 10},  // toonGotToonup(u32,i8,i8,u32)
+    {2032, 0x007, 4095, 2},  // setCountryClubId(u16)
+    {2033, 0x007, 4097, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10)
+    {2034, 0x000, 4104, 4},  // setCountryClubInteriorZone(u32)
+    {2035, 0x000, 4106, 4},  // setCountryClubInteriorZoneForce(u32)
+    {2036, 0x007, 4108, 4},  // setZoneId(u32)
+    {2037, 0x007, 4110, 65535},  // setBlockedRooms(u8[])
+    {2038, 0x007, 4115, 2},  // setCountryClubId(u16)
+    {2039, 0x007, 4117, 2},  // setLayoutIndex(u16)
+    {2040, 0x007, 4119, 1},  // setFloorNum(u8)
+    {2041, 0x006, 4121, 65535},  // setRoomDoIds(u32[])
+    {2042, 0x006, 4126, 4},  // setCountryClubZone(u32)
+    {2043, 0x006, 4128, 4},  // elevatorAlert(u32)
+    {2044, 0x007, 4130, 2},  // setCountryClubId(u16)
+    {2045, 0x007, 4132, 2},  // setRoomId(u16)
+    {2046, 0x007, 4134, 1},  // setRoomNum(u8)
+    {2047, 0x006, 4136, 65535},  // setSuits(u32[],u32[])
+    {2048, 0x006, 4145, 4},  // setBossConfronted(u32)
+    {2049, 0x006, 4147, 0},  // setDefeated()
+    {2050, 0x002, 4148, 1},  // forceOuch(u8)
+    {2051, 0x002, 4150, 5},  // setGameStart(i16,u8,u16)
+    {2052, 0x110, 4154, 0},  // setClientTriggered()
+    {2053, 0x110, 4155, 3},  // whackedMole(i8,i16)
+    {2054, 0x110, 4158, 7},  // whackedBomb(i8,i16,i32)
+    {2055, 0x002, 4162, 2},  // updateMole(i8,i8)
+    {2056, 0x002, 4165, 9},  // reportToonHitByBomb(u32,i8,i32)
+    {2057, 0x007, 4169, 2},  // setScore(i16)
+    {2058, 0x110, 4171, 0},  // damageMe()
+    {2059, 0x002, 4172, 0},  // setPityWin()
+    {2060, 0x006, 4173, 1},  // setFloor(i8)
+    {2061, 0x007, 4175, 2},  // setLocked(u16)
+    {2062, 0x007, 4177, 2},  // setEntering(u16)
+    {2063, 0x002, 4179, 0},  // kickToonsOut()
+    {2064, 0x007, 4180, 4},  // setLatch(u32)
+    {2065, 0x007, 4182, 4},  // setRoomDoId(u32)
+    {2066, 0x002, 4184, 2},  // setGameStart(i16)
+    {2067, 0x110, 4186, 0},  // setClientTriggered()
+    {2068, 0x110, 4187, 0},  // setFinishedMaze()
+    {2069, 0x002, 4188, 0},  // setGameOver()
+    {2070, 0x002, 4189, 6},  // toonFinished(u32,u8,u8)
+    {2071, 0x110, 4193, 0},  // damageMe()
+    {2098, 0x012, 4194, 12},  // setForceArrowInfo(u32,i32/100,i32/100)
+    {2099, 0x110, 4198, 8},  // setAvatarChoice(i32/100,i32/100)
+    {2100, 0x110, 4201, 65535},  // endingPositions({i32/100000,i32/100000,i32/100000}[])
+    {2101, 0x110, 4208, 0},  // reportScoringMovieDone()
+    {2102, 0x110, 4209, 1},  // claimTreasure(u8)
+    {2103, 0x110, 4211, 1},  // claimPenalty(u8)
+    {2104, 0x002, 4213, 65535},  // setTireInputs({i32/100,i32/100}[])
+    {2105, 0x002, 4219, 2},  // setTimerStartTime(i16)
+    {2106, 0x002, 4221, 65535},  // setFinalPositions({i32/100000,i32/100000,i32/100000}[])
+    {2107, 0x002, 4228, 2},  // setMatchAndRound(i8,i8)
+    {2108, 0x002, 4231, 65535},  // setScores(i8,i8,i16[])
+    {2109, 0x002, 4238, 65535},  // setNewState(string)
+    {2110, 0x002, 4240, 8},  // setTreasureGrabbed(u32,u32)
+    {2111, 0x002, 4243, 8},  // setPenaltyGrabbed(u32,u32)
+    {2112, 0x012, 4246, 24},  // throwingPie(u32,i32,i32/100,i32/100,i32/100,i32/100)
+    {2113, 0x112, 4253, 21},  // hitBySuit(u32,i32,i8,i32/100,i32/100,i32/100)
+    {2114, 0x112, 4260, 21},  // pieHitSuit(u32,i32,i8,i32/100,i32/100,i32/100)
+    {2115, 0x110, 4267, 18},  // cogHitBarrel(i32,i8,i8,i32/100,i32/100,i32/100)
+    {2116, 0x110, 4274, 6},  // cogAtReturnPos(i32,i8,i8)
+    {2117, 0x002, 4278, 30},  // updateSuitGoal(i32,i32,i8,i8,i64,i32/100,i32/100,i32/100)
+    {2118, 0x002, 4287, 22},  // makeCogCarryBarrel(i32,i32,i8,i8,i32/100,i32/100,i32/100)
+    {2119, 0x002, 4295, 22},  // makeCogDropBarrel(i32,i32,i8,i8,i32/100,i32/100,i32/100)
+    {2120, 0x002, 4303, 9},  // markBarrelStolen(i32,i32,i8)
+    {2128, 0x012, 4307, 6},  // showShootGun(u32,i16)
+    {2129, 0x112, 4310, 6},  // toonHitByEnemy(u32,i16)
+    {2130, 0x112, 4313, 6},  // toonFellDown(u32,i16)
+    {2131, 0x112, 4316, 6},  // toonSquished(u32,i16)
+    {2132, 0x112, 4319, 6},  // toonVictory(u32,i16)
+    {2133, 0x110, 4322, 2},  // claimTreasure(u8,u8)
+    {2134, 0x110, 4325, 2},  // claimEnemyShot(u8,u8)
+    {2135, 0x110, 4328, 0},  // reportDone()
+    {2136, 0x007, 4329, 65535},  // setSectionsSelected({u8,u8[],{u8,u8}[],u8[],u8[]}[])
+    {2137, 0x002, 4351, 6},  // setTreasureGrabbed(u32,u8,u8)
+    {2138, 0x002, 4355, 10},  // setEnemyShot(u32,u8,u8,u32)
+    {2139, 0x002, 4360, 5},  // addVictoryScore(u32,u8)
+    {2140, 0x002, 4363, 0},  // setEveryoneDone()
+    {2207, 0x000, 4364, 65535},  // addParty(u32,u32,string,string,i8,i8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u32[],u16)
+    {2208, 0x110, 4390, 65535},  // addPartyRequest(u32,string,string,i8,i8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u32[])
+    {2209, 0x000, 4414, 5},  // addPartyResponse(u32,i8)
+    {2210, 0x100, 4417, 7},  // addPartyResponseUdToAi(u32,i8,u16)
+    {2211, 0x000, 4421, 12},  // markInviteAsReadButNotReplied(u32,u64)
+    {2212, 0x000, 4424, 19},  // respondToInvite(u32,u32,u16,u64,u8)
+    {2213, 0x100, 4430, 16},  // respondToInviteResponse(u32,u16,u64,i8,u8)
+    {2214, 0x110, 4436, 9},  // changePrivateRequest(u64,i8)
+    {2215, 0x000, 4439, 13},  // changePrivateRequestAiToUd(u32,u64,i8)
+    {2216, 0x100, 4443, 14},  // changePrivateResponseUdToAi(u32,u64,i8,i8)
+    {2217, 0x000, 4448, 10},  // changePrivateResponse(u64,i8,i8)
+    {2218, 0x110, 4452, 9},  // changePartyStatusRequest(u64,i8)
+    {2219, 0x000, 4455, 13},  // changePartyStatusRequestAiToUd(u32,u64,i8)
+    {2220, 0x100, 4459, 14},  // changePartyStatusResponseUdToAi(u32,u64,i8,i8)
+    {2221, 0x000, 4464, 12},  // changePartyStatusResponse(u64,i8,i8,u16)
+    {2222, 0x000, 4469, 8},  // partyInfoOfHostRequestAiToUd(u32,u32)
+    {2223, 0x100, 4472, 4},  // partyInfoOfHostFailedResponseUdToAi(u32)
+    {2224, 0x100, 4474, 65535},  // partyInfoOfHostResponseUdToAi({u64,u32,u16,u8,u8,u8,u8,u16,u8,u8,u8,u8,u8,u8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u8},u32[])
+    {2225, 0x000, 4508, 19},  // givePartyRefundResponse(u32,u64,i8,u16,u32)
+    {2226, 0x110, 4514, 9},  // getPartyZone(u32,u32,u8)
+    {2227, 0x000, 4518, 16},  // receivePartyZone(u32,u64,u32)
+    {2228, 0x110, 4522, 8},  // freeZoneIdFromPlannedParty(u32,u32)
+    {2229, 0x000, 4525, 5},  // sendAvToPlayground(u32,u8)
+    {2230, 0x110, 4528, 4},  // exitParty(u32)
+    {2231, 0x110, 4530, 8},  // removeGuest(u32,u32)
+    {2232, 0x000, 4533, 8},  // partyManagerAIStartingUp(u32,u32)
+    {2233, 0x000, 4536, 8},  // partyManagerAIGoingDown(u32,u32)
+    {2234, 0x000, 4539, 65535},  // partyHasStartedAiToUd(u32,u64,u32,u32,string)
+    {2235, 0x000, 4545, 4},  // toonHasEnteredPartyAiToUd(u32)
+    {2236, 0x000, 4547, 4},  // toonHasExitedPartyAiToUd(u32)
+    {2237, 0x100, 4549, 4},  // partyHasFinishedUdToAllAi(u32)
+    {2238, 0x100, 4551, 65535},  // updateToPublicPartyInfoUdToAllAi(u32,u64,u32,u32,u8,u8,string,u8[],u64)
+    {2239, 0x100, 4564, 5},  // updateToPublicPartyCountUdToAllAi(u32,u8)
+    {2240, 0x110, 4567, 4},  // requestShardIdZoneIdForHostId(u32)
+    {2241, 0x000, 4569, 8},  // sendShardIdZoneIdToAvatar(u32,u32)
+    {2242, 0x100, 4572, 0},  // partyManagerUdStartingUp()
+    {2243, 0x000, 4573, 65535},  // updateAllPartyInfoToUd(u32,u64,u32,u32,u8,u8,string,u8[],u64)
+    {2244, 0x000, 4586, 0},  // forceCheckStart()
+    {2245, 0x000, 4587, 65535},  // requestMw(u32,string,u32,u32)
+    {2246, 0x100, 4592, 65535},  // mwResponseUdToAllAi(u32,string,u32,u32)
+    {2260, 0x007, 4597, 65535},  // setLatestIssueStr(string)
+    {2261, 0x000, 4599, 8},  // inGameNewsMgrAIStartingUp(u32,u32)
+    {2262, 0x100, 4602, 65535},  // newIssueUDtoAI(string)
 };
 
 // Parallel to kFields (debug logging only).
@@ -4920,6 +5236,35 @@ constexpr const char* kFieldNames[kNumFields] = {
     "setConfrontToon",
     "setStrayed",
     "setReturn",
+    "setDNAString",
+    "setToonIds",
+    "setBattleIds",
+    "setArenaSide",
+    "avatarEnter",
+    "avatarExit",
+    "avatarNearEnter",
+    "avatarNearExit",
+    "toonDied",
+    "setBattleExperience",
+    "zapToon",
+    "showZapToon",
+    "setAttackCode",
+    "setCagedToonNpcId",
+    "setDooberIds",
+    "setBossDamage",
+    "setState",
+    "hitBoss",
+    "hitBossInsides",
+    "hitToon",
+    "finalPieSplat",
+    "touchCage",
+    "doStrafe",
+    "cagedToonBattleThree",
+    "toonPromoted",
+    "setState",
+    "setBossDamage",
+    "setRewardId",
+    "applyReward",
     "setLevelDoId",
     "setBattleCellId",
     "setInteractivePropTrackBonus",
@@ -4945,6 +5290,9 @@ constexpr const char* kFieldNames[kNumFields] = {
     "joinDone",
     "requestAttack",
     "requestPetProxy",
+    "setBossCogId",
+    "setBattleNumber",
+    "setBattleSide",
     "setState",
     "setArea",
     "setState",
@@ -5589,6 +5937,20 @@ constexpr const char* kFieldNames[kNumFields] = {
     "movieFinished",
     "setPosHpr",
     "setDisplay",
+    "setState",
+    "setBossDamage",
+    "touchWitnessStand",
+    "hitBoss",
+    "healBoss",
+    "hitToon",
+    "hitDefensePan",
+    "hitProsecutionPan",
+    "hitChair",
+    "setLawyerIds",
+    "setTaunt",
+    "toonGotHealed",
+    "enteredBonusState",
+    "setBattleDifficulty",
     "setTimerStartTime",
     "setAvatarChoice",
     "setAvatarChose",
@@ -5614,6 +5976,23 @@ constexpr const char* kFieldNames[kNumFields] = {
     "setFallingFromVine",
     "setFallingFromMidair",
     "setVineSections",
+    "setState",
+    "setBattleDifficulty",
+    "requestGetFood",
+    "toonGotFood",
+    "requestServeFood",
+    "toonServeFood",
+    "hitBoss",
+    "hitToon",
+    "ballHitBoss",
+    "setBossDamage",
+    "setSpeedDamage",
+    "reachedTable",
+    "hitTable",
+    "awayFromTable",
+    "toonGotHealed",
+    "requestGetToonup",
+    "toonGotToonup",
     "setCountryClubId",
     "setPosHpr",
     "setCountryClubInteriorZone",
@@ -5749,7 +6128,7 @@ struct ClassDesc {
     const char* name;
 };
 
-constexpr int kFieldListSize = 5108;
+constexpr int kFieldListSize = 5401;
 constexpr uint16_t kFieldLists[kFieldListSize] = {
     56, 57, 56, 57, 22, 23, 24, 25, 56, 57, 56, 57, 421, 56, 57, 421,
     22, 23, 24, 25, 56, 57, 420, 421, 422, 423, 424, 422, 423, 424, 22, 23,
@@ -5922,158 +6301,176 @@ constexpr uint16_t kFieldLists[kFieldListSize] = {
     1416, 1417, 1418, 1419, 1420, 1421, 1422, 1423, 1424, 1425, 1426, 1398, 1419, 1420, 1421, 2061,
     2062, 2064, 1398, 1419, 1420, 1421, 2061, 2062, 2064, 22, 23, 24, 25, 1398, 1399, 1400,
     1401, 1402, 1403, 1404, 1405, 1406, 1407, 1408, 1409, 1410, 1411, 1412, 1413, 1414, 1415, 1416,
-    1417, 1418, 1419, 1420, 1421, 2060, 2061, 2062, 2063, 2064, 22, 23, 24, 25, 186, 187,
-    188, 189, 190, 191, 192, 193, 194, 195, 196, 197, 198, 429, 430, 435, 429, 430,
-    435, 22, 23, 24, 25, 429, 430, 431, 432, 433, 434, 435, 616, 616, 22, 23,
-    24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24,
-    25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25,
-    614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614,
-    615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615,
-    616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616,
-    617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617,
-    618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618,
-    619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619,
-    620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620,
-    621, 622, 616, 624, 616, 624, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619,
-    620, 621, 622, 623, 624, 616, 624, 616, 624, 22, 23, 24, 25, 614, 615, 616,
-    617, 618, 619, 620, 621, 622, 623, 624, 616, 616, 22, 23, 24, 25, 614, 615,
-    616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616,
-    617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617,
-    618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618,
-    619, 620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619,
-    620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620,
-    621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621,
-    622, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849,
-    850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 849, 850, 851, 852,
-    853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854,
-    855, 856, 857, 858, 859, 860, 861, 849, 850, 851, 852, 853, 849, 850, 851, 852,
-    853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859,
-    860, 861, 862, 863, 864, 865, 866, 849, 850, 851, 852, 853, 849, 850, 851, 852,
-    853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859,
-    860, 861, 867, 868, 869, 870, 871, 872, 849, 850, 851, 852, 853, 849, 850, 851,
-    852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858,
-    859, 860, 861, 873, 874, 875, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853,
-    22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860,
-    861, 876, 877, 878, 879, 880, 881, 849, 850, 851, 852, 853, 882, 883, 849, 850,
-    851, 852, 853, 882, 883, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855,
-    856, 857, 858, 859, 860, 861, 882, 883, 884, 885, 849, 850, 851, 852, 853, 849,
-    850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856,
-    857, 858, 859, 860, 861, 886, 887, 888, 849, 850, 851, 852, 853, 849, 850, 851,
-    852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858,
-    859, 860, 861, 889, 890, 891, 892, 849, 850, 851, 852, 853, 849, 850, 851, 852,
-    853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859,
-    860, 861, 893, 894, 895, 896, 897, 898, 899, 900, 901, 902, 849, 850, 851, 852,
-    853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854,
-    855, 856, 857, 858, 859, 860, 861, 903, 904, 905, 906, 907, 849, 850, 851, 852,
-    853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854,
-    855, 856, 857, 858, 859, 860, 861, 908, 909, 910, 911, 912, 913, 914, 915, 916,
-    917, 918, 919, 920, 849, 850, 851, 852, 853, 921, 849, 850, 851, 852, 853, 921,
-    22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860,
-    861, 921, 922, 923, 924, 925, 926, 927, 928, 929, 1133, 1134, 1135, 1136, 1137, 1138,
-    1139, 1140, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 22, 23, 24, 25, 1133, 1134,
-    1135, 1136, 1137, 1138, 1139, 1140, 1141, 1142, 1143, 1144, 1133, 1134, 1135, 1136, 1137, 1138,
-    1139, 1140, 1145, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 1145, 22, 23, 24, 25,
-    1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 1141, 1142, 1143, 1144, 1145, 1157, 1157, 22,
-    23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159,
-    1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24,
-    25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157,
-    1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157,
-    1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22,
-    23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159,
-    1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1161, 1162, 1163, 1157,
-    1161, 1162, 1163, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1161, 1162, 1163, 1179, 1180,
-    1179, 1180, 22, 23, 24, 25, 1179, 1180, 1179, 1180, 1181, 1186, 1179, 1180, 1181, 1186,
-    22, 23, 24, 25, 1179, 1180, 1181, 1182, 1183, 1184, 1185, 1186, 1188, 1189, 1188, 1189,
-    22, 23, 24, 25, 1188, 1189, 1190, 1191, 1192, 1188, 1189, 1188, 1189, 22, 23, 24,
-    25, 1188, 1189, 1190, 1191, 1192, 1325, 1326, 1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328,
-    1335, 1336, 22, 23, 24, 25, 1325, 1326, 1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334,
-    1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 22, 23,
-    24, 25, 1325, 1326, 1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334, 1335, 1336, 1325, 1326,
-    1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 22, 23, 24, 25, 1325, 1326,
-    1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336,
-    1325, 1326, 1327, 1328, 1335, 1336, 22, 23, 24, 25, 1325, 1326, 1327, 1328, 1329, 1330,
-    1331, 1332, 1333, 1334, 1335, 1336, 1337, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24,
-    25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72,
-    1338, 1339, 1340, 1341, 1342, 1343, 1344, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24,
-    25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72,
-    1338, 1339, 1340, 1341, 1342, 1343, 1344, 1345, 1346, 1347, 1348, 1338, 1339, 1340, 1338, 1339,
-    1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68,
-    69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1349, 1350, 1351, 1352, 1338,
-    1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64,
-    65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1345,
-    1346, 1347, 1348, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60,
-    61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341,
-    1342, 1343, 1344, 1353, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59,
-    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340,
-    1341, 1342, 1343, 1344, 1354, 1355, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25,
-    58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338,
-    1339, 1340, 1341, 1342, 1343, 1344, 1356, 1357, 1358, 1338, 1339, 1340, 1338, 1339, 1340, 22,
-    23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70,
-    71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1359, 1338, 1339, 1340, 1338, 1339, 1340,
+    1417, 1418, 1419, 1420, 1421, 2060, 2061, 2062, 2063, 2064, 22, 23, 24, 25, 670, 679,
+    670, 679, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+    68, 69, 70, 71, 72, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680,
+    681, 682, 670, 679, 683, 670, 679, 683, 22, 23, 24, 25, 58, 59, 60, 61,
+    62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 670, 671, 672, 673, 674,
+    675, 676, 677, 678, 679, 680, 681, 682, 683, 684, 685, 686, 687, 688, 689, 690,
+    691, 692, 693, 694, 670, 679, 670, 679, 22, 23, 24, 25, 58, 59, 60, 61,
+    62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 670, 671, 672, 673, 674,
+    675, 676, 677, 678, 679, 680, 681, 682, 695, 696, 697, 698, 670, 679, 670, 679,
     22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69,
-    70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1360, 1361, 1338, 1339, 1340, 1338,
-    1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
-    68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1362, 1363, 1338, 1339,
-    1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65,
-    66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1364, 1365,
-    1366, 1367, 1368, 1369, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59,
-    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340,
-    1341, 1342, 1343, 1344, 1370, 1371, 1372, 1373, 429, 430, 435, 429, 430, 435, 22, 23,
-    24, 25, 429, 430, 431, 432, 433, 434, 435, 1374, 1395, 1396, 1397, 1374, 1395, 1396,
-    1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384,
-    1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1374, 1395, 1396,
-    1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380,
-    1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396,
-    1397, 1427, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375,
-    1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391,
-    1392, 1393, 1394, 1395, 1396, 1397, 1431, 1432, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397,
+    70, 71, 72, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680, 681, 682,
+    1824, 1825, 1826, 1827, 1828, 1829, 1830, 1831, 1832, 1833, 1834, 1835, 1836, 1837, 670, 679,
+    670, 679, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+    68, 69, 70, 71, 72, 670, 671, 672, 673, 674, 675, 676, 677, 678, 679, 680,
+    681, 682, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027, 2028,
+    2029, 2030, 2031, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374,
+    1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390,
+    1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1440, 1441, 1374, 1395, 1396, 1397, 1374, 1395,
+    1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383,
+    1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1440,
+    1441, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376,
+    1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392,
+    1393, 1394, 1395, 1396, 1397, 1427, 1440, 1441, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397,
     22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385,
     1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1440, 1441, 1374,
     1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378,
     1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394,
-    1395, 1396, 1397, 1427, 1440, 1441, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23,
-    24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387,
-    1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1440, 1441, 1374, 1395, 1396,
-    1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380,
-    1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396,
-    1397, 1427, 1440, 1441, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25,
-    1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389,
-    1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1440, 1441, 1179, 1180, 1181, 1186, 1179,
-    1180, 1181, 1186, 22, 23, 24, 25, 1179, 1180, 1181, 1182, 1183, 1184, 1185, 1186, 1179,
-    1180, 1181, 1186, 1179, 1180, 1181, 1186, 22, 23, 24, 25, 1179, 1180, 1181, 1182, 1183,
-    1184, 1185, 1186, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1615, 1616, 1179,
-    1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1179, 1180, 1179, 1180, 22, 23, 24,
-    25, 1179, 1180, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1618, 1619, 1179,
-    1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1620, 1621, 1622, 1179, 1180, 1179, 1180,
-    22, 23, 24, 25, 1179, 1180, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180,
+    1395, 1396, 1397, 1427, 1440, 1441, 762, 763, 764, 765, 766, 767, 768, 770, 772, 774,
+    775, 787, 788, 789, 762, 763, 764, 765, 766, 767, 768, 770, 772, 774, 775, 787,
+    788, 789, 22, 23, 24, 25, 762, 763, 764, 765, 766, 767, 768, 769, 770, 771,
+    772, 773, 774, 775, 776, 777, 778, 779, 780, 781, 782, 783, 784, 785, 786, 787,
+    788, 789, 22, 23, 24, 25, 186, 187, 188, 189, 190, 191, 192, 193, 194, 195,
+    196, 197, 198, 429, 430, 435, 429, 430, 435, 22, 23, 24, 25, 429, 430, 431,
+    432, 433, 434, 435, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619,
+    620, 621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620,
+    621, 622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621,
+    622, 616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622,
+    616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616,
+    616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616,
+    22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22,
+    23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23,
+    24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24,
+    25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 624, 616, 624, 22, 23,
+    24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 623, 624, 616, 624, 616,
+    624, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 623, 624,
+    616, 616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616,
+    616, 22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616,
+    22, 23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22,
+    23, 24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23,
+    24, 25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24,
+    25, 614, 615, 616, 617, 618, 619, 620, 621, 622, 616, 616, 22, 23, 24, 25,
+    614, 615, 616, 617, 618, 619, 620, 621, 622, 849, 850, 851, 852, 853, 849, 850,
+    851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857,
+    858, 859, 860, 861, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23,
+    24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 849,
+    850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851,
+    852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 862, 863, 864, 865, 866, 849,
+    850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851,
+    852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 867, 868, 869, 870, 871, 872,
+    849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850,
+    851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 873, 874, 875, 849, 850,
+    851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852,
+    853, 854, 855, 856, 857, 858, 859, 860, 861, 876, 877, 878, 879, 880, 881, 849,
+    850, 851, 852, 853, 882, 883, 849, 850, 851, 852, 853, 882, 883, 22, 23, 24,
+    25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 882, 883,
+    884, 885, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25,
+    849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 886, 887, 888,
+    849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850,
+    851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 889, 890, 891, 892, 849,
+    850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851,
+    852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 893, 894, 895, 896, 897, 898,
+    899, 900, 901, 902, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23,
+    24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 903,
+    904, 905, 906, 907, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23,
+    24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 908,
+    909, 910, 911, 912, 913, 914, 915, 916, 917, 918, 919, 920, 849, 850, 851, 852,
+    853, 921, 849, 850, 851, 852, 853, 921, 22, 23, 24, 25, 849, 850, 851, 852,
+    853, 854, 855, 856, 857, 858, 859, 860, 861, 921, 922, 923, 924, 925, 926, 927,
+    928, 929, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 1133, 1134, 1135, 1136, 1137, 1138,
+    1139, 1140, 22, 23, 24, 25, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 1141, 1142,
+    1143, 1144, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140, 1145, 1133, 1134, 1135, 1136, 1137,
+    1138, 1139, 1140, 1145, 22, 23, 24, 25, 1133, 1134, 1135, 1136, 1137, 1138, 1139, 1140,
+    1141, 1142, 1143, 1144, 1145, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157,
+    1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157,
+    1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22,
+    23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159,
+    1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24,
+    25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157,
+    1157, 22, 23, 24, 25, 1157, 1158, 1159, 1160, 1157, 1157, 22, 23, 24, 25, 1157,
+    1158, 1159, 1160, 1157, 1161, 1162, 1163, 1157, 1161, 1162, 1163, 22, 23, 24, 25, 1157,
+    1158, 1159, 1160, 1161, 1162, 1163, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180,
+    1179, 1180, 1181, 1186, 1179, 1180, 1181, 1186, 22, 23, 24, 25, 1179, 1180, 1181, 1182,
+    1183, 1184, 1185, 1186, 1188, 1189, 1188, 1189, 22, 23, 24, 25, 1188, 1189, 1190, 1191,
+    1192, 1188, 1189, 1188, 1189, 22, 23, 24, 25, 1188, 1189, 1190, 1191, 1192, 1325, 1326,
+    1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 22, 23, 24, 25, 1325, 1326,
+    1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336,
+    1325, 1326, 1327, 1328, 1335, 1336, 22, 23, 24, 25, 1325, 1326, 1327, 1328, 1329, 1330,
+    1331, 1332, 1333, 1334, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328,
+    1335, 1336, 22, 23, 24, 25, 1325, 1326, 1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334,
+    1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 1325, 1326, 1327, 1328, 1335, 1336, 22, 23,
+    24, 25, 1325, 1326, 1327, 1328, 1329, 1330, 1331, 1332, 1333, 1334, 1335, 1336, 1337, 1338,
+    1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64,
+    65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1338,
+    1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64,
+    65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1345,
+    1346, 1347, 1348, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60,
+    61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341,
+    1342, 1343, 1344, 1349, 1350, 1351, 1352, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24,
+    25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72,
+    1338, 1339, 1340, 1341, 1342, 1343, 1344, 1345, 1346, 1347, 1348, 1338, 1339, 1340, 1338, 1339,
+    1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68,
+    69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1353, 1338, 1339, 1340, 1338,
+    1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+    68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1354, 1355, 1338, 1339,
+    1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65,
+    66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1356, 1357,
+    1358, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62,
+    63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343,
+    1344, 1359, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61,
+    62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342,
+    1343, 1344, 1360, 1361, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25, 58, 59,
+    60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338, 1339, 1340,
+    1341, 1342, 1343, 1344, 1362, 1363, 1338, 1339, 1340, 1338, 1339, 1340, 22, 23, 24, 25,
+    58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 1338,
+    1339, 1340, 1341, 1342, 1343, 1344, 1364, 1365, 1366, 1367, 1368, 1369, 1338, 1339, 1340, 1338,
+    1339, 1340, 22, 23, 24, 25, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67,
+    68, 69, 70, 71, 72, 1338, 1339, 1340, 1341, 1342, 1343, 1344, 1370, 1371, 1372, 1373,
+    429, 430, 435, 429, 430, 435, 22, 23, 24, 25, 429, 430, 431, 432, 433, 434,
+    435, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376,
+    1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392,
+    1393, 1394, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 1374, 1395, 1396, 1397, 22, 23, 24,
+    25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388,
+    1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 1374, 1395, 1396, 1397, 1374, 1395,
+    1396, 1397, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383,
+    1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1431, 1432,
+    1179, 1180, 1181, 1186, 1179, 1180, 1181, 1186, 22, 23, 24, 25, 1179, 1180, 1181, 1182,
+    1183, 1184, 1185, 1186, 1179, 1180, 1181, 1186, 1179, 1180, 1181, 1186, 22, 23, 24, 25,
+    1179, 1180, 1181, 1182, 1183, 1184, 1185, 1186, 1179, 1180, 1179, 1180, 22, 23, 24, 25,
+    1179, 1180, 1615, 1616, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1179, 1180,
+    1179, 1180, 22, 23, 24, 25, 1179, 1180, 1179, 1180, 1179, 1180, 22, 23, 24, 25,
+    1179, 1180, 1618, 1619, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1620, 1621,
+    1622, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1179, 1180, 1179, 1180, 22,
+    23, 24, 25, 1179, 1180, 1623, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180,
     1623, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1623, 1179, 1180, 1179, 1180,
-    22, 23, 24, 25, 1179, 1180, 1623, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179,
-    1180, 1629, 1630, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1615, 1616, 1631,
-    1632, 1633, 1634, 1635, 1636, 1179, 1180, 1637, 1179, 1180, 1637, 22, 23, 24, 25, 1179,
-    1180, 1637, 1638, 1639, 1640, 1655, 1656, 1657, 1658, 1659, 1660, 1661, 1662, 1663, 1664, 1665,
-    1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1668, 849, 850, 851, 852, 853,
-    1897, 849, 850, 851, 852, 853, 1897, 22, 23, 24, 25, 849, 850, 851, 852, 853,
-    854, 855, 856, 857, 858, 859, 860, 861, 1891, 1892, 1893, 1894, 1895, 1896, 1897, 849,
-    850, 851, 852, 853, 1898, 849, 850, 851, 852, 853, 1898, 22, 23, 24, 25, 849,
-    850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 1898, 1899, 1900, 1901,
-    1902, 1903, 1904, 849, 850, 851, 852, 853, 1979, 849, 850, 851, 852, 853, 1979, 22,
-    23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861,
-    1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979, 1374, 1395, 1396, 1397, 2032,
-    2033, 1374, 1395, 1396, 1397, 2032, 2033, 22, 23, 24, 25, 1374, 1375, 1376, 1377, 1378,
-    1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389, 1390, 1391, 1392, 1393, 1394,
-    1395, 1396, 1397, 1427, 2032, 2033, 2034, 2035, 1179, 1180, 2057, 1179, 1180, 2057, 22, 23,
-    24, 25, 1179, 1180, 2051, 2052, 2053, 2054, 2055, 2056, 2057, 2058, 2059, 849, 850, 851,
-    852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853,
-    854, 855, 856, 857, 858, 859, 860, 861, 2098, 2099, 2100, 2101, 2102, 2103, 2104, 2105,
-    2106, 2107, 2108, 2109, 2110, 2111, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853,
+    22, 23, 24, 25, 1179, 1180, 1629, 1630, 1179, 1180, 1179, 1180, 22, 23, 24, 25,
+    1179, 1180, 1615, 1616, 1631, 1632, 1633, 1634, 1635, 1636, 1179, 1180, 1637, 1179, 1180, 1637,
+    22, 23, 24, 25, 1179, 1180, 1637, 1638, 1639, 1640, 1655, 1656, 1657, 1658, 1659, 1660,
+    1661, 1662, 1663, 1664, 1665, 1179, 1180, 1179, 1180, 22, 23, 24, 25, 1179, 1180, 1668,
+    849, 850, 851, 852, 853, 1897, 849, 850, 851, 852, 853, 1897, 22, 23, 24, 25,
+    849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 1891, 1892, 1893,
+    1894, 1895, 1896, 1897, 849, 850, 851, 852, 853, 1898, 849, 850, 851, 852, 853, 1898,
     22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860,
-    861, 2112, 2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 849, 850, 851, 852, 853, 2136,
-    849, 850, 851, 852, 853, 2136, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854,
-    855, 856, 857, 858, 859, 860, 861, 2128, 2129, 2130, 2131, 2132, 2133, 2134, 2135, 2136,
-    2137, 2138, 2139, 2140,
+    861, 1898, 1899, 1900, 1901, 1902, 1903, 1904, 849, 850, 851, 852, 853, 1979, 849, 850,
+    851, 852, 853, 1979, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855, 856,
+    857, 858, 859, 860, 861, 1969, 1970, 1971, 1972, 1973, 1974, 1975, 1976, 1977, 1978, 1979,
+    1374, 1395, 1396, 1397, 2032, 2033, 1374, 1395, 1396, 1397, 2032, 2033, 22, 23, 24, 25,
+    1374, 1375, 1376, 1377, 1378, 1379, 1380, 1381, 1382, 1383, 1384, 1385, 1386, 1387, 1388, 1389,
+    1390, 1391, 1392, 1393, 1394, 1395, 1396, 1397, 1427, 2032, 2033, 2034, 2035, 1179, 1180, 2057,
+    1179, 1180, 2057, 22, 23, 24, 25, 1179, 1180, 2051, 2052, 2053, 2054, 2055, 2056, 2057,
+    2058, 2059, 849, 850, 851, 852, 853, 849, 850, 851, 852, 853, 22, 23, 24, 25,
+    849, 850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 2098, 2099, 2100,
+    2101, 2102, 2103, 2104, 2105, 2106, 2107, 2108, 2109, 2110, 2111, 849, 850, 851, 852, 853,
+    849, 850, 851, 852, 853, 22, 23, 24, 25, 849, 850, 851, 852, 853, 854, 855,
+    856, 857, 858, 859, 860, 861, 2112, 2113, 2114, 2115, 2116, 2117, 2118, 2119, 2120, 849,
+    850, 851, 852, 853, 2136, 849, 850, 851, 852, 853, 2136, 22, 23, 24, 25, 849,
+    850, 851, 852, 853, 854, 855, 856, 857, 858, 859, 860, 861, 2128, 2129, 2130, 2131,
+    2132, 2133, 2134, 2135, 2136, 2137, 2138, 2139, 2140,
 };
 
-constexpr int kNumClasses = 189;
+constexpr int kNumClasses = 196;
 constexpr ClassDesc kClasses[kNumClasses] = {
     {11, 0, 2, 2, 2, 4, 6, "DistributedDistrict"},
     {61, 10, 3, 13, 3, 16, 8, "ToontownDistrict"},
@@ -6164,106 +6561,113 @@ constexpr ClassDesc kClasses[kNumClasses] = {
     {363, 2601, 11, 2612, 11, 2623, 29, "DistributedCountryClubBattle"},
     {242, 2652, 7, 2659, 7, 2666, 33, "DistributedElevatorFloor"},
     {364, 2699, 7, 2706, 7, 2713, 33, "DistributedClubElevator"},
-    {28, 2746, 0, 2746, 0, 2746, 17, "FriendManager"},
-    {64, 2763, 3, 2766, 3, 2769, 11, "DistributedAnimatedProp"},
-    {66, 2780, 1, 2781, 1, 2782, 13, "DistributedCCharBase"},
-    {67, 2795, 1, 2796, 1, 2797, 13, "DistributedMickey"},
-    {68, 2810, 1, 2811, 1, 2812, 13, "DistributedVampireMickey"},
-    {69, 2825, 1, 2826, 1, 2827, 13, "DistributedWitchMinnie"},
-    {70, 2840, 1, 2841, 1, 2842, 13, "DistributedMinnie"},
-    {71, 2855, 1, 2856, 1, 2857, 13, "DistributedGoofy"},
-    {72, 2870, 1, 2871, 1, 2872, 13, "DistributedDaisy"},
-    {73, 2885, 1, 2886, 1, 2887, 13, "DistributedSockHopDaisy"},
-    {74, 2900, 1, 2901, 1, 2902, 13, "DistributedChip"},
-    {75, 2915, 1, 2916, 1, 2917, 13, "DistributedPoliceChip"},
-    {76, 2930, 2, 2932, 2, 2934, 15, "DistributedDale"},
-    {77, 2949, 2, 2951, 2, 2953, 15, "DistributedJailbirdDale"},
-    {78, 2968, 1, 2969, 1, 2970, 13, "DistributedDonald"},
-    {79, 2983, 1, 2984, 1, 2985, 13, "DistributedFrankenDonald"},
-    {80, 2998, 1, 2999, 1, 3000, 13, "DistributedDonaldDock"},
-    {81, 3013, 1, 3014, 1, 3015, 13, "DistributedPluto"},
-    {82, 3028, 1, 3029, 1, 3030, 13, "DistributedWesternPluto"},
-    {83, 3043, 1, 3044, 1, 3045, 13, "DistributedGoofySpeedway"},
-    {84, 3058, 1, 3059, 1, 3060, 13, "DistributedSuperGoofy"},
-    {121, 3073, 5, 3078, 5, 3083, 17, "DistributedMinigame"},
-    {122, 3100, 5, 3105, 5, 3110, 17, "DistributedMinigameTemplate"},
-    {123, 3127, 5, 3132, 5, 3137, 22, "DistributedRaceGame"},
-    {124, 3159, 5, 3164, 5, 3169, 23, "DistributedCannonGame"},
-    {125, 3192, 5, 3197, 5, 3202, 20, "DistributedPhotoGame"},
-    {126, 3222, 5, 3227, 5, 3232, 23, "DistributedPatternGame"},
-    {127, 3255, 7, 3262, 7, 3269, 21, "DistributedRingGame"},
-    {128, 3290, 5, 3295, 5, 3300, 20, "DistributedTagGame"},
-    {129, 3320, 5, 3325, 5, 3330, 21, "DistributedMazeGame"},
-    {130, 3351, 5, 3356, 5, 3361, 27, "DistributedTugOfWarGame"},
-    {131, 3388, 5, 3393, 5, 3398, 22, "DistributedCatchGame"},
-    {132, 3420, 5, 3425, 5, 3430, 30, "DistributedDivingGame"},
-    {133, 3460, 6, 3466, 6, 3472, 26, "DistributedTargetGame"},
-    {176, 3498, 8, 3506, 8, 3514, 16, "PurchaseManager"},
-    {177, 3530, 9, 3539, 9, 3548, 17, "NewbiePurchaseManager"},
-    {182, 3565, 1, 3566, 1, 3567, 8, "DistributedTreasure"},
-    {183, 3575, 1, 3576, 1, 3577, 8, "DistributedDDTreasure"},
-    {184, 3585, 1, 3586, 1, 3587, 8, "DistributedDGTreasure"},
-    {185, 3595, 1, 3596, 1, 3597, 8, "DistributedDLTreasure"},
-    {186, 3605, 1, 3606, 1, 3607, 8, "DistributedTTTreasure"},
-    {187, 3615, 1, 3616, 1, 3617, 8, "DistributedBRTreasure"},
-    {188, 3625, 1, 3626, 1, 3627, 8, "DistributedMMTreasure"},
-    {189, 3635, 1, 3636, 1, 3637, 8, "DistributedOZTreasure"},
-    {190, 3645, 1, 3646, 1, 3647, 8, "DistributedETreasure"},
-    {191, 3655, 1, 3656, 1, 3657, 8, "DistributedEFlyingTreasure"},
-    {192, 3665, 1, 3666, 1, 3667, 8, "DistributedTagTreasure"},
-    {193, 3675, 4, 3679, 4, 3683, 11, "DistributedCashbotBossTreasure"},
-    {196, 3694, 2, 3696, 2, 3698, 6, "DistributedEntity"},
-    {197, 3704, 4, 3708, 4, 3712, 12, "DistributedInteractiveEntity"},
-    {199, 3724, 2, 3726, 2, 3728, 9, "DistributedBuilding"},
-    {200, 3737, 2, 3739, 2, 3741, 9, "DistributedAnimBuilding"},
-    {222, 3750, 6, 3756, 6, 3762, 16, "DistributedDoor"},
-    {223, 3778, 6, 3784, 6, 3790, 16, "DistributedAnimDoor"},
-    {225, 3806, 6, 3812, 6, 3818, 16, "DistributedCogHQDoor"},
-    {226, 3834, 6, 3840, 6, 3846, 17, "DistributedSellbotHQDoor"},
-    {227, 3863, 3, 3866, 3, 3869, 26, "DistributedNPCToonBase"},
-    {228, 3895, 3, 3898, 3, 3901, 30, "DistributedNPCToon"},
-    {229, 3931, 3, 3934, 3, 3937, 30, "DistributedNPCSpecialQuestGiver"},
-    {230, 3967, 3, 3970, 3, 3973, 30, "DistributedNPCFlippyInToonHall"},
-    {231, 4003, 3, 4006, 3, 4009, 27, "DistributedNPCScientist"},
-    {232, 4036, 3, 4039, 3, 4042, 28, "DistributedNPCClerk"},
-    {233, 4070, 3, 4073, 3, 4076, 29, "DistributedNPCTailor"},
-    {234, 4105, 3, 4108, 3, 4111, 27, "DistributedNPCBlocker"},
-    {235, 4138, 3, 4141, 3, 4144, 28, "DistributedNPCFisherman"},
-    {236, 4172, 3, 4175, 3, 4178, 28, "DistributedNPCPartyPerson"},
-    {237, 4206, 3, 4209, 3, 4212, 32, "DistributedNPCPetclerk"},
-    {238, 4244, 3, 4247, 3, 4250, 30, "DistributedNPCKartClerk"},
-    {239, 4280, 3, 4283, 3, 4286, 11, "DistributedKnockKnockDoor"},
-    {240, 4297, 4, 4301, 4, 4305, 28, "DistributedElevator"},
-    {248, 4333, 4, 4337, 4, 4341, 29, "DistributedCogdoElevatorExt"},
-    {250, 4370, 4, 4374, 4, 4378, 30, "DistributedCogdoElevatorInt"},
-    {251, 4408, 4, 4412, 4, 4416, 31, "DistributedBossElevator"},
-    {252, 4447, 4, 4451, 4, 4455, 31, "DistributedVPElevator"},
-    {253, 4486, 4, 4490, 4, 4494, 31, "DistributedCFOElevator"},
-    {254, 4525, 4, 4529, 4, 4533, 31, "DistributedCJElevator"},
-    {255, 4564, 4, 4568, 4, 4572, 31, "DistributedBBElevator"},
-    {279, 4603, 4, 4607, 4, 4611, 12, "DistributedSwitch"},
-    {281, 4623, 4, 4627, 4, 4631, 12, "DistributedTrigger"},
-    {282, 4643, 2, 4645, 2, 4647, 8, "DistributedCrushableEntity"},
-    {283, 4655, 2, 4657, 2, 4659, 6, "DistributedCrusherEntity"},
-    {284, 4665, 2, 4667, 2, 4669, 6, "DistributedElevatorMarker"},
-    {286, 4675, 2, 4677, 2, 4679, 8, "DistributedStomperPair"},
-    {287, 4687, 2, 4689, 2, 4691, 9, "DistributedBarrelBase"},
-    {291, 4700, 2, 4702, 2, 4704, 6, "DistributedGrid"},
-    {292, 4710, 2, 4712, 2, 4714, 7, "ActiveCell"},
-    {293, 4721, 2, 4723, 2, 4725, 7, "DirectionalCell"},
-    {294, 4732, 2, 4734, 2, 4736, 7, "CrusherCell"},
-    {296, 4743, 2, 4745, 2, 4747, 8, "DistributedSinkingPlatform"},
-    {298, 4755, 2, 4757, 2, 4759, 14, "DistributedGridGoon"},
-    {303, 4773, 3, 4776, 3, 4779, 21, "DistributedGolfGreenGame"},
-    {305, 4800, 2, 4802, 2, 4804, 7, "DistributedMover"},
-    {343, 4811, 6, 4817, 6, 4823, 24, "DistributedTravelGame"},
-    {344, 4847, 6, 4853, 6, 4859, 24, "DistributedPairingGame"},
-    {351, 4883, 6, 4889, 6, 4895, 28, "DistributedVineGame"},
-    {359, 4923, 6, 4929, 6, 4935, 33, "DistributedCogKart"},
-    {362, 4968, 3, 4971, 3, 4974, 15, "DistributedMoleField"},
-    {372, 4989, 5, 4994, 5, 4999, 31, "DistributedIceGame"},
-    {373, 5030, 5, 5035, 5, 5040, 26, "DistributedCogThiefGame"},
-    {376, 5066, 6, 5072, 6, 5078, 30, "DistributedTwoDGame"},
+    {4, 2746, 0, 2746, 0, 2746, 4, "DistributedObject"},
+    {94, 2750, 2, 2752, 2, 2754, 32, "DistributedBossCog"},
+    {95, 2786, 3, 2789, 3, 2792, 44, "DistributedSellbotBoss"},
+    {96, 2836, 2, 2838, 2, 2840, 36, "DistributedCashbotBoss"},
+    {328, 2876, 2, 2878, 2, 2880, 46, "DistributedLawbotBoss"},
+    {358, 2926, 2, 2928, 2, 2930, 49, "DistributedBossbotBoss"},
+    {251, 2979, 4, 2983, 4, 2987, 31, "DistributedBossElevator"},
+    {252, 3018, 4, 3022, 4, 3026, 31, "DistributedVPElevator"},
+    {253, 3057, 4, 3061, 4, 3065, 31, "DistributedCFOElevator"},
+    {254, 3096, 4, 3100, 4, 3104, 31, "DistributedCJElevator"},
+    {255, 3135, 4, 3139, 4, 3143, 31, "DistributedBBElevator"},
+    {110, 3174, 14, 3188, 14, 3202, 32, "DistributedBattleFinal"},
+    {28, 3234, 0, 3234, 0, 3234, 17, "FriendManager"},
+    {64, 3251, 3, 3254, 3, 3257, 11, "DistributedAnimatedProp"},
+    {66, 3268, 1, 3269, 1, 3270, 13, "DistributedCCharBase"},
+    {67, 3283, 1, 3284, 1, 3285, 13, "DistributedMickey"},
+    {68, 3298, 1, 3299, 1, 3300, 13, "DistributedVampireMickey"},
+    {69, 3313, 1, 3314, 1, 3315, 13, "DistributedWitchMinnie"},
+    {70, 3328, 1, 3329, 1, 3330, 13, "DistributedMinnie"},
+    {71, 3343, 1, 3344, 1, 3345, 13, "DistributedGoofy"},
+    {72, 3358, 1, 3359, 1, 3360, 13, "DistributedDaisy"},
+    {73, 3373, 1, 3374, 1, 3375, 13, "DistributedSockHopDaisy"},
+    {74, 3388, 1, 3389, 1, 3390, 13, "DistributedChip"},
+    {75, 3403, 1, 3404, 1, 3405, 13, "DistributedPoliceChip"},
+    {76, 3418, 2, 3420, 2, 3422, 15, "DistributedDale"},
+    {77, 3437, 2, 3439, 2, 3441, 15, "DistributedJailbirdDale"},
+    {78, 3456, 1, 3457, 1, 3458, 13, "DistributedDonald"},
+    {79, 3471, 1, 3472, 1, 3473, 13, "DistributedFrankenDonald"},
+    {80, 3486, 1, 3487, 1, 3488, 13, "DistributedDonaldDock"},
+    {81, 3501, 1, 3502, 1, 3503, 13, "DistributedPluto"},
+    {82, 3516, 1, 3517, 1, 3518, 13, "DistributedWesternPluto"},
+    {83, 3531, 1, 3532, 1, 3533, 13, "DistributedGoofySpeedway"},
+    {84, 3546, 1, 3547, 1, 3548, 13, "DistributedSuperGoofy"},
+    {121, 3561, 5, 3566, 5, 3571, 17, "DistributedMinigame"},
+    {122, 3588, 5, 3593, 5, 3598, 17, "DistributedMinigameTemplate"},
+    {123, 3615, 5, 3620, 5, 3625, 22, "DistributedRaceGame"},
+    {124, 3647, 5, 3652, 5, 3657, 23, "DistributedCannonGame"},
+    {125, 3680, 5, 3685, 5, 3690, 20, "DistributedPhotoGame"},
+    {126, 3710, 5, 3715, 5, 3720, 23, "DistributedPatternGame"},
+    {127, 3743, 7, 3750, 7, 3757, 21, "DistributedRingGame"},
+    {128, 3778, 5, 3783, 5, 3788, 20, "DistributedTagGame"},
+    {129, 3808, 5, 3813, 5, 3818, 21, "DistributedMazeGame"},
+    {130, 3839, 5, 3844, 5, 3849, 27, "DistributedTugOfWarGame"},
+    {131, 3876, 5, 3881, 5, 3886, 22, "DistributedCatchGame"},
+    {132, 3908, 5, 3913, 5, 3918, 30, "DistributedDivingGame"},
+    {133, 3948, 6, 3954, 6, 3960, 26, "DistributedTargetGame"},
+    {176, 3986, 8, 3994, 8, 4002, 16, "PurchaseManager"},
+    {177, 4018, 9, 4027, 9, 4036, 17, "NewbiePurchaseManager"},
+    {182, 4053, 1, 4054, 1, 4055, 8, "DistributedTreasure"},
+    {183, 4063, 1, 4064, 1, 4065, 8, "DistributedDDTreasure"},
+    {184, 4073, 1, 4074, 1, 4075, 8, "DistributedDGTreasure"},
+    {185, 4083, 1, 4084, 1, 4085, 8, "DistributedDLTreasure"},
+    {186, 4093, 1, 4094, 1, 4095, 8, "DistributedTTTreasure"},
+    {187, 4103, 1, 4104, 1, 4105, 8, "DistributedBRTreasure"},
+    {188, 4113, 1, 4114, 1, 4115, 8, "DistributedMMTreasure"},
+    {189, 4123, 1, 4124, 1, 4125, 8, "DistributedOZTreasure"},
+    {190, 4133, 1, 4134, 1, 4135, 8, "DistributedETreasure"},
+    {191, 4143, 1, 4144, 1, 4145, 8, "DistributedEFlyingTreasure"},
+    {192, 4153, 1, 4154, 1, 4155, 8, "DistributedTagTreasure"},
+    {193, 4163, 4, 4167, 4, 4171, 11, "DistributedCashbotBossTreasure"},
+    {196, 4182, 2, 4184, 2, 4186, 6, "DistributedEntity"},
+    {197, 4192, 4, 4196, 4, 4200, 12, "DistributedInteractiveEntity"},
+    {199, 4212, 2, 4214, 2, 4216, 9, "DistributedBuilding"},
+    {200, 4225, 2, 4227, 2, 4229, 9, "DistributedAnimBuilding"},
+    {222, 4238, 6, 4244, 6, 4250, 16, "DistributedDoor"},
+    {223, 4266, 6, 4272, 6, 4278, 16, "DistributedAnimDoor"},
+    {225, 4294, 6, 4300, 6, 4306, 16, "DistributedCogHQDoor"},
+    {226, 4322, 6, 4328, 6, 4334, 17, "DistributedSellbotHQDoor"},
+    {227, 4351, 3, 4354, 3, 4357, 26, "DistributedNPCToonBase"},
+    {228, 4383, 3, 4386, 3, 4389, 30, "DistributedNPCToon"},
+    {229, 4419, 3, 4422, 3, 4425, 30, "DistributedNPCSpecialQuestGiver"},
+    {230, 4455, 3, 4458, 3, 4461, 30, "DistributedNPCFlippyInToonHall"},
+    {231, 4491, 3, 4494, 3, 4497, 27, "DistributedNPCScientist"},
+    {232, 4524, 3, 4527, 3, 4530, 28, "DistributedNPCClerk"},
+    {233, 4558, 3, 4561, 3, 4564, 29, "DistributedNPCTailor"},
+    {234, 4593, 3, 4596, 3, 4599, 27, "DistributedNPCBlocker"},
+    {235, 4626, 3, 4629, 3, 4632, 28, "DistributedNPCFisherman"},
+    {236, 4660, 3, 4663, 3, 4666, 28, "DistributedNPCPartyPerson"},
+    {237, 4694, 3, 4697, 3, 4700, 32, "DistributedNPCPetclerk"},
+    {238, 4732, 3, 4735, 3, 4738, 30, "DistributedNPCKartClerk"},
+    {239, 4768, 3, 4771, 3, 4774, 11, "DistributedKnockKnockDoor"},
+    {240, 4785, 4, 4789, 4, 4793, 28, "DistributedElevator"},
+    {248, 4821, 4, 4825, 4, 4829, 29, "DistributedCogdoElevatorExt"},
+    {250, 4858, 4, 4862, 4, 4866, 30, "DistributedCogdoElevatorInt"},
+    {279, 4896, 4, 4900, 4, 4904, 12, "DistributedSwitch"},
+    {281, 4916, 4, 4920, 4, 4924, 12, "DistributedTrigger"},
+    {282, 4936, 2, 4938, 2, 4940, 8, "DistributedCrushableEntity"},
+    {283, 4948, 2, 4950, 2, 4952, 6, "DistributedCrusherEntity"},
+    {284, 4958, 2, 4960, 2, 4962, 6, "DistributedElevatorMarker"},
+    {286, 4968, 2, 4970, 2, 4972, 8, "DistributedStomperPair"},
+    {287, 4980, 2, 4982, 2, 4984, 9, "DistributedBarrelBase"},
+    {291, 4993, 2, 4995, 2, 4997, 6, "DistributedGrid"},
+    {292, 5003, 2, 5005, 2, 5007, 7, "ActiveCell"},
+    {293, 5014, 2, 5016, 2, 5018, 7, "DirectionalCell"},
+    {294, 5025, 2, 5027, 2, 5029, 7, "CrusherCell"},
+    {296, 5036, 2, 5038, 2, 5040, 8, "DistributedSinkingPlatform"},
+    {298, 5048, 2, 5050, 2, 5052, 14, "DistributedGridGoon"},
+    {303, 5066, 3, 5069, 3, 5072, 21, "DistributedGolfGreenGame"},
+    {305, 5093, 2, 5095, 2, 5097, 7, "DistributedMover"},
+    {343, 5104, 6, 5110, 6, 5116, 24, "DistributedTravelGame"},
+    {344, 5140, 6, 5146, 6, 5152, 24, "DistributedPairingGame"},
+    {351, 5176, 6, 5182, 6, 5188, 28, "DistributedVineGame"},
+    {359, 5216, 6, 5222, 6, 5228, 33, "DistributedCogKart"},
+    {362, 5261, 3, 5264, 3, 5267, 15, "DistributedMoleField"},
+    {372, 5282, 5, 5287, 5, 5292, 31, "DistributedIceGame"},
+    {373, 5323, 5, 5328, 5, 5333, 26, "DistributedCogThiefGame"},
+    {376, 5359, 6, 5365, 6, 5371, 30, "DistributedTwoDGame"},
 };
 
 } // namespace tt::dc

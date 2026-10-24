@@ -574,3 +574,51 @@ gag track; autoplay picks sound against groups).
 - **Country club.** A Bossbot golf kart (`DistributedCogKart.setPosHpr`) boards to
   `club_10600_3_0` (5 rooms). All 9 pieces were walked and detected, after piece detection
   switched to the floor nearest the feet (tunnel floors reach into rooms).
+
+### 2026-10-24 — bosses2 VP implementation (runtime 8b972d6)
+
+- **Platform/build:** macOS host ASan/UBSan and devkitARM Old-3DS-target build.
+  `DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4` passed,
+  zero compiler warnings in source. The toolchain still emits its crtn.o
+  `.note.GNU-stack` linker warning. ELF text/data/bss: 1,237,800 / 44,116 /
+  235,200 bytes; combined 1,517,116, below the 4 MiB code/static cap.
+- **Boss host tests:** `sh tools/boss_test/run.sh` passed. 87 independent Panda DC
+  vectors, nested barrier lists, eight-toon membership, truncated/oversized field
+  rejection, damage recovery, swept pie collision/flight, phase/barrier policy and
+  cage ending. The recording transport exercises the actual Client's exact
+  hitBoss(1), clsend senders, membership/phase denial, healing, pie-stock handling,
+  BattleFinal reserve barrier, round placement and static-lobby reconnect.
+- **Existing regressions:** network unit (391 descriptor vectors), single client,
+  two clients and disconnect/reconnect passed. All 27 suites recorded by
+  `tools/boss_test/regressions.py` passed: 17 minigame suites, battle FX, book,
+  fishing, animation/cache, zone format, shop, Cog buildings, tailor, classic
+  character and ToonDNA. DNA: 46,106 netstrings and 19,584 Make-A-Toon builds.
+  The animation harness was updated to model FrameBegin's documented GPU fence
+  before pump; protected runtime cache/avatar code is unchanged. Its peak was
+  4,000,128 bytes, within the 4 MiB shared cache budget.
+- **Extra host checks:** projection 405 grid points, zero failures. Terrain
+  collision: 400 Panda floor queries, 200 camera segments, 300 random walks /
+  90,000 frames; zero mismatches/tunnels/penetrations outside tolerance. ASan/UBSan
+  passed. Scratch/reference files stayed under this worktree's sdmc-out.
+- **VP assets:** 12 models, 96 clips, four collision files, three metadata files;
+  all 115 outputs and the manifest byte-identical across two complete processes.
+  Weighted skinning is checked against Panda within 0.001 units. Decoded-asset
+  offscreen preview inspected: VP body/torso/head/treads assemble correctly.
+  `asset_check.py` passed magic/version/vertex-order, animation variation,
+  metadata/count/hash and aggregate-budget checks.
+- **Asset budget:** geometry + active/pending largest clip sets 5,409,224 bytes
+  (6 MiB cap); textures 364,000 bytes (8 MiB cap); combined 5,773,224 linear bytes,
+  excluding existing shared actor/UI/audio pools. Collision heap incl. stamps
+  31,568; clip attachment pair <=13,824 heap bytes. Unique models: 2,588 triangles,
+  42 batches. SD disk set 26,098,096 bytes. See design/boss_assets.json for hashes
+  and per-model/per-clip costs.
+- **FPS / full-app heap-linear-VRAM / GPU timing:** N/A on the host. Azahar and
+  hardware were deliberately not run. No live stock-server boss victory is
+  claimed tested. Approximate combat hit volumes, condensed cinematics, normal
+  toon costumes and local-only cosmetic pie flight are documented limitations.
+  Old 3DS Azahar entry/round/pie/reward/return, production suit/merit requirements,
+  multiplayer behavior, SD failure/reconnect and peak draw/memory checks remain
+  required; use the exact checklist in design/bosses.md before claiming gameplay
+  verification.
+- **Local evidence:** sdmc-out/bosses2/{build,host,nettests,determinism,asset_check}.log,
+  regressions/results.json, collision/test.log, projection.log, vp_preview.png.

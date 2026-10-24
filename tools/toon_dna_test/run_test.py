@@ -21,7 +21,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
-UPSTREAM = os.path.join(ROOT, 'ref', 'open-toontown')
+UPSTREAM = os.path.join(ROOT, 'ref', 'ref', 'open-toontown') if os.path.isdir(os.path.join(ROOT, 'ref', 'ref', 'open-toontown')) else os.path.join(ROOT, 'ref', 'open-toontown')
 sys.path.insert(0, UPSTREAM)
 
 from toontown.toon import ToonDNA as T  # noqa: E402

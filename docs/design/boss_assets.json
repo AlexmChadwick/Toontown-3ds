@@ -1,0 +1,1050 @@
+{
+  "budget": {
+    "batches": 42,
+    "clip_pair_geometry": 5409224,
+    "max_clip": 2647296,
+    "model_geometry": 114632,
+    "textures": 364000,
+    "triangles": 2588
+  },
+  "cage_door_hinge": [
+    -0.06646230071783066,
+    74.81813049316406,
+    99.975830078125
+  ],
+  "clips": {
+    "vp_head_Bb2Ff_spin.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_head_Bb_neutral.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Bf_neutral.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_DownThrow.tta": {
+      "bytes": 114048,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1423
+    },
+    "vp_head_Fb_UpThrow.tta": {
+      "bytes": 114048,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1423
+    },
+    "vp_head_Fb_down2Up.tta": {
+      "bytes": 341760,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 1423
+    },
+    "vp_head_Fb_downHit.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_head_Fb_downLtSwing.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_downNeutral.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_downRtSwing.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_fall.tta": {
+      "bytes": 819840,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 1423
+    },
+    "vp_head_Fb_firstHit.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_jump.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Fb_neutral.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Ff2Bb_spin.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_head_Ff_lookRt.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Ff_neutral.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_Ff_speech.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_golf_swing.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_head_hatch_front.tta": {
+      "bytes": 11520,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_hatch_rear.tta": {
+      "bytes": 11520,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_ltTurn2Wave.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_head_turn2Fb.tta": {
+      "bytes": 409984,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1423
+    },
+    "vp_head_wave.tta": {
+      "bytes": 273408,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1423
+    },
+    "vp_legs_Bb2Ff_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "vp_legs_Bb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Bf_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_DownThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "vp_legs_Fb_UpThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "vp_legs_Fb_down2Up.tta": {
+      "bytes": 213376,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 882
+    },
+    "vp_legs_Fb_downHit.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 1,
+      "vertices": 882
+    },
+    "vp_legs_Fb_downLtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_downNeutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_downRtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_fall.tta": {
+      "bytes": 511616,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 882
+    },
+    "vp_legs_Fb_firstHit.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_jump.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Fb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Ff2Bb_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "vp_legs_Ff_lookRt.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Ff_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_Ff_speech.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_golf_swing.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "vp_legs_hatch_front.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_hatch_rear.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_ltTurn2Wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "vp_legs_turn2Fb.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "vp_legs_wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "vp_torso_Bb2Ff_spin.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_torso_Bb_neutral.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Bf_neutral.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_DownThrow.tta": {
+      "bytes": 147712,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_UpThrow.tta": {
+      "bytes": 147712,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_down2Up.tta": {
+      "bytes": 442624,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_downHit.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_downLtSwing.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_downNeutral.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_downRtSwing.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_fall.tta": {
+      "bytes": 1061760,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_firstHit.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_jump.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Fb_neutral.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Ff2Bb_spin.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_torso_Ff_lookRt.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Ff_neutral.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_Ff_speech.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_golf_swing.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_torso_hatch_front.tta": {
+      "bytes": 14976,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_hatch_rear.tta": {
+      "bytes": 14976,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_ltTurn2Wave.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_torso_turn2Fb.tta": {
+      "bytes": 531072,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1837
+    },
+    "vp_torso_wave.tta": {
+      "bytes": 354048,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1837
+    },
+    "vp_treads_Bb2Ff_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "vp_treads_Bb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Bf_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_DownThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "vp_treads_Fb_UpThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "vp_treads_Fb_down2Up.tta": {
+      "bytes": 109184,
+      "frames": 30,
+      "vertices": 454
+    },
+    "vp_treads_Fb_downHit.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "vp_treads_Fb_downLtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_downNeutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_downRtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_fall.tta": {
+      "bytes": 261632,
+      "frames": 72,
+      "vertices": 454
+    },
+    "vp_treads_Fb_firstHit.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_jump.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Fb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Ff2Bb_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "vp_treads_Ff_lookRt.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Ff_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_Ff_speech.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_golf_swing.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "vp_treads_hatch_front.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "vp_treads_hatch_rear.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "vp_treads_ltTurn2Wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "vp_treads_turn2Fb.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "vp_treads_wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    }
+  },
+  "disk_bytes": 26098096,
+  "lobby_anchor": [
+    0.0,
+    -82.35600280761719,
+    28.00079917907715
+  ],
+  "max_texture": 128,
+  "models": {
+    "vp_arena": {
+      "batches": 16,
+      "bounds": [
+        [
+          -263.10400390625,
+          -175.33700561523438,
+          -179.77099609375
+        ],
+        [
+          277.79400634765625,
+          233.16000366210938,
+          139.33399963378906
+        ]
+      ],
+      "file_bytes": 145664,
+      "geometry_bytes": 24376,
+      "texture_bytes": 118592,
+      "textures": 16,
+      "triangles": 588,
+      "uv_clamped": 0,
+      "vertices": 1303
+    },
+    "vp_cage": {
+      "batches": 2,
+      "bounds": [
+        [
+          -3.1046512126922607,
+          74.81800079345703,
+          99.9759521484375
+        ],
+        [
+          3.0203967094421387,
+          80.89440155029297,
+          115.99437713623047
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 652,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 18,
+      "uv_clamped": 0,
+      "vertices": 34
+    },
+    "vp_cage_door": {
+      "batches": 1,
+      "bounds": [
+        [
+          -3.1046512126922607,
+          74.81800079345703,
+          99.97594451904297
+        ],
+        [
+          2.971728801727295,
+          74.81800079345703,
+          106.05244445800781
+        ]
+      ],
+      "file_bytes": 22400,
+      "geometry_bytes": 76,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 2,
+      "uv_clamped": 0,
+      "vertices": 4
+    },
+    "vp_gear": {
+      "batches": 2,
+      "bounds": [
+        [
+          -6.737679958343506,
+          -6.743000030517578,
+          -0.9894229769706726
+        ],
+        [
+          6.713500022888184,
+          6.708559989929199,
+          1.0213500261306763
+        ]
+      ],
+      "file_bytes": 26240,
+      "geometry_bytes": 3840,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 160,
+      "uv_clamped": 0,
+      "vertices": 180
+    },
+    "vp_head": {
+      "batches": 6,
+      "bounds": [
+        [
+          -0.15023978054523468,
+          -2.8346588611602783,
+          -2.8315811157226562
+        ],
+        [
+          7.862236022949219,
+          2.834343433380127,
+          3.1135501861572266
+        ]
+      ],
+      "file_bytes": 91008,
+      "geometry_bytes": 24784,
+      "texture_bytes": 65408,
+      "textures": 4,
+      "triangles": 336,
+      "uv_clamped": 0,
+      "vertices": 1423
+    },
+    "vp_legs": {
+      "batches": 5,
+      "bounds": [
+        [
+          -7.804619789123535,
+          -10.32979965209961,
+          -0.005233097821474075
+        ],
+        [
+          7.802390098571777,
+          10.330599784851074,
+          9.844971656799316
+        ]
+      ],
+      "file_bytes": 51200,
+      "geometry_bytes": 17604,
+      "texture_bytes": 32736,
+      "textures": 3,
+      "triangles": 582,
+      "uv_clamped": 0,
+      "vertices": 882
+    },
+    "vp_pie": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9330329895019531,
+          -0.8141250014305115,
+          -5.669722469292537e-10
+        ],
+        [
+          0.9471200108528137,
+          0.8141250014305115,
+          0.695497989654541
+        ]
+      ],
+      "file_bytes": 12416,
+      "geometry_bytes": 1028,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 46,
+      "uv_clamped": 0,
+      "vertices": 47
+    },
+    "vp_ramp_a": {
+      "batches": 1,
+      "bounds": [
+        [
+          -60.00600051879883,
+          -54.01380157470703,
+          -9.313225746154785e-10
+        ],
+        [
+          -23.97840118408203,
+          -17.9862003326416,
+          17.887699127197266
+        ]
+      ],
+      "file_bytes": 3456,
+      "geometry_bytes": 184,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 4,
+      "uv_clamped": 0,
+      "vertices": 10
+    },
+    "vp_ramp_b": {
+      "batches": 1,
+      "bounds": [
+        [
+          24.01839828491211,
+          -54.04149627685547,
+          -9.313225746154785e-10
+        ],
+        [
+          60.04610061645508,
+          -18.013797760009766,
+          17.887699127197266
+        ]
+      ],
+      "file_bytes": 3456,
+      "geometry_bytes": 184,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 4,
+      "uv_clamped": 0,
+      "vertices": 10
+    },
+    "vp_ramp_c": {
+      "batches": 1,
+      "bounds": [
+        [
+          -18.0137996673584,
+          -12.021598815917969,
+          -9.313225746154785e-10
+        ],
+        [
+          18.0137996673584,
+          24.006000518798828,
+          17.887699127197266
+        ]
+      ],
+      "file_bytes": 3456,
+      "geometry_bytes": 184,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 4,
+      "uv_clamped": 0,
+      "vertices": 10
+    },
+    "vp_torso": {
+      "batches": 4,
+      "bounds": [
+        [
+          -6.737679958343506,
+          -6.743000030517578,
+          -0.015293000265955925
+        ],
+        [
+          6.713500022888184,
+          6.708559989929199,
+          8.108294486999512
+        ]
+      ],
+      "file_bytes": 77696,
+      "geometry_bytes": 33160,
+      "texture_bytes": 43648,
+      "textures": 4,
+      "triangles": 628,
+      "uv_clamped": 0,
+      "vertices": 1837
+    },
+    "vp_treads": {
+      "batches": 2,
+      "bounds": [
+        [
+          -8.304530143737793,
+          -10.32979965209961,
+          -5.980840267483245e-10
+        ],
+        [
+          8.304530143737793,
+          10.32979965209961,
+          4.428339958190918
+        ]
+      ],
+      "file_bytes": 22784,
+      "geometry_bytes": 8560,
+      "texture_bytes": 13632,
+      "textures": 2,
+      "triangles": 216,
+      "uv_clamped": 0,
+      "vertices": 454
+    }
+  },
+  "ramp_retract_offsets": [
+    [
+      -36.0,
+      0.0,
+      0.0
+    ],
+    [
+      36.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      36.0,
+      0.0
+    ]
+  ],
+  "sample_fps": 12,
+  "sha256": {
+    "vp_arena.ttc": "e8d40f1c8e34b99bca8154450e207c229b25897b2b06769ff0ba284e103b87df",
+    "vp_arena.ttm": "74b46c233c906c90f9c285477b5ca8e9ae98ddd3a41a8abcc36ec14e60b62744",
+    "vp_cage.ttm": "1e82cc7e2fd49b599af7927f742df88d9da7ed1a25a5120f0964d8504372eabf",
+    "vp_cage_door.ttm": "b1f02e5749d2e0efe124e931544d807a6a87a4e946314d3682d267cae72b8457",
+    "vp_gear.ttm": "91d2074f67ee26b54068ed2ecc65d9f409efa9eb2c8c8746fb04f402d20a7d64",
+    "vp_head.ttm": "a63ae354328ee8ed4d7830e2919761df57d17aecc4fb7f36a4da5d242b553bc7",
+    "vp_head_Bb2Ff_spin.tta": "85b2651abf9c6121cb670dfb3d9d831655d3c521703e63b93dd7bb34585537ef",
+    "vp_head_Bb_neutral.tta": "ddae38227e9a11ba46b60d1633a08c57d092b053deb7eb17deafe4d59d0981fb",
+    "vp_head_Bf_neutral.tta": "3d2f5830d5893440c590220b67e4f961b0d90e7e9f48812962e51b2ba0137096",
+    "vp_head_Fb_DownThrow.tta": "ca682cf476fd1273971bb7b2d03b4d01f9113b3db1b02cb83ec3e83acf44afde",
+    "vp_head_Fb_UpThrow.tta": "e6d94dbb8597ab420ccaeebdb823b42018a5a00c9976d57c909c96bce0b7440a",
+    "vp_head_Fb_down2Up.tta": "a03ca61b5d7b900c552e29d545b6e25810ece79dd93ca30567243d46e1d6f75a",
+    "vp_head_Fb_downHit.tta": "c19ffab0afe1e0aa8b1d3d740c295aaa8540e98e28b9356ebbaa5a7d839bb11c",
+    "vp_head_Fb_downLtSwing.tta": "d1b92ddd93692e25b9aa5a04ab292d09094beb3bf334a637b361615f9228f75a",
+    "vp_head_Fb_downNeutral.tta": "b1f4a7a2ed80ca5d1452f468f2bd1af371a7a63f812ad34e9066af5e3a13ebce",
+    "vp_head_Fb_downRtSwing.tta": "c832a0ab5f9e9225cc8ff3b1b8de06fd93f32a06ee09d42bb367a8b71bc21b06",
+    "vp_head_Fb_fall.tta": "0d5f90fcfc86766e0090f44ffef02b617925b77a604c41e16d1a38aaf67ed80c",
+    "vp_head_Fb_firstHit.tta": "756e22d2bb401da35c9268aba568f2765e1fe3361fda4cbb0cc7c34c77489c60",
+    "vp_head_Fb_jump.tta": "87d52b0aa9a02c92426577c485f96c3b93378458f301d6e52d2aeed125adc9e8",
+    "vp_head_Fb_neutral.tta": "75a78ca3a72e4c38b92a43f32144ef7747c771f13407243005a402e995dd6659",
+    "vp_head_Ff2Bb_spin.tta": "92079fbc555142f5ac82d6f52d8bd47e34084fbcdc939a13cf15c3de136f27d2",
+    "vp_head_Ff_lookRt.tta": "5ca0164ba66a209a897d8a227830bc842b2f0eb9897cc26e9a5dacf059b2f36a",
+    "vp_head_Ff_neutral.tta": "5b5a64c83b10b07cc6f54db2e362c857546c5a8b3c62a5470de79e8f775e8ba2",
+    "vp_head_Ff_speech.tta": "248129aaffdf82bf7e47962ef1932b543c7ad23987e6bfa092e6d6da2699abe0",
+    "vp_head_golf_swing.tta": "cecba21bad30092a5940f227d188c122b47435c829dd7d9896a3e4ed72a23d33",
+    "vp_head_hatch_front.tta": "9099dffa1bfe197e7d571d43343dbc839ed7b78b7df624f940e15945a168f842",
+    "vp_head_hatch_rear.tta": "9099dffa1bfe197e7d571d43343dbc839ed7b78b7df624f940e15945a168f842",
+    "vp_head_ltTurn2Wave.tta": "6bfb0ec39b156f38bedf692fd6eba7d0b46853d945fdbc31b0725a13d4042282",
+    "vp_head_turn2Fb.tta": "6d9741ff23dbb21455246e42175cfbf871463871e8ca4d6a794674fd93c8a992",
+    "vp_head_wave.tta": "7aa559cef4da19ca5d8767d2df27121018e713790fb9b74e6308e885a986428e",
+    "vp_legs.ttm": "757d5db54f2d32ee4111cfaabf79a224d68ae14f9f7e20aa8f46dc62deefbd0d",
+    "vp_legs_Bb2Ff_spin.tta": "9b0e29a1b900df26ef7e0229c2f70c413a8427c0dec6836d43822eac0b67e627",
+    "vp_legs_Bb_neutral.tta": "ab30b18e4a9bcf7776577bdfd100a95e236cf7c9f1138e8d49fd6045935fd6a8",
+    "vp_legs_Bf_neutral.tta": "6604fce44c314f3d2fe5d387a7aadd31f6be0466a2bc102af6e84d655daaedca",
+    "vp_legs_Fb_DownThrow.tta": "d1243f835328e9468292f5924a79ee7d817d6f62f120bcd1321d7233f2a0fd8f",
+    "vp_legs_Fb_UpThrow.tta": "f0d4eca0a0a5b3f74e4d438e750e5cb3f93fb2e5e6a9ef37b380e09a81eac551",
+    "vp_legs_Fb_down2Up.tta": "cc082172747d7a7efbf5f7167ac40a89a59037aacc4cf8f26f5f4458662f7653",
+    "vp_legs_Fb_downHit.tta": "6314351f9fccd76ee2cbea7401e9d9d76d94764db5263d3ee846096389bd3ffa",
+    "vp_legs_Fb_downLtSwing.tta": "7efbd3890066ad10baaa5046e9d3e795a8a0537cb02b27fb4799950065b75c1c",
+    "vp_legs_Fb_downNeutral.tta": "fa394ac79d6fefec88647cdfe145ff7b9613361032228f347ba7622241f24a55",
+    "vp_legs_Fb_downRtSwing.tta": "5e9597c2f76e414abfe3e6366a760f63489265d99d9962294f4e6ae894763465",
+    "vp_legs_Fb_fall.tta": "f5e2715745b185d56c7dc241b133bba800d32601be819adcf8f6b44404a6602c",
+    "vp_legs_Fb_firstHit.tta": "4b0418235b0abfae1ebc58e910fff2850aa036f8ee380d301fd8ff60d09a2c5a",
+    "vp_legs_Fb_jump.tta": "013b01ab1b2e3ffe221431ceef6da1cb2c1e0b806c2d5e76229ebc9b86b6d32c",
+    "vp_legs_Fb_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "vp_legs_Ff2Bb_spin.tta": "bd94251ff85c3bedb9e8f7fc947f80953c7cc770e3690e7576314f77833b9625",
+    "vp_legs_Ff_lookRt.tta": "992e19b06f2f0b8fa4728385543c5aba97fc863234110001f609b1a9047d4886",
+    "vp_legs_Ff_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "vp_legs_Ff_speech.tta": "e9418dab0d0b656d4c33c48748f795dab3e6205be29b2df99ce82fd3c015eba8",
+    "vp_legs_golf_swing.tta": "8f89c86a754f26a9afbb89b132be3013c6fd60dd9f9e61244e423b52e2549c38",
+    "vp_legs_hatch_front.tta": "a9f2c0e1ca19aaa27338762a53aedc275b7a1e40e2c9cb642f14b89b04f30475",
+    "vp_legs_hatch_rear.tta": "57de37ab7c7734a6bb135f71a37595a02f0f1119b44f638dfe2d501968914f38",
+    "vp_legs_ltTurn2Wave.tta": "578573d30aee6797537b7bf9ecfa44e04fd0c7f2eab56d558aec01112bcc0ca7",
+    "vp_legs_turn2Fb.tta": "7b2364fba43bfca1ee658468a047ac7a4adcfb931648efc43c4eff2b6255c950",
+    "vp_legs_wave.tta": "0256a5492c76891a36a0454b8690d59889670da1f233df9b30f4d93d27f905fb",
+    "vp_lobby_anchor.txt": "696a236196b5488b22b32a3d5092f2ac5057e8c2fc30ff5ac543f1cfbbd54ef2",
+    "vp_npcs.bin": "7ed700d71ae267afe66be2d07e8a99866518e33552a8ebfc21daeef90d59c008",
+    "vp_pie.ttm": "9b87f082f648be4f8e0f2fd16d85ee63935fa3120ab5585cfcefc5109b70c2eb",
+    "vp_ramp_a.ttc": "abbc749bdeca10640d1d2aa4897fc495eaa46f5ffa3b3b032709040254440028",
+    "vp_ramp_a.ttm": "cd81633e0b2c332bd970601a67fb7a5ac65280b80d5c6bfb551a3ed54bbad0a2",
+    "vp_ramp_b.ttc": "9eb80d1fc7bff01359f661213529756110448f39cfb45eeb91f778f8baede2ff",
+    "vp_ramp_b.ttm": "5ca374642ddd0ff1dfc5434f89f494a15a955504d51dfe92f6b302eb7383ca66",
+    "vp_ramp_c.ttc": "4f1db5c8966af206cf686a98de1ff1d2a05640688eeb80d7de0a9522d24d4fd1",
+    "vp_ramp_c.ttm": "56528b3adf85931298d11f7135d524fd6828839b449c5b3b80b608920465d37f",
+    "vp_scene.bin": "9a3f928a707d5e104d3ff9d305d7323496f4888b43fc51f47e79d3511eeb3157",
+    "vp_torso.ttm": "db9b4bd9d736bee57628f7aad74dfc87f651b552c68a4b3dedb54bdefb1b8b60",
+    "vp_torso_Bb2Ff_spin.tta": "10dd007bba687a9b3ddee7bb85a270de1718256e403bf56ff218787a5a0e5402",
+    "vp_torso_Bb_neutral.tta": "fb8c260c88c0258f4f740933d31e09388603ee54dbfc9cee9036f00c90b55d1a",
+    "vp_torso_Bf_neutral.tta": "5c741f67e36a3a53ddbafa8bc74238119443ebdfb0dbbffe1baf18dfb80a046a",
+    "vp_torso_Fb_DownThrow.tta": "e92f016c89a5bff2a996d9d5d1a446a04fd6471b50b17af883471819184bd27a",
+    "vp_torso_Fb_UpThrow.tta": "e00ee891489995c320f411ff6001889c4bcec445fe84716ee974a85e0f983879",
+    "vp_torso_Fb_down2Up.tta": "afc86d0a60f9ddb9ff0cd4154a1048242dbd0e9729f23722768403ca2db54f92",
+    "vp_torso_Fb_downHit.tta": "7190124546c411179f51bbedc5aca8d0774ee8dc351ee47a9d0b758767da4a88",
+    "vp_torso_Fb_downLtSwing.tta": "b98f398435b50300e49fff2228dce02f1df264e58e72e899f0c11fc2bc0a78d6",
+    "vp_torso_Fb_downNeutral.tta": "726cf500bba21a39d942143558f7282e025e9ca33f2f531184989c0883b30735",
+    "vp_torso_Fb_downRtSwing.tta": "15bd427b6e614f8b8fc9b7a0bc88a129407aeaa23f654f0f42e4ee9eeea98029",
+    "vp_torso_Fb_fall.tta": "0da1365736f9476eb17c4ecbad14e39f3038f82171ddc69feab73ddb5888ad72",
+    "vp_torso_Fb_firstHit.tta": "fc6a67593e11098c97e6c8b39418776fd86a5da1bb92ed4bc17a663151b96cda",
+    "vp_torso_Fb_jump.tta": "07f604d7774a088ca0b48ca1a592423731e61ab8fd00d739a383cf69da026ecb",
+    "vp_torso_Fb_neutral.tta": "8cd7d191763c4af2b1639dd715eab3ae2d8b188970afeddcf352ec7d26ac62c8",
+    "vp_torso_Ff2Bb_spin.tta": "298e115fe7342a5f6104438e39bd61d4df5074b9da060c14aa20aeec003be488",
+    "vp_torso_Ff_lookRt.tta": "b863cff962f537889a05cbc3a3e392419e8b2c67e58d4b9f8ac79ea345054330",
+    "vp_torso_Ff_neutral.tta": "435873cbd4f1e0a8b00434aff6478201aaa45c5b12b7d6fd1cc689813db1475c",
+    "vp_torso_Ff_speech.tta": "7d60a081689328da4d909ba09290f3ea285877f00cbf615bf4e72eb654b67551",
+    "vp_torso_golf_swing.tta": "282b2339fda6c5bd0f76c1783e2e2c63af9374833e0fb3cd398e26582d7b3f05",
+    "vp_torso_hatch_front.tta": "41091db1dbdeda2ba7d0f2a7aad034d37b898b63c5bc3ea56d958a5522c4f35c",
+    "vp_torso_hatch_rear.tta": "41091db1dbdeda2ba7d0f2a7aad034d37b898b63c5bc3ea56d958a5522c4f35c",
+    "vp_torso_ltTurn2Wave.tta": "123bc5f15235df0fceaf89c5e45b7562313cbf68b5beb990c8cd3d1631783110",
+    "vp_torso_turn2Fb.tta": "0aa8ab4d9f3a3612f95adda29d36217c75d3aebb9d91e9abe6d3e2e06ea29059",
+    "vp_torso_wave.tta": "adf5dff6299f0444da79120ed27c90962b39171bac08b33014338d64b3209f8d",
+    "vp_treads.ttm": "bf5119c326c073c0901ec3a0677c99c196fc4e99e4c97375feaea72917c54029",
+    "vp_treads_Bb2Ff_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "vp_treads_Bb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Bf_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Fb_DownThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "vp_treads_Fb_UpThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "vp_treads_Fb_down2Up.tta": "4701ab03d002e1d5ba9fc788b28fe9dee6cb6657b34639e41dd45db7a40308bc",
+    "vp_treads_Fb_downHit.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "vp_treads_Fb_downLtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Fb_downNeutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Fb_downRtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Fb_fall.tta": "d3bcec0dbe70c9ff894981c684c10fe67946eebf88764b150a31f84745c51420",
+    "vp_treads_Fb_firstHit.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Fb_jump.tta": "ce5ff1ac6f4e467ca387037f42dcc9e69d021d03221c099b105216e7327e2c27",
+    "vp_treads_Fb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Ff2Bb_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "vp_treads_Ff_lookRt.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Ff_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_Ff_speech.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_golf_swing.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "vp_treads_hatch_front.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "vp_treads_hatch_rear.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "vp_treads_ltTurn2Wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "vp_treads_turn2Fb.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "vp_treads_wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36"
+  },
+  "version": 1
+}

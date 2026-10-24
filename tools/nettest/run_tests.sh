@@ -11,9 +11,13 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 PY="$ROOT/.venv/bin/python"
 OUT="$HERE/out"
 PORT="${PORT:-7298}"
+# The main checkout has ref/open-toontown; agent worktrees link the main checkout's ref/ as ref/ref.
+TT_ETC="$ROOT/ref/open-toontown/etc"
+[ -f "$TT_ETC/otp.dc" ] || TT_ETC="$ROOT/ref/ref/open-toontown/etc"
+export TT_ETC
 mkdir -p "$OUT"
 "$HERE/build.sh" || exit 1
-"$PY" -I "$ROOT/tools/dcgen/dcgen.py" "$ROOT/ref/open-toontown/etc" --vectors "$HERE/dc_vectors.bin" 2>/dev/null
+"$PY" -I -B "$ROOT/tools/dcgen/dcgen.py" "$TT_ETC" --vectors "$HERE/dc_vectors.bin" 2>/dev/null
 
 fail=0
 step() { echo "== $*"; }
@@ -23,7 +27,7 @@ step unit
 tail -3 "$OUT/unit.log"
 
 start_server() {
-    "$PY" -I "$HERE/fake_server.py" --port "$PORT" "$@" > "$OUT/server.log" 2>&1 &
+    "$PY" -I -B "$HERE/fake_server.py" --port "$PORT" "$@" > "$OUT/server.log" 2>&1 &
     SERVER=$!
     for _ in $(seq 50); do grep -q listening "$OUT/server.log" 2>/dev/null && return; sleep 0.1; done
     echo "fake server did not start"; cat "$OUT/server.log"; exit 1
