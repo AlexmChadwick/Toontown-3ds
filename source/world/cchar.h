@@ -15,6 +15,7 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "ui/balloons.h"
+#include "world/boat.h"
 #include "world/collision.h"
 
 namespace tt::world {
@@ -29,6 +30,9 @@ public:
     static constexpr int kMaxSegments = 16;
 
     void setZone(u32 zoneId) { hood_ = zoneId - zoneId % 1000; }
+    // Donald at the wheel (DistributedDonaldDock) is parented to the boat; he is only drawn
+    // while this boat is active. Must outlive the actors.
+    void setBoat(const BoatActor* boat) { boat_ = boat; }
     void shutdown();
     void handleEvent(const net::Event& ev, const net::Client& client, u32 nowMs);
     // collision: ground for raycast legs (CharWalkState enables the floor ray there).
@@ -80,6 +84,7 @@ private:
 
     Actor actors_[net::kMaxCChars];
     u32 hood_ = 2000;
+    const BoatActor* boat_ = nullptr;
 };
 
 } // namespace tt::world

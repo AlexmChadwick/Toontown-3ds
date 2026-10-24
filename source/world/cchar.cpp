@@ -336,13 +336,19 @@ void CCharActors::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     for (Actor& a : actors_) {
         if (!a.active || !a.model.loaded()) continue;
-        // Donald at the wheel rides the DistributedBoat, which is not implemented yet.
-        if (a.info->classId == dc::DistributedDonaldDock::kClassId) continue;
         const render::Anim* clip = &a.clips[a.clip];
         if (!clip->loaded()) clip = &a.clips[kNeutral];
-        Mtx_Identity(&m);
-        Mtx_Translate(&m, a.x, a.y, a.z, true);
-        Mtx_RotateZ(&m, a.h * kDegToRad, true);
+        if (a.info->classId == dc::DistributedDonaldDock::kClassId) {
+            // DistributedDonaldDock.generate: reparentTo(boat), setPos(0, -1, 3.95).
+            if (!boat_ || !boat_->active()) continue;
+            m = boat_->matrix();
+            Mtx_Translate(&m, BoatActor::kDonaldOffset[0], BoatActor::kDonaldOffset[1],
+                          BoatActor::kDonaldOffset[2], true);
+        } else {
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, a.x, a.y, a.z, true);
+            Mtx_RotateZ(&m, a.h * kDegToRad, true);
+        }
         if (clip->loaded() && clip->numVertices() == a.model.numVertices()) {
             u32 fa, fb;
             float blend;

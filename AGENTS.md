@@ -372,7 +372,8 @@ server.
   - Not yet done:
     - Dale's `setFollowChip` orbit
     - `setChat` chatter
-    - Donald at the wheel; it needs the DistributedBoat, so it is hidden for now
+    - Donald at the wheel rides the moving `DistributedBoat` (`world/boat.*`, `docs/design/boat.md`);
+      remaining: toon riding, piers, boat sounds
     - async loading (a character's model and clips load in about 0.2 s)
 - Next:
   - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`). For now a

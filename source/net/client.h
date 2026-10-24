@@ -85,6 +85,9 @@ enum class EventType : uint8_t {
     CCharSpawn,    // a classic character generated (findCChar(doId))
     CCharWalk,     // setWalk: new path leg (CChar src/dst/walkStartMs)
     CCharGone,
+    BoatSpawn,     // Donald's Dock DistributedBoat generated (boat())
+    BoatState,     // setState: new BoatState + stateStartMs
+    BoatGone,
 };
 
 struct Event {
@@ -130,6 +133,16 @@ struct CChar {
     bool active;
 };
 constexpr int kMaxCChars = 4;
+
+// Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
+// cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
+enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
+struct Boat {
+    uint32_t doId;
+    BoatState state;
+    uint32_t stateStartMs; // local plat::nowMs() at which the state began (from ts)
+    bool active;
+};
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -262,6 +275,7 @@ public:
     const NpcToon& npcSlot(int i) const { return npcs_[i]; }
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
+    const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
 
@@ -360,6 +374,9 @@ private:
     bool handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                           bool other);
     bool applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId);
+    Boat boat_ = {};
+    bool applyBoatField(Boat& b, DatagramReader& r, uint16_t fieldId);
+    void handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
     bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                         const uint16_t* req, uint16_t reqCount, bool other);
     bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);

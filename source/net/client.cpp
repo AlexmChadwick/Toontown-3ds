@@ -71,6 +71,7 @@ TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
 TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
 TT_SIG(DistributedCCharBase, setWalk, "string,string,i16");
+TT_SIG(DistributedBoat, setState, "string,i16");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -637,6 +638,10 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleCCharEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (classId == dc::DistributedBoat::kClassId) {
+        handleBoatEnter(doId, r, req, reqCount, other);
+        return;
+    }
 }
 
 void Client::maybeSkipTutorial() {
@@ -664,6 +669,12 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
             }
             return;
         }
+    }
+    if (boat_.active && boat_.doId == doId) {
+        if (fieldId == dc::DistributedBoat::k_setState && applyBoatField(boat_, r, fieldId)) {
+            pushEvent(EventType::BoatState, doId);
+        }
+        return;
     }
     for (CChar& c : cchars_) {
         if (c.active && c.doId == doId) {
@@ -742,6 +753,10 @@ void Client::handleLeaving(uint32_t doId) {
             c.active = false;
             pushEvent(EventType::CCharGone, doId);
         }
+    }
+    if (boat_.active && boat_.doId == doId) {
+        boat_.active = false;
+        pushEvent(EventType::BoatGone, doId);
     }
 }
 
@@ -1130,6 +1145,45 @@ bool Client::handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r
     return true;
 }
 
+bool Client::applyBoatField(Boat& b, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedBoat::k_setState) {
+        char name[16];
+        r.string(name, sizeof(name));
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        // DistributedBoat.setState: fsm.request(state, [localElapsedTime(ts)]); the track
+        // starts that far into its run, so the state began at networkToLocal(ts).
+        b.state = !strcmp(name, "DockedEast")    ? BoatState::DockedEast
+                  : !strcmp(name, "SailingWest") ? BoatState::SailingWest
+                  : !strcmp(name, "DockedWest")  ? BoatState::DockedWest
+                  : !strcmp(name, "SailingEast") ? BoatState::SailingEast
+                                                 : BoatState::Off;
+        b.stateStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+void Client::handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other) {
+    Boat tmp{};
+    tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyBoatField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyBoatField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: boat %u generate did not parse", unsigned(doId));
+        return;
+    }
+    tmp.active = true;
+    boat_ = tmp;
+    TT_LOG("net: boat %u state %d", unsigned(doId), int(tmp.state));
+    pushEvent(EventType::BoatSpawn, doId);
+}
+
 const CChar* Client::findCChar(uint32_t doId) const {
     for (const CChar& c : cchars_) {
         if (c.active && c.doId == doId) return &c;
@@ -1392,6 +1446,8 @@ void Client::dropZoneObjects() {
         if (c.active) pushEvent(EventType::CCharGone, c.doId);
         c.active = false;
     }
+    if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
+    boat_.active = false;
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
