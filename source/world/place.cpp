@@ -31,6 +31,9 @@ const DropPoint kDropPoints[] = {
     {3000, 35.0f, -32.0f, 6.2f, 138.0f},   {4000, 86.0f, 44.0f, -13.5f, 121.1f},
     {5000, 0.0f, 0.0f, 0.0f, -10.5f},      {6000, -165.8f, 108.0f, 0.025f, 252.0f},
     {8000, -0.7f, 62.0f, 0.08f, 182.0f},   {9000, 77.0f, 91.0f, 0.0f, 124.4f},
+    // Cog HQ courtyards (docs/design/coghq.md).
+    {10000, 0.0f, -70.0f, 0.0f, 0.0f},     {11000, 0.0f, -200.0f, 0.0f, 0.0f},
+    {12000, 100.0f, -500.0f, -48.0f, 0.0f}, {13000, 0.0f, -250.0f, 0.0f, 0.0f},
 };
 
 bool exists(const char* path) {
@@ -41,6 +44,8 @@ bool exists(const char* path) {
 } // namespace
 
 PlaceKind placeKind(u32 zoneId) {
+    // Cog HQ courtyards and lobbies (10000-13999) are standalone zones, one file each.
+    if (zoneId >= 10000 && zoneId < 14000) return PlaceKind::Playground;
     const u32 local = zoneId % 1000;
     if (local < 100) return PlaceKind::Playground;
     if (local >= 500) return PlaceKind::Interior;
@@ -212,6 +217,16 @@ Exit Place::exitAt(float x, float y, float z) const {
                 return e;
             }
         }
+        // Cog HQ doors: owner "cogdoor_<destZone>_<doorIndex>_DNARoot" (lobbies, factory, ...).
+        if (strstr(t.name, "door") && strstr(t.name, "trigger") && !strncmp(t.owner, "cogdoor_", 8)) {
+            const u32 dest = static_cast<u32>(strtoul(t.owner + 8, nullptr, 10));
+            if (dest > 0) {
+                e.kind = Exit::Door;
+                e.targetZone = dest;
+                snprintf(e.name, sizeof(e.name), "%s", t.owner);
+                return e;
+            }
+        }
         // Inside an interior, the exit door leads back to the exterior branch:
         // 2519 -> 2000, 2603 -> 2100 (the street then finds the exact cell underfoot).
         if (kind() == PlaceKind::Interior && strstr(t.name, "door") && strstr(t.name, "trigger")) {
@@ -234,7 +249,14 @@ void Place::arrival(u32 fromZone, float* x, float* y, float* z, float* h) const 
         if (!strstr(t.name, "trigger")) continue;
         if (!strncmp(t.owner, "linktunnel_", 11)) {
             const char* zs = strchr(t.owner + 11, '_');
-            if (zs && static_cast<u32>(strtoul(zs + 1, nullptr, 10)) == fromZone) back = &t;
+            // Street tunnels into a Cog HQ name the street's cell (linktunnel_dg_5316): match its branch.
+            const u32 target = zs ? static_cast<u32>(strtoul(zs + 1, nullptr, 10)) : 0;
+            if (target == fromZone ||
+                (target && placeKind(target) == PlaceKind::Street && target - target % 100 == fromZone - fromZone % 100)) {
+                back = &t;
+            }
+        } else if (!strncmp(t.owner, "cogdoor_", 8)) {
+            if (static_cast<u32>(strtoul(t.owner + 8, nullptr, 10)) == fromZone) back = &t;
         } else if (placeKind(fromZone) == PlaceKind::Interior &&
                    (!strncmp(t.owner, "sz", 2) || !strncmp(t.owner, "tb", 2)) &&
                    static_cast<u32>(strtoul(t.owner + 2, nullptr, 10)) == fromZone % 100) {

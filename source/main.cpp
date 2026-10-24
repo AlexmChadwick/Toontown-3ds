@@ -519,6 +519,18 @@ int main() {
             if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
             autotestBoardedTrolley = true;
         }
+        if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
+            // Test-only: teleport straight to a Cog HQ courtyard (upstream gets there by tunnel).
+            static const char* lastGo = nullptr;
+            const char* lbl = autotest.label();
+            if (lbl != lastGo) {
+                lastGo = lbl;
+                uiState.teleportRequest = !strcmp(lbl, "go sellbot hq")   ? 11000
+                                          : !strcmp(lbl, "go cashbot hq") ? 12000
+                                          : !strcmp(lbl, "go lawbot hq")  ? 13000
+                                                                          : 10000;
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);

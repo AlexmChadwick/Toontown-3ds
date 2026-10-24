@@ -302,6 +302,24 @@ need hardware.
   - the gag purchase screen
 - No PANIC.
 
+### 2026-10-24 — Cog HQ courtyards (Antigravity coghq bake)
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **Autotest teleports into all four courtyards**, each confirmed by the server:
+  - Sellbot HQ 11000
+  - Cashbot HQ 12000
+  - Lawbot HQ 13000
+  - Bossbot HQ 10000
+
+  Each loads in 0.18–0.37 s (`.tz` v2, 25–147 chunks) and holds 29.9 fps at 41–44
+  draws / 3.7–4.1k tris.
+- **Known issues:**
+  - Cashbot HQ shows horizontal line artefacts near the drop point (−48 z). It looks
+    like a thin far-LOD sliver; needs a look at the bake.
+  - The Sellbot drop point faces a wall.
+  - The street → HQ tunnels (5300, 9200, 3300) and the HQ doors (`cogdoor_*`) are wired
+    in `place.cpp` but not driven by the autotest yet.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

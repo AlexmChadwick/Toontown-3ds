@@ -54,6 +54,10 @@ const Step kScript[] = {
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "ride boat", "ride"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 180, 191, 0, "teleport BR", "hood_br"},
+    {8.0f, 0, 0, 0, 0, -1, -1, 0, "go sellbot hq", "hq_sell"},
+    {8.0f, 0, 0, 0, 0, -1, -1, 0, "go cashbot hq", "hq_cash"},
+    {8.0f, 0, 0, 0, 0, -1, -1, 0, "go lawbot hq", "hq_law"},
+    {8.0f, 0, 0, 0, 0, -1, -1, 0, "go bossbot hq", "hq_boss"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
