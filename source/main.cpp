@@ -360,7 +360,7 @@ int main() {
     autotest.begin();
     const char* shotName = nullptr;
     bool autotestGrabbed = false;
-    bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false;
+    bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false, autotestBought = false;
     unsigned netInBps = 0, netOutBps = 0;
     uint32_t lastBytesIn = 0, lastBytesOut = 0;
 
@@ -476,6 +476,10 @@ int main() {
                    static_cast<unsigned>(mallinfo().uordblks / 1024),
                    static_cast<unsigned long>(linearSpaceFree() / 1024));
         }
+        // A script started part-way (AUTOTEST_FROM) waits until we stand in a zone online.
+        static float autotestSettle = 0.0f;
+        if (!netStarted || net.inZone()) autotestSettle += dt;
+        if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
@@ -571,6 +575,14 @@ int main() {
                 suits.logState();
                 lastLog = tt::net::plat::nowMs();
             }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "visit clerk") && shop.active() && !autotestBought) {
+            // Test-only: buy what we can afford of throw and squirt level 1, then Done.
+            int bought = 0;
+            for (int i = 0; i < 6; i++) bought += shop.buy(4, 0) + shop.buy(5, 0);
+            TT_LOG("autotest: bought %d gags", bought);
+            shop.finish(false);
+            autotestBought = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "visit clerk") && !autotestClerk) {
             // Test-only: step onto the first NPC (the Gag Shop clerk) so the shop opens.

@@ -27,6 +27,9 @@ public:
     // Overrides input for this frame. Returns false when the script is finished.
     bool apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons);
     const char* label() const;
+    // A script started part-way ("from <label>") holds still until the game is in a zone.
+    void setReady() { ready_ = true; }
+    bool waiting() const { return active_ && !ready_; }
     // Non-null for one frame when the script wants a screenshot.
     const char* pendingShot() const { return pendingShot_; }
 
@@ -36,6 +39,7 @@ private:
     const Step* script_ = nullptr;
     int numSteps_ = 0;
     int step_ = 0;
+    bool ready_ = true; // false: started part-way, waiting for setReady()
     float t_ = 0.0f;
     bool stepStarted_ = false;
     const char* pendingShot_ = nullptr;

@@ -109,6 +109,7 @@ bool Runner::begin() {
         for (int i = 0; i < numSteps_; i++) {
             if (!strncmp(script_[i].label, line + 5, strlen(line + 5))) {
                 step_ = i;
+                ready_ = false;
                 break;
             }
         }
@@ -117,11 +118,11 @@ bool Runner::begin() {
     return true;
 }
 
-const char* Runner::label() const { return active_ && step_ < numSteps_ ? script_[step_].label : ""; }
+const char* Runner::label() const { return active_ && ready_ && step_ < numSteps_ ? script_[step_].label : ""; }
 
 bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons) {
     pendingShot_ = nullptr;
-    if (!active_) return true;
+    if (!active_ || !ready_) return true;
     if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");
