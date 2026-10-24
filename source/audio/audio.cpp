@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "core/memory.h"
 
 namespace tt::audio {
 
@@ -535,7 +536,11 @@ SfxId loadSfx(const char* path) {
         return kInvalidSfx;
     }
     uint32_t bytes = h.blockBytes;
-    void* data = linearAlloc(bytes);
+    void* data;
+    {
+        mem::LinearGuard g; // the asset loader thread allocates linear memory too
+        data = linearAlloc(bytes);
+    }
     if (!data) {
         TT_LOG("audio: %s: out of linear memory (%lu B)", path, (unsigned long)bytes);
         fclose(f);
@@ -548,6 +553,7 @@ SfxId loadSfx(const char* path) {
     fclose(f);
     if (!ok) {
         TT_LOG("audio: %s: truncated", path);
+        mem::LinearGuard g;
         linearFree(data);
         return kInvalidSfx;
     }
@@ -568,7 +574,10 @@ void freeSfx(SfxId id) {
     if (id < 0 || id >= kMaxSfx || !gSfx[id].data) return;
     for (int v = 0; v < kNumSfxVoices; ++v)
         if (gVoices[v].sfx == id) stopVoiceIndex(v);
-    linearFree(gSfx[id].data);
+    {
+        mem::LinearGuard g;
+        linearFree(gSfx[id].data);
+    }
     gLinearUsed -= gSfx[id].bytes;
     gSfx[id] = Sfx{};
 }

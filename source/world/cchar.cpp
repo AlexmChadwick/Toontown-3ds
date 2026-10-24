@@ -12,6 +12,7 @@
 #ifdef __3DS__
 #include "render/renderer.h"
 #include "ui/projection.h"
+#include "world/asset_loader.h"
 #endif
 
 namespace tt::world {
@@ -141,19 +142,32 @@ bool CCharActors::spawn(Actor& a, const net::CChar& c) {
         return false;
     }
     char path[96];
+    a.model.unload();
+    for (auto& c : a.clips) c.unload();
+#ifdef __3DS__
+    // Model and clips load on the background loader (no ~0.2 s hitch); update() swaps them in.
+    cancelLoads(a);
     snprintf(path, sizeof(path), "%s%s.ttm", kDir, info->asset);
-    if (!a.model.load(path)) return false;
+    a.tickets[0] = AssetLoader::requestModel(path);
+    if (a.tickets[0] == kNoTicket) return false; // queue full: the next walk event retries
     const char* clipNames[kClipCount] = {"neutral", "walk", info->walkStart, info->neutralStart};
     for (int i = 0; i < kClipCount; i++) {
-        a.clips[i].unload();
         if (!clipNames[i]) continue;
         snprintf(path, sizeof(path), "%s%s_%s.tta", kDir, info->asset, clipNames[i]);
-        a.clips[i].load(path);
+        if (i == kWalk) {
+            if (FILE* f = fopen(path, "rb")) {
+                fclose(f);
+            } else { // the wheel has no walk: neutral stands in
+                snprintf(path, sizeof(path), "%s%s_neutral.tta", kDir, info->asset);
+            }
+        }
+        a.tickets[1 + i] = AssetLoader::requestAnim(path); // a full queue just leaves the clip out
     }
-    if (!a.clips[kWalk].loaded()) {
-        snprintf(path, sizeof(path), "%s%s_neutral.tta", kDir, info->asset); // the wheel has no walk
-        a.clips[kWalk].load(path);
-    }
+    a.loading = true;
+#else
+    snprintf(path, sizeof(path), "%s%s.ttm", kDir, info->asset);
+    if (!a.model.load(path)) return false;
+#endif
     snprintf(path, sizeof(path), "%s%s_%lu.tcp", kDir, info->graph, static_cast<unsigned long>(hood_));
     loadGraph(a, path);
     a.info = info;
@@ -441,6 +455,49 @@ void CCharActors::sample(Actor& a, float t, const CollisionWorld* collision) {
     }
 }
 
+#ifdef __3DS__
+void CCharActors::cancelLoads(Actor& a) {
+    for (u32& t : a.tickets) {
+        if (t != kNoTicket) AssetLoader::cancel(t);
+        t = kNoTicket;
+    }
+    a.loading = false;
+}
+
+// Swaps finished loads into the actor; clips may arrive after the model (drawn static, or
+// with the neutral clip, meanwhile). A missing model drops the actor (a later walk event
+// retries, as a failed synchronous load used to).
+void CCharActors::pollLoads(Actor& a) {
+    bool pending = false;
+    for (int i = 0; i < 1 + kClipCount; i++) {
+        u32& t = a.tickets[i];
+        if (t == kNoTicket) continue;
+        const LoadStatus st = AssetLoader::poll(t);
+        if (st == LoadStatus::Pending) {
+            pending = true;
+            continue;
+        }
+        if (st == LoadStatus::Ready) {
+            if (i == 0) AssetLoader::takeModel(t, a.model);
+            else AssetLoader::takeAnim(t, a.clips[i - 1]);
+        } else {
+            if (i == 0) {
+                TT_LOG("cchar: %s: model failed to load", a.info->name);
+                cancelLoads(a);
+                a.active = false;
+                return;
+            }
+            AssetLoader::cancel(t);
+        }
+        t = kNoTicket;
+    }
+    if (!pending) {
+        a.loading = false;
+        TT_LOG("cchar: %s ready (%u verts)", a.info->name, unsigned(a.model.numVertices()));
+    }
+}
+#endif
+
 void CCharActors::handleEvent(const net::Event& ev, const net::Client& client, u32 nowMs) {
     (void)nowMs;
     using net::EventType;
@@ -448,6 +505,7 @@ void CCharActors::handleEvent(const net::Event& ev, const net::Client& client, u
         for (Actor& a : actors_) {
             if (a.active && a.doId == ev.doId) {
 #ifdef __3DS__
+                cancelLoads(a);
                 C3D_FrameSync();
 #endif
                 a.model.unload();
@@ -511,6 +569,10 @@ void CCharActors::handleEvent(const net::Event& ev, const net::Client& client, u
 void CCharActors::update(float dt, u32 nowMs, const CollisionWorld* collision) {
     for (Actor& a : actors_) {
         if (!a.active) continue;
+#ifdef __3DS__
+        if (a.loading) pollLoads(a);
+        if (!a.active) continue; // the model failed to load
+#endif
         a.fade = a.fade + dt * 2.0f > 1.0f ? 1.0f : a.fade + dt * 2.0f;
         if (a.chatTimer > 0.0f) {
             a.chatTimer -= dt;
@@ -577,7 +639,7 @@ void CCharActors::draw(render::Renderer& renderer) {
 void CCharActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
 #ifdef __3DS__
     for (const Actor& a : actors_) {
-        if (!a.active || !a.info->nametag) continue; // (DonaldDock hides its nametag)
+        if (!a.active || a.loading || !a.info->nametag) continue; // (DonaldDock hides its nametag)
         float sx, sy, depth;
         if (ui::projectToScreen(proj, view, a.x, a.y, a.z + a.info->height + 0.5f, &sx, &sy, &depth) &&
             depth < kNametagMaxDistance) {
@@ -598,7 +660,7 @@ void CCharActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
 int CCharActors::shadowPositions(float* xyzs, int maxOut) const {
     int n = 0;
     for (const Actor& a : actors_) {
-        if (!a.active || n >= maxOut || a.info->classId == dc::DistributedDonaldDock::kClassId) continue;
+        if (!a.active || a.loading || n >= maxOut || a.info->classId == dc::DistributedDonaldDock::kClassId) continue;
         xyzs[4 * n] = a.x;
         xyzs[4 * n + 1] = a.y;
         xyzs[4 * n + 2] = a.z;
@@ -625,6 +687,9 @@ bool CCharActors::firstPosition(float* x, float* y, float* z) const {
 
 void CCharActors::shutdown() {
     for (Actor& a : actors_) {
+#ifdef __3DS__
+        cancelLoads(a);
+#endif
         a.model.unload();
         for (auto& c : a.clips) c.unload();
         a.active = false;

@@ -44,11 +44,81 @@ void Player::reset(float x, float y, float z, float headingDeg) {
     z_ = z;
     heading_ = headingDeg;
     speed_ = vz_ = 0;
+    onPlat_ = false;
     camYawOffset_ = 0;
     update(Input{}, 0.0f);
 }
 
+void Player::setPlatform(const CollisionWorld* deck, float x, float y, float z, float headingDeg) {
+    deck_ = deck && deck->loaded() ? deck : nullptr;
+    px_ = x, py_ = y, pz_ = z, ph_ = headingDeg;
+}
+
+void Player::netPose(float* x, float* y, float* z, float* headingDeg) const {
+    *x = onPlat_ ? lx_ : x_;
+    *y = onPlat_ ? ly_ : y_;
+    *z = onPlat_ ? lz_ : z_;
+    *headingDeg = onPlat_ ? lh_ : heading_;
+}
+
+namespace {
+float wrap180(float h) {
+    while (h > 180.0f) h -= 360.0f;
+    while (h < -180.0f) h += 360.0f;
+    return h;
+}
+constexpr float kBoardStep = 1.0f;   // a deck floor at most this far above the feet boards
+constexpr float kBoardDrop = 5.0f;   // ... and at most this far below (jump apex is ~4.5)
+} // namespace
+
+bool Player::tryBoard() {
+    const float r = ph_ * kDegToRad, c = cosf(r), s = sinf(r);
+    const float dx = x_ - px_, dy = y_ - py_;
+    const float x = dx * c + dy * s, y = -dx * s + dy * c, z = z_ - pz_;
+    bool found = false;
+    const float g = deck_->groundHeight(x, y, z, &found, kBoardStep);
+    if (!found || z - g > kBoardDrop) return false;
+    lx_ = x, ly_ = y, lz_ = z;
+    lh_ = wrap180(heading_ - ph_);
+    lground_ = g;
+    onPlat_ = true;
+    return true;
+}
+
+void Player::toWorld() {
+    const float r = ph_ * kDegToRad, c = cosf(r), s = sinf(r);
+    x_ = px_ + lx_ * c - ly_ * s;
+    y_ = py_ + lx_ * s + ly_ * c;
+    z_ = pz_ + lz_;
+    heading_ = wrap180(lh_ + ph_);
+    ground_ = lground_ + pz_;
+}
+
+void Player::leavePlatform() {
+    onPlat_ = false; // x_.. already hold the world pose from the last toWorld()
+}
+
 void Player::update(const Input& in, float dt) {
+    if (!deck_) {
+        if (onPlat_) leavePlatform();
+    } else if (!onPlat_) {
+        tryBoard();
+    }
+    if (onPlat_) {
+        x_ = lx_, y_ = ly_, z_ = lz_, heading_ = lh_, ground_ = lground_;
+        locomote(in, dt, deck_);
+        bool found = false;
+        deck_->groundHeight(x_, y_, z_, &found);
+        lx_ = x_, ly_ = y_, lz_ = z_, lh_ = heading_, lground_ = ground_;
+        toWorld();
+        if (!found) leavePlatform(); // walked off the edge: the zone's collision takes over
+    } else {
+        locomote(in, dt, collision_);
+    }
+    camera(in, dt);
+}
+
+void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
     const float fwd = axis(in.pad.dy);
     const float turn = axis(in.pad.dx);
 
@@ -69,14 +139,14 @@ void Player::update(const Input& in, float dt) {
     if (jumping) vz_ = kJumpVelocity;
     vz_ -= kGravity * dt;
 
-    if (collision_ && collision_->loaded()) {
+    if (world && world->loaded()) {
         // GravityWalker order: slide along walls, find the floor (step-up reach 4), apply
         // the jump arc, then slide again at the new height so ledges can't trap the toon.
         const float r = kToonRadius;
         Vec3 p{x_, y_, z_};
-        p = collision_->slideCapsule(p, r, 2.0f * r, Vec3{dx, dy, 0.0f});
+        p = world->slideCapsule(p, r, 2.0f * r, Vec3{dx, dy, 0.0f});
         bool found = false;
-        const float g = collision_->groundHeight(p.x, p.y, p.z, &found);
+        const float g = world->groundHeight(p.x, p.y, p.z, &found);
         if (found) ground_ = g;
         float nz = z_ + vz_ * dt;
         // Walking down stairs or a kerb: stay on the floor instead of starting a fall
@@ -86,7 +156,7 @@ void Player::update(const Input& in, float dt) {
             nz = ground_;
             vz_ = 0.0f;
         }
-        if (nz != p.z) p = collision_->slideCapsule(p, r, 2.0f * r, Vec3{0.0f, 0.0f, nz - p.z});
+        if (nz != p.z) p = world->slideCapsule(p, r, 2.0f * r, Vec3{0.0f, 0.0f, nz - p.z});
         x_ = p.x;
         y_ = p.y;
         z_ = p.z;
@@ -101,6 +171,9 @@ void Player::update(const Input& in, float dt) {
         }
     }
 
+}
+
+void Player::camera(const Input& in, float dt) {
     // Camera: L/R orbit; C-stick (New 3DS only) orbits/pitches; otherwise drift back
     // behind the toon while it moves.
     float orbit = 0.0f;
@@ -126,6 +199,24 @@ void Player::update(const Input& in, float dt) {
             t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
             camEye_ = FVec3_New(head.x + (eye.x - head.x) * t, head.y + (eye.y - head.y) * t,
                                 head.z + (eye.z - head.z) * t);
+        }
+    }
+    if (onPlat_) {
+        // The boat's walls and rails: the same segment in platform space (a rigid transform
+        // keeps the hit fraction), against the head -> (possibly already shortened) eye.
+        const float r = ph_ * kDegToRad, c = cosf(r), s = sinf(r);
+        auto local = [&](float wx, float wy, float wz) {
+            const float dx = wx - px_, dy = wy - py_;
+            return Vec3{dx * c + dy * s, -dx * s + dy * c, wz - pz_};
+        };
+        const Vec3 head = local(camTarget_.x, camTarget_.y, camTarget_.z);
+        const Vec3 eye = local(camEye_.x, camEye_.y, camEye_.z);
+        float t = 1.0f;
+        if (deck_->cameraRaycast(head, eye, &t)) {
+            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
+            camEye_ = FVec3_New(camTarget_.x + (camEye_.x - camTarget_.x) * t,
+                                camTarget_.y + (camEye_.y - camTarget_.y) * t,
+                                camTarget_.z + (camEye_.z - camTarget_.z) * t);
         }
     }
 }
