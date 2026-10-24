@@ -59,6 +59,11 @@ void toLocal(const float w[12], float x, float y, float z, float out[3]) {
     }
 }
 
+// Entity-local point -> world: p' = x*r0 + y*r1 + z*r2 + r3 (LevelEntity::world layout).
+void fromLocal(const float w[12], const float p[3], float out[3]) {
+    for (int c = 0; c < 3; ++c) out[c] = p[0] * w[c] + p[1] * w[3 + c] + p[2] * w[6 + c] + w[9 + c];
+}
+
 constexpr const char* kDoorFiles[] = {"door_frame", "door_top", "door_bottom", "door_left", "door_right",
                                       "door_lock1_closed", "door_lock1_left", "door_lock1_right",
                                       "door_lock2_closed", "door_lock2_left", "door_lock2_right",
@@ -76,6 +81,16 @@ void Level::loadProps() {
     for (int i = 0; i < kDoorParts; ++i) {
         snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, kDoorFiles[i]);
         if (!doorModels_[i].load(path)) TT_LOG("level: missing %s", path);
+    }
+    snprintf(path, sizeof(path), "%sprops/button_base.ttm", kDir);
+    buttonBase_.load(path);
+    snprintf(path, sizeof(path), "%sprops/button_top.ttm", kDir);
+    buttonTop_.load(path);
+    snprintf(path, sizeof(path), "%sprops/button.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        float b[6];
+        if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(buttonBox_, b, sizeof(b));
+        fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/door.box", kDir);
     if (FILE* f = fopen(path, "r")) {
@@ -141,6 +156,11 @@ Level::DoorPose Level::doorPose(const net::LevelEntityObj& d, uint32_t nowMs) {
 void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t nowMs) {
     doorClient_ = &client;
     doorNowMs_ = nowMs;
+    numSolids_ = 0;
+    dynamic_.floor = &Level::floorThunk;
+    dynamic_.push = &Level::pushThunk;
+    dynamic_.carry = &Level::carryThunk;
+    dynamic_.user = this;
     // VisibilityExtender: a door that is not closed extends its zone's visibility with the
     // extender's newZones (the event fires with "not closed", DistributedDoorEntity.changedOnState).
     uint16_t extra[64];
@@ -150,6 +170,8 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
         if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedDoorEntity::kClassId) continue;
         const LevelEntity* e = spec_.find(d.entId);
         if (!e) continue;
+        const DoorPose pose = doorPose(d, nowMs);
+        if (pose.outer || pose.inner) addSolid(e->world, doorBox_, doorBox_ + 3, true, false);
         if (d.state != 4 && d.state != 0) {
             for (int k = spec_.next("visibilityExtender", -1); k >= 0; k = spec_.next("visibilityExtender", k)) {
                 const LevelEntity& v = spec_.entity(k);
@@ -176,32 +198,152 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
     zone_.setExtraVisible(extra, numExtra);
 }
 
-bool Level::pushOut(float* x, float* y, float z) const {
-    if (!active_ || !doorClient_) return false;
-    bool moved = false;
+void Level::addSolid(const float world[12], const float lo[3], const float hi[3], bool wall, bool floor) {
+    if (numSolids_ >= kMaxSolids) return;
+    Solid& b = solids_[numSolids_++];
+    memcpy(b.world, world, sizeof(b.world));
+    memcpy(b.lo, lo, sizeof(b.lo));
+    memcpy(b.hi, hi, sizeof(b.hi));
+    b.motion[0] = b.motion[1] = b.motion[2] = 0.0f;
+    b.wall = wall, b.floor = floor;
+}
+
+bool Level::floorThunk(void* self, float x, float y, float z, float* top) {
+    const Level& l = *static_cast<const Level*>(self);
+    bool found = false;
+    for (int i = 0; i < l.numSolids_; ++i) {
+        const Solid& b = l.solids_[i];
+        if (!b.floor) continue;
+        float p[3];
+        toLocal(b.world, x, y, z, p);
+        if (p[0] < b.lo[0] || p[0] > b.hi[0] || p[1] < b.lo[1] || p[1] > b.hi[1]) continue;
+        const float local[3] = {p[0], p[1], b.hi[2]};
+        float w[3];
+        fromLocal(b.world, local, w);
+        if (w[2] > z + kFloorReach || w[2] < z - 20.0f) continue; // above the step-up reach / far below
+        if (!found || w[2] > *top) *top = w[2], found = true;
+    }
+    return found;
+}
+
+void Level::pushThunk(void* self, float* x, float* y, float z, float radius) {
+    const Level& l = *static_cast<const Level*>(self);
+    for (int i = 0; i < l.numSolids_; ++i) {
+        const Solid& b = l.solids_[i];
+        if (!b.wall) continue;
+        float p[3];
+        toLocal(b.world, *x, *y, z, p);
+        // Only what the toon cannot step onto and that reaches its body.
+        if (p[2] > b.hi[2] - kFloorReach * 0.25f || p[2] + 2.0f * radius < b.lo[2]) continue;
+        const float* ax = b.world;
+        const float* ay = b.world + 3;
+        const float sx = std::sqrt(ax[0] * ax[0] + ax[1] * ax[1] + ax[2] * ax[2]);
+        const float sy = std::sqrt(ay[0] * ay[0] + ay[1] * ay[1] + ay[2] * ay[2]);
+        if (sx < 1e-6f || sy < 1e-6f) continue;
+        const float rx = radius / sx, ry = radius / sy; // the toon radius in local units
+        const float lx0 = b.lo[0] - rx, lx1 = b.hi[0] + rx, ly0 = b.lo[1] - ry, ly1 = b.hi[1] + ry;
+        if (p[0] <= lx0 || p[0] >= lx1 || p[1] <= ly0 || p[1] >= ly1) continue;
+        // Out along the shallowest side.
+        const float pen[4] = {(p[0] - lx0) * sx, (lx1 - p[0]) * sx, (p[1] - ly0) * sy, (ly1 - p[1]) * sy};
+        int side = 0;
+        for (int k = 1; k < 4; ++k)
+            if (pen[k] < pen[side]) side = k;
+        const float* axis = side < 2 ? ax : ay;
+        const float len = side < 2 ? sx : sy;
+        const float d = (side == 0 || side == 2 ? -pen[side] : pen[side]) / len;
+        *x += axis[0] / len * d, *y += axis[1] / len * d;
+    }
+}
+
+bool Level::carryThunk(void* self, float x, float y, float z, float* dx, float* dy, float* dz) {
+    const Level& l = *static_cast<const Level*>(self);
+    for (int i = 0; i < l.numSolids_; ++i) {
+        const Solid& b = l.solids_[i];
+        if (!b.floor || (b.motion[0] == 0 && b.motion[1] == 0 && b.motion[2] == 0)) continue;
+        float p[3];
+        toLocal(b.world, x - b.motion[0], y - b.motion[1], z - b.motion[2], p);
+        if (p[0] < b.lo[0] || p[0] > b.hi[0] || p[1] < b.lo[1] || p[1] > b.hi[1]) continue;
+        if (std::fabs(p[2] - b.hi[2]) > 0.5f) continue; // standing on its top
+        *dx = b.motion[0], *dy = b.motion[1], *dz = b.motion[2];
+        return true;
+    }
+    return false;
+}
+
+void Level::updateButtons(net::Client& client, float x, float y, float z) {
+    uint32_t touching = 0;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
-        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedDoorEntity::kClassId) continue;
-        const DoorPose p = doorPose(d, doorNowMs_);
-        if (!p.outer && !p.inner) continue;
+        const net::LevelEntityObj& d = client.levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedButton::kClassId) continue;
         const LevelEntity* e = spec_.find(d.entId);
         if (!e) continue;
-        float l[3];
-        toLocal(e->world, *x, *y, z, l);
-        const float r = kToonRadius;
-        if (l[0] < doorBox_[0] || l[0] > doorBox_[3] || l[2] < doorBox_[2] - 1.0f || l[2] > doorBox_[5]) continue;
-        const float front = doorBox_[1] - r, back = doorBox_[4] + r;
-        if (l[1] <= front || l[1] >= back) continue;
-        const float target = (l[1] - front < back - l[1]) ? front : back;
-        // Back to world along the door's (normalized) local Y axis.
-        const float* ay = e->world + 3;
-        const float len = std::sqrt(ay[0] * ay[0] + ay[1] * ay[1] + ay[2] * ay[2]);
-        const float scale = len > 1e-6f ? (target - l[1]) * len : 0.0f;
-        const float nx = len > 1e-6f ? ay[0] / len : 0.0f, ny = len > 1e-6f ? ay[1] / len : 0.0f;
-        *x += nx * scale, *y += ny * scale;
-        moved = true;
+        addSolid(e->world, buttonBox_, buttonBox_ + 3, false, true); // its top is a floor
+        // DistributedButton.setupSwitch: an intangible sphere (r 0.5 at z 0.5) the toon's body
+        // sphere (r kToonRadius at its middle) enters.
+        const float local[3] = {0.0f, 0.0f, 0.5f};
+        float c[3];
+        LevelSpec::toWorld(*e, local, c);
+        const float scale = std::sqrt(e->world[0] * e->world[0] + e->world[1] * e->world[1] + e->world[2] * e->world[2]);
+        const float dx = x - c[0], dy = y - c[1], dz = z + kToonRadius - c[2];
+        const float reach = 0.5f * scale + kToonRadius;
+        if (dx * dx + dy * dy + dz * dz < reach * reach) touching = d.doId;
     }
-    return moved;
+    if (touching != onButton_) {
+        // DistributedSwitch.enterTrigger / exitTrigger.
+        if (onButton_) client.sendLevelInteract(onButton_, false);
+        if (touching) client.sendLevelInteract(touching, true);
+        onButton_ = touching;
+    }
+}
+
+void Level::drawButtons(render::Renderer& renderer) const {
+    if (!doorClient_ || !buttonBase_.loaded() || !buttonTop_.loaded()) return;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedButton::kClassId) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        C3D_Mtx m;
+        toMtx(e->world, &m);
+        renderer.drawModel(const_cast<render::Model&>(buttonBase_), m);
+        // switchOnTrack: down 0.2 over 0.8 s (easeInOut), green over the second half;
+        // switchOffTrack ("attract"): back up over 1.0 s, its colour over the second half.
+        float color[4] = {1, 1, 1, 1};
+        spec_.getFloats(*e, "color", color, 4);
+        const float t = int32_t(doorNowMs_ - d.stateMs) / 1000.0f;
+        const bool on = !strcmp(d.stateName, "playing");
+        const bool off = !strcmp(d.stateName, "attract");
+        float down = 0, green = 0;
+        if (on) {
+            const float u = clamp01(t / 0.8f);
+            down = u * u * (3 - 2 * u);
+            green = easeOut(clamp01((t - 0.4f) / 0.4f));
+        } else if (off) {
+            const float u = clamp01(t / 1.0f);
+            down = 1.0f - u * u * (3 - 2 * u);
+            green = 1.0f - easeIn(clamp01((t - 0.5f) / 0.5f));
+        }
+        const float tint[4] = {color[0] * (1 - green), color[1] * (1 - green) + green, color[2] * (1 - green), color[3]};
+        renderer.setBaseTint(tint[0], tint[1], tint[2], tint[3]);
+        Mtx_Translate(&m, 0, 0, -0.2f * down, true);
+        renderer.drawModel(const_cast<render::Model&>(buttonTop_), m);
+        renderer.setBaseTint(1, 1, 1, 1);
+    }
+}
+
+bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const {
+    if (!active_ || !doorClient_) return false;
+    float best = 1e30f;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != classId) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        const float dx = e->world[9] - x, dy = e->world[10] - y, dz = e->world[11] - z;
+        const float dist = dx * dx + dy * dy + dz * dz;
+        if (dist < best) best = dist, *ex = e->world[9], *ey = e->world[10], *ez = e->world[11];
+    }
+    return best < 1e30f;
 }
 
 bool Level::nearestDoor(float x, float y, float z, float* dx, float* dy, float* dz, float* dh) const {
@@ -523,6 +665,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     *action = LevelBattleAction{};
     if (!active_) return;
     updateDoors(client, x, y, z, nowMs);
+    updateButtons(client, x, y, z);
     zone_.update(Vec3{x, y, z}, &Level::cellChanged, this);
     if (lockZoneId_ != sentLock_) visDirty_ = true;
     if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
@@ -546,6 +689,24 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
             setupCog(*c, s);
         }
         if (!c->spec) continue;
+        // A cog in a battle belongs to world/battle.* (it places, animates and hides it).
+        bool fighting = false;
+        for (int b = 0; b < net::kMaxBattles && !fighting; ++b) {
+            const net::Battle& nb = client.battleSlot(b);
+            for (int k = 0; nb.active && k < nb.numSuits; ++k) fighting = fighting || nb.suits[k] == c->doId;
+        }
+        if (fighting) {
+            c->mode = CogMode::WaitBattle;
+            c->requestMs = nowMs;
+            c->inBattle = true;
+            continue;
+        }
+        if (c->inBattle) { // the battle let it go (the toons ran or lost): back where it stands
+            c->inBattle = false;
+            float bx, by, bz, bh;
+            if (suits.pose(c->doId, &bx, &by, &bz, &bh)) c->x = bx, c->y = by, c->z = bz, c->h = bh;
+            c->mode = CogMode::Return;
+        }
         if (s.chaseSerial != c->chaseSerial) { // setConfrontToon: enterChase
             c->chaseSerial = s.chaseSerial;
             if (s.confrontToon) {
@@ -662,6 +823,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     // The spec's farPlaneDistance is 1500; the zone vis lists already bound what is drawn.
     zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 400.0f);
     drawDoors(renderer);
+    drawButtons(renderer);
 }
 
 } // namespace tt::world

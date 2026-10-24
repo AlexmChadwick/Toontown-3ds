@@ -9,6 +9,18 @@
 
 namespace tt::world {
 
+// Moving and interactive solids on top of the static world (facility doors, buttons, lifts,
+// platforms: world/level.*). All callbacks are optional; positions are toon feet in the world.
+struct DynamicSolids {
+    // Highest solid top under (x, y) that the feet at z can stand on (step-up reach kFloorReach).
+    bool (*floor)(void* user, float x, float y, float z, float* top) = nullptr;
+    // Moves the toon's (x, y) out of solids taller than a step at feet height z.
+    void (*push)(void* user, float* x, float* y, float z, float radius) = nullptr;
+    // This frame's motion of the solid the feet stand on (a riding lift/platform).
+    bool (*carry)(void* user, float x, float y, float z, float* dx, float* dy, float* dz) = nullptr;
+    void* user = nullptr;
+};
+
 struct Input {
     circlePosition pad{};    // circle pad, roughly [-156, 156]
     circlePosition cstick{}; // New 3DS C-stick; always zero on Old 3DS
@@ -22,8 +34,8 @@ public:
     void setCollision(const CollisionWorld* world) { collision_ = world; }
     void reset(float x, float y, float z, float headingDeg);
     void setHeading(float headingDeg) { heading_ = headingDeg; }
-    // Dynamic walls (closed facility doors, world/level.*) push the toon after update().
-    void setXY(float x, float y) { x_ = x; y_ = y; }
+    // Moving / interactive solids (world/level.*); nullptr when there are none.
+    void setDynamic(const DynamicSolids* solids) { dynamic_ = solids; }
     // Replaces this frame's follow camera (call after update; e.g. fishing's pond view).
     void overrideCamera(const C3D_FVec& eye, const C3D_FVec& target) {
         camEye_ = eye;
@@ -79,6 +91,7 @@ private:
     C3D_FVec camEye_{};
     C3D_FVec camTarget_{};
     const CollisionWorld* collision_ = nullptr;
+    const DynamicSolids* dynamic_ = nullptr;
 
     // Platform state. While onPlat_, l*_ is the platform-local truth and x_.. the derived world pose.
     const CollisionWorld* deck_ = nullptr;

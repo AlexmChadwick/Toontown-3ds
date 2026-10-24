@@ -15,6 +15,7 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "world/level_spec.h"
+#include "world/player.h"
 #include "world/zone.h"
 
 namespace tt::world {
@@ -55,8 +56,10 @@ public:
     int currentZoneNum() const { return zoneNum_; }
     // Autotest: world position of the nearest cog that can fight / of a blocker; false if none.
     bool nearestCog(float x, float y, float z, float* cx, float* cy, float* cz) const;
-    // Closed doors are walls: moves (x, y) out of them (toon radius); true if it moved.
-    bool pushOut(float* x, float* y, float z) const;
+    // Closed doors, buttons, lifts...: Player::setDynamic while the level is active.
+    const DynamicSolids* solids() const { return active_ ? &dynamic_ : nullptr; }
+    // Autotest: world position of the nearest distributed entity of a class; false if none.
+    bool nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const;
     // Autotest: the nearest closed door ahead, as a point in front of it; false if none.
     bool nearestDoor(float x, float y, float z, float* dx, float* dy, float* dz, float* dh) const;
 
@@ -82,6 +85,7 @@ private:
         uint32_t chaseSerial = 0, returnSerial = 0;
         uint32_t lastStrayMs = 0;
         uint32_t requestMs = 0;
+        bool inBattle = false;                 // a member of a battle: world/battle.* owns it
     };
     bool load(const char* name);
     void begin(const net::Factory& f);
@@ -106,6 +110,12 @@ private:
     static DoorPose doorPose(const net::LevelEntityObj& d, uint32_t nowMs);
     void updateDoors(net::Client& client, float x, float y, float z, uint32_t nowMs);
     void drawDoors(render::Renderer& renderer) const;
+    // DistributedButton (CogDoor_Button parts, button.box).
+    void updateButtons(net::Client& client, float x, float y, float z);
+    void drawButtons(render::Renderer& renderer) const;
+    render::Model buttonBase_, buttonTop_;
+    float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
+    uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)
 
     Zone zone_;
     LevelSpec spec_;
@@ -128,6 +138,21 @@ private:
     static constexpr int kMaxCogs = net::kMaxLevelSuits;
     Cog cogs_[kMaxCogs];
     uint32_t blockerMs_ = 0;
+    // This frame's moving / interactive solids (oriented boxes in an entity's local space).
+    struct Solid {
+        float world[12];
+        float lo[3], hi[3];
+        float motion[3];  // world motion since last frame (carry)
+        bool wall, floor;
+    };
+    static constexpr int kMaxSolids = 64;
+    Solid solids_[kMaxSolids];
+    int numSolids_ = 0;
+    DynamicSolids dynamic_;
+    void addSolid(const float world[12], const float lo[3], const float hi[3], bool wall, bool floor);
+    static bool floorThunk(void* self, float x, float y, float z, float* top);
+    static void pushThunk(void* self, float* x, float* y, float z, float radius);
+    static bool carryThunk(void* self, float x, float y, float z, float* dx, float* dy, float* dz);
     render::Model doorModels_[kDoorParts];
     float doorBox_[6] = {-6.6f, -0.35f, 0.0f, 6.8f, 0.4f, 14.2f};
     bool propsLoaded_ = false;

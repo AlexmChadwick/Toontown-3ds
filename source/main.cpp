@@ -667,6 +667,12 @@ int main() {
         if (autotest.active() && level.active() && !battle.active()) {
             // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
             float cx, cy, cz;
+            if (!strcmp(autotest.label(), "factory: button") && autotest.stepTime() < 0.05f) {
+                float bx, by, bz;
+                if (level.nearestEntity(tt::dc::DistributedButton::kClassId, player.x(), player.y(), player.z(), &bx,
+                                        &by, &bz))
+                    player.reset(bx, by - 4.0f, bz + 0.2f, 0.0f); // walk onto it (the pad is held)
+            }
             if (!strcmp(autotest.label(), "factory: door")) {
                 float dx, dy, dz, dh;
                 if (autotest.stepTime() < 0.05f &&
@@ -831,11 +837,8 @@ int main() {
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
         if (!racing.driving()) player.update(in, dt);
-        if (level.active()) { // closed facility doors are walls
-            float px = player.x(), py = player.y();
-            if (level.pushOut(&px, &py, player.z())) player.setXY(px, py);
-        }
         fishing.applyCamera();
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;

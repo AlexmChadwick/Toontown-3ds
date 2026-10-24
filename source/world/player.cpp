@@ -139,14 +139,25 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
     if (jumping) vz_ = kJumpVelocity;
     vz_ -= kGravity * dt;
 
+    const DynamicSolids* dyn = deck_ ? nullptr : dynamic_; // (never while aboard the boat)
+    if (dyn && dyn->carry && grounded) { // ride the lift / platform we stand on
+        float cx = 0, cy = 0, cz = 0;
+        if (dyn->carry(dyn->user, x_, y_, z_, &cx, &cy, &cz)) x_ += cx, y_ += cy, z_ += cz, ground_ += cz;
+    }
     if (world && world->loaded()) {
         // GravityWalker order: slide along walls, find the floor (step-up reach 4), apply
         // the jump arc, then slide again at the new height so ledges can't trap the toon.
         const float r = kToonRadius;
         Vec3 p{x_, y_, z_};
         p = world->slideCapsule(p, r, 2.0f * r, Vec3{dx, dy, 0.0f});
+        if (dyn && dyn->push) dyn->push(dyn->user, &p.x, &p.y, p.z, r);
         bool found = false;
-        const float g = world->groundHeight(p.x, p.y, p.z, &found);
+        float g = world->groundHeight(p.x, p.y, p.z, &found);
+        float top;
+        if (dyn && dyn->floor && dyn->floor(dyn->user, p.x, p.y, p.z, &top) && (!found || top > g)) {
+            g = top;
+            found = true;
+        }
         if (found) ground_ = g;
         float nz = z_ + vz_ * dt;
         // Walking down stairs or a kerb: stay on the floor instead of starting a fall
