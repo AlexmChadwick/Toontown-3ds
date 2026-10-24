@@ -81,3 +81,15 @@ server sends the exit/zone transition.
   `door.ttm`, `button.ttm`, `crate.ttm`, `goon.ttm`, and `stomper.ttm`
 * `sdmc:/3ds/toontown3ds/data/factory/level_spec.bin`
 * `sdmc:/3ds/toontown3ds/data/factory/manifest.json`
+
+## Playable client path
+
+The runtime now loads `factory.ttc`, places the toon at the entrance, and uses the
+normal follow camera and capsule sliding. Lift, door, crate, button, goon and stomper
+props are driven from their network endpoints and `stateStartMs`; nearby interactions
+use the existing Factory entity requests, while the first active goon is handed to
+`world::Battle` for the `DistributedBattleFactory` flow. The server remains authoritative
+for foreman/reward completion and returns the toon through the factory elevator.
+
+Autotest labels are `factory_ext`, `factory_in`, `factory_entities`, `factory_battle`,
+and `factory_exit`.

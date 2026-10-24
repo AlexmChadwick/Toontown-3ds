@@ -43,6 +43,17 @@ def bake_one(base, source, out):
     return stats
 
 
+def bake_collision(base, source, out):
+    import collide
+    model = base.loader.loadModel(str(source))
+    if model.isEmpty():
+        raise FileNotFoundError(source)
+    stats = collide.extract(model, fallback_floor=True).write(str(out), cell_size=8.0,
+                                                               max_bytes=1024 * 1024)
+    model.removeNode()
+    return stats
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--resources", default=str(resources_default()))
@@ -70,6 +81,8 @@ def main():
         path = out / f"{stem}.ttm"
         stats = bake_one(base, source, path)
         manifest["sources"][stem] = {"model": str(source), **stats}
+        if stem.startswith("floor_"):
+            manifest.setdefault("collision", {})[stem] = bake_collision(base, source, out / f"{stem}.ttc")
         print(json.dumps({"file": str(path), **stats}))
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     base.destroy()
