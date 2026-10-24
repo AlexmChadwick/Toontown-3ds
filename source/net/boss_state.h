@@ -66,6 +66,13 @@ struct BossState {
     bool promoted = false;
     uint16_t rewardId = 0;
     uint8_t difficulty = 0;
+    uint32_t lawyers[10] = {};
+    int numLawyers = 0;
+    uint32_t bonusMs = 0;
+    uint32_t bonusRevision = 0;
+    uint32_t healedToon = 0;
+    int8_t tauntTarget = 0;
+    int8_t tauntIndex = 0;
 };
 
 // CFO children are independent distributed objects, not DistributedLevel entities.

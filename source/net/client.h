@@ -35,6 +35,7 @@
 #include "net/quest_net.h"
 #include "net/book_net.h"
 #include "net/boss_state.h"
+#include "net/cj_state.h"
 
 namespace tt::net {
 
@@ -1758,6 +1759,14 @@ public:
     const BossState* boss() const { return boss_.active ? &boss_ : nullptr; }
     uint16_t bossPies() const { return bossPies_; }
     uint8_t bossPieType() const { return bossPieType_; }
+    const CjChild& cjChildSlot(int index) const { return cjChildren_[index]; }
+    const CjChild* findCjChild(uint32_t doId) const;
+    enum class CjCannonAction { Enter, Leave, Aim, Fire, Landed };
+    bool sendCjCannon(uint32_t cannonId, CjCannonAction action, float rotation = 0, float elevation = 10);
+    bool sendCjChair(uint32_t cannonId, uint8_t chairIndex);
+    enum class CjEvidence { Witness, Defense, Toon, Lawyer };
+    bool sendCjEvidence(CjEvidence action, uint32_t target = 0);
+    bool sendCjZap(float x, float y, float z, float heading, uint8_t attack);
     const CfoChild& cfoChildSlot(int index) const { return cfoChildren_[index]; }
     const CfoChild* findCfoChild(uint32_t doId) const;
     bool sendCfoControl(uint32_t craneId, bool control);
@@ -1789,6 +1798,12 @@ private:
     bool bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fieldId);
     void positionBossBattle(Battle& battle);
     bool bossParticipant() const;
+    bool handleCjEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
+                       const uint16_t* required, uint16_t count, bool other);
+    bool handleCjField(DatagramReader& reader, uint32_t doId, uint16_t fieldId);
+    bool cjParticipant(const char* phase) const;
+    CjChild* cjChild(uint32_t doId);
+    CjChild cjChildren_[kMaxCjChildren];
     bool handleCfoEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
                         const uint16_t* required, uint16_t count, bool other);
     bool handleCfoField(DatagramReader& reader, uint32_t doId, uint16_t fieldId);

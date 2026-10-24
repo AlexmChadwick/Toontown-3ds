@@ -50,6 +50,23 @@ for name in ('DistributedCashbotBossCrane', 'DistributedCashbotBossSafe',
         blob = bytes(field.parseString(value))
         assert blob, (name, field_name, value)
         records.append((cls.getNumber(), field.getNumber(), blob))
+for name in ('DistributedLawbotCannon', 'DistributedLawbotChair',
+             'DistributedLawbotBossGavel', 'DistributedLawbotBossSuit'):
+    cls = dc.getClassByName(name)
+    for index in range(cls.getNumInheritedFields()):
+        field = cls.getInheritedField(index)
+        if field.asMolecularField() is None and (field.isRequired() or field.isRam()):
+            records.append((cls.getNumber(), field.getNumber(), bytes(field.getDefaultValue())))
+    samples = {'setMovie': '(1,42,12)', 'setCannonWillFire': '(42,0,-25,35,-32760)',
+               'updateCannonPosition': '(42,50,85)', 'setToonJurorIndex': '(-1)',
+               'setState': '(78)', 'doAttack': '(1,2,3,100,20,1.3)',
+               'setPosHpr': '(-80,10,0,-90,0,0)'}
+    for field_name, value in samples.items():
+        field = cls.getFieldByName(field_name)
+        if field is not None:
+            blob = bytes(field.parseString(value))
+            assert blob
+            records.append((cls.getNumber(), field.getNumber(), blob))
 out = ROOT / 'sdmc-out/boss-test'
 out.mkdir(parents=True, exist_ok=True)
 (out / 'panda_vectors.bin').write_bytes(b''.join(struct.pack('<HHI', cls, field, len(blob)) + blob

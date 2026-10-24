@@ -25,6 +25,7 @@ BOSS_SIGNATURE(DistributedBossCog, zapToon, "i16/10,i16/10,i16/10,i16/10,i16/10,
 
 bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
                              const uint16_t* required, uint16_t count, bool other) {
+    if (handleCjEnter(doId, classId, reader, required, count, other)) return true;
     if (handleCfoEnter(doId, classId, reader, required, count, other)) return true;
     const BossKind kind = bossKind(classId);
     if (kind == BossKind::None) return false;
@@ -57,6 +58,7 @@ bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& re
 }
 
 bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fieldId) {
+    if (handleCjField(reader, doId, fieldId)) return true;
     if (handleCfoField(reader, doId, fieldId)) return true;
     if (!boss_.active || boss_.doId != doId) return false;
     if (!applyBossField(boss_, fieldId, reader, now_, avatarId_)) {
