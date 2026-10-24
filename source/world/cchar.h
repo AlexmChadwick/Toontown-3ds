@@ -101,6 +101,11 @@ private:
         const CharInfo* info = nullptr;
         render::Model model;
         render::Anim clips[kClipCount];
+        // Background load (world/asset_loader.h): tickets[0] = model, 1 + clip = clips. The actor
+        // draws nothing until the model is swapped in; walk timing is a pure function of the
+        // clock, so the replay is exact whenever it becomes ready.
+        bool loading = false;
+        u32 tickets[1 + kClipCount] = {};
         // Walk graph (one per character and hood).
         int numNodes = 0, numEdges = 0, numPoints = 0;
         float speed = 0;
@@ -139,6 +144,8 @@ private:
         float daleChipSrc[3] = {}, daleChipDst[3] = {};
     };
     bool spawn(Actor& a, const net::CChar& c);
+    void pollLoads(Actor& a);
+    void cancelLoads(Actor& a);
     bool loadGraph(Actor& a, const char* path);
     int nodeIndex(const Actor& a, const char* name) const;
     void startWalk(Actor& a, const net::CChar& c);

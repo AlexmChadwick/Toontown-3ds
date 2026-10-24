@@ -17,6 +17,8 @@ public:
     bool load(const char* path);
     void unload();
     bool loaded() const { return frames_ != nullptr; }
+    // Exchanges contents (no GPU work): a loader thread fills a staging Anim, the main thread swaps it in.
+    void swap(Anim& other);
 
     u32 numVertices() const { return numVertices_; }
     u32 numFrames() const { return numFrames_; }

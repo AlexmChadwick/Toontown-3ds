@@ -9,6 +9,7 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "ui/balloons.h"
+#include "world/boat.h"
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
@@ -20,6 +21,8 @@ public:
     static constexpr int kMax = 16; // nearest-first visible cap (AGENTS.md M3.5 suggests 8-16)
 
     void init(ToonCache* cache) { cache_ = cache; }
+    // Toons whose setParent token is kParentDonaldsBoat have boat-local poses; drawn through this boat.
+    void setBoat(const BoatActor* boat) { boat_ = boat; }
     void handleEvent(const net::Event& ev, const net::Client& client);
     void clear();
     void update(float dt);
@@ -37,7 +40,9 @@ private:
     struct Remote {
         bool active = false;
         u32 doId = 0;
-        float x = 0, y = 0, z = 0, h = 0;     // displayed
+        float x = 0, y = 0, z = 0, h = 0;     // displayed, in the parent's frame (boat-local while parent is the boat)
+        float wx = 0, wy = 0, wz = 0, wh = 0; // displayed pose in the world (== x.. unless parented to the boat)
+        u32 parent = 0;                       // setParent token last applied to the pose
         float tx = 0, ty = 0, tz = 0, th = 0; // latest network sample
         char name[32] = {};
         const char* phrase = nullptr;
@@ -57,8 +62,10 @@ private:
     void applyDna(Remote& r, const net::RemoteToon& t);
     void refreshLook(Remote& r);
     void despawn(Remote& r);
+    void updateWorldPose(Remote& r) const;
 
     ToonCache* cache_ = nullptr;
+    const BoatActor* boat_ = nullptr;
     Remote toons_[net::kMaxRemoteToons];
     int count_ = 0;
 };

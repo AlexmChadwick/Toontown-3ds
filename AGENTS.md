@@ -373,8 +373,11 @@ server.
     - Dale's `setFollowChip` orbit
     - `setChat` chatter
     - Donald at the wheel rides the moving `DistributedBoat` (`world/boat.*`, `docs/design/boat.md`);
-      remaining: toon riding, piers, boat sounds
-    - async loading (a character's model and clips load in about 0.2 s)
+      the local toon rides it too (deck collision, `setParent` 3) and the boat has bell/foghorn/creak/lap
+      sounds (built, not yet run in Azahar); remaining: animated piers
+    - Character and boat models now load on the shared background loader
+      (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
+      main thread; never hold `LinearGuard` around `Model::load`)
 - Next:
   - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`). For now a
     0.4 s fade out (the toon walks on into the tunnel or door), the load, then a 0.4 s fade in.

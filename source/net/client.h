@@ -46,6 +46,7 @@ constexpr int kEventQueue = 128;
 
 constexpr uint32_t kTtcPlayground = 2000;
 constexpr uint32_t kParentRender = 2; // OTPGlobals.SPRender (DistributedNode.setParent)
+constexpr uint32_t kParentDonaldsBoat = 3; // ToontownGlobals.SPDonaldsBoat (DistributedBoat.generate)
 
 struct RemoteToon {
     uint32_t doId;
@@ -60,7 +61,7 @@ struct RemoteToon {
     uint32_t lastUpdateTick; // local clock time we received it (nowMs passed to update)
     char animState[kAnimLen]; // "neutral", "run", "walk", "Happy", ...
     float animRate;
-    uint32_t parentToken;  // setParent: 2 = render, 1 = hidden, 0 = unset
+    uint32_t parentToken;  // setParent: 3 = Donald's boat (pose is boat-local), 2 = render, 1 = hidden, 0 = unset
     char chat[kChatLen];   // last setTalk text (empty when the last chat was SpeedChat)
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
     uint32_t chatMs;
@@ -291,6 +292,11 @@ public:
     // degrees, positions in Panda units.
     bool sendPosHpr(float x, float y, float z, float h, float p, float r);
     bool sendStop();
+    // DistributedNode.setParent on our avatar: kParentRender or kParentDonaldsBoat. The pose sent
+    // afterwards must be in that parent's frame (DistributedSmoothNode).
+    void sendSetParent(uint32_t token);
+    // Our world position for chat targeting when the pose we send is parent-local.
+    void setOwnWorldPos(float x, float y, float z) { ownX_ = x, ownY_ = y, ownZ_ = z; }
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
     bool sendAnimState(const char* name, float rate);
     // Zone change through the quiet zone (QuietZoneState): location + interest to zone 1,
@@ -378,7 +384,6 @@ private:
     void sendRequestSkipTutorial();
     void sendRequestPlayAvatar(uint32_t avId);
     void sendRequestServerTime();
-    void sendSetParent(uint32_t token);
 
     Transport* transport_ = nullptr;
     ClientConfig cfg_;

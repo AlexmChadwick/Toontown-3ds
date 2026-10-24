@@ -38,6 +38,20 @@ ToonAnim animFromState(const char* state, bool* locomotion) {
     return kAnimNeutral; // neutral, Sad, Sleep, emotes, ... (not baked yet)
 }
 
+// Boat-local pose -> world through the boat's matrix (translate * rotateZ), like a node
+// parented to it. Without an active boat the local pose is shown as is.
+void RemoteToons::updateWorldPose(Remote& r) const {
+    if (r.parent == net::kParentDonaldsBoat && boat_ && boat_->active()) {
+        const C3D_Mtx& m = boat_->matrix();
+        r.wx = m.r[0].x * r.x + m.r[0].y * r.y + m.r[0].z * r.z + m.r[0].w;
+        r.wy = m.r[1].x * r.x + m.r[1].y * r.y + m.r[1].z * r.z + m.r[1].w;
+        r.wz = m.r[2].x * r.x + m.r[2].y * r.y + m.r[2].z * r.z + m.r[2].w;
+        r.wh = wrapDeg(r.h + boat_->heading());
+    } else {
+        r.wx = r.x, r.wy = r.y, r.wz = r.z, r.wh = r.h;
+    }
+}
+
 RemoteToons::Remote* RemoteToons::find(u32 doId) {
     for (Remote& r : toons_) {
         if (r.active && r.doId == doId) return &r;
@@ -103,6 +117,8 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         r->y = r->ty = t->y;
         r->z = r->tz = t->z;
         r->h = r->th = t->h;
+        r->parent = t->parentToken;
+        updateWorldPose(*r);
         snprintf(r->name, sizeof(r->name), "%s", t->name);
         applyDna(*r, *t);
         r->stateAnim = animFromState(t->animState, &r->locomotion);
@@ -118,6 +134,11 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
             r->ty = t->y;
             r->tz = t->z;
             r->th = t->h;
+            if (t->parentToken != r->parent) { // boarded/left the boat: the frame changed, so snap
+                r->parent = t->parentToken;
+                r->x = r->tx, r->y = r->ty, r->z = r->tz, r->h = r->th;
+                r->speed = r->turnRate = 0.0f;
+            }
         }
         break;
     case EventType::Anim:
@@ -187,6 +208,7 @@ void RemoteToons::update(float dt) {
         } else {
             r.avatar.play(r.stateAnim, 1.0f);
         }
+        updateWorldPose(r);
         r.avatar.update(dt);
         r.phraseAge += dt;
     }
@@ -198,7 +220,7 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
     int n = 0;
     for (Remote& r : toons_) {
         if (!r.active) continue;
-        r.distSq = (r.x - cx) * (r.x - cx) + (r.y - cy) * (r.y - cy);
+        r.distSq = (r.wx - cx) * (r.wx - cx) + (r.wy - cy) * (r.wy - cy);
         order[n++] = &r;
     }
     const int shown = n < kMax ? n : kMax;
@@ -222,8 +244,8 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         }
         C3D_Mtx m;
         Mtx_Identity(&m);
-        Mtx_Translate(&m, r.x, r.y, r.z, true);
-        Mtx_RotateZ(&m, r.h * kDegToRad, true);
+        Mtx_Translate(&m, r.wx, r.wy, r.wz, true);
+        Mtx_RotateZ(&m, r.wh * kDegToRad, true);
         r.avatar.draw(renderer, m);
     }
 }
@@ -232,8 +254,8 @@ int RemoteToons::mapPositions(float* xy, int maxOut) const {
     int n = 0;
     for (const Remote& r : toons_) {
         if (!r.active || n >= maxOut) continue;
-        xy[2 * n] = r.x;
-        xy[2 * n + 1] = r.y;
+        xy[2 * n] = r.wx;
+        xy[2 * n + 1] = r.wy;
         n++;
     }
     return n;
@@ -243,9 +265,9 @@ int RemoteToons::shadowPositions(float* xyzs, int maxOut) const {
     int n = 0;
     for (const Remote& r : toons_) {
         if (!r.active || n >= maxOut) continue;
-        xyzs[4 * n] = r.x;
-        xyzs[4 * n + 1] = r.y;
-        xyzs[4 * n + 2] = r.z;
+        xyzs[4 * n] = r.wx;
+        xyzs[4 * n + 1] = r.wy;
+        xyzs[4 * n + 2] = r.wz;
         xyzs[4 * n + 3] = r.look.valid() ? r.look.scale : 1.0f;
         n++;
     }
@@ -256,7 +278,7 @@ void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;
         float sx, sy, depth;
-        if (ui::projectToScreen(proj, view, r.x, r.y, r.z + r.look.nametagHeight, &sx, &sy, &depth)) {
+        if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + r.look.nametagHeight, &sx, &sy, &depth)) {
             balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth);
         }
     }

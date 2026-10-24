@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 
 #include "core/log.h"
 #include "core/memory.h"
@@ -48,6 +49,19 @@ void Anim::unload() {
     frames_ = nullptr;
     attach_ = nullptr;
     numVertices_ = numFrames_ = frameStride_ = 0;
+}
+
+void Anim::swap(Anim& o) {
+    std::swap(numVertices_, o.numVertices_);
+    std::swap(numFrames_, o.numFrames_);
+    std::swap(frameStride_, o.frameStride_);
+    std::swap(fps_, o.fps_);
+    for (int i = 0; i < 3; i++) {
+        std::swap(posScale_[i], o.posScale_[i]);
+        std::swap(posOffset_[i], o.posOffset_[i]);
+    }
+    std::swap(frames_, o.frames_);
+    std::swap(attach_, o.attach_);
 }
 
 bool Anim::load(const char* path) {

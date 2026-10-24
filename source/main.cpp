@@ -25,6 +25,7 @@
 #include "ui/hud.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "world/asset_loader.h"
 #include "world/boat.h"
 #include "world/cchar.h"
 #include "world/suits.h"
@@ -159,6 +160,7 @@ int main() {
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
     toonCache.init();
+    tt::world::AssetLoader::init(); // background .ttm/.tta loads (classic characters, boat)
     if (!toonCache.initFallback()) TT_LOG("boot: default toon failed to load");
     // Local toon: default dog until the server tells us our real DNA.
     static tt::world::ToonLook localLook;
@@ -176,6 +178,7 @@ int main() {
     static tt::world::BoatActor boat; // Donald's Dock ship (DistributedBoat) with Donald aboard
     cchars.setZone(kStartZone);
     cchars.setBoat(&boat);
+    remoteToons.setBoat(&boat);
     // Cogs walking the street's suit paths (DistributedSuit); a box stands in for the model.
     static tt::world::SuitActors suits;
     suits.init();
@@ -224,6 +227,8 @@ int main() {
     };
     u32 lastPosSendMs = 0;
     bool wasMovingNet = false;
+    bool netOnBoat = false;   // what the server believes our setParent is (Donald's boat)
+    bool boatRider = false;
     const char* sentState = nullptr;
     static tt::world::ToonAvatar stressToons[kMaxStressToons];
     for (int i = 0; i < kMaxStressToons; i++) {
@@ -456,7 +461,12 @@ int main() {
             in.held &= ~(KEY_A | KEY_B);
             in.down &= ~(KEY_A | KEY_B);
         }
+        // Donald's boat: its deck collision carries the toon (Player::setPlatform); pose first.
+        boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
+        boat.update(tt::net::plat::nowMs());
+        player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         player.update(in, dt);
+        if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
         localToon.play(anim, animRate);
@@ -581,13 +591,25 @@ int main() {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
                 // we stop, setAnimState on clip changes (DistributedSmoothNode / LocalToon).
                 const bool movingNow = player.moving() || player.airborne() || anim != tt::world::kAnimNeutral;
-                if (movingNow && nowMs - lastPosSendMs >= kPosSendIntervalMs) {
-                    net.sendPosHpr(player.x(), player.y(), player.z(), player.headingDeg(), 0.0f, 0.0f);
-                    lastPosSendMs = nowMs;
-                } else if (!movingNow && wasMovingNet) {
-                    net.sendPosHpr(player.x(), player.y(), player.z(), player.headingDeg(), 0.0f, 0.0f);
-                    net.sendStop();
+                // On the boat (DDPlayground.enterOnBoat): setParent(SPDonaldsBoat), then poses are boat-local.
+                float nx, ny, nz, nh;
+                player.netPose(&nx, &ny, &nz, &nh);
+                const bool reparent = player.onPlatform() != netOnBoat;
+                if (reparent) {
+                    net.sendSetParent(player.onPlatform() ? tt::net::kParentDonaldsBoat : tt::net::kParentRender);
+                    netOnBoat = player.onPlatform();
                 }
+                if (movingNow && nowMs - lastPosSendMs >= kPosSendIntervalMs) {
+                    net.sendPosHpr(nx, ny, nz, nh, 0.0f, 0.0f);
+                    lastPosSendMs = nowMs;
+                } else if ((!movingNow && wasMovingNet) || (reparent && !movingNow)) {
+                    net.sendPosHpr(nx, ny, nz, nh, 0.0f, 0.0f);
+                    net.sendStop();
+                } else if (reparent) {
+                    net.sendPosHpr(nx, ny, nz, nh, 0.0f, 0.0f); // the new frame's pose right after setParent
+                    lastPosSendMs = nowMs;
+                }
+                if (netOnBoat) net.setOwnWorldPos(player.x(), player.y(), player.z()); // chat targets use world
                 wasMovingNet = movingNow;
                 // Anim *states*, as LocalAvatar sends them: "run" covers all ground locomotion
                 // (others derive walk/run/neutral from our smoothed speed), "jumpAirborne" in the air.
@@ -607,12 +629,12 @@ int main() {
                 lastTouchedTreasure = touching;
             } else {
                 sentState = nullptr; // resend after (re)entering
+                netOnBoat = false;   // entering a zone sends setParent(render)
             }
         }
         pendingSpeech = -1;
         remoteToons.update(dt);
         zoneActors.update(dt);
-        boat.update(tt::net::plat::nowMs());
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
@@ -807,6 +829,7 @@ int main() {
     zoneActors.shutdown();
     cchars.shutdown();
     boat.shutdown();
+    tt::world::AssetLoader::shutdown();
     suits.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();

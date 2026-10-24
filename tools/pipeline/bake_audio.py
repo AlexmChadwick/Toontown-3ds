@@ -1,6 +1,8 @@
 """Bake upstream .ogg audio into .tsnd (see audio_tsnd.py for the format).
 
     .venv/bin/python -I tools/pipeline/bake_audio.py [--out romfs/baked/audio]
+    .venv/bin/python -I tools/pipeline/bake_audio.py --set boat --out sdmc-out/3ds/toontown3ds/data/audio
+        [--resources /path/to/ref/resources]
 
 Music  -> DSP-ADPCM, stereo, 32000 Hz (the DSP mixes at ~32728 Hz, so higher rates
           only cost bytes), streamed in 14336-sample blocks. ~4x smaller than PCM16.
@@ -14,6 +16,11 @@ Upstream sources (ref/open-toontown):
   GUI_rollover            toontown/toonbase/ToontownStart.py default DirectGui rollover
   GUI_create_toon_back    "back" button click (MakeAToon etc.)
   GUI_balloon_popup       popup / dialog open
+Set `boat` (SD, Donald's Dock, source/world/boat.cpp; toontown/safezone/DDSafeZoneLoader.py loads them):
+  boat_bell     SZ_DD_shipbell   played at the start of each sail (SoundInterval at the boat)
+  boat_foghorn  SZ_DD_foghorn    end-aligned with the sail
+  boat_creak    SZ_DD_dockcreak  pier tilting down / rising
+  boat_lap      SZ_DD_waterlap   looped while the local toon is on the boat (DDPlayground.enterOnBoat)
 Upstream has no jump sound for toons (LocalAvatar plays none), so none is baked.
 
 Decoding uses ffmpeg (found on PATH or /usr/local/bin). Output is deterministic for
@@ -51,6 +58,14 @@ ASSETS = [
     ('gui_back', 'phase_3/audio/sfx/GUI_create_toon_back.ogg', 'sfx', False),
     ('gui_popup', 'phase_3/audio/sfx/GUI_balloon_popup.ogg', 'sfx', False),
 ]
+
+BOAT_ASSETS = [
+    ('boat_bell', 'phase_6/audio/sfx/SZ_DD_shipbell.ogg', 'sfx', False),
+    ('boat_foghorn', 'phase_5/audio/sfx/SZ_DD_foghorn.ogg', 'sfx', False),
+    ('boat_creak', 'phase_6/audio/sfx/SZ_DD_dockcreak.ogg', 'sfx', False),
+    ('boat_lap', 'phase_6/audio/sfx/SZ_DD_waterlap.ogg', 'sfx', True),
+]
+SETS = {'boot': ASSETS, 'boat': BOAT_ASSETS}
 
 
 def find_ffmpeg():
@@ -107,17 +122,19 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--out', default=os.path.join(ROOT, 'romfs', 'baked', 'audio'))
     ap.add_argument('--only', help='bake only this output name')
+    ap.add_argument('--set', default='boot', choices=sorted(SETS), help='asset set (default: boot, the RomFS set)')
+    ap.add_argument('--resources', default=RES, help='ref/resources checkout (default: <repo>/ref/resources)')
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     total = 0
     print(f'{"asset":16} {"enc":6} {"ch":>2} {"rate":>6} {"secs":>6} {"ogg KB":>7} {"tsnd KB":>8} {"SNR dB":>7}')
-    for name, rel, kind, loops in ASSETS:
+    for name, rel, kind, loops in SETS[args.set]:
         dst = os.path.join(args.out, name + '.tsnd')
         if args.only and args.only != name:
             if os.path.exists(dst):
                 total += os.path.getsize(dst)
             continue
-        src = os.path.join(RES, rel)
+        src = os.path.join(args.resources, rel)
         t0 = time.time()
         if kind == 'music':
             size, n, rate, ch, ref, dec = bake_music(src, dst, loops)
