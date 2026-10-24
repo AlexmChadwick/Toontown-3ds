@@ -65,7 +65,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !battle_.init() || !fishingPanel_.init()) return false;
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !battle_.init() || !quest_.init() || !fishingPanel_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
@@ -78,6 +78,7 @@ void Ui::shutdown() {
     chat_.shutdown();
     shop_.shutdown();
     battle_.shutdown();
+    quest_.shutdown();
     fishingPanel_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
@@ -121,6 +122,7 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
     if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
+    if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
     if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
     if (down & KEY_X) s.tab = kTabChat;
@@ -184,6 +186,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         drawInfo(c);
         return;
     }
+    if (talk_ && talk_->locked()) {
+        quest_.drawTalk(*talk_);
+        return;
+    }
     if (c.fishing) {
         fishingPanel_.draw(*c.fishing, kTabY);
         drawTabs(s);
@@ -192,7 +198,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     switch (s.tab) {
     case kTabMap: drawMap(c); break;
     case kTabChat: chat_.draw(kTabY); break;
-    case kTabToon: drawToon(s); break;
+    case kTabToon: drawToon(s, c); break;
     case kTabGags: drawGags(c); break;
     case kTabSettings: drawSettings(s); break;
     default: drawDebug(c); break;
@@ -323,7 +329,11 @@ void Ui::drawMap(const Context& c) {
     }
 }
 
-void Ui::drawToon(const State& s) {
+void Ui::drawToon(const State& s, const Context& c) {
+    if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
+        quest_.drawTasks(*c.quests, 6, kTabY - 4);
+        return;
+    }
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};
     for (int i = 0; i < 3; i++) {
         C2D_DrawRectSolid(8 + i * 102, 8, 0.5f, 98, 28, i == s.colorTarget ? kAccent : kPanel);

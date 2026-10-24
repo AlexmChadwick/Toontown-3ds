@@ -29,7 +29,7 @@ sed -i '' -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=t
     -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' "$CFG"
 
 rm -f "$SD/log.txt" "$SD"/shot_*.bin
-touch "$SD/autotest"
+if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" > "$SD/autotest"; else touch "$SD/autotest"; fi
 ( "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
 sleep "$SECS"
 

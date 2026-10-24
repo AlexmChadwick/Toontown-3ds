@@ -320,6 +320,20 @@ need hardware.
     in `place.cpp` but not driven by the autotest yet.
 - No PANIC.
 
+### 2026-10-24 — ToonTasks from an HQ Officer
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **Flow:**
+  1. Teleport into TTC Toon HQ (2520), where 4 HQ Officers generate at their desk
+     anchors.
+  2. Walking into one sends avatarEnter.
+  3. The AI answers setMovie ASSIGN (mode 4: quest, reward, toNpc), and the dialog
+     pages show on the bottom screen and in the officer's balloon.
+  4. Done sends setMovieDone, and the AI clears.
+  5. setQuests arrives, and the Toon tab lists the task: "WANTED — a Flunky".
+- **Progress text.** The progress counter text is not shown yet for this quest type.
+- **Autotest.** It can now start mid-script: `AUTOTEST_FROM="toon hq" tools/dev/azahar_test.sh ...`.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

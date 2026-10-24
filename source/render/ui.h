@@ -7,6 +7,7 @@
 #include "render/model.h"
 #include "ui/chat_menu.h"
 #include "ui/battle_panel.h"
+#include "ui/quest_panel.h"
 #include "ui/shop_panel.h"
 #include "ui/fishing_panel.h"
 
@@ -52,6 +53,8 @@ struct Context {
     unsigned zoneId = 0;
     unsigned netInBps = 0, netOutBps = 0;
     int remoteToons = 0;
+    // Our ToonTasks (Toon tab task list); null = offline.
+    const net::OwnQuests* quests = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
     const char* infoTitle = nullptr;
     const char* infoLines[3] = {};
@@ -92,6 +95,8 @@ public:
         battleGags_ = gags;
     }
     BattlePanel& battle() { return battle_; }
+    // NPC conversation (quest::Talk): while it is locked the quest panel owns the bottom screen.
+    void setTalk(quest::Talk* talk) { talk_ = talk; }
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
     // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
     // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
@@ -113,7 +118,7 @@ private:
         __attribute__((format(printf, 6, 7)));
     void drawTabs(const State& s);
     void drawMap(const Context& c);
-    void drawToon(const State& s);
+    void drawToon(const State& s, const Context& c);
     void drawSettings(const State& s);
     void drawGags(const Context& c);
     void drawInfo(const Context& c);
@@ -141,6 +146,8 @@ private:
     ChatMenu chat_;
     ShopPanel shop_;
     BattlePanel battle_;
+    QuestPanel quest_;
+    quest::Talk* talk_ = nullptr;
     const world::BattleView* battleView_ = nullptr;
     BattleGags battleGags_{};
     FishingPanel fishingPanel_;

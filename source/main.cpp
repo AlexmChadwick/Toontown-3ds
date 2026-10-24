@@ -31,6 +31,7 @@
 #include "world/cchar.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
+#include "quest/quest_talk.h"
 #include "world/battle.h"
 #include "world/trolley.h"
 #include "world/fishing.h"
@@ -277,6 +278,9 @@ int main() {
     // Gag shop (docs/design/shop.md): walking into a clerk's tube sends avatarEnter once per contact.
     tt::ui::ShopPanel& shop = ui.shop();
     u32 lastTouchedClerk = 0;
+    u32 lastTouchedQuestNpc = 0;
+    // Talking to quest-giving NPC toons (ToonTasks; quest/quest_talk.*, ui/quest_panel.*).
+    static tt::quest::Talk talk;
     tt::ui::Hud hud;
     hud.init();
 
@@ -519,6 +523,25 @@ int main() {
             if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
             autotestBoardedTrolley = true;
         }
+        if (autotest.active() && !strncmp(autotest.label(), "toon hq", 7)) {
+            // Test-only: teleport into the TTC Toon HQ (2520), walk into an officer, read every
+            // page and take the first ToonTask offered.
+            static u32 hqNextMs = 0;
+            const u32 now = tt::net::plat::nowMs();
+            if (place.zoneId() != 2520 && !uiState.teleportRequest && fadeDir == 0) uiState.teleportRequest = 2520;
+            float npc[4];
+            if (place.zoneId() == 2520 && !talk.locked() && zoneActors.shadowPositions(npc, 1) == 1 && now > hqNextMs) {
+                player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
+                hqNextMs = now + 4000;
+            }
+            if (talk.phase() == tt::quest::Talk::Phase::Pages && now > hqNextMs - 2500) {
+                talk.advance();
+                hqNextMs = now + 4000;
+            }
+            if (talk.phase() == tt::quest::Talk::Phase::QuestChoice && !strcmp(autotest.label(), "toon hq: choose")) {
+                talk.chooseQuest(0);
+            }
+        }
         if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
             // Test-only: teleport straight to a Cog HQ courtyard (upstream gets there by tunnel).
             static const char* lastGo = nullptr;
@@ -584,6 +607,7 @@ int main() {
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
+        ui.setTalk(&talk);
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
@@ -614,6 +638,12 @@ int main() {
         }
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
+        talk.update(dt);
+        if (talk.locked()) { // talking to an NPC: the dialog panel has the buttons
+            in.pad.dx = 0;
+            in.pad.dy = 0;
+            in.held &= ~(KEY_A | KEY_B);
+        }
         if (minigame.active() || trolley.seated()) { // seated or in a game: the toon isn't walking
             if (trolley.seated() && (in.down & KEY_B)) trolley.hopOff(net);
             in.pad.dx = 0;
@@ -785,6 +815,14 @@ int main() {
                 fishing.handleEvent(ev);
                 battle.handleEvent(ev, net, nowMs);
                 trolley.handleEvent(ev, net, nowMs);
+                if (ev.type == tt::net::EventType::NpcMovie) {
+                    tt::net::NpcMovie movie;
+                    while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                } else if (ev.type == tt::net::EventType::NpcFree) {
+                    talk.onFree(ev.doId);
+                } else if (ev.type == tt::net::EventType::NpcDespawn) {
+                    talk.onNpcGone(ev.doId);
+                }
                 minigame.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
@@ -855,6 +893,30 @@ int main() {
                                                          tt::dc::DistributedNPCClerk::kClassId);
                 if (clerk && clerk != lastTouchedClerk && !shop.active() && fadeDir == 0) net.sendClerkAvatarEnter(clerk);
                 lastTouchedClerk = clerk;
+                // Quest givers: walking into one starts the conversation (DistributedNPCToon.avatarEnter).
+                u32 giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                   tt::dc::DistributedNPCToon::kClassId);
+                if (!giver) {
+                    giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                   tt::dc::DistributedNPCSpecialQuestGiver::kClassId);
+                }
+                if (giver && giver != lastTouchedQuestNpc && !talk.locked() && !shop.active() && fadeDir == 0) {
+                    talk.setLocal(net.avatarId(), net.avatarName());
+                    talk.begin(giver);
+                    TT_LOG("quest: talking to NPC %u", unsigned(giver));
+                }
+                lastTouchedQuestNpc = giver;
+                tt::quest::TalkAction ta;
+                while (talk.popAction(ta)) {
+                    switch (ta.kind) {
+                    case tt::quest::TalkAction::AvatarEnter: net.sendNpcAvatarEnter(ta.npcDoId); break;
+                    case tt::quest::TalkAction::ChooseQuest:
+                        net.sendChooseQuest(ta.npcDoId, static_cast<uint16_t>(ta.value));
+                        break;
+                    case tt::quest::TalkAction::ChooseTrack: net.sendChooseTrack(ta.npcDoId, static_cast<int8_t>(ta.value)); break;
+                    case tt::quest::TalkAction::MovieDone: net.sendNpcMovieDone(ta.npcDoId); break;
+                    }
+                }
             } else {
                 sentState = nullptr; // resend after (re)entering
                 netOnBoat = false;   // entering a zone sends setParent(render)
@@ -1043,6 +1105,11 @@ int main() {
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
             remoteToons.addBalloons(balloons, proj, view);
+            {
+                u32 talker = 0;
+                const char* said = talk.speech(&talker);
+                zoneActors.setSpeech(talker, said);
+            }
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
             suits.addBalloons(balloons, proj, view);
@@ -1139,6 +1206,7 @@ int main() {
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();
+        if (netStarted && net.inZone()) ctx.quests = &net.ownQuests();
         if (minigame.active()) {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);

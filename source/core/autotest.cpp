@@ -1,5 +1,7 @@
 #include "core/autotest.h"
 
+#include <cstring>
+
 #include <cstdio>
 
 #include "core/log.h"
@@ -58,6 +60,9 @@ const Step kScript[] = {
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go cashbot hq", "hq_cash"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go lawbot hq", "hq_law"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go bossbot hq", "hq_boss"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "toon hq: talk", "hq_talk"},
+    {14.0f, 0, 0, 0, 0, -1, -1, 0, "toon hq: choose", "hq_choice"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, 0, "tab: tasks", "tasks"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
@@ -91,10 +96,23 @@ bool Runner::begin() {
     frontEnd_ = f != nullptr;
     if (!f) f = fopen("sdmc:/3ds/toontown3ds/autotest", "r");
     if (!f) return false;
+    // Optional first line "from <label prefix>": skip ahead to that step (quicker iteration).
+    char line[64] = {};
+    const bool hasLine = fgets(line, sizeof(line), f) != nullptr;
     fclose(f);
     active_ = true;
     script_ = frontEnd_ ? kFrontEndScript : kScript;
     numSteps_ = frontEnd_ ? kFrontEndSteps : kWorldSteps;
+    if (hasLine && !strncmp(line, "from ", 5)) {
+        char* nl = strchr(line, '\n');
+        if (nl) *nl = 0;
+        for (int i = 0; i < numSteps_; i++) {
+            if (!strncmp(script_[i].label, line + 5, strlen(line + 5))) {
+                step_ = i;
+                break;
+            }
+        }
+    }
     TT_LOG("autotest: start %s script (%d steps)", frontEnd_ ? "front-end" : "world", numSteps_);
     return true;
 }
