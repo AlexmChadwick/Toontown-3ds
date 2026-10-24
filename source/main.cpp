@@ -769,6 +769,13 @@ int main() {
                 ctx.maxCarry = st.maxCarry;
             }
         }
+        {
+            // Baked minimap per exterior zone file: playgrounds by id, street cells by branch.
+            const u32 z = place.zoneId();
+            const tt::world::PlaceKind kind = tt::world::placeKind(z);
+            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? 0
+                          : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
+        }
         ui.draw(bottom, uiState, ctx);
 
         C3D_FrameEnd(0);
