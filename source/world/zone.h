@@ -43,7 +43,10 @@ public:
     void finishLoading(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
     // Renderer performs frustum culling; distance is measured to chunk AABB.
     void draw(render::Renderer& renderer, const Vec3& eye, float distance = 120.0f);
-    int cellAt(const Vec3& feet, float reach = kFloorReach) const; // -1 on miss
+    int cellAt(const Vec3& feet, float reach = kFloorReach) const; // -1 on miss; XY grid over the floors
+    // The same query as a scan of every floor; cellAt() must match it exactly (host tests
+    // and benchmarks only).
+    int cellAtReference(const Vec3& feet, float reach = kFloorReach) const;
     uint16_t zoneAt(const Vec3& feet, float reach = kFloorReach) const; // 0 on miss
     uint16_t currentZone() const;
     uint16_t branchZone() const;

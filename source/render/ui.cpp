@@ -8,6 +8,7 @@
 
 #include "core/log.h"
 #include "core/memory.h"
+#include "core/profile.h"
 
 namespace tt::ui {
 
@@ -394,7 +395,19 @@ void Ui::drawDebug(const Context& c) {
         } else {
             debugLine(8, 114, 0.45f, kDim, "offline  zone %u", c.zoneId);
         }
-        for (int i = 0; i < 4; i++) debugLine(8, 134 + i * 16, 0.4f, kDim, "%s", log::recent(3 - i));
+        // Main-thread CPU breakdown (core/profile.h): mean ms per frame over the last second.
+        // "wait" is the vblank/GPU sync, not CPU work; busy = total - wait.
+        debugLine(8, 130, 0.4f, prof::busyAvgMs() > 25.0f ? bad : good, "busy %.1f ms  (frame %.1f, wait %.1f)",
+                  static_cast<double>(prof::busyAvgMs()), static_cast<double>(prof::totalAvgMs()),
+                  static_cast<double>(prof::avgMs(prof::kWait)));
+        constexpr int kProfRows = 6;
+        for (int i = 0; i < prof::kCount; i++) {
+            const float ms = prof::avgMs(static_cast<prof::Section>(i));
+            const bool hot = ms > 4.0f && i != prof::kWait;
+            debugLine(8 + (i / kProfRows) * 106, 143 + (i % kProfRows) * 10, 0.34f, hot ? bad : kWhite, "%-6s %5.2f",
+                      prof::name(static_cast<prof::Section>(i)), static_cast<double>(ms));
+        }
+        debugLine(8, 199, 0.34f, kDim, "%s", log::recent(0));
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];

@@ -118,6 +118,48 @@ bool validModel(FILE* f, const Chunk& c) {
 } // namespace
 
 
+// Uniform XY grid over the floor triangles, so cellAt() (run every frame by update()) tests
+// the few triangles that can contain the point instead of every floor of the zone. Each
+// grid cell lists the floors whose padded XY bounding box touches it, in ascending floor
+// index, so the first-best tie-break of the full scan is unchanged.
+struct FloorGrid {
+    float ox = 0, oy = 0, inv = 0;
+    int w = 0, h = 0;
+    uint32_t* start = nullptr; // w*h+1 offsets into items
+    uint32_t* items = nullptr;
+};
+constexpr float kGridMinCell = 8.0f;
+constexpr int kGridMaxDim = 64;
+constexpr uint32_t kGridMaxItems = 1u << 20; // 4 MB; beyond this the full scan is used
+
+// The barycentric test accepts a point up to 1e-5 of a triangle's size outside it.
+void floorBounds(const Floor& f, float* x0, float* y0, float* x1, float* y1) {
+    float lx=f.p[0],hx=f.p[0],ly=f.p[1],hy=f.p[1];
+    for (int i=1;i<3;++i) {
+        lx=std::min(lx,f.p[3*i]); hx=std::max(hx,f.p[3*i]);
+        ly=std::min(ly,f.p[3*i+1]); hy=std::max(hy,f.p[3*i+1]);
+    }
+    const float pad=1e-4f*std::max(hx-lx,hy-ly)+0.01f;
+    *x0=lx-pad; *y0=ly-pad; *x1=hx+pad; *y1=hy+pad;
+}
+void gridRange(const FloorGrid& g,float x0,float y0,float x1,float y1,int* cx0,int* cy0,int* cx1,int* cy1) {
+    auto clampi=[](int v,int hi) { return v<0 ? 0 : (v>hi ? hi : v); };
+    *cx0=clampi(static_cast<int>((x0-g.ox)*g.inv),g.w-1); *cx1=clampi(static_cast<int>((x1-g.ox)*g.inv),g.w-1);
+    *cy0=clampi(static_cast<int>((y0-g.oy)*g.inv),g.h-1); *cy1=clampi(static_cast<int>((y1-g.oy)*g.inv),g.h-1);
+}
+// Same arithmetic as the original full scan; both paths call it.
+inline void testFloor(const Floor& f,const Vec3& feet,float reach,float* best,int* result) {
+    const float* a=f.p; const float* b=f.p+3; const float* c=f.p+6;
+    const float den=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
+    if (fabsf(den)<1e-8f) return;
+    const float u=((b[1]-c[1])*(feet.x-c[0])+(c[0]-b[0])*(feet.y-c[1]))/den;
+    const float v=((c[1]-a[1])*(feet.x-c[0])+(a[0]-c[0])*(feet.y-c[1]))/den;
+    const float h=u*a[2]+v*b[2]+(1-u-v)*c[2];
+    if (u>=-1e-5f && v>=-1e-5f && u+v<=1.00001f && h<=feet.z+reach && h>*best) {
+        *best=h; *result=f.cell;
+    }
+}
+
 // Chunk models are read by a loader thread (core 0, below the main thread's priority,
 // like ToonCache) into staging models; the main thread swaps them in from update().
 // The open .tz is only read by that thread once load() has returned.
@@ -127,6 +169,7 @@ struct Zone::Impl {
     Chunk* chunks = nullptr;
     uint16_t* vis = nullptr;
     Floor* floors = nullptr;
+    FloorGrid grid;
     Trigger* triggers = nullptr;
     bool resident[kMaxChunks] = {};
     uint8_t lod[kMaxChunks] = {};
@@ -181,6 +224,49 @@ void loaderMain(void* arg) {
 } // namespace
 #endif
 
+namespace {
+// Best effort: on any failure the grid stays empty and cellAt() scans every floor.
+void buildFloorGrid(Zone::Impl& z) {
+    const uint32_t n=z.h.floors;
+    if (!n) return;
+    float lx=INFINITY,ly=INFINITY,hx=-INFINITY,hy=-INFINITY;
+    for (uint32_t i=0;i<n;++i) {
+        float a,b,c,d;
+        floorBounds(z.floors[i],&a,&b,&c,&d);
+        lx=std::min(lx,a); ly=std::min(ly,b); hx=std::max(hx,c); hy=std::max(hy,d);
+    }
+    const float cell=std::max(kGridMinCell,std::max(hx-lx,hy-ly)/kGridMaxDim);
+    FloorGrid g;
+    g.ox=lx; g.oy=ly; g.inv=1.0f/cell;
+    g.w=static_cast<int>((hx-lx)*g.inv)+1; g.h=static_cast<int>((hy-ly)*g.inv)+1;
+    if (g.w<1 || g.h<1 || g.w>kGridMaxDim+1 || g.h>kGridMaxDim+1) return;
+    const size_t cells=static_cast<size_t>(g.w)*g.h;
+    uint32_t* start=static_cast<uint32_t*>(calloc(cells+1,sizeof(uint32_t)));
+    if (!start) return;
+    uint64_t total=0;
+    for (uint32_t i=0;i<n;++i) {
+        float a,b,c,d; int x0,y0,x1,y1;
+        floorBounds(z.floors[i],&a,&b,&c,&d);
+        gridRange(g,a,b,c,d,&x0,&y0,&x1,&y1);
+        for (int y=y0;y<=y1;++y) for (int x=x0;x<=x1;++x) { ++start[static_cast<size_t>(y)*g.w+x+1]; ++total; }
+    }
+    uint32_t* items=total<=kGridMaxItems ? static_cast<uint32_t*>(malloc(static_cast<size_t>(total ? total : 1)*sizeof(uint32_t))) : nullptr;
+    if (!items) { free(start); return; }
+    for (size_t i=0;i<cells;++i) start[i+1]+=start[i];
+    // Fill with a moving cursor per cell, then restore the offsets (shift back by one).
+    for (uint32_t i=0;i<n;++i) {
+        float a,b,c,d; int x0,y0,x1,y1;
+        floorBounds(z.floors[i],&a,&b,&c,&d);
+        gridRange(g,a,b,c,d,&x0,&y0,&x1,&y1);
+        for (int y=y0;y<=y1;++y) for (int x=x0;x<=x1;++x) items[start[static_cast<size_t>(y)*g.w+x]++]=i;
+    }
+    for (size_t i=cells;i>0;--i) start[i]=start[i-1];
+    start[0]=0;
+    g.start=start; g.items=items;
+    z.grid=g;
+}
+} // namespace
+
 Zone::~Zone() { unload(); }
 bool Zone::fail(const char* message) {
     snprintf(error_,sizeof(error_),"%s",message);
@@ -201,6 +287,7 @@ void Zone::unload() {
     collision_.unload();
     if (impl_->file) fclose(impl_->file);
     free(impl_->chunks); free(impl_->vis); free(impl_->floors); free(impl_->triggers);
+    free(impl_->grid.start); free(impl_->grid.items);
     delete impl_;
     impl_ = nullptr;
 }
@@ -308,6 +395,7 @@ bool Zone::load(const char* path) {
     z.thread = threadCreate(loaderMain, &z, 32 * 1024, 0x31, 0, false);
     if (!z.thread) { unload(); return fail("zone: cannot start loader thread"); }
 #endif
+    buildFloorGrid(z);
     bool firstBounds=true;
     for (uint32_t i=0;i<h.chunks;++i) if (z.chunks[i].size) {
         for (int a=0;a<3;++a) {
@@ -322,20 +410,22 @@ bool Zone::load(const char* path) {
 int Zone::cellAt(const Vec3& feet,float reach) const {
     if (!impl_ || !std::isfinite(feet.x) || !std::isfinite(feet.y) || !std::isfinite(feet.z) ||
         !std::isfinite(reach) || reach<0) return -1;
+    const FloorGrid& g=impl_->grid;
+    if (!g.start) return cellAtReference(feet,reach);
+    const float fx=(feet.x-g.ox)*g.inv,fy=(feet.y-g.oy)*g.inv;
+    if (!(fx>=0 && fy>=0 && fx<static_cast<float>(g.w) && fy<static_cast<float>(g.h))) return -1; // no padded floor box here
+    const size_t at=static_cast<size_t>(static_cast<int>(fy))*g.w+static_cast<size_t>(static_cast<int>(fx));
     float best=-INFINITY;
     int result=-1;
-    for (uint32_t i=0;i<impl_->h.floors;++i) {
-        const Floor& f=impl_->floors[i];
-        const float* a=f.p; const float* b=f.p+3; const float* c=f.p+6;
-        const float den=(b[1]-c[1])*(a[0]-c[0])+(c[0]-b[0])*(a[1]-c[1]);
-        if (fabsf(den)<1e-8f) continue;
-        const float u=((b[1]-c[1])*(feet.x-c[0])+(c[0]-b[0])*(feet.y-c[1]))/den;
-        const float v=((c[1]-a[1])*(feet.x-c[0])+(a[0]-c[0])*(feet.y-c[1]))/den;
-        const float h=u*a[2]+v*b[2]+(1-u-v)*c[2];
-        if (u>=-1e-5f && v>=-1e-5f && u+v<=1.00001f && h<=feet.z+reach && h>best) {
-            best=h; result=f.cell;
-        }
-    }
+    for (uint32_t k=g.start[at];k<g.start[at+1];++k) testFloor(impl_->floors[g.items[k]],feet,reach,&best,&result);
+    return result;
+}
+int Zone::cellAtReference(const Vec3& feet,float reach) const {
+    if (!impl_ || !std::isfinite(feet.x) || !std::isfinite(feet.y) || !std::isfinite(feet.z) ||
+        !std::isfinite(reach) || reach<0) return -1;
+    float best=-INFINITY;
+    int result=-1;
+    for (uint32_t i=0;i<impl_->h.floors;++i) testFloor(impl_->floors[i],feet,reach,&best,&result);
     return result;
 }
 uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
