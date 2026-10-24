@@ -131,6 +131,8 @@ enum class EventType : uint8_t {
     LevelGone,
     FacilityUp,       // DistributedMint / Stage / CountryClub (the floor) generated or changed
     FacilityGone,
+    FacilityNextFloor, // setStageZone / setCountryClubZone (arg: the next floor's zone); the AI
+                       // deletes the floor object right after, so the zone travels in the event
     LevelSuitUp,      // DistributedFactorySuit / MintSuit / StageSuit generated (client_level.cpp)
     LevelSuitState,   // setConfrontToon / setReturn / setHP / setReserve ...
     LevelSuitGone,
@@ -329,6 +331,9 @@ struct CogElevator {
     uint16_t classId = 0;
     int8_t origin = -1;
     uint32_t destZone = 0;
+    // DistributedCogKart (Bossbot HQ golf karts to the country clubs): placed by setPosHpr.
+    float x = 0, y = 0, z = 0, h = 0;
+    bool hasPose = false;
     bool active = false;
 };
 constexpr int kMaxCogElevators = 8;
@@ -381,6 +386,18 @@ struct Facility {
     uint8_t numRooms = 0;
     bool active = false;
 };
+// DistributedElevatorFloor (DA offices) / DistributedClubElevator (country clubs): the elevator to
+// the next floor, latched onto a room's elevatorMarker entity (setLatch: the marker's doId).
+struct LevelElevator {
+    uint32_t doId = 0, latch = 0;
+    bool club = false;       // DistributedClubElevator (ELEVATOR_COUNTRY_CLUB timings)
+    bool locked = true;      // setLocked: closed until the floor's last battle is won
+    char state[16] = {};     // DistributedElevatorFSM.setState: Opening, WaitEmpty, Closing, ...
+    uint32_t stateMs = 0;
+    uint32_t slots[8] = {};
+    bool active = false;
+};
+constexpr int kMaxLevelElevators = 4;
 
 // ---- facility level Cogs and battle blockers (client_level.cpp, docs/design/levels.md) ----
 // DistributedFactorySuit (and its Mint/Stage subclasses): the spec cogId names its spawn pose,
@@ -1123,6 +1140,8 @@ public:
     const LevelObj* levelObj(uint32_t doId) const;
     const LevelObj& levelSlot(int n) const { return levels_[n]; }
     const Facility* facility() const { return facility_.active ? &facility_ : nullptr; }
+    const LevelElevator& levelElevatorSlot(int n) const { return levelElevators_[n]; }
+    bool sendLevelElevatorBoard(uint32_t doId); // DistributedElevatorFSM.requestBoard
     const LevelSuit& levelSuitSlot(int n) const { return levelSuits_[n]; }
     const LevelSuit* findLevelSuit(uint32_t doId) const;
     // Name / level / HP of any cog we know: a street DistributedSuit or a level cog.
@@ -1568,6 +1587,7 @@ private:
     CogInterior cogInterior_{};
     LevelObj levels_[kMaxLevels] = {};
     Facility facility_{};
+    LevelElevator levelElevators_[kMaxLevelElevators] = {};
     LevelSuit levelSuits_[kMaxLevelSuits] = {};
     LevelBattlePlacer levelBattlePlacer_ = nullptr;
     void* levelBattlePlacerUser_ = nullptr;
@@ -1625,6 +1645,7 @@ private:
     bool applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_t fieldId);
     bool applyLevelObjField(LevelObj& l, DatagramReader& r, uint16_t fieldId);
     bool applyFacilityField(Facility& f, DatagramReader& r, uint16_t fieldId);
+    bool applyLevelElevatorField(LevelElevator& e, DatagramReader& r, uint16_t fieldId);
     void clearGolfObjects();
     void pushEventArg(EventType type, uint32_t doId, int32_t arg);
     uint8_t ownDna_[kDnaSize] = {};

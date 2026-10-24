@@ -48,6 +48,24 @@ also parents a `DoorFrame`).
   zone, every room's zones]` (rooms have no per-room visibility).
 - **Win.** `setDefeated` of any room ends the floor, and the toon teleports to the hood
   (`ZoneUtil.getHoodId`: 12500 -> 12000, 13300 -> 13000, 10500 -> 10000).
+- **Entering.**
+  - Mints and DA offices: HQ elevators at `elevator_origin_<n>` anchors.
+  - Country clubs: the Bossbot golf karts (`DistributedCogKart`). Each is placed by
+    `setPosHpr`, drives up 10 units over 5 s when it opens, and drives away 45 units along
+    heading − 90 when it closes; `setCountryClubInteriorZone` sends the riders.
+- **DA office floors.** `DistributedStageAI` puts a `DistributedElevatorFloor` on each
+  `elevatorMarker` entity (`setLatch`).
+  - The client draws `LB_ElevatorScaled` there with the `ELEVATOR_STAGE` door timings (4 s,
+    width 6.5) and its collision polygons as solids (the doorway blocks while the doors are
+    shut).
+  - Walking into its 9.5 sphere sends `requestBoard`; `fillSlot` seats the toon at
+    `ElevatorPoints[slot]` facing out.
+  - When it leaves, `DistributedStage.setStageZone` names the next floor's zone, and the
+    client moves there; the new stage and its rooms load like the first floor.
+  - The AI deletes the old floor object in the same instant it sends the zone, so the zone
+    travels in its own event (`FacilityNextFloor`) rather than on the `Facility`.
+  - Country clubs do the same with `DistributedClubElevator` and `setCountryClubZone`
+    (`ELEVATOR_COUNTRY_CLUB`: doors in 2 s, width 5.875, board radius 4).
 
 ## Zones and visibility (otp/level/DistributedLevel)
 
@@ -97,8 +115,6 @@ goons are boxes (or discs) in an entity's space, rebuilt each frame *before* the
 - cut scenes
 - the foreman confrontation message
 - ambient sounds
-- multi-floor DA offices and country clubs (`DistributedLawOfficeElevatorInt` /
-  `DistributedClubElevator` to the next floor); every floor itself is baked
 - room-specific games: mazes, laser fields, security cameras, mole fields, golf greens
 
 ## Verify in Azahar (`AI_DEV=1`; `AI_DEV_STRONG=1` / `AI_DEV_WEAK_COGS=1` for the bosses)

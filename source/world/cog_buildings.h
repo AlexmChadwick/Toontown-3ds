@@ -33,6 +33,7 @@ private:
     static constexpr int kMaxAnchors = 16;
     Anchor anchors_[kMaxAnchors] = {};
     Shell shells_[4];
+    render::Model kart_; // DistributedCogKart (Coggolf_cart3)
     uint32_t zone_ = 0;
     uint32_t requestedElevator_ = 0;
     // Cog HQ facility elevators: elevator_origin_<n> anchors of the HQ zone (.pts).

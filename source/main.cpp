@@ -611,10 +611,6 @@ int main() {
                 net.sendGolfKartBoard();
             }
         }
-        if (autotest.active() && !strcmp(autotest.label(), "go factory") && place.zoneId() != 11200 &&
-            !uiState.teleportRequest && fadeDir == 0) {
-            uiState.teleportRequest = 11200; // test-only: Sellbot factory exterior
-        }
         if (autotest.active() && !strncmp(autotest.label(), "go speedway", 11) &&
             place.zoneId() != 8000 && !uiState.teleportRequest && fadeDir == 0) {
             uiState.teleportRequest = 8000;
@@ -623,23 +619,34 @@ int main() {
             autotest.stepBegan()) {
             in.down |= KEY_A;
         }
-        if (autotest.active() && !strcmp(autotest.label(), "go mint") && place.zoneId() != 12000 &&
-            !uiState.teleportRequest && fadeDir == 0) {
-            uiState.teleportRequest = 12000; // test-only: Cashbot HQ courtyard (the mint elevators)
-        }
-        {
-            // Test-only: step into the factory elevator / the Coin Mint's (DistributedMintElevatorExt
-            // origin 1: CashbotMintIntA), re-trying every 6 s.
-            const bool factory = !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200;
-            const bool mint = !strcmp(autotest.label(), "mint: board") && place.zoneId() == 12000;
-            const tt::world::Place::Point* p =
-                autotest.active() && (factory || mint) && !level.active()
-                    ? place.point(factory ? "elevator_origin_0" : "elevator_origin_1")
-                    : nullptr;
+        if (autotest.active() && !level.active()) {
+            // Test-only: step into a facility's elevator, re-trying every 6 s: the factory's, the Coin
+            // Mint's (DistributedMintElevatorExt origin 1: CashbotMintIntA), DA Office A's
+            // (DistributedLawOfficeElevatorExt entrance 0), or the first Bossbot golf kart
+            // (DistributedCogKart, placed by setPosHpr).
+            struct Board { const char* label; u32 zone; const char* anchor; };
+            static const Board kBoards[] = {{"factory: board", 11200, "elevator_origin_0"},
+                                            {"mint: board", 12000, "elevator_origin_1"},
+                                            {"da office: board", 13200, "elevator_origin_0"},
+                                            {"club: board", 10000, nullptr}};
             static u32 boardNextMs = 0;
-            if (p && tt::net::plat::nowMs() > boardNextMs) {
-                player.reset(p->x, p->y, p->z + 0.5f, p->h);
-                boardNextMs = tt::net::plat::nowMs() + 6000;
+            for (const Board& b : kBoards) {
+                if (strcmp(autotest.label(), b.label) || place.zoneId() != b.zone || tt::net::plat::nowMs() < boardNextMs)
+                    continue;
+                float bx = 0, by = 0, bz = 0, bh = 0;
+                bool found = false;
+                if (const tt::world::Place::Point* p = b.anchor ? place.point(b.anchor) : nullptr) {
+                    bx = p->x, by = p->y, bz = p->z, bh = p->h;
+                    found = true;
+                }
+                for (int n = 0; !b.anchor && !found && netStarted && n < tt::net::kMaxCogElevators; ++n) {
+                    const tt::net::CogElevator& e = net.cogElevatorSlot(n);
+                    if (e.active && e.hasPose) bx = e.x, by = e.y, bz = e.z, bh = e.h, found = true;
+                }
+                if (found) {
+                    player.reset(bx, by, bz + 0.5f, bh);
+                    boardNextMs = tt::net::plat::nowMs() + 6000;
+                }
             }
         }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
@@ -654,17 +661,16 @@ int main() {
             }
         }
         if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
-            // Test-only: teleport straight to a Cog HQ courtyard (upstream gets there by tunnel).
-            static const char* lastGo = nullptr;
-            const char* lbl = autotest.label();
-            if (lbl != lastGo) {
-                lastGo = lbl;
-                uiState.teleportRequest = !strcmp(lbl, "go sellbot hq")   ? 11000
-                                          : !strcmp(lbl, "go cashbot hq") ? 12000
-                                          : !strcmp(lbl, "go lawbot hq")  ? 13000
-                                          : !strcmp(lbl, "go speedway")   ? 8000
-                                                                          : 10000;
-            }
+            // Test-only: teleport straight to a Cog HQ courtyard or a facility's entrance (upstream
+            // gets there by tunnels and doors). "go speedway", "go fishing" and "go home" have their own.
+            struct Go { const char* label; u32 zone; };
+            static const Go kGo[] = {{"go sellbot hq", 11000}, {"go cashbot hq", 12000},  {"go lawbot hq", 13000},
+                                     {"go bossbot hq", 10000}, {"go factory", 11200},     {"go mint", 12000},
+                                     {"go da office", 13200},  {"go country club", 10000}};
+            for (const Go& g : kGo)
+                if (!strcmp(autotest.label(), g.label) && place.zoneId() != g.zone && !uiState.teleportRequest &&
+                    fadeDir == 0)
+                    uiState.teleportRequest = g.zone;
         }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
             float cx, cy, cz;
@@ -730,7 +736,13 @@ int main() {
                     player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
                 }
             }
-            if (!strcmp(autotest.label(), "mint: walk")) {
+            const char* label = autotest.label();
+            auto facilityStep = [label](const char* step) { // "mint: <step>", "da office: <step>", "club: <step>"
+                const char* colon = strstr(label, ": ");
+                return colon && !strcmp(colon + 2, step) &&
+                       (!strncmp(label, "mint", 4) || !strncmp(label, "da office", 9) || !strncmp(label, "club", 4));
+            };
+            if (facilityStep("walk")) {
                 // Test-only: through the floor one piece (room or hallway) every 2 s.
                 static u32 walkNextMs = 0;
                 static int walkPiece = 0;
@@ -740,17 +752,29 @@ int main() {
                 if (now >= walkNextMs && walkPiece < level.numPieces() &&
                     level.pieceCenter(walkPiece, &px, &py, &pz)) {
                     player.reset(px, py, pz + 1.0f, 0.0f);
-                    TT_LOG("autotest: mint piece %d of %d", walkPiece, level.numPieces());
+                    TT_LOG("autotest: floor piece %d of %d", walkPiece, level.numPieces());
                     walkPiece++;
                     walkNextMs = now + 2000;
                 }
             }
-            if (!strcmp(autotest.label(), "mint: boss") && autotest.stepBegan()) {
+            if (facilityStep("next floor")) {
+                // Into the floor elevator's doors (again after any battle there) until we have a seat.
+                static u32 elevatorNextMs = 0;
+                const u32 now = tt::net::plat::nowMs();
+                if (autotest.stepBegan()) elevatorNextMs = 0;
+                float ex, ey, ez, eh;
+                if (!level.aboardElevator() && now >= elevatorNextMs &&
+                    level.elevatorPosition(&ex, &ey, &ez, &eh)) {
+                    player.reset(ex, ey, ez + 0.5f, eh);
+                    elevatorNextMs = now + 10000;
+                }
+            }
+            if (facilityStep("boss") && autotest.stepBegan()) {
                 float fx, fy, fz;
                 if (level.foremanPosition(&fx, &fy, &fz)) player.reset(fx, fy - 6.0f, fz + 0.3f, 0.0f); // walk in
             }
             const bool look = !strcmp(autotest.label(), "factory: entities");
-            const bool fight = !strcmp(autotest.label(), "factory: battle") || !strcmp(autotest.label(), "mint: battle");
+            const bool fight = !strcmp(autotest.label(), "factory: battle") || facilityStep("battle");
             if ((look || fight) && level.nearestCog(player.x(), player.y(), player.z(), &cx, &cy, &cz)) {
                 if (look) autotestFace(cx, cy, cz, 12.0f);
                 else player.reset(cx, cy - 0.5f, cz, 0.0f);
@@ -912,6 +936,15 @@ int main() {
         if (level.active() && netStarted && net.inZone()) {
             level.update(net, suits, player.x(), player.y(), player.z(), dt, tt::net::plat::nowMs(),
                          battle.idle() && fadeDir == 0, &levelAction);
+            float sx, sy, sz, sh;
+            if (level.popSeat(&sx, &sy, &sz, &sh)) player.reset(sx, sy, sz, sh); // a floor elevator seat
+        }
+        // A DA office / country club floor elevator left with us: ride to the next floor's zone
+        // (the old floor is already gone; the new one and its rooms load there like the first).
+        if (const u32 next = netStarted && net.inZone() ? level.popNextFloorZone() : 0) {
+            TT_LOG("elevator: riding to the next floor, zone %lu", static_cast<unsigned long>(next));
+            net.changeZone(next);
+            remoteToons.clear();
         }
         player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
         {

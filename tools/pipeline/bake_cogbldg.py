@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake the stock Cog-building shell, elevator, and phase-7 floor modules.
+"""Bake the stock Cog-building shell, elevator, the Bossbot golf kart and phase-7 floor modules.
 
 The output is deliberately a small streamed set: one department shell, one elevator,
 and three reusable floor rooms.  The source models are read-only; all generated files
@@ -72,6 +72,8 @@ def main():
         "floor_0": resources / "phase_7/models/modules/suit_interior.bam",
         "floor_1": resources / "phase_7/models/modules/cubicle_room.bam",
         "floor_2": resources / "phase_7/models/modules/boss_suit_office.bam",
+        # DistributedCogKart.kartModelPath: the Bossbot HQ golf karts (country-club elevators).
+        "cog_kart": resources / "phase_12/models/bossbotHQ/Coggolf_cart3.bam",
     }
     # The same shell geometry is recoloured by the server department at runtime; keeping
     # four named copies makes the SD contract explicit and permits department overrides later.

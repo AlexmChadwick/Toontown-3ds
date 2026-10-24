@@ -6,6 +6,7 @@
 #include <cstdio>
 
 #include "core/log.h"
+#include "net/net_platform.h"
 #include "world/place.h"
 
 namespace tt::world {
@@ -31,6 +32,27 @@ void CogBuildings::setZone(uint32_t zone) {
         shells_[i].dept = static_cast<int8_t>(i);
         shells_[i].loaded = shells_[i].model.load(path);
     }
+    kart_.unload();
+    if (zone == 10000) kart_.load("sdmc:/3ds/toontown3ds/data/cogbldg/cog_kart.ttm"); // Bossbot HQ
+}
+
+// DistributedCogKart.announceGenerate: it drives up from 10 below its spot as the doors "open"
+// (trolleyEnterTrack, 5 s) and away 45 units along heading - 90 as they "close"
+// (trolleyExitTrack, 5 s, to z 0.5); gone while closed. False while it is away.
+static bool kartPose(const net::CogElevator& e, uint32_t nowMs, float* x, float* y, float* z) {
+    const float t = int32_t(nowMs - e.stateStartMs) / 1000.0f / 5.0f;
+    const float u = t < 0 ? 0 : t > 1 ? 1 : t;
+    *x = e.x, *y = e.y, *z = e.z;
+    if (!strcmp(e.state, "opening")) {
+        *z = e.z - 10.0f * (1.0f - u);
+    } else if (!strcmp(e.state, "closing")) {
+        const float a = (e.h - 90.0f) * kDegToRad;
+        *x = e.x + 45.0f * std::cos(a) * u, *y = e.y + 45.0f * std::sin(a) * u;
+        *z = e.z + (0.5f - e.z) * u;
+    } else if (!strcmp(e.state, "closed") || !strcmp(e.state, "off") || !e.state[0]) {
+        return false;
+    }
+    return true;
 }
 
 void CogBuildings::syncAnchors(const Place& place) {
@@ -89,10 +111,14 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
                 if (inside != lastDest_) pendingDest_ = lastDest_ = inside;
             }
         }
-        // Facility elevators stand at the HQ's elevator_origin_<n> anchors.
-        if (e.origin >= 0 && e.origin < kMaxSpots && spots_[e.origin].used && !aboard && requestedElevator_ == 0) {
-            const Spot& s = spots_[e.origin];
-            const float dx = x - s.x, dy = y - s.y, dz = z - s.z;
+        // Facility elevators stand at the HQ's elevator_origin_<n> anchors; the Bossbot golf
+        // karts (DistributedCogKart) where their setPosHpr puts them.
+        const bool anchored = e.origin >= 0 && e.origin < kMaxSpots && spots_[e.origin].used;
+        if ((anchored || e.hasPose) && !aboard && requestedElevator_ == 0) {
+            const float sx = e.hasPose ? e.x : spots_[e.origin].x;
+            const float sy = e.hasPose ? e.y : spots_[e.origin].y;
+            const float sz = e.hasPose ? e.z : spots_[e.origin].z;
+            const float dx = x - sx, dy = y - sy, dz = z - sz;
             if (dx * dx + dy * dy + dz * dz < kBoardRadius * kBoardRadius && client.sendCogElevatorBoard(e.doId)) {
                 requestedElevator_ = e.doId;
                 requestMs_ = nowMs;
@@ -116,6 +142,16 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
 }
 
 void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) const {
+    for (int n = 0; kart_.loaded() && n < net::kMaxCogElevators; ++n) {
+        const net::CogElevator& e = client.cogElevatorSlot(n);
+        float kx, ky, kz;
+        if (!e.active || !e.hasPose || !kartPose(e, net::plat::nowMs(), &kx, &ky, &kz)) continue;
+        C3D_Mtx m;
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, kx, ky, kz, true);
+        Mtx_RotateZ(&m, e.h * kDegToRad, true);
+        renderer.drawModel(const_cast<render::Model&>(kart_), m);
+    }
     for (int n = 0; n < net::kMaxCogBuildings; ++n) {
         const net::CogBuilding& b = client.cogBuildingSlot(n);
         if (!b.active || b.state != net::CogBuildingState::Suit) continue;

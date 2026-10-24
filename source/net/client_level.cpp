@@ -129,7 +129,35 @@ bool Client::applyFacilityField(Facility& f, DatagramReader& r, uint16_t fieldId
         f.floorNum = r.u8();
     else if (fieldId == M::k_setRoomDoIds || fieldId == S::k_setRoomDoIds || fieldId == C::k_setRoomDoIds)
         f.numRooms = uint8_t(readIds(r, f.roomDoIds, kMaxLevels));
-    else return skipField(r, fieldId); // setBlockedRooms, setStageZone, elevatorAlert, ...
+    else if (fieldId == S::k_setStageZone || fieldId == C::k_setCountryClubZone) {
+        const uint32_t zone = r.u32(); // to the riders of the floor elevator, as the floor closes
+        if (r.ok()) pushEventArg(EventType::FacilityNextFloor, f.doId, int32_t(zone));
+    }
+    else return skipField(r, fieldId); // setBlockedRooms, elevatorAlert, ...
+    return r.ok();
+}
+
+bool Client::applyLevelElevatorField(LevelElevator& e, DatagramReader& r, uint16_t fieldId) {
+    namespace E = dc::DistributedElevatorFSM;
+    if (fieldId == E::k_setState) {
+        r.string(e.state, sizeof(e.state));
+        const int16_t ts = r.i16();
+        e.stateMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else if (fieldId >= E::k_fillSlot0 && fieldId <= E::k_fillSlot7) {
+        e.slots[fieldId - E::k_fillSlot0] = r.u32();
+    } else if (fieldId >= E::k_emptySlot0 && fieldId <= E::k_emptySlot7) {
+        e.slots[fieldId - E::k_emptySlot0] = 0;
+        r.u32();
+        r.u8();
+        r.i16();
+    } else if (fieldId == E::k_rejectBoard) {
+        r.u32();
+        TT_LOG("net: floor elevator %u rejected us (reason %u)", unsigned(e.doId), unsigned(r.u8()));
+    } else if (fieldId == dc::DistributedElevatorFloor::k_setLocked || fieldId == dc::DistributedClubElevator::k_setLocked) {
+        e.locked = r.u16() != 0;
+    } else if (fieldId == dc::DistributedElevatorFloor::k_setLatch || fieldId == dc::DistributedClubElevator::k_setLatch) {
+        e.latch = r.u32();
+    } else return skipField(r, fieldId); // setBldgDoId, setFloor, setEntering, kickToonsOut, ...
     return r.ok();
 }
 
@@ -283,13 +311,37 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
         pushEvent(EventType::FacilityUp, doId);
         return true;
     }
+    if (classId == dc::DistributedElevatorFloor::kClassId || classId == dc::DistributedClubElevator::kClassId) {
+        LevelElevator tmp{};
+        tmp.doId = doId;
+        tmp.club = classId == dc::DistributedClubElevator::kClassId;
+        bool ok = true;
+        for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyLevelElevatorField(tmp, r, req[i]);
+        if (ok && other) {
+            const uint16_t n = r.u16();
+            for (uint16_t i = 0; i < n && ok; ++i) ok = applyLevelElevatorField(tmp, r, r.u16());
+        }
+        if (!ok || !r.ok()) return true;
+        LevelElevator* slot = nullptr;
+        for (LevelElevator& e : levelElevators_)
+            if (e.active && e.doId == doId) slot = &e;
+        for (LevelElevator& e : levelElevators_)
+            if (!slot && !e.active) slot = &e;
+        if (!slot) return true;
+        tmp.active = true;
+        *slot = tmp;
+        TT_LOG("net: floor elevator %u on marker %u (%s)", unsigned(doId), unsigned(tmp.latch),
+               tmp.locked ? "locked" : "open");
+        return true;
+    }
     const dc::ClassDesc* cls = findClass(classId);
     const bool suit = isLevelSuitClass(classId);
     const bool blocker = !suit && cls && classHasField(*cls, dc::BattleBlocker::k_setBattle);
     if (classId == dc::DistributedDoorEntity::kClassId || classId == dc::DistributedButton::kClassId ||
         classId == dc::DistributedStomper::kClassId || classId == dc::DistributedLift::kClassId ||
         classId == dc::DistributedGagBarrel::kClassId || classId == dc::DistributedBeanBarrel::kClassId ||
-        classId == dc::DistributedHealBarrel::kClassId || classId == dc::DistributedGoon::kClassId) {
+        classId == dc::DistributedHealBarrel::kClassId || classId == dc::DistributedGoon::kClassId ||
+        classId == dc::DistributedElevatorMarker::kClassId) {
         LevelEntityObj tmp{};
         tmp.doId = doId;
         tmp.classId = classId;
@@ -369,6 +421,11 @@ bool Client::handleLevelField(DatagramReader& r, uint32_t doId, uint16_t fieldId
         if (applyFacilityField(facility_, r, fieldId)) pushEvent(EventType::FacilityUp, doId);
         return true;
     }
+    for (LevelElevator& e : levelElevators_) {
+        if (!e.active || e.doId != doId) continue;
+        applyLevelElevatorField(e, r, fieldId);
+        return true;
+    }
     for (LevelSuit& s : levelSuits_) {
         if (!s.active || s.doId != doId) continue;
         if (applyLevelSuitField(s, r, fieldId)) pushEvent(EventType::LevelSuitState, doId);
@@ -399,6 +456,11 @@ bool Client::handleLevelLeaving(uint32_t doId) {
         pushEvent(EventType::FacilityGone, doId);
         return true;
     }
+    for (LevelElevator& e : levelElevators_) {
+        if (!e.active || e.doId != doId) continue;
+        e = LevelElevator{};
+        return true;
+    }
     for (LevelSuit& s : levelSuits_) {
         if (!s.active || s.doId != doId) continue;
         s = LevelSuit{};
@@ -426,6 +488,7 @@ void Client::clearLevelObjects() {
     }
     if (facility_.active) pushEvent(EventType::FacilityGone, facility_.doId);
     facility_ = Facility{};
+    for (LevelElevator& e : levelElevators_) e = LevelElevator{};
     for (LevelSuit& s : levelSuits_) {
         if (s.active) pushEvent(EventType::LevelSuitGone, s.doId);
         s = LevelSuit{};
@@ -500,6 +563,14 @@ bool Client::sendLevelLiftRider(uint32_t doId, bool enter) {
     } else {
         TT_NET_UPDATE(w, doId, DistributedLift, setAvatarLeave);
     }
+    return finish(w);
+}
+
+bool Client::sendLevelElevatorBoard(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedElevatorFSM, requestBoard);
+    TT_LOG("net: requestBoard floor elevator %u", unsigned(doId));
     return finish(w);
 }
 

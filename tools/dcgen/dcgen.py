@@ -329,7 +329,18 @@ WANTED['DistributedCountryClub'] = ['setZoneId', 'setBlockedRooms', 'setCountryC
 WANTED['DistributedCountryClubRoom'] = ['setCountryClubId', 'setRoomId', 'setRoomNum', 'setSuits',
                                         'setBossConfronted', 'setDefeated', 'forceOuch']
 WANTED['DistributedCountryClubBattle'] = []
+# The Bossbot HQ golf karts are the country clubs' elevators (DistributedCogKart).
+WANTED['DistributedCogKart'] = ['setCountryClubId', 'setPosHpr', 'setCountryClubInteriorZone',
+                                'setCountryClubInteriorZoneForce']
 TABLE_CLASSES += ['DistributedCountryClub', 'DistributedCountryClubRoom', 'DistributedCountryClubBattle']
+# DA office floors: the elevator to the next floor, latched onto a room's elevatorMarker.
+WANTED['DistributedElevatorFSM'] = ['setState', 'fillSlot0', 'fillSlot1', 'fillSlot2', 'fillSlot3', 'fillSlot4',
+                                    'fillSlot5', 'fillSlot6', 'fillSlot7', 'emptySlot0', 'emptySlot1',
+                                    'emptySlot2', 'emptySlot3', 'emptySlot4', 'emptySlot5', 'emptySlot6',
+                                    'emptySlot7', 'requestBoard', 'rejectBoard', 'requestExit']
+WANTED['DistributedElevatorFloor'] = ['setLocked', 'setLatch']
+WANTED['DistributedClubElevator'] = ['setLocked', 'setLatch']  # the country clubs' (same protocol)
+TABLE_CLASSES += ['DistributedElevatorFloor', 'DistributedClubElevator']
 # ---- end facility levels ----
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----

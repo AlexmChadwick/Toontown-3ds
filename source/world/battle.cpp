@@ -736,9 +736,14 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
     };
     BattleAction act;
     act.kind = BattleAction::Pass;
+    // Throw, squirt, then sound...; against several cogs sound first (it hits them all).
     static const int kTrackOrder[7] = {4, 5, 3, 6, 1, 2, 0};
+    static const int kGroupOrder[7] = {3, 4, 5, 6, 1, 2, 0};
+    int active = 0;
+    for (int i = 0; i < nb.numSuits; ++i) active += (nb.suitsActive >> i) & 1;
+    const int* order = active > 1 ? kGroupOrder : kTrackOrder;
     for (int k = 0; k < 7 && act.kind == BattleAction::Pass; ++k) {
-        const int track = kTrackOrder[k];
+        const int track = order[k];
         for (int level = 6; level >= 0 && act.kind == BattleAction::Pass; --level) { // strongest first
             if (!usable(track, level)) continue;
             act.kind = BattleAction::Attack;

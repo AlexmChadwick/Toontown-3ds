@@ -204,6 +204,23 @@ void Level::loadProps() {
         if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(buttonBox_, b, sizeof(b));
         fclose(f);
     }
+    snprintf(path, sizeof(path), "%sprops/stage_elevator.ttm", kDir);
+    elevatorFrame_.load(path);
+    snprintf(path, sizeof(path), "%sprops/stage_elevator_left.ttm", kDir);
+    elevatorLeft_.load(path);
+    snprintf(path, sizeof(path), "%sprops/stage_elevator_right.ttm", kDir);
+    elevatorRight_.load(path);
+    snprintf(path, sizeof(path), "%sprops/stage_elevator.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        char kind[16];
+        float b[6];
+        while (numElevatorBoxes_ < kMaxElevatorBoxes &&
+               fscanf(f, "%15s %f %f %f %f %f %f", kind, &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 7) {
+            memcpy(elevatorBoxes_[numElevatorBoxes_], b, sizeof(b));
+            elevatorBoxKind_[numElevatorBoxes_++] = kind[0];
+        }
+        fclose(f);
+    }
     snprintf(path, sizeof(path), "%sprops/door.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         float b[6];
@@ -741,6 +758,116 @@ void Level::drawLifts(render::Renderer& renderer) const {
         toMtx(w, &m);
         renderer.drawModel(const_cast<render::Model&>(liftModel_), m);
     }
+}
+
+namespace {
+
+// ElevatorConstants.ElevatorData[ELEVATOR_STAGE / ELEVATOR_COUNTRY_CLUB] and ElevatorPoints.
+struct ElevatorType {
+    float doorTime;    // openTime / closeTime
+    float doorWidth;   // width: a closed door's X offset
+    float boardRadius; // collRadius: DistributedElevatorFSM.setupElevator's sphere at (0, 5, 0)
+};
+constexpr ElevatorType kStageElevator = {4.0f, 6.5f, 9.5f};
+constexpr ElevatorType kClubElevator = {2.0f, 5.875f, 4.0f};
+const ElevatorType& elevatorType(const net::LevelElevator& e) { return e.club ? kClubElevator : kStageElevator; }
+constexpr float kElevatorPoints[8][3] = {{-1.5f, 5, 0.1f}, {1.5f, 5, 0.1f}, {-2.5f, 3, 0.1f}, {2.5f, 3, 0.1f},
+                                         {-3.5f, 5, 0.1f}, {3.5f, 5, 0.1f}, {-4, 3, 0.1f},     {4, 3, 0.1f}};
+
+} // namespace
+
+// DistributedElevatorFloor.set2Latch: the model is parented to its elevatorMarker entity.
+const LevelEntity* Level::elevatorMarker(const net::LevelElevator& e) const {
+    if (!doorClient_ || !e.latch) return nullptr;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (d.active && d.doId == e.latch) return specOf(d.levelDoId, d.entId);
+    }
+    return nullptr;
+}
+
+// ElevatorUtils.getOpenInterval / getCloseInterval (easeOut over openTime / closeTime).
+float Level::elevatorDoors(const net::LevelElevator& e, uint32_t nowMs) const {
+    const float t = clamp01(int32_t(nowMs - e.stateMs) / 1000.0f / elevatorType(e).doorTime);
+    if (!strcmp(e.state, "Opening")) return 1.0f - easeOut(t);
+    if (!strcmp(e.state, "Closing")) return easeOut(t);
+    if (!strcmp(e.state, "WaitEmpty") || !strcmp(e.state, "WaitCountdown") || !strcmp(e.state, "AllAboard"))
+        return 0.0f;
+    return 1.0f; // Closed / Off
+}
+
+void Level::updateElevators(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    const uint32_t me = client.avatarId();
+    for (int i = 0; i < net::kMaxLevelElevators; ++i) {
+        const net::LevelElevator& e = client.levelElevatorSlot(i);
+        const LevelEntity* m = e.active ? elevatorMarker(e) : nullptr;
+        if (!m || !shown(m->room)) continue;
+        const bool closed = elevatorDoors(e, nowMs) > 0.99f;
+        for (int k = 0; k < numElevatorBoxes_; ++k) {
+            const char kind = elevatorBoxKind_[k];
+            if (kind == 'd' && !closed) continue;
+            addSolid(m->world, elevatorBoxes_[k], elevatorBoxes_[k] + 3, kind != 'f', kind == 'f');
+        }
+        int seatIndex = -1;
+        for (int k = 0; k < 8; ++k)
+            if (e.slots[k] == me && me) seatIndex = k;
+        if (seatIndex >= 0 && boardedElevator_ != e.doId) {
+            // fillSlot: the toon takes its seat (ElevatorPoints[index]) facing out of the doors.
+            boardedElevator_ = e.doId;
+            LevelSpec::toWorld(*m, kElevatorPoints[seatIndex], seat_);
+            seat_[3] = LevelSpec::worldHeading(*m) + 180.0f;
+            seatPending_ = true;
+            TT_LOG("level: aboard floor elevator %u, seat %d", unsigned(e.doId), seatIndex);
+        } else if (seatIndex < 0 && boardedElevator_ == e.doId) {
+            boardedElevator_ = 0;
+        }
+        // The board sphere (collRadius at (0, 5, 0)) while the doors are open and it takes riders.
+        const bool boarding = !e.locked && (!strcmp(e.state, "WaitEmpty") || !strcmp(e.state, "WaitCountdown"));
+        if (seatIndex < 0 && boarding && nowMs - elevatorRequestMs_ > 3000) {
+            const float local[3] = {0, 5, 0};
+            float c[3];
+            LevelSpec::toWorld(*m, local, c);
+            const float dx = x - c[0], dy = y - c[1], dz = z - c[2];
+            const float r = elevatorType(e).boardRadius;
+            if (dx * dx + dy * dy + dz * dz < r * r &&
+                client.sendLevelElevatorBoard(e.doId))
+                elevatorRequestMs_ = nowMs;
+        }
+    }
+}
+
+void Level::drawElevators(render::Renderer& renderer) const {
+    if (!doorClient_ || !elevatorFrame_.loaded()) return;
+    for (int i = 0; i < net::kMaxLevelElevators; ++i) {
+        const net::LevelElevator& e = doorClient_->levelElevatorSlot(i);
+        const LevelEntity* m = e.active ? elevatorMarker(e) : nullptr;
+        if (!m || !shown(m->room)) continue;
+        C3D_Mtx root, door;
+        toMtx(m->world, &root);
+        renderer.drawModel(const_cast<render::Model&>(elevatorFrame_), root);
+        // getLeftClosePoint (width, 0, 0) / getRightClosePoint (-width, 0, 0); open at the origin.
+        const float shut = elevatorDoors(e, doorNowMs_) * elevatorType(e).doorWidth;
+        door = root;
+        Mtx_Translate(&door, shut, 0, 0, true);
+        if (elevatorLeft_.loaded()) renderer.drawModel(const_cast<render::Model&>(elevatorLeft_), door);
+        door = root;
+        Mtx_Translate(&door, -shut, 0, 0, true);
+        if (elevatorRight_.loaded()) renderer.drawModel(const_cast<render::Model&>(elevatorRight_), door);
+    }
+}
+
+bool Level::elevatorPosition(float* x, float* y, float* z, float* h) const {
+    for (int i = 0; active_ && doorClient_ && i < net::kMaxLevelElevators; ++i) {
+        const net::LevelElevator& e = doorClient_->levelElevatorSlot(i);
+        const LevelEntity* m = e.active ? elevatorMarker(e) : nullptr;
+        if (!m) continue;
+        const float local[3] = {0, 2, 0}; // just inside the doors
+        float w[3];
+        LevelSpec::toWorld(*m, local, w);
+        *x = w[0], *y = w[1], *z = w[2], *h = LevelSpec::worldHeading(*m);
+        return true;
+    }
+    return false;
 }
 
 namespace {
@@ -1517,6 +1644,8 @@ void Level::activate(net::Client& client) {
     zoneNum_ = -1;
     lockZoneId_ = sentLock_ = 0;
     interestSent_ = false;
+    boardedElevator_ = 0;
+    seatPending_ = false;
     piece_ = 0;
     showMin_ = 0, showMax_ = 1; // camEnterRoom(0)
     for (Cog& c : cogs_) c = Cog{};
@@ -1610,6 +1739,10 @@ void Level::handleEvent(const net::Event& ev, net::Client& client) {
         }
     } else if (ev.type == EventType::FacilityUp) {
         tryBeginFloor(client);
+    } else if (ev.type == EventType::FacilityNextFloor) {
+        // setStageZone / setCountryClubZone: the elevator left with us; on to the next floor.
+        nextFloorZone_ = uint32_t(ev.arg);
+        TT_LOG("level: next floor in zone %u", unsigned(nextFloorZone_));
     } else if (ev.type == EventType::LevelGone) {
         if (ownsLevel(ev.doId)) shutdown();
     } else if (ev.type == EventType::FacilityGone) {
@@ -1715,11 +1848,13 @@ void Level::sendFloorInterest(net::Client& client) {
     interestSent_ = client.setLevelVisibility(facilityZoneId_, ids, n);
 }
 
-// toonEnterRoom / camEnterRoom: the piece whose floor (mintFloorColl<roomNum>) is under the toon;
+// toonEnterRoom / camEnterRoom: the piece whose floor (mintFloorColl<roomNum>) the toon stands on;
 // its neighbours stay shown (a hallway shows the two rooms either side of it, a room one piece).
+// Hallway floors reach a little into the rooms (about 0.35 above them at the doorways), so the
+// floor nearest the feet decides, like the floor collision the toon actually touches.
 void Level::updatePiece(float x, float y, float z) {
     int best = -1;
-    float bestZ = -1e30f;
+    float bestDz = 1e30f;
     for (int i = 0; i < numFloorTris_; ++i) {
         const float* v = floorTris_[i].v;
         auto side = [&](const float* a, const float* b) { return (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]); };
@@ -1730,8 +1865,8 @@ void Level::updatePiece(float x, float y, float z) {
         const float n[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
         if (std::fabs(n[2]) < 1e-6f) continue;
         const float fz = v[2] - (n[0] * (x - v[0]) + n[1] * (y - v[1])) / n[2];
-        if (fz > z + kFloorReach || fz <= bestZ) continue;
-        bestZ = fz;
+        if (fz > z + kFloorReach || std::fabs(z - fz) >= bestDz) continue;
+        bestDz = std::fabs(z - fz);
         best = floorTris_[i].piece;
     }
     if (best >= 0 && best != piece_) {
@@ -1751,16 +1886,31 @@ bool Level::pieceCenter(int piece, float* x, float* y, float* z) const {
         n++;
     }
     if (!n) return false;
-    // The centroid of the triangle nearest the mean: on the floor even for an L-shaped hallway.
+    // The centroid of the triangle nearest the mean (on the floor even for an L-shaped hallway)
+    // that no other piece's floor covers (hallway floors reach into the rooms).
     const float mean[3] = {sum[0] / n, sum[1] / n, sum[2] / n};
+    auto covered = [&](const float c[3]) {
+        for (int i = 0; i < numFloorTris_; ++i) {
+            if (floorTris_[i].piece == piece) continue;
+            const float* v = floorTris_[i].v;
+            auto side = [&](const float* a, const float* b) {
+                return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+            };
+            const float d0 = side(v, v + 3), d1 = side(v + 3, v + 6), d2 = side(v + 6, v);
+            const bool inside = (d0 >= 0 && d1 >= 0 && d2 >= 0) || (d0 <= 0 && d1 <= 0 && d2 <= 0);
+            if (inside && std::fabs((v[2] + v[5] + v[8]) / 3 - c[2]) < 2.0f) return true;
+        }
+        return false;
+    };
     float best = 1e30f;
     for (int i = 0; i < numFloorTris_; ++i) {
         if (floorTris_[i].piece != piece) continue;
         const float* v = floorTris_[i].v;
         const float c[3] = {(v[0] + v[3] + v[6]) / 3, (v[1] + v[4] + v[7]) / 3, (v[2] + v[5] + v[8]) / 3};
         const float d = (c[0] - mean[0]) * (c[0] - mean[0]) + (c[1] - mean[1]) * (c[1] - mean[1]);
-        if (d < best) best = d, *x = c[0], *y = c[1], *z = c[2];
+        if (d < best && !covered(c)) best = d, *x = c[0], *y = c[1], *z = c[2];
     }
+    if (best == 1e30f) *x = mean[0], *y = mean[1], *z = mean[2];
     return true;
 }
 
@@ -1901,6 +2051,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateBarrels(client, x, y, z, nowMs);
     updateMovers(x, y, z, nowMs);
     updateGoons(client, x, y, z, nowMs);
+    updateElevators(client, x, y, z, nowMs);
     if (floor_) {
         updatePiece(x, y, z);
         if (!interestSent_) sendFloorInterest(client);
@@ -2101,6 +2252,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawBarrels(renderer);
     drawMovers(renderer);
     drawGoons(renderer);
+    drawElevators(renderer);
 }
 
 } // namespace tt::world

@@ -16,6 +16,7 @@ it under the entity node, so the runtime only adds the part's animated offset:
   barrel*, gag_icon_<track>_<level>  DistributedBarrelBase (gagTank + its labels)
   gear_*   GearEntity; paint_mixer_* PaintMixer / PlatformEntity; tread ConveyorBelt
   goon_pg_*, goon_sg_*, goon_cone  DistributedGoon (Cog_Goonie per hat + clips, radar cone)
+  stage_elevator*  DistributedElevatorFloor (LB_ElevatorScaled: frame, doors, collision boxes)
 Deterministic; at most 3 ETC1 encoder threads.
 """
 import json
@@ -144,6 +145,37 @@ def bake_lift(base, resources, out):
         lines.append(name + ' ' + ' '.join(f'{v:.3f}' for v in box))
     (out / 'lift.box').write_text('\n'.join(lines) + '\n')
     report['lift_boxes'] = lines
+    model.removeNode()
+    return report
+
+
+def bake_stage_elevator(base, resources, out):
+    """DistributedElevatorFloor.setupElevator: LB_ElevatorScaled, the DA office's elevator to the
+    next floor (latched onto an elevatorMarker entity). The doors are baked where the model has
+    them, which is open (ElevatorUtils.getLeftOpenPoint / getRightOpenPoint (0, 0, 0)); closed
+    they sit at +/-width along X. stage_elevator.box: one "kind minx miny minz maxx maxy maxz"
+    line per collision polygon (wall / door / floor), model space."""
+    from panda3d.core import CollisionPolygon
+    model = base.loader.loadModel(str(resources / 'phase_11/models/lawbotHQ/LB_ElevatorScaled.bam'), noCache=True)
+    report = {'frame': write_part(model, model.find('**/LBElevatorBox'), out / 'stage_elevator.ttm'),
+              'left': write_part(model, model.find('**/left_door'), out / 'stage_elevator_left.ttm'),
+              'right': write_part(model, model.find('**/right_door'), out / 'stage_elevator_right.ttm')}
+    lines = []
+    for kind, name in (('wall', 'elevator_Collision_Walls'), ('door', 'elevator_Door_collisions'),
+                       ('floor', 'elevator_floor_collision')):
+        cn = model.find('**/' + name)
+        if cn.isEmpty():
+            raise ValueError(f'LB_ElevatorScaled: {name} missing')
+        mat = cn.getMat(model)
+        for i in range(cn.node().getNumSolids()):
+            solid = cn.node().getSolid(i)
+            if not isinstance(solid, CollisionPolygon):
+                continue
+            pts = [mat.xformPoint(solid.getPoint(k)) for k in range(solid.getNumPoints())]
+            box = [min(p[k] for p in pts) for k in range(3)] + [max(p[k] for p in pts) for k in range(3)]
+            lines.append(kind + ' ' + ' '.join(f'{v:.3f}' for v in box))
+    (out / 'stage_elevator.box').write_text('\n'.join(lines) + '\n')
+    report['boxes'] = len(lines)
     model.removeNode()
     return report
 
@@ -369,7 +401,8 @@ def main():
               'gears': bake_gears(base, resources, out),
               'paint_mixer': bake_paint_mixer(base, resources, out),
               'tread': bake_tread(base, resources, out),
-              'goons': bake_goons(base, resources, out)}
+              'goons': bake_goons(base, resources, out),
+              'stage_elevator': bake_stage_elevator(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}

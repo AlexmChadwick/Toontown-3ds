@@ -559,3 +559,18 @@ elevator in the Cashbot HQ courtyard (`elevator_origin_1`).
 - **Not yet run.** DA office (stage) and country-club floors: they are baked and load
   through the same code, but entering them (Lawbot lobby elevators, Bossbot golf karts)
   is untested.
+
+## 2026-10-24 — DA offices and country clubs (same floor runtime)
+
+Azahar Old 3DS, `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1` (strong toons now get every
+gag track; autoplay picks sound against groups).
+
+- **DA office.** The DA Office A elevator (13200, `elevator_origin_0`) leads to
+  `stage_13300_2_0` (5 rooms). All 9 pieces were walked and detected.
+- **Floor elevator.** The guard battle was won in one sound round, then `requestBoard`
+  and a seat (`fillSlot`, seat 0). A sad toon is refused (reason 2, min laff), as upstream.
+  The ride to the next floor (`setStageZone`, now carried by `FacilityNextFloor` because the
+  AI deletes the old stage at once) is **not yet seen in Azahar**.
+- **Country club.** A Bossbot golf kart (`DistributedCogKart.setPosHpr`) boards to
+  `club_10600_3_0` (5 rooms). All 9 pieces were walked and detected, after piece detection
+  switched to the floor nearest the feet (tunnel floors reach into rooms).

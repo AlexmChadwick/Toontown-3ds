@@ -73,6 +73,23 @@ public:
         return z;
     }
     int currentZoneNum() const { return zoneNum_; }
+    // DA office floor elevators (DistributedElevatorFloor): once boarded, where our seat is
+    // (ElevatorPoints[slot] in the elevator, facing out); then, when it leaves, the next
+    // floor's zone (DistributedStage.setStageZone). Each is returned once.
+    bool popSeat(float* x, float* y, float* z, float* h) {
+        if (!seatPending_) return false;
+        seatPending_ = false;
+        *x = seat_[0], *y = seat_[1], *z = seat_[2], *h = seat_[3];
+        return true;
+    }
+    bool aboardElevator() const { return boardedElevator_ != 0; }
+    uint32_t popNextFloorZone() {
+        const uint32_t z = nextFloorZone_;
+        nextFloorZone_ = 0;
+        return z;
+    }
+    // Autotest: the floor-space position of a floor elevator's doorway; false if none.
+    bool elevatorPosition(float* x, float* y, float* z, float* h) const;
     // Autotest: world position of the nearest cog that can fight / of a blocker; false if none.
     bool nearestCog(float x, float y, float z, float* cx, float* cy, float* cz) const;
     // Closed doors, buttons, lifts...: Player::setDynamic while the level is active.
@@ -318,6 +335,21 @@ private:
     void updateGoons(net::Client& client, float x, float y, float z, uint32_t nowMs);
     void drawGoons(render::Renderer& renderer) const;
     int ouchDamage_ = 0; // a goon zap this frame (stun only, no squish)
+    // DistributedElevatorFloor (LB_ElevatorScaled frame + doors, stage_elevator.box).
+    render::Model elevatorFrame_, elevatorLeft_, elevatorRight_;
+    static constexpr int kMaxElevatorBoxes = 20;
+    float elevatorBoxes_[kMaxElevatorBoxes][6] = {};
+    char elevatorBoxKind_[kMaxElevatorBoxes] = {}; // 'w'all, 'd'oor (while closed), 'f'loor
+    int numElevatorBoxes_ = 0;
+    const LevelEntity* elevatorMarker(const net::LevelElevator& e) const;
+    float elevatorDoors(const net::LevelElevator& e, uint32_t nowMs) const; // 0 open .. 1 closed
+    void updateElevators(net::Client& client, float x, float y, float z, uint32_t nowMs);
+    void drawElevators(render::Renderer& renderer) const;
+    uint32_t elevatorRequestMs_ = 0;
+    uint32_t boardedElevator_ = 0;
+    bool seatPending_ = false;
+    float seat_[4] = {};
+    uint32_t nextFloorZone_ = 0;
     render::Model buttonBase_, buttonTop_;
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)

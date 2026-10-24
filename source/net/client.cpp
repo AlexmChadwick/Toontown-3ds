@@ -4354,6 +4354,13 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
     else if (fieldId == dc::DistributedElevator::k_setMinLaff) e.minLaff = r.u8();
     else if (fieldId == dc::DistributedFactoryElevatorExt::k_setEntranceId ||
              fieldId == dc::DistributedLawOfficeElevatorExt::k_setEntranceId) e.origin = int8_t(r.u8());
+    else if (fieldId == dc::DistributedCogKart::k_setPosHpr) {
+        e.x = r.i16() / 10.0f, e.y = r.i16() / 10.0f, e.z = r.i16() / 10.0f;
+        e.h = r.i16() / 10.0f;
+        r.i16(); // P
+        r.i16(); // R
+        e.hasPose = r.ok();
+    } else if (fieldId == dc::DistributedCogKart::k_setCountryClubId) r.u16();
     else if (fieldId == dc::DistributedMintElevatorExt::k_setMintId) {
         // DistributedMintElevatorExt.setMintId: CashbotMintIntA/B/C (12500/12600/12700) -> origin 1/2/0.
         const uint16_t mint = r.u16();
@@ -4363,7 +4370,9 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZone ||
                fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZoneForce ||
                fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZone ||
-               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce) {
+               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce ||
+               fieldId == dc::DistributedCogKart::k_setCountryClubInteriorZone ||
+               fieldId == dc::DistributedCogKart::k_setCountryClubInteriorZoneForce) {
         e.destZone = r.u32();
         if (r.ok()) pushEvent(EventType::CogElevatorUp, e.doId); // the riders' cue to go
     } else return skipField(r, fieldId);

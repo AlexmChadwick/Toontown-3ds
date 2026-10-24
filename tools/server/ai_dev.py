@@ -1,7 +1,7 @@
 """Local test server only (AI_DEV=1 tools/server/start.sh): relax the AI's entry checks so a
 fresh test toon can reach Cog buildings, facilities and boss elevators, and give it full laff
-and a full gag bag (AI_DEV_STRONG=1: 137 laff and 6000 exp, for long fights such as the factory
-foreman; AI_DEV_WEAK_COGS=1: every cog spawns, and revives, with 1 HP, to reach the end of a facility).
+and a full gag bag (AI_DEV_STRONG=1: 137 laff, every gag track and 6000 exp, for long fights such
+as the factory foreman; AI_DEV_WEAK_COGS=1: every cog spawns, and revives, with 1 HP, to reach the end of a facility).
 Never used unless AI_DEV is set; ref/ (upstream) stays untouched: this
 patches classes in memory, then runs the stock toontown.ai.AIStart."""
 import os
@@ -35,6 +35,8 @@ def _patch(name, mod):
                 if self.getMoney() < 40:
                     self.b_setMoney(40)
                 self.b_setEmoteAccess([1] * 25)  # every SpeedChat emote (normally catalog unlocks)
+                if strong:  # every gag track (sound hits a whole cog group)
+                    self.b_setTrackAccess([1] * 7)
                 # Gags up to level 4 (800 exp) and a full pouch, so unattended battles can be won.
                 exp = 6000 if strong else 800
                 for track in range(len(self.experience.experience)):
