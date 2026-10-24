@@ -20,6 +20,9 @@ def _patch(name, mod):
         mod.DistributedElevatorAI.avIsOKToBoard = lambda self, av: self.accepting
     elif name == 'toontown.building.DistributedBossElevatorAI':
         mod.DistributedBossElevatorAI.checkBoard = lambda self, av: 0
+    elif name in _OWN_CHECK_BOARD:  # boss / club elevators with their own promotion / room checks
+        cls = getattr(mod, name.rsplit('.', 1)[1])
+        cls.checkBoard = lambda self, av: 0
     elif name == 'toontown.toon.DistributedToonAI':
         orig = mod.DistributedToonAI.announceGenerate
 
@@ -68,9 +71,12 @@ def _patch(name, mod):
     print('ai_dev: patched %s' % name, flush=True)
 
 
+# Subclasses that override checkBoard (REJECT_PROMOTION without a Cog suit ready for promotion).
+_OWN_CHECK_BOARD = {'toontown.building.DistributedVPElevatorAI', 'toontown.building.DistributedBBElevatorAI',
+                    'toontown.building.DistributedClubElevatorAI'}
 _TARGETS = {'toontown.toonbase.ToontownAccessAI', 'toontown.building.DistributedElevatorAI',
             'toontown.building.DistributedBossElevatorAI', 'toontown.toon.DistributedToonAI',
-            'toontown.suit.DistributedSuitBaseAI'}
+            'toontown.suit.DistributedSuitBaseAI'} | _OWN_CHECK_BOARD
 
 
 class _Hook(importlib.abc.MetaPathFinder):

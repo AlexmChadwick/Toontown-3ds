@@ -207,18 +207,24 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
         return;
     }
     if (frame.place.zoneId() != lobby || !frame.client.inZone()) return;
-    float x = 0;
-    float y = 0;
-    float z = 0;
-    char path[128];
-    std::snprintf(path, sizeof(path), "%s%s_lobby_anchor.txt", kDirectory, cashbot ? "cfo" : "vp");
-    FILE* file = std::fopen(path, "r");
-    if (!file) return;
-    unsigned version = 0;
-    const bool read = std::fscanf(file, "BPA1 %u %f %f %f", &version, &x, &y, &z) == 4 &&
-                      version == 1 && std::isfinite(x) && std::isfinite(y) && std::isfinite(z);
-    std::fclose(file);
-    if (!read) return;
+    if (anchorLobby_ != lobby) {
+        anchorLobby_ = lobby;
+        anchorValid_ = false;
+        char path[128];
+        std::snprintf(path, sizeof(path), "%s%s_lobby_anchor.txt", kDirectory, cashbot ? "cfo" : "vp");
+        if (FILE* file = std::fopen(path, "r")) {
+            unsigned version = 0;
+            anchorValid_ = std::fscanf(file, "BPA1 %u %f %f %f", &version, &anchor_[0], &anchor_[1], &anchor_[2]) == 4 &&
+                           version == 1 && std::isfinite(anchor_[0]) && std::isfinite(anchor_[1]) &&
+                           std::isfinite(anchor_[2]);
+            std::fclose(file);
+        }
+        TT_LOG("boss: lobby %u elevator anchor %s", unsigned(lobby), anchorValid_ ? "loaded" : "missing");
+    }
+    if (!anchorValid_) return;
+    const float x = anchor_[0];
+    const float y = anchor_[1];
+    const float z = anchor_[2];
     if (scripted) frame.player.reset(x, y, z + 0.1f, 180);
     const float dx = frame.player.x() - x;
     const float dy = frame.player.y() - y;
@@ -231,6 +237,7 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
             if (frame.input.down & KEY_B) frame.client.sendCogElevatorExit(elevator.doId);
         } else if (scripted || (frame.input.down & KEY_A)) {
             if (frame.client.sendCogElevatorBoard(elevator.doId)) boardMs_ = nowMs;
+            TT_LOG("boss: requestBoard elevator %u (state %s)", unsigned(elevator.doId), elevator.state);
         }
     }
 }

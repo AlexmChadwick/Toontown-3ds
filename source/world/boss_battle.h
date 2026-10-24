@@ -80,6 +80,10 @@ private:
     uint32_t bossId_ = 0;
     uint32_t home_ = 11100;
     uint32_t boardMs_ = 0;
+    // The lobby elevator anchor (<vp|cfo>_lobby_anchor.txt), read once per lobby, not per frame.
+    uint32_t anchorLobby_ = 0;
+    bool anchorValid_ = false;
+    float anchor_[3] = {};
     uint32_t moveMs_ = 0;
     uint32_t cageMs_ = 0;
     uint32_t contactMs_ = 0;
