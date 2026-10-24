@@ -1,7 +1,7 @@
 """Local test server only (AI_DEV=1 tools/server/start.sh): relax the AI's entry checks so a
 fresh test toon can reach Cog buildings, facilities and boss elevators, and give it full laff
 and a full gag bag (AI_DEV_STRONG=1: 137 laff and 6000 exp, for long fights such as the factory
-foreman; AI_DEV_WEAK_COGS=1: every cog spawns with 1 HP, to reach the end of a facility).
+foreman; AI_DEV_WEAK_COGS=1: every cog spawns, and revives, with 1 HP, to reach the end of a facility).
 Never used unless AI_DEV is set; ref/ (upstream) stays untouched: this
 patches classes in memory, then runs the stock toontown.ai.AIStart."""
 import os
@@ -55,6 +55,12 @@ def _patch(name, mod):
             orig_level(self, lvl)
             self.currHP = 1
         mod.DistributedSuitBaseAI.setLevel = setLevel
+        orig_revive = mod.DistributedSuitBaseAI.useSkeleRevive
+
+        def useSkeleRevive(self):  # ... and revives with 1 HP (mint / DA office skelecogs)
+            orig_revive(self)
+            self.currHP = 1
+        mod.DistributedSuitBaseAI.useSkeleRevive = useSkeleRevive
     else:
         return
     print('ai_dev: patched %s' % name, flush=True)

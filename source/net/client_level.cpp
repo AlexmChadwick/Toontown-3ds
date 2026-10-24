@@ -1,6 +1,8 @@
-// Facility level objects (docs/design/levels.md): the cogs of factories, mint/stage/country
-// club rooms (DistributedFactorySuit and subclasses), their battle blockers, and the level
-// visibility interest. The level itself (DistributedFactory / ...Room) stays in client.cpp.
+// Facility level objects (docs/design/levels.md): the levels themselves (DistributedFactory and
+// the mint / stage / country club rooms, all DistributedLevels), the floor objects of the
+// multi-room facilities (DistributedMint / Stage / CountryClub), their cogs
+// (DistributedFactorySuit and subclasses), battle blockers, entities, and the level
+// visibility interest.
 #include "net/client.h"
 
 #include <cmath>
@@ -26,6 +28,16 @@ int16_t packFixed(float v, float scale) {
     return int16_t(s);
 }
 
+bool isLevelClass(uint16_t classId) {
+    return classId == dc::DistributedFactory::kClassId || classId == dc::DistributedMintRoom::kClassId ||
+           classId == dc::DistributedStageRoom::kClassId || classId == dc::DistributedCountryClubRoom::kClassId;
+}
+
+bool isFacilityClass(uint16_t classId) {
+    return classId == dc::DistributedMint::kClassId || classId == dc::DistributedStage::kClassId ||
+           classId == dc::DistributedCountryClub::kClassId;
+}
+
 bool isLevelSuitClass(uint16_t classId) {
     return classId == dc::DistributedFactorySuit::kClassId || classId == dc::DistributedMintSuit::kClassId ||
            classId == dc::DistributedStageSuit::kClassId;
@@ -43,6 +55,12 @@ int readIds(DatagramReader& r, uint32_t* out, int cap) {
 }
 
 } // namespace
+
+const LevelObj* Client::levelObj(uint32_t doId) const {
+    for (const LevelObj& l : levels_)
+        if (l.active && l.doId == doId) return &l;
+    return nullptr;
+}
 
 const LevelSuit* Client::findLevelSuit(uint32_t doId) const {
     for (const LevelSuit& s : levelSuits_)
@@ -62,6 +80,57 @@ bool Client::cogIdentity(uint32_t doId, CogIdentity* out) const {
         return true;
     }
     return false;
+}
+
+bool Client::applyLevelObjField(LevelObj& l, DatagramReader& r, uint16_t fieldId) {
+    namespace L = dc::DistributedLevel;
+    namespace M = dc::DistributedMintRoom;
+    namespace S = dc::DistributedStageRoom;
+    namespace C = dc::DistributedCountryClubRoom;
+    namespace F = dc::DistributedFactory;
+    if (fieldId == L::k_setLevelZoneId) l.levelZoneId = r.u32();
+    else if (fieldId == L::k_setZoneIds) l.numZones = uint16_t(readIds(r, l.zoneIds, 128));
+    else if (fieldId == L::k_setStartTimestamp) {
+        // 32-bit ClockDelta centiseconds; the low 16 bits are the 16-bit network time.
+        const int32_t ts = r.i32();
+        l.startMs = timeSynced_ ? networkToLocal(int16_t(uint32_t(ts) & 0xFFFF), now_) : now_;
+    } else if (fieldId == L::k_setEntranceId) l.entranceId = r.u8();
+    else if (fieldId == L::k_setPlayerIds) l.numPlayers = uint8_t(readIds(r, l.playerIds, 4));
+    else if (fieldId == F::k_setFactoryId || fieldId == M::k_setRoomId || fieldId == S::k_setRoomId ||
+             fieldId == C::k_setRoomId)
+        l.levelId = r.u16();
+    else if (fieldId == M::k_setMintId || fieldId == S::k_setStageId || fieldId == C::k_setCountryClubId)
+        l.facilityId = r.u16();
+    else if (fieldId == M::k_setRoomNum || fieldId == S::k_setRoomNum || fieldId == C::k_setRoomNum)
+        l.roomNum = r.u8();
+    else if (fieldId == F::k_setSuits || fieldId == M::k_setSuits || fieldId == S::k_setSuits ||
+             fieldId == C::k_setSuits) {
+        l.numSuits = uint8_t(readIds(r, l.suits, 32));
+        l.numReserveSuits = uint8_t(readIds(r, l.reserveSuits, 32));
+    } else if (fieldId == F::k_setForemanConfronted || fieldId == M::k_setBossConfronted ||
+               fieldId == S::k_setBossConfronted || fieldId == C::k_setBossConfronted)
+        l.confronted = r.u32();
+    else if (fieldId == F::k_setDefeated || fieldId == M::k_setDefeated || fieldId == S::k_setDefeated ||
+             fieldId == C::k_setDefeated)
+        l.defeated = true;
+    else return skipField(r, fieldId); // forceOuch, setAttribChange, ...
+    return r.ok();
+}
+
+bool Client::applyFacilityField(Facility& f, DatagramReader& r, uint16_t fieldId) {
+    namespace M = dc::DistributedMint;
+    namespace S = dc::DistributedStage;
+    namespace C = dc::DistributedCountryClub;
+    if (fieldId == M::k_setZoneId || fieldId == S::k_setZoneId || fieldId == C::k_setZoneId) f.zoneId = r.u32();
+    else if (fieldId == M::k_setMintId || fieldId == S::k_setStageId || fieldId == C::k_setCountryClubId)
+        f.facilityId = r.u16();
+    else if (fieldId == S::k_setLayoutIndex || fieldId == C::k_setLayoutIndex) f.layoutIndex = r.u16();
+    else if (fieldId == M::k_setFloorNum || fieldId == S::k_setFloorNum || fieldId == C::k_setFloorNum)
+        f.floorNum = r.u8();
+    else if (fieldId == M::k_setRoomDoIds || fieldId == S::k_setRoomDoIds || fieldId == C::k_setRoomDoIds)
+        f.numRooms = uint8_t(readIds(r, f.roomDoIds, kMaxLevels));
+    else return skipField(r, fieldId); // setBlockedRooms, setStageZone, elevatorAlert, ...
+    return r.ok();
 }
 
 bool Client::applyLevelSuitField(LevelSuit& s, DatagramReader& r, uint16_t fieldId) {
@@ -167,6 +236,53 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
 
 bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                               uint16_t reqCount, bool other) {
+    if (isLevelClass(classId)) {
+        LevelObj tmp{};
+        tmp.doId = doId;
+        tmp.classId = classId;
+        bool ok = true;
+        for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyLevelObjField(tmp, r, req[i]);
+        if (ok && other) {
+            const uint16_t n = r.u16();
+            for (uint16_t i = 0; i < n && ok; ++i) ok = applyLevelObjField(tmp, r, r.u16());
+        }
+        if (!ok || !r.ok()) return true;
+        LevelObj* slot = nullptr;
+        for (LevelObj& l : levels_)
+            if (l.active && l.doId == doId) slot = &l;
+        for (LevelObj& l : levels_)
+            if (!slot && !l.active) slot = &l;
+        if (!slot) {
+            TT_LOG("net: level %u dropped (table full)", unsigned(doId));
+            return true;
+        }
+        tmp.active = true;
+        *slot = tmp;
+        TT_LOG("net: level %u id %u room %u of %u, %u zones", unsigned(doId), unsigned(tmp.levelId),
+               unsigned(tmp.roomNum), unsigned(tmp.facilityId), unsigned(tmp.numZones));
+        pushEvent(EventType::LevelUp, doId);
+        return true;
+    }
+    if (isFacilityClass(classId)) {
+        Facility tmp{};
+        tmp.doId = doId;
+        tmp.kind = classId == dc::DistributedMint::kClassId    ? FacilityKind::Mint
+                   : classId == dc::DistributedStage::kClassId ? FacilityKind::Stage
+                                                               : FacilityKind::CountryClub;
+        bool ok = true;
+        for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyFacilityField(tmp, r, req[i]);
+        if (ok && other) {
+            const uint16_t n = r.u16();
+            for (uint16_t i = 0; i < n && ok; ++i) ok = applyFacilityField(tmp, r, r.u16());
+        }
+        if (!ok || !r.ok()) return true;
+        tmp.active = true;
+        facility_ = tmp;
+        TT_LOG("net: facility %u id %u floor %u layout %u, %u rooms", unsigned(doId), unsigned(tmp.facilityId),
+               unsigned(tmp.floorNum), unsigned(tmp.layoutIndex), unsigned(tmp.numRooms));
+        pushEvent(EventType::FacilityUp, doId);
+        return true;
+    }
     const dc::ClassDesc* cls = findClass(classId);
     const bool suit = isLevelSuitClass(classId);
     const bool blocker = !suit && cls && classHasField(*cls, dc::BattleBlocker::k_setBattle);
@@ -244,6 +360,15 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
 }
 
 bool Client::handleLevelField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    for (LevelObj& l : levels_) {
+        if (!l.active || l.doId != doId) continue;
+        if (applyLevelObjField(l, r, fieldId)) pushEvent(EventType::LevelState, doId);
+        return true;
+    }
+    if (facility_.active && facility_.doId == doId) {
+        if (applyFacilityField(facility_, r, fieldId)) pushEvent(EventType::FacilityUp, doId);
+        return true;
+    }
     for (LevelSuit& s : levelSuits_) {
         if (!s.active || s.doId != doId) continue;
         if (applyLevelSuitField(s, r, fieldId)) pushEvent(EventType::LevelSuitState, doId);
@@ -263,6 +388,17 @@ bool Client::handleLevelField(DatagramReader& r, uint32_t doId, uint16_t fieldId
 }
 
 bool Client::handleLevelLeaving(uint32_t doId) {
+    for (LevelObj& l : levels_) {
+        if (!l.active || l.doId != doId) continue;
+        l = LevelObj{};
+        pushEvent(EventType::LevelGone, doId);
+        return true;
+    }
+    if (facility_.active && facility_.doId == doId) {
+        facility_ = Facility{};
+        pushEvent(EventType::FacilityGone, doId);
+        return true;
+    }
     for (LevelSuit& s : levelSuits_) {
         if (!s.active || s.doId != doId) continue;
         s = LevelSuit{};
@@ -284,6 +420,12 @@ bool Client::handleLevelLeaving(uint32_t doId) {
 }
 
 void Client::clearLevelObjects() {
+    for (LevelObj& l : levels_) {
+        if (l.active) pushEvent(EventType::LevelGone, l.doId);
+        l = LevelObj{};
+    }
+    if (facility_.active) pushEvent(EventType::FacilityGone, facility_.doId);
+    facility_ = Facility{};
     for (LevelSuit& s : levelSuits_) {
         if (s.active) pushEvent(EventType::LevelSuitGone, s.doId);
         s = LevelSuit{};

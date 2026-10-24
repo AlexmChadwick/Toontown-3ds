@@ -34,7 +34,6 @@
 #include "world/level.h"
 #include "world/estate.h"
 #include "world/pets.h"
-#include "world/mint_office.h"
 #include "world/racing.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
@@ -375,7 +374,6 @@ int main() {
     static tt::world::Level level; // facility levels: the Sellbot factory (world/level.*)
     static tt::world::Estate estate;
     static tt::world::Pets pets;
-    static tt::world::MintOffice mintOffice;
     static tt::world::Racing racing;
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
@@ -625,11 +623,21 @@ int main() {
             autotest.stepBegan()) {
             in.down |= KEY_A;
         }
-        if (autotest.active() && !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200 &&
-            !level.active()) {
-            const tt::world::Place::Point* p = place.point("elevator_origin_0");
+        if (autotest.active() && !strcmp(autotest.label(), "go mint") && place.zoneId() != 12000 &&
+            !uiState.teleportRequest && fadeDir == 0) {
+            uiState.teleportRequest = 12000; // test-only: Cashbot HQ courtyard (the mint elevators)
+        }
+        {
+            // Test-only: step into the factory elevator / the Coin Mint's (DistributedMintElevatorExt
+            // origin 1: CashbotMintIntA), re-trying every 6 s.
+            const bool factory = !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200;
+            const bool mint = !strcmp(autotest.label(), "mint: board") && place.zoneId() == 12000;
+            const tt::world::Place::Point* p =
+                autotest.active() && (factory || mint) && !level.active()
+                    ? place.point(factory ? "elevator_origin_0" : "elevator_origin_1")
+                    : nullptr;
             static u32 boardNextMs = 0;
-            if (p && tt::net::plat::nowMs() > boardNextMs) { // step into the elevator (re-try every 6 s)
+            if (p && tt::net::plat::nowMs() > boardNextMs) {
                 player.reset(p->x, p->y, p->z + 0.5f, p->h);
                 boardNextMs = tt::net::plat::nowMs() + 6000;
             }
@@ -722,8 +730,27 @@ int main() {
                     player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
                 }
             }
+            if (!strcmp(autotest.label(), "mint: walk")) {
+                // Test-only: through the floor one piece (room or hallway) every 2 s.
+                static u32 walkNextMs = 0;
+                static int walkPiece = 0;
+                const u32 now = tt::net::plat::nowMs();
+                if (autotest.stepBegan()) walkPiece = 0, walkNextMs = 0;
+                float px, py, pz;
+                if (now >= walkNextMs && walkPiece < level.numPieces() &&
+                    level.pieceCenter(walkPiece, &px, &py, &pz)) {
+                    player.reset(px, py, pz + 1.0f, 0.0f);
+                    TT_LOG("autotest: mint piece %d of %d", walkPiece, level.numPieces());
+                    walkPiece++;
+                    walkNextMs = now + 2000;
+                }
+            }
+            if (!strcmp(autotest.label(), "mint: boss") && autotest.stepBegan()) {
+                float fx, fy, fz;
+                if (level.foremanPosition(&fx, &fy, &fz)) player.reset(fx, fy - 6.0f, fz + 0.3f, 0.0f); // walk in
+            }
             const bool look = !strcmp(autotest.label(), "factory: entities");
-            const bool fight = !strcmp(autotest.label(), "factory: battle");
+            const bool fight = !strcmp(autotest.label(), "factory: battle") || !strcmp(autotest.label(), "mint: battle");
             if ((look || fight) && level.nearestCog(player.x(), player.y(), player.z(), &cx, &cy, &cz)) {
                 if (look) autotestFace(cx, cy, cz, 12.0f);
                 else player.reset(cx, cy - 0.5f, cz, 0.0f);
@@ -1055,7 +1082,10 @@ int main() {
             uiState.homeRequest = false;
         }
         uiState.teleportRequest = 0;
-        if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
+        // Inside a facility the HQ it was entered from stays loaded underneath, so travelling to
+        // that same zone (a mint's win -> Cashbot HQ) still has to leave the facility.
+        const bool leavingLevel = level.active();
+        if (travelTarget && (travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
             fadeTarget = travelTarget; // start closing; travel once the screen is black
             fadeDir = 1;
             teleportOutAge=0;teleportInAge=-1;localToon.cancel();
@@ -1080,7 +1110,7 @@ int main() {
                 fadeDir = 0;
             }
         }
-        if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
+        if (travelTarget && (travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
             const u32 fromZone = place.zoneId();
             remoteToons.clear();
             if (place.load(travelTarget)) {
@@ -1139,7 +1169,6 @@ int main() {
                 cogBuildings.handleEvent(ev, net);
                 cogInterior.handleEvent(ev, net, nowMs);
                 level.handleEvent(ev, net);
-                mintOffice.handleEvent(ev, net);
                 racing.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
                 pets.handleEvent(ev);
@@ -1170,14 +1199,12 @@ int main() {
             tailor.update(net, nowMs);
             ui.closet().update(net);
             cogInterior.update(net, nowMs);
-            mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);
             racing.update(net, in, dt, player.x(), player.y(), player.z(), nowMs);
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
             pets.update(net);
-            const bool facilityActive = cogInterior.active() || level.active() || mintOffice.active();
+            const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
             else if (level.active() && level.collision()) player.setCollision(level.collision());
-            else if (mintOffice.active() && mintOffice.collision()) player.setCollision(mintOffice.collision());
             else if (estate.active() || minigame.active() || golf.active()) player.setCollision(nullptr); // flat stages
             else player.setCollision(&place.collision());
             if (racing.active() && racing.collision()) player.setCollision(racing.collision());
@@ -1189,8 +1216,7 @@ int main() {
             if (facilityActive) {
                 float sx, sy, sz, sh;
                 if (cogInterior.spawnPose(&sx, &sy, &sz, &sh) ||
-                    level.spawnPose(&sx, &sy, &sz, &sh) ||
-                    mintOffice.spawnPose(&sx, &sy, &sz, &sh)) {
+                    level.spawnPose(&sx, &sy, &sz, &sh)) {
                     player.reset(sx, sy, sz, sh);
                 }
             }
@@ -1330,7 +1356,7 @@ int main() {
                 }
                 // DistributedLevelBattle.lockLevelViz: keep the battle's zone in view.
                 const tt::net::Battle* nb = battle.active() ? net.findBattle(battle.battleId()) : nullptr;
-                if (nb && nb->levelDoId == level.levelDoId()) level.lockVisibility(nb->zoneId);
+                if (nb && level.ownsLevel(nb->levelDoId)) level.lockVisibility(nb->zoneId);
                 else level.unlockVisibility();
             }
             // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
@@ -1339,8 +1365,7 @@ int main() {
                 !trolley.seated()) {
                 uint32_t facilityCog = 0;
                 float facilityX = 0, facilityY = 0, facilityZ = 0, facilityH = 0;
-                bool hasFacilityCog = cogInterior.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH) ||
-                    mintOffice.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH);
+                bool hasFacilityCog = cogInterior.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH);
                 const float fdx = player.x() - facilityX, fdy = player.y() - facilityY;
                 if (hasFacilityCog && fdx * fdx + fdy * fdy < 36.0f) {
                     battle.requestBattle(net, facilityCog, facilityX, facilityY, facilityZ, facilityH,
@@ -1369,7 +1394,7 @@ int main() {
             if (const u32 dest = cogBuildings.popDestination()) {
                 // The elevator left with us: into the Cog building / facility zone. The playground
                 // or HQ stays loaded underneath; the interior runtimes take over when their objects
-                // generate (cog_interior / factory / mint_office).
+                // generate (cog_interior / level: factories, mints, DA offices, country clubs).
                 TT_LOG("elevator: riding to zone %lu", static_cast<unsigned long>(dest));
                 net.sendSetParent(1); // hidden, like the trolley hand-off
                 net.changeZone(dest);
@@ -1434,7 +1459,16 @@ int main() {
                 toast = m;
                 toastAge = 0.0f;
             }
-            if (battle.popWentSad()) uiState.teleportRequest = tt::world::hoodOf(place.zoneId()); // back to the playground
+            if (battle.popWentSad()) {
+                // DistributedToon.died: ZoneUtil.getSafeZoneId(defaultZone), the toon's own playground
+                // (a Cog HQ maps to its neighbour: HQToSafezone).
+                u32 hood = tt::world::hoodOf(net.ownStats().defaultZone);
+                if (hood == 11000) hood = 5000;       // Sellbot HQ -> Daisy Gardens
+                else if (hood == 12000) hood = 9000;  // Cashbot HQ -> Donald's Dreamland
+                else if (hood == 13000) hood = 3000;  // Lawbot HQ -> The Brrrgh
+                else if (hood == 10000) hood = 1000;  // Bossbot HQ -> Donald's Dock
+                uiState.teleportRequest = hood;
+            }
         }
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
@@ -1474,8 +1508,6 @@ int main() {
                 minigame.draw(renderer); // the playground is hidden while we are away
             } else if (level.active()) {
                 level.draw(renderer, player.cameraEye());
-            } else if (mintOffice.active()) {
-                mintOffice.draw(renderer, net);
             } else if (racing.active()) {
                 racing.draw(renderer, net);
             } else if (estate.active()) {

@@ -1,12 +1,16 @@
-// Facility level runtime (docs/design/levels.md): one upstream level spec at a time — the
-// Sellbot factory now, mint / stage / country-club rooms next. Mirrors otp/level/
-// DistributedLevel on the client:
-//   - geometry: <level>.tz, one chunk per spec zone, vis lists from the zone entities
-//     (tools/pipeline/bake_level.py); the zone the toon stands in drives setVisibility
-//   - spec: <level>.tlv (world/level_spec.*): entrance points, cog spawns/paths, battle cells
+// Facility level runtime (docs/design/levels.md): the Sellbot factory (one level), or one floor
+// of a mint / DA office (stage) / country club (a chain of level rooms joined by hallways).
+// Mirrors otp/level/DistributedLevel and DistributedMint/Stage/CountryClub on the client:
+//   - geometry: <level>.tz per level, one chunk per spec zone (tools/pipeline/bake_level.py).
+//     The factory's PVS follows the zone the toon stands in (setVisibility); a floor places
+//     each room by its baked transform (floors/<kind>_<id>_<layout>_<floor>.tlf,
+//     bake_facility_floors.py), shows the rooms around the toon's (camEnterRoom) and keeps
+//     every room's zones in interest (gotAllRooms)
+//   - spec: <level>.tlv per level, merged into one floor-space LevelSpec (world/level_spec.*):
+//     entrance points, cog spawns/paths, battle cells
 //   - cogs: DistributedFactorySuit walks its path locally, alerts/chases, requests battles
 //   - battle blockers: walking into one starts (or joins) its cell's battle
-// Files: sdmc:/3ds/toontown3ds/data/level/<level>.{tz,tlv}
+// Files: sdmc:/3ds/toontown3ds/data/level/<level>.{tz,tlv}, floors/*.tlf, props/*
 #pragma once
 
 #include <3ds.h>
@@ -42,7 +46,11 @@ public:
     void shutdown();
 
     bool active() const { return active_; }
-    const CollisionWorld* collision() const { return zone_.loaded() ? &zone_.collision() : nullptr; }
+    // The factory's own collision, or a floor's assembled one (rooms, hallways, door frames).
+    const CollisionWorld* collision() const {
+        if (floor_) return floorCollision_.loaded() ? &floorCollision_ : nullptr;
+        return rooms_[0].zone.loaded() ? &rooms_[0].zone.collision() : nullptr;
+    }
     // Once per level: where the entrance point puts us (EntrancePoint.placeToon).
     bool spawnPose(float* x, float* y, float* z, float* h);
     // World pose of one of our battle cells (Client::setLevelBattlePlacer).
@@ -54,9 +62,11 @@ public:
     // Battles lock visibility to their zone (DistributedLevelBattle.lockLevelViz).
     void lockVisibility(uint32_t zoneId) { lockZoneId_ = zoneId; }
     void unlockVisibility() { lockZoneId_ = 0; }
-    uint32_t levelDoId() const { return levelDoId_; }
-    // DistributedFactory.setDefeated -> FactoryInterior.handleFactoryWinEvent: teleport to the
-    // hood (ZoneUtil.getHoodId: the Sellbot factory's 11500 -> 11000). 0 until then; once.
+    // One of our DistributedLevels (the factory, or a room of the floor).
+    bool ownsLevel(uint32_t levelDoId) const { return active_ && roomOf(levelDoId) >= 0; }
+    // setDefeated (the factory, or a floor's last room) -> the interior's handle*WinEvent:
+    // teleport to the hood (ZoneUtil.getHoodId: 11500 -> 11000, 12500 -> 12000, ...). 0 until
+    // then; once.
     uint32_t popWinDestination() {
         const uint32_t z = winDestination_;
         winDestination_ = 0;
@@ -91,6 +101,11 @@ public:
         *x = e.world[9], *y = e.world[10], *z = e.world[11];
         return true;
     }
+    // A floor: the piece (room 2i / hallway 2i+1) the toon stands in, and the piece count.
+    int currentPiece() const { return floor_ ? piece_ : -1; }
+    int numPieces() const { return floor_ ? numPieces_ : 0; }
+    // Autotest: the floor-space centre of a piece's floor; false if none.
+    bool pieceCenter(int piece, float* x, float* y, float* z) const;
     // Autotest: the spawn of the level's boss cog (CogData 'boss': 1, the foreman).
     bool foremanPosition(float* x, float* y, float* z) const {
         for (int i = active_ ? spec_.next("cogSpec", -1) : -1; i >= 0; i = spec_.next("cogSpec", i)) {
@@ -139,12 +154,49 @@ private:
         uint32_t lastStrayMs = 0;
         uint32_t requestMs = 0;
         bool inBattle = false;                 // a member of a battle: world/battle.* owns it
+        int room = -1;                         // its level (rooms_ index)
     };
-    bool load(const char* name);
-    void begin(const net::Factory& f);
+    static constexpr int kMaxRooms = LevelSpec::kMaxRooms;
+    // One DistributedLevel: the factory, or a room of a floor (in setRoomDoIds order).
+    struct Room {
+        uint32_t doId = 0;
+        int piece = 0;            // its index among the floor's pieces (roomNum; rooms are even)
+        Zone zone;                // its .tz, drawn and streamed in its own space
+        float placement[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0}; // room -> floor (rows)
+        uint32_t levelZoneId = 0;
+        int numZones = 0;
+        uint16_t zoneNums[128] = {}; // spec zone entity ids, sorted (zone ids map 1:1)
+        uint32_t zoneIds[128] = {};  // setZoneIds
+        uint32_t startMs = 0;        // setStartTimestamp: the time base of its movers
+        bool zonesSent = false;
+    };
+    bool loadRoom(int room, const char* name, const float placement[12]);
+    bool loadFloor(const net::Facility& f);
+    void tryBeginFloor(net::Client& client);
+    void activate(net::Client& client);
+    void loadSpinModels();
+    void begin(Room& room, const net::LevelObj& l);
+    int roomOf(uint32_t levelDoId) const {
+        for (int i = 0; i < numRooms_; ++i)
+            if (rooms_[i].doId == levelDoId) return i;
+        return -1;
+    }
+    // The spec entity of a distributed level entity, or nullptr when it is not one of ours.
+    const LevelEntity* specOf(uint32_t levelDoId, uint32_t entId) const {
+        const int r = roomOf(levelDoId);
+        return r < 0 ? nullptr : spec_.find(r, entId);
+    }
+    // Shown and solid: every room of the factory; on a floor, the rooms camEnterRoom unstashes.
+    bool shown(int room) const {
+        if (!floor_) return true;
+        const int p = rooms_[room].piece;
+        return p >= showMin_ && p <= showMax_;
+    }
+    void sendFloorInterest(net::Client& client);
+    void updatePiece(float x, float y, float z);
     void sendVisibility(net::Client& client, uint16_t cellZone, const uint16_t* zones, int count);
     static void cellChanged(void* self, uint16_t cellZone, const uint16_t* zones, int count);
-    uint32_t zoneIdOf(int zoneNum) const;
+    uint32_t zoneIdOf(int zoneNum) const; // the factory's zone ids
     void setupCog(Cog& c, const net::LevelSuit& s);
     void walkPath(Cog& c, float dt);
     void moveToward(Cog& c, float speed, float dt);
@@ -185,7 +237,6 @@ private:
     float entityPrev_[net::kMaxLevelEntities] = {}; // per client slot: last raise / phase
     int entityCycle_[net::kMaxLevelEntities] = {};
     uint8_t entityState_[net::kMaxLevelEntities] = {};
-    uint32_t levelStartMs_ = 0;
     uint32_t winDestination_ = 0;
     bool won_ = false;
     int squishDamage_ = 0;
@@ -226,7 +277,17 @@ private:
     float treadBox_[6] = {-5, -5, 0, 5, 5, 0.431f};
     static constexpr int kMaxSpins = 32;
     render::Model spinModels_[kMaxSpins];
-    float levelTime(uint32_t nowMs) const { return int32_t(nowMs - levelStartMs_) / 1000.0f; }
+    uint16_t spinRoom_[kMaxSpins] = {}, spinEnt_[kMaxSpins] = {};
+    int numSpins_ = 0;
+    const render::Model* spinModel(const LevelEntity& e) const {
+        for (int k = 0; k < numSpins_; ++k)
+            if (spinRoom_[k] == e.room && spinEnt_[k] == e.entId) return &spinModels_[k];
+        return nullptr;
+    }
+    // Seconds since the entity's level started (setStartTimestamp; movers run from it).
+    float levelTime(uint32_t nowMs, const LevelEntity& e) const {
+        return int32_t(nowMs - rooms_[e.room].startMs) / 1000.0f;
+    }
     void gearMatrix(const LevelEntity& e, float t, C3D_Mtx* m) const;
     bool platformOffset(const LevelEntity& e, float t, float out[3]) const;
     void updateMovers(float x, float y, float z, uint32_t nowMs);
@@ -261,15 +322,47 @@ private:
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)
 
-    Zone zone_;
     LevelSpec spec_;
+    Room rooms_[kMaxRooms];
+    int numRooms_ = 0;
     bool active_ = false;
-    bool loaded_ = false;
     bool spawned_ = false;
-    uint32_t levelDoId_ = 0, levelZoneId_ = 0;
-    int numZones_ = 0;
-    uint16_t zoneNums_[128] = {};   // spec zone entity ids, sorted (zone ids map 1:1)
-    uint32_t zoneIds_[128] = {};    // setZoneIds
+    uint16_t winHood_ = 0;          // the facility (or factory) id whose hood a win teleports to
+    // A floor (floor_): the facility, its pieces (rooms and hallways), door frames and the
+    // floor collision of the .tlf, and the piece the toon is in.
+    bool floor_ = false;
+    uint32_t facilityDoId_ = 0, facilityZoneId_ = 0;
+    static constexpr int kMaxPieces = 2 * kMaxRooms;
+    struct Piece {
+        float placement[12];
+        float lo[3], hi[3];       // floor-space bounds
+        int room = -1;            // rooms_ index, or -1 for a hallway
+        int roomId = -1;          // the layout's room id (setRoomId), -1 for a hallway
+        int model = -1;           // hallway: connectorModels_ index
+    };
+    Piece pieces_[kMaxPieces];
+    int numPieces_ = 0;
+    render::Model connectorModels_[4];
+    char connectorNames_[4][48] = {};
+    int numConnectors_ = 0;
+    struct DoorFrame {
+        float placement[12];
+        int piece;
+    };
+    static constexpr int kMaxDoorFrames = 32;
+    DoorFrame doorFrames_[kMaxDoorFrames];
+    int numDoorFrames_ = 0;
+    render::Model doorFrameModel_;
+    CollisionWorld floorCollision_;
+    struct FloorTri {
+        uint16_t piece;
+        float v[9];
+    };
+    FloorTri* floorTris_ = nullptr; // per piece (initFloorCollisions' mintFloorColl<roomNum>)
+    int numFloorTris_ = 0;
+    int piece_ = 0;                 // toonEnterRoom / camEnterRoom
+    int showMin_ = 0, showMax_ = 0;
+    bool interestSent_ = false;
     uint8_t entranceId_ = 0;
     int toonIndex_ = 0, numToons_ = 1;
     int zoneNum_ = -1;              // the zone the toon stands in (lastToonZone)
@@ -290,7 +383,7 @@ private:
         bool wall, floor;
         bool disc;        // a vertical gear: circle in local XZ, axis local Y
     };
-    static constexpr int kMaxSolids = 64;
+    static constexpr int kMaxSolids = 96;
     Solid solids_[kMaxSolids];
     int numSolids_ = 0;
     DynamicSolids dynamic_;

@@ -126,17 +126,15 @@ enum class EventType : uint8_t {
     CogInteriorState,  // floor interior state/lists changed
     CogInteriorGone,
     CogBuildingGone,
-    FactoryUp,
-    FactoryState,
-    FactoryEntityUp,
-    FactoryEntityState,
-    FactoryGone,
+    LevelUp,          // a DistributedLevel (factory, mint/stage/country club room) generated
+    LevelState,       // ... a field of it changed (setZoneIds, setDefeated, ...)
+    LevelGone,
+    FacilityUp,       // DistributedMint / Stage / CountryClub (the floor) generated or changed
+    FacilityGone,
     LevelSuitUp,      // DistributedFactorySuit / MintSuit / StageSuit generated (client_level.cpp)
     LevelSuitState,   // setConfrontToon / setReturn / setHP / setReserve ...
     LevelSuitGone,
     LevelBlockerState, // BattleBlocker generated or changed
-    MintUp, MintState, MintRoomUp, MintRoomState, MintGone,
-    StageUp, StageState, StageRoomUp, StageRoomState, StageGone,
     EstateManagerUp, EstateZone, EstateUp, EstateState, HouseUp, HouseState,
     HouseInteriorUp, FurnitureUp, FurnitureState, PetUp, PetState, EstateGone, PetGone,
     ClosetUp, ClosetGone, MailboxUp, BankUp,
@@ -350,18 +348,14 @@ struct CogInterior {
 };
 constexpr int kMaxCogInteriors = 2;
 
-enum class FactoryEntityType : uint8_t { Unknown, Lift, Door, Button, Crate, Goon, Stomper };
-struct FactoryEntity {
-    uint32_t doId = 0, levelDoId = 0, entId = 0, stateStartMs = 0, actorId = 0;
-    FactoryEntityType type = FactoryEntityType::Unknown;
-    float x = 0, y = 0, z = 0, tx = 0, ty = 0, tz = 0;
-    uint8_t state = 0, nextState = 0, movie = 0, crushed = 0;
-    bool active = false;
-};
-constexpr int kMaxFactoryEntities = 64;
-struct Factory {
-    uint32_t doId = 0, levelZoneId = 0, startMs = 0, foreman = 0;
-    uint16_t factoryId = 0;
+// ---- facility levels (client_level.cpp, docs/design/levels.md) ----
+// A DistributedLevel: the Sellbot factory, or one room of a mint / stage / country club floor.
+struct LevelObj {
+    uint32_t doId = 0, levelZoneId = 0, startMs = 0;
+    uint16_t classId = 0;
+    uint16_t levelId = 0;    // DistributedFactory.setFactoryId, or a room's setRoomId
+    uint16_t facilityId = 0; // a room's setMintId / setStageId / setCountryClubId
+    uint8_t roomNum = 0;     // a room's setRoomNum: its index among the floor's rooms and hallways
     uint32_t zoneIds[128] = {};
     uint16_t numZones = 0;
     uint32_t suits[32] = {};
@@ -371,7 +365,21 @@ struct Factory {
     uint8_t entranceId = 0; // DistributedLevel.setEntranceId (entrancePoint entities' entranceId)
     uint32_t playerIds[4] = {}; // DistributedLevel.setPlayerIds: entrance placement order
     uint8_t numPlayers = 0;
+    uint32_t confronted = 0; // setForemanConfronted / setBossConfronted: the toon facing the boss
     bool defeated = false, active = false;
+    bool isRoom() const { return facilityId != 0; }
+};
+constexpr int kMaxLevels = 16;
+// The floor object of a multi-room facility; its rooms are LevelObjs (setRoomDoIds order).
+enum class FacilityKind : uint8_t { Mint, Stage, CountryClub };
+struct Facility {
+    uint32_t doId = 0, zoneId = 0;
+    FacilityKind kind = FacilityKind::Mint;
+    uint16_t facilityId = 0, layoutIndex = 0;
+    uint8_t floorNum = 0;
+    uint32_t roomDoIds[kMaxLevels] = {};
+    uint8_t numRooms = 0;
+    bool active = false;
 };
 
 // ---- facility level Cogs and battle blockers (client_level.cpp, docs/design/levels.md) ----
@@ -390,7 +398,7 @@ struct LevelSuit {
     uint32_t chaseSerial = 0;  // bumped by setConfrontToon
     bool active = false;
 };
-constexpr int kMaxLevelSuits = 32;
+constexpr int kMaxLevelSuits = 64; // a whole mint / stage / country club floor
 // BattleBlocker (and DistributedLaserField): a sphere of spec 'radius' at its entity; walking
 // in starts the battle of its cell's cogs, or joins the running one (BattleBlocker.startBattle).
 struct LevelBlocker {
@@ -399,7 +407,7 @@ struct LevelBlocker {
     uint8_t numSuits = 0;
     bool blockerActive = false, finished = false, active = false;
 };
-constexpr int kMaxLevelBlockers = 24;
+constexpr int kMaxLevelBlockers = 32;
 // Distributed level entities the level runtime animates (doors now; see client_level.cpp).
 struct LevelEntityObj {
     uint32_t doId = 0, levelDoId = 0, entId = 0;
@@ -420,32 +428,8 @@ struct LevelEntityObj {
     bool crushed = false;    // DistributedCrushableEntity.setCrushed
     bool active = false;
 };
-constexpr int kMaxLevelEntities = 64;
+constexpr int kMaxLevelEntities = 128;
 // ---- end facility levels ----
-
-struct FacilityRoom {
-    uint32_t doId = 0, levelZoneId = 0, startMs = 0, boss = 0;
-    uint16_t facilityId = 0, roomId = 0;
-    uint8_t roomNum = 0, numSuits = 0;
-    uint32_t suits[16] = {};
-    bool defeated = false, active = false;
-};
-struct Mint {
-    uint32_t doId = 0, zoneId = 0;
-    uint16_t mintId = 0;
-    uint8_t floorNum = 0;
-    uint32_t roomDoIds[32] = {};
-    uint8_t numRooms = 0;
-    bool active = false;
-};
-struct Stage {
-    uint32_t doId = 0, zoneId = 0, stageZone = 0;
-    uint16_t stageId = 0, layoutIndex = 0;
-    uint8_t floorNum = 0;
-    uint32_t roomDoIds[32] = {};
-    uint8_t numRooms = 0;
-    bool alert = false, active = false;
-};
 
 struct EstateHouse {
     uint32_t doId = 0, avatarId = 0;
@@ -903,6 +887,7 @@ constexpr int kMaxRacingVehicles = 16;
 struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
+    uint32_t defaultZone = 2000; // setDefaultZone: the playground a sad toon returns to
     // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
     uint16_t experience[7] = {};
     uint8_t inventory[7][7] = {}; // count per track, level
@@ -1134,8 +1119,10 @@ public:
     const CogBuilding& cogBuildingSlot(int i) const { return cogBuildings_[i]; }
     const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
     const CogInterior* cogInterior() const { return cogInterior_.active ? &cogInterior_ : nullptr; }
-    const Factory* factory() const { return factory_.active ? &factory_ : nullptr; }
     // ---- facility levels (client_level.cpp) ----
+    const LevelObj* levelObj(uint32_t doId) const;
+    const LevelObj& levelSlot(int n) const { return levels_[n]; }
+    const Facility* facility() const { return facility_.active ? &facility_ : nullptr; }
     const LevelSuit& levelSuitSlot(int n) const { return levelSuits_[n]; }
     const LevelSuit* findLevelSuit(uint32_t doId) const;
     // Name / level / HP of any cog we know: a street DistributedSuit or a level cog.
@@ -1164,15 +1151,6 @@ public:
                                        float* z, float* h);
     void setLevelBattlePlacer(LevelBattlePlacer fn, void* user) { levelBattlePlacer_ = fn; levelBattlePlacerUser_ = user; }
     // ---- end facility levels ----
-    const FactoryEntity& factoryEntitySlot(int n) const { return factoryEntities_[n]; }
-    bool sendFactoryEntityInteract(uint32_t doId);
-    bool sendFactoryCratePush(uint32_t doId, uint8_t direction);
-    bool sendFactoryGoonBattle(uint32_t doId, float distance);
-    const Mint* mint() const { return mint_.active ? &mint_ : nullptr; }
-    const Stage* stage() const { return stage_.active ? &stage_ : nullptr; }
-    const FacilityRoom& mintRoomSlot(int n) const { return mintRooms_[n]; }
-    const FacilityRoom& stageRoomSlot(int n) const { return stageRooms_[n]; }
-    bool sendRoomEntityInteract(uint32_t doId);
     bool requestHome();
     bool sendEstateClientReady(uint32_t doId);
     bool sendHouseEnter(uint32_t doId);
@@ -1560,19 +1538,6 @@ private:
     bool applyCogInteriorField(CogInterior& i, DatagramReader& r, uint16_t fieldId);
     bool handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     void clearCogObjects();
-    bool handleFactoryEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
-                            uint16_t reqCount, bool other);
-    bool applyFactoryField(Factory& f, DatagramReader& r, uint16_t fieldId);
-    bool applyFactoryEntityField(FactoryEntity& e, DatagramReader& r, uint16_t fieldId);
-    bool handleFactoryField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
-    void clearFactoryObjects();
-    bool handleFacilityEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
-                             const uint16_t* req, uint16_t reqCount, bool other);
-    bool applyMintField(Mint& m, DatagramReader& r, uint16_t fieldId);
-    bool applyStageField(Stage& s, DatagramReader& r, uint16_t fieldId);
-    bool applyRoomField(FacilityRoom& room, DatagramReader& r, uint16_t fieldId, bool mint);
-    bool handleFacilityField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
-    void clearFacilityObjects();
     bool handleEstateEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
                            const uint16_t* req, uint16_t reqCount, bool other);
     bool handleEstateField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
@@ -1601,17 +1566,13 @@ private:
     CogBuilding cogBuildings_[kMaxCogBuildings] = {};
     CogElevator cogElevators_[kMaxCogElevators] = {};
     CogInterior cogInterior_{};
-    Factory factory_{};
+    LevelObj levels_[kMaxLevels] = {};
+    Facility facility_{};
     LevelSuit levelSuits_[kMaxLevelSuits] = {};
     LevelBattlePlacer levelBattlePlacer_ = nullptr;
     void* levelBattlePlacerUser_ = nullptr;
     LevelBlocker levelBlockers_[kMaxLevelBlockers] = {};
     LevelEntityObj levelEntities_[kMaxLevelEntities] = {};
-    FactoryEntity factoryEntities_[kMaxFactoryEntities] = {};
-    Mint mint_{};
-    Stage stage_{};
-    FacilityRoom mintRooms_[32] = {};
-    FacilityRoom stageRooms_[32] = {};
     uint32_t estateManagerDoId_ = 0, estateZone_ = 0;
     Estate estate_{};
     HouseInterior houseInterior_{};
@@ -1662,6 +1623,8 @@ private:
     bool applyLevelSuitField(LevelSuit& s, DatagramReader& r, uint16_t fieldId);
     bool applyLevelBlockerField(LevelBlocker& b, DatagramReader& r, uint16_t fieldId);
     bool applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_t fieldId);
+    bool applyLevelObjField(LevelObj& l, DatagramReader& r, uint16_t fieldId);
+    bool applyFacilityField(Facility& f, DatagramReader& r, uint16_t fieldId);
     void clearGolfObjects();
     void pushEventArg(EventType type, uint32_t doId, int32_t arg);
     uint8_t ownDna_[kDnaSize] = {};

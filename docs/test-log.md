@@ -531,3 +531,31 @@ Azahar Old 3DS, muted, stock server with `AI_DEV=1` (plus `AI_DEV_STRONG=1` and
   `stepTime() < 0.05`, which a screenshot stall could skip.
 - **Still open in the factory:** crates and grids, crusher cells, cut scene, ambient sounds,
   the foreman-confronted message.
+
+## 2026-10-24 — Cashbot mint floors (multi-room levels, world/level.*)
+
+Azahar Old 3DS, muted, stock server with `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1`
+(weak Cogs now also revive with 1 HP). `AUTOTEST_ONLY="go mint,mint: …"`: board the Coin Mint
+elevator in the Cashbot HQ courtyard (`elevator_origin_1`).
+
+- **Floors load from the layout bake.** Floors 0 (7 rooms), 10 (9), 14 (10) and 17 (11 rooms,
+  21 pieces, 20 door frames) came up. The server's room ids matched the baked `MintLayout`
+  every time, the toon spawned on room 0's entrance point, and one interest went out
+  (`[2, mint zone, every room's zone]`).
+- **Walk (floor 10).** The toon was teleported through all 17 pieces in order. Each room and
+  hallway was detected from its floor (`toonEnterRoom`) and the ±1 / ±2 window followed.
+  Hallways, door frames and the next room line up, as the bake predicted.
+- **Battles.** Mint skelecogs (level 11–12) on their battle cells, `MintReward`.
+- **The end (floor 17).** The supervisor's cell battle ends in `MintReward`; `setDefeated`
+  sends the toon back to Cashbot HQ 12000 (`handleMintWinEvent`). Leaving the facility
+  now works even when the target is the HQ still loaded underneath it.
+- **Going sad.** Without weak revives a lone toon lost to the supervisor's group (four
+  toons upstream). It was teleported to Donald's Dreamland 9000, which is
+  `getSafeZoneId(defaultZone)` as upstream (the AI sets `defaultZone` to Cashbot HQ). This
+  replaced our old "current hood" rule, which left a sad toon inside the facility.
+- **Performance.** Worst view 5,055 tris / 87 draws (floor 10). 26.7 fps mean over the
+  walk with a screenshot every second; the 109 ms `dplace` maxima are the shot dumps (the
+  factory runs show the same). Heap 4.1 MB, linear free 10.5–15 MB.
+- **Not yet run.** DA office (stage) and country-club floors: they are baked and load
+  through the same code, but entering them (Lawbot lobby elevators, Bossbot golf karts)
+  is untested.

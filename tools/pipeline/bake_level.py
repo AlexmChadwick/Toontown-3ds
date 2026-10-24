@@ -213,7 +213,7 @@ def build_tlv(ents, cogs, model, out_path, family=None, spins=()):
         w.add(i, sp['zone'], sp['zone'], 'spinProp', sp['world'], [0, 0, 0], [0, 0, 0], [1, 1, 1],
               {'file': sp['file'], 'axis': sp['axis'], 'rate': sp['rate']}, flags=tlv.FLAG_SYNTHETIC)
     counts['spinProp'] = len(spins)
-    report = w.write(out_path)
+    report = w.write(out_path) if out_path else {'entities': len(w.entities)}
     report.update(counts)
     types = {}
     for spec in ents.values():
@@ -422,7 +422,7 @@ def lift_guards(ents, model):
     return found
 
 
-def spin_props(level, ents, model, out):
+def spin_props(level, ents, model, out, write=True):
     """otp/level/PropSpinner: every Prop_<name>_<axis>_<[N]rate> node of the spinner's zone turns
     rate times a minute. They leave the static geometry and become their own models
     (<level>_spin_<i>.ttm, in the prop node's space) plus synthetic 'spinProp' entries."""
@@ -448,9 +448,10 @@ def spin_props(level, ents, model, out):
                 continue
             i = len(found)
             name = f'{level}_spin_{i}.ttm'
-            ex = extract.Extractor(max_tex=128)
-            ex.add(n)
-            ttm.write(str(out / name), ex.textures, ex.batches())
+            if write:
+                ex = extract.Extractor(max_tex=128)
+                ex.add(n)
+                ttm.write(str(out / name), ex.textures, ex.batches())
             n.setHpr(0, 0, 0)  # initProps: prop.setHpr(0, 0, 0) before the spin
             world = [n.getMat(model).getCell(r, c) for r in range(4) for c in range(3)]
             found.append({'file': name, 'axis': parts[2], 'rate': -rate if neg else rate,
@@ -459,7 +460,8 @@ def spin_props(level, ents, model, out):
     return found
 
 
-def bake(level, args, base):
+def load_level(level, args, base):
+    """The spec, cogs and model of one level (LEVELS / room_levels names)."""
     import level_spec_load
     spec_name, cog_name = LEVELS[level]
     ents = level_spec_load.load_spec(spec_name)
@@ -474,18 +476,38 @@ def bake(level, args, base):
             print(f'{level}: {model_path.name} missing, using {padded.name}', flush=True)
             model_path = padded
     model = base.loader.loadModel(str(model_path), noCache=True)
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
+    return spec_name, mgr, ents, cogs, model
+
+
+def prepare_level(level, args, base, out, write=True):
+    """The level model as the runtime sees it: lift guards and spinner props split out, the
+    TLV entity nodes built (written to out/<level>.tlv when write), static model entities
+    attached and decals lifted. Returns (model, ents, report)."""
+    spec_name, mgr, ents, cogs, model = load_level(level, args, base)
     report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
     report['lift_guards'] = lift_guards(ents, model)
-    out.mkdir(parents=True, exist_ok=True)
-    spins = spin_props(level, ents, model, out)
+    spins = spin_props(level, ents, model, out, write)
     report['spin_props'] = [s['file'] for s in spins]
-    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level), spins)
-    if not args.tlv_only:
-        report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)
-        import assemble
-        assemble.lift_decals(model)
+    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv' if write else None,
+                                     path_family(level), spins)
+    report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)
+    import assemble
+    assemble.lift_decals(model)
+    return model, ents, report
+
+
+def bake(level, args, base):
+    out = Path(args.out)
+    out.mkdir(parents=True, exist_ok=True)
+    if args.tlv_only:
+        spec_name, mgr, ents, cogs, model = load_level(level, args, base)
+        report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
+        report['lift_guards'] = lift_guards(ents, model)
+        spins = spin_props(level, ents, model, out)
+        report['spin_props'] = [s['file'] for s in spins]
+        report['tlv'], _ = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level), spins)
+    else:
+        model, ents, report = prepare_level(level, args, base, out)
         report['tz'] = bake_tz(level, ents, model, out, args)
     (out / f'{level}.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps({k: v for k, v in report.items() if k not in ('tlv',)}, indent=2, default=str)[:4000], flush=True)

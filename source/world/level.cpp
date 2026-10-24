@@ -279,9 +279,9 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
     int numExtra = 0;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedDoorEntity::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedDoorEntity::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         const DoorPose pose = doorPose(d, nowMs);
         if (pose.outer || pose.inner) addSolid(e->world, doorBox_, doorBox_ + 3, true, false);
         // The tracks' SoundIntervals: each slide, then the 'final' clank 0.375 d later.
@@ -306,7 +306,7 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
         }
         entityState_[i] = d.state;
         entityPrev_[i] = t;
-        if (d.state != 4 && d.state != 0) {
+        if (!floor_ && d.state != 4 && d.state != 0) {
             for (int k = spec_.next("visibilityExtender", -1); k >= 0; k = spec_.next("visibilityExtender", k)) {
                 const LevelEntity& v = spec_.entity(k);
                 if (spec_.integer(v, "event", -1) != int32_t(d.entId) || v.zoneNum != zoneNum_) continue;
@@ -329,7 +329,7 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
             }
         }
     }
-    zone_.setExtraVisible(extra, numExtra);
+    if (!floor_) rooms_[0].zone.setExtraVisible(extra, numExtra);
     doorNowMsPrev_ = nowMs;
 }
 
@@ -429,9 +429,9 @@ void Level::updateButtons(net::Client& client, float x, float y, float z) {
     uint32_t touching = 0;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedButton::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedButton::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         addSolid(e->world, buttonBox_, buttonBox_ + 3, false, true); // its top is a floor
         // DistributedButton.setupSwitch: an intangible sphere (r 0.5 at z 0.5) the toon's body
         // sphere (r kToonRadius at its middle) enters.
@@ -463,9 +463,9 @@ void Level::drawButtons(render::Renderer& renderer) const {
     if (!doorClient_ || !buttonBase_.loaded() || !buttonTop_.loaded()) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedButton::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedButton::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         C3D_Mtx m;
         toMtx(e->world, &m);
         renderer.drawModel(const_cast<render::Model&>(buttonBase_), m);
@@ -530,7 +530,7 @@ Level::StomperPose Level::stomperPose(const LevelEntity& e, const net::LevelEnti
     }
     if (d.movie != 0 || period <= 0.0f) return p; // only STOMPER_START loops
     // ival.setT(frameTime - level.startTime + period * phaseShift), looping.
-    const float t = int32_t(nowMs - levelStartMs_) / 1000.0f + period * spec_.number(e, "phaseShift", 0.0f);
+    const float t = levelTime(nowMs, e) + period * spec_.number(e, "phaseShift", 0.0f);
     float u = std::fmod(t / period, 1.0f);
     if (u < 0) u += 1.0f;
     switch (motion) {
@@ -559,9 +559,9 @@ Level::StomperPose Level::stomperPose(const LevelEntity& e, const net::LevelEnti
 void Level::updateStompers(net::Client& client, float x, float y, float z, uint32_t nowMs) {
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedStomper::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedStomper::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         const StomperPose p = stomperPose(*e, d, nowMs);
         const StomperShape& st = stompers_[p.style];
         const float range = spec_.number(*e, "range", 6.0f);
@@ -585,7 +585,7 @@ void Level::updateStompers(net::Client& client, float x, float y, float z, uint3
         const float period = spec_.number(*e, "period", 2.0f);
         int cycle = 0;
         if (d.movie == 0 && period > 0.0f && spec_.integer(*e, "motion", 0) != 5) {
-            const float t = int32_t(nowMs - levelStartMs_) / 1000.0f + period * spec_.number(*e, "phaseShift", 0.0f);
+            const float t = levelTime(nowMs, *e) + period * spec_.number(*e, "phaseShift", 0.0f);
             cycle = int(std::floor(t / period));
         } else if (spec_.integer(*e, "motion", 0) == 5) {
             cycle = d.movie == 4 && int32_t(nowMs - d.movieMs) >= 0 ? int(d.movieMs | 1) : 0;
@@ -605,7 +605,7 @@ void Level::updateStompers(net::Client& client, float x, float y, float z, uint3
                         l[2] > -0.5f) {
                         squishDamage_ = spec_.integer(*e, "damage", 1);
                         squishZ_ = e->world[11] + 0.025f;
-                        client.sendLevelOuch(levelDoId_, uint8_t(squishDamage_));
+                        client.sendLevelOuch(rooms_[e->room].doId, uint8_t(squishDamage_));
                         stunned_ = true;
                         TT_LOG("level: squished by stomper %u (%d laff)", unsigned(d.entId), squishDamage_);
                     }
@@ -619,9 +619,9 @@ void Level::drawStompers(render::Renderer& renderer) const {
     if (!doorClient_) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedStomper::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedStomper::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         const StomperPose p = stomperPose(*e, d, doorNowMs_);
         StomperShape& st = const_cast<StomperShape&>(stompers_[p.style]);
         C3D_Mtx m;
@@ -661,15 +661,14 @@ bool Level::liftPose(const LevelEntity& e, const net::LevelEntityObj& d, uint32_
 
 void Level::updateLifts(net::Client& client, float x, float y, float z, uint32_t nowMs) {
     uint32_t riding = 0;
-    static const float kIdentity[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedLift::kClassId) {
+        const LevelEntity* e = d.active && d.classId == dc::DistributedLift::kClassId ? specOf(d.levelDoId, d.entId)
+                                                                                      : nullptr;
+        if (!e || !shown(e->room)) {
             if (liftVoice_[i]) { audio::stopVoice(liftVoice_[i]); liftVoice_[i] = 0; }
             continue;
         }
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
         float w[12];
         bool moving;
         liftPose(*e, d, nowMs, w, &moving);
@@ -696,13 +695,13 @@ void Level::updateLifts(net::Client& client, float x, float y, float z, uint32_t
             }
             if (!open) addSolid(w, liftBoxes_[kLiftFront + k], liftBoxes_[kLiftFront + k] + 3, true, false);
         }
-        // Guards (level collision moved here by bake_level.py): the far end's while resting,
-        // both while moving.
+        // Guards (level collision moved here by bake_level.py, boxes in level-root space): the far
+        // end's while resting, both while moving.
         float box[6];
         for (int g = 0; g < 2; ++g) {
             const bool active = moving || (g == 0 ? d.state != 0 : d.state == 0);
             if (active && spec_.getFloats(*e, g == 0 ? "startGuardBox" : "endGuardBox", box, 6) == 6)
-                addSolid(kIdentity, box, box + 3, true, false);
+                addSolid(rooms_[e->room].placement, box, box + 3, true, false);
         }
         // setAvatarEnter / setAvatarLeave: standing on the lift floor.
         float l[3];
@@ -732,9 +731,9 @@ void Level::drawLifts(render::Renderer& renderer) const {
     if (!doorClient_ || !liftModel_.loaded()) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedLift::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedLift::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         float w[12];
         bool moving;
         liftPose(*e, d, doorNowMs_, w, &moving);
@@ -759,9 +758,9 @@ bool isBarrel(uint16_t classId) {
 void Level::updateBarrels(net::Client& client, float x, float y, float z, uint32_t nowMs) {
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || !isBarrel(d.classId)) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || !isBarrel(d.classId)) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         float lo[3], hi[3];
         for (int c = 0; c < 3; ++c) lo[c] = barrelBox_[c] * kBarrelScale, hi[c] = barrelBox_[3 + c] * kBarrelScale;
         addSolid(e->world, lo, hi, true, true);
@@ -789,9 +788,9 @@ void Level::drawBarrels(render::Renderer& renderer) const {
     if (!doorClient_ || !barrelModel_.loaded()) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || !isBarrel(d.classId)) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || !isBarrel(d.classId)) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         // setGrab: scale to 1.1x and back over 0.4 s; greyed for the toon who grabbed it.
         float s = kBarrelScale;
         if (d.grabMs) {
@@ -813,7 +812,7 @@ void Level::drawBarrels(render::Renderer& renderer) const {
         float labelScale = 1.0f, labelZ = 0.0f;
         if (d.classId == dc::DistributedGagBarrel::kClassId) {
             // BarrelBase.getGagTrack / getGagLevel: random.Random(entId * level.doId), fresh each.
-            const uint64_t seed = uint64_t(e->entId) * levelDoId_;
+            const uint64_t seed = uint64_t(e->entId) * rooms_[e->room].doId;
             int track = spec_.integer(*e, "gagTrack", 0);
             const char* trackName = spec_.string(*e, "gagTrack");
             if (trackName && !strcmp(trackName, "random")) {
@@ -910,11 +909,11 @@ bool Level::platformOffset(const LevelEntity& e, float t, float out[3]) const {
 
 void Level::updateMovers(float x, float y, float z, uint32_t nowMs) {
     (void)x, (void)y, (void)z;
-    const float t = levelTime(nowMs);
     int slot = 0;
     for (int i = 0; i < spec_.numEntities(); ++i) {
         const LevelEntity& e = spec_.entity(i);
-        if (e.flags & kLevelSynthetic) continue;
+        if ((e.flags & kLevelSynthetic) || !shown(e.room)) continue;
+        const float t = levelTime(nowMs, e);
         if (!strcmp(e.type, "gear")) {
             const char* type = spec_.string(e, "modelType");
             const int k = type && !strcmp(type, "mint") ? 1 : 0;
@@ -980,10 +979,11 @@ void Level::updateMovers(float x, float y, float z, uint32_t nowMs) {
 }
 
 void Level::drawMovers(render::Renderer& renderer) const {
-    const float t = levelTime(doorNowMs_);
     C3D_Mtx m;
     for (int i = 0; i < spec_.numEntities(); ++i) {
         const LevelEntity& e = spec_.entity(i);
+        if (!shown(e.room)) continue;
+        const float t = levelTime(doorNowMs_, e);
         if (!strcmp(e.type, "gear")) {
             const char* type = spec_.string(e, "modelType");
             render::Model& model = const_cast<render::Model&>(gearModels_[type && !strcmp(type, "mint") ? 1 : 0]);
@@ -1023,7 +1023,7 @@ void Level::drawMovers(render::Renderer& renderer) const {
                 Mtx_Scale(&m, width, 1, 1);
                 renderer.drawModel(const_cast<render::Model&>(treadModel_), m);
             }
-        } else if (!strcmp(e.type, "spinProp") && e.entId < uint32_t(kMaxSpins) && spinModels_[e.entId].loaded()) {
+        } else if (!strcmp(e.type, "spinProp") && spinModel(e) && spinModel(e)->loaded()) {
             // PropSpinner: rate turns a minute; axis X spins P, Y spins H, Z spins R.
             const char* axis = spec_.string(e, "axis");
             const float a = spec_.number(e, "rate", 0.0f) * 360.0f * t / 60.0f * kDegToRad;
@@ -1031,7 +1031,7 @@ void Level::drawMovers(render::Renderer& renderer) const {
             if (axis && axis[0] == 'X') Mtx_RotateX(&m, a, true);
             else if (axis && axis[0] == 'Y') Mtx_RotateZ(&m, a, true);
             else Mtx_RotateY(&m, a, true);
-            renderer.drawModel(const_cast<render::Model&>(spinModels_[e.entId]), m);
+            renderer.drawModel(const_cast<render::Model&>(*spinModel(e)), m);
         }
     }
 }
@@ -1059,7 +1059,7 @@ void sampleOnce(const render::Anim& anim, float t, u32* a, u32* b, float* blend)
 // PathEntity.makePathTrack(goon, velocity, turnTime=T_TURN): per leg a 3 s LerpHpr to the leg's
 // heading (from the previous one, numerically) and a LerpPos at the goon's velocity, looping.
 bool Level::goonPose(const LevelEntity& e, float walkT, float* x, float* y, float* z, float* h) const {
-    const LevelEntity* path = spec_.find(e.parentEntId);
+    const LevelEntity* path = spec_.find(e.room, e.parentEntId);
     if (!path) return false;
     float pts[48];
     const int n = spec_.getFloats(*path, "points", pts, 48) / 3;
@@ -1121,12 +1121,13 @@ void Level::updateGoons(net::Client& client, float x, float y, float z, uint32_t
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         Goon& g = goons_[i];
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedGoon::kClassId) {
+        const LevelEntity* e = d.active && d.classId == dc::DistributedGoon::kClassId ? specOf(d.levelDoId, d.entId)
+                                                                                      : nullptr;
+        if (!e) {
             g = Goon{};
             continue;
         }
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!shown(e->room)) continue;
         if (g.doId != d.doId) {
             g = Goon{};
             g.doId = d.doId;
@@ -1205,7 +1206,7 @@ void Level::updateGoons(net::Client& client, float x, float y, float z, uint32_t
                 playAt(kSfxGoonAttack, e->world + 9, 0.4f);
                 // enterBattle(local): level.b_setOuch(strength) (setOuch + stunToon).
                 ouchDamage_ = spec_.integer(*e, "strength", 1);
-                client.sendLevelOuch(levelDoId_, uint8_t(ouchDamage_));
+                client.sendLevelOuch(rooms_[e->room].doId, uint8_t(ouchDamage_));
                 stunned_ = true;
                 TT_LOG("level: zapped by goon %u (%d laff)", unsigned(d.entId), ouchDamage_);
             }
@@ -1218,8 +1219,8 @@ void Level::drawGoons(render::Renderer& renderer) const {
         const Goon& g = goons_[i];
         if (!g.valid || g.mode == GoonMode::Off || !doorClient_) continue;
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        const LevelEntity* e = d.active ? spec_.find(d.entId) : nullptr;
-        if (!e) continue;
+        const LevelEntity* e = d.active ? specOf(d.levelDoId, d.entId) : nullptr;
+        if (!e || !shown(e->room)) continue;
         const char* type = spec_.string(*e, "goonType");
         const int k = type && !strcmp(type, "sg") ? 1 : 0;
         render::Model& model = const_cast<render::Model&>(goonModels_[k]);
@@ -1277,9 +1278,9 @@ bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex
     float best = 1e30f;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != classId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != classId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         const float dx = e->world[9] - x, dy = e->world[10] - y, dz = e->world[11] - z;
         const float dist = dx * dx + dy * dy + dz * dz;
         if (dist < best) best = dist, *ex = e->world[9], *ey = e->world[10], *ez = e->world[11];
@@ -1292,9 +1293,9 @@ bool Level::nearestDoor(float x, float y, float z, float* dx, float* dy, float* 
     float best = 1e30f;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedDoorEntity::kClassId) continue;
+        if (!d.active || d.classId != dc::DistributedDoorEntity::kClassId) continue;
         if (d.state != 4 && d.state != 0) continue;
-        const LevelEntity* e = spec_.find(d.entId);
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
         if (!e) continue;
         const float ex = e->world[9], ey = e->world[10], ez = e->world[11];
         const float dist = (ex - x) * (ex - x) + (ey - y) * (ey - y) + (ez - z) * (ez - z);
@@ -1317,9 +1318,9 @@ void Level::drawDoors(render::Renderer& renderer) const {
     if (!doorClient_) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
-        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedDoorEntity::kClassId) continue;
-        const LevelEntity* e = spec_.find(d.entId);
-        if (!e) continue;
+        if (!d.active || d.classId != dc::DistributedDoorEntity::kClassId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e || !shown(e->room)) continue;
         const DoorPose p = doorPose(d, doorNowMs_);
         C3D_Mtx root, m;
         toMtx(e->world, &root);
@@ -1354,103 +1355,303 @@ void Level::drawDoors(render::Renderer& renderer) const {
     }
 }
 
-bool Level::load(const char* name) {
-    char path[96];
+namespace {
+
+// bake_facility_floors.py TLF1 (one facility floor).
+struct FloorHeader {
+    char magic[4];
+    uint16_t version, kind;
+    uint32_t facilityId;
+    uint16_t layoutIndex, floor, numPieces, numDoorFrames;
+    uint32_t numFloorTris, piecesOffset, doorFramesOffset, floorTrisOffset, collisionOffset, collisionSize,
+        fileSize;
+};
+static_assert(sizeof(FloorHeader) == 48, "must match bake_facility_floors.py HEADER");
+struct FloorPiece {
+    char name[48];
+    uint16_t roomNum;
+    uint8_t isHallway, pad;
+    int16_t roomId;
+    uint16_t pad2;
+    float mat[12], lo[3], hi[3];
+};
+static_assert(sizeof(FloorPiece) == 128, "must match bake_facility_floors.py PIECE");
+struct FloorDoor {
+    uint16_t roomNum, style;
+    float mat[12];
+};
+static_assert(sizeof(FloorDoor) == 52, "must match bake_facility_floors.py DOOR");
+struct FloorTriRecord {
+    uint16_t roomNum, pad;
+    float v[9];
+};
+static_assert(sizeof(FloorTriRecord) == 40, "must match bake_facility_floors.py FLOOR_TRI");
+
+constexpr uint32_t kUberZone = 2; // OTPGlobals.UberZone (DistributedMint.gotAllRooms' zoneList)
+
+const char* floorKindName(net::FacilityKind k) {
+    return k == net::FacilityKind::Mint ? "mint" : k == net::FacilityKind::Stage ? "stage" : "club";
+}
+
+bool readAt(FILE* f, long offset, void* out, size_t size) {
+    return std::fseek(f, offset, SEEK_SET) == 0 && std::fread(out, 1, size, f) == size;
+}
+
+} // namespace
+
+bool Level::loadRoom(int room, const char* name, const float placement[12]) {
+    char path[112];
     snprintf(path, sizeof(path), "%s%s.tlv", kDir, name);
-    if (!spec_.load(path)) {
+    if (spec_.append(path, placement) != room) {
         TT_LOG("level: missing or bad %s", path);
         return false;
     }
+    Room& r = rooms_[room];
+    if (placement) memcpy(r.placement, placement, sizeof(r.placement));
     snprintf(path, sizeof(path), "%s%s.tz", kDir, name);
-    if (!zone_.load(path)) {
-        TT_LOG("level: %s: %s", path, zone_.error());
-        spec_.unload();
+    if (!r.zone.load(path)) {
+        TT_LOG("level: %s: %s", path, r.zone.error());
         return false;
     }
-    numZones_ = 0;
-    for (int i = spec_.next("zone", -1); i >= 0 && numZones_ < 128; i = spec_.next("zone", i))
-        zoneNums_[numZones_++] = uint16_t(spec_.entity(i).entId);
-    std::sort(zoneNums_, zoneNums_ + numZones_); // LevelMgr.privAssignZoneIds: sorted zone nums
-    TT_LOG("level: %s: %d entities, %d zones, %d chunks", name, spec_.numEntities(), numZones_, zone_.numChunks());
-    loadProps();
-    // PropSpinner models of this level (bake_level.py spin_props).
-    for (int k = 0; k < kMaxSpins; ++k) spinModels_[k].unload();
-    for (int i = spec_.next("spinProp", -1); i >= 0; i = spec_.next("spinProp", i)) {
-        const LevelEntity& e = spec_.entity(i);
-        const char* file = spec_.string(e, "file");
-        if (!file || e.entId >= uint32_t(kMaxSpins)) continue;
-        snprintf(path, sizeof(path), "%s%s", kDir, file);
-        spinModels_[e.entId].load(path);
-    }
-    loaded_ = true;
+    r.numZones = 0;
+    for (int i = spec_.next("zone", -1); i >= 0 && r.numZones < 128; i = spec_.next("zone", i))
+        if (spec_.entity(i).room == room) r.zoneNums[r.numZones++] = uint16_t(spec_.entity(i).entId);
+    std::sort(r.zoneNums, r.zoneNums + r.numZones); // LevelMgr.privAssignZoneIds: sorted zone nums
+    TT_LOG("level: room %d %s: %d zones, %d chunks", room, name, r.numZones, r.zone.numChunks());
     return true;
 }
 
-void Level::begin(const net::Factory& f) {
-    levelDoId_ = f.doId;
-    levelZoneId_ = f.levelZoneId;
-    for (int i = 0; i < numZones_; ++i) zoneIds_[i] = i < f.numZones ? f.zoneIds[i] : 0;
-    if (f.numZones != numZones_)
-        TT_LOG("level: server sent %d zone ids for %d spec zones", int(f.numZones), numZones_);
-    entranceId_ = f.entranceId;
-    levelStartMs_ = f.startMs;
+// DistributedMint/Stage/CountryClub.gotAllRooms: the rooms placed along the floor layout with
+// their hallways and door frames (all baked into the floor's .tlf).
+bool Level::loadFloor(const net::Facility& fac) {
+    char file[112], path[112];
+    snprintf(file, sizeof(file), "%sfloors/%s_%u_%u_%u.tlf", kDir, floorKindName(fac.kind), unsigned(fac.facilityId),
+             unsigned(fac.kind == net::FacilityKind::Mint ? 0 : fac.layoutIndex), unsigned(fac.floorNum));
+    FILE* f = fopen(file, "rb");
+    if (!f) {
+        TT_LOG("level: missing %s", file);
+        return false;
+    }
+    FloorHeader h;
+    bool ok = readAt(f, 0, &h, sizeof(h)) && !memcmp(h.magic, "TLF1", 4) && h.version == 1 &&
+              h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms;
+    if (!ok) TT_LOG("level: %s: bad file, or %u pieces for %u rooms", file, unsigned(h.numPieces), unsigned(fac.numRooms));
+    numPieces_ = 0;
+    for (int i = 0; ok && i < h.numPieces; ++i) {
+        FloorPiece fp;
+        ok = readAt(f, long(h.piecesOffset + i * sizeof(fp)), &fp, sizeof(fp));
+        if (!ok) break;
+        fp.name[47] = 0;
+        Piece& p = pieces_[numPieces_++];
+        memcpy(p.placement, fp.mat, sizeof(p.placement));
+        memcpy(p.lo, fp.lo, 12), memcpy(p.hi, fp.hi, 12);
+        p.room = p.model = -1;
+        p.roomId = fp.roomId;
+        if (!fp.isHallway) {
+            const int room = i / 2;
+            p.room = room;
+            rooms_[room].piece = i;
+            rooms_[room].doId = fac.roomDoIds[room];
+            numRooms_ = room + 1;
+            ok = loadRoom(room, fp.name, fp.mat);
+            continue;
+        }
+        for (int k = 0; k < numConnectors_ && p.model < 0; ++k)
+            if (!strcmp(connectorNames_[k], fp.name)) p.model = k;
+        if (p.model < 0 && numConnectors_ < 4) {
+            p.model = numConnectors_++;
+            snprintf(connectorNames_[p.model], sizeof(connectorNames_[p.model]), "%s", fp.name);
+            snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, fp.name);
+            if (!connectorModels_[p.model].load(path)) TT_LOG("level: missing %s", path);
+        }
+    }
+    numDoorFrames_ = 0;
+    for (int i = 0; ok && i < h.numDoorFrames && numDoorFrames_ < kMaxDoorFrames; ++i) {
+        FloorDoor d;
+        ok = readAt(f, long(h.doorFramesOffset + i * sizeof(d)), &d, sizeof(d));
+        DoorFrame& df = doorFrames_[numDoorFrames_++];
+        memcpy(df.placement, d.mat, sizeof(df.placement));
+        df.piece = d.roomNum;
+    }
+    if (ok && h.numFloorTris) {
+        floorTris_ = static_cast<FloorTri*>(malloc(h.numFloorTris * sizeof(FloorTri)));
+        ok = floorTris_ != nullptr;
+        for (uint32_t i = 0; ok && i < h.numFloorTris; ++i) {
+            FloorTriRecord t;
+            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(t)), &t, sizeof(t));
+            floorTris_[i].piece = t.roomNum;
+            memcpy(floorTris_[i].v, t.v, sizeof(t.v));
+            numFloorTris_ = int(i + 1);
+        }
+    }
+    if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);
+    fclose(f);
+    if (!ok) return false;
+    TT_LOG("level: floor %s: %d rooms, %d pieces, %d door frames, %d floor tris", file, numRooms_, numPieces_,
+           numDoorFrames_, numFloorTris_);
+    snprintf(path, sizeof(path), "%sprops/door_frame_0.ttm", kDir);
+    if (numDoorFrames_ && !doorFrameModel_.loaded()) doorFrameModel_.load(path);
+    return true;
+}
+
+void Level::loadSpinModels() {
+    // PropSpinner models of every level (bake_level.py spin_props: <level>_spin_<i>.ttm).
+    char path[112];
+    numSpins_ = 0;
+    for (int i = spec_.next("spinProp", -1); i >= 0 && numSpins_ < kMaxSpins; i = spec_.next("spinProp", i)) {
+        const LevelEntity& e = spec_.entity(i);
+        const char* file = spec_.string(e, "file");
+        if (!file) continue;
+        snprintf(path, sizeof(path), "%s%s", kDir, file);
+        if (!spinModels_[numSpins_].load(path)) continue;
+        spinRoom_[numSpins_] = e.room;
+        spinEnt_[numSpins_] = uint16_t(e.entId);
+        numSpins_++;
+    }
+}
+
+void Level::activate(net::Client& client) {
+    active_ = true;
+    spawned_ = false;
+    won_ = false;
+    zoneNum_ = -1;
+    lockZoneId_ = sentLock_ = 0;
+    interestSent_ = false;
+    piece_ = 0;
+    showMin_ = 0, showMax_ = 1; // camEnterRoom(0)
+    for (Cog& c : cogs_) c = Cog{};
+    loadProps();
+    loadSpinModels();
+    client.setLevelBattlePlacer(&Level::battleCellThunk, this);
+}
+
+void Level::begin(Room& room, const net::LevelObj& l) {
+    room.levelZoneId = l.levelZoneId;
+    for (int i = 0; i < room.numZones; ++i) room.zoneIds[i] = i < l.numZones ? l.zoneIds[i] : 0;
+    if (l.numZones && l.numZones != room.numZones)
+        TT_LOG("level: server sent %d zone ids for %d spec zones", int(l.numZones), room.numZones);
+    room.startMs = l.startMs;
+    if (&room != &rooms_[0]) return;
+    entranceId_ = l.entranceId;
     toonIndex_ = 0;
-    numToons_ = f.numPlayers > 0 ? f.numPlayers : 1;
-    for (int i = 0; i < f.numPlayers; ++i)
-        if (client_ && f.playerIds[i] == client_->avatarId()) toonIndex_ = i;
+    numToons_ = l.numPlayers > 0 ? l.numPlayers : 1;
+    for (int i = 0; i < l.numPlayers; ++i)
+        if (client_ && l.playerIds[i] == client_->avatarId()) toonIndex_ = i;
+}
+
+// gotAllRooms: once the floor object and every one of its rooms are here.
+void Level::tryBeginFloor(net::Client& client) {
+    const net::Facility* fac = client.facility();
+    if (active_ || !fac || fac->numRooms == 0) return;
+    for (int i = 0; i < fac->numRooms; ++i)
+        if (!client.levelObj(fac->roomDoIds[i])) return;
+    if (!loadFloor(*fac)) {
+        shutdown();
+        return;
+    }
+    for (int i = 0; i < numRooms_; ++i) {
+        const net::LevelObj* l = client.levelObj(rooms_[i].doId);
+        if (l->levelId != pieces_[rooms_[i].piece].roomId) // the layout must match the AI's (MintLayout)
+            TT_LOG("level: room %d is %u on the server, %d in the layout", i, unsigned(l->levelId),
+                   int(pieces_[rooms_[i].piece].roomId));
+        begin(rooms_[i], *l);
+    }
+    floor_ = true;
+    facilityDoId_ = fac->doId;
+    facilityZoneId_ = fac->zoneId;
+    winHood_ = fac->facilityId;
+    activate(client);
+    // Every room's zones are in view at once (no per-room visibility; DistributedMintRoom).
+    for (int r = 0; r < numRooms_; ++r) {
+        uint16_t zones[128];
+        for (int k = 0; k < rooms_[r].numZones; ++k) zones[k] = uint16_t(kZoneBase + rooms_[r].zoneNums[k]);
+        rooms_[r].zone.setExtraVisible(zones, rooms_[r].numZones);
+    }
+    TT_LOG("level: facility %u floor %u: %d rooms", unsigned(fac->facilityId), unsigned(fac->floorNum), numRooms_);
 }
 
 uint32_t Level::zoneIdOf(int zoneNum) const {
-    for (int i = 0; i < numZones_; ++i)
-        if (zoneNums_[i] == zoneNum) return zoneIds_[i];
+    const Room& r = rooms_[0];
+    for (int i = 0; i < r.numZones; ++i)
+        if (r.zoneNums[i] == zoneNum) return r.zoneIds[i];
     return 0;
 }
 
 void Level::handleEvent(const net::Event& ev, net::Client& client) {
     using net::EventType;
     client_ = &client;
-    if (ev.type == EventType::FactoryUp || ev.type == EventType::FactoryState) {
-        const net::Factory* f = client.factory();
-        if (!f) return;
-        if (!active_) {
-            const char* name = levelName(f->factoryId);
-            if (!name || !load(name)) return;
-            active_ = true;
-            spawned_ = false;
-            won_ = false;
-            zoneNum_ = -1;
-            lockZoneId_ = sentLock_ = 0;
-            for (Cog& c : cogs_) c = Cog{};
-            client.setLevelBattlePlacer(&Level::battleCellThunk, this);
+    if (ev.type == EventType::LevelUp || ev.type == EventType::LevelState) {
+        const net::LevelObj* l = client.levelObj(ev.doId);
+        if (!l) return;
+        if (!l->isRoom()) { // DistributedFactory: one level
+            if (!active_) {
+                const char* name = levelName(l->levelId);
+                if (!name) return;
+                rooms_[0].doId = l->doId;
+                numRooms_ = 1;
+                if (!loadRoom(0, name, nullptr)) {
+                    shutdown();
+                    return;
+                }
+                floor_ = false;
+                winHood_ = l->levelId;
+                activate(client);
+            }
+        } else if (!active_) {
+            tryBeginFloor(client);
         }
-        begin(*f);
-        if (f->defeated && !won_) {
+        const int room = roomOf(l->doId);
+        if (!active_ || room < 0) return;
+        begin(rooms_[room], *l);
+        if (l->defeated && !won_) {
             won_ = true;
-            winDestination_ = f->factoryId - f->factoryId % 1000; // ZoneUtil.getHoodId
-            TT_LOG("level: factory defeated -> zone %u", unsigned(winDestination_));
+            winDestination_ = winHood_ - winHood_ % 1000; // ZoneUtil.getHoodId
+            TT_LOG("level: %u defeated -> zone %u", unsigned(winHood_), unsigned(winDestination_));
         }
-    } else if (ev.type == EventType::FactoryGone) {
-        shutdown();
+    } else if (ev.type == EventType::FacilityUp) {
+        tryBeginFloor(client);
+    } else if (ev.type == EventType::LevelGone) {
+        if (ownsLevel(ev.doId)) shutdown();
+    } else if (ev.type == EventType::FacilityGone) {
+        if (floor_ && ev.doId == facilityDoId_) shutdown();
     }
 }
 
 void Level::shutdown() {
     if (client_) client_->setLevelBattlePlacer(nullptr, nullptr);
     doorClient_ = nullptr;
-    zone_.unload();
+    for (Room& r : rooms_) {
+        r.zone.unload();
+        const float identity[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+        memcpy(r.placement, identity, sizeof(identity));
+        r.doId = r.levelZoneId = r.startMs = 0;
+        r.numZones = r.piece = 0;
+    }
+    numRooms_ = 0;
     spec_.unload();
-    active_ = loaded_ = spawned_ = false;
-    levelDoId_ = levelZoneId_ = 0;
-    numZones_ = 0;
+    for (int k = 0; k < numSpins_; ++k) spinModels_[k].unload();
+    numSpins_ = 0;
+    for (int k = 0; k < numConnectors_; ++k) connectorModels_[k].unload();
+    numConnectors_ = 0;
+    numPieces_ = numDoorFrames_ = 0;
+    floorCollision_.unload();
+    free(floorTris_);
+    floorTris_ = nullptr;
+    numFloorTris_ = 0;
+    floor_ = false;
+    facilityDoId_ = facilityZoneId_ = 0;
+    active_ = spawned_ = false;
     for (Cog& c : cogs_) c = Cog{};
 }
 
 bool Level::spawnPose(float* x, float* y, float* z, float* h) {
     if (!active_ || spawned_) return false;
     spawned_ = true;
-    for (int i = spec_.next("entrancePoint", -1); i >= 0; i = spec_.next("entrancePoint", i)) {
+    *x = *y = *z = *h = 0.0f; // no entrance point: render's origin (DistributedStage.placeToon)
+    bool placed = false;
+    for (int i = spec_.next("entrancePoint", -1); i >= 0 && !placed; i = spec_.next("entrancePoint", i)) {
         const LevelEntity& e = spec_.entity(i);
-        if (spec_.integer(e, "entranceId", -1) != entranceId_) continue;
+        if (e.room != 0 || spec_.integer(e, "entranceId", -1) != entranceId_) continue;
         // EntrancePoint.placeToon: placer at Y = -radius under a rotator turned by
         // -theta * (numToons - 1) / 2 + toonIndex * theta.
         const float radius = spec_.number(e, "radius", 15.0f), theta = spec_.number(e, "theta", 20.0f);
@@ -1461,13 +1662,21 @@ bool Level::spawnPose(float* x, float* y, float* z, float* h) {
         LevelSpec::toWorld(e, local, w);
         *x = w[0], *y = w[1], *z = w[2];
         *h = LevelSpec::worldHeading(e) + rot;
-        zone_.finishLoading(Vec3{*x, *y, *z}, &Level::cellChanged, this);
-        TT_LOG("level: entrance %d at %.1f,%.1f,%.1f h %.0f", int(entranceId_), double(*x), double(*y), double(*z),
-               double(*h));
-        return true;
+        placed = true;
     }
-    TT_LOG("level: no entrance point %d", int(entranceId_));
-    *x = *y = *z = *h = 0.0f;
+    if (!placed) TT_LOG("level: no entrance point %d", int(entranceId_));
+    if (floor_) {
+        updatePiece(*x, *y, *z);
+        for (int i = 0; i < numRooms_; ++i) {
+            float l[3];
+            toLocal(rooms_[i].placement, *x, *y, *z, l);
+            rooms_[i].zone.finishLoading(Vec3{l[0], l[1], l[2]});
+        }
+    } else {
+        rooms_[0].zone.finishLoading(Vec3{*x, *y, *z}, &Level::cellChanged, this);
+    }
+    TT_LOG("level: entrance %d at %.1f,%.1f,%.1f h %.0f", int(entranceId_), double(*x), double(*y), double(*z),
+           double(*h));
     return true;
 }
 
@@ -1488,15 +1697,77 @@ void Level::sendVisibility(net::Client& client, uint16_t, const uint16_t*, int) 
     for (int i = 0; i < numPendingVis_ && n < 64; ++i)
         if (pendingVis_[i]) ids[n++] = pendingVis_[i];
     if (lockZoneId_) ids[n++] = lockZoneId_; // a battle keeps its zone in view (lockLevelViz)
-    if (client.setLevelVisibility(levelZoneId_, ids, n)) {
+    if (client.setLevelVisibility(rooms_[0].levelZoneId, ids, n)) {
         visDirty_ = false;
         sentLock_ = lockZoneId_;
     }
 }
 
+// DistributedMint.gotAllRooms: sendSetZoneMsg(zoneId, [UberZone, zoneId] + every room's zones).
+void Level::sendFloorInterest(net::Client& client) {
+    uint32_t ids[64];
+    int n = 0;
+    ids[n++] = kUberZone;
+    for (int r = 0; r < numRooms_; ++r) {
+        if (!rooms_[r].numZones || !rooms_[r].zoneIds[0]) return; // setZoneIds not here yet
+        for (int k = 0; k < rooms_[r].numZones && n < 64; ++k) ids[n++] = rooms_[r].zoneIds[k];
+    }
+    interestSent_ = client.setLevelVisibility(facilityZoneId_, ids, n);
+}
+
+// toonEnterRoom / camEnterRoom: the piece whose floor (mintFloorColl<roomNum>) is under the toon;
+// its neighbours stay shown (a hallway shows the two rooms either side of it, a room one piece).
+void Level::updatePiece(float x, float y, float z) {
+    int best = -1;
+    float bestZ = -1e30f;
+    for (int i = 0; i < numFloorTris_; ++i) {
+        const float* v = floorTris_[i].v;
+        auto side = [&](const float* a, const float* b) { return (b[0] - a[0]) * (y - a[1]) - (b[1] - a[1]) * (x - a[0]); };
+        const float d0 = side(v, v + 3), d1 = side(v + 3, v + 6), d2 = side(v + 6, v);
+        if (!((d0 >= 0 && d1 >= 0 && d2 >= 0) || (d0 <= 0 && d1 <= 0 && d2 <= 0))) continue;
+        const float e1[3] = {v[3] - v[0], v[4] - v[1], v[5] - v[2]};
+        const float e2[3] = {v[6] - v[0], v[7] - v[1], v[8] - v[2]};
+        const float n[3] = {e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]};
+        if (std::fabs(n[2]) < 1e-6f) continue;
+        const float fz = v[2] - (n[0] * (x - v[0]) + n[1] * (y - v[1])) / n[2];
+        if (fz > z + kFloorReach || fz <= bestZ) continue;
+        bestZ = fz;
+        best = floorTris_[i].piece;
+    }
+    if (best >= 0 && best != piece_) {
+        piece_ = best;
+        TT_LOG("level: in piece %d (%s)", piece_, pieces_[piece_].room >= 0 ? "room" : "hallway");
+    }
+    showMin_ = piece_ % 2 ? piece_ - 2 : piece_ - 1;
+    showMax_ = piece_ % 2 ? piece_ + 2 : piece_ + 1;
+}
+
+bool Level::pieceCenter(int piece, float* x, float* y, float* z) const {
+    float sum[3] = {0, 0, 0};
+    int n = 0;
+    for (int i = 0; i < numFloorTris_; ++i) {
+        if (floorTris_[i].piece != piece) continue;
+        for (int c = 0; c < 3; ++c) sum[c] += (floorTris_[i].v[c] + floorTris_[i].v[3 + c] + floorTris_[i].v[6 + c]) / 3;
+        n++;
+    }
+    if (!n) return false;
+    // The centroid of the triangle nearest the mean: on the floor even for an L-shaped hallway.
+    const float mean[3] = {sum[0] / n, sum[1] / n, sum[2] / n};
+    float best = 1e30f;
+    for (int i = 0; i < numFloorTris_; ++i) {
+        if (floorTris_[i].piece != piece) continue;
+        const float* v = floorTris_[i].v;
+        const float c[3] = {(v[0] + v[3] + v[6]) / 3, (v[1] + v[4] + v[7]) / 3, (v[2] + v[5] + v[8]) / 3};
+        const float d = (c[0] - mean[0]) * (c[0] - mean[0]) + (c[1] - mean[1]) * (c[1] - mean[1]);
+        if (d < best) best = d, *x = c[0], *y = c[1], *z = c[2];
+    }
+    return true;
+}
+
 bool Level::battleCell(uint32_t levelDoId, uint32_t cellId, float* x, float* y, float* z, float* h) const {
-    if (!active_ || levelDoId != levelDoId_) return false;
-    const LevelEntity* cell = spec_.findSynthetic("battleCell", cellId);
+    const int room = active_ ? roomOf(levelDoId) : -1;
+    if (room < 0) return false;
+    const LevelEntity* cell = spec_.findSynthetic(room, "battleCell", cellId);
     if (!cell) return false;
     *x = cell->world[9], *y = cell->world[10], *z = cell->world[11];
     *h = LevelSpec::worldHeading(*cell);
@@ -1513,7 +1784,8 @@ void Level::setupCog(Cog& c, const net::LevelSuit& s) {
     c = Cog{};
     c.used = true;
     c.doId = s.doId;
-    c.spec = spec_.findSynthetic(s.reserve ? "reserveCogSpec" : "cogSpec", s.cogId);
+    c.room = roomOf(s.levelDoId);
+    c.spec = spec_.findSynthetic(c.room, s.reserve ? "reserveCogSpec" : "cogSpec", s.cogId);
     c.chaseSerial = s.chaseSerial;
     c.returnSerial = s.returnSerial;
     if (!c.spec) {
@@ -1588,7 +1860,7 @@ void Level::moveToward(Cog& c, float speed, float dt) {
 
 bool Level::parentLocal(const Cog& c, float* x, float* y, float* z, float* h) const {
     // getPos()/getHpr() of the cog relative to its parent entity (d_requestBattle).
-    const LevelEntity* parent = c.spec ? spec_.find(c.spec->parentEntId) : nullptr;
+    const LevelEntity* parent = c.spec ? spec_.find(c.spec->room, c.spec->parentEntId) : nullptr;
     if (!parent) {
         *x = c.x, *y = c.y, *z = c.z, *h = c.h;
         return false;
@@ -1629,9 +1901,19 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateBarrels(client, x, y, z, nowMs);
     updateMovers(x, y, z, nowMs);
     updateGoons(client, x, y, z, nowMs);
-    zone_.update(Vec3{x, y, z}, &Level::cellChanged, this, 200.0f); // rims of gears, lifts, mixers
-    if (lockZoneId_ != sentLock_) visDirty_ = true;
-    if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
+    if (floor_) {
+        updatePiece(x, y, z);
+        if (!interestSent_) sendFloorInterest(client);
+        for (int r = 0; r < numRooms_; ++r) { // each room streams in its own space
+            float l[3];
+            toLocal(rooms_[r].placement, x, y, z, l);
+            rooms_[r].zone.update(Vec3{l[0], l[1], l[2]});
+        }
+    } else {
+        rooms_[0].zone.update(Vec3{x, y, z}, &Level::cellChanged, this, 200.0f); // rims of gears, lifts, mixers
+        if (lockZoneId_ != sentLock_) visDirty_ = true;
+        if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
+    }
 
     // Cogs of this level: walk, alert, chase, return; contact requests the battle.
     for (Cog& c : cogs_) {
@@ -1643,7 +1925,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     bool requested = false;
     for (int i = 0; i < net::kMaxLevelSuits; ++i) {
         const net::LevelSuit& s = client.levelSuitSlot(i);
-        if (!s.active || s.levelDoId != levelDoId_) continue;
+        if (!s.active || roomOf(s.levelDoId) < 0) continue;
         Cog* c = cog(s.doId);
         if (!c) {
             for (Cog& free : cogs_)
@@ -1741,15 +2023,20 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
                 requested = true;
             }
         }
-        suits.setExternal(c->doId, s.name, s.levelDist, c->x, c->y, c->z, c->h, c->walking, !s.reserve, s.skelecog != 0);
+        // Drawn while its room is (the rooms camEnterRoom stashes hide their cogs too).
+        if (c->room >= 0 && shown(c->room))
+            suits.setExternal(c->doId, s.name, s.levelDist, c->x, c->y, c->z, c->h, c->walking, !s.reserve,
+                              s.skelecog != 0);
+        else
+            suits.removeExternal(c->doId);
     }
 
     // BattleBlocker.startBattle: walking into a blocker joins its battle or fights its cogs.
     if (battleIdle && !requested && nowMs - blockerMs_ > 1000) {
         for (int i = 0; i < net::kMaxLevelBlockers; ++i) {
             const net::LevelBlocker& b = client.levelBlockerSlot(i);
-            if (!b.active || b.levelDoId != levelDoId_ || !b.blockerActive || b.finished) continue;
-            const LevelEntity* e = spec_.find(b.entId);
+            if (!b.active || !b.blockerActive || b.finished) continue;
+            const LevelEntity* e = specOf(b.levelDoId, b.entId);
             if (!e) continue;
             const float r = spec_.number(*e, "radius", 10.0f);
             const float dx = x - e->world[9], dy = y - e->world[10], dz = z - e->world[11];
@@ -1783,8 +2070,30 @@ bool Level::nearestCog(float x, float y, float z, float* cx, float* cy, float* c
 
 void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     if (!active_) return;
-    // The spec's farPlaneDistance is 1500; the zone vis lists already bound what is drawn.
-    zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 400.0f);
+    // The spec's farPlaneDistance is 1500; the zone vis lists (the factory) or the shown rooms
+    // (a floor) already bound what is drawn.
+    if (!floor_) {
+        rooms_[0].zone.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 400.0f);
+    } else {
+        for (int i = showMin_ < 0 ? 0 : showMin_; i <= showMax_ && i < numPieces_; ++i) {
+            const Piece& p = pieces_[i];
+            if (p.room >= 0) {
+                float l[3];
+                toLocal(p.placement, eye.x, eye.y, eye.z, l);
+                rooms_[p.room].zone.draw(renderer, Vec3{l[0], l[1], l[2]}, 400.0f, p.placement);
+            } else if (p.model >= 0 && connectorModels_[p.model].loaded()) {
+                C3D_Mtx m;
+                toMtx(p.placement, &m);
+                renderer.drawModel(connectorModels_[p.model], m);
+            }
+        }
+        for (int i = 0; i < numDoorFrames_ && doorFrameModel_.loaded(); ++i) {
+            if (doorFrames_[i].piece < showMin_ || doorFrames_[i].piece > showMax_) continue;
+            C3D_Mtx m;
+            toMtx(doorFrames_[i].placement, &m);
+            renderer.drawModel(doorFrameModel_, m);
+        }
+    }
     drawDoors(renderer);
     drawButtons(renderer);
     drawStompers(renderer);

@@ -384,6 +384,12 @@ server.
     - Character and boat models now load on the shared background loader
       (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
       main thread; never hold `LinearGuard` around `Model::load`)
+- ✅ **Facility levels** (`world/level.*`, `net/client_level.cpp`, `docs/design/levels.md`).
+  - The Sellbot factory runs end to end.
+  - Every mint / DA office / country-club floor is baked by the stock upstream layout
+    code (`bake_facility_floors.py`, `.tlf`). The rooms merge into one floor-space
+    `LevelSpec`, and each room's `.tz` is drawn with its placement.
+  - Cashbot mints are tested end to end in Azahar. Stage and club entry are still open.
 - ✅ **Street battles** (`world/battle.*`, `ui/battle_panel.*`): cog contact, the whole
   DistributedBattle flow, a gag picker from the inventory, placeholder movie effects, and
   going sad back to the playground.
@@ -479,6 +485,8 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_collision.py` | `.bam`/DNA → `.ttc` collision (spec in `collide.py`) |
 | `tools/pipeline/bake_toon.py` | toon parts and anims (`.ttm` + `.tta`, spec in `tta.py`), clothing `.ttx`; SD set in `sdmc-out/` |
 | `tools/pipeline/bake_audio.py` | `.ogg` → `.tsnd` (DSP-ADPCM / PCM16; spec in `audio_tsnd.py`) |
+| `tools/pipeline/bake_level.py`, `bake_level_props.py` | facility levels (factory, mint / stage / country-club rooms) → `.tz` + `.tlv` (spec in `tlv.py`), and their moving props |
+| `tools/pipeline/bake_facility_floors.py` | every mint / DA office / country-club floor, assembled by the stock upstream layout code → `.tlf` (`docs/design/levels.md`) |
 | `tools/dcgen/dcgen.py` | DC → `source/net/dc_generated.h` (IDs, hash, field descriptors) |
 | `tools/gen_speedchat.py`, `tools/gen_toon_tables.py` | generated SpeedChat and ToonDNA tables |
 | `tools/server/` | local Open Toontown server (`setup.sh`, `start.sh`, `stop.sh`, `smoke_test.py` bot) |

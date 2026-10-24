@@ -323,6 +323,13 @@ WANTED['BattleBlocker'] = ['setActive', 'setSuits', 'setBattle', 'setBattleFinis
 WANTED['DistributedBarrelBase'] = ['requestGrab', 'setGrab', 'setReject']
 TABLE_CLASSES += ['DistributedFactorySuit', 'DistributedMintSuit', 'DistributedStageSuit', 'BattleBlocker',
                   'DistributedGagBarrel', 'DistributedBeanBarrel', 'DistributedHealBarrel']
+# Bossbot country clubs (floors of DistributedCountryClubRoom levels, like mints and stages).
+WANTED['DistributedCountryClub'] = ['setZoneId', 'setBlockedRooms', 'setCountryClubId', 'setLayoutIndex',
+                                    'setFloorNum', 'setRoomDoIds', 'setCountryClubZone', 'elevatorAlert']
+WANTED['DistributedCountryClubRoom'] = ['setCountryClubId', 'setRoomId', 'setRoomNum', 'setSuits',
+                                        'setBossConfronted', 'setDefeated', 'forceOuch']
+WANTED['DistributedCountryClubBattle'] = []
+TABLE_CLASSES += ['DistributedCountryClub', 'DistributedCountryClubRoom', 'DistributedCountryClubBattle']
 # ---- end facility levels ----
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----

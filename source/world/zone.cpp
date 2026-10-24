@@ -621,11 +621,19 @@ void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
 #endif
     }
 }
-void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance) {
+void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const float* placement) {
     if (!impl_ || distance<=0) return;
 #ifdef __3DS__
     C3D_Mtx identity;
     Mtx_Identity(&identity);
+    if (placement) {
+        for (int r=0;r<3;++r) {
+            identity.r[r].x=placement[r]; identity.r[r].y=placement[3+r];
+            identity.r[r].z=placement[6+r]; identity.r[r].w=placement[9+r];
+        }
+    }
+#else
+    (void)placement;
 #endif
     for (uint32_t i=0;i<impl_->h.chunks;++i) {
         if (!impl_->resident[i] || !modelInfo(impl_->chunks[i],impl_->lod[i]).size) continue;

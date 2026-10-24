@@ -47,8 +47,11 @@ public:
     void setExtraVisible(const uint16_t* zones, int count);
     // Blocks until the current plan is resident (arrival in a new zone).
     void finishLoading(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
-    // Renderer performs frustum culling; distance is measured to chunk AABB.
-    void draw(render::Renderer& renderer, const Vec3& eye, float distance = 120.0f);
+    // Renderer performs frustum culling; distance is measured to chunk AABB. placement: a
+    // zone -> world 3x4 (rows: x axis, y axis, z axis, origin; a facility room on its floor),
+    // with eye then given in zone space; nullptr draws in place.
+    void draw(render::Renderer& renderer, const Vec3& eye, float distance = 120.0f,
+              const float* placement = nullptr);
     int cellAt(const Vec3& feet, float reach = kFloorReach) const; // -1 on miss; XY grid over the floors
     // The same query as a scan of every floor; cellAt() must match it exactly (host tests
     // and benchmarks only).
