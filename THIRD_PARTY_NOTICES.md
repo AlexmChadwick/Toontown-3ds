@@ -86,3 +86,10 @@ behavior, barrier protocol and NPC DNA metadata in `source/world/boss_logic.*`,
 `sdmc-out/3ds/toontown3ds/data/boss/` models, textures, animation and collision are
 converted Toontown game assets and remain outside this project's MIT license.
 No upstream source files are vendored by this work.
+
+CFO crane placement/control limits, object state and impact semantics, goon radar/
+stun/grab behavior, Resistance toon DNA and train timings in `source/world/cfo_*`,
+`source/net/cfo_state.cpp`, `source/net/client_cfo.cpp` and the extended boss baker
+are derived from the pinned Open Toontown sources listed in `docs/design/bosses.md`.
+The Open Toontown BSD notice above applies. CFO baked assets, including the stock
+NPC DNA metadata, remain converted game assets outside the MIT license.

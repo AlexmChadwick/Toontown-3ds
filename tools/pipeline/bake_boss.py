@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake the Sellbot VP arena and attached BossCog parts. Run with Python -I.
+"""Bake VP or --cfo arenas and attached BossCog parts. Run with Python -I -B.
 
 Assets are read through this checkout's ref/ref link. Output is restricted to its
 ignored sdmc-out tree. All textures are at most 128 px, ETC1/ETC1A4 by default.
@@ -109,6 +109,92 @@ def write_model(name, node, animated=False):
     return extractor, stats
 
 
+def bake_parts(base, report, prefix, character):
+    source = ast.parse((UPSTREAM / 'toontown/suit/BossCog.py').read_text())
+    clips = next(ast.literal_eval(node.value) for node in source.body
+                 if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'AnimList'
+                                                        for t in node.targets))
+    generic = 'phase_9/models/char/bossCog'
+    models = {'legs': generic + '-legs-zero', 'torso': character + '-torso-zero',
+              'head': character + '-head-zero'}
+    for part, model_path in models.items():
+        animations = {clip: str(RESOURCES / f'{generic}-{part}-{clip}.bam') for clip in clips}
+        for animation in animations.values():
+            if not Path(animation).is_file():
+                raise ValueError(f'Missing stock animation: {animation}')
+        actor = Actor({part: str(RESOURCES / (model_path + '.bam'))}, {part: animations})
+        node = actor.getPart(part)
+        actor.pose('Ff_neutral', 0)
+        actor.update(force=True)
+        doors = []
+        if part == 'legs':
+            # BossCog.__setupDoor puts an extra transform below each joint.
+            for joint_name, roll in [('joint_doorFront', -80), ('joint_doorRear', 80)]:
+                door_joint = node.find('**/' + joint_name)
+                children = door_joint.getChildren()
+                hinge = door_joint.attachNewNode('baked_hatch')
+                children.reparentTo(hinge)
+                hinge.setR(roll)
+                doors.append(hinge)
+        extractor, stats = write_model(f'{prefix}_{part}.ttm', node, animated=True)
+        report['models'][prefix + '_' + part] = stats
+        vertices = stats['vertices']
+        joint_name = 'joint_pelvis' if part == 'legs' else 'joint34' if part == 'torso' else None
+        joint = node.find('**/' + joint_name) if joint_name else None
+        if joint is not None and joint.isEmpty():
+            raise ValueError(f'{part}: missing attachment {joint_name}')
+        tread_node = None
+        tread_holder = None
+        if part == 'legs':
+            axle = node.find('**/joint_axle')
+            if axle.isEmpty():
+                raise ValueError('VP legs have no axle joint')
+            tread_node = base.loader.loadModel(str(RESOURCES / (generic + '-treads.bam')))
+            tread_node.reparentTo(axle)
+            tread_holder = NodePath('treads')
+            tread_copy = tread_node.copyTo(tread_holder)
+            tread_copy.setMat(tread_node.getMat(node))
+            _, report['models'][prefix + '_treads'] = write_model(prefix + '_treads.ttm', tread_holder)
+        for clip in list(clips) + ['hatch_front', 'hatch_rear']:
+            source_clip = 'Fb_neutral' if clip.startswith('hatch_') else clip
+            for index, door in enumerate(doors):
+                door.setR(0 if clip == ('hatch_front' if index == 0 else 'hatch_rear') else (-80 if index == 0 else 80))
+            frames = []
+            attachments = []
+            treads = []
+            source_frames = actor.getNumFrames(source_clip, partName=part)
+            source_fps = actor.getFrameRate(source_clip, partName=part)
+            step = max(1, round(source_fps / 12))
+            for frame in range(0, 1 if clip.startswith('hatch_') else source_frames, step):
+                actor.pose(source_clip, frame, partName=part)
+                actor.update(force=True)
+                current = StableBossExtractor(max_tex=128, encode_textures=False)
+                current.add(node, animated=True, skip_under=(tread_node,) if tread_node else ())
+                positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
+                if len(positions) != vertices:
+                    raise ValueError(f'{part}/{clip}: vertex order/count changed')
+                frames.append(np.round(positions, 4))
+                if joint is not None:
+                    attachments.append(attachment(joint, node))
+                if tread_node:
+                    tread_copy.setMat(tread_node.getMat(node))
+                    current = StableBossExtractor(max_tex=128, encode_textures=False)
+                    current.add(tread_holder)
+                    positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
+                    if len(positions) != report['models'][prefix + '_treads']['vertices']:
+                        raise ValueError(f'treads/{clip}: vertex order/count changed')
+                    treads.append(np.round(positions, 4))
+            name = f'{prefix}_{part}_{clip}.tta'
+            stats = tta.write(str(OUT / name), frames, source_fps / step, attachments or None)
+            report['clips'][name] = dict(stats, source_frames=source_frames, source_fps=source_fps)
+            if treads:
+                name = f'{prefix}_treads_{clip}.tta'
+                report['clips'][name] = tta.write(str(OUT / name), treads, source_fps / step)
+        if tread_holder:
+            tread_holder.removeNode()
+        actor.cleanup()
+    return clips
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     base = ShowBase()
@@ -195,96 +281,14 @@ def main():
     arena_collision.write(str(OUT / 'vp_arena.ttc'), max_bytes=1024 * 1024)
     arena.removeNode()
 
-    source = ast.parse((UPSTREAM / 'toontown/suit/BossCog.py').read_text())
-    clips = next(ast.literal_eval(node.value) for node in source.body
-                 if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'AnimList'
-                                                        for t in node.targets))
-    generic = 'phase_9/models/char/bossCog'
-    models = {'legs': generic + '-legs-zero', 'torso': 'phase_9/models/char/sellbotBoss-torso-zero',
-              'head': 'phase_9/models/char/sellbotBoss-head-zero'}
-    for part, model_path in models.items():
-        animations = {clip: str(RESOURCES / f'{generic}-{part}-{clip}.bam') for clip in clips}
-        for animation in animations.values():
-            if not Path(animation).is_file():
-                raise ValueError(f'Missing stock animation: {animation}')
-        actor = Actor({part: str(RESOURCES / (model_path + '.bam'))}, {part: animations})
-        node = actor.getPart(part)
-        actor.pose('Ff_neutral', 0)
-        actor.update(force=True)
-        doors = []
-        if part == 'legs':
-            # BossCog.__setupDoor puts an extra transform below each joint.
-            for joint_name, roll in [('joint_doorFront', -80), ('joint_doorRear', 80)]:
-                door_joint = node.find('**/' + joint_name)
-                children = door_joint.getChildren()
-                hinge = door_joint.attachNewNode('baked_hatch')
-                children.reparentTo(hinge)
-                hinge.setR(roll)
-                doors.append(hinge)
-        extractor, stats = write_model(f'vp_{part}.ttm', node, animated=True)
-        report['models']['vp_' + part] = stats
-        vertices = stats['vertices']
-        joint_name = 'joint_pelvis' if part == 'legs' else 'joint34' if part == 'torso' else None
-        joint = node.find('**/' + joint_name) if joint_name else None
-        if joint is not None and joint.isEmpty():
-            raise ValueError(f'{part}: missing attachment {joint_name}')
-        tread_node = None
-        tread_holder = None
-        if part == 'legs':
-            axle = node.find('**/joint_axle')
-            if axle.isEmpty():
-                raise ValueError('VP legs have no axle joint')
-            tread_node = base.loader.loadModel(str(RESOURCES / (generic + '-treads.bam')))
-            tread_node.reparentTo(axle)
-            tread_holder = NodePath('treads')
-            tread_copy = tread_node.copyTo(tread_holder)
-            tread_copy.setMat(tread_node.getMat(node))
-            _, report['models']['vp_treads'] = write_model('vp_treads.ttm', tread_holder)
-        for clip in list(clips) + ['hatch_front', 'hatch_rear']:
-            source_clip = 'Fb_neutral' if clip.startswith('hatch_') else clip
-            for index, door in enumerate(doors):
-                door.setR(0 if clip == ('hatch_front' if index == 0 else 'hatch_rear') else (-80 if index == 0 else 80))
-            frames = []
-            attachments = []
-            treads = []
-            source_frames = actor.getNumFrames(source_clip, partName=part)
-            source_fps = actor.getFrameRate(source_clip, partName=part)
-            step = max(1, round(source_fps / 12))
-            for frame in range(0, 1 if clip.startswith('hatch_') else source_frames, step):
-                actor.pose(source_clip, frame, partName=part)
-                actor.update(force=True)
-                current = StableBossExtractor(max_tex=128, encode_textures=False)
-                current.add(node, animated=True, skip_under=(tread_node,) if tread_node else ())
-                positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
-                if len(positions) != vertices:
-                    raise ValueError(f'{part}/{clip}: vertex order/count changed')
-                frames.append(np.round(positions, 4))
-                if joint is not None:
-                    attachments.append(attachment(joint, node))
-                if tread_node:
-                    tread_copy.setMat(tread_node.getMat(node))
-                    current = StableBossExtractor(max_tex=128, encode_textures=False)
-                    current.add(tread_holder)
-                    positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
-                    if len(positions) != report['models']['vp_treads']['vertices']:
-                        raise ValueError(f'treads/{clip}: vertex order/count changed')
-                    treads.append(np.round(positions, 4))
-            name = f'vp_{part}_{clip}.tta'
-            stats = tta.write(str(OUT / name), frames, source_fps / step, attachments or None)
-            report['clips'][name] = dict(stats, source_frames=source_frames, source_fps=source_fps)
-            if treads:
-                name = f'vp_treads_{clip}.tta'
-                report['clips'][name] = tta.write(str(OUT / name), treads, source_fps / step)
-        if tread_holder:
-            tread_holder.removeNode()
-        actor.cleanup()
+    clips = bake_parts(base, report, 'vp', 'phase_9/models/char/sellbotBoss')
     for name, path in [('vp_gear', 'phase_9/models/char/gearProp'),
                        ('vp_pie', 'phase_3.5/models/props/tart')]:
         node = base.loader.loadModel(str(RESOURCES / (path + '.bam')))
         _, report['models'][name] = write_model(name + '.ttm', node)
         node.removeNode()
     report['sha256'] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
-                        for path in sorted(OUT.iterdir()) if path.suffix in ('.ttm', '.tta', '.ttc', '.bin', '.txt')}
+                        for path in sorted(OUT.glob('vp_*')) if path.suffix in ('.ttm', '.tta', '.ttc', '.bin', '.txt')}
     model_geometry = sum(model['geometry_bytes'] for model in report['models'].values())
     model_textures = sum(model['texture_bytes'] for model in report['models'].values())
     largest_clip = max(sum(report['clips'][f'vp_{part}_{clip}.tta']['frames'] *
@@ -297,10 +301,111 @@ def main():
                             batches=sum(model['batches'] for model in report['models'].values()))
     if model_geometry + 2 * largest_clip > 6 * 1024 * 1024 or model_textures > 8 * 1024 * 1024:
         raise ValueError('Combined VP arena / models / double-buffered clips exceed Old 3DS budget')
-    report['disk_bytes'] = sum(path.stat().st_size for path in OUT.iterdir() if path.suffix in ('.ttm', '.tta', '.ttc', '.bin', '.txt'))
+    report['disk_bytes'] = sum(path.stat().st_size for path in OUT.glob('vp_*') if path.suffix in ('.ttm', '.tta', '.ttc', '.bin', '.txt'))
     (OUT / 'vp_manifest.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
     print(json.dumps(report, indent=2, sort_keys=True), flush=True)
 
 
+def main_cfo():
+    """CFO stock arena transforms; goons stay in the existing level/props set."""
+    OUT.mkdir(parents=True, exist_ok=True)
+    base = ShowBase()
+    report = {'version': 1, 'sample_fps': 12, 'max_texture': 128, 'models': {}, 'clips': {}}
+    scene = NodePath('cfo_arena')
+    for model, position in [('MidVault', (0, -222, -70.7)), ('EndVault', (84, -201, -6))]:
+        node = base.loader.loadModel(str(RESOURCES / f'phase_10/models/cogHQ/{model}.bam'))
+        node.setPos(*position)
+        node.reparentTo(scene)
+        if model == 'EndVault':
+            for pattern in ('MagnetArms', 'Safes', 'MagnetControlsAll'):
+                node.findAllMatches('**/' + pattern).detach()
+        else:
+            origin = node.find('**/elevator_origin')
+            if origin.isEmpty():
+                raise ValueError('CFO elevator origin missing')
+            origin.setScale(1)
+            elevator = base.loader.loadModel(str(RESOURCES / 'phase_10/models/cogHQ/CFOElevator.bam'))
+            elevator.reparentTo(origin)
+    # Stock sliding doors open for travel between the two vaults.
+    for door in scene.findAllMatches('**/SlidingDoor*'):
+        if not door.node().isGeomNode() and 'Collision' not in door.getName():
+            door.setZ(25)
+    _, report['models']['cfo_arena'] = write_model('cfo_arena.ttm', scene)
+    collision = collide.extract(scene, fallback_floor='auto')
+    collision.write(str(OUT / 'cfo_arena.ttc'), max_bytes=1024 * 1024)
+    scene.removeNode()
+    lobby = base.loader.loadModel(str(RESOURCES / 'phase_10/models/cogHQ/VaultLobby.bam'))
+    # DistributedCFOElevator.setupElevator parents its model to elevator_locator.
+    locator = lobby.find('**/elevator_locator')
+    if locator.isEmpty():
+        raise ValueError('CFO lobby elevator locator missing')
+    point = locator.getPos(lobby)
+    (OUT / 'cfo_lobby_anchor.txt').write_text(f'BPA1 1\n{point.x:.6f} {point.y:.6f} {point.z:.6f}\n')
+    report['lobby_anchor'] = list(point)
+    lobby.removeNode()
+    sys.path.insert(0, str(UPSTREAM))
+    from toontown.toon import ToonDNA
+    resistance = ToonDNA.ToonDNA()
+    resistance.newToonRandom(146392, 'f', 1)
+    resistance.head = 'pls'
+    dna = resistance.makeNetString()
+    if isinstance(dna, str):
+        dna = dna.encode('latin1')
+    (OUT / 'cfo_npcs.bin').write_bytes(struct.pack('<4sHHI', b'BND1', 1, 1, 146392) + dna)
+    bake_parts(base, report, 'cfo', 'phase_10/models/char/cashbotBoss')
+    props = [('crane_arm', 'CBCraneArm'), ('controls', 'CBCraneControls'),
+             ('stick', 'CBCraneStick'), ('magnet', 'CBMagnet'), ('safe', 'CBSafe'),
+             ('locomotive', 'CashBotLocomotive'), ('boxcar', 'CashBotBoxCar'), ('tankcar', 'CashBotTankCar')]
+    for name, model in props:
+        node = base.loader.loadModel(str(RESOURCES / f'phase_10/models/cogHQ/{model}.bam'))
+        _, report['models']['cfo_' + name] = write_model('cfo_' + name + '.ttm', node)
+        node.removeNode()
+    for name, path in [('gear', 'phase_9/models/char/gearProp'),
+                       ('treasure', 'phase_4/models/props/icecream')]:
+        node = base.loader.loadModel(str(RESOURCES / (path + '.bam')))
+        if node.isEmpty():
+            raise ValueError(f'Missing CFO prop {path}')
+        _, report['models']['cfo_' + name] = write_model('cfo_' + name + '.ttm', node)
+        node.removeNode()
+    from panda3d.core import Geom, GeomNode, GeomTriangles, GeomVertexFormat
+    data = GeomVertexData('cfo_cable', GeomVertexFormat.getV3c4(), Geom.UHStatic)
+    positions = GeomVertexWriter(data, 'vertex')
+    colors = GeomVertexWriter(data, 'color')
+    for z in (0, 1):
+        for x, y in ((-.08, -.08), (.08, -.08), (.08, .08), (-.08, .08)):
+            positions.addData3(x, y, z)
+            colors.addData4(.12, .12, .12, 1)
+    triangles = GeomTriangles(Geom.UHStatic)
+    for side in range(4):
+        following = (side + 1) % 4
+        triangles.addVertices(side, following, side + 4)
+        triangles.addVertices(following, following + 4, side + 4)
+    geometry_node = Geom(data)
+    geometry_node.addPrimitive(triangles)
+    node = GeomNode('cfo_cable')
+    node.addGeom(geometry_node)
+    _, report['models']['cfo_cable'] = write_model('cfo_cable.ttm', NodePath(node))
+    geometry = sum(model['geometry_bytes'] for model in report['models'].values())
+    textures = sum(model['texture_bytes'] for model in report['models'].values())
+    clips = {name.split('_', 2)[2][:-4] for name in report['clips']}
+    largest = max(sum(report['clips'][f'cfo_{part}_{clip}.tta']['frames'] *
+                      report['clips'][f'cfo_{part}_{clip}.tta']['vertices'] * 8
+                      for part in ('legs', 'torso', 'head', 'treads')) for clip in clips)
+    # Admission reserve for existing level/props goon model + three clips + cone.
+    # Runtime validates their actual headers before loading anything.
+    report['goon_reserve'] = {'geometry': 1835008, 'textures': 131072}
+    report['budget'] = {'model_geometry': geometry, 'textures': textures,
+                        'max_clip': largest, 'clip_pair_geometry': geometry + 2 * largest + 1835008,
+                        'triangles': sum(model['triangles'] for model in report['models'].values()),
+                        'batches': sum(model['batches'] for model in report['models'].values())}
+    if geometry + 2 * largest + 1835008 > 6 * 1024 * 1024 or textures + 131072 > 8 * 1024 * 1024:
+        raise ValueError('CFO combined geometry/clips/goon reserve exceeds Old 3DS budget')
+    report['sha256'] = {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                        for path in sorted(OUT.glob('cfo_*')) if path.suffix in ('.ttm', '.tta', '.ttc', '.txt', '.bin')}
+    report['disk_bytes'] = sum((OUT / name).stat().st_size for name in report['sha256'])
+    (OUT / 'cfo_manifest.json').write_text(json.dumps(report, indent=2, sort_keys=True) + '\n')
+    print(json.dumps(report, indent=2, sort_keys=True), flush=True)
+
+
 if __name__ == '__main__':
-    main()
+    main_cfo() if '--cfo' in sys.argv else main()

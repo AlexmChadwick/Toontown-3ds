@@ -68,6 +68,50 @@ struct BossState {
     uint8_t difficulty = 0;
 };
 
+// CFO children are independent distributed objects, not DistributedLevel entities.
+// 4 cranes + 9 safes + up to 16 goons + bounded treasure snapshots.
+constexpr int kMaxCfoChildren = 61;
+enum class CfoKind : uint8_t { None, Crane, Safe, Goon, Treasure };
+struct CfoChild {
+    uint32_t doId = 0;
+    uint32_t bossId = 0;
+    uint16_t classId = 0;
+    CfoKind kind = CfoKind::None;
+    bool active = false;
+    uint8_t index = 0;
+    char state = 'O';
+    uint32_t owner = 0;
+    uint32_t crane = 0;
+    uint32_t revision = 0;
+    uint32_t stateMs = 0;
+    float x = 0;
+    float y = 0;
+    float z = 0;
+    float h = 0;
+    float targetX = 0;
+    float targetY = 0;
+    float targetH = 0;
+    int16_t arrivalStamp = 0;
+    uint32_t targetMs = 0;
+    uint32_t arrivalMs = 0;
+    float velocity = 4;
+    float scale = 1;
+    uint8_t fov = 70;
+    uint8_t radius = 15;
+    uint8_t strength = 1;
+    uint8_t sequence = 0;
+    float armY = 20;
+    float armH = 0;
+    float links[3][3] = {};
+    int16_t cableStamp = 0;
+    uint32_t cableMs = 0;
+    bool rejected = false;
+    bool grabbed = false;
+    uint16_t style = 0;
+};
+CfoKind cfoKind(uint16_t classId);
+bool applyCfoField(CfoChild& state, uint16_t fieldId, DatagramReader& reader, uint32_t nowMs);
+
 BossKind bossKind(uint16_t classId);
 bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
                     uint32_t nowMs, uint32_t ownAvatarId);
