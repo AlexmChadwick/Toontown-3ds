@@ -99,7 +99,7 @@ class FormatTests(unittest.TestCase):
         self.assertLessEqual(float(out.verts[:,3:5].max()),16.00001)
 
 
-def run_real(out):
+def run_real(out, zones=None):
     with tempfile.TemporaryDirectory() as tmp:
         tmp=Path(tmp)
         binary=tmp/'zone_test'
@@ -107,7 +107,13 @@ def run_real(out):
                         '-fsanitize=address,undefined','-g','-I',str(ROOT/'source'),
                         str(ROOT/'tools/zone_test/zone_test.cpp'),str(ROOT/'source/world/zone.cpp'),
                         str(ROOT/'source/world/collision.cpp'),'-o',str(binary)],check=True)
-        for zid in street_catalog.ZONES:
+        if zones is None:
+            found = [int(p.stem) for p in sorted(out.glob('*.tz')) if p.stem.isdigit()]
+            if any(z >= 10000 for z in found):
+                zones = tuple(found)
+            else:
+                zones = street_catalog.ZONES
+        for zid in zones:
             assert (out/f"{zid}.tz").exists(),f'missing bake {zid}'
             path=out/f'{zid}.tz'
             anchor=path.with_suffix('.pts')
@@ -181,4 +187,13 @@ if __name__=='__main__':
     if not unittest.TextTestRunner(verbosity=2).run(suite).wasSuccessful():
         raise SystemExit(1)
     if '--unit' not in sys.argv:
-        run_real(ROOT/'sdmc-out/3ds/toontown3ds/data/zones')
+        zones = None
+        for arg in sys.argv[1:]:
+            if arg == '--coghq':
+                import coghq_catalog
+                zones = coghq_catalog.ZONES
+            elif arg.startswith('--zone='):
+                zones = tuple(int(z) for z in arg.split('=')[1].split(','))
+            elif arg.startswith('--zones='):
+                zones = tuple(int(z) for z in arg.split('=')[1].split(','))
+        run_real(ROOT/'sdmc-out/3ds/toontown3ds/data/zones', zones=zones)
