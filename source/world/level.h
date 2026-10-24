@@ -23,6 +23,9 @@
 #include "world/level_spec.h"
 #include "world/player.h"
 #include "world/zone.h"
+// ---- level games (world/level_games.*) ----
+#include "world/level_games.h"
+// ---- end level games ----
 
 namespace tt::world {
 
@@ -147,6 +150,11 @@ public:
     bool nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const;
     // Autotest: the nearest closed door ahead, as a point in front of it; false if none.
     bool nearestDoor(float x, float y, float z, float* dx, float* dy, float* dz, float* dh) const;
+
+    // ---- level games (world/level_games.*) ----
+    LevelGames& games() { return games_; }
+    const LevelGames& games() const { return games_; }
+    // ---- end level games ----
 
 private:
     enum class CogMode : uint8_t { Walk, Chase, Return, WaitBattle };
@@ -431,6 +439,10 @@ private:
     const net::Client* doorClient_ = nullptr;
     uint32_t doorNowMs_ = 0;
     uint32_t doorNowMsPrev_ = 0;
+    // ---- level games (world/level_games.*) ----
+    friend class LevelGames;
+    LevelGames games_;
+    // ---- end level games ----
 };
 
 } // namespace tt::world
