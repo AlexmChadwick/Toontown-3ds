@@ -14,3 +14,12 @@ c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
     source/world/toon_dna.cpp source/world/suit_path.cpp source/world/level_spec.cpp \
     tools/nettest/log_host.cpp -lpthread -o sdmc-out/boss-test/client_test
 sdmc-out/boss-test/client_test
+
+# Asset-backed check is available after the CFO bake, without requiring goon rebakes.
+if [ -f sdmc-out/3ds/toontown3ds/data/boss/cfo_arena.ttc ]; then
+    c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
+        -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
+        tools/boss_test/cfo_collision.cpp source/world/collision.cpp \
+        tools/collision_test/log_stub.cpp -o sdmc-out/boss-test/cfo_collision
+    sdmc-out/boss-test/cfo_collision sdmc-out/3ds/toontown3ds/data/boss/cfo_arena.ttc
+fi

@@ -1,0 +1,1120 @@
+{
+  "budget": {
+    "batches": 80,
+    "clip_pair_geometry": 6038100,
+    "max_clip": 2004480,
+    "model_geometry": 194132,
+    "textures": 658688,
+    "triangles": 4918
+  },
+  "clips": {
+    "cfo_head_Bb2Ff_spin.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_head_Bb_neutral.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Bf_neutral.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_DownThrow.tta": {
+      "bytes": 70144,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 874
+    },
+    "cfo_head_Fb_UpThrow.tta": {
+      "bytes": 70144,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 874
+    },
+    "cfo_head_Fb_down2Up.tta": {
+      "bytes": 209920,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 874
+    },
+    "cfo_head_Fb_downHit.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_head_Fb_downLtSwing.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_downNeutral.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_downRtSwing.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_fall.tta": {
+      "bytes": 503552,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 874
+    },
+    "cfo_head_Fb_firstHit.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_jump.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Fb_neutral.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Ff2Bb_spin.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_head_Ff_lookRt.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Ff_neutral.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_Ff_speech.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_golf_swing.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_head_hatch_front.tta": {
+      "bytes": 7168,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_hatch_rear.tta": {
+      "bytes": 7168,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_ltTurn2Wave.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_head_turn2Fb.tta": {
+      "bytes": 251904,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 874
+    },
+    "cfo_head_wave.tta": {
+      "bytes": 167936,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 874
+    },
+    "cfo_legs_Bb2Ff_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cfo_legs_Bb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Bf_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_DownThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_UpThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_down2Up.tta": {
+      "bytes": 213376,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_downHit.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 1,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_downLtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_downNeutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_downRtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_fall.tta": {
+      "bytes": 511616,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_firstHit.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_jump.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Fb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Ff2Bb_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cfo_legs_Ff_lookRt.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Ff_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_Ff_speech.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_golf_swing.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cfo_legs_hatch_front.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_hatch_rear.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_ltTurn2Wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cfo_legs_turn2Fb.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cfo_legs_wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cfo_torso_Bb2Ff_spin.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_torso_Bb_neutral.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Bf_neutral.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_DownThrow.tta": {
+      "bytes": 102272,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_UpThrow.tta": {
+      "bytes": 102272,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_down2Up.tta": {
+      "bytes": 306560,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_downHit.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_downLtSwing.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_downNeutral.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_downRtSwing.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_fall.tta": {
+      "bytes": 735104,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_firstHit.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_jump.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Fb_neutral.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Ff2Bb_spin.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_torso_Ff_lookRt.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Ff_neutral.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_Ff_speech.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_golf_swing.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_torso_hatch_front.tta": {
+      "bytes": 10496,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_hatch_rear.tta": {
+      "bytes": 10496,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_ltTurn2Wave.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_torso_turn2Fb.tta": {
+      "bytes": 367744,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 1270
+    },
+    "cfo_torso_wave.tta": {
+      "bytes": 245120,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 1270
+    },
+    "cfo_treads_Bb2Ff_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cfo_treads_Bb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Bf_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_DownThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_UpThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_down2Up.tta": {
+      "bytes": 109184,
+      "frames": 30,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_downHit.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_downLtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_downNeutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_downRtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_fall.tta": {
+      "bytes": 261632,
+      "frames": 72,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_firstHit.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_jump.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Fb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Ff2Bb_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cfo_treads_Ff_lookRt.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Ff_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_Ff_speech.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_golf_swing.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cfo_treads_hatch_front.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cfo_treads_hatch_rear.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cfo_treads_ltTurn2Wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cfo_treads_turn2Fb.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cfo_treads_wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    }
+  },
+  "disk_bytes": 20207009,
+  "goon_reserve": {
+    "geometry": 1835008,
+    "textures": 131072
+  },
+  "lobby_anchor": [
+    115.89399719238281,
+    83.30419921875,
+    99.21489715576172
+  ],
+  "max_texture": 128,
+  "models": {
+    "cfo_arena": {
+      "batches": 17,
+      "bounds": [
+        [
+          55.40370178222656,
+          -369.9530029296875,
+          -61.387596130371094
+        ],
+        [
+          174.51400756835938,
+          -184.68930053710938,
+          56.58430099487305
+        ]
+      ],
+      "file_bytes": 149504,
+      "geometry_bytes": 43482,
+      "texture_bytes": 103360,
+      "textures": 16,
+      "triangles": 1151,
+      "uv_clamped": 0,
+      "vertices": 2286
+    },
+    "cfo_boxcar": {
+      "batches": 10,
+      "bounds": [
+        [
+          -0.032776400446891785,
+          -13.010700225830078,
+          -0.11289899796247482
+        ],
+        [
+          76.4281997680664,
+          12.628199577331543,
+          55.418399810791016
+        ]
+      ],
+      "file_bytes": 86912,
+      "geometry_bytes": 17328,
+      "texture_bytes": 68096,
+      "textures": 9,
+      "triangles": 312,
+      "uv_clamped": 0,
+      "vertices": 966
+    },
+    "cfo_cable": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.07999999821186066,
+          -0.07999999821186066,
+          0.0
+        ],
+        [
+          0.07999999821186066,
+          0.07999999821186066,
+          1.0
+        ]
+      ],
+      "file_bytes": 384,
+      "geometry_bytes": 176,
+      "texture_bytes": 0,
+      "textures": 0,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 8
+    },
+    "cfo_controls": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.036769986152649,
+          1.265679955482483,
+          0.0
+        ],
+        [
+          0.9245309829711914,
+          3.8115499019622803,
+          3.3187499046325684
+        ]
+      ],
+      "file_bytes": 4352,
+      "geometry_bytes": 1140,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 60
+    },
+    "cfo_crane_arm": {
+      "batches": 1,
+      "bounds": [
+        [
+          -2.077359914779663,
+          -44.265499114990234,
+          -2.212599992752075
+        ],
+        [
+          1.7852200269699097,
+          1.3357900381088257,
+          2.232100009918213
+        ]
+      ],
+      "file_bytes": 4608,
+      "geometry_bytes": 1444,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 38,
+      "uv_clamped": 0,
+      "vertices": 76
+    },
+    "cfo_gear": {
+      "batches": 2,
+      "bounds": [
+        [
+          -6.737679958343506,
+          -6.743000030517578,
+          -0.9894229769706726
+        ],
+        [
+          6.713500022888184,
+          6.708559989929199,
+          1.0213500261306763
+        ]
+      ],
+      "file_bytes": 26240,
+      "geometry_bytes": 3840,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 160,
+      "uv_clamped": 0,
+      "vertices": 180
+    },
+    "cfo_head": {
+      "batches": 5,
+      "bounds": [
+        [
+          -0.1399698257446289,
+          -2.6333861351013184,
+          -2.8930907249450684
+        ],
+        [
+          7.985722064971924,
+          2.7278432846069336,
+          2.963351249694824
+        ]
+      ],
+      "file_bytes": 92928,
+      "geometry_bytes": 15592,
+      "texture_bytes": 76352,
+      "textures": 5,
+      "triangles": 268,
+      "uv_clamped": 0,
+      "vertices": 874
+    },
+    "cfo_legs": {
+      "batches": 5,
+      "bounds": [
+        [
+          -7.804619789123535,
+          -10.32979965209961,
+          -0.005233097821474075
+        ],
+        [
+          7.802390098571777,
+          10.330599784851074,
+          9.844971656799316
+        ]
+      ],
+      "file_bytes": 51200,
+      "geometry_bytes": 17604,
+      "texture_bytes": 32736,
+      "textures": 3,
+      "triangles": 582,
+      "uv_clamped": 0,
+      "vertices": 882
+    },
+    "cfo_locomotive": {
+      "batches": 16,
+      "bounds": [
+        [
+          -116.94100189208984,
+          -13.243499755859375,
+          -0.2176479995250702
+        ],
+        [
+          90.10690307617188,
+          13.243499755859375,
+          61.940399169921875
+        ]
+      ],
+      "file_bytes": 183552,
+      "geometry_bytes": 41250,
+      "texture_bytes": 140256,
+      "textures": 14,
+      "triangles": 979,
+      "uv_clamped": 0,
+      "vertices": 2211
+    },
+    "cfo_magnet": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.877369999885559,
+          -0.6652809977531433,
+          -4.000100135803223
+        ],
+        [
+          2.007580041885376,
+          0.6961809992790222,
+          0.0890503004193306
+        ]
+      ],
+      "file_bytes": 14976,
+      "geometry_bytes": 3608,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 156,
+      "uv_clamped": 0,
+      "vertices": 167
+    },
+    "cfo_safe": {
+      "batches": 3,
+      "bounds": [
+        [
+          -3.9191999435424805,
+          -4.190810203552246,
+          0.06072000041604042
+        ],
+        [
+          4.283830165863037,
+          4.093289852142334,
+          8.201000213623047
+        ]
+      ],
+      "file_bytes": 23424,
+      "geometry_bytes": 1108,
+      "texture_bytes": 21792,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 58
+    },
+    "cfo_stick": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.09276449680328369,
+          -0.164341002702713,
+          -0.005452000070363283
+        ],
+        [
+          0.12636500597000122,
+          0.20108599960803986,
+          1.3453999757766724
+        ]
+      ],
+      "file_bytes": 3840,
+      "geometry_bytes": 696,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 20,
+      "uv_clamped": 0,
+      "vertices": 36
+    },
+    "cfo_tankcar": {
+      "batches": 10,
+      "bounds": [
+        [
+          -0.7841860055923462,
+          -17.7632999420166,
+          -0.11619900166988373
+        ],
+        [
+          89.97319793701172,
+          17.746400833129883,
+          56.55229949951172
+        ]
+      ],
+      "file_bytes": 111744,
+      "geometry_bytes": 14140,
+      "texture_bytes": 96096,
+      "textures": 9,
+      "triangles": 338,
+      "uv_clamped": 0,
+      "vertices": 757
+    },
+    "cfo_torso": {
+      "batches": 4,
+      "bounds": [
+        [
+          -6.737679958343506,
+          -6.743000030517578,
+          -0.015293000265955925
+        ],
+        [
+          6.713500022888184,
+          6.708559989929199,
+          8.108294486999512
+        ]
+      ],
+      "file_bytes": 68608,
+      "geometry_bytes": 24088,
+      "texture_bytes": 43648,
+      "textures": 4,
+      "triangles": 628,
+      "uv_clamped": 0,
+      "vertices": 1270
+    },
+    "cfo_treads": {
+      "batches": 2,
+      "bounds": [
+        [
+          -8.304530143737793,
+          -10.32979965209961,
+          -5.980840267483245e-10
+        ],
+        [
+          8.304530143737793,
+          10.32979965209961,
+          4.428339958190918
+        ]
+      ],
+      "file_bytes": 22784,
+      "geometry_bytes": 8560,
+      "texture_bytes": 13632,
+      "textures": 2,
+      "triangles": 216,
+      "uv_clamped": 0,
+      "vertices": 454
+    },
+    "cfo_treasure": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.100000023841858,
+          0.0,
+          0.0
+        ],
+        [
+          1.100000023841858,
+          0.0,
+          3.0
+        ]
+      ],
+      "file_bytes": 22400,
+      "geometry_bytes": 76,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 2,
+      "uv_clamped": 0,
+      "vertices": 4
+    }
+  },
+  "sample_fps": 12,
+  "sha256": {
+    "cfo_arena.ttc": "3747632ae35c2f00d8b6fd34148e0b96a28353126673a7bffe1d3ba912b76f12",
+    "cfo_arena.ttm": "3e7ea096a50c1046e29207bed74d5265b62e56d4cbfa7adb2e9b7398f21ae684",
+    "cfo_boxcar.ttm": "829ca89a9660a80d822deefd08cdf0a844179b0642be14056a93144a5596a866",
+    "cfo_cable.ttm": "d05cfe91056cf5f485f60760decd40121d3a2049d03066fb664dc44d059dd289",
+    "cfo_controls.ttm": "b3cdbb81a83cd143c3616bf6732738ac4be9049f5a61fcd1e2c4cdbbc3207f7f",
+    "cfo_crane_arm.ttm": "1fd0119bc5017c6bba2b2ec690ae2bc6156b7923ad62da82dc3b672f7816542b",
+    "cfo_gear.ttm": "91d2074f67ee26b54068ed2ecc65d9f409efa9eb2c8c8746fb04f402d20a7d64",
+    "cfo_head.ttm": "fac87b85d17a89ccfd0d484303942e9e34ec1f6a4afee2dc60be82350cd242fb",
+    "cfo_head_Bb2Ff_spin.tta": "2435ab3199f4f5ad20aed9d114547fcc79bef71bb11ebd7169610b28787f39e7",
+    "cfo_head_Bb_neutral.tta": "89831ac8e916417429504dc9bc2635bb121b22aa61a1a4d951e8af2e080f0b28",
+    "cfo_head_Bf_neutral.tta": "e6273d5fb4db7749f316cb9762a4db4ea8268d31d6b3cb1d7dcaf3bb51c746d3",
+    "cfo_head_Fb_DownThrow.tta": "fdd6737a98570eafe61af2eb27f2066be67e4ca987f1592c52b1073d202e8640",
+    "cfo_head_Fb_UpThrow.tta": "40e0c96f99ad3ce0b037c3056f3ba510c859dc95dae1f1cdcc81a0003961da78",
+    "cfo_head_Fb_down2Up.tta": "089fa58bf23ab30eb11baa3e83ea03ec82c912379e4d37ec5114193e89e88b47",
+    "cfo_head_Fb_downHit.tta": "54a2672a5d365e11df29ebf385c3b549882e67b03a9a4ceacbecceb70e3b3a53",
+    "cfo_head_Fb_downLtSwing.tta": "9ac6a5abae2705c0ea3274b272350beb110d0a1fb8f05e88c77d70acd813e3a6",
+    "cfo_head_Fb_downNeutral.tta": "fd219625c7ca2084fac14566a65db6b6d65dacada01131671c049b428b7e5c21",
+    "cfo_head_Fb_downRtSwing.tta": "8fd64fdbfd6070c784dfcb39905ab3b9ff3c76dc4a2ebf318802755031eb6a7a",
+    "cfo_head_Fb_fall.tta": "83c8f01a1387ed844f9422592c17eeb04c3b8bd0ad13989a2973d7e2c12614a0",
+    "cfo_head_Fb_firstHit.tta": "521c5e392f7be11b1d36b76b7103e23130888db2b3324c86884b925ab57bde1a",
+    "cfo_head_Fb_jump.tta": "a3955d2ca9cf78eb9a4b0348bbb9aaa012c371f4e4898a2d7fca0da67a03732c",
+    "cfo_head_Fb_neutral.tta": "dcb3c42da36dba3b2f916891acdb066e42a5e31cf2fdeefc2dc2e387bd262918",
+    "cfo_head_Ff2Bb_spin.tta": "d8fa20920e08ef6699849154ec62144bf14a708fe4ee86378d8b26e0ed996709",
+    "cfo_head_Ff_lookRt.tta": "6aa99b6089119d783c269891dc735d38b5beca55b5108f38728e729b66d98e90",
+    "cfo_head_Ff_neutral.tta": "5d6274e64bfd55e2fda91a337a45729fa984021d6819955a7cb5487e597c7e85",
+    "cfo_head_Ff_speech.tta": "60ec9d57ae45592b68cab1c6000e5fbcae3e2c05fe29e55bb00622e71d90e76f",
+    "cfo_head_golf_swing.tta": "e25f5990e20f2bf942885da648839e09b0a0aba8ddd046581c70b634a4ae6ce1",
+    "cfo_head_hatch_front.tta": "2b75576eccb45fcbced1b69287d8f3cf2aaeb859bdf69dfc139c895bd78f3133",
+    "cfo_head_hatch_rear.tta": "2b75576eccb45fcbced1b69287d8f3cf2aaeb859bdf69dfc139c895bd78f3133",
+    "cfo_head_ltTurn2Wave.tta": "78133e339b2003acdb21cd18a64aa407f22bd31f23d8d45f8aa16a689e6ace02",
+    "cfo_head_turn2Fb.tta": "a9cfd422f2b033783391fb643579706c6e47d8eb1b7a3d12bf54a20d10239a7e",
+    "cfo_head_wave.tta": "26afa2e6553354c015de171ed20921f03327cebdf12d195195b3999c3db71630",
+    "cfo_legs.ttm": "757d5db54f2d32ee4111cfaabf79a224d68ae14f9f7e20aa8f46dc62deefbd0d",
+    "cfo_legs_Bb2Ff_spin.tta": "9b0e29a1b900df26ef7e0229c2f70c413a8427c0dec6836d43822eac0b67e627",
+    "cfo_legs_Bb_neutral.tta": "ab30b18e4a9bcf7776577bdfd100a95e236cf7c9f1138e8d49fd6045935fd6a8",
+    "cfo_legs_Bf_neutral.tta": "6604fce44c314f3d2fe5d387a7aadd31f6be0466a2bc102af6e84d655daaedca",
+    "cfo_legs_Fb_DownThrow.tta": "d1243f835328e9468292f5924a79ee7d817d6f62f120bcd1321d7233f2a0fd8f",
+    "cfo_legs_Fb_UpThrow.tta": "f0d4eca0a0a5b3f74e4d438e750e5cb3f93fb2e5e6a9ef37b380e09a81eac551",
+    "cfo_legs_Fb_down2Up.tta": "cc082172747d7a7efbf5f7167ac40a89a59037aacc4cf8f26f5f4458662f7653",
+    "cfo_legs_Fb_downHit.tta": "6314351f9fccd76ee2cbea7401e9d9d76d94764db5263d3ee846096389bd3ffa",
+    "cfo_legs_Fb_downLtSwing.tta": "7efbd3890066ad10baaa5046e9d3e795a8a0537cb02b27fb4799950065b75c1c",
+    "cfo_legs_Fb_downNeutral.tta": "fa394ac79d6fefec88647cdfe145ff7b9613361032228f347ba7622241f24a55",
+    "cfo_legs_Fb_downRtSwing.tta": "5e9597c2f76e414abfe3e6366a760f63489265d99d9962294f4e6ae894763465",
+    "cfo_legs_Fb_fall.tta": "f5e2715745b185d56c7dc241b133bba800d32601be819adcf8f6b44404a6602c",
+    "cfo_legs_Fb_firstHit.tta": "4b0418235b0abfae1ebc58e910fff2850aa036f8ee380d301fd8ff60d09a2c5a",
+    "cfo_legs_Fb_jump.tta": "013b01ab1b2e3ffe221431ceef6da1cb2c1e0b806c2d5e76229ebc9b86b6d32c",
+    "cfo_legs_Fb_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "cfo_legs_Ff2Bb_spin.tta": "bd94251ff85c3bedb9e8f7fc947f80953c7cc770e3690e7576314f77833b9625",
+    "cfo_legs_Ff_lookRt.tta": "992e19b06f2f0b8fa4728385543c5aba97fc863234110001f609b1a9047d4886",
+    "cfo_legs_Ff_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "cfo_legs_Ff_speech.tta": "e9418dab0d0b656d4c33c48748f795dab3e6205be29b2df99ce82fd3c015eba8",
+    "cfo_legs_golf_swing.tta": "8f89c86a754f26a9afbb89b132be3013c6fd60dd9f9e61244e423b52e2549c38",
+    "cfo_legs_hatch_front.tta": "a9f2c0e1ca19aaa27338762a53aedc275b7a1e40e2c9cb642f14b89b04f30475",
+    "cfo_legs_hatch_rear.tta": "57de37ab7c7734a6bb135f71a37595a02f0f1119b44f638dfe2d501968914f38",
+    "cfo_legs_ltTurn2Wave.tta": "578573d30aee6797537b7bf9ecfa44e04fd0c7f2eab56d558aec01112bcc0ca7",
+    "cfo_legs_turn2Fb.tta": "7b2364fba43bfca1ee658468a047ac7a4adcfb931648efc43c4eff2b6255c950",
+    "cfo_legs_wave.tta": "0256a5492c76891a36a0454b8690d59889670da1f233df9b30f4d93d27f905fb",
+    "cfo_lobby_anchor.txt": "cbbfb31cff537e30d628261c162250157ff49a51d514ef9fcd6365d7a32b031d",
+    "cfo_locomotive.ttm": "060908dc540fd9c23d1ff2dcf171d04bae48f8360d87373773f6c7d052cb7f73",
+    "cfo_magnet.ttm": "c5603523869b2c3a5b001ef6ed500c2f1c3e12f44b0dd9164345c1654d51960d",
+    "cfo_npcs.bin": "2dd93d9dca753da40c7d0462c27a38e7637be65472edd3d01959480b7eae77e0",
+    "cfo_safe.ttm": "12105ba54c2f727a6da34b7bc948e0e2bca60c625ce536660ff8de4ac6abf65f",
+    "cfo_stick.ttm": "abc429f43acf73df19b987404dbb5501ed4fe07599f2e242ae15855902bd9443",
+    "cfo_tankcar.ttm": "acf9403d1dbde845a658d9eb198a25cbbf2f555553fa460497205a212cc12138",
+    "cfo_torso.ttm": "a623fc12606a9ff68bac0cb6a0823f3ea86e302ac5abab378fd99bc2a324ef21",
+    "cfo_torso_Bb2Ff_spin.tta": "a9d9185b3bcedcf4cf519bdb4b72f4640c9b1e79da3e7c448652f03a556988c3",
+    "cfo_torso_Bb_neutral.tta": "d97ef6ce4cc93a12a9d63c9a9a72a20ff66af9f1e28c7318802d14ea0d25a11b",
+    "cfo_torso_Bf_neutral.tta": "5e0cba3d55ba78ddeeea4ca5b89a099edcb0316b2b8a28cc2b50fbf2c37e982a",
+    "cfo_torso_Fb_DownThrow.tta": "11fefebf0048b555cea511020674e760d4bc804f6d1713ed5cf2050c15dc17f7",
+    "cfo_torso_Fb_UpThrow.tta": "b1dfd204016bd0e25a38fd9a1daa537f248743dbd0a8ddf00928139e76864c2e",
+    "cfo_torso_Fb_down2Up.tta": "ce56f9f5cb4e5d9cbede9a46de9991b75500593ab749fad0491fc06fa0dceb4e",
+    "cfo_torso_Fb_downHit.tta": "6a0270af4460c6cd45911f8350359c57894b027a3979ae044a4d1e7d95648bd1",
+    "cfo_torso_Fb_downLtSwing.tta": "aced2d10919e378bd79509e3782d601fc2247f78db0888d2ea0089ce174a0646",
+    "cfo_torso_Fb_downNeutral.tta": "dcab71a2c8fe8832fa283badbbb47329b54efa458dec608ef384f7d2024d3b81",
+    "cfo_torso_Fb_downRtSwing.tta": "0bc9deef4a86c5a0e87da4af438884e7cdca22dc6bad1cb2f324602b80e21aff",
+    "cfo_torso_Fb_fall.tta": "0e04d26b67bb4d5a48479f73c9cf2eef2168109cf22074f884ac59516bbe8195",
+    "cfo_torso_Fb_firstHit.tta": "99412b41af99e53b6f0e91c8f8b0a1602bdb92ee09f7bd81482ed74436aa80ec",
+    "cfo_torso_Fb_jump.tta": "f9c6d679d951121243b2e379e77a5cfcf1e74dd390bd73c9c567a1dc70ac833f",
+    "cfo_torso_Fb_neutral.tta": "e9ec9df7ee10a35f7b30ed7c136c0a1c5708d8b50538248d83f983fb59b0ecc9",
+    "cfo_torso_Ff2Bb_spin.tta": "fd847f2524446a0c45d6f61a7b81f306aef7dd37d23a0343a26efe08fd6c6a75",
+    "cfo_torso_Ff_lookRt.tta": "c1154c4d13d2f76d0fa9daad8699a7da46f9eaccf1a5d9df5faa85466c49b8f7",
+    "cfo_torso_Ff_neutral.tta": "d97ef6ce4cc93a12a9d63c9a9a72a20ff66af9f1e28c7318802d14ea0d25a11b",
+    "cfo_torso_Ff_speech.tta": "852c6b03f9a10a64a80c9cf52c91f603c78c30929ad0b5af5ead90aafd6d2dc7",
+    "cfo_torso_golf_swing.tta": "2aa41603f2f10ed8aa1198dc1efb0beacceaa2187490798b160f71d1ebb89595",
+    "cfo_torso_hatch_front.tta": "8481a05aefb3a3c1344a313becaab9898b88fd91495e1acecb389bae53282065",
+    "cfo_torso_hatch_rear.tta": "8481a05aefb3a3c1344a313becaab9898b88fd91495e1acecb389bae53282065",
+    "cfo_torso_ltTurn2Wave.tta": "99fb77308685eb62d23b303d6e350b5885eeaf7db14673e76840c4103300ed1e",
+    "cfo_torso_turn2Fb.tta": "0db2d95123c5a0232b42f4c5d809f23dc40a8a423a8651c8065d87cc1bef88c5",
+    "cfo_torso_wave.tta": "615831241ad454df52fa6da9cda967afc050ad60a57a99be176978c9d8e2b4a5",
+    "cfo_treads.ttm": "bf5119c326c073c0901ec3a0677c99c196fc4e99e4c97375feaea72917c54029",
+    "cfo_treads_Bb2Ff_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cfo_treads_Bb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Bf_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Fb_DownThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "cfo_treads_Fb_UpThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "cfo_treads_Fb_down2Up.tta": "4701ab03d002e1d5ba9fc788b28fe9dee6cb6657b34639e41dd45db7a40308bc",
+    "cfo_treads_Fb_downHit.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cfo_treads_Fb_downLtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Fb_downNeutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Fb_downRtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Fb_fall.tta": "d3bcec0dbe70c9ff894981c684c10fe67946eebf88764b150a31f84745c51420",
+    "cfo_treads_Fb_firstHit.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Fb_jump.tta": "ce5ff1ac6f4e467ca387037f42dcc9e69d021d03221c099b105216e7327e2c27",
+    "cfo_treads_Fb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Ff2Bb_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cfo_treads_Ff_lookRt.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Ff_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_Ff_speech.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_golf_swing.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cfo_treads_hatch_front.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cfo_treads_hatch_rear.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cfo_treads_ltTurn2Wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cfo_treads_turn2Fb.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cfo_treads_wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cfo_treasure.ttm": "b986075cfaa2e4a9426ad90e3557c2b5a67a2929e845fc54c18edccd6b5dcd0a"
+  },
+  "version": 1
+}

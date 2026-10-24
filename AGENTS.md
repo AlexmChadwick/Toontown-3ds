@@ -542,7 +542,30 @@ Panda's cross-process accumulation noise. The shared loader keeps one active
 four-part clip set and at most one pending set, publishing after the GPU fence.
 Geometry plus the largest clip pair is 5,409,224 bytes; textures are 364,000 bytes.
 
-This is host/build-verified work, **not Azahar- or hardware-verified**. CFO, CJ and
-CEO are receive schemas plus implementation plans, not playable places. Full
+This is host/build-verified work, **not Azahar- or hardware-verified**. CJ and CEO remain receive schemas plus implementation plans; CFO is covered in section 12. Full
 contract, supported visual simplifications, asset manifest and mandatory Azahar
 checks are in `docs/design/bosses.md` and `docs/design/boss_assets.json`.
+
+
+## 12. Cashbot CFO runtime (2026-10-24)
+
+BossBattle also owns Cashbot CFO encounters, using its existing main-loop hook.
+`net/client_cfo.cpp` / `cfo_state.cpp` decode independent CFO crane/safe/goon/
+treasure objects into fixed pools (4/9/16/32), with transactional publication and
+clsend-only, phase/member/owner-guarded senders. `world/cfo_logic.*` and
+`cfo_mechanics.*` implement bounded crane physics, goons, physical throws,
+helmet ownership, gear attacks, the ending and explicit Resistance reward
+confirmation. The Cog round reuses public Battle movies/camera. Reconnect goes
+to static CashbotLobby 12100; successful return goes to CashbotHQ 12000.
+
+`bake_boss.py --cfo` shares deterministic BossCog extraction with VP, adds native
+CFO models/clips and reuses the unchanged level/props goon bakes. Both vaults are
+resident together because measured geometry fits the budget. Models and active/
+pending clips plus the goon reserve are admitted below 6 MiB, textures below
+8 MiB. Goons have a 1.5 MiB aggregate clip cap; CFO four-part clip cap is 2,004,480
+bytes. Missing/corrupt assets show an error with B return. No protected level,
+Toon-cache/avatar, battle-camera/movie, game or book code was changed.
+
+This work is host/build verified only. No Azahar or live CFO victory is claimed.
+Exact asset budgets, controls, simplifications, CJ/CEO field contracts and the
+mandatory Azahar checks are in docs/design/bosses.md and cfo_assets.json.

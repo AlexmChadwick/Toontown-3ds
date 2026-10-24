@@ -43,13 +43,25 @@ def part(name, parent, clip, frame):
         return child
     return node
 
-legs = part('vp_legs', base.render, 'Ff_speech', 8)
-torso = part('vp_torso', legs, 'Ff_speech', 8)
-part('vp_head', torso, 'Ff_speech', 8)
-part('vp_treads', base.render, 'Ff_speech', 8)
+prefix = 'cfo' if '--cfo' in sys.argv else 'vp'
+legs = part(prefix + '_legs', base.render, 'Ff_speech', 8)
+torso = part(prefix + '_torso', legs, 'Ff_speech', 8)
+part(prefix + '_head', torso, 'Ff_speech', 8)
+part(prefix + '_treads', base.render, 'Ff_speech', 8)
 base.camera.setPos(38, -65, 28)
 base.camera.lookAt(0, 0, 13)
 base.graphicsEngine.renderFrame()
 base.graphicsEngine.renderFrame()
-base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses2/vp_preview.png'))
-print('decoded VP preview: sdmc-out/bosses2/vp_preview.png')
+base.win.saveScreenshot(str(ROOT / f'sdmc-out/bosses3/{prefix}_preview.png'))
+if prefix == 'cfo':
+    for child in list(base.render.getChildren()):
+        if child != base.camera:
+            child.removeNode()
+    arena = preview_ttm.load(str(OUT / 'cfo_arena.ttm'), {})
+    arena.reparentTo(base.render)
+    base.camera.setPos(120, -375, 52)
+    base.camera.lookAt(120, -315, 8)
+    base.graphicsEngine.renderFrame()
+    base.graphicsEngine.renderFrame()
+    base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses3/cfo_arena_preview.png'))
+print(f'decoded {prefix} preview: sdmc-out/bosses3/{prefix}_preview.png')

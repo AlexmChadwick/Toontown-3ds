@@ -2,7 +2,7 @@
 
 This is an implementation contract for the unmodified sv1.0.47.38 server, not a
 Panda3D runtime port. References below are paths under `ref/ref/open-toontown`.
-The native VP is implemented; CFO, CJ and CEO have generated boss-level receive
+The native VP and CFO are implemented; CJ and CEO have generated boss-level receive
 schemas and the plans below, but no playable native place yet. Azahar/hardware
 verification remains outstanding by task instruction.
 
@@ -190,41 +190,100 @@ Toon/NPC looks remain under the existing shared 4 MiB cache cap. Attachment trac
 add at most 13,824 heap bytes for an active/pending pair. GPU/frame/whole-app peak
 numbers require Azahar and then hardware measurement.
 
-## CFO plan (not implemented)
+## CFO implementation (host/build verified; Azahar pending)
 
-Sources: `DistributedCashbotBoss{,AI}.py`, `DistributedCashbotBossCrane{,AI}.py`,
-`DistributedCashbotBossObject{,AI}.py`, `Safe{,AI}.py`, `Goon{,AI}.py`, and the
-Cashbot sections of `etc/toon.dc` / `ToontownGlobals.py`.
+Sources: `suit/DistributedCashbotBoss{,AI}.py`, `suit/DistributedCashbotBossGoon{,AI}.py`,
+`coghq/DistributedCashbotBoss{Crane,Object,Safe,Treasure}{,AI}.py`,
+`ToontownGlobals.py`, and `etc/toon.dc` in the pinned Open Toontown reference.
 
-1. Bake phase_10 cashbotBoss parts with the same attachment convention. Bake
-   MidVault and EndVault separately, plus CBMagnet, CBCraneArm/Controls/Stick,
-   CBSafe, CFOElevator and the end train. Unload the first vault before the second.
-2. Follow common arrival/introduction and BattleOne, then PrepareBattleThree
-   (55 s AI barrier) → BattleThree → Victory (30 s barrier) → Reward → Epilogue.
-   Reuse BattleFinal and its reserve barriers for the Cog round.
-3. Add generated TABLE_CLASSES for Crane, Object, Safe and Goon; boss-level
-   schemas alone are insufficient. Crane receives boss/index/state-owner;
-   ownership gates requestControl/requestFree, clearSmoothing, and setCablePos
-   (index, height/100, heading/100, exactly three LinkPosition float-equivalent
-   i16/100 triples, i16 time). Use a three-link deterministic cable simulation,
-   fixed-step physics, owner-only updates and interpolation for spectators.
-4. Safes/goons receive object state/owner/position and smoothed components.
-   requestGrab/requestDrop/requestFree/hitFloor/hitBoss are clsend. Encode
-   hitBoss power as u16/255, never VP's u8 damage. Implement free/grabbed/held/
-   dropped/helmet transitions from their state chars; only the AI grants control.
-5. Goon setup includes velocity, FOV, attack radius, strength and scale;
-   setTarget includes timed XY/H. Implement jump-on stun, crane pickup and
-   boss impact, with requestBattle/requestStunned only after a collision.
-   AI maxGoons starts at 8 and difficulty can add 8: reserve 16 Goon slots.
-   Crane/safe pools derive their fixed counts from the baked Globals arrays.
-6. CFO damage is 0→500 with helmet handling and slow directed attacks. Use its
-   actual object state to distinguish a dropped helmet safe from a damaging
-   thrown object. Reward is ResistanceChat: setRewardId then applyReward from
-   an explicit confirmation, not a fabricated promotion/VP SOS card.
+The existing BossBattle frame hook now handles both VP and CFO. CFO entry uses
+CashbotLobby **12100**, its BPA1 elevator anchor and `DistributedCFOElevator`.
+Normal slots and forced boss destinations both enter the server's dynamic zone.
+It registers/acknowledges WaitForToons while SD loading, plays condensed intro
+and preparation scenes, uses the public Battle API for BattleOne and its reserve
+barriers, then handles BattleThree cranes, Victory, Reward and Epilogue. Reconnect
+selects static lobby 12100; successful exit returns to CashbotHQ **12000** and
+zero-laff exit uses the existing sad playground behavior.
 
-Acceptance: transfer/release ownership with two clients, reconnect while holding
-an object, helmet removal versus damage, goon stun/grab, 16-goon memory cap,
-500 damage victory and one server-granted Resistance reward.
+`client_cfo.cpp` stores a bounded, transactional child-object snapshot pool:
+4 cranes, 9 safes, 16 goons and 32 treasures. The CFO goons are independent
+`DistributedCashbotBossGoon` objects. No level entity or facility code is used.
+Required and RAM fields arrive in generated DC order; truncated updates do not
+publish. Each child leaves independently, and reset/disconnect clears the pool.
+Every new sender uses the compile-time clsend `TT_NET_UPDATE` assertion, boss
+membership/phase checks and ownership checks where applicable. Hash: 547155168.
+
+| Object | Receive contract | Client sends |
+|---|---|---|
+| Crane | bossId:u32, index:u8, state:(char,u32 owner), cable:(u8 sequence,i16/100 Y,u16%360/100 H,3 fixed i16/100 XYZ links,i16 time), clearSmoothing:i8 | requestControl, requestFree, owner-only clearSmoothing(0), owner-only setCablePos at 5 Hz |
+| Object / Safe | bossId:u32, objectState:(char,u32 owner,u32 crane), separate position/components and smoothed molecules; Safe adds index:u8 | requestGrab, requestDrop, hitFloor, requestFree(i16/10 XYZ,u16%360/100 H), hitBoss(u16/255 impact); Safe requestInitial |
+| Goon | Object fields plus velocity:u8/10, HFov:u8, radius:u8, strength:u8, scale:u8/50, setupGoon molecule, target:(i16/10 XY,u16%360/100 H,i16 arrival), destroyGoon | requestBattle/requestStunned(i16/10 pause), object grab/drop/hit, destroyGoon after an owned thrown safe intersects it |
+| Treasure | position/finalPosition:i16/10 XYZ, goonId:u32, style:u16, grab owner:u32, rejection | requestGrab only while injured and physically in range |
+| CFO | Common BossCog fields, damage:u16 only, rewardId:u16 | Common entry/exit/barriers/zapToon; applyReward after explicit Epilogue confirmation |
+
+Controls: walk/jump normally; **A near a free crane** requests control. Circle Pad
+slides the arm (8–25) and rotates it (-45–45 degrees); **B toggles the magnet**,
+so switching it off requests a drop; **X releases the crane**. Only the AI's
+state-owner message grants ownership. The deterministic three-link cable uses
+at most four 1/60-second substeps, gravity 32, length constraints and bounded
+arrays. Spectators interpolate the three transmitted link positions. A dropped
+object inherits 1.5 times magnet velocity and broadcasts its actual pose at 5 Hz.
+A swept CFO body intersection computes normalized velocity in the crane's root
+frame and packs the resulting impact as u16/255. No timer sends boss damage.
+
+Jumping onto goon heads requests a stun; their radar cones request a battle/zap.
+Walking goons can also be grabbed and wiggle free after two seconds. Stunned
+goons use the collapse pose; walking/recovery clips and cone are loaded from the
+**existing** `level/props/goon_pg_full*` and `goon_cone.ttm` files. Safes use I/F/G/D/s
+states and server ownership; boss-owned G is the visible helmet. The AI decides
+whether a safe dons/removes the helmet or damages the stunned CFO, and whether a
+goon damages it. Health displays the server's 0–500 damage. Slow directed attack
+11 is a physical gear projectile; electric contact also uses the guarded zap path.
+
+The ending plays recovery, roll-out and the stock 15-car train timing. Reward
+barriers precede the Resistance toon. **A confirms applyReward once; a second A
+returns to HQ**. The AI owns Resistance inventory/effect updates. The NPC uses
+stock seed 146392, female, `pls` head DNA; it shares the regular Toon cache.
+
+`bake_boss.py --cfo` emits the CFO-prefixed SD set and cfo_manifest.json. MidVault
+and EndVault are combined because their measured geometry plus all props is only
+about 190 KiB; doors are open. Both vaults fit together in the enforced budget.
+Four parts share the deterministic VP extraction/attachment convention; models
+and clips retain TTM1/TTA1. Textures are ETC1/ETC1A4 or small native channels,
+maximum 128 px. Metadata is BPA1/BND1. See `cfo_assets.json` for exact sizes/hashes.
+
+
+| CFO asset admission | Bytes | Limit |
+|---|---:|---:|
+| All 16 new models, geometry | 194,132 | included below |
+| Largest four-part clip | 2,004,480 | 2,004,480 |
+| Active + pending clips, models, reused-goon reserve | 6,038,100 | 6,291,456 |
+| New model textures | 658,688 | 8,388,608 |
+| Textures including reused-goon allowance | 789,760 | 8,388,608 |
+| Collision heap | 12,348 | regular heap |
+| SD output, 115 files / 96 clips | 20,207,009 | streamed from SD |
+
+The model inventory totals 4,918 unique triangles / 80 batches. These include
+mutually exclusive ending props and do not describe an eight-Toon/16-goon frame;
+measure instanced draw/triangle counts in the Azahar stress check.
+
+Goons are reused, never rebaked. Their original files are absent in this checkout;
+the main agent must install the existing facility goon set. Runtime preflight
+rejects malformed/missing models or goon clips, with B return to HQ.
+
+Budget admission reserves 1.5 MiB for the three resident goon clips, plus a
+256 KiB goon model/cone allowance in the offline report. The runtime measures
+actual model headers, caps every four-part CFO clip at 2,004,480 bytes and keeps
+only active/pending sets. Publication and retirement use the existing GPU frame
+fence and background loader. No extra thread or runtime format is introduced.
+
+Visual/physics limits requiring review: condensed dialogue/movies, ordinary Toon
+costumes, open vault doors, approximate gear/body/radar volumes, constrained-link
+physics rather than Panda's collision integrator, and simplified floor sliding. All treasure styles currently share the ice-cream
+visual and appear at their final position; style/healing authority stays on the AI.
+The ending camera and Resistance UI present the essential sequence; full stock
+cinematography and audio are not reproduced. Host tests cannot establish a live
+victory or Old 3DS performance. The Azahar checklist below is mandatory.
 
 ## CJ plan (not implemented)
 
@@ -346,3 +405,96 @@ Battle autoplay. Pie test input repositions to the cage/firing lane and solves a
 real ballistic shot; the ordinary collision and guarded clsend paths still decide
 all results. It never writes damage or forces a phase. These fixed windows are
 observational bounds, not assertions that an underpowered solo toon wins.
+
+
+## CFO handoff and exact Azahar verification
+
+Install this branch's 3DSX and the complete ignored
+`sdmc-out/3ds/toontown3ds/data/boss/` output tree. Preserve existing HQ zones
+12000/12100, Toons/clothes, Cog battle assets and these unchanged facility props:
+`level/props/goon_pg_full.ttm`, `goon_pg_full_walk.tta`,
+`goon_pg_full_collapse.tta`, `goon_pg_full_recovery.tta`, `goon_cone.ttm`.
+No runtime edits or new server patch are required in the main checkout.
+
+For a fresh solo development toon start the existing local server with
+`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 tools/server/start.sh`.
+The existing import hook relaxes boss elevator boarding, gives 137 laff/all tracks/
+6000 exp, and makes Cogs and revives 1 HP. It does not fake crane ownership,
+helmet state, boss damage, phases or rewards. Without AI_DEV, use a toon with
+Cashbot suit/access and completed Cogbucks. In this pinned server, the hood
+constructs its CFO elevator with the default minimum laff **0**; checkBoard tests
+current HP against that value and readyForPromotion(Cashbot). A configured custom
+minimum must still be honored;
+verify denied toons remain in the lobby without an eject.
+
+Run these checks in **Old 3DS mode** and record fps, CPU frame/animation time,
+heap/linear/VRAM and command buffer peaks in test-log:
+
+1. Enter 12100 normally. A at the baked elevator boards, B exits; reboard and ride.
+   Check a forced destination too. Slow SD loading must not time out WaitForToons.
+2. Verify CFO head/torso/legs/treads attachment, elevator, both vaults, Resistance
+   toon DNA, floor/wall collision and condensed intro/preparation. Confirm BattleOne
+   is at (120,-230,0) with teams on X=145 and X=95; test each side, reserve joining,
+   gag movies and normal street battles after returning.
+3. Control each of four cranes. Test arm bounds, visible cables/magnet, B pickup/
+   drop, X release and competing requests from two clients. The other client must
+   see cable movement, held/drop poses and control release. Disconnect while holding
+   a safe, reconnect to static lobby 12100, then reenter without stale children.
+4. Jump-stun small/large goons, check walk/collapse/recovery/radar and head landing;
+   test walking-goon pickup/two-second escape, safe strikes on goons, moving-target
+   goon throws, treasure pickup/reject at full laff and scale/difficulty changes.
+5. Test real misses and slow/fast throws. A safe can become the helmet; another
+   sufficiently directed throw removes it. Goons stun/damage an unhelmeted CFO;
+   safes damage it while dizzy. Boss-owned dropped helmets must never self-damage.
+   Compare all 0–500 damage and local HP with the server/second client. Dodge attack
+   11 gears and test electric contact. The physical collision/throw calibration is
+   unverified until this pass; inspect shot series if a throw never connects.
+6. Complete 500 damage: recovery/roll-out/train, Victory/Reward barriers, Resistance
+   reward ID, A confirmation exactly once, second A return to 12000. Test zero-laff
+   exit, missing/malformed boss/goon assets with visible B return and a second fight.
+7. Stress eight toons and all sixteen goons. Check no command-buffer overflow or
+   dropped critical models, 30 fps, geometry <=6 MiB/textures <=8 MiB, Toon cache
+   <=4 MiB and no accumulation across clip switches, reward and lobby return.
+
+For unattended observation write the existing autotest trigger with:
+```
+from cfo: board
+only cfo:
+```
+Labels: **cfo: board** (45 s), **cfo: rounds** (600 s), **cfo: cranes** (600 s),
+**cfo: end** (30 s), all with one-second top/bottom shot series
+`cfo_board_*`, `cfo_rounds_*`, `cfo_cranes_*`, `cfo_end_*`.
+Battle uses public autoplay. Crane observation requests real control and sweeps
+ordinary controls/magnet; it never forces a phase/damage. Fixed windows do not
+assert a solo victory, and manual aimed throws may be needed to finish calibration.
+
+### CJ / CEO exact field additions and CFO lessons
+
+Before implementing CJ, generate child schemas in addition to existing boss fields:
+
+| Class | Required / receive fields | clsend fields |
+|---|---|---|
+| DistributedLawbotCannon | bossId:u32, index:u8, posHpr:6*i16/10; movie:(i8,u32,u8), updateCannonPosition:(u32,2*i16/10), setCannonWillFire:(u32,3*i16/10,i16) | requestEnter, requestLeave, setCannonPosition:(2*i16/10), setCannonLit:(2*i16/10), setLanded |
+| DistributedLawbotChair | bossId:u32, index:u8; state:char, showCogJurorFlying(), toonJurorIndex:i8 | none |
+| DistributedLawbotBossGavel | bossId:u32, index:u8; state:char | none |
+| DistributedLawbotBossSuit | SuitBase requireds + posHpr:6*i16/10; doAttack:6*i16/10, doProsecute(), doStun() | hitByToon() |
+| DistributedLawbotBoss | state:string, damage:(u16,u8,i16), lawyerIds:u32[], taunt:(i8,i8), toonGotHealed:u32, enteredBonusState(), difficulty:u8 | touchWitnessStand(), hitBoss:u8, healBoss:u8, hitToon:u32, hitDefensePan(), hitProsecutionPan(), hitChair:(u8,u8) |
+
+CEO additions use these exact DC contracts:
+
+| Class | Required / receive fields | clsend fields |
+|---|---|---|
+| DistributedBanquetTable | index:u8, numDiners:u8, bossId:u32, dinerInfo:3*u8[]; state:(char,u32,i8), dinerStatus:(u8,u8) | requestControl(), requestFree:i8, clearSmoothing:i8, setPitcherPos:(u8,u16%360/100,i16), firingWater:6*i32/100, waterHitBoss:u8 |
+| DistributedGolfSpot | index:u8, bossId:u32; state:(char,u32,i8), goingToReward() | requestControl(), requestFree:i8, clearSmoothing:i8, setGolfSpotPos:(u8,u16%360/100,i16), setSwingInfo:(u8,i16/10,u8) |
+| DistributedBattleDiners | inherited DistributedBattleFinal required fields and barriers | existing public Battle API |
+| DistributedBossbotBoss | state:string, difficulty:u8, damage and speedDamage:(u16,u8,i16), toonGotFood:(u32,i8,i8,u32), toonServeFood:(u32,i8,i8), toonGotHealed:u32, toonGotToonup:(u32,i8,i8,u32) | requestGetFood:(i8,i8,u32), requestServeFood:(i8,i8), hitBoss:u8, hitToon:u32, ballHitBoss:u8, reachedTable:u8, hitTable:u8, awayFromTable:u8, requestGetToonup:(i8,i8,u32) |
+
+Keep chair jurisdiction separate from cannon control, and table/golf owner/state
+separate from food acknowledgements. Requesting control never grants it. Fixed
+struct arrays have no u16 length prefix; variable arrays use a byte count. Test
+full Panda-packed required/OTHER generation through the real Client, each truncated
+prefix, molecule ordering, peer control changes and stale child removal. Maintain
+per-boss wire impact scales; regenerate rather than copying CFO/VP field IDs.
+Replay real timed trajectories and collisions in autotest, without synthetic hits.
+Reserve active/pending animation memory together with reused props before loading.
+Keep return/reconnect destinations static and reset every child/control on teardown.

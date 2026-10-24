@@ -622,3 +622,62 @@ gag track; autoplay picks sound against groups).
   verification.
 - **Local evidence:** sdmc-out/bosses2/{build,host,nettests,determinism,asset_check}.log,
   regressions/results.json, collision/test.log, projection.log, vp_preview.png.
+
+
+### 2026-10-24 — bosses3 Cashbot CFO (runtime 9a6fc86)
+
+- **Platform:** macOS host tests and devkitARM cross-build only. Azahar, hardware,
+  a live CFO server session and a live victory were deliberately not run. FPS,
+  animation CPU time, whole-app heap/linear/VRAM and command-buffer peaks are
+  unmeasured; do not treat these checks as gameplay/performance validation.
+- **Build:** the required DEVKITPRO/DEVKITARM `make -j4` passed, with zero warnings
+  in source/. The existing devkitARM crtn.o GNU-stack linker warning remains.
+  ELF text 1,342,384, data 51,444, BSS 333,744; sum **1,727,572 bytes** (<4 MiB).
+- **Boss host suite:** Panda supplies 148 independent required/RAM/custom wire
+  vectors. Pure decoders pass every truncated prefix transactionally. Tests cover
+  crane bounds/physics, normalized impact, goon radar/head contact and damage
+  parsing. Real Client tests pass exact cable/impact payloads, ownership/phase/
+  membership rejection, full required+OTHER child generation and truncated
+  regeneration, smoothing reset, helmet ownership, one-shot reward confirmation,
+  battle orientation, child leaving and static CFO-lobby reconnect. ASan/UBSan
+  and -Wall/-Wextra/-Werror are enabled.
+- **Baked collision:** ASan/UBSan host reader passes all 13 stock CFO teleport,
+  Cog-round and crane-round positions. First vault ground is -0.0015, second
+  vault ground 0.0126 (expected zero, tolerance .25). Collision heap **12,348**.
+- **Network:** tools/nettest/run_tests.sh passed on local port 7398: 391 independent
+  descriptor vectors, single-client login/zone/heartbeat, two-client visibility,
+  and disconnect/reconnect. No EJECT or test failure.
+- **Existing regressions:** all 29 suites in tools/boss_test/regressions.py passed:
+  17 minigames, battle FX/camera, book, fishing, animation streaming/playback,
+  facility runtime, Toon DNA, zone unit tests, shop, Cog building, tailor and
+  classic characters. Separate racing and estate contracts passed (estate's
+  hardcoded reference path was redirected in memory to this worktree's ref/ref).
+  Projection passed 405 grid points with zero failures.
+- **Assets:** two independent complete CFO bakes produced byte-identical manifests
+  and all **115** referenced outputs (16 models, 96 clips, collision, anchor and
+  Resistance NPC DNA). Re-baking VP with the shared code preserved all **115**
+  original hashes in docs/design/boss_assets.json. Header/hash/animation-variation
+  validators pass for both bosses. The first QA pass caught a tread-prefix/report
+  refactor error; corrected before these final reproducibility checks.
+- **Budget:** new model geometry **194,132**, largest four-part clip **2,004,480**,
+  model+active/pending clips+1.75 MiB goon reserve **6,038,100** (<6,291,456),
+  new textures **658,688**, including goon texture allowance **789,760** (<8 MiB).
+  Attachment records add at most 13,824 regular-heap bytes for the clip pair.
+  SD set **20,207,009** bytes. Unique model inventory: 4,918 tris / 80 batches;
+  actual instanced frame costs still require Azahar/hardware measurement.
+- **Reused assets:** no goons were rebaked. The ignored existing facility goon
+  files are not present in this worktree. Install the existing level/props model,
+  walk/collapse/recovery clips and cone with the main data set; runtime validates
+  actual headers and enforces a 1.5 MiB aggregate goon-clip cap before use.
+- **Visual QA:** decoded TTM/TTA actor and arena offscreen previews inspected.
+  Correct part attachments and a visible floor/vault environment. The preview's
+  detached-camera issue was fixed before inspecting the arena. These are Panda
+  decode previews, not screenshots of the 3DS renderer.
+- **Required next validation:** docs/design/bosses.md has exact dev flags, assets,
+  controls, production entry requirements, two-client ownership/throws/helmet,
+  goon/treasure, 500-damage ending/reward and Old 3DS memory/performance checks.
+  Autotest labels cfo: board / rounds / cranes / end record one-second shot series;
+  they issue physical controls/guarded requests and never force damage/phases.
+- **Evidence:** sdmc-out/bosses3/{build_final,boss_tests_final,net_tests,
+  cfo_collision,asset_check,vp_asset_check,preview}.log, determinism.json,
+  elf_size.txt, cfo_preview.png, cfo_arena_preview.png and regressions/results.json.
