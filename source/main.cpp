@@ -35,6 +35,7 @@
 #include "world/estate.h"
 #include "world/pets.h"
 #include "world/mint_office.h"
+#include "world/racing.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
@@ -359,6 +360,7 @@ int main() {
     static tt::world::Estate estate;
     static tt::world::Pets pets;
     static tt::world::MintOffice mintOffice;
+    static tt::world::Racing racing;
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
@@ -574,6 +576,14 @@ int main() {
             !uiState.teleportRequest && fadeDir == 0) {
             uiState.teleportRequest = 11200; // test-only: Sellbot factory exterior
         }
+        if (autotest.active() && !strncmp(autotest.label(), "go speedway", 11) &&
+            place.zoneId() != 8000 && !uiState.teleportRequest && fadeDir == 0) {
+            uiState.teleportRequest = 8000;
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && racing.active() &&
+            autotest.stepTime() < 0.1f) {
+            in.down |= KEY_A;
+        }
         if (autotest.active() && !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200 &&
             !factory.active()) {
             const tt::world::Place::Point* p = place.point("elevator_origin_0");
@@ -603,6 +613,7 @@ int main() {
                 uiState.teleportRequest = !strcmp(lbl, "go sellbot hq")   ? 11000
                                           : !strcmp(lbl, "go cashbot hq") ? 12000
                                           : !strcmp(lbl, "go lawbot hq")  ? 13000
+                                          : !strcmp(lbl, "go speedway")   ? 8000
                                                                           : 10000;
             }
         }
@@ -739,7 +750,8 @@ int main() {
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
-        player.update(in, dt);
+        racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        if (!racing.driving()) player.update(in, dt);
         fishing.applyCamera();
         if (trolley.seated() || minigame.inScene()) {
             float sx, sy, sz, sh;
@@ -937,6 +949,7 @@ int main() {
                 cogInterior.handleEvent(ev, net, nowMs);
                 factory.handleEvent(ev, net);
                 mintOffice.handleEvent(ev, net);
+                racing.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
                 pets.handleEvent(ev);
                 if (ev.type == tt::net::EventType::ClosetUp) {
@@ -968,6 +981,7 @@ int main() {
             cogInterior.update(net, nowMs);
             factory.update(net, player.x(), player.y(), player.z(), nowMs);
             mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);
+            racing.update(net, in, dt, player.x(), player.y(), player.z(), nowMs);
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
             pets.update(net);
             const bool facilityActive = cogInterior.active() || factory.active() || mintOffice.active();
@@ -976,6 +990,12 @@ int main() {
             else if (mintOffice.active() && mintOffice.collision()) player.setCollision(mintOffice.collision());
             else if (estate.active() || minigame.active()) player.setCollision(nullptr); // flat stages
             else player.setCollision(&place.collision());
+            if (racing.active() && racing.collision()) player.setCollision(racing.collision());
+            float rx, ry, rz, rh;
+            if (racing.spawnPose(&rx, &ry, &rz, &rh)) player.reset(rx, ry, rz, rh);
+            if (const u32 raceZone = racing.popDestination()) {
+                net.changeZone(raceZone);
+            }
             if (facilityActive) {
                 float sx, sy, sz, sh;
                 if (cogInterior.spawnPose(&sx, &sy, &sz, &sh) ||
@@ -1226,6 +1246,8 @@ int main() {
                 factory.draw(renderer, net);
             } else if (mintOffice.active()) {
                 mintOffice.draw(renderer, net);
+            } else if (racing.active()) {
+                racing.draw(renderer, net);
             } else if (estate.active()) {
                 estate.draw(renderer, net);
             } else if (cogInterior.active()) {
@@ -1349,6 +1371,13 @@ int main() {
                 for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
             }
             hv.toast = toast;
+            if (racing.driving() || racing.active()) {
+                hv.racing = true;
+                hv.raceSpeed = int(racing.speed() + 0.5f);
+                hv.raceLap = racing.lap();
+                hv.raceLaps = net.racingRace() ? net.racingRace()->laps : 3;
+                hv.racePlace = racing.place();
+            }
             hud.draw(renderer.topLeft(), hv);
             if (fade > 0.0f) {
                 const u32 black = C2D_Color32(0, 0, 0, static_cast<u8>(fade * 255.0f));
@@ -1363,6 +1392,12 @@ int main() {
         }
         const struct mallinfo mi = mallinfo();
         tt::ui::Context ctx{};
+        if (racing.active()) {
+            ctx.infoTitle = racing.hudTitle();
+            ctx.infoLines[0] = racing.hudLine(0);
+            ctx.infoLines[1] = racing.hudLine(1);
+            ctx.infoLines[2] = racing.hudLine(2);
+        }
         ctx.playerX = player.x();
         ctx.playerY = player.y();
         ctx.playerHeadingDeg = player.headingDeg();

@@ -223,6 +223,10 @@ enum class EventType : uint8_t {
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
     PurchaseGone,
+    // ---- Goofy Speedway kart racing (docs/design/racing.md) ----
+    RacingPadUp, RacingPadState, RacingBlockUp, RacingBlockState,
+    RacingRaceUp, RacingRaceState, RacingVehicleUp, RacingVehicleState,
+    RacingGone,
     // ---- quests (docs/design/quests.md) ----
     NpcMovie,      // an NPC setMovie arrived: pollNpcMovie() (doId = the NPC object)
     NpcFree,       // an NPC sent freeAvatar to us: leave the dialog (doId = the NPC object)
@@ -763,6 +767,40 @@ struct Purchase {
     bool active;
 };
 
+struct RacingPad {
+    uint32_t doId = 0, raceZone = 0;
+    char state[20] = {};
+    uint16_t trackIds[8] = {};
+    uint8_t trackCount = 0;
+    bool active = false;
+};
+struct RacingBlock {
+    uint32_t doId = 0, padDoId = 0, occupant = 0;
+    float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
+    uint8_t location = 0;
+    bool active = false;
+};
+struct RacingVehicle {
+    uint32_t doId = 0, owner = 0, driver = 0;
+    char state = 'P';
+    int8_t body = 0, bodyColor = 0, accessoryColor = 0;
+    int8_t engine = 0, spoiler = 0, frontWheels = 0, backWheels = 0, rims = 0, decal = 0;
+    int8_t input = 0;
+    float x = 0, y = 0, z = 0, h = 0;
+    bool active = false;
+};
+struct RacingRace {
+    uint32_t doId = 0, zone = 0;
+    uint16_t track = 0, raceType = 0, laps = 3;
+    uint32_t racers[8] = {};
+    uint8_t numRacers = 0, localPlace = 0, localLap = 0;
+    int16_t startTs = 0;
+    bool started = false, finished = false, active = false;
+};
+constexpr int kMaxRacingPads = 8;
+constexpr int kMaxRacingBlocks = 8;
+constexpr int kMaxRacingVehicles = 16;
+
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
     int16_t hp = 15, maxHp = 15;
@@ -1170,6 +1208,18 @@ public:
     bool sendIceClaimPenalty(uint8_t n);
     // DistributedRaceGame.
     bool sendRaceChoice(uint8_t choice);
+    const RacingPad& racingPadSlot(int i) const { return racingPads_[i]; }
+    const RacingBlock& racingBlockSlot(int i) const { return racingBlocks_[i]; }
+    const RacingVehicle& racingVehicleSlot(int i) const { return racingVehicles_[i]; }
+    const RacingRace* racingRace() const { return racingRace_.active ? &racingRace_ : nullptr; }
+    bool sendRacingEnter(uint32_t blockDoId, bool paid = false);
+    bool sendRacingExit(uint32_t blockDoId);
+    bool sendRacingMovieDone(uint32_t blockDoId);
+    bool sendRacingControl(uint32_t vehicleDoId);
+    bool sendRacingPark(uint32_t vehicleDoId);
+    bool sendRacingInput(uint32_t vehicleDoId, int8_t input);
+    bool sendRacingThrow(uint32_t raceDoId, float x, float y, float z);
+    bool sendRacingGag(uint32_t raceDoId, uint8_t track, uint8_t level, uint8_t count);
     // DistributedPhotoGame.
     bool sendPhotoScore(uint8_t subjectIndex, const char* pose, float score);
     bool sendPhotoFilmOut();
@@ -1254,6 +1304,10 @@ private:
     void enterZone();
     void maybeFinishEnterZone();
     void pushEvent(EventType type, uint32_t doId);
+    bool handleRacingEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                           uint16_t reqCount, bool other);
+    bool handleRacingField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    void clearRacing();
     RemoteToon* toonById(uint32_t doId);
     District* districtById(uint32_t doId);
 
@@ -1293,6 +1347,11 @@ private:
     uint32_t backoffUntil_ = 0;
     uint32_t backoffMs_ = 0;
     bool fatal_ = false;
+
+    RacingPad racingPads_[kMaxRacingPads] = {};
+    RacingBlock racingBlocks_[kMaxRacingBlocks] = {};
+    RacingVehicle racingVehicles_[kMaxRacingVehicles] = {};
+    RacingRace racingRace_{};
 
     uint8_t* rx_ = nullptr;             // 64 KB message scratch (heap, once)
     uint8_t tx_[1024];

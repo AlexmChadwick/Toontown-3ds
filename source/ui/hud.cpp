@@ -13,14 +13,16 @@ constexpr float kJarX = 352.0f, kJarY = 190.0f;
 
 bool Hud::init() {
     buf_ = C2D_TextBufNew(64);
+    raceBuf_ = C2D_TextBufNew(96);
     toastBuf_ = C2D_TextBufNew(160);
-    return buf_ != nullptr && toastBuf_ != nullptr;
+    return buf_ != nullptr && raceBuf_ != nullptr && toastBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
+    if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
-    buf_ = toastBuf_ = nullptr;
+    buf_ = raceBuf_ = toastBuf_ = nullptr;
 }
 
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
@@ -43,7 +45,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (!v.online) return; // stats come from the server
     // Re-parse text only when the numbers change (citro2d parsing is expensive).
     if (v.hp != lastHp_ || v.maxHp != lastMaxHp_ || v.money != lastMoney_) {
-        C2D_TextBufClear(buf_);
+        C2D_TextBufClear(raceBuf_);
         char s[32];
         snprintf(s, sizeof(s), "%d", v.hp > 0 ? v.hp : 0); // LaffMeter never shows a negative laff
         C2D_TextParse(&hpText_, buf_, s);
@@ -57,6 +59,14 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     }
     C2D_SceneBegin(top);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); // overlay: never hidden by the world
+    if (v.racing) {
+        C2D_TextBufClear(buf_);
+        char race[96];
+        snprintf(race, sizeof(race), "SPEED %d   LAP %d/%d   PLACE %d", v.raceSpeed, v.raceLap, v.raceLaps, v.racePlace);
+        C2D_TextParse(&raceText_, raceBuf_, race);
+        C2D_TextOptimize(&raceText_);
+        C2D_DrawText(&raceText_, C2D_WithColor, 42, 16, 0.5f, 0.65f, 0.65f, C2D_Color32(0xFF, 0xF0, 0x70, 0xFF));
+    }
 
     // Laff meter: a face in the toon's head colour that empties (darkens) as laff drops.
     const float frac = v.maxHp > 0 ? static_cast<float>(v.hp) / static_cast<float>(v.maxHp) : 0.0f;

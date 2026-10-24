@@ -95,7 +95,7 @@ WANTED = {
     'DistributedNPCFisherman': ['setMovie', 'completeSale'],
     'DistributedNPCPartyPerson': ['setMovie', 'answer'],
     'DistributedNPCPetclerk': ['setMovie'],
-    'DistributedNPCKartClerk': ['setMovie'],
+    'DistributedNPCKartClerk': ['setMovie', 'buyKart', 'buyAccessory', 'transactionDone'],
     'DistributedNPCScientist': ['setChat'],
     'DistributedTreasure': ['setPosition', 'requestGrab', 'setGrab', 'setReject'],
     'DistributedDoor': ['setZoneIdAndBlock', 'setSwing', 'setDoorType', 'setDoorIndex',
@@ -224,6 +224,29 @@ WANTED = {
     'DistributedHQInterior': ['setZoneIdAndBlock', 'setTutorial'],
     'DistributedGagshopInterior': ['setZoneIdAndBlock'],
     'DistributedPetshopInterior': ['setZoneIdAndBlock'],
+    # ---- Goofy Speedway racing (source/world/racing.*, docs/design/racing.md) ----
+    'DistributedVehicle': ['setOwner', 'setState', 'setBodyType', 'setBodyColor',
+                           'setAccessoryColor', 'setEngineBlockType', 'setSpoilerType',
+                           'setFrontWheelWellType', 'setBackWheelWellType', 'setRimType',
+                           'setDecalType', 'requestControl', 'requestParked', 'setInput'],
+    'DistributedRace': ['setZoneId', 'setTrackId', 'setRaceType', 'setCircuitLoop',
+                         'setAvatars', 'setStartingPlaces', 'setLapCount', 'waitingForJoin',
+                         'setEnteredRacers', 'prepForRace', 'startTutorial', 'startRace',
+                         'goToSpeedway', 'genGag', 'dropAnvilOn', 'shootPiejectile',
+                         'racerDisconnected', 'setPlace', 'setCircuitPlace', 'endCircuitRace',
+                         'setRaceZone', 'hasGag', 'racerLeft', 'heresMyT', 'requestThrow',
+                         'requestKart'],
+    'DistributedGag': ['setInitTime', 'setActivateTime', 'setPos', 'setRace', 'setOwnerId',
+                       'setType', 'hitSomebody'],
+    'DistributedProjectile': ['setInitTime', 'setPos', 'setRace', 'setOwnerId', 'setType',
+                              'hitSomebody'],
+    'DistributedKartPad': ['setArea'],
+    'DistributedRacePad': ['setState', 'setRaceZone', 'setTrackInfo'],
+    'DistributedViewPad': ['setLastEntered'],
+    'DistributedStartingBlock': ['setPadDoId', 'setPosHpr', 'setPadLocationId',
+                                 'requestEnter', 'requestExit', 'setOccupied', 'setMovie',
+                                 'movieFinished'],
+    'DistributedLeaderBoard': ['setPosHpr'],
 }
 
 # Class families whose every subclass gets a table (and a kClassId namespace).
@@ -266,7 +289,10 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
                   'DistributedSecurityCamera', 'DistributedMaze', 'EstateManager', 'DistributedEstate',
                   'DistributedHouse', 'DistributedHouseInterior', 'DistributedHouseDoor',
                   'DistributedFurnitureManager', 'DistributedFurnitureItem', 'DistributedMailbox',
-                  'DistributedBank', 'DistributedCloset', 'DistributedPet']
+                  'DistributedBank', 'DistributedCloset', 'DistributedPet',
+                  'DistributedVehicle', 'DistributedRace', 'DistributedGag',
+                  'DistributedProjectile', 'DistributedKartPad', 'DistributedRacePad',
+                  'DistributedViewPad', 'DistributedStartingBlock', 'DistributedLeaderBoard']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

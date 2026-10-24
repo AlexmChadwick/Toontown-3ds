@@ -85,6 +85,10 @@ const Step kScript[] = {
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "da office: room 1", "da_room1"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "da office: battle", "da_battle"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "da office: exit", "da_exit"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "go speedway", "speedway"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: pads", "speedway_pads"},
+    {30.0f, 0, 150, KEY_A, 0, -1, -1, 0, "speedway: race", "speedway_race"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: shop", "speedway_shop"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
