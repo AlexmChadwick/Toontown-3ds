@@ -232,6 +232,20 @@ int runClient(const Options& o) {
                 sentAnim = false;
                 break;
             case EventType::LeftZone: ++leftZone; TT_LOG("test: LEFT ZONE"); break;
+            case EventType::SuitPlannerUp:
+                TT_LOG("test: SUITPLANNER %u street %u", unsigned(ev.doId), unsigned(client.suitPlannerZone(ev.doId)));
+                break;
+            case EventType::SuitSpawn:
+            case EventType::SuitUpdate:
+                if (const Suit* su = client.findSuit(ev.doId)) {
+                    TT_LOG("test: SUIT %s %u \"%s\" dept %c lvlDist %d hp %d sp %u path %u->%u len %u..%u leg %u state %d zone %u",
+                           ev.type == EventType::SuitSpawn ? "spawn" : "update", unsigned(su->doId), su->name, su->dept,
+                           int(su->levelDist), int(su->hp), unsigned(su->spDoId), unsigned(su->pathStart),
+                           unsigned(su->pathEnd), unsigned(su->pathMinLen), unsigned(su->pathMaxLen),
+                           unsigned(su->pathIndex), int(su->pathState), unsigned(su->zoneId));
+                }
+                break;
+            case EventType::SuitGone: TT_LOG("test: SUIT gone %u", unsigned(ev.doId)); break;
             default: break;
             }
         }

@@ -26,6 +26,7 @@
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
 #include "world/cchar.h"
+#include "world/suits.h"
 #include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
@@ -171,6 +172,10 @@ int main() {
     // Mickey and friends (DistributedCCharBase), walking their playground's graph.
     static tt::world::CCharActors cchars;
     cchars.setZone(kStartZone);
+    // Cogs walking the street's suit paths (DistributedSuit); a box stands in for the model.
+    static tt::world::SuitActors suits;
+    suits.init();
+    suits.setZone(kStartZone);
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
@@ -471,6 +476,7 @@ int main() {
             if (place.load(travelTarget)) {
                 zoneActors.loadPoints(place.pointsPath());
                 cchars.setZone(travelTarget);
+                suits.setZone(travelTarget);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
@@ -494,6 +500,7 @@ int main() {
                 remoteToons.handleEvent(ev, net);
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
+                suits.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
@@ -544,6 +551,7 @@ int main() {
         remoteToons.update(dt);
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
+        suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
 
@@ -576,7 +584,7 @@ int main() {
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
             {
-                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + tt::net::kMaxCChars + 1)];
+                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + tt::net::kMaxCChars + tt::net::kMaxSuits + 1)];
                 int n = 0;
                 pos[0] = player.x();
                 pos[1] = player.y();
@@ -586,6 +594,7 @@ int main() {
                 n += remoteToons.shadowPositions(pos + 4 * n, tt::net::kMaxRemoteToons);
                 n += zoneActors.shadowPositions(pos + 4 * n, tt::net::kMaxNpcs);
                 n += cchars.shadowPositions(pos + 4 * n, tt::net::kMaxCChars);
+                n += suits.shadowPositions(pos + 4 * n, tt::net::kMaxSuits);
                 renderer.setBaseTint(0.0f, 0.0f, 0.0f, kShadowGray);
                 for (int i = 0; i < n; i++) {
                     const float sc = kShadowScale * pos[4 * i + 3];
@@ -605,6 +614,7 @@ int main() {
             remoteToons.draw(renderer, player.x(), player.y());
             zoneActors.draw(renderer, player.cameraEye());
             cchars.draw(renderer);
+            suits.draw(renderer);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
             const float fx = -sinf(h), fy = cosf(h); // forward
@@ -639,6 +649,7 @@ int main() {
             remoteToons.addBalloons(balloons, proj, view);
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
+            suits.addBalloons(balloons, proj, view);
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
             tt::ui::HudValues hv;
@@ -709,6 +720,7 @@ int main() {
     hud.shutdown();
     zoneActors.shutdown();
     cchars.shutdown();
+    suits.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
     remoteToons.clear();

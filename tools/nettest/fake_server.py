@@ -29,7 +29,7 @@ import time
 from panda3d.direct import DCFile, DCPacker
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ETC = os.path.join(HERE, '..', '..', 'ref', 'open-toontown', 'etc')
+ETC = os.environ.get('TT_ETC', os.path.join(HERE, '..', '..', 'ref', 'open-toontown', 'etc'))
 
 CLIENT_HELLO, CLIENT_HELLO_RESP, CLIENT_DISCONNECT, CLIENT_EJECT, CLIENT_HEARTBEAT = 1, 2, 3, 4, 5
 CLIENT_OBJECT_SET_FIELD, CLIENT_OBJECT_LEAVING, CLIENT_OBJECT_LOCATION = 120, 132, 140
@@ -45,6 +45,8 @@ TIME_MANAGER_ID = 200000002
 WALKER_ID = 100000001
 STANDER_ID = 100000002
 JUNK_ID = 200000010
+PLANNER_ID = 200000020
+SUIT_ID = 200000021
 VERSION = 'sv1.0.47.38'
 
 dc = DCFile()
@@ -405,6 +407,22 @@ class ClientConn:
                     self.send(msg(CLIENT_OBJECT_SET_FIELD, struct.pack('<IH', JUNK_ID, f.getNumber()) +
                                   f.getDefaultValue()))
                     break
+            # A street cog and its planner (the client replays the path itself): a Flunky
+            # (suit head 'f', dept 'c') one level up, walking path state 1; then it is put in battle.
+            if 'DistributedSuit' in CLS:
+                sp, su = CLS['DistributedSuitPlanner'], CLS['DistributedSuit']
+                self.send(msg(CLIENT_ENTER_OBJECT_REQUIRED, struct.pack('<IIIH', PLANNER_ID, DISTRICT_ID, TTC,
+                                                                         sp.getNumber()) +
+                              required_blob(sp, False, {'setZoneId': '(2100)'})))
+                suit_dna = dna_hex(b's' + b'f\0\0' + b'c')
+                self.send(msg(CLIENT_ENTER_OBJECT_REQUIRED, struct.pack('<IIIH', SUIT_ID, DISTRICT_ID, TTC,
+                                                                         su.getNumber()) +
+                              required_blob(su, False, {'setDNAString': f'({suit_dna})', 'setLevelDist': '(1)',
+                                                        'setHP': '(12)', 'setSPDoId': f'({PLANNER_ID})',
+                                                        'setPathEndpoints': '(11, 30, 5, 300)',
+                                                        'setPathPosition': f'(3, {net_time16()})',
+                                                        'setPathState': '(1)'})))
+                self.send(set_field(SUIT_ID, su, 'setPathState', '(3)'))
             for c in world.clients:
                 if c is not self and c.avatar and (c.avatar.parent, c.avatar.zone) == (parent, zone):
                     self.send(enter_avatar(c.avatar))

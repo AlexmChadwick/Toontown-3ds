@@ -85,6 +85,10 @@ enum class EventType : uint8_t {
     CCharSpawn,    // a classic character generated (findCChar(doId))
     CCharWalk,     // setWalk: new path leg (CChar src/dst/walkStartMs)
     CCharGone,
+    SuitSpawn,     // a street cog generated (findSuit(doId)); fields filled
+    SuitUpdate,    // path endpoints / position / state / hp changed
+    SuitGone,      // left our interest or deleted; the Suit slot is no longer valid
+    SuitPlannerUp, // a DistributedSuitPlanner generated (suitPlannerZone(doId))
 };
 
 struct Event {
@@ -130,6 +134,33 @@ struct CChar {
     bool active;
 };
 constexpr int kMaxCChars = 4;
+
+// Street cogs (DistributedSuit; docs/design/combat.md section 3). The AI never broadcasts a
+// position: it sends the endpoints of a path through the street's suit graph, the leg the
+// path was at and when, and a path state. source/world/suits.* rebuilds the walk.
+struct Suit {
+    uint32_t doId;
+    uint32_t zoneId;        // visgroup zone it is in now (setLocation)
+    char name[4];           // SuitDNA head code ("f", "tbc", ...); "" until setDNAString
+    char dept;              // 'c' 'l' 'm' 's'
+    int16_t levelDist;      // setLevelDist: level index into the suit's hp/level tables
+    int16_t hp;
+    uint8_t skelecog, skeleRevives;
+    uint32_t spDoId;        // the suit planner that owns it
+    uint16_t pathStart, pathEnd, pathMinLen, pathMaxLen; // setPathEndpoints (DNA point indices)
+    uint16_t pathIndex;     // setPathPosition: leg index ...
+    uint32_t pathPosMs;     // ... that was current at this local plat::nowMs()
+    int8_t pathState;       // 0 stop, 1 walk, 2 fly away, 3 battle, 4 victory dance then fly away
+    bool hasDna;
+    bool active;
+};
+constexpr int kMaxSuits = 16;
+struct SuitPlanner {
+    uint32_t doId;
+    uint32_t zoneId;        // DistributedSuitPlanner.setZoneId: the street branch (2100, ...)
+    bool active;
+};
+constexpr int kMaxSuitPlanners = 2;
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -256,6 +287,10 @@ public:
     const NpcToon& npcSlot(int i) const { return npcs_[i]; }
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
+    const Suit* findSuit(uint32_t doId) const;
+    const Suit& suitSlot(int i) const { return suits_[i]; }
+    // Branch zone of the suit planner with this doId (0 when unknown).
+    uint32_t suitPlannerZone(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
 
@@ -359,6 +394,12 @@ private:
     bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
     bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
     bool applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId);
+    Suit suits_[kMaxSuits] = {};
+    SuitPlanner planners_[kMaxSuitPlanners] = {};
+    bool handleSuitEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                         bool other);
+    bool applySuitField(Suit& s, DatagramReader& r, uint16_t fieldId);
+    void clearSuits();
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
     uint32_t tutorialManagerId_ = 0;
