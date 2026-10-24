@@ -7,14 +7,50 @@
 //   sdmc:/3ds/toontown3ds/data/chars/<char>_<hood>.tcp   walk graph for that playground
 #pragma once
 
+#ifdef __3DS__
 #include <3ds.h>
 #include <citro3d.h>
 
-#include "net/client.h"
 #include "render/anim.h"
 #include "render/model.h"
 #include "render/renderer.h"
 #include "ui/balloons.h"
+#else
+#include <cstdint>
+using u8 = uint8_t;
+using u16 = uint16_t;
+using u32 = uint32_t;
+using s32 = int32_t;
+struct C3D_Mtx {};
+namespace tt::render {
+class Renderer;
+class Model {
+public:
+    bool load(const char*) { return false; }
+    void unload() {}
+    bool loaded() const { return false; }
+    int numVertices() const { return 0; }
+};
+class Anim {
+public:
+    bool load(const char*) { return false; }
+    void unload() {}
+    bool loaded() const { return false; }
+    float duration() const { return 0.0f; }
+    int numFrames() const { return 1; }
+    float fps() const { return 12.0f; }
+    int numVertices() const { return 0; }
+};
+} // namespace tt::render
+namespace tt::ui {
+class Balloons {
+public:
+    void addSpeaker(float, float, const char*, const char*, float, float = 0.0f, uint32_t = 0) {}
+};
+} // namespace tt::ui
+#endif
+
+#include "net/client.h"
 #include "world/collision.h"
 
 namespace tt::world {
@@ -40,13 +76,20 @@ public:
     // Autotest helper: position of the first character, false when none.
     bool firstPosition(float* x, float* y, float* z) const;
 
-private:
-    enum Clip : u8 { kNeutral, kWalk, kWalkStart, kNeutralStart, kClipCount };
     struct Segment {
         float start[3], end[3];
         float h0, h1;
         float turnTime, moveTime, length;
     };
+    struct DaleOrbit {
+        float x, y, z, h;
+    };
+    static int buildSegments(Segment* seg, int maxSeg, const float pts[][3], int n, float speed, float initialHeading);
+    static DaleOrbit computeDaleOrbit(float t, float duration, const float srcPos[3], const float dstPos[3],
+                                      float srcTheta, float destTheta, float revs, float orbitRadius);
+
+private:
+    enum Clip : u8 { kNeutral, kWalk, kWalkStart, kNeutralStart, kClipCount };
     struct Actor {
         bool active = false;
         u32 doId = 0;
@@ -71,6 +114,24 @@ private:
         float clipTime = 0;
         Clip clip = kNeutral;
         float fade = 0;
+        // Chatter balloon & turn
+        char chatPhrase[160] = {};
+        float chatTimer = 0.0f;
+        float chatAge = 0.0f;
+        bool turning = false;
+        float turnH0 = 0.0f, turnH1 = 0.0f;
+        float turnTime = 0.0f, turnElapsed = 0.0f;
+        // Dale orbit
+        bool isDale = false;
+        uint32_t chipId = 0;
+        float daleOffsets[kMaxNodes][2] = {};
+        bool hasDaleOffset[kMaxNodes] = {};
+        float daleSrcOffset[2] = {};
+        float daleDstOffset[2] = {};
+        float daleSrcTheta = 0.0f, daleDestTheta = 0.0f;
+        float daleRevs = 0.0f;
+        float daleOrbitDist = 3.0f;
+        float daleChipSrc[3] = {}, daleChipDst[3] = {};
     };
     bool spawn(Actor& a, const net::CChar& c);
     bool loadGraph(Actor& a, const char* path);

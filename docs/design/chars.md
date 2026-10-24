@@ -395,3 +395,45 @@ above in another checkout to reproduce them. Existing `ref/` symlink/gitlink sta
 and `.venv` were not staged. Upstream assets remain outside the MIT license under
 the repository's existing THIRD_PARTY_NOTICES.md; no upstream source files are
 vendored by this change.
+
+## Runtime chatter
+
+### Implementation summary
+1. **Chatter table generator (`tools/gen_cchar_chatter.py`)**:
+   - Parses `toontown/classicchars/CCharChatter.py`, `toontown/toonbase/TTLocalizerEnglish.py`, and `toontown/toonbase/ToontownGlobals.py` purely with Python `ast` (no client package imports).
+   - Emits `source/ui/cchar_chatter_data.h` and `source/ui/cchar_chatter_data.cpp` with 78 unique chatter sets and 547 phrases across 17 character groups and 16 holidays.
+   - Tables map character DC class ID and active holiday ID to `GREETING (0)`, `COMMENT (1)`, and `GOODBYE (2)` phrase lists.
+   - Runtime substitution replaces `%` with the target avatar's name into a caller-supplied fixed buffer without heap allocation.
+2. **Runtime balloon presentation and turning (`source/world/cchar.*`, `source/net/client.*`)**:
+   - `EventType::CCharChat` is parsed from incoming `setChat(category, msgIndex, avatarDoId)` (DC field 614) in `Client::applyCCharField` and queued via `Client::pushEvent`.
+   - When received by `CCharActors::handleEvent`:
+     - Looks up chatter and formats phrase with target avatar name (or empty string if avatar unknown/unnamed).
+     - Displays phrase in the character's balloon via `balloons.addSpeaker` with a duration of 6.0 seconds.
+     - Turns the character toward the target avatar's position at 180 °/s (shortest angular difference). In parity with upstream `DistributedCCharBase.setChat`, turns are skipped for `GOODBYE` (`category == 2`).
+     - *Thought bubble note*: Pluto, Western Pluto, and Donald use thought bubbles upstream (`DistributedPluto.py`, `DistributedDonald.py`). A speech balloon is used here; visual bubble styling can be added as a future polish item.
+3. **Dale follows Chip (`source/world/cchar.*`, `source/net/client.*`, `tools/dcgen/dcgen.py`)**:
+   - Added `setFollowChip` (DC field 623) and `setChipId` (DC field 624) to `WANTED` for `DistributedDale` and `DistributedJailbirdDale` in `tools/dcgen/dcgen.py`.
+   - Regenerated `source/net/dc_generated.h`; the DC hash remains 547155168.
+   - `Client` tracks `chipId`, `offsetX`, `offsetY`, and `hasFollowChip` on classic character state.
+   - `CCharActors` implements exact Dale orbit kinematics in `computeDaleOrbit`:
+     - Initial node offset `(3, 0)` on spawn.
+     - Node offset tracking on each leg; src/dest theta normalized to `[0, 2π)`.
+     - Orbit distance 3.0 units, overridden to 2.5 units on edges `b <-> c` and `e <-> f`.
+     - Revolutions calculated as `chipDistance / 13.0` plus src/dest theta phase adjustments, with `revs >= 1`.
+     - Center linearly interpolated between adjusted endpoints `chipSrc = pts[0] - sOff` and `chipDst = pts[-1] - dOff`, with heading strictly `degrees(theta) % 360`.
+     - Leg duration matched to Chip's walk sequence duration.
+
+### What was tested
+- **Generator reproducibility**: `tools/gen_cchar_chatter.py` produces identical deterministic outputs and regenerates cleanly.
+- **Host test suite (`tools/cchar_test/run.py`)**:
+  - Compiled and executed on host using `c++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined`.
+  - Chatter lookup: verifies exact strings for Mickey default and holiday overrides (April Fools, etc.), Pluto default (none) vs holiday overrides, Donald Dock, out-of-bounds guards, and `%` name substitution into fixed buffers.
+  - Walk interval timing: verifies `buildSegments` turn time, move time, segment length, and heading angles against pure Python reference calculations across 101 directed edges from real `.paths` JSON files (`mickey_2000.paths`, `chip_6000.paths`, `daisy_2000.paths`, `goofy_5000.paths`).
+  - Dale orbit: verifies `computeDaleOrbit` position (x, y, z) and heading (h) against pure Python reference calculations across 6 time samples for leg `a -> b` of `dale_6000.paths`.
+- **devkitARM syntax check**: Zero warnings with `-Wall -Wextra` on all modified/generated files (`cchar_chatter_data.cpp`, `client.cpp`, `cchar.cpp`).
+
+### What is left for the main agent
+- Classic-character event processing is dispatched via `cchars.handleEvent(ev, net, nowMs)`. The main agent should ensure `cchars.spawn` / `cchars.loadGraph` are invoked when entering zones containing classic characters.
+- Outgoing whitelist for interaction fields (`avatarEnter`, `avatarExit`, `setNearbyAvatarChat`, `setNearbyAvatarSC`) if interactive proximity talk is enabled in later phases.
+- Optional rendering distinction between thought bubbles and speech balloons for Pluto and Donald.
+

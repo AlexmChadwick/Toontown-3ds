@@ -6,7 +6,12 @@
 
 #include "core/log.h"
 #include "net/dc_generated.h"
+#include "ui/cchar_chatter_data.h"
+
+#ifdef __3DS__
+#include "render/renderer.h"
 #include "ui/projection.h"
+#endif
 
 namespace tt::world {
 
@@ -14,7 +19,7 @@ namespace {
 
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/chars/";
 constexpr float kDegToRad = 3.14159265f / 180.0f;
-constexpr float kNametagMaxDistance = 60.0f;
+[[maybe_unused]] constexpr float kNametagMaxDistance = 60.0f;
 
 } // namespace
 
@@ -160,11 +165,83 @@ bool CCharActors::spawn(Actor& a, const net::CChar& c) {
     a.z = start >= 0 ? a.nodePos[start][2] : 0;
     a.h = 0;
     if (c.classId == dc::DistributedDonaldDock::kClassId) a.z += 3.95f, a.y -= 1.0f; // on the boat
+    a.isDale = (c.classId == dc::DistributedDale::kClassId || c.classId == dc::DistributedJailbirdDale::kClassId);
+    a.chipId = c.chipId;
+    if (a.isDale) {
+        const int aIdx = nodeIndex(a, "a");
+        if (aIdx >= 0) {
+            a.daleOffsets[aIdx][0] = 3.0f;
+            a.daleOffsets[aIdx][1] = 0.0f;
+            a.hasDaleOffset[aIdx] = true;
+        }
+        a.x += 3.0f; // ToontownGlobals.DaleOrbitDistance
+        a.h = 0;
+    }
     a.clip = kNeutral;
     a.clipTime = 0;
     TT_LOG("cchar: %s (%s) at %.1f,%.1f,%.1f, %d nodes", info->name, info->asset, double(a.x), double(a.y),
            double(a.z), a.numNodes);
     return true;
+}
+
+int CCharActors::buildSegments(Segment* seg, int maxSeg, const float pts[][3], int n, float speed, float initialHeading) {
+    if (n < 2 || speed <= 0 || maxSeg <= 0) return 0;
+    float heading = initialHeading;
+    const float* origin = pts[0]; // headsUp runs before deferred setPos: always from the first point
+    int numSeg = 0;
+    for (int k = 0; k + 1 < n && numSeg < maxSeg; k++) {
+        Segment& s = seg[numSeg++];
+        memcpy(s.start, pts[k], 12);
+        memcpy(s.end, pts[k + 1], 12);
+        const float dx = s.end[0] - s.start[0], dy = s.end[1] - s.start[1], dz = s.end[2] - s.start[2];
+        const float duration = sqrtf(dx * dx + dy * dy + dz * dz) / speed;
+        const float cur = wrap180(heading);
+        float dest = wrap180(atan2f(-(s.end[0] - origin[0]), s.end[1] - origin[1]) / kDegToRad);
+        while (dest - cur > 180.0f) dest -= 360.0f;
+        while (dest - cur < -180.0f) dest += 360.0f;
+        s.h0 = cur;
+        s.h1 = dest;
+        s.turnTime = fabsf(dest) / 270.0f;
+        if (duration - s.turnTime > 0.01f) {
+            s.moveTime = duration - s.turnTime;
+            s.length = s.turnTime > s.moveTime ? s.turnTime : s.moveTime;
+        } else { // only the queued jump to the segment start remains
+            s.moveTime = 0;
+            s.turnTime = 0;
+            s.h1 = cur;
+            s.length = 0;
+        }
+        heading = dest;
+    }
+    return numSeg;
+}
+
+CCharActors::DaleOrbit CCharActors::computeDaleOrbit(float t, float duration, const float srcPos[3], const float dstPos[3],
+                                                    float srcTheta, float destTheta, float revs, float orbitRadius) {
+    DaleOrbit out{};
+    if (t < duration && duration > 0.001f) {
+        const float normT = t / duration;
+        const float curX = srcPos[0] + (dstPos[0] - srcPos[0]) * normT;
+        const float curY = srcPos[1] + (dstPos[1] - srcPos[1]) * normT;
+        const float curZ = srcPos[2] + (dstPos[2] - srcPos[2]) * normT;
+        const float curTheta = srcTheta + normT * revs * 2.0f * 3.14159265f;
+        out.x = curX + cosf(curTheta) * orbitRadius;
+        out.y = curY + sinf(curTheta) * orbitRadius;
+        out.z = curZ;
+        float deg = curTheta / kDegToRad;
+        deg = fmodf(deg, 360.0f);
+        if (deg < 0) deg += 360.0f;
+        out.h = deg;
+    } else {
+        out.x = dstPos[0] + cosf(destTheta) * orbitRadius;
+        out.y = dstPos[1] + sinf(destTheta) * orbitRadius;
+        out.z = dstPos[2];
+        float deg = destTheta / kDegToRad;
+        deg = fmodf(deg, 360.0f);
+        if (deg < 0) deg += 360.0f;
+        out.h = deg;
+    }
+    return out;
 }
 
 // CharStateDatas.CharWalkState.enter, including its interval-building quirks
@@ -198,39 +275,115 @@ void CCharActors::startWalk(Actor& a, const net::CChar& c) {
         memcpy(pts[n++], a.nodePos[dst], 12);
         a.raycast = false;
     }
-    float heading = a.h;
-    const float* origin = pts[0]; // headsUp runs before the deferred setPos: always from the first point
-    a.numSeg = 0;
-    for (int k = 0; k + 1 < n; k++) {
-        Segment& s = a.seg[a.numSeg++];
-        memcpy(s.start, pts[k], 12);
-        memcpy(s.end, pts[k + 1], 12);
-        const float dx = s.end[0] - s.start[0], dy = s.end[1] - s.start[1], dz = s.end[2] - s.start[2];
-        const float duration = sqrtf(dx * dx + dy * dy + dz * dz) / a.speed;
-        const float cur = wrap180(heading);
-        float dest = wrap180(atan2f(-(s.end[0] - origin[0]), s.end[1] - origin[1]) / kDegToRad);
-        while (dest - cur > 180.0f) dest -= 360.0f;
-        while (dest - cur < -180.0f) dest += 360.0f;
-        s.h0 = cur;
-        s.h1 = dest;
-        s.turnTime = fabsf(dest) / 270.0f;
-        if (duration - s.turnTime > 0.01f) {
-            s.moveTime = duration - s.turnTime;
-            s.length = s.turnTime > s.moveTime ? s.turnTime : s.moveTime;
-        } else { // only the queued jump to the segment start remains
-            s.moveTime = 0;
-            s.turnTime = 0;
-            s.h1 = cur;
-            s.length = 0;
+
+    if (a.isDale) {
+        if (c.chipId) a.chipId = c.chipId;
+        if (c.hasFollowChip && dst >= 0) {
+            a.daleOffsets[dst][0] = c.offsetX;
+            a.daleOffsets[dst][1] = c.offsetY;
+            a.hasDaleOffset[dst] = true;
         }
-        heading = dest;
+        float sOff[2] = {0, 0}, dOff[2] = {0, 0};
+        if (src >= 0 && a.hasDaleOffset[src]) {
+            sOff[0] = a.daleOffsets[src][0];
+            sOff[1] = a.daleOffsets[src][1];
+        }
+        if (dst >= 0 && a.hasDaleOffset[dst]) {
+            dOff[0] = a.daleOffsets[dst][0];
+            dOff[1] = a.daleOffsets[dst][1];
+        }
+        a.daleSrcOffset[0] = sOff[0];
+        a.daleSrcOffset[1] = sOff[1];
+        a.daleDstOffset[0] = dOff[0];
+        a.daleDstOffset[1] = dOff[1];
+
+        // Orbit radius override for b<->c and e<->f
+        if ((!strcmp(c.src, "b") && !strcmp(c.dst, "c")) || (!strcmp(c.src, "c") && !strcmp(c.dst, "b")) ||
+            (!strcmp(c.src, "e") && !strcmp(c.dst, "f")) || (!strcmp(c.src, "f") && !strcmp(c.dst, "e"))) {
+            a.daleOrbitDist = 2.5f;
+        } else {
+            a.daleOrbitDist = 3.0f;
+        }
+
+        float srcTheta = atan2f(sOff[1], sOff[0]);
+        if (srcTheta < 0) srcTheta += 2.0f * 3.14159265f;
+        const float srcRev = (srcTheta > 0) ? (2.0f * 3.14159265f - srcTheta) / (2.0f * 3.14159265f) : 0.0f;
+        float destTheta = atan2f(dOff[1], dOff[0]);
+        if (destTheta < 0) destTheta += 2.0f * 3.14159265f;
+
+        float chipDistance = 0.0f;
+        for (int k = 0; k + 1 < n; k++) {
+            const float dx = pts[k + 1][0] - pts[k][0], dy = pts[k + 1][1] - pts[k][1], dz = pts[k + 1][2] - pts[k][2];
+            chipDistance += sqrtf(dx * dx + dy * dy + dz * dz);
+        }
+
+        float revs = chipDistance / 13.0f;
+        revs += srcRev;
+        const float endingTheta = srcTheta + fmodf(revs, 1.0f) * 2.0f * 3.14159265f;
+        const float diffTheta = destTheta - endingTheta;
+        const float destRev = diffTheta / (2.0f * 3.14159265f);
+        revs += destRev;
+        while (revs < 1.0f) revs += 1.0f;
+
+        a.daleSrcTheta = srcTheta;
+        a.daleDestTheta = destTheta;
+        a.daleRevs = revs;
+        a.daleChipSrc[0] = pts[0][0] - sOff[0];
+        a.daleChipSrc[1] = pts[0][1] - sOff[1];
+        a.daleChipSrc[2] = pts[0][2];
+        a.daleChipDst[0] = pts[n - 1][0] - dOff[0];
+        a.daleChipDst[1] = pts[n - 1][1] - dOff[1];
+        a.daleChipDst[2] = pts[n - 1][2];
+
+        // Track duration is Chip's actual walk sequence duration
+        float chipDuration = 0.0f;
+        if (a.chipId) {
+            for (const Actor& other : actors_) {
+                if (other.active && other.doId == a.chipId && other.walkDuration > 0.001f) {
+                    chipDuration = other.walkDuration;
+                    break;
+                }
+            }
+        }
+        if (chipDuration <= 0.001f) {
+            Segment chipSeg[kMaxSegments];
+            const int nSeg = buildSegments(chipSeg, kMaxSegments, pts, n, 3.0f, a.h);
+            for (int k = 0; k < nSeg; k++) chipDuration += chipSeg[k].length;
+        }
+        a.walkDuration = chipDuration;
+        a.numSeg = 1;
+        a.walking = true;
+        return;
     }
+
+    a.numSeg = buildSegments(a.seg, kMaxSegments, pts, n, a.speed, a.h);
     a.walkDuration = 0;
     for (int k = 0; k < a.numSeg; k++) a.walkDuration += a.seg[k].length;
     a.walking = true;
 }
 
 void CCharActors::sample(Actor& a, float t, const CollisionWorld* collision) {
+    if (a.isDale) {
+        if (t < a.walkDuration && a.walkDuration > 0.001f) {
+            a.clip = kWalk;
+            a.clipTime = t;
+        } else {
+            a.clip = kNeutral;
+            a.clipTime = (t - a.walkDuration) * a.info->neutralRate;
+        }
+        DaleOrbit orb = computeDaleOrbit(t, a.walkDuration, a.daleChipSrc, a.daleChipDst,
+                                         a.daleSrcTheta, a.daleDestTheta, a.daleRevs, a.daleOrbitDist);
+        a.x = orb.x;
+        a.y = orb.y;
+        a.z = orb.z;
+        a.h = orb.h;
+        if (a.raycast && collision) {
+            bool found = false;
+            const float g = collision->groundHeight(a.x, a.y, a.z + 2.0f, &found, 10.0f);
+            if (found) a.z = g;
+        }
+        return;
+    }
     const render::Anim& walkStart = a.clips[kWalkStart];
     const float startLen = walkStart.loaded() ? walkStart.duration() : 0.0f;
     if (t < startLen) {
@@ -290,10 +443,43 @@ void CCharActors::handleEvent(const net::Event& ev, const net::Client& client, u
     if (ev.type == EventType::CCharGone) {
         for (Actor& a : actors_) {
             if (a.active && a.doId == ev.doId) {
+#ifdef __3DS__
                 C3D_FrameSync();
+#endif
                 a.model.unload();
                 for (auto& c : a.clips) c.unload();
                 a.active = false;
+            }
+        }
+        return;
+    }
+    if (ev.type == EventType::CCharChat) {
+        Actor* actor = nullptr;
+        for (Actor& a : actors_)
+            if (a.active && a.doId == ev.doId) actor = &a;
+        if (!actor) return;
+        const net::CChar* c = client.findCChar(ev.doId);
+        if (!c) return;
+        const char* targetName = client.avatarName(c->chatAvatarDoId);
+        if (ui::chatter::formatChatter(actor->chatPhrase, sizeof(actor->chatPhrase),
+                                      actor->info->classId, 0, c->chatCategory, c->chatMsgIndex, targetName)) {
+            actor->chatTimer = 6.0f; // show balloon for about 6 s
+            actor->chatAge = 0.0f;
+            // Shortest heading turn toward target at 180 deg/s (no turn for GOODBYE)
+            if (c->chatCategory != ui::chatter::kGoodbye) {
+                float tx = 0, ty = 0, tz = 0;
+                if (client.avatarPos(c->chatAvatarDoId, &tx, &ty, &tz)) {
+                    const float dx = tx - actor->x, dy = ty - actor->y;
+                    float destH = wrap180(atan2f(-dx, dy) / kDegToRad);
+                    float curH = wrap180(actor->h);
+                    while (destH - curH > 180.0f) destH -= 360.0f;
+                    while (destH - curH < -180.0f) destH += 360.0f;
+                    actor->turnH0 = curH;
+                    actor->turnH1 = destH;
+                    actor->turnTime = fabsf(destH - curH) / 180.0f;
+                    actor->turnElapsed = 0.0f;
+                    actor->turning = true;
+                }
             }
         }
         return;
@@ -322,10 +508,30 @@ void CCharActors::update(float dt, u32 nowMs, const CollisionWorld* collision) {
     for (Actor& a : actors_) {
         if (!a.active) continue;
         a.fade = a.fade + dt * 2.0f > 1.0f ? 1.0f : a.fade + dt * 2.0f;
+        if (a.chatTimer > 0.0f) {
+            a.chatTimer -= dt;
+            a.chatAge += dt;
+            if (a.chatTimer <= 0.0f) a.chatPhrase[0] = 0;
+        }
+        if (a.turning) {
+            a.turnElapsed += dt;
+            const float p = a.turnTime > 0.001f ? (a.turnElapsed < a.turnTime ? a.turnElapsed / a.turnTime : 1.0f) : 1.0f;
+            a.h = wrap180(a.turnH0 + (a.turnH1 - a.turnH0) * p);
+            if (!a.walking) {
+                if (a.turnTime > 0.2f && p < 1.0f) {
+                    a.clip = kWalk;
+                    a.clipTime += dt;
+                } else {
+                    a.clip = kNeutral;
+                    a.clipTime += dt * a.info->neutralRate;
+                }
+            }
+            if (p >= 1.0f) a.turning = false;
+        }
         if (a.walking && a.numSeg) {
             const s32 ms = static_cast<s32>(nowMs - a.walkStartMs);
             sample(a, ms > 0 ? ms / 1000.0f : 0.0f, collision);
-        } else {
+        } else if (!a.turning) {
             a.clip = kNeutral;
             a.clipTime += dt * a.info->neutralRate;
         }
@@ -333,6 +539,7 @@ void CCharActors::update(float dt, u32 nowMs, const CollisionWorld* collision) {
 }
 
 void CCharActors::draw(render::Renderer& renderer) {
+#ifdef __3DS__
     C3D_Mtx m;
     for (Actor& a : actors_) {
         if (!a.active || !a.model.loaded()) continue;
@@ -352,17 +559,30 @@ void CCharActors::draw(render::Renderer& renderer) {
             renderer.drawModel(a.model, m);
         }
     }
+#else
+    (void)renderer;
+#endif
 }
 
 void CCharActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
+#ifdef __3DS__
     for (const Actor& a : actors_) {
         if (!a.active || !a.info->nametag) continue; // (DonaldDock hides its nametag)
         float sx, sy, depth;
         if (ui::projectToScreen(proj, view, a.x, a.y, a.z + a.info->height + 0.5f, &sx, &sy, &depth) &&
             depth < kNametagMaxDistance) {
-            balloons.addSpeaker(sx, sy, a.info->name, nullptr, 99.0f, depth);
+            // Note: Upstream DistributedCCharBase uses thought bubbles (CFThought) for
+            // Pluto, Western Pluto and Donald, while others use speech balloons (CFSpeech).
+            // Citro2d Balloons currently renders all bubbles as speech balloons.
+            const char* phrase = (a.chatTimer > 0.0f && a.chatPhrase[0]) ? a.chatPhrase : nullptr;
+            balloons.addSpeaker(sx, sy, a.info->name, phrase, phrase ? a.chatAge : 99.0f, depth);
         }
     }
+#else
+    (void)balloons;
+    (void)proj;
+    (void)view;
+#endif
 }
 
 int CCharActors::shadowPositions(float* xyzs, int maxOut) const {

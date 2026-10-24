@@ -67,6 +67,11 @@ TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
 TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
 TT_SIG(DistributedCCharBase, setWalk, "string,string,i16");
+TT_SIG(DistributedCCharBase, setChat, "u32,u32,u32");
+TT_SIG(DistributedDale, setFollowChip, "string,string,i16,i16/100,i16/100");
+TT_SIG(DistributedDale, setChipId, "u32");
+TT_SIG(DistributedJailbirdDale, setFollowChip, "string,string,i16,i16/100,i16/100");
+TT_SIG(DistributedJailbirdDale, setChipId, "u32");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -665,8 +670,16 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         if (c.active && c.doId == doId) {
             if (fieldId == dc::DistributedCCharBase::k_setWalk) {
                 if (applyCCharField(c, r, fieldId)) pushEvent(EventType::CCharWalk, doId);
+            } else if (fieldId == dc::DistributedCCharBase::k_setChat) {
+                if (applyCCharField(c, r, fieldId)) pushEvent(EventType::CCharChat, doId);
+            } else if (fieldId == dc::DistributedDale::k_setFollowChip ||
+                       fieldId == dc::DistributedJailbirdDale::k_setFollowChip) {
+                if (applyCCharField(c, r, fieldId)) pushEvent(EventType::CCharWalk, doId);
+            } else if (fieldId == dc::DistributedDale::k_setChipId ||
+                       fieldId == dc::DistributedJailbirdDale::k_setChipId) {
+                applyCCharField(c, r, fieldId);
             }
-            return; // setChat / fadeAway / Dale's setFollowChip: not shown yet
+            return;
         }
     }
     if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
@@ -1067,6 +1080,23 @@ bool Client::applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId) {
         const int16_t ts = r.i16();
         // CharWalkState seeks the walk to globalClockDelta.localElapsedTime(ts).
         c.walkStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        c.hasFollowChip = false;
+    } else if (fieldId == dc::DistributedCCharBase::k_setChat) {
+        c.chatCategory = r.u32();
+        c.chatMsgIndex = r.u32();
+        c.chatAvatarDoId = r.u32();
+    } else if (fieldId == dc::DistributedDale::k_setFollowChip ||
+               fieldId == dc::DistributedJailbirdDale::k_setFollowChip) {
+        r.string(c.src, sizeof(c.src));
+        r.string(c.dst, sizeof(c.dst));
+        const int16_t ts = r.i16();
+        c.walkStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        c.offsetX = r.i16() / 100.0f;
+        c.offsetY = r.i16() / 100.0f;
+        c.hasFollowChip = true;
+    } else if (fieldId == dc::DistributedDale::k_setChipId ||
+               fieldId == dc::DistributedJailbirdDale::k_setChipId) {
+        c.chipId = r.u32();
     } else {
         skipField(r, fieldId);
     }
@@ -1457,6 +1487,9 @@ void Client::sendSetParent(uint32_t token) {
 
 bool Client::sendPosHpr(float x, float y, float z, float h, float p, float r) {
     if (state_ != State::InZone) return false;
+    ownX_ = x;
+    ownY_ = y;
+    ownZ_ = z;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedSmoothNode, setSmPosHpr);
     w.i16(packFixed(x, 10.0f));
@@ -1513,6 +1546,30 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
     return finish(w);
+}
+
+const char* Client::avatarName(uint32_t doId) const {
+    if (doId == avatarId_ && avatarId_ != 0) return ownName_;
+    const RemoteToon* t = findToon(doId);
+    if (t) return t->name;
+    return nullptr;
+}
+
+bool Client::avatarPos(uint32_t doId, float* x, float* y, float* z) const {
+    if (doId == avatarId_ && avatarId_ != 0) {
+        if (x) *x = ownX_;
+        if (y) *y = ownY_;
+        if (z) *z = ownZ_;
+        return true;
+    }
+    const RemoteToon* t = findToon(doId);
+    if (t) {
+        if (x) *x = t->x;
+        if (y) *y = t->y;
+        if (z) *z = t->z;
+        return true;
+    }
+    return false;
 }
 
 } // namespace tt::net

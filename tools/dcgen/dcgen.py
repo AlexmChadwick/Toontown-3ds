@@ -83,6 +83,8 @@ WANTED = {
                            'emptySlot0', 'emptySlot1', 'emptySlot2', 'emptySlot3',
                            'requestBoard', 'rejectBoard', 'requestExit', 'setMinigameZone'],
     'DistributedCCharBase': ['setChat', 'fadeAway', 'setWalk', 'avatarEnter', 'avatarExit'],
+    'DistributedDale': ['setFollowChip', 'setChipId'],
+    'DistributedJailbirdDale': ['setFollowChip', 'setChipId'],
     'DistributedFishingPond': ['setArea'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],

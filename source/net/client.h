@@ -84,6 +84,7 @@ enum class EventType : uint8_t {
     Stats,         // our laff/jellybeans changed (ownStats())
     CCharSpawn,    // a classic character generated (findCChar(doId))
     CCharWalk,     // setWalk: new path leg (CChar src/dst/walkStartMs)
+    CCharChat,     // setChat: chatter message (category, msgIndex, avatarDoId)
     CCharGone,
 };
 
@@ -127,6 +128,12 @@ struct CChar {
     uint16_t classId;
     char src[8], dst[8];
     uint32_t walkStartMs; // local plat::nowMs() at which the leg started (from ts)
+    uint32_t chatCategory;
+    uint32_t chatMsgIndex;
+    uint32_t chatAvatarDoId;
+    uint32_t chipId;
+    float offsetX, offsetY;
+    bool hasFollowChip;
     bool active;
 };
 constexpr int kMaxCChars = 4;
@@ -218,6 +225,8 @@ public:
     uint32_t avatarId() const { return avatarId_; }
     uint32_t shardId() const { return shardId_; }
     const char* avatarName() const { return ownName_; }
+    const char* avatarName(uint32_t doId) const;
+    bool avatarPos(uint32_t doId, float* x, float* y, float* z) const;
     const uint8_t* avatarDna() const { return ownDna_; }
     const char* districtName() const;
     bool timeSynced() const { return timeSynced_; }
@@ -347,6 +356,7 @@ private:
     bool ownerReceived_ = false;
     uint32_t shardId_ = 0;
     char ownName_[kNameLen] = {};
+    float ownX_ = 0.0f, ownY_ = 0.0f, ownZ_ = 0.0f;
     OwnStats ownStats_{};
     NpcToon npcs_[kMaxNpcs] = {};
     Treasure treasures_[kMaxTreasures] = {};
