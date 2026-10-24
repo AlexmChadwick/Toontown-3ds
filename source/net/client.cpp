@@ -373,6 +373,12 @@ void Client::resetWorld() {
         t.active = false;
     }
     clearSuits();
+    for (CChar& c : cchars_) {
+        if (c.active) pushEvent(EventType::CCharGone, c.doId);
+        c.active = false;
+    }
+    if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
+    boat_.active = false;
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
@@ -522,7 +528,10 @@ void Client::handleMessage(DatagramReader& r) {
         if (t && r.ok()) {
             t->parentId = parent;
             t->zoneId = zone;
-            if (parent != shardId_ || zone != cfg_.zoneId) handleLeaving(doId);
+            // Still visible if it moved to another zone of our interest (street visgroups).
+            bool inInterest = zone == cfg_.zoneId;
+            for (int i = 0; i < numVisZones_ && !inInterest; ++i) inInterest = visZones_[i] == zone;
+            if (parent != shardId_ || !inInterest) handleLeaving(doId);
         }
         // A cog crossing into the next visgroup (DistributedSuitAI.sendSetZone).
         for (Suit& su : suits_) {
@@ -1087,6 +1096,7 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
             const uint16_t v = r.u16();
             if (i < 7) ownStats_.trackAccess[i] = v ? 1 : 0;
         }
+        r.skip(bytes & 1); // malformed odd length: stay aligned with the next field
         pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setMaxCarry) {
         ownStats_.maxCarry = r.u8();

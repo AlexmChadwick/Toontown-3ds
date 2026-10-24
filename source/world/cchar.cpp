@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 #include "core/log.h"
 #include "net/dc_generated.h"
@@ -131,6 +132,9 @@ int CCharActors::nodeIndex(const Actor& a, const char* name) const {
 }
 
 bool CCharActors::spawn(Actor& a, const net::CChar& c) {
+    // A reused slot must not inherit the previous character's graph, turn or balloon.
+    a.~Actor();
+    new (&a) Actor();
     const CharInfo* info = infoFor(c.classId);
     if (!info) {
         TT_LOG("cchar: no asset for class %u", unsigned(c.classId));

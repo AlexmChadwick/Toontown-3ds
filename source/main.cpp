@@ -357,6 +357,9 @@ int main() {
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
+            fade = 0.0f; // a transition in progress is abandoned with the session
+            fadeDir = 0;
+            fadeTarget = 0;
             frontEnd.reset();
             inFrontEnd = true;
             continue;
@@ -735,6 +738,7 @@ int main() {
                     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
                     C2D_DrawRectSolid(0, 0, 0.9f, 400, 240, black);
                 }
+                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // as hud.cpp / balloons.cpp restore it
             }
         }
         const struct mallinfo mi = mallinfo();

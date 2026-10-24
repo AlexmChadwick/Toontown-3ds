@@ -42,7 +42,7 @@ constexpr int kMaxAvatars = 6;        // PotentialAvatar slots
 constexpr int kNameLen = 32;
 constexpr int kAnimLen = 24;
 constexpr int kChatLen = 96;
-constexpr int kEventQueue = 128;
+constexpr int kEventQueue = 256;
 
 constexpr uint32_t kTtcPlayground = 2000;
 constexpr uint32_t kParentRender = 2; // OTPGlobals.SPRender (DistributedNode.setParent)

@@ -63,7 +63,9 @@ public:
     int numEdges() const { return numEdges_; }
     int numCells() const { return numCells_; }
     // DNA point index -> dense index (0..numPoints-1), or -1 when the street has no such point.
-    int dense(uint16_t dnaIndex) const { return dnaIndex <= maxIndex_ ? denseOf_[dnaIndex] : -1; }
+    int dense(uint16_t dnaIndex) const {
+        return dnaIndex <= maxIndex_ && denseOf_[dnaIndex] != 0xFFFF ? int(denseOf_[dnaIndex]) : -1;
+    }
     uint16_t dnaIndex(int d) const { return dnaIdx_[d]; }
     SuitPointType type(int d) const { return static_cast<SuitPointType>(type_[d]); }
     const float* pos(int d) const { return &pos_[3 * d]; }

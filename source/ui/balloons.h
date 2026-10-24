@@ -20,7 +20,7 @@ namespace tt::ui {
 
 class Balloons {
 public:
-    static constexpr int kMaxSpeakers = 12;
+    static constexpr int kMaxSpeakers = 32;
     static constexpr float kHoldSec = 10.0f; // CFTimeout: balloon visible this long ...
     static constexpr float kFadeSec = 0.6f;  // ... then fades out over this long
     static constexpr float kMaxTextW = 160.0f;

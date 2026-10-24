@@ -134,6 +134,7 @@ struct Zone::Impl {
     bool desired[kMaxChunks] = {};
     uint8_t choice[kMaxChunks] = {};
     bool failed[kMaxChunks] = {}; // load failed for this plan; retried on the next one
+    int retryCountdown = 0;       // updates until failed loads are retried anyway
     uint16_t order[kMaxChunks] = {};
     uint32_t numOrder = 0;
     bool planned = false;
@@ -393,7 +394,10 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
             for (uint32_t j=0;j<c.numVis;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
-                if (distance2(feet,high)>65.0f*65.0f) continue;
+                // Hysteresis: a chunk already at full detail keeps it out to 75 units, so a
+                // toon standing near the 65-unit boundary doesn't reload it from SD repeatedly.
+                const float reach=z.resident[id] && z.lod[id]==0 ? 75.0f : 65.0f;
+                if (distance2(feet,high)>reach*reach) continue;
                 const Chunk low=modelInfo(high,1);
                 const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
                 const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
@@ -414,6 +418,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
         }
     }
     if (!z.planned) return true;
+    if (z.retryCountdown>0 && --z.retryCountdown==0) memset(z.failed,0,sizeof(z.failed));
     auto account=[&](uint32_t i,int sign) {
         const Chunk d=modelInfo(z.chunks[i],z.lod[i]);
         z.geom+=sign*d.geom; z.tex+=sign*d.tex; z.tris+=sign*d.tris; z.draws+=sign*d.draws;
@@ -436,13 +441,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
         if (st==Impl::Done || st==Impl::Failed) {
             const bool wanted=z.desired[j.chunk] && z.choice[j.chunk]==j.lod;
             if (st==Impl::Done && wanted) {
-                sync();
-                if (z.resident[j.chunk]) account(j.chunk,-1);
+                if (z.resident[j.chunk]) { sync(); account(j.chunk,-1); } // only an old model needs the GPU idle
                 z.models[j.chunk].swap(j.model);
                 z.resident[j.chunk]=true; z.lod[j.chunk]=j.lod;
                 account(j.chunk,+1);
             } else if (st==Impl::Failed && wanted) {
                 z.failed[j.chunk]=true;
+                z.retryCountdown=30; // about a second: transient SD/linear failures heal
                 fail("zone: chunk load failed; retried on the next plan");
             }
             j.model.unload(); // the old LOD, or an unwanted load: never drawn by the GPU
