@@ -258,6 +258,81 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.avatarId = r.u32();
     } else if (fieldId == dc::DistributedInteractiveEntity::k_rejectInteract) {
         TT_LOG("net: switch %u rejected our interact", unsigned(e.doId));
+    // ---- level games (world/level_games.*) ----
+    } else if (fieldId == dc::DistributedLaserField::k_setGrid) {
+        e.gridNumX = r.u8(); e.gridNumY = r.u8();
+    } else if (fieldId == dc::DistributedLaserField::k_setField) {
+        const uint16_t bytes = r.u16();
+        e.fieldDataLen = uint8_t(bytes < sizeof(e.fieldData) ? bytes : sizeof(e.fieldData));
+        for (uint16_t i = 0; i < bytes && r.ok(); ++i) {
+            uint8_t v = r.u8();
+            if (i < sizeof(e.fieldData)) e.fieldData[i] = v;
+        }
+    } else if (fieldId == dc::DistributedLaserField::k_setSuccess) {
+        e.success = r.u8();
+    } else if (fieldId == dc::DistributedLaserField::k_setActiveLF) {
+        e.activeLF = r.u8() != 0;
+    } else if (fieldId == dc::DistributedLaserField::k_setGridGame) {
+        r.string(e.gridGame, sizeof(e.gridGame));
+    } else if (fieldId == dc::DistributedSecurityCamera::k_setTarget) {
+        e.targetHash = r.u8();
+    } else if (fieldId == dc::DistributedCrate::k_setAccept) {
+        e.pushAccepted = true;
+    } else if (fieldId == dc::DistributedCrate::k_setReject) {
+        e.pushRejected = true;
+    } else if (fieldId == dc::DistributedCrate::k_setMoveTo) {
+        e.moveAvId = r.u32();
+        e.movePos[0] = float(r.i16()) / 10.0f;
+        e.movePos[1] = float(r.i16()) / 10.0f;
+        e.movePos[2] = float(r.i16()) / 10.0f;
+        e.movePos[3] = float(r.i16()) / 10.0f;
+        e.movePos[4] = float(r.i16()) / 10.0f;
+        e.movePos[5] = float(r.i16()) / 10.0f;
+        e.moving = true;
+        e.moveStartMs = now_;
+    } else if (fieldId == dc::DistributedGridGoon::k_setPathPts) {
+        for (int i = 0; i < 6 && r.ok(); ++i) e.pathPts[i] = float(r.i16()) / 10.0f;
+    } else if (fieldId == dc::DistributedMaze::k_setRoomDoId) {
+        e.roomDoId = r.u32();
+    } else if (fieldId == dc::DistributedMaze::k_setGameStart) {
+        const int16_t ts = r.i16();
+        e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else if (fieldId == dc::DistributedMaze::k_setGameOver) {
+        e.gameOver = true;
+    } else if (fieldId == dc::DistributedMaze::k_toonFinished) {
+        r.u32(); r.u8(); const uint8_t last = r.u8();
+        if (last) e.gameOver = true;
+    } else if (fieldId == dc::DistributedMoleField::k_setGameStart) {
+        const int16_t ts = r.i16();
+        e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        e.molesWhackedTarget = r.u8();
+        e.gameDuration = r.u16();
+    } else if (fieldId == dc::DistributedMoleField::k_setScore) {
+        e.score = r.i16();
+    } else if (fieldId == dc::DistributedMoleField::k_updateMole) {
+        r.i8(); r.i8();
+    } else if (fieldId == dc::DistributedMoleField::k_setPityWin) {
+        e.pityWin = true;
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_acceptJoin) {
+        e.boardsLeft = r.u16();
+        r.i32();
+        e.numJoinedToons = uint8_t(readIds(r, e.joinedToons, 4));
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_scoreData) {
+        e.boardsLeft = r.u8();
+        r.u8();
+        const uint16_t bytes = r.u16();
+        r.skip(bytes);
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_signalDone) {
+        r.u8();
+    } else if (fieldId == dc::BattleBlocker::k_setActive) {
+        e.blockerActive = r.u8() != 0;
+    } else if (fieldId == dc::BattleBlocker::k_setSuits) {
+        e.numSuits = uint8_t(readIds(r, e.suits, 8));
+    } else if (fieldId == dc::BattleBlocker::k_setBattle) {
+        e.battleId = r.u32();
+    } else if (fieldId == dc::BattleBlocker::k_setBattleFinished) {
+        e.finished = true;
+    // ---- end level games ----
     } else return skipField(r, fieldId);
     return r.ok();
 }
@@ -341,7 +416,18 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
         classId == dc::DistributedStomper::kClassId || classId == dc::DistributedLift::kClassId ||
         classId == dc::DistributedGagBarrel::kClassId || classId == dc::DistributedBeanBarrel::kClassId ||
         classId == dc::DistributedHealBarrel::kClassId || classId == dc::DistributedGoon::kClassId ||
-        classId == dc::DistributedElevatorMarker::kClassId) {
+        classId == dc::DistributedElevatorMarker::kClassId ||
+        // ---- level games (world/level_games.*) ----
+        classId == dc::DistributedLaserField::kClassId ||
+        classId == dc::DistributedSecurityCamera::kClassId ||
+        classId == dc::DistributedCrate::kClassId ||
+        classId == dc::DistributedGrid::kClassId ||
+        classId == dc::DistributedGridGoon::kClassId ||
+        classId == dc::DistributedMaze::kClassId ||
+        classId == dc::DistributedMoleField::kClassId ||
+        classId == dc::DistributedGolfGreenGame::kClassId
+        // ---- end level games ----
+        ) {
         LevelEntityObj tmp{};
         tmp.doId = doId;
         tmp.classId = classId;
@@ -611,5 +697,123 @@ bool Client::sendLevelSuitStrayed(uint32_t doId) {
     TT_NET_UPDATE(w, doId, DistributedFactorySuit, setStrayed);
     return finish(w);
 }
+
+// ---- level games (world/level_games.*) ----
+bool Client::sendLaserHit(uint32_t doId, int8_t newX, int8_t newY, int8_t oldX, int8_t oldY) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedLaserField, hit);
+    w.i8(newX);
+    w.i8(newY);
+    w.i8(oldX);
+    w.i8(oldY);
+    return finish(w);
+}
+
+bool Client::sendLaserTrapFire(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedLaserField, trapFire);
+    return finish(w);
+}
+
+bool Client::sendCameraTrapFire(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedSecurityCamera, trapFire);
+    return finish(w);
+}
+
+bool Client::sendCratePush(uint32_t doId, uint8_t side) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedCrate, requestPush);
+    w.u8(side);
+    return finish(w);
+}
+
+bool Client::sendCrateDone(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedCrate, setDone);
+    return finish(w);
+}
+
+bool Client::sendMazeTriggered(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMaze, setClientTriggered);
+    return finish(w);
+}
+
+bool Client::sendMazeFinished(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMaze, setFinishedMaze);
+    return finish(w);
+}
+
+bool Client::sendMazeDamage(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMaze, damageMe);
+    return finish(w);
+}
+
+bool Client::sendMoleTriggered(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMoleField, setClientTriggered);
+    return finish(w);
+}
+
+bool Client::sendMoleWhacked(uint32_t doId, int8_t moleIndex, int16_t popupNum) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMoleField, whackedMole);
+    w.i8(moleIndex);
+    w.i16(popupNum);
+    return finish(w);
+}
+
+bool Client::sendMoleBomb(uint32_t doId, int8_t moleIndex, int16_t popupNum, int32_t ts) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMoleField, whackedBomb);
+    w.i8(moleIndex);
+    w.i16(popupNum);
+    w.i32(ts);
+    return finish(w);
+}
+
+bool Client::sendMoleDamage(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedMoleField, damageMe);
+    return finish(w);
+}
+
+bool Client::sendGolfJoin(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGolfGreenGame, requestJoin);
+    return finish(w);
+}
+
+bool Client::sendGolfLeave(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGolfGreenGame, leaveGame);
+    return finish(w);
+}
+
+bool Client::sendGolfBoard(uint32_t doId, uint8_t index) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGolfGreenGame, requestBoard);
+    w.u8(index);
+    return finish(w);
+}
+// ---- end level games ----
 
 } // namespace tt::net
