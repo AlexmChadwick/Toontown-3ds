@@ -53,6 +53,11 @@ def bake(zone_id, args, base):
     warnings = []
     tree = dna.parse_file(resources/src,warnings)
     root,asm = assemble.assemble(tree,store,seed=1)
+    if args.separate_boat:
+        # Donald's Dock boat is the moving DistributedBoat (bake_boat.py). Stashed nodes are
+        # skipped by findAllMatches, so neither its geometry nor its collision reach the .tz.
+        for n in root.findAllMatches('**/donalds_boat'):
+            n.stash()
     ex = street_atlas.Extractor()
     chunks, raw, floors = [],[],[]
     whole_collision = collide.extract(root)
@@ -209,6 +214,8 @@ def main():
     ap.add_argument('--grid-size',type=float,default=128)
     ap.add_argument('--distance',type=float,default=120)
     ap.add_argument('--preview',action='store_true')
+    ap.add_argument('--separate-boat',action='store_true',
+                    help="leave donalds_boat out of zone 1000 (bake_boat.py bakes it as 1000_boat.ttm)")
     args=ap.parse_args()
     if args.grid_size<=0 or args.distance<=0:
         ap.error('grid size and distance must be positive')
@@ -222,6 +229,8 @@ def main():
                      '--distance',str(args.distance)]
             if args.preview:
                 command.append('--preview')
+            if args.separate_boat:
+                command.append('--separate-boat')
             subprocess.run(command,check=True)
         return
     from panda3d.core import loadPrcFileData

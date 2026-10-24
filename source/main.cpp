@@ -25,6 +25,7 @@
 #include "ui/hud.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "world/boat.h"
 #include "world/cchar.h"
 #include "world/place.h"
 #include "world/player.h"
@@ -170,7 +171,9 @@ int main() {
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
     // Mickey and friends (DistributedCCharBase), walking their playground's graph.
     static tt::world::CCharActors cchars;
+    static tt::world::BoatActor boat; // Donald's Dock ship (DistributedBoat) with Donald aboard
     cchars.setZone(kStartZone);
+    cchars.setBoat(&boat);
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
@@ -494,6 +497,7 @@ int main() {
                 remoteToons.handleEvent(ev, net);
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
+                boat.handleEvent(ev, net);
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
@@ -543,6 +547,7 @@ int main() {
         pendingSpeech = -1;
         remoteToons.update(dt);
         zoneActors.update(dt);
+        boat.update(tt::net::plat::nowMs());
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
@@ -604,6 +609,7 @@ int main() {
             }
             remoteToons.draw(renderer, player.x(), player.y());
             zoneActors.draw(renderer, player.cameraEye());
+            boat.draw(renderer);
             cchars.draw(renderer);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
@@ -709,6 +715,7 @@ int main() {
     hud.shutdown();
     zoneActors.shutdown();
     cchars.shutdown();
+    boat.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
     remoteToons.clear();
