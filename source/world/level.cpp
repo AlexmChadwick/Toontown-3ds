@@ -292,6 +292,7 @@ void Level::updateButtons(net::Client& client, float x, float y, float z) {
         // DistributedSwitch.enterTrigger / exitTrigger.
         if (onButton_) client.sendLevelInteract(onButton_, false);
         if (touching) client.sendLevelInteract(touching, true);
+        TT_LOG("level: switch %u -> %u", unsigned(onButton_), unsigned(touching));
         onButton_ = touching;
     }
 }

@@ -131,6 +131,8 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.stateMs = timeSynced_ ? networkToLocal(int16_t(uint32_t(ts) & 0xFFFF), now_) : now_;
     } else if (fieldId == dc::DistributedInteractiveEntity::k_setAvatarInteract) {
         e.avatarId = r.u32();
+    } else if (fieldId == dc::DistributedInteractiveEntity::k_rejectInteract) {
+        TT_LOG("net: switch %u rejected our interact", unsigned(e.doId));
     } else return skipField(r, fieldId);
     return r.ok();
 }

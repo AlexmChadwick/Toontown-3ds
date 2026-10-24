@@ -671,7 +671,7 @@ int main() {
                 float bx, by, bz;
                 if (level.nearestEntity(tt::dc::DistributedButton::kClassId, player.x(), player.y(), player.z(), &bx,
                                         &by, &bz))
-                    player.reset(bx, by - 4.0f, bz + 0.2f, 0.0f); // walk onto it (the pad is held)
+                    player.reset(bx, by, bz + 2.5f, 0.0f); // drop onto it and stand still
             }
             if (!strcmp(autotest.label(), "factory: door")) {
                 float dx, dy, dz, dh;
