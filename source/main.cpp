@@ -200,6 +200,9 @@ int main() {
     const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
     u32 grabRequested = 0;
     u32 lastTouchedTreasure = 0;
+    // Gag shop (docs/design/shop.md): walking into a clerk's tube sends avatarEnter once per contact.
+    tt::ui::ShopPanel& shop = ui.shop();
+    u32 lastTouchedClerk = 0;
     tt::ui::Hud hud;
     hud.init();
 
@@ -459,6 +462,11 @@ int main() {
             in.held &= ~(KEY_A | KEY_B);
             in.down &= ~(KEY_A | KEY_B);
         }
+        if (shop.active()) { // standing at the counter: no walking or jumping while the panel is open
+            in.pad.dx = 0;
+            in.pad.dy = 0;
+            in.held &= ~(KEY_A | KEY_B);
+        }
         player.update(in, dt);
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
@@ -566,11 +574,19 @@ int main() {
                 cchars.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
+                if (ev.type == tt::net::EventType::ShopMovie) {
+                    shop.onMovie(net, nowMs);
+                    if (const char* note = shop.takeNotice()) {
+                        toast = note;
+                        toastAge = 0.0f;
+                    }
+                }
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
                 }
             }
+            shop.update(net, nowMs);
             if (net.inZone() && !localLookFromServer) {
                 tt::world::ToonDna dna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
@@ -608,6 +624,10 @@ int main() {
                     grabRequested = touching;
                 }
                 lastTouchedTreasure = touching;
+                const u32 clerk = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                         tt::dc::DistributedNPCClerk::kClassId);
+                if (clerk && clerk != lastTouchedClerk && !shop.active() && fadeDir == 0) net.sendClerkAvatarEnter(clerk);
+                lastTouchedClerk = clerk;
             } else {
                 sentState = nullptr; // resend after (re)entering
             }

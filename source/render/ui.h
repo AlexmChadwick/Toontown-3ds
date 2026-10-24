@@ -6,6 +6,7 @@
 
 #include "render/model.h"
 #include "ui/chat_menu.h"
+#include "ui/shop_panel.h"
 
 namespace tt::ui {
 
@@ -75,6 +76,8 @@ public:
     u32 handleInput(u32 keysDown, const touchPosition& touch, State& state);
     // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
+    // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
+    ShopPanel& shop() { return shop_; }
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
     // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
     // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
@@ -121,6 +124,7 @@ private:
     unsigned frame_ = 0;
     int lastTab_ = -1;
     ChatMenu chat_;
+    ShopPanel shop_;
 };
 
 } // namespace tt::ui

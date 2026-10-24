@@ -64,7 +64,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init()) return false;
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
@@ -75,6 +75,7 @@ bool Ui::init() {
 void Ui::shutdown() {
     unloadMap();
     chat_.shutdown();
+    shop_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -115,6 +116,7 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 }
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
+    if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
     if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
     if (down & KEY_X) s.tab = kTabChat;
@@ -166,6 +168,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_TextBufClear(textBuf_);
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
+    if (shop_.active()) {
+        shop_.draw();
+        return;
+    }
     switch (s.tab) {
     case kTabMap: drawMap(c); break;
     case kTabChat: chat_.draw(kTabY); break;

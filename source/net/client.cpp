@@ -67,6 +67,9 @@ TT_SIG(DistributedToon, setTrackAccess, "u16[]");
 TT_SIG(DistributedNPCToonBase, setName, "string");
 TT_SIG(DistributedNPCToonBase, setDNAString, "blob");
 TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
+TT_SIG(DistributedNPCToonBase, avatarEnter, "");
+TT_SIG(DistributedNPCClerk, setMovie, "u8,u32,u32,i16");
+TT_SIG(DistributedNPCClerk, setInventory, "blob,i16,u8");
 TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
 TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
@@ -368,6 +371,7 @@ void Client::resetWorld() {
         if (n.active) pushEvent(EventType::NpcDespawn, n.doId);
         n.active = false;
     }
+    shopMovie_ = ShopMovie{}; // the clerk is gone; a session with it cannot continue
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;
@@ -720,6 +724,10 @@ void Client::maybeSkipTutorial() {
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
+        return;
+    }
+    if (fieldId == dc::DistributedNPCClerk::k_setMovie) {
+        handleClerkMovie(r, doId);
         return;
     }
     for (Treasure& t : treasures_) {
@@ -1407,6 +1415,60 @@ const NpcToon* Client::findNpc(uint32_t doId) const {
     return nullptr;
 }
 
+// ---- shop ------------------------------------------------------------------
+// DistributedNPCClerk (docs/design/shop.md). setMovie is `broadcast`, so every toon in the
+// zone sees it; we keep only movies about us, plus CLEAR (which frees the clerk).
+void Client::handleClerkMovie(DatagramReader& r, uint32_t doId) {
+    const NpcToon* n = findNpc(doId);
+    if (!n || n->classId != dc::DistributedNPCClerk::kClassId) return;
+    const uint8_t mode = r.u8();
+    const uint32_t npcId = r.u32();
+    const uint32_t avId = r.u32();
+    const int16_t ts = r.i16();
+    if (!r.ok()) return;
+    const bool ours = avId == avatarId_ && avatarId_ != 0;
+    if (!ours && mode != kPurchaseMovieClear) return;
+    if (mode == kPurchaseMovieClear && shopMovie_.clerkDoId != doId) return;
+    ShopMovie m;
+    m.clerkDoId = doId;
+    m.mode = mode;
+    m.npcId = npcId;
+    m.avId = avId;
+    // remain = CLERK_COUNTDOWN_TIME - localElapsedTime(timestamp); never trust more than the full window.
+    uint32_t start = now_;
+    if (timeSynced_) {
+        const uint32_t t = networkToLocal(ts, now_);
+        if (int32_t(now_ - t) >= 0) start = t;
+    }
+    m.deadlineMs = start + kClerkCountdownMs;
+    if (int32_t(m.deadlineMs - now_) > int32_t(kClerkCountdownMs)) m.deadlineMs = now_ + kClerkCountdownMs;
+    m.seq = shopMovie_.seq + 1;
+    shopMovie_ = m;
+    TT_LOG("net: clerk %u setMovie mode %u av %u", unsigned(doId), unsigned(mode), unsigned(avId));
+    pushEvent(EventType::ShopMovie, doId);
+}
+
+bool Client::sendClerkAvatarEnter(uint32_t clerkDoId) {
+    if (state_ != State::InZone) return false;
+    const NpcToon* n = findNpc(clerkDoId);
+    if (!n || n->classId != dc::DistributedNPCClerk::kClassId) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, clerkDoId, DistributedNPCToonBase, avatarEnter);
+    return finish(w);
+}
+
+bool Client::sendClerkSetInventory(uint32_t clerkDoId, const uint8_t inv[7][7], int16_t money, bool done) {
+    if (state_ != State::InZone || !shopOpenFor(clerkDoId)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, clerkDoId, DistributedNPCClerk, setInventory);
+    uint8_t blob[49]; // InventoryBase.makeNetString: uint8 per track and level
+    for (int i = 0; i < 49; i++) blob[i] = inv[i / 7][i % 7];
+    w.blob(blob, sizeof(blob));
+    w.i16(money);
+    w.u8(done ? 1 : 0);
+    return finish(w);
+}
+
 bool Client::sendRequestGrab(uint32_t treasureDoId) {
     if (state_ != State::InZone) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
@@ -1647,6 +1709,7 @@ void Client::dropZoneObjects() {
         if (n.active) pushEvent(EventType::NpcDespawn, n.doId);
         n.active = false;
     }
+    shopMovie_ = ShopMovie{}; // the clerk is gone; a session with it cannot continue
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;

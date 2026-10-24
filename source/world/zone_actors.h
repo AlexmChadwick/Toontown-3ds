@@ -29,6 +29,9 @@ public:
     void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const;
     // Treasure the toon at (x, y, z) is touching, or 0 (DistributedTreasure sphere r = 2).
     u32 touchingTreasure(float x, float y, float z) const;
+    // NPC of class `classId` whose collision tube (DistributedNPCToonBase.__initCollisions: tube
+    // (0,1,0)-(0,1,5), radius 3.25, in its own frame) the toon's event sphere touches, else 0.
+    u32 touchingNpc(float x, float y, float z, const net::Client& client, uint16_t classId) const;
     int npcCount() const;
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
