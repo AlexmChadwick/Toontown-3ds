@@ -143,19 +143,19 @@ void Battle::fromWorld(float wx, float wy, float* lx, float* ly) const {
 }
 
 void Battle::cameraEye(float* x, float* y, float* z) const {
-    float wx, wy;
-    toWorld(0.0f, -13.0f, &wx, &wy);
-    *x = wx;
-    *y = wy;
-    *z = bz_ + 15.0f;
+    float ex = 0, ey = 0, ez = 0, tx = 0, ty = 0, tz = 0;
+    camera_.sample(nowMs_, *this, &ex, &ey, &ez, &tx, &ty, &tz);
+    *x = ex;
+    *y = ey;
+    *z = ez;
 }
 
 void Battle::cameraTarget(float* x, float* y, float* z) const {
-    float wx, wy;
-    toWorld(0.0f, 1.0f, &wx, &wy);
-    *x = wx;
-    *y = wy;
-    *z = bz_ + 1.2f;
+    float ex = 0, ey = 0, ez = 0, tx = 0, ty = 0, tz = 0;
+    camera_.sample(nowMs_, *this, &ex, &ey, &ez, &tx, &ty, &tz);
+    *x = tx;
+    *y = ty;
+    *z = tz;
 }
 
 // ============================================================ requests
@@ -512,6 +512,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         phase_ = BattlePhase::FaceOff;
         faceOffStartMs_ = nowMs;
         faceOffSent_ = false;
+        camera_.startFaceOff(nb.numSuits > 0 ? nb.suits[0] : 0, nowMs, 2500);
         // The cog and the first toon are placed by retarget() (it needs the state set above).
         for (Actor& a : suits_) a.hasTarget = false;
         for (Actor& a : toons_) a.hasTarget = false;
@@ -519,6 +520,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
     case net::BattleStateId::WaitForInput:
         chose_ = timeoutSent_ = false;
         moviePlaying_ = false;
+        camera_.startWaitForInput();
         if (localRunning) {
             phase_ = BattlePhase::Waiting;
         } else if (localActive) {
@@ -541,6 +543,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         rewardStartMs_ = nowMs;
         rewardSent_ = false;
         moviePlaying_ = false;
+        camera_.startReward(localId_, nowMs, 4000);
         break;
     case net::BattleStateId::Resume:
         leave(client, client.ownStats().hp <= 0);
@@ -563,6 +566,7 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
         return;
     }
     buildMovie(nb.movie);
+    camera_.buildMovie(battleId_, ++round_, *this, nb.movie, movieStartMs_);
     moviePlaying_ = true;
 }
 
@@ -574,8 +578,7 @@ void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int 
 }
 
 // Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
-// the cogs), as a placeholder: attacker hop, number pops over the targets, a shrinking fade for
-// cogs that died. ~2.4 s per toon attack, ~2.2 s per cog attack (the AI waits 12 s each).
+// the cogs).
 void Battle::buildMovie(const net::BattleMovie& m) {
     uint32_t t = 300;
     int order[4];
@@ -600,9 +603,18 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
             else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
-        const uint32_t attackDur = (a.track == kTrackThrow) ? 3300 : ((a.track == kTrackSquirt) ? 3000 : 2200);
+
+        uint32_t attackDur = 2200;
+        uint32_t hitAt = t + 1500;
+        if (a.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
+        else if (a.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
+        else if (a.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
+        else if (a.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
+        else if (a.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
+        else if (a.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
+        else if (a.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
+
         addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
-        const uint32_t hitAt = (a.track == kTrackThrow) ? (t + 3000) : ((a.track == kTrackSquirt) ? (t + 2700) : (t + 1500));
         bool any = false;
         if (a.track == kTrackHeal) {
             for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
@@ -620,7 +632,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             }
             if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, a.track, a.level);
         }
-        uint32_t dur = (a.track == kTrackThrow) ? 3500 : ((a.track == kTrackSquirt) ? 3300 : 2400);
+        uint32_t dur = attackDur;
         for (int j = 0; j < m.numSuits; ++j) {
             if ((a.died >> j) & 1) {
                 addFx(hitAt + 500, kFxDie, m.suits[j], 0, 0);
@@ -687,8 +699,15 @@ void Battle::runFx(uint32_t nowMs) {
                 a->faceUntil = a->attackEnd + 300;
             }
             if (battleFx_) {
-                const uint32_t hitMs = (f.track == kTrackThrow) ? (nowMs + 3000) : ((f.track == kTrackSquirt) ? (nowMs + 2700) : (nowMs + 1500));
-                battleFx_->onAttack(f.who, f.other, f.track, f.level, nowMs, f.value, hitMs);
+                uint32_t hitMs = nowMs + 1500;
+                if (f.track == kTrackHeal) hitMs = nowMs + 2000;
+                else if (f.track == kTrackTrap) hitMs = nowMs + 2500;
+                else if (f.track == kTrackLure) hitMs = nowMs + 3000;
+                else if (f.track == kTrackSound) hitMs = nowMs + 2500;
+                else if (f.track == kTrackThrow) hitMs = nowMs + 3000;
+                else if (f.track == kTrackSquirt) hitMs = nowMs + 2700;
+                else if (f.track == kTrackDrop) hitMs = nowMs + 3800;
+                battleFx_->onAttack(f.who, f.other, f.track, f.level, nowMs, f.value, hitMs, this);
             }
             break;
         }
@@ -703,7 +722,7 @@ void Battle::runFx(uint32_t nowMs) {
             a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
             snprintf(text, sizeof(text), "-%d", int(f.value));
             addPopup(*a, text, kColorDamage, nowMs);
-            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, f.value, false);
+            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, f.value, false, this);
             break;
         case kFxHeal:
             snprintf(text, sizeof(text), "+%d", int(f.value));
@@ -714,7 +733,7 @@ void Battle::runFx(uint32_t nowMs) {
             addPopup(*a, "Miss", kColorMiss, nowMs);
             a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
             a->clipStartMs = nowMs;
-            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true);
+            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true, this);
             break;
         case kFxDie:
             a->dying = true;
@@ -736,6 +755,26 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
     };
     BattleAction act;
     act.kind = BattleAction::Pass;
+    if (forcedTrack_ >= 0 && forcedTrack_ <= 6) {
+        for (int level = 6; level >= 0 && act.kind == BattleAction::Pass; --level) {
+            if (!usable(forcedTrack_, level)) continue;
+            act.kind = BattleAction::Attack;
+            act.track = forcedTrack_;
+            act.level = level;
+            if (forcedTrack_ == kTrackHeal) {
+                act.target = localId_;
+            } else {
+                for (int i = 0; i < nb.numSuits; ++i) {
+                    if ((nb.suitsActive >> i) & 1) {
+                        act.target = nb.suits[i];
+                        break;
+                    }
+                }
+                if (act.target == 0 && !attackAffectsGroup(forcedTrack_, level)) act.kind = BattleAction::Pass;
+            }
+        }
+    }
+
     // Throw, squirt, then sound...; against several cogs sound first (it hits them all).
     static const int kTrackOrder[7] = {4, 5, 3, 6, 1, 2, 0};
     static const int kGroupOrder[7] = {3, 4, 5, 6, 1, 2, 0};
@@ -966,6 +1005,14 @@ void Battle::computePoses(uint32_t nowMs) {
         }
         out->doId = a.doId;
         out->x = a.x, out->y = a.y, out->z = a.z, out->h = h;
+        if (!isToon && battleFx_) {
+            const float lureOffset = battleFx_->movies().getLureOffset(a.doId);
+            if (lureOffset > 0.01f) {
+                const float rad = h * kDegToRad;
+                out->x -= sinf(rad) * lureOffset;
+                out->y += cosf(rad) * lureOffset;
+            }
+        }
         out->hop = hop;
         out->scale = scale;
         out->flash = flash;

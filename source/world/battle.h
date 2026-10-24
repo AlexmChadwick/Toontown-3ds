@@ -17,6 +17,7 @@
 
 #include "net/client.h"
 #include "world/suit_path.h"
+#include "world/battle_camera.h"
 
 namespace tt::world {
 
@@ -148,7 +149,12 @@ public:
     // The panel's choice (only honoured in WaitForInput / Reward).
     void perform(net::Client& client, const BattleAction& a, uint32_t nowMs);
     // Test hook (also used by the unattended autotest): pick the first usable gag and cog ourselves.
-    void setAutoPlay(bool on) { autoPlay_ = on; }
+    void setAutoPlay(bool on, int forcedTrack = -1) { autoPlay_ = on; forcedTrack_ = forcedTrack; }
+    void setForcedTrack(int track) { forcedTrack_ = track; }
+    int forcedTrack() const { return forcedTrack_; }
+
+    BattleCamera& camera() { return camera_; }
+    const BattleCamera& camera() const { return camera_; }
 
     // ---- state for main.cpp ----
     bool active() const { return phase_ != BattlePhase::Idle; }      // lock the toon, stop broadcasting
@@ -296,6 +302,10 @@ private:
     BattleActorPose suitPoses_[net::kBattleSuits];
     BattleActorPose toonPoses_[net::kBattleToons];
     int numSuitPoses_ = 0, numToonPoses_ = 0;
+
+    BattleCamera camera_;
+    uint32_t round_ = 0;
+    int forcedTrack_ = -1;
 };
 
 } // namespace tt::world

@@ -18,6 +18,7 @@
 #include "world/toon_anim.h"
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
+#include "world/battle_movies.h"
 #endif
 
 namespace tt::world {
@@ -148,10 +149,14 @@ public:
 
     // Event hooks called by Battle / movie execution
     void onAttack(uint32_t attackerId, uint32_t targetId, int track, int level,
-                  uint32_t startMs, uint32_t durMs, uint32_t hitMs);
-    void onHit(uint32_t targetId, uint32_t attackerId, int track, int level, int hp, bool miss);
+                  uint32_t startMs, uint32_t durMs, uint32_t hitMs, const Battle* battle = nullptr);
+    void onHit(uint32_t targetId, uint32_t attackerId, int track, int level, int hp, bool miss,
+               const Battle* battle = nullptr);
     void onDie(uint32_t cogId, uint32_t startMs);
     void onHeal(uint32_t targetId, uint32_t healerId, int hp);
+
+    BattleMovies& movies() { return movies_; }
+    const BattleMovies& movies() const { return movies_; }
 
     // Frame update and 3D draw
     void update(float dt, uint32_t nowMs, const Battle* battle, const ToonLook* localLook);
@@ -267,6 +272,8 @@ private:
 
     uint32_t nowMs_ = 0;
     bool modelsLoaded_ = false;
+
+    BattleMovies movies_;
 
     render::Model* getPropModel(int track, int level);
 };
