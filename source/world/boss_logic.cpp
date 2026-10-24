@@ -48,6 +48,29 @@ Vec3 vpPosition(float damage) {
     return {0, bottom.y - (distance - first), death.z};
 }
 
+float vpCageHeight(const net::BossState& state, uint32_t nowMs) {
+    // DistributedSellbotBoss.cageHeights / enterBattleOne / enterBattleTwo /
+    // __makeCageOpenMovie. A one-sided Cog round lowers the cage one extra stop.
+    const BossPhase phase = bossPhase(state.phase);
+    const bool single = !state.battleA || !state.battleB;
+    if (phase == BossPhase::Epilogue) {
+        const float fraction = std::clamp((nowMs - state.phaseMs) / 500.0f, 0.0f, 1.0f);
+        return 25 - 7 * fraction;
+    }
+    if (phase == BossPhase::Pies || phase == BossPhase::FinalPie || phase == BossPhase::Victory ||
+        phase == BossPhase::Reward || !std::strcmp(state.phase, "PrepareBattleThree")) return 25;
+    if (!std::strcmp(state.phase, "BattleTwo")) return single ? 44 : 63;
+    if (!std::strcmp(state.phase, "PrepareBattleTwo")) return 63;
+    if (!std::strcmp(state.phase, "BattleOne")) return single ? 81 : 100;
+    return 100;
+}
+
+float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs) {
+    if (bossPhase(state.phase) != BossPhase::Epilogue) return 0;
+    const float fraction = std::clamp((nowMs - state.phaseMs) / 500.0f - 1, 0.0f, 1.0f);
+    return 90 * fraction;
+}
+
 const char* vpClip(const net::BossState& state, uint32_t nowMs) {
     const BossPhase phase = bossPhase(state.phase);
     if (phase == BossPhase::Intro) {

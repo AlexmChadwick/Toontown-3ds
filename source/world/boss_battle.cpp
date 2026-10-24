@@ -213,6 +213,25 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
     }
 }
 
+void BossBattle::pushBoss(void* user, float* x, float* y, float z, float radius) {
+    const BossBattle& boss = *static_cast<const BossBattle*>(user);
+    if (!boss.bossSolid_ || z > boss.bossPosition_.z + 26 || z + 5 < boss.bossPosition_.z) return;
+    float dx = *x - boss.bossPosition_.x;
+    float dy = *y - boss.bossPosition_.y;
+    const float distance = std::sqrt(dx * dx + dy * dy);
+    const float limit = 11 + radius;
+    if (distance >= limit) return;
+    if (distance < .001f) {
+        dx = 0;
+        dy = -1;
+    } else {
+        dx /= distance;
+        dy /= distance;
+    }
+    *x = boss.bossPosition_.x + dx * limit;
+    *y = boss.bossPosition_.y + dy * limit;
+}
+
 bool BossBattle::rampFloor(void* user, float x, float y, float z, float* top) {
     const BossBattle& boss = *static_cast<const BossBattle*>(user);
     bool found = false;
@@ -278,6 +297,7 @@ void BossBattle::loadAssets() {
         valid &= std::isfinite(doorHinge_.x) && std::isfinite(doorHinge_.y) && std::isfinite(doorHinge_.z);
         ready_ &= valid;
         solids_.floor = rampFloor;
+        solids_.push = pushBoss;
         solids_.user = this;
         failed_ = !ready_;
         uint32_t resident = 0;
@@ -341,6 +361,8 @@ void BossBattle::publishClip() {
 void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint32_t nowMs) {
     const BossPhase phase = bossPhase(state.phase);
     const bool piePhase = phase == BossPhase::Pies || phase == BossPhase::FinalPie;
+    bossPosition_ = vpPosition(net::currentBossDamage(state, nowMs));
+    bossSolid_ = piePhase;
     const float elapsed = (nowMs - state.phaseMs) / 1000.0f;
     for (int index = 0; index < 3; ++index) {
         // DistributedSellbotBoss ramp FSM: local X=18 retracted, X=0 extended.
@@ -398,6 +420,8 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         const net::BossBarrier& barrier = state.barriers[index];
         const float delay = bossBarrierDelay(barrier.name);
         if (!barrier.waitingForUs || delay < 0 || elapsed < delay || std::strcmp(barrier.name, state.phase)) continue;
+        if (!std::strcmp(barrier.name, "Victory") &&
+            (std::strcmp(currentClip_, "Fb_fall") || clipTime_ < 5.8f)) continue;
         if (haveAcknowledged_[index] && acknowledged_[index] == barrier.context) continue;
         if (frame.client.sendBossBarrier(barrier.context)) {
             acknowledged_[index] = barrier.context;
@@ -501,6 +525,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
                 pie.active = true;
                 pie.origin = {frame.player.x(), frame.player.y(), frame.player.z() + 2.24f};
                 pie.previous = pie.origin;
+                pie.age = -16.0f / 24.0f; // Toon.getTossPieInterval release frame.
                 pie.heading = frame.player.headingDeg();
                 pie.pitch = pitch_;
                 pie.power = scripted ? 0 : charging_ ? piePower(charge_) : 0.5f;
@@ -523,6 +548,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         for (Projectile& pie : pies_) {
             if (!pie.active) continue;
             pie.age += frame.dt;
+            if (pie.age < 0) continue;
             const Vec3 current = piePosition(pie.origin, pie.heading, pie.pitch, pie.power, pie.age);
             const VpPieHit hit = vpPieHit(pie.previous, current, boss, vpHatchOpen(state, nowMs));
             if (hit != VpPieHit::None) {
@@ -530,6 +556,21 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
                 else if (hit == VpPieHit::Insides) frame.client.sendVpHitInsides();
                 else frame.client.sendVpHit();
                 pie.active = false;
+            }
+            if (pie.active) {
+                for (int index = 0; index < state.numToons; ++index) {
+                    const uint32_t toon = state.toons[index];
+                    if (toon == frame.client.avatarId()) continue;
+                    float x = 0;
+                    float y = 0;
+                    float z = 0;
+                    if (!frame.client.avatarPos(toon, &x, &y, &z)) continue;
+                    if (segmentBox(pie.previous, current, {x - 1.4f, y - 1.4f, z}, {x + 1.4f, y + 1.4f, z + 5})) {
+                        frame.client.sendVpHitToon(toon);
+                        pie.active = false;
+                        break;
+                    }
+                }
             }
             if (pie.age > 3 || current.z < -30) pie.active = false;
             pie.previous = current;
@@ -597,7 +638,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
             attackHit_ = frame.client.sendBossZap(frame.player.x(), frame.player.y(), frame.player.z(),
                 frame.player.headingDeg(), dx / std::max(1.0f, distance), dy / std::max(1.0f, distance), state.attack);
         }
-        if (distance < 11 && nowMs - contactMs_ > 1500) {
+        if (distance < 13 && nowMs - contactMs_ > 1500) {
             frame.client.sendBossZap(frame.player.x(), frame.player.y(), frame.player.z(),
                                      frame.player.headingDeg(), dx / std::max(1.0f, distance),
                                      dy / std::max(1.0f, distance), net::kBossElectricFence);
@@ -627,6 +668,10 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     } else if (phase == BossPhase::Round || phase == BossPhase::Transition) {
         position = {0, 60, 18};
         heading = -90;
+        if (!std::strcmp(state.phase, "RollToBattleTwo")) {
+            const float fraction = std::clamp((nowMs - state.phaseMs) / 8000.0f, 0.0f, 1.0f);
+            position = {0, -35 + 95 * fraction, 18 * fraction};
+        }
     }
     C3D_FVec eye = frame.player.cameraEye();
     C3D_FVec target = frame.player.cameraTarget();
@@ -645,15 +690,14 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     if (ready_) {
         frame.renderer.drawModel(models_[4], identity);
         // Upstream cageHeights: 100,81,63,44,25,18; the baked pivot is z=100.
-        float cageHeight = phase == BossPhase::Pies || phase == BossPhase::FinalPie ? 25 :
-                           phase == BossPhase::Reward || phase == BossPhase::Epilogue ? 18 : 100;
+        const float cageHeight = vpCageHeight(state, nowMs);
         C3D_Mtx cage = transform({0, 0, cageHeight - 100});
         frame.renderer.drawModel(models_[5], cage);
         // CageOpenMovie rotates the door around its original hinge, then releases the NPC.
         C3D_Mtx door = cage;
-        if (phase == BossPhase::Reward || phase == BossPhase::Epilogue) {
+        if (phase == BossPhase::Epilogue) {
             door = transform({doorHinge_.x, doorHinge_.y, doorHinge_.z + cageHeight - 100});
-            Mtx_RotateX(&door, 90 * kDegrees, true);
+            Mtx_RotateX(&door, vpCageDoorAngle(state, nowMs) * kDegrees, true);
             Mtx_Translate(&door, -doorHinge_.x, -doorHinge_.y, -doorHinge_.z, true);
         }
         frame.renderer.drawModel(models_[6], door);
@@ -666,7 +710,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         C3D_Mtx world = transform(position, heading);
         C3D_Mtx torso = world;
         C3D_Mtx head = world;
-        for (int part = 0; part < kParts; ++part) {
+        for (int part = 0; part < kParts && phase != BossPhase::Reward && phase != BossPhase::Epilogue; ++part) {
             C3D_Mtx partWorld = part == 1 ? torso : part == 2 ? head : world;
             render::Anim& animation = animations_[part];
             if (animation.loaded()) {
@@ -692,7 +736,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             }
         }
         for (const Projectile& pie : pies_) {
-            if (!pie.active) continue;
+            if (!pie.active || pie.age < 0) continue;
             C3D_Mtx matrix = transform(pie.previous, pie.heading, 1.5f);
             frame.renderer.drawModel(models_[11], matrix);
         }
@@ -774,10 +818,26 @@ bool BossBattle::frame(BossFrame& frame) {
     const BossPhase phase = bossPhase(state.phase);
     if (!state.active || state.doId != bossId_ || frame.client.ownStats().hp <= 0 ||
         (failed_ && (frame.input.down & KEY_B)) ||
-        (phase == BossPhase::Epilogue && ((frame.input.down & KEY_A) ||
+        (phase == BossPhase::Epilogue && nowMs - state.phaseMs >= 1500 && ((frame.input.down & KEY_A) ||
          (frame.test.active() && !std::strcmp(frame.test.label(), "boss: end"))))) {
         leave(frame);
         return false;
+    }
+    if (!ready_ && !failed_) {
+        // WaitForToons is only five seconds. Register and acknowledge arrival while
+        // the SD loader fills the arena, then use Elevator's longer movie window.
+        if (!entered_) entered_ = frame.client.sendBossEnter();
+        if (nowMs - state.phaseMs >= 500 && !std::strcmp(state.phase, "WaitForToons")) {
+            for (int index = 0; index < state.numBarriers; ++index) {
+                const net::BossBarrier& barrier = state.barriers[index];
+                if (barrier.waitingForUs && !std::strcmp(barrier.name, "WaitForToons") &&
+                    (!haveAcknowledged_[index] || acknowledged_[index] != barrier.context) &&
+                    frame.client.sendBossBarrier(barrier.context)) {
+                    acknowledged_[index] = barrier.context;
+                    haveAcknowledged_[index] = true;
+                }
+            }
+        }
     }
     if (ready_) updateFight(frame, state, nowMs);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);

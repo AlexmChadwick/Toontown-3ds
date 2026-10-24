@@ -60,6 +60,7 @@ private:
     void release();
     void leave(BossFrame& frame);
     void loadAssets();
+    static void pushBoss(void* user, float* x, float* y, float z, float radius);
     static bool rampFloor(void* user, float x, float y, float z, float* top);
     void selectClip(const char* name);
     void publishClip();
@@ -103,6 +104,8 @@ private:
     float rampFraction_[3] = {};
     Vec3 doorHinge_ = {};
     DynamicSolids solids_;
+    Vec3 bossPosition_ = {};
+    bool bossSolid_ = false;
     Projectile pies_[kProjectiles];
     Projectile gears_[kProjectiles];
     uint32_t strafeRevision_ = 0;

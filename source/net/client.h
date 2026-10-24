@@ -1714,6 +1714,7 @@ public:
     bool sendVpHitInsides();
     bool sendVpHit();
     bool sendVpFinalPie();
+    bool sendVpHitToon(uint32_t toonId);
     bool sendBossZap(float x, float y, float z, float heading, float directionX,
                      float directionY, uint8_t attack);
 private:

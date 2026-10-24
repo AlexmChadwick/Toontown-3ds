@@ -11,6 +11,8 @@ enum class BossPhase { Off, Arrival, Intro, Round, Transition, Pies, FinalPie, V
 BossPhase bossPhase(const char* state);
 float bossBarrierDelay(const char* name);
 Vec3 vpPosition(float damage);
+float vpCageHeight(const net::BossState& state, uint32_t nowMs);
+float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs);
 const char* vpClip(const net::BossState& state, uint32_t nowMs);
 float piePower(float heldSeconds);
 Vec3 piePosition(Vec3 origin, float heading, float pitch, float power, float seconds);

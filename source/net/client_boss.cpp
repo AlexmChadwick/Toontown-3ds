@@ -17,6 +17,7 @@ namespace tt::net {
     static_assert(dc::sigEq(dc::cls::sig_##field, signature), #cls "." #field " wire layout changed")
 BOSS_SIGNATURE(DistributedObject, setBarrierReady, "u16");
 BOSS_SIGNATURE(DistributedSellbotBoss, hitBoss, "u8");
+BOSS_SIGNATURE(DistributedSellbotBoss, hitToon, "u32");
 BOSS_SIGNATURE(DistributedSellbotBoss, hitBossInsides, "");
 BOSS_SIGNATURE(DistributedSellbotBoss, touchCage, "");
 BOSS_SIGNATURE(DistributedSellbotBoss, finalPieSplat, "");
@@ -191,6 +192,18 @@ bool Client::sendVpHit() {
     DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(writer, boss_.doId, DistributedSellbotBoss, hitBoss);
     writer.u8(1); // DistributedSellbotBossAI.hitBoss accepts exactly one damage per pie.
+    return finish(writer);
+}
+
+bool Client::sendVpHitToon(uint32_t toonId) {
+    if (!bossParticipant() || boss_.kind != BossKind::Sellbot || toonId == avatarId_ ||
+        (std::strcmp(boss_.phase, "BattleThree") && std::strcmp(boss_.phase, "NearVictory"))) return false;
+    bool member = false;
+    for (int index = 0; index < boss_.numToons; ++index) member |= boss_.toons[index] == toonId;
+    if (!member) return false;
+    DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(writer, boss_.doId, DistributedSellbotBoss, hitToon);
+    writer.u32(toonId);
     return finish(writer);
 }
 
