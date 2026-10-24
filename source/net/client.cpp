@@ -2845,6 +2845,107 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         r.i16();
         if (!r.ok()) return false;
         if (announce && av != avatarId_) pushEvent(EventType::CatchHitBySuit, av);
+    // ---- DistributedCannonGame ----
+    } else if (fieldId == dc::DistributedCannonGame::k_updateCannonPosition) {
+        const uint32_t av = r.u32();
+        const int32_t zRot = r.i32();
+        const uint32_t ang = r.u32();
+        if (!r.ok()) return false;
+        for (int i = 0; i < m.numParticipants; ++i) {
+            if (m.participants[i] == av) {
+                m.cannonZRot[i] = zRot / 100.0f;
+                m.cannonAngle[i] = ang / 100.0f;
+                break;
+            }
+        }
+        if (announce) pushEventArg(EventType::CannonUpdatePosition, av, 0);
+    } else if (fieldId == dc::DistributedCannonGame::k_setCannonWillFire) {
+        const uint32_t av = r.u32();
+        const int32_t fireTime = r.i32();
+        const int32_t zRot = r.i32();
+        const uint32_t ang = r.u32();
+        if (!r.ok()) return false;
+        for (int i = 0; i < m.numParticipants; ++i) {
+            if (m.participants[i] == av) {
+                m.cannonFireTime[i] = fireTime / 100.0f;
+                m.cannonZRot[i] = zRot / 100.0f;
+                m.cannonAngle[i] = ang / 100.0f;
+                break;
+            }
+        }
+        if (announce) pushEventArg(EventType::CannonWillFire, av, fireTime);
+    } else if (fieldId == dc::DistributedCannonGame::k_announceToonWillLandInWater) {
+        const uint32_t av = r.u32();
+        const int32_t landTime = r.i32();
+        if (!r.ok()) return false;
+        m.cannonLandedAv = av;
+        m.cannonLandTime = landTime / 100.0f;
+        if (announce) pushEventArg(EventType::CannonLandedInWater, av, landTime);
+
+    // ---- DistributedTugOfWarGame ----
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_sendGameType) {
+        m.tugGameType = r.u8();
+        m.tugSuitType = r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TugGameType, m.doId, (m.tugGameType << 8) | m.tugSuitType);
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_sendGoSignal) {
+        const uint16_t bytes = r.u16();
+        r.skip(bytes);
+        if (!r.ok()) return false;
+        m.tugGo = true;
+        if (announce) pushEvent(EventType::TugGoSignal, m.doId);
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_sendStopSignal) {
+        const uint16_t wlen = r.u16(); r.skip(wlen);
+        const uint16_t llen = r.u16(); r.skip(llen);
+        const uint16_t tlen = r.u16(); r.skip(tlen);
+        if (!r.ok()) return false;
+        m.tugStopped = true;
+        if (announce) pushEvent(EventType::TugStopSignal, m.doId);
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_sendCurrentPosition) {
+        const uint16_t avBytes = r.u16();
+        uint32_t avs[kMinigamePlayers] = {};
+        const int avCount = int(avBytes / 4);
+        for (int i = 0; i < avCount && r.ok(); ++i) {
+            uint32_t av = r.u32();
+            if (i < kMinigamePlayers) avs[i] = av;
+        }
+        const uint16_t offBytes = r.u16();
+        const int offCount = int(offBytes / 2);
+        for (int i = 0; i < offCount && r.ok(); ++i) {
+            int16_t off = r.i16();
+            if (i < avCount) {
+                for (int j = 0; j < m.numParticipants; ++j) {
+                    if (m.participants[j] == avs[i]) {
+                        m.tugOffsets[j] = off / 1000.0f;
+                        break;
+                    }
+                }
+            }
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::TugPosition, m.doId);
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_sendSuitPosition) {
+        m.tugSuitOffset = r.i32() / 1000.0f;
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::TugPosition, m.doId);
+    } else if (fieldId == dc::DistributedTugOfWarGame::k_remoteKeyRateUpdate) {
+        const uint32_t av = r.u32();
+        const uint32_t rate = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TugRemoteKeyRate, av, int32_t(rate));
+
+    // ---- DistributedRingGame ----
+    } else if (fieldId == dc::DistributedRingGame::k_setTimeBase) {
+        m.ringTimeBase = r.i16();
+    } else if (fieldId == dc::DistributedRingGame::k_setColorIndices) {
+        m.ringColorIndices[0] = r.i8();
+        m.ringColorIndices[1] = r.i8();
+        m.ringColorIndices[2] = r.i8();
+        m.ringColorIndices[3] = r.i8();
+    } else if (fieldId == dc::DistributedRingGame::k_setRingGroupResults) {
+        m.ringGroupResult = r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::RingGroupResults, m.doId, m.ringGroupResult);
     } else {
         skipField(r, fieldId); // setStartingVotes, setMetagameRound, game-specific fields
     }
@@ -3022,6 +3123,74 @@ bool Client::sendCatchHitBySuit(uint32_t avId) {
     TT_NET_UPDATE(w, minigame_.doId, DistributedCatchGame, hitBySuit);
     w.u32(avId);
     w.i16(networkTime(now_));
+    return finish(w);
+}
+
+bool Client::sendCannonPosition(float zRot, float angle) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCannonGame, setCannonPosition);
+    w.i32(int32_t(zRot * 100.0f));
+    w.u32(uint32_t(angle * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCannonLit(float zRot, float angle) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCannonGame, setCannonLit);
+    w.i32(int32_t(zRot * 100.0f));
+    w.u32(uint32_t(angle * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCannonToonWillLandInWater(float landTime) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCannonGame, setToonWillLandInWater);
+    w.i32(int32_t(landTime * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendTugPlayerReady(uint8_t side) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTugOfWarGame, reportPlayerReady);
+    w.u8(side);
+    return finish(w);
+}
+
+bool Client::sendTugKeyRate(uint32_t rate, float force) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTugOfWarGame, reportCurrentKeyRate);
+    w.u32(rate);
+    w.i16(int16_t(force * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendTugEndOfContest(uint8_t losingSide) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTugOfWarGame, reportEndOfContest);
+    w.u8(losingSide);
+    return finish(w);
+}
+
+bool Client::sendTugNewAvIdList(const uint32_t* avIds, int count) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTugOfWarGame, sendNewAvIdList);
+    w.u16(uint16_t(count * 4));
+    for (int i = 0; i < count; ++i) w.u32(avIds[i]);
+    return finish(w);
+}
+
+bool Client::sendRingToonGotRing(uint8_t success) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedRingGame, setToonGotRing);
+    w.u8(success);
     return finish(w);
 }
 

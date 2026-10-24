@@ -7,6 +7,13 @@ set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OTT="${1:-$ROOT/ref/open-toontown}"
+if [ ! -d "$OTT/toontown" ]; then
+    if [ -d "$ROOT/ref/ref/open-toontown/toontown" ]; then
+        OTT="$ROOT/ref/ref/open-toontown"
+    else
+        OTT="/Users/alexchadwick/toontown-3ds/ref/open-toontown"
+    fi
+fi
 PY="${PY:-$ROOT/.venv/bin/python}"
 OUT="$HERE/out"
 mkdir -p "$OUT"

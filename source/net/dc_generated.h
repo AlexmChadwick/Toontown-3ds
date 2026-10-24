@@ -899,6 +899,78 @@ constexpr const char* sig_reportDone = "";
 constexpr const char* sig_setEveryoneDone = "";
 } // namespace DistributedCatchGame
 
+namespace DistributedCannonGame {
+constexpr uint16_t kClassId = 124;
+constexpr uint16_t k_setCannonPosition = 867;
+constexpr uint16_t k_setCannonLit = 868;
+constexpr uint16_t k_updateCannonPosition = 869;
+constexpr uint16_t k_setCannonWillFire = 870;
+constexpr uint16_t k_setToonWillLandInWater = 871;
+constexpr uint16_t k_announceToonWillLandInWater = 872;
+constexpr uint16_t kw_setCannonPosition = 0x110;
+constexpr uint16_t kw_setCannonLit = 0x110;
+constexpr uint16_t kw_updateCannonPosition = 0x002;
+constexpr uint16_t kw_setCannonWillFire = 0x002;
+constexpr uint16_t kw_setToonWillLandInWater = 0x110;
+constexpr uint16_t kw_announceToonWillLandInWater = 0x002;
+constexpr const char* sig_setCannonPosition = "i32/100,u32/100";
+constexpr const char* sig_setCannonLit = "i32/100,u32/100";
+constexpr const char* sig_updateCannonPosition = "u32,i32/100,u32/100";
+constexpr const char* sig_setCannonWillFire = "u32,i32/100,i32/100,u32/100";
+constexpr const char* sig_setToonWillLandInWater = "i32/100";
+constexpr const char* sig_announceToonWillLandInWater = "u32,i32/100";
+} // namespace DistributedCannonGame
+
+namespace DistributedTugOfWarGame {
+constexpr uint16_t kClassId = 130;
+constexpr uint16_t k_reportPlayerReady = 893;
+constexpr uint16_t k_sendGoSignal = 894;
+constexpr uint16_t k_sendStopSignal = 895;
+constexpr uint16_t k_sendGameType = 896;
+constexpr uint16_t k_reportEndOfContest = 897;
+constexpr uint16_t k_sendNewAvIdList = 898;
+constexpr uint16_t k_reportCurrentKeyRate = 899;
+constexpr uint16_t k_sendCurrentPosition = 900;
+constexpr uint16_t k_sendSuitPosition = 901;
+constexpr uint16_t k_remoteKeyRateUpdate = 902;
+constexpr uint16_t kw_reportPlayerReady = 0x110;
+constexpr uint16_t kw_sendGoSignal = 0x002;
+constexpr uint16_t kw_sendStopSignal = 0x002;
+constexpr uint16_t kw_sendGameType = 0x002;
+constexpr uint16_t kw_reportEndOfContest = 0x110;
+constexpr uint16_t kw_sendNewAvIdList = 0x110;
+constexpr uint16_t kw_reportCurrentKeyRate = 0x110;
+constexpr uint16_t kw_sendCurrentPosition = 0x002;
+constexpr uint16_t kw_sendSuitPosition = 0x002;
+constexpr uint16_t kw_remoteKeyRateUpdate = 0x002;
+constexpr const char* sig_reportPlayerReady = "u8";
+constexpr const char* sig_sendGoSignal = "u8[]";
+constexpr const char* sig_sendStopSignal = "u32[],u32[],u32[]";
+constexpr const char* sig_sendGameType = "u8,u8";
+constexpr const char* sig_reportEndOfContest = "u8";
+constexpr const char* sig_sendNewAvIdList = "u32[]";
+constexpr const char* sig_reportCurrentKeyRate = "u32,i16/100";
+constexpr const char* sig_sendCurrentPosition = "u32[],i16/1000[]";
+constexpr const char* sig_sendSuitPosition = "i32/1000";
+constexpr const char* sig_remoteKeyRateUpdate = "u32,u32";
+} // namespace DistributedTugOfWarGame
+
+namespace DistributedRingGame {
+constexpr uint16_t kClassId = 127;
+constexpr uint16_t k_setTimeBase = 882;
+constexpr uint16_t k_setColorIndices = 883;
+constexpr uint16_t k_setToonGotRing = 884;
+constexpr uint16_t k_setRingGroupResults = 885;
+constexpr uint16_t kw_setTimeBase = 0x007;
+constexpr uint16_t kw_setColorIndices = 0x007;
+constexpr uint16_t kw_setToonGotRing = 0x110;
+constexpr uint16_t kw_setRingGroupResults = 0x002;
+constexpr const char* sig_setTimeBase = "i16";
+constexpr const char* sig_setColorIndices = "i8,i8,i8,i8";
+constexpr const char* sig_setToonGotRing = "u8";
+constexpr const char* sig_setRingGroupResults = "u8";
+} // namespace DistributedRingGame
+
 namespace PurchaseManager {
 constexpr uint16_t kClassId = 176;
 constexpr uint16_t k_setPlayerIds = 1133;
@@ -1167,10 +1239,6 @@ namespace DistributedRaceGame {
 constexpr uint16_t kClassId = 123;
 } // namespace DistributedRaceGame
 
-namespace DistributedCannonGame {
-constexpr uint16_t kClassId = 124;
-} // namespace DistributedCannonGame
-
 namespace DistributedPhotoGame {
 constexpr uint16_t kClassId = 125;
 } // namespace DistributedPhotoGame
@@ -1179,10 +1247,6 @@ namespace DistributedPatternGame {
 constexpr uint16_t kClassId = 126;
 } // namespace DistributedPatternGame
 
-namespace DistributedRingGame {
-constexpr uint16_t kClassId = 127;
-} // namespace DistributedRingGame
-
 namespace DistributedTagGame {
 constexpr uint16_t kClassId = 128;
 } // namespace DistributedTagGame
@@ -1190,10 +1254,6 @@ constexpr uint16_t kClassId = 128;
 namespace DistributedMazeGame {
 constexpr uint16_t kClassId = 129;
 } // namespace DistributedMazeGame
-
-namespace DistributedTugOfWarGame {
-constexpr uint16_t kClassId = 130;
-} // namespace DistributedTugOfWarGame
 
 namespace DistributedDivingGame {
 constexpr uint16_t kClassId = 132;

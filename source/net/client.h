@@ -134,6 +134,18 @@ enum class EventType : uint8_t {
     CatchCaught,        // DistributedCatchGame.setObjectCaught: doId = avId, arg = objNum
     CatchEveryoneDone,  // DistributedCatchGame.setEveryoneDone
     CatchHitBySuit,     // DistributedCatchGame.hitBySuit from another player: doId = avId
+    // ---- Cannon (DistributedCannonGame) ----
+    CannonUpdatePosition,
+    CannonWillFire,
+    CannonLandedInWater,
+    // ---- Tug of War (DistributedTugOfWarGame) ----
+    TugGoSignal,
+    TugStopSignal,
+    TugGameType,
+    TugPosition,
+    TugRemoteKeyRate,
+    // ---- Ring (DistributedRingGame) ----
+    RingGroupResults,
     PurchaseUp,         // a PurchaseManager / NewbiePurchaseManager generated (purchase())
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
@@ -395,6 +407,27 @@ struct Minigame {
     bool exitMsg;
     bool aborted;
     bool active;
+
+    // ---- game-specific minigame state ----
+    // Cannon:
+    float cannonZRot[kMinigamePlayers] = {};
+    float cannonAngle[kMinigamePlayers] = {};
+    float cannonFireTime[kMinigamePlayers] = {};
+    float cannonLandTime = 0.0f;
+    uint32_t cannonLandedAv = 0;
+
+    // Tug of War:
+    uint8_t tugGameType = 0;
+    uint8_t tugSuitType = 1;
+    float tugOffsets[kMinigamePlayers] = {};
+    float tugSuitOffset = 0.0f;
+    bool tugGo = false;
+    bool tugStopped = false;
+
+    // Ring:
+    int16_t ringTimeBase = 0;
+    int8_t ringColorIndices[4] = {-1, -1, -1, -1};
+    uint8_t ringGroupResult = 0;
 };
 // PurchaseManager (176) / NewbiePurchaseManager (177): generated in the minigame's zone when
 // the game ends. minigamePoints[i] is the payout of playerIds[i] (already added to the toon).
@@ -712,6 +745,17 @@ public:
     bool sendCatchClaim(uint32_t objNum, uint32_t typeId);
     bool sendCatchDone();
     bool sendCatchHitBySuit(uint32_t avId);
+    // DistributedCannonGame.
+    bool sendCannonPosition(float zRot, float angle);
+    bool sendCannonLit(float zRot, float angle);
+    bool sendCannonToonWillLandInWater(float landTime);
+    // DistributedTugOfWarGame.
+    bool sendTugPlayerReady(uint8_t side);
+    bool sendTugKeyRate(uint32_t rate, float force);
+    bool sendTugEndOfContest(uint8_t losingSide);
+    bool sendTugNewAvIdList(const uint32_t* avIds, int count);
+    // DistributedRingGame.
+    bool sendRingToonGotRing(uint8_t success);
     // PurchaseManager: requestExit ("Back to Playground"), then setInventory(done=1) after
     // setPurchaseExit with the inventory and money the server last told us (the payout is
     // already in ownStats().money). False when there is no purchase manager.

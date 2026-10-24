@@ -109,6 +109,12 @@ WANTED = {
                             'setDifficultyOverrides', 'setAvatarJoined', 'setAvatarReady', 'setAvatarExited',
                             'requestExit', 'setGameReady', 'setGameStart', 'setGameExit', 'setGameAbort'],
     'DistributedCatchGame': ['claimCatch', 'setObjectCaught', 'hitBySuit', 'reportDone', 'setEveryoneDone'],
+    'DistributedCannonGame': ['setCannonPosition', 'setCannonLit', 'updateCannonPosition',
+                             'setCannonWillFire', 'setToonWillLandInWater', 'announceToonWillLandInWater'],
+    'DistributedTugOfWarGame': ['reportPlayerReady', 'sendGoSignal', 'sendStopSignal', 'sendGameType',
+                               'reportEndOfContest', 'sendNewAvIdList', 'reportCurrentKeyRate',
+                               'sendCurrentPosition', 'sendSuitPosition', 'remoteKeyRateUpdate'],
+    'DistributedRingGame': ['setTimeBase', 'setColorIndices', 'setToonGotRing', 'setRingGroupResults'],
     'PurchaseManager': ['setPlayerIds', 'setNewbieIds', 'setMinigamePoints', 'setPlayerMoney',
                         'setPlayerStates', 'setCountdown', 'setMetagameRound', 'setVotesArray',
                         'requestExit', 'requestPlayAgain', 'setInventory', 'setPurchaseExit'],
@@ -545,7 +551,13 @@ def emit_vectors(dc, path):
 
 
 def main(argv):
-    dc = load(argv[1])
+    etc = argv[1] if len(argv) > 1 and not argv[1].startswith('-') else 'ref/open-toontown/etc'
+    if not os.path.exists(os.path.join(etc, 'otp.dc')):
+        for candidate in ['ref/ref/open-toontown/etc', '/Users/alexchadwick/toontown-3ds/ref/open-toontown/etc']:
+            if os.path.exists(os.path.join(candidate, 'otp.dc')):
+                etc = candidate
+                break
+    dc = load(etc)
     if len(argv) > 3 and argv[2] == '--vectors':
         emit_vectors(dc, argv[3])
         return
