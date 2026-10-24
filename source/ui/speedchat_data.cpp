@@ -4,33 +4,35 @@
 namespace tt::sc {
 
 const Menu kMenus[kNumMenus] = {
-    {"SpeedChat", 0, 14, -1}, // 0
-    {"HELLO", 14, 10, 0}, // 1
-    {"GOODBYE", 24, 10, 0}, // 2
-    {"HAPPY", 34, 16, 0}, // 3
-    {"SAD", 50, 11, 0}, // 4
-    {"FRIENDLY", 61, 18, 0}, // 5
-    {"You...", 79, 4, 5}, // 6
-    {"I like...", 83, 6, 5}, // 7
-    {"SORRY", 89, 19, 0}, // 8
-    {"STINKY", 108, 7, 0}, // 9
-    {"PLACES", 115, 14, 0}, // 10
-    {"PLAYGROUND", 129, 12, 10}, // 11
-    {"COGS", 141, 16, 10}, // 12
-    {"ESTATE", 157, 5, 10}, // 13
-    {"PARTIES", 162, 4, 10}, // 14
-    {"WAIT", 166, 7, 10}, // 15
-    {"TOONTASKS", 173, 10, 0}, // 16
-    {"I think you should choose...", 183, 5, 16}, // 17
-    {"I need more...", 188, 8, 16}, // 18
-    {"BATTLE", 196, 11, 0}, // 19
-    {"GAGS", 207, 10, 19}, // 20
-    {"TAUNTS", 217, 11, 19}, // 21
-    {"STRATEGY", 228, 12, 19}, // 22
-    {"GAG SHOP", 240, 7, 0}, // 23
+    {"SpeedChat", 0, 15, -1}, // 0
+    {"HELLO", 15, 10, 0}, // 1
+    {"GOODBYE", 25, 10, 0}, // 2
+    {"HAPPY", 35, 16, 0}, // 3
+    {"SAD", 51, 11, 0}, // 4
+    {"FRIENDLY", 62, 18, 0}, // 5
+    {"You...", 80, 4, 5}, // 6
+    {"I like...", 84, 6, 5}, // 7
+    {"SORRY", 90, 19, 0}, // 8
+    {"STINKY", 109, 7, 0}, // 9
+    {"PLACES", 116, 14, 0}, // 10
+    {"PLAYGROUND", 130, 12, 10}, // 11
+    {"COGS", 142, 16, 10}, // 12
+    {"ESTATE", 158, 5, 10}, // 13
+    {"PARTIES", 163, 4, 10}, // 14
+    {"WAIT", 167, 7, 10}, // 15
+    {"TOONTASKS", 174, 10, 0}, // 16
+    {"I think you should choose...", 184, 5, 16}, // 17
+    {"I need more...", 189, 8, 16}, // 18
+    {"BATTLE", 197, 11, 0}, // 19
+    {"GAGS", 208, 10, 19}, // 20
+    {"TAUNTS", 218, 11, 19}, // 21
+    {"STRATEGY", 229, 12, 19}, // 22
+    {"GAG SHOP", 241, 7, 0}, // 23
+    {"Emotes", 248, 24, 0}, // 24
 };
 
 const Item kItems[kNumItems] = {
+    {"Emotes", 24, -1, 1},
     {"HELLO", 1, -1, 1},
     {"GOODBYE", 2, -1, 1},
     {"HAPPY", 3, -1, 1},
@@ -278,6 +280,30 @@ const Item kItems[kNumItems] = {
     {"One more?", 1604, -1, 0},
     {"Play again?", 1605, -1, 0},
     {"Let's play again.", 1606, -1, 0},
+    {"Wave", 65535, 0, 0},
+    {"Happy", 65535, 1, 0},
+    {"Sad", 65535, 2, 0},
+    {"Angry", 65535, 3, 0},
+    {"Sleepy", 65535, 4, 0},
+    {"Shrug", 65535, 5, 0},
+    {"Dance", 65535, 6, 0},
+    {"Think", 65535, 7, 0},
+    {"Bored", 65535, 8, 0},
+    {"Applause", 65535, 9, 0},
+    {"Cringe", 65535, 10, 0},
+    {"Confused", 65535, 11, 0},
+    {"Belly Flop", 65535, 12, 0},
+    {"Bow", 65535, 13, 0},
+    {"Banana Peel", 65535, 14, 0},
+    {"Resistance Salute", 65535, 15, 0},
+    {"Yes", 65535, 17, 0},
+    {"No", 65535, 18, 0},
+    {"OK", 65535, 19, 0},
+    {"Surprise", 65535, 20, 0},
+    {"Cry", 65535, 21, 0},
+    {"Delighted", 65535, 22, 0},
+    {"Furious", 65535, 23, 0},
+    {"Laugh", 65535, 24, 0},
 };
 
 const Phrase kPhrases[kNumPhrases] = {

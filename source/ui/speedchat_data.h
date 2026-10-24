@@ -25,10 +25,10 @@ struct Phrase {
     const char* text;
 };
 
-constexpr int kNumMenus = 24;
-constexpr int kNumItems = 247;
+constexpr int kNumMenus = 25;
+constexpr int kNumItems = 272;
 constexpr int kNumMenuTerminals = 224;
-constexpr int kMaxMenuItems = 19;
+constexpr int kMaxMenuItems = 24;
 constexpr int kMaxDepth = 2; // root = depth 0
 constexpr int kNumPhrases = 1047;
 constexpr int kMaxMenuGlyphs = 412; // title + all labels of the largest menu (C2D_TextBuf sizing)

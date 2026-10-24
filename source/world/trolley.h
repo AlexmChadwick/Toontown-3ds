@@ -2,8 +2,7 @@
 // station's trolley_sphere while it waits, the AI seats us (fillSlotN), a 10 s countdown runs,
 // and setMinigameZone hands the ride to a minigame. B hops off (requestExit).
 //
-// The car itself is baked into the zone as static geometry (trolley.md 1.3 "Bake gap"), so it
-// does not drive in or out yet; seating, the countdown and the hand-off work.
+// The car is a separate baked mover. Body seating clips use the bounded Toon streamer.
 #pragma once
 
 #include <3ds.h>
@@ -15,6 +14,7 @@
 
 namespace tt::world {
 
+class ToonAvatar;
 class TrolleyRide {
 public:
     // New zone: the station transform of this playground (none outside the six trolley hoods).
@@ -24,10 +24,12 @@ public:
     // while the trolley waits. hp <= 0 can't board (Trolley.py "trolley HFA").
     void update(net::Client& client, float x, float y, float z, int hp, u32 nowMs);
     void hopOff(net::Client& client);
+    void applyAnimation(ToonAvatar& avatar,u32 nowMs) const;
     // The car (zones/<hood>_trolley.ttm), driving in and out with the trolley's setState.
     void draw(render::Renderer& renderer, const net::Client& client, u32 nowMs);
     void shutdown() { car_.unload(); }
 
+    const char* toonNetworkState(u32 nowMs) const { return static_cast<s32>(nowMs-seatSinceMs_)<917?"SitStart":"Sit"; }
     bool seated() const { return seat_ >= 0; }
     void seatPose(float* x, float* y, float* z, float* h) const;
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
@@ -65,6 +67,7 @@ private:
     float px_ = 0, py_ = 0, pz_ = 0, ph_ = 0; // station node (DNA pos / H)
     float sphereY_ = 14.88f;                  // trolley_sphere centre y in station space (DG 13.88)
     int seat_ = -1;
+    u32 seatSinceMs_ = 0;
     int exitSeat_ = -1;
     bool inSphere_ = false;  // board once per entry
     bool requested_ = false;

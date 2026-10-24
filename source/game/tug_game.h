@@ -8,6 +8,8 @@
 #include "render/model.h"
 #include "render/renderer.h"
 
+namespace tt::world { class ToonAvatar; }
+
 namespace tt::game {
 
 class TugGame {
@@ -18,6 +20,7 @@ public:
     void draw(render::Renderer& renderer);
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const { return state_ == State::Tugging; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
 

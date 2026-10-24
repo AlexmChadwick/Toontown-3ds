@@ -7,22 +7,21 @@
 
 #include "render/renderer.h"
 #include "world/toon_cache.h"
+#include "world/toon_playback.h"
+#include "world/toon_emote.h"
 
 namespace tt::world {
 
-enum ToonAnim : int { kAnimNeutral = 0, kAnimWalk, kAnimRun, kAnimJumpIdle, kAnimWave, kAnimCount };
 static_assert(kAnimCount == kToonAnimCount, "clip table size");
-// Clip names as baked (tools/pipeline/bake_toon.py ANIMS).
-extern const char* const kToonAnimNames[kAnimCount];
 
 // Extra clips for one toon's parts, loaded on demand (battle clips for the local toon) instead
 // of with every look: <part key>_<name>.tta from the SD set, one per part (legs, torso, head).
 struct ToonClipSet {
     static constexpr int kMax = 8;
-    render::Anim clip[kMax][3];
+    ToonAnim clips[kMax] = {};
     int count = 0;
-    const ToonLook* look = nullptr; // the look the clips were loaded for
-    // Main thread; loads synchronously (a few hundred KB). Replaces what was loaded before.
+    const ToonLook* look = nullptr;
+    // Compatibility booking only; actual battle IO uses the bounded shared streamer.
     void load(const ToonLook& look, const char* const* names, int n);
     void unload();
 };
@@ -39,7 +38,22 @@ public:
     void play(ToonAnim anim, float rate);
     // Plays clip `index` of `set` (held on its last frame unless `loop`); play() goes back.
     void playClip(const ToonClipSet* set, int index, bool loop);
-    void update(float dt) { time_ += dt * rate_; }
+    void playAction(ToonAnim anim, ClipMode mode, float rate=1, float start=0, float end=-1,
+                    bool restart=false, float seek=0);
+    void seek(float elapsed) { playback_.elapsed=elapsed>=0?elapsed:0; }
+    void hold(ToonAnim anim,float sourceTime) { playAction(anim,ClipMode::Hold,0,sourceTime); }
+    bool finished() const;
+    bool actionActive() const { return playback_.mode==ClipMode::Once && !finished(); }
+    u32 token() const { return playback_.token; }
+    void cancel();
+    bool playEmote(int id,float elapsed=0);
+    bool emoteActive() const { return emote_>=0; }
+    bool bodyLocked() const { return bodyEmote(emote_); }
+    bool popEmoteFinished() { const bool done=emoteFinished_; emoteFinished_=false; return done; }
+    void update(float dt);
+    void setHeadOnly(bool on) { headOnly_=on; }
+    void setBodyPose(float pitch=0,float z=0) { bodyPitch_=pitch;bodyZ_=z; }
+    void setHeadPitch(float pitch) { headPitch_=pitch; }
     // `world` places the toon's feet; body scale and clothing come from the look.
     // tintOverride (optional) replaces the look's DNA colours (offline colour picker).
     void draw(render::Renderer& renderer, const C3D_Mtx& world, const render::Tints* tintOverride = nullptr) const;
@@ -51,10 +65,12 @@ private:
     const ToonLook* fallback_ = nullptr;
     ToonAnim anim_ = kAnimNeutral;
     float rate_ = 1.0f;
-    float time_ = 0.0f;
-    const ToonClipSet* extra_ = nullptr;
-    int extraIndex_ = -1;
-    bool extraLoop_ = false;
+    ToonPlayback playback_;
+    int emote_ = -1;
+    float emoteAge_ = 0;
+    bool emoteFinished_ = false, headOnly_ = false;
+    float bodyPitch_=0,bodyZ_=0,headPitch_=-45;
+
 };
 
 } // namespace tt::world

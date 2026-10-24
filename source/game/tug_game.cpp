@@ -1,4 +1,5 @@
 #include "game/tug_game.h"
+#include "world/toon_avatar.h"
 
 #include <cmath>
 #include <cstdio>
@@ -190,6 +191,11 @@ void TugGame::draw(render::Renderer& renderer) {
         Mtx_Scale(&m, len, 1.0f, 1.0f);
         renderer.drawModel(rope_, m);
     }
+}
+
+void TugGame::applyAnimation(world::ToonAvatar& avatar) const {
+    if(state_==State::Tugging && tracker_.rate()>0) avatar.playAction(world::kAnimTugOWar,world::ClipMode::Loop);
+    else avatar.hold(world::kAnimTugOWar,3/24.0f);
 }
 
 } // namespace tt::game

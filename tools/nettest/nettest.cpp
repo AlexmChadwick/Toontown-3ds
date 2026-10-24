@@ -188,6 +188,7 @@ int runClient(const Options& o) {
     uint32_t lastSend = 0;
     int spawns = 0, despawns = 0, poses = 0, anims = 0, chats = 0, zoneEntries = 0, leftZone = 0;
     bool sentAnim = false;
+    int emotes=0;bool sentEmote=false;
     float angle = 0.0f;
     uint32_t maxUpdateUs = 0;
     while (plat::nowMs() - start < uint32_t(o.seconds) * 1000u) {
@@ -197,6 +198,11 @@ int runClient(const Options& o) {
         uint32_t dt = plat::nowMs() - t0;
         if (dt * 1000 > maxUpdateUs) maxUpdateUs = dt * 1000;
 
+        if(client.inZone() && client.ownStats().hasEmotes && !sentEmote) {
+            CHECK(!client.sendEmote(25));CHECK(!client.sendEmote(-2));
+            CHECK(!client.sendEmote(0,NAN));
+            CHECK(client.sendEmote(0));CHECK(client.sendEmote(-1));sentEmote=true;
+        }
         Event ev;
         while (client.pollEvent(ev)) {
             const RemoteToon* t = client.findToon(ev.doId);
@@ -216,6 +222,11 @@ int runClient(const Options& o) {
                            unsigned(t->doId), t->x, t->y, t->z, t->h, int(now - t->sampleMs));
                 }
                 break;
+            case EventType::Emote:
+                CHECK(t && t->emoteId>=0 && t->emoteId<25);
+                if(t && t->doId==100000001) CHECK(t->emoteId==24);
+                if(t) { CHECK(int32_t(now-t->emoteMs)>=-20 && int32_t(now-t->emoteMs)<500);++emotes; }
+                break;
             case EventType::Anim:
                 ++anims;
                 if (t) TT_LOG("test: anim %u %s x%.2f", unsigned(t->doId), t->animState, t->animRate);
@@ -229,7 +240,7 @@ int runClient(const Options& o) {
                 TT_LOG("test: ENTERED ZONE as %u \"%s\" in \"%s\", %d toons, time synced %d",
                        unsigned(client.avatarId()), client.avatarName(), client.districtName(),
                        client.numRemoteToons(), int(client.timeSynced()));
-                sentAnim = false;
+                sentAnim = false;sentEmote=false;
                 break;
             case EventType::LeftZone: ++leftZone; TT_LOG("test: LEFT ZONE"); break;
             case EventType::SuitPlannerUp:
@@ -275,6 +286,7 @@ int runClient(const Options& o) {
            client.droppedEvents(), maxUpdateUs, client.lastError());
     client.stop();
     plat::sleepMs(100);
+    if(o.expectZone && o.seconds>=6) CHECK(emotes>0);
     conn.shutdown();
 
     int rc = 0;
@@ -286,7 +298,7 @@ int runClient(const Options& o) {
         printf("FAIL: expected a drop and a successful re-entry\n");
         rc = 1;
     }
-    return rc;
+    return rc || gFailures?1:0;
 }
 
 } // namespace

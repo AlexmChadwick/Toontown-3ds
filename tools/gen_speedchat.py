@@ -28,7 +28,7 @@ import os
 import sys
 
 ROOT_TITLE = 'SpeedChat'
-SKIPPED_PREFIX_MENUS = ['PROMOTIONAL (TTSCPromotionalMenu)', 'EMOTIONS (SCEmoteMenu, setSCEmote)',
+SKIPPED_PREFIX_MENUS = ['PROMOTIONAL (TTSCPromotionalMenu)',
                         'MY PHRASES (SCCustomMenu, setSCCustom)', 'UNITE! (TTSCResistanceMenu, setSCResistance)',
                         'PETS (scPetMenuStructure, only when base.wantPets)']
 
@@ -119,6 +119,13 @@ def main(repo, outdir):
         return idx
 
     build(ROOT_TITLE, -1, structure)
+    # Public body emotes use setEmoteState, not phrase IDs or private setSCEmote.
+    emotes = len(menus)
+    menus.append(['Emotes',0,[]])
+    for i,label in enumerate(loc.EmoteList):
+        if i==16: continue  # legacy Laugh is doNothing; the dictionary's Laugh resolves to 24
+        menus[emotes][2].append(('emote',i,label))
+    menus[0][2].insert(0,('menu',emotes))
 
     items = []
     first = []
@@ -141,7 +148,7 @@ def main(repo, outdir):
         return sum(1 for ch in t if not ch.isspace())
 
     def label(it):
-        return menus[it[1]][0] if it[0] == 'menu' else phrases[it[1]]
+        return menus[it[1]][0] if it[0] == 'menu' else it[2] if it[0]=='emote' else phrases[it[1]]
 
     max_glyphs = max(glyphs(m[0]) + sum(glyphs(label(it)) for it in m[2]) for m in menus)
     phrase_bytes = sum(len(phrases[k].encode('utf-8')) + 1 for k in sorted_ids)
@@ -200,6 +207,8 @@ const char* phraseText(uint16_t msgIndex);
     for it in items:
         if it[0] == 'menu':
             cpp.append(f'    {{{c_str(menus[it[1]][0])}, {it[1]}, -1, 1}},')
+        elif it[0]=='emote':
+            cpp.append(f'    {{{c_str(it[2])}, 65535, {it[1]}, 0}},')
         else:
             cpp.append(f'    {{{c_str(phrases[it[1]])}, {it[1]}, {it[2]}, 0}},')
     cpp += ['};', '', 'const Phrase kPhrases[kNumPhrases] = {']

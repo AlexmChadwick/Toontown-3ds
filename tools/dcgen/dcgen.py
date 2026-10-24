@@ -50,7 +50,7 @@ WANTED = {
                               'setComponentY', 'setComponentZ', 'setComponentH',
                               'setComponentP', 'setComponentR', 'setComponentT',
                               'clearSmoothing'],
-    'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setTalk', 'setSC',
+    'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setEmoteState', 'setTalk', 'setSC',
                         # Owner-view stats for the HUD (source/net/zone_objects.*).
                         'setHp', 'setMaxHp', 'toonUp', 'takeDamage', 'setMoney', 'setMaxMoney',
                         'setBankMoney', 'setMaxBankMoney', 'setExperience', 'setMaxCarry',

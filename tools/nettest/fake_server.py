@@ -342,7 +342,8 @@ class ClientConn:
             log(f'{self.peer} playing avatar {avId}')
             # Astron activates the toon at (0, 0) and sends the owner view.
             payload = struct.pack('<IIIH', avId, 0, 0, TOON.getNumber()) + self.avatar.required(True)
-            payload += other_blob(TOON, [('setAnimState', '("neutral", 1.0, 0)')])
+            payload += other_blob(TOON, [('setAnimState', '("neutral", 1.0, 0)'),
+                                         ('setEmoteAccess', '([' + ','.join(['1']*25) + '])')])
             self.send(msg(CLIENT_ENTER_OBJECT_REQUIRED_OTHER_OWNER, payload))
 
     def on_own_field(self, f, data):
@@ -462,6 +463,11 @@ async def walker_loop():
         tick += 1
         x, y, z, h = walker_pose(time.monotonic() - T0)
         out = [set_field(WALKER_ID, TOON, 'setSmPosHpr', f'({x:.2f}, {y:.2f}, {z:.2f}, {h:.2f}, 0, 0, {net_time16()})')]
+        if tick % 10 == 0:
+            emote=set_field(WALKER_ID, TOON, 'setEmoteState', f'(24, 1.0, {net_time16()})')
+            out.extend([emote,emote])  # duplicate timestamp must not restart a remote emote
+            out.append(set_field(WALKER_ID,TOON,'setEmoteState',f'(-1, 1.0, {net_time16()})'))
+            out.append(set_field(WALKER_ID,TOON,'setEmoteState',f'(32, 1.0, {net_time16()})'))
         if tick % 30 == 0:
             out.append(set_field(WALKER_ID, TOON, 'setTalk',
                                  f'(0, 0, "Walker", "Hello from the fake server! tick {tick}", [], 0)'))
