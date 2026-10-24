@@ -265,6 +265,9 @@ constexpr uint16_t k_setFishingRod = 533;
 constexpr uint16_t k_setMaxFishTank = 531;
 constexpr uint16_t k_setQuests = 522;
 constexpr uint16_t k_setEarnedExperience = 476;
+constexpr uint16_t k_setQuestHistory = 523;
+constexpr uint16_t k_setRewardHistory = 524;
+constexpr uint16_t k_requestDeleteQuest = 526;
 constexpr uint16_t kw_setName = 0x10b;
 constexpr uint16_t kw_setDNAString = 0x08b;
 constexpr uint16_t kw_setAnimState = 0x146;
@@ -309,6 +312,9 @@ constexpr uint16_t kw_setFishingRod = 0x08b;
 constexpr uint16_t kw_setMaxFishTank = 0x089;
 constexpr uint16_t kw_setQuests = 0x08b;
 constexpr uint16_t kw_setEarnedExperience = 0x080;
+constexpr uint16_t kw_setQuestHistory = 0x089;
+constexpr uint16_t kw_setRewardHistory = 0x089;
+constexpr uint16_t kw_requestDeleteQuest = 0x140;
 constexpr const char* sig_setName = "string";
 constexpr const char* sig_setDNAString = "blob";
 constexpr const char* sig_setAnimState = "string,i16/1000,i16";
@@ -353,6 +359,9 @@ constexpr const char* sig_setFishingRod = "u8";
 constexpr const char* sig_setMaxFishTank = "u8";
 constexpr const char* sig_setQuests = "u32[]";
 constexpr const char* sig_setEarnedExperience = "u16[]";
+constexpr const char* sig_setQuestHistory = "u16[]";
+constexpr const char* sig_setRewardHistory = "u8,u16[]";
+constexpr const char* sig_requestDeleteQuest = "u32[]";
 } // namespace DistributedToon
 
 namespace DistributedNPCToonBase {

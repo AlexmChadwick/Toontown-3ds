@@ -61,7 +61,9 @@ WANTED = {
                         'setDefaultShard', 'setDefaultZone', 'setLastHood', 'setTutorialAck',
                         'setHat', 'setGlasses', 'setBackpack', 'setShoes', 'setCheesyEffect',
                         'setAccessLevel', 'setPinkSlips', 'setNametagStyle', 'setFishingRod',
-                        'setMaxFishTank', 'setQuests', 'setEarnedExperience'],
+                        'setMaxFishTank', 'setQuests', 'setEarnedExperience',
+                        # ToonTasks (source/net quests section, docs/design/quests.md)
+                        'setQuestHistory', 'setRewardHistory', 'requestDeleteQuest'],
     # ---- zone 2000 objects (source/net/zone_objects.*, docs/design/playground.md) ----
     'DistributedNPCToonBase': ['setName', 'setDNAString', 'setPositionIndex', 'setAnimState',
                                'setPageNumber', 'avatarEnter', 'freeAvatar'],

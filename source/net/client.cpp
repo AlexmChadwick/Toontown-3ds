@@ -67,6 +67,21 @@ TT_SIG(DistributedToon, setTrackAccess, "u16[]");
 TT_SIG(DistributedNPCToonBase, setName, "string");
 TT_SIG(DistributedNPCToonBase, setDNAString, "blob");
 TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
+// quests section
+TT_SIG(DistributedToon, setQuests, "u32[]");
+TT_SIG(DistributedToon, setQuestHistory, "u16[]");
+TT_SIG(DistributedToon, setRewardHistory, "u8,u16[]");
+TT_SIG(DistributedToon, setQuestCarryLimit, "u8");
+TT_SIG(DistributedToon, requestDeleteQuest, "u32[]");
+TT_SIG(DistributedNPCToonBase, avatarEnter, "");
+TT_SIG(DistributedNPCToon, setMovie, "u8,u32,u32,u16[],i16");
+TT_SIG(DistributedNPCToon, setMovieDone, "");
+TT_SIG(DistributedNPCToon, chooseQuest, "u16");
+TT_SIG(DistributedNPCToon, chooseTrack, "i8");
+TT_SIG(DistributedNPCSpecialQuestGiver, setMovie, "u8,u32,u32,u16[],i16");
+TT_SIG(DistributedNPCSpecialQuestGiver, setMovieDone, "");
+TT_SIG(DistributedNPCSpecialQuestGiver, chooseQuest, "u16");
+TT_SIG(DistributedNPCSpecialQuestGiver, chooseTrack, "i8");
 TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
 TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
@@ -377,6 +392,8 @@ void Client::resetWorld() {
     for (District& d : districts_) d.active = false;
     numAvatars_ = 0;
     avatarId_ = 0;
+    ownQuests_ = OwnQuests{};
+    movieHead_ = movieTail_ = 0;
     ownerReceived_ = false;
     shardId_ = 0;
     timeManagerId_ = 0;
@@ -712,6 +729,12 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
         return;
+    }
+    for (NpcToon& n : npcs_) {
+        if (n.active && n.doId == doId) {
+            handleNpcField(n, r, fieldId);
+            return;
+        }
     }
     for (Treasure& t : treasures_) {
         if (t.active && t.doId == doId) {
@@ -1090,6 +1113,17 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setMaxCarry) {
         ownStats_.maxCarry = r.u8();
+    } else if (fieldId == dc::DistributedToon::k_setQuests) {
+        if (!parseQuests(r, ownQuests_)) return false;
+        pushEvent(EventType::Quests, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setQuestHistory) {
+        if (!parseQuestHistory(r, ownQuests_)) return false;
+    } else if (fieldId == dc::DistributedToon::k_setRewardHistory) {
+        if (!parseRewardHistory(r, ownQuests_)) return false;
+    } else if (fieldId == dc::DistributedToon::k_setQuestCarryLimit) {
+        ownQuests_.carryLimit = r.u8();
+        ownQuests_.version++;
+        pushEvent(EventType::Quests, avatarId_);
     } else {
         skipField(r, fieldId);
     }
@@ -1125,7 +1159,6 @@ bool Client::applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId
 
 bool Client::handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                             const uint16_t* req, uint16_t reqCount, bool other) {
-    (void)cls;
     NpcToon* n = nullptr;
     for (NpcToon& s : npcs_) {
         if (s.active && s.doId == doId) n = &s;
@@ -1137,6 +1170,9 @@ bool Client::handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t cl
     NpcToon tmp{};
     tmp.doId = doId;
     tmp.classId = classId;
+    tmp.questGiver = classHasField(cls, dc::DistributedNPCToon::k_chooseQuest) ||
+                     classHasField(cls, dc::DistributedNPCSpecialQuestGiver::k_chooseQuest);
+    tmp.special = classHasField(cls, dc::DistributedNPCSpecialQuestGiver::k_chooseQuest);
     bool ok = true;
     for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyNpcField(tmp, r, req[i]);
     if (ok && other) {
@@ -1404,6 +1440,96 @@ bool Client::sendRequestGrab(uint32_t treasureDoId) {
     return finish(w);
 }
 
+// ==== quests (docs/design/quests.md) begin ====
+bool Client::handleNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedNPCToon::k_setMovie || fieldId == dc::DistributedNPCSpecialQuestGiver::k_setMovie) {
+        NpcMovie m;
+        m.npcDoId = n.doId;
+        if (!parseNpcMovie(r, m)) {
+            TT_LOG("net: bad setMovie for NPC %u", unsigned(n.doId));
+            return false;
+        }
+        if (movieTail_ - movieHead_ == uint32_t(kMovieQueue)) movieHead_++; // drop the oldest
+        movies_[movieTail_++ % kMovieQueue] = m;
+        TT_LOG("net: NPC %u movie mode %u for %u (%d values)", unsigned(n.doId), unsigned(m.mode), unsigned(m.avId),
+               m.numValues);
+        pushEvent(EventType::NpcMovie, n.doId);
+        return true;
+    }
+    if (fieldId == dc::DistributedNPCToonBase::k_freeAvatar) {
+        pushEvent(EventType::NpcFree, n.doId);
+        return true;
+    }
+    return true; // setAnimState, setPageNumber, ...: nothing we draw
+}
+
+bool Client::pollNpcMovie(NpcMovie& out) {
+    if (movieHead_ == movieTail_) return false;
+    out = movies_[movieHead_++ % kMovieQueue];
+    return true;
+}
+
+bool Client::sendNpcAvatarEnter(uint32_t npcDoId) {
+    const NpcToon* n = findNpc(npcDoId);
+    if (state_ != State::InZone || !n || !n->questGiver) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, npcDoId, DistributedNPCToonBase, avatarEnter);
+    return finish(w);
+}
+
+bool Client::sendChooseQuest(uint32_t npcDoId, uint16_t questId) {
+    const NpcToon* n = findNpc(npcDoId);
+    if (state_ != State::InZone || !n || !n->questGiver) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    if (n->special) {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCSpecialQuestGiver, chooseQuest);
+    } else {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCToon, chooseQuest);
+    }
+    w.u16(questId);
+    return finish(w);
+}
+
+bool Client::sendChooseTrack(uint32_t npcDoId, int8_t track) {
+    const NpcToon* n = findNpc(npcDoId);
+    if (state_ != State::InZone || !n || !n->questGiver) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    if (n->special) {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCSpecialQuestGiver, chooseTrack);
+    } else {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCToon, chooseTrack);
+    }
+    w.i8(track);
+    return finish(w);
+}
+
+bool Client::sendNpcMovieDone(uint32_t npcDoId) {
+    const NpcToon* n = findNpc(npcDoId);
+    if (state_ != State::InZone || !n || !n->questGiver) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    if (n->special) {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCSpecialQuestGiver, setMovieDone);
+    } else {
+        TT_NET_UPDATE(w, npcDoId, DistributedNPCToon, setMovieDone);
+    }
+    return finish(w);
+}
+
+bool Client::sendDeleteQuest(int index) {
+    if (state_ != State::InZone || index < 0 || index >= ownQuests_.count) return false;
+    const QuestEntry& e = ownQuests_.quests[index];
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, requestDeleteQuest);
+    w.u16(5 * 4);
+    w.u32(e.questId);
+    w.u32(e.fromNpc);
+    w.u32(e.toNpc);
+    w.u32(e.reward);
+    w.u32(e.progress);
+    return finish(w);
+}
+// ==== quests end ====
+
 bool Client::applyDistrictField(District& d, DatagramReader& r, uint16_t fieldId) {
     if (fieldId == dc::DistributedDistrict::k_setName) r.string(d.name, sizeof(d.name));
     else if (fieldId == dc::DistributedDistrict::k_setAvailable) d.available = r.u8() != 0;
@@ -1637,6 +1763,7 @@ void Client::dropZoneObjects() {
         if (n.active) pushEvent(EventType::NpcDespawn, n.doId);
         n.active = false;
     }
+    movieHead_ = movieTail_ = 0; // quests section: pending NPC movies belong to the old zone
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;
