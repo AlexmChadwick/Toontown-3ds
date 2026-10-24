@@ -33,6 +33,7 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase", "showcase"},
+    {4.0f, 0, 0, 0, 0, -1, -1, 0, "battle fx showcase", "battle_fx"},
     {1.3f, 0, 0, 0, 0, -1, -1, 0, "clip: throw", "clip_throw"},
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},

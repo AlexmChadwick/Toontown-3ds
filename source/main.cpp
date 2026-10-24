@@ -39,6 +39,7 @@
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
 #include "world/battle.h"
+#include "world/battle_fx.h"
 #include "world/trolley.h"
 #include "world/fishing.h"
 #include "world/place.h"
@@ -348,6 +349,9 @@ int main() {
     fishing.init(&player, &net);
     // Street cog battles (world/battle.*, docs/design/combat.md); the panel is ui/battle_panel.*.
     static tt::world::Battle battle;
+    static tt::world::BattleFx battleFx;
+    battleFx.init();
+    battle.setFx(&battleFx);
     static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
@@ -1183,6 +1187,7 @@ int main() {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
                 suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash, p.anim, p.clipArg, p.clipStartMs);
             }
+            battleFx.update(dt, nowMs, &battle, localLook.valid() ? &localLook : nullptr);
             if (const char* m = battle.popMessage()) {
                 toast = m;
                 toastAge = 0.0f;
@@ -1274,6 +1279,9 @@ int main() {
             if (netStarted) trolley.draw(renderer, net, tt::net::plat::nowMs());
             fishing.draw(renderer);
             suits.draw(renderer);
+            if (battle.active()) {
+                battleFx.draw(renderer, &battle, localLook.valid() ? &localLook : nullptr);
+            }
             if (netStarted) cogBuildings.draw(renderer, net);
             if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
                 // Test-only: four real Cogs (one per department) in front of the toon.
@@ -1285,6 +1293,10 @@ int main() {
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
                 }
+            }
+            if (autotest.active() && !strcmp(autotest.label(), "battle fx showcase")) {
+                battleFx.drawShowcase(renderer, player.x(), player.y(), player.groundZ(), player.headingDeg(),
+                                      autotest.stepTime(), suits, localLook.valid() ? &localLook : nullptr);
             }
             tt::prof::lap(tt::prof::kDrawActors);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
@@ -1453,6 +1465,7 @@ int main() {
     boat.shutdown();
     tt::world::AssetLoader::shutdown();
     suits.shutdown();
+    battleFx.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
     remoteToons.clear();

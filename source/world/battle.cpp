@@ -6,6 +6,7 @@
 
 #include "core/log.h"
 #include "ui/gag_data.h"
+#include "world/battle_fx.h"
 #include "world/suit_tables.h"
 
 namespace tt::world {
@@ -89,7 +90,34 @@ bool attackAffectsGroup(int track, int level) {
 }
 
 void Battle::reset() {
+    BattleFx* fx = battleFx_;
     *this = Battle();
+    battleFx_ = fx;
+    if (battleFx_) battleFx_->reset();
+}
+
+bool Battle::actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon) const {
+    for (int i = 0; i < net::kBattleSuits; ++i) {
+        if (suits_[i].used && suits_[i].doId == doId) {
+            if (x) *x = suits_[i].x;
+            if (y) *y = suits_[i].y;
+            if (z) *z = suits_[i].z;
+            if (h) *h = suits_[i].h;
+            if (isToon) *isToon = false;
+            return true;
+        }
+    }
+    for (int i = 0; i < net::kBattleToons; ++i) {
+        if (toons_[i].used && toons_[i].doId == doId) {
+            if (x) *x = toons_[i].x;
+            if (y) *y = toons_[i].y;
+            if (z) *z = toons_[i].z;
+            if (h) *h = toons_[i].h;
+            if (isToon) *isToon = true;
+            return true;
+        }
+    }
+    return false;
 }
 
 // ============================================================ geometry
@@ -509,9 +537,9 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
 
 const char* const kBattleClipNames[kNumBattleClips] = {"throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose"};
 
-void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track) {
+void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track, int level) {
     if (numFx_ >= kMaxFx) return;
-    fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value), int8_t(track)};
+    fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value), int8_t(track), int8_t(level)};
 }
 
 // Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
@@ -541,30 +569,31 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
             else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
-        addFx(t, kFxAttack, who, target, 2200, a.track);
-        const uint32_t hitAt = t + 1500;
+        const uint32_t attackDur = (a.track == kTrackThrow) ? 3300 : ((a.track == kTrackSquirt) ? 3000 : 2200);
+        addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
+        const uint32_t hitAt = (a.track == kTrackThrow) ? (t + 3000) : ((a.track == kTrackSquirt) ? (t + 2700) : (t + 1500));
         bool any = false;
         if (a.track == kTrackHeal) {
             for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j]);
+                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], a.track, a.level);
                     any = true;
                 }
             }
         } else {
             for (int j = 0; j < a.numHp && j < m.numSuits; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j]);
+                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], a.track, a.level);
                     any = true;
                 }
             }
-            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0);
+            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, a.track, a.level);
         }
-        uint32_t dur = 2400;
+        uint32_t dur = (a.track == kTrackThrow) ? 3500 : ((a.track == kTrackSquirt) ? 3300 : 2400);
         for (int j = 0; j < m.numSuits; ++j) {
             if ((a.died >> j) & 1) {
                 addFx(hitAt + 500, kFxDie, m.suits[j], 0, 0);
-                dur = 1500 + 500 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
+                dur = (hitAt - t) + 500 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
             }
         }
         t += dur;
@@ -574,16 +603,16 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         if (s.suitIdx < 0 || s.suitIdx >= m.numSuits || s.attack < 0) continue;
         const uint32_t who = m.suits[s.suitIdx];
         const uint32_t target = (s.target >= 0 && s.target < m.numToons) ? m.toons[s.target] : 0;
-        addFx(t, kFxAttack, who, target, 2000, s.attack);
+        addFx(t, kFxAttack, who, target, 2000, -1, s.attack);
         const uint32_t hitAt = t + 1200;
         bool any = false;
         for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
             if ((s.target < 0 || s.target == j) && s.hp[j] > 0) {
-                addFx(hitAt, kFxHit, m.toons[j], who, s.hp[j]);
+                addFx(hitAt, kFxHit, m.toons[j], who, s.hp[j], -1, s.attack);
                 any = true;
             }
         }
-        if (!any && s.target >= 0 && s.target < m.numToons) addFx(hitAt, kFxMiss, m.toons[s.target], who, 0);
+        if (!any && s.target >= 0 && s.target < m.numToons) addFx(hitAt, kFxMiss, m.toons[s.target], who, 0, -1, s.attack);
         t += 2200;
     }
     movieEndMs_ = movieStartMs_ + t + 300;
@@ -626,6 +655,10 @@ void Battle::runFx(uint32_t nowMs) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
                 a->faceUntil = a->attackEnd + 300;
             }
+            if (battleFx_) {
+                const uint32_t hitMs = (f.track == kTrackThrow) ? (nowMs + 3000) : ((f.track == kTrackSquirt) ? (nowMs + 2700) : (nowMs + 1500));
+                battleFx_->onAttack(f.who, f.other, f.track, f.level, nowMs, f.value, hitMs);
+            }
             break;
         }
         case kFxHit:
@@ -639,20 +672,24 @@ void Battle::runFx(uint32_t nowMs) {
             a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
             snprintf(text, sizeof(text), "-%d", int(f.value));
             addPopup(*a, text, kColorDamage, nowMs);
+            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, f.value, false);
             break;
         case kFxHeal:
             snprintf(text, sizeof(text), "+%d", int(f.value));
             addPopup(*a, text, kColorHeal, nowMs);
+            if (battleFx_) battleFx_->onHeal(f.who, f.other, f.value);
             break;
         case kFxMiss:
             addPopup(*a, "Miss", kColorMiss, nowMs);
             a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
             a->clipStartMs = nowMs;
+            if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true);
             break;
         case kFxDie:
             a->dying = true;
             a->dieStart = nowMs;
             a->flashEnd = 0;
+            if (battleFx_) battleFx_->onDie(f.who, nowMs);
             break;
         default: break;
         }

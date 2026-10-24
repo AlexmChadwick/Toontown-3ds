@@ -391,15 +391,17 @@ assets. All were verified with `find`.
 - **Essential:** the lose animation, the sound and the removal.
 - **Skippable:** the particles. Replace them with a sprite burst.
 
-| Element | Minimal client | Later |
-|---|---|---|
-| FaceOff walk-in + taunt bubble | **essential** (positions the actors; taunt text from `SuitBattleGlobals.getFaceoffTaunt`, :3027) | camera cuts (`camFOFov`) |
-| Toon throw/squirt anims + prop + hit/miss react + damage number | **essential** | per-level props, multi-target |
-| Suit attack | **generic**: play `SuitAttacks[name][0]`, toon `cringe` if hp>0 else `sidestep`, number pop | ~100 bespoke `MovieSuitAttacks.do*` with particles (`.ptf`, out of scope per AGENTS §7) |
-| Suit death | `lose` + fade | gear particles, kapow |
-| Battle camera (`MovieCamera.py`) | fixed orbit camera | shot directions |
-| Play-by-play text, SOS, NPC, pets, traps/lures | skip (never choose them) | full |
-| Reward (`MovieToonVictory`, `RewardPanel`) | bottom-screen panel: exp bars from `origExp + earnedExp` | dance, quest progress |
+| Element | Implementation status |
+|---|---|
+| FaceOff walk-in + taunt bubble | **Implemented** (positions the actors; taunt text from `SuitBattleGlobals.getFaceoffTaunt`) |
+| Toon throw/squirt anims + prop + hit/miss react + damage number | **Implemented**: gag props in hand via JNT tracks (`def_joint_right_hold`), parabolic pie flight (release 2.7s, hit 3.0s), animated morph splat with pie color tint (purple for tart/fruitpie, yellow for creampie), squirt flower/gun/bottle spray with splash prop (light blue tint), sound megaphone, drop button, heal feather/lipstick |
+| Suit attack | **Implemented**: suit props in hand via JNT (`joint_Rhold`/`joint_Lhold`), phone + receiver pound with `SA_hangup` sound, thrown projectile, toon cringe on hit with `toon_hit` sound, sidestep dodge on miss |
+| Suit death | **Implemented**: `lose` animation plays for 5.4s, followed by animated `kapow` explosion burst (duration 0.6s) with `Cog_Death` and `ENC_cogfall_apart` audio |
+| Battle SFX | **Implemented**: bounded LRU audio cache for battle cues (`pie_throw`, `throw_tart_hit`, `throw_slice_hit`, `throw_miss`, `squirt_*`, `toon_hit`, `SA_hangup`, `Cog_Death`) |
+| Gag icons | **Implemented**: 2D gag icon atlas (`inventory_atlas.ttm`, 50 icons) mapped via `GagAtlas` across battle panel cells, Shticker Book Gags tab, and Shop panel |
+| Battle camera (`MovieCamera.py`) | Fixed orbit camera |
+| Autotest & Verification | Host test `tools/battle_fx_test/` and autotest showcase `"battle fx showcase"` (`battle_fx`) |
+| Reward (`MovieToonVictory`, `RewardPanel`) | Bottom-screen panel: exp bars from `origExp + earnedExp` |
 
 ## 7. Rewards and experience
 

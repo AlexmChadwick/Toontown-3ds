@@ -1,6 +1,7 @@
 #include "render/ui.h"
 
 #include "ui/gag_data.h"
+#include "world/battle_fx.h"
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -462,6 +463,17 @@ void Ui::drawGags(const Context& c) {
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
         C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.5f, l.scale, l.scale, l.color);
+    }
+    if (c.gagCount) {
+        for (int t = 0; t < gags::kTracks; t++) {
+            if (!c.trackAccess[t]) continue;
+            const int levels = gags::levelsUnlocked(t, c.gagExp[t]);
+            const float y = 26 + t * 24;
+            for (int l = 0; l < levels; l++) {
+                world::GagAtlas::instance().drawIcon(t, l, 68 + l * 22, y + 2, 14.0f, 0.52f,
+                                                     c.gagCount[t][l] ? 1.0f : 0.35f);
+            }
+        }
     }
 }
 
