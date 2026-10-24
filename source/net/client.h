@@ -273,6 +273,12 @@ struct CogElevator {
     uint32_t slots[8] = {};
     uint8_t slotFlags[8] = {};
     uint8_t minLaff = 0;
+    // Cog HQ facility elevators (factory / mint / DA office): which anchor they stand at
+    // (setEntranceId, or setMintId mapped to its origin) and where riding them leads
+    // (set*InteriorZone, sent to the riders when it leaves; 0 until then).
+    uint16_t classId = 0;
+    int8_t origin = -1;
+    uint32_t destZone = 0;
     bool active = false;
 };
 constexpr int kMaxCogElevators = 8;

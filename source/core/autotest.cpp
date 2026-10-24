@@ -70,6 +70,8 @@ const Step kScript[] = {
     {14.0f, 0, 0, 0, 0, -1, -1, 0, "toon hq: choose", "hq_choice"},
     {2.0f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, 0, "tab: tasks", "tasks"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "tailor visit", "tailor"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "go factory", "factory_ext"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "factory: board", "factory_in"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);

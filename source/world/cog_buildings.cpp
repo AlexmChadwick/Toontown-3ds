@@ -1,5 +1,7 @@
 #include "world/cog_buildings.h"
 
+#include <cstring>
+
 #include <cmath>
 #include <cstdio>
 
@@ -42,6 +44,13 @@ void CogBuildings::syncAnchors(const Place& place) {
         }
         if (p) setAnchor(block, p->x, p->y, p->z, p->h);
     }
+    for (int i = 0; i < kMaxSpots; ++i) {
+        char spot[24];
+        snprintf(spot, sizeof(spot), "elevator_origin_%d", i);
+        const Place::Point* p = place.point(spot);
+        spots_[i] = Spot{};
+        if (p) spots_[i] = Spot{p->x, p->y, p->z, true};
+    }
 }
 
 void CogBuildings::setAnchor(uint32_t block, float x, float y, float z, float h) {
@@ -61,9 +70,36 @@ void CogBuildings::handleEvent(const net::Event& ev, const net::Client&) {
 }
 
 void CogBuildings::update(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    const uint32_t me = client.avatarId();
     for (int n = 0; n < net::kMaxCogElevators; ++n) {
         const net::CogElevator& e = client.cogElevatorSlot(n);
-        if (!e.active || e.buildingDoId == 0) continue;
+        if (!e.active) continue;
+        bool aboard = false;
+        for (uint32_t s : e.slots) aboard |= s == me && me != 0;
+        // Facility elevators send the riders their interior zone as they leave.
+        if (aboard && e.destZone && e.destZone != lastDest_) {
+            pendingDest_ = lastDest_ = e.destZone;
+            requestedElevator_ = 0;
+        }
+        // Cog building elevators: when the doors close with us aboard, go inside
+        // (DistributedElevatorExt.getZoneId: the building's interior zone).
+        if (aboard && e.buildingDoId && (!strcmp(e.state, "closed") || !strcmp(e.state, "closing"))) {
+            if (const net::CogBuilding* b = client.findCogBuilding(e.buildingDoId)) {
+                const uint32_t inside = b->interiorZoneId ? b->interiorZoneId : zone_ - zone_ % 100 + 500 + b->block;
+                if (inside != lastDest_) pendingDest_ = lastDest_ = inside;
+            }
+        }
+        // Facility elevators stand at the HQ's elevator_origin_<n> anchors.
+        if (e.origin >= 0 && e.origin < kMaxSpots && spots_[e.origin].used && !aboard && requestedElevator_ == 0) {
+            const Spot& s = spots_[e.origin];
+            const float dx = x - s.x, dy = y - s.y, dz = z - s.z;
+            if (dx * dx + dy * dy + dz * dz < kBoardRadius * kBoardRadius && client.sendCogElevatorBoard(e.doId)) {
+                requestedElevator_ = e.doId;
+                requestMs_ = nowMs;
+            }
+        }
+        if (requestedElevator_ && nowMs - requestMs_ > 5000) requestedElevator_ = 0;
+        if (e.buildingDoId == 0) continue;
         const net::CogBuilding* b = client.findCogBuilding(e.buildingDoId);
         if (!b) continue;
         Anchor* a = nullptr;

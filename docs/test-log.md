@@ -388,6 +388,25 @@ need hardware.
 - **Full regression.** All 55 steps passed with Cog buildings, the factory and the
   mint/office merged.
 
+### 2026-10-24 — Elevators into Cog HQ facilities; AI dev test mode
+- **Dev test mode.** `AI_DEV=1 tools/server/start.sh` uses `tools/server/ai_dev.py`, which
+  patches the stock AI in memory and leaves `ref/` untouched:
+  - relaxes ToontownAccessAI and the elevator laff and Cog suit checks
+  - tops player toons up to 60 laff and 40 beans
+- **Factory boarding.** In Sellbot factory exterior 11200, the toon steps onto elevator 0
+  (`elevator_origin_0`, from the new `tools/pipeline/coghq_elevators.py` anchors). Then:
+  1. requestBoard is accepted.
+  2. setFactoryInteriorZone(61000) arrives, and the client sends setParent(hidden) and
+     changeZone(61000).
+  3. The AI creates the factory (DistributedFactoryAI, factory 11500), and the client
+    loads `factory.ttm` and the entity models.
+- **Status (honest):** the factory, Cog interior and mint/office runtimes are thin stubs.
+  - The toon is not placed at the entrance, and there is no factory collision.
+  - Entities are drawn static.
+  - Inside, the camera still shows the HQ.
+  - Cog building elevators now hand off when their doors close with us aboard (the
+    interior zone from the building block), but that path has not been exercised.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

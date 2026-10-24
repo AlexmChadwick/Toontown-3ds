@@ -3644,7 +3644,21 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
         e.slots[n] = 0; r.u8(); r.i16(); r.i16();
     } else if (fieldId == dc::DistributedElevator::k_setElevatorTripId) e.tripId = r.u32();
     else if (fieldId == dc::DistributedElevator::k_setMinLaff) e.minLaff = r.u8();
-    else return skipField(r, fieldId);
+    else if (fieldId == dc::DistributedFactoryElevatorExt::k_setEntranceId ||
+             fieldId == dc::DistributedLawOfficeElevatorExt::k_setEntranceId) e.origin = int8_t(r.u8());
+    else if (fieldId == dc::DistributedMintElevatorExt::k_setMintId) {
+        // DistributedMintElevatorExt.setMintId: CashbotMintIntA/B/C (12500/12600/12700) -> origin 1/2/0.
+        const uint16_t mint = r.u16();
+        e.origin = mint == 12500 ? 1 : mint == 12600 ? 2 : mint == 12700 ? 0 : -1;
+    } else if (fieldId == dc::DistributedFactoryElevatorExt::k_setFactoryInteriorZone ||
+               fieldId == dc::DistributedFactoryElevatorExt::k_setFactoryInteriorZoneForce ||
+               fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZone ||
+               fieldId == dc::DistributedMintElevatorExt::k_setMintInteriorZoneForce ||
+               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZone ||
+               fieldId == dc::DistributedLawOfficeElevatorExt::k_setLawOfficeInteriorZoneForce) {
+        e.destZone = r.u32();
+        if (r.ok()) pushEvent(EventType::CogElevatorUp, e.doId); // the riders' cue to go
+    } else return skipField(r, fieldId);
     return r.ok();
 }
 
@@ -3691,13 +3705,13 @@ bool Client::handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint
     return true;
 }
 
-bool Client::handleCogElevatorEnter(uint32_t doId, uint16_t, DatagramReader& r, const uint16_t* req,
+bool Client::handleCogElevatorEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                                     uint16_t reqCount, bool other) {
     CogElevator* dst = nullptr;
     for (CogElevator& e : cogElevators_) if (e.active && e.doId == doId) dst = &e;
     for (CogElevator& e : cogElevators_) if (!dst && !e.active) dst = &e;
     if (!dst) return false;
-    CogElevator tmp{}; tmp.doId = doId;
+    CogElevator tmp{}; tmp.doId = doId; tmp.classId = classId;
     bool ok = true;
     for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyCogElevatorField(tmp, r, req[n]);
     if (ok && other) {

@@ -99,7 +99,10 @@ if [ -n "${AI_MINIGAME_ID:-}" ]; then
     AI_PRC+=("$RUN/ai-test.prc")
     echo "ai: forcing minigame-id $AI_MINIGAME_ID"
 fi
-"$PY" -m toontown.ai.AIStart --base-channel 401000000 --max-channels 999999 \
+AI_ENTRY=(-m toontown.ai.AIStart)
+# AI_DEV=1: relax entry checks and top up toons for testing (tools/server/ai_dev.py).
+if [ -n "${AI_DEV:-}" ]; then AI_ENTRY=("$HERE/ai_dev.py"); echo "ai: dev test mode (ai_dev.py)"; fi
+"$PY" "${AI_ENTRY[@]}" --base-channel 401000000 --max-channels 999999 \
     --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
     --district-name "$DISTRICT" "${AI_PRC[@]}" \
     > "$LOGS/ai-$STAMP.log" 2>&1 < /dev/null &

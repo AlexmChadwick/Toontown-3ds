@@ -563,6 +563,19 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
         }
+        if (autotest.active() && !strcmp(autotest.label(), "go factory") && place.zoneId() != 11200 &&
+            !uiState.teleportRequest && fadeDir == 0) {
+            uiState.teleportRequest = 11200; // test-only: Sellbot factory exterior
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200 &&
+            !factory.active()) {
+            const tt::world::Place::Point* p = place.point("elevator_origin_0");
+            static u32 boardNextMs = 0;
+            if (p && tt::net::plat::nowMs() > boardNextMs) { // step into the elevator (re-try every 6 s)
+                player.reset(p->x, p->y, p->z + 0.5f, p->h);
+                boardNextMs = tt::net::plat::nowMs() + 6000;
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
             // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
             static u32 tailorNextMs = 0;
@@ -1070,6 +1083,15 @@ int main() {
                 trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
             }
             cogBuildings.update(net, player.x(), player.y(), player.z(), nowMs);
+            if (const u32 dest = cogBuildings.popDestination()) {
+                // The elevator left with us: into the Cog building / facility zone. The playground
+                // or HQ stays loaded underneath; the interior runtimes take over when their objects
+                // generate (cog_interior / factory / mint_office).
+                TT_LOG("elevator: riding to zone %lu", static_cast<unsigned long>(dest));
+                net.sendSetParent(1); // hidden, like the trolley hand-off
+                net.changeZone(dest);
+                remoteToons.clear();
+            }
             {
                 int seat;
                 if (trolley.popExit(&seat)) { // hopped off: stand beside the station

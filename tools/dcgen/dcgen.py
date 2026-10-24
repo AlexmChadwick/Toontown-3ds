@@ -167,6 +167,7 @@ WANTED = {
     'DistributedStageRoom': ['setStageId', 'setRoomId', 'setRoomNum', 'setSuits',
                              'setBossConfronted', 'setDefeated'],
     'DistributedMintElevatorExt': ['setMintId', 'setMintInteriorZone', 'setMintInteriorZoneForce'],
+    'DistributedLawOfficeElevatorExt': ['setEntranceId', 'setLawOfficeInteriorZone', 'setLawOfficeInteriorZoneForce'],
     'DistributedLawOfficeElevatorInt': ['setLawOfficeInteriorZone'],
     'DistributedMintBattle': [],
     'DistributedStageBattle': [],
@@ -218,7 +219,7 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
                   'DistributedButton', 'DistributedCrate', 'DistributedGoon', 'DistributedStomper',
                   'DistributedBattleFactory', 'DistributedFactoryElevatorExt', 'DistributedMint',
                   'DistributedMintRoom', 'DistributedStage', 'DistributedStageRoom',
-                  'DistributedMintElevatorExt', 'DistributedLawOfficeElevatorInt',
+                  'DistributedMintElevatorExt', 'DistributedLawOfficeElevatorExt', 'DistributedLawOfficeElevatorInt',
                   'DistributedMintBattle', 'DistributedStageBattle', 'DistributedLaserField',
                   'DistributedSecurityCamera', 'DistributedMaze']
 
