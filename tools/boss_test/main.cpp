@@ -24,7 +24,34 @@ static void parse(BossState& state, uint16_t field, const DatagramWriter& writer
     }
 }
 
-int main() {
+static void referenceVectors(const char* path) {
+    FILE* file = std::fopen(path, "rb");
+    assert(file);
+    unsigned count = 0;
+    uint16_t classId = 0;
+    while (std::fread(&classId, 2, 1, file) == 1) {
+        uint16_t field = 0;
+        uint32_t size = 0;
+        assert(std::fread(&field, 2, 1, file) == 1);
+        assert(std::fread(&size, 4, 1, file) == 1);
+        uint8_t buffer[16384];
+        assert(size <= sizeof(buffer));
+        assert(std::fread(buffer, 1, size, file) == size);
+        BossState state;
+        state.classId = classId;
+        state.kind = bossKind(classId);
+        DatagramReader reader(buffer, size);
+        assert(applyBossField(state, field, reader, 1000, 42));
+        assert(reader.remaining() == 0);
+        ++count;
+    }
+    std::fclose(file);
+    assert(count > 50);
+    std::printf("%u Panda boss vectors: PASS\n", count);
+}
+
+int main(int argc, char** argv) {
+    if (argc > 1) referenceVectors(argv[1]);
     static_assert(dc::kHash == 547155168, "stock DC hash");
     BossState state;
     state.kind = BossKind::Sellbot;

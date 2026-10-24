@@ -28,6 +28,7 @@
 #include "ui/speedchat_data.h"
 #include "world/asset_loader.h"
 #include "world/boat.h"
+#include "world/boss_battle.h"
 #include "world/cchar.h"
 #include "world/cog_buildings.h"
 #include "world/cog_interior.h"
@@ -517,6 +518,14 @@ int main() {
         if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        // Boss place: one grouped hook owns both screens until the VP encounter ends.
+        {
+            static tt::world::BossBattle bossBattle;
+            tt::world::BossFrame bossFrame{net, player, place, battle, battleFx, suits, remoteToons,
+                localToon, toonCache, renderer, ui, uiState, autotest, bottom, in, touch, dt,
+                shotName, lastStats, lastCmdBufUsage, stereoActive};
+            if (netStarted && bossBattle.frame(bossFrame)) continue;
+        }
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
             if (!strcmp(page, "gags")) ui.openBookPage(tt::ui::Book::kPageGags);

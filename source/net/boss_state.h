@@ -8,6 +8,22 @@ namespace tt::net {
 
 enum class BossKind : uint8_t { None, Sellbot, Cashbot, Lawbot, Bossbot };
 
+// ToontownGlobals.py BossCog attack codes (wire values, not animation indices).
+enum BossAttack : uint8_t {
+    kBossDizzy = 0,
+    kBossElectricFence = 1,
+    kBossSwatLeft = 2,
+    kBossSwatRight = 3,
+    kBossAreaAttack = 4,
+    kBossFrontAttack = 5,
+    kBossRecoverDizzy = 6,
+    kBossDirectedAttack = 7,
+    kBossStrafeAttack = 8,
+    kBossNoAttack = 9,
+    kBossSlowDirectedAttack = 11,
+    kBossDizzyNow = 12,
+};
+
 struct BossBarrier {
     uint16_t context = 0;
     char name[32] = {};
@@ -40,7 +56,7 @@ struct BossState {
     uint8_t recoverRate = 0;
     uint32_t damageMs = 0;
     int16_t damageStamp = 0;
-    uint8_t attack = 9; // ToontownGlobals.BossCogNoAttack
+    uint8_t attack = kBossNoAttack;
     uint32_t attackToon = 0;
     uint32_t attackMs = 0, attackRevision = 0;
     uint8_t strafeSide = 0, strafeDirection = 0;
@@ -55,6 +71,7 @@ struct BossState {
 BossKind bossKind(uint16_t classId);
 bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
                     uint32_t nowMs, uint32_t ownAvatarId);
+bool readBossBarriers(DatagramReader& reader, BossBarrier* barriers, int* count, uint32_t ownAvatarId);
 float currentBossDamage(const BossState& state, uint32_t nowMs);
 
 } // namespace tt::net

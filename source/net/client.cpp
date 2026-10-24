@@ -1,5 +1,6 @@
 #include "net/client.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -1923,6 +1924,7 @@ bool Client::parseBattleExperience(Battle& b, DatagramReader& r) {
 }
 
 bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bool live) {
+    if (bossBattleField(b, r, fieldId)) return r.ok();
     switch (fieldId) {
     case dc::DistributedBattle::k_setPosition:
         b.x = r.i16() / 10.0f;
@@ -2010,6 +2012,7 @@ bool Client::handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, 
         TT_LOG("net: battle %u generate did not parse", unsigned(doId));
         return false;
     }
+    positionBossBattle(tmp);
     tmp.active = true;
     // DistributedLevelBattle.setBattleCellId: facility battles sit on their spec battle cell
     // (setPosition is a no-op there); the level runtime knows where that is in our world.
@@ -4406,6 +4409,7 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId == dc::DistributedBossElevator::k_setBossOfficeZone ||
                fieldId == dc::DistributedBossElevator::k_setBossOfficeZoneForce) {
         e.destZone = r.u32();
+        e.forcedBossDestination = fieldId == dc::DistributedBossElevator::k_setBossOfficeZoneForce;
         if (r.ok()) pushEvent(EventType::CogElevatorUp, e.doId); // the riders' cue to go
     } else return skipField(r, fieldId);
     return r.ok();

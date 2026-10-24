@@ -126,6 +126,50 @@ bool Client::sendBossBarrier(uint16_t context) {
     return finish(writer);
 }
 
+bool Client::bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fieldId) {
+    if (fieldId == dc::DistributedBattleFinal::k_setBossCogId) battle.bossId = reader.u32();
+    else if (fieldId == dc::DistributedBattleFinal::k_setBattleNumber) battle.bossRound = reader.u8();
+    else if (fieldId == dc::DistributedBattleFinal::k_setBattleSide) battle.bossSide = reader.u8();
+    else if (fieldId == dc::DistributedObject::k_setBarrierData) {
+        BossBarrier barriers[BossState::kMaxBarriers];
+        int count = 0;
+        if (readBossBarriers(reader, barriers, &count, avatarId_)) {
+            std::memcpy(battle.bossBarriers, barriers, sizeof(barriers));
+            battle.numBossBarriers = count;
+        }
+    } else return false;
+    return true;
+}
+
+void Client::positionBossBattle(Battle& battle) {
+    if (!boss_.active || battle.bossId != boss_.doId || boss_.kind != BossKind::Sellbot) return;
+    // DistributedBossCogAI.setBattlePos and ToontownGlobals.BossCogBattle[AB]PosHpr.
+    // Both VP rounds face -90 degrees: local +/-25 Y becomes +/-25 world X.
+    battle.x = battle.bossSide ? 25 : -25;
+    battle.y = battle.bossRound == 1 ? -35 : 60;
+    battle.z = battle.bossRound == 1 ? 0 : 18;
+    battle.sx = battle.x + (battle.bossSide ? -1 : 1);
+    battle.sy = battle.y;
+    battle.sz = battle.z;
+}
+
+bool Client::sendBossBattleBarrier(uint32_t battleId, uint16_t context) {
+    const Battle* battle = findBattle(battleId);
+    if (!bossParticipant() || !battle || battle->bossId != boss_.doId) return false;
+    bool member = false;
+    for (int index = 0; index < battle->numToons; ++index) member |= battle->toons[index] == avatarId_;
+    bool waiting = false;
+    for (int index = 0; index < battle->numBossBarriers; ++index) {
+        const BossBarrier& barrier = battle->bossBarriers[index];
+        waiting |= barrier.context == context && barrier.waitingForUs && !std::strcmp(barrier.name, "ReservesJoining");
+    }
+    if (!member || !waiting) return false;
+    DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(writer, battleId, DistributedObject, setBarrierReady);
+    writer.u16(context);
+    return finish(writer);
+}
+
 bool Client::sendVpTouchCage() {
     if (!bossParticipant() || boss_.kind != BossKind::Sellbot ||
         (std::strcmp(boss_.phase, "BattleThree") && std::strcmp(boss_.phase, "NearVictory"))) return false;
@@ -143,7 +187,7 @@ bool Client::sendVpHitInsides() {
 
 bool Client::sendVpHit() {
     if (!bossParticipant() || boss_.kind != BossKind::Sellbot ||
-        std::strcmp(boss_.phase, "BattleThree") || boss_.attack != 12) return false;
+        std::strcmp(boss_.phase, "BattleThree") || boss_.attack != kBossDizzyNow) return false;
     DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(writer, boss_.doId, DistributedSellbotBoss, hitBoss);
     writer.u8(1); // DistributedSellbotBossAI.hitBoss accepts exactly one damage per pie.
@@ -161,8 +205,8 @@ bool Client::sendBossZap(float x, float y, float z, float heading, float directi
                          float directionY, uint8_t attack) {
     if (!bossParticipant() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
         !std::isfinite(heading) || !std::isfinite(directionX) || !std::isfinite(directionY)) return false;
-    if (attack != 1 && attack != 2 && attack != 3 && attack != 4 && attack != 5 &&
-        attack != 6 && attack != 7 && attack != 8) return false;
+    if (attack < kBossElectricFence || attack > kBossStrafeAttack ||
+        std::strcmp(boss_.phase, "BattleThree")) return false;
     DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(writer, boss_.doId, DistributedBossCog, zapToon);
     const float values[] = {x, y, z, heading, 0, 0};

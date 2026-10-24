@@ -2948,6 +2948,15 @@ constexpr uint16_t kClassId = 255;
 
 namespace DistributedBattleFinal {
 constexpr uint16_t kClassId = 110;
+constexpr uint16_t k_setBossCogId = 787;
+constexpr uint16_t k_setBattleNumber = 788;
+constexpr uint16_t k_setBattleSide = 789;
+constexpr uint16_t kw_setBossCogId = 0x007;
+constexpr uint16_t kw_setBattleNumber = 0x007;
+constexpr uint16_t kw_setBattleSide = 0x007;
+constexpr const char* sig_setBossCogId = "u32";
+constexpr const char* sig_setBattleNumber = "u8";
+constexpr const char* sig_setBattleSide = "u8";
 } // namespace DistributedBattleFinal
 
 namespace FriendManager {

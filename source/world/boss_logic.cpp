@@ -61,14 +61,14 @@ const char* vpClip(const net::BossState& state, uint32_t nowMs) {
     if (phase != BossPhase::Pies && phase != BossPhase::FinalPie) return "Ff_neutral";
     if (vpHatchOpen(state, nowMs)) return state.strafeSide ? "hatch_rear" : "hatch_front";
     const float attackTime = (nowMs - state.attackMs) / 1000.0f;
-    if (state.attack == 12) return attackTime < 3 ? "Fb_firstHit" : "Fb_downNeutral";
-    if (state.attack == 0) return "Fb_downNeutral";
+    if (state.attack == net::kBossDizzyNow) return attackTime < 3 ? "Fb_firstHit" : "Fb_downNeutral";
+    if (state.attack == net::kBossDizzy) return "Fb_downNeutral";
     if (attackTime < 3) {
-        if (state.attack == 2) return "Fb_downLtSwing";
-        if (state.attack == 3) return "Fb_downRtSwing";
-        if (state.attack == 4) return "Fb_jump";
-        if (state.attack == 5 || state.attack == 6) return "Bb2Ff_spin";
-        if (state.attack == 7 || state.attack == 11) return "Fb_UpThrow";
+        if (state.attack == net::kBossSwatLeft) return "Fb_downLtSwing";
+        if (state.attack == net::kBossSwatRight) return "Fb_downRtSwing";
+        if (state.attack == net::kBossAreaAttack) return "Fb_jump";
+        if (state.attack == net::kBossFrontAttack || state.attack == net::kBossRecoverDizzy) return "Bb2Ff_spin";
+        if (state.attack == net::kBossDirectedAttack || state.attack == net::kBossSlowDirectedAttack) return "Fb_UpThrow";
     }
     return "Fb_neutral";
 }

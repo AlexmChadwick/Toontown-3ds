@@ -85,24 +85,7 @@ bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
         next.strafeMs = nowMs;
         ++next.strafeRevision;
     } else if (named(name, "setBarrierData")) {
-        Bytes bytes = reader.blob();
-        DatagramReader barriers(bytes.data, bytes.len);
-        next.numBarriers = 0;
-        while (barriers.remaining() && barriers.ok()) {
-            BossBarrier barrier;
-            barrier.context = barriers.u16();
-            barriers.string(barrier.name, sizeof(barrier.name));
-            uint32_t avatars[8];
-            int count = 0;
-            readIds(barriers, avatars, 8, &count);
-            for (int i = 0; i < count; ++i) barrier.waitingForUs |= avatars[i] == ownAvatarId;
-            if (next.numBarriers == BossState::kMaxBarriers) {
-                barriers.fail();
-                break;
-            }
-            next.barriers[next.numBarriers++] = barrier;
-        }
-        if (!barriers.ok()) reader.fail();
+        readBossBarriers(reader, next.barriers, &next.numBarriers, ownAvatarId);
     } else if (named(name, "toonPromoted")) {
         next.promoted = reader.u8() != 0;
     } else if (named(name, "setRewardId")) {
@@ -135,6 +118,30 @@ bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
     ++next.revision;
     state = next;
     return true;
+}
+
+bool readBossBarriers(DatagramReader& reader, BossBarrier* output, int* count, uint32_t ownAvatarId) {
+    Bytes bytes = reader.blob();
+    DatagramReader barriers(bytes.data, bytes.len);
+    *count = 0;
+    while (barriers.remaining() && barriers.ok()) {
+        BossBarrier barrier;
+        barrier.context = barriers.u16();
+        barriers.string(barrier.name, sizeof(barrier.name));
+        uint32_t avatars[8];
+        int avatarCount = 0;
+        readIds(barriers, avatars, 8, &avatarCount);
+        for (int index = 0; index < avatarCount; ++index) {
+            barrier.waitingForUs |= avatars[index] == ownAvatarId;
+        }
+        if (*count == BossState::kMaxBarriers) {
+            barriers.fail();
+            break;
+        }
+        output[(*count)++] = barrier;
+    }
+    if (!barriers.ok()) reader.fail();
+    return reader.ok();
 }
 
 float currentBossDamage(const BossState& state, uint32_t nowMs) {

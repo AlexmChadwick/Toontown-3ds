@@ -332,6 +332,7 @@ struct CogElevator {
     uint16_t classId = 0;
     int8_t origin = -1;
     uint32_t destZone = 0;
+    bool forcedBossDestination = false;
     bool active = false;
 };
 constexpr int kMaxCogElevators = 8;
@@ -633,6 +634,12 @@ struct BattleExperience {
     uint8_t deaths[kMaxDeathGroups][4]; // suitHeadTypes index, level, toon bits, flags
 };
 struct Battle {
+    // DistributedBattleFinal adds boss ownership and an independent reserve barrier.
+    uint32_t bossId;
+    uint8_t bossRound;
+    uint8_t bossSide;
+    BossBarrier bossBarriers[BossState::kMaxBarriers];
+    int numBossBarriers;
     uint32_t doId;
     uint32_t zoneId;
     uint32_t levelDoId;        // setLevelDoId: facility battles (DistributedLevelBattle), else 0
@@ -1702,6 +1709,7 @@ public:
     bool sendBossExit();
     bool sendBossNear(bool near);
     bool sendBossBarrier(uint16_t context);
+    bool sendBossBattleBarrier(uint32_t battleId, uint16_t context);
     bool sendVpTouchCage();
     bool sendVpHitInsides();
     bool sendVpHit();
@@ -1713,6 +1721,8 @@ private:
                          const uint16_t* required, uint16_t count, bool other);
     bool handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fieldId);
     bool bossOwnField(DatagramReader& reader, uint16_t fieldId);
+    bool bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fieldId);
+    void positionBossBattle(Battle& battle);
     bool bossParticipant() const;
     BossState boss_;
     uint16_t bossPies_ = 0;

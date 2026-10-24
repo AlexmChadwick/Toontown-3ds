@@ -342,7 +342,7 @@ _BOSS_FIELDS = {
                              'awayFromTable', 'toonGotHealed', 'requestGetToonup', 'toonGotToonup'],
     'DistributedBossElevator': ['setBossOfficeZone', 'setBossOfficeZoneForce'],
     'DistributedVPElevator': [], 'DistributedCFOElevator': [], 'DistributedCJElevator': [],
-    'DistributedBBElevator': [], 'DistributedBattleFinal': [],
+    'DistributedBBElevator': [], 'DistributedBattleFinal': ['setBossCogId', 'setBattleNumber', 'setBattleSide'],
 }
 for _name, _fields in _BOSS_FIELDS.items():
     WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))

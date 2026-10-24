@@ -11,9 +11,10 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 PY="$ROOT/.venv/bin/python"
 OUT="$HERE/out"
 PORT="${PORT:-7298}"
+export TT_ETC="$ROOT/ref/ref/open-toontown/etc"
 mkdir -p "$OUT"
 "$HERE/build.sh" || exit 1
-"$PY" -I "$ROOT/tools/dcgen/dcgen.py" "$ROOT/ref/open-toontown/etc" --vectors "$HERE/dc_vectors.bin" 2>/dev/null
+"$PY" -I -B "$ROOT/tools/dcgen/dcgen.py" "$ROOT/ref/ref/open-toontown/etc" --vectors "$HERE/dc_vectors.bin" 2>/dev/null
 
 fail=0
 step() { echo "== $*"; }
@@ -23,7 +24,7 @@ step unit
 tail -3 "$OUT/unit.log"
 
 start_server() {
-    "$PY" -I "$HERE/fake_server.py" --port "$PORT" "$@" > "$OUT/server.log" 2>&1 &
+    "$PY" -I -B "$HERE/fake_server.py" --port "$PORT" "$@" > "$OUT/server.log" 2>&1 &
     SERVER=$!
     for _ in $(seq 50); do grep -q listening "$OUT/server.log" 2>/dev/null && return; sleep 0.1; done
     echo "fake server did not start"; cat "$OUT/server.log"; exit 1
