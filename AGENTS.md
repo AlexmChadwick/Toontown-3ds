@@ -354,12 +354,18 @@ server.
     r × 1.04), because door triggers are flush with walls.
 - ✅ **Sleep/HOME.** An APT hook flushes the log; on wake the client force-reconnects
   and rejoins the same toon and zone.
-- In progress in separate worktrees (merge when done):
-  - **Interiors:** `interiors` branch, `tools/pipeline/bake_interior.py`.
-  - **Streets plus the chunked `.tz` format:** `streets` branch, `world/zone.*`.
+- ✅ **Every exterior zone streams from `.tz`** (`world/zone.*`, TZ v1 and v2). All 25
+  playgrounds and streets are baked by `bake_street.py` with per-visgroup near/far LOD,
+  PVS, floor zone ids, triggers, `.pts` anchors and DNA sign lettering (`sign_text.py`).
+  Every visible set fits 117 draws / 15,000 tris / 810 KB geometry; the per-zone table
+  is in `docs/design/streets.md`. Street cell changes come from floor zone ids
+  (`Client::changeStreetCell`).
+- ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
+  entered with the upstream zone formula `zone - zone%100 + 500 + block`.
+- Classic characters (Mickey, Minnie, …) are in progress on the `chars` worktree.
 - Next:
+  - async zone loading (loads take 0.4–1.5 s on the main thread today)
   - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`)
-  - street cell zone changes from floor zone ids
   - SpeedChat emotes
   - a real hardware run
 

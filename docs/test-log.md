@@ -157,6 +157,19 @@ need hardware.
 - **SD data set:** about 147 MB of interiors (536 zones; the 265 legacy aliases are
   not installed).
 
+### 2026-10-23 — All exterior zones from `.tz` v2 (Codex streets2)
+- **Target:** Azahar 2126.2, Old 3DS mode, local server. Codex's bake of all 25
+  exterior zones with budgeted near/far LOD and DNA sign text.
+- **TTC playground (`2000.tz` v2):** 88–90 draws / 10.4k tris. Sign lettering renders
+  on the landmark buildings.
+- **Gag Shop 2519:** in and back out.
+- **Silly Street (cell 2132):** 44 draws / 5.2k tris. Building 70 → interior 2670, and
+  back to street 2100.
+- **Teleport:** Donald's Dock (`1000.tz`) at 79 draws / 13.7k tris, then Daisy Gardens
+  and The Brrrgh load. No PANIC, and no command-buffer guard hits.
+- **Known issue:** zone loads run on the main thread, about 0.4–1.5 s (2100.tz takes
+  1.46 s). During a load the fps drops to 6–18 for about a second.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.
