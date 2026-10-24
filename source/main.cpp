@@ -669,6 +669,14 @@ int main() {
         if (autotest.active() && level.active() && !battle.active()) {
             // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
             float cx, cy, cz;
+            if (!strcmp(autotest.label(), "factory: barrel") && autotest.stepTime() < 0.05f) {
+                float bx, by, bz;
+                if (level.specPosition("gagBarrel", &bx, &by, &bz)) player.reset(bx, by - 4.0f, bz + 0.5f, 0.0f);
+            }
+            if (!strcmp(autotest.label(), "factory: lift") && autotest.stepTime() < 0.05f) {
+                float lx, ly, lz;
+                if (level.specPosition("lift", &lx, &ly, &lz)) player.reset(lx, ly, lz + 1.0f, 0.0f); // onto its floor
+            }
             if (!strcmp(autotest.label(), "factory: stomper") && autotest.stepTime() < 0.05f) {
                 float sx, sy, sz;
                 if (level.specPosition("stomper", &sx, &sy, &sz)) player.reset(sx, sy, sz + 0.5f, 0.0f); // under it
@@ -843,6 +851,13 @@ int main() {
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        // The facility level first: its lifts/stompers must be where they are *this* frame
+        // before the toon stands on them (it uses last frame's feet).
+        tt::world::LevelBattleAction levelAction;
+        if (level.active() && netStarted && net.inZone()) {
+            level.update(net, suits, player.x(), player.y(), player.z(), dt, tt::net::plat::nowMs(),
+                         battle.idle() && fadeDir == 0, &levelAction);
+        }
         player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
         {
             float floorZ;
@@ -1267,10 +1282,9 @@ int main() {
         if (netStarted && net.inZone()) {
             const u32 nowMs = tt::net::plat::nowMs();
             if (level.active()) {
-                // Facility cogs walk/chase here; touching one (or a battle blocker) fights.
-                tt::world::LevelBattleAction act;
-                level.update(net, suits, player.x(), player.y(), player.z(), dt, nowMs,
-                             battle.idle() && fadeDir == 0, &act);
+                // Facility cogs walk/chase (level.update ran before the toon moved, see above);
+                // touching one (or a battle blocker) fights.
+                const tt::world::LevelBattleAction act = levelAction;
                 if (act.cogDoId) {
                     battle.requestLevelBattle(net, act.cogDoId, act.x, act.y, act.z, act.h, player.x(), player.y(),
                                               player.z(), player.headingDeg(), nowMs);

@@ -16,7 +16,8 @@ Entity (128): <IIHH24s12f3f3f3fIH2x
 Attr (12): <IBBHI: name offset (string pool), kind, pad, count, data offset.
   kind 1 number  -> count floats at float pool [data]       (ints/bools are exact floats)
   kind 2 vector  -> count floats (Point3/Vec3/Vec4 components)
-  kind 3 string  -> count bytes at string pool [data] (NUL-terminated as well)
+  kind 3 string  -> count bytes at string pool [data] (NUL-terminated as well); a list of
+                    strings is stored comma-joined
   kind 4 list    -> count floats (a flat list of numbers; nested vectors are flattened)
   kind 5 none    -> count 0
 Entities are sorted by entId; attrs of one entity are sorted by name. Synthetic entities
@@ -108,6 +109,8 @@ def encode(v, floats, intern):
     if isinstance(v, (bool, int, float)):
         floats.append(float(v))
         return NUMBER, 1, len(floats) - 1
+    if isinstance(v, (list, tuple)) and v and all(isinstance(x, str) for x in v):
+        return encode(','.join(v), floats, intern)  # e.g. lift boardSides: "front,back"
     if isinstance(v, (list, tuple)):
         try:
             flat = flatten(v)

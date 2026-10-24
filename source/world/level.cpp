@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "world/py_random.h"
 #include "world/suits.h"
 
 namespace tt::world {
@@ -102,10 +103,40 @@ void Level::loadProps() {
     static const char* const kSfxNames[kSfxCount] = {
         "CHQ_FACT_stomper_small", "CHQ_FACT_stomper_med", "CHQ_FACT_stomper_large", "CHQ_FACT_door_open_sliding",
         "CHQ_FACT_door_open_final", "CHQ_FACT_door_unlock", "CHQ_FACT_arms_retracting", "CHQ_FACT_switch_pressed",
-        "CHQ_FACT_switch_depressed", "CHQ_FACT_switch_popup"};
+        "CHQ_FACT_switch_depressed", "CHQ_FACT_switch_popup", "CHQ_FACT_elevator_up_down", "SZ_DD_treasure"};
     for (int k = 0; k < kSfxCount; ++k) {
         snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", kSfxNames[k]);
         sfx_[k] = audio::loadSfx(path);
+    }
+    snprintf(path, sizeof(path), "%sprops/barrel.ttm", kDir);
+    barrelModel_.load(path);
+    snprintf(path, sizeof(path), "%sprops/barrel_jar.ttm", kDir);
+    barrelJar_.load(path);
+    snprintf(path, sizeof(path), "%sprops/barrel_icecream.ttm", kDir);
+    barrelIcecream_.load(path);
+    for (int t = 0; t < 7; ++t)
+        for (int l = 0; l < 7; ++l) {
+            snprintf(path, sizeof(path), "%sprops/gag_icon_%d_%d.ttm", kDir, t, l);
+            gagIcons_[t][l].load(path);
+        }
+    snprintf(path, sizeof(path), "%sprops/barrel.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        float b[6];
+        if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(barrelBox_, b, sizeof(b));
+        fclose(f);
+    }
+    snprintf(path, sizeof(path), "%sprops/lift.ttm", kDir);
+    liftModel_.load(path);
+    snprintf(path, sizeof(path), "%sprops/lift.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        static const char* const kNames[kLiftBoxes] = {"elevator_floor", "ceiling", "wall_front", "wall_back",
+                                                       "wall_left", "wall_right"};
+        char name[32];
+        float b[6];
+        while (fscanf(f, "%31s %f %f %f %f %f %f", name, &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 7)
+            for (int k = 0; k < kLiftBoxes; ++k)
+                if (!strcmp(name, kNames[k])) memcpy(liftBoxes_[k], b, sizeof(b));
+        fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/button_base.ttm", kDir);
     buttonBase_.load(path);
@@ -197,6 +228,28 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
         if (!e) continue;
         const DoorPose pose = doorPose(d, nowMs);
         if (pose.outer || pose.inner) addSolid(e->world, doorBox_, doorBox_ + 3, true, false);
+        // The tracks' SoundIntervals: each slide, then the 'final' clank 0.375 d later.
+        const float t = int32_t(nowMs - d.stateMs) / 1000.0f;
+        const float prev = entityState_[i] == d.state ? entityPrev_[i] : -1.0f;
+        auto at = [&](float when) { return prev < when && t >= when; };
+        if (d.state == 1) { // opening (d = 5): outer at 0.5, inner at 2.5
+            if (at(0.5f) || at(2.5f)) playAt(kSfxDoorSlide, e->world + 9, 0.8f);
+            if (at(0.5f + 1.875f) || at(2.5f + 1.875f)) playAt(kSfxDoorFinal, e->world + 9, 0.8f);
+        } else if (d.state == 3) { // closing (d = 6): inner at 0.6, outer at 3.0
+            if (at(0.6f) || at(3.0f)) playAt(kSfxDoorSlide, e->world + 9, 0.8f);
+            if (at(0.6f + 2.25f) || at(3.0f + 2.25f)) playAt(kSfxDoorFinal, e->world + 9, 0.8f);
+        }
+        for (int k = 0; k < 3; ++k) { // DistributedDoorEntityLock: unlock clunk + arms
+            const int ls = (d.locks >> (4 * k)) & 15;
+            const float lt = d.locksMs[k] ? int32_t(nowMs - d.locksMs[k]) / 1000.0f : 1e6f;
+            const float lp = lt - (nowMs - doorNowMsPrev_) / 1000.0f;
+            if ((ls == 1 || ls == 3) && lp < 2 * (ls == 1 ? 0.175f : 0.2f) && lt >= 2 * (ls == 1 ? 0.175f : 0.2f)) {
+                if (ls == 3) playAt(kSfxDoorUnlock, e->world + 9, 0.8f);
+                playAt(kSfxArms, e->world + 9, 0.8f);
+            }
+        }
+        entityState_[i] = d.state;
+        entityPrev_[i] = t;
         if (d.state != 4 && d.state != 0) {
             for (int k = spec_.next("visibilityExtender", -1); k >= 0; k = spec_.next("visibilityExtender", k)) {
                 const LevelEntity& v = spec_.entity(k);
@@ -221,6 +274,7 @@ void Level::updateDoors(net::Client& client, float x, float y, float z, uint32_t
         }
     }
     zone_.setExtraVisible(extra, numExtra);
+    doorNowMsPrev_ = nowMs;
 }
 
 void Level::addSolid(const float world[12], const float lo[3], const float hi[3], bool wall, bool floor) {
@@ -288,7 +342,7 @@ bool Level::carryThunk(void* self, float x, float y, float z, float* dx, float* 
         float p[3];
         toLocal(b.world, x - b.motion[0], y - b.motion[1], z - b.motion[2], p);
         if (p[0] < b.lo[0] || p[0] > b.hi[0] || p[1] < b.lo[1] || p[1] > b.hi[1]) continue;
-        if (std::fabs(p[2] - b.hi[2]) > 0.5f) continue; // standing on its top
+        if (std::fabs(p[2] - b.hi[2]) > 2.0f) continue; // standing on its top (a fast lift moves ~1.2/frame)
         *dx = b.motion[0], *dy = b.motion[1], *dz = b.motion[2];
         return true;
     }
@@ -312,6 +366,13 @@ void Level::updateButtons(net::Client& client, float x, float y, float z) {
         const float dx = x - c[0], dy = y - c[1], dz = z + kToonRadius - c[2];
         const float reach = 0.5f * scale + kToonRadius;
         if (dx * dx + dy * dy + dz * dz < reach * reach) touching = d.doId;
+        // switchOnTrack / switchOffTrack sounds when the AI changes the switch state.
+        const uint8_t state = !strcmp(d.stateName, "playing") ? 2 : !strcmp(d.stateName, "attract") ? 1 : 0;
+        if (entityState_[i] != 0 && state != entityState_[i]) {
+            if (state == 2) playAt(kSfxSwitchOn, e->world + 9, 0.9f);
+            else if (state == 1) playAt(kSfxSwitchOff, e->world + 9, 1.0f);
+        }
+        entityState_[i] = state ? state : 1;
     }
     if (touching != onButton_) {
         // DistributedSwitch.enterTrigger / exitTrigger.
@@ -496,6 +557,216 @@ void Level::drawStompers(render::Renderer& renderer) const {
         Mtx_Translate(&m, st.shaftOffset[0], st.shaftOffset[1], st.shaftOffset[2], true);
         Mtx_Scale(&m, p.shaftScale[0], p.shaftScale[1], p.shaftScale[2]);
         if (st.shaft.loaded()) renderer.drawModel(st.shaft, m);
+    }
+}
+
+// DistributedLift.enterMoving: LerpPos(platform, duration, endPos, startPos, easeInOut) that
+// ends at the arrival timestamp. The platform sits under the entity, scaled by modelScale.
+bool Level::liftPose(const LevelEntity& e, const net::LevelEntityObj& d, uint32_t nowMs, float world[12],
+                     bool* moving) const {
+    float start[3] = {0, 0, 0}, end[3] = {0, 0, 0}, scale[3] = {1, 1, 1};
+    spec_.getFloats(e, "startPos", start, 3);
+    spec_.getFloats(e, "endPos", end, 3);
+    if (spec_.getFloats(e, "modelScale", scale, 3) == 1) scale[1] = scale[2] = scale[0];
+    const float duration = spec_.number(e, "duration", 1.0f);
+    const float* from = d.fromState == 0 ? start : end; // LiftConstants.Down = 0
+    const float* to = d.state == 0 ? start : end;
+    const float left = int32_t(d.arrivalMs - nowMs) / 1000.0f;
+    const float u = duration > 0.0f ? clamp01(1.0f - left / duration) : 1.0f;
+    const float k = u * u * (3 - 2 * u);
+    *moving = u < 1.0f;
+    float p[3];
+    for (int c = 0; c < 3; ++c) p[c] = from[c] + (to[c] - from[c]) * k;
+    for (int r = 0; r < 3; ++r)
+        for (int c = 0; c < 3; ++c) world[r * 3 + c] = e.world[r * 3 + c] * scale[r];
+    LevelSpec::toWorld(e, p, world + 9);
+    return true;
+}
+
+void Level::updateLifts(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    uint32_t riding = 0;
+    static const float kIdentity[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0};
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = client.levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedLift::kClassId) {
+            if (liftVoice_[i]) { audio::stopVoice(liftVoice_[i]); liftVoice_[i] = 0; }
+            continue;
+        }
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        float w[12];
+        bool moving;
+        liftPose(*e, d, nowMs, w, &moving);
+        // The floor carries riders; the walls keep them in (and out) like the board collisions.
+        const int floorIndex = numSolids_;
+        float floorLo[3], floorHi[3];
+        memcpy(floorLo, liftBoxes_[kLiftFloor], 12);
+        memcpy(floorHi, liftBoxes_[kLiftFloor] + 3, 12);
+        addSolid(w, floorLo, floorHi, false, true);
+        if (numSolids_ > floorIndex) {
+            for (int c = 0; c < 3; ++c) solids_[floorIndex].motion[c] = w[9 + c] - liftPrev_[i][c];
+            if (liftPrev_[i][0] == 0 && liftPrev_[i][1] == 0 && liftPrev_[i][2] == 0)
+                solids_[floorIndex].motion[0] = solids_[floorIndex].motion[1] = solids_[floorIndex].motion[2] = 0;
+        }
+        memcpy(liftPrev_[i], w + 9, 12);
+        // At rest in a state its board sides (startBoardSides / endBoardSides) are open; moving,
+        // every wall is up (startMoving unstashes, doneMoving stashes the arrival side).
+        static const char* const kSide[4] = {"front", "back", "left", "right"};
+        for (int k = 0; k < 4; ++k) {
+            bool open = false;
+            if (!moving) {
+                const char* sides = spec_.string(*e, d.state == 0 ? "startBoardSides" : "endBoardSides");
+                open = sides && strstr(sides, kSide[k]); // comma-joined (tlv.py)
+            }
+            if (!open) addSolid(w, liftBoxes_[kLiftFront + k], liftBoxes_[kLiftFront + k] + 3, true, false);
+        }
+        // Guards (level collision moved here by bake_level.py): the far end's while resting,
+        // both while moving.
+        float box[6];
+        for (int g = 0; g < 2; ++g) {
+            const bool active = moving || (g == 0 ? d.state != 0 : d.state == 0);
+            if (active && spec_.getFloats(*e, g == 0 ? "startGuardBox" : "endGuardBox", box, 6) == 6)
+                addSolid(kIdentity, box, box + 3, true, false);
+        }
+        // setAvatarEnter / setAvatarLeave: standing on the lift floor.
+        float l[3];
+        toLocal(w, x, y, z, l);
+        // (Hysteresis: on within 1 of the floor, off only past 3, so riding never flaps.)
+        const float reach = onLift_ == d.doId ? 3.0f : 1.0f;
+        if (l[0] > floorLo[0] && l[0] < floorHi[0] && l[1] > floorLo[1] && l[1] < floorHi[1] && l[2] > -reach &&
+            l[2] < reach)
+            riding = d.doId;
+        // CHQ_FACT_elevator_up_down loops while it moves.
+        if (moving && !liftVoice_[i] && sfx_[kSfxLift] != audio::kInvalidSfx) {
+            liftVoice_[i] = audio::playSfx(sfx_[kSfxLift], 0.8f, 0.0f, true);
+        } else if (!moving && liftVoice_[i]) {
+            audio::stopVoice(liftVoice_[i]);
+            liftVoice_[i] = 0;
+        }
+    }
+    if (riding != onLift_) {
+        if (onLift_) client.sendLevelLiftRider(onLift_, false);
+        if (riding) client.sendLevelLiftRider(riding, true);
+        TT_LOG("level: lift %u -> %u", unsigned(onLift_), unsigned(riding));
+        onLift_ = riding;
+    }
+}
+
+void Level::drawLifts(render::Renderer& renderer) const {
+    if (!doorClient_ || !liftModel_.loaded()) return;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedLift::kClassId) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        float w[12];
+        bool moving;
+        liftPose(*e, d, doorNowMs_, w, &moving);
+        C3D_Mtx m;
+        toMtx(w, &m);
+        renderer.drawModel(const_cast<render::Model&>(liftModel_), m);
+    }
+}
+
+namespace {
+
+constexpr float kBarrelScale = 0.5f;   // DistributedBarrelBase.barrelScale
+constexpr float kBarrelSphere = 3.2f;  // ... sphereRadius (in barrel space)
+
+bool isBarrel(uint16_t classId) {
+    return classId == dc::DistributedGagBarrel::kClassId || classId == dc::DistributedBeanBarrel::kClassId ||
+           classId == dc::DistributedHealBarrel::kClassId;
+}
+
+} // namespace
+
+void Level::updateBarrels(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = client.levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || !isBarrel(d.classId)) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        float lo[3], hi[3];
+        for (int c = 0; c < 3; ++c) lo[c] = barrelBox_[c] * kBarrelScale, hi[c] = barrelBox_[3 + c] * kBarrelScale;
+        addSolid(e->world, lo, hi, true, true);
+        if (d.grabbedByUs || nowMs - barrelRequestMs_ < 1000) continue; // one grab per toon
+        // handleEnterSphere: the intangible sphere (r 3.2 x barrelScale) meets GravityWalker's event
+        // sphere (centre r - 0.1, radius r x 1.04). Panda raises the event before its pusher
+        // resolves the frame's motion, so a toon walking in overlaps by about one frame of
+        // movement (forward 16/s at 30 fps); we test after resolving, hence the margin.
+        const float scale = std::sqrt(e->world[0] * e->world[0] + e->world[1] * e->world[1] + e->world[2] * e->world[2]);
+        const float dx = x - e->world[9], dy = y - e->world[10], dz = z + kToonRadius - 0.1f - e->world[11];
+        const float reach = kBarrelSphere * kBarrelScale * scale + kToonRadius * 1.04f + 16.0f / 30.0f;
+        if (dx * dx + dy * dy + dz * dz < reach * reach) {
+            client.sendLevelBarrelGrab(d.doId);
+            barrelRequestMs_ = nowMs;
+            TT_LOG("level: requestGrab barrel %u (ent %u)", unsigned(d.doId), unsigned(d.entId));
+        }
+        if (d.grabMs && entityState_[i] != 9) { // setGrab arrived: the grab sound
+            playAt(kSfxBarrelGrab, e->world + 9, 1.0f);
+            entityState_[i] = 9;
+        }
+    }
+}
+
+void Level::drawBarrels(render::Renderer& renderer) const {
+    if (!doorClient_ || !barrelModel_.loaded()) return;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || !isBarrel(d.classId)) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        // setGrab: scale to 1.1x and back over 0.4 s; greyed for the toon who grabbed it.
+        float s = kBarrelScale;
+        if (d.grabMs) {
+            const float t = int32_t(doorNowMs_ - d.grabMs) / 1000.0f;
+            auto smooth = [](float u) { return u * u * (3 - 2 * u); };
+            if (t < 0.2f) s *= 1.0f + 0.1f * smooth(t / 0.2f);
+            else if (t < 0.4f) s *= 1.1f - 0.1f * smooth((t - 0.2f) / 0.2f);
+        }
+        const float grey = d.grabbedByUs ? 0.5f : 1.0f;
+        C3D_Mtx m;
+        toMtx(e->world, &m);
+        Mtx_Scale(&m, s, s, s);
+        renderer.setBaseTint(grey, grey, grey, 1.0f);
+        renderer.drawModel(const_cast<render::Model&>(barrelModel_), m);
+        // The label on gagNode (0, -2.62, 4) in barrel space, colour-scaled (0.7, 0.7, 0.6).
+        Mtx_Translate(&m, 0.0f, -2.62f, 4.0f, true);
+        renderer.setBaseTint(0.7f * grey, 0.7f * grey, 0.6f * grey, 1.0f);
+        const render::Model* label = nullptr;
+        float labelScale = 1.0f, labelZ = 0.0f;
+        if (d.classId == dc::DistributedGagBarrel::kClassId) {
+            // BarrelBase.getGagTrack / getGagLevel: random.Random(entId * level.doId), fresh each.
+            const uint64_t seed = uint64_t(e->entId) * levelDoId_;
+            int track = spec_.integer(*e, "gagTrack", 0);
+            const char* trackName = spec_.string(*e, "gagTrack");
+            if (trackName && !strcmp(trackName, "random")) {
+                static const int kTracks[9] = {0, 1, 2, 3, 4, 4, 5, 5, 6};
+                PyRandom rng(seed);
+                track = kTracks[rng.randbelow(9)];
+            }
+            int level = spec_.integer(*e, "gagLevel", 0);
+            const int levelMax = spec_.integer(*e, "gagLevelMax", 0);
+            if (levelMax > level) {
+                PyRandom rng(seed);
+                level = rng.randrange(level, levelMax + 1);
+            }
+            if (track >= 0 && track < 7 && level >= 0 && level < 7) label = &gagIcons_[track][level];
+            labelScale = 13.0f;
+        } else if (d.classId == dc::DistributedBeanBarrel::kClassId) {
+            label = &barrelJar_;
+            labelScale = 3.0f;
+        } else {
+            label = &barrelIcecream_;
+            labelScale = 0.6f;
+            labelZ = -0.1f - labelScale;
+        }
+        if (label && label->loaded()) {
+            Mtx_Translate(&m, 0.0f, -0.1f, labelZ, true);
+            Mtx_Scale(&m, labelScale, labelScale, labelScale);
+            renderer.drawModel(const_cast<render::Model&>(*label), m);
+        }
+        renderer.setBaseTint(1, 1, 1, 1);
     }
 }
 
@@ -837,6 +1108,8 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateDoors(client, x, y, z, nowMs);
     updateButtons(client, x, y, z);
     updateStompers(client, x, y, z, nowMs);
+    updateLifts(client, x, y, z, nowMs);
+    updateBarrels(client, x, y, z, nowMs);
     zone_.update(Vec3{x, y, z}, &Level::cellChanged, this);
     if (lockZoneId_ != sentLock_) visDirty_ = true;
     if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
@@ -996,6 +1269,8 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawDoors(renderer);
     drawButtons(renderer);
     drawStompers(renderer);
+    drawLifts(renderer);
+    drawBarrels(renderer);
 }
 
 } // namespace tt::world

@@ -159,9 +159,11 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
         bool found = false;
         float g = world->groundHeight(p.x, p.y, p.z, &found);
         float top;
+        bool onSolid = false; // standing on a lift/platform: CollisionHandlerFloor sets Z directly
         if (dyn && dyn->floor && dyn->floor(dyn->user, p.x, p.y, p.z, &top) && (!found || top > g)) {
             g = top;
             found = true;
+            onSolid = true;
         }
         if (found) ground_ = g;
         float nz = z_ + vz_ * dt;
@@ -172,7 +174,8 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
             nz = ground_;
             vz_ = 0.0f;
         }
-        if (nz != p.z) p = world->slideCapsule(p, r, 2.0f * r, Vec3{0.0f, 0.0f, nz - p.z});
+        if (onSolid && nz == ground_) p.z = nz; // carried up a shaft: no static ceiling stops a lift
+        else if (nz != p.z) p = world->slideCapsule(p, r, 2.0f * r, Vec3{0.0f, 0.0f, nz - p.z});
         x_ = p.x;
         y_ = p.y;
         z_ = p.z;

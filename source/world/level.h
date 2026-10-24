@@ -158,9 +158,27 @@ private:
     float toonX_ = 0, toonY_ = 0, toonZ_ = 0;
     // Sounds (bake_level_props.py LEVEL_SFX), played at the entity like SoundInterval(node=).
     enum Sfx { kSfxStompSmall, kSfxStompMed, kSfxStompLarge, kSfxDoorSlide, kSfxDoorFinal, kSfxDoorUnlock,
-               kSfxArms, kSfxSwitchOn, kSfxSwitchCount, kSfxSwitchOff, kSfxCount };
+               kSfxArms, kSfxSwitchOn, kSfxSwitchCount, kSfxSwitchOff, kSfxLift, kSfxBarrelGrab, kSfxCount };
     audio::SfxId sfx_[kSfxCount] = {};
     void playAt(int sfx, const float pos[3], float volume) const;
+    // DistributedLift (Elevator floor model; lift.box: floor, ceiling, front/back/left/right).
+    enum LiftBox { kLiftFloor, kLiftCeiling, kLiftFront, kLiftBack, kLiftLeft, kLiftRight, kLiftBoxes };
+    render::Model liftModel_;
+    float liftBoxes_[kLiftBoxes][6] = {};
+    bool liftPose(const LevelEntity& e, const net::LevelEntityObj& d, uint32_t nowMs, float world[12],
+                  bool* moving) const;
+    void updateLifts(net::Client& client, float x, float y, float z, uint32_t nowMs);
+    void drawLifts(render::Renderer& renderer) const;
+    float liftPrev_[net::kMaxLevelEntities][3] = {};
+    uint32_t onLift_ = 0;
+    audio::VoiceHandle liftVoice_[net::kMaxLevelEntities] = {};
+    // DistributedGagBarrel / BeanBarrel / HealBarrel (gagTank + label, barrel.box).
+    render::Model barrelModel_, barrelJar_, barrelIcecream_;
+    render::Model gagIcons_[7][7];
+    float barrelBox_[6] = {-3, -2.65f, 0, 3, 2.6f, 8.27f};
+    void updateBarrels(net::Client& client, float x, float y, float z, uint32_t nowMs);
+    void drawBarrels(render::Renderer& renderer) const;
+    uint32_t barrelRequestMs_ = 0;
     render::Model buttonBase_, buttonTop_;
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)
@@ -207,6 +225,7 @@ private:
     uint32_t doorRequestMs_ = 0;
     const net::Client* doorClient_ = nullptr;
     uint32_t doorNowMs_ = 0;
+    uint32_t doorNowMsPrev_ = 0;
 };
 
 } // namespace tt::world

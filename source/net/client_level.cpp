@@ -125,6 +125,18 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         for (int i = 0; i < 3; ++i)
             if (((bits >> (4 * i)) & 15) != ((e.locks >> (4 * i)) & 15)) e.locksMs[i] = now_;
         e.locks = bits;
+    } else if (fieldId == dc::DistributedLift::k_setStateTransition) {
+        e.state = r.u8();
+        e.fromState = r.u8();
+        const uint32_t ts = r.u32(); // 32-bit ClockDelta time
+        e.arrivalMs = timeSynced_ ? networkToLocal(int16_t(ts & 0xFFFF), now_) : now_;
+    } else if (fieldId == dc::DistributedBarrelBase::k_setGrab) {
+        e.avatarId = r.u32();
+        e.grabMs = now_;
+        if (e.avatarId == avatarId_) e.grabbedByUs = true;
+        TT_LOG("net: barrel %u grabbed by %u", unsigned(e.doId), unsigned(e.avatarId));
+    } else if (fieldId == dc::DistributedBarrelBase::k_setReject) {
+        TT_LOG("net: barrel %u rejected our grab", unsigned(e.doId));
     } else if (fieldId == dc::DistributedStomper::k_setMovie) {
         e.movie = r.u8();
         const int16_t ts = r.i16();
@@ -149,7 +161,9 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
     const bool suit = isLevelSuitClass(classId);
     const bool blocker = !suit && cls && classHasField(*cls, dc::BattleBlocker::k_setBattle);
     if (classId == dc::DistributedDoorEntity::kClassId || classId == dc::DistributedButton::kClassId ||
-        classId == dc::DistributedStomper::kClassId) {
+        classId == dc::DistributedStomper::kClassId || classId == dc::DistributedLift::kClassId ||
+        classId == dc::DistributedGagBarrel::kClassId || classId == dc::DistributedBeanBarrel::kClassId ||
+        classId == dc::DistributedHealBarrel::kClassId) {
         LevelEntityObj tmp{};
         tmp.doId = doId;
         tmp.classId = classId;
@@ -323,6 +337,24 @@ bool Client::sendLevelOuch(uint32_t levelDoId, uint8_t penalty) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, levelDoId, DistributedLevel, setOuch);
     w.u8(penalty);
+    return finish(w);
+}
+
+bool Client::sendLevelLiftRider(uint32_t doId, bool enter) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    if (enter) {
+        TT_NET_UPDATE(w, doId, DistributedLift, setAvatarEnter);
+    } else {
+        TT_NET_UPDATE(w, doId, DistributedLift, setAvatarLeave);
+    }
+    return finish(w);
+}
+
+bool Client::sendLevelBarrelGrab(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedBarrelBase, requestGrab);
     return finish(w);
 }
 

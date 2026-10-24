@@ -408,10 +408,14 @@ struct LevelEntityObj {
     uint32_t stateMs = 0;  // local time the state began (its network timestamp)
     uint16_t locks = 0;    // setLocksState: 4 bits per lock (LockBase FourState index)
     uint32_t locksMs[3] = {}; // local time each lock's state last changed
+    uint8_t fromState = 0;   // DistributedLift.setStateTransition(toState -> state, fromState, ...)
+    uint32_t arrivalMs = 0;  // ... arrival time (local)
     uint8_t movie = 0;       // DistributedStomper.setMovie mode (StomperGlobals STOMPER_*)
     uint32_t movieMs = 0;    // ... and its local start time
     char stateName[12] = {}; // DistributedInteractiveEntity.setState: "off" / "attract" / "playing"
-    uint32_t avatarId = 0;   // setAvatarInteract: the toon on the switch
+    uint32_t avatarId = 0;   // setAvatarInteract: the toon on the switch; DistributedBarrelBase.setGrab
+    uint32_t grabMs = 0;     // DistributedBarrelBase.setGrab: when (local)
+    bool grabbedByUs = false;
     bool active = false;
 };
 constexpr int kMaxLevelEntities = 64;
@@ -1140,6 +1144,8 @@ public:
     bool sendLevelDoorOpen(uint32_t doId); // DistributedDoorEntity.requestOpen (we bumped the door)
     bool sendLevelInteract(uint32_t doId, bool enter); // DistributedSwitch requestInteract / requestExit
     bool sendLevelOuch(uint32_t levelDoId, uint8_t penalty); // DistributedLevel.setOuch (hazard damage)
+    bool sendLevelLiftRider(uint32_t doId, bool enter); // DistributedLift setAvatarEnter / setAvatarLeave
+    bool sendLevelBarrelGrab(uint32_t doId);            // DistributedBarrelBase.requestGrab
     // DistributedLevel.setVisibility: location stays the level zone, interest is the level zone,
     // the UberZone and the visible zones (ids from setZoneIds), like sendSetZoneMsg.
     bool setLevelVisibility(uint32_t levelZone, const uint32_t* zones, int count);

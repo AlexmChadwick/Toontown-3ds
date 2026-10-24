@@ -320,7 +320,9 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
 WANTED['DistributedFactorySuit'] = ['setLevelDoId', 'setCogId', 'setReserve', 'requestBattle', 'setAlert',
                                     'setConfrontToon', 'setStrayed', 'setReturn']
 WANTED['BattleBlocker'] = ['setActive', 'setSuits', 'setBattle', 'setBattleFinished']
-TABLE_CLASSES += ['DistributedFactorySuit', 'DistributedMintSuit', 'DistributedStageSuit', 'BattleBlocker']
+WANTED['DistributedBarrelBase'] = ['requestGrab', 'setGrab', 'setReject']
+TABLE_CLASSES += ['DistributedFactorySuit', 'DistributedMintSuit', 'DistributedStageSuit', 'BattleBlocker',
+                  'DistributedGagBarrel', 'DistributedBeanBarrel', 'DistributedHealBarrel']
 # ---- end facility levels ----
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----

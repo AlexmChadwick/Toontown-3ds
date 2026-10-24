@@ -93,6 +93,8 @@ const Step kScript[] = {
     {30.0f, 0, 0, 0, 0, -1, -1, 0, "factory: board", "factory_in"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "factory: button", "factory_button*"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "factory: stomper", "factory_stomper**"},
+    {22.0f, 0, 0, 0, 0, -1, -1, 0, "factory: lift", "factory_lift*"},
+    {6.0f, 0, 25, 0, 0, -1, -1, 0, "factory: barrel", "factory_barrel*"},
     {9.0f, 0, 150, 0, 0, -1, -1, 0, "factory: door", "factory_door*"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "factory: entities", "factory_entities*"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "factory: battle", "factory_battle*"},

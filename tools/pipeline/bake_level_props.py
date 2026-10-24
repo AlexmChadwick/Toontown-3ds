@@ -12,6 +12,8 @@ it under the entity node, so the runtime only adds the part's animated offset:
            left/right inner doors, three lock slides x closed / left-open / right-open)
   button_* DistributedButton.setupSwitch (CogDoor_Button: base and the pressable top)
   stomper_*, stomper_lb_*  DistributedStomper.loadModel (square_stomper / LB_square_stomper)
+  lift     DistributedLift.initPlatform (Elevator: floor model, floor/ceiling/wall boxes)
+  barrel*, gag_icon_<track>_<level>  DistributedBarrelBase (gagTank + its labels)
 Deterministic; at most 3 ETC1 encoder threads.
 """
 import json
@@ -106,6 +108,94 @@ def bake_button(base, resources, out):
     return report
 
 
+def collision_box(node, root):
+    from panda3d.core import CollisionPolygon
+    pts = []
+    for cn in [node] + list(node.findAllMatches('**/+CollisionNode')):
+        if not cn.node().isCollisionNode():
+            continue
+        mat = cn.getMat(root)
+        for i in range(cn.node().getNumSolids()):
+            solid = cn.node().getSolid(i)
+            if isinstance(solid, CollisionPolygon):
+                pts += [mat.xformPoint(solid.getPoint(k)) for k in range(solid.getNumPoints())]
+    return [min(p[k] for p in pts) for k in range(3)] + [max(p[k] for p in pts) for k in range(3)]
+
+
+def bake_lift(base, resources, out):
+    """DistributedLift.initPlatform: the Elevator model (its floor is all that is drawn) and its
+    collision boxes: elevator_floor, ceiling and the four walls, the walls after
+    initPlatform's setScale(1, 1, 2) / setZ(-10). lift.box: one "name minx miny minz maxx maxy
+    maxz" line per box, model space."""
+    model = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/Elevator.bam'), noCache=True)
+    report = {'lift': write_part(model, model.find('**/geometry'), out / 'lift.ttm')}
+    lines = []
+    coll = model.find('**/collsion')
+    for name in ('elevator_floor', 'ceiling', 'wall_front', 'wall_back', 'wall_left', 'wall_right'):
+        n = coll.find(name)
+        if n.isEmpty():
+            raise ValueError(f'Elevator: {name} missing')
+        if name.startswith('wall_'):
+            n.setScale(1.0, 1.0, 2.0)
+            n.setZ(-10)
+        box = collision_box(n, model)
+        lines.append(name + ' ' + ' '.join(f'{v:.3f}' for v in box))
+    (out / 'lift.box').write_text('\n'.join(lines) + '\n')
+    report['lift_boxes'] = lines
+    model.removeNode()
+    return report
+
+
+def av_props_new():
+    """ToontownBattleGlobals.AvPropsNew: the inventory_icons node name per (track, level)."""
+    import ast
+    import level_spec_load
+    tree = ast.parse((level_spec_load.UPSTREAM / 'toontown/toonbase/ToontownBattleGlobals.py').read_text())
+    for n in tree.body:
+        if isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == 'AvPropsNew' for t in n.targets):
+            return ast.literal_eval(n.value)
+    raise ValueError('AvPropsNew not found')
+
+
+def bake_barrels(base, resources, out):
+    """DistributedBarrelBase.loadModel / applyLabel: the gagTank barrel, and its labels: a gag
+    icon card per (track, level) for gag barrels (inventory_icons), the Jar for bean barrels
+    (purchase_gui) and the icecream for heal barrels. barrel.box: the tank's collision tube."""
+    report = {}
+    tank = base.loader.loadModel(str(resources / 'phase_4/models/cogHQ/gagTank.bam'), noCache=True)
+    label = tank.find('**/gagLabelDCS')
+    if not label.isEmpty():
+        label.setColor(0.15, 0.15, 0.1)  # dcsNode.setColor(0.15, 0.15, 0.1)
+    report['barrel'] = write_part(tank, None, out / 'barrel.ttm')
+    # It collides as its tube (tubeColl: a capsule along Z); its square is the solid box.
+    tube = tank.find('**/tubeColl').node().getSolid(0)
+    r, za, zb = tube.getRadius(), tube.getPointA()[2], tube.getPointB()[2]
+    (out / 'barrel.box').write_text(' '.join(f'{v:.3f}' for v in (-r, -r, min(za, zb), r, r, max(za, zb))) + '\n')
+    tank.removeNode()
+    gui = base.loader.loadModel(str(resources / 'phase_4/models/gui/purchase_gui.bam'), noCache=True)
+    jar = gui.find('**/Jar')
+    report['barrel_jar'] = write_part(gui, jar, out / 'barrel_jar.ttm')
+    gui.removeNode()
+    ice = base.loader.loadModel(str(resources / 'phase_4/models/props/icecream.bam'), noCache=True)
+    p = ice.find('**/p1_2')
+    if not p.isEmpty():
+        p.clearBillboard()
+    report['barrel_icecream'] = write_part(ice, None, out / 'barrel_icecream.ttm')
+    ice.removeNode()
+    icons = base.loader.loadModel(str(resources / 'phase_3.5/models/gui/inventory_icons.bam'), noCache=True)
+    for track, names in enumerate(av_props_new()):
+        for level, name in enumerate(names):
+            n = icons.find('**/' + name)
+            if n.isEmpty():
+                raise ValueError(f'inventory_icons: {name} missing')
+            copy = n.copyTo(icons)
+            copy.clearTransform()  # applyLabel reparents the node: its own transform is replaced
+            report[f'gag_icon_{track}_{level}'] = write_part(icons, copy, out / f'gag_icon_{track}_{level}.ttm')
+            copy.removeNode()
+    icons.removeNode()
+    return report
+
+
 def bake_stomper(base, resources, out, name, path):
     """DistributedStomper.loadModel: square_stomper's head (scaled by headScale) and the shaft
     under it (offset, then shaftScale). Head baked in model space; shaft in its node's space.
@@ -143,6 +233,9 @@ LEVEL_SFX = (
     'phase_9/audio/sfx/CHQ_FACT_switch_depressed.ogg',
     'phase_9/audio/sfx/CHQ_FACT_switch_popup.ogg',
     'phase_9/audio/sfx/toon_decompress.ogg',             # Toon.enterSquish
+    'phase_9/audio/sfx/CHQ_FACT_elevator_up_down.ogg',   # DistributedLift
+    'phase_4/audio/sfx/SZ_DD_treasure.ogg',              # DistributedBarrelBase grab
+    'phase_4/audio/sfx/ring_miss.ogg',                   # ... reject
 )
 
 
@@ -168,7 +261,9 @@ def main():
     report = {'door': bake_door(base, resources, out), 'button': bake_button(base, resources, out),
               'stomper': bake_stomper(base, resources, out, 'stomper', 'phase_9/models/cogHQ/square_stomper.bam'),
               'stomper_lb': bake_stomper(base, resources, out, 'stomper_lb',
-                                         'phase_11/models/lawbotHQ/LB_square_stomper.bam')}
+                                         'phase_11/models/lawbotHQ/LB_square_stomper.bam'),
+              'lift': bake_lift(base, resources, out),
+              'barrels': bake_barrels(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}

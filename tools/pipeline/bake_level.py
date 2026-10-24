@@ -360,6 +360,58 @@ def bake_tz(level, ents, model, out, args):
     return report
 
 
+def collision_bounds(node, root):
+    """AABB (in root space) of every collision solid under node; None when there is none."""
+    from panda3d.core import CollisionPolygon, CollisionSphere, CollisionTube, Point3
+    pts = []
+    for cn in ([node] if node.node().isCollisionNode() else []) + list(node.findAllMatches('**/+CollisionNode')):
+        mat = cn.getMat(root)
+        for i in range(cn.node().getNumSolids()):
+            solid = cn.node().getSolid(i)
+            if isinstance(solid, CollisionPolygon):
+                local = [solid.getPoint(k) for k in range(solid.getNumPoints())]
+            elif isinstance(solid, CollisionSphere):
+                c, r = solid.getCenter(), solid.getRadius()
+                local = [c - Point3(r, r, r), c + Point3(r, r, r)]
+            elif isinstance(solid, CollisionTube):
+                r = solid.getRadius()
+                local = [p + Point3(dx, dy, dz) for p in (solid.getPointA(), solid.getPointB())
+                         for dx in (-r, r) for dy in (-r, r) for dz in (-r, r)]
+            else:
+                continue
+            pts += [mat.xformPoint(p) for p in local]
+    if not pts:
+        return None
+    return [min(p[k] for p in pts) for k in range(3)] + [max(p[k] for p in pts) for k in range(3)]
+
+
+def lift_guards(ents, model):
+    """DistributedLift.initPlatform: start/end guard collisions (nodes of the lift's zone) are
+    stashed or not by the lift's state, so they leave the static collision. Their level-root
+    boxes become the lift's 'startGuardBox' / 'endGuardBox' attributes."""
+    zones = zone_nodes(model)
+    found = []
+    for ent_id, spec in ents.items():
+        if spec['type'] != 'lift':
+            continue
+        zone = zones.get(spec.get('parentEntId'))
+        if zone is None:
+            continue
+        for key in ('startGuardName', 'endGuardName'):
+            name = spec.get(key)
+            if not name:
+                continue
+            n = zone.find('**/' + name)
+            if n.isEmpty():
+                continue
+            box = collision_bounds(n, model)
+            if box:
+                spec[key.replace('Name', 'Box')] = box
+            n.stash()
+            found.append(f'{ent_id}:{name}')
+    return found
+
+
 def bake(level, args, base):
     import level_spec_load
     spec_name, cog_name = LEVELS[level]
@@ -378,6 +430,7 @@ def bake(level, args, base):
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
+    report['lift_guards'] = lift_guards(ents, model)
     report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level))
     if not args.tlv_only:
         report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)

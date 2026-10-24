@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include "world/level_spec.h"
+#include "world/py_random.h"
 
 using tt::world::LevelSpec;
 
@@ -42,6 +43,14 @@ int main(int argc, char** argv) {
     n = 0;
     for (int i = spec.next("cogSpec", -1); i >= 0; i = spec.next("cogSpec", i)) n++;
     CHECK(n == 35);
+    // PyRandom == CPython random.Random (values printed by python3 for the same seeds).
+    tt::world::PyRandom r(12345);
+    CHECK(r.getrandbits(32) == 1789368711u && r.getrandbits(32) == 3146859322u && r.getrandbits(32) == 43676229u);
+    tt::world::PyRandom b(uint64_t(20021) * 401006382ull);
+    CHECK(b.randrange(0, 2) == 1);
+    tt::world::PyRandom c(uint64_t(20021) * 401006382ull);
+    static const int kTracks[9] = {0, 1, 2, 3, 4, 4, 5, 5, 6};
+    CHECK(kTracks[c.randbelow(9)] == 5);
     std::printf("%s: %d entities, cog0 world (%.2f %.2f %.2f)\n", path, spec.numEntities(), w[0], w[1], w[2]);
     std::printf(failures ? "level_spec_test: %d FAILED\n" : "level_spec_test: ok\n", failures);
     return failures ? 1 : 0;
