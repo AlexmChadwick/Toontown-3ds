@@ -363,6 +363,31 @@ need hardware.
   SpeedChat pick then goes as setWhisperSCFrom to that toon only, with no public balloon.
   Sending was not exercised by the autotest.
 
+### 2026-10-24 — All implemented minigames, real Cogs, tailor, toon battle clips
+- **Target:** Azahar 2126.2, Old 3DS mode (muted from now on), local server with
+  `AI_MINIGAME_ID=<id>`. Every game was reached by riding the TTC trolley, and none
+  crashed. Beans are the PurchaseManager payout.
+
+  | Game (id) | Result |
+  |---|---|
+  | Cannon (2) | Autoplay fired at (rot −5.6°, ang 68.8°) and hit the tower: **22 beans**. |
+  | Tug of War (7) | The cog fell in the water: **16 beans**. Fixed: `reportPlayerReady` was sent before setGameStart, so the AI never sent Go and paid 1. |
+  | Ring (5) | 16/16 rings: **21 beans**. |
+  | Maze (6) | 3 beans. Autoplay does not steer, so this matches the treasures picked up. |
+  | Match Minnie (11) | **8 beans**. Fixed: an invalid `bonusGlowCard` sent the stock AI into a crashing `logSuspicious` path, and the client never sent reportDone on the timer. |
+  | Diving (9) | **15 beans** (one chest recovered). |
+  | Jungle Vines (12) | 1 bean. Fixed: `setNewVine` sent our money as the avId. Autoplay still never catches a vine, so the result is unchanged. |
+- **Real Cogs.** Bodies, heads, department suits and hand tints draw on Silly Street
+  (Pencil Pusher walking) and in the 'cog showcase' step.
+- **Toon battle clips.** throw, pushbutton, cringe and victory play on the local toon.
+- **Tailor (2521).** Tammy the Tailor opens the Clothing Store panel; Done sends
+  finished=2.
+- **Stock AI bug.** If a client disconnects with a tailor session open, the AI dies
+  (`DistributedNPCTailorAI.__handleUnexpectedExit` TypeError). The autotest now always
+  cancels before it ends.
+- **Full regression.** All 55 steps passed with Cog buildings, the factory and the
+  mint/office merged.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

@@ -106,7 +106,7 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
 
         // Check catch next vine
         if (vine::checkVineCatch(toon_)) {
-            client.sendVineNewVine(client.ownStats().money, int8_t(toon_.currentVine), toon_.vineT, 1);
+            client.sendVineNewVine(client.avatarId(), int8_t(toon_.currentVine), toon_.vineT, 1);
             if (toon_.state == vine::State::Finished) {
                 client.sendVineReachedEndVine(int8_t(toon_.currentVine));
                 score_ = vine::calculateScore(bananas_, timeRemaining_, true);
