@@ -72,6 +72,8 @@ class Assembler:
         self.skipped = Counter()      # feature -> count
         self.wall_height = 0.0
         self.billboards_crossed = 0
+        self.sign_letters = 0
+        self.sign_baselines = 0
 
     # -- helpers -----------------------------------------------------------
     def _find(self, code):
@@ -276,56 +278,8 @@ class Assembler:
         return sign
 
     def _t_baseline(self, d, parent):
-        graphics = d.find_all('graphic')
-        texts = d.find_all('text')
-        if texts:
-            self.skipped['sign text (baseline with letters)'] += 1
-            if graphics:
-                self.skipped['sign graphic in text baseline'] += len(graphics)
-            return None
-        if not graphics:
-            return None
-        if d.get('width', 0) or d.get('height', 0):
-            self.skipped['sign graphic on circular baseline'] += len(graphics)
-            return None
-        bl = parent.attachNewNode('baseline')
-        bl.setColor(d.vec('color', WHITE))
-        bscale = d.vec('scale', (1, 1, 1))
-        kern = float(d.get('kern', 0) or 0)
-        stumble = float(d.get('stumble', 0) or 0)
-        stomp = float(d.get('stomp', 0) or 0)
-        wiggle = float(d.get('wiggle', 0) or 0)
-        cursor = 0.0
-        total = 0.0
-        for i, g in enumerate(graphics):
-            src = self._find(g.get('code', ''))
-            odd = i & 1
-            gscale = g.vec('scale', (1, 1, 1))
-            scale = tuple(a * b for a, b in zip(gscale, bscale))
-            pos = list(g.vec('pos', (0, 0, 0)))
-            pos[0] += cursor + i * kern + (stumble if odd else -stumble)
-            pos[2] += stomp if odd else -stomp
-            hpr = list(_hpr(g))
-            hpr[2] += wiggle if odd else -wiggle
-            w = scale[0] * float(g.get('width', 0) or 0)
-            cursor += w
-            total += w
-            if src is None:
-                continue
-            gnp = src.copyTo(bl)
-            gnp.setPosHprScale(tuple(pos), tuple(hpr), scale)
-            gnp.setColor(g.vec('color', d.vec('color', WHITE)))
-        # Center the run of graphics on the baseline position.
-        n = len(graphics)
-        gap = (n - 1) * kern + ((stumble if (n - 1) & 1 else -stumble) if n else 0)
-        radius = (total + gap) * 0.5
-        pos = list(d.vec('pos', (0, 0, 0)))
-        hpr = _hpr(d)
-        ang = math.radians(-hpr[2])
-        pos[0] -= radius * math.cos(ang)
-        pos[2] -= radius * math.sin(ang)
-        bl.setPosHprScale(tuple(pos), hpr, (1, 1, 1))
-        return bl
+        from sign_text import assemble_baseline
+        return assemble_baseline(self, d, parent)
 
     # -- flat buildings ----------------------------------------------------
     def _t_flat_building(self, d, parent):

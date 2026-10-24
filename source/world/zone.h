@@ -1,4 +1,4 @@
-// TZ01 v1 streaming container. See tools/pipeline/tz.py and docs/design/streets.md.
+// TZ01 v1/v2 streaming container. See tools/pipeline/tz.py and docs/design/streets.md.
 #pragma once
 #include <cstdint>
 #include "world/collision.h"
@@ -12,6 +12,7 @@ public:
     static constexpr uint32_t kGeometryBudget = 6u * 1024 * 1024;
     static constexpr uint32_t kTextureBudget = 8u * 1024 * 1024;
     static constexpr int kMaxChunks = 256;
+    static constexpr uint32_t kTriangleBudget = 15000;
     struct Trigger {
         float min[3], max[3];
         uint32_t kind; // 0 other, 1 door, 2 tunnel (approach volume)
@@ -47,6 +48,10 @@ public:
     const float* boundsMax() const;
     int numVisible() const;
     int visibleZones(uint16_t* out, int capacity) const; // required count incl branch
+    uint16_t version() const;
+    uint32_t triangles() const;
+    uint32_t drawCalls() const;
+    int chunkLod(int index) const; // -1 not resident, 0 near, 1 far
     uint32_t geometryBytes() const;
     uint32_t textureBytes() const;
     int numTriggers() const;

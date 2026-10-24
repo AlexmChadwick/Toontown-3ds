@@ -9,6 +9,22 @@ import math
 import numpy as np
 import extract
 import ttm
+import sign_text
+
+
+def texture_pixels(tex, size):
+    """Normalize Panda alpha-only sources before atlas/TTM encoding.
+
+    Texture.store exposes an F_alpha texture as a one-channel grayscale PNMImage.
+    extract.texture_pixels consequently puts its mask in RGB with alpha=255.
+    Recover the mask explicitly; otherwise glyphs become solid rectangles.
+    """
+    from panda3d.core import Texture
+    pixels,components,fmt=extract.texture_pixels(tex,size)
+    if fmt==Texture.F_alpha:
+        pixels[:,:,3]=pixels[:,:,0]
+        pixels[:,:,:3]=255
+    return pixels,components,fmt
 
 
 class Extractor(extract.Extractor):
@@ -17,7 +33,7 @@ class Extractor(extract.Extractor):
         self.sources = []
 
     def _texture(self, tex):
-        key = tex.getFullpath().getFullpath() or tex.getName()
+        key = ('sign_font', int(tex.this)) if sign_text.is_font_texture(tex) else (tex.getFullpath().getFullpath() or tex.getName())
         if key not in self._tex_index:
             self._tex_index[key] = len(self.sources)
             self.sources.append(tex)
@@ -56,7 +72,7 @@ def tile_ranges(tri, tex):
 def build(sources, chunks):
     """Return textures and transformed chunk batches, with shared atlas indices."""
     # Keep pathological UV tiling separate, bounded in both memory and bake time.
-    standalone = set()
+    standalone = {i for i,t in enumerate(sources) if sign_text.is_font_texture(t)}
     for batches in chunks:
         for b in batches:
             if b.texture is None:
@@ -74,7 +90,7 @@ def build(sources, chunks):
         px = np.full((256, 256, 4), 255, dtype=np.uint8)
         page = len(textures)
         for slot, idx in enumerate(entries[start:start + 36]):
-            image, _, _ = extract.texture_pixels(sources[idx], 32)
+            image, _, _ = texture_pixels(sources[idx], 32)
             # Upscale small source images to a predictable slot size (nearest).
             image = image[np.arange(32) * image.shape[0] // 32][:, np.arange(32) * image.shape[1] // 32]
             x, y = (slot % 6) * 40 + 4, (slot // 6) * 40 + 4
@@ -83,7 +99,7 @@ def build(sources, chunks):
         fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
         textures.append(ttm.Texture(f'street_atlas_{page}', px, fmt, 0, 0, mipmaps=False))
     for idx in sorted(standalone):
-        image, nc, pf = extract.texture_pixels(sources[idx], 128)
+        image, nc, pf = texture_pixels(sources[idx], 256 if sign_text.is_font_texture(sources[idx]) else 128)
         mapping[idx] = (len(textures), None, None)
         textures.append(ttm.Texture(sources[idx].getName(), image,
                                     extract.choose_format(image, nc, pf),
@@ -139,3 +155,44 @@ def build(sources, chunks):
                 merged.append(ttm.Batch(tex, blend, two, tint, layer, vs, np.arange(len(vs))))
         result.append(merged)
     return textures, result
+
+
+def rebase_large_uvs(batch, textures):
+    """Split oversized repeats into <=16-tile pieces before TTM's int16 UV packing.
+
+    Unlike clamping, clipping and subtracting whole repeats preserves the image.
+    This handles Burrrgh terrain whose individual triangles span >32 repeats.
+    """
+    b=batch
+    if b.texture is None:
+        return b
+    tex=textures[b.texture]
+    verts=b.verts.copy()
+    for axis,wrap in ((3,tex.wrap_s),(4,tex.wrap_t)):
+        if wrap==0:
+            verts[:,axis]=np.clip(verts[:,axis],0,1)
+    pieces=[]
+    for tri in verts[b.indices.reshape(-1,3)]:
+        lo,hi=tri[:,3:5].min(axis=0),tri[:,3:5].max(axis=0)
+        if np.all(hi-lo<=30):
+            p=tri.copy()
+            p[:,3:5]-=np.floor(lo)
+            pieces.append(p)
+            continue
+        ranges=[range(math.floor(a/16),max(math.floor(a/16),math.ceil(z/16)-1)+1) for a,z in zip(lo,hi)]
+        if len(ranges[0])*len(ranges[1])>4096:
+            raise ValueError('texture repeat span is too large to preserve safely')
+        for u in ranges[0]:
+            for v in ranges[1]:
+                poly=list(tri)
+                for axis,k in ((3,u),(4,v)):
+                    poly=clip(clip(poly,axis,k*16,True),axis,(k+1)*16,False) if poly else []
+                if len(poly)<3:
+                    continue
+                p=np.array(poly)
+                p[:,3:5]-=np.floor(p[:,3:5].min(axis=0))
+                pieces.extend(np.array([p[0],p[k],p[k+1]]) for k in range(1,len(p)-1))
+    if not pieces:
+        return b
+    verts=np.concatenate(pieces)
+    return ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts)))

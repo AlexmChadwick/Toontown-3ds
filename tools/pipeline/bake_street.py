@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake Silly Street (2100) and TTC playground (2000) to self-contained .tz files.
+"""Bake all supported streets and playgrounds to self-contained .tz files.
 
 .venv/bin/python -I tools/pipeline/bake_street.py [--zone 2100|2000|all] [--preview]
 Outputs: sdmc-out/3ds/toontown3ds/data/zones/{2100,2000}.tz + budget JSON.
@@ -43,15 +43,11 @@ def bake(zone_id, args, base):
     import street_atlas
     import ttm
     import tz
+    import street_catalog
+    import street_lod
     resources = Path(args.resources)
     store = dna.Storage(base.loader, str(resources))
-    storages = ['phase_4/dna/storage.dna','phase_4/dna/storage_TT.dna']
-    if zone_id == 2100:
-        storages += ['phase_5/dna/storage_town.dna','phase_5/dna/storage_TT_town.dna']
-        src = 'phase_5/dna/toontown_central_2100.dna'
-    else:
-        storages += ['phase_4/dna/storage_TT_sz.dna']
-        src = 'phase_4/dna/toontown_central_sz.dna'
+    playground,storages,src=street_catalog.paths(zone_id)
     for s in storages:
         store.load(str(resources/s))
     warnings = []
@@ -61,18 +57,22 @@ def bake(zone_id, args, base):
     chunks, raw, floors = [],[],[]
     whole_collision = collide.extract(root)
     collision, collision_stats = whole_collision.pack()
-    if zone_id == 2100:
+    if not playground:
         nodes = sorted(root.findAllMatches('**/='+assemble.VISGROUP_TAG),
                        key=lambda n:int(n.getTag(assemble.VISGROUP_TAG)))
         indices = {n.getTag(assemble.VISGROUP_TAG):i for i,n in enumerate(nodes)}
         definitions = {n.name:n for n in tree.walk() if n.kind=='visgroup'}
-        # Each visgroup is extracted in world coordinates, with inherited state.
-        # Extractor.add(root, skip_under=...) preserves the root-space transforms.
+        # Extract each subtree once; visgroup transforms are applied below.
         for i,n in enumerate(nodes):
             name=n.getTag(assemble.VISGROUP_TAG)
             ex._groups={}
-            ex.add(root,skip_under=[other for other in nodes if other!=n])
-            raw.append(ex.batches())
+            ex.add(n)
+            bs=ex.batches()
+            mat=n.getMat(root)
+            if not mat.isIdentity():
+                for b in bs:
+                    b.verts[:,:3]=[tuple(mat.xformPoint(tuple(p))) for p in b.verts[:,:3]]
+            raw.append(bs)
             visible = definitions[name].get('vis',[])
             if not isinstance(visible,list):
                 visible=[visible]
@@ -102,7 +102,7 @@ def bake(zone_id, args, base):
         keys=sorted(groups)
         for i,key in enumerate(keys):
             raw.append(groups[key])
-            chunks.append({'name':f'g{i}','zone':2000,'vis':[], 'grid':key})
+            chunks.append({'name':f'g{i}','zone':zone_id,'vis':[], 'grid':key})
         for a,b,c,normal,flags in whole_collision.tris:
             if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2]>=0.707:
                 for i,(cx,cy) in enumerate(keys):
@@ -112,38 +112,58 @@ def bake(zone_id, args, base):
                     for j in range(1,len(poly)-1):
                         tri=np.array([poly[k][:3] for k in (0,j,j+1)])
                         if np.linalg.norm(np.cross(tri[1]-tri[0],tri[2]-tri[0]))>1e-6:
-                            floors.append((tri,i,2000))
+                            floors.append((tri,i,zone_id))
         floors.sort(key=lambda f:f[1])
     textures, batches=street_atlas.build(ex.sources,raw)
+    batches=[[street_atlas.rebase_large_uvs(b,textures) for b in bs] for bs in batches]
     out=Path(args.out)
     out.mkdir(parents=True,exist_ok=True)
+    def pack(bs,tmp):
+        if not bs:
+            return b'',{'batches':0,'triangles':0,'geometry_bytes':0,'texture_bytes':0,'bounds':[[0,0,0],[0,0,0]]}
+        used=sorted({b.texture for b in bs if b.texture is not None})
+        mapping={old:new for new,old in enumerate(used)}
+        copies=[ttm.Batch(mapping[b.texture] if b.texture is not None else None,
+                          b.blend,b.two_sided,b.tint,b.layer,b.verts,b.indices) for b in bs]
+        path=Path(tmp)/'chunk.ttm'
+        stats=ttm.write(path,[textures[j] for j in used],copies)
+        if stats['uv_clamped']:
+            raise ValueError('UV overflow')
+        return path.read_bytes(),stats
     with tempfile.TemporaryDirectory() as tmp:
-        for i,(chunk,bs) in enumerate(zip(chunks,batches)):
-            if bs:
-                used=sorted({b.texture for b in bs if b.texture is not None})
-                mapping={old:new for new,old in enumerate(used)}
-                for b in bs:
-                    if b.texture is not None:
-                        b.texture=mapping[b.texture]
-                path=Path(tmp)/f'{i}.ttm'
-                chunk['stats']=ttm.write(path,[textures[j] for j in used],bs)
-                if chunk['stats']['uv_clamped']:
-                    raise ValueError('UV overflow')
-                chunk['model']=path.read_bytes()
-            else:
-                chunk['stats']={'batches':0,'triangles':0,'geometry_bytes':0,'texture_bytes':0,'bounds':[[0,0,0],[0,0,0]]}
-                chunk['model']=b''
-    if zone_id==2000:
+        for chunk,bs in zip(chunks,batches):
+            chunk['model'],chunk['stats']=pack(bs,tmp)
+    if playground:
         for i,c in enumerate(chunks):
             cx,cy=c['grid']
             lo=np.array([cx,cy])*args.grid_size
             hi=lo+args.grid_size
             for j,d in enumerate(chunks):
                 bmin,bmax=map(np.array,d['stats']['bounds'])
-                # Any camera within this grid cell, plus 30-unit camera orbit margin.
+                # Any camera within this grid cell, plus 30-unit camera orbit and 8-unit maximum LOD displacement margin.
                 dist=np.maximum(np.maximum(bmin[:2]-hi,lo-bmax[:2]),0)
-                if i==j or np.linalg.norm(dist)<=args.distance+30:
+                if i==j or np.linalg.norm(dist)<=args.distance+38:
                     c['vis'].append(j)
+    low,lod_report=street_lod.make_low(chunks,batches)
+    with tempfile.TemporaryDirectory() as tmp:
+        for chunk,bs in zip(chunks,low):
+            chunk['low_model'],chunk['low_stats']=pack(bs,tmp)
+            if chunk['low_model']:
+                chunk['stats']['bounds']=[np.minimum(chunk['stats']['bounds'][0],chunk['low_stats']['bounds'][0]).tolist(),
+                                          np.maximum(chunk['stats']['bounds'][1],chunk['low_stats']['bounds'][1]).tolist()]
+    before=tz.report(chunks)
+    low_chunks=[dict(c,stats=c['low_stats']) for c in chunks]
+    low_report=tz.report(low_chunks)
+    samples=[]
+    for i,c in enumerate(chunks):
+        points=[np.mean(f[0],axis=0) for f in floors if f[1]==i]
+        if not points:
+            points=[np.mean(c['stats']['bounds'],axis=0)]
+        # Floor centroids span each cell; every plan is hard capped independently.
+        for p in points[::max(1,len(points)//8)]:
+            _,metrics=street_lod.plan(chunks,i,p)
+            samples.append(metrics)
+    planned={k:max(row[k] for row in samples) for k in ('batches','triangles','geometry_bytes','texture_bytes')}
     triggers=[]
     for t in whole_collision.triggers:
         tunnel='tunnel' in (t.name+' '+t.owner).lower()
@@ -156,19 +176,34 @@ def bake(zone_id, args, base):
         triggers.append({'min':list(p-[6,6,3]),'max':list(p+[6,6,8]),'kind':2,
                          'name':n.getName(),'owner':n.getParent().getName()})
     report=tz.write(out/f'{zone_id}.tz',zone_id,chunks,floors,triggers,collision)
-    report.update({'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
+    sign_views=[]
+    for n in root.findAllMatches('**/=sign_baseline'):
+        letters=n.getTag('letters')
+        bounds=n.getTightBounds(root)
+        if not letters.strip() or bounds is None:
+            continue
+        lo,hi=map(np.array,bounds)
+        centre=(lo+hi)/2
+        normal=np.array(n.getMat(root).xformVec((0,-1,0)))
+        normal/=max(float(np.linalg.norm(normal)),1e-8)
+        eye=centre+normal*max(8,float(np.linalg.norm(hi-lo))*1.2)
+        sign_views.append({'letters':letters,'look':centre.tolist(),'eye':eye.tolist()})
+    from bake_zone import write_points
+    num_points=write_points(root,str(out/f'{zone_id}.pts'))
+    report.update({'version':2,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
+                   'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
                    'warnings':warnings,'collision':collision_stats,'atlas_pages':len(textures)})
     (out/f'{zone_id}.json').write_text(json.dumps(report,indent=2)+'\n')
-    print(json.dumps({k:v for k,v in report.items() if k not in ('visible_sets','collision')},indent=2),flush=True)
+    print(json.dumps({k:v for k,v in report.items() if k not in ('visible_sets','collision','sign_views')},indent=2),flush=True)
     root.removeNode()
     return out/f'{zone_id}.tz'
 
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
-    ap.add_argument('--zone',choices=('2100','2000','all'),default='all')
+    ap.add_argument('--zone',default='all',help='all or comma-separated supported zone ids')
     ap.add_argument('--resources',default=str(ROOT/'ref/resources'))
     ap.add_argument('--out',default=str(ROOT/'sdmc-out/3ds/toontown3ds/data/zones'))
     ap.add_argument('--grid-size',type=float,default=128)
@@ -177,11 +212,28 @@ def main():
     args=ap.parse_args()
     if args.grid_size<=0 or args.distance<=0:
         ap.error('grid size and distance must be positive')
+    if args.zone=='all' or ',' in args.zone:
+        import subprocess
+        import street_catalog
+        requested=street_catalog.ZONES if args.zone=='all' else tuple(int(z) for z in args.zone.split(','))
+        for z in requested:
+            command=[sys.executable,'-I',str(Path(__file__).resolve()),'--zone',str(z),
+                     '--resources',args.resources,'--out',args.out,'--grid-size',str(args.grid_size),
+                     '--distance',str(args.distance)]
+            if args.preview:
+                command.append('--preview')
+            subprocess.run(command,check=True)
+        return
     from panda3d.core import loadPrcFileData
     loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\ntextures-power-2 none\nmodel-cache-dir')
     from direct.showbase.ShowBase import ShowBase
     base=ShowBase()
-    paths=[bake(z,args,base) for z in ((2100,2000) if args.zone=='all' else (int(args.zone),))]
+    import street_catalog
+    zones=street_catalog.ZONES if args.zone=='all' else tuple(int(z) for z in args.zone.split(','))
+    paths=[]
+    for z in zones:
+        print(f'Baking zone {z}',flush=True)
+        paths.append(bake(z,args,base))
     base.destroy()
     if args.preview:
         import subprocess

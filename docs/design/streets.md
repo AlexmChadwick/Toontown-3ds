@@ -1,350 +1,294 @@
-# Chunked TTC zones: implementation and integration handoff
+# All exterior zones, sign lettering and bounded distance LOD
 
-Date: 2026-10-23. Branch: `streets`. Scope: native zone container, offline bakes,
-host verification and integration instructions. No existing repository files were
-changed. `AGENT_TASK.md` explicitly forbids running Azahar, root `make`, modifying
-AGENTS.md/test-log.md, or integrating in main.cpp in this worktree. The test record
-below belongs with the main agent's eventual emulator test-log entry.
+Date: 2026-10-23. Branch: `streets2`. This supersedes the earlier `streets` handoff.
+The integrated direct `Model::loadFrom` / `CollisionWorld::loadFrom` paths and shared
+`tt::mem::LinearGuard` remain in use. There is no scratch SD file or ZoneLinearGuard.
+Only files allowed by AGENT_TASK.md were changed. No Azahar, hardware run or root
+`make` is performed in this worktree; the task explicitly prohibits those checks.
 
-## Delivered files and reproduction
+## Reproduction and output inventory
 
 ```sh
 .venv/bin/python -I tools/pipeline/bake_street.py --zone all
+# One zone or a selected list, with the same deterministic results:
+.venv/bin/python -I tools/pipeline/bake_street.py --zone 2200,5000
 .venv/bin/python -I tools/zone_test/run.py
-.venv/bin/python -I tools/pipeline/street_preview.py \
-  sdmc-out/3ds/toontown3ds/data/zones/2100.tz sdmc-out/previews/streets
 $HOME/devkitpro/devkitARM/bin/arm-none-eabi-g++ \
   -std=gnu++17 -fno-rtti -fno-exceptions -march=armv6k -mtune=mpcore \
   -mfloat-abi=hard -mtp=soft -D__3DS__ -Wall -Wextra \
   -I source -I $HOME/devkitpro/libctru/include -fsyntax-only source/world/zone.cpp
+# Match the full-detail and runtime-budgeted views of a zone:
+.venv/bin/python -I tools/pipeline/street_preview.py \
+  sdmc-out/3ds/toontown3ds/data/zones/2200.tz sdmc-out/previews/streets --lod high --signs
+.venv/bin/python -I tools/pipeline/street_preview.py \
+  sdmc-out/3ds/toontown3ds/data/zones/2200.tz sdmc-out/previews/streets --lod planned
 ```
 
-The default baker processes Silly Street 2100 and playground 2000. It loads the four
-street storages specified in zones.md, or the three playground storages, in order.
-Sources in ref/ and .venv are read only. Texture encoding uses three workers; BLAS
-and OpenMP are limited to one thread. The seed is fixed at 1. Outputs and budget
-JSON files go in `sdmc-out/3ds/toontown3ds/data/zones/` (gitignored). Temporary TTM
-files are removed automatically. No new dependencies are linked.
+The catalog in `street_catalog.py` covers **25 exteriors**: eight playgrounds and
+17 streets. It follows the DNA/storage paths in zones.md and bake_hoods.py. Each
+zone writes `<zone>.tz`, `<zone>.pts` and `<zone>.json` into
+`sdmc-out/3ds/toontown3ds/data/zones/`. The requested new streets/playgrounds are
+included, and 2100/2000 are regenerated with lettering and LOD as well. The `.pts`
+files use bake_zone.write_points unchanged: NPC origins, party people, tunnels,
+fishing spots, with name/X/Y/Z/heading. All sidecars fit Place's five-field parser
+and 39-character point-name limit. Audio is unchanged.
 
-The tools import `dna`, `assemble`, `extract`, `ttm` and `collide` without changing
-them. `street_atlas.py` wraps the extractor's texture collection. Atlases use
-256x256 ETC1/ETC1A4 pages with 32px source tiles and four-pixel gutters. Common
-textures occupy the first pages. Triangles are clipped at repeat boundaries with
-all attributes interpolated; clamped edge regions are handled separately. Very
-large UV repeats (>32 crossed tiles per input triangle) keep a standalone 128px
-texture to prevent geometric expansion. Standalone textures retain mipmaps. Atlas
-pages deliberately use a single mip to avoid cross-tile mip bleeding.
+All/list mode starts one isolated Python process per zone, sequentially. This
+prevents Panda's dynamic font atlas history from making single-zone and all-zone
+outputs differ. Each child uses at most three ETC encoder workers plus its driver;
+BLAS/OpenMP are set to one. The seed is 1. No source assets or .venv contents are
+written. All dependencies are existing stock Panda3D/numpy wheels. Generated Disney
+geometry/font/texture data remains in gitignored SD output; no upstream source or
+font file is vendored into the code commit.
 
-Batches merge by texture, blend and decal layer. Where both cull states share the
-same atlas/state, the combined batch becomes two-sided; elsewhere original culling
-is retained. This preserves every visible source face but can increase raster work.
-The baker rejects visible sets exceeding 150 draws, 6 MiB geometry or 8 MiB texture
-payload, and rejects invalid PVS references, UV overflow and invalid sections.
+## Format v2 and v1 compatibility
 
-## Format summary
+`tz.py` is the authoritative little-endian layout specification. Magic stays
+`TZ01`; the u16 version distinguishes v1 and v2. The header remains 64 bytes, with
+all sections/model blobs aligned to 128 bytes. Floors, PVS, triggers and embedded
+TTC/TTM formats are unchanged.
 
-The authoritative byte layout is the `tz.py` module docstring. TZ01 v1 is little
-endian. Every section/blob starts at a 128-byte boundary.
+| Section | v1 bytes / entry | v2 bytes / entry | Contents |
+|---|---:|---:|---|
+| Header | 64 | 64 | Branch zone, counts, offsets, file size |
+| Chunk | 80 | 104 | Complete old entry, followed by far-model metadata |
+| PVS index | 2 | 2 | Sorted unique chunk indices, including self |
+| Tagged floor | 40 | 40 | Three world vertices, owning chunk, server zone |
+| Trigger | 156 | 156 | AABB, kind, original name and DNA owner |
+| Collision | variable | variable | One unchanged TTC1 blob for precise physics |
+| Model | variable | variable | Unchanged TTM1 blobs for selected render geometry |
 
-| Section | Entry bytes | Contents |
-|---|---:|---|
-| Header | 64 | Magic/version, branch, counts, offsets, total file bytes |
-| Chunks | 80 | Server zone, PVS span, TTM offset/size, draw/tri/memory counts, AABB, floor span, name |
-| PVS | 2 | Sorted unique chunk indices; each set includes its current cell |
-| Floors | 40 | Three world-space float vertices, u16 chunk and server zone |
-| Triggers | 156 | World AABB, kind, original 64-byte name and DNA owner |
-| Collision blob | variable | Embedded unchanged TTC1 v1, whole-zone floor/wall/camera collision |
-| Model blobs | variable | One unchanged TTM1 v1 per nonempty chunk |
+The extra 24 bytes per v2 chunk are six u32 values: far TTM offset, file bytes,
+geometry bytes, texture bytes including mips, draws and triangles. A far blob may
+be empty (all six values zero). The original 80-byte part describes the full-detail
+model and conservative bounds covering both LODs. Each TTM includes only the atlas
+pages/standalone textures used by that chunk/LOD. Runtime holds **one LOD per chunk**;
+texture copies across selected models are included in the residency budget.
 
-Empty cells can have floors or PVS with zero geometry. Street chunks correspond
-exactly to the 56 numeric DNA visgroups, retaining their explicit vis lists.
-Playground chunks use a uniform **128-unit grid**, with render triangles owned by
-centroid, their full bounds retained, and floor polygons clipped to grid boundaries.
-The larger grid avoids multiplying draw calls; the 80-unit experiment needed 190
-world draws. Geometry crossing its owning grid square remains visible through its
-full AABB. Playground PVS conservatively includes any chunk whose bounds can be
-within 150 units of a point in the square (120 far distance + 30 camera margin).
-Playground cells all keep server zone 2000, so grid transitions cause no net traffic.
+The writer accepts `version=1`; the host reader and C++ loader accept both versions.
+The C++ loader reads old entries at their original 80-byte stride into zeroed
+104-byte structs. Legacy files retain their existing full-detail PVS behaviour;
+the new 15k guarantee applies to v2. Host tests repack every exterior as v1 and load
+it through the actual C++ code, in addition to testing every v2 output.
 
-Each embedded TTM contains only the atlas pages/standalone textures it uses. Pages
-are shared during baking, then duplicated between blobs. **Residency budgets count
-all these copies**, including mip data. No sharing between runtime Model instances
-is assumed. The table reports payload bytes; heap tables, collision, allocator
-rounding and renderer resources are additional. Current results leave substantial
-headroom for allocation rounding. Runtime metadata is capped at 256 chunks, 100k
-floor triangles, 4096 triggers, 65536 PVS entries and an 8 MiB collision blob.
+## Geometry reduction and runtime selection
 
-The host reader verifies section spans, disjoint TZ sections, PVS integrity, floor
-ownership, finite bounds, TTM vertex/index/texture spans and indices, mip sizes,
-collision table indices, draw counts and budgets. Runtime repeats the TZ/TTM checks
-and delegates TTC validation to CollisionWorld. An unsupported version or damaged
-file returns `false` and a readable `Zone::error()`; callers must display it.
+Near geometry is preserved, apart from the pre-existing quantization/atlasing and
+UV clipping. Far LOD does two things:
 
-## Bake measurements
+- Removes overlaid decal layers, including window details and sign letters.
+- Snaps world positions to a common voxel lattice, then removes collapsed and
+  duplicate triangles. UVs/vertex colours remain per corner, preserving material
+  seams. Adjacent chunks use the same lattice. Full-precision collision and tagged
+  floor triangles are never simplified.
 
-All numbers are actual baked payloads before camera frustum/distance rejection.
-They include repeat-UV subdivision and duplicated textures. A worst row takes the
-maximum of each column over all cells; in these bakes the street's maxima coincide
-at 2155. Source geometry is not decimated.
+The baker selects the smallest spacing from 0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6,
+8 units for which **every** all-far PVS fits 12k triangles and 150 draws. The actual
+spacing and maximum displacement bound (`sqrt(3)*spacing/2`) are recorded per zone.
+Playground grid PVS includes the 120-unit distance, 30-unit camera orbit allowance
+and an additional eight units for possible far-mesh displacement. Streets retain
+the exact authored DNA PVS lists.
 
-| Zone / selection | Chunks | Draws | Triangles | Geometry bytes | Texture bytes |
-|---|---:|---:|---:|---:|---:|
-| Silly Street 2100, entire file | 56 | 319 | 67,452 | 3,642,408 | 5,963,776 |
-| 2100, worst PVS (2155) | 18 | 119 | 27,181 | 1,467,774 | 2,162,688 |
-| TTC 2000, entire file | 16 | 118 | 20,342 | 1,098,468 | 2,268,320 |
-| 2000, worst grid PVS | 16 | 118 | 20,342 | 1,098,468 | 2,268,320 |
+For v2, Zone::update starts with all far models in the PVS. It considers chunks in
+stable nearest-first order and upgrades those within 65 units only if the complete
+selected set remains within all four caps:
 
-Street 2100 embeds 781 standable tagged floor triangles and 88 trigger records.
-Playground 2000 embeds 795 clipped floor triangles and 21 triggers. Full collision
-includes walls, camera geometry, capsules and all floor polygons. Street has three
-atlas/standalone textures globally; playground has ten (large tiled surfaces retain
-standalone textures). PVS rows for every cell are in the adjacent `.json` reports.
-The whole zone's geometry/textures are never a mandatory linear-memory residency.
+- 15,000 world triangles
+- 150 world draws
+- 6 MiB geometry
+- 8 MiB textures, including every resident copy and mip
 
-**These are world draw counts, not a whole-frame guarantee.** Toons still need their
-own allowance. PVS triangle peaks exceed the provisional 15k envelope even though
-memory and draw targets pass. Renderer frustum culling and Zone distance rejection
-reduce draws; hardware measurements and possibly LOD/geometry simplification are
-still needed. No 30 fps claim is made.
+This is a bound on the **entire selected PVS before frustum/distance culling**. No
+PVS cell is discarded to fake a passing triangle count. Collision and network
+interests always describe the complete authored visible set. Far baseline validity
+is checked for every cell by both writer and runtime; each upgrade rechecks all
+caps. Consequently the bound does not depend on sampling particular camera angles.
 
-## Runtime and required existing-file integration
+The selected plan is reconsidered on cell changes or after four units of movement,
+limiting SD churn. Stable updates and selection use fixed arrays and no allocation.
+All outgoing/changed-LOD models are freed before any incoming model is allocated.
+GPU completion is awaited before eviction. Model/Anim's existing shared allocator
+lock is never held around a Model::loadFrom call. A failed load clears partial
+residency, reports Zone::error(), and allows retry. Initial no-floor arrivals still
+use the integrated nearest-cell fallback; later misses preserve the current set.
 
-`Zone` is main-thread synchronous. `load` reads/validates metadata, loads the regular
-heap CollisionWorld and keeps the TZ file open. `update` finds the highest standable
-floor under the feet (same four-unit step reach as CollisionWorld), chooses the
-cell's PVS, frees outgoing models **before** loading incoming ones, and calls the
-cell callback only after the whole new set succeeds. A missed floor query preserves
-the previous set (for jumping/outside-floor safety). Allocation/I/O failure clears
-the partial set, exposes an error and permits retry on the next update. Queries,
-drawing and stable-cell updates allocate nothing.
+These limits cover world meshes. Toons, NPCs and other actors still add work; an
+application targeting 15k for the complete frame should reserve an actor allowance
+by lowering the world triangle cap and far target together, followed by rebaking.
+Old 3DS timing and SD transition latency are unmeasured. Streaming remains synchronous.
 
-The task permits describing necessary existing-file changes instead of making them.
-Apply these changes in the main checkout before enabling the zone renderer:
+## Measured before/after budgets
 
-1. Add `#include "world/zone.h"` to main.cpp and toon_cache.cpp. Ensure the build
-   includes `source/world/zone.cpp` (the existing recursive source discovery should
-   pick it up). Update AGENTS.md to allow street 2100 and describe this format.
-2. **Serialize the allocator with ToonCache.** As the first statement in
-   `bool ToonCache::loaderStep()`, insert `ZoneLinearGuard linearGuard;`. Zone takes
-   the same process-wide LightLock internally around allocation/free operations.
-   This covers threaded and synchronous fallback loaderStep calls. Never hold a
-   ToonCache booking lock when acquiring this guard. Boot-only allocations and
-   shutdown must happen before/after loader-thread lifetime as usual. Without this
-   one-line integration change, concurrent toon and zone loads are unsafe.
-3. Use `zone.collision()` in controller and camera queries instead of the old
-   separately loaded playground CollisionWorld. Remove the old world model's load
-   and draw, so it does not consume another geometry/texture budget.
-4. Add the `Client::changeStreetCell` API below and route callback failures through
-   the connection/retry UI. Existing Client's set-location/interest methods are
-   private and single-zone, so an unmodified Client cannot perform street interest
-   transitions. The zone module itself does not send network messages.
+Each before count is the worst all-near PVS **with the newly implemented sign text**.
+After columns are the maxima observed over up to eight floor centroids per cell,
+plus bounds-centre samples for cells without floor. The runtime checks above enforce
+15k/150/6 MiB/8 MiB at every other point as well. Columns can peak at different cells.
+Numbers count packed geometry/texture payload, not allocator bookkeeping, regular
+heap metadata/collision, render targets or actor resources.
 
-### Exact application-side lifecycle snippet
+The `.json` reports retain legacy `whole`, `worst` and `visible_sets` as all-near
+statistics for comparison. Use `before`, `low`, and `planned_worst` for the new
+before/far/runtime measurements. An all-near `worst` over 15k is expected; it is not
+the simultaneously resident/drawn v2 plan.
 
-The following uses the existing Player getters, camera vector and `net` variable.
-Place the bridge definition at file scope and the lifecycle statements at the
-marked locations. The callback uses the concrete proposed Client API below.
-Keep a bottom-screen loading/error panel active on any load/update failure and
-display `zone.error()` there; logging below is also useful during integration.
+| Zone | Before draws | Before tris | After draws | After tris | Geometry bytes | Texture bytes | Far grid units |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 1000 | 78 | 15,220 | 76 | 15,000 | 810,000 | 1,990,304 | 0.5 |
+| 1100 | 88 | 21,382 | 66 | 14,997 | 809,838 | 1,889,344 | 0.5 |
+| 1200 | 86 | 21,509 | 64 | 14,868 | 802,872 | 1,747,456 | 0.5 |
+| 1300 | 89 | 29,549 | 60 | 14,934 | 806,436 | 1,780,096 | 0.75 |
+| 2000 | 131 | 20,764 | 117 | 14,862 | 802,548 | 2,967,200 | 1.5 |
+| 2100 | 132 | 27,675 | 101 | 14,964 | 808,056 | 2,806,848 | 0.75 |
+| 2200 | 106 | 27,025 | 84 | 14,999 | 809,946 | 2,719,424 | 0.75 |
+| 2300 | 108 | 33,414 | 89 | 14,984 | 809,136 | 2,937,984 | 1 |
+| 3000 | 95 | 13,614 | 88 | 13,385 | 722,790 | 2,648,320 | 0.25 |
+| 3100 | 104 | 27,502 | 70 | 14,966 | 808,164 | 2,009,472 | 0.75 |
+| 3200 | 111 | 26,622 | 80 | 14,988 | 809,352 | 2,097,024 | 0.75 |
+| 3300 | 96 | 19,339 | 85 | 14,942 | 806,868 | 2,282,656 | 0.25 |
+| 4000 | 71 | 14,008 | 71 | 14,003 | 756,162 | 1,769,120 | 0.25 |
+| 4100 | 88 | 23,267 | 66 | 14,879 | 803,466 | 1,780,160 | 0.5 |
+| 4200 | 124 | 28,278 | 80 | 14,993 | 809,622 | 1,878,592 | 0.75 |
+| 4300 | 93 | 28,142 | 74 | 14,991 | 809,514 | 1,813,056 | 0.75 |
+| 5000 | 73 | 18,639 | 63 | 14,813 | 799,902 | 1,545,408 | 1 |
+| 5100 | 95 | 22,677 | 74 | 14,992 | 809,568 | 1,878,592 | 0.75 |
+| 5200 | 116 | 30,739 | 88 | 14,990 | 809,460 | 2,468,416 | 1.5 |
+| 5300 | 89 | 22,560 | 70 | 14,986 | 809,244 | 2,227,968 | 0.75 |
+| 6000 | 59 | 9,173 | 57 | 9,152 | 494,208 | 1,578,240 | 0 |
+| 8000 | 57 | 10,615 | 57 | 10,615 | 573,210 | 1,750,176 | 0 |
+| 9000 | 84 | 12,833 | 84 | 12,833 | 692,982 | 2,260,608 | 0 |
+| 9100 | 97 | 19,383 | 73 | 14,989 | 809,406 | 1,703,744 | 0.25 |
+| 9200 | 98 | 24,760 | 74 | 14,968 | 808,272 | 2,249,792 | 0.75 |
 
-```cpp
-#include "world/zone.h"
-#include "net/client.h"
-#include "core/log.h"
+Measured maxima: 117 draws, 15,000 triangles, 810,000 geometry bytes and
+2,967,200 texture bytes (2.83 MiB). All-far baselines peak at 11,947 triangles
+and 98 draws. The largest far-lattice displacement bound is 1.30 units.
 
-struct ZoneNetBridge {
-    tt::net::Client* client;
-    uint16_t pendingCell = 0;
-    uint16_t pendingZones[257] = {};
-    int pendingCount = 0;
-    bool retry = false;
-};
-static void streetCellChanged(void* ctx, uint16_t cell,
-                              const uint16_t* zones, int count) {
-    auto& b = *static_cast<ZoneNetBridge*>(ctx);
-    b.pendingCell = cell;
-    b.pendingCount = count;
-    for (int i = 0; i < count; ++i) b.pendingZones[i] = zones[i];
-    b.retry = true;
-}
+## Sign lettering
 
-// After renderer init, on the main thread, before any frame starts:
-tt::world::Zone zone;
-if (!zone.load("sdmc:/3ds/toontown3ds/data/zones/2100.tz",
-               "sdmc:/3ds/toontown3ds/zone_stream.tmp")) {
-    TT_LOG("%s", zone.error()); // display zone.error() in the bottom error panel
-}
-// Immediately after static tt::net::Client net; in the existing main:
-ZoneNetBridge bridge{&net};
+`sign_text.py` independently implements layout from the behaviour of the provided
+libtoontown DNASignBaseline/DNASignText reference and the resource DNA. No unlicensed
+implementation text was copied. assemble.py now dispatches every baseline to that
+helper, including mixed text/graphic baselines and circular graphic baselines.
 
-// Replace the old player.setCollision/reset statements:
-player.setCollision(&zone.collision());
-player.reset(-130.0f, -155.0f, 0.0f, 0.0f); // verified floor in 2101
-// In startNet, before net.start(netConn, cfg):
-// cfg.zoneId = zone.currentZone() ? zone.currentZone() : 2101;
+- Fonts come from loaded storage `store_font` entries, with extensionless static
+  font models resolved to `.bam`; item font codes can override the baseline font.
+  Panda generates the glyph meshes offline. Static and TTF fonts are supported.
+- Line advancement uses scaled item width, cumulative kern, alternating stumble,
+  alternating stomp and alternating roll/wiggle, then centres the completed run.
+- Width/height form elliptical baselines; indent is angular there. Inner baselines
+  reverse item order. Chord widths advance the curved cursor and centre the arc.
+  Degenerate radii are handled without NaNs.
+- `c` uppercases text, `b` enlarges word initials by 1.5 in X/Z, and `d` adds the
+  font shadow with scaled baseline colour. Item positions/scales/rotations and
+  explicit colours override baseline defaults. Spaces still advance the cursor.
+- Generated text inherits decal layering, with a small separation from its board.
+  Full font pages remain standalone textures at up to 256px, avoiding the 32px
+  prop-atlas reduction that would erase small letters.
+- **Alpha-mask normalization:** Panda stores alpha-only font textures as grayscale
+  PNM images. The wrapper copies that grayscale into alpha and supplies white RGB
+  before A8 encoding/atlasing. A regression test checks both transparent and opaque
+  glyph pixels. Decoded close-ups verify real glyph silhouettes instead of quads.
 
-// Once per simulation/render iteration, outside C3D_FrameBegin/End:
-const tt::world::Vec3 feet{player.x(), player.y(), player.z()};
-if (zone.loaded() && !zone.update(feet, streetCellChanged, &bridge))
-    TT_LOG("%s", zone.error());
-if (bridge.retry && bridge.client->changeStreetCell(
-        bridge.pendingCell, bridge.pendingZones, bridge.pendingCount))
-    bridge.retry = false;
+The runtime sees ordinary TTM meshes/textures; no text/font library is added to the
+3DS build. Per-zone sign counts, preview camera positions and diagnostics are in
+JSON. The completed set includes 13,709 letters across 1,258 baselines. Distant
+letters intentionally disappear with the other decal details in far LOD.
 
-// Inside each existing world pass, after beginWorld and before toon draws:
-const C3D_FVec eye = player.cameraEye();
-zone.draw(renderer, {eye.x, eye.y, eye.z}, 120.0f);
+Atlases otherwise retain the existing 256px ETC pages, 32px prop tiles, four-pixel
+gutters and no cross-tile mips. Repeated UVs are clipped at texture boundaries.
+Burrrgh terrain additionally needs clipping into <=16-repeat UV pieces before
+int16 packing; subtracting whole repeats preserves its tiling, unlike clamping.
+The UV regression test checks geometric area and packed coordinate range.
 
-// Main thread, after the last frame, before renderer/gfx shutdown:
-zone.unload();
-```
+## Visual checks and preview paths
 
-Replace the four map bounds references to terrain with:
+Previews decode the actual embedded TTM bytes: quantized positions, UVs, vertex
+colours and PICA textures. Shared decoded texture pages are cached and geometry is
+filled with numpy arrays to keep full-zone comparisons fast. No source scene is
+substituted. `--lod high`, `--lod low` and `--lod planned` allow matched views;
+`--signs` adds close-ups from generated baseline bounds. Ground planned views use
+the same PVS/LOD planner as the runtime. Overhead views show the complete zone for
+layout inspection (high unless explicitly `--lod low`).
 
-```cpp
-ctx.zoneMinX = zone.loaded() ? zone.boundsMin()[0] : -300;
-ctx.zoneMinY = zone.loaded() ? zone.boundsMin()[1] : -300;
-ctx.zoneMaxX = zone.loaded() ? zone.boundsMax()[0] : 300;
-ctx.zoneMaxY = zone.loaded() ? zone.boundsMax()[1] : 300;
-```
+Matched views and sign close-ups were generated for streets 2200, 5200 and 9200,
+and playgrounds 1000, 3000 and 5000. Representative paths:
 
-On reconnect set `bridge.retry = true` if `pendingCount != 0`, even if the feet did
-not change cells. For playground use `2000.tz`; all interest lists deduplicate to
-`[2000]`. Do not load/update/destroy Zone between FrameBegin and FrameEnd. Zone waits
-for GPU completion before any residency change or destruction. Call update once per
-frame, not once per stereo eye. The reserved scratch path is overwritten and removed;
-it must be a writable SD path distinct from the container, never user data.
+- `sdmc-out/previews/streets/2200_high_sign_0.png`: curved, coloured glyphs read
+  “Spaghetti and Goofballs / Italian Cuisine”, with the actual baked alpha masks.
+- `sdmc-out/previews/streets/5200_high_cell_5201_0.png` and
+  `5200_planned_cell_5201_0.png`: near shop signs, building outlines and props.
+- `sdmc-out/previews/streets/5200_low_cell_5201_0.png`: matched all-far comparison;
+  window/letter decals disappear, and small curved props become visibly coarser.
+- `sdmc-out/previews/streets/9200_planned_sign_0.png`: curved florist lettering.
+- `sdmc-out/previews/playgrounds/1000_planned_top.png`: full dock layout.
+- `sdmc-out/previews/playgrounds/3000_planned_top.png`: snowy terrain and preserved
+  repeated sidewalk texture, including the oversized-UV fix.
+- `sdmc-out/previews/playgrounds/5000_planned_top.png`: garden layout.
 
-### Exact network change to implement in Client
+Ground cameras choose large floor triangles and unobstructed camera rays; central
+playground views avoid low underwater floor samples. Overhead and several ground/
+close-up views were inspected, including the explicit full-detail/all-far street
+comparison. Images remain gitignored. The preview tool also emits matching high
+and planned close-ups and additional ground cameras alongside these paths.
 
-Add this public declaration to client.h:
+At 960x720, prop textures are visibly coarse because the 3DS assets are deliberately
+small. Near sign glyphs remain readable; the far mesh removes letters/windows and
+makes curved props coarser. The recorded displacement bounds make that visual cost
+explicit. LOD changes are discrete, with no morph/fade. The selected PVS can still
+show chunks beyond the nominal far distance when a large chunk straddles it; all
+of their triangles are included in the budget.
 
-```cpp
-bool changeStreetCell(uint16_t zone, const uint16_t* interestZones, int count);
-```
+## Verification record
 
-Add the definition in client.cpp (same namespace, using its existing constants and
-writers). `kZoneInterest` is the already allocated gameplay interest handle; reusing
-it alters the existing interest without accumulating handles. Management-zone
-interest on `kUberInterest` stays active. Counts are capped at 250 to fit the current
-1024-byte writer; the supplied PVS lists need at most 20 including the branch.
+2026-10-23, macOS host, branch streets2:
 
-```cpp
-bool Client::changeStreetCell(uint16_t zone, const uint16_t* zones, int count) {
-    if (state_ != State::InZone || !zone || !zones || count <= 0 || count > 250)
-        return false;
-    DatagramWriter loc = beginMessage(msg::CLIENT_OBJECT_LOCATION);
-    loc.u32(avatarId_);
-    loc.u32(shardId_);
-    loc.u32(zone);
-    if (!finish(loc)) return false;
-    DatagramWriter interest = beginMessage(msg::CLIENT_ADD_INTEREST_MULTIPLE);
-    zoneCtx_ = nextContext_++;
-    zoneDone_ = false;
-    interest.u32(zoneCtx_);
-    interest.u16(kZoneInterest);
-    interest.u32(shardId_);
-    interest.u16(static_cast<uint16_t>(count));
-    for (int i = 0; i < count; ++i) interest.u32(zones[i]);
-    if (!finish(interest)) return false;
-    cfg_.zoneId = zone;
-    return true;
-}
-```
+- All 25 v2 zone files pass strict chunk/PVS/floor/model/texture/collision checks.
+  Every all-far visible set passes the four runtime budgets. All 25 `.pts` anchor
+  files exist and conform to Place's parser.
+- The five unit tests pass: byte layouts, repeat/clamp atlas area and UV bounds,
+  oversized terrain-repeat splitting, line/curved sign layout with flags, and
+  alpha-only font-mask conversion.
+- The real zone.cpp/collision.cpp compile on the host with C++17, no RTTI/exceptions,
+  `-Wall -Wextra -Werror`, AddressSanitizer and UndefinedBehaviorSanitizer. Both v2
+  files and v1 compatibility repacks pass for all 25 zones: **738 floor samples per
+  format across 734 floor cells**, PVS transitions, callbacks, initial nearest-cell
+  fallback, no-floor retention, selected geometry/texture/triangle/draw budgets,
+  duplicate-update behaviour and **1,507 trigger records per format**.
+- **250 malformed v2 fixtures** are rejected: short header, wrong version, bad PVS,
+  floor owner, memory metric, near-model offset/magic, trigger kind, far-model
+  offset and triangle metric. Invalid paths leave the zone unloaded.
+- The required devkitARM ARMv6K C++17 syntax check completes with **zero warnings**.
+- Two complete final bakes compare byte-identical across **all 75 files**: 25 TZs,
+  25 anchor sidecars and 25 JSON reports, using isolated per-zone processes.
+- Decoded Panda offscreen previews pass the visual checks described above. No
+  source-scene substitution is used for the preview meshes or textures.
 
-This sends CLIENT_OBJECT_LOCATION then CLIENT_ADD_INTEREST_MULTIPLE (existing
-msg_types.h constant 201), replacing the zone set on one handle. Callback arrays
-already contain current cell, branch and visible cells with duplicates removed.
-No DC IDs or field permissions change. Preserve the existing asynchronous interest
-completion handling; test rapid crossings, reconnect and the stock server before
-shipping. During an initial street transition, set the ClientConfig zone to the
-first actual floor cell before connecting (2100 is a branch, not a floor cell).
+All source/format changes were verified with host tools; no emulator/hardware FPS,
+GPU time, VRAM or process heap/linear measurements are claimed. Task instructions
+forbid Azahar/root make and forbid edits to docs/test-log.md/AGENTS.md here. The main
+agent should add an emulator/hardware test-log entry when integrating.
 
-### Exact tunnel/door trigger query snippet
+## Runtime integration and remaining work
 
-```cpp
-int hits[16];
-const int total = zone.triggersAt(feet, tt::world::kToonRadius, hits, 16, true);
-for (int i = 0; i < total && i < 16; ++i) {
-    const auto* trigger = zone.trigger(hits[i]);
-    // Process on entry only; retain the previous hit set to debounce.
-    // trigger->owner/name retain e.g. linktunnel_tt_2000_DNARoot or
-    // linktunnel_dg_5138_DNARoot; queue a loading-screen transition here.
-    queueTunnelApproach(trigger->name, trigger->owner);
-}
-// For doors/other triggers pass tunnelsOnly=false and inspect trigger->kind.
-```
+No changes to main.cpp, Place, Renderer, Model, net or the Makefile are needed for
+these exteriors: the integrated Place already prefers branch-number `.tz` files,
+loads sidecar anchors, uses Zone collision and forwards Zone cell changes. Merge
+this worktree's Zone loader **before** installing the v2 SD files; old binaries only
+accept v1. Never reintroduce the obsolete scratch-file loader or allocator guard
+from the earlier handoff. Retain the existing LinearGuard inside Model/Anim.
 
-Trigger notifications are conservative sphere/AABB overlaps. Exact arbitrary trigger
-geometry remains available through `zone.collision().triggersAt`; the embedded TTC
-retains all masks and original solids. Synthetic six-unit tunnel-anchor approach
-boxes are also provided where DNA anchors exist; they can overlap native tunnel
-triggers. Deduplicate by owner and debounce. Notifications do not automatically
-teleport, open doors, implement interiors or send distributed-building fields.
-The DG tunnel target requires a separate destination bake before it can be entered.
+The only main-checkout follow-ups are documentation/device verification: update
+AGENTS.md for all exterior zones, v2 LOD/sign decisions and the new measured budget
+table; add device results to docs/test-log.md. Place's TTC anchor resolver currently
+uses its RomFS `.pts` special case even when 2000.tz comes from SD. The generated
+2000.pts is compatible; optionally prefer the adjacent SD sidecar in Place::resolve
+before the existing RomFS fallback if TTC anchors are changed in future.
 
-### Optional Model loader improvement
-
-The unchanged `Model::load(path)` and `CollisionWorld::load(path)` APIs cannot read
-an embedded blob directly. zone.cpp currently copies each selected TTM and the
-initial TTC through an 8 KiB buffer to the reserved SD scratch file, invokes the
-existing loader, then removes it. This is functional and bounded but causes SD writes
-and transition stalls. No asynchronous streaming/frame-time claim is made.
-
-The recommended next change is a Model overload
-`bool load(FILE* file, uint32_t baseOffset, uint32_t blobSize)`, using an internal
-bounded reader that adds baseOffset to every header/table/vertex/index/texture
-read. Texture offsets are relative to each embedded TTM, so loadTexture must use
-the same base-aware reader (or translate a copied TexEntry's dataOffset after
-checking addition). Keep file ownership with Zone and retain the old path wrapper.
-Add an equivalent bounded-file/memory overload to CollisionWorld. Replace
-materialize/load/remove in zone.cpp with those overloads. Keep allocator guard,
-GPU sync, validation, eviction-before-allocation and error handling intact.
-
-## Test record and known limits
-
-2026-10-23, host macOS, branch streets:
-
-- Real bakes of 2100 and 2000 pass the strict format and PVS budget validator.
-- Host C++ tests compile the real zone.cpp and collision.cpp with `-Wall -Wextra
-  -Werror`, AddressSanitizer and UndefinedBehaviorSanitizer. They visit **54 street
-  floor cells** and **13 playground floor cells**, check zone ids, collision floors,
-  successful PVS transitions, callback deduplication, budget accounting, no-floor
-  retention and every trigger's query at its centre. Two street chunks and three
-  playground chunks have no standable floor and remain PVS-only geometry cells.
-- Eight corrupt files per zone are rejected: short header, wrong version, bad PVS,
-  floor owner, memory metric, model offset, model magic and trigger kind. Missing
-  paths and a scratch path equal to the input are rejected; the world stays unloaded.
-- Atlas unit tests verify repeat and clamp clipping, conservation of signed triangle
-  area, valid atlas coordinates and disabled atlas mips.
-- Independent DNA street-point fixtures verify (-130,-155) => 2101,
-  (-225,-140) => 2103, (-290,-115) => 2105 and (-315,-140) => 2107.
-- Two complete bakes produce byte-identical files, including when encoder worker
-  count changes from four to three:
-  `2100.tz` SHA-256 `00b5bb0a78cff5e234450887632cfb2d5fe7a48e6dbd827a69337d01cdde3910`;
-  `2000.tz` SHA-256 `fe08b688042433adc4c0a768675c01f19138431c3ec3f5ca2ab4b231d2dd1097`.
-- The required devkitARM C++17 syntax check reports zero warnings.
-- Street previews decode **embedded TTM bytes**, including quantized vertices and
-  ETC textures, through Panda's TinyOffscreenGraphicsPipe. Ground and overhead
-  images were visually checked for geometry, texture orientation and assembly.
-
-Preview paths (gitignored, relative to this worktree):
-
-- `sdmc-out/previews/streets/2100_top.png`
-- `sdmc-out/previews/streets/2100_cell_2101_0.png`
-- `sdmc-out/previews/streets/2100_cell_2114_13.png`
-- `sdmc-out/previews/streets/2100_cell_2124_23.png`
-
-Known limits: original assembler sign text remains omitted; playground's twelve
-unresolved mailbox/hydrant/trashcan placements remain reported by the existing
-assembler. Street unresolved/skipped features are recorded verbatim in 2100.json.
-Atlased textures are deliberately lower resolution and mipless, and mixed cull
-state merges can increase overdraw. Peak uncullled triangles need tuning on Old
-3DS. All floor scans are linear in the regular-heap floor table (781/795 triangles
-here); a larger zone may need an acceleration grid. Streaming performs synchronous
-SD I/O and can stall cell transitions. Shared atlas residency and an offset loader
-would reduce those costs. Real network transitions, allocator-lock integration,
-Old 3DS frame time/fps, process heap/linear/VRAM, stereo and HOME/sleep remain
-unmeasured. **No Azahar, hardware test, root build, push or merge was performed**,
-per the task's explicit restrictions. The main agent must record those device
-measurements in docs/test-log.md when integrating.
+Existing unresolved optional prop codes remain listed verbatim in each JSON. They
+are absent models/aliases in the current storage resolver, not silently invented
+geometry; examples include DD_barrel in 9200, TT mailbox/hydrant/trashcan aliases,
+BR roof/billboard props and a DG neighbourhood sign. There are no unresolved font
+codes and no skipped text baselines in these bakes. Doors/tunnel volumes, full
+collision and anchor extraction remain intact. This work does not add interiors,
+animated boats/water, new gameplay, extra music, stereo polish or public-server
+support. No push or merge is performed.

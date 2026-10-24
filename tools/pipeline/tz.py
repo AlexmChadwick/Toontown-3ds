@@ -1,4 +1,4 @@
-"""TZ v1, self-contained little-endian chunked Toontown zone container.
+"""TZ v1/v2, self-contained little-endian chunked Toontown zone container.
 
 Header (64): <4sHH14I: magic TZ01, version=1, flags=0; branch zone,
 chunk count, vis-index count, floor count, trigger count, chunk offset, vis offset,
@@ -20,8 +20,15 @@ stay on the regular heap; only selected TTM blobs reside in linear memory.
 
 Atlases are shared during baking but copied into each standalone TTM. Residency
 budgets count these copies. This allows the unchanged Model API to draw chunks.
-Synchronous runtime materialization to a caller-supplied SD scratch file bridges
-Model::load(path); see streets.md for the proposed offset-loader improvement.
+Runtime reads embedded blobs directly through Model/CollisionWorld.loadFrom.
+
+Version 2 retains the 64-byte header and all v1 sections except chunk entries:
+ each is 104 bytes: the complete 80-byte v1 entry followed by <6I> low-model
+ offset, size, geometry bytes, texture bytes, draws, triangles. A zero low blob
+ represents an empty far LOD. PVS/floors/triggers remain unchanged. The low set
+ must fit 15000 triangles/150 draws/6 MiB geometry/8 MiB textures for EVERY cell.
+ Runtime starts with all low blobs and upgrades nearest chunks within those caps.
+ The writer can still emit v1 with version=1; readers accept both versions.
 """
 import math
 import struct
@@ -29,6 +36,8 @@ from pathlib import Path
 
 HEADER = struct.Struct('<4sHH14I')
 CHUNK = struct.Struct('<9I6f2I12s')
+LOW = struct.Struct('<6I')
+CHUNK_V2_SIZE = 104
 FLOOR = struct.Struct('<9fHH')
 TRIGGER = struct.Struct('<6fI64s64s')
 GEOM_BUDGET, TEX_BUDGET, DRAW_BUDGET = 6*1024*1024, 8*1024*1024, 150
@@ -45,10 +54,13 @@ def cstr(s, n):
     return b.ljust(n, b'\0')
 
 
-def write(path, branch, chunks, floors, triggers, collision):
+def write(path, branch, chunks, floors, triggers, collision, version=2):
+    if version not in (1,2):
+        raise ValueError("unsupported TZ version")
+    stride=80 if version==1 else CHUNK_V2_SIZE
     vis = [i for c in chunks for i in c['vis']]
     co = 128
-    vo = align(co + CHUNK.size * len(chunks))
+    vo = align(co + stride * len(chunks))
     fo = align(vo + 2 * len(vis))
     to = align(fo + FLOOR.size * len(floors))
     clo = align(to + TRIGGER.size * len(triggers))
@@ -56,16 +68,23 @@ def write(path, branch, chunks, floors, triggers, collision):
     for c in chunks:
         c['offset'] = cursor if c['model'] else 0
         cursor = align(cursor + len(c['model']))
+        if version==2:
+            c['low_offset'] = cursor if c['low_model'] else 0
+            cursor = align(cursor + len(c['low_model']))
     out = bytearray(cursor)
-    HEADER.pack_into(out, 0, b'TZ01', 1, 0, branch, len(chunks), len(vis), len(floors), len(triggers),
+    HEADER.pack_into(out, 0, b'TZ01', version, 0, branch, len(chunks), len(vis), len(floors), len(triggers),
                      co, vo, fo, to, clo, len(collision), len(out), 0, 0)
     first = 0
     for i, c in enumerate(chunks):
         s = c['stats']
         own = [j for j, f in enumerate(floors) if f[1] == i]
-        CHUNK.pack_into(out, co+i*80, c['zone'], first, len(c['vis']), c['offset'], len(c['model']),
+        CHUNK.pack_into(out, co+i*stride, c['zone'], first, len(c['vis']), c['offset'], len(c['model']),
                         s['geometry_bytes'], s['texture_bytes'], s['batches'], s['triangles'],
                         *s['bounds'][0], *s['bounds'][1], own[0] if own else 0, len(own), cstr(c['name'], 12))
+        if version==2:
+            ls=c['low_stats']
+            LOW.pack_into(out,co+i*stride+80,c['low_offset'],len(c['low_model']),ls['geometry_bytes'],ls['texture_bytes'],ls['batches'],ls['triangles'])
+            out[c['low_offset']:c['low_offset']+len(c['low_model'])]=c['low_model']
         first += len(c['vis'])
         out[c['offset']:c['offset']+len(c['model'])] = c['model']
     if vis:
@@ -100,19 +119,21 @@ def validate(data):
             raise ValueError(msg)
     check(len(data) >= 64, 'short TZ header')
     h = HEADER.unpack_from(data)
-    check(h[:4] == (b'TZ01', 1, 0, h[3]), 'bad magic/version/flags')
+    check(h[0]==b'TZ01' and h[1] in (1,2) and h[2]==0, 'bad magic/version/flags')
+    version=h[1]
+    stride=80 if version==1 else CHUNK_V2_SIZE
     branch, nc, nv, nf, nt, co, vo, fo, to, clo, cls, size, r0, r1 = h[3:]
     check(size == len(data) and not (r0 or r1) and 0 < nc <= 256 and 0 < branch <= 65535, 'bad size/count')
     def section(off, length):
         check(off >= 64 and off % 128 == 0 and off <= size and length <= size-off, 'invalid section')
-    for off, n in ((co,nc*80),(vo,nv*2),(fo,nf*40),(to,nt*156),(clo,cls)):
+    for off, n in ((co,nc*stride),(vo,nv*2),(fo,nf*40),(to,nt*156),(clo,cls)):
         section(off,n)
-    intervals = [(co,co+nc*80),(vo,vo+nv*2),(fo,fo+nf*40),(to,to+nt*156),(clo,clo+cls)]
+    intervals = [(co,co+nc*stride),(vo,vo+nv*2),(fo,fo+nf*40),(to,to+nt*156),(clo,clo+cls)]
     vis = list(struct.unpack_from(f'<{nv}H',data,vo))
     floors = [FLOOR.unpack_from(data, fo+i*40) for i in range(nf)]
     chunks = []
     for i in range(nc):
-        c = CHUNK.unpack_from(data, co+i*80)
+        c = CHUNK.unpack_from(data, co+i*stride)
         zone, first, count, off, length, geom, tex, draws, tris = c[:9]
         check(first <= nv and count <= nv-first, 'bad vis range')
         ids = vis[first:first+count]
@@ -127,8 +148,17 @@ def validate(data):
             validate_ttm(data[off:off+length], geom,tex,draws,tris)
         else:
             check(not (off or geom or tex or draws or tris), 'nonempty metrics for empty chunk')
+        low = LOW.unpack_from(data,co+i*stride+80) if version==2 else (off,length,geom,tex,draws,tris)
+        if version==2:
+            if low[1]:
+                section(low[0],low[1])
+                intervals.append((low[0],low[0]+low[1]))
+                validate_ttm(data[low[0]:low[0]+low[1]],*low[2:])
+            else:
+                check(not any(low), 'invalid empty low model')
         chunks.append({'zone':zone,'vis':ids,'name':c[17].split(b'\0')[0].decode(),
-                       'offset':off,'size':length,'bounds':(c[9:12],c[12:15]),
+                       'offset':off,'size':length,'low_offset':low[0],'low_size':low[1],
+                       'low_stats':dict(zip(('geometry_bytes','texture_bytes','batches','triangles'),low[2:])), 'bounds':(c[9:12],c[12:15]),
                        'stats':dict(zip(('geometry_bytes','texture_bytes','batches','triangles'),c[5:9]))})
     intervals = sorted((a,b) for a,b in intervals if b>a)
     check(all(b<=c for (_,b),(c,_) in zip(intervals,intervals[1:])), 'overlapping sections')
@@ -139,10 +169,13 @@ def validate(data):
         check(all(math.isfinite(x) for x in t[:6]) and all(t[k]<=t[k+3] for k in range(3))
               and t[6] <= 2 and b'\0' in t[7] and b'\0' in t[8], 'invalid trigger')
     for c in chunks:
+        stat='low_stats' if version==2 else 'stats'
+        if version==2:
+            check(sum(chunks[j][stat]['triangles'] for j in c['vis'])<=15000, 'triangle budget exceeded')
         for key, budget in (('geometry_bytes',GEOM_BUDGET),('texture_bytes',TEX_BUDGET),('batches',DRAW_BUDGET)):
-            check(sum(chunks[j]['stats'][key] for j in c['vis']) <= budget, f'{c["name"]} exceeds {key} budget')
+            check(sum(chunks[j][stat][key] for j in c['vis']) <= budget, f'{c["name"]} exceeds {key} budget')
     validate_collision(data[clo:clo+cls])
-    return {'branch':branch,'chunks':chunks,'floors':floors,'triggers':triggers,'collision':data[clo:clo+cls]}
+    return {'version':version,'branch':branch,'chunks':chunks,'floors':floors,'triggers':triggers,'collision':data[clo:clo+cls]}
 
 
 def validate_ttm(data, geom, tex, draws, tris):
