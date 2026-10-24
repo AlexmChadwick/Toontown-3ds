@@ -104,6 +104,17 @@ enum class EventType : uint8_t {
     FishReject,     // rejectEnter: the AI refused our requestEnter
     FishSold,       // sellFishComplete (fishSellResult())
     FishStats,      // our rod / fish tank changed (ownFish())
+    // ---- battle events (docs/design/combat.md sections 4-7); doId = the battle's doId ----
+    BattleSpawn,      // a DistributedBattle generated (findBattle(doId)); members and state are filled
+    BattleMembers,    // setMembers changed
+    BattleState,      // setState (name, timestamp)
+    BattleMovie,      // setMovie with movieHasBeenMade = 1 (the decoded round is in Battle::movie)
+    BattleExperience, // setBattleExperience (Battle::exp)
+    BattleAdjust,     // adjust(ts): move to the new slots, then adjustDone
+    BattleGone,       // the battle object left our interest or was deleted
+    BattleJoinDenied, // denyLocalToonJoin
+    SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
+    SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
 };
 
 struct Event {
@@ -250,6 +261,78 @@ struct OwnFish {
     uint8_t genus[kMaxFishTank] = {};
     uint8_t species[kMaxFishTank] = {};
     uint16_t weight[kMaxFishTank] = {}; // ounces
+};
+// ---- street battles: DistributedBattle (docs/design/combat.md sections 4 to 7) ----
+// Members are stored by index into suits[] / toons[] (doIds); the role lists are bit masks
+// over those indices (setMembers sends each as a string of digits).
+constexpr int kBattleSuits = 4;
+constexpr int kBattleToons = 4;
+constexpr int kMaxBattles = 4;     // our fight plus whatever is in sight
+constexpr int kMaxDeathGroups = 8; // setBattleExperience deathList: 4 bytes each
+
+enum class BattleStateId : uint8_t {
+    None, Off, FaceOff, WaitForJoin, WaitForInput, MakeMovie, PlayMovie, Reward, Resume, Other,
+};
+
+// One toon attack of setMovie: toonIdx (index into BattleMovie::toons), track/level
+// (ToontownBattleGlobals; -1 = no attack, -3 = pass), target (suit index, toon index for heals,
+// -1 = group), the damage per suit (index = suit index into BattleMovie::suits) and the suits
+// (bit per index) that died from it.
+struct BattleToonAttack {
+    int8_t toonIdx, track, level;
+    int32_t target;
+    int16_t hp[kBattleSuits];
+    uint8_t numHp;
+    int16_t accBonus, hpBonus;
+    int8_t died, revive;
+};
+// One suit attack of setMovie: suitIdx, attack (index into that cog's attack list, -1 = none), the
+// target toon index (-1 = all), damage per toon index, bit per toon index that died.
+struct BattleSuitAttack {
+    int8_t suitIdx, attack, target;
+    int16_t hp[kBattleToons];
+    uint8_t numHp;
+    int8_t toonDied, beforeToons, taunt;
+};
+struct BattleMovie {
+    bool active;
+    uint8_t numToons, numSuits;
+    uint32_t toons[kBattleToons], suits[kBattleSuits];
+    BattleToonAttack toonAttacks[4];
+    BattleSuitAttack suitAttacks[4];
+};
+struct BattleExpToon {
+    int32_t id;                // -1 = empty block
+    int16_t origExp[7], earnedExp[7];
+};
+struct BattleExperience {
+    BattleExpToon toons[4];
+    uint8_t numDeathGroups;
+    uint8_t deaths[kMaxDeathGroups][4]; // suitHeadTypes index, level, toon bits, flags
+};
+struct Battle {
+    uint32_t doId;
+    uint32_t zoneId;
+    float x, y, z;             // setPosition: the battle cell
+    float sx, sy, sz;          // setInitialSuitPos: where the first cog touched us
+    BattleStateId state;
+    char stateName[20];
+    uint32_t stateMs;          // local plat::nowMs() the state began (from its timestamp)
+    uint32_t stateSeq;         // bumped by every setState
+    uint8_t numSuits, numToons;
+    uint32_t suits[kBattleSuits];
+    uint32_t toons[kBattleToons];
+    uint8_t suitsJoining, suitsPending, suitsActive, suitsLured; // masks over suits[]
+    int8_t suitTrap[kBattleSuits];                               // trap level, -1 = none
+    uint8_t toonsJoining, toonsPending, toonsActive, toonsRunning; // masks over toons[]
+    uint32_t membersSeq;
+    BattleMovie movie;
+    uint32_t movieSeq;         // bumped whenever setMovie arrives with an active movie
+    BattleExperience exp;
+    uint32_t expSeq;
+    uint32_t adjustSeq;
+    uint32_t adjustMs;         // local time of the last adjust(ts)
+    bool active;
 };
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
@@ -427,6 +510,28 @@ public:
     bool sendFishCast(uint32_t spotDoId, float power01, float headingDeg);
     bool sendFishSell(uint32_t spotDoId);
     bool sendFishHitTarget(uint32_t pondDoId, uint32_t targetDoId);
+    // ---- battle section (docs/design/combat.md sections 3 to 7) ----
+    // DistributedSuit.requestBattle(x, y, z, h, p, r): our toon touched this cog; the arguments are
+    // the cog's position and heading. The AI answers with a DistributedBattle or denyBattle.
+    bool sendRequestBattle(uint32_t suitDoId, float x, float y, float z, float h, float p, float r);
+    const Battle* findBattle(uint32_t doId) const;
+    const Battle& battleSlot(int i) const { return battles_[i]; }
+    // The battle whose member list holds our toon (nullptr when we are not fighting).
+    const Battle* localBattle() const;
+    // DistributedToon.setBattleId of our toon (the AI also sets it to our own doId briefly).
+    uint32_t ownBattleId() const { return ownBattleId_; }
+    // clsend fields of DistributedBattle. All need InZone and return false otherwise.
+    bool sendBattleFaceOffDone(uint32_t battleId);
+    bool sendBattleRequestRun(uint32_t battleId);
+    bool sendBattleTimeout(uint32_t battleId);
+    bool sendBattleAdjustDone(uint32_t battleId);
+    bool sendBattleMovieDone(uint32_t battleId);
+    bool sendBattleRewardDone(uint32_t battleId);
+    bool sendBattleRequestJoin(uint32_t battleId, float x, float y, float z); // relative to the battle
+    bool sendBattleJoinDone(uint32_t battleId, uint32_t avId);
+    // track/level from ToontownBattleGlobals; av = target cog doId (-1 for group attacks).
+    // PASS is (98, -1, -1).
+    bool sendBattleRequestAttack(uint32_t battleId, int8_t track, int8_t level, int32_t av);
 
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
@@ -553,6 +658,16 @@ private:
     bool applyOwnFishField(DatagramReader& r, uint16_t fieldId);
     void handleFishingLeaving(uint32_t doId);
     void clearFishing();
+    // ---- battle section: DistributedBattle parse state ----
+    Battle battles_[kMaxBattles] = {};
+    uint32_t ownBattleId_ = 0;
+    bool handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                           bool other);
+    bool applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bool live);
+    bool parseBattleMembers(Battle& b, DatagramReader& r);
+    bool parseBattleMovie(Battle& b, DatagramReader& r);
+    bool parseBattleExperience(Battle& b, DatagramReader& r);
+    void clearBattles();
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
     uint32_t tutorialManagerId_ = 0;

@@ -86,6 +86,32 @@ TT_SIG(DistributedSuit, setPathEndpoints, "u16,u16,u16,u16");
 TT_SIG(DistributedSuit, setPathPosition, "u16,i16");
 TT_SIG(DistributedSuit, setPathState, "i8");
 TT_SIG(DistributedSuit, setBrushOff, "i16");
+TT_SIG(DistributedSuit, denyBattle, "");
+TT_SIG(DistributedSuit, requestBattle, "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10");
+// ---- battle section: the layouts parseBattle*() read by hand ----
+TT_SIG(DistributedToon, setBattleId, "u32");
+TT_SIG(DistributedBattle, setPosition, "i16/10,i16/10,i16/10");
+TT_SIG(DistributedBattle, setInitialSuitPos, "i16/10,i16/10,i16/10");
+TT_SIG(DistributedBattle, setZoneId, "u32");
+TT_SIG(DistributedBattle, setMembers, "u32[],string,string,string,string,string,u32[],string,string,string,string,i16");
+TT_SIG(DistributedBattle, adjust, "i16");
+TT_SIG(DistributedBattle, setMovie,
+       "i8,u32[],u32[],i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],"
+       "i16,i16,i16[],i8,i8,i8,i8,i8,i32,i16[],i16,i16,i16[],i8,i8,i8,i8,i8,i16[],i8,i8,i8,i8,i8,i8,i16[],i8,i8,i8,i8,i8,"
+       "i8,i16[],i8,i8,i8,i8,i8,i8,i16[],i8,i8,i8");
+TT_SIG(DistributedBattle, setBattleExperience,
+       "i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],"
+       "i16[],u32[],i16[],i16[],i16[],i16[],u32[],i32,i16[],i16[],u32[],i16[],i16[],i16[],i16[],u32[],u8[],i16[],u32[]");
+TT_SIG(DistributedBattle, setState, "string,i16");
+TT_SIG(DistributedBattle, faceOffDone, "");
+TT_SIG(DistributedBattle, toonRequestJoin, "i16/10,i16/10,i16/10");
+TT_SIG(DistributedBattle, toonRequestRun, "");
+TT_SIG(DistributedBattle, adjustDone, "");
+TT_SIG(DistributedBattle, timeout, "");
+TT_SIG(DistributedBattle, movieDone, "");
+TT_SIG(DistributedBattle, rewardDone, "");
+TT_SIG(DistributedBattle, joinDone, "u32");
+TT_SIG(DistributedBattle, requestAttack, "i8,i8,i32");
 TT_SIG(DistributedCCharBase, setChat, "u32,u32,u32");
 TT_SIG(DistributedDale, setFollowChip, "string,string,i16,i16/100,i16/100");
 TT_SIG(DistributedDale, setChipId, "u32");
@@ -397,6 +423,8 @@ void Client::resetWorld() {
     }
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
+    clearBattles();
+    ownBattleId_ = 0;
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     clearFishing();
     for (District& d : districts_) d.active = false;
@@ -699,6 +727,10 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleSuitEnter(doId, zone, r, req, reqCount, other);
         return;
     }
+    if (classId == dc::DistributedBattle::kClassId) {
+        handleBattleEnter(doId, zone, r, req, reqCount, other);
+        return;
+    }
     if (classId == dc::DistributedSuitPlanner::kClassId) {
         // One per street, in the branch zone: setZoneId names the street DNA to walk.
         SuitPlanner* sp = nullptr;
@@ -783,9 +815,22 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
             return;
         }
     }
+    for (Battle& b : battles_) {
+        if (b.active && b.doId == doId) {
+            applyBattleField(b, r, fieldId, true);
+            return;
+        }
+    }
     for (Suit& su : suits_) {
         if (su.active && su.doId == doId) {
-            if (applySuitField(su, r, fieldId)) pushEvent(EventType::SuitUpdate, doId);
+            if (fieldId == dc::DistributedSuit::k_denyBattle) { // sent to us alone: the cog said no
+                pushEvent(EventType::SuitDenied, doId);
+            } else if (fieldId == dc::DistributedSuit::k_setBrushOff) {
+                r.i16(); // index into SuitDialog.SuitBrushOffs (text not used)
+                if (r.ok()) pushEvent(EventType::SuitBrushOff, doId);
+            } else if (applySuitField(su, r, fieldId)) {
+                pushEvent(EventType::SuitUpdate, doId);
+            }
             return;
         }
     }
@@ -874,6 +919,13 @@ void Client::handleLeaving(uint32_t doId) {
         if (sp.active && sp.doId == doId) sp.active = false;
     }
     handleFishingLeaving(doId);
+    for (Battle& b : battles_) {
+        if (b.active && b.doId == doId) {
+            b.active = false;
+            TT_LOG("net: battle %u gone", unsigned(doId));
+            pushEvent(EventType::BattleGone, doId);
+        }
+    }
 }
 
 void Client::handleInterestDone(uint32_t context, uint16_t handle) {
@@ -1132,6 +1184,8 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     } else if (fieldId == dc::DistributedToon::k_setFishingRod || fieldId == dc::DistributedToon::k_setMaxFishTank ||
                fieldId == dc::DistributedToon::k_setFishTank) {
         applyOwnFishField(r, fieldId);
+    } else if (fieldId == dc::DistributedToon::k_setBattleId) {
+        ownBattleId_ = r.u32(); // battle section (the AI first sets our own doId, then the battle's)
     } else {
         skipField(r, fieldId);
     }
@@ -1424,6 +1478,344 @@ uint32_t Client::suitPlannerZone(uint32_t doId) const {
     }
     return 0;
 }
+
+// =========================================================================================
+// ---- battle section: DistributedBattle (docs/design/combat.md sections 4 to 7) ----
+// =========================================================================================
+namespace {
+
+// A DC array field: u16 byte length, then elements. Reads up to cap elements, drops the rest.
+int readU32Array(DatagramReader& r, uint32_t* out, int cap) {
+    const uint16_t bytes = r.u16();
+    const int n = bytes / 4;
+    int stored = 0;
+    for (int i = 0; i < n && r.ok(); ++i) {
+        const uint32_t v = r.u32();
+        if (stored < cap) out[stored++] = v;
+    }
+    if (bytes % 4) r.skip(bytes % 4);
+    return stored;
+}
+
+int readI16Array(DatagramReader& r, int16_t* out, int cap) {
+    const uint16_t bytes = r.u16();
+    const int n = bytes / 2;
+    int stored = 0;
+    for (int i = 0; i < n && r.ok(); ++i) {
+        const int16_t v = r.i16();
+        if (stored < cap) out[stored++] = v;
+    }
+    if (bytes % 2) r.skip(bytes % 2);
+    return stored;
+}
+
+void skipArray(DatagramReader& r) {
+    const uint16_t bytes = r.u16();
+    r.skip(bytes);
+}
+
+// setMembers sends each role list as a string of digits, each digit an index into suits/toons.
+uint8_t digitMask(Bytes s) {
+    uint8_t m = 0;
+    for (uint32_t i = 0; i < s.len; ++i) {
+        const int d = int(s.data[i]) - '0';
+        if (d >= 0 && d < 8) m |= uint8_t(1u << d);
+    }
+    return m;
+}
+
+BattleStateId battleStateFromName(const char* name) {
+    static const struct { const char* name; BattleStateId id; } kStates[] = {
+        {"Off", BattleStateId::Off},
+        {"FaceOff", BattleStateId::FaceOff},
+        {"WaitForJoin", BattleStateId::WaitForJoin},
+        {"WaitForInput", BattleStateId::WaitForInput},
+        {"MakeMovie", BattleStateId::MakeMovie},
+        {"PlayMovie", BattleStateId::PlayMovie},
+        {"Reward", BattleStateId::Reward},
+        {"Resume", BattleStateId::Resume},
+    };
+    for (const auto& s : kStates) {
+        if (!strcmp(s.name, name)) return s.id;
+    }
+    return BattleStateId::Other;
+}
+
+} // namespace
+
+void Client::clearBattles() {
+    for (Battle& b : battles_) {
+        if (b.active) pushEvent(EventType::BattleGone, b.doId);
+        b.active = false;
+    }
+}
+
+bool Client::parseBattleMembers(Battle& b, DatagramReader& r) {
+    // suits[], suitsJoining, suitsPending, suitsActive, suitsLured, suitTraps,
+    // toons[], toonsJoining, toonsPending, toonsActive, toonsRunning, timestamp
+    b.numSuits = uint8_t(readU32Array(r, b.suits, kBattleSuits));
+    b.suitsJoining = digitMask(r.blob());
+    b.suitsPending = digitMask(r.blob());
+    b.suitsActive = digitMask(r.blob());
+    b.suitsLured = digitMask(r.blob());
+    const Bytes traps = r.blob();
+    for (int i = 0; i < kBattleSuits; ++i) {
+        // One char per suit: the trap level, or '9' for none (BattleBase NO_TRAP = -1).
+        const int d = uint32_t(i) < traps.len ? int(traps.data[i]) - '0' : 9;
+        b.suitTrap[i] = int8_t(d >= 0 && d < 9 ? d : -1);
+    }
+    b.numToons = uint8_t(readU32Array(r, b.toons, kBattleToons));
+    b.toonsJoining = digitMask(r.blob());
+    b.toonsPending = digitMask(r.blob());
+    b.toonsActive = digitMask(r.blob());
+    b.toonsRunning = digitMask(r.blob());
+    r.i16(); // timestamp (joins and adjusts are timed from their own messages)
+    if (!r.ok()) return false;
+    // The masks only mean something for members that exist.
+    const uint8_t sm = uint8_t((1u << b.numSuits) - 1), tm = uint8_t((1u << b.numToons) - 1);
+    b.suitsJoining &= sm, b.suitsPending &= sm, b.suitsActive &= sm, b.suitsLured &= sm;
+    b.toonsJoining &= tm, b.toonsPending &= tm, b.toonsActive &= tm, b.toonsRunning &= tm;
+    ++b.membersSeq;
+    return true;
+}
+
+bool Client::parseBattleMovie(Battle& b, DatagramReader& r) {
+    BattleMovie m{};
+    m.active = r.i8() == 1;
+    m.numToons = uint8_t(readU32Array(r, m.toons, kBattleToons));
+    m.numSuits = uint8_t(readU32Array(r, m.suits, kBattleSuits));
+    for (BattleToonAttack& a : m.toonAttacks) {
+        a.toonIdx = r.i8();
+        a.track = r.i8();
+        a.level = r.i8();
+        a.target = r.i32();
+        a.numHp = uint8_t(readI16Array(r, a.hp, kBattleSuits));
+        a.accBonus = r.i16();
+        a.hpBonus = r.i16();
+        skipArray(r); // kbBonus[]
+        a.died = r.i8();
+        a.revive = r.i8();
+    }
+    for (BattleSuitAttack& a : m.suitAttacks) {
+        a.suitIdx = r.i8();
+        a.attack = r.i8();
+        a.target = r.i8();
+        a.numHp = uint8_t(readI16Array(r, a.hp, kBattleToons));
+        a.toonDied = r.i8();
+        a.beforeToons = r.i8();
+        a.taunt = r.i8();
+    }
+    if (!r.ok()) return false;
+    b.movie = m;
+    if (m.active) ++b.movieSeq;
+    return true;
+}
+
+bool Client::parseBattleExperience(Battle& b, DatagramReader& r) {
+    BattleExperience e{};
+    for (BattleExpToon& t : e.toons) {
+        t.id = r.i32();
+        readI16Array(r, t.origExp, 7);
+        readI16Array(r, t.earnedExp, 7);
+        skipArray(r); // origQuests
+        skipArray(r); // items
+        skipArray(r); // missedItems
+        skipArray(r); // origMerits
+        skipArray(r); // merits
+        skipArray(r); // parts
+    }
+    const uint16_t deathBytes = r.u16(); // groups of 4: head type index, level, toon bits, flags
+    for (uint16_t i = 0; i + 3 < deathBytes && r.ok(); i += 4) {
+        uint8_t g[4];
+        for (uint8_t& v : g) v = r.u8();
+        if (e.numDeathGroups < kMaxDeathGroups) memcpy(e.deaths[e.numDeathGroups++], g, 4);
+    }
+    r.skip(deathBytes % 4);
+    skipArray(r); // uberList
+    skipArray(r); // helpfulToons
+    if (!r.ok()) return false;
+    b.exp = e;
+    ++b.expSeq;
+    return true;
+}
+
+bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bool live) {
+    switch (fieldId) {
+    case dc::DistributedBattle::k_setPosition:
+        b.x = r.i16() / 10.0f;
+        b.y = r.i16() / 10.0f;
+        b.z = r.i16() / 10.0f;
+        break;
+    case dc::DistributedBattle::k_setInitialSuitPos:
+        b.sx = r.i16() / 10.0f;
+        b.sy = r.i16() / 10.0f;
+        b.sz = r.i16() / 10.0f;
+        break;
+    case dc::DistributedBattle::k_setZoneId: b.zoneId = r.u32(); break;
+    case dc::DistributedBattle::k_setMembers:
+        if (parseBattleMembers(b, r) && live) pushEvent(EventType::BattleMembers, b.doId);
+        break;
+    case dc::DistributedBattle::k_setMovie:
+        if (parseBattleMovie(b, r) && live && b.movie.active) pushEvent(EventType::BattleMovie, b.doId);
+        break;
+    case dc::DistributedBattle::k_setBattleExperience:
+        if (parseBattleExperience(b, r) && live) pushEvent(EventType::BattleExperience, b.doId);
+        break;
+    case dc::DistributedBattle::k_setState: {
+        r.string(b.stateName, sizeof(b.stateName));
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        b.state = battleStateFromName(b.stateName);
+        // The AI stamps the state two seconds ahead (SERVER_BUFFER_TIME); the input countdown runs
+        // from that moment (DistributedBattleBase.enterWaitForInput passes the elapsed time).
+        b.stateMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        ++b.stateSeq;
+        if (live) {
+            TT_LOG("net: battle %u state %s", unsigned(b.doId), b.stateName);
+            pushEvent(EventType::BattleState, b.doId);
+        }
+        break;
+    }
+    case dc::DistributedBattle::k_adjust: {
+        const int16_t ts = r.i16();
+        if (!r.ok()) return false;
+        b.adjustMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        ++b.adjustSeq;
+        if (live) pushEvent(EventType::BattleAdjust, b.doId);
+        break;
+    }
+    case dc::DistributedBattle::k_denyLocalToonJoin:
+        if (live) pushEvent(EventType::BattleJoinDenied, b.doId);
+        break;
+    default: // setLevelDoId, setBattleCellId, setInteractivePropTrackBonus, setChosenToonAttacks, setBossBattle
+        skipField(r, fieldId);
+        break;
+    }
+    return r.ok();
+}
+
+bool Client::handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req,
+                               uint16_t reqCount, bool other) {
+    Battle* slot = nullptr;
+    for (Battle& b : battles_) {
+        if (b.active && b.doId == doId) slot = &b;
+    }
+    for (Battle& b : battles_) {
+        if (!slot && !b.active) slot = &b;
+    }
+    if (!slot) {
+        TT_LOG("net: no room for battle %u", unsigned(doId));
+        return false;
+    }
+    Battle tmp{};
+    tmp.doId = doId;
+    tmp.zoneId = zone;
+    tmp.state = BattleStateId::None;
+    tmp.stateMs = now_;
+    tmp.movie.active = false;
+    for (BattleExpToon& t : tmp.exp.toons) t.id = -1;
+    for (int8_t& t : tmp.suitTrap) t = -1;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyBattleField(tmp, r, req[i], false);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyBattleField(tmp, r, r.u16(), false);
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: battle %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    *slot = tmp;
+    TT_LOG("net: battle %u zone %u at %.1f,%.1f,%.1f state %s: %d cogs, %d toons", unsigned(doId), unsigned(slot->zoneId),
+           double(slot->x), double(slot->y), double(slot->z), slot->stateName, int(slot->numSuits),
+           int(slot->numToons));
+    pushEvent(EventType::BattleSpawn, doId);
+    return true;
+}
+
+const Battle* Client::findBattle(uint32_t doId) const {
+    for (const Battle& b : battles_) {
+        if (b.active && b.doId == doId) return &b;
+    }
+    return nullptr;
+}
+
+const Battle* Client::localBattle() const {
+    if (avatarId_ == 0) return nullptr;
+    for (const Battle& b : battles_) {
+        if (!b.active) continue;
+        for (int i = 0; i < b.numToons; ++i) {
+            if (b.toons[i] == avatarId_) return &b;
+        }
+    }
+    return nullptr;
+}
+
+bool Client::sendRequestBattle(uint32_t suitDoId, float x, float y, float z, float h, float p, float r) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, suitDoId, DistributedSuit, requestBattle);
+    w.i16(packFixed(x, 10.0f));
+    w.i16(packFixed(y, 10.0f));
+    w.i16(packFixed(z, 10.0f));
+    w.i16(packFixed(h, 10.0f)); // int16/10 (not %360): the AI hands it straight to the battle
+    w.i16(packFixed(p, 10.0f));
+    w.i16(packFixed(r, 10.0f));
+    TT_LOG("net: requestBattle on cog %u at %.1f,%.1f,%.1f h %.1f", unsigned(suitDoId), double(x), double(y),
+           double(z), double(h));
+    return finish(w);
+}
+
+// Field senders with no arguments share this shape; the macro's static_assert pins clsend.
+#define TT_BATTLE_SEND0(fn, field)                                                      \
+    bool Client::fn(uint32_t battleId) {                                                \
+        if (state_ != State::InZone || battleId == 0) return false;                     \
+        DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);                  \
+        TT_NET_UPDATE(w, battleId, DistributedBattle, field);                           \
+        TT_LOG("net: battle %u: %s", unsigned(battleId), #field);                       \
+        return finish(w);                                                               \
+    }
+TT_BATTLE_SEND0(sendBattleFaceOffDone, faceOffDone)
+TT_BATTLE_SEND0(sendBattleRequestRun, toonRequestRun)
+TT_BATTLE_SEND0(sendBattleTimeout, timeout)
+TT_BATTLE_SEND0(sendBattleAdjustDone, adjustDone)
+TT_BATTLE_SEND0(sendBattleMovieDone, movieDone)
+TT_BATTLE_SEND0(sendBattleRewardDone, rewardDone)
+#undef TT_BATTLE_SEND0
+
+bool Client::sendBattleRequestJoin(uint32_t battleId, float x, float y, float z) {
+    if (state_ != State::InZone || battleId == 0) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, battleId, DistributedBattle, toonRequestJoin);
+    w.i16(packFixed(x, 10.0f));
+    w.i16(packFixed(y, 10.0f));
+    w.i16(packFixed(z, 10.0f));
+    TT_LOG("net: battle %u: toonRequestJoin", unsigned(battleId));
+    return finish(w);
+}
+
+bool Client::sendBattleJoinDone(uint32_t battleId, uint32_t avId) {
+    if (state_ != State::InZone || battleId == 0) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, battleId, DistributedBattle, joinDone);
+    w.u32(avId);
+    TT_LOG("net: battle %u: joinDone %u", unsigned(battleId), unsigned(avId));
+    return finish(w);
+}
+
+bool Client::sendBattleRequestAttack(uint32_t battleId, int8_t track, int8_t level, int32_t av) {
+    if (state_ != State::InZone || battleId == 0) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, battleId, DistributedBattle, requestAttack);
+    w.i8(track);
+    w.i8(level);
+    w.i32(av);
+    TT_LOG("net: battle %u: requestAttack track %d level %d target %d", unsigned(battleId), int(track), int(level),
+           int(av));
+    return finish(w);
+}
+// ---- end of battle section ----
 
 const CChar* Client::findCChar(uint32_t doId) const {
     for (const CChar& c : cchars_) {
@@ -1746,6 +2138,7 @@ void Client::dropZoneObjects() {
     boat_.active = false;
     clearFishing();
     clearSuits();
+    clearBattles();
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {

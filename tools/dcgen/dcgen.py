@@ -88,6 +88,13 @@ WANTED = {
     'DistributedSuit': ['setDNAString', 'setLevelDist', 'setBrushOff', 'setSkelecog',
                         'setSkeleRevives', 'setHP', 'setSPDoId', 'setPathEndpoints',
                         'setPathPosition', 'setPathState', 'denyBattle', 'requestBattle'],
+    # ---- street battles (source/world/battle.*, docs/design/combat.md sections 4-7) ----
+    'DistributedBattle': ['setLevelDoId', 'setBattleCellId', 'setInteractivePropTrackBonus', 'setPosition',
+                          'setZoneId', 'setInitialSuitPos', 'setMembers', 'adjust', 'setMovie',
+                          'setChosenToonAttacks', 'setBattleExperience', 'denyLocalToonJoin',
+                          'setBossBattle', 'setState', 'faceOffDone', 'toonRequestJoin', 'toonRequestRun',
+                          'toonDied', 'adjustDone', 'timeout', 'movieDone', 'rewardDone', 'joinDone',
+                          'requestAttack'],
     'DistributedDale': ['setFollowChip', 'setChipId'],
     'DistributedJailbirdDale': ['setFollowChip', 'setChipId'],
     # ---- fishing (source/net/client.cpp "fishing" section, docs/design/fishing.md) ----
@@ -127,7 +134,9 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  'DistributedHQInterior', 'DistributedGagshopInterior',
                  'DistributedPetshopInterior',
                  # street branch zone / visgroup zones (cogs walking the street)
-                 'DistributedSuitPlanner', 'DistributedSuit']
+                 'DistributedSuitPlanner', 'DistributedSuit',
+                 # street battle object (DistributedBattle: street cog fights)
+                 'DistributedBattle']
 
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,
