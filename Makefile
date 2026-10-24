@@ -79,7 +79,7 @@ export APP_ICON := $(TOPDIR)/$(ICON)
 export _3DSXDEPS := $(OUTPUT).smdh
 export _3DSXFLAGS += --smdh=$(OUTPUT).smdh --romfs=$(CURDIR)/$(ROMFS)
 
-.PHONY: all clean cia assets
+.PHONY: all clean cia cia-check assets
 
 all: $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
@@ -87,12 +87,26 @@ all: $(BUILD)
 $(BUILD):
 	@mkdir -p $@
 
-# .cia needs makerom + bannertool on PATH (see README.md).
-cia: all
-	@bannertool makebanner -i $(CIA_BANNER_IMG) -a $(CIA_BANNER_SND) -o $(BUILD)/banner.bnr
-	@bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" \
+# .cia needs makerom + bannertool. They are looked up in $(DEVKITPRO)/tools/bin first
+# (where devkitPro's pacman installs them), then on PATH. See README.md "Prerequisites".
+CIA_TOOL_PATH := $(DEVKITPRO)/tools/bin:$(PATH)
+
+cia-check:
+	@for t in bannertool makerom; do \
+		if ! PATH="$(CIA_TOOL_PATH)" command -v $$t >/dev/null 2>&1; then \
+			echo "error: '$$t' not found in $(DEVKITPRO)/tools/bin or on PATH."; \
+			echo "       The .cia target needs makerom and bannertool (Project_CTR / bannertool releases)."; \
+			echo "       The .3dsx target does not need them: run 'make' instead."; \
+			echo "       Install instructions: README.md, section 'Prerequisites', item 2."; \
+			exit 1; \
+		fi; \
+	done
+
+cia: cia-check all
+	@PATH="$(CIA_TOOL_PATH)" bannertool makebanner -i $(CIA_BANNER_IMG) -a $(CIA_BANNER_SND) -o $(BUILD)/banner.bnr
+	@PATH="$(CIA_TOOL_PATH)" bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" \
 		-i $(ICON) -o $(BUILD)/icon.icn
-	@makerom -f cia -o $(OUTPUT).cia -elf $(OUTPUT).elf -rsf $(CIA_RSF) \
+	@PATH="$(CIA_TOOL_PATH)" makerom -f cia -o $(OUTPUT).cia -elf $(OUTPUT).elf -rsf $(CIA_RSF) \
 		-icon $(BUILD)/icon.icn -banner $(BUILD)/banner.bnr -exefslogo -target t
 	@echo built ... $(notdir $(OUTPUT).cia)
 

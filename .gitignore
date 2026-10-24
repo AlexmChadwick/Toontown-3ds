@@ -11,3 +11,5 @@
 /sdmc-out/
 __pycache__/
 .venv/
+# Packaged SD-card tree (make_sd_package.sh); copy to the card, do not commit
+/dist/

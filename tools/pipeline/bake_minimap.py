@@ -47,7 +47,7 @@ GPU_ETC1 = etc1.GPU_ETC1
 SUPER = 4
 MARGIN = 8.0        # world units around the playable floor
 BG = (0x1E, 0x2A, 0x44)   # matches kBg of the bottom-screen UI
-DEFAULT_ZONES = Path('/Users/alexchadwick/toontown-3ds/sdmc-out/3ds/toontown3ds/data/zones')
+DEFAULT_ZONES = ROOT / 'sdmc-out/3ds/toontown3ds/data/zones'
 
 
 def pick_size(ext_x, ext_y):
