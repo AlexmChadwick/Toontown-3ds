@@ -159,6 +159,22 @@ WANTED = {
     'DistributedBattleFactory': [],
     'DistributedFactoryElevatorExt': ['setEntranceId', 'setFactoryInteriorZone',
                                       'setFactoryInteriorZoneForce'],
+    'DistributedMint': ['setZoneId', 'setMintId', 'setFloorNum', 'setRoomDoIds'],
+    'DistributedMintRoom': ['setMintId', 'setRoomId', 'setRoomNum', 'setSuits',
+                            'setBossConfronted', 'setDefeated'],
+    'DistributedStage': ['setZoneId', 'setStageId', 'setLayoutIndex', 'setFloorNum',
+                          'setRoomDoIds', 'setStageZone', 'elevatorAlert'],
+    'DistributedStageRoom': ['setStageId', 'setRoomId', 'setRoomNum', 'setSuits',
+                             'setBossConfronted', 'setDefeated'],
+    'DistributedMintElevatorExt': ['setMintId', 'setMintInteriorZone', 'setMintInteriorZoneForce'],
+    'DistributedLawOfficeElevatorInt': ['setLawOfficeInteriorZone'],
+    'DistributedMintBattle': [],
+    'DistributedStageBattle': [],
+    'DistributedLaserField': ['setGrid', 'setField', 'setSuccess', 'setActiveLF', 'setGridGame',
+                              'hit', 'trapFire'],
+    'DistributedSecurityCamera': ['setTarget', 'trapFire'],
+    'DistributedMaze': ['setRoomDoId', 'setGameStart', 'setGameOver', 'setClientTriggered',
+                        'setFinishedMaze', 'toonFinished', 'damageMe'],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
@@ -200,7 +216,11 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  'DistributedElevatorExt', 'DistributedElevatorInt']
 TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', 'DistributedDoorEntity',
                   'DistributedButton', 'DistributedCrate', 'DistributedGoon', 'DistributedStomper',
-                  'DistributedBattleFactory', 'DistributedFactoryElevatorExt']
+                  'DistributedBattleFactory', 'DistributedFactoryElevatorExt', 'DistributedMint',
+                  'DistributedMintRoom', 'DistributedStage', 'DistributedStageRoom',
+                  'DistributedMintElevatorExt', 'DistributedLawOfficeElevatorInt',
+                  'DistributedMintBattle', 'DistributedStageBattle', 'DistributedLaserField',
+                  'DistributedSecurityCamera', 'DistributedMaze']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.
