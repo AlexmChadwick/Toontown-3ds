@@ -37,6 +37,11 @@ struct Context {
     unsigned drawCalls, triangles, modelsDrawn, modelsCulled;
     unsigned heapUsedKB, heapBudgetKB, linearFreeKB, linearBudgetKB, vramFreeKB;
     bool isNew3ds;
+    // Network (Debug tab); netState null = offline.
+    const char* netState = nullptr;
+    unsigned zoneId = 0;
+    unsigned netInBps = 0, netOutBps = 0;
+    int remoteToons = 0;
 };
 
 constexpr int kNumToonColors = 27;

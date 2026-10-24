@@ -8,6 +8,7 @@ namespace tt::log {
 
 void init();
 void shutdown();
+void flush(); // force buffered lines to the SD card
 void write(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
 constexpr int kRingLines = 8;

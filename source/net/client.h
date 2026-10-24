@@ -193,6 +193,9 @@ public:
     // path). Keeps the buffers; connect() starts a fresh session with the same config.
     void disconnect();
     bool connect();
+    // Drop the connection and go through the normal retry path, keeping the chosen toon
+    // and zone (after sleep, when the socket is known to be dead).
+    void forceReconnect(const char* why);
     // True when the toon being played was created in this session.
     bool playingNewAvatar() const { return newAvatarId_ != 0 && newAvatarId_ == avatarId_; }
     bool tutorialSkipSent() const { return skipTutorialSent_; }

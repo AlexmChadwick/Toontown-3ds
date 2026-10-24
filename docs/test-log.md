@@ -115,6 +115,24 @@ need hardware.
   read hitch; watch for it.
 - **SpeedChat tab and nametag:** draw correctly. The "Toon" nametag sits over the head.
 
+### 2026-10-23 — Phase 4 (DNA toons, front end, NPCs/treasures, HUD, zone change)
+- **Target:** Azahar 2126.2, Old 3DS mode, local Open Toontown server.
+- **DNA toons:** 4 bots of different species/gender/size render with their own heads,
+  clothing and lashes. Parts stream in on the loader thread at 29.9–30 fps (was 7.8 fps
+  with synchronous loads). LOD 250 is used beyond ~45 units.
+- **Front end (`autotest_fe`):** a new account → Make-a-Toon (cat girl, colour,
+  shirt) → "Brown Cat" created, tutorial skipped, in zone 2000. Every screen was checked
+  in the dumps.
+- **NPCs:** Fisherman Freddy and two Party Planners at their DNA anchors, with nametags.
+- **Treasures:** 5 parsed. The grab request is sent; the AI refuses it at full laff, as
+  upstream does.
+- **HUD:** laff meter + jellybean jar from the server stats.
+- **Zone change:** Gag Shop door → zone 2519 through the quiet zone on the real
+  server, and the shop clerks generate. Tested with stand-in interior files; the real
+  interiors are pending. Tunnel 2132 resolves, and "not installed" shows a toast.
+- **Performance:** 166–171 draws, 13.1–13.3k tris, 30 fps, heap 1.9 MB (incl. a 1 MB
+  socket buffer), linear 18 MB free.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

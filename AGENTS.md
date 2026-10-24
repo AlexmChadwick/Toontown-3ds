@@ -333,6 +333,36 @@ from Azahar (`tools/server/`), with a PC bot as the second player:
   `banManager` and takes the whole district down. `Client::sendAnimState` whitelists
   names.
 
+**Phase 4 — Playground life + front end.** Status: in Azahar (Old 3DS) against the real
+server.
+- ✅ **DNA-driven toons.** `world/toon_cache.*` shares parts and clothing by DNA, with
+  LRU in the 4 MB budget. Loading runs on a **loader thread**: libctru's `linearAlloc`
+  is not thread-safe, so every runtime linear alloc/free holds `tt::mem::LinearGuard`,
+  and toons draw the resident default body until their parts are ready.
+- ✅ **Front end** (`game/front_end.*`). Title → connect → Pick-a-Toon → 5-step
+  Make-a-Toon → playground. `requestSkipTutorial` is sent for new toons. The
+  `autotest_fe` trigger drives the whole flow.
+- ✅ **Zone objects.** NPC toons stand at the DNA anchors listed in the `.pts`
+  sidecar of `bake_zone.py`. Treasures can be grabbed (the AI refuses at full laff:
+  `validAvatar` requires hp < maxHp). Our laff and jellybeans drive `ui/hud.*`.
+- ✅ **Zone changes.**
+  - `Client::changeZone`: quiet zone, then the target zone, with a vis list for
+    streets.
+  - `world/place.*` resolves zone files by id and finds tunnel/door exits from
+    collision triggers.
+  - Trigger tests must use GravityWalker's event sphere (centre r − 0.1, radius
+    r × 1.04), because door triggers are flush with walls.
+- ✅ **Sleep/HOME.** An APT hook flushes the log; on wake the client force-reconnects
+  and rejoins the same toon and zone.
+- In progress in separate worktrees (merge when done):
+  - **Interiors:** `interiors` branch, `tools/pipeline/bake_interior.py`.
+  - **Streets plus the chunked `.tz` format:** `streets` branch, `world/zone.*`.
+- Next:
+  - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`)
+  - street cell zone changes from floor zone ids
+  - SpeedChat emotes
+  - a real hardware run
+
 **Phase 2 — original plan.**
 - M2.1: A DNA baker for the TTC playground (`toontown_central_sz.dna` + storage files)
   that assembles props, landmarks and flat buildings, then merges, atlases and grids

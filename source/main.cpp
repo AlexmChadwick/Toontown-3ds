@@ -37,6 +37,15 @@ namespace {
 
 using tt::render::Model;
 
+// APT lifecycle (HOME menu, sleep): keep the log on the SD card and remember that the
+// console slept, because sockets do not survive sleep on hardware.
+volatile bool gWokeFromSleep = false;
+aptHookCookie gAptCookie;
+void onApt(APT_HookType hook, void*) {
+    if (hook == APTHOOK_ONSUSPEND || hook == APTHOOK_ONSLEEP || hook == APTHOOK_ONEXIT) tt::log::flush();
+    if (hook == APTHOOK_ONWAKEUP) gWokeFromSleep = true;
+}
+
 struct Prop {
     Model* model;
     float x, y, z, headingDeg;
@@ -82,6 +91,7 @@ int main() {
     romfsInit();
     tt::log::init();
     tt::mem::linearLockInit();
+    aptHook(&gAptCookie, onApt, nullptr);
 
     bool isNew3ds = false;
     APT_CheckNew3DS(&isNew3ds);
@@ -202,6 +212,8 @@ int main() {
     autotest.begin();
     const char* shotName = nullptr;
     bool autotestGrabbed = false;
+    unsigned netInBps = 0, netOutBps = 0;
+    uint32_t lastBytesIn = 0, lastBytesOut = 0;
 
     // Front end (title / pick / make a toon) unless the scripted autotest runs, which goes
     // straight into the world with automatic login (when online).
@@ -278,12 +290,26 @@ int main() {
             tt::audio::update();
             continue;
         }
+        if (gWokeFromSleep) {
+            // The socket died with Wi-Fi during sleep and the server has (or soon will have)
+            // timed us out. Reconnect now instead of waiting for the step timeout; manual
+            // mode re-plays the toon we chose.
+            gWokeFromSleep = false;
+            TT_LOG("apt: woke from sleep");
+            if (netStarted) net.forceReconnect("woke from sleep");
+        }
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
             frontEnd.reset();
             inFrontEnd = true;
             continue;
+        }
+        if (secondElapsed && netStarted) {
+            netInBps = net.bytesIn() - lastBytesIn;
+            netOutBps = net.bytesOut() - lastBytesOut;
+            lastBytesIn = net.bytesIn();
+            lastBytesOut = net.bytesOut();
         }
         if (autotest.active() && secondElapsed) {
             TT_LOG("stats: [%s] fps %.1f cpu %.2f gpu %.2f cmdbuf %.0f%% skipped %lu draws %lu tris %lu toons %d remote %d pos %.1f,%.1f,%.1f h %.0f heap %uK "
@@ -556,6 +582,13 @@ int main() {
         ctx.linearBudgetKB = tt::mem::kLinearBudget / 1024;
         ctx.vramFreeKB = vramSpaceFree() / 1024;
         ctx.isNew3ds = isNew3ds;
+        ctx.zoneId = place.zoneId();
+        if (netStarted) {
+            ctx.netState = tt::net::stateName(net.state());
+            ctx.netInBps = netInBps;
+            ctx.netOutBps = netOutBps;
+            ctx.remoteToons = remoteToons.count();
+        }
         ui.draw(bottom, uiState, ctx);
 
         C3D_FrameEnd(0);
@@ -577,6 +610,7 @@ int main() {
     C2D_Fini();
     C3D_Fini();
     tt::audio::shutdown();
+    aptUnhook(&gAptCookie);
     tt::log::shutdown();
     romfsExit();
     gfxExit();

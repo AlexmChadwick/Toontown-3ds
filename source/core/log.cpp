@@ -14,6 +14,7 @@ FILE* gFile = nullptr;
 // Background threads (toon loader, network) log too; serialize ring + file writes.
 LightLock gLock;
 bool gLockReady = false;
+u64 gLastFlushMs = 0;
 char gRing[kRingLines][kLineLength];
 int gHead = 0;
 
@@ -27,7 +28,14 @@ void init() {
     gFile = fopen("sdmc:/3ds/toontown3ds/log.txt", "w");
 }
 
+void flush() {
+    if (gLockReady) LightLock_Lock(&gLock);
+    if (gFile) fflush(gFile);
+    if (gLockReady) LightLock_Unlock(&gLock);
+}
+
 void shutdown() {
+    flush();
     if (gFile) fclose(gFile);
     gFile = nullptr;
 }
@@ -43,8 +51,14 @@ void write(const char* fmt, ...) {
     svcOutputDebugString(line, strlen(line));
     if (gLockReady) LightLock_Lock(&gLock);
     if (gFile) {
-        fprintf(gFile, "[%llu] %s\n", osGetTime(), line);
-        fflush(gFile);
+        const u64 now = osGetTime();
+        fprintf(gFile, "[%llu] %s\n", now, line);
+        // SD writes can stall for milliseconds on hardware: flush at most once a second
+        // (flush() is also called on suspend/sleep and exit).
+        if (now - gLastFlushMs >= 1000) {
+            fflush(gFile);
+            gLastFlushMs = now;
+        }
     }
     gHead = (gHead + kRingLines - 1) % kRingLines;
     snprintf(gRing[gHead], kLineLength, "%s", line);

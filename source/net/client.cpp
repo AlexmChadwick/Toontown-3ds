@@ -270,6 +270,11 @@ bool Client::connect() {
     return true;
 }
 
+void Client::forceReconnect(const char* why) {
+    if (!transport_ || state_ == State::Idle || state_ == State::Failed) return;
+    fail(why, true);
+}
+
 void Client::disconnect() {
     if (!transport_) return;
     if (state_ != State::Idle && state_ != State::Connecting && state_ != State::Backoff &&

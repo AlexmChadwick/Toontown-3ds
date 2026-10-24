@@ -244,7 +244,13 @@ void Ui::drawDebug(const Context& c) {
                   c.heapBudgetKB);
         debugLine(8, 78, 0.5f, kWhite, "linear %u / %u KB free", c.linearFreeKB, c.linearBudgetKB);
         debugLine(8, 96, 0.5f, kWhite, "vram  %u KB free", c.vramFreeKB);
-        for (int i = 0; i < 5; i++) debugLine(8, 118 + i * 16, 0.4f, kDim, "%s", log::recent(4 - i));
+        if (c.netState) {
+            debugLine(8, 114, 0.45f, kWhite, "net %s  zone %u  in %u B/s out %u B/s  toons %d", c.netState, c.zoneId,
+                      c.netInBps, c.netOutBps, c.remoteToons);
+        } else {
+            debugLine(8, 114, 0.45f, kDim, "offline  zone %u", c.zoneId);
+        }
+        for (int i = 0; i < 4; i++) debugLine(8, 134 + i * 16, 0.4f, kDim, "%s", log::recent(3 - i));
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
