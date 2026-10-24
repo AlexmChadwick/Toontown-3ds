@@ -467,6 +467,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
+| `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |
 | Host tests | `tools/suit_test/` (suit paths vs the real libtoontown), `tools/nettest/`, `tools/collision_test/`, `tools/toon_dna_test/`, `source/ui/test/` |
 
 ## 9. Verification rules

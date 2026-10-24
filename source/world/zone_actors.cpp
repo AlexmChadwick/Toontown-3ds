@@ -192,6 +192,24 @@ u32 ZoneActors::touchingTreasure(float x, float y, float z) const {
     return 0;
 }
 
+u32 ZoneActors::touchingNpc(float x, float y, float z, const net::Client& client, uint16_t classId) const {
+    constexpr float kTubeRadius = 3.25f, kTubeLength = 5.0f;
+    // GravityWalker event sphere: centre r - 0.1 above the feet, radius r * 1.04.
+    const float reach = kTubeRadius + kToonRadius * 1.04f;
+    const float cz = z + kToonRadius - 0.1f;
+    for (const Npc& n : npcs_) {
+        if (!n.active) continue;
+        const net::NpcToon* src = client.findNpc(n.doId);
+        if (!src || src->classId != classId) continue;
+        const float h = n.h * kDegToRad;
+        const float ax = n.x - sinf(h), ay = n.y + cosf(h); // tube axis: local (0, 1) rotated by heading
+        const float dz = cz < n.z ? n.z - cz : cz > n.z + kTubeLength ? cz - (n.z + kTubeLength) : 0.0f;
+        const float dx = x - ax, dy = y - ay;
+        if (dx * dx + dy * dy + dz * dz < reach * reach) return n.doId;
+    }
+    return 0;
+}
+
 bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const {
     const Treasure* best = nullptr;
     float bestD = 0.0f;

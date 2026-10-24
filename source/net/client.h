@@ -93,6 +93,7 @@ enum class EventType : uint8_t {
     SuitUpdate,    // path endpoints / position / state / hp changed
     SuitGone,      // left our interest or deleted; the Suit slot is no longer valid
     SuitPlannerUp, // a DistributedSuitPlanner generated (suitPlannerZone(doId))
+    ShopMovie,     // a gag shop clerk sent setMovie (shopMovie(); doId = clerk)
 };
 
 struct Event {
@@ -180,6 +181,24 @@ struct SuitPlanner {
     bool active;
 };
 constexpr int kMaxSuitPlanners = 2;
+
+// ---- shop (gag shop clerks; docs/design/shop.md) ----
+// NPCToons.PURCHASE_MOVIE_* modes of DistributedNPCClerk.setMovie(mode, npcId, avId, timestamp).
+constexpr uint8_t kPurchaseMovieClear = 0;
+constexpr uint8_t kPurchaseMovieStart = 1;
+constexpr uint8_t kPurchaseMovieComplete = 2;
+constexpr uint8_t kPurchaseMovieNoMoney = 3;
+constexpr uint8_t kPurchaseMovieTimeout = 8;
+constexpr uint32_t kClerkCountdownMs = 120000; // NPCToons.CLERK_COUNTDOWN_TIME
+// Latest setMovie of the clerk we are dealing with (only movies about us or CLEAR are kept).
+struct ShopMovie {
+    uint32_t clerkDoId = 0;
+    uint8_t mode = kPurchaseMovieClear;
+    uint32_t npcId = 0;
+    uint32_t avId = 0;
+    uint32_t deadlineMs = 0; // local clock: START time + kClerkCountdownMs (the AI times out then)
+    uint32_t seq = 0;        // bumps on every setMovie
+};
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -322,6 +341,21 @@ public:
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
 
+    // ---- shop (additive section; keep together) ----
+    // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
+    // may shop for kClerkCountdownMs), NO_MONEY, or freeAvatar when it is busy.
+    bool sendClerkAvatarEnter(uint32_t clerkDoId);
+    // DistributedNPCClerk.setInventory(blob, money, done) with the 49-byte InventoryBase net
+    // string. Only while a START movie for us is open on that clerk. done=1 completes the
+    // purchase (the AI validates, then resends our setInventory/setMoney); done=0 is the
+    // upstream per-purchase sync and is not needed by this client.
+    bool sendClerkSetInventory(uint32_t clerkDoId, const uint8_t inv[7][7], int16_t money, bool done);
+    const ShopMovie& shopMovie() const { return shopMovie_; }
+    bool shopOpenFor(uint32_t clerkDoId) const {
+        return shopMovie_.mode == kPurchaseMovieStart && shopMovie_.avId == avatarId_ && avatarId_ != 0 &&
+               shopMovie_.clerkDoId == clerkDoId;
+    }
+
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
     uint32_t networkToLocal(int16_t networkTime, uint32_t nowMs) const;
@@ -424,6 +458,7 @@ private:
     bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                         const uint16_t* req, uint16_t reqCount, bool other);
     bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
+    void handleClerkMovie(DatagramReader& r, uint32_t doId);
     bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
     bool applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId);
     Suit suits_[kMaxSuits] = {};
@@ -432,6 +467,7 @@ private:
                          bool other);
     bool applySuitField(Suit& s, DatagramReader& r, uint16_t fieldId);
     void clearSuits();
+    ShopMovie shopMovie_{};
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
     uint32_t tutorialManagerId_ = 0;
