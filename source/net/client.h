@@ -32,6 +32,7 @@
 
 #include "net/connection.h"
 #include "net/datagram.h"
+#include "net/quest_net.h"
 
 namespace tt::net {
 
@@ -136,6 +137,10 @@ enum class EventType : uint8_t {
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
     PurchaseGone,
+    // ---- quests (docs/design/quests.md) ----
+    NpcMovie,      // an NPC setMovie arrived: pollNpcMovie() (doId = the NPC object)
+    NpcFree,       // an NPC sent freeAvatar to us: leave the dialog (doId = the NPC object)
+    Quests,        // ownQuests() changed
 };
 
 struct Event {
@@ -160,6 +165,8 @@ struct NpcToon {
     uint8_t dna[kDnaSize];
     bool hasDna;
     uint8_t posIndex;
+    bool questGiver;   // DistributedNPCToon family: avatarEnter starts a ToonTask conversation
+    bool special;      // DistributedNPCSpecialQuestGiver (its own chooseQuest/setMovie field ids)
     bool active;
 };
 constexpr int kMaxNpcs = 16;
@@ -619,6 +626,22 @@ public:
     // already in ownStats().money). False when there is no purchase manager.
     bool sendPurchaseExit();
     bool sendPurchaseInventory();
+    // ==== quests (docs/design/quests.md) begin ====
+    const OwnQuests& ownQuests() const { return ownQuests_; }
+    // Oldest unread setMovie addressed to anyone in the zone (the game filters on avId).
+    bool pollNpcMovie(NpcMovie& out);
+    // DistributedNPCToonBase.avatarEnter (clsend): the toon walked into the NPC's sphere. Quest
+    // givers only; the AI answers with setMovie. There is no avatarExit on NPC toons.
+    bool sendNpcAvatarEnter(uint32_t npcDoId);
+    // chooseQuest(uint16): a questId from the offered choices, 0 = cancel.
+    bool sendChooseQuest(uint32_t npcDoId, uint16_t questId);
+    // chooseTrack(int8): a track from the offered tracks, -1 = cancel.
+    bool sendChooseTrack(uint32_t npcDoId, int8_t track);
+    // setMovieDone (clsend): the dialog finished; the AI frees the NPC.
+    bool sendNpcMovieDone(uint32_t npcDoId);
+    // DistributedToon.requestDeleteQuest (ownsend): the AI only honors "just for fun" quests.
+    bool sendDeleteQuest(int index);
+    // ==== quests end ====
 
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
@@ -723,6 +746,12 @@ private:
     bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
     void handleClerkMovie(DatagramReader& r, uint32_t doId);
     bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
+    // quests section: see client.cpp
+    static constexpr int kMovieQueue = 8;
+    OwnQuests ownQuests_{};
+    NpcMovie movies_[kMovieQueue];
+    uint32_t movieHead_ = 0, movieTail_ = 0;
+    bool handleNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
     bool applyTreasureField(Treasure& t, DatagramReader& r, uint16_t fieldId);
     Suit suits_[kMaxSuits] = {};
     SuitPlanner planners_[kMaxSuitPlanners] = {};
