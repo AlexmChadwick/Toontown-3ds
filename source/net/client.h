@@ -143,6 +143,8 @@ enum class EventType : uint8_t {
     TrolleyReject,      // rejectBoard (we could not board)
     TrolleyMinigameZone, // setMinigameZone: doId = dynamic zone id, arg = minigame id
     TrolleyGone,
+    GolfKartUp, GolfKartState, GolfZone,
+    GolfCourseUp, GolfCourseState, GolfHoleUp, GolfHoleState,
     MinigameUp,         // a DistributedMinigame (any game) generated (minigame())
     MinigameReady,      // setGameReady
     MinigameStart,      // setGameStart (minigame()->gameStartMs)
@@ -607,6 +609,38 @@ struct Trolley {
     uint32_t stateStartMs; // local plat::nowMs() at which the state began (from ts)
     uint32_t slot[kTrolleySeats];
     bool active;
+};
+constexpr int kGolfSeats = 4;
+constexpr int kGolfMaxGolfers = 4;
+struct GolfKart {
+    uint32_t doId = 0, golfZone = 0;
+    int8_t courseId = -1;
+    float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
+    uint32_t slots[kGolfSeats] = {};
+    char state[20] = {};
+    uint32_t stateMs = 0;
+    bool active = false;
+};
+struct GolfCourse {
+    uint32_t doId = 0, currentHoleDoId = 0;
+    int8_t courseId = -1, currentHole = -1;
+    uint32_t golfers[kGolfMaxGolfers] = {};
+    int numGolfers = 0;
+    int16_t scores[kGolfMaxGolfers] = {};
+    int numScores = 0;
+    int8_t numHoles = 0, par = 0;
+    bool reward = false, exiting = false, active = false;
+};
+struct GolfHole {
+    uint32_t doId = 0, courseDoId = 0;
+    int8_t holeId = -1;
+    float cycleLength = 10.0f;
+    uint32_t golfers[kGolfMaxGolfers] = {};
+    int numGolfers = 0, currentGolfer = 0;
+    uint8_t tee = 0;
+    float ballX = 0, ballY = 0, ballZ = 0;
+    uint32_t swingSeq = 0;
+    bool active = false;
 };
 // DistributedMinigame (any of the 17 games; the DO lives in the dynamic zone the trolley
 // handed us). Game-specific required fields are skipped through the generated tables.
@@ -1103,6 +1137,20 @@ public:
     // DistributedTrolley.requestBoard / requestExit (clsend). False when there is no trolley.
     bool sendTrolleyBoard();
     bool sendTrolleyExit();
+    // ---- golf (docs/design/golf.md) ----
+    const GolfKart* golfKart() const { return golfKart_.active ? &golfKart_ : nullptr; }
+    const GolfCourse* golfCourse() const { return golfCourse_.active ? &golfCourse_ : nullptr; }
+    const GolfHole* golfHole() const { return golfHole_.active ? &golfHole_ : nullptr; }
+    bool sendGolfKartBoard();
+    bool sendGolfKartExit();
+    bool sendGolfReadyCourse();
+    bool sendGolfReadyHole();
+    bool sendGolfExitCourse();
+    bool sendGolfDoneReward();
+    bool sendGolfTee(uint8_t tee);
+    bool sendGolfSwing(float cycleTime, int32_t power, float x, float y, float z, float dirX, float dirY);
+    bool sendGolfTurnDone();
+    bool sendGolfBallInHole();
     // DistributedMinigame base protocol (all clsend; docs/design/trolley.md 2.2).
     bool sendMinigameJoined();   // as soon as the DO exists
     bool sendMinigameReady();    // after the rules screen
@@ -1418,6 +1466,9 @@ private:
     void clearBattles();
     // ---- trolley and minigames ----
     Trolley trolley_ = {};
+    GolfKart golfKart_ = {};
+    GolfCourse golfCourse_ = {};
+    GolfHole golfHole_ = {};
     Minigame minigame_ = {};
     Purchase purchase_ = {};
     bool handleTrolleyEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
@@ -1432,6 +1483,14 @@ private:
     bool handleTrolleyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     bool handleTrolleyLeaving(uint32_t doId);
     void clearTrolleyObjects();
+    bool handleGolfEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                         uint16_t reqCount, bool other);
+    bool applyGolfKartField(GolfKart& k, DatagramReader& r, uint16_t fieldId, bool announce);
+    bool applyGolfCourseField(GolfCourse& c, DatagramReader& r, uint16_t fieldId, bool announce);
+    bool applyGolfHoleField(GolfHole& h, DatagramReader& r, uint16_t fieldId, bool announce);
+    bool handleGolfField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool handleGolfLeaving(uint32_t doId);
+    void clearGolfObjects();
     void pushEventArg(EventType type, uint32_t doId, int32_t arg);
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
