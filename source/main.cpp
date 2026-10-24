@@ -1341,7 +1341,20 @@ int main() {
                     player.reset(ax, ay, az, ah);
                 }
             }
-            battle.setAutoPlay(autotest.active());
+            if (autotest.active()) {
+                const char* lbl = autotest.label();
+                int forced = -1;
+                if (!strncmp(lbl, "battle: heal", 12)) forced = 0;
+                else if (!strncmp(lbl, "battle: trap", 12)) forced = 1;
+                else if (!strncmp(lbl, "battle: lure", 12)) forced = 2;
+                else if (!strncmp(lbl, "battle: sound", 13)) forced = 3;
+                else if (!strncmp(lbl, "battle: throw", 13)) forced = 4;
+                else if (!strncmp(lbl, "battle: squirt", 14)) forced = 5;
+                else if (!strncmp(lbl, "battle: drop", 12)) forced = 6;
+                battle.setAutoPlay(true, forced);
+            } else {
+                battle.setAutoPlay(false);
+            }
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);

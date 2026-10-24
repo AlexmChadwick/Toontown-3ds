@@ -10,8 +10,16 @@ import numpy as np
 from panda3d.core import NodePath,OrthographicLens,PNMImage,TransparencyAttrib,loadPrcFileData
 loadPrcFileData('', 'window-type offscreen\nload-display p3tinydisplay\nwin-size 28 28\nframebuffer-alpha true')
 from direct.showbase.ShowBase import ShowBase
-WANTED=('feather','megaphone','lipstick','lips','hat','cane','tart','fruitpie-slice','creampie-slice',
-        'squirting-flower','glass','water-gun','bottle','splat','button','propeller','kapow','splash','phone','receiver','explosion')
+WANTED = (
+    'feather', 'megaphone', 'lipstick', 'lips', 'hat', 'cane', 'cubes', 'ladder',
+    'banana', 'rake', 'marbles', 'quicksand', 'trapdoor', 'tnt', 'traintrack',
+    '1dollar', 'big-magnet', 'hypno-goggles', 'slideshow',
+    'bikehorn', 'whistle', 'bugle', 'aoogah', 'elephant', 'fog_horn', 'singing',
+    'tart', 'fruitpie-slice', 'creampie-slice',
+    'squirting-flower', 'glass', 'water-gun', 'bottle',
+    'flowerpot', 'sandbag', 'anvil', 'weight', 'safe', 'piano', 'ship',
+    'splat', 'button', 'propeller', 'kapow', 'splash', 'phone', 'receiver', 'explosion'
+)
 
 
 def atlas(base,out,preview):
@@ -64,6 +72,7 @@ def main():
     entries={r[1]:r for r in rows};entries['tart']=(3.5,'tart','tart');entries['kapow']=(5,'kapow','kapow-mod','kapow-chan');entries['splash']=(5,'splash','splash')
     # MovieUtil.createKapowExplosionTrack: the Cog-death burst (static card, billboarded at runtime).
     entries['explosion']=(3.5,'explosion','explosion')
+    entries['ship']=(5,'ship','ship')
     manifest=dict(version=1,props={})
     for name in WANTED:
         row=entries[name];model=f'phase_{row[0]:g}/models/props/{row[2]}'

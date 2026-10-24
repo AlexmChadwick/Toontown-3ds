@@ -65,17 +65,25 @@ MovieTiming getMovieTiming(int track, int level) {
         t.hitMs = 2700;
         t.durMs = 3300;
     } else if (track == 3) { // Sound
-        t.releaseMs = 1200;
-        t.hitMs = 1500;
-        t.durMs = 2400;
+        t.releaseMs = 2500;
+        t.hitMs = 2800;
+        t.durMs = 3500;
     } else if (track == 6) { // Drop
-        t.releaseMs = 1000;
-        t.hitMs = 1500;
-        t.durMs = 2400;
+        t.releaseMs = 3000;
+        t.hitMs = 3800;
+        t.durMs = 4500;
+    } else if (track == 1) { // Trap
+        t.releaseMs = 2500;
+        t.hitMs = 2500;
+        t.durMs = 3500;
+    } else if (track == 2) { // Lure
+        t.releaseMs = 3000;
+        t.hitMs = 3200;
+        t.durMs = 4500;
     } else if (track == 0) { // Heal
-        t.releaseMs = 1200;
-        t.hitMs = 1500;
-        t.durMs = 2400;
+        t.releaseMs = 2000;
+        t.hitMs = 2800;
+        t.durMs = 3200;
     } else { // Suit attack or generic
         t.releaseMs = 1000;
         t.hitMs = 1200;
@@ -330,6 +338,8 @@ bool BattleFx::init() {
     splatAnim_.load("sdmc:/3ds/toontown3ds/data/props/splat_full_action.tta");
     featherAnim_.load("sdmc:/3ds/toontown3ds/data/props/feather_full_action.tta");
 
+    movies_.init();
+
     modelsLoaded_ = true;
     reset();
     return true;
@@ -337,6 +347,7 @@ bool BattleFx::init() {
 
 void BattleFx::shutdown() {
     reset();
+    movies_.shutdown();
     tartModel_.unload();
     fruitpieModel_.unload();
     creampieModel_.unload();
@@ -367,6 +378,7 @@ void BattleFx::shutdown() {
 }
 
 void BattleFx::reset() {
+    movies_.reset();
     for (int i = 0; i < kMaxProps; ++i) props_[i].active = false;
     for (int i = 0; i < kMaxProjectiles; ++i) projectiles_[i].active = false;
     for (int i = 0; i < kMaxSplats; ++i) splats_[i].active = false;
@@ -374,6 +386,9 @@ void BattleFx::reset() {
 }
 
 render::Model* BattleFx::getPropModel(int track, int level) {
+    if (render::Model* m = movies_.getPropModel(track, level)) {
+        return m;
+    }
     if (track == 4) { // Throw
         if (level == 0) return &tartModel_;
         if (level == 1) return &fruitpieModel_;
@@ -452,7 +467,10 @@ void BattleFx::playCue(const char* name, float volume) {
 }
 
 void BattleFx::onAttack(uint32_t attackerId, uint32_t targetId, int track, int level,
-                        uint32_t startMs, uint32_t durMs, uint32_t hitMs) {
+                        uint32_t startMs, uint32_t durMs, uint32_t hitMs, const Battle* battle) {
+    if (battle) {
+        movies_.onAttack(attackerId, targetId, track, level, startMs, durMs, hitMs, *this, *battle);
+    }
     const MovieTiming timing = getMovieTiming(track, level);
 
     // Spawn held prop for the attacker
@@ -506,7 +524,10 @@ void BattleFx::onAttack(uint32_t attackerId, uint32_t targetId, int track, int l
     }
 }
 
-void BattleFx::onHit(uint32_t targetId, uint32_t attackerId, int track, int level, int hp, bool miss) {
+void BattleFx::onHit(uint32_t targetId, uint32_t attackerId, int track, int level, int hp, bool miss, const Battle* battle) {
+    if (battle) {
+        movies_.onHit(targetId, attackerId, track, level, hp, miss, *this, *battle);
+    }
     (void)attackerId;
     (void)hp;
 
@@ -571,6 +592,10 @@ void BattleFx::update(float dt, uint32_t nowMs, const Battle* battle, const Toon
     (void)dt;
     (void)localLook;
     nowMs_ = nowMs;
+
+    if (battle) {
+        movies_.update(dt, nowMs, *battle, *this);
+    }
 
     // Update active props
     for (int i = 0; i < kMaxProps; ++i) {
@@ -669,6 +694,10 @@ void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float
 
 void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook) {
     if (!modelsLoaded_) return;
+
+    if (battle) {
+        movies_.draw(renderer, *battle, *this);
+    }
 
     // 1. Draw active projectiles in flight
     for (int i = 0; i < kMaxProjectiles; ++i) {
