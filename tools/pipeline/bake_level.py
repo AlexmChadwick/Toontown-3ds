@@ -157,10 +157,16 @@ def build_tlv(ents, cogs, model, out_path, family=None, spins=()):
 
     w = tlv.Writer()
     skip = {'type', 'parentEntId', 'pos', 'hpr', 'scale', 'comment', 'name'}
+    paths = goon_paths().get(family, {}) if family else {}
     for ent_id in sorted(ents):
         spec = ents[ent_id]
         n = node_of(ent_id)
         attrs = {k: v for k, v in spec.items() if k not in skip}
+        if spec['type'] == 'path' and spec.get('pathIndex') in paths:
+            # PathEntity.setPathIndex: GoonPathData points x pathScale, in the path's own space
+            # (goons walk them as children of the path entity).
+            scale = float(spec.get('pathScale', 1.0))
+            attrs['points'] = [float(p[k]) * scale for p in paths[spec['pathIndex']] for k in range(3)]
         attrs['name'] = str(spec.get('name', ''))
         w.add(ent_id, spec.get('parentEntId', 0) if ent_id else 0, zone_of(ent_id), spec['type'], mat12(n, model),
               vec(spec.get('pos'), (0, 0, 0)), vec(spec.get('hpr'), (0, 0, 0)), vec(spec.get('scale'), (1, 1, 1)),

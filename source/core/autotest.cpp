@@ -99,6 +99,8 @@ const Step kScript[] = {
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "factory: mixer", "factory_mixer*"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "factory: conveyor", "factory_conveyor*"},
     {9.0f, 0, 150, 0, 0, -1, -1, 0, "factory: door", "factory_door*"},
+    {6.0f, 0, 0, 0, 0, -1, -1, 0, "factory: goon zap", "factory_goon_zap*"},
+    {8.0f, 0, 0, 0, 0, -1, -1, 0, "factory: goon stun", "factory_goon_stun*"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "factory: entities", "factory_entities*"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "factory: battle", "factory_battle*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "factory: exit", "factory_exit"},

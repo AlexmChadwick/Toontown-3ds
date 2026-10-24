@@ -137,6 +137,16 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         TT_LOG("net: barrel %u grabbed by %u", unsigned(e.doId), unsigned(e.avatarId));
     } else if (fieldId == dc::DistributedBarrelBase::k_setReject) {
         TT_LOG("net: barrel %u rejected our grab", unsigned(e.doId));
+    } else if (fieldId == dc::DistributedGoon::k_setMovie) {
+        e.movie = r.u8();
+        e.avatarId = r.u32();
+        e.pauseTime = r.i32() / 10.0f;
+        const int16_t ts = r.i16();
+        e.movieMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else if (fieldId == dc::DistributedCrushableEntity::k_setCrushed) {
+        r.u32();
+        r.u8();
+        e.crushed = true;
     } else if (fieldId == dc::DistributedStomper::k_setMovie) {
         e.movie = r.u8();
         const int16_t ts = r.i16();
@@ -163,7 +173,7 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
     if (classId == dc::DistributedDoorEntity::kClassId || classId == dc::DistributedButton::kClassId ||
         classId == dc::DistributedStomper::kClassId || classId == dc::DistributedLift::kClassId ||
         classId == dc::DistributedGagBarrel::kClassId || classId == dc::DistributedBeanBarrel::kClassId ||
-        classId == dc::DistributedHealBarrel::kClassId) {
+        classId == dc::DistributedHealBarrel::kClassId || classId == dc::DistributedGoon::kClassId) {
         LevelEntityObj tmp{};
         tmp.doId = doId;
         tmp.classId = classId;
@@ -355,6 +365,22 @@ bool Client::sendLevelBarrelGrab(uint32_t doId) {
     if (state_ != State::InZone) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedBarrelBase, requestGrab);
+    return finish(w);
+}
+
+bool Client::sendLevelGoonBattle(uint32_t doId, float pauseTime) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGoon, requestBattle);
+    w.i16(packFixed(pauseTime, 10.0f));
+    return finish(w);
+}
+
+bool Client::sendLevelGoonStunned(uint32_t doId, float pauseTime) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGoon, requestStunned);
+    w.i16(packFixed(pauseTime, 10.0f));
     return finish(w);
 }
 

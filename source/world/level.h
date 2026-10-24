@@ -13,6 +13,7 @@
 
 #include "audio/audio.h"
 #include "net/client.h"
+#include "render/anim.h"
 #include "render/model.h"
 #include "render/renderer.h"
 #include "world/level_spec.h"
@@ -61,6 +62,12 @@ public:
     const DynamicSolids* solids() const { return active_ ? &dynamic_ : nullptr; }
     // Stomper squish this frame (DistributedLevel.b_setOuch(.., 'Squish')): the damage was
     // sent; main.cpp plays Toon.enterSquish and stuns. Returns 0 when nothing happened.
+    // A goon zapped us this frame (enterBattle: b_setOuch(strength)); 0 when nothing happened.
+    int popOuch() {
+        const int d = ouchDamage_;
+        ouchDamage_ = 0;
+        return d;
+    }
     int popSquish(float* floorZ) {
         const int d = squishDamage_;
         squishDamage_ = 0;
@@ -76,6 +83,16 @@ public:
         const LevelEntity& e = spec_.entity(i);
         *x = e.world[9], *y = e.world[10], *z = e.world[11];
         return true;
+    }
+    // Autotest: the live pose of the nearest walking goon; false if none.
+    bool nearestGoon(float x, float y, float z, float* gx, float* gy, float* gz, float* gh) const {
+        float best = 1e30f;
+        for (const Goon& g : goons_) {
+            if (!g.valid || g.mode != GoonMode::Walk) continue;
+            const float d = (g.x - x) * (g.x - x) + (g.y - y) * (g.y - y) + (g.z - z) * (g.z - z);
+            if (d < best) best = d, *gx = g.x, *gy = g.y, *gz = g.z, *gh = g.h;
+        }
+        return best < 1e30f;
     }
     // Autotest: world position of the nearest distributed entity of a class; false if none.
     bool nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const;
@@ -158,7 +175,8 @@ private:
     float toonX_ = 0, toonY_ = 0, toonZ_ = 0;
     // Sounds (bake_level_props.py LEVEL_SFX), played at the entity like SoundInterval(node=).
     enum Sfx { kSfxStompSmall, kSfxStompMed, kSfxStompLarge, kSfxDoorSlide, kSfxDoorFinal, kSfxDoorUnlock,
-               kSfxArms, kSfxSwitchOn, kSfxSwitchCount, kSfxSwitchOff, kSfxLift, kSfxBarrelGrab, kSfxCount };
+               kSfxArms, kSfxSwitchOn, kSfxSwitchCount, kSfxSwitchOff, kSfxLift, kSfxBarrelGrab,
+               kSfxGoonCollapse, kSfxGoonRecover, kSfxGoonAttack, kSfxCount };
     audio::SfxId sfx_[kSfxCount] = {};
     void playAt(int sfx, const float pos[3], float volume) const;
     // DistributedLift (Elevator floor model; lift.box: floor, ceiling, front/back/left/right).
@@ -196,6 +214,30 @@ private:
     void drawMovers(render::Renderer& renderer) const;
     float moverPrev_[64][3] = {};
     uint32_t moverPrevMs_ = 0;
+    // DistributedGoon (Cog_Goonie per hat + walk/collapse/recovery clips, radar cone, goon.box).
+    enum GoonClip { kGoonWalk, kGoonCollapse, kGoonRecovery, kGoonClips };
+    enum class GoonMode : uint8_t { Off, Walk, Battle, Stunned, Recovery };
+    struct Goon {
+        uint32_t doId = 0;
+        GoonMode mode = GoonMode::Off;
+        uint32_t modeMs = 0;      // local time the mode began
+        float walkT = 0;          // walk-track time at modeMs (the pause time when paused)
+        uint8_t lastMovie = 0xFF;
+        uint32_t lastMovieMs = 0;
+        float x = 0, y = 0, z = 0, h = 0; // last pose (world)
+        bool valid = false;
+        bool onHead = false;      // our toon is in its head sphere (the stun is on entering only)
+    };
+    Goon goons_[net::kMaxLevelEntities];
+    render::Model goonModels_[2];   // pg, sg
+    render::Anim goonClips_[2][kGoonClips];
+    render::Model goonCone_;
+    float goonRadar_[3] = {0, 0.546f, 3.048f};
+    bool goonPose(const LevelEntity& e, float walkT, float* x, float* y, float* z, float* h) const;
+    float goonTrackTime(const Goon& g, uint32_t nowMs) const;
+    void updateGoons(net::Client& client, float x, float y, float z, uint32_t nowMs);
+    void drawGoons(render::Renderer& renderer) const;
+    int ouchDamage_ = 0; // a goon zap this frame (stun only, no squish)
     render::Model buttonBase_, buttonTop_;
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)

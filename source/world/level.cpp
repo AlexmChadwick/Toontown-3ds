@@ -103,7 +103,8 @@ void Level::loadProps() {
     static const char* const kSfxNames[kSfxCount] = {
         "CHQ_FACT_stomper_small", "CHQ_FACT_stomper_med", "CHQ_FACT_stomper_large", "CHQ_FACT_door_open_sliding",
         "CHQ_FACT_door_open_final", "CHQ_FACT_door_unlock", "CHQ_FACT_arms_retracting", "CHQ_FACT_switch_pressed",
-        "CHQ_FACT_switch_depressed", "CHQ_FACT_switch_popup", "CHQ_FACT_elevator_up_down", "SZ_DD_treasure"};
+        "CHQ_FACT_switch_depressed", "CHQ_FACT_switch_popup", "CHQ_FACT_elevator_up_down", "SZ_DD_treasure",
+        "CHQ_GOON_hunker_down", "CHQ_GOON_rattle_shake", "CHQ_GOON_tractor_beam_alarmed"};
     for (int k = 0; k < kSfxCount; ++k) {
         snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", kSfxNames[k]);
         sfx_[k] = audio::loadSfx(path);
@@ -143,6 +144,24 @@ void Level::loadProps() {
     if (FILE* f = fopen(path, "r")) {
         float b[6];
         if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(treadBox_, b, 24);
+        fclose(f);
+    }
+    static const char* const kGoonClipNames[kGoonClips] = {"walk", "collapse", "recovery"};
+    const char* goonTypes[2] = {"pg", "sg"};
+    for (int k = 0; k < 2; ++k) {
+        snprintf(path, sizeof(path), "%sprops/goon_%s_full.ttm", kDir, goonTypes[k]);
+        goonModels_[k].load(path);
+        for (int c = 0; c < kGoonClips; ++c) {
+            snprintf(path, sizeof(path), "%sprops/goon_%s_full_%s.tta", kDir, goonTypes[k], kGoonClipNames[c]);
+            goonClips_[k][c].load(path);
+        }
+    }
+    snprintf(path, sizeof(path), "%sprops/goon_cone.ttm", kDir);
+    goonCone_.load(path);
+    snprintf(path, sizeof(path), "%sprops/goon.box", kDir);
+    if (FILE* f = fopen(path, "r")) {
+        float b[3];
+        if (fscanf(f, "radar %f %f %f", &b[0], &b[1], &b[2]) == 3) memcpy(goonRadar_, b, 12);
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/barrel.ttm", kDir);
@@ -1017,6 +1036,242 @@ void Level::drawMovers(render::Renderer& renderer) const {
     }
 }
 
+namespace {
+
+constexpr float kGoonTurnTime = 3.0f;     // GoonGlobals.T_TURN
+constexpr float kGoonAnimWalkRate = 2.8f; // GoonGlobals.ANIM_WALK_RATE
+constexpr float kGoonStunTime = 4.0f;     // DistributedGoon.__startRecoverTask stunTime
+constexpr float kGoonHeadHeight = 3.0f;   // Goon.createHead headHeight (head sphere at +0.8)
+
+// A one-shot clip held on its last frame.
+void sampleOnce(const render::Anim& anim, float t, u32* a, u32* b, float* blend) {
+    const u32 n = anim.numFrames();
+    float f = t * anim.fps();
+    if (f < 0) f = 0;
+    if (f > float(n - 1)) f = float(n - 1);
+    *a = u32(f);
+    *b = *a + 1 < n ? *a + 1 : n - 1;
+    *blend = f - float(*a);
+}
+
+} // namespace
+
+// PathEntity.makePathTrack(goon, velocity, turnTime=T_TURN): per leg a 3 s LerpHpr to the leg's
+// heading (from the previous one, numerically) and a LerpPos at the goon's velocity, looping.
+bool Level::goonPose(const LevelEntity& e, float walkT, float* x, float* y, float* z, float* h) const {
+    const LevelEntity* path = spec_.find(e.parentEntId);
+    if (!path) return false;
+    float pts[48];
+    const int n = spec_.getFloats(*path, "points", pts, 48) / 3;
+    const float v = spec_.number(e, "velocity", 4.0f);
+    if (n < 2 || v <= 0) {
+        *x = e.world[9], *y = e.world[10], *z = e.world[11], *h = LevelSpec::worldHeading(e);
+        return true;
+    }
+    auto theta = [&](int i) { // node.headsUp(next) then getH() % 360
+        const float* a = pts + 3 * i;
+        const float* b = pts + 3 * ((i + 1) % n);
+        float d = std::atan2(-(b[0] - a[0]), b[1] - a[1]) / kDegToRad;
+        return std::fmod(d + 360.0f, 360.0f);
+    };
+    float total = 0;
+    for (int i = 0; i < n; ++i) {
+        const float* a = pts + 3 * i;
+        const float* b = pts + 3 * ((i + 1) % n);
+        total += kGoonTurnTime + std::sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) +
+                                          (b[2] - a[2]) * (b[2] - a[2])) / v;
+    }
+    float t = std::fmod(walkT, total);
+    if (t < 0) t += total;
+    float local[3] = {pts[0], pts[1], pts[2]};
+    float heading = theta(n - 1);
+    for (int i = 0; i < n; ++i) {
+        const float* a = pts + 3 * i;
+        const float* b = pts + 3 * ((i + 1) % n);
+        const float from = theta((i + n - 1) % n), to = theta(i);
+        if (t < kGoonTurnTime) {
+            memcpy(local, a, 12);
+            heading = from + (to - from) * (t / kGoonTurnTime);
+            break;
+        }
+        t -= kGoonTurnTime;
+        const float dur = std::sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1]) +
+                                    (b[2] - a[2]) * (b[2] - a[2])) / v;
+        if (t < dur || i == n - 1) {
+            const float u = dur > 0 ? std::min(t / dur, 1.0f) : 1.0f;
+            for (int c = 0; c < 3; ++c) local[c] = a[c] + (b[c] - a[c]) * u;
+            heading = to;
+            break;
+        }
+        t -= dur;
+    }
+    float w[3];
+    LevelSpec::toWorld(*path, local, w);
+    *x = w[0], *y = w[1], *z = w[2];
+    *h = heading + LevelSpec::worldHeading(*path);
+    return true;
+}
+
+float Level::goonTrackTime(const Goon& g, uint32_t nowMs) const {
+    // Walking: the track runs on from walkT; every other mode holds the paused time.
+    return g.mode == GoonMode::Walk ? g.walkT + int32_t(nowMs - g.modeMs) / 1000.0f : g.walkT;
+}
+
+void Level::updateGoons(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = client.levelEntitySlot(i);
+        Goon& g = goons_[i];
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedGoon::kClassId) {
+            g = Goon{};
+            continue;
+        }
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        if (g.doId != d.doId) {
+            g = Goon{};
+            g.doId = d.doId;
+        }
+        // DistributedGoon.setMovie (and its local predictions below).
+        if (d.movie != g.lastMovie || d.movieMs != g.lastMovieMs) {
+            g.lastMovie = d.movie, g.lastMovieMs = d.movieMs;
+            switch (d.movie) {
+            case 2: // GOON_MOVIE_BATTLE
+                if (g.mode != GoonMode::Battle) {
+                    g.walkT = goonTrackTime(g, nowMs);
+                    g.mode = GoonMode::Battle, g.modeMs = d.movieMs;
+                }
+                break;
+            case 1: // GOON_MOVIE_STUNNED
+                if (g.mode != GoonMode::Stunned) {
+                    g.walkT = goonTrackTime(g, nowMs);
+                    g.mode = GoonMode::Stunned, g.modeMs = d.movieMs;
+                    playAt(kSfxGoonCollapse, e->world + 9, 1.0f);
+                }
+                break;
+            case 3: // GOON_MOVIE_RECOVERY: recover, then walk on from pauseTime
+                g.mode = GoonMode::Recovery, g.modeMs = d.movieMs, g.walkT = d.pauseTime;
+                playAt(kSfxGoonRecover, e->world + 9, 1.0f);
+                break;
+            default: // GOON_MOVIE_WALK / SYNC: walk from pauseTime + ts
+                g.mode = GoonMode::Walk, g.modeMs = d.movieMs, g.walkT = d.pauseTime;
+                break;
+            }
+        }
+        if (g.mode == GoonMode::Recovery && goonClips_[0][kGoonRecovery].loaded() &&
+            int32_t(nowMs - g.modeMs) / 1000.0f > goonClips_[0][kGoonRecovery].duration()) {
+            g.mode = GoonMode::Walk, g.modeMs = nowMs; // recoveryDone: Walk at pauseTime
+        }
+        if (d.crushed) g.mode = GoonMode::Off; // crushed by a stomper: gone
+        float gx, gy, gz, gh;
+        if (!goonPose(*e, goonTrackTime(g, nowMs), &gx, &gy, &gz, &gh)) continue;
+        g.x = gx, g.y = gy, g.z = gz, g.h = gh, g.valid = true;
+        if (g.mode == GoonMode::Off) continue;
+        const float scale = spec_.number(*e, "scale", 1.0f);
+        // Its body (cSphere r 1 on the head) is solid, and its head top a floor to land on.
+        const float body[12] = {1, 0, 0, 0, 1, 0, 0, 0, 1, gx, gy, gz};
+        const float lo[3] = {-scale, -scale, 0}, hi[3] = {scale, scale, (kGoonHeadHeight + 0.8f) * scale};
+        addSolid(body, lo, hi, true, true);
+        const float dx = x - gx, dy = y - gy, dz = z - gz;
+        // __handleStun: landing on its head (the toonSphere at headHeight + 0.8).
+        const float top = (kGoonHeadHeight + 0.8f) * scale;
+        const bool onHead = dx * dx + dy * dy < (scale + 0.5f) * (scale + 0.5f) && dz > top - 0.6f && dz < top + 1.0f;
+        const bool entered = onHead && !g.onHead;
+        g.onHead = onHead;
+        if (g.mode == GoonMode::Walk || g.mode == GoonMode::Battle) {
+            const float radius = spec_.number(*e, "attackRadius", 15.0f);
+            if (entered && dx * dx + dy * dy + dz * dz < radius * radius) {
+                g.walkT = goonTrackTime(g, nowMs);
+                g.mode = GoonMode::Stunned, g.modeMs = nowMs;
+                client.sendLevelGoonStunned(d.doId, g.walkT);
+                playAt(kSfxGoonCollapse, e->world + 9, 1.0f);
+                TT_LOG("level: stunned goon %u", unsigned(d.entId));
+                continue;
+            }
+        }
+        // handleToonDetect: we walked into its radar cone (hFov wide, attackRadius long, the beam
+        // reaching 3.5 below the eye); the goon zaps us for 'strength'.
+        if (g.mode == GoonMode::Walk && !stunned_) {
+            const float radius = spec_.number(*e, "attackRadius", 15.0f);
+            const float halfFov = spec_.number(*e, "hFov", 70.0f) * 0.5f;
+            const float hr = gh * kDegToRad;
+            const float fx = -std::sin(hr), fy = std::cos(hr);
+            const float dist = std::sqrt(dx * dx + dy * dy);
+            const float eyeZ = goonRadar_[2] * scale;
+            if (dist < radius && dist > 0.01f && (dx * fx + dy * fy) / dist > std::cos(halfFov * kDegToRad) &&
+                dz < eyeZ + 1.0f && dz > -3.5f) {
+                g.walkT = goonTrackTime(g, nowMs);
+                g.mode = GoonMode::Battle, g.modeMs = nowMs;
+                client.sendLevelGoonBattle(d.doId, g.walkT);
+                playAt(kSfxGoonAttack, e->world + 9, 0.4f);
+                // enterBattle(local): level.b_setOuch(strength) (setOuch + stunToon).
+                ouchDamage_ = spec_.integer(*e, "strength", 1);
+                client.sendLevelOuch(levelDoId_, uint8_t(ouchDamage_));
+                stunned_ = true;
+                TT_LOG("level: zapped by goon %u (%d laff)", unsigned(d.entId), ouchDamage_);
+            }
+        }
+    }
+}
+
+void Level::drawGoons(render::Renderer& renderer) const {
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const Goon& g = goons_[i];
+        if (!g.valid || g.mode == GoonMode::Off || !doorClient_) continue;
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        const LevelEntity* e = d.active ? spec_.find(d.entId) : nullptr;
+        if (!e) continue;
+        const char* type = spec_.string(*e, "goonType");
+        const int k = type && !strcmp(type, "sg") ? 1 : 0;
+        render::Model& model = const_cast<render::Model&>(goonModels_[k]);
+        if (!model.loaded()) continue;
+        const float scale = spec_.number(*e, "scale", 1.0f);
+        C3D_Mtx m;
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, g.x, g.y, g.z, true);
+        Mtx_RotateZ(&m, g.h * kDegToRad, true);
+        Mtx_Scale(&m, scale, scale, scale);
+        const float t = int32_t(doorNowMs_ - g.modeMs) / 1000.0f;
+        const render::Anim* clip = &goonClips_[k][kGoonWalk];
+        u32 a = 0, b = 0;
+        float blend = 0;
+        if (g.mode == GoonMode::Stunned) { // collapse, held (pose 'collapse', 48)
+            clip = &goonClips_[k][kGoonCollapse];
+            if (clip->loaded()) sampleOnce(*clip, t, &a, &b, &blend);
+        } else if (g.mode == GoonMode::Recovery) {
+            clip = &goonClips_[k][kGoonRecovery];
+            if (clip->loaded()) sampleOnce(*clip, t, &a, &b, &blend);
+        } else if (clip->loaded()) {
+            // setPlayRate(velocity / (ANIM_WALK_RATE * scale), 'walk'); paused while attacking.
+            const float rate = spec_.number(*e, "velocity", 4.0f) / (kGoonAnimWalkRate * scale);
+            render::sampleClip(*clip, goonTrackTime(g, doorNowMs_) * rate, &a, &b, &blend);
+        }
+        if (clip->loaded()) renderer.drawMorph(model, *clip, a, b, blend, m);
+        else renderer.drawModel(model, m);
+        // The radar beam (Goon.scaleRadar), hidden while stunned; it flashes while attacking.
+        if (goonCone_.loaded() && g.mode != GoonMode::Stunned && g.mode != GoonMode::Recovery) {
+            const float radius = spec_.number(*e, "attackRadius", 15.0f);
+            const float halfFov = spec_.number(*e, "hFov", 70.0f) * 0.5f;
+            const float kw = std::tan(halfFov * kDegToRad) * radius / 10.5f;
+            const float kl = std::sqrt(radius * radius + 9.0f) / 25.0f;
+            C3D_Mtx r = m;
+            Mtx_Translate(&r, goonRadar_[0], goonRadar_[1], goonRadar_[2], true);
+            Mtx_RotateZ(&r, 3.14159265f, true); // the eye's frame faces the goon's front (actorGeom H 180)
+            // beam.setHpr(0, halfFov, 0) and setScale(kw, kl, kw) / scale; radar.setSz(-3.5 / p.z).
+            const float pz = -6.0f * std::sin(halfFov * kDegToRad) * kl / scale - 1.8f * std::cos(halfFov * kDegToRad) * kw / scale;
+            Mtx_Scale(&r, 1, 1, pz < -1e-3f ? -3.5f / pz : 1);
+            Mtx_RotateX(&r, halfFov * kDegToRad, true);
+            Mtx_Scale(&r, kw / scale, kl / scale, kw / scale);
+            // makeAttackTrack: the eye flashes red / blue every 0.2 s for 0.8 s (on the beam here).
+            const bool attacking = g.mode == GoonMode::Battle && t < 0.8f;
+            const bool red = (int(t / 0.2f) & 1) == 0;
+            if (attacking) renderer.setBaseTint(red ? 1.0f : 0.2f, 0.2f, red ? 0.2f : 1.0f, 0.2f);
+            else renderer.setBaseTint(1, 1, 1, 0.2f);
+            renderer.drawModel(const_cast<render::Model&>(goonCone_), r);
+            renderer.setBaseTint(1, 1, 1, 1);
+        }
+    }
+}
+
 bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const {
     if (!active_ || !doorClient_) return false;
     float best = 1e30f;
@@ -1367,6 +1622,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateLifts(client, x, y, z, nowMs);
     updateBarrels(client, x, y, z, nowMs);
     updateMovers(x, y, z, nowMs);
+    updateGoons(client, x, y, z, nowMs);
     zone_.update(Vec3{x, y, z}, &Level::cellChanged, this, 200.0f); // rims of gears, lifts, mixers
     if (lockZoneId_ != sentLock_) visDirty_ = true;
     if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
@@ -1529,6 +1785,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawLifts(renderer);
     drawBarrels(renderer);
     drawMovers(renderer);
+    drawGoons(renderer);
 }
 
 } // namespace tt::world

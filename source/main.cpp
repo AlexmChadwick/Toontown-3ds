@@ -215,6 +215,7 @@ int main() {
     const tt::audio::SfxId sfxTeleport = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
     const tt::audio::SfxId sfxDecompress = tt::audio::loadSfx("sdmc:/3ds/toontown3ds/data/audio/toon_decompress.tsnd");
     float squishAge = -1.0f; // Toon.enterSquish / stunToon after a factory stomper (world/level.*)
+    float zapStunAge = -1.0f; // stunToon after a goon's zap
     const tt::audio::SfxId sfxChatOpen = tt::audio::loadSfx("romfs:/baked/audio/sc_open.tsnd");
     const tt::audio::SfxId sfxWalk = tt::audio::loadSfx("romfs:/baked/audio/footstep_walk.tsnd");
     const tt::audio::SfxId sfxRun = tt::audio::loadSfx("romfs:/baked/audio/footstep_run.tsnd");
@@ -680,6 +681,18 @@ int main() {
                     level.specPosition(drop.type, &gx, &gy, &gz))
                     player.reset(gx, gy, gz + drop.dz, 90.0f);
             }
+            {
+                // Test-only: stand in front of a goon (its radar zaps us) / drop onto its head (stun).
+                const bool zap = !strcmp(autotest.label(), "factory: goon zap");
+                const bool stun = !strcmp(autotest.label(), "factory: goon stun");
+                float gx = 0, gy = 0, gz = 0, gh = 0;
+                if ((zap || stun) && autotest.stepTime() < 0.05f &&
+                    level.nearestGoon(player.x(), player.y(), player.z(), &gx, &gy, &gz, &gh)) {
+                    const float r = gh * kDegToRad;
+                    if (zap) player.reset(gx - sinf(r) * 8.0f, gy + cosf(r) * 8.0f, gz + 0.2f, gh + 180.0f);
+                    else player.reset(gx - sinf(r) * 0.8f, gy + cosf(r) * 0.8f, gz + 6.6f, gh); // just above, led
+                }
+            }
             if (!strcmp(autotest.label(), "factory: barrel") && autotest.stepTime() < 0.05f) {
                 float bx, by, bz;
                 if (level.specPosition("gagBarrel", &bx, &by, &bz)) player.reset(bx, by - 4.0f, bz + 0.5f, 0.0f);
@@ -876,6 +889,11 @@ int main() {
                 squishAge = 0.0f;
                 player.reset(player.x(), player.y(), floorZ, player.headingDeg()); // setZ(stomper + 0.025)
             }
+            if (level.active() && level.popOuch() > 0) zapStunAge = 0.0f; // a goon zap: stunToon only
+            if (zapStunAge >= 0.0f && (zapStunAge += dt) > 4.0f) { // stunToon's seven blinks
+                zapStunAge = -1.0f;
+                if (squishAge < 0.0f) level.setStunned(false);
+            }
             if (squishAge >= 0.0f) {
                 const float before = squishAge;
                 squishAge += dt;
@@ -889,7 +907,7 @@ int main() {
                 }
                 if (squishAge > 4.0f) { // stunToon's seven half-second blinks are over
                     squishAge = -1.0f;
-                    level.setStunned(false);
+                    if (zapStunAge < 0.0f) level.setStunned(false);
                 }
             }
         }

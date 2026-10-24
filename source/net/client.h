@@ -416,6 +416,8 @@ struct LevelEntityObj {
     uint32_t avatarId = 0;   // setAvatarInteract: the toon on the switch; DistributedBarrelBase.setGrab
     uint32_t grabMs = 0;     // DistributedBarrelBase.setGrab: when (local)
     bool grabbedByUs = false;
+    float pauseTime = 0;     // DistributedGoon.setMovie(mode -> movie, avId -> avatarId, pauseTime, ts -> movieMs)
+    bool crushed = false;    // DistributedCrushableEntity.setCrushed
     bool active = false;
 };
 constexpr int kMaxLevelEntities = 64;
@@ -1146,6 +1148,9 @@ public:
     bool sendLevelOuch(uint32_t levelDoId, uint8_t penalty); // DistributedLevel.setOuch (hazard damage)
     bool sendLevelLiftRider(uint32_t doId, bool enter); // DistributedLift setAvatarEnter / setAvatarLeave
     bool sendLevelBarrelGrab(uint32_t doId);            // DistributedBarrelBase.requestGrab
+    // DistributedGoon: our toon walked into its radar / landed on its head (walk-track time).
+    bool sendLevelGoonBattle(uint32_t doId, float pauseTime);
+    bool sendLevelGoonStunned(uint32_t doId, float pauseTime);
     // DistributedLevel.setVisibility: location stays the level zone, interest is the level zone,
     // the UberZone and the visible zones (ids from setZoneIds), like sendSetZoneMsg.
     bool setLevelVisibility(uint32_t levelZone, const uint32_t* zones, int count);

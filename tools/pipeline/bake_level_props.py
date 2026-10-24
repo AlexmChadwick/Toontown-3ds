@@ -15,6 +15,7 @@ it under the entity node, so the runtime only adds the part's animated offset:
   lift     DistributedLift.initPlatform (Elevator: floor model, floor/ceiling/wall boxes)
   barrel*, gag_icon_<track>_<level>  DistributedBarrelBase (gagTank + its labels)
   gear_*   GearEntity; paint_mixer_* PaintMixer / PlatformEntity; tread ConveyorBelt
+  goon_pg_*, goon_sg_*, goon_cone  DistributedGoon (Cog_Goonie per hat + clips, radar cone)
 Deterministic; at most 3 ETC1 encoder threads.
 """
 import json
@@ -247,6 +248,53 @@ def bake_tread(base, resources, out):
     return report
 
 
+def bake_goons(base, resources, out):
+    """Goon.generateGoon / createHead: Cog_Goonie with its walk / collapse / recovery clips (12 fps
+    vertex morphs, battle_common.bake_actor), one bake per hat: 'pg' shows the hard hat, 'sg'
+    the security hat. The actor geometry turns 180 and the eye is yellow, as upstream.
+    goon_cone: the radar beam (alphaCone2's transform children, Goon.scaleRadar)."""
+    import battle_common
+    report = {}
+    clips = {'walk': 'phase_9/models/char/Cog_Goonie-walk', 'collapse': 'phase_9/models/char/Cog_Goonie-collapse',
+             'recovery': 'phase_9/models/char/Cog_Goonie-recovery'}
+    for kind, hidden in (('pg', 'security_hat'), ('sg', 'hard_hat')):
+        def prepare(actor, hidden=hidden):
+            # Goon.initGoon: find('**/actorGeom').setH(180). On a bare Actor that geometry root is
+            # __Actor_modelRoot (rotating the actor itself would be invisible to the bake).
+            actor.find('__Actor_modelRoot').setH(180)
+            hat = actor.find('**/joint8')
+            other = hat.find('**/' + hidden)
+            if not other.isEmpty():
+                other.stash()
+            eye = actor.find('**/eye')
+            if not eye.isEmpty():
+                eye.setColor(1, 1, 0, 1)
+        report[f'goon_{kind}'] = battle_common.bake_actor(base, out, f'goon_{kind}', 'phase_9/models/char/Cog_Goonie-zero',
+                                                          clips, {'full': 1500}, prepare)
+    # The radar hangs off the eye (Goon.scaleRadar: radar at (0, -0.5, 0.4) in eye space).
+    from direct.actor.Actor import Actor
+    actor = Actor('phase_9/models/char/Cog_Goonie-zero', {'walk': clips['walk']})
+    actor.find('__Actor_modelRoot').setH(180)
+    actor.pose('walk', 0)
+    actor.update(force=True)
+    eye = actor.find('**/eye')
+    p = actor.getRelativePoint(eye, (0, -0.5, 0.4))
+    m = eye.getMat(actor)
+    (out / 'goon.box').write_text('radar ' + ' '.join(f'{v:.4f}' for v in p) + '\n' +
+                                  'eye_basis ' + ' '.join(f'{m.getCell(r, c):.4f}' for r in range(3) for c in range(3)) + '\n')
+    report['goon_radar'] = list(p)
+    actor.cleanup()
+    actor.removeNode()
+    cone = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/alphaCone2.bam'), noCache=True)
+    # scaleRadar reparents the transform node's children to the beam (dropping its own matrix).
+    beam = cone.find('**/transform').copyTo(cone)
+    beam.clearTransform()
+    report['goon_cone'] = write_part(cone, beam, out / 'goon_cone.ttm')
+    beam.removeNode()
+    cone.removeNode()
+    return report
+
+
 def bake_stomper(base, resources, out, name, path):
     """DistributedStomper.loadModel: square_stomper's head (scaled by headScale) and the shaft
     under it (offset, then shaftScale). Head baked in model space; shaft in its node's space.
@@ -287,6 +335,9 @@ LEVEL_SFX = (
     'phase_9/audio/sfx/CHQ_FACT_elevator_up_down.ogg',   # DistributedLift
     'phase_4/audio/sfx/SZ_DD_treasure.ogg',              # DistributedBarrelBase grab
     'phase_4/audio/sfx/ring_miss.ogg',                   # ... reject
+    'phase_9/audio/sfx/CHQ_GOON_hunker_down.ogg',        # DistributedGoon collapse
+    'phase_9/audio/sfx/CHQ_GOON_rattle_shake.ogg',       # ... recover
+    'phase_9/audio/sfx/CHQ_GOON_tractor_beam_alarmed.ogg',  # ... attack
 )
 
 
@@ -317,7 +368,8 @@ def main():
               'barrels': bake_barrels(base, resources, out),
               'gears': bake_gears(base, resources, out),
               'paint_mixer': bake_paint_mixer(base, resources, out),
-              'tread': bake_tread(base, resources, out)}
+              'tread': bake_tread(base, resources, out),
+              'goons': bake_goons(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}
