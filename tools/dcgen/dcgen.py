@@ -151,6 +151,17 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  # street battle object (DistributedBattle: street cog fights)
                  'DistributedBattle']
 
+# ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
+# Additive block: extends the tables above without editing their literals.
+WANTED['DistributedToon'] += ['setFriendsList', 'friendsNotify', 'setWhisperSCFrom',
+                              'setWhisperSCCustomFrom', 'setWhisperSCEmoteFrom', 'setTalkWhisper',
+                              'setSystemMessage', 'teleportQuery', 'teleportResponse', 'teleportGiveup']
+WANTED['FriendManager'] = ['friendQuery', 'cancelFriendQuery', 'inviteeFriendConsidering',
+                           'inviteeFriendResponse', 'inviteeAcknowledgeCancel', 'friendConsidering',
+                           'friendResponse', 'inviteeFriendQuery', 'inviteeCancelFriendQuery']
+TABLE_CLASSES.append('FriendManager')
+# ---- end friends ----
+
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,
           float64=8, string=9, blob=10, blob32=11, int16array=12, int32array=13,

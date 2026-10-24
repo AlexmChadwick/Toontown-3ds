@@ -839,6 +839,24 @@ int main() {
                 }
             }
             shop.update(net, nowMs);
+            {
+                // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
+                tt::net::FriendEvent fe;
+                while (net.pollFriendEvent(fe)) {
+                    if (fe.type == tt::net::FriendEventType::Whisper && net.numWhispers() > 0) {
+                        const tt::net::Whisper& w = net.whisperAt(net.numWhispers() - 1);
+                        const char* said = w.kind == tt::net::WhisperKind::SpeedChat ? tt::sc::phraseText(w.index) : w.text;
+                        snprintf(toastBuf, sizeof(toastBuf), "%s whispers: %s", w.name[0] ? w.name : "A toon",
+                                 said ? said : "...");
+                        toast = toastBuf;
+                        toastAge = 0.0f;
+                    } else if (fe.type == tt::net::FriendEventType::InviteIn && net.pendingInvite()) {
+                        snprintf(toastBuf, sizeof(toastBuf), "%s wants to be friends!", net.pendingInvite()->name);
+                        toast = toastBuf;
+                        toastAge = 0.0f;
+                    }
+                }
+            }
             if (net.inZone() && !localLookFromServer) {
                 tt::world::ToonDna dna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
