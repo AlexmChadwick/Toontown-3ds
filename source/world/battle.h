@@ -20,6 +20,8 @@
 
 namespace tt::world {
 
+class BattleFx;
+
 // ToonAnim values (world/toon_avatar.h; main.cpp static_asserts they match).
 constexpr uint8_t kBattleAnimNeutral = 0;
 constexpr uint8_t kBattleAnimWalk = 1;
@@ -164,6 +166,9 @@ public:
 
     void fillView(const net::Client& client, uint32_t nowMs, BattleView* out) const;
 
+    void setFx(BattleFx* fx) { battleFx_ = fx; }
+    bool actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon = nullptr) const;
+
 private:
     struct Actor {
         bool used = false, isToon = false;
@@ -203,6 +208,7 @@ private:
         uint32_t other;  // target doId (attacks)
         int16_t value;   // damage / heal / attack length in ms
         int8_t track;    // attacks: gag track (ToontownBattleGlobals), -1 for cogs
+        int8_t level;    // gag level (0..6), or suit attack index
     };
 
     // geometry
@@ -217,7 +223,7 @@ private:
     void startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs);
     void buildMovie(const net::BattleMovie& m);
     void runFx(uint32_t nowMs);
-    void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track = -1);
+    void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track = -1, int level = 0);
     void addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs = 1600,
                   float rise = 28.0f);
     void computePoses(uint32_t nowMs);
@@ -271,6 +277,7 @@ private:
     uint32_t movieStartMs_ = 0, movieEndMs_ = 0;
     bool movieSent_ = false;
     bool moviePlaying_ = false;
+    BattleFx* battleFx_ = nullptr;
 
     BattlePopup popups_[kMaxPopups];
     uint32_t popupStartMs_[kMaxPopups] = {};

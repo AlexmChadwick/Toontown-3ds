@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "world/battle_fx.h"
 
 namespace tt::ui {
 
@@ -288,7 +289,10 @@ void ShopPanel::draw() {
             const float in = sel ? 2.0f : 0.0f;
             C2D_DrawRectSolid(x + in, y + in, 0.52f, kCellW - 1 - 2 * in, kCellH - 1 - 2 * in,
                               !open ? kLocked : bought ? kBought : kPanel);
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + 5, y + 5, 0.55f, 0.4f, 0.4f,
+            if (open) {
+                world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.54f, canBuy ? 1.0f : 0.45f);
+            }
+            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 18 : 6), y + 5, 0.55f, 0.4f, 0.4f,
                          !open ? kDim : bought ? kAccent : canBuy ? kWhite : kDim);
         }
     }

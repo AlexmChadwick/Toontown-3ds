@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "ui/gag_data.h"
+#include "world/battle_fx.h"
 
 namespace tt::ui {
 
@@ -146,7 +147,8 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             const float x = kGridX + l * (kCellW + 2);
             const bool ok = choosing && usable(v, g, t, l);
             C2D_DrawRectSolid(x, y, 0.5f, kCellW, kRowH - 2, ok ? kTrackColor[t] : kPanel);
-            text(x + 12, y + 2, 0.4f, ok ? kBg : kDim, "%u", unsigned(g.count[t][l]));
+            world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, ok ? 1.0f : 0.45f);
+            text(x + 19, y + 2, 0.38f, ok ? kBg : kDim, "%u", unsigned(g.count[t][l]));
         }
     }
 
