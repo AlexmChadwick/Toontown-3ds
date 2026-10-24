@@ -75,3 +75,14 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ```
+
+## Boss implementation and offline metadata
+
+The VP phase/attack constants, pie charge and trajectory formulas, cage/ramp
+behavior, barrier protocol and NPC DNA metadata in `source/world/boss_logic.*`,
+`source/world/boss_battle.*`, `source/net/client_boss.cpp` and
+`tools/pipeline/bake_boss.py` are derived from the Open Toontown files cited in
+`docs/design/bosses.md`; the Open Toontown BSD notice above applies. The ignored
+`sdmc-out/3ds/toontown3ds/data/boss/` models, textures, animation and collision are
+converted Toontown game assets and remain outside this project's MIT license.
+No upstream source files are vendored by this work.

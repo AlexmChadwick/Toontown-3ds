@@ -516,3 +516,25 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
   decision, 2026-10-23). They stay outside the MIT license; keep
   `THIRD_PARTY_NOTICES.md` current when adding upstream-derived code or data.
 - Keep this file current. A decision that is not written here does not exist.
+
+## 11. Later-feature boss work (2026-10-24)
+
+The Sellbot VP has a native `world/boss_battle.*` place controller, reached through
+one grouped main-loop hook. It follows AI phases, uses the public Battle API for
+both Cog rounds, then runs bounded local pie/gear pools. New boss senders are
+clsend-only and guarded by membership/phase; BattleFinal reserve barriers belong
+to their battle object. The DC hash is still 547155168. Disconnects during the VP
+reconnect to static SellbotLobby, not the abandoned dynamic office.
+
+`tools/pipeline/bake_boss.py` writes the ignored SD `data/boss/` set: four morph
+parts, 96 clips, arena/elevator, separate cage/ramps/collision, pie/gear props,
+lobby anchor and rescued-NPC DNA. TTA/TTM keep their existing versions; new BPA1,
+BSC1 and BND1 metadata are versioned. Stable float64 weighted skinning avoids
+Panda's cross-process accumulation noise. The shared loader keeps one active
+four-part clip set and at most one pending set, publishing after the GPU fence.
+Geometry plus the largest clip pair is 5,409,224 bytes; textures are 364,000 bytes.
+
+This is host/build-verified work, **not Azahar- or hardware-verified**. CFO, CJ and
+CEO are receive schemas plus implementation plans, not playable places. Full
+contract, supported visual simplifications, asset manifest and mandatory Azahar
+checks are in `docs/design/bosses.md` and `docs/design/boss_assets.json`.
