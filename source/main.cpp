@@ -362,12 +362,16 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
             const bool interiorDoor = !strcmp(autotest.label(), "exit: interior door");
-            const char* want = !strcmp(autotest.label(), "exit: tunnel 2132") ? "linktunnel_tt_2132" : "sz19:";
+            const bool streetDoor = !strcmp(autotest.label(), "exit: street door");
+            const char* want = !strcmp(autotest.label(), "exit: tunnel 2132") ? "linktunnel_tt_2132"
+                               : streetDoor                                   ? "tb"
+                                                                              : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
             for (int i = 0; i < cw.numTriggers(); i++) {
                 const tt::world::CollTrigger& t = cw.trigger(i);
                 if (interiorDoor ? !strstr(t.name, "door_trigger")
-                                 : (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger"))) {
+                                 : (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger") ||
+                                    (streetDoor && !strstr(t.name, "door")))) {
                     continue;
                 }
                 const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;

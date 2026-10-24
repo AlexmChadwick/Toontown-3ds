@@ -146,6 +146,17 @@ need hardware.
   Brrrgh runs at 139 draws / 10.3k tris.
 - **Caveat:** the host Mac was busy during these runs, so the fps samples are noisy.
 
+### 2026-10-23 — All interiors (Antigravity: 536 buildings)
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **Interior zone formula fixed** to upstream `zone - zone % 100 + 500 + block`
+  (`DistributedBuildingAI.getExteriorAndInteriorZoneId`). The exit target is
+  `zone - zone % 100 - 500`.
+- **Silly Street building 70:** street cell 2154 → zone **2670**. The shopkeeper Dan
+  Dribbles generates at his anchor. The way out returns to street 2100, and cell
+  tracking then sets the interest to cell 2114 (20 zones).
+- **SD data set:** about 147 MB of interiors (536 zones; the 265 legacy aliases are
+  not installed).
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

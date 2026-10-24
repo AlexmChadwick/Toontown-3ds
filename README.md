@@ -66,9 +66,10 @@ produces `toontown3ds.cia`.
 ## Install on a 3DS
 
 1. Copy `toontown3ds.3dsx` to `sdmc:/3ds/`, or install `toontown3ds.cia` with FBI.
-2. Copy the SD data set `sdmc-out/3ds/toontown3ds/` to `sdmc:/3ds/toontown3ds/`. It
-   holds every toon species and clothing pack, plus streets and interiors once they are
-   baked. Without it you only get the default toon and the TTC playground from RomFS.
+2. Copy the SD data set `sdmc-out/3ds/toontown3ds/` to `sdmc:/3ds/toontown3ds/` (about
+   200 MB). It holds every toon species and clothing pack, the streets, all 536 building
+   interiors and the other playgrounds with their music. Without it you only get the
+   default toon and the TTC playground from RomFS.
 3. For sound, dump the DSP firmware once with the "DSP1" homebrew
    (`sdmc:/3ds/dspfirm.cdc`). Without it the game runs silently.
 4. For multiplayer, create `sdmc:/3ds/toontown3ds/server.txt`:

@@ -33,6 +33,8 @@ const Step kScript[] = {
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: door sz19", "exit_door"},
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "exit_interior"},
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: tunnel 2132", "exit_tunnel"},
+    {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: street door", "street_interior"},
+    {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "street_back"},
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "teleport DD", "hood_dd"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},

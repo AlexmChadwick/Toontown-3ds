@@ -190,22 +190,25 @@ Exit Place::exitAt(float x, float y, float z) const {
                 return e;
             }
         }
-        // Building doors: owner "sz<block>:..." (playground) or "tb<block>:..." (street);
-        // the interior is hood + 500 + block (ZoneUtil.getBranchZone / DistributedDoor).
+        // Building doors: owner "sz<block>:..." (playground) or "tb<block>:..." (street).
+        // Interior zone = zone - zone % 100 + 500 + block, from the exterior cell
+        // (DistributedBuildingAI.getExteriorAndInteriorZoneId): TTC block 19 -> 2519,
+        // Silly Street (cell 2132) block 3 -> 2603.
         if (strstr(t.name, "door") && strstr(t.name, "trigger") &&
             (!strncmp(t.owner, "sz", 2) || !strncmp(t.owner, "tb", 2))) {
             const u32 block = static_cast<u32>(strtoul(t.owner + 2, nullptr, 10));
             if (block > 0) {
                 e.kind = Exit::Door;
-                e.targetZone = hoodOf(zoneId_) + 500 + block;
+                e.targetZone = zoneId_ - zoneId_ % 100 + 500 + block;
                 snprintf(e.name, sizeof(e.name), "%s", t.owner);
                 return e;
             }
         }
-        // Inside an interior, the exit door leads back to the hood's playground/street.
+        // Inside an interior, the exit door leads back to the exterior branch:
+        // 2519 -> 2000, 2603 -> 2100 (the street then finds the exact cell underfoot).
         if (kind() == PlaceKind::Interior && strstr(t.name, "door") && strstr(t.name, "trigger")) {
             e.kind = Exit::Door;
-            e.targetZone = hoodOf(zoneId_);
+            e.targetZone = zoneId_ - zoneId_ % 100 - 500;
             snprintf(e.name, sizeof(e.name), "%s", t.name);
             return e;
         }
