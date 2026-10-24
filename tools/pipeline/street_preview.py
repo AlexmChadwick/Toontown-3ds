@@ -4,6 +4,7 @@ import os
 os.environ['OPENBLAS_NUM_THREADS']='1'
 os.environ['OMP_NUM_THREADS']='1'
 import sys
+sys.dont_write_bytecode = True
 import tempfile
 import argparse
 import struct
@@ -117,6 +118,8 @@ def main():
     parser.add_argument('zone')
     parser.add_argument('out')
     parser.add_argument('--lod',choices=('high','low','planned'),default='planned')
+    parser.add_argument('--eye', type=float, nargs=3, help='explicit zone-space camera')
+    parser.add_argument('--look', type=float, nargs=3, help='explicit zone-space target')
     parser.add_argument('--signs',action='store_true')
     parser.add_argument('--cell',type=int,help='server cell for ground camera')
     args=parser.parse_args()
@@ -168,6 +171,11 @@ def main():
         for i,v in enumerate(metadata.get('sign_views',[])[:3]):
             floor=min(zone['floors'],key=lambda f:float(np.sum((np.array(f[:9]).reshape(3,3).mean(axis=0)[:2]-np.array(v['eye'])[:2])**2)))
             views.append((f'sign_{i}',v['eye'],v['look'],floor))
+    if args.eye is not None:
+        if args.look is None:
+            parser.error('--eye requires --look')
+        floor = min(zone['floors'], key=lambda f: float(np.sum((np.array(f[:9]).reshape(3,3).mean(axis=0)-args.eye)**2)))
+        views = [('explicit',args.eye,args.look,floor)]
     out.mkdir(parents=True,exist_ok=True)
     for name,pos,look,floor in views:
         choices=None
