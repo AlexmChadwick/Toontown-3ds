@@ -11,6 +11,7 @@ it under the entity node, so the runtime only adds the part's animated offset:
   door_*   DistributedDoorEntity.setupDoor (CogDoorHandShake: frame, top/bottom outer doors,
            left/right inner doors, three lock slides x closed / left-open / right-open)
   button_* DistributedButton.setupSwitch (CogDoor_Button: base and the pressable top)
+  stomper_*, stomper_lb_*  DistributedStomper.loadModel (square_stomper / LB_square_stomper)
 Deterministic; at most 3 ETC1 encoder threads.
 """
 import json
@@ -105,6 +106,57 @@ def bake_button(base, resources, out):
     return report
 
 
+def bake_stomper(base, resources, out, name, path):
+    """DistributedStomper.loadModel: square_stomper's head (scaled by headScale) and the shaft
+    under it (offset, then shaftScale). Head baked in model space; shaft in its node's space.
+    stomper.box: the head bounds and the shaft node's offset (model space)."""
+    model = base.loader.loadModel(str(resources / path), noCache=True)
+    head_geom = model.find('**/head/+GeomNode')
+    shaft = model.find('**/head/shaft')
+    if head_geom.isEmpty() or shaft.isEmpty():
+        raise ValueError(f'{path}: head/shaft missing')
+    report = {f'{name}_head': write_part(model, head_geom, out / f'{name}_head.ttm')}
+    offset = shaft.getPos(model.find('**/head'))
+    shaft_geom = shaft.find('+GeomNode') if not shaft.find('+GeomNode').isEmpty() else shaft
+    # The shaft geometry in the shaft ModelNode's own space (the runtime applies the offset).
+    shaft_copy = shaft.copyTo(model)
+    shaft_copy.clearTransform()
+    report[f'{name}_shaft'] = write_part(model, shaft_copy, out / f'{name}_shaft.ttm')
+    shaft_copy.removeNode()
+    lo, hi = head_geom.getTightBounds(model)
+    (out / f'{name}.box').write_text(' '.join(f'{v:.4f}' for v in (*lo, *hi, *offset)) + '\n')
+    report[f'{name}_box'] = [list(lo), list(hi), list(offset)]
+    model.removeNode()
+    return report
+
+
+# Facility entity sounds (paths as the upstream classes load them) -> data/audio/<stem>.tsnd.
+LEVEL_SFX = (
+    'phase_4/audio/sfx/CHQ_FACT_stomper_small.ogg',      # DistributedStomper.stomperSounds
+    'phase_9/audio/sfx/CHQ_FACT_stomper_med.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_stomper_large.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_door_open_sliding.ogg',  # DistributedDoorEntity
+    'phase_9/audio/sfx/CHQ_FACT_door_open_final.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_door_unlock.ogg',        # DistributedDoorEntityLock
+    'phase_9/audio/sfx/CHQ_FACT_arms_retracting.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_switch_pressed.ogg',     # DistributedButton
+    'phase_9/audio/sfx/CHQ_FACT_switch_depressed.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_switch_popup.ogg',
+    'phase_9/audio/sfx/toon_decompress.ogg',             # Toon.enterSquish
+)
+
+
+def bake_sfx(resources, audio_out):
+    import bake_audio
+    audio_out.mkdir(parents=True, exist_ok=True)
+    report = {}
+    for src in LEVEL_SFX:
+        dst = audio_out / (Path(src).stem + '.tsnd')
+        size = bake_audio.bake_sfx_adpcm(str(resources / src), str(dst), False)[0]
+        report[dst.name] = size
+    return report
+
+
 def main():
     from panda3d.core import loadPrcFileData
     loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\ntextures-power-2 none')
@@ -113,7 +165,11 @@ def main():
     resources = default_resources()
     out = ROOT / 'sdmc-out/3ds/toontown3ds/data/level/props'
     out.mkdir(parents=True, exist_ok=True)
-    report = {'door': bake_door(base, resources, out), 'button': bake_button(base, resources, out)}
+    report = {'door': bake_door(base, resources, out), 'button': bake_button(base, resources, out),
+              'stomper': bake_stomper(base, resources, out, 'stomper', 'phase_9/models/cogHQ/square_stomper.bam'),
+              'stomper_lb': bake_stomper(base, resources, out, 'stomper_lb',
+                                         'phase_11/models/lawbotHQ/LB_square_stomper.bam')}
+    report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}
                       for k, r in report.items()}, indent=2, default=str))

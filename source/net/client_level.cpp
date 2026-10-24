@@ -125,6 +125,12 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         for (int i = 0; i < 3; ++i)
             if (((bits >> (4 * i)) & 15) != ((e.locks >> (4 * i)) & 15)) e.locksMs[i] = now_;
         e.locks = bits;
+    } else if (fieldId == dc::DistributedStomper::k_setMovie) {
+        e.movie = r.u8();
+        const int16_t ts = r.i16();
+        e.movieMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        uint32_t crushed[8];
+        readIds(r, crushed, 8);
     } else if (fieldId == dc::DistributedInteractiveEntity::k_setState) {
         r.string(e.stateName, sizeof(e.stateName));
         const int32_t ts = r.i32();
@@ -142,7 +148,8 @@ bool Client::handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r
     const dc::ClassDesc* cls = findClass(classId);
     const bool suit = isLevelSuitClass(classId);
     const bool blocker = !suit && cls && classHasField(*cls, dc::BattleBlocker::k_setBattle);
-    if (classId == dc::DistributedDoorEntity::kClassId || classId == dc::DistributedButton::kClassId) {
+    if (classId == dc::DistributedDoorEntity::kClassId || classId == dc::DistributedButton::kClassId ||
+        classId == dc::DistributedStomper::kClassId) {
         LevelEntityObj tmp{};
         tmp.doId = doId;
         tmp.classId = classId;
@@ -308,6 +315,14 @@ bool Client::sendLevelInteract(uint32_t doId, bool enter) {
     } else {
         TT_NET_UPDATE(w, doId, DistributedInteractiveEntity, requestExit);
     }
+    return finish(w);
+}
+
+bool Client::sendLevelOuch(uint32_t levelDoId, uint8_t penalty) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, levelDoId, DistributedLevel, setOuch);
+    w.u8(penalty);
     return finish(w);
 }
 

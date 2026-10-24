@@ -11,6 +11,7 @@
 
 #include <3ds.h>
 
+#include "audio/audio.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
@@ -58,6 +59,24 @@ public:
     bool nearestCog(float x, float y, float z, float* cx, float* cy, float* cz) const;
     // Closed doors, buttons, lifts...: Player::setDynamic while the level is active.
     const DynamicSolids* solids() const { return active_ ? &dynamic_ : nullptr; }
+    // Stomper squish this frame (DistributedLevel.b_setOuch(.., 'Squish')): the damage was
+    // sent; main.cpp plays Toon.enterSquish and stuns. Returns 0 when nothing happened.
+    int popSquish(float* floorZ) {
+        const int d = squishDamage_;
+        squishDamage_ = 0;
+        *floorZ = squishZ_;
+        return d;
+    }
+    // Toon.stunToon: no ouch while the blink runs (about 4 s).
+    void setStunned(bool stunned) { stunned_ = stunned; }
+    // Autotest: world position of the first spec entity of a type (generated or not).
+    bool specPosition(const char* type, float* x, float* y, float* z) const {
+        const int i = active_ ? spec_.next(type, -1) : -1;
+        if (i < 0) return false;
+        const LevelEntity& e = spec_.entity(i);
+        *x = e.world[9], *y = e.world[10], *z = e.world[11];
+        return true;
+    }
     // Autotest: world position of the nearest distributed entity of a class; false if none.
     bool nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const;
     // Autotest: the nearest closed door ahead, as a point in front of it; false if none.
@@ -113,6 +132,35 @@ private:
     // DistributedButton (CogDoor_Button parts, button.box).
     void updateButtons(net::Client& client, float x, float y, float z);
     void drawButtons(render::Renderer& renderer) const;
+    // DistributedStomper (square_stomper / LB_square_stomper head + shaft, stomper.box).
+    struct StomperShape {
+        render::Model head, shaft;
+        float lo[3] = {-1, -1.274f, -1}, hi[3] = {1, 0, 1}; // head bounds (model space)
+        float shaftOffset[3] = {0, -0.994f, 0};
+    };
+    StomperShape stompers_[2];
+    struct StomperPose {
+        float raise = 0;         // model Y = -range * raise (0 = down / crushing)
+        bool vertical = true;
+        float headScale[3] = {1, 1, 1}, shaftScale[3] = {1, 1, 1};
+        int style = 0;           // cogStyle: 0 square_stomper, 1 LB_square_stomper
+    };
+    StomperPose stomperPose(const LevelEntity& e, const net::LevelEntityObj& d, uint32_t nowMs) const;
+    void updateStompers(net::Client& client, float x, float y, float z, uint32_t nowMs);
+    void drawStompers(render::Renderer& renderer) const;
+    float entityPrev_[net::kMaxLevelEntities] = {}; // per client slot: last raise / phase
+    int entityCycle_[net::kMaxLevelEntities] = {};
+    uint8_t entityState_[net::kMaxLevelEntities] = {};
+    uint32_t levelStartMs_ = 0;
+    int squishDamage_ = 0;
+    float squishZ_ = 0;
+    bool stunned_ = false;
+    float toonX_ = 0, toonY_ = 0, toonZ_ = 0;
+    // Sounds (bake_level_props.py LEVEL_SFX), played at the entity like SoundInterval(node=).
+    enum Sfx { kSfxStompSmall, kSfxStompMed, kSfxStompLarge, kSfxDoorSlide, kSfxDoorFinal, kSfxDoorUnlock,
+               kSfxArms, kSfxSwitchOn, kSfxSwitchCount, kSfxSwitchOff, kSfxCount };
+    audio::SfxId sfx_[kSfxCount] = {};
+    void playAt(int sfx, const float pos[3], float volume) const;
     render::Model buttonBase_, buttonTop_;
     float buttonBox_[6] = {-0.5f, -0.5f, 0.0f, 0.5f, 0.5f, 0.487f};
     uint32_t onButton_ = 0; // the switch we stand on (requestInteract sent)

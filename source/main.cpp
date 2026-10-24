@@ -213,6 +213,8 @@ int main() {
     const tt::audio::SfxId sfxDoorOpen = tt::audio::loadSfx("romfs:/baked/audio/door_open.tsnd");
     const tt::audio::SfxId sfxDoorClose = tt::audio::loadSfx("romfs:/baked/audio/door_close.tsnd");
     const tt::audio::SfxId sfxTeleport = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
+    const tt::audio::SfxId sfxDecompress = tt::audio::loadSfx("sdmc:/3ds/toontown3ds/data/audio/toon_decompress.tsnd");
+    float squishAge = -1.0f; // Toon.enterSquish / stunToon after a factory stomper (world/level.*)
     const tt::audio::SfxId sfxChatOpen = tt::audio::loadSfx("romfs:/baked/audio/sc_open.tsnd");
     const tt::audio::SfxId sfxWalk = tt::audio::loadSfx("romfs:/baked/audio/footstep_walk.tsnd");
     const tt::audio::SfxId sfxRun = tt::audio::loadSfx("romfs:/baked/audio/footstep_run.tsnd");
@@ -667,6 +669,10 @@ int main() {
         if (autotest.active() && level.active() && !battle.active()) {
             // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
             float cx, cy, cz;
+            if (!strcmp(autotest.label(), "factory: stomper") && autotest.stepTime() < 0.05f) {
+                float sx, sy, sz;
+                if (level.specPosition("stomper", &sx, &sy, &sz)) player.reset(sx, sy, sz + 0.5f, 0.0f); // under it
+            }
             if (!strcmp(autotest.label(), "factory: button") && autotest.stepTime() < 0.05f) {
                 float bx, by, bz;
                 if (level.nearestEntity(tt::dc::DistributedButton::kClassId, player.x(), player.y(), player.z(), &bx,
@@ -838,6 +844,29 @@ int main() {
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
+        {
+            float floorZ;
+            if (level.active() && level.popSquish(&floorZ) > 0) {
+                squishAge = 0.0f;
+                player.reset(player.x(), player.y(), floorZ, player.headingDeg()); // setZ(stomper + 0.025)
+            }
+            if (squishAge >= 0.0f) {
+                const float before = squishAge;
+                squishAge += dt;
+                if (before < 1.1f && squishAge >= 1.1f) { // the pop: jump from 0.2 s and the decompress
+                    tt::audio::playSfx(sfxDecompress);
+                    localToon.playAction(tt::world::kAnimJump, tt::world::ClipMode::Once, 1.0f, 0.2f);
+                }
+                if (squishAge < 1.7f) { // the 'squished' place state: no walking
+                    in.pad.dx = in.pad.dy = 0;
+                    in.down &= ~KEY_A;
+                }
+                if (squishAge > 4.0f) { // stunToon's seven half-second blinks are over
+                    squishAge = -1.0f;
+                    level.setStunned(false);
+                }
+            }
+        }
         if (!racing.driving()) player.update(in, dt);
         fishing.applyCamera();
         if (trolley.seated() || minigame.inScene() || golf.active()) {
@@ -1434,6 +1463,27 @@ int main() {
             }
             tt::prof::lap(tt::prof::kDrawShadow);
             player.worldMatrix(&m);
+            if (squishAge >= 0.0f && squishAge < 1.7f) {
+                // Toon.enterSquish: to (2, 2, 0.025) in 0.1 s, hold 1 s, then after 0.4 s pop
+                // 1.4 -> 0.8 -> 1 (0.1 / 0.05 / 0.033 s).
+                auto smooth = [](float u) { return u * u * (3 - 2 * u); };
+                const float t = squishAge;
+                float sx = 1, sz = 1;
+                if (t < 0.1f) {
+                    const float u = smooth(t / 0.1f);
+                    sx = 1 + u, sz = 1 + (0.025f - 1) * u;
+                } else if (t < 1.5f) {
+                    sx = 2, sz = 0.025f;
+                } else if (t < 1.6f) {
+                    const float u = smooth((t - 1.5f) / 0.1f);
+                    sx = 2 + (1.4f - 2) * u, sz = 0.025f + (1.4f - 0.025f) * u;
+                } else if (t < 1.65f) {
+                    sx = sz = 1.4f + (0.8f - 1.4f) * smooth((t - 1.6f) / 0.05f);
+                } else {
+                    sx = sz = 0.8f + 0.2f * smooth(std::min(1.0f, (t - 1.65f) / 0.033f));
+                }
+                Mtx_Scale(&m, sx, sx, sz);
+            }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
             if (player.cameraDistance() > kHideToonCameraDistance && !(teleportInAge>=0 && teleportInAge<.3f)) {

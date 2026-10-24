@@ -150,7 +150,12 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
         const float r = kToonRadius;
         Vec3 p{x_, y_, z_};
         p = world->slideCapsule(p, r, 2.0f * r, Vec3{dx, dy, 0.0f});
-        if (dyn && dyn->push) dyn->push(dyn->user, &p.x, &p.y, p.z, r);
+        if (dyn && dyn->push) {
+            // Out of moving solids, but never through the static walls: slide the push too.
+            float px = p.x, py = p.y;
+            dyn->push(dyn->user, &px, &py, p.z, r);
+            if (px != p.x || py != p.y) p = world->slideCapsule(p, r, 2.0f * r, Vec3{px - p.x, py - p.y, 0.0f});
+        }
         bool found = false;
         float g = world->groundHeight(p.x, p.y, p.z, &found);
         float top;

@@ -82,6 +82,31 @@ void Level::loadProps() {
         snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, kDoorFiles[i]);
         if (!doorModels_[i].load(path)) TT_LOG("level: missing %s", path);
     }
+    const char* stomperNames[2] = {"stomper", "stomper_lb"};
+    for (int k = 0; k < 2; ++k) {
+        StomperShape& st = stompers_[k];
+        snprintf(path, sizeof(path), "%sprops/%s_head.ttm", kDir, stomperNames[k]);
+        st.head.load(path);
+        snprintf(path, sizeof(path), "%sprops/%s_shaft.ttm", kDir, stomperNames[k]);
+        st.shaft.load(path);
+        snprintf(path, sizeof(path), "%sprops/%s.box", kDir, stomperNames[k]);
+        if (FILE* f = fopen(path, "r")) {
+            float b[9];
+            if (fscanf(f, "%f %f %f %f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5], &b[6], &b[7],
+                       &b[8]) == 9) {
+                memcpy(st.lo, b, 12), memcpy(st.hi, b + 3, 12), memcpy(st.shaftOffset, b + 6, 12);
+            }
+            fclose(f);
+        }
+    }
+    static const char* const kSfxNames[kSfxCount] = {
+        "CHQ_FACT_stomper_small", "CHQ_FACT_stomper_med", "CHQ_FACT_stomper_large", "CHQ_FACT_door_open_sliding",
+        "CHQ_FACT_door_open_final", "CHQ_FACT_door_unlock", "CHQ_FACT_arms_retracting", "CHQ_FACT_switch_pressed",
+        "CHQ_FACT_switch_depressed", "CHQ_FACT_switch_popup"};
+    for (int k = 0; k < kSfxCount; ++k) {
+        snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", kSfxNames[k]);
+        sfx_[k] = audio::loadSfx(path);
+    }
     snprintf(path, sizeof(path), "%sprops/button_base.ttm", kDir);
     buttonBase_.load(path);
     snprintf(path, sizeof(path), "%sprops/button_top.ttm", kDir);
@@ -332,6 +357,148 @@ void Level::drawButtons(render::Renderer& renderer) const {
     }
 }
 
+void Level::playAt(int sfx, const float pos[3], float volume) const {
+    if (sfx < 0 || sfx >= kSfxCount || sfx_[sfx] == audio::kInvalidSfx) return;
+    // Positional like SoundInterval(node=...): full within 20 units, then 1/d.
+    const float dx = pos[0] - toonX_, dy = pos[1] - toonY_, dz = pos[2] - toonZ_;
+    const float d = std::sqrt(dx * dx + dy * dy + dz * dz);
+    const float gain = d < 20.0f ? 1.0f : 20.0f / d;
+    if (gain * volume < 0.03f) return;
+    audio::playSfx(sfx_[sfx], volume * gain);
+}
+
+// DistributedStomper.getMotionIval: the model's Y as a fraction of -range ("raise").
+Level::StomperPose Level::stomperPose(const LevelEntity& e, const net::LevelEntityObj& d, uint32_t nowMs) const {
+    StomperPose p;
+    const char* style = spec_.string(e, "style");
+    p.vertical = !style || strcmp(style, "horizontal") != 0;
+    p.style = spec_.integer(e, "cogStyle", 0) == 1 ? 1 : 0;
+    float v[3];
+    if (spec_.getFloats(e, "headScale", v, 3) >= 3) memcpy(p.headScale, v, 12);
+    if (spec_.getFloats(e, "shaftScale", v, 3) >= 3) memcpy(p.shaftScale, v, 12);
+    const int motion = spec_.integer(e, "motion", 0);
+    const float period = spec_.number(e, "period", 2.0f);
+    if (motion == 5) { // MotionSwitched: STOMP falls in 0.35 s, RISE climbs in 0.5 s (easeInOut)
+        const float t = int32_t(nowMs - d.movieMs) / 1000.0f;
+        if (d.movie == 4) {
+            const float u = clamp01(t / 0.35f);
+            p.raise = 1.0f - u * u * (3 - 2 * u);
+        } else if (d.movie == 5) {
+            const float u = clamp01(t / 0.5f);
+            p.raise = u * u * (3 - 2 * u);
+        } else {
+            p.raise = 1.0f; // loadModel: setPos(0, -range, 0)
+        }
+        return p;
+    }
+    if (d.movie != 0 || period <= 0.0f) return p; // only STOMPER_START loops
+    // ival.setT(frameTime - level.startTime + period * phaseShift), looping.
+    const float t = int32_t(nowMs - levelStartMs_) / 1000.0f + period * spec_.number(e, "phaseShift", 0.0f);
+    float u = std::fmod(t / period, 1.0f);
+    if (u < 0) u += 1.0f;
+    switch (motion) {
+    case 0: // MotionLinear: up 1/2, hold 1/4, down 1/4
+        p.raise = u < 0.5f ? u / 0.5f : u < 0.75f ? 1.0f : 1.0f - (u - 0.75f) / 0.25f;
+        break;
+    case 1: // MotionSinus
+        p.raise = 0.5f - 0.5f * std::cos(2.0f * 3.14159265f * u);
+        break;
+    case 3: // MotionSlowFast: stick 0.2, rise to 0.95, slam back
+        p.raise = u < 0.2f ? 0.0f : u < 0.95f ? (u - 0.2f) / 0.75f : 1.0f - (u - 0.95f) / 0.05f;
+        break;
+    case 4: { // MotionCrush: stick 0.2, up 0.45 easeInOut, pause 0.2, down 0.15 easeInOut
+        auto smooth = [](float x) { return x * x * (3 - 2 * x); };
+        p.raise = u < 0.2f ? 0.0f : u < 0.65f ? smooth((u - 0.2f) / 0.45f) : u < 0.85f ? 1.0f
+                                                                            : 1.0f - smooth((u - 0.85f) / 0.15f);
+        break;
+    }
+    default: // MotionHalfSinus
+        p.raise = std::sin(u * 3.14159265f);
+        break;
+    }
+    return p;
+}
+
+void Level::updateStompers(net::Client& client, float x, float y, float z, uint32_t nowMs) {
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = client.levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedStomper::kClassId) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        const StomperPose p = stomperPose(*e, d, nowMs);
+        const StomperShape& st = stompers_[p.style];
+        const float range = spec_.number(*e, "range", 6.0f);
+        const float lift = range * p.raise;
+        // The head as a solid box in entity space (a wall, and a floor on top).
+        float lo[3], hi[3];
+        if (p.vertical) { // rotateNode P = -90: model -Y is up, model Z is entity Y
+            lo[0] = st.lo[0] * p.headScale[0], hi[0] = st.hi[0] * p.headScale[0];
+            lo[1] = st.lo[2] * p.headScale[2], hi[1] = st.hi[2] * p.headScale[2];
+            lo[2] = lift - st.hi[1] * p.headScale[1], hi[2] = lift - st.lo[1] * p.headScale[1];
+        } else { // horizontal: the head slides along -Y
+            lo[0] = st.lo[0] * p.headScale[0], hi[0] = st.hi[0] * p.headScale[0];
+            lo[1] = st.lo[1] * p.headScale[1] - lift, hi[1] = st.hi[1] * p.headScale[1] - lift;
+            lo[2] = st.lo[2] * p.headScale[2], hi[2] = st.hi[2] * p.headScale[2];
+        }
+        const int before = numSolids_;
+        addSolid(e->world, lo, hi, true, true);
+        if (numSolids_ > before && p.vertical) solids_[before].motion[2] = lift - entityPrev_[i]; // carry riders
+        entityPrev_[i] = lift;
+        // The end of each cycle: the stomp (sound, checkSquashedToon).
+        const float period = spec_.number(*e, "period", 2.0f);
+        int cycle = 0;
+        if (d.movie == 0 && period > 0.0f && spec_.integer(*e, "motion", 0) != 5) {
+            const float t = int32_t(nowMs - levelStartMs_) / 1000.0f + period * spec_.number(*e, "phaseShift", 0.0f);
+            cycle = int(std::floor(t / period));
+        } else if (spec_.integer(*e, "motion", 0) == 5) {
+            cycle = d.movie == 4 && int32_t(nowMs - d.movieMs) >= 0 ? int(d.movieMs | 1) : 0;
+        }
+        if (cycle != entityCycle_[i]) {
+            const bool first = entityCycle_[i] == 0;
+            entityCycle_[i] = cycle;
+            if (!first && cycle != 0) {
+                if (spec_.integer(*e, "soundOn", 0)) {
+                    const int path = spec_.integer(*e, "soundPath", 0);
+                    playAt(kSfxStompSmall + (path < 0 ? 0 : path > 2 ? 2 : path), e->world + 9, 0.45f);
+                }
+                if (p.vertical && !stunned_) {
+                    float l[3];
+                    toLocal(e->world, x, y, z, l);
+                    if (std::fabs(l[0]) < p.headScale[0] && std::fabs(l[1]) < p.headScale[2] && l[2] < 5.0f &&
+                        l[2] > -0.5f) {
+                        squishDamage_ = spec_.integer(*e, "damage", 1);
+                        squishZ_ = e->world[11] + 0.025f;
+                        client.sendLevelOuch(levelDoId_, uint8_t(squishDamage_));
+                        stunned_ = true;
+                        TT_LOG("level: squished by stomper %u (%d laff)", unsigned(d.entId), squishDamage_);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void Level::drawStompers(render::Renderer& renderer) const {
+    if (!doorClient_) return;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.levelDoId != levelDoId_ || d.classId != dc::DistributedStomper::kClassId) continue;
+        const LevelEntity* e = spec_.find(d.entId);
+        if (!e) continue;
+        const StomperPose p = stomperPose(*e, d, doorNowMs_);
+        StomperShape& st = const_cast<StomperShape&>(stompers_[p.style]);
+        C3D_Mtx m;
+        toMtx(e->world, &m);
+        if (p.vertical) Mtx_RotateX(&m, -90.0f * kDegToRad, true); // rotateNode.setP(-90)
+        Mtx_Translate(&m, 0, -spec_.number(*e, "range", 6.0f) * p.raise, 0, true);
+        Mtx_Scale(&m, p.headScale[0], p.headScale[1], p.headScale[2]);
+        if (st.head.loaded()) renderer.drawModel(st.head, m);
+        Mtx_Translate(&m, st.shaftOffset[0], st.shaftOffset[1], st.shaftOffset[2], true);
+        Mtx_Scale(&m, p.shaftScale[0], p.shaftScale[1], p.shaftScale[2]);
+        if (st.shaft.loaded()) renderer.drawModel(st.shaft, m);
+    }
+}
+
 bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex, float* ey, float* ez) const {
     if (!active_ || !doorClient_) return false;
     float best = 1e30f;
@@ -444,6 +611,7 @@ void Level::begin(const net::Factory& f) {
     if (f.numZones != numZones_)
         TT_LOG("level: server sent %d zone ids for %d spec zones", int(f.numZones), numZones_);
     entranceId_ = f.entranceId;
+    levelStartMs_ = f.startMs;
     toonIndex_ = 0;
     numToons_ = f.numPlayers > 0 ? f.numPlayers : 1;
     for (int i = 0; i < f.numPlayers; ++i)
@@ -663,10 +831,12 @@ void Level::requestBattle(Cog& c, uint32_t nowMs, LevelBattleAction* action) {
 void Level::update(net::Client& client, SuitActors& suits, float x, float y, float z, float dt, uint32_t nowMs,
                    bool battleIdle, LevelBattleAction* action) {
     client_ = &client;
+    toonX_ = x, toonY_ = y, toonZ_ = z;
     *action = LevelBattleAction{};
     if (!active_) return;
     updateDoors(client, x, y, z, nowMs);
     updateButtons(client, x, y, z);
+    updateStompers(client, x, y, z, nowMs);
     zone_.update(Vec3{x, y, z}, &Level::cellChanged, this);
     if (lockZoneId_ != sentLock_) visDirty_ = true;
     if (visDirty_ && numPendingVis_ > 0) sendVisibility(client, 0, nullptr, 0);
@@ -825,6 +995,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 400.0f);
     drawDoors(renderer);
     drawButtons(renderer);
+    drawStompers(renderer);
 }
 
 } // namespace tt::world

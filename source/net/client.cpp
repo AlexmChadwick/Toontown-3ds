@@ -4556,8 +4556,9 @@ bool Client::applyFactoryField(Factory& f, DatagramReader& r, uint16_t fieldId) 
     else if (fieldId == dc::DistributedLevel::k_setZoneIds) {
         f.numZones = readU32Array(r, f.zoneIds, 128);
     } else if (fieldId == dc::DistributedLevel::k_setStartTimestamp) {
+        // 32-bit ClockDelta centiseconds; the low 16 bits are the 16-bit network time.
         const int32_t ts = r.i32();
-        f.startMs = timeSynced_ ? networkToLocal(static_cast<int16_t>(ts / 10), now_) : now_;
+        f.startMs = timeSynced_ ? networkToLocal(static_cast<int16_t>(uint32_t(ts) & 0xFFFF), now_) : now_;
     } else if (fieldId == dc::DistributedFactory::k_setSuits) {
         f.numSuits = readU32Array(r, f.suits, 32);
         f.numReserveSuits = readU32Array(r, f.reserveSuits, 32);
