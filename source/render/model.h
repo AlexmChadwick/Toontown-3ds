@@ -75,6 +75,9 @@ public:
     // Loads from a path ("romfs:/baked/x.ttm" or "sdmc:/..."). Vertex/index/texture
     // data is read straight into linear memory; only the small tables use the heap.
     bool load(const char* path);
+    // Loads a TTM embedded at byte `base` of an open file (e.g. a .tz chunk). Leaves the
+    // file open; `label` is used in log messages.
+    bool loadFrom(FILE* f, u32 base, const char* label = nullptr);
     void unload();
     bool loaded() const { return vertices_ != nullptr; }
 

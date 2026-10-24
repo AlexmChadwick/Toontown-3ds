@@ -37,6 +37,21 @@ namespace {
 
 using tt::render::Model;
 
+// Street visgroup changes from tt::world::Zone, applied to the network once in zone.
+struct StreetCell {
+    bool pending = false;
+    uint16_t cell = 0;
+    uint16_t zones[64] = {};
+    int count = 0;
+};
+StreetCell gStreetCell;
+void onStreetCell(void*, uint16_t cell, const uint16_t* zones, int count) {
+    gStreetCell.pending = true;
+    gStreetCell.cell = cell;
+    gStreetCell.count = count < 64 ? count : 64;
+    for (int i = 0; i < gStreetCell.count; i++) gStreetCell.zones[i] = zones[i];
+}
+
 // APT lifecycle (HOME menu, sleep): keep the log on the SD card and remember that the
 // console slept, because sockets do not survive sleep on hardware.
 volatile bool gWokeFromSleep = false;
@@ -123,7 +138,7 @@ int main() {
     // The zone we're in (starts in the Toontown Central playground).
     static tt::world::Place place;
     place.load(kStartZone);
-    Model& terrain = place.model();
+
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
     toonCache.init();
@@ -378,6 +393,16 @@ int main() {
         }
         localToon.update(dt);
 
+        // Streets stream per visgroup; crossing into another server cell changes interest.
+        place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
+        if (gStreetCell.pending && netStarted && net.inZone() && gStreetCell.cell != net.zoneId()) {
+            if (net.changeStreetCell(gStreetCell.cell, gStreetCell.zones, gStreetCell.count)) {
+                gStreetCell.pending = false;
+            }
+        } else if (gStreetCell.pending && (!netStarted || gStreetCell.cell == net.zoneId())) {
+            gStreetCell.pending = false;
+        }
+
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
@@ -493,8 +518,7 @@ int main() {
             const int eyeSign = stereoActive ? (e == 0 ? -1 : 1) : 0;
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
-            Mtx_Identity(&m);
-            renderer.drawModel(terrain, m);
+            place.draw(renderer, player.cameraEye());
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
             {
@@ -578,10 +602,10 @@ int main() {
         ctx.playerX = player.x();
         ctx.playerY = player.y();
         ctx.playerHeadingDeg = player.headingDeg();
-        ctx.zoneMinX = terrain.loaded() ? terrain.boundsMin()[0] : -300;
-        ctx.zoneMinY = terrain.loaded() ? terrain.boundsMin()[1] : -300;
-        ctx.zoneMaxX = terrain.loaded() ? terrain.boundsMax()[0] : 300;
-        ctx.zoneMaxY = terrain.loaded() ? terrain.boundsMax()[1] : 300;
+        ctx.zoneMinX = place.boundsMin()[0];
+        ctx.zoneMinY = place.boundsMin()[1];
+        ctx.zoneMaxX = place.boundsMax()[0];
+        ctx.zoneMaxY = place.boundsMax()[1];
         // Static landmarks plus other players (blue).
         tt::ui::MapMarker mapMarkers[kMaxMapMarkers];
         int numMapMarkers = 0;

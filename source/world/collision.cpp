@@ -225,21 +225,27 @@ bool CollisionWorld::load(const char* path) {
         return false;
     }
     fseek(f, 0, SEEK_END);
-    long size = ftell(f);
-    fseek(f, 0, SEEK_SET);
+    const long size = ftell(f);
+    const bool ok = size > 0 && loadFrom(f, 0, static_cast<uint32_t>(size), path);
+    fclose(f);
+    return ok;
+}
+
+bool CollisionWorld::loadFrom(FILE* f, uint32_t base, uint32_t sizeBytes, const char* label) {
+    unload();
+    const char* path = label ? label : "(embedded)";
+    const long size = static_cast<long>(sizeBytes);
     if (size < kHeaderSize) {
-        fclose(f);
         TT_LOG("collision: %s too small", path);
         return false;
     }
     uint8_t* blob = static_cast<uint8_t*>(malloc(static_cast<size_t>(size)));
-    if (!blob || fread(blob, 1, static_cast<size_t>(size), f) != static_cast<size_t>(size)) {
-        fclose(f);
+    if (!blob || fseek(f, static_cast<long>(base), SEEK_SET) != 0 ||
+        fread(blob, 1, static_cast<size_t>(size), f) != static_cast<size_t>(size)) {
         free(blob);
         TT_LOG("collision: cannot read %s", path);
         return false;
     }
-    fclose(f);
 
     Header h;
     memcpy(&h, blob, sizeof(h));

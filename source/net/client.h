@@ -229,6 +229,9 @@ public:
     static constexpr int kMaxVisZones = 24;
     bool changeZone(uint32_t zoneId, const uint32_t* visZones = nullptr, int numVisZones = 0);
     bool changingZone() const { return state_ == State::ChangingZone; }
+    // Moving between visgroups of a street (Street.py doEnterZone): location + interest on
+    // [cell] + vis zones directly, no quiet zone. Only while inZone().
+    bool changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones);
     uint32_t zoneId() const { return cfg_.zoneId; }
 
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).

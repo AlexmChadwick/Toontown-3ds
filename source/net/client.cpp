@@ -1294,6 +1294,22 @@ void Client::dropZoneObjects() {
     }
 }
 
+bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
+    if (state_ != State::InZone) return false;
+    uint32_t zones[kMaxVisZones + 1];
+    int n = 0;
+    zones[n++] = cellZone;
+    for (int i = 0; i < numVisZones && n <= kMaxVisZones; ++i) {
+        if (visZones[i] != cellZone) zones[n++] = visZones[i];
+    }
+    cfg_.zoneId = cellZone;
+    sendSetLocation(avatarId_, shardId_, cellZone);
+    zoneCtx_ = nextContext_;
+    sendAddInterestMultiple(kZoneInterest, shardId_, zones, n);
+    TT_LOG("net: street cell %u (%d zones in interest)", unsigned(cellZone), n);
+    return true;
+}
+
 bool Client::changeZone(uint32_t zoneId, const uint32_t* visZones, int numVisZones) {
     if (state_ != State::InZone) return false;
     targetZone_ = zoneId;

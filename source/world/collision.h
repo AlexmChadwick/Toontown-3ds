@@ -6,6 +6,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstdio>
 
 namespace tt::world {
 
@@ -71,6 +72,8 @@ public:
     // file, bad magic/version or inconsistent sections; the world is then empty and every
     // query reports "nothing hit".
     bool load(const char* path);
+    // A TTC1 blob embedded at `base` of an open file (e.g. inside a .tz). File stays open.
+    bool loadFrom(FILE* f, uint32_t base, uint32_t size, const char* label = nullptr);
     void unload();
     bool loaded() const { return blob_ != nullptr; }
 

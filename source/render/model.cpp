@@ -117,13 +117,20 @@ bool Model::load(const char* path) {
     // Large reads go straight to their destination; a bigger stdio buffer cuts
     // per-call overhead on RomFS/SD.
     setvbuf(f, nullptr, _IOFBF, 32 * 1024);
+    const bool ok = loadFrom(f, 0, path);
+    fclose(f);
+    return ok;
+}
+
+bool Model::loadFrom(FILE* f, u32 base, const char* label) {
+    unload();
+    const char* path = label ? label : "(embedded)";
 
     Header h;
     TexEntry* texEntries = nullptr;
-    bool ok = readAt(f, 0, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 && h.version == kVersion;
+    bool ok = readAt(f, base, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 && h.version == kVersion;
     if (!ok) {
         TT_LOG("model: bad header in %s", path);
-        fclose(f);
         return false;
     }
 
@@ -147,10 +154,11 @@ bool Model::load(const char* path) {
         indices_ = static_cast<u16*>(linearAlloc(numIndices_ * sizeof(u16)));
     }
     ok = batches_ && texEntries && textures_ && vertices_ && indices_;
-    ok = ok && readAt(f, h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
-    ok = ok && readAt(f, h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
-    ok = ok && readAt(f, h.vertexOffset, vertices_, numVertices_ * kVertexSize);
-    ok = ok && readAt(f, h.indexOffset, indices_, numIndices_ * sizeof(u16));
+    ok = ok && readAt(f, base + h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
+    ok = ok && readAt(f, base + h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
+    for (u16 i = 0; ok && i < numTextures_; i++) texEntries[i].dataOffset += base; // offsets are file-relative
+    ok = ok && readAt(f, base + h.vertexOffset, vertices_, numVertices_ * kVertexSize);
+    ok = ok && readAt(f, base + h.indexOffset, indices_, numIndices_ * sizeof(u16));
     if (ok && numVertices_ <= 0x10000) {
         // Rebase batch-relative indices to absolute so the renderer binds one vertex
         // buffer per model instead of one per batch (keeps the GPU command buffer small).
@@ -173,7 +181,6 @@ bool Model::load(const char* path) {
     }
 
     free(texEntries);
-    fclose(f);
     if (!ok) {
         TT_LOG("model: failed to load %s", path);
         unload();

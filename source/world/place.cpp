@@ -50,13 +50,41 @@ bool Place::resolve(u32 zoneId, const char* ext, char* out, size_t outSize) cons
     return exists(out);
 }
 
+namespace {
+
+bool tzPath(u32 zoneId, char* out, size_t outSize) {
+    if (placeKind(zoneId) == PlaceKind::Interior) return false;
+    const u32 fileZone = placeKind(zoneId) == PlaceKind::Street ? zoneId - zoneId % 100 : zoneId;
+    snprintf(out, outSize, "sdmc:/3ds/toontown3ds/data/zones/%lu.tz", static_cast<unsigned long>(fileZone));
+    return exists(out);
+}
+
+} // namespace
+
 bool Place::available(u32 zoneId) {
     Place probe;
     char path[96];
+    if (tzPath(zoneId, path, sizeof(path))) return true;
     return probe.resolve(zoneId, "ttm", path, sizeof(path)) && probe.resolve(zoneId, "ttc", path, sizeof(path));
 }
 
+void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) {
+    if (!zone_.loaded()) return;
+    if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
+}
+
+void Place::draw(render::Renderer& renderer, const C3D_FVec& eye) {
+    if (zone_.loaded()) {
+        zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 120.0f);
+        return;
+    }
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    renderer.drawModel(model_, m);
+}
+
 void Place::unload() {
+    zone_.unload();
     model_.unload();
     collision_.unload();
     numPoints_ = 0;
@@ -64,6 +92,21 @@ void Place::unload() {
 }
 
 bool Place::load(u32 zoneId) {
+    char tz[96];
+    if (tzPath(zoneId, tz, sizeof(tz))) {
+        unload();
+        const u64 t0 = svcGetSystemTick();
+        if (!zone_.load(tz)) {
+            TT_LOG("place: %s", zone_.error());
+            unload();
+            return false;
+        }
+        zoneId_ = zoneId;
+        loadPoints();
+        TT_LOG("place: zone %lu streamed from %s (%d chunks) in %lu ms", static_cast<unsigned long>(zoneId), tz,
+               zone_.numChunks(), static_cast<unsigned long>((svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000)));
+        return true;
+    }
     char ttm[96], ttc[96];
     if (!resolve(zoneId, "ttm", ttm, sizeof(ttm)) || !resolve(zoneId, "ttc", ttc, sizeof(ttc))) {
         TT_LOG("place: zone %lu is not installed", static_cast<unsigned long>(zoneId));
@@ -76,21 +119,27 @@ bool Place::load(u32 zoneId) {
         return false;
     }
     zoneId_ = zoneId;
-    numPoints_ = 0;
-    pointsPath_[0] = '\0';
-    if (resolve(zoneId, "pts", pointsPath_, sizeof(pointsPath_))) {
-        if (FILE* f = fopen(pointsPath_, "r")) {
-            char line[128];
-            while (numPoints_ < kMaxPoints && fgets(line, sizeof(line), f)) {
-                Point& p = points_[numPoints_];
-                if (sscanf(line, "%39s %f %f %f %f", p.name, &p.x, &p.y, &p.z, &p.h) == 5) numPoints_++;
-            }
-            fclose(f);
-        }
-    }
+    loadPoints();
     TT_LOG("place: zone %lu loaded in %lu ms (%d points)", static_cast<unsigned long>(zoneId),
            static_cast<unsigned long>((svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000)), numPoints_);
     return true;
+}
+
+void Place::loadPoints() {
+    numPoints_ = 0;
+    pointsPath_[0] = '\0';
+    if (!resolve(zoneId_, "pts", pointsPath_, sizeof(pointsPath_))) {
+        pointsPath_[0] = '\0';
+        return;
+    }
+    if (FILE* f = fopen(pointsPath_, "r")) {
+        char line[128];
+        while (numPoints_ < kMaxPoints && fgets(line, sizeof(line), f)) {
+            Point& p = points_[numPoints_];
+            if (sscanf(line, "%39s %f %f %f %f", p.name, &p.x, &p.y, &p.z, &p.h) == 5) numPoints_++;
+        }
+        fclose(f);
+    }
 }
 
 const Place::Point* Place::point(const char* name) const {
@@ -113,9 +162,10 @@ Exit Place::exitAt(float x, float y, float z) const {
     int hits[8];
     // GravityWalker's event sphere (centre r - 0.1, radius r * 1.04) is slightly bigger than
     // the wall sphere, so a toon pressed against a door still touches its flush trigger.
-    const int n = collision_.triggersAt(Vec3{x, y, z + kToonRadius - 0.1f}, kToonRadius * 1.04f, hits, 8);
+    const CollisionWorld& cw = collision();
+    const int n = cw.triggersAt(Vec3{x, y, z + kToonRadius - 0.1f}, kToonRadius * 1.04f, hits, 8);
     for (int i = 0; i < n && i < 8; i++) {
-        const CollTrigger& t = collision_.trigger(hits[i]);
+        const CollTrigger& t = cw.trigger(hits[i]);
         // Tunnels: owner "linktunnel_<hood>_<zone>_DNARoot" names the target zone
         // (HoodMgr.addLinkTunnelHooks).
         if (strstr(t.name, "tunnel_trigger") && !strncmp(t.owner, "linktunnel_", 11)) {
@@ -151,35 +201,65 @@ Exit Place::exitAt(float x, float y, float z) const {
 }
 
 void Place::arrival(u32 fromZone, float* x, float* y, float* z, float* h) const {
-    const Point* p = nullptr;
-    char name[40];
-    if (fromZone && placeKind(fromZone) == PlaceKind::Street) {
-        // Through the tunnel that leads back to fromZone.
-        for (int i = 0; i < numPoints_ && !p; i++) {
-            if (!strncmp(points_[i].name, "linktunnel_", 11)) {
-                const char* zs = strchr(points_[i].name + 11, '_');
-                if (zs && static_cast<u32>(strtoul(zs + 1, nullptr, 10)) == fromZone) p = &points_[i];
-            }
+    // Arrive at the exit that leads back to fromZone: the tunnel named for it, or the door
+    // of its block. Works for both .ttc and .tz zones (triggers live in the collision).
+    const CollisionWorld& cw = collision();
+    const CollTrigger* back = nullptr;
+    for (int i = 0; i < cw.numTriggers() && fromZone && !back; i++) {
+        const CollTrigger& t = cw.trigger(i);
+        if (!strstr(t.name, "trigger")) continue;
+        if (!strncmp(t.owner, "linktunnel_", 11)) {
+            const char* zs = strchr(t.owner + 11, '_');
+            if (zs && static_cast<u32>(strtoul(zs + 1, nullptr, 10)) == fromZone) back = &t;
+        } else if (placeKind(fromZone) == PlaceKind::Interior &&
+                   (!strncmp(t.owner, "sz", 2) || !strncmp(t.owner, "tb", 2)) &&
+                   static_cast<u32>(strtoul(t.owner + 2, nullptr, 10)) == fromZone % 100) {
+            back = &t;
         }
-    } else if (fromZone && placeKind(fromZone) == PlaceKind::Interior) {
-        snprintf(name, sizeof(name), "door_origin_%lu", static_cast<unsigned long>(fromZone % 100));
-        p = point(name);
     }
-    if (!p && kind() == PlaceKind::Interior) p = pointWithPrefix("spawn");
-    if (!p && kind() == PlaceKind::Interior) p = pointWithPrefix("door");
-    if (!p) {
+    if (!back && kind() == PlaceKind::Interior) {
+        for (int i = 0; i < cw.numTriggers() && !back; i++) {
+            if (strstr(cw.trigger(i).name, "door")) back = &cw.trigger(i);
+        }
+    }
+    if (!back) {
         *x = kDefaultSpawn[0];
         *y = kDefaultSpawn[1];
         *z = kDefaultSpawn[2];
         *h = kDefaultSpawn[3];
+        if (zone_.loaded()) { // streets: the middle of the zone, collision finds the ground
+            *x = (boundsMin()[0] + boundsMax()[0]) * 0.5f;
+            *y = (boundsMin()[1] + boundsMax()[1]) * 0.5f;
+            *z = boundsMax()[2];
+        }
         return;
     }
-    // Step out in front of the anchor (its +Y), facing away from it.
-    const float hr = p->h * kDegToRad;
-    *x = p->x - sinf(hr) * kArrivalDistance;
-    *y = p->y + cosf(hr) * kArrivalDistance;
-    *z = p->z;
-    *h = p->h;
+    // Step out of the exit's open side, facing away from it (upstream walks the toon out of
+    // the tunnel mouth / door). The open side is the direction with the longest clear line
+    // of sight (camera-mask rays); ties go toward the zone's centre.
+    const float cx = (back->min[0] + back->max[0]) * 0.5f, cy = (back->min[1] + back->max[1]) * 0.5f;
+    const float cz = back->min[2] + 2.0f;
+    const float mx = (boundsMin()[0] + boundsMax()[0]) * 0.5f, my = (boundsMin()[1] + boundsMax()[1]) * 0.5f;
+    float dx = 0.0f, dy = 1.0f, bestScore = -1.0f;
+    for (int i = 0; i < 8; i++) {
+        const float a = i * 3.14159265f / 4.0f;
+        const float ux = cosf(a), uy = sinf(a);
+        float t = 1.0f;
+        const float reach = 40.0f;
+        cw.cameraRaycast(Vec3{cx, cy, cz}, Vec3{cx + ux * reach, cy + uy * reach, cz}, &t);
+        float toCentre = ux * (mx - cx) + uy * (my - cy);
+        toCentre = toCentre > 0 ? 1.0f : 0.0f;
+        const float score = t * reach + toCentre * 2.0f;
+        if (score > bestScore) {
+            bestScore = score;
+            dx = ux;
+            dy = uy;
+        }
+    }
+    *x = cx + dx * kArrivalDistance;
+    *y = cy + dy * kArrivalDistance;
+    *z = back->max[2];
+    *h = atan2f(-dx, dy) / kDegToRad; // Panda heading: H=0 faces +Y
 }
 
 } // namespace tt::world
