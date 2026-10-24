@@ -15,6 +15,8 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "world/suits.h"
+#include "world/toon_anim.h"
+#include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #endif
 
@@ -111,6 +113,10 @@ struct JntTrack {
     bool loaded() const { return data != nullptr; }
     int findJoint(const char* name) const;
     bool sample(int jointIdx, float t, C3D_Mtx* out) const;
+    int joint(const char* name) const {
+        for (int i = 0; i < jointCount && i < 4; ++i) if (!strcmp(names[i], name)) return i;
+        return -1;
+    }
 };
 
 // ----------------------------------------------------------------------
@@ -150,10 +156,12 @@ public:
     // Frame update and 3D draw
     void update(float dt, uint32_t nowMs, const Battle* battle, const ToonLook* localLook);
     void draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook);
+    // Finds the drawn avatar of a battle toon (local or remote) so held props follow its
+    // torso's JNT hand joint. Call draw() after the toons are drawn this frame.
+    using ToonLookup = const ToonAvatar* (*)(void* user, uint32_t doId);
+    void setToonLookup(ToonLookup fn, void* user) { toonLookup_ = fn; toonLookupUser_ = user; }
+    void drawExplosion(render::Renderer& renderer, float x, float y, float z) const;
 
-    // Showcase helper for autotest step "battle fx showcase"
-    void drawShowcase(render::Renderer& renderer, float toonX, float toonY, float toonZ, float toonH,
-                      float elapsedSec, SuitActors& suits, const ToonLook* localLook);
 
     // Sound cue playback
     void playCue(const char* name, float volume = 1.0f);
@@ -176,8 +184,9 @@ private:
     render::Model lipstickModel_;
     render::Model phoneModel_;
     render::Model receiverModel_;
-    render::Model kapowModel_;
-    render::Anim kapowAnim_;
+    render::Model explosionModel_; // phase_3.5 explosion: the Cog-death burst
+    ToonLookup toonLookup_ = nullptr;
+    void* toonLookupUser_ = nullptr;
 
     // Active visual effects pools
     struct ActiveProp {
@@ -229,7 +238,9 @@ private:
         float h = 0.0f;
         uint32_t startMs = 0;
         uint32_t durMs = 600;
-        bool playedAudio = false;
+        bool playedAudio = false; // ENC_cogfall_apart (0.4 s before the burst)
+        bool playedSpin = false;  // Cog_Death spin (0.8 s into the lose animation)
+        float height = 0.0f;      // Suit.height: the burst sits at height - 0.2
     };
     static constexpr int kMaxKapows = 4;
     ActiveKapow kapows_[kMaxKapows] = {};

@@ -318,7 +318,7 @@ bool BattleFx::init() {
         {"sdmc:/3ds/toontown3ds/data/props/lipstick.ttm", &lipstickModel_},
         {"sdmc:/3ds/toontown3ds/data/props/phone.ttm", &phoneModel_},
         {"sdmc:/3ds/toontown3ds/data/props/receiver.ttm", &receiverModel_},
-        {"sdmc:/3ds/toontown3ds/data/props/kapow_full.ttm", &kapowModel_},
+        {"sdmc:/3ds/toontown3ds/data/props/explosion.ttm", &explosionModel_},
     };
 
     for (const auto& item : kModels) {
@@ -329,7 +329,6 @@ bool BattleFx::init() {
 
     splatAnim_.load("sdmc:/3ds/toontown3ds/data/props/splat_full_action.tta");
     featherAnim_.load("sdmc:/3ds/toontown3ds/data/props/feather_full_action.tta");
-    kapowAnim_.load("sdmc:/3ds/toontown3ds/data/props/kapow_full_action.tta");
 
     modelsLoaded_ = true;
     reset();
@@ -354,8 +353,7 @@ void BattleFx::shutdown() {
     lipstickModel_.unload();
     phoneModel_.unload();
     receiverModel_.unload();
-    kapowModel_.unload();
-    kapowAnim_.unload();
+    explosionModel_.unload();
 
     for (int i = 0; i < kMaxJntSlots; ++i) jntSlots_[i].track.unload();
     for (int i = 0; i < kMaxSfxSlots; ++i) {
@@ -557,6 +555,7 @@ void BattleFx::onDie(uint32_t cogId, uint32_t startMs) {
             kapows_[i].startMs = startMs + 5400;
             kapows_[i].durMs = 600;
             kapows_[i].playedAudio = false;
+            kapows_[i].playedSpin = false;
             break;
         }
     }
@@ -633,18 +632,39 @@ void BattleFx::update(float dt, uint32_t nowMs, const Battle* battle, const Toon
                 float cx = 0, cy = 0, cz = 0, ch = 0;
                 if (battle->actorPos(kapows_[i].cogId, &cx, &cy, &cz, &ch)) {
                     kapows_[i].x = cx; kapows_[i].y = cy; kapows_[i].z = cz; kapows_[i].h = ch;
+                    kapows_[i].height = battle->actorHeight(kapows_[i].cogId);
                 }
             }
-            if (nowMs >= kapows_[i].startMs && !kapows_[i].playedAudio) {
+            // MovieUtil.createSuitDeathTrack: Cog_Death spins from 0.8 s into the lose clip,
+            // ENC_cogfall_apart follows at 5.0 s, and the burst shows at 5.4 s.
+            if (nowMs + 4600 >= kapows_[i].startMs && !kapows_[i].playedSpin) {
+                kapows_[i].playedSpin = true;
+                playCue("Cog_Death", 0.8f);
+            }
+            if (nowMs + 400 >= kapows_[i].startMs && !kapows_[i].playedAudio) {
                 kapows_[i].playedAudio = true;
-                playCue("Cog_Death");
-                playCue("ENC_cogfall_apart");
+                playCue("ENC_cogfall_apart", 0.32f);
             }
             if (nowMs >= kapows_[i].startMs + kapows_[i].durMs) {
                 kapows_[i].active = false;
             }
         }
     }
+}
+
+void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float z) const {
+    if (!explosionModel_.loaded()) return;
+    // setBillboardPointEye: the card's +Y points from the eye through the burst.
+    const C3D_FVec& eye = renderer.eye();
+    const float dx = x - eye.x, dy = y - eye.y, dz = z - eye.z;
+    const float flat = sqrtf(dx * dx + dy * dy);
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, x, y, z, true);
+    Mtx_RotateZ(&m, atan2f(-dx, dy), true);
+    Mtx_RotateX(&m, atan2f(dz, flat), true);
+    Mtx_Scale(&m, 0.4f, 0.4f, 0.4f);
+    renderer.drawModel(const_cast<render::Model&>(explosionModel_), m);
 }
 
 void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook) {
@@ -698,25 +718,11 @@ void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const Toon
         }
     }
 
-    // 3. Draw active kapow explosions
+    // 3. Cog-death bursts: MovieUtil.createKapowExplosionTrack, explosion.bam at scale 0.4,
+    // billboarded to the eye, at the Cog's height - 0.2, for 0.6 s.
     for (int i = 0; i < kMaxKapows; ++i) {
         const ActiveKapow& k = kapows_[i];
-        if (k.active && nowMs_ >= k.startMs) {
-            const float age = float(nowMs_ - k.startMs) / 1000.0f;
-            C3D_Mtx m;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, k.x, k.y, k.z + 2.8f, true);
-            Mtx_RotateZ(&m, k.h * kDegToRad, true);
-            const float sc = 1.0f + age * 1.5f;
-            Mtx_Scale(&m, sc, sc, sc);
-
-            if (kapowModel_.loaded() && kapowAnim_.loaded()) {
-                u32 a = 0, b = 0;
-                float blend = 0.0f;
-                render::sampleClip(kapowAnim_, age, &a, &b, &blend);
-                renderer.drawMorph(kapowModel_, kapowAnim_, a, b, blend, m);
-            }
-        }
+        if (k.active && nowMs_ >= k.startMs) drawExplosion(renderer, k.x, k.y, k.z + (k.height > 0 ? k.height - 0.2f : 3.0f));
     }
 
     // 4. Draw held props
@@ -732,162 +738,30 @@ void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const Toon
             Mtx_Translate(&world, ax, ay, az, true);
             Mtx_RotateZ(&world, ah * kDegToRad, true);
 
-            if (isToon) {
-                C3D_Mtx torsoWorld = world;
-                Mtx_Translate(&torsoWorld, 0.0f, 0.0f, 1.4f, true);
-
-                // Sample JNT if local look is valid
-                C3D_Mtx handMtx;
-                Mtx_Identity(&handMtx);
-                bool sampled = false;
-                if (localLook && localLook->torso) {
-                    char path[80];
-                    const char* clip = (pr.track == 4) ? "throw" : "pushbutton";
-                    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/toon/%s_%s.jnt",
-                             localLook->torso->key, clip);
-                    if (JntTrack* jnt = getJnt(path)) {
-                        const float t = float(nowMs_ - pr.startMs) / 1000.0f;
-                        sampled = jnt->sample(1, t, &handMtx);
-                    }
-                }
-                if (!sampled) {
-                    // Fallback right hand position
-                    Mtx_Translate(&handMtx, 1.2f, 0.3f, 0.4f, true);
-                }
-
-                C3D_Mtx propWorld;
-                Mtx_Multiply(&propWorld, &torsoWorld, &handMtx);
-                render::Model* mod = getPropModel(pr.track, pr.level);
-                if (mod && mod->loaded()) renderer.drawModel(*mod, propWorld);
-            }
-        }
-    }
-}
-
-void BattleFx::drawShowcase(render::Renderer& renderer, float toonX, float toonY, float toonZ, float toonH,
-                            float elapsedSec, SuitActors& suits, const ToonLook* localLook) {
-    if (!modelsLoaded_) return;
-
-    // Place Cog in front of toon
-    const float rad = toonH * kDegToRad;
-    const float cogX = toonX - 12.0f * sinf(rad);
-    const float cogY = toonY + 12.0f * cosf(rad);
-    const float cogZ = toonZ;
-    const float cogH = toonH + 180.0f;
-
-    suits.drawShowcase(renderer, "f", cogX, cogY, cogZ, cogH, false, elapsedSec);
-
-    // Sequence through battle effects based on elapsed time (loops every 4.0s)
-    const float loopT = fmodf(elapsedSec, 4.0f);
-
-    if (loopT < 1.2f) {
-        // --- 0.0s - 1.2s: Pie Throw ---
-        const float t = loopT / 1.2f;
-        if (t < 0.6f) {
-            // Held in hand
-            C3D_Mtx m;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, toonX, toonY, toonZ + 1.4f, true);
-            Mtx_RotateZ(&m, toonH * kDegToRad, true);
-            Mtx_Translate(&m, 1.0f, 0.4f, 0.5f, true);
-            if (tartModel_.loaded()) renderer.drawModel(tartModel_, m);
-        } else {
-            // Flying to Cog
-            const float a = (t - 0.6f) / 0.3f;
-            if (a < 1.0f) {
-                ProjectileArc arc;
-                arc.x0 = toonX; arc.y0 = toonY; arc.z0 = toonZ + 2.0f;
-                arc.x1 = cogX; arc.y1 = cogY; arc.z1 = cogZ + 3.0f;
-                arc.maxHeight = 2.5f;
-                arc.startMs = 0; arc.hitMs = 1000;
-                float px = 0, py = 0, pz = 0, heading = 0, pitch = 0;
-                arc.sample(uint32_t(a * 1000.0f), &px, &py, &pz, &heading, &pitch);
-
-                C3D_Mtx m;
-                Mtx_Identity(&m);
-                Mtx_Translate(&m, px, py, pz, true);
-                Mtx_RotateZ(&m, heading * kDegToRad, true);
-                Mtx_RotateX(&m, pitch * kDegToRad, true);
-                if (tartModel_.loaded()) renderer.drawModel(tartModel_, m);
-            } else {
-                // Splat on Cog chest
-                const float splatAge = (t - 0.9f) / 0.3f;
-                C3D_Mtx m;
-                Mtx_Identity(&m);
-                Mtx_Translate(&m, cogX, cogY, cogZ + 3.0f, true);
-                Mtx_RotateZ(&m, cogH * kDegToRad, true);
-                const SplatConfig cfg = getSplatConfig(4, 0);
-                Mtx_Scale(&m, cfg.scale, cfg.scale, cfg.scale);
-
-                if (splatModel_.loaded() && splatAnim_.loaded()) {
-                    u32 a_idx = 0, b_idx = 0;
-                    float blend = 0.0f;
-                    render::sampleClip(splatAnim_, splatAge * 0.4f, &a_idx, &b_idx, &blend);
-                    renderer.setBaseTint(cfg.r, cfg.g, cfg.b, cfg.a);
-                    renderer.drawMorph(splatModel_, splatAnim_, a_idx, b_idx, blend, m);
-                    renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+            // Toons: ToonAvatar's torso frame x the clip's JNT right-hand joint (Toon
+            // def_joint_right_hold, as upstream parents gag props to toon.rightHands).
+            const ToonAvatar* av = isToon && toonLookup_ ? toonLookup_(toonLookupUser_, pr.actorId) : nullptr;
+            ToonAvatar::TorsoFrame torso;
+            if (av && av->torsoFrame(&torso) && torso.torsoKey) {
+                char path[96];
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/toon/%s_%s.jnt", torso.torsoKey,
+                         kToonAnimNames[torso.anim]);
+                const JntTrack* jnt = getJnt(path);
+                C3D_Mtx hand;
+                const int right = jnt ? jnt->joint("def_joint_right_hold") : -1;
+                if (jnt && right >= 0 && jnt->sample(right, torso.time, &hand)) {
+                    C3D_Mtx propWorld;
+                    Mtx_Multiply(&propWorld, &torso.world, &hand);
+                    render::Model* mod = getPropModel(pr.track, pr.level);
+                    if (mod && mod->loaded()) renderer.drawModel(*mod, propWorld);
                 }
             }
-        }
-    } else if (loopT < 2.4f) {
-        // --- 1.2s - 2.4s: Squirt Flower & Splash ---
-        const float t = (loopT - 1.2f) / 1.2f;
-        // Flower prop on toon
-        C3D_Mtx mFlower;
-        Mtx_Identity(&mFlower);
-        Mtx_Translate(&mFlower, toonX, toonY, toonZ + 1.8f, true);
-        Mtx_RotateZ(&mFlower, toonH * kDegToRad, true);
-        Mtx_Translate(&mFlower, 0.0f, 0.6f, 0.0f, true);
-        if (flowerModel_.loaded()) renderer.drawModel(flowerModel_, mFlower);
-
-        if (t > 0.4f) {
-            // Water splash on Cog
-            const float splashAge = (t - 0.4f) / 0.6f;
-            C3D_Mtx m;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, cogX, cogY, cogZ + 2.5f, true);
-            Mtx_RotateZ(&m, cogH * kDegToRad, true);
-            const float sc = 0.4f + splashAge * 0.6f;
-            Mtx_Scale(&m, sc, sc, sc);
-
-            renderer.setBaseTint(0.75f, 0.75f, 1.0f, 0.8f);
-            if (splashModel_.loaded()) renderer.drawModel(splashModel_, m);
-            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
-        }
-    } else if (loopT < 3.2f) {
-        // --- 2.4s - 3.2s: Cog Phone Attack ---
-        C3D_Mtx mPhone;
-        Mtx_Identity(&mPhone);
-        Mtx_Translate(&mPhone, cogX, cogY, cogZ + 3.0f, true);
-        Mtx_RotateZ(&mPhone, cogH * kDegToRad, true);
-        Mtx_Translate(&mPhone, -0.8f, 0.6f, 0.0f, true);
-        if (phoneModel_.loaded()) renderer.drawModel(phoneModel_, mPhone);
-
-        C3D_Mtx mRec;
-        Mtx_Identity(&mRec);
-        Mtx_Translate(&mRec, cogX, cogY, cogZ + 3.2f, true);
-        Mtx_RotateZ(&mRec, cogH * kDegToRad, true);
-        Mtx_Translate(&mRec, 0.8f, 0.6f, 0.0f, true);
-        if (receiverModel_.loaded()) renderer.drawModel(receiverModel_, mRec);
-    } else {
-        // --- 3.2s - 4.0s: Cog Death Kapow ---
-        const float kapowAge = (loopT - 3.2f) / 0.8f;
-        C3D_Mtx m;
-        Mtx_Identity(&m);
-        Mtx_Translate(&m, cogX, cogY, cogZ + 3.0f, true);
-        Mtx_RotateZ(&m, cogH * kDegToRad, true);
-        const float sc = 1.0f + kapowAge * 1.5f;
-        Mtx_Scale(&m, sc, sc, sc);
-
-        if (kapowModel_.loaded() && kapowAnim_.loaded()) {
-            u32 a = 0, b = 0;
-            float blend = 0.0f;
-            render::sampleClip(kapowAnim_, kapowAge * 0.5f, &a, &b, &blend);
-            renderer.drawMorph(kapowModel_, kapowAnim_, a, b, blend, m);
+            (void)world;
         }
     }
     (void)localLook;
 }
+
 
 #endif // __3DS__
 

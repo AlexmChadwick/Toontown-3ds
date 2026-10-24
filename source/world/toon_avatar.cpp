@@ -53,6 +53,7 @@ void ToonClipSet::load(const ToonLook& l,const char* const* names,int n) {
 }
 void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const render::Tints* tintOverride) const {
     const ToonLook* look=look_&&look_->ready()?look_:fallback_;
+    torsoValid_=false;
     if (!look || !look->ready()) return;
     const render::Tints* tints=tintOverride?tintOverride:&look->tints;
     const C3D_Tex* textures[render::kTexSlotCount];look->slotTextures(textures);
@@ -73,6 +74,7 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
     const bool streamed=look->cache && look->cache->sample(this,*look,anim,time,loop,&pose);
     ToonPart* parts[3]={look->legs,look->torso,look->head};
     for (int p=0;p<3;p++) {
+        if (p==1) { torso_.world=partWorld; torso_.anim=anim; torso_.time=time; torso_.torsoKey=look->torso->key; torsoValid_=true; }
         if (p==2) {
             Mtx_RotateZ(&partWorld,emote.headH*0.01745329252f,true);
             Mtx_RotateX(&partWorld,emote.headP*0.01745329252f,true);

@@ -168,6 +168,7 @@ public:
 
     void setFx(BattleFx* fx) { battleFx_ = fx; }
     bool actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon = nullptr) const;
+    float actorHeight(uint32_t doId) const; // nametag height (Suit.height for Cogs); 0 if unknown
 
 private:
     struct Actor {

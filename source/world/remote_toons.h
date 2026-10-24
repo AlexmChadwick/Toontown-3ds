@@ -31,6 +31,7 @@ public:
     // Adds nametags/balloons for toons in front of the camera.
     void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const;
     int count() const { return count_; }
+    const ToonAvatar* avatar(u32 doId) const; // nullptr if not visible
     // Appends up to maxOut map markers (x, y) for active toons; returns how many were written.
     int mapPositions(float* xy, int maxOut) const;
     // Feet positions + body scale (x, y, z, scale) of active toons, for drop shadows.

@@ -306,4 +306,10 @@ void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
     }
 }
 
+const ToonAvatar* RemoteToons::avatar(u32 doId) const {
+    for (const Remote& r : toons_)
+        if (r.active && r.doId == doId) return &r.avatar;
+    return nullptr;
+}
+
 } // namespace tt::world

@@ -96,6 +96,14 @@ void Battle::reset() {
     if (battleFx_) battleFx_->reset();
 }
 
+float Battle::actorHeight(uint32_t doId) const {
+    for (int i = 0; i < net::kBattleSuits; ++i)
+        if (suits_[i].used && suits_[i].doId == doId) return suits_[i].height;
+    for (int i = 0; i < net::kBattleToons; ++i)
+        if (toons_[i].used && toons_[i].doId == doId) return toons_[i].height;
+    return 0.0f;
+}
+
 bool Battle::actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon) const {
     for (int i = 0; i < net::kBattleSuits; ++i) {
         if (suits_[i].used && suits_[i].doId == doId) {

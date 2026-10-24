@@ -355,6 +355,12 @@ int main() {
     static tt::world::BattleFx battleFx;
     battleFx.init();
     battle.setFx(&battleFx);
+    struct FxToons { const tt::net::Client* net; const tt::world::ToonAvatar* local; const tt::world::RemoteToons* remote; };
+    static FxToons fxToons{&net, &localToon, &remoteToons};
+    battleFx.setToonLookup([](void* user, uint32_t doId) -> const tt::world::ToonAvatar* {
+        const FxToons& t = *static_cast<FxToons*>(user);
+        return doId == t.net->avatarId() ? t.local : t.remote->avatar(doId);
+    }, &fxToons);
     static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
@@ -645,6 +651,10 @@ int main() {
             if (suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
         }
         if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
+            // Started mid-script: go to a street with cogs (Silly Street) first.
+            if (tt::world::placeKind(place.zoneId()) != tt::world::PlaceKind::Street &&
+                !uiState.teleportRequest && fadeDir == 0)
+                uiState.teleportRequest = 2100;
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
             static u32 lastLog = 0;
@@ -1402,10 +1412,6 @@ int main() {
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
                 }
-            }
-            if (autotest.active() && !strcmp(autotest.label(), "battle fx showcase")) {
-                battleFx.drawShowcase(renderer, player.x(), player.y(), player.groundZ(), player.headingDeg(),
-                                      autotest.stepTime(), suits, localLook.valid() ? &localLook : nullptr);
             }
             tt::prof::lap(tt::prof::kDrawActors);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.

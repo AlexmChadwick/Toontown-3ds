@@ -58,6 +58,10 @@ public:
     // tintOverride (optional) replaces the look's DNA colours (offline colour picker).
     void draw(render::Renderer& renderer, const C3D_Mtx& world, const render::Tints* tintOverride = nullptr) const;
     ToonAnim anim() const { return anim_; }
+    // The torso part's world transform, clip and clip time from the latest draw(): battle
+    // props attach to its JNT hand joints (torso_<key>_<clip>.jnt, relative to this frame).
+    struct TorsoFrame { C3D_Mtx world; ToonAnim anim; float time; const char* torsoKey; };
+    bool torsoFrame(TorsoFrame* out) const { if (!torsoValid_) return false; *out=torso_; return true; }
     float rate() const { return rate_; }
 
 private:
@@ -66,6 +70,8 @@ private:
     ToonAnim anim_ = kAnimNeutral;
     float rate_ = 1.0f;
     ToonPlayback playback_;
+    mutable TorsoFrame torso_{};
+    mutable bool torsoValid_ = false;
     int emote_ = -1;
     float emoteAge_ = 0;
     bool emoteFinished_ = false, headOnly_ = false;

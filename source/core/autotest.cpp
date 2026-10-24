@@ -33,7 +33,6 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase", "showcase"},
-    {4.0f, 0, 0, 0, 0, -1, -1, 0, "battle fx showcase", "battle_fx"},
     {1.3f, 0, 0, 0, 0, -1, -1, 0, "clip: throw", "clip_throw"},
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},
@@ -60,9 +59,9 @@ const Step kScript[] = {
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: tunnel 2132", "exit_tunnel"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: street door", "street_interior"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "street_back"},
-    {8.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "fight cog", "battle_start"},
-    {45.0f, 0, 0, 0, 0, -1, -1, 0, "fight: rounds", "battle_end"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "fight: rounds", "battle_end**"},
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "teleport DD", "hood_dd"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "see boat", "boat"},
@@ -193,11 +192,26 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
     pad.dy = s.padY;
     held |= s.held;
     t_ += dt;
+    size_t shotLen = s.shot ? strlen(s.shot) : 0;
+    int stars = 0;
+    while (shotLen > 1 && s.shot[shotLen - 1] == '*') { shotLen--; stars++; }
+    const bool series = stars > 0;
+    const float interval = stars > 1 ? 0.25f : 1.0f;
     if (t_ >= s.seconds) {
         pendingShot_ = s.shot;
+        if (series) {
+            snprintf(seriesName_, sizeof(seriesName_), "%.*s_end", int(shotLen), s.shot);
+            pendingShot_ = seriesName_;
+        }
         t_ = 0.0f;
+        nextSeriesShot_ = 0.0f;
+        seriesIndex_ = 0;
         stepStarted_ = false;
         step_++;
+    } else if (series && t_ >= nextSeriesShot_ + interval) {
+        nextSeriesShot_ += interval;
+        snprintf(seriesName_, sizeof(seriesName_), "%.*s_%03d", int(shotLen), s.shot, ++seriesIndex_);
+        pendingShot_ = seriesName_;
     }
     return true;
 }

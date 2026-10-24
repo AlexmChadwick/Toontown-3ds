@@ -11,7 +11,7 @@ from panda3d.core import NodePath,OrthographicLens,PNMImage,TransparencyAttrib,l
 loadPrcFileData('', 'window-type offscreen\nload-display p3tinydisplay\nwin-size 28 28\nframebuffer-alpha true')
 from direct.showbase.ShowBase import ShowBase
 WANTED=('feather','megaphone','lipstick','lips','hat','cane','tart','fruitpie-slice','creampie-slice',
-        'squirting-flower','glass','water-gun','bottle','splat','button','propeller','kapow','splash','phone','receiver')
+        'squirting-flower','glass','water-gun','bottle','splat','button','propeller','kapow','splash','phone','receiver','explosion')
 
 
 def atlas(base,out,preview):
@@ -62,6 +62,8 @@ def main():
     preview=ROOT/'sdmc-out/previews/cogs';preview.mkdir(parents=True,exist_ok=True)
     base=ShowBase();rows=literal_table('toontown/battle/BattleProps.py','Props')
     entries={r[1]:r for r in rows};entries['tart']=(3.5,'tart','tart');entries['kapow']=(5,'kapow','kapow-mod','kapow-chan');entries['splash']=(5,'splash','splash')
+    # MovieUtil.createKapowExplosionTrack: the Cog-death burst (static card, billboarded at runtime).
+    entries['explosion']=(3.5,'explosion','explosion')
     manifest=dict(version=1,props={})
     for name in WANTED:
         row=entries[name];model=f'phase_{row[0]:g}/models/props/{row[2]}'

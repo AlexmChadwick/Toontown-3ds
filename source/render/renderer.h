@@ -30,6 +30,7 @@ public:
     // -1/+1 = left/right eye with interocular distance `iod` (stereo is opt-in).
     void beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                     int eyeSign);
+    const C3D_FVec& eye() const { return eye_; } // camera position of the current world pass (billboards)
     // slotTex (optional, kTexSlotCount entries): per-draw textures for batches whose
     // texSlot is non-zero (toon clothing). A null entry keeps the batch's own texture.
     void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr,
@@ -81,6 +82,7 @@ private:
 
     C3D_Mtx projection_{};
     C3D_Mtx view_{};
+    C3D_FVec eye_{};
     C3D_FVec frustum_[6]{}; // world-space planes (xyz normal, w distance), inside >= 0
     FrameStats stats_{};
 };

@@ -15,7 +15,9 @@ struct Step {
     int touchX, touchY; // touch on the first frame (-1 = none)
     int stressToons;    // -1 = unchanged
     const char* label;
-    const char* shot = nullptr; // screenshot name taken on the step's last frame
+    const char* shot = nullptr; // screenshot name taken on the step's last frame;
+                                // "name*" also shoots once a second as name_001, name_002, ...
+                                // and "name**" every 0.25 s.
 };
 
 class Runner {
@@ -44,6 +46,9 @@ private:
     float t_ = 0.0f;
     bool stepStarted_ = false;
     const char* pendingShot_ = nullptr;
+    float nextSeriesShot_ = 0.0f;
+    int seriesIndex_ = 0;
+    char seriesName_[40] = {};
 };
 
 } // namespace tt::autotest

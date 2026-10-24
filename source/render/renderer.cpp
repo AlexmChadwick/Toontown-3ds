@@ -89,6 +89,7 @@ void Renderer::bindMode(Mode mode) {
 
 void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                           int eyeSign) {
+    eye_ = eye;
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, kClearSky, 0);
     C3D_FrameDrawOn(target);
 
