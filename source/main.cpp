@@ -685,8 +685,10 @@ int main() {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
         }
-        if (autotest.active() && !strcmp(autotest.label(), "fight cog") && !battle.active()) {
-            // Test-only: walk into the first cog; Battle::setAutoPlay picks the gags.
+        if (autotest.active() && !battle.active() &&
+            (!strcmp(autotest.label(), "fight cog") || !strncmp(autotest.label(), "battle: ", 8))) {
+            // Test-only: walk into the first cog; Battle::setAutoPlay picks the gags (the
+            // "battle: <track>" steps force that track, each in a fight of its own).
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
         }

@@ -772,9 +772,9 @@ void BattleCamera::buildMovie(uint32_t battleId, uint32_t round, const Battle& b
 void BattleCamera::sample(uint32_t nowMs, const Battle& battle,
                           float* eyeX, float* eyeY, float* eyeZ,
                           float* tgtX, float* tgtY, float* tgtZ) const {
-    // Default battle center
+    // The battle node: every Held/Focus/default shot is relative to it.
     float bx = 0.0f, by = 0.0f, bz = 0.0f, bh = 0.0f;
-    battle.actorPos(battle.battleId(), &bx, &by, &bz, &bh);
+    battle.center(&bx, &by, &bz, &bh);
 
     // 1. FaceOff modes
     if (currentMode_ == BattleCamShotKind::FaceOffTaunt) {

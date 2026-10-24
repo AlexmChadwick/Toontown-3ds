@@ -182,6 +182,8 @@ public:
 
     void setFx(BattleFx* fx) { battleFx_ = fx; }
     bool actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon = nullptr) const;
+    // The battle's own node: its centre on the ground and heading (DistributedBattleBase.setPosHpr).
+    void center(float* x, float* y, float* z, float* h) const { *x = bx_, *y = by_, *z = bz_, *h = bh_; }
     float actorHeight(uint32_t doId) const; // nametag height (Suit.height for Cogs); 0 if unknown
 
 private:
