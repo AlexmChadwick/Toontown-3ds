@@ -13,6 +13,7 @@
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/screenshot.h"
+#include "game/front_end.h"
 #include "net/client.h"
 #include "net/connection.h"
 #include "net/net_platform.h"
@@ -123,13 +124,20 @@ int main() {
     static tt::net::Connection netConn;
     static tt::net::Client net;
     bool netStarted = false;
-    if (settings.online && netConn.init()) {
+    bool netConnReady = false;
+    // Starts the client; manual = the front end picks/creates the toon.
+    auto startNet = [&](bool manual) {
+        if (netStarted) return net.connect() || net.inZone();
+        if (!netConnReady) netConnReady = netConn.init();
+        if (!netConnReady) return false;
         tt::net::ClientConfig cfg;
         cfg.host = settings.host;
         cfg.port = static_cast<uint16_t>(settings.port);
         cfg.playToken = settings.token;
+        cfg.manualAvatar = manual;
         netStarted = net.start(netConn, cfg);
-    }
+        return netStarted;
+    };
     u32 lastPosSendMs = 0;
     bool wasMovingNet = false;
     const char* sentState = nullptr;
@@ -176,6 +184,13 @@ int main() {
     autotest.begin();
     const char* shotName = nullptr;
 
+    // Front end (title / pick / make a toon) unless the scripted autotest runs, which goes
+    // straight into the world with automatic login (when online).
+    static tt::game::FrontEnd frontEnd;
+    frontEnd.init(&toonCache);
+    bool inFrontEnd = !autotest.active() || autotest.frontEndScript();
+    if (!inFrontEnd && settings.online) startNet(false);
+
     u64 lastTick = svcGetSystemTick();
     u64 fpsTick = lastTick;
     int fpsFrames = 0;
@@ -209,6 +224,48 @@ int main() {
         touchPosition touch;
         hidTouchRead(&touch);
         if (in.down & KEY_START) break;
+
+        if (inFrontEnd) {
+            if (netStarted) net.update(tt::net::plat::nowMs());
+            autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
+            if (autotest.pendingShot()) shotName = autotest.pendingShot();
+            const tt::game::Action action = frontEnd.update(in.down, in.held, touch, dt);
+            if (action == tt::game::Action::StartOnline) {
+                if (startNet(true)) {
+                    frontEnd.setNet(&net);
+                } else {
+                    TT_LOG("net: could not start the network");
+                }
+            } else if (action == tt::game::Action::StartOffline || action == tt::game::Action::EnterWorld) {
+                if (action == tt::game::Action::StartOffline && netStarted) net.disconnect();
+                inFrontEnd = false;
+                localLookFromServer = false;
+                player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
+                tt::audio::playSfx(sfxClick);
+            }
+            if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            if (shotName) {
+                char path[96];
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
+                tt::shot::dumpTarget(renderer.topLeft(), path);
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
+                tt::shot::dumpTarget(bottom, path);
+                shotName = nullptr;
+            }
+            frontEnd.drawTop(renderer);
+            frontEnd.drawBottom(bottom);
+            C3D_FrameEnd(0);
+            tt::audio::update();
+            continue;
+        }
+        // Lost the server for good (e.g. logged in elsewhere): back to the title.
+        if (netStarted && net.fatal()) {
+            remoteToons.clear();
+            frontEnd.reset();
+            inFrontEnd = true;
+            continue;
+        }
         if (autotest.active() && secondElapsed) {
             TT_LOG("stats: [%s] fps %.1f cpu %.2f gpu %.2f cmdbuf %.0f%% skipped %lu draws %lu tris %lu toons %d remote %d pos %.1f,%.1f,%.1f h %.0f heap %uK "
                    "linfree %luK",
@@ -399,8 +456,9 @@ int main() {
         tt::audio::update();
     }
 
+    frontEnd.shutdown();
     if (netStarted) net.stop();
-    netConn.shutdown();
+    if (netConnReady) netConn.shutdown();
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();

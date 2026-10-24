@@ -22,6 +22,8 @@ class Runner {
 public:
     bool begin(); // returns false (and stays inactive) if the trigger file is absent
     bool active() const { return active_; }
+    // Started from autotest_fe: drives the front end instead of the world.
+    bool frontEndScript() const { return frontEnd_; }
     // Overrides input for this frame. Returns false when the script is finished.
     bool apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons);
     const char* label() const;
@@ -30,6 +32,9 @@ public:
 
 private:
     bool active_ = false;
+    bool frontEnd_ = false;
+    const Step* script_ = nullptr;
+    int numSteps_ = 0;
     int step_ = 0;
     float t_ = 0.0f;
     bool stepStarted_ = false;

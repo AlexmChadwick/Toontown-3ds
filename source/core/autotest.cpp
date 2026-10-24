@@ -31,30 +31,56 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
-constexpr int kNumSteps = sizeof(kScript) / sizeof(kScript[0]);
+constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
+
+// Front end (source/game/front_end.cpp layout): title -> Play online -> slot 1 ->
+// Make a Toon (cat girl, colour, shirt) -> Create -> playground. Taps fire on release,
+// so each tap step holds the touch for its first frame only.
+constexpr int kFeNextX = 255, kFeNextY = 217;
+const Step kFrontEndScript[] = {
+    {2.0f, 0, 0, 0, 0, -1, -1, -1, "fe: title", "fe_title"},
+    {6.0f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_pick"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: pick slot 1"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: make a toon"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 160, 51, -1, "fe: species cat", "fe_species"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> body"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 255, 171, -1, "fe: girl", "fe_body"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> colour"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 191, 76, -1, "fe: colour 6", "fe_color"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> clothes"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 280, 70, -1, "fe: next shirt", "fe_clothes"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> confirm", "fe_confirm"},
+    {10.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_world"},
+    {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
+};
+constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[0]);
 
 } // namespace
 
 bool Runner::begin() {
-    FILE* f = fopen("sdmc:/3ds/toontown3ds/autotest", "r");
+    FILE* f = fopen("sdmc:/3ds/toontown3ds/autotest_fe", "r");
+    frontEnd_ = f != nullptr;
+    if (!f) f = fopen("sdmc:/3ds/toontown3ds/autotest", "r");
     if (!f) return false;
     fclose(f);
     active_ = true;
-    TT_LOG("autotest: start (%d steps)", kNumSteps);
+    script_ = frontEnd_ ? kFrontEndScript : kScript;
+    numSteps_ = frontEnd_ ? kFrontEndSteps : kWorldSteps;
+    TT_LOG("autotest: start %s script (%d steps)", frontEnd_ ? "front-end" : "world", numSteps_);
     return true;
 }
 
-const char* Runner::label() const { return active_ && step_ < kNumSteps ? kScript[step_].label : ""; }
+const char* Runner::label() const { return active_ && step_ < numSteps_ ? script_[step_].label : ""; }
 
 bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons) {
     pendingShot_ = nullptr;
     if (!active_) return true;
-    if (step_ >= kNumSteps) {
+    if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");
         return false;
     }
-    const Step& s = kScript[step_];
+    const Step& s = script_[step_];
     if (!stepStarted_) {
         TT_LOG("autotest: step %d '%s'", step_, s.label);
         down |= s.downOnce;
