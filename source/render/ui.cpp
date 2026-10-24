@@ -266,14 +266,17 @@ void Ui::drawGags(const Context& c) {
             for (int t = 0; t < gags::kTracks; t++) {
                 const bool have = c.trackAccess[t];
                 const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
-                char counts[48];
-                int n = 0;
+                const float y = 26 + t * 24;
+                debugLine(8, y, 0.5f, have ? kWhite : kDim, "%s", gags::kTrackNames[t]);
                 for (int l = 0; l < gags::kLevels; l++) {
-                    n += snprintf(counts + n, sizeof(counts) - n, l < levels ? "%3u" : "  -",
+                    if (l < levels) {
+                        debugLine(80 + l * 22, y, 0.5f, c.gagCount[t][l] ? kWhite : kDim, "%u",
                                   unsigned(c.gagCount[t][l]));
+                    } else {
+                        debugLine(80 + l * 22, y, 0.5f, kDim, "-");
+                    }
                 }
                 const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
-                debugLine(8, 26 + t * 24, 0.5f, have ? kWhite : kDim, "%-8s%s", gags::kTrackNames[t], counts);
                 if (have && next) {
                     debugLine(236, 28 + t * 24, 0.4f, kDim, "%u/%u", unsigned(c.gagExp[t]), unsigned(next));
                 } else if (have) {

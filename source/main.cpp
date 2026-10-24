@@ -396,17 +396,21 @@ int main() {
                 break;
             }
         }
-        if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
-            // Test-only: stand 9 units from the classic character, facing it.
-            float cx, cy, cz;
-            if (cchars.firstPosition(&cx, &cy, &cz)) {
-                const float dx = player.x() - cx, dy = player.y() - cy, d = sqrtf(dx * dx + dy * dy);
-                if (d > 10.0f || d < 8.0f) {
-                    const float ux = d > 0.1f ? dx / d : 0.0f, uy = d > 0.1f ? dy / d : -1.0f;
-                    // Face 30 degrees to its side so the toon does not hide it from the camera.
-                    player.reset(cx + ux * 9.0f, cy + uy * 9.0f, cz, atan2f(ux, -uy) / kDegToRad + 30.0f);
-                }
+        // Test-only: stand `dist` from a target, facing 30 degrees to its side so the toon
+        // does not hide it from the camera.
+        auto autotestFace = [&](float cx, float cy, float cz, float dist) {
+            const float dx = player.x() - cx, dy = player.y() - cy, d = sqrtf(dx * dx + dy * dy);
+            if (d > dist + 1.0f || d < dist - 1.0f) {
+                const float ux = d > 0.1f ? dx / d : 0.0f, uy = d > 0.1f ? dy / d : -1.0f;
+                player.reset(cx + ux * dist, cy + uy * dist, cz, atan2f(ux, -uy) / kDegToRad + 30.0f);
             }
+        };
+        if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
+            float cx, cy, cz;
+            if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "see boat") && boat.active()) {
+            autotestFace(boat.x(), boat.y(), boat.z() + 2.0f, 30.0f);
         }
         if (autotest.active() && !strcmp(autotest.label(), "grab treasure") && !autotestGrabbed) {
             // Test-only: stand on the nearest treasure so the grab path runs.

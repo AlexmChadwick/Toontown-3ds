@@ -82,7 +82,7 @@ private:
         float x, y, scale;
         u32 color;
     };
-    static constexpr int kMaxDebugLines = 16;
+    static constexpr int kMaxDebugLines = 72; // the Gags tab caches one label per gag
     static constexpr int kDebugRefreshFrames = 10; // text parsing is ~ms of CPU; don't do it every frame
 
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
