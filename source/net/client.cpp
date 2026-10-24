@@ -66,6 +66,7 @@ TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
 TT_SIG(DistributedTreasure, setPosition, "i16/10,i16/10,i16/10");
 TT_SIG(DistributedTreasure, requestGrab, "");
 TT_SIG(DistributedTreasure, setGrab, "u32");
+TT_SIG(DistributedCCharBase, setWalk, "string,string,i16");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
 static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
@@ -628,6 +629,10 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleTreasureEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (classHasField(*cls, dc::DistributedCCharBase::k_setWalk)) {
+        handleCCharEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
 }
 
 void Client::maybeSkipTutorial() {
@@ -654,6 +659,14 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
                 pushEvent(EventType::TreasureGone, doId);
             }
             return;
+        }
+    }
+    for (CChar& c : cchars_) {
+        if (c.active && c.doId == doId) {
+            if (fieldId == dc::DistributedCCharBase::k_setWalk) {
+                if (applyCCharField(c, r, fieldId)) pushEvent(EventType::CCharWalk, doId);
+            }
+            return; // setChat / fadeAway / Dale's setFollowChip: not shown yet
         }
     }
     if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
@@ -718,6 +731,12 @@ void Client::handleLeaving(uint32_t doId) {
         if (t.active && t.doId == doId) {
             t.active = false;
             pushEvent(EventType::TreasureGone, doId);
+        }
+    }
+    for (CChar& c : cchars_) {
+        if (c.active && c.doId == doId) {
+            c.active = false;
+            pushEvent(EventType::CCharGone, doId);
         }
     }
 }
@@ -1041,6 +1060,56 @@ bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_
     return true;
 }
 
+bool Client::applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedCCharBase::k_setWalk) {
+        r.string(c.src, sizeof(c.src));
+        r.string(c.dst, sizeof(c.dst));
+        const int16_t ts = r.i16();
+        // CharWalkState seeks the walk to globalClockDelta.localElapsedTime(ts).
+        c.walkStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else {
+        skipField(r, fieldId);
+    }
+    return r.ok();
+}
+
+bool Client::handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                              uint16_t reqCount, bool other) {
+    CChar* c = nullptr;
+    for (CChar& s : cchars_) {
+        if (s.active && s.doId == doId) c = &s;
+    }
+    for (CChar& s : cchars_) {
+        if (!c && !s.active) c = &s;
+    }
+    if (!c) return false;
+    CChar tmp{};
+    tmp.doId = doId;
+    tmp.classId = classId;
+    bool ok = true;
+    for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyCCharField(tmp, r, req[i]);
+    if (ok && other) {
+        uint16_t count = r.u16();
+        for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = applyCCharField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) {
+        TT_LOG("net: classic char %u generate did not parse", unsigned(doId));
+        return false;
+    }
+    tmp.active = true;
+    *c = tmp;
+    TT_LOG("net: classic char %u class %u walk %s->%s", unsigned(doId), unsigned(classId), c->src, c->dst);
+    pushEvent(EventType::CCharSpawn, doId);
+    return true;
+}
+
+const CChar* Client::findCChar(uint32_t doId) const {
+    for (const CChar& c : cchars_) {
+        if (c.active && c.doId == doId) return &c;
+    }
+    return nullptr;
+}
+
 const NpcToon* Client::findNpc(uint32_t doId) const {
     for (const NpcToon& n : npcs_) {
         if (n.active && n.doId == doId) return &n;
@@ -1291,6 +1360,10 @@ void Client::dropZoneObjects() {
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;
+    }
+    for (CChar& c : cchars_) {
+        if (c.active) pushEvent(EventType::CCharGone, c.doId);
+        c.active = false;
     }
 }
 

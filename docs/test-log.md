@@ -184,6 +184,17 @@ need hardware.
 - **Walking.** Running across TTC holds 29–30 fps; before, it dipped to 20–23 fps while
   chunks streamed. Zone changes still drop the fps for about one second.
 
+### 2026-10-23 — Classic characters (Antigravity chars bake)
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **TTC:** the AI generates DistributedMickey (class 67) with `setWalk a->b`. Mickey
+  loads in 0.18 s (`mickey_800` plus neutral and walk clips) and walks his graph. The
+  "meet mickey" autotest shot shows him animated, with his nametag and drop shadow.
+  The playground holds 29.9 fps at 101 draws / 13.3k tris.
+- **Other playgrounds:** Daisy (DG, class 72, 17-node graph) and Pluto (BR, class 81)
+  spawn and walk. Donald at the wheel (DD, class 80) is received but hidden, because
+  the boat it rides is not implemented.
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

@@ -82,6 +82,9 @@ enum class EventType : uint8_t {
     TreasureSpawn, // a treasure generated (treasures(); doId)
     TreasureGone,  // grabbed or deleted
     Stats,         // our laff/jellybeans changed (ownStats())
+    CCharSpawn,    // a classic character generated (findCChar(doId))
+    CCharWalk,     // setWalk: new path leg (CChar src/dst/walkStartMs)
+    CCharGone,
 };
 
 struct Event {
@@ -116,6 +119,17 @@ struct Treasure {
     bool active;
 };
 constexpr int kMaxTreasures = 16;
+
+// Classic characters (DistributedCCharBase family: Mickey, Minnie, ...). The class id
+// picks the character; setWalk(src, dst, ts) names a leg of its walk graph.
+struct CChar {
+    uint32_t doId;
+    uint16_t classId;
+    char src[8], dst[8];
+    uint32_t walkStartMs; // local plat::nowMs() at which the leg started (from ts)
+    bool active;
+};
+constexpr int kMaxCChars = 4;
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -241,6 +255,7 @@ public:
 
     const NpcToon& npcSlot(int i) const { return npcs_[i]; }
     const NpcToon* findNpc(uint32_t doId) const;
+    const CChar* findCChar(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
 
@@ -335,6 +350,10 @@ private:
     OwnStats ownStats_{};
     NpcToon npcs_[kMaxNpcs] = {};
     Treasure treasures_[kMaxTreasures] = {};
+    CChar cchars_[kMaxCChars] = {};
+    bool handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                          bool other);
+    bool applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId);
     bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                         const uint16_t* req, uint16_t reqCount, bool other);
     bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);

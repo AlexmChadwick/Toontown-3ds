@@ -25,6 +25,7 @@
 #include "ui/hud.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "world/cchar.h"
 #include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
@@ -167,6 +168,9 @@ int main() {
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
     static tt::world::ZoneActors zoneActors;
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
+    // Mickey and friends (DistributedCCharBase), walking their playground's graph.
+    static tt::world::CCharActors cchars;
+    cchars.setZone(kStartZone);
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
@@ -382,6 +386,18 @@ int main() {
                 break;
             }
         }
+        if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
+            // Test-only: stand 9 units from the classic character, facing it.
+            float cx, cy, cz;
+            if (cchars.firstPosition(&cx, &cy, &cz)) {
+                const float dx = player.x() - cx, dy = player.y() - cy, d = sqrtf(dx * dx + dy * dy);
+                if (d > 10.0f || d < 8.0f) {
+                    const float ux = d > 0.1f ? dx / d : 0.0f, uy = d > 0.1f ? dy / d : -1.0f;
+                    // Face 30 degrees to its side so the toon does not hide it from the camera.
+                    player.reset(cx + ux * 9.0f, cy + uy * 9.0f, cz, atan2f(ux, -uy) / kDegToRad + 30.0f);
+                }
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "grab treasure") && !autotestGrabbed) {
             // Test-only: stand on the nearest treasure so the grab path runs.
             float tx, ty, tz;
@@ -454,6 +470,7 @@ int main() {
             remoteToons.clear();
             if (place.load(travelTarget)) {
                 zoneActors.loadPoints(place.pointsPath());
+                cchars.setZone(travelTarget);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
@@ -476,6 +493,7 @@ int main() {
             while (net.pollEvent(ev)) {
                 remoteToons.handleEvent(ev, net);
                 zoneActors.handleEvent(ev, net);
+                cchars.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
@@ -525,6 +543,7 @@ int main() {
         pendingSpeech = -1;
         remoteToons.update(dt);
         zoneActors.update(dt);
+        cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
 
@@ -557,7 +576,7 @@ int main() {
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
             {
-                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + 1)];
+                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + tt::net::kMaxCChars + 1)];
                 int n = 0;
                 pos[0] = player.x();
                 pos[1] = player.y();
@@ -566,6 +585,7 @@ int main() {
                 n = 1;
                 n += remoteToons.shadowPositions(pos + 4 * n, tt::net::kMaxRemoteToons);
                 n += zoneActors.shadowPositions(pos + 4 * n, tt::net::kMaxNpcs);
+                n += cchars.shadowPositions(pos + 4 * n, tt::net::kMaxCChars);
                 renderer.setBaseTint(0.0f, 0.0f, 0.0f, kShadowGray);
                 for (int i = 0; i < n; i++) {
                     const float sc = kShadowScale * pos[4 * i + 3];
@@ -584,6 +604,7 @@ int main() {
             }
             remoteToons.draw(renderer, player.x(), player.y());
             zoneActors.draw(renderer, player.cameraEye());
+            cchars.draw(renderer);
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
             const float fx = -sinf(h), fy = cosf(h); // forward
@@ -617,6 +638,7 @@ int main() {
             }
             remoteToons.addBalloons(balloons, proj, view);
             zoneActors.addBalloons(balloons, proj, view);
+            cchars.addBalloons(balloons, proj, view);
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
             tt::ui::HudValues hv;
@@ -686,6 +708,7 @@ int main() {
     frontEnd.shutdown();
     hud.shutdown();
     zoneActors.shutdown();
+    cchars.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
     remoteToons.clear();
