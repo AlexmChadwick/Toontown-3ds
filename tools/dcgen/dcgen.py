@@ -83,7 +83,13 @@ WANTED = {
                         'setAccessLevel', 'setPinkSlips', 'setNametagStyle', 'setFishingRod',
                         'setMaxFishTank', 'setFishTank', 'setQuests', 'setEarnedExperience',
                         # ToonTasks (source/net quests section, docs/design/quests.md)
-                        'setQuestHistory', 'setRewardHistory', 'requestDeleteQuest'],
+                        'setQuestHistory', 'setRewardHistory', 'requestDeleteQuest',
+                        # Shtiker Book (source/ui/book*.cpp, docs/design/shtiker_book.md)
+                        'setCogStatus', 'setCogCount', 'setCogRadar', 'setBuildingRadar',
+                        'setCogParts', 'setCogMerits', 'setCogTypes', 'setCogLevels',
+                        'setFishCollection', 'setFishingTrophies',
+                        'setKartingTrophies', 'setKartingHistory',
+                        'setGolfHistory', 'setPackedGolfHoleBest', 'setGolfCourseBest'],
     # ---- zone 2000 objects (source/net/zone_objects.*, docs/design/playground.md) ----
     'DistributedNPCToonBase': ['setName', 'setDNAString', 'setPositionIndex', 'setAnimState',
                                'setPageNumber', 'avatarEnter', 'freeAvatar'],

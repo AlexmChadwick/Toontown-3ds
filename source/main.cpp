@@ -439,9 +439,8 @@ int main() {
         if (isNew3ds) hidCstickRead(&in.cstick);
         touchPosition touch;
         hidTouchRead(&touch);
-        if (in.down & KEY_START) break;
-
         if (inFrontEnd) {
+            if (in.down & KEY_START) break;
             if (netStarted) net.update(tt::net::plat::nowMs());
             autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
             if (autotest.pendingShot()) shotName = autotest.pendingShot();
@@ -476,6 +475,8 @@ int main() {
             tt::audio::update();
             continue;
         }
+        if ((in.down & KEY_START) && (in.held & KEY_SELECT)) break;
+        if (uiState.quitRequested) break;
         if (gWokeFromSleep) {
             // The socket died with Wi-Fi during sleep and the server has (or soon will have)
             // timed us out. Reconnect now instead of waiting for the step timeout; manual
@@ -516,6 +517,19 @@ int main() {
         if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
+            const char* page = autotest.label() + 6;
+            if (!strcmp(page, "gags")) ui.openBookPage(tt::ui::Book::kPageGags);
+            else if (!strcmp(page, "tasks")) ui.openBookPage(tt::ui::Book::kPageTasks);
+            else if (!strcmp(page, "cogs")) ui.openBookPage(tt::ui::Book::kPageCogs);
+            else if (!strcmp(page, "disguise")) ui.openBookPage(tt::ui::Book::kPageDisguise);
+            else if (!strcmp(page, "fish")) ui.openBookPage(tt::ui::Book::kPageFish);
+            else if (!strcmp(page, "trophies")) ui.openBookPage(tt::ui::Book::kPageTrophies);
+            else if (!strcmp(page, "sos")) ui.openBookPage(tt::ui::Book::kPageSos);
+            else if (!strcmp(page, "options")) ui.openBookPage(tt::ui::Book::kPageOptions);
+        } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0) {
+            ui.book().close();
+        }
         if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
             const bool interiorDoor = !strcmp(autotest.label(), "exit: interior door");
@@ -1580,6 +1594,11 @@ int main() {
             ctx.netInBps = netInBps;
             ctx.netOutBps = netOutBps;
             ctx.remoteToons = remoteToons.count();
+            ctx.stats = &net.ownStats();
+            ctx.book = &net.ownBook();
+            ctx.fish = &net.ownFish();
+            ctx.districts = net.districts();
+            ctx.numDistricts = net.numDistricts();
             const tt::net::OwnStats& st = net.ownStats();
             if (st.hasGags) {
                 ctx.gagExp = st.experience;

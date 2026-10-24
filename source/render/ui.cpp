@@ -69,7 +69,7 @@ bool Ui::init() {
     debugBuf_ = C2D_TextBufNew(1024);
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
-        !battle_.init() || !quest_.init() || !fishingPanel_.init()) return false;
+        !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
@@ -86,6 +86,7 @@ void Ui::shutdown() {
     battle_.shutdown();
     quest_.shutdown();
     fishingPanel_.shutdown();
+    book_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -126,11 +127,20 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 }
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
+    if (book_.isOpen()) {
+        BookDrawContext bdc;
+        bdc.state = &s;
+        return book_.handleInput(down, t, bdc);
+    }
     if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
     if (tailor_.active()) return tailor_.handleInput(down, t);
     if (closet_.active()) return closet_.handleInput(down, t);
     if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
     if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
+    if (down & KEY_START) {
+        book_.open();
+        return KEY_START;
+    }
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
     if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
     if (down & KEY_X) s.tab = kTabChat;
@@ -172,6 +182,10 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         }
         break;
     case kTabToon:
+        if (inRect(t, 60, 175, 200, 24)) {
+            book_.open();
+            break;
+        }
         for (int i = 0; i < 3; i++) {
             if (inRect(t, 8 + i * 102, 8, 98, 28)) s.colorTarget = i;
         }
@@ -199,6 +213,27 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_TextBufClear(textBuf_);
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
+    if (book_.isOpen()) {
+        BookDrawContext bdc;
+        bdc.stats = c.stats;
+        bdc.quests = c.quests;
+        bdc.book = c.book;
+        bdc.fish = c.fish;
+        bdc.districts = c.districts;
+        bdc.numDistricts = c.numDistricts;
+        bdc.state = const_cast<State*>(&s);
+        bdc.ctx = &c;
+        bdc.mapImage = hasMap_ ? &mapImage_ : nullptr;
+        bdc.hasMap = hasMap_;
+        bdc.mapMinX = mapMinX_;
+        bdc.mapMinY = mapMinY_;
+        bdc.mapMaxX = mapMaxX_;
+        bdc.mapMaxY = mapMaxY_;
+        bdc.mapW = mapW_;
+        bdc.mapH = mapH_;
+        book_.draw(bdc);
+        return;
+    }
     if (shop_.active()) {
         shop_.draw();
         return;
@@ -384,7 +419,9 @@ void Ui::drawMap(const Context& c) {
 
 void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
-        quest_.drawTasks(*c.quests, 6, kTabY - 4);
+        quest_.drawTasks(*c.quests, 6, 170);
+        C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
+        text(72, 180, 0.42f, kBg, "Open Shtiker Book (START)");
         return;
     }
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};

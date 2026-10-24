@@ -80,6 +80,25 @@ TT_SIG(DistributedToon, setQuestHistory, "u16[]");
 TT_SIG(DistributedToon, setRewardHistory, "u8,u16[]");
 TT_SIG(DistributedToon, setQuestCarryLimit, "u8");
 TT_SIG(DistributedToon, requestDeleteQuest, "u32[]");
+// Shtiker Book section (source/net/client_book.cpp)
+TT_SIG(DistributedToon, setTrackProgress, "i8,u32");
+TT_SIG(DistributedToon, setCogStatus, "u32[]");
+TT_SIG(DistributedToon, setCogCount, "u32[]");
+TT_SIG(DistributedToon, setCogRadar, "u8[]");
+TT_SIG(DistributedToon, setBuildingRadar, "u8[]");
+TT_SIG(DistributedToon, setCogParts, "u32[]");
+TT_SIG(DistributedToon, setCogMerits, "u16[]");
+TT_SIG(DistributedToon, setCogTypes, "u8[]");
+TT_SIG(DistributedToon, setCogLevels, "u8[]");
+TT_SIG(DistributedToon, setFishCollection, "u8[],u8[],u16[]");
+TT_SIG(DistributedToon, setFishingTrophies, "u8[]");
+TT_SIG(DistributedToon, setKartingTrophies, "u8[33]");
+TT_SIG(DistributedToon, setKartingHistory, "u8[16]");
+TT_SIG(DistributedToon, setTickets, "u32");
+TT_SIG(DistributedToon, setGolfHistory, "u16[18]");
+TT_SIG(DistributedToon, setPackedGolfHoleBest, "u8[18]");
+TT_SIG(DistributedToon, setGolfCourseBest, "u8[3]");
+TT_SIG(DistributedToon, setNPCFriendsDict, "{u32,u8}[]");
 TT_SIG(DistributedNPCToonBase, avatarEnter, "");
 TT_SIG(DistributedNPCToon, setMovie, "u8,u32,u32,u16[],i16");
 TT_SIG(DistributedNPCToon, setMovieDone, "");
@@ -477,6 +496,7 @@ void Client::resetWorld() {
     numAvatars_ = 0;
     avatarId_ = 0;
     ownQuests_ = OwnQuests{};
+    ownBook_.initDefaults();
     movieHead_ = movieTail_ = 0;
     ownerReceived_ = false;
     shardId_ = 0;
@@ -1439,6 +1459,8 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         ownQuests_.carryLimit = r.u8();
         ownQuests_.version++;
         pushEvent(EventType::Quests, avatarId_);
+    } else if (parseOwnBookField(r, fieldId, ownBook_)) {
+        pushEvent(EventType::Stats, avatarId_);
     } else {
         skipField(r, fieldId);
     }
