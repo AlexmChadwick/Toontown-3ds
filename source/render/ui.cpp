@@ -31,6 +31,7 @@ namespace {
 constexpr float kW = 320.0f;
 // Map tab teleport row (just above the tab bar).
 constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
+constexpr float kHomeY = 148.0f, kHomeH = 24.0f;
 const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
@@ -157,6 +158,10 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
     switch (s.tab) {
     case kTabMap:
+        if (inRect(t, 4, kHomeY, 76, kHomeH)) {
+            s.homeRequest = true;
+            break;
+        }
         if (t.py >= kHoodRowY && t.py < kHoodRowY + kHoodRowH) {
             const int i = static_cast<int>(t.px / kHoodW);
             if (i >= 0 && i < kNumTeleportHoods) s.teleportRequest = kTeleportHoods[i];
@@ -353,6 +358,8 @@ void Ui::drawMap(const Context& c) {
     C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
+    C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
+    text(18, kHomeY + 6, 0.42f, kBg, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);

@@ -32,6 +32,8 @@
 #include "world/cog_buildings.h"
 #include "world/cog_interior.h"
 #include "world/factory.h"
+#include "world/estate.h"
+#include "world/pets.h"
 #include "world/mint_office.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
@@ -354,6 +356,8 @@ int main() {
     static tt::world::CogBuildings cogBuildings;
     static tt::world::CogInterior cogInterior;
     static tt::world::Factory factory;
+    static tt::world::Estate estate;
+    static tt::world::Pets pets;
     static tt::world::MintOffice mintOffice;
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
@@ -826,6 +830,10 @@ int main() {
         } else if (travelTarget) {
             fadeWalk = true;
         }
+        if (uiState.homeRequest && fadeDir == 0 && netStarted) {
+            net.requestHome();
+            uiState.homeRequest = false;
+        }
         uiState.teleportRequest = 0;
         if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
             fadeTarget = travelTarget; // start closing; travel once the screen is black
@@ -908,6 +916,8 @@ int main() {
                 cogInterior.handleEvent(ev, net, nowMs);
                 factory.handleEvent(ev, net);
                 mintOffice.handleEvent(ev, net);
+                estate.handleEvent(ev, net);
+                pets.handleEvent(ev);
                 if (ev.type == tt::net::EventType::ShopMovie) {
                     shop.onMovie(net, nowMs);
                     if (const char* note = shop.takeNotice()) {
@@ -932,7 +942,9 @@ int main() {
             cogInterior.update(net, nowMs);
             factory.update(net, player.x(), player.y(), player.z(), nowMs);
             mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);
-            if (cogInterior.active() || factory.active() || mintOffice.active()) player.setCollision(nullptr);
+            estate.update(net, player.x(), player.y(), player.z(), nowMs);
+            pets.update(net);
+            if (cogInterior.active() || factory.active() || mintOffice.active() || estate.active()) player.setCollision(nullptr);
             else player.setCollision(&place.collision());
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
@@ -1156,11 +1168,14 @@ int main() {
                 factory.draw(renderer, net);
             } else if (mintOffice.active()) {
                 mintOffice.draw(renderer, net);
+            } else if (estate.active()) {
+                estate.draw(renderer, net);
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {
                 place.draw(renderer, player.cameraEye());
             }
+            pets.draw(renderer, net);
             tt::prof::lap(tt::prof::kDrawPlace);
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).

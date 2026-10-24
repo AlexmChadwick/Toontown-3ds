@@ -40,6 +40,26 @@ WANTED = {
                            'requestPlayAvatar'],
     'DistributedDistrict': ['setName', 'setAvailable'],
     'ToontownDistrict': ['setName', 'setAvailable'],
+    'EstateManager': ['getEstateZone', 'setEstateZone', 'setAvHouseId', 'exitEstate'],
+    'DistributedEstate': ['setEstateReady', 'setClientReady', 'setEstateType', 'setClosestHouse',
+                          'setDecorData', 'setSlot0ToonId', 'setSlot1ToonId', 'setSlot2ToonId',
+                          'setSlot3ToonId', 'setSlot4ToonId', 'setSlot5ToonId', 'setIdList'],
+    'DistributedHouse': ['setHousePos', 'setHouseType', 'setGardenPos', 'setAvatarId', 'setName',
+                         'setColor', 'setInteriorItems', 'setHouseReady'],
+    'DistributedHouseInterior': ['setHouseId', 'setHouseIndex', 'setWallpaper', 'setWindows'],
+    'DistributedHouseDoor': ['requestEnter', 'requestExit'],
+    'DistributedFurnitureManager': ['setOwnerId', 'setInteriorId', 'setAtticItems', 'setDirector',
+                                    'avatarEnter', 'avatarExit'],
+    'DistributedFurnitureItem': ['setItem', 'requestPosHpr', 'setMode'],
+    'DistributedMailbox': ['setHouseId', 'setHousePos', 'setName', 'setFullIndicator',
+                           'avatarEnter', 'avatarExit', 'freeAvatar'],
+    'DistributedBank': ['avatarEnter', 'freeAvatar', 'transferMoney'],
+    'DistributedCloset': ['setOwnerId', 'enterAvatar', 'freeAvatar', 'setDNA', 'setState',
+                          'setCustomerDNA'],
+    'DistributedPet': ['setOwnerId', 'setPetName', 'setTraitSeed', 'setSafeZone', 'setHead',
+                       'setEars', 'setNose', 'setTail', 'setBodyTexture', 'setColor',
+                       'setColorScale', 'setEyeColor', 'setGender', 'setLastSeenTimestamp',
+                       'setMood', 'setMovie', 'freeAvatar'],
     'TimeManager': ['requestServerTime', 'serverTime'],
     'TutorialManager': ['requestSkipTutorial', 'skipTutorialResponse'],
     'DistributedNode': ['setParent', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setPos', 'setHpr',
@@ -220,7 +240,10 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
                   'DistributedMintRoom', 'DistributedStage', 'DistributedStageRoom',
                   'DistributedMintElevatorExt', 'DistributedLawOfficeElevatorInt',
                   'DistributedMintBattle', 'DistributedStageBattle', 'DistributedLaserField',
-                  'DistributedSecurityCamera', 'DistributedMaze']
+                  'DistributedSecurityCamera', 'DistributedMaze', 'EstateManager', 'DistributedEstate',
+                  'DistributedHouse', 'DistributedHouseInterior', 'DistributedHouseDoor',
+                  'DistributedFurnitureManager', 'DistributedFurnitureItem', 'DistributedMailbox',
+                  'DistributedBank', 'DistributedCloset', 'DistributedPet']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

@@ -27,6 +27,7 @@ struct State {
     int bottomColor = 18;
     // Map tab teleport: hood zone id the player tapped (main clears it), 0 = none.
     unsigned teleportRequest = 0;
+    bool homeRequest = false;
     // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
     unsigned whisperTo = 0;
 };

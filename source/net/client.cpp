@@ -466,6 +466,7 @@ void Client::resetWorld() {
     boat_.active = false;
     clearBattles();
     clearCogObjects();
+    clearEstateObjects();
     ownBattleId_ = 0;
     clearTrolleyObjects();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
@@ -750,6 +751,19 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         maybeSkipTutorial();
         return;
     }
+    if (classId == dc::EstateManager::kClassId) {
+        estateManagerDoId_ = doId;
+        return;
+    }
+    if (classId == dc::DistributedEstate::kClassId || classId == dc::DistributedHouse::kClassId ||
+        classId == dc::DistributedHouseInterior::kClassId || classId == dc::DistributedHouseDoor::kClassId ||
+        classId == dc::DistributedMailbox::kClassId || classId == dc::DistributedBank::kClassId ||
+        classId == dc::DistributedCloset::kClassId ||
+        classHasField(*cls, dc::DistributedFurnitureItem::k_setItem) ||
+        classHasField(*cls, dc::DistributedPet::k_setHead)) {
+        handleEstateEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
     // trolley section: the playground trolley, any minigame, the purchase manager.
     if (classId == dc::DistributedTrolley::kClassId) {
         handleTrolleyEnter(doId, r, req, reqCount, other);
@@ -868,6 +882,13 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         handleLoginManagerField(r, fieldId);
         return;
     }
+    if (doId == estateManagerDoId_ && fieldId == dc::EstateManager::k_setEstateZone) {
+        const uint32_t owner = r.u32();
+        estateZone_ = r.u32();
+        if (owner == avatarId_ && estateZone_ != 0) changeZone(estateZone_);
+        pushEvent(EventType::EstateZone, estateZone_);
+        return;
+    }
     if (fieldId == dc::DistributedNPCClerk::k_setMovie) {
         handleClerkMovie(r, doId);
         return;
@@ -879,6 +900,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (handleTrolleyField(r, doId, fieldId)) return;
     if (handleFactoryField(r, doId, fieldId)) return;
     if (handleFacilityField(r, doId, fieldId)) return;
+    if (handleEstateField(r, doId, fieldId)) return;
     if (handleCogField(r, doId, fieldId)) return;
     for (NpcToon& n : npcs_) {
         if (n.active && n.doId == doId) {
@@ -1000,6 +1022,11 @@ void Client::handleLeaving(uint32_t doId) {
     if (mint_.active && mint_.doId == doId) {
         mint_ = Mint{}; pushEvent(EventType::MintGone, doId); return;
     }
+    if (estate_.active && estate_.doId == doId) { estate_ = Estate{}; pushEvent(EventType::EstateGone, doId); return; }
+    if (houseInterior_.active && houseInterior_.doId == doId) { houseInterior_ = HouseInterior{}; return; }
+    for (EstateHouse& h : estate_.houses) if (h.active && h.doId == doId) { h = EstateHouse{}; return; }
+    for (EstateFurniture& f : furniture_) if (f.active && f.doId == doId) { f = EstateFurniture{}; return; }
+    for (Pet& p : pets_) if (p.active && p.doId == doId) { p = Pet{}; pushEvent(EventType::PetGone, doId); return; }
     if (stage_.active && stage_.doId == doId) {
         stage_ = Stage{}; pushEvent(EventType::StageGone, doId); return;
     }
@@ -3973,6 +4000,169 @@ bool Client::sendRoomEntityInteract(uint32_t doId) {
         if (state_ != State::InZone) return false;
         DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
         TT_NET_UPDATE(w, doId, DistributedInteractiveEntity, requestInteract);
+        return finish(w);
+}
+
+bool Client::applyEstateField(Estate& e, DatagramReader& r, uint16_t fieldId) {
+        if (fieldId == dc::DistributedEstate::k_setEstateType) e.estateType = r.u8();
+        else if (fieldId == dc::DistributedEstate::k_setClosestHouse) e.closestHouse = r.u8();
+        else if (fieldId == dc::DistributedEstate::k_setEstateReady) e.ready = true;
+        else if (fieldId == dc::DistributedEstate::k_setSlot0ToonId) e.slotToons[0] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setSlot1ToonId) e.slotToons[1] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setSlot2ToonId) e.slotToons[2] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setSlot3ToonId) e.slotToons[3] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setSlot4ToonId) e.slotToons[4] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setSlot5ToonId) e.slotToons[5] = r.u32();
+        else if (fieldId == dc::DistributedEstate::k_setDecorData) { r.blob(); }
+        else return skipField(r, fieldId);
+        return r.ok();
+}
+
+bool Client::applyHouseField(EstateHouse& h, DatagramReader& r, uint16_t fieldId) {
+        if (fieldId == dc::DistributedHouse::k_setHousePos) h.pos = r.u8();
+        else if (fieldId == dc::DistributedHouse::k_setHouseType) h.type = r.u8();
+        else if (fieldId == dc::DistributedHouse::k_setGardenPos) h.gardenPos = r.u8();
+        else if (fieldId == dc::DistributedHouse::k_setAvatarId) h.avatarId = r.u32();
+        else if (fieldId == dc::DistributedHouse::k_setName) r.string(h.name, sizeof(h.name));
+        else if (fieldId == dc::DistributedHouse::k_setColor) h.color = r.u8();
+        else if (fieldId == dc::DistributedHouse::k_setHouseReady) {}
+        else if (fieldId == dc::DistributedHouse::k_setInteriorItems) r.blob();
+        else return skipField(r, fieldId);
+        return r.ok();
+}
+
+bool Client::applyHouseInteriorField(HouseInterior& h, DatagramReader& r, uint16_t fieldId) {
+        if (fieldId == dc::DistributedHouseInterior::k_setHouseId) h.houseId = r.u32();
+        else if (fieldId == dc::DistributedHouseInterior::k_setHouseIndex) h.houseIndex = r.u8();
+        else if (fieldId == dc::DistributedHouseInterior::k_setWallpaper ||
+                 fieldId == dc::DistributedHouseInterior::k_setWindows) r.blob();
+        else return skipField(r, fieldId);
+        return r.ok();
+}
+
+bool Client::applyFurnitureField(EstateFurniture& f, DatagramReader& r, uint16_t fieldId) {
+        if (fieldId == dc::DistributedFurnitureItem::k_setItem) { f.itemId = r.u32(); r.blob(); }
+        else if (fieldId == dc::DistributedFurnitureItem::k_setMode) { f.mode = r.u8(); r.u32(); }
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentX) f.x = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentY) f.y = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentZ) f.z = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentH) f.h = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentP) f.p = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentR) f.r = r.i16() / 10.0f;
+        else return skipField(r, fieldId);
+        return r.ok();
+}
+
+bool Client::applyPetField(Pet& p, DatagramReader& r, uint16_t fieldId) {
+        if (fieldId == dc::DistributedPet::k_setOwnerId) p.ownerId = r.u32();
+        else if (fieldId == dc::DistributedPet::k_setPetName) r.string(p.name, sizeof(p.name));
+        else if (fieldId == dc::DistributedPet::k_setTraitSeed) p.traitSeed = r.u32();
+        else if (fieldId == dc::DistributedPet::k_setSafeZone) p.safeZone = r.u32();
+        else if (fieldId == dc::DistributedPet::k_setHead) p.head = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setEars) p.ears = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setNose) p.nose = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setTail) p.tail = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setBodyTexture) p.body = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setColor) p.color = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setColorScale) p.colorScale = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setEyeColor) p.eyeColor = r.i8();
+        else if (fieldId == dc::DistributedPet::k_setGender) p.gender = r.i8();
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentX) p.x = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentY) p.y = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentZ) p.z = r.i16() / 10.0f;
+        else if (fieldId == dc::DistributedSmoothNode::k_setComponentH) p.h = r.i16() / 10.0f;
+        else return skipField(r, fieldId);
+        return r.ok();
+}
+
+bool Client::handleEstateEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
+                                   const uint16_t* req, uint16_t reqCount, bool other) {
+        auto parse = [&](auto& object, auto apply) {
+            bool ok = true;
+            for (uint16_t n = 0; n < reqCount && ok; ++n) ok = apply(object, r, req[n]);
+            if (ok && other) { const uint16_t count = r.u16(); for (uint16_t n = 0; n < count && ok; ++n) ok = apply(object, r, r.u16()); }
+            return ok && r.ok();
+        };
+        if (classId == dc::DistributedEstate::kClassId) {
+            Estate e{}; e.doId = doId;
+            if (!parse(e, [this](Estate& o, DatagramReader& rr, uint16_t id) { return applyEstateField(o, rr, id); })) return false;
+            e.active = true; estate_ = e; pushEvent(EventType::EstateUp, doId); return true;
+        }
+        if (classId == dc::DistributedHouseInterior::kClassId) {
+            HouseInterior h{}; h.doId = doId;
+            if (!parse(h, [this](HouseInterior& o, DatagramReader& rr, uint16_t id) { return applyHouseInteriorField(o, rr, id); })) return false;
+            h.active = true; houseInterior_ = h; pushEvent(EventType::HouseInteriorUp, doId); return true;
+        }
+        if (classId == dc::DistributedHouse::kClassId) {
+            EstateHouse* dst = nullptr;
+            for (EstateHouse& h : estate_.houses) if (h.active && h.doId == doId) dst = &h;
+            for (EstateHouse& h : estate_.houses) if (!dst && !h.active) dst = &h;
+            if (!dst) return false;
+            EstateHouse h{}; h.doId = doId;
+            if (!parse(h, [this](EstateHouse& o, DatagramReader& rr, uint16_t id) { return applyHouseField(o, rr, id); })) return false;
+            h.active = true; *dst = h;
+            pushEvent(EventType::HouseUp, doId); return true;
+        }
+        if (classHasField(*findClass(classId), dc::DistributedPet::k_setHead)) {
+            Pet* dst = nullptr; for (Pet& p : pets_) if (p.active && p.doId == doId) dst = &p;
+            for (Pet& p : pets_) if (!dst && !p.active) dst = &p;
+            if (!dst) return false;
+            Pet p{}; p.doId = doId;
+            if (!parse(p, [this](Pet& o, DatagramReader& rr, uint16_t id) { return applyPetField(o, rr, id); })) return false;
+            p.active = true; *dst = p;
+            pushEvent(EventType::PetUp, doId); return true;
+        }
+        EstateFurniture* dst = nullptr;
+        for (EstateFurniture& f : furniture_) if (f.active && f.doId == doId) dst = &f;
+        for (EstateFurniture& f : furniture_) if (!dst && !f.active) dst = &f;
+        if (!dst) return false;
+        EstateFurniture f{}; f.doId = doId;
+        if (!parse(f, [this](EstateFurniture& o, DatagramReader& rr, uint16_t id) { return applyFurnitureField(o, rr, id); })) return false;
+        f.active = true; *dst = f;
+        pushEvent(EventType::FurnitureUp, doId); return true;
+}
+
+bool Client::handleEstateField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+        if (estate_.active && estate_.doId == doId) { if (applyEstateField(estate_, r, fieldId)) pushEvent(EventType::EstateState, doId); return true; }
+        if (houseInterior_.active && houseInterior_.doId == doId) { applyHouseInteriorField(houseInterior_, r, fieldId); return true; }
+        for (EstateHouse& h : estate_.houses) if (h.active && h.doId == doId) { applyHouseField(h, r, fieldId); pushEvent(EventType::HouseState, doId); return true; }
+        for (EstateFurniture& f : furniture_) if (f.active && f.doId == doId) { applyFurnitureField(f, r, fieldId); pushEvent(EventType::FurnitureState, doId); return true; }
+        for (Pet& p : pets_) if (p.active && p.doId == doId) { applyPetField(p, r, fieldId); pushEvent(EventType::PetState, doId); return true; }
+        return false;
+}
+
+void Client::clearEstateObjects() {
+        estateManagerDoId_ = 0; estateZone_ = 0; estate_ = Estate{}; houseInterior_ = HouseInterior{};
+        for (EstateFurniture& f : furniture_) f = EstateFurniture{};
+        for (Pet& p : pets_) p = Pet{};
+}
+
+bool Client::requestHome() {
+        if (state_ != State::InZone || !estateManagerDoId_) return false;
+        DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+        TT_NET_UPDATE(w, estateManagerDoId_, EstateManager, getEstateZone);
+        w.u32(avatarId_); w.string(ownName_);
+        return finish(w);
+}
+
+bool Client::sendEstateClientReady(uint32_t doId) {
+        if (state_ != State::InZone) return false;
+        DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+        TT_NET_UPDATE(w, doId, DistributedEstate, setClientReady);
+        return finish(w);
+}
+
+bool Client::sendHouseEnter(uint32_t doId) {
+        if (state_ != State::InZone) return false;
+        DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+        TT_NET_UPDATE(w, doId, DistributedHouseDoor, requestEnter);
+        return finish(w);
+}
+
+bool Client::sendHouseExit(uint32_t doId) {
+        if (state_ != State::InZone) return false;
+        DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+        TT_NET_UPDATE(w, doId, DistributedHouseDoor, requestExit);
         return finish(w);
 }
 
