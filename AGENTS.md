@@ -375,7 +375,8 @@ server.
     - Donald at the wheel; it needs the DistributedBoat, so it is hidden for now
     - async loading (a character's model and clips load in about 0.2 s)
 - Next:
-  - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`)
+  - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`). For now a
+    0.4 s fade out (the toon walks on into the tunnel or door), the load, then a 0.4 s fade in.
   - SpeedChat emotes
   - a real hardware run
 

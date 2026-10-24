@@ -195,6 +195,16 @@ need hardware.
   the boat it rides is not implemented.
 - No PANIC.
 
+### 2026-10-24 — Zone transition fades
+- **What changed.** Every zone change (door, tunnel, teleport) now fades the top screen
+  to black over 0.4 s. For a door or tunnel, the toon keeps walking forward during the
+  fade. The zone loads behind a fully black frame, then the screen fades back in.
+- **Azahar, Old 3DS mode:** all 9 zone changes of the autotest succeed:
+  - TTC ↔ Gag Shop
+  - TTC → Silly Street → building 70 and back
+  - teleports to DD, DG and BR
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

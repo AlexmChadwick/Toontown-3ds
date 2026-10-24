@@ -74,6 +74,7 @@ constexpr int kMaxStressToons = 64;
 // DistributedSmoothNode broadcast period: 0.2 s (5 Hz) while moving.
 constexpr u32 kPosSendIntervalMs = 200;
 constexpr u32 kStartZone = 2000; // ToontownGlobals.ToontownCentral
+constexpr float kFadeSec = 0.4f;  // each half of a zone transition
 constexpr float kHideToonCameraDistance = 2.5f;
 constexpr float kShadowScale = 0.4f; // ShadowCaster.initializeDropShadow
 constexpr float kShadowGray = 0.5f;  // globalDropShadowGrayLevel
@@ -174,6 +175,12 @@ int main() {
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
+    // Zone transitions fade the top screen to black (upstream: the toon walks into the
+    // tunnel/door while the iris closes), load behind the black frame, then fade back in.
+    u32 fadeTarget = 0;
+    float fade = 0.0f; // 0 clear .. 1 black
+    int fadeDir = 0;   // +1 closing, -1 opening
+    bool fadeWalk = false;
     unsigned hoodsAvailable = 0;
     for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
         if (tt::world::Place::available(tt::ui::kTeleportHoods[i])) hoodsAvailable |= 1u << i;
@@ -420,6 +427,13 @@ int main() {
             pendingSpeech = speechMsg;
         }
         myPhraseAge += dt;
+        if (fadeDir > 0) {
+            // Walking out through a tunnel or door: keep going forward, ignore the player.
+            in.pad.dx = 0;
+            in.pad.dy = fadeWalk ? 120 : 0;
+            in.held &= ~(KEY_A | KEY_B);
+            in.down &= ~(KEY_A | KEY_B);
+        }
         player.update(in, dt);
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
@@ -448,7 +462,9 @@ int main() {
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
         u32 travelTarget = 0;
-        if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
+        if (fadeDir != 0) {
+            // A transition is running: no new exits.
+        } else if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
             if (!tt::world::Place::available(exitHere.targetZone)) {
                 snprintf(toastBuf, sizeof(toastBuf), "Zone %lu isn't installed yet. Coming soon!",
                          static_cast<unsigned long>(exitHere.targetZone));
@@ -460,10 +476,33 @@ int main() {
                 travelTarget = exitHere.targetZone;
             }
         }
-        if (uiState.teleportRequest) {
+        if (uiState.teleportRequest && fadeDir == 0) {
             // Map tab teleport to a playground (upstream: Shticker Book map page).
             if (tt::world::Place::available(uiState.teleportRequest)) travelTarget = uiState.teleportRequest;
-            uiState.teleportRequest = 0;
+            fadeWalk = false;
+        } else if (travelTarget) {
+            fadeWalk = true;
+        }
+        uiState.teleportRequest = 0;
+        if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
+            fadeTarget = travelTarget; // start closing; travel once the screen is black
+            fadeDir = 1;
+        }
+        travelTarget = 0;
+        if (fadeDir != 0) {
+            const float before = fade;
+            fade += fadeDir * dt / kFadeSec;
+            if (fadeDir > 0 && fade >= 1.0f) {
+                fade = 1.0f;
+                // Travel on the frame after one fully black frame has been shown.
+                if (before >= 1.0f) {
+                    travelTarget = fadeTarget;
+                    fadeDir = -1;
+                }
+            } else if (fadeDir < 0 && fade <= 0.0f) {
+                fade = 0.0f;
+                fadeDir = 0;
+            }
         }
         if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
             const u32 fromZone = place.zoneId();
@@ -653,6 +692,14 @@ int main() {
             }
             hv.toast = toast;
             hud.draw(renderer.topLeft(), hv);
+            if (fade > 0.0f) {
+                const u32 black = C2D_Color32(0, 0, 0, static_cast<u8>(fade * 255.0f));
+                for (int e = 0; e < (stereoActive ? 2 : 1); e++) {
+                    C2D_SceneBegin(e == 0 ? renderer.topLeft() : renderer.topRight());
+                    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+                    C2D_DrawRectSolid(0, 0, 0.9f, 400, 240, black);
+                }
+            }
         }
         const struct mallinfo mi = mallinfo();
         tt::ui::Context ctx{};
