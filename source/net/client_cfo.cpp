@@ -73,6 +73,12 @@ bool Client::handleCfoEnter(uint32_t doId, uint16_t classId, DatagramReader& rea
     if (!valid || !reader.ok()) return true;
     next.arrivalMs = timeSynced_ ? networkToLocal(next.arrivalStamp, now_) : now_;
     CfoChild* destination = cfoChild(doId);
+    int sameKind = 0;
+    for (const CfoChild& child : cfoChildren_) {
+        if (child.active && child.kind == kind) ++sameKind;
+    }
+    const int limit = kind == CfoKind::Crane ? 4 : kind == CfoKind::Safe ? 9 : kind == CfoKind::Goon ? 16 : 32;
+    if (!destination && sameKind >= limit) return true;
     for (CfoChild& child : cfoChildren_) {
         if (!destination && !child.active) destination = &child;
     }
@@ -114,6 +120,16 @@ bool Client::sendCfoControl(uint32_t craneId, bool control) {
     } else {
         TT_NET_UPDATE(writer, craneId, DistributedCashbotBossCrane, requestFree);
     }
+    return finish(writer);
+}
+
+bool Client::sendCfoClear(uint32_t craneId) {
+    const CfoChild* crane = findCfoChild(craneId);
+    if (!cfoParticipant() || !crane || crane->kind != CfoKind::Crane ||
+        crane->bossId != boss_.doId || crane->owner != avatarId_ || crane->state != 'C') return false;
+    DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(writer, craneId, DistributedCashbotBossCrane, clearSmoothing);
+    writer.i8(0);
     return finish(writer);
 }
 
@@ -160,7 +176,8 @@ bool Client::sendCfoObject(uint32_t objectId, CfoAction action, float value,
     switch (action) {
     case CfoAction::Grab:
         if (!crane || object->state == 'G' || object->state == 'O' ||
-            (object->kind == CfoKind::Goon && object->state != 'S')) return false;
+            (object->kind == CfoKind::Goon && object->state != 'S' && object->state != 'W' &&
+             object->state != 'B' && object->state != 'R' && object->state != 'a' && object->state != 'b')) return false;
         for (const CfoChild& candidate : cfoChildren_) {
             if (candidate.active && candidate.state == 'G' && candidate.owner == avatarId_ &&
                 candidate.bossId == boss_.doId) return false;
@@ -203,6 +220,17 @@ bool Client::sendCfoObject(uint32_t objectId, CfoAction action, float value,
         }
         writer.i16(coordinate(value));
         break;
+    case CfoAction::Destroy: {
+        if (object->kind != CfoKind::Goon || object->state == 'O' || object->state == 'G') return false;
+        bool throwingSafe = false;
+        for (const CfoChild& candidate : cfoChildren_) {
+            throwingSafe |= candidate.active && candidate.bossId == boss_.doId && candidate.kind == CfoKind::Safe &&
+                            candidate.state == 'D' && candidate.owner == avatarId_;
+        }
+        if (!throwingSafe) return false;
+        TT_NET_UPDATE(writer, objectId, DistributedCashbotBossGoon, destroyGoon);
+        break;
+    }
     case CfoAction::Treasure:
         return false;
     }

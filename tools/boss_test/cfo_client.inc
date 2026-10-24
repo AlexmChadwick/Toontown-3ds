@@ -18,6 +18,8 @@ static void testCfo(Client& client, RecordingTransport& transport) {
     float links[3][3] = {{0,20,-6}, {0,20,-13}, {0,20,-20}};
     assert(!client.sendCfoCable(300, 0, 20, 0, links));
     crane.owner = 42;
+    assert(client.sendCfoClear(300));
+    assert(transport.update(300, dc::DistributedCashbotBossCrane::k_clearSmoothing).i8() == 0);
     assert(client.sendCfoCable(300, 255, 24.5f, -45, links));
     DatagramReader cable = transport.update(300, dc::DistributedCashbotBossCrane::k_setCablePos);
     assert(cable.u8() == 255 && cable.i16() == 2450 && cable.u16() == 31500 && cable.remaining() == 20);
@@ -58,7 +60,34 @@ static void testCfo(Client& client, RecordingTransport& transport) {
     Battle battle{};
     battle.bossId = 100;
     client.positionBossBattle(battle);
-    assert(battle.x == 145 && battle.y == -230);
+    assert(battle.x == 145 && battle.y == -230 && battle.sx == 144);
+    FILE* vectors = std::fopen("sdmc-out/boss-test/cfo_enters.bin", "rb");
+    assert(vectors);
+    uint32_t objectId = 0;
+    int count = 0;
+    while (std::fread(&objectId, 4, 1, vectors) == 1) {
+        uint16_t classId = 0;
+        uint32_t size = 0;
+        uint8_t payload[512];
+        assert(std::fread(&classId, 2, 1, vectors) == 1);
+        assert(std::fread(&size, 4, 1, vectors) == 1 && size <= sizeof(payload));
+        assert(std::fread(payload, 1, size, vectors) == size);
+        const dc::ClassDesc* cls = findClass(classId);
+        assert(cls);
+        DatagramReader enter(payload, size);
+        assert(client.handleBossEnter(objectId, classId, enter, requiredOther(*cls), cls->otherCount, true));
+        assert(enter.ok() && !enter.remaining());
+        assert(client.findCfoChild(objectId));
+        const CfoChild before = *client.findCfoChild(objectId);
+        DatagramReader bad(payload, size - 1);
+        assert(client.handleBossEnter(objectId, classId, bad, requiredOther(*cls), cls->otherCount, true));
+        assert(std::memcmp(client.findCfoChild(objectId), &before, sizeof(before)) == 0);
+        client.bossLeaving(objectId);
+        assert(!client.findCfoChild(objectId));
+        ++count;
+    }
+    std::fclose(vectors);
+    assert(count == 4);
     client.boss_.kind = BossKind::Sellbot;
     std::puts("CFO Client ownership, cable payload, impact, helmet, reward and child lifecycle: PASS");
 }

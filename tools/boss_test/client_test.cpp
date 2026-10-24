@@ -123,6 +123,12 @@ int main() {
     client.forceReconnect("boss test disconnect");
     assert(client.zoneId() == 11100 && !client.boss());
     assert(!client.sendVpHit());
+    client.state_ = State::InZone;
+    client.boss_.active = true;
+    client.boss_.kind = BossKind::Cashbot;
+    client.cfg_.zoneId = 61002;
+    client.forceReconnect("CFO test disconnect");
+    assert(client.zoneId() == 12100 && !client.boss() && !client.findCfoChild(300));
     client.stop();
     std::puts("real boss Client: clsend payloads, membership/phase guards, pie stock, reserve barrier, round poses, reconnect: PASS");
 }

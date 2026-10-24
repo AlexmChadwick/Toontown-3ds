@@ -151,7 +151,7 @@ void Client::positionBossBattle(Battle& battle) {
         battle.x = battle.bossSide ? 95 : 145;
         battle.y = -230;
         battle.z = 0;
-        battle.sx = battle.x + (battle.bossSide ? -1 : 1);
+        battle.sx = battle.x + (battle.bossSide ? 1 : -1);
         battle.sy = battle.y;
         battle.sz = 0;
         return;

@@ -43,6 +43,9 @@ bool applyCfoField(CfoChild& state, uint16_t fieldId, DatagramReader& reader, ui
         }
         next.cableStamp = reader.i16();
         next.cableMs = nowMs;
+    } else if (named("clearSmoothing")) {
+        reader.i8();
+        next.cableMs = 0;
     } else if (named("rejectGrab")) {
         next.rejected = true;
     } else if (named("destroyGoon")) {

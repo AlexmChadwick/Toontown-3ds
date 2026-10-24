@@ -21,7 +21,24 @@ const char* const kModelNames[] = {
     "vp_legs", "vp_torso", "vp_head", "vp_treads", "vp_arena", "vp_cage",
     "vp_cage_door", "vp_ramp_a", "vp_ramp_b", "vp_ramp_c", "vp_gear", "vp_pie"
 };
+const char* const kCfoModelNames[] = {
+    "cfo_legs", "cfo_torso", "cfo_head", "cfo_treads", "cfo_arena", "cfo_crane_arm",
+    "cfo_controls", "cfo_stick", "cfo_magnet", "cfo_safe", "cfo_locomotive",
+    "cfo_boxcar", "cfo_tankcar", "cfo_gear", "cfo_treasure", "goon_pg_full", "goon_cone", "cfo_cable"
+};
+const char* modelName(bool cashbot, int index) {
+    return cashbot ? kCfoModelNames[index] : kModelNames[index];
+}
+void modelPath(char* path, size_t capacity, bool cashbot, int index) {
+    const char* directory = cashbot && (index == 15 || index == 16) ? "sdmc:/3ds/toontown3ds/data/level/props/" : kDirectory;
+    std::snprintf(path, capacity, "%s%s.ttm", directory, modelName(cashbot, index));
+}
 constexpr uint32_t kClipLimit = 2800000;
+constexpr uint32_t kCfoClipLimit = 2004480;
+constexpr uint32_t kCfoGoonReserve = 1536 * 1024;
+uint32_t clipLimit(bool cashbot) {
+    return cashbot ? kCfoClipLimit : kClipLimit;
+}
 constexpr uint32_t kGeometryLimit = 6 * 1024 * 1024;
 
 bool participant(const uint32_t* ids, int count, uint32_t id) {
@@ -33,11 +50,11 @@ bool participant(const uint32_t* ids, int count, uint32_t id) {
 
 // Validate the complete clip before handing it to the existing background loader.
 // A pair of clips plus all model geometry stays below the zone's 6 MiB pool.
-bool clipBudget(const char* name, const render::Model* models) {
+bool clipBudget(const char* name, const render::Model* models, bool cashbot) {
     uint64_t total = 0;
     for (int part = 0; part < 4; ++part) {
         char path[160];
-        std::snprintf(path, sizeof(path), "%s%s_%s.tta", kDirectory, kModelNames[part], name);
+        std::snprintf(path, sizeof(path), "%s%s_%s.tta", kDirectory, modelName(cashbot, part), name);
         FILE* file = std::fopen(path, "rb");
         uint32_t header[16] = {};
         const bool read = file && std::fread(header, 1, 64, file) == 64;
@@ -66,15 +83,15 @@ bool clipBudget(const char* name, const render::Model* models) {
         }
         total += uint64_t(frames) * vertices * 8;
     }
-    return total <= kClipLimit;
+    return total <= clipLimit(cashbot);
 }
 
-bool modelBudgets() {
+bool modelBudgets(bool cashbot) {
     uint64_t geometry = 0;
     uint64_t textures = 0;
-    for (const char* name : kModelNames) {
-        char path[128];
-        std::snprintf(path, sizeof(path), "%s%s.ttm", kDirectory, name);
+    for (int index = 0; index < (cashbot ? 18 : 12); ++index) {
+        char path[160];
+        modelPath(path, sizeof(path), cashbot, index);
         FILE* file = std::fopen(path, "rb");
         uint32_t header[16] = {};
         if (!file) return false;
@@ -102,7 +119,7 @@ bool modelBudgets() {
         std::fclose(file);
         if (!valid) return false;
     }
-    return geometry + 2 * kClipLimit <= kGeometryLimit && textures <= 8 * 1024 * 1024;
+    return geometry + 2 * clipLimit(cashbot) + (cashbot ? kCfoGoonReserve : 0) <= kGeometryLimit && textures <= 8 * 1024 * 1024;
 }
 
 C3D_Mtx transform(Vec3 position, float heading = 0, float scale = 1) {
@@ -120,6 +137,7 @@ BossBattle::~BossBattle() {
 }
 
 void BossBattle::release() {
+    cfo_.release();
     if (modelTicket_) AssetLoader::cancel(modelTicket_);
     modelTicket_ = 0;
     for (int part = 0; part < kParts; ++part) {
@@ -150,7 +168,7 @@ void BossBattle::leave(BossFrame& frame) {
     frame.ui.setBattle(nullptr, {});
     if (frame.client.ownStats().hp <= 0) home_ = 5000;
     if (!frame.place.load(home_)) {
-        home_ = 11000;
+        home_ = cashbot_ ? 12000 : 11000;
         frame.place.load(home_);
     }
     if (frame.client.zoneId() != home_) frame.client.changeZone(home_);
@@ -171,7 +189,7 @@ void BossBattle::leave(BossFrame& frame) {
 void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
     for (int slot = 0; slot < net::kMaxCogElevators; ++slot) {
         const net::CogElevator& elevator = frame.client.cogElevatorSlot(slot);
-        if (!elevator.active || elevator.classId != dc::DistributedVPElevator::kClassId || !elevator.destZone) continue;
+        if (!elevator.active || (elevator.classId != dc::DistributedVPElevator::kClassId && elevator.classId != dc::DistributedCFOElevator::kClassId) || !elevator.destZone) continue;
         if (!participant(elevator.slots, 8, frame.client.avatarId()) && !elevator.forcedBossDestination) continue;
         if (elevator.destZone == frame.client.zoneId()) continue;
         frame.client.sendSetParent(1);
@@ -179,17 +197,21 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
         frame.remotes.clear();
         return;
     }
-    const bool scripted = frame.test.active() && !std::strcmp(frame.test.label(), "boss: board");
-    if (scripted && frame.place.zoneId() != 11100) {
-        frame.uiState.teleportRequest = 11100;
+    const bool cfoScript = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: board");
+    const bool scripted = cfoScript || (frame.test.active() && !std::strcmp(frame.test.label(), "boss: board"));
+    const bool cashbot = cfoScript || frame.place.zoneId() == 12100;
+    const uint32_t lobby = cashbot ? 12100 : 11100;
+    const uint16_t elevatorClass = cashbot ? dc::DistributedCFOElevator::kClassId : dc::DistributedVPElevator::kClassId;
+    if (scripted && frame.place.zoneId() != lobby) {
+        frame.uiState.teleportRequest = lobby;
         return;
     }
-    if (frame.place.zoneId() != 11100 || !frame.client.inZone()) return;
+    if (frame.place.zoneId() != lobby || !frame.client.inZone()) return;
     float x = 0;
     float y = 0;
     float z = 0;
     char path[128];
-    std::snprintf(path, sizeof(path), "%svp_lobby_anchor.txt", kDirectory);
+    std::snprintf(path, sizeof(path), "%s%s_lobby_anchor.txt", kDirectory, cashbot ? "cfo" : "vp");
     FILE* file = std::fopen(path, "r");
     if (!file) return;
     unsigned version = 0;
@@ -204,7 +226,7 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
     if (dx * dx + dy * dy + dz * dz > 25 || nowMs - boardMs_ < 3000) return;
     for (int slot = 0; slot < net::kMaxCogElevators; ++slot) {
         const net::CogElevator& elevator = frame.client.cogElevatorSlot(slot);
-        if (!elevator.active || elevator.classId != dc::DistributedVPElevator::kClassId) continue;
+        if (!elevator.active || elevator.classId != elevatorClass) continue;
         if (participant(elevator.slots, 8, frame.client.avatarId())) {
             if (frame.input.down & KEY_B) frame.client.sendCogElevatorExit(elevator.doId);
         } else if (scripted || (frame.input.down & KEY_A)) {
@@ -215,6 +237,7 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
 
 void BossBattle::pushBoss(void* user, float* x, float* y, float z, float radius) {
     const BossBattle& boss = *static_cast<const BossBattle*>(user);
+    if (boss.cashbot_) boss.cfo_.push(x, y, z, radius);
     if (!boss.bossSolid_ || z > boss.bossPosition_.z + 26 || z + 5 < boss.bossPosition_.z) return;
     float dx = *x - boss.bossPosition_.x;
     float dy = *y - boss.bossPosition_.y;
@@ -234,6 +257,7 @@ void BossBattle::pushBoss(void* user, float* x, float* y, float z, float radius)
 
 bool BossBattle::rampFloor(void* user, float x, float y, float z, float* top) {
     const BossBattle& boss = *static_cast<const BossBattle*>(user);
+    if (boss.cashbot_) return boss.cfo_.floor(x, y, z, top);
     bool found = false;
     float highest = -10000;
     for (int index = 0; index < 3; ++index) {
@@ -254,7 +278,7 @@ void BossBattle::loadAssets() {
     if (failed_ || ready_) return;
     if (!budgetChecked_) {
         budgetChecked_ = true;
-        if (!modelBudgets()) {
+        if (!modelBudgets(cashbot_)) {
             failed_ = true;
             TT_LOG("boss: model header / aggregate memory budget rejected");
             return;
@@ -272,7 +296,21 @@ void BossBattle::loadAssets() {
         modelTicket_ = 0;
         ++modelIndex_;
     }
-    if (modelIndex_ == kModels) {
+    if (modelIndex_ == (cashbot_ ? 18 : 12)) {
+        if (cashbot_) {
+            if (!cfo_.loadGoons(models_[15])) {
+                failed_ = cfo_.failed();
+                return;
+            }
+            char path[128];
+            std::snprintf(path, sizeof(path), "%scfo_arena.ttc", kDirectory);
+            ready_ = collision_.load(path);
+            failed_ = !ready_;
+            solids_.floor = rampFloor;
+            solids_.push = pushBoss;
+            solids_.user = this;
+            return;
+        }
         char path[128];
         std::snprintf(path, sizeof(path), "%svp_arena.ttc", kDirectory);
         ready_ = collision_.load(path);
@@ -312,13 +350,13 @@ void BossBattle::loadAssets() {
         return;
     }
     char path[128];
-    std::snprintf(path, sizeof(path), "%s%s.ttm", kDirectory, kModelNames[modelIndex_]);
+    modelPath(path, sizeof(path), cashbot_, modelIndex_);
     modelTicket_ = AssetLoader::requestModel(path);
 }
 
 void BossBattle::selectClip(const char* name) {
     if (!ready_ || pendingClip_[0] || !std::strcmp(currentClip_, name) || !std::strcmp(failedClip_, name)) return;
-    if (!clipBudget(name, models_)) {
+    if (!clipBudget(name, models_, cashbot_)) {
         std::snprintf(failedClip_, sizeof(failedClip_), "%s", name);
         TT_LOG("boss: clip missing, malformed or over budget: %s", name);
         return;
@@ -332,7 +370,7 @@ void BossBattle::publishClip() {
     for (int part = 0; part < kParts; ++part) {
         if (!clipTickets_[part]) {
             char path[160];
-            std::snprintf(path, sizeof(path), "%s%s_%s.tta", kDirectory, kModelNames[part], pendingClip_);
+            std::snprintf(path, sizeof(path), "%s%s_%s.tta", kDirectory, modelName(cashbot_, part), pendingClip_);
             clipTickets_[part] = AssetLoader::requestAnim(path);
         }
         const LoadStatus status = AssetLoader::poll(clipTickets_[part]);
@@ -361,10 +399,10 @@ void BossBattle::publishClip() {
 void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint32_t nowMs) {
     const BossPhase phase = bossPhase(state.phase);
     const bool piePhase = phase == BossPhase::Pies || phase == BossPhase::FinalPie;
-    bossPosition_ = vpPosition(net::currentBossDamage(state, nowMs));
+    bossPosition_ = cashbot_ ? kCfoBoss : vpPosition(net::currentBossDamage(state, nowMs));
     bossSolid_ = piePhase;
     const float elapsed = (nowMs - state.phaseMs) / 1000.0f;
-    for (int index = 0; index < 3; ++index) {
+    for (int index = 0; !cashbot_ && index < 3; ++index) {
         // DistributedSellbotBoss ramp FSM: local X=18 retracted, X=0 extended.
         bool retracted = phase == BossPhase::Round || index == 2;
         if (phase == BossPhase::Pies || phase == BossPhase::FinalPie ||
@@ -384,13 +422,17 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         charging_ = false;
         for (Projectile& pie : pies_) pie.active = false;
         for (Projectile& gear : gears_) gear.active = false;
-        if (piePhase) frame.player.reset(-20, 42, 18.1f, -90);
+        if (piePhase) {
+            if (cashbot_) frame.player.reset(105, -285, .1f, 208);
+            else frame.player.reset(-20, 42, 18.1f, -90);
+        }
         TT_LOG("boss: phase %s", phase_);
     }
-    if (state.cagedNpc && rescuedNpc_ != state.cagedNpc) {
-        rescuedNpc_ = state.cagedNpc;
+    const uint32_t npcId = cashbot_ ? 146392 : state.cagedNpc;
+    if (npcId && rescuedNpc_ != npcId) {
+        rescuedNpc_ = npcId;
         char path[128];
-        std::snprintf(path, sizeof(path), "%svp_npcs.bin", kDirectory);
+        std::snprintf(path, sizeof(path), "%s%s_npcs.bin", kDirectory, cashbot_ ? "cfo" : "vp");
         FILE* file = std::fopen(path, "rb");
         char magic[4] = {};
         uint16_t version = 0;
@@ -418,9 +460,10 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
     }
     for (int index = 0; index < state.numBarriers; ++index) {
         const net::BossBarrier& barrier = state.barriers[index];
-        const float delay = bossBarrierDelay(barrier.name);
+        float delay = bossBarrierDelay(barrier.name);
+        if (cashbot_ && !std::strcmp(barrier.name, "Victory")) delay = 15;
         if (!barrier.waitingForUs || delay < 0 || elapsed < delay || std::strcmp(barrier.name, state.phase)) continue;
-        if (!std::strcmp(barrier.name, "Victory") &&
+        if (!cashbot_ && !std::strcmp(barrier.name, "Victory") &&
             (std::strcmp(currentClip_, "Fb_fall") || clipTime_ < 5.8f)) continue;
         if (haveAcknowledged_[index] && acknowledged_[index] == barrier.context) continue;
         if (frame.client.sendBossBarrier(barrier.context)) {
@@ -467,7 +510,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         while (frame.ui.battle().popAction(action)) frame.battle.perform(frame.client, action, nowMs);
     }
     Input movement = frame.input;
-    if (!piePhase || frame.battle.active()) movement = {};
+    if (!piePhase || frame.battle.active() || (cashbot_ && cfo_.controlling(frame.client))) movement = {};
     frame.player.setCollision(&collision_);
     frame.player.setDynamic(&solids_);
     frame.player.setPlatform(nullptr, 0, 0, 0, 0);
@@ -486,7 +529,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         const ToonAnim animation = frame.player.animState(&rate);
         frame.toon.play(animation, rate);
     }
-    if (piePhase) {
+    if (piePhase && !cashbot_) {
         pitch_ = std::clamp(pitch_ + ((frame.input.held & KEY_DUP) ? 40 : 0) * frame.dt -
                             ((frame.input.held & KEY_DDOWN) ? 40 : 0) * frame.dt, -30.0f, 60.0f);
         const bool held = (frame.input.held & KEY_B) != 0;
@@ -645,6 +688,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
             contactMs_ = nowMs;
         }
     }
+    if (cashbot_) cfo_.update(frame, nowMs);
     if (nowMs - moveMs_ >= 200) {
         frame.client.sendPosHpr(frame.player.x(), frame.player.y(), frame.player.z(), frame.player.headingDeg(), 0, 0);
         frame.client.sendAnimState(frame.player.airborne() ? "jumpAirborne" : frame.player.moving() ? "run" : "Happy", 1);
@@ -673,6 +717,15 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             position = {0, -35 + 95 * fraction, 18 * fraction};
         }
     }
+    if (cashbot_) {
+        position = phase == BossPhase::Round || phase == BossPhase::Intro || phase == BossPhase::Arrival ?
+                   Vec3{120, -230, 0} : kCfoBoss;
+        heading = phase == BossPhase::Round ? 90 : 180;
+        if (phase == BossPhase::Victory) {
+            const float age = (nowMs - state.phaseMs) / 1000.0f;
+            if (age >= 5.5f) position = {120, -280 + 30 * std::clamp((age - 5.5f) / 3, 0.0f, 1.0f), 0};
+        }
+    }
     C3D_FVec eye = frame.player.cameraEye();
     C3D_FVec target = frame.player.cameraTarget();
     if (frame.battle.inBattle()) {
@@ -682,6 +735,10 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         eye = FVec3_New(position.x + 35, position.y - 55, position.z + 24);
         target = FVec3_New(position.x, position.y, position.z + 15);
     }
+    if (cashbot_ && cfo_.controlling(frame.client) && phase == BossPhase::Pies) {
+        eye = FVec3_New(120, -375, 52);
+        target = FVec3_New(120, -315, 8);
+    }
     gfxSet3D(false); // One rendering pass preserves the Old 3DS boss budget.
     frame.stereoActive = false;
     frame.renderer.resetStats();
@@ -689,28 +746,37 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     C3D_Mtx identity = transform({0, 0, 0});
     if (ready_) {
         frame.renderer.drawModel(models_[4], identity);
-        // Upstream cageHeights: 100,81,63,44,25,18; the baked pivot is z=100.
-        const float cageHeight = vpCageHeight(state, nowMs);
-        C3D_Mtx cage = transform({0, 0, cageHeight - 100});
-        frame.renderer.drawModel(models_[5], cage);
-        // CageOpenMovie rotates the door around its original hinge, then releases the NPC.
-        C3D_Mtx door = cage;
-        if (phase == BossPhase::Epilogue) {
-            door = transform({doorHinge_.x, doorHinge_.y, doorHinge_.z + cageHeight - 100});
-            Mtx_RotateX(&door, vpCageDoorAngle(state, nowMs) * kDegrees, true);
-            Mtx_Translate(&door, -doorHinge_.x, -doorHinge_.y, -doorHinge_.z, true);
-        }
-        frame.renderer.drawModel(models_[6], door);
-        C3D_Mtx rescued = transform({0, 78, cageHeight}, 180);
-        rescuedToon_.draw(frame.renderer, rescued);
-        for (int index = 0; index < 3; ++index) {
-            C3D_Mtx ramp = transform(rampOffset_[index]);
-            frame.renderer.drawModel(models_[7 + index], ramp);
+        if (!cashbot_) {
+            // Upstream cageHeights: 100,81,63,44,25,18; the baked pivot is z=100.
+            const float cageHeight = vpCageHeight(state, nowMs);
+            C3D_Mtx cage = transform({0, 0, cageHeight - 100});
+            frame.renderer.drawModel(models_[5], cage);
+            // CageOpenMovie rotates the door around its original hinge, then releases the NPC.
+            C3D_Mtx door = cage;
+            if (phase == BossPhase::Epilogue) {
+                door = transform({doorHinge_.x, doorHinge_.y, doorHinge_.z + cageHeight - 100});
+                Mtx_RotateX(&door, vpCageDoorAngle(state, nowMs) * kDegrees, true);
+                Mtx_Translate(&door, -doorHinge_.x, -doorHinge_.y, -doorHinge_.z, true);
+            }
+            frame.renderer.drawModel(models_[6], door);
+            C3D_Mtx rescued = transform({0, 78, cageHeight}, 180);
+            rescuedToon_.draw(frame.renderer, rescued);
+            for (int index = 0; index < 3; ++index) {
+                C3D_Mtx ramp = transform(rampOffset_[index]);
+                frame.renderer.drawModel(models_[7 + index], ramp);
+            }
+        } else {
+            cfo_.draw(frame, models_, nowMs);
+            if (phase == BossPhase::Intro || phase == BossPhase::Transition || phase == BossPhase::Epilogue) {
+                C3D_Mtx resistance = transform(phase == BossPhase::Intro ? Vec3{94, -220, 0} : Vec3{120, -315, 0}, 180);
+                rescuedToon_.draw(frame.renderer, resistance);
+            }
         }
         C3D_Mtx world = transform(position, heading);
         C3D_Mtx torso = world;
         C3D_Mtx head = world;
-        for (int part = 0; part < kParts && phase != BossPhase::Reward && phase != BossPhase::Epilogue; ++part) {
+        for (int part = 0; part < kParts && phase != BossPhase::Reward && phase != BossPhase::Epilogue &&
+             !(cashbot_ && phase == BossPhase::Victory && nowMs - state.phaseMs > 9500); ++part) {
             C3D_Mtx partWorld = part == 1 ? torso : part == 2 ? head : world;
             render::Anim& animation = animations_[part];
             if (animation.loaded()) {
@@ -773,11 +839,23 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     context.infoLines[2] = phase == BossPhase::Epilogue ? "SOS awarded by server. A: return to HQ" :
                            failed_ ? "Copy data/boss from the bake. B: return" :
                            "A jump; B hold/release pie; D-pad aim; cage refills";
+    if (cashbot_) {
+        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : state.phase;
+        std::snprintf(status_, sizeof(status_), "CFO %.0f / 500  Laff %d", damage, frame.client.ownStats().hp);
+        std::snprintf(details_, sizeof(details_), "Magnet %s   %s", cfo_.magnetOn() ? "ON" : "OFF",
+                      state.attack == net::kBossDizzy ? "STUNNED: throw safes" : "Jump on goons; knock helmet off");
+        context.infoLines[2] = failed_ ? "Copy data/boss and level/props goons. B: return" :
+            "A: crane/jump  Pad: arm  B: magnet/drop  X: exit";
+        if (phase == BossPhase::Epilogue) {
+            std::snprintf(details_, sizeof(details_), "Resistance reward %u", unsigned(state.rewardId));
+            context.infoLines[2] = rewardConfirmed_ ? "Reward requested. A: return to Cashbot HQ" : "A: confirm and apply Resistance reward";
+        }
+    }
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
     frame.ui.draw(frame.bottom, frame.uiState, context);
-    C2D_DrawRectSolid(12, 196, .8f, std::clamp(damage / 100, 0.0f, 1.0f) * 296, 5,
+    C2D_DrawRectSolid(12, 196, .8f, std::clamp(damage / (cashbot_ ? 500 : 100), 0.0f, 1.0f) * 296, 5,
                       C2D_Color32(220, 80, 40, 255));
 }
 
@@ -786,13 +864,16 @@ bool BossBattle::frame(BossFrame& frame) {
     if (!active_) {
         board(frame, nowMs);
         const net::BossState* snapshot = frame.client.boss();
-        if (!snapshot || snapshot->kind != net::BossKind::Sellbot) return false;
+        if (!snapshot || (snapshot->kind != net::BossKind::Sellbot && snapshot->kind != net::BossKind::Cashbot)) return false;
         const net::BossState& state = *snapshot;
+        cashbot_ = state.kind == net::BossKind::Cashbot;
+        cfo_.reset();
+        rewardConfirmed_ = false;
         active_ = true;
         failed_ = false;
         entered_ = false;
         near_ = false;
-        home_ = frame.place.zoneId() == 11100 ? 11100 : 11000;
+        home_ = cashbot_ ? 12000 : frame.place.zoneId() == 11100 ? 11100 : 11000;
         bossId_ = state.doId;
         phase_[0] = 0;
         attackRevision_ = 0;
@@ -804,7 +885,8 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.suits.setZone(frame.client.zoneId());
         C3D_FrameSync();
         frame.place.unload(); // The lobby and arena never consume the zone pools together.
-        frame.player.reset(-10, -80, 0, 0);
+        if (cashbot_) frame.player.reset(88, -214, 0, 210);
+        else frame.player.reset(-10, -80, 0, 0);
         frame.ui.book().close();
     }
     frame.client.update(nowMs);
@@ -819,10 +901,15 @@ bool BossBattle::frame(BossFrame& frame) {
     if (!state.active && frame.client.inZone() && Place::available(frame.client.zoneId())) {
         home_ = frame.client.zoneId(); // a new login may already have selected a safe place
     }
+    const bool endingInput = (frame.input.down & KEY_A) ||
+        (frame.test.active() && !std::strcmp(frame.test.label(), cashbot_ ? "cfo: end" : "boss: end"));
+    const bool couldLeave = !cashbot_ || rewardConfirmed_;
+    if (cashbot_ && phase == BossPhase::Epilogue && endingInput && !rewardConfirmed_) {
+        rewardConfirmed_ = frame.client.sendCfoReward();
+    }
     if (!state.active || state.doId != bossId_ || frame.client.ownStats().hp <= 0 ||
         (failed_ && (frame.input.down & KEY_B)) ||
-        (phase == BossPhase::Epilogue && nowMs - state.phaseMs >= 1500 && ((frame.input.down & KEY_A) ||
-         (frame.test.active() && !std::strcmp(frame.test.label(), "boss: end"))))) {
+        (phase == BossPhase::Epilogue && nowMs - state.phaseMs >= 1500 && endingInput && couldLeave)) {
         leave(frame);
         return false;
     }
@@ -854,7 +941,7 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.shot = nullptr;
     }
     loadAssets();
-    selectClip(vpClip(state, nowMs));
+    selectClip(cashbot_ ? cfoClip(state, nowMs) : vpClip(state, nowMs));
     publishClip();
     clipTime_ += frame.dt;
     draw(frame, state, nowMs);

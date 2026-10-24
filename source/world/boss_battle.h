@@ -8,6 +8,7 @@
 #include "world/battle.h"
 #include "world/battle_fx.h"
 #include "world/boss_logic.h"
+#include "world/cfo_mechanics.h"
 #include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
@@ -46,7 +47,7 @@ public:
 
 private:
     static constexpr int kParts = 4;
-    static constexpr int kModels = 12;
+    static constexpr int kModels = 18;
     static constexpr int kProjectiles = 16;
     struct Projectile {
         bool active = false;
@@ -67,6 +68,9 @@ private:
     void updateFight(BossFrame& frame, const net::BossState& state, uint32_t nowMs);
     void draw(BossFrame& frame, const net::BossState& state, uint32_t nowMs);
     void board(BossFrame& frame, uint32_t nowMs);
+    bool cashbot_ = false;
+    CfoMechanics cfo_;
+    bool rewardConfirmed_ = false;
     bool active_ = false;
     bool ready_ = false;
     bool budgetChecked_ = false;

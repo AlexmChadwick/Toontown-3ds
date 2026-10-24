@@ -54,4 +54,32 @@ out = ROOT / 'sdmc-out/boss-test'
 out.mkdir(parents=True, exist_ok=True)
 (out / 'panda_vectors.bin').write_bytes(b''.join(struct.pack('<HHI', cls, field, len(blob)) + blob
                                                for cls, field, blob in records))
+enters = []
+for offset, name in enumerate(('DistributedCashbotBossCrane', 'DistributedCashbotBossSafe',
+                               'DistributedCashbotBossGoon', 'DistributedCashbotBossTreasure')):
+    cls = dc.getClassByName(name)
+    required = []
+    optional = []
+    for index in range(cls.getNumInheritedFields()):
+        field = cls.getInheritedField(index)
+        if field.asMolecularField() is not None:
+            continue
+        if not (field.isRequired() or field.isRam()):
+            continue
+        value = bytes(field.getDefaultValue())
+        if field.getName() == 'setBossCogId':
+            value = bytes(field.parseString('(100)'))
+        if field.getName() == 'setIndex':
+            value = bytes(field.parseString('(3)'))
+        if field.getName() == 'setState':
+            value = bytes(field.parseString('(67,42)'))
+        if field.getName() == 'setObjectState':
+            value = bytes(field.parseString('(68,42,300)'))
+        if field.isRequired():
+            required.append(value)
+        else:
+            optional.append(struct.pack('<H', field.getNumber()) + value)
+    payload = b''.join(required) + struct.pack('<H', len(optional)) + b''.join(optional)
+    enters.append(struct.pack('<IHI', 400 + offset, cls.getNumber(), len(payload)) + payload)
+(out / 'cfo_enters.bin').write_bytes(b''.join(enters))
 print(f'{len(records)} independent Panda boss field vectors')

@@ -1705,8 +1705,9 @@ public:
     const CfoChild& cfoChildSlot(int index) const { return cfoChildren_[index]; }
     const CfoChild* findCfoChild(uint32_t doId) const;
     bool sendCfoControl(uint32_t craneId, bool control);
+    bool sendCfoClear(uint32_t craneId);
     bool sendCfoCable(uint32_t craneId, uint8_t sequence, float y, float h, const float links[3][3]);
-    enum class CfoAction { Grab, Drop, Floor, Free, Hit, Initial, Stun, Battle, Treasure };
+    enum class CfoAction { Grab, Drop, Floor, Free, Hit, Initial, Stun, Battle, Treasure, Destroy };
     bool sendCfoObject(uint32_t objectId, CfoAction action, float value = 0,
                        float x = 0, float y = 0, float z = 0, float heading = 0);
     bool sendCfoPose(uint32_t objectId, float x, float y, float z, float heading);
