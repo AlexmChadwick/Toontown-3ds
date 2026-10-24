@@ -32,8 +32,9 @@ const DropPoint kDropPoints[] = {
     {5000, 0.0f, 0.0f, 0.0f, -10.5f},      {6000, -165.8f, 108.0f, 0.025f, 252.0f},
     {8000, -0.7f, 62.0f, 0.08f, 182.0f},   {9000, 77.0f, 91.0f, 0.0f, 124.4f},
     // Cog HQ courtyards (docs/design/coghq.md).
-    {10000, 0.0f, -70.0f, 0.0f, 0.0f},     {11000, 0.0f, -200.0f, 0.0f, 0.0f},
-    {12000, 100.0f, -500.0f, -48.0f, 0.0f}, {13000, 0.0f, -250.0f, 0.0f, 0.0f},
+    // (Codex bakefix: checked against each HQ's collision; docs/design/coghq.md.)
+    {10000, 0.0f, 0.0f, 0.0f, 0.0f},         {11000, 64.0f, -128.0f, 0.26f, 36.0f},
+    {12000, 102.0f, -437.0f, -23.439f, 0.0f}, {13000, 77.5f, 129.13f, -68.4f, -166.6f},
 };
 
 bool exists(const char* path) {

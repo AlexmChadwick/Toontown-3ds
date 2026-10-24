@@ -10,6 +10,8 @@
 #include <citro3d.h>
 
 #include "net/client.h"
+#include "render/model.h"
+#include "render/renderer.h"
 
 namespace tt::world {
 
@@ -22,6 +24,9 @@ public:
     // while the trolley waits. hp <= 0 can't board (Trolley.py "trolley HFA").
     void update(net::Client& client, float x, float y, float z, int hp, u32 nowMs);
     void hopOff(net::Client& client);
+    // The car (zones/<hood>_trolley.ttm), driving in and out with the trolley's setState.
+    void draw(render::Renderer& renderer, const net::Client& client, u32 nowMs);
+    void shutdown() { car_.unload(); }
 
     bool seated() const { return seat_ >= 0; }
     void seatPose(float* x, float* y, float* z, float* h) const;
@@ -52,6 +57,8 @@ public:
 
 private:
     void toWorld(float sx, float sy, float sz, float* wx, float* wy, float* wz) const;
+    // Car position in station space for the trolley's current state (DistributedTrolley tracks).
+    void carPos(const net::Client& client, u32 nowMs, float* x, float* y, float* z, bool* visible) const;
 
     bool has_ = false;
     u32 hood_ = 0;
@@ -66,6 +73,8 @@ private:
     u16 mgGame_ = 0;
     bool mgPending_ = false;
     const char* message_ = nullptr;
+    render::Model car_;
+    float carX_ = 15.751f, carY_ = 14.1588f, carZ_ = -0.984615f; // last drawn (seats ride with it)
 };
 
 } // namespace tt::world

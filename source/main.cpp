@@ -1110,6 +1110,7 @@ int main() {
             zoneActors.draw(renderer, player.cameraEye());
             boat.draw(renderer);
             cchars.draw(renderer);
+            if (netStarted) trolley.draw(renderer, net, tt::net::plat::nowMs());
             fishing.draw(renderer);
             suits.draw(renderer);
             tt::prof::lap(tt::prof::kDrawActors);
@@ -1275,6 +1276,7 @@ int main() {
     cchars.shutdown();
     fishing.shutdown();
     minigame.shutdown();
+    trolley.shutdown();
     boat.shutdown();
     tt::world::AssetLoader::shutdown();
     suits.shutdown();

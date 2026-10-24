@@ -13,7 +13,7 @@ constexpr float kDegToRad = 3.14159265f / 180.0f;
 constexpr float kCountdownSec = 10.0f; // TrolleyConstants.TROLLEY_COUNTDOWN_TIME
 constexpr float kSphereRadius = 15.756f;
 // The parked car in station space (DistributedTrolley enter track ends at (15, 14, -1)).
-constexpr float kCarX = 15.0f, kCarY = 14.0f, kCarZ = -1.0f;
+constexpr float kCarZ = -1.0f;
 
 struct Station {
     u32 hood;
@@ -40,6 +40,50 @@ void TrolleyRide::setZone(u32 zoneId) {
         px_ = s.x, py_ = s.y, pz_ = s.z, ph_ = s.h;
         sphereY_ = s.hood == 5000 ? 13.88f : 14.88f;
     }
+    C3D_FrameSync();
+    car_.unload();
+    if (has_) {
+        char path[80];
+        snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/zones/%lu_trolley.ttm", static_cast<unsigned long>(hood_));
+        car_.load(path); // absent on older SD sets: the car stays baked into the zone then
+    }
+}
+
+void TrolleyRide::carPos(const net::Client& client, u32 nowMs, float* x, float* y, float* z, bool* visible) const {
+    // DistributedTrolley: parked at (15.751, 14.1588, -0.9846); enter (-20,14,-1)->(15,14,-1) in
+    // 2 s easeOut; leave (15,14,-1)->(50,14,-1) in 5 s easeIn; gone while Off.
+    *x = 15.751f, *y = 14.1588f, *z = -0.984615f;
+    *visible = true;
+    const net::Trolley* t = client.trolley();
+    if (!t) return;
+    const float el = static_cast<s32>(nowMs - t->stateStartMs) / 1000.0f;
+    if (t->state == net::TrolleyState::Entering) {
+        float f = el / 2.0f;
+        f = f < 0 ? 0 : f > 1 ? 1 : f;
+        f = 1.0f - (1.0f - f) * (1.0f - f); // easeOut
+        *x = -20.0f + 35.0f * f, *y = 14.0f, *z = -1.0f;
+    } else if (t->state == net::TrolleyState::Leaving) {
+        float f = el / 5.0f;
+        f = f < 0 ? 0 : f > 1 ? 1 : f;
+        f = f * f; // easeIn
+        *x = 15.0f + 35.0f * f, *y = 14.0f, *z = -1.0f;
+    } else if (t->state == net::TrolleyState::Off) {
+        *visible = false;
+    }
+}
+
+void TrolleyRide::draw(render::Renderer& renderer, const net::Client& client, u32 nowMs) {
+    if (!has_ || !car_.loaded()) return;
+    bool visible;
+    carPos(client, nowMs, &carX_, &carY_, &carZ_, &visible);
+    if (!visible) return;
+    float wx, wy, wz;
+    toWorld(carX_, carY_, carZ_, &wx, &wy, &wz);
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, wx, wy, wz, true);
+    Mtx_RotateZ(&m, (ph_ + 90.0f) * kDegToRad, true); // station H, then the car's own H 90
+    renderer.drawModel(car_, m);
 }
 
 void TrolleyRide::toWorld(float sx, float sy, float sz, float* wx, float* wy, float* wz) const {
@@ -52,8 +96,10 @@ void TrolleyRide::toWorld(float sx, float sy, float sz, float* wx, float* wy, fl
 void TrolleyRide::seatPose(float* x, float* y, float* z, float* h) const {
     // DistributedTrolley.fillSlot: the toon ends sitting at (-3.9, -4.5 + 3i, 3.0) in car space, H 90.
     const int i = seat_ < 0 ? 0 : seat_;
-    toWorld(kCarX - 3.9f, kCarY - 4.5f + 3.0f * i, kCarZ + 3.0f, x, y, z);
-    *h = ph_ + 90.0f;
+    // Car space is rotated H 90 in the station: car-space (cx, cy) is station (-cy, cx) from the car.
+    const float cx = -3.9f, cy = -4.5f + 3.0f * i;
+    toWorld(carX_ - cy, carY_ + cx, carZ_ + 3.0f, x, y, z); // rides with the car
+    *h = ph_ + 90.0f + 90.0f;
 }
 
 void TrolleyRide::exitPose(int seat, float* x, float* y, float* z, float* h) const {
@@ -64,8 +110,9 @@ void TrolleyRide::exitPose(int seat, float* x, float* y, float* z, float* h) con
 void TrolleyRide::camera(C3D_FVec* eye, C3D_FVec* target) const {
     // Trolley.py enterTrolley: camera at (-35, 0, 8) relative to the car, H -90 (looking at it).
     float ex, ey, ez, tx, ty, tz;
-    toWorld(kCarX - 35.0f, kCarY, kCarZ + 8.0f, &ex, &ey, &ez);
-    toWorld(kCarX, kCarY, kCarZ + 4.0f, &tx, &ty, &tz);
+    // Car-space (-35, 0, 8) is station (0, -35, 8) from the car (car H 90).
+    toWorld(carX_, carY_ - 35.0f, carZ_ + 8.0f, &ex, &ey, &ez);
+    toWorld(carX_, carY_, carZ_ + 4.0f, &tx, &ty, &tz);
     *eye = FVec3_New(ex, ey, ez);
     *target = FVec3_New(tx, ty, tz);
 }
