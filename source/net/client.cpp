@@ -465,6 +465,7 @@ void Client::resetWorld() {
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearBattles();
+    clearCogObjects();
     ownBattleId_ = 0;
     clearTrolleyObjects();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
@@ -754,6 +755,18 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleTrolleyEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
+        handleCogBuildingEnter(doId, r, req, reqCount, other);
+        return;
+    }
+    if (classHasField(*cls, dc::DistributedElevator::k_setBldgDoId)) {
+        handleCogElevatorEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
+    if (classId == dc::DistributedSuitInterior::kClassId) {
+        handleCogInteriorEnter(doId, r, req, reqCount, other);
+        return;
+    }
     if (classHasField(*cls, dc::DistributedMinigame::k_setAvatarJoined)) {
         handleMinigameEnter(doId, classId, r, req, reqCount, other);
         return;
@@ -847,6 +860,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         return;
     }
     if (handleTrolleyField(r, doId, fieldId)) return;
+    if (handleCogField(r, doId, fieldId)) return;
     for (NpcToon& n : npcs_) {
         if (n.active && n.doId == doId) {
             handleNpcField(n, r, fieldId);
@@ -959,6 +973,24 @@ void Client::handleLeaving(uint32_t doId) {
         return;
     }
     if (handleTrolleyLeaving(doId)) return;
+    for (CogBuilding& b : cogBuildings_) {
+        if (b.active && b.doId == doId) {
+            b.active = false;
+            pushEvent(EventType::CogBuildingGone, doId);
+            return;
+        }
+    }
+    for (CogElevator& e : cogElevators_) {
+        if (e.active && e.doId == doId) {
+            e.active = false;
+            return;
+        }
+    }
+    if (cogInterior_.active && cogInterior_.doId == doId) {
+        pushEvent(EventType::CogInteriorGone, doId);
+        cogInterior_ = CogInterior{};
+        return;
+    }
     if (doId == timeManagerId_) timeManagerId_ = 0;
     if (doId == tutorialManagerId_) tutorialManagerId_ = 0;
     for (NpcToon& n : npcs_) {
@@ -2375,6 +2407,7 @@ void Client::dropZoneObjects() {
     clearFishing();
     clearSuits();
     clearBattles();
+    clearCogObjects();
     clearTrolleyObjects();
 }
 
@@ -3269,6 +3302,220 @@ bool Client::sendPurchaseInventory() {
     w.blob(inv, sizeof(inv));
     w.i16(ownStats_.money);
     w.u8(1);
+    return finish(w);
+}
+
+// ============================================================== Cog buildings
+namespace {
+template <typename T>
+uint8_t readU32Array(DatagramReader& r, T* out, uint8_t cap) {
+    Bytes b = r.blob();
+    if (!r.ok()) return 0;
+    DatagramReader a(b.data, b.len);
+    uint8_t n = 0;
+    while (a.remaining() >= 4) {
+        uint32_t v = a.u32();
+        if (n < cap) out[n++] = v;
+    }
+    if (!a.ok()) r.fail();
+    return n;
+}
+}
+
+const CogBuilding* Client::findCogBuilding(uint32_t doId) const {
+    for (const CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) return &b;
+    return nullptr;
+}
+
+const CogElevator* Client::findCogElevator(uint32_t doId) const {
+    for (const CogElevator& e : cogElevators_) if (e.active && e.doId == doId) return &e;
+    return nullptr;
+}
+
+bool Client::applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedBuilding::k_setBlock) {
+        b.block = r.u16();
+        b.interiorZoneId = r.u32();
+        return r.ok();
+    }
+    if (fieldId == dc::DistributedBuilding::k_setSuitData) {
+        b.track = r.i8(); b.difficulty = r.i8(); b.numFloors = r.i8();
+        return r.ok();
+    }
+    if (fieldId == dc::DistributedBuilding::k_setVictorList) {
+        b.numVictors = readU32Array(r, b.victors, 8);
+        return r.ok();
+    }
+    if (fieldId == dc::DistributedBuilding::k_setState) {
+        char state[24];
+        r.string(state, sizeof(state));
+        const int16_t ts = r.i16();
+        b.stateStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        if (!strcmp(state, "toon")) b.state = CogBuildingState::Toon;
+        else if (!strcmp(state, "suit")) b.state = CogBuildingState::Suit;
+        else if (!strcmp(state, "becomingSuit")) b.state = CogBuildingState::BecomingSuit;
+        else if (!strcmp(state, "becomingToon")) b.state = CogBuildingState::BecomingToon;
+        else b.state = CogBuildingState::Other;
+        return r.ok();
+    }
+    return skipField(r, fieldId);
+}
+
+bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedElevator::k_setBldgDoId) e.buildingDoId = r.u32();
+    else if (fieldId == dc::DistributedElevator::k_setState) {
+        char state[sizeof(e.state)];
+        r.string(state, sizeof(state));
+        const int16_t ts = r.i16();
+        strncpy(e.state, state, sizeof(e.state) - 1);
+        e.state[sizeof(e.state) - 1] = 0;
+        e.stateStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else if (fieldId >= dc::DistributedElevator::k_fillSlot0 &&
+               fieldId <= dc::DistributedElevator::k_fillSlot7) {
+        const int n = fieldId - dc::DistributedElevator::k_fillSlot0;
+        e.slots[n] = r.u32(); e.slotFlags[n] = r.u8();
+    } else if (fieldId >= dc::DistributedElevator::k_emptySlot0 &&
+               fieldId <= dc::DistributedElevator::k_emptySlot7) {
+        const int n = fieldId - dc::DistributedElevator::k_emptySlot0;
+        e.slots[n] = 0; r.u8(); r.i16(); r.i16();
+    } else if (fieldId == dc::DistributedElevator::k_setElevatorTripId) e.tripId = r.u32();
+    else if (fieldId == dc::DistributedElevator::k_setMinLaff) e.minLaff = r.u8();
+    else return skipField(r, fieldId);
+    return r.ok();
+}
+
+bool Client::applyCogInteriorField(CogInterior& i, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedSuitInterior::k_setZoneId) i.zoneId = r.u32();
+    else if (fieldId == dc::DistributedSuitInterior::k_setExtZoneId) i.extZoneId = r.u32();
+    else if (fieldId == dc::DistributedSuitInterior::k_setDistBldgDoId) i.buildingDoId = r.u32();
+    else if (fieldId == dc::DistributedSuitInterior::k_setNumFloors) i.numFloors = r.i8();
+    else if (fieldId == dc::DistributedSuitInterior::k_setToons) {
+        i.numToons = readU32Array(r, i.toons, 8); r.u16();
+    } else if (fieldId == dc::DistributedSuitInterior::k_setSuits) {
+        i.numSuits = readU32Array(r, i.suits, 8);
+        i.numSuits = readU32Array(r, i.suitLevels, 8);
+        Bytes hp = r.blob();
+        DatagramReader a(hp.data, hp.len);
+        for (uint8_t n = 0; n < i.numSuits && a.remaining() >= 2; ++n) i.suitHp[n] = a.u16();
+        if (!a.ok()) r.fail();
+    } else if (fieldId == dc::DistributedSuitInterior::k_setState) {
+        r.string(i.state, sizeof(i.state));
+        const int16_t ts = r.i16();
+        i.stateStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+    } else return skipField(r, fieldId);
+    return r.ok();
+}
+
+bool Client::handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint16_t* req,
+                                    uint16_t reqCount, bool other) {
+    CogBuilding* dst = nullptr;
+    for (CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) dst = &b;
+    for (CogBuilding& b : cogBuildings_) if (!dst && !b.active) dst = &b;
+    if (!dst) return false;
+    CogBuilding tmp{};
+    tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyCogBuildingField(tmp, r, req[n]);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t n = 0; n < count && ok; ++n) ok = applyCogBuildingField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) return false;
+    tmp.active = true;
+    *dst = tmp;
+    pushEvent(EventType::CogBuildingUp, doId);
+    return true;
+}
+
+bool Client::handleCogElevatorEnter(uint32_t doId, uint16_t, DatagramReader& r, const uint16_t* req,
+                                    uint16_t reqCount, bool other) {
+    CogElevator* dst = nullptr;
+    for (CogElevator& e : cogElevators_) if (e.active && e.doId == doId) dst = &e;
+    for (CogElevator& e : cogElevators_) if (!dst && !e.active) dst = &e;
+    if (!dst) return false;
+    CogElevator tmp{}; tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyCogElevatorField(tmp, r, req[n]);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t n = 0; n < count && ok; ++n) ok = applyCogElevatorField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) return false;
+    tmp.active = true; *dst = tmp; pushEvent(EventType::CogElevatorUp, doId);
+    return true;
+}
+
+bool Client::handleCogInteriorEnter(uint32_t doId, DatagramReader& r, const uint16_t* req,
+                                    uint16_t reqCount, bool other) {
+    CogInterior tmp{}; tmp.doId = doId;
+    bool ok = true;
+    for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyCogInteriorField(tmp, r, req[n]);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t n = 0; n < count && ok; ++n) ok = applyCogInteriorField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) return false;
+    tmp.active = true; cogInterior_ = tmp; pushEvent(EventType::CogInteriorUp, doId);
+    return true;
+}
+
+bool Client::handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    for (CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) {
+        if (applyCogBuildingField(b, r, fieldId)) pushEvent(EventType::CogBuildingState, doId);
+        return true;
+    }
+    for (CogElevator& e : cogElevators_) if (e.active && e.doId == doId) {
+        if (applyCogElevatorField(e, r, fieldId)) pushEvent(EventType::CogElevatorUp, doId);
+        return true;
+    }
+    if (cogInterior_.active && cogInterior_.doId == doId) {
+        if (applyCogInteriorField(cogInterior_, r, fieldId)) pushEvent(EventType::CogInteriorState, doId);
+        return true;
+    }
+    return false;
+}
+
+void Client::clearCogObjects() {
+    for (CogBuilding& b : cogBuildings_) {
+        if (b.active) pushEvent(EventType::CogBuildingGone, b.doId);
+        b = CogBuilding{};
+    }
+    for (CogElevator& e : cogElevators_) e = CogElevator{};
+    cogInterior_ = CogInterior{};
+}
+
+bool Client::sendCogElevatorBoard(uint32_t doId) {
+    if (state_ != State::InZone || !findCogElevator(doId)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedElevator, requestBoard);
+    return finish(w);
+}
+
+bool Client::sendCogElevatorExit(uint32_t doId) {
+    if (state_ != State::InZone || !findCogElevator(doId)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedElevator, requestExit);
+    return finish(w);
+}
+
+bool Client::sendCogInteriorAvatarJoined(uint32_t doId) {
+    if (!cogInterior_.active || cogInterior_.doId != doId) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedSuitInterior, setAvatarJoined);
+    return finish(w);
+}
+
+bool Client::sendCogInteriorElevatorDone(uint32_t doId) {
+    if (!cogInterior_.active || cogInterior_.doId != doId) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedSuitInterior, elevatorDone);
+    return finish(w);
+}
+
+bool Client::sendCogInteriorReserveJoinDone(uint32_t doId) {
+    if (!cogInterior_.active || cogInterior_.doId != doId) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedSuitInterior, reserveJoinDone);
     return finish(w);
 }
 

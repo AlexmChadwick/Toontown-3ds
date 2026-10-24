@@ -119,6 +119,17 @@ WANTED = {
                         'setPlayerStates', 'setCountdown', 'setMetagameRound', 'setVotesArray',
                         'requestExit', 'requestPlayAgain', 'setInventory', 'setPurchaseExit'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
+    'DistributedSuitInterior': ['setZoneId', 'setExtZoneId', 'setDistBldgDoId', 'setNumFloors',
+                                'setToons', 'setSuits', 'setState', 'setAvatarJoined',
+                                'elevatorDone', 'reserveJoinDone'],
+    'DistributedElevator': ['setBldgDoId', 'setState', 'fillSlot0', 'fillSlot1', 'fillSlot2',
+                             'fillSlot3', 'fillSlot4', 'fillSlot5', 'fillSlot6', 'fillSlot7',
+                             'emptySlot0', 'emptySlot1', 'emptySlot2', 'emptySlot3', 'emptySlot4',
+                             'emptySlot5', 'emptySlot6', 'emptySlot7', 'requestBoard', 'rejectBoard',
+                             'requestExit', 'setElevatorTripId', 'setAntiShuffle', 'setMinLaff'],
+    'DistributedElevatorExt': ['setFloor'],
+    'DistributedElevatorInt': ['requestBuildingExit', 'forcedExit'],
+    'DistributedBattleBldg': [],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
@@ -129,7 +140,7 @@ WANTED = {
 
 # Class families whose every subclass gets a table (and a kClassId namespace).
 TABLE_FAMILIES = ['DistributedNPCToonBase', 'DistributedTreasure', 'DistributedDoor',
-                  'DistributedCCharBase', 'DistributedBuilding', 'DistributedAnimatedProp',
+                  'DistributedCCharBase',                   'DistributedBuilding', 'DistributedAnimatedProp', 'DistributedElevator',
                   # every minigame (the stub must see the DO of a game we cannot play) and both
                   # purchase managers (PurchaseManager, NewbiePurchaseManager)
                   'DistributedMinigame', 'PurchaseManager']
@@ -155,7 +166,8 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  # street branch zone / visgroup zones (cogs walking the street)
                  'DistributedSuitPlanner', 'DistributedSuit',
                  # street battle object (DistributedBattle: street cog fights)
-                 'DistributedBattle']
+                 'DistributedBattle', 'DistributedBattleBldg', 'DistributedSuitInterior',
+                 'DistributedElevatorExt', 'DistributedElevatorInt']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

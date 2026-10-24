@@ -115,6 +115,13 @@ enum class EventType : uint8_t {
     BattleExperience, // setBattleExperience (Battle::exp)
     BattleAdjust,     // adjust(ts): move to the new slots, then adjustDone
     BattleGone,       // the battle object left our interest or was deleted
+    CogBuildingUp,     // DistributedBuilding generated
+    CogBuildingState,  // building state/data/victors changed
+    CogElevatorUp,     // DistributedElevator generated or updated
+    CogInteriorUp,     // DistributedSuitInterior generated or updated
+    CogInteriorState,  // floor interior state/lists changed
+    CogInteriorGone,
+    CogBuildingGone,
     BattleJoinDenied, // denyLocalToonJoin
     SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
     SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
@@ -219,6 +226,44 @@ struct Boat {
     uint32_t stateStartMs; // local plat::nowMs() at which the state began (from ts)
     bool active;
 };
+
+enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other };
+struct CogBuilding {
+    uint32_t doId = 0, block = 0, interiorZoneId = 0;
+    int8_t track = -1, difficulty = -1, numFloors = -1;
+    CogBuildingState state = CogBuildingState::Unknown;
+    uint32_t stateStartMs = 0;
+    uint32_t victors[8] = {};
+    uint8_t numVictors = 0;
+    bool active = false;
+};
+constexpr int kMaxCogBuildings = 16;
+
+struct CogElevator {
+    uint32_t doId = 0, buildingDoId = 0, tripId = 0;
+    char state[20] = {};
+    uint32_t stateStartMs = 0;
+    uint32_t slots[8] = {};
+    uint8_t slotFlags[8] = {};
+    uint8_t minLaff = 0;
+    bool active = false;
+};
+constexpr int kMaxCogElevators = 8;
+
+struct CogInterior {
+    uint32_t doId = 0, zoneId = 0, extZoneId = 0, buildingDoId = 0;
+    int8_t numFloors = 0;
+    uint32_t toons[8] = {};
+    uint8_t numToons = 0;
+    uint32_t suits[8] = {};
+    uint32_t suitLevels[8] = {};
+    uint16_t suitHp[8] = {};
+    uint8_t numSuits = 0;
+    char state[24] = {};
+    uint32_t stateStartMs = 0;
+    bool active = false;
+};
+constexpr int kMaxCogInteriors = 2;
 // Street cogs (DistributedSuit; docs/design/combat.md section 3). The AI never broadcasts a
 // position: it sends the endpoints of a path through the street's suit graph, the leg the
 // path was at and when, and a path state. source/world/suits.* rebuilds the walk.
@@ -691,6 +736,16 @@ public:
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
+    const CogBuilding& cogBuildingSlot(int i) const { return cogBuildings_[i]; }
+    const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
+    const CogInterior* cogInterior() const { return cogInterior_.active ? &cogInterior_ : nullptr; }
+    const CogBuilding* findCogBuilding(uint32_t doId) const;
+    const CogElevator* findCogElevator(uint32_t doId) const;
+    bool sendCogElevatorBoard(uint32_t doId);
+    bool sendCogElevatorExit(uint32_t doId);
+    bool sendCogInteriorAvatarJoined(uint32_t doId);
+    bool sendCogInteriorElevatorDone(uint32_t doId);
+    bool sendCogInteriorReserveJoinDone(uint32_t doId);
     const Suit* findSuit(uint32_t doId) const;
     const Suit& suitSlot(int i) const { return suits_[i]; }
     // Branch zone of the suit planner with this doId (0 when unknown).
@@ -952,6 +1007,18 @@ private:
     ShopMovie shopMovie_{};
     TailorMovie tailorMovie_{};
     void handleTailorMovie(DatagramReader& r, uint32_t doId);
+    // ---- Cog buildings (docs/design/cogbuildings.md; additive to the battle parser) ----
+    bool handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                                bool other);
+    bool handleCogElevatorEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                uint16_t reqCount, bool other);
+    bool handleCogInteriorEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                                bool other);
+    bool applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t fieldId);
+    bool applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t fieldId);
+    bool applyCogInteriorField(CogInterior& i, DatagramReader& r, uint16_t fieldId);
+    bool handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    void clearCogObjects();
     // ---- fishing (see the "fishing" section of client.cpp) ----
     FishingPond pond_ = {};
     FishingSpot fishSpots_[kMaxFishSpots] = {};
@@ -968,6 +1035,9 @@ private:
     void clearFishing();
     // ---- battle section: DistributedBattle parse state ----
     Battle battles_[kMaxBattles] = {};
+    CogBuilding cogBuildings_[kMaxCogBuildings] = {};
+    CogElevator cogElevators_[kMaxCogElevators] = {};
+    CogInterior cogInterior_{};
     uint32_t ownBattleId_ = 0;
     bool handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                            bool other);
