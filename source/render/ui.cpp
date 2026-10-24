@@ -56,7 +56,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!textBuf_ || !staticBuf_ || !debugBuf_) return false;
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
@@ -65,6 +65,7 @@ bool Ui::init() {
 }
 
 void Ui::shutdown() {
+    chat_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -100,18 +101,27 @@ void Ui::text(float x, float y, float scale, u32 color, const char* fmt, ...) {
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.5f, scale, scale, color);
 }
 
-void Ui::handleInput(u32 down, const touchPosition& t, State& s) {
+u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
+    return handleInput(down, hidKeysHeld() | (down & KEY_TOUCH), t, s);
+}
+
+u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
     if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
     if (down & KEY_X) s.tab = kTabChat;
     if (down & KEY_Y) s.tab = kTabMap;
-    if (!(down & KEY_TOUCH)) return;
-
-    if (t.py >= kTabY) {
+    if ((down & KEY_TOUCH) && t.py >= kTabY) {
         s.tab = static_cast<int>(t.px / kTabW);
         if (s.tab >= kTabCount) s.tab = kTabCount - 1;
-        return;
     }
+    if (s.tab != lastTab_) {
+        chat_.blur(); // the highlight (and A/B capture) never survives a tab change
+        lastTab_ = s.tab;
+        return 0;
+    }
+    if (s.tab == kTabChat) return chat_.handleInput(down, held, t, kTabY);
+    if (!(down & KEY_TOUCH) || t.py >= kTabY) return 0;
+
     switch (s.tab) {
     case kTabToon:
         for (int i = 0; i < 3; i++) {
@@ -133,6 +143,7 @@ void Ui::handleInput(u32 down, const touchPosition& t, State& s) {
     default:
         break;
     }
+    return 0;
 }
 
 void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
@@ -142,7 +153,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_SceneBegin(target);
     switch (s.tab) {
     case kTabMap: drawMap(c); break;
-    case kTabChat: drawChat(); break;
+    case kTabChat: chat_.draw(kTabY); break;
     case kTabToon: drawToon(s); break;
     case kTabSettings: drawSettings(s); break;
     default: drawDebug(c); break;
@@ -184,17 +195,6 @@ void Ui::drawMap(const Context& c) {
     C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     text(8, 8, 0.45f, kWhite, "Toontown Central  (%.0f, %.0f)", c.playerX, c.playerY);
-}
-
-void Ui::drawChat() {
-    text(12, 16, 0.6f, kWhite, "SpeedChat");
-    text(12, 44, 0.45f, kDim, "Chat needs a server connection.");
-    text(12, 62, 0.45f, kDim, "It arrives with networking (Phase 3).");
-    static const char* const kPhrases[] = {"Hello!", "Let's be friends!", "Toontastic!", "Goodbye!"};
-    for (int i = 0; i < 4; i++) {
-        C2D_DrawRectSolid(12, 92 + i * 28, 0.5f, 200, 24, kPanel);
-        text(20, 96 + i * 28, 0.45f, kDim, "%s", kPhrases[i]);
-    }
 }
 
 void Ui::drawToon(const State& s) {

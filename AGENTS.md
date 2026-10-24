@@ -185,7 +185,9 @@ Key decisions:
        mask, so the original "colorable" textures stay small.
    - Tiling and encoding happen offline (port the tex3ds approach; do not shell out to
      the runtime).
-   - **Phase 1 status:** the baker (`tools/pipeline/ttm.py`) emits 16 bpp formats only:
+   - **Current:** textures are ETC1/ETC1A4 by default (`tools/pipeline/etc1.py`), and
+     1–2 channel textures stay L8/LA8/A8. `TT_ETC1=0` restores 16 bpp for A/B tests.
+   - **Phase 1 status (historical):** the baker (`tools/pipeline/ttm.py`) emitted 16 bpp formats only:
      RGB565, RGBA5551 (binary alpha), RGBA4, LA8, L8, A8. Each has a full mip chain down
      to 8×8. ETC1/ETC1A4 (4/8 bpp) is a planned Phase 2 follow-up, since TTC textures alone
      are about 1.5 MB at 16 bpp.
@@ -301,7 +303,37 @@ Lessons recorded for agents:
   scripted pass. Render-target dumps and `tools/dev/decode_shot.py` give screenshots
   that don't depend on the host screen.
 
-**Phase 2 — Playground + movement.**
+**Phase 2 — Playground + movement.** Status: mostly done in Azahar (Old 3DS); see
+`docs/test-log.md`.
+- ✅ M2.1 `bake_zone.py` (`dna.py` + `assemble.py`) builds the full TTC playground:
+  12.7k tris, 157 batches, 1.5 MB ETC1 textures.
+- ✅ M2.2 `bake_collision.py` writes the `.ttc` file; `world/collision.*` does
+  GravityWalker-style slide, ground and camera ray.
+- ✅ M2.3 controller and camera.
+- ✅ M2.4 per-part vertex animation (`.tta`, `shaders/morph.v.pica`,
+  `world/toon_avatar.*`).
+- ✅ M2.6 audio: DSP-ADPCM `.tsnd`, `audio/audio.*`, music streaming plus footsteps.
+- Open:
+  - M2.5 baked minimap image (the map shows markers only).
+  - Per-visgroup chunking and atlasing of zones (TTC is one 157-batch model).
+  - Sign text.
+  - DNA-driven species and clothing for remote toons (the bake is done; the runtime
+    still uses the default dog).
+
+**Phase 3 — Networking.** Status: M3.1–M3.4 work against the real Open Toontown server
+from Azahar (`tools/server/`), with a PC bot as the second player:
+- login, auto-created toon, zone 2000
+- remote toons spawn, move, animate and get nametags
+- our pose, anim states and SpeedChat are seen by the other client
+- M3.5 is partial: reconnect exists, but there is no bandwidth readout or
+  HOME/sleep test yet.
+- **Anim state rule:** `setAnimState` takes **state** names from
+  `ToontownGlobals.ToonAnimStates` ("run" for all ground locomotion, "jumpAirborne",
+  ...), never clip names. An invalid name makes stock Open Toontown's AI crash in
+  `banManager` and takes the whole district down. `Client::sendAnimState` whitelists
+  names.
+
+**Phase 2 — original plan.**
 - M2.1: A DNA baker for the TTC playground (`toontown_central_sz.dna` + storage files)
   that assembles props, landmarks and flat buildings, then merges, atlases and grids
   them.
@@ -376,6 +408,15 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_toon.py` | head/torso/legs actors posed at one frame → `.ttm`, with tint slots |
 | `tools/pipeline/preview_ttm.py` | decodes a `.ttm`, including untiling, and renders it with Panda offscreen. Use it to check every format change **before** touching the 3DS loader |
 | `tools/pipeline/ttm.py` | format spec and writer; the C++ mirror is `source/render/model.cpp` |
+| `tools/pipeline/bake_zone.py` | DNA zone → `.ttm` (`dna.py` parser + storage, `assemble.py` placement rules) |
+| `tools/pipeline/bake_collision.py` | `.bam`/DNA → `.ttc` collision (spec in `collide.py`) |
+| `tools/pipeline/bake_toon.py` | toon parts and anims (`.ttm` + `.tta`, spec in `tta.py`), clothing `.ttx`; SD set in `sdmc-out/` |
+| `tools/pipeline/bake_audio.py` | `.ogg` → `.tsnd` (DSP-ADPCM / PCM16; spec in `audio_tsnd.py`) |
+| `tools/dcgen/dcgen.py` | DC → `source/net/dc_generated.h` (IDs, hash, field descriptors) |
+| `tools/gen_speedchat.py`, `tools/gen_toon_tables.py` | generated SpeedChat and ToonDNA tables |
+| `tools/server/` | local Open Toontown server (`setup.sh`, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
+| `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
+| Host tests | `tools/nettest/`, `tools/collision_test/`, `tools/toon_dna_test/`, `source/ui/test/` |
 
 ## 9. Verification rules
 

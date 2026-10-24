@@ -1,0 +1,126 @@
+{
+ "anims": [
+  "neutral",
+  "run",
+  "walk",
+  "jump-idle",
+  "wave"
+ ],
+ "bake_fps": 12.0,
+ "body_scale": {
+  "bear": 0.85,
+  "cat": 0.73,
+  "dog": 0.85,
+  "duck": 0.66,
+  "horse": 0.85,
+  "monkey": 0.68,
+  "mouse": 0.6,
+  "pig": 0.77,
+  "rabbit": 0.74
+ },
+ "clothes": {
+  "entries": {
+   "boy_shorts": 58,
+   "girl_bottoms": 63,
+   "shirts": 151,
+   "sleeves": 138
+  },
+  "file": "clothes.ttx",
+  "file_bytes": 47488,
+  "formats": {
+   "L8": 1,
+   "RGB565": 6
+  },
+  "missing_fallback_to_0": [],
+  "sizes": [
+   "32x32",
+   "64x64"
+  ],
+  "textures": 7
+ },
+ "files": {
+  "clothes.ttx": 47488,
+  "head_dls_500.ttm": 75648,
+  "head_dls_500_jump-idle.tta": 16768,
+  "head_dls_500_neutral.tta": 34816,
+  "head_dls_500_run.tta": 11264,
+  "head_dls_500_walk.tta": 16768,
+  "head_dls_500_wave.tta": 54144,
+  "legs_m_500.ttm": 68480,
+  "legs_m_500_jump-idle.tta": 11776,
+  "legs_m_500_neutral.tta": 24320,
+  "legs_m_500_run.tta": 7808,
+  "legs_m_500_walk.tta": 11776,
+  "legs_m_500_wave.tta": 37632,
+  "torso_ms_500.ttm": 71040,
+  "torso_ms_500_jump-idle.tta": 29056,
+  "torso_ms_500_neutral.tta": 60288,
+  "torso_ms_500_run.tta": 19328,
+  "torso_ms_500_walk.tta": 29056,
+  "torso_ms_500_wave.tta": 93824
+ },
+ "lods": [
+  "500"
+ ],
+ "parts": {
+  "head": {
+   "dls": {
+    "500": {
+     "animated": true,
+     "clips": {
+      "jump-idle": "head_dls_500_jump-idle.tta",
+      "neutral": "head_dls_500_neutral.tta",
+      "run": "head_dls_500_run.tta",
+      "walk": "head_dls_500_walk.tta",
+      "wave": "head_dls_500_wave.tta"
+     },
+     "lashes": "lashes_dl.ttm",
+     "species": "dog",
+     "ttm": "head_dls_500.ttm",
+     "vertices": 173
+    }
+   }
+  },
+  "lashes": {},
+  "legs": {
+   "m": {
+    "500": {
+     "clips": {
+      "jump-idle": "legs_m_500_jump-idle.tta",
+      "neutral": "legs_m_500_neutral.tta",
+      "run": "legs_m_500_run.tta",
+      "walk": "legs_m_500_walk.tta",
+      "wave": "legs_m_500_wave.tta"
+     },
+     "ttm": "legs_m_500.ttm",
+     "vertices": 114
+    }
+   }
+  },
+  "torso": {
+   "ms": {
+    "500": {
+     "clips": {
+      "jump-idle": "torso_ms_500_jump-idle.tta",
+      "neutral": "torso_ms_500_neutral.tta",
+      "run": "torso_ms_500_run.tta",
+      "walk": "torso_ms_500_walk.tta",
+      "wave": "torso_ms_500_wave.tta"
+     },
+     "ttm": "torso_ms_500.ttm",
+     "vertices": 294
+    }
+   }
+  }
+ },
+ "totals": {
+  "bytes": 721280,
+  "bytes_by_type": {
+   "tta": 458624,
+   "ttm": 215168,
+   "ttx": 47488
+  },
+  "files": 19
+ },
+ "version": 1
+}

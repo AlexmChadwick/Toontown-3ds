@@ -14,7 +14,9 @@ section pointers straight to the GPU after copying into linear memory):
     Batch entry (24 bytes)
       u16 texture (0xFFFF = none); u8 blend (0 opaque, 1 alpha test, 2 alpha blend)
       u8 flags (bit0 two-sided); u8 tintSlot (0 = none); u8 layer (draw-in-front order)
-      u16 pad; u32 firstVertex; u32 numVertices; u32 firstIndex; u32 numIndices
+      u8 texSlot (0 = own texture; 1 shirt, 2 sleeve, 3 bottom: the runtime binds the
+      toon's DNA clothing texture instead, see bake_toon.py); u8 pad
+      u32 firstVertex; u32 numVertices; u32 firstIndex; u32 numIndices
     Vertex (16 bytes): s16 pos[3], s16 pad, s16 uv[2] (x/1024), u8 rgba[4]
     Index: u16, relative to the batch's firstVertex
 
@@ -23,6 +25,8 @@ Must stay in sync with source/render/model.cpp.
 import struct
 
 import numpy as np
+
+import etc1
 
 MAGIC = b'TTM1'
 VERSION = 1
@@ -33,15 +37,25 @@ MAX_BATCH_VERTS = 65535
 # GPU_TEXCOLOR values from libctru gpu/enums.h
 GPU_RGBA8, GPU_RGB8, GPU_RGBA5551, GPU_RGB565, GPU_RGBA4 = 0, 1, 2, 3, 4
 GPU_LA8, GPU_HILO8, GPU_L8, GPU_A8, GPU_LA4 = 5, 6, 7, 8, 9
+GPU_ETC1, GPU_ETC1A4 = etc1.GPU_ETC1, etc1.GPU_ETC1A4   # 0xC (4 bpp), 0xD (8 bpp)
+ETC_FORMATS = (GPU_ETC1, GPU_ETC1A4)
 # GPU_TEXTURE_WRAP_PARAM
 GPU_CLAMP_TO_EDGE, GPU_REPEAT = 0, 2
 
 BLEND_OPAQUE, BLEND_ALPHA_TEST, BLEND_ALPHA = 0, 1, 2
 
 FORMAT_NAMES = {GPU_RGBA8: 'RGBA8', GPU_RGB565: 'RGB565', GPU_RGBA5551: 'RGBA5551',
-                GPU_RGBA4: 'RGBA4', GPU_LA8: 'LA8', GPU_L8: 'L8', GPU_A8: 'A8', GPU_LA4: 'LA4'}
+                GPU_RGBA4: 'RGBA4', GPU_LA8: 'LA8', GPU_L8: 'L8', GPU_A8: 'A8', GPU_LA4: 'LA4',
+                GPU_ETC1: 'ETC1', GPU_ETC1A4: 'ETC1A4'}
+# Uncompressed formats only (ETC1 is 1/2 byte per pixel); see BITS_PER_PIXEL.
 BYTES_PER_PIXEL = {GPU_RGBA8: 4, GPU_RGB565: 2, GPU_RGBA5551: 2, GPU_RGBA4: 2,
                    GPU_LA8: 2, GPU_L8: 1, GPU_A8: 1, GPU_LA4: 1}
+BITS_PER_PIXEL = {**{f: 8 * b for f, b in BYTES_PER_PIXEL.items()}, GPU_ETC1: 4, GPU_ETC1A4: 8}
+
+
+def level_size(w, h, fmt):
+    """Bytes of one mip level (= citro3d C3D_TexCalcLevelSize)."""
+    return BITS_PER_PIXEL[fmt] * w * h // 8
 
 
 def _align(n, a=ALIGN):
@@ -84,6 +98,8 @@ def tile(pixels):
 
 def encode(pixels, fmt):
     """pixels: (h, w, 4) uint8 RGBA, row 0 = top. Returns tiled bytes for one level."""
+    if fmt in ETC_FORMATS:
+        return etc1.encode_levels([pixels], fmt == GPU_ETC1A4)
     t = tile(pixels).astype(np.uint32)
     r, g, b, a = t[:, 0], t[:, 1], t[:, 2], t[:, 3]
     if fmt == GPU_RGBA8:
@@ -126,7 +142,13 @@ class Texture:
         self.wrap_s, self.wrap_t = wrap_s, wrap_t
         levels = mip_chain(pixels) if mipmaps else [pixels]
         self.mips = len(levels)
-        self.data = b''.join(encode(lv, fmt) for lv in levels)
+        if fmt in ETC_FORMATS:
+            # One call for the whole chain (better vectorization); levels are
+            # concatenated largest first, exactly like the uncompressed path.
+            self.data = etc1.encode_levels(levels, fmt == GPU_ETC1A4)
+        else:
+            self.data = b''.join(encode(lv, fmt) for lv in levels)
+        assert len(self.data) == sum(level_size(lv.shape[1], lv.shape[0], fmt) for lv in levels)
 
 
 class Batch:
@@ -187,8 +209,9 @@ def write(path, textures, batches):
         rec['c'] = rgba
         vert_chunks.append(rec.tobytes())
         idx_chunks.append(b.indices.astype('<u2').tobytes())
-        batch_entries.append(struct.pack('<HBBBBHIIII', 0xFFFF if b.texture is None else b.texture,
-                                         b.blend, 1 if b.two_sided else 0, b.tint, b.layer, 0,
+        batch_entries.append(struct.pack('<HBBBBBBIIII', 0xFFFF if b.texture is None else b.texture,
+                                         b.blend, 1 if b.two_sided else 0, b.tint, b.layer,
+                                         getattr(b, 'tex_slot', 0), 0,
                                          first_v, n, first_i, len(b.indices)))
         first_v += n
         first_i += len(b.indices)

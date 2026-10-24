@@ -7,6 +7,43 @@ namespace tt::dc {
 constexpr uint32_t kHash = 547155168u;
 constexpr const char* kServerVersion = "sv1.0.47.38";
 
+// Field keyword bits (FieldDesc::keywords, kw_<field>).
+constexpr uint16_t kKwRequired = 1u << 0;
+constexpr uint16_t kKwBroadcast = 1u << 1;
+constexpr uint16_t kKwRam = 1u << 2;
+constexpr uint16_t kKwDb = 1u << 3;
+constexpr uint16_t kKwClsend = 1u << 4;
+constexpr uint16_t kKwClrecv = 1u << 5;
+constexpr uint16_t kKwOwnsend = 1u << 6;
+constexpr uint16_t kKwOwnrecv = 1u << 7;
+constexpr uint16_t kKwAirecv = 1u << 8;
+
+// Type program opcodes (see tools/dcgen/dcgen.py for the encoding).
+enum TypeOp : uint8_t {
+    kOpEnd = 0,
+    kOpI8 = 1,
+    kOpI16 = 2,
+    kOpI32 = 3,
+    kOpI64 = 4,
+    kOpU8 = 5,
+    kOpU16 = 6,
+    kOpU32 = 7,
+    kOpU64 = 8,
+    kOpF64 = 9,
+    kOpChar = 10,
+    kOpString = 11,
+    kOpBlob = 12,
+    kOpBlob32 = 13,
+    kOpFixbytes = 14,
+    kOpVararray = 15,
+    kOpFixarray = 16,
+};
+
+// constexpr string compare for static_assert on field signatures.
+constexpr bool sigEq(const char* a, const char* b) {
+    return *a == *b && (*a == 0 || sigEq(a + 1, b + 1));
+}
+
 namespace AstronLoginManager {
 constexpr uint16_t kClassId = 47;
 constexpr uint16_t k_requestLogin = 346;
@@ -16,13 +53,97 @@ constexpr uint16_t k_avatarListResponse = 349;
 constexpr uint16_t k_createAvatar = 350;
 constexpr uint16_t k_createAvatarResponse = 351;
 constexpr uint16_t k_requestPlayAvatar = 359;
+constexpr uint16_t kw_requestLogin = 0x010;
+constexpr uint16_t kw_loginResponse = 0x000;
+constexpr uint16_t kw_requestAvatarList = 0x010;
+constexpr uint16_t kw_avatarListResponse = 0x000;
+constexpr uint16_t kw_createAvatar = 0x010;
+constexpr uint16_t kw_createAvatarResponse = 0x000;
+constexpr uint16_t kw_requestPlayAvatar = 0x010;
+constexpr const char* sig_requestLogin = "string";
+constexpr const char* sig_loginResponse = "blob";
+constexpr const char* sig_requestAvatarList = "";
+constexpr const char* sig_avatarListResponse = "{u32,string,blob,u8,u8}[]";
+constexpr const char* sig_createAvatar = "blob,u8";
+constexpr const char* sig_createAvatarResponse = "u32";
+constexpr const char* sig_requestPlayAvatar = "u32";
 } // namespace AstronLoginManager
 
 namespace DistributedDistrict {
 constexpr uint16_t kClassId = 11;
 constexpr uint16_t k_setName = 56;
 constexpr uint16_t k_setAvailable = 57;
+constexpr uint16_t kw_setName = 0x007;
+constexpr uint16_t kw_setAvailable = 0x007;
+constexpr const char* sig_setName = "string";
+constexpr const char* sig_setAvailable = "u8";
 } // namespace DistributedDistrict
+
+namespace ToontownDistrict {
+constexpr uint16_t kClassId = 61;
+constexpr uint16_t k_setName = 56;
+constexpr uint16_t k_setAvailable = 57;
+constexpr uint16_t kw_setName = 0x007;
+constexpr uint16_t kw_setAvailable = 0x007;
+constexpr const char* sig_setName = "string";
+constexpr const char* sig_setAvailable = "u8";
+} // namespace ToontownDistrict
+
+namespace TimeManager {
+constexpr uint16_t kClassId = 8;
+constexpr uint16_t k_requestServerTime = 42;
+constexpr uint16_t k_serverTime = 43;
+constexpr uint16_t kw_requestServerTime = 0x110;
+constexpr uint16_t kw_serverTime = 0x000;
+constexpr const char* sig_requestServerTime = "u8";
+constexpr const char* sig_serverTime = "u8,i32,u32";
+} // namespace TimeManager
+
+namespace DistributedNode {
+constexpr uint16_t kClassId = 12;
+constexpr uint16_t k_setParent = 59;
+constexpr uint16_t k_setX = 60;
+constexpr uint16_t k_setY = 61;
+constexpr uint16_t k_setZ = 62;
+constexpr uint16_t k_setH = 63;
+constexpr uint16_t k_setP = 64;
+constexpr uint16_t k_setR = 65;
+constexpr uint16_t k_setPos = 66;
+constexpr uint16_t k_setHpr = 67;
+constexpr uint16_t k_setPosHpr = 68;
+constexpr uint16_t k_setXY = 69;
+constexpr uint16_t k_setXZ = 70;
+constexpr uint16_t k_setXYH = 71;
+constexpr uint16_t k_setXYZH = 72;
+constexpr uint16_t kw_setParent = 0x146;
+constexpr uint16_t kw_setX = 0x146;
+constexpr uint16_t kw_setY = 0x146;
+constexpr uint16_t kw_setZ = 0x146;
+constexpr uint16_t kw_setH = 0x146;
+constexpr uint16_t kw_setP = 0x146;
+constexpr uint16_t kw_setR = 0x146;
+constexpr uint16_t kw_setPos = 0x146;
+constexpr uint16_t kw_setHpr = 0x146;
+constexpr uint16_t kw_setPosHpr = 0x146;
+constexpr uint16_t kw_setXY = 0x146;
+constexpr uint16_t kw_setXZ = 0x146;
+constexpr uint16_t kw_setXYH = 0x146;
+constexpr uint16_t kw_setXYZH = 0x146;
+constexpr const char* sig_setParent = "u32";
+constexpr const char* sig_setX = "i16/10";
+constexpr const char* sig_setY = "i16/10";
+constexpr const char* sig_setZ = "i16/10";
+constexpr const char* sig_setH = "i16%360/10";
+constexpr const char* sig_setP = "i16%360/10";
+constexpr const char* sig_setR = "i16%360/10";
+constexpr const char* sig_setPos = "i16/10,i16/10,i16/10";
+constexpr const char* sig_setHpr = "i16%360/10,i16%360/10,i16%360/10";
+constexpr const char* sig_setPosHpr = "i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10";
+constexpr const char* sig_setXY = "i16/10,i16/10";
+constexpr const char* sig_setXZ = "i16/10,i16/10";
+constexpr const char* sig_setXYH = "i16/10,i16/10,i16%360/10";
+constexpr const char* sig_setXYZH = "i16/10,i16/10,i16/10,i16%360/10";
+} // namespace DistributedNode
 
 namespace DistributedSmoothNode {
 constexpr uint16_t kClassId = 13;
@@ -30,6 +151,62 @@ constexpr uint16_t k_setSmStop = 81;
 constexpr uint16_t k_setSmPosHpr = 90;
 constexpr uint16_t k_setSmXYH = 88;
 constexpr uint16_t k_setSmXYZH = 89;
+constexpr uint16_t k_setSmXY = 84;
+constexpr uint16_t k_setSmXZ = 85;
+constexpr uint16_t k_setSmPos = 86;
+constexpr uint16_t k_setSmHpr = 87;
+constexpr uint16_t k_setSmH = 82;
+constexpr uint16_t k_setSmZ = 83;
+constexpr uint16_t k_setSmPosHprL = 91;
+constexpr uint16_t k_setComponentL = 73;
+constexpr uint16_t k_setComponentX = 74;
+constexpr uint16_t k_setComponentY = 75;
+constexpr uint16_t k_setComponentZ = 76;
+constexpr uint16_t k_setComponentH = 77;
+constexpr uint16_t k_setComponentP = 78;
+constexpr uint16_t k_setComponentR = 79;
+constexpr uint16_t k_setComponentT = 80;
+constexpr uint16_t k_clearSmoothing = 92;
+constexpr uint16_t kw_setSmStop = 0x146;
+constexpr uint16_t kw_setSmPosHpr = 0x146;
+constexpr uint16_t kw_setSmXYH = 0x146;
+constexpr uint16_t kw_setSmXYZH = 0x146;
+constexpr uint16_t kw_setSmXY = 0x146;
+constexpr uint16_t kw_setSmXZ = 0x146;
+constexpr uint16_t kw_setSmPos = 0x146;
+constexpr uint16_t kw_setSmHpr = 0x146;
+constexpr uint16_t kw_setSmH = 0x146;
+constexpr uint16_t kw_setSmZ = 0x146;
+constexpr uint16_t kw_setSmPosHprL = 0x146;
+constexpr uint16_t kw_setComponentL = 0x146;
+constexpr uint16_t kw_setComponentX = 0x146;
+constexpr uint16_t kw_setComponentY = 0x146;
+constexpr uint16_t kw_setComponentZ = 0x146;
+constexpr uint16_t kw_setComponentH = 0x146;
+constexpr uint16_t kw_setComponentP = 0x146;
+constexpr uint16_t kw_setComponentR = 0x146;
+constexpr uint16_t kw_setComponentT = 0x146;
+constexpr uint16_t kw_clearSmoothing = 0x042;
+constexpr const char* sig_setSmStop = "i16";
+constexpr const char* sig_setSmPosHpr = "i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10,i16";
+constexpr const char* sig_setSmXYH = "i16/10,i16/10,i16%360/10,i16";
+constexpr const char* sig_setSmXYZH = "i16/10,i16/10,i16/10,i16%360/10,i16";
+constexpr const char* sig_setSmXY = "i16/10,i16/10,i16";
+constexpr const char* sig_setSmXZ = "i16/10,i16/10,i16";
+constexpr const char* sig_setSmPos = "i16/10,i16/10,i16/10,i16";
+constexpr const char* sig_setSmHpr = "i16%360/10,i16%360/10,i16%360/10,i16";
+constexpr const char* sig_setSmH = "i16%360/10,i16";
+constexpr const char* sig_setSmZ = "i16/10,i16";
+constexpr const char* sig_setSmPosHprL = "u64,i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10,i16";
+constexpr const char* sig_setComponentL = "u64";
+constexpr const char* sig_setComponentX = "i16/10";
+constexpr const char* sig_setComponentY = "i16/10";
+constexpr const char* sig_setComponentZ = "i16/10";
+constexpr const char* sig_setComponentH = "i16%360/10";
+constexpr const char* sig_setComponentP = "i16%360/10";
+constexpr const char* sig_setComponentR = "i16%360/10";
+constexpr const char* sig_setComponentT = "i16";
+constexpr const char* sig_clearSmoothing = "i8";
 } // namespace DistributedSmoothNode
 
 namespace DistributedToon {
@@ -37,6 +214,698 @@ constexpr uint16_t kClassId = 65;
 constexpr uint16_t k_setName = 113;
 constexpr uint16_t k_setDNAString = 436;
 constexpr uint16_t k_setAnimState = 479;
+constexpr uint16_t k_setTalk = 108;
+constexpr uint16_t k_setSC = 129;
+constexpr uint16_t kw_setName = 0x10b;
+constexpr uint16_t kw_setDNAString = 0x08b;
+constexpr uint16_t kw_setAnimState = 0x146;
+constexpr uint16_t kw_setTalk = 0x042;
+constexpr uint16_t kw_setSC = 0x142;
+constexpr const char* sig_setName = "string";
+constexpr const char* sig_setDNAString = "blob";
+constexpr const char* sig_setAnimState = "string,i16/1000,i16";
+constexpr const char* sig_setTalk = "u32,u32,string,string,{u16,u16}[],u8";
+constexpr const char* sig_setSC = "u16";
 } // namespace DistributedToon
+
+// One entry per field of every class in kClasses, sorted by id.
+// typeOffset indexes kTypeCode (program ends with kOpEnd).
+// fixedSize = wire size when constant, else 0xffff.
+struct FieldDesc {
+    uint16_t id;
+    uint16_t keywords;
+    uint16_t typeOffset;
+    uint16_t fixedSize;
+};
+
+constexpr int kTypeCodeSize = 1048;
+constexpr uint8_t kTypeCode[kTypeCodeSize] = {
+    15, 6, 0, 6, 11, 15, 1, 0, 7, 0, 6, 0, 11, 7, 7, 7, 0, 0, 5, 0, 5, 3, 7, 0,
+    5, 0, 11, 0, 11, 12, 12, 0, 6, 6, 6, 11, 7, 7, 11, 6, 6, 7, 7, 7, 7, 11, 2, 2,
+    2, 3, 3, 6, 6, 11, 0, 11, 11, 0, 5, 0, 7, 0, 7, 11, 0, 11, 0, 5, 0, 12, 0, 7,
+    0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2,
+    2, 2, 2, 0, 2, 2, 0, 2, 2, 0, 2, 2, 2, 0, 2, 2, 2, 2, 0, 8, 0, 2, 0, 2,
+    0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 2, 0, 2, 2, 0, 2, 2, 2, 0, 2,
+    2, 2, 0, 2, 2, 2, 2, 0, 2, 2, 2, 2, 0, 2, 2, 2, 2, 0, 2, 2, 2, 2, 2, 0,
+    2, 2, 2, 2, 2, 2, 2, 0, 8, 2, 2, 2, 2, 2, 2, 2, 0, 1, 0, 7, 2, 2, 3, 6,
+    6, 0, 7, 2, 3, 6, 6, 0, 7, 7, 11, 11, 15, 2, 0, 6, 6, 5, 0, 7, 7, 11, 11, 15,
+    2, 0, 6, 6, 5, 0, 11, 0, 11, 0, 3, 1, 0, 7, 0, 7, 1, 0, 7, 0, 11, 0, 7, 11,
+    7, 0, 7, 11, 7, 0, 7, 6, 0, 7, 6, 0, 7, 6, 0, 7, 11, 0, 5, 0, 5, 0, 6, 0,
+    6, 0, 15, 2, 0, 7, 5, 0, 7, 0, 11, 0, 11, 0, 5, 0, 5, 0, 6, 0, 5, 0, 11, 0,
+    12, 0, 0, 15, 5, 0, 7, 11, 12, 5, 5, 0, 12, 5, 0, 7, 0, 7, 2, 5, 2, 5, 2, 5,
+    2, 5, 0, 7, 5, 0, 7, 11, 0, 7, 5, 0, 7, 0, 0, 7, 0, 7, 0, 11, 11, 0, 5, 0,
+    7, 0, 7, 0, 7, 0, 7, 7, 0, 12, 0, 5, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2, 0, 2,
+    0, 6, 0, 6, 0, 7, 0, 12, 0, 5, 0, 15, 1, 0, 6, 0, 1, 7, 0, 15, 1, 0, 1, 0,
+    12, 0, 6, 0, 15, 2, 0, 7, 5, 0, 7, 0, 7, 0, 12, 0, 15, 1, 0, 7, 0, 15, 1, 0,
+    7, 0, 12, 0, 7, 0, 5, 0, 7, 0, 15, 1, 0, 5, 0, 15, 1, 0, 5, 0, 7, 0, 15, 1,
+    0, 5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 5, 0, 5, 5, 5, 0, 5, 5,
+    5, 0, 5, 5, 5, 0, 5, 5, 5, 0, 15, 2, 0, 5, 5, 0, 15, 1, 0, 6, 0, 2, 2, 2,
+    2, 2, 3, 0, 2, 2, 2, 2, 2, 2, 3, 0, 11, 2, 2, 0, 2, 2, 2, 0, 15, 1, 0, 5,
+    0, 15, 1, 0, 6, 0, 7, 0, 15, 6, 0, 16, 2, 0, 1, 0, 2, 0, 15, 1, 0, 5, 0, 6,
+    7, 0, 12, 12, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 12, 0, 5, 0, 5, 5, 0, 2, 2, 2,
+    0, 7, 7, 7, 7, 5, 0, 7, 7, 7, 5, 0, 6, 15, 1, 0, 7, 0, 6, 15, 1, 0, 7, 0,
+    5, 0, 6, 0, 15, 1, 0, 7, 0, 6, 0, 7, 0, 7, 0, 7, 1, 7, 7, 7, 0, 7, 1, 7,
+    7, 7, 7, 0, 7, 0, 7, 0, 15, 1, 0, 7, 0, 15, 1, 0, 7, 0, 15, 1, 0, 5, 0, 15,
+    1, 0, 5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 5, 0, 15, 1, 0, 7, 0, 15, 1, 0, 6, 0,
+    1, 0, 1, 0, 1, 0, 7, 0, 15, 1, 0, 7, 0, 15, 1, 0, 6, 0, 5, 15, 1, 0, 6, 0,
+    5, 0, 15, 1, 0, 7, 0, 2, 7, 7, 0, 5, 0, 5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 15,
+    1, 0, 6, 0, 5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 15, 1, 0, 6, 0, 5, 0, 15, 1, 0,
+    5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 0, 15, 1, 0, 5, 15, 1, 0, 5, 0, 5, 0, 15, 1,
+    0, 5, 0, 5, 0, 7, 0, 5, 0, 7, 0, 5, 0, 5, 0, 0, 2, 2, 2, 2, 2, 2, 3, 0,
+    2, 2, 2, 2, 2, 2, 5, 5, 3, 0, 2, 2, 2, 5, 5, 3, 0, 5, 0, 6, 0, 7, 0, 7,
+    0, 7, 0, 7, 5, 0, 5, 0, 5, 0, 5, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0,
+    1, 0, 1, 0, 1, 0, 1, 1, 0, 1, 0, 1, 0, 7, 0, 16, 16, 0, 1, 0, 5, 0, 16, 33,
+    0, 1, 0, 5, 0, 16, 6, 0, 1, 0, 7, 0, 16, 12, 0, 1, 0, 7, 0, 16, 16, 0, 1, 0,
+    1, 0, 7, 0, 5, 0, 0, 7, 0, 0, 7, 0, 15, 1, 0, 5, 0, 11, 7, 0, 11, 7, 7, 0,
+    3, 0, 11, 0, 5, 0, 7, 0, 16, 18, 0, 1, 0, 6, 0, 16, 18, 0, 1, 0, 5, 0, 16, 3,
+    0, 1, 0, 5, 0, 5, 0, 11, 0, 11, 0, 0, 5, 0, 5, 0, 15, 6, 0, 8, 7, 6, 5, 5,
+    11, 0, 7, 0, 5, 0, 15, 3, 0, 8, 8, 5, 0, 15, 29, 0, 8, 7, 6, 5, 5, 5, 5, 6,
+    5, 5, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 5, 0, 15, 29,
+    0, 8, 7, 6, 5, 5, 5, 5, 6, 5, 5, 5, 5, 5, 5, 15, 4, 0, 5, 5, 5, 5, 15, 4,
+    0, 5, 5, 5, 5, 5, 0, 15, 6, 0, 8, 15, 2, 0, 7, 5, 0, 8, 5, 0, 8, 8, 5, 0,
+    8, 0, 8, 5, 0, 8, 0, 8, 1, 6, 0, 11, 0, 7, 0, 0,
+};
+
+constexpr int kNumFields = 278;
+constexpr FieldDesc kFields[kNumFields] = {
+    {22, 0x006, 0, 65535},  // setBarrierData({u16,string,u32[]}[])
+    {23, 0x110, 10, 2},  // setBarrierReady(u16)
+    {24, 0x000, 12, 65535},  // execCommand(string,u32,u32,u32)
+    {25, 0x002, 17, 0},  // broadcastMessage()
+    {42, 0x110, 18, 1},  // requestServerTime(u8)
+    {43, 0x000, 20, 9},  // serverTime(u8,i32,u32)
+    {44, 0x110, 24, 1},  // setDisconnectReason(u8)
+    {45, 0x110, 26, 65535},  // setExceptionInfo(string)
+    {46, 0x110, 28, 65535},  // setSignature(string,blob,blob)
+    {47, 0x110, 32, 65535},  // setFrameRate(u16/10,u16/1000,u16,string,u32/10,u32/10,string,u16,u16,u32/10,u32/10,u32/10,u32,{string,i16,i16,i16},{i32/1000,i32
+    {48, 0x110, 55, 65535},  // setCpuInfo(string,string)
+    {49, 0x110, 58, 1},  // checkForGarbageLeaks(u8)
+    {50, 0x000, 60, 4},  // setNumAIGarbageLeaks(u32)
+    {51, 0x110, 62, 65535},  // setClientGarbageLeak(u32,string)
+    {56, 0x007, 65, 65535},  // setName(string)
+    {57, 0x007, 67, 1},  // setAvailable(u8)
+    {58, 0x146, 69, 65535},  // setParentStr(blob)
+    {59, 0x146, 71, 4},  // setParent(u32)
+    {60, 0x146, 73, 2},  // setX(i16/10)
+    {61, 0x146, 75, 2},  // setY(i16/10)
+    {62, 0x146, 77, 2},  // setZ(i16/10)
+    {63, 0x146, 79, 2},  // setH(i16%360/10)
+    {64, 0x146, 81, 2},  // setP(i16%360/10)
+    {65, 0x146, 83, 2},  // setR(i16%360/10)
+    {66, 0x146, 85, 6},  // setPos(i16/10,i16/10,i16/10)
+    {67, 0x146, 89, 6},  // setHpr(i16%360/10,i16%360/10,i16%360/10)
+    {68, 0x146, 93, 12},  // setPosHpr(i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10)
+    {69, 0x146, 100, 4},  // setXY(i16/10,i16/10)
+    {70, 0x146, 103, 4},  // setXZ(i16/10,i16/10)
+    {71, 0x146, 106, 6},  // setXYH(i16/10,i16/10,i16%360/10)
+    {72, 0x146, 110, 8},  // setXYZH(i16/10,i16/10,i16/10,i16%360/10)
+    {73, 0x146, 115, 8},  // setComponentL(u64)
+    {74, 0x146, 117, 2},  // setComponentX(i16/10)
+    {75, 0x146, 119, 2},  // setComponentY(i16/10)
+    {76, 0x146, 121, 2},  // setComponentZ(i16/10)
+    {77, 0x146, 123, 2},  // setComponentH(i16%360/10)
+    {78, 0x146, 125, 2},  // setComponentP(i16%360/10)
+    {79, 0x146, 127, 2},  // setComponentR(i16%360/10)
+    {80, 0x146, 129, 2},  // setComponentT(i16)
+    {81, 0x146, 131, 2},  // setSmStop(i16)
+    {82, 0x146, 133, 4},  // setSmH(i16%360/10,i16)
+    {83, 0x146, 136, 4},  // setSmZ(i16/10,i16)
+    {84, 0x146, 139, 6},  // setSmXY(i16/10,i16/10,i16)
+    {85, 0x146, 143, 6},  // setSmXZ(i16/10,i16/10,i16)
+    {86, 0x146, 147, 8},  // setSmPos(i16/10,i16/10,i16/10,i16)
+    {87, 0x146, 152, 8},  // setSmHpr(i16%360/10,i16%360/10,i16%360/10,i16)
+    {88, 0x146, 157, 8},  // setSmXYH(i16/10,i16/10,i16%360/10,i16)
+    {89, 0x146, 162, 10},  // setSmXYZH(i16/10,i16/10,i16/10,i16%360/10,i16)
+    {90, 0x146, 168, 14},  // setSmPosHpr(i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10,i16)
+    {91, 0x146, 176, 22},  // setSmPosHprL(u64,i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10,i16)
+    {92, 0x042, 185, 1},  // clearSmoothing(i8)
+    {93, 0x090, 187, 16},  // suggestResync(u32,i16,i16,i32,u16,u16/100)
+    {94, 0x090, 194, 14},  // returnResync(u32,i16,i32,u16,u16/100)
+    {108, 0x042, 200, 65535},  // setTalk(u32,u32,string,string,{u16,u16}[],u8)
+    {109, 0x090, 211, 65535},  // setTalkWhisper(u32,u32,string,string,{u16,u16}[],u8)
+    {112, 0x008, 222, 65535},  // DcObjectType(string)
+    {113, 0x10b, 224, 65535},  // setName(string)
+    {114, 0x190, 226, 5},  // friendsNotify(i32,i8)
+    {115, 0x110, 229, 4},  // checkAvOnShard(u32)
+    {116, 0x000, 231, 5},  // confirmAvOnShard(u32,i8)
+    {119, 0x084, 234, 4},  // arrivedOnDistrict(u32)
+    {120, 0x089, 236, 65535},  // setAccountName(string)
+    {121, 0x090, 238, 65535},  // setWhisperFrom(u32,string,u32)
+    {122, 0x090, 242, 65535},  // setWhisperWLFrom(u32,string,u32)
+    {123, 0x090, 246, 6},  // setWhisperSCFrom(u32,u16)
+    {124, 0x090, 249, 6},  // setWhisperSCCustomFrom(u32,u16)
+    {125, 0x090, 252, 6},  // setWhisperSCEmoteFrom(u32,u16)
+    {126, 0x080, 255, 65535},  // setSystemMessage(u32,string)
+    {127, 0x186, 258, 1},  // setCommonChatFlags(u8)
+    {128, 0x186, 260, 1},  // setWhitelistChatFlags(u8)
+    {129, 0x142, 262, 2},  // setSC(u16)
+    {130, 0x142, 264, 2},  // setSCCustom(u16)
+    {131, 0x189, 266, 65535},  // setFriendsList({u32,u8}[])
+    {134, 0x000, 272, 4},  // OwningAccount(u32)
+    {135, 0x00c, 274, 65535},  // WishName(string)
+    {136, 0x00c, 276, 65535},  // WishNameState(string)
+    {137, 0x109, 278, 1},  // setPreviousAccess(u8)
+    {138, 0x187, 280, 1},  // setAccess(u8)
+    {139, 0x181, 282, 2},  // setAccessLevel(u16)
+    {140, 0x187, 284, 1},  // setAsGM(u8)
+    {346, 0x010, 286, 65535},  // requestLogin(string)
+    {347, 0x000, 288, 65535},  // loginResponse(blob)
+    {348, 0x010, 290, 0},  // requestAvatarList()
+    {349, 0x000, 291, 65535},  // avatarListResponse({u32,string,blob,u8,u8}[])
+    {350, 0x010, 300, 65535},  // createAvatar(blob,u8)
+    {351, 0x000, 303, 4},  // createAvatarResponse(u32)
+    {352, 0x010, 305, 16},  // setNamePattern(u32,i16,u8,i16,u8,i16,u8,i16,u8)
+    {353, 0x000, 315, 5},  // namePatternAnswer(u32,u8)
+    {354, 0x010, 318, 65535},  // setNameTyped(u32,string)
+    {355, 0x000, 321, 5},  // nameTypedResponse(u32,u8)
+    {356, 0x010, 324, 4},  // acknowledgeAvatarName(u32)
+    {357, 0x000, 326, 0},  // acknowledgeAvatarNameResponse()
+    {358, 0x010, 327, 4},  // requestRemoveAvatar(u32)
+    {359, 0x010, 329, 4},  // requestPlayAvatar(u32)
+    {420, 0x006, 331, 65535},  // setParentingRules(string,string)
+    {421, 0x007, 334, 1},  // allowAHNNLog(u8)
+    {422, 0x007, 336, 4},  // settoontownDistrictId(u32)
+    {423, 0x007, 338, 4},  // setAvatarCount(u32)
+    {424, 0x007, 340, 4},  // setNewAvatarCount(u32)
+    {425, 0x007, 342, 8},  // setStats(u32,u32)
+    {436, 0x08b, 345, 65535},  // setDNAString(blob)
+    {437, 0x08b, 347, 1},  // setGM(u8)
+    {438, 0x08b, 349, 2},  // setMaxBankMoney(i16)
+    {439, 0x08b, 351, 2},  // setBankMoney(i16)
+    {440, 0x08b, 353, 2},  // setMaxMoney(i16)
+    {441, 0x08b, 355, 2},  // setMoney(i16)
+    {442, 0x08b, 357, 2},  // setMaxHp(i16)
+    {443, 0x08b, 359, 2},  // setHp(i16)
+    {444, 0x082, 361, 2},  // toonUp(u16)
+    {445, 0x082, 363, 2},  // takeDamage(u16)
+    {446, 0x007, 365, 4},  // setBattleId(u32)
+    {447, 0x089, 367, 65535},  // setExperience(blob)
+    {448, 0x089, 369, 1},  // setMaxCarry(u8)
+    {449, 0x08b, 371, 65535},  // setTrackAccess(u16[])
+    {450, 0x089, 376, 5},  // setTrackProgress(i8,u32)
+    {451, 0x08b, 379, 65535},  // setTrackBonusLevel(i8[])
+    {452, 0x089, 384, 65535},  // setInventory(blob)
+    {453, 0x089, 386, 2},  // setMaxNPCFriends(u16)
+    {454, 0x089, 388, 65535},  // setNPCFriendsDict({u32,u8}[])
+    {455, 0x089, 394, 4},  // setDefaultShard(u32)
+    {456, 0x089, 396, 4},  // setDefaultZone(u32)
+    {457, 0x089, 398, 65535},  // setShtickerBook(blob)
+    {458, 0x089, 400, 65535},  // setZonesVisited(u32[])
+    {459, 0x089, 405, 65535},  // setHoodsVisited(u32[])
+    {460, 0x089, 410, 65535},  // setInterface(blob)
+    {461, 0x089, 412, 4},  // setLastHood(u32)
+    {462, 0x089, 414, 1},  // setTutorialAck(u8)
+    {463, 0x089, 416, 4},  // setMaxClothes(u32)
+    {464, 0x089, 418, 65535},  // setClothesTopsList(u8[])
+    {465, 0x089, 423, 65535},  // setClothesBottomsList(u8[])
+    {466, 0x089, 428, 4},  // setMaxAccessories(u32)
+    {467, 0x089, 430, 65535},  // setHatList(u8[])
+    {468, 0x089, 435, 65535},  // setGlassesList(u8[])
+    {469, 0x089, 440, 65535},  // setBackpackList(u8[])
+    {470, 0x089, 445, 65535},  // setShoesList(u8[])
+    {471, 0x08b, 450, 3},  // setHat(u8,u8,u8)
+    {472, 0x08b, 454, 3},  // setGlasses(u8,u8,u8)
+    {473, 0x08b, 458, 3},  // setBackpack(u8,u8,u8)
+    {474, 0x08b, 462, 3},  // setShoes(u8,u8,u8)
+    {475, 0x189, 466, 65535},  // setGardenSpecials({u8,u8}[])
+    {476, 0x080, 472, 65535},  // setEarnedExperience(u16[])
+    {477, 0x042, 477, 14},  // setTunnelIn(i16,i16/10,i16/10,i16/10,i16/100,i32/100)
+    {478, 0x042, 484, 16},  // setTunnelOut(i16,i16/10,i16/10,i16/10,i16/10,i16/100,i32/100)
+    {479, 0x146, 492, 65535},  // setAnimState(string,i16/1000,i16)
+    {480, 0x046, 496, 6},  // setEmoteState(i16,i16/1000,i16)
+    {481, 0x089, 500, 65535},  // setEmoteAccess(u8[])
+    {482, 0x089, 505, 65535},  // setCustomMessages(u16[])
+    {483, 0x092, 510, 4},  // setSleepAutoReply(u32)
+    {484, 0x089, 512, 65535},  // setResistanceMessages(i16[2][])
+    {485, 0x089, 522, 65535},  // setPetTrickPhrases(u8[])
+    {486, 0x089, 527, 6},  // setCatalogSchedule(u16,u32)
+    {487, 0x089, 530, 65535},  // setCatalog(blob,blob,blob)
+    {488, 0x089, 534, 65535},  // setMailboxContents(blob)
+    {489, 0x189, 536, 65535},  // setDeliverySchedule(blob)
+    {490, 0x189, 538, 65535},  // setGiftSchedule(blob)
+    {491, 0x089, 540, 65535},  // setAwardMailboxContents(blob)
+    {492, 0x189, 542, 65535},  // setAwardSchedule(blob)
+    {493, 0x089, 544, 1},  // setAwardNotify(u8)
+    {494, 0x089, 546, 2},  // setCatalogNotify(u8,u8)
+    {495, 0x042, 549, 6},  // playSplashEffect(i16/10,i16/10,i16/10)
+    {496, 0x090, 553, 17},  // setWhisperSCToontaskFrom(u32,u32,u32,u32,u8)
+    {497, 0x042, 559, 13},  // setSCToontask(u32,u32,u32,u8)
+    {498, 0x140, 564, 65535},  // reqSCResistance(u16,u32[])
+    {499, 0x082, 570, 65535},  // setSCResistance(u16,u32[])
+    {500, 0x04b, 576, 1},  // setSpeedChatStyleIndex(u8)
+    {501, 0x086, 578, 2},  // setTrophyScore(u16)
+    {502, 0x089, 580, 65535},  // setTeleportAccess(u32[])
+    {503, 0x140, 585, 2},  // checkTeleportAccess(u16)
+    {504, 0x090, 587, 4},  // battleSOS(u32)
+    {505, 0x090, 589, 4},  // teleportQuery(u32)
+    {506, 0x090, 591, 17},  // teleportResponse(u32,i8,u32,u32,u32)
+    {507, 0x140, 597, 21},  // teleportResponseToAI(u32,i8,u32,u32,u32,u32)
+    {508, 0x090, 604, 4},  // teleportGiveup(u32)
+    {509, 0x042, 606, 4},  // teleportGreeting(u32)
+    {510, 0x089, 608, 65535},  // setCogStatus(u32[])
+    {511, 0x089, 613, 65535},  // setCogCount(u32[])
+    {512, 0x089, 618, 65535},  // setCogRadar(u8[])
+    {513, 0x089, 623, 65535},  // setBuildingRadar(u8[])
+    {514, 0x08b, 628, 65535},  // setCogLevels(u8[])
+    {515, 0x08b, 633, 65535},  // setCogTypes(u8[])
+    {516, 0x08b, 638, 65535},  // setCogParts(u32[])
+    {517, 0x089, 643, 65535},  // setCogMerits(u16[])
+    {518, 0x006, 648, 1},  // setCogIndex(i8)
+    {519, 0x080, 650, 1},  // setDisguisePageFlag(i8)
+    {520, 0x080, 652, 1},  // setSosPageFlag(i8)
+    {521, 0x089, 654, 4},  // setHouseId(u32)
+    {522, 0x08b, 656, 65535},  // setQuests(u32[])
+    {523, 0x089, 661, 65535},  // setQuestHistory(u16[])
+    {524, 0x089, 666, 65535},  // setRewardHistory(u8,u16[])
+    {525, 0x089, 672, 1},  // setQuestCarryLimit(u8)
+    {526, 0x140, 674, 65535},  // requestDeleteQuest(u32[])
+    {527, 0x08b, 679, 10},  // setCheesyEffect(i16,u32,u32)
+    {528, 0x086, 683, 1},  // setGhostMode(u8)
+    {529, 0x089, 685, 1},  // setPosIndex(u8)
+    {530, 0x089, 687, 65535},  // setFishCollection(u8[],u8[],u16[])
+    {531, 0x089, 700, 1},  // setMaxFishTank(u8)
+    {532, 0x089, 702, 65535},  // setFishTank(u8[],u8[],u16[])
+    {533, 0x08b, 715, 1},  // setFishingRod(u8)
+    {534, 0x089, 717, 65535},  // setFishingTrophies(u8[])
+    {535, 0x089, 722, 65535},  // setFlowerCollection(u8[],u8[])
+    {536, 0x089, 731, 65535},  // setFlowerBasket(u8[],u8[])
+    {537, 0x089, 740, 1},  // setMaxFlowerBasket(u8)
+    {538, 0x089, 742, 65535},  // setGardenTrophies(u8[])
+    {539, 0x08b, 747, 1},  // setShovel(u8)
+    {540, 0x089, 749, 4},  // setShovelSkill(u32)
+    {541, 0x08b, 751, 1},  // setWateringCan(u8)
+    {542, 0x089, 753, 4},  // setWateringCanSkill(u32)
+    {543, 0x080, 755, 1},  // promoteShovel(u8)
+    {544, 0x080, 757, 1},  // promoteWateringCan(u8)
+    {545, 0x080, 759, 0},  // reactivateWater()
+    {546, 0x042, 760, 16},  // presentPie(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,i32)
+    {547, 0x042, 768, 18},  // tossPie(i16/10,i16/10,i16/10,i16/10,i16/10,i16/10,u8,u8,i32)
+    {548, 0x042, 778, 12},  // pieSplat(i16/10,i16/10,i16/10,u8,u8,i32)
+    {549, 0x086, 785, 1},  // setPieType(u8)
+    {550, 0x086, 787, 2},  // setNumPies(u16)
+    {551, 0x082, 789, 4},  // catalogGenClothes(u32)
+    {552, 0x082, 791, 4},  // catalogGenAccessories(u32)
+    {553, 0x08b, 793, 4},  // setPetId(u32)
+    {554, 0x140, 795, 5},  // setPetMovie(u32,u8)
+    {555, 0x149, 798, 1},  // setPetTutorialDone(u8)
+    {556, 0x149, 800, 1},  // setFishBingoTutorialDone(u8)
+    {557, 0x149, 802, 1},  // setFishBingoMarkTutorialDone(u8)
+    {558, 0x08b, 804, 1},  // setKartBodyType(i8)
+    {559, 0x08b, 806, 1},  // setKartBodyColor(i8)
+    {560, 0x08b, 808, 1},  // setKartAccessoryColor(i8)
+    {561, 0x08b, 810, 1},  // setKartEngineBlockType(i8)
+    {562, 0x08b, 812, 1},  // setKartSpoilerType(i8)
+    {563, 0x08b, 814, 1},  // setKartFrontWheelWellType(i8)
+    {564, 0x08b, 816, 1},  // setKartBackWheelWellType(i8)
+    {565, 0x08b, 818, 1},  // setKartRimType(i8)
+    {566, 0x08b, 820, 1},  // setKartDecalType(i8)
+    {567, 0x140, 822, 2},  // updateKartDNAField(i8,i8)
+    {568, 0x140, 825, 1},  // addOwnedAccessory(i8)
+    {569, 0x140, 827, 1},  // removeOwnedAccessory(i8)
+    {570, 0x08b, 829, 4},  // setTickets(u32)
+    {571, 0x089, 831, 16},  // setKartingHistory(u8[16])
+    {572, 0x089, 838, 33},  // setKartingTrophies(u8[33])
+    {573, 0x089, 845, 24},  // setKartingPersonalBest(u32/1000[6])
+    {574, 0x089, 852, 48},  // setKartingPersonalBest2(u32/1000[12])
+    {575, 0x08b, 859, 16},  // setKartAccessoriesOwned(i8[16])
+    {576, 0x086, 866, 4},  // setCurrentKart(u32)
+    {577, 0x140, 868, 1},  // squish(u8)
+    {578, 0x082, 870, 0},  // announceBingo()
+    {579, 0x080, 871, 4},  // trickOrTreatTargetMet(u32)
+    {580, 0x080, 873, 0},  // trickOrTreatMilestoneMet()
+    {581, 0x080, 874, 4},  // winterCarolingTargetMet(u32)
+    {582, 0x089, 876, 65535},  // setCogSummonsEarned(u8[])
+    {583, 0x140, 881, 65535},  // reqCogSummons(string,u32)
+    {584, 0x080, 884, 65535},  // cogSummonsResponse(string,u32,u32)
+    {585, 0x140, 888, 4},  // reqUseSpecial(i32)
+    {586, 0x080, 890, 65535},  // useSpecialResponse(string)
+    {587, 0x089, 892, 1},  // setGardenStarted(u8)
+    {588, 0x080, 894, 4},  // sendToGolfCourse(u32)
+    {589, 0x089, 896, 36},  // setGolfHistory(u16[18])
+    {590, 0x089, 903, 18},  // setPackedGolfHoleBest(u8[18])
+    {591, 0x089, 910, 3},  // setGolfCourseBest(u8[3])
+    {592, 0x086, 917, 1},  // setUnlimitedSwing(u8)
+    {593, 0x140, 919, 65535},  // logSuspiciousEvent(string)
+    {594, 0x140, 921, 65535},  // logMessage(string)
+    {595, 0x080, 923, 0},  // forceLogoutWithNotify()
+    {596, 0x089, 924, 1},  // setPinkSlips(u8)
+    {597, 0x00f, 926, 1},  // setNametagStyle(u8)
+    {598, 0x080, 928, 65535},  // setMail({u64,u32,u16,u8,u8,string}[])
+    {599, 0x100, 938, 4},  // setNumMailItems(u32)
+    {600, 0x180, 940, 1},  // setSimpleMailNotify(u8)
+    {601, 0x184, 942, 65535},  // setInvites({u64,u64,u8}[])
+    {602, 0x184, 949, 65535},  // setPartiesInvitedTo({u64,u32,u16,u8,u8,u8,u8,u16,u8,u8,u8,u8,u8,u8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u8}[])
+    {603, 0x184, 982, 65535},  // setHostedParties({u64,u32,u16,u8,u8,u8,u8,u16,u8,u8,u8,u8,u8,u8,{u8,u8,u8,u8}[],{u8,u8,u8,u8}[],u8}[])
+    {604, 0x184, 1015, 65535},  // setPartyReplies({u64,{u32,u8}[]}[])
+    {605, 0x180, 1025, 9},  // updateInvite(u64,u8)
+    {606, 0x180, 1028, 17},  // updateReply(u64,u64,u8)
+    {607, 0x180, 1032, 8},  // setPartyCanStart(u64)
+    {608, 0x180, 1034, 9},  // setPartyStatus(u64,u8)
+    {609, 0x080, 1037, 8},  // announcePartyStarted(u64)
+    {610, 0x080, 1039, 11},  // setNeverStartedPartyRefunded(u64,i8,u16)
+    {611, 0x004, 1043, 65535},  // setDISLname(string)
+    {612, 0x10c, 1045, 4},  // setDISLid(u32)
+    {613, 0x080, 1047, 0},  // toggleSleep()
+};
+
+// Parallel to kFields (debug logging only).
+constexpr const char* kFieldNames[kNumFields] = {
+    "setBarrierData",
+    "setBarrierReady",
+    "execCommand",
+    "broadcastMessage",
+    "requestServerTime",
+    "serverTime",
+    "setDisconnectReason",
+    "setExceptionInfo",
+    "setSignature",
+    "setFrameRate",
+    "setCpuInfo",
+    "checkForGarbageLeaks",
+    "setNumAIGarbageLeaks",
+    "setClientGarbageLeak",
+    "setName",
+    "setAvailable",
+    "setParentStr",
+    "setParent",
+    "setX",
+    "setY",
+    "setZ",
+    "setH",
+    "setP",
+    "setR",
+    "setPos",
+    "setHpr",
+    "setPosHpr",
+    "setXY",
+    "setXZ",
+    "setXYH",
+    "setXYZH",
+    "setComponentL",
+    "setComponentX",
+    "setComponentY",
+    "setComponentZ",
+    "setComponentH",
+    "setComponentP",
+    "setComponentR",
+    "setComponentT",
+    "setSmStop",
+    "setSmH",
+    "setSmZ",
+    "setSmXY",
+    "setSmXZ",
+    "setSmPos",
+    "setSmHpr",
+    "setSmXYH",
+    "setSmXYZH",
+    "setSmPosHpr",
+    "setSmPosHprL",
+    "clearSmoothing",
+    "suggestResync",
+    "returnResync",
+    "setTalk",
+    "setTalkWhisper",
+    "DcObjectType",
+    "setName",
+    "friendsNotify",
+    "checkAvOnShard",
+    "confirmAvOnShard",
+    "arrivedOnDistrict",
+    "setAccountName",
+    "setWhisperFrom",
+    "setWhisperWLFrom",
+    "setWhisperSCFrom",
+    "setWhisperSCCustomFrom",
+    "setWhisperSCEmoteFrom",
+    "setSystemMessage",
+    "setCommonChatFlags",
+    "setWhitelistChatFlags",
+    "setSC",
+    "setSCCustom",
+    "setFriendsList",
+    "OwningAccount",
+    "WishName",
+    "WishNameState",
+    "setPreviousAccess",
+    "setAccess",
+    "setAccessLevel",
+    "setAsGM",
+    "requestLogin",
+    "loginResponse",
+    "requestAvatarList",
+    "avatarListResponse",
+    "createAvatar",
+    "createAvatarResponse",
+    "setNamePattern",
+    "namePatternAnswer",
+    "setNameTyped",
+    "nameTypedResponse",
+    "acknowledgeAvatarName",
+    "acknowledgeAvatarNameResponse",
+    "requestRemoveAvatar",
+    "requestPlayAvatar",
+    "setParentingRules",
+    "allowAHNNLog",
+    "settoontownDistrictId",
+    "setAvatarCount",
+    "setNewAvatarCount",
+    "setStats",
+    "setDNAString",
+    "setGM",
+    "setMaxBankMoney",
+    "setBankMoney",
+    "setMaxMoney",
+    "setMoney",
+    "setMaxHp",
+    "setHp",
+    "toonUp",
+    "takeDamage",
+    "setBattleId",
+    "setExperience",
+    "setMaxCarry",
+    "setTrackAccess",
+    "setTrackProgress",
+    "setTrackBonusLevel",
+    "setInventory",
+    "setMaxNPCFriends",
+    "setNPCFriendsDict",
+    "setDefaultShard",
+    "setDefaultZone",
+    "setShtickerBook",
+    "setZonesVisited",
+    "setHoodsVisited",
+    "setInterface",
+    "setLastHood",
+    "setTutorialAck",
+    "setMaxClothes",
+    "setClothesTopsList",
+    "setClothesBottomsList",
+    "setMaxAccessories",
+    "setHatList",
+    "setGlassesList",
+    "setBackpackList",
+    "setShoesList",
+    "setHat",
+    "setGlasses",
+    "setBackpack",
+    "setShoes",
+    "setGardenSpecials",
+    "setEarnedExperience",
+    "setTunnelIn",
+    "setTunnelOut",
+    "setAnimState",
+    "setEmoteState",
+    "setEmoteAccess",
+    "setCustomMessages",
+    "setSleepAutoReply",
+    "setResistanceMessages",
+    "setPetTrickPhrases",
+    "setCatalogSchedule",
+    "setCatalog",
+    "setMailboxContents",
+    "setDeliverySchedule",
+    "setGiftSchedule",
+    "setAwardMailboxContents",
+    "setAwardSchedule",
+    "setAwardNotify",
+    "setCatalogNotify",
+    "playSplashEffect",
+    "setWhisperSCToontaskFrom",
+    "setSCToontask",
+    "reqSCResistance",
+    "setSCResistance",
+    "setSpeedChatStyleIndex",
+    "setTrophyScore",
+    "setTeleportAccess",
+    "checkTeleportAccess",
+    "battleSOS",
+    "teleportQuery",
+    "teleportResponse",
+    "teleportResponseToAI",
+    "teleportGiveup",
+    "teleportGreeting",
+    "setCogStatus",
+    "setCogCount",
+    "setCogRadar",
+    "setBuildingRadar",
+    "setCogLevels",
+    "setCogTypes",
+    "setCogParts",
+    "setCogMerits",
+    "setCogIndex",
+    "setDisguisePageFlag",
+    "setSosPageFlag",
+    "setHouseId",
+    "setQuests",
+    "setQuestHistory",
+    "setRewardHistory",
+    "setQuestCarryLimit",
+    "requestDeleteQuest",
+    "setCheesyEffect",
+    "setGhostMode",
+    "setPosIndex",
+    "setFishCollection",
+    "setMaxFishTank",
+    "setFishTank",
+    "setFishingRod",
+    "setFishingTrophies",
+    "setFlowerCollection",
+    "setFlowerBasket",
+    "setMaxFlowerBasket",
+    "setGardenTrophies",
+    "setShovel",
+    "setShovelSkill",
+    "setWateringCan",
+    "setWateringCanSkill",
+    "promoteShovel",
+    "promoteWateringCan",
+    "reactivateWater",
+    "presentPie",
+    "tossPie",
+    "pieSplat",
+    "setPieType",
+    "setNumPies",
+    "catalogGenClothes",
+    "catalogGenAccessories",
+    "setPetId",
+    "setPetMovie",
+    "setPetTutorialDone",
+    "setFishBingoTutorialDone",
+    "setFishBingoMarkTutorialDone",
+    "setKartBodyType",
+    "setKartBodyColor",
+    "setKartAccessoryColor",
+    "setKartEngineBlockType",
+    "setKartSpoilerType",
+    "setKartFrontWheelWellType",
+    "setKartBackWheelWellType",
+    "setKartRimType",
+    "setKartDecalType",
+    "updateKartDNAField",
+    "addOwnedAccessory",
+    "removeOwnedAccessory",
+    "setTickets",
+    "setKartingHistory",
+    "setKartingTrophies",
+    "setKartingPersonalBest",
+    "setKartingPersonalBest2",
+    "setKartAccessoriesOwned",
+    "setCurrentKart",
+    "squish",
+    "announceBingo",
+    "trickOrTreatTargetMet",
+    "trickOrTreatMilestoneMet",
+    "winterCarolingTargetMet",
+    "setCogSummonsEarned",
+    "reqCogSummons",
+    "cogSummonsResponse",
+    "reqUseSpecial",
+    "useSpecialResponse",
+    "setGardenStarted",
+    "sendToGolfCourse",
+    "setGolfHistory",
+    "setPackedGolfHoleBest",
+    "setGolfCourseBest",
+    "setUnlimitedSwing",
+    "logSuspiciousEvent",
+    "logMessage",
+    "forceLogoutWithNotify",
+    "setPinkSlips",
+    "setNametagStyle",
+    "setMail",
+    "setNumMailItems",
+    "setSimpleMailNotify",
+    "setInvites",
+    "setPartiesInvitedTo",
+    "setHostedParties",
+    "setPartyReplies",
+    "updateInvite",
+    "updateReply",
+    "setPartyCanStart",
+    "setPartyStatus",
+    "announcePartyStarted",
+    "setNeverStartedPartyRefunded",
+    "setDISLname",
+    "setDISLid",
+    "toggleSleep",
+};
+
+// Per class: required fields as sent in CLIENT_ENTER_OBJECT_REQUIRED_OTHER
+// (broadcast) and ..._OWNER (broadcast|ownrecv), in DCClass inherited order;
+// then every field id of the class, sorted (validates OTHER fields).
+struct ClassDesc {
+    uint16_t classId;
+    uint16_t otherOffset;
+    uint16_t otherCount;
+    uint16_t ownerOffset;
+    uint16_t ownerCount;
+    uint16_t memberOffset;
+    uint16_t memberCount;
+    const char* name;
+};
+
+constexpr int kFieldListSize = 466;
+constexpr uint16_t kFieldLists[kFieldListSize] = {
+    56, 57, 56, 57, 22, 23, 24, 25, 56, 57, 56, 57, 421, 56, 57, 421,
+    22, 23, 24, 25, 56, 57, 420, 421, 422, 423, 424, 422, 423, 424, 22, 23,
+    24, 25, 422, 423, 424, 425, 22, 23, 24, 25, 346, 347, 348, 349, 350, 351,
+    352, 353, 354, 355, 356, 357, 358, 359, 22, 23, 24, 25, 42, 43, 44, 45,
+    46, 47, 48, 49, 50, 51, 113, 138, 140, 436, 437, 438, 439, 440, 441, 442,
+    443, 446, 449, 451, 471, 472, 473, 474, 500, 514, 515, 516, 522, 527, 533, 539,
+    541, 553, 558, 559, 560, 561, 562, 563, 564, 565, 566, 570, 575, 597, 113, 120,
+    131, 138, 139, 140, 436, 437, 438, 439, 440, 441, 442, 443, 446, 447, 448, 449,
+    450, 451, 452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465,
+    466, 467, 468, 469, 470, 471, 472, 473, 474, 475, 481, 482, 484, 485, 486, 487,
+    488, 489, 490, 491, 492, 493, 494, 500, 502, 510, 511, 512, 513, 514, 515, 516,
+    517, 521, 522, 523, 524, 525, 527, 529, 530, 531, 532, 533, 534, 535, 536, 537,
+    538, 539, 540, 541, 542, 553, 558, 559, 560, 561, 562, 563, 564, 565, 566, 570,
+    571, 572, 573, 574, 575, 582, 587, 589, 590, 591, 596, 597, 22, 23, 24, 25,
+    58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73,
+    74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89,
+    90, 91, 92, 93, 94, 108, 109, 112, 113, 114, 115, 116, 119, 120, 121, 122,
+    123, 124, 125, 126, 127, 128, 129, 130, 131, 134, 135, 136, 137, 138, 139, 140,
+    436, 437, 438, 439, 440, 441, 442, 443, 444, 445, 446, 447, 448, 449, 450, 451,
+    452, 453, 454, 455, 456, 457, 458, 459, 460, 461, 462, 463, 464, 465, 466, 467,
+    468, 469, 470, 471, 472, 473, 474, 475, 476, 477, 478, 479, 480, 481, 482, 483,
+    484, 485, 486, 487, 488, 489, 490, 491, 492, 493, 494, 495, 496, 497, 498, 499,
+    500, 501, 502, 503, 504, 505, 506, 507, 508, 509, 510, 511, 512, 513, 514, 515,
+    516, 517, 518, 519, 520, 521, 522, 523, 524, 525, 526, 527, 528, 529, 530, 531,
+    532, 533, 534, 535, 536, 537, 538, 539, 540, 541, 542, 543, 544, 545, 546, 547,
+    548, 549, 550, 551, 552, 553, 554, 555, 556, 557, 558, 559, 560, 561, 562, 563,
+    564, 565, 566, 567, 568, 569, 570, 571, 572, 573, 574, 575, 576, 577, 578, 579,
+    580, 581, 582, 583, 584, 585, 586, 587, 588, 589, 590, 591, 592, 593, 594, 595,
+    596, 597, 598, 599, 600, 601, 602, 603, 604, 605, 606, 607, 608, 609, 610, 611,
+    612, 613,
+};
+
+constexpr int kNumClasses = 6;
+constexpr ClassDesc kClasses[kNumClasses] = {
+    {11, 0, 2, 2, 2, 4, 6, "DistributedDistrict"},
+    {61, 10, 3, 13, 3, 16, 8, "ToontownDistrict"},
+    {62, 24, 3, 27, 3, 30, 8, "ToontownDistrictStats"},
+    {47, 38, 0, 38, 0, 38, 18, "AstronLoginManager"},
+    {8, 56, 0, 56, 0, 56, 14, "TimeManager"},
+    {65, 70, 40, 110, 110, 220, 246, "DistributedToon"},
+};
 
 } // namespace tt::dc

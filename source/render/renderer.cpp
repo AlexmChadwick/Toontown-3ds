@@ -3,6 +3,7 @@
 #include <cmath>
 
 #include "core/log.h"
+#include "morph_shbin.h"
 #include "world_shbin.h"
 
 namespace tt::render {
@@ -11,6 +12,7 @@ namespace {
 
 constexpr u32 kClearSky = 0x6AB0D9FF; // RGBA8; Toontown-ish sky blue
 constexpr u32 kVertexStride = 16;
+constexpr u32 kMorphStride = 8; // tta frame vertex: s16 x, y, z, pad
 // Depth bias per "draw in front" layer (eyes over face, pupils over eyes).
 // Positive = nearer, because citro3d's perspective + GPU_GREATER is reversed-Z.
 constexpr float kLayerDepthBias = 0.00005f;
@@ -39,37 +41,56 @@ bool Renderer::init() {
     C3D_RenderTargetSetOutput(topLeft_, GFX_TOP, GFX_LEFT, kDisplayTransferFlags);
     C3D_RenderTargetSetOutput(topRight_, GFX_TOP, GFX_RIGHT, kDisplayTransferFlags);
 
-    shaderDvlb_ = DVLB_ParseFile(reinterpret_cast<u32*>(const_cast<u8*>(world_shbin)), world_shbin_size);
-    if (!shaderDvlb_) return false;
-    shaderProgramInit(&program_);
-    shaderProgramSetVsh(&program_, &shaderDvlb_->DVLE[0]);
-    uProjection_ = shaderInstanceGetUniformLocation(program_.vertexShader, "projection");
-    uModelView_ = shaderInstanceGetUniformLocation(program_.vertexShader, "modelView");
-    uTint_ = shaderInstanceGetUniformLocation(program_.vertexShader, "tint");
+    if (!loadProgram(world_shbin, world_shbin_size, &programs_[kModeStatic])) return false;
+    if (!loadProgram(morph_shbin, morph_shbin_size, &programs_[kModeMorph])) return false;
+    return true;
+}
+
+bool Renderer::loadProgram(const u8* shbin, u32 size, Program* out) {
+    out->dvlb = DVLB_ParseFile(reinterpret_cast<u32*>(const_cast<u8*>(shbin)), size);
+    if (!out->dvlb) return false;
+    shaderProgramInit(&out->program);
+    shaderProgramSetVsh(&out->program, &out->dvlb->DVLE[0]);
+    out->uProjection = shaderInstanceGetUniformLocation(out->program.vertexShader, "projection");
+    out->uModelView = shaderInstanceGetUniformLocation(out->program.vertexShader, "modelView");
+    out->uTint = shaderInstanceGetUniformLocation(out->program.vertexShader, "tint");
+    out->uBlend = shaderInstanceGetUniformLocation(out->program.vertexShader, "blend");
     return true;
 }
 
 void Renderer::shutdown() {
-    shaderProgramFree(&program_);
-    if (shaderDvlb_) DVLB_Free(shaderDvlb_);
+    for (Program& p : programs_) {
+        if (!p.dvlb) continue;
+        shaderProgramFree(&p.program);
+        DVLB_Free(p.dvlb);
+        p.dvlb = nullptr;
+    }
     if (topLeft_) C3D_RenderTargetDelete(topLeft_);
     if (topRight_) C3D_RenderTargetDelete(topRight_);
-    shaderDvlb_ = nullptr;
     topLeft_ = topRight_ = nullptr;
+}
+
+void Renderer::bindMode(Mode mode) {
+    if (mode == mode_) return;
+    mode_ = mode;
+    const Program& p = programs_[mode];
+    C3D_BindProgram(const_cast<shaderProgram_s*>(&p.program));
+    C3D_AttrInfo* attr = C3D_GetAttrInfo();
+    AttrInfo_Init(attr);
+    AttrInfo_AddLoader(attr, 0, GPU_SHORT, 4);         // position (w = pad, overridden in shader)
+    AttrInfo_AddLoader(attr, 1, GPU_SHORT, 2);         // uv
+    AttrInfo_AddLoader(attr, 2, GPU_UNSIGNED_BYTE, 4); // rgba
+    if (mode == kModeMorph) {
+        AttrInfo_AddLoader(attr, 3, GPU_SHORT, 4); // frame A position
+        AttrInfo_AddLoader(attr, 4, GPU_SHORT, 4); // frame B position
+    }
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, p.uProjection, &projection_);
 }
 
 void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                           int eyeSign) {
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, kClearSky, 0);
     C3D_FrameDrawOn(target);
-
-    // citro2d rebinds its own shader/attributes/texenv every frame, so rebind ours.
-    C3D_BindProgram(&program_);
-    C3D_AttrInfo* attr = C3D_GetAttrInfo();
-    AttrInfo_Init(attr);
-    AttrInfo_AddLoader(attr, 0, GPU_SHORT, 4); // position (w = pad, overridden in shader)
-    AttrInfo_AddLoader(attr, 1, GPU_SHORT, 2); // uv
-    AttrInfo_AddLoader(attr, 2, GPU_UNSIGNED_BYTE, 4); // rgba
 
     C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
     C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
@@ -83,7 +104,9 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     } else {
         Mtx_PerspStereoTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, kFar, eyeSign * iod, 2.0f, false);
     }
-    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uProjection_, &projection_);
+    // citro2d rebinds its own shader/attributes/texenv every frame, so rebind ours.
+    mode_ = kModeNone;
+    bindMode(kModeStatic);
 
     // Panda/Toontown world space: Z up, right-handed.
     Mtx_LookAt(&view_, eye, lookAt, FVec3_New(0.0f, 0.0f, 1.0f), false);
@@ -103,6 +126,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
 }
 
 void Renderer::endWorld() {
+    mode_ = kModeNone;
     C3D_AlphaTest(false, GPU_ALWAYS, 0);
     C3D_DepthMap(true, -1.0f, 0.0f);
     C3D_CullFace(GPU_CULL_NONE);
@@ -115,35 +139,76 @@ bool Renderer::sphereVisible(const C3D_FVec& c, float radius) const {
     return true;
 }
 
-void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints) {
-    if (!model.loaded()) return;
-
-    // Bounding sphere in world space (model bounds are axis-aligned in model space).
-    const float* lo = model.boundsMin();
-    const float* hi = model.boundsMax();
+bool Renderer::beginDraw(const float* lo, const float* hi, const C3D_Mtx& world) {
+    // Bounding sphere in world space (bounds are axis-aligned in model space).
     const C3D_FVec localCenter = FVec4_New((lo[0] + hi[0]) * 0.5f, (lo[1] + hi[1]) * 0.5f, (lo[2] + hi[2]) * 0.5f, 1.0f);
     const C3D_FVec worldCenter = Mtx_MultiplyFVec4(&world, localCenter);
     const float dx = hi[0] - lo[0], dy = hi[1] - lo[1], dz = hi[2] - lo[2];
     const float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz); // assumes no scaling in `world`
     if (!sphereVisible(worldCenter, radius)) {
         stats_.modelsCulled++;
-        return;
+        return false;
     }
     if (C3D_GetCmdBufUsage() > kCmdBufLimit) {
         stats_.modelsSkipped++;
-        return;
+        return false;
     }
     stats_.modelsDrawn++;
+    return true;
+}
 
+void Renderer::setModelView(const C3D_Mtx& world, const float* posScale, const float* posOffset) {
     // modelView = view * world * dequantize
     C3D_Mtx dequant, worldQ, modelView;
     Mtx_Identity(&dequant);
-    Mtx_Translate(&dequant, model.posOffset()[0], model.posOffset()[1], model.posOffset()[2], true);
-    Mtx_Scale(&dequant, model.posScale()[0], model.posScale()[1], model.posScale()[2]);
+    Mtx_Translate(&dequant, posOffset[0], posOffset[1], posOffset[2], true);
+    Mtx_Scale(&dequant, posScale[0], posScale[1], posScale[2]);
     Mtx_Multiply(&worldQ, &world, &dequant);
     Mtx_Multiply(&modelView, &view_, &worldQ);
-    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, uModelView_, &modelView);
+    C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, programs_[mode_].uModelView, &modelView);
+}
 
+void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints) {
+    if (!model.loaded()) return;
+    bindMode(kModeStatic);
+    if (!beginDraw(model.boundsMin(), model.boundsMax(), world)) return;
+    setModelView(world, model.posScale(), model.posOffset());
+
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    const u8* vbase = static_cast<const u8*>(model.vertices());
+    if (model.absoluteIndices()) {
+        BufInfo_Init(buf);
+        BufInfo_Add(buf, vbase, kVertexStride, 3, 0x210);
+    }
+    drawBatches(model, tints, !model.absoluteIndices());
+}
+
+void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
+                         const Tints* tints) {
+    // Morph draws bind one vertex buffer per model, so they need absolute indices.
+    if (!model.loaded() || !anim.loaded() || !model.absoluteIndices() || anim.numVertices() != model.numVertices()) {
+        return;
+    }
+    bindMode(kModeMorph);
+    float lo[3], hi[3];
+    for (int i = 0; i < 3; i++) {
+        lo[i] = anim.posOffset()[i] - 32767.0f * anim.posScale()[i];
+        hi[i] = anim.posOffset()[i] + 32767.0f * anim.posScale()[i];
+    }
+    if (!beginDraw(lo, hi, world)) return;
+    setModelView(world, anim.posScale(), anim.posOffset());
+    C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeMorph].uBlend, blend, 0.0f, 0.0f, 0.0f);
+
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    BufInfo_Init(buf);
+    BufInfo_Add(buf, model.vertices(), kVertexStride, 3, 0x210);
+    BufInfo_Add(buf, anim.frame(frameA), kMorphStride, 1, 0x3);
+    BufInfo_Add(buf, anim.frame(frameB), kMorphStride, 1, 0x4);
+    drawBatches(model, tints, false);
+}
+
+void Renderer::drawBatches(Model& model, const Tints* tints, bool perBatchBuffer) {
+    const int uTint = programs_[mode_].uTint;
     int boundTexture = -2;
     int boundBlend = -1;
     int boundLayer = -1;
@@ -151,10 +216,6 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints)
     int boundCull = -1;
     const u8* vbase = static_cast<const u8*>(model.vertices());
     C3D_BufInfo* buf = C3D_GetBufInfo();
-    if (model.absoluteIndices()) {
-        BufInfo_Init(buf);
-        BufInfo_Add(buf, vbase, kVertexStride, 3, 0x210);
-    }
 
     for (u32 i = 0; i < model.numBatches(); i++) {
         const Batch& b = model.batch(i);
@@ -162,10 +223,10 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints)
         const int tint = tints ? b.tint : 0;
         if (tint != boundTint) {
             if (tint == 0) {
-                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint_, 1.0f, 1.0f, 1.0f, 1.0f);
+                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, 1.0f, 1.0f, 1.0f, 1.0f);
             } else {
                 const float* c = tints->rgba[tint];
-                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint_, c[0], c[1], c[2], c[3]);
+                C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, c[0], c[1], c[2], c[3]);
             }
             boundTint = tint;
         }
@@ -200,7 +261,7 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints)
             boundCull = cull;
         }
 
-        if (!model.absoluteIndices()) {
+        if (perBatchBuffer) {
             BufInfo_Init(buf);
             BufInfo_Add(buf, vbase + b.firstVertex * kVertexStride, kVertexStride, 3, 0x210);
         }

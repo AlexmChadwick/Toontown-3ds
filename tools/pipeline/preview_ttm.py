@@ -23,6 +23,7 @@ loadPrcFileData('', 'window-type offscreen\naudio-library-name null\nnotify-leve
                     'win-size 400 240\nframebuffer-multisample 0')
 from direct.showbase.ShowBase import ShowBase  # noqa: E402
 
+import etc1  # noqa: E402
 import ttm  # noqa: E402
 
 DEMO_TINTS = {1: (0.35, 0.82, 0.95, 1), 2: (0.35, 0.82, 0.95, 1), 3: (1, 1, 1, 1),
@@ -31,6 +32,9 @@ DEMO_TINTS = {1: (0.35, 0.82, 0.95, 1), 2: (0.35, 0.82, 0.95, 1), 3: (1, 1, 1, 1
 
 
 def untile(data, w, h, fmt):
+    """Level 0 of a PICA texture -> (h, w, 4) uint8 RGBA, row 0 = top."""
+    if fmt in ttm.ETC_FORMATS:
+        return etc1.decode_level(data, w, h, fmt == ttm.GPU_ETC1A4)
     bpp = ttm.BYTES_PER_PIXEL[fmt]
     raw = np.frombuffer(data[:w * h * bpp], dtype=np.uint8)
     if bpp == 2:
@@ -76,6 +80,10 @@ def load(path, tints):
     textures = []
     for i in range(ntex):
         w, h, fmt, mips, ws, wt, doff, dsize, name = struct.unpack_from('<HHBBBBII32s', buf, tex_off + 48 * i)
+        # Same check as source/render/model.cpp: dataSize == C3D_TexCalcTotalSize.
+        size = ttm.BITS_PER_PIXEL[fmt] * w * h // 8
+        total = (size - (size >> (2 * mips))) * 4 // 3
+        assert dsize == total, (name, ttm.FORMAT_NAMES.get(fmt, fmt), dsize, total)
         px = untile(buf[doff:doff + dsize], w, h, fmt)
         img = PNMImage(w, h, 4)
         for y in range(h):

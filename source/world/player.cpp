@@ -13,7 +13,7 @@ constexpr float kReverseSpeed = 8.0f * 1.25f;
 constexpr float kRotateSpeed = 80.0f * 1.25f;
 constexpr float kWalkFraction = 0.4f; // B held: walk
 constexpr float kJumpVelocity = 24.0f;
-constexpr float kGravity = 64.0f;
+constexpr float kGravity = 64.348f; // direct/controls/GravityWalker.py
 
 constexpr float kPadDeadzone = 24.0f;
 constexpr float kPadMax = 150.0f;
@@ -21,8 +21,12 @@ constexpr float kCamDistance = 12.0f;
 constexpr float kCamLookHeight = 3.0f;
 constexpr float kCamOrbitSpeed = 120.0f; // deg/s with L/R
 constexpr float kCamRecenterRate = 3.0f; // 1/s, exponential
+constexpr float kCamWallMargin = 0.05f;  // fraction of the head->eye segment kept off walls
 
 constexpr float kDegToRad = 3.14159265f / 180.0f;
+// otp/otpbase/OTPGlobals.py WalkCutOff / RunCutOff.
+constexpr float kWalkCutOff = 0.5f;
+constexpr float kRunCutOff = 8.0f;
 
 float axis(s16 v) {
     float f = static_cast<float>(v);
@@ -47,7 +51,8 @@ void Player::update(const Input& in, float dt) {
     const float fwd = axis(in.pad.dy);
     const float turn = axis(in.pad.dx);
 
-    heading_ -= turn * kRotateSpeed * dt;
+    turnRate_ = -turn * kRotateSpeed;
+    heading_ += turnRate_ * dt;
     if (heading_ > 180.0f) heading_ -= 360.0f;
     if (heading_ < -180.0f) heading_ += 360.0f;
 
@@ -57,16 +62,38 @@ void Player::update(const Input& in, float dt) {
 
     const float h = heading_ * kDegToRad;
     // Panda heading: H=0 faces +Y, positive H turns left (CCW seen from above).
-    x_ += -sinf(h) * speed_ * dt;
-    y_ += cosf(h) * speed_ * dt;
-
-    // Jump on flat ground (Phase 2 replaces z=0 with collision-ground height).
-    if ((in.down & KEY_A) && z_ <= 0.0f) vz_ = kJumpVelocity;
+    const float dx = -sinf(h) * speed_ * dt, dy = cosf(h) * speed_ * dt;
+    const bool grounded = !airborne();
+    if ((in.down & KEY_A) && grounded) vz_ = kJumpVelocity;
     vz_ -= kGravity * dt;
-    z_ += vz_ * dt;
-    if (z_ < 0.0f) {
-        z_ = 0.0f;
-        vz_ = 0.0f;
+
+    if (collision_ && collision_->loaded()) {
+        // GravityWalker order: slide along walls, find the floor (step-up reach 4), apply
+        // the jump arc, then slide again at the new height so ledges can't trap the toon.
+        const float r = kToonRadius;
+        Vec3 p{x_, y_, z_};
+        p = collision_->slideCapsule(p, r, 2.0f * r, Vec3{dx, dy, 0.0f});
+        bool found = false;
+        const float g = collision_->groundHeight(p.x, p.y, p.z, &found);
+        if (found) ground_ = g;
+        float nz = z_ + vz_ * dt;
+        if (nz <= ground_) {
+            nz = ground_;
+            vz_ = 0.0f;
+        }
+        if (nz != p.z) p = collision_->slideCapsule(p, r, 2.0f * r, Vec3{0.0f, 0.0f, nz - p.z});
+        x_ = p.x;
+        y_ = p.y;
+        z_ = p.z;
+    } else {
+        x_ += dx;
+        y_ += dy;
+        z_ += vz_ * dt;
+        ground_ = 0.0f;
+        if (z_ < ground_) {
+            z_ = ground_;
+            vz_ = 0.0f;
+        }
     }
 
     // Camera: L/R orbit; C-stick (New 3DS only) orbits/pitches; otherwise drift back
@@ -85,6 +112,35 @@ void Player::update(const Input& in, float dt) {
     camTarget_ = FVec3_New(x_, y_, z_ + kCamLookHeight);
     camEye_ = FVec3_New(x_ + sinf(yaw) * cosf(pitch) * kCamDistance, y_ - cosf(yaw) * cosf(pitch) * kCamDistance,
                         z_ + kCamLookHeight + sinf(pitch) * kCamDistance);
+    if (collision_ && collision_->loaded()) {
+        // Pull the camera in front of walls between it and the toon's head.
+        const Vec3 head{camTarget_.x, camTarget_.y, camTarget_.z};
+        const Vec3 eye{camEye_.x, camEye_.y, camEye_.z};
+        float t = 1.0f;
+        if (collision_->cameraRaycast(head, eye, &t)) {
+            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
+            camEye_ = FVec3_New(head.x + (eye.x - head.x) * t, head.y + (eye.y - head.y) * t,
+                                head.z + (eye.z - head.z) * t);
+        }
+    }
+}
+
+float Player::cameraDistance() const {
+    const float dx = camEye_.x - camTarget_.x, dy = camEye_.y - camTarget_.y, dz = camEye_.z - camTarget_.z;
+    return sqrtf(dx * dx + dy * dy + dz * dz);
+}
+
+ToonAnim Player::animState(float* rate) const {
+    *rate = 1.0f;
+    if (airborne()) return kAnimJumpIdle;
+    if (speed_ >= kRunCutOff) return kAnimRun;
+    if (speed_ > kWalkCutOff) return kAnimWalk;
+    if (speed_ < -kWalkCutOff) {
+        *rate = -1.0f;
+        return kAnimWalk;
+    }
+    if (turnRate_ != 0.0f) return kAnimWalk;
+    return kAnimNeutral;
 }
 
 void Player::worldMatrix(C3D_Mtx* out) const {

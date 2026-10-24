@@ -1,0 +1,6 @@
+# Local, machine-specific server state (see setup.sh / start.sh)
+.venv/
+.deps/
+run/
+logs/
+__pycache__/

@@ -83,6 +83,38 @@ need hardware.
 - **CPU:** 2.1 ms idle and 8.1 ms at 32 toons (vs 3.5 / 13.4 ms on 2123.3, with the
   same build).
 
+### 2026-10-23 — Phase 2 integration (DNA playground, animation, collision, audio, SpeedChat, ETC1)
+- **Target:** Azahar 2126.2, Old 3DS mode, `.3dsx`, run with `tools/dev/azahar_test.sh`.
+- **Result:** PASS. The full autotest passes, with no panics.
+- **Scene:** the whole TTC playground assembled from DNA (`ttc_sz.ttm`) plus the animated
+  local toon:
+
+  | Measure | Value |
+  |---|---|
+  | Tris / draws | 13.3k tris, 171 draws |
+  | Command buffer | 13% |
+  | FPS | 29.9 |
+  | CPU (emulated) | 3.8 ms |
+  | Heap | 452 KB |
+  | Linear | 19.0 MB free of 24 MB |
+
+- **Zone file:** `ttc_sz.ttm` is 2.0 MB in linear memory with ETC1/ETC1A4 textures
+  (was 3.7 MB at 16 bpp).
+- **Animation:** neutral/walk/run/jump-idle/wave morph between per-part 12 fps frames.
+  Parts compose correctly in render-target dumps.
+- **Collision:** `ttc_sz.ttc` (1226 tris, 76 capsules, 17 triggers, 115 KB heap).
+  - Ground follows the terrain: 3.3 on the prop base at spawn, 4.0 on the plaza,
+    0 on the grass.
+  - Walls stop and slide the toon.
+  - The camera pulls in front of walls.
+- **64 animated stress toons:** 1067 draws, 52k tris, 69% command buffer, 30 fps,
+  18 ms CPU (emulated).
+- **Audio:** NDSP OK and the TTC music streams (Azahar needs a placeholder
+  `sdmc:/3ds/dspfirm.cdc`; real hardware needs a real dump).
+- **Issues:** one sample at 26.9 fps during the reverse step. Possibly a music-stream
+  read hitch; watch for it.
+- **SpeedChat tab and nametag:** draw correctly. The "Toon" nametag sits over the head.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

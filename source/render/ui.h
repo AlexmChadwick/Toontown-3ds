@@ -4,6 +4,8 @@
 #include <3ds.h>
 #include <citro2d.h>
 
+#include "ui/chat_menu.h"
+
 namespace tt::ui {
 
 enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabSettings, kTabDebug, kTabCount };
@@ -46,7 +48,13 @@ public:
     bool init();
     void shutdown();
     // Tab switching (touch, D-pad left/right, X = chat, Y = map) and panel touches.
-    void handleInput(u32 keysDown, const touchPosition& touch, State& state);
+    // Returns the buttons the UI consumed this frame; clear them from the world's input
+    // (`in.down &= ~ui.handleInput(...)`) so A/B used by the Chat tab do not also jump.
+    // keysHeld is needed for touch drags/taps; the 3-argument form reads hidKeysHeld().
+    u32 handleInput(u32 keysDown, u32 keysHeld, const touchPosition& touch, State& state);
+    u32 handleInput(u32 keysDown, const touchPosition& touch, State& state);
+    // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
+    bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
 
 private:
@@ -63,7 +71,6 @@ private:
         __attribute__((format(printf, 6, 7)));
     void drawTabs(const State& s);
     void drawMap(const Context& c);
-    void drawChat();
     void drawToon(const State& s);
     void drawSettings(const State& s);
     void drawDebug(const Context& c);
@@ -75,6 +82,8 @@ private:
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;
+    int lastTab_ = -1;
+    ChatMenu chat_;
 };
 
 } // namespace tt::ui

@@ -5,6 +5,7 @@
 #include <3ds.h>
 #include <citro3d.h>
 
+#include "render/anim.h"
 #include "render/model.h"
 
 namespace tt::render {
@@ -30,6 +31,9 @@ public:
     void beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                     int eyeSign);
     void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr);
+    // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
+    void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
+                   const Tints* tints = nullptr);
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map).
     void endWorld();
 
@@ -41,13 +45,22 @@ public:
     static constexpr float kFovYDeg = 55.0f;
 
 private:
+    enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
+    struct Program {
+        DVLB_s* dvlb = nullptr;
+        shaderProgram_s program{};
+        int uProjection = -1, uModelView = -1, uTint = -1, uBlend = -1;
+    };
+
+    static bool loadProgram(const u8* shbin, u32 size, Program* out);
+    void bindMode(Mode mode);
+    bool beginDraw(const float* boundsMin, const float* boundsMax, const C3D_Mtx& world);
+    void setModelView(const C3D_Mtx& world, const float* posScale, const float* posOffset);
+    void drawBatches(Model& model, const Tints* tints, bool perBatchBuffer);
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
-    DVLB_s* shaderDvlb_ = nullptr;
-    shaderProgram_s program_{};
-    int uProjection_ = -1;
-    int uModelView_ = -1;
-    int uTint_ = -1;
+    Program programs_[kModeCount];
+    int mode_ = kModeNone;
 
     C3D_RenderTarget* topLeft_ = nullptr;
     C3D_RenderTarget* topRight_ = nullptr;

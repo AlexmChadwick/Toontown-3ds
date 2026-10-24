@@ -5,9 +5,10 @@ Collapses every visible Geom under a root into batches keyed by render state
 matrices, flat colors and color scales baked into the vertices.
 """
 import fnmatch
+import os
 
 import numpy as np
-from panda3d.core import (ColorAttrib, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
+from panda3d.core import (ColorAttrib, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
                           PNMImage, SamplerState, Texture, TextureAttrib, TexMatrixAttrib,
                           Thread, TransparencyAttrib)
 
@@ -49,7 +50,30 @@ def texture_pixels(tex, max_size):
     return px, n, tex.getFormat()
 
 
-def choose_format(px, ncomp, panda_fmt):
+def _env_flag(name, default):
+    v = os.environ.get(name)
+    return default if v is None or v == '' else v.lower() not in ('0', 'no', 'false', 'off')
+
+
+def etc1_enabled():
+    """ETC1/ETC1A4 encoding; TT_ETC1=0 restores the 16 bpp formats (A/B comparison)."""
+    return _env_flag('TT_ETC1', True)
+
+
+def choose_format(px, ncomp, panda_fmt, etc1=None, binary_alpha_5551=None):
+    """GPU format for a texture.
+
+    1-2 channel sources keep A8/L8/LA8 (exact; mostly alpha masks and colorable
+    grayscale whose gradients would band at ETC1A4's 4-bit alpha). RGB(A) sources
+    become ETC1 (opaque) / ETC1A4 (any alpha: binary alpha stays exact, 0 and 15).
+    etc1=False (or env TT_ETC1=0) -> RGB565 / RGBA5551 / RGBA4 as before;
+    binary_alpha_5551=True (or env TT_ETC1_BINARY_ALPHA_5551=1) keeps crisp
+    RGBA5551 color for binary-alpha textures at 16 bpp.
+    """
+    if etc1 is None:
+        etc1 = etc1_enabled()
+    if binary_alpha_5551 is None:
+        binary_alpha_5551 = _env_flag('TT_ETC1_BINARY_ALPHA_5551', False)
     alpha = px[:, :, 3]
     if ncomp <= 2:
         if panda_fmt == Texture.F_alpha:
@@ -58,15 +82,20 @@ def choose_format(px, ncomp, panda_fmt):
             return ttm.GPU_L8
         return ttm.GPU_LA8
     if np.all(alpha == 255):
-        return ttm.GPU_RGB565
+        return ttm.GPU_ETC1 if etc1 else ttm.GPU_RGB565
     if np.all((alpha == 0) | (alpha == 255)):
-        return ttm.GPU_RGBA5551
-    return ttm.GPU_RGBA4
+        return ttm.GPU_ETC1A4 if etc1 and not binary_alpha_5551 else ttm.GPU_RGBA5551
+    return ttm.GPU_ETC1A4 if etc1 else ttm.GPU_RGBA4
 
 
 class Extractor:
-    def __init__(self, max_tex=128, tint_rules=(), layer_rules=()):
+    def __init__(self, max_tex=128, tint_rules=(), layer_rules=(), encode_textures=True,
+                 etc1=None):
         self.max_tex = max_tex
+        self.etc1 = etc1                 # None: env TT_ETC1 (default on)
+        # False: assign texture indices in discovery order but skip pixel work. Used to
+        # re-extract animation frames, whose batch order must match the full bake.
+        self.encode_textures = encode_textures
         self.tint_rules = tint_rules     # [(glob on node name, slot)]
         self.layer_rules = layer_rules   # [(glob on node name, layer)]
         self.textures = []
@@ -75,9 +104,11 @@ class Extractor:
 
     def _texture(self, tex):
         key = tex.getFullpath().getFullpath() or tex.getName()
+        if key not in self._tex_index and not self.encode_textures:
+            self._tex_index[key] = len(self._tex_index)
         if key not in self._tex_index:
             px, ncomp, pfmt = texture_pixels(tex, self.max_tex)
-            fmt = choose_format(px, ncomp, pfmt)
+            fmt = choose_format(px, ncomp, pfmt, etc1=self.etc1)
             self._tex_index[key] = len(self.textures)
             self.textures.append(ttm.Texture(tex.getName(), px, fmt,
                                              _WRAP.get(tex.getWrapU(), ttm.GPU_REPEAT),
@@ -93,9 +124,19 @@ class Extractor:
             p = p.getParent()
         return 0
 
-    def add(self, root, animated=False):
-        for gnp in root.findAllMatches('**/+GeomNode'):
+    def add(self, root, animated=False, skip_under=()):
+        """Adds all visible geometry under root, in root's coordinate space.
+
+        skip_under: NodePaths whose subtrees are excluded (e.g. child actor parts
+        attached under a joint of this part).
+        """
+        nodes = list(root.findAllMatches('**/+GeomNode'))
+        if root.node().isOfType(GeomNode.getClassType()) and root not in nodes:
+            nodes.insert(0, root)
+        for gnp in nodes:
             if gnp.isHidden() or gnp.isStashed():
+                continue
+            if any(s == gnp or s.isAncestorOf(gnp) for s in skip_under):
                 continue
             mat = gnp.getMat(root)
             net_state = gnp.getNetState()
@@ -186,7 +227,9 @@ class Extractor:
     def batches(self):
         out = []
         for (tex, blend, two_sided, tint, layer), parts in sorted(
-                self._groups.items(), key=lambda kv: (kv[0][4], kv[0][1], str(kv[0]))):
+                self._groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
+            # Blend mode first (opaque, alpha test, blended), then decal layer: blended
+            # batches that write depth must not hide layered decals drawn after them.
             vs, ids, base = [], [], 0
             for verts, idx in parts:
                 if base + len(verts) > ttm.MAX_BATCH_VERTS:

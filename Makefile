@@ -19,7 +19,7 @@ include $(DEVKITARM)/3ds_rules
 
 TARGET      := toontown3ds
 BUILD       := build
-SOURCES     := source source/core source/render source/world source/net
+SOURCES     := source source/core source/render source/world source/net source/audio source/ui
 DATA        := data
 INCLUDES    := source
 GRAPHICS    := gfx

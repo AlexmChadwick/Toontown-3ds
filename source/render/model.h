@@ -65,6 +65,7 @@ public:
     const void* vertices() const { return vertices_; }
     const u16* indices() const { return indices_; }
     u32 numTriangles() const { return numIndices_ / 3; }
+    u32 numVertices() const { return numVertices_; }
 
     u32 linearBytes() const { return linearBytes_; }
     // True when indices index the whole vertex array (set at load if it fits in u16).
