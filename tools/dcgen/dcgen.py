@@ -102,6 +102,14 @@ WANTED = {
     'DistributedFishingSpot': ['setPondDoId', 'setPosHpr', 'requestEnter', 'rejectEnter', 'requestExit',
                                'setOccupied', 'doCast', 'sellFish', 'sellFishComplete', 'setMovie'],
     'DistributedBoat': ['setState'],
+    # ---- minigames (source/game/minigame.*, docs/design/trolley.md) ----
+    'DistributedMinigame': ['setParticipants', 'setTrolleyZone', 'setStartingVotes', 'setMetagameRound',
+                            'setDifficultyOverrides', 'setAvatarJoined', 'setAvatarReady', 'setAvatarExited',
+                            'requestExit', 'setGameReady', 'setGameStart', 'setGameExit', 'setGameAbort'],
+    'DistributedCatchGame': ['claimCatch', 'setObjectCaught', 'hitBySuit', 'reportDone', 'setEveryoneDone'],
+    'PurchaseManager': ['setPlayerIds', 'setNewbieIds', 'setMinigamePoints', 'setPlayerMoney',
+                        'setPlayerStates', 'setCountdown', 'setMetagameRound', 'setVotesArray',
+                        'requestExit', 'requestPlayAgain', 'setInventory', 'setPurchaseExit'],
     'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
     'DistributedButterfly': ['setArea', 'setState'],
@@ -113,7 +121,10 @@ WANTED = {
 
 # Class families whose every subclass gets a table (and a kClassId namespace).
 TABLE_FAMILIES = ['DistributedNPCToonBase', 'DistributedTreasure', 'DistributedDoor',
-                  'DistributedCCharBase', 'DistributedBuilding', 'DistributedAnimatedProp']
+                  'DistributedCCharBase', 'DistributedBuilding', 'DistributedAnimatedProp',
+                  # every minigame (the stub must see the DO of a game we cannot play) and both
+                  # purchase managers (PurchaseManager, NewbiePurchaseManager)
+                  'DistributedMinigame', 'PurchaseManager']
 
 # Classes that get full descriptor tables (every inherited field) and
 # required-field lists. Objects of any other class are dropped whole by the

@@ -115,11 +115,33 @@ enum class EventType : uint8_t {
     BattleJoinDenied, // denyLocalToonJoin
     SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
     SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
+    // ---- trolley and minigames (docs/design/trolley.md); Event::arg carries the extra value ----
+    TrolleyUp,          // the playground's DistributedTrolley generated (trolley())
+    TrolleyState,       // setState: trolley()->state / stateStartMs changed
+    TrolleyFill,        // fillSlotN(avId != 0): doId = avId, arg = seat index 0..3
+    TrolleyEmpty,       // emptySlotN(avId != 0): doId = avId, arg = seat index
+    TrolleyReject,      // rejectBoard (we could not board)
+    TrolleyMinigameZone, // setMinigameZone: doId = dynamic zone id, arg = minigame id
+    TrolleyGone,
+    MinigameUp,         // a DistributedMinigame (any game) generated (minigame())
+    MinigameReady,      // setGameReady
+    MinigameStart,      // setGameStart (minigame()->gameStartMs)
+    MinigameExit,       // setGameExit
+    MinigameAbort,      // setGameAbort
+    MinigameGone,
+    CatchCaught,        // DistributedCatchGame.setObjectCaught: doId = avId, arg = objNum
+    CatchEveryoneDone,  // DistributedCatchGame.setEveryoneDone
+    CatchHitBySuit,     // DistributedCatchGame.hitBySuit from another player: doId = avId
+    PurchaseUp,         // a PurchaseManager / NewbiePurchaseManager generated (purchase())
+    PurchaseStates,     // setPlayerStates changed
+    PurchaseExit,       // setPurchaseExit
+    PurchaseGone,
 };
 
 struct Event {
     EventType type;
     uint32_t doId;
+    int32_t arg = 0;
 };
 
 enum class State : uint8_t {
@@ -334,6 +356,50 @@ struct Battle {
     uint32_t adjustMs;         // local time of the last adjust(ts)
     bool active;
 };
+// ---- trolley and minigame objects (docs/design/trolley.md) ----
+// DistributedTrolley (class 86): one per playground, in the hood zone. setState(string, ts)
+// moves it through entering -> waitEmpty -> waitCountdown -> leaving; fillSlotN/emptySlotN
+// seat up to four toons. `slot` holds the avatar sitting (or still climbing out) in each seat.
+enum class TrolleyState : uint8_t { Off, Entering, WaitEmpty, WaitCountdown, Leaving };
+constexpr int kTrolleySeats = 4;
+struct Trolley {
+    uint32_t doId;
+    TrolleyState state;
+    uint32_t stateStartMs; // local plat::nowMs() at which the state began (from ts)
+    uint32_t slot[kTrolleySeats];
+    bool active;
+};
+// DistributedMinigame (any of the 17 games; the DO lives in the dynamic zone the trolley
+// handed us). Game-specific required fields are skipped through the generated tables.
+constexpr int kMinigamePlayers = 4;
+constexpr int32_t kNoDifficultyOverride = 2147483647; // MinigameGlobals.NoDifficultyOverride
+struct Minigame {
+    uint32_t doId;
+    uint16_t classId;
+    uint32_t participants[kMinigamePlayers];
+    int numParticipants;
+    uint32_t trolleyZone;
+    int32_t difficultyOverride; // raw int32 (value / 65536), kNoDifficultyOverride when unset
+    int32_t zoneOverride;       // -1 = none
+    bool gameReady;
+    bool started;
+    uint32_t gameStartMs;       // local plat::nowMs() of setGameStart's timestamp
+    bool exitMsg;
+    bool aborted;
+    bool active;
+};
+// PurchaseManager (176) / NewbiePurchaseManager (177): generated in the minigame's zone when
+// the game ends. minigamePoints[i] is the payout of playerIds[i] (already added to the toon).
+struct Purchase {
+    uint32_t doId;
+    uint16_t classId;
+    uint32_t playerIds[kMinigamePlayers];
+    uint8_t minigamePoints[kMinigamePlayers];
+    uint8_t playerMoney[kMinigamePlayers]; // before the payout
+    uint8_t playerStates[kMinigamePlayers];
+    bool exitMsg;
+    bool active;
+};
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -532,6 +598,27 @@ public:
     // track/level from ToontownBattleGlobals; av = target cog doId (-1 for group attacks).
     // PASS is (98, -1, -1).
     bool sendBattleRequestAttack(uint32_t battleId, int8_t track, int8_t level, int32_t av);
+    // ---- trolley and minigames (docs/design/trolley.md) ----
+    const Trolley* trolley() const { return trolley_.active ? &trolley_ : nullptr; }
+    const Minigame* minigame() const { return minigame_.active ? &minigame_ : nullptr; }
+    const Purchase* purchase() const { return purchase_.active ? &purchase_ : nullptr; }
+    // DistributedTrolley.requestBoard / requestExit (clsend). False when there is no trolley.
+    bool sendTrolleyBoard();
+    bool sendTrolleyExit();
+    // DistributedMinigame base protocol (all clsend; docs/design/trolley.md 2.2).
+    bool sendMinigameJoined();   // as soon as the DO exists
+    bool sendMinigameReady();    // after the rules screen
+    bool sendMinigameExited();   // after setGameExit, normal exits only
+    bool sendMinigameExit();     // requestExit: abort the game now (pays 1..7 beans)
+    // DistributedCatchGame.
+    bool sendCatchClaim(uint32_t objNum, uint32_t typeId);
+    bool sendCatchDone();
+    bool sendCatchHitBySuit(uint32_t avId);
+    // PurchaseManager: requestExit ("Back to Playground"), then setInventory(done=1) after
+    // setPurchaseExit with the inventory and money the server last told us (the payout is
+    // already in ownStats().money). False when there is no purchase manager.
+    bool sendPurchaseExit();
+    bool sendPurchaseInventory();
 
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
@@ -668,6 +755,23 @@ private:
     bool parseBattleMovie(Battle& b, DatagramReader& r);
     bool parseBattleExperience(Battle& b, DatagramReader& r);
     void clearBattles();
+    // ---- trolley and minigames ----
+    Trolley trolley_ = {};
+    Minigame minigame_ = {};
+    Purchase purchase_ = {};
+    bool handleTrolleyEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleMinigameEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                             uint16_t reqCount, bool other);
+    bool handlePurchaseEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                             uint16_t reqCount, bool other);
+    bool applyTrolleyField(Trolley& t, DatagramReader& r, uint16_t fieldId, bool announce);
+    bool applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId, bool announce);
+    bool applyPurchaseField(Purchase& p, DatagramReader& r, uint16_t fieldId, bool announce);
+    // Field update for the trolley / minigame / purchase DO `doId`; false when it is none of them.
+    bool handleTrolleyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool handleTrolleyLeaving(uint32_t doId);
+    void clearTrolleyObjects();
+    void pushEventArg(EventType type, uint32_t doId, int32_t arg);
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
     uint32_t tutorialManagerId_ = 0;
