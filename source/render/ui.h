@@ -11,6 +11,7 @@
 #include "ui/shop_panel.h"
 #include "ui/tailor_panel.h"
 #include "ui/fishing_panel.h"
+#include "ui/minigame_purchase_panel.h"
 
 namespace tt::ui {
 

@@ -3110,6 +3110,174 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         m.vineGrabbedTreasure = r.u32();
         if (!r.ok()) return false;
         if (announce) pushEventArg(EventType::VineTreasureGrabbed, m.vineGrabbedAv, int32_t(m.vineGrabbedTreasure));
+
+    // ---- DistributedTargetGame ----
+    } else if (fieldId == dc::DistributedTargetGame::k_setTargetSeed) {
+        m.targetSeed = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::TargetSetSeed, m.doId);
+    } else if (fieldId == dc::DistributedTargetGame::k_setRoundDone) {
+        m.targetRoundDone = true;
+        if (announce) pushEvent(EventType::TargetRoundDone, m.doId);
+    } else if (fieldId == dc::DistributedTargetGame::k_setSingleScore) {
+        m.targetSingleScore = r.u16();
+        m.targetSingleAvId = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TargetSingleScore, m.targetSingleAvId, int32_t(m.targetSingleScore));
+    } else if (fieldId == dc::DistributedTargetGame::k_setGameDone) {
+        m.targetGameDone = true;
+        if (announce) pushEvent(EventType::TargetGameDone, m.doId);
+
+    // ---- DistributedCogThiefGame ----
+    } else if (fieldId == dc::DistributedCogThiefGame::k_updateSuitGoal) {
+        r.i32(); r.i32();
+        m.cogThiefGoalCog = r.i8();
+        m.cogThiefGoalType = r.i8();
+        m.cogThiefGoalId = r.i64();
+        m.cogThiefGoalPos[0] = r.i32() / 100.0f;
+        m.cogThiefGoalPos[1] = r.i32() / 100.0f;
+        m.cogThiefGoalPos[2] = r.i32() / 100.0f;
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::CogThiefUpdateGoal, m.doId, int32_t(m.cogThiefGoalCog));
+    } else if (fieldId == dc::DistributedCogThiefGame::k_makeCogCarryBarrel) {
+        r.i32(); r.i32();
+        m.cogThiefCarryCog = r.i8();
+        m.cogThiefCarryBarrel = r.i8();
+        r.i32(); r.i32(); r.i32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::CogThiefCarryBarrel, m.doId, int32_t(m.cogThiefCarryBarrel));
+    } else if (fieldId == dc::DistributedCogThiefGame::k_makeCogDropBarrel) {
+        r.i32(); r.i32();
+        m.cogThiefDropCog = r.i8();
+        m.cogThiefDropBarrel = r.i8();
+        r.i32(); r.i32(); r.i32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::CogThiefDropBarrel, m.doId, int32_t(m.cogThiefDropBarrel));
+    } else if (fieldId == dc::DistributedCogThiefGame::k_markBarrelStolen) {
+        r.i32(); r.i32();
+        m.cogThiefStolenBarrel = r.i8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::CogThiefBarrelStolen, m.doId, int32_t(m.cogThiefStolenBarrel));
+
+    // ---- DistributedTwoDGame ----
+    } else if (fieldId == dc::DistributedTwoDGame::k_setSectionsSelected) {
+        const uint16_t bytes = r.u16();
+        // Skip or read complex struct array
+        for (uint16_t i = 0; i < bytes && r.ok(); ++i) r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::TwoDSetSections, m.doId);
+    } else if (fieldId == dc::DistributedTwoDGame::k_setTreasureGrabbed) {
+        m.twoDGrabbedAv = r.u32();
+        m.twoDGrabbedSection = r.u8();
+        m.twoDGrabbedTreasure = r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TwoDTreasureGrabbed, m.twoDGrabbedAv, int32_t(m.twoDGrabbedTreasure));
+    } else if (fieldId == dc::DistributedTwoDGame::k_setEveryoneDone) {
+        m.twoDEveryoneDone = true;
+        if (announce) pushEvent(EventType::TwoDEveryoneDone, m.doId);
+
+    // ---- DistributedTagGame ----
+    } else if (fieldId == dc::DistributedTagGame::k_setIt) {
+        m.tagItAvId = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TagSetIt, m.tagItAvId, 0);
+    } else if (fieldId == dc::DistributedTagGame::k_setTreasureScore) {
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 2 && i < kMinigamePlayers && r.ok(); ++i) {
+            m.tagTreasureScores[i] = r.u16();
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::TagTreasureScore, m.doId);
+
+    // ---- DistributedPatternGame ----
+    } else if (fieldId == dc::DistributedPatternGame::k_setPattern) {
+        const uint16_t bytes = r.u16();
+        m.patternSeqLen = 0;
+        for (uint16_t i = 0; i < bytes && r.ok(); ++i) {
+            uint8_t btn = r.u8();
+            if (m.patternSeqLen < 16) m.patternSeq[m.patternSeqLen++] = btn;
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::PatternSetPattern, m.doId);
+    } else if (fieldId == dc::DistributedPatternGame::k_setPlayerPatterns) {
+        for (int p = 0; p < 4; ++p) {
+            uint16_t pBytes = r.u16();
+            for (uint16_t i = 0; i < pBytes && r.ok(); ++i) r.u8();
+        }
+        m.patternFastestAvId = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::PatternSetPlayerPatterns, m.patternFastestAvId, 0);
+    } else if (fieldId == dc::DistributedPatternGame::k_remoteButtonPressed) {
+        m.patternRemoteButtonAv = r.u32();
+        m.patternRemoteButtonIdx = r.u8();
+        m.patternRemoteButtonWrong = r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::PatternRemoteButton, m.patternRemoteButtonAv, int32_t(m.patternRemoteButtonIdx));
+
+    // ---- DistributedIceGame ----
+    } else if (fieldId == dc::DistributedIceGame::k_setMatchAndRound) {
+        m.iceMatch = r.i8();
+        m.iceRound = r.i8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::IceMatchAndRound, m.doId, int32_t((m.iceMatch << 8) | (m.iceRound & 0xFF)));
+    } else if (fieldId == dc::DistributedIceGame::k_setNewState) {
+        r.string(m.iceState, sizeof(m.iceState));
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::IceNewState, m.doId);
+    } else if (fieldId == dc::DistributedIceGame::k_setTimerStartTime) {
+        m.iceTimerStart = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::IceTimerStart, m.doId, int32_t(m.iceTimerStart));
+    } else if (fieldId == dc::DistributedIceGame::k_setAvatarChoice) {
+        m.iceChoicesForce[0] = r.i32() / 100.0f;
+        m.iceChoicesDir[0] = r.i32() / 100.0f;
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::IceAvatarChoice, m.doId);
+    } else if (fieldId == dc::DistributedIceGame::k_setTreasureGrabbed) {
+        m.iceGrabbedAv = r.u32();
+        m.iceGrabbedItem = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::IceTreasureGrabbed, m.iceGrabbedAv, int32_t(m.iceGrabbedItem));
+    } else if (fieldId == dc::DistributedIceGame::k_setPenaltyGrabbed) {
+        m.iceGrabbedAv = r.u32();
+        m.iceGrabbedItem = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::IcePenaltyGrabbed, m.iceGrabbedAv, int32_t(m.iceGrabbedItem));
+
+    // ---- DistributedRaceGame ----
+    } else if (fieldId == dc::DistributedRaceGame::k_setTimerStartTime) {
+        m.raceTimerStart = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::RaceTimerStart, m.doId, int32_t(m.raceTimerStart));
+    } else if (fieldId == dc::DistributedRaceGame::k_setAvatarChose) {
+        m.raceAvatarChose = r.u32();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::RaceAvatarChose, m.raceAvatarChose, 0);
+    } else if (fieldId == dc::DistributedRaceGame::k_setChancePositions) {
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes && i < kMinigamePlayers && r.ok(); ++i) {
+            m.raceChancePositions[i] = r.u8();
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::RaceChancePositions, m.doId);
+    } else if (fieldId == dc::DistributedRaceGame::k_setServerChoices) {
+        const uint16_t c1 = r.u16();
+        m.raceServerChoiceCount = c1;
+        for (uint16_t i = 0; i < c1 && i < 16 && r.ok(); ++i) m.raceServerChoices[i] = r.i8();
+        const uint16_t c2 = r.u16();
+        for (uint16_t i = 0; i < c2 && i < 16 && r.ok(); ++i) m.raceServerPositions[i] = r.u8();
+        const uint16_t c3 = r.u16();
+        for (uint16_t i = 0; i < c3 && i < 16 && r.ok(); ++i) m.raceServerRewards[i] = r.i8();
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::RaceServerChoices, m.doId);
+
+    // ---- DistributedPhotoGame ----
+    } else if (fieldId == dc::DistributedPhotoGame::k_newAIPhotoScore) {
+        m.photoScoreAv = r.u32();
+        m.photoScoreAssignment = r.u8();
+        m.photoScoreStars = r.u32() / 100.0f;
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::PhotoNewAIScore, m.photoScoreAv, int32_t(m.photoScoreAssignment));
     } else {
         skipField(r, fieldId); // setStartingVotes, setMetagameRound, game-specific fields
     }
@@ -3467,6 +3635,252 @@ bool Client::sendVineClaimTreasure(uint32_t treasureNum) {
     return finish(w);
 }
 
+bool Client::sendTargetScore(int32_t scoreX, int32_t scoreY) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTargetGame, setScore);
+    w.i32(scoreX);
+    w.i32(scoreY);
+    return finish(w);
+}
+
+bool Client::sendTargetPlayerDone() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTargetGame, setPlayerDone);
+    return finish(w);
+}
+
+// DistributedCogThiefGame
+bool Client::sendCogThiefPie(int32_t timestamp, float x, float y, float z, float h) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCogThiefGame, throwingPie);
+    w.u32(avatarId());
+    w.i32(timestamp);
+    w.i32(int32_t(x * 100.0f));
+    w.i32(int32_t(y * 100.0f));
+    w.i32(int32_t(z * 100.0f));
+    w.i32(int32_t(h * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCogThiefHitBySuit(uint32_t avId, int32_t timestamp, int8_t suitNum, float x, float y, float z) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCogThiefGame, hitBySuit);
+    w.u32(avId);
+    w.i32(timestamp);
+    w.i8(suitNum);
+    w.i32(int32_t(x * 100.0f));
+    w.i32(int32_t(y * 100.0f));
+    w.i32(int32_t(z * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCogThiefPieHitSuit(uint32_t avId, int32_t timestamp, int8_t suitNum, float x, float y, float z) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCogThiefGame, pieHitSuit);
+    w.u32(avId);
+    w.i32(timestamp);
+    w.i8(suitNum);
+    w.i32(int32_t(x * 100.0f));
+    w.i32(int32_t(y * 100.0f));
+    w.i32(int32_t(z * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCogThiefHitBarrel(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex, float x, float y, float z) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCogThiefGame, cogHitBarrel);
+    w.i32(clientStamp);
+    w.i8(cogIndex);
+    w.i8(barrelIndex);
+    w.i32(int32_t(x * 100.0f));
+    w.i32(int32_t(y * 100.0f));
+    w.i32(int32_t(z * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendCogThiefAtReturnPos(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedCogThiefGame, cogAtReturnPos);
+    w.i32(clientStamp);
+    w.i8(cogIndex);
+    w.i8(barrelIndex);
+    return finish(w);
+}
+
+// DistributedTwoDGame
+bool Client::sendTwoDClaimTreasure(uint8_t sectionIndex, uint8_t treasureIndex) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, claimTreasure);
+    w.u8(sectionIndex);
+    w.u8(treasureIndex);
+    return finish(w);
+}
+
+bool Client::sendTwoDClaimEnemyShot(uint8_t sectionIndex, uint8_t enemyIndex) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, claimEnemyShot);
+    w.u8(sectionIndex);
+    w.u8(enemyIndex);
+    return finish(w);
+}
+
+bool Client::sendTwoDReportDone() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, reportDone);
+    return finish(w);
+}
+
+bool Client::sendTwoDHitByEnemy(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, toonHitByEnemy);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+
+bool Client::sendTwoDFellDown(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, toonFellDown);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+
+bool Client::sendTwoDSquished(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, toonSquished);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+
+bool Client::sendTwoDVictory(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, toonVictory);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+
+// DistributedTagGame
+bool Client::sendTag(uint32_t taggedAvId) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTagGame, tag);
+    w.u32(taggedAvId);
+    return finish(w);
+}
+
+// DistributedPatternGame
+bool Client::sendPatternReady() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPatternGame, reportPlayerReady);
+    return finish(w);
+}
+
+bool Client::sendPatternButton(uint8_t index, uint8_t wrong) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPatternGame, reportButtonPress);
+    w.u8(index);
+    w.u8(wrong);
+    return finish(w);
+}
+
+bool Client::sendPatternResult(const uint8_t* pattern, uint8_t len, uint16_t totalTimeMs) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPatternGame, reportPlayerPattern);
+    w.u16(len);
+    for (uint8_t i = 0; i < len; ++i) w.u8(pattern[i]);
+    w.u16(totalTimeMs);
+    return finish(w);
+}
+
+// DistributedIceGame
+bool Client::sendIceChoice(float force, float direction) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, setAvatarChoice);
+    w.i32(int32_t(force * 100.0f));
+    w.i32(int32_t(direction * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendIceEndingPositions(const float* coords, int count) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, endingPositions);
+    w.u16(uint16_t(count * 6)); // Coord3 is 3 * int16
+    for (int i = 0; i < count * 3; ++i) w.i16(int16_t(coords[i] * 10.0f));
+    return finish(w);
+}
+
+bool Client::sendIceScoringMovieDone() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, reportScoringMovieDone);
+    return finish(w);
+}
+
+bool Client::sendIceClaimTreasure(uint8_t n) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, claimTreasure);
+    w.u8(n);
+    return finish(w);
+}
+
+bool Client::sendIceClaimPenalty(uint8_t n) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, claimPenalty);
+    w.u8(n);
+    return finish(w);
+}
+
+// DistributedRaceGame
+bool Client::sendRaceChoice(uint8_t choice) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedRaceGame, setAvatarChoice);
+    w.u8(choice);
+    return finish(w);
+}
+
+// DistributedPhotoGame
+bool Client::sendPhotoScore(uint8_t subjectIndex, const char* pose, float score) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPhotoGame, newClientPhotoScore);
+    w.u8(subjectIndex);
+    w.string(pose ? pose : "");
+    w.u32(uint32_t(score * 100.0f));
+    return finish(w);
+}
+
+bool Client::sendPhotoFilmOut() {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedPhotoGame, filmOut);
+    return finish(w);
+}
+
 bool Client::sendPurchaseExit() {
     if (!purchase_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
@@ -3475,15 +3889,23 @@ bool Client::sendPurchaseExit() {
 }
 
 bool Client::sendPurchaseInventory() {
+    return sendPurchaseInventory(ownStats_.inventory, ownStats_.money);
+}
+
+bool Client::sendPurchaseInventory(const uint8_t inv[7][7], int16_t money) {
     if (!purchase_.active) return false;
-    // PurchaseManager.handleDone -> setInventory(inv.makeNetString(), money, done=1). The
-    // money must be what the server last set (payout included): the AI applies newMoney.
-    uint8_t inv[49];
-    for (int i = 0; i < 49; ++i) inv[i] = ownStats_.inventory[i / 7][i % 7];
+    uint8_t flat[49];
+    for (int t = 0; t < 7; ++t) {
+        for (int l = 0; l < 7; ++l) {
+            flat[t * 7 + l] = inv[t][l];
+            ownStats_.inventory[t][l] = inv[t][l];
+        }
+    }
+    ownStats_.money = money;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, purchase_.doId, PurchaseManager, setInventory);
-    w.blob(inv, sizeof(inv));
-    w.i16(ownStats_.money);
+    w.blob(flat, sizeof(flat));
+    w.i16(money);
     w.u8(1);
     return finish(w);
 }

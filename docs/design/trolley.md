@@ -718,3 +718,124 @@ not strand the player.
   - Assets: `vine_game.ttm` (jungle backdrop), `vine_shelf.ttm` (platforms), and Vine audio (`mg_vine`, `mg_vine_bananas`, `mg_vine_fall`, `mg_vine_jump`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
 - **What differs from upstream:** Dual-screen presentation with side-scrolling 3D follow camera on top screen and vine course progress meter on bottom screen.
 - **What to verify in Azahar:** Force `minigame-id 12`; board trolley; pump swing with Circle Pad, jump between vines with A; reach end platform (vine 19); verify `reachedEndVine` transmission, time bonus calculation, and jellybean reward.
+
+### 7.9 Toon Slingshot / Target Game (id 10, DistributedTargetGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes CPython MT19937 RNG target placement across 3 seeds and 12 evaluation tests against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/target_logic.{h,cpp}`: CPython MT19937 PRNG + 53-bit float `random()`, safezone difficulty patterns, target placement algorithm matching `DistributedTargetGameAI.setupTargets`, collision score evaluation, and slingshot/glide physics.
+  - Host test: `tools/target_test/` validates exact target positions across multiple seeds and collision scoring against `target_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setTargetSeed`, `setRoundDone`, `setSingleScore`, `setGameDone`, and sends `setScore`, `setPlayerDone`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/target_game.{h,cpp}`: Circle Pad aim and launch power, umbrella glide mechanics, 3D slingshot camera follow, bottom-screen aim angle and score display.
+  - Assets: `target_ground.ttm`, `target_sling.ttm`, `target_tramp.ttm`, and Target audio (`mg_target_launch`, `mg_target_trampoline`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen presentation with 3D flight camera on top screen and aim/round status on bottom screen.
+- **What to verify in Azahar:** Force `minigame-id 10`; board trolley; aim slingshot with Circle Pad, fire with A; glide towards target rings; verify score calculation and jellybean reward.
+
+### 7.10 Cog Thief (id 14, DistributedCogThiefGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes cog AI targeting, pie ballistic collisions, and score calculation against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/cog_thief_logic.{h,cpp}`: 4 gag barrels, cog AI targeting & return, pie physics trajectory & collisions, score calculation with +8 solo perfect bonus.
+  - Host test: `tools/cog_thief_test/` compares barrel theft tracking, pie hits, and scoring against `cog_thief_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `updateGoal`, `carryBarrel`, `dropBarrel`, `barrelStolen`, and sends `throwPie`, `hitBySuit`, `pieHitSuit`, `hitBarrel`, `atReturnPos`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/cog_thief_game.{h,cpp}`: Circle Pad toon navigation, A button pie throwing with cooldown, barrel defense, bottom-screen barrel status and score display.
+  - Assets: `cogthief_ground.ttm`, `cogthief_barrel.ttm`, `cogthief_tank.ttm`, and Cog Thief audio (`mg_slice`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen layout: top screen displays 3D court, bottom screen shows barrel defense status and time remaining.
+- **What to verify in Azahar:** Force `minigame-id 14`; board trolley; throw pies at incoming Cogs with A; defend gag barrels; verify jellybean reward and perfect bonus if all 4 barrels saved.
+
+### 7.11 Toon Escape / Two-D (id 15, DistributedTwoDGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes 2D platforming physics, stomper timing, and score calculations against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/two_d_logic.{h,cpp}`: 2D platforming physics in XZ plane, stomper timing, completion bonus + time left bonus, sqrt score formula matching `DistributedTwoDGameAI`.
+  - Host test: `tools/two_d_test/` compares jumping arcs, platform landings, stomper collisions, and scoring against `two_d_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setSections`, `setTreasureGrabbed`, `setEveryoneDone`, and sends `claimTreasure`, `claimEnemyShot`, `reportDone`, `hitByEnemy`, `fellDown`, `squished`, `victory`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/two_d_game.{h,cpp}`: side-scrolling 2D platformer on top screen, Circle Pad movement and A button jump, obstacle hazards (stompers, pits), bottom-screen course timer and score display.
+  - Assets: `twod_game.ttm`, `twod_block.ttm`, and Two-D audio (`mg_twod_bgm`, `mg_squirt_hit`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Fixed side-scrolling 2D camera tailored for 3DS 400x240 aspect ratio.
+- **What to verify in Azahar:** Force `minigame-id 15`; board trolley; run and jump through platform course; reach the exit flag; verify time bonus and victory score payout.
+
+### 7.12 Tag Game (id 3, DistributedTagGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes IT transitions, tagback cooldowns, and treasure scoring against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/tag_logic.{h,cpp}`: IT selection, 2.0s tagback cooldown, treasure scoring (+2).
+  - Host test: `tools/tag_test/` compares IT tagging rules, cooldown prevention, and treasure scores against `tag_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setIt`, `setTreasureScore`, and sends `tag`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/tag_game.{h,cpp}`: Circle Pad arena running, treasure pickup detection, 3D follow camera, bottom-screen IT indicator and cooldown display.
+  - Assets: `tag_arena.ttm`, `tag_treasure.ttm`, and Tag audio (`mg_tag_tag`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen presentation with IT status and tagback cooldown displayed on bottom screen.
+- **What to verify in Azahar:** Force `minigame-id 3`; board trolley with 2+ players; verify IT tagging transfers role with 2s cooldown; pick up treasures; verify score payout.
+
+### 7.13 Match Minnie / Pattern (id 4, DistributedPatternGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes rounds, scoring, and perfect game bonuses against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/pattern_logic.{h,cpp}`: 4 rounds, pattern length increases by 2 each round (2, 4, 6, 8), button press tracking, scoring: +round + 4 perfect bonus.
+  - Host test: `tools/pattern_test/` validates solo and multiplayer scoring across all 4 rounds against `pattern_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setPattern`, `setPlayerPatterns`, `remoteButtonPressed`, and sends `reportPlayerReady`, `reportButtonPress`, `reportPlayerPattern`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/pattern_game.{h,cpp}`: dance stage 3D view on top screen, D-pad and ABXY pattern input, round timer, bottom-screen round and pattern progress display.
+  - Assets: `pattern_stage.ttm` baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Input supports both D-pad and ABXY face buttons with real-time visual feedback on the bottom screen.
+- **What to verify in Azahar:** Force `minigame-id 4`; board trolley; follow Minnie's dance pattern; verify button inputs register and match round; verify score increments and perfect bonus.
+
+### 7.14 Ice Slide (id 13, DistributedIceGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes distance-to-center curve, bonus tiers, and placements against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/ice_logic.{h,cpp}`: 3 matches x 2 rounds, force/direction choice, sliding puck trajectory, distance-to-center scoring (5 dead center down to 1).
+  - Host test: `tools/ice_test/` validates points curve and placement bonuses across player counts and distances against `ice_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setMatchAndRound`, `setNewState`, `setTimerStartTime`, `setAvatarChoice`, `setScores`, `setTreasureGrabbed`, `setPenaltyGrabbed`, and sends `setAvatarChoice`, `endingPositions`, `reportScoringMovieDone`, `claimTreasure`, `claimPenalty`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/ice_game.{h,cpp}`: Circle Pad aim and power gauge, tire slide physics with wall bounces, top-down arena view, bottom-screen match and distance readout.
+  - Assets: `ice_arena.ttm`, `ice_tire.ttm`, and Ice audio (`mg_ice_scoring`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Smooth analog aiming on Circle Pad with dual-screen HUD tracking power and aim heading.
+- **What to verify in Azahar:** Force `minigame-id 13`; board trolley; aim tire with Circle Pad and launch with A; verify sliding and distance scoring per match.
+
+### 7.15 Race Game (id 1, DistributedRaceGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes choices, conflicts, chance cards, and win payout against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/race_logic.{h,cpp}`: 0..4 choices, unique choice check (duplicate choices cancel out), chance card triggers, first to 14 spaces wins.
+  - Host test: `tools/race_test/` validates movement choices, conflict cancellation, chance rewards, and payout against `race_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setTimerStartTime`, `setAvatarChose`, `setChancePositions`, `setServerChoices`, and sends `setAvatarChoice`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/race_game.{h,cpp}`: 3D board track perspective on top screen, D-pad/Circle Pad move selection, bottom-screen track position meter and chance square display.
+  - Assets: `race_track.ttm`, and Race audio (`mg_race_bgm`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen interface with move selection menu and race track progress on bottom screen.
+- **What to verify in Azahar:** Force `minigame-id 1`; board trolley; select move 0..4; verify movement advances on track, chance squares trigger rewards, and reaching space 14 wins.
+
+### 7.16 Photo Fun (id 16, DistributedPhotoGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes assignments, film counts, and team + high-scorer scoring against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/photo_logic.{h,cpp}`: film roll limit (32 in TTC), subject/pose assignment score evaluation (1..5 stars), team + highest scorer bonus.
+  - Host test: `tools/photo_test/` validates photo assignment matching, star scoring, and team payout against `photo_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `newAIPhotoScore`, and sends `newClientPhotoScore`, `filmOut`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/photo_game.{h,cpp}`: Circle Pad viewfinder camera pan/tilt, A button photo capture, centering accuracy calculation, bottom-screen assignments and film counter.
+  - Assets: `photo_scene.ttm`, `photo_subject.ttm` baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Viewfinder controls mapped to Circle Pad for smooth analog camera pan/tilt.
+- **What to verify in Azahar:** Force `minigame-id 16`; board trolley; pan viewfinder with Circle Pad and snap photos with A; verify assignment star rating and team score payout.
+
+### 7.17 Post-Game Gag Purchase Screen (MinigamePurchasePanel)
+- **Status:** Done. Builds with 0 warnings on devkitARM; integrates cleanly with `MinigameSession` and `shop_rules`.
+- **Implementation:**
+  - Runtime: `source/ui/minigame_purchase_panel.{h,cpp}`: displayed on bottom screen during `Phase::Purchase`. Shows 7 gag tracks x 6 levels, track unlock states, carry capacities, and jellybeans earned from the minigame.
+  - Controls: Touch screen tap on gag cells or D-pad navigation + A to buy, X to remove, START to finish (Done), B to cancel.
+  - Network Sync: When purchase is completed (or timeout expires), `client.sendPurchaseExit()` is sent, and `client.sendPurchaseInventory(inv, money)` syncs final inventory and remaining jellybeans to the server, preventing server-side resource leaks.
+- **What to verify in Azahar:** Complete any minigame; verify gag purchase screen opens on bottom screen with earned jellybeans; buy gags; press Done; confirm toons return to playground with updated inventory and jellybeans.
+
+## 8. Trolley Tracks metagame spec (DistributedTravelGame, id 100)
+
+### 8.1 Overview
+Trolley Tracks (`DistributedTravelGame`, ID 100) is the trolley metagame played during Trolley Tracks holiday events or when the server is started with `trolley-goes-to-metagame 1`. Instead of directly launching a standard minigame, all four trolley riders embark on a joint minecart journey along branching railroad tracks.
+
+### 8.2 Protocol and DC Surface (`etc/toon.dc:780-795`)
+`DistributedTravelGame : DistributedMinigame`, class id **98**:
+- `setDestinations(uint8 destinations[])`: broadcast ram - path destination IDs.
+- `setServerChoices(int8 votes[], int8 winningDirection)`: broadcast - announces branch direction chosen by group vote.
+- `claimTreasure(uint8 index)`: clsend airecv - claim a bonus bean/treasure on the tracks.
+- `setAvatarChoice(int8 direction)`: clsend airecv - cast a vote (Left = 0, Right = 1) at track switches.
+
+### 8.3 State Machine and Gameplay
+1. **Travel Run:** The minecart rolls down track segments at constant speed with physics bumps and bank turns.
+2. **Switch Approaching (Voting Phase):** As the cart nears a track switch, a voting timer begins (3.0 seconds).
+   - Each rider uses Circle Pad or Left/Right to vote for the left or right branch track.
+   - The majority vote decides the cart's path. In the event of a tie, the track switch alternates or selects randomly.
+3. **Track Modifiers:**
+   - **Boost pads:** Accelerate the minecart for a temporary speed rush.
+   - **Slow mud:** Decelerate the cart.
+   - **Bonus Jellybeans:** Placed along tracks; riders pick them up automatically or with quick directional tilts.
+4. **Destination Resolution:**
+   - Branching paths lead to different target minigames or bonus playground exits.
+   - Upon reaching the end of the line, the final minigame is launched, or bonus beans are awarded directly.

@@ -69,6 +69,38 @@ MODELS = {
     # Vine
     'vine_game': (MG + 'vine_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_shelf': (MG + 'vine_game_shelf', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Target
+    'target_ground': (MG + 'slingshot_game_desert4', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'target_sling': (MG + 'slingshot_game_cacti', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'target_tramp': (MG + 'slingshot_game_tramp', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Cog Thief
+    'cogthief_ground': (MG + 'cogthief_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'cogthief_barrel': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'cogthief_tank': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Two-D
+    'twod_game': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_block': ('phase_4/models/props/sign_sellBotHeadHQ', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Tag
+    'tag_arena': (MG + 'tag_arena', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'tag_treasure': ('phase_3.5/models/props/mickeySZ', '**/mickeySZ', (0, -90, 0), 1.6, (0, 0, 0)),
+
+    # Pattern
+    'pattern_stage': (MG + 'matching_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Ice Slide
+    'ice_arena': (MG + 'ice_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_tire': (MG + 'ice_game_tire', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Race
+    'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Photo Fun
+    'photo_scene': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'photo_subject': (MG + 'photogame_camera', None, (0, 0, 0), 1.0, (0, 0, 0)),
 }
 
 # (output name, upstream path, kind, loops)
@@ -114,6 +146,20 @@ AUDIO = [
     ('mg_vine_bananas', 'phase_4/audio/sfx/MG_sfx_vine_game_bananas.ogg', 'sfx', False),
     ('mg_vine_fall', 'phase_4/audio/sfx/MG_sfx_vine_game_fall.ogg', 'sfx', False),
     ('mg_vine_jump', 'phase_4/audio/sfx/MG_sfx_vine_game_jump.ogg', 'sfx', False),
+    # Target
+    ('mg_target_launch', 'phase_4/audio/sfx/target_launch.ogg', 'sfx', False),
+    ('mg_target_trampoline', 'phase_4/audio/sfx/target_trampoline_2.ogg', 'sfx', False),
+    # Cog Thief
+    ('mg_slice', 'phase_5/audio/sfx/AA_slice_only.ogg', 'sfx', False),
+    # Two-D
+    ('mg_twod_bgm', 'phase_4/audio/bgm/MG_TwoDGame.ogg', 'music', False),
+    ('mg_squirt_hit', 'phase_4/audio/sfx/Seltzer_squirt_2dgame_hit.ogg', 'sfx', False),
+    # Tag
+    ('mg_tag_tag', 'phase_5/audio/sfx/MG_tag_1.ogg', 'sfx', False),
+    # Ice Slide
+    ('mg_ice_scoring', 'phase_4/audio/sfx/MG_sfx_ice_scoring_1.ogg', 'sfx', False),
+    # Race
+    ('mg_race_bgm', 'phase_4/audio/bgm/minigame_race.ogg', 'music', False),
 ]
 
 

@@ -16,15 +16,24 @@
 
 #include "game/cannon_game.h"
 #include "game/catch_logic.h"
+#include "game/cog_thief_game.h"
 #include "game/diving_game.h"
+#include "game/ice_game.h"
 #include "game/maze_game.h"
 #include "game/pairing_game.h"
+#include "game/pattern_game.h"
+#include "game/photo_game.h"
+#include "game/race_game.h"
 #include "game/ring_game.h"
+#include "game/tag_game.h"
+#include "game/target_game.h"
 #include "game/tug_game.h"
+#include "game/two_d_game.h"
 #include "game/vine_game.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
+#include "ui/minigame_purchase_panel.h"
 
 namespace tt::game {
 
@@ -38,7 +47,8 @@ public:
     bool active() const { return phase_ != Phase::Off; }
     // A minigame stage is shown instead of the playground (from the rules until cleanup).
     bool inScene() const {
-        return (isCatch_ || isCannon_ || isTug_ || isRing_ || isMaze_ || isPairing_ || isDiving_ || isVine_) &&
+        return (isCatch_ || isCannon_ || isTug_ || isRing_ || isMaze_ || isPairing_ || isDiving_ || isVine_ ||
+                isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isPattern_ || isIce_ || isRace_ || isPhoto_) &&
                (phase_ == Phase::Rules || phase_ == Phase::WaitStart || phase_ == Phase::Play ||
                 phase_ == Phase::Done);
     }
@@ -82,6 +92,14 @@ private:
     bool isPairing_ = false;
     bool isDiving_ = false;
     bool isVine_ = false;
+    bool isTarget_ = false;
+    bool isCogThief_ = false;
+    bool isTwoD_ = false;
+    bool isTag_ = false;
+    bool isPattern_ = false;
+    bool isIce_ = false;
+    bool isRace_ = false;
+    bool isPhoto_ = false;
 
     u32 phaseMs_ = 0;
     u32 returnHood_ = 0;
@@ -105,6 +123,16 @@ private:
     PairingGame pairing_;
     DivingGame diving_;
     VineGame vine_;
+    TargetGame target_;
+    CogThiefGame cogThief_;
+    TwoDGame twoD_;
+    TagGame tag_;
+    PatternGame pattern_;
+    IceGame ice_;
+    RaceGame race_;
+    PhotoGame photo_;
+
+    ui::MinigamePurchasePanel purchasePanel_;
 
     bool autoPlay_ = false;
     char title_[40] = {};
