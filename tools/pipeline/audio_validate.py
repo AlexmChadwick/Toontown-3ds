@@ -2,7 +2,7 @@
 
     .venv/bin/python -I tools/pipeline/audio_validate.py [--wav-dir DIR] [names...]
 
-For each asset in bake_audio.ASSETS:
+For each asset in bake_audio.ALL_ASSETS (romfs and sd):
   * parses the file with audio_tsnd.read (independent of the writer's state)
   * decodes it with the reference decoder in audio_dspadpcm.decode
   * re-decodes every block from its stored block-header state, as the runtime
@@ -63,15 +63,16 @@ def write_wav(path, pcm, rate):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dir', default=os.path.join(bake.ROOT, 'romfs', 'baked', 'audio'))
+    ap.add_argument('--sd-dir', default=os.path.join(bake.ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'audio'))
     ap.add_argument('--wav-dir')
     ap.add_argument('names', nargs='*')
     args = ap.parse_args()
     if args.wav_dir:
         os.makedirs(args.wav_dir, exist_ok=True)
-    for name, rel, kind, loops in bake.ASSETS:
+    for name, rel, kind, loops, dest in bake.ALL_ASSETS:
         if args.names and name not in args.names:
             continue
-        info = tsnd.read(os.path.join(args.dir, name + '.tsnd'))
+        info = tsnd.read(os.path.join(args.dir if dest == 'romfs' else args.sd_dir, name + '.tsnd'))
         dec = decode_file(info)
         ref = bake.decode_ogg(os.path.join(bake.RES, rel), info['sample_rate'], info['channels'])
         snrs = [bake.snr_db(ref[c], dec[c]) for c in range(info['channels'])]

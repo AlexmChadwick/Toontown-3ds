@@ -147,6 +147,7 @@ struct Music {
     float volume = 0.8f;
     float fade = 1.0f;
     float fadePerMs = 0.0f; // > 0 while fading out
+    float fadeInPerMs = 0.0f; // > 0 while fading in
     u64 lastTick = 0;
     float appliedGain = -1.0f;
 };
@@ -323,6 +324,7 @@ void stopMusicNow() {
     if (gMusic.file) fclose(gMusic.file);
     gMusic.file = nullptr;
     gMusic.fadePerMs = 0.0f;
+    gMusic.fadeInPerMs = 0.0f;
     gMusic.eof = false;
 }
 
@@ -440,7 +442,7 @@ void shutdown() {
 
 bool available() { return gOk; }
 
-bool playMusic(const char* path, bool loop) {
+bool playMusic(const char* path, bool loop, int fadeInMs) {
     if (!gOk || !gMusic.thread) return false;
     stopMusicNow();
 
@@ -472,8 +474,10 @@ bool playMusic(const char* path, bool loop) {
     m.nextSlot = 0;
     m.ioError = false;
     memset(m.wb, 0, sizeof(m.wb));
-    m.fade = 1.0f;
+    m.fade = fadeInMs > 0 ? 0.0f : 1.0f;
     m.fadePerMs = 0.0f;
+    m.fadeInPerMs = fadeInMs > 0 ? 1.0f / float(fadeInMs) : 0.0f;
+    m.lastTick = osGetTime();
     setupMusicChannels();
     sendCmd(Cmd::Start);
     if (!m.streaming) {
@@ -495,6 +499,7 @@ void stopMusic(int fadeMs) {
         return;
     }
     gMusic.fadePerMs = 1.0f / float(fadeMs);
+    gMusic.fadeInPerMs = 0.0f;
     gMusic.lastTick = osGetTime();
 }
 
@@ -640,6 +645,14 @@ void setVoiceVolume(VoiceHandle h, float volume, float pan) {
     if (v >= 0) voiceMix(v, volume, pan);
 }
 
+int freeVoices() {
+    if (!gOk) return 0;
+    int n = 0;
+    for (int v = 0; v < kNumSfxVoices; ++v)
+        if (!voiceBusy(v)) ++n;
+    return n;
+}
+
 void setMasterVolume(float v) {
     if (gOk) ndspSetMasterVol(clamp01(v));
 }
@@ -650,6 +663,17 @@ void update() {
     if (m.ioError) {
         m.ioError = false;
         TT_LOG("audio: music read error, stream stopped");
+    }
+    if (m.file && m.fadeInPerMs > 0.0f) {
+        u64 now = osGetTime();
+        float dt = float(now - m.lastTick);
+        m.lastTick = now;
+        m.fade += dt * m.fadeInPerMs;
+        if (m.fade >= 1.0f) {
+            m.fade = 1.0f;
+            m.fadeInPerMs = 0.0f;
+        }
+        applyMusicGain();
     }
     if (m.file && m.fadePerMs > 0.0f) {
         u64 now = osGetTime();
