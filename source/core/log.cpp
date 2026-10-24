@@ -11,12 +11,17 @@ namespace tt::log {
 namespace {
 
 FILE* gFile = nullptr;
+// Background threads (toon loader, network) log too; serialize ring + file writes.
+LightLock gLock;
+bool gLockReady = false;
 char gRing[kRingLines][kLineLength];
 int gHead = 0;
 
 } // namespace
 
 void init() {
+    LightLock_Init(&gLock);
+    gLockReady = true;
     mkdir("sdmc:/3ds", 0777);
     mkdir("sdmc:/3ds/toontown3ds", 0777);
     gFile = fopen("sdmc:/3ds/toontown3ds/log.txt", "w");
@@ -36,12 +41,14 @@ void write(const char* fmt, ...) {
     if (n < 0) return;
 
     svcOutputDebugString(line, strlen(line));
+    if (gLockReady) LightLock_Lock(&gLock);
     if (gFile) {
         fprintf(gFile, "[%llu] %s\n", osGetTime(), line);
         fflush(gFile);
     }
     gHead = (gHead + kRingLines - 1) % kRingLines;
     snprintf(gRing[gHead], kLineLength, "%s", line);
+    if (gLockReady) LightLock_Unlock(&gLock);
 }
 
 const char* recent(int i) {

@@ -144,7 +144,7 @@ bool Renderer::beginDraw(const float* lo, const float* hi, const C3D_Mtx& world)
     const C3D_FVec localCenter = FVec4_New((lo[0] + hi[0]) * 0.5f, (lo[1] + hi[1]) * 0.5f, (lo[2] + hi[2]) * 0.5f, 1.0f);
     const C3D_FVec worldCenter = Mtx_MultiplyFVec4(&world, localCenter);
     const float dx = hi[0] - lo[0], dy = hi[1] - lo[1], dz = hi[2] - lo[2];
-    const float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz); // assumes no scaling in `world`
+    const float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz); // conservative for world scales <= 1
     if (!sphereVisible(worldCenter, radius)) {
         stats_.modelsCulled++;
         return false;
@@ -168,7 +168,7 @@ void Renderer::setModelView(const C3D_Mtx& world, const float* posScale, const f
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, programs_[mode_].uModelView, &modelView);
 }
 
-void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints) {
+void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints, const C3D_Tex* const* slotTex) {
     if (!model.loaded()) return;
     bindMode(kModeStatic);
     if (!beginDraw(model.boundsMin(), model.boundsMax(), world)) return;
@@ -180,11 +180,11 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints)
         BufInfo_Init(buf);
         BufInfo_Add(buf, vbase, kVertexStride, 3, 0x210);
     }
-    drawBatches(model, tints, !model.absoluteIndices());
+    drawBatches(model, tints, slotTex, !model.absoluteIndices());
 }
 
 void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
-                         const Tints* tints) {
+                         const Tints* tints, const C3D_Tex* const* slotTex) {
     // Morph draws bind one vertex buffer per model, so they need absolute indices.
     if (!model.loaded() || !anim.loaded() || !model.absoluteIndices() || anim.numVertices() != model.numVertices()) {
         return;
@@ -204,12 +204,13 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
     BufInfo_Add(buf, model.vertices(), kVertexStride, 3, 0x210);
     BufInfo_Add(buf, anim.frame(frameA), kMorphStride, 1, 0x3);
     BufInfo_Add(buf, anim.frame(frameB), kMorphStride, 1, 0x4);
-    drawBatches(model, tints, false);
+    drawBatches(model, tints, slotTex, false);
 }
 
-void Renderer::drawBatches(Model& model, const Tints* tints, bool perBatchBuffer) {
+void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* const* slotTex, bool perBatchBuffer) {
     const int uTint = programs_[mode_].uTint;
-    int boundTexture = -2;
+    const C3D_Tex* boundTexture = nullptr;
+    bool textureBound = false; // false: nothing bound yet (nullptr = untextured)
     int boundBlend = -1;
     int boundLayer = -1;
     int boundTint = -1;
@@ -231,19 +232,21 @@ void Renderer::drawBatches(Model& model, const Tints* tints, bool perBatchBuffer
             boundTint = tint;
         }
 
-        const int texIndex = b.texture == 0xFFFF ? -1 : b.texture;
-        if (texIndex != boundTexture) {
+        const C3D_Tex* tex = b.texture == 0xFFFF ? nullptr : model.texture(b.texture);
+        if (slotTex && b.texSlot && b.texSlot < kTexSlotCount && slotTex[b.texSlot]) tex = slotTex[b.texSlot];
+        if (!textureBound || tex != boundTexture) {
             C3D_TexEnv* env = C3D_GetTexEnv(0);
             C3D_TexEnvInit(env);
-            if (texIndex >= 0) {
-                C3D_TexBind(0, model.texture(b.texture));
+            if (tex) {
+                C3D_TexBind(0, const_cast<C3D_Tex*>(tex));
                 C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
                 C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
             } else {
                 C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
                 C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
             }
-            boundTexture = texIndex;
+            boundTexture = tex;
+            textureBound = true;
         }
 
         if (b.blend != boundBlend) {

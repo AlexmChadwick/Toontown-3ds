@@ -26,10 +26,10 @@
    "sleeves": 138
   },
   "file": "clothes.ttx",
-  "file_bytes": 47488,
+  "file_bytes": 17536,
   "formats": {
-   "L8": 1,
-   "RGB565": 6
+   "ETC1": 6,
+   "L8": 1
   },
   "missing_fallback_to_0": [],
   "sizes": [
@@ -39,20 +39,20 @@
   "textures": 7
  },
  "files": {
-  "clothes.ttx": 47488,
+  "clothes.ttx": 17536,
   "head_dls_500.ttm": 75648,
   "head_dls_500_jump-idle.tta": 16768,
   "head_dls_500_neutral.tta": 34816,
   "head_dls_500_run.tta": 11264,
   "head_dls_500_walk.tta": 16768,
   "head_dls_500_wave.tta": 54144,
-  "legs_m_500.ttm": 68480,
+  "legs_m_500.ttm": 35840,
   "legs_m_500_jump-idle.tta": 11776,
   "legs_m_500_neutral.tta": 24320,
   "legs_m_500_run.tta": 7808,
   "legs_m_500_walk.tta": 11776,
   "legs_m_500_wave.tta": 37632,
-  "torso_ms_500.ttm": 71040,
+  "torso_ms_500.ttm": 26496,
   "torso_ms_500_jump-idle.tta": 29056,
   "torso_ms_500_neutral.tta": 60288,
   "torso_ms_500_run.tta": 19328,
@@ -114,11 +114,11 @@
   }
  },
  "totals": {
-  "bytes": 721280,
+  "bytes": 614144,
   "bytes_by_type": {
    "tta": 458624,
-   "ttm": 215168,
-   "ttx": 47488
+   "ttm": 137984,
+   "ttx": 17536
   },
   "files": 19
  },

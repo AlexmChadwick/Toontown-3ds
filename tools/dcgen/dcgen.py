@@ -41,6 +41,7 @@ WANTED = {
     'DistributedDistrict': ['setName', 'setAvailable'],
     'ToontownDistrict': ['setName', 'setAvailable'],
     'TimeManager': ['requestServerTime', 'serverTime'],
+    'TutorialManager': ['requestSkipTutorial', 'skipTutorialResponse'],
     'DistributedNode': ['setParent', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setPos', 'setHpr',
                         'setPosHpr', 'setXY', 'setXZ', 'setXYH', 'setXYZH'],
     'DistributedSmoothNode': ['setSmStop', 'setSmPosHpr', 'setSmXYH', 'setSmXYZH', 'setSmXY',
@@ -49,14 +50,71 @@ WANTED = {
                               'setComponentY', 'setComponentZ', 'setComponentH',
                               'setComponentP', 'setComponentR', 'setComponentT',
                               'clearSmoothing'],
-    'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setTalk', 'setSC'],
+    'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setTalk', 'setSC',
+                        # Owner-view stats for the HUD (source/net/zone_objects.*).
+                        'setHp', 'setMaxHp', 'toonUp', 'takeDamage', 'setMoney', 'setMaxMoney',
+                        'setBankMoney', 'setMaxBankMoney', 'setExperience', 'setMaxCarry',
+                        'setInventory', 'setTrackAccess', 'setTrackProgress',
+                        'setTrackBonusLevel', 'setBattleId', 'setTickets', 'setEmoteAccess',
+                        'setSpeedChatStyleIndex', 'setQuestCarryLimit', 'setMaxClothes',
+                        'setNPCFriendsDict', 'setZonesVisited', 'setHoodsVisited',
+                        'setDefaultShard', 'setDefaultZone', 'setLastHood', 'setTutorialAck',
+                        'setHat', 'setGlasses', 'setBackpack', 'setShoes', 'setCheesyEffect',
+                        'setAccessLevel', 'setPinkSlips', 'setNametagStyle', 'setFishingRod',
+                        'setMaxFishTank', 'setQuests', 'setEarnedExperience'],
+    # ---- zone 2000 objects (source/net/zone_objects.*, docs/design/playground.md) ----
+    'DistributedNPCToonBase': ['setName', 'setDNAString', 'setPositionIndex', 'setAnimState',
+                               'setPageNumber', 'avatarEnter', 'freeAvatar'],
+    'DistributedNPCToon': ['setMovie', 'setMovieDone', 'chooseQuest', 'chooseTrack'],
+    'DistributedNPCSpecialQuestGiver': ['setMovie', 'setMovieDone', 'chooseQuest', 'chooseTrack'],
+    'DistributedNPCClerk': ['setMovie', 'setInventory'],
+    'DistributedNPCTailor': ['setMovie', 'setDNA', 'setCustomerDNA'],
+    'DistributedNPCBlocker': ['setMovie'],
+    'DistributedNPCFisherman': ['setMovie', 'completeSale'],
+    'DistributedNPCPartyPerson': ['setMovie', 'answer'],
+    'DistributedNPCPetclerk': ['setMovie'],
+    'DistributedNPCKartClerk': ['setMovie'],
+    'DistributedNPCScientist': ['setChat'],
+    'DistributedTreasure': ['setPosition', 'requestGrab', 'setGrab', 'setReject'],
+    'DistributedDoor': ['setZoneIdAndBlock', 'setSwing', 'setDoorType', 'setDoorIndex',
+                        'setOtherZoneIdAndDoId', 'requestEnter', 'requestExit', 'rejectEnter',
+                        'avatarEnter', 'avatarExit', 'setState', 'setExitDoorState'],
+    'DistributedTrolley': ['setState', 'fillSlot0', 'fillSlot1', 'fillSlot2', 'fillSlot3',
+                           'emptySlot0', 'emptySlot1', 'emptySlot2', 'emptySlot3',
+                           'requestBoard', 'rejectBoard', 'requestExit', 'setMinigameZone'],
+    'DistributedCCharBase': ['setChat', 'fadeAway', 'setWalk', 'avatarEnter', 'avatarExit'],
+    'DistributedFishingPond': ['setArea'],
+    'DistributedBuilding': ['setBlock', 'setSuitData', 'setVictorList', 'setState'],
+    'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
+    'DistributedButterfly': ['setArea', 'setState'],
+    'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
+    'DistributedHQInterior': ['setZoneIdAndBlock', 'setTutorial'],
+    'DistributedGagshopInterior': ['setZoneIdAndBlock'],
+    'DistributedPetshopInterior': ['setZoneIdAndBlock'],
 }
+
+# Class families whose every subclass gets a table (and a kClassId namespace).
+TABLE_FAMILIES = ['DistributedNPCToonBase', 'DistributedTreasure', 'DistributedDoor',
+                  'DistributedCCharBase', 'DistributedBuilding', 'DistributedAnimatedProp']
 
 # Classes that get full descriptor tables (every inherited field) and
 # required-field lists. Objects of any other class are dropped whole by the
 # client (each Astron message is length framed, so nothing needs skipping).
+# TABLE_FAMILIES (with all subclasses) are appended by expand_tables().
 TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictStats',
-                 'AstronLoginManager', 'TimeManager', 'DistributedToon']
+                 'AstronLoginManager', 'TimeManager', 'TutorialManager', 'DistributedToon',
+                 # (shard, 2) UberZone managers, as seen by tools/server/smoke_test.py
+                 'CatalogManager', 'DistributedInGameNewsMgr', 'DistributedPartyManager',
+                 'DistributedTrophyMgr', 'NewsManager', 'SafeZoneManager',
+                 'ToontownMagicWordManager', 'WelcomeValleyManager',
+                 # (shard, 2000) playground objects
+                 'DistributedTrolley', 'DistributedButterfly', 'DistributedFishingPond',
+                 'DistributedFishingSpot', 'DistributedFishingTarget',
+                 'DistributedPondBingoManager', 'DistributedPartyGate',
+                 # interiors (2513-2522), reached through DistributedDoor
+                 'DistributedToonInterior', 'DistributedToonHallInterior',
+                 'DistributedHQInterior', 'DistributedGagshopInterior',
+                 'DistributedPetshopInterior']
 
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,
@@ -198,7 +256,31 @@ def load(etc):
     for name in ('otp.dc', 'toon.dc'):
         if not dc.read(os.path.join(etc, name)):
             sys.exit(f'failed to parse {name}')
+    expand_tables(dc)
     return dc
+
+
+def ancestors(cls):
+    out = set()
+    for i in range(cls.getNumParents()):
+        p = cls.getParent(i)
+        out.add(p.getName())
+        out |= ancestors(p)
+    return out
+
+
+def expand_tables(dc):
+    """Append every TABLE_FAMILIES class and its subclasses (dc order) to
+    TABLE_CLASSES, and give every table class a kClassId namespace."""
+    for i in range(dc.getNumClasses()):
+        cls = dc.getClass(i)
+        name = cls.getName()
+        if name in TABLE_CLASSES:
+            continue
+        if name in TABLE_FAMILIES or ancestors(cls) & set(TABLE_FAMILIES):
+            TABLE_CLASSES.append(name)
+    for name in TABLE_CLASSES:
+        WANTED.setdefault(name, [])
 
 
 def inherited(cls):

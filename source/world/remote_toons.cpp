@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <cstring>
 
-#include "render/ui.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
 
@@ -19,11 +18,10 @@ constexpr float kSmoothTau = 0.1f;
 // Snap instead of gliding when a toon teleports or we missed many samples.
 constexpr float kSnapDistance = 30.0f;
 constexpr float kSpeedTau = 0.25f; // smoothing for the derived speed (avoids walk/run flicker)
-constexpr float kNametagHeight = 4.2f;
+constexpr float kLowLodDistSq = 45.0f * 45.0f;
+constexpr float kHighLodDistSq = 35.0f * 35.0f;
 constexpr float kMaxBalloonDistSq = 90.0f * 90.0f;
 
-// DNA netstring byte offsets (ToonDNA.makeNetString).
-constexpr int kDnaArmColor = 11, kDnaGloveColor = 12, kDnaLegColor = 13, kDnaHeadColor = 14;
 
 float wrapDeg(float d) {
     while (d > 180.0f) d -= 360.0f;
@@ -48,18 +46,28 @@ RemoteToons::Remote* RemoteToons::find(u32 doId) {
 }
 
 void RemoteToons::applyDna(Remote& r, const net::RemoteToon& t) {
-    // Interim colouring until full DNA decoding (species/clothes) lands: body colours
-    // index ToonDNA.allColorsList; clothing keeps its texture colours.
-    r.tints.setAll(1.0f, 1.0f, 1.0f);
-    if (!t.hasDna) return;
-    auto set = [&](render::TintSlot slot, int index) {
-        if (index < 0 || index >= ui::kNumToonColors) return;
-        for (int i = 0; i < 3; i++) r.tints.rgba[slot][i] = ui::kToonColors[index][i];
-    };
-    set(render::kTintArm, t.dna[kDnaArmColor]);
-    set(render::kTintGlove, t.dna[kDnaGloveColor]);
-    set(render::kTintLeg, t.dna[kDnaLegColor]);
-    set(render::kTintHead, t.dna[kDnaHeadColor]);
+    ToonDna dna;
+    if (t.hasDna && parseNetString(t.dna, net::kDnaSize, &dna)) {
+        r.dna = dna;
+        r.hasDna = true;
+    }
+    refreshLook(r);
+}
+
+void RemoteToons::refreshLook(Remote& r) {
+    if (!cache_) return;
+    if (!cache_->acquire(r.dna, r.lod, &r.look)) {
+        // Part missing from the SD set: fall back to the default body.
+        cache_->acquire(defaultToonDna(), r.lod, &r.look);
+    }
+    r.avatar.setLook(&r.look, &cache_->fallback());
+}
+
+void RemoteToons::despawn(Remote& r) {
+    if (cache_) cache_->release(&r.look);
+    r.avatar.setLook(nullptr);
+    r.active = false;
+    count_--;
 }
 
 void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
@@ -81,10 +89,14 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
                 }
             }
             if (!r) return;
-            *r = Remote{};
             r->active = true;
             r->doId = ev.doId;
-            r->avatar.setParts(parts_);
+            r->lod = ToonLod::High;
+            r->hasDna = false;
+            r->dna = defaultToonDna();
+            r->phrase = nullptr;
+            r->phraseAge = 99.0f;
+            r->speed = r->turnRate = 0.0f;
             count_++;
         }
         r->x = r->tx = t->x;
@@ -98,10 +110,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         break;
     }
     case EventType::Despawn:
-        if (r) {
-            r->active = false;
-            count_--;
-        }
+        if (r) despawn(*r);
         break;
     case EventType::Pose:
         if (r && t) {
@@ -132,7 +141,9 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
 }
 
 void RemoteToons::clear() {
-    for (Remote& r : toons_) r.active = false;
+    for (Remote& r : toons_) {
+        if (r.active) despawn(r);
+    }
     count_ = 0;
 }
 
@@ -201,11 +212,19 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         order[best] = tmp;
 
         Remote& r = *order[i];
+        // LOD 250 beyond ~45 units, back to 500 inside ~35 (hysteresis avoids reload churn).
+        const ToonLod want = r.distSq > kLowLodDistSq ? ToonLod::Low
+                             : r.distSq < kHighLodDistSq ? ToonLod::High
+                                                         : r.lod;
+        if (want != r.lod) {
+            r.lod = want;
+            refreshLook(r);
+        }
         C3D_Mtx m;
         Mtx_Identity(&m);
         Mtx_Translate(&m, r.x, r.y, r.z, true);
         Mtx_RotateZ(&m, r.h * kDegToRad, true);
-        r.avatar.draw(renderer, m, &r.tints);
+        r.avatar.draw(renderer, m);
     }
 }
 
@@ -224,7 +243,7 @@ void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;
         float sx, sy, depth;
-        if (ui::projectToScreen(proj, view, r.x, r.y, r.z + kNametagHeight, &sx, &sy, &depth)) {
+        if (ui::projectToScreen(proj, view, r.x, r.y, r.z + r.look.nametagHeight, &sx, &sy, &depth)) {
             balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth);
         }
     }

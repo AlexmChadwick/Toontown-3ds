@@ -30,10 +30,13 @@ public:
     // -1/+1 = left/right eye with interocular distance `iod` (stereo is opt-in).
     void beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                     int eyeSign);
-    void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr);
+    // slotTex (optional, kTexSlotCount entries): per-draw textures for batches whose
+    // texSlot is non-zero (toon clothing). A null entry keeps the batch's own texture.
+    void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr,
+                   const C3D_Tex* const* slotTex = nullptr);
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
-                   const Tints* tints = nullptr);
+                   const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map).
     void endWorld();
 
@@ -54,9 +57,11 @@ private:
 
     static bool loadProgram(const u8* shbin, u32 size, Program* out);
     void bindMode(Mode mode);
+    // Culls with a bounding sphere; `world` may contain a uniform scale <= 1 (toon body
+    // scale), which only makes the sphere conservative.
     bool beginDraw(const float* boundsMin, const float* boundsMax, const C3D_Mtx& world);
     void setModelView(const C3D_Mtx& world, const float* posScale, const float* posOffset);
-    void drawBatches(Model& model, const Tints* tints, bool perBatchBuffer);
+    void drawBatches(Model& model, const Tints* tints, const C3D_Tex* const* slotTex, bool perBatchBuffer);
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     Program programs_[kModeCount];

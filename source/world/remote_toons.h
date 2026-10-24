@@ -10,6 +10,8 @@
 #include "render/renderer.h"
 #include "ui/balloons.h"
 #include "world/toon_avatar.h"
+#include "world/toon_cache.h"
+#include "world/toon_dna.h"
 
 namespace tt::world {
 
@@ -17,7 +19,7 @@ class RemoteToons {
 public:
     static constexpr int kMax = 16; // nearest-first visible cap (AGENTS.md M3.5 suggests 8-16)
 
-    void init(ToonParts* defaultParts) { parts_ = defaultParts; }
+    void init(ToonCache* cache) { cache_ = cache; }
     void handleEvent(const net::Event& ev, const net::Client& client);
     void clear();
     void update(float dt);
@@ -38,7 +40,10 @@ private:
         char name[32] = {};
         const char* phrase = nullptr;
         float phraseAge = 99.0f;
-        render::Tints tints{};
+        ToonDna dna = defaultToonDna();
+        bool hasDna = false;
+        ToonLod lod = ToonLod::High;
+        ToonLook look;
         ToonAvatar avatar;
         bool locomotion = true; // anim state "run"/"walk"/"Happy": clip follows speed
         ToonAnim stateAnim = kAnimNeutral;
@@ -48,8 +53,10 @@ private:
     };
     Remote* find(u32 doId);
     void applyDna(Remote& r, const net::RemoteToon& t);
+    void refreshLook(Remote& r);
+    void despawn(Remote& r);
 
-    ToonParts* parts_ = nullptr;
+    ToonCache* cache_ = nullptr;
     Remote toons_[net::kMaxRemoteToons];
     int count_ = 0;
 };

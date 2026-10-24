@@ -31,24 +31,40 @@ struct Header {
 };
 static_assert(sizeof(Header) == 64, "must match ttm.py header");
 
-struct TexEntry {
-    u16 width;
-    u16 height;
-    u8 format;
-    u8 mipLevels;
-    u8 wrapS;
-    u8 wrapT;
-    u32 dataOffset;
-    u32 dataSize;
-    char name[32];
-};
-static_assert(sizeof(TexEntry) == 48, "must match ttm.py texture entry");
 
 bool readAt(FILE* f, u32 offset, void* dst, u32 size) {
     return fseek(f, offset, SEEK_SET) == 0 && fread(dst, 1, size, f) == size;
 }
 
 } // namespace
+
+bool loadTexture(FILE* f, const TexEntry& e, C3D_Tex* tex) {
+    C3D_TexInitParams p{};
+    p.width = e.width;
+    p.height = e.height;
+    p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
+    p.format = static_cast<GPU_TEXCOLOR>(e.format);
+    p.type = GPU_TEX_2D;
+    p.onVram = false;
+    if (!C3D_TexInitWithParams(tex, nullptr, p)) {
+        TT_LOG("texture: out of linear memory for %.32s", e.name);
+        *tex = C3D_Tex{};
+        return false;
+    }
+    const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
+    if (total != e.dataSize || !readAt(f, e.dataOffset, tex->data, total)) {
+        TT_LOG("texture: %.32s size mismatch or short read (%lu != %lu)", e.name, (unsigned long)total,
+               (unsigned long)e.dataSize);
+        C3D_TexDelete(tex);
+        *tex = C3D_Tex{};
+        return false;
+    }
+    C3D_TexFlush(tex);
+    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
+    C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS), static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
+    return true;
+}
 
 void Tints::setAll(float r, float g, float b) {
     for (auto& t : rgba) {
@@ -139,34 +155,8 @@ bool Model::load(const char* path) {
     }
 
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        const TexEntry& e = texEntries[i];
-        C3D_TexInitParams p{};
-        p.width = e.width;
-        p.height = e.height;
-        p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
-        p.format = static_cast<GPU_TEXCOLOR>(e.format);
-        p.type = GPU_TEX_2D;
-        p.onVram = false;
-        C3D_Tex& tex = textures_[i];
-        if (!C3D_TexInitWithParams(&tex, nullptr, p)) {
-            TT_LOG("model: out of linear memory for texture %.32s", e.name);
-            ok = false;
-            break;
-        }
-        const u32 total = C3D_TexCalcTotalSize(tex.size, tex.maxLevel);
-        if (total != e.dataSize) {
-            TT_LOG("model: texture %.32s size mismatch %lu != %lu", e.name, (unsigned long)total,
-                   (unsigned long)e.dataSize);
-            ok = false;
-            break;
-        }
-        ok = readAt(f, e.dataOffset, tex.data, total);
-        C3D_TexFlush(&tex);
-        C3D_TexSetFilter(&tex, GPU_LINEAR, GPU_LINEAR);
-        if (tex.maxLevel > 0) C3D_TexSetFilterMipmap(&tex, GPU_LINEAR);
-        C3D_TexSetWrap(&tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
-                       static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
-        linearBytes_ += total;
+        ok = loadTexture(f, texEntries[i], &textures_[i]);
+        if (ok) linearBytes_ += textures_[i].size;
     }
 
     free(texEntries);

@@ -15,6 +15,17 @@
 //
 // The client reconnects with exponential backoff (1 s .. 30 s) on connection
 // loss, eject or timeout, and redoes the whole HELLO/login/zone sequence.
+//
+// Avatar selection has two modes (ClientConfig::manualAvatar):
+//   automatic (default; the autotest and tools/nettest use it): play the toon in
+//       cfg.slot, or create cfg.dna when the account is empty.
+//   manual (the front end, source/game/front_end.*): the state machine stops in
+//       State::ChooseAvatar with the account's toons exposed (numAvatars/avatarAt).
+//       The UI then calls chooseAvatar(id) or createAvatar(dna, slot), or
+//       disconnect() to back out to the title. After a reconnect the client
+//       re-plays the toon chosen earlier without asking again.
+// A toon created in this session gets TutorialManager.requestSkipTutorial once
+// after requestPlayAvatar (docs/design/ui.md section 2.1, step 4), in both modes.
 #pragma once
 
 #include <cstdint>
@@ -74,7 +85,7 @@ struct Event {
 };
 
 enum class State : uint8_t {
-    Idle, Connecting, Hello, Login, Districts, AvatarList, CreateAvatar, PlayAvatar,
+    Idle, Connecting, Hello, Login, Districts, AvatarList, ChooseAvatar, CreateAvatar, PlayAvatar,
     EnterZone, InZone, Backoff, Failed,
 };
 const char* stateName(State s);
@@ -89,6 +100,9 @@ struct ClientConfig {
     uint8_t dna[kDnaSize] = {'t', 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1};
     uint8_t slot = 0;                   // createAvatar position when the list is empty
     uint32_t zoneId = kTtcPlayground;
+    // false: pick/create the toon automatically (dna/slot above). true: stop in
+    // State::ChooseAvatar and wait for chooseAvatar()/createAvatar().
+    bool manualAvatar = false;
 };
 
 struct District {
@@ -98,11 +112,16 @@ struct District {
     bool active;
 };
 
+// AstronLoginManagerUD nameState values (docs/design/ui.md section 2.1).
+enum class NameState : uint8_t { Locked = 0, Open = 1, Pending = 2, Approved = 3, Rejected = 4 };
+
 struct PotentialAvatar {
     uint32_t id;
     char name[kNameLen];
     uint8_t dna[kDnaSize];
-    uint8_t slot;
+    bool hasDna;           // dna holds a full 15-byte net string
+    uint8_t slot;          // avPosition, 0..kMaxAvatars-1
+    uint8_t nameState;     // NameState
 };
 
 class Client {
@@ -113,7 +132,39 @@ public:
 
     State state() const { return state_; }
     bool inZone() const { return state_ == State::InZone; }
+    // Human-readable reason for the last failure/eject/retry ("" when none). Stays
+    // set until we reach the zone or clearError(); the UI shows it as a notice.
     const char* lastError() const { return error_; }
+    void clearError() { error_ = ""; }
+    uint16_t lastEjectCode() const { return ejectCode_; } // 0 when the last failure was not an eject
+    // Failed and will not retry (logged in elsewhere, version mismatch, ...). connect() starts over.
+    bool fatal() const { return state_ == State::Failed; }
+    // One-line description of what the client is doing, for a loading screen.
+    const char* progressText() const;
+    // Milliseconds until the next reconnect attempt (State::Backoff), else 0.
+    uint32_t retryInMs() const;
+
+    // ---- manual avatar selection (ClientConfig::manualAvatar) ----
+    // The account's toons; valid from State::ChooseAvatar on (until the next reconnect).
+    bool avatarListReady() const { return state_ == State::ChooseAvatar; }
+    int numAvatars() const { return numAvatars_; }
+    const PotentialAvatar& avatarAt(int i) const { return avatars_[i]; }
+    const PotentialAvatar* avatarInSlot(uint8_t slot) const;
+    // Plays one of the listed toons. Only in State::ChooseAvatar; false otherwise.
+    bool chooseAvatar(uint32_t avId);
+    // Creates a toon in an empty slot (< kMaxAvatars) and plays it. dna must pass
+    // ToonDNA.isValidNetString (checked here: the server ejects bad DNA). Only in
+    // State::ChooseAvatar; false (nothing sent) otherwise.
+    bool createAvatar(const uint8_t dna[kDnaSize], uint8_t slot);
+    // Graceful CLIENT_DISCONNECT and back to State::Idle (the "back to title"
+    // path). Keeps the buffers; connect() starts a fresh session with the same config.
+    void disconnect();
+    bool connect();
+    // True when the toon being played was created in this session.
+    bool playingNewAvatar() const { return newAvatarId_ != 0 && newAvatarId_ == avatarId_; }
+    bool tutorialSkipSent() const { return skipTutorialSent_; }
+    // skipTutorialResponse: -1 not answered yet, 0 refused, 1 ok.
+    int tutorialSkipResult() const { return skipTutorialResult_; }
     uint32_t avatarId() const { return avatarId_; }
     uint32_t shardId() const { return shardId_; }
     const char* avatarName() const { return ownName_; }
@@ -159,6 +210,9 @@ private:
     void handleLeaving(uint32_t doId);
     void handleInterestDone(uint32_t context, uint16_t handle);
     void handleLoginManagerField(DatagramReader& r, uint16_t fieldId);
+    void onAvatarList();
+    void playAvatar(const PotentialAvatar& pa);
+    void maybeSkipTutorial();
     bool applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId);
     bool applyOwnField(DatagramReader& r, uint16_t fieldId);
     bool applyDistrictField(District& d, DatagramReader& r, uint16_t fieldId);
@@ -179,7 +233,8 @@ private:
     void sendSetLocation(uint32_t doId, uint32_t parent, uint32_t zone);
     void sendRequestLogin();
     void sendRequestAvatarList();
-    void sendCreateAvatar();
+    void sendCreateAvatar(const uint8_t* dna, uint8_t slot);
+    void sendRequestSkipTutorial();
     void sendRequestPlayAvatar(uint32_t avId);
     void sendRequestServerTime();
     void sendSetParent(uint32_t token);
@@ -190,6 +245,8 @@ private:
     char token_[128] = {};
     State state_ = State::Idle;
     const char* error_ = "";
+    char errorBuf_[160] = {};
+    uint16_t ejectCode_ = 0;
     uint32_t now_ = 0;
     uint32_t stateSince_ = 0;
     uint32_t session_ = 0;
@@ -214,6 +271,14 @@ private:
     char ownName_[kNameLen] = {};
     uint8_t ownDna_[kDnaSize] = {};
     uint32_t timeManagerId_ = 0;
+    uint32_t tutorialManagerId_ = 0;
+    // Survive reconnects (not reset by resetWorld): which toon to re-play, and the
+    // once-per-new-toon tutorial skip.
+    uint32_t rejoinAvatarId_ = 0;
+    uint32_t newAvatarId_ = 0;
+    uint8_t pendingDna_[kDnaSize] = {};
+    bool skipTutorialSent_ = false;
+    int skipTutorialResult_ = -1;
     uint8_t timeContext_ = 0;
     uint32_t timeRequestMs_ = 0;
     int64_t clockDeltaMs_ = 0;          // local - network, in ms

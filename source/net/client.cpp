@@ -1,11 +1,13 @@
 #include "net/client.h"
 
 #include <cmath>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
 #include "core/log.h"
 #include "net/msg_types.h"
+#include "world/toon_dna.h"
 
 namespace tt::net {
 
@@ -24,6 +26,9 @@ constexpr uint32_t kBackoffMaxMs = 30000;
 constexpr uint32_t kRxBufferSize = 0x10000;
 constexpr int kMaxMessagesPerUpdate = 256;
 constexpr uint16_t kEjectLoggedInElsewhere = 100;
+constexpr uint16_t kEjectBadDcHash = 124;       // CLIENT_DISCONNECT_BAD_DCHASH
+constexpr uint16_t kEjectBadVersion = 125;      // CLIENT_DISCONNECT_BAD_VERSION
+constexpr uint16_t kEjectHeartbeat = 345;       // CLIENT_DISCONNECT_NO_HEARTBEAT
 constexpr uint32_t kTimeSyncWaitMs = 3000;
 
 // ---- compile-time layout checks ------------------------------------------
@@ -38,6 +43,8 @@ TT_SIG(AstronLoginManager, avatarListResponse, "{u32,string,blob,u8,u8}[]");
 TT_SIG(AstronLoginManager, createAvatar, "blob,u8");
 TT_SIG(AstronLoginManager, createAvatarResponse, "u32");
 TT_SIG(AstronLoginManager, requestPlayAvatar, "u32");
+TT_SIG(TutorialManager, requestSkipTutorial, "");
+TT_SIG(TutorialManager, skipTutorialResponse, "u8");
 TT_SIG(DistributedDistrict, setName, "string");
 TT_SIG(DistributedDistrict, setAvailable, "u8");
 TT_SIG(TimeManager, requestServerTime, "u8");
@@ -49,6 +56,7 @@ TT_SIG(DistributedToon, setAnimState, "string,i16/1000,i16");
 TT_SIG(DistributedToon, setTalk, "u32,u32,string,string,{u16,u16}[],u8");
 static_assert(dc::ToontownDistrict::k_setName == dc::DistributedDistrict::k_setName, "district fields");
 static_assert(dc::ToontownDistrict::k_setAvailable == dc::DistributedDistrict::k_setAvailable, "district fields");
+static_assert(kDnaSize == int(world::kDnaNetStringSize), "DNA net string size");
 #undef TT_SIG
 
 // Outgoing whitelist (AGENTS.md "Anti-cheat"): the only way to build a field
@@ -201,6 +209,7 @@ const char* stateName(State s) {
     case State::Login: return "login";
     case State::Districts: return "districts";
     case State::AvatarList: return "avatar list";
+    case State::ChooseAvatar: return "choose avatar";
     case State::CreateAvatar: return "create avatar";
     case State::PlayAvatar: return "play avatar";
     case State::EnterZone: return "entering zone";
@@ -226,9 +235,39 @@ bool Client::start(Transport& transport, const ClientConfig& cfg) {
     cfg_.playToken = token_;
     fatal_ = false;
     backoffMs_ = 0;
+    error_ = "";
+    ejectCode_ = 0;
+    rejoinAvatarId_ = 0;
     resetWorld();
     beginConnect();
     return true;
+}
+
+bool Client::connect() {
+    if (!transport_ || !rx_) return false;
+    if (state_ != State::Idle && state_ != State::Failed) return false;
+    now_ = plat::nowMs();
+    fatal_ = false;
+    backoffMs_ = 0;
+    error_ = "";
+    ejectCode_ = 0;
+    rejoinAvatarId_ = 0;
+    resetWorld();
+    beginConnect();
+    return true;
+}
+
+void Client::disconnect() {
+    if (!transport_) return;
+    if (state_ != State::Idle && state_ != State::Connecting && state_ != State::Backoff &&
+        state_ != State::Failed) {
+        DatagramWriter w = beginMessage(msg::CLIENT_DISCONNECT);
+        finish(w);
+    }
+    transport_->disconnect();
+    resetWorld();
+    rejoinAvatarId_ = 0;
+    setState(State::Idle);
 }
 
 void Client::stop() {
@@ -260,7 +299,11 @@ void Client::beginConnect() {
 }
 
 void Client::fail(const char* why, bool retry) {
-    error_ = why;
+    if (why != errorBuf_) {
+        strncpy(errorBuf_, why, sizeof(errorBuf_) - 1);
+        errorBuf_[sizeof(errorBuf_) - 1] = 0;
+    }
+    error_ = errorBuf_;
     TT_LOG("net: error in %s: %s", stateName(state_), why);
     transport_->disconnect();
     resetWorld();
@@ -288,6 +331,7 @@ void Client::resetWorld() {
     ownerReceived_ = false;
     shardId_ = 0;
     timeManagerId_ = 0;
+    tutorialManagerId_ = 0;
     timeSynced_ = false;
     districtCtx_ = uberCtx_ = zoneCtx_ = 0;
     districtsDone_ = uberDone_ = zoneDone_ = false;
@@ -297,6 +341,7 @@ void Client::resetWorld() {
 void Client::onSessionStart() {
     session_ = transport_->session();
     nextContext_ = 1;
+    ejectCode_ = 0;
     sendHello();
     setState(State::Hello);
 }
@@ -346,7 +391,8 @@ void Client::update(uint32_t nowMs) {
     }
 
     maybeFinishEnterZone();
-    if (state_ != State::InZone && now_ - stateSince_ > kStepTimeoutMs) {
+    // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
+    if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
         fail("server did not answer (timeout)", true);
     }
 }
@@ -363,11 +409,25 @@ void Client::handleMessage(DatagramReader& r) {
         break;
     case msg::CLIENT_EJECT: {
         uint16_t code = r.u16();
-        static char reason[96];
+        char reason[96];
         r.string(reason, sizeof(reason));
         TT_LOG("net: ejected (%u): %s", unsigned(code), reason);
-        if (code == kEjectLoggedInElsewhere) fatal_ = true;
-        fail(reason[0] ? reason : "ejected by server", true);
+        // Retrying cannot fix these; everything else (e.g. 122 from the login
+        // manager for a taken slot or bad DNA) reconnects and starts over.
+        if (code == kEjectLoggedInElsewhere || code == kEjectBadDcHash || code == kEjectBadVersion) fatal_ = true;
+        if (code == kEjectLoggedInElsewhere) {
+            snprintf(errorBuf_, sizeof(errorBuf_), "This account was logged in somewhere else.");
+        } else if (code == kEjectBadDcHash || code == kEjectBadVersion) {
+            snprintf(errorBuf_, sizeof(errorBuf_), "This client does not match the server version (code %u).",
+                     unsigned(code));
+        } else if (code == kEjectHeartbeat) {
+            snprintf(errorBuf_, sizeof(errorBuf_), "The server timed out waiting for us.");
+        } else {
+            snprintf(errorBuf_, sizeof(errorBuf_), "Disconnected by the server (%u): %s", unsigned(code),
+                     reason[0] ? reason : "no reason given");
+        }
+        fail(errorBuf_, true);
+        ejectCode_ = code;
         break;
     }
     case msg::CLIENT_HEARTBEAT:
@@ -460,6 +520,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
                 setState(State::EnterZone);
                 maybePickDistrict();
             }
+            maybeSkipTutorial();
             return;
         }
         RemoteToon* t = toonById(doId);
@@ -526,11 +587,35 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         if (avatarId_) sendRequestServerTime();
         return;
     }
+
+    if (classId == dc::TutorialManager::kClassId) {
+        tutorialManagerId_ = doId; // arrives with the (shard, 2) interest
+        maybeSkipTutorial();
+        return;
+    }
+}
+
+void Client::maybeSkipTutorial() {
+    // Once per toon created in this session, after requestPlayAvatar (the AI looks
+    // our toon up, or waits for it, so it must have been activated already).
+    if (skipTutorialSent_ || tutorialManagerId_ == 0 || !playingNewAvatar() || !ownerReceived_) return;
+    sendRequestSkipTutorial();
+    skipTutorialSent_ = true;
+    TT_LOG("net: requested tutorial skip for new toon %u", unsigned(avatarId_));
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
+        return;
+    }
+    if (doId == tutorialManagerId_ && tutorialManagerId_ != 0) {
+        if (fieldId == dc::TutorialManager::k_skipTutorialResponse) {
+            uint8_t ok = r.u8();
+            if (!r.ok()) return;
+            skipTutorialResult_ = ok ? 1 : 0;
+            TT_LOG("net: skipTutorialResponse %u", unsigned(ok));
+        }
         return;
     }
     if (doId == timeManagerId_ && timeManagerId_ != 0) {
@@ -575,6 +660,7 @@ void Client::handleLeaving(uint32_t doId) {
         return;
     }
     if (doId == timeManagerId_) timeManagerId_ = 0;
+    if (doId == tutorialManagerId_) tutorialManagerId_ = 0;
 }
 
 void Client::handleInterestDone(uint32_t context, uint16_t handle) {
@@ -620,7 +706,9 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
             return;
         }
         if (rc != 0) {
-            fail("login rejected", true);
+            snprintf(errorBuf_, sizeof(errorBuf_), "The server rejected the login (code %ld).", rc);
+            // The same token is rejected again; only automatic mode keeps retrying.
+            fail(errorBuf_, !cfg_.manualAvatar);
             return;
         }
         if (state_ != State::Login) return;
@@ -639,37 +727,130 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
             a.string(pa.name, sizeof(pa.name));
             Bytes dna = a.blob();
             pa.slot = a.u8();
-            a.u8(); // nameState
+            pa.nameState = a.u8();
             if (!a.ok()) break;
+            pa.hasDna = dna.len == kDnaSize;
             memcpy(pa.dna, dna.data, dna.len < kDnaSize ? dna.len : kDnaSize);
             if (numAvatars_ < kMaxAvatars) avatars_[numAvatars_++] = pa;
         }
         if (state_ != State::AvatarList) return;
         TT_LOG("net: %d avatar(s) on account", numAvatars_);
-        if (numAvatars_ == 0) {
-            sendCreateAvatar();
-            setState(State::CreateAvatar);
-            return;
-        }
-        const PotentialAvatar* pick = &avatars_[0];
-        for (int i = 0; i < numAvatars_; ++i) {
-            if (avatars_[i].slot == cfg_.slot) pick = &avatars_[i];
-        }
-        avatarId_ = pick->id;
-        strcpy(ownName_, pick->name);
-        memcpy(ownDna_, pick->dna, kDnaSize);
-        sendRequestPlayAvatar(avatarId_);
-        setState(State::PlayAvatar);
+        onAvatarList();
     } else if (fieldId == dc::AstronLoginManager::k_createAvatarResponse) {
         uint32_t avId = r.u32();
         if (state_ != State::CreateAvatar) return;
-        if (!r.ok() || avId == 0) { fail("createAvatar failed", true); return; }
+        if (!r.ok() || avId == 0) { fail("The server could not create the toon.", true); return; }
         TT_LOG("net: created avatar %u", unsigned(avId));
         avatarId_ = avId;
-        memcpy(ownDna_, cfg_.dna, kDnaSize);
+        newAvatarId_ = avId;
+        skipTutorialSent_ = false;
+        skipTutorialResult_ = -1;
+        rejoinAvatarId_ = avId;
+        ownName_[0] = 0; // the server names it "<Color> <Species>"; the owner view brings it
+        memcpy(ownDna_, pendingDna_, kDnaSize);
         sendRequestPlayAvatar(avatarId_);
         setState(State::PlayAvatar);
     }
+}
+
+void Client::onAvatarList() {
+    if (cfg_.manualAvatar) {
+        // After a reconnect, go straight back to the toon the player chose.
+        if (rejoinAvatarId_ != 0) {
+            for (int i = 0; i < numAvatars_; ++i) {
+                if (avatars_[i].id == rejoinAvatarId_) {
+                    playAvatar(avatars_[i]);
+                    return;
+                }
+            }
+            rejoinAvatarId_ = 0;
+        }
+        setState(State::ChooseAvatar);
+        return;
+    }
+    if (numAvatars_ == 0) {
+        memcpy(pendingDna_, cfg_.dna, kDnaSize);
+        sendCreateAvatar(cfg_.dna, cfg_.slot);
+        setState(State::CreateAvatar);
+        return;
+    }
+    const PotentialAvatar* pick = &avatars_[0];
+    for (int i = 0; i < numAvatars_; ++i) {
+        if (avatars_[i].slot == cfg_.slot) pick = &avatars_[i];
+    }
+    playAvatar(*pick);
+}
+
+void Client::playAvatar(const PotentialAvatar& pa) {
+    avatarId_ = pa.id;
+    strncpy(ownName_, pa.name, sizeof(ownName_) - 1);
+    ownName_[sizeof(ownName_) - 1] = 0;
+    memcpy(ownDna_, pa.dna, kDnaSize);
+    sendRequestPlayAvatar(avatarId_);
+    setState(State::PlayAvatar);
+}
+
+const PotentialAvatar* Client::avatarInSlot(uint8_t slot) const {
+    for (int i = 0; i < numAvatars_; ++i) {
+        if (avatars_[i].slot == slot) return &avatars_[i];
+    }
+    return nullptr;
+}
+
+bool Client::chooseAvatar(uint32_t avId) {
+    if (state_ != State::ChooseAvatar) return false;
+    for (int i = 0; i < numAvatars_; ++i) {
+        if (avatars_[i].id == avId) {
+            TT_LOG("net: player chose avatar %u \"%s\"", unsigned(avId), avatars_[i].name);
+            rejoinAvatarId_ = avId;
+            error_ = "";
+            playAvatar(avatars_[i]);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool Client::createAvatar(const uint8_t dna[kDnaSize], uint8_t slot) {
+    if (state_ != State::ChooseAvatar) return false;
+    if (slot >= kMaxAvatars || avatarInSlot(slot) != nullptr) {
+        TT_LOG("net: refusing createAvatar in slot %u (taken or out of range)", unsigned(slot));
+        return false;
+    }
+    if (!world::isValidNetString(dna, kDnaSize)) {
+        TT_LOG("net: refusing createAvatar with invalid DNA");
+        return false;
+    }
+    memcpy(pendingDna_, dna, kDnaSize);
+    error_ = "";
+    sendCreateAvatar(dna, slot);
+    setState(State::CreateAvatar);
+    return true;
+}
+
+const char* Client::progressText() const {
+    switch (state_) {
+    case State::Idle: return "Offline";
+    case State::Connecting: return "Connecting to the server...";
+    case State::Hello: return "Saying hello to the server...";
+    case State::Login: return "Logging in...";
+    case State::Districts: return "Looking for districts...";
+    case State::AvatarList: return "Loading your toons...";
+    case State::ChooseAvatar: return "Pick a toon";
+    case State::CreateAvatar: return "Creating your toon...";
+    case State::PlayAvatar: return "Getting your toon ready...";
+    case State::EnterZone: return "Entering Toontown Central...";
+    case State::InZone: return "In Toontown Central";
+    case State::Backoff: return "Connection lost. Reconnecting soon...";
+    case State::Failed: return "Disconnected";
+    }
+    return "";
+}
+
+uint32_t Client::retryInMs() const {
+    if (state_ != State::Backoff) return 0;
+    int32_t left = int32_t(backoffUntil_ - now_);
+    return left > 0 ? uint32_t(left) : 0;
 }
 
 bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
@@ -916,11 +1097,17 @@ void Client::sendRequestAvatarList() {
     finish(w);
 }
 
-void Client::sendCreateAvatar() {
+void Client::sendCreateAvatar(const uint8_t* dna, uint8_t slot) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, createAvatar);
-    w.blob(cfg_.dna, kDnaSize);
-    w.u8(cfg_.slot);
+    w.blob(dna, kDnaSize);
+    w.u8(slot);
+    finish(w);
+}
+
+void Client::sendRequestSkipTutorial() {
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, tutorialManagerId_, TutorialManager, requestSkipTutorial);
     finish(w);
 }
 

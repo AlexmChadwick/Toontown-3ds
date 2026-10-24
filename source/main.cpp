@@ -25,6 +25,8 @@
 #include "world/player.h"
 #include "world/remote_toons.h"
 #include "world/toon_avatar.h"
+#include "world/toon_cache.h"
+#include "world/toon_dna.h"
 
 namespace {
 
@@ -43,8 +45,6 @@ constexpr int kMaxStressToons = 64;
 constexpr u32 kPosSendIntervalMs = 200;
 constexpr float kHideToonCameraDistance = 2.5f;
 constexpr int kMaxMapMarkers = 64;
-// Dog, medium legs + torso: (2.0 + 1.75) * 0.85 + 0.5 (OTPGlobals body heights, Avatar.py).
-constexpr float kNametagHeight = 4.2f;
 constexpr float kStressSpacing = 4.0f;
 
 void propMatrix(const Prop& p, C3D_Mtx* out) {
@@ -105,13 +105,18 @@ int main() {
     terrain.load("romfs:/baked/ttc_sz.ttm");
     tt::world::CollisionWorld collision;
     collision.load("romfs:/baked/ttc_sz.ttc");
-    // Default body before login: dog head (dls), medium shorts torso (ms), medium legs (m).
-    static tt::world::ToonParts toonParts; // large; keep off the stack
-    toonParts.load("romfs:/baked/toon", "m", "ms", "dls", "500");
+    // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
+    static tt::world::ToonCache toonCache;
+    toonCache.init();
+    if (!toonCache.initFallback()) TT_LOG("boot: default toon failed to load");
+    // Local toon: default dog until the server tells us our real DNA.
+    static tt::world::ToonLook localLook;
+    toonCache.acquire(tt::world::defaultToonDna(), tt::world::ToonLod::High, &localLook);
+    bool localLookFromServer = false;
     tt::world::ToonAvatar localToon;
-    localToon.setParts(&toonParts);
+    localToon.setLook(&localLook, &toonCache.fallback());
     static tt::world::RemoteToons remoteToons;
-    remoteToons.init(&toonParts);
+    remoteToons.init(&toonCache);
 
     // Multiplayer: Open Toontown server from sdmc:/3ds/toontown3ds/server.txt.
     const tt::config::Settings settings = tt::config::load();
@@ -130,7 +135,7 @@ int main() {
     const char* sentState = nullptr;
     static tt::world::ToonAvatar stressToons[kMaxStressToons];
     for (int i = 0; i < kMaxStressToons; i++) {
-        stressToons[i].setParts(&toonParts);
+        stressToons[i].setLook(&localLook, &toonCache.fallback());
         stressToons[i].play(static_cast<tt::world::ToonAnim>(i % tt::world::kAnimCount), 1.0f);
         stressToons[i].update(i * 0.37f); // desynchronize
     }
@@ -248,6 +253,15 @@ int main() {
             net.update(nowMs);
             tt::net::Event ev;
             while (net.pollEvent(ev)) remoteToons.handleEvent(ev, net);
+            if (net.inZone() && !localLookFromServer) {
+                tt::world::ToonDna dna;
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
+                    toonCache.acquire(dna, tt::world::ToonLod::High, &localLook);
+                    localLookFromServer = true;
+                }
+            } else if (!net.inZone()) {
+                localLookFromServer = false;
+            }
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
                 // we stop, setAnimState on clip changes (DistributedSmoothNode / LocalToon).
@@ -306,7 +320,10 @@ int main() {
             renderer.drawModel(terrain, m);
             player.worldMatrix(&m);
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
-            if (player.cameraDistance() > kHideToonCameraDistance) localToon.draw(renderer, m, &tints);
+            // The Toon tab colour picker is an offline preview; online the server's DNA wins.
+            if (player.cameraDistance() > kHideToonCameraDistance) {
+                localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
+            }
             remoteToons.draw(renderer, player.x(), player.y());
             // Stress toons: a grid in front of the player, facing it, so they are on screen.
             const float h = player.headingDeg() * kDegToRad;
@@ -317,7 +334,7 @@ int main() {
                 const Prop p{nullptr, player.x() + fx * ahead + fy * side, player.y() + fy * ahead - fx * side,
                              player.z(), player.headingDeg() + 180.0f};
                 propMatrix(p, &m);
-                stressToons[i].draw(renderer, m, &tints);
+                stressToons[i].draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
         }
         renderer.endWorld();
@@ -334,7 +351,7 @@ int main() {
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();
             float sx, sy, depth;
-            if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + kNametagHeight, &sx, &sy,
+            if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
@@ -384,7 +401,9 @@ int main() {
 
     if (netStarted) net.stop();
     netConn.shutdown();
-    toonParts.unload();
+    remoteToons.clear();
+    toonCache.release(&localLook);
+    toonCache.shutdown();
     terrain.unload();
     balloons.shutdown();
     ui.shutdown();

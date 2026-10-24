@@ -252,6 +252,11 @@ def main():
     ap.add_argument("--zone", type=int, default=2000)
     ap.add_argument("--linger", type=float, default=5.0)
     ap.add_argument("--move", action="store_true", help="walk in a circle while lingering")
+    ap.add_argument("--dna", help="15-byte ToonDNA net string as hex, used when creating the toon")
+    ap.add_argument("--center", default="0,0", help="circle centre x,y for --move")
+    ap.add_argument("--radius", type=float, default=40.0, help="circle radius for --move")
+    ap.add_argument("--speed", type=float, default=0.5, help="angular speed (rad/s) for --move")
+    ap.add_argument("--z", type=float, default=4.0, help="height for --move")
     ap.add_argument("-v", "--verbose", action="store_true", help="dump every field")
     a = ap.parse_args()
 
@@ -292,7 +297,8 @@ def main():
     if avs:
         av_id = avs[0][0]
     else:
-        c.set_field(LOGIN_MANAGER_ID, "AstronLoginManager", "createAvatar", TEST_DNA, 0)
+        dna = bytes.fromhex(a.dna) if a.dna else TEST_DNA
+        c.set_field(LOGIN_MANAGER_ID, "AstronLoginManager", "createAvatar", dna, 0)
         ev = c.pump_until(lambda e: e[0] == "set_field" and e[2] == "createAvatarResponse", 20, "createAvatarResponse")
         av_id = ev[3][0]
         print("created avatar %d" % av_id)
@@ -318,12 +324,13 @@ def main():
     while time.time() < end:
         if a.move and time.time() >= next_move:
             import math
-            ang = (time.time() - t0) * 0.5
-            x, y = 40 * math.cos(ang), 40 * math.sin(ang)
+            ang = (time.time() - t0) * a.speed
+            cx, cy = (float(v) for v in a.center.split(","))
+            x, y = cx + a.radius * math.cos(ang), cy + a.radius * math.sin(ang)
             ts = ((int(time.time() * 100) & 0xFFFF) ^ 0x8000) - 0x8000  # signed int16 centiseconds
             if next_move == 0:
                 c.set_field(av_id, "DistributedToon", "setAnimState", "run", 1.0, ts)
-            c.set_field(av_id, "DistributedSmoothNode", "setSmPosHpr", x, y, 4.0,
+            c.set_field(av_id, "DistributedSmoothNode", "setSmPosHpr", x, y, a.z,
                         math.degrees(ang) + 180, 0, 0, ts)
             next_move = time.time() + 0.2
         try:
