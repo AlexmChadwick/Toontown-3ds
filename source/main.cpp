@@ -29,6 +29,8 @@
 #include "world/asset_loader.h"
 #include "world/boat.h"
 #include "world/cchar.h"
+#include "world/cog_buildings.h"
+#include "world/cog_interior.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
@@ -347,6 +349,10 @@ int main() {
     static tt::world::TrolleyRide trolley;
     trolley.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
+    static tt::world::CogBuildings cogBuildings;
+    static tt::world::CogInterior cogInterior;
+    cogBuildings.setZone(kStartZone);
+    cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
@@ -848,6 +854,8 @@ int main() {
                 cchars.setZone(travelTarget);
                 fishing.setZone(travelTarget, place.pointsPath());
                 trolley.setZone(travelTarget);
+                cogBuildings.setZone(travelTarget);
+                cogBuildings.syncAnchors(place);
                 suits.setZone(travelTarget);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
@@ -892,6 +900,8 @@ int main() {
                 minigame.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
+                cogBuildings.handleEvent(ev, net);
+                cogInterior.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::ShopMovie) {
                     shop.onMovie(net, nowMs);
                     if (const char* note = shop.takeNotice()) {
@@ -913,6 +923,8 @@ int main() {
             }
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
+            cogInterior.update(net, nowMs);
+            if (cogInterior.active()) player.setCollision(nullptr);
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
                 tt::net::FriendEvent fe;
@@ -1048,6 +1060,7 @@ int main() {
             if (!battle.active() && !minigame.active() && fadeDir == 0) {
                 trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
             }
+            cogBuildings.update(net, player.x(), player.y(), player.z(), nowMs);
             {
                 int seat;
                 if (trolley.popExit(&seat)) { // hopped off: stand beside the station
@@ -1130,6 +1143,8 @@ int main() {
 
             if (minigame.active()) {
                 minigame.draw(renderer); // the playground is hidden while we are away
+            } else if (cogInterior.active()) {
+                cogInterior.draw(renderer);
             } else {
                 place.draw(renderer, player.cameraEye());
             }
@@ -1173,6 +1188,7 @@ int main() {
             if (netStarted) trolley.draw(renderer, net, tt::net::plat::nowMs());
             fishing.draw(renderer);
             suits.draw(renderer);
+            if (netStarted) cogBuildings.draw(renderer, net);
             if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
                 // Test-only: four real Cogs (one per department) in front of the toon.
                 static const char* const kShow[4] = {"f", "bf", "sc", "cc"};
