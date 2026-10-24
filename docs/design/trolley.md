@@ -619,3 +619,43 @@ not strand the player.
    zone change back, and that the AI log shows the zone released (no leaked PM).
 4. Timeout path: join but never send `setAvatarReady` and time the abort (expect 66 s).
 5. Record heap, linear and VRAM numbers per game in `docs/test-log.md`.
+
+## 7. Implementation status
+
+### 7.1 Catching Game (id 8, DistributedCatchGame)
+- **Status:** Done and verified end-to-end against local Open Toontown server.
+- **Implementation:** `source/game/catch_logic.{h,cpp}`, `source/game/minigame_session.{h,cpp}`, `tools/catch_test/`.
+- **Assets:** `catch_ground_{2,3,4}.ttm`, fruit models, `catch_anvil.ttm`, sfx in `sdmc-out/3ds/toontown3ds/data/minigames/`.
+
+### 7.2 Cannon Game (id 2, DistributedCannonGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes byte-for-byte against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/cannon_logic.{h,cpp}`: closed-form trajectory parabola, water tower placement from `RandomNumGen(doId)`, water disc, cylinder side and ground collision detection, score formula.
+  - Host test: `tools/cannon_test/` compares 150 shots and 5 tower placements against `cannon_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `updateCannonPosition`, `setCannonWillFire`, `announceToonWillLandInWater`, and sends `setCannonPosition`, `setCannonLit`, `setToonWillLandInWater`. DC fields registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/cannon_game.{h,cpp}` dispatched by `MinigameSession`: Circle Pad aim (yaw -20..20, pitch 10..85), button A to fire, ballistic flight camera tracking, bottom-screen aim & score display, `autoPlay` auto-aim hook.
+  - Assets: `cannon_gameground.ttm`, `cannon_tower.ttm`, `cannon_hill.ttm`, `cannon_base.ttm`, `cannon_barrel.ttm`, and Cannon audio baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen presentation (top screen shows 3D camera follow, bottom screen shows aim angles and timer).
+- **What to verify in Azahar:** Force `minigame-id 2` in server config; board trolley; verify cannon aiming with Circle Pad, fire with A, trajectory flight and camera follow, water tower impact and score payout.
+
+### 7.3 Tug of War (id 7, DistributedTugOfWarGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes byte-for-byte against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/tug_logic.{h,cpp}`: Gaussian key force formula around target rates, key press decay window, mud pit fall thresholds.
+  - Host test: `tools/tug_test/` tests force calculation across all rates and awards against `tug_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `sendGameType`, `sendGoSignal`, `sendStopSignal`, `sendCurrentPosition`, `sendSuitPosition`, `remoteKeyRateUpdate`, and sends `reportPlayerReady`, `reportCurrentKeyRate`, `reportEndOfContest`, `sendNewAvIdList`.
+  - Runtime: `source/game/tug_game.{h,cpp}`: alternating button input (Circle Pad Left/Right or A/B), 5 Hz force updates sent to AI, dock and rope drawing, water fall detection and win/loss resolution.
+  - Assets: `tug_dock.ttm`, `tug_rope.ttm`, and Tug audio baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Input on 3DS uses Circle Pad or A/B buttons; bottom screen shows pull gauge and target rate.
+- **What to verify in Azahar:** Force `minigame-id 7`; board trolley; report ready; on Go signal alternate buttons; verify rope and avatar offset movements from server updates, mud pit fall detection, and jellybean payout.
+
+### 7.4 Ring Game (id 5, DistributedRingGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes byte-for-byte against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/ring_logic.{h,cpp}`: difficulty pattern selection per safezone using Panda MT RNG, collision circle radius check, scoring with perfect game bonus.
+  - Host test: `tools/ring_test/` validates patterns for all 6 playgrounds and collision math against `ring_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setTimeBase`, `setColorIndices`, `setRingGroupResults`, and sends `setToonGotRing`.
+  - Runtime: `source/game/ring_game.{h,cpp}`: 2D steering in XZ plane with Circle Pad, 16 ring groups advancing along Y, collision check on pass, tally counter and score calculation.
+  - Assets: `ring_game.ttm` (swimming environment), `ring_ring.ttm`, and Ring audio baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Circle Pad steers directly in the swimming plane; bottom screen shows color assignments and ring tally.
+- **What to verify in Azahar:** Force `minigame-id 5`; board trolley; swim through rings using Circle Pad; verify ring hits/misses, `setToonGotRing` sent per group, and score tally at end of course.

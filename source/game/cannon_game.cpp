@@ -1,0 +1,287 @@
+#include "game/cannon_game.h"
+
+#include <cmath>
+#include <cstdio>
+#include "core/log.h"
+
+namespace tt::game {
+
+namespace {
+constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
+constexpr float kPi = 3.14159265358979323846f;
+} // namespace
+
+void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
+    char path[128];
+    snprintf(path, sizeof(path), "%scannon_gameground.ttm", kDir);
+    ground_.load(path);
+    snprintf(path, sizeof(path), "%scannon_hill.ttm", kDir);
+    hill_.load(path);
+    snprintf(path, sizeof(path), "%scannon_tower.ttm", kDir);
+    tower_.load(path);
+    snprintf(path, sizeof(path), "%scannon_base.ttm", kDir);
+    cannonBase_.load(path);
+    snprintf(path, sizeof(path), "%scannon_barrel.ttm", kDir);
+    cannonBarrel_.load(path);
+
+    const net::Minigame* mg = client.minigame();
+    slot_ = 0;
+    numPlayers_ = mg ? mg->numParticipants : 1;
+    if (numPlayers_ < 1) numPlayers_ = 1;
+    if (mg) {
+        for (int i = 0; i < numPlayers_; ++i) {
+            if (mg->participants[i] == client.avatarId()) slot_ = i;
+        }
+    }
+
+    float diff = 0.0f;
+    if (mg && mg->difficultyOverride != net::kNoDifficultyOverride) {
+        diff = mg->difficultyOverride / 65536.0f;
+    }
+
+    uint32_t seed = mg ? mg->doId : 1001;
+    RandomNumGen rng(seed);
+    towerPos_ = cannongame::getTowerPosition(rng, diff);
+
+    state_ = State::Aiming;
+    done_ = false;
+    autoPlay_ = autoPlay;
+    startMs_ = nowMs;
+    stateMs_ = nowMs;
+    lastBroadcastMs_ = nowMs;
+
+    zRot_ = 0.0f;
+    angle_ = 35.0f;
+
+    // Position toon in cannon
+    const float cx = cannongame::cannonX(slot_, numPlayers_);
+    toonX_ = cx;
+    toonY_ = cannongame::kCannonY;
+    toonZ_ = cannongame::kCannonZ;
+    toonH_ = 0.0f;
+
+    camEyeX_ = cx;
+    camEyeY_ = cannongame::kCannonY - 25.0f;
+    camEyeZ_ = cannongame::kCannonZ + 7.0f;
+    camTgtX_ = cx;
+    camTgtY_ = cannongame::kCannonY + 40.0f;
+    camTgtZ_ = cannongame::kCannonZ + 7.0f;
+
+    snprintf(lines_[0], sizeof(lines_[0]), "Aim: Circle Pad  |  Fire: A");
+    snprintf(lines_[1], sizeof(lines_[1]), "Angle: %.1f  Heading: %.1f", angle_, zRot_);
+    snprintf(lines_[2], sizeof(lines_[2]), "Time: 90");
+
+    TT_LOG("cannon_game: init slot %d/%d, tower at (%.1f, %.1f)", slot_, numPlayers_, towerPos_.x, towerPos_.y);
+}
+
+void CannonGame::shutdown() {
+    C3D_FrameSync();
+    ground_.unload();
+    hill_.unload();
+    tower_.unload();
+    cannonBase_.unload();
+    cannonBarrel_.unload();
+}
+
+void CannonGame::update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs) {
+    const float cx = cannongame::cannonX(slot_, numPlayers_);
+    const float inGameSec = static_cast<int>(nowMs - startMs_) / 1000.0f;
+    const int timeLeft = static_cast<int>(cannongame::kGameTime - inGameSec);
+
+    switch (state_) {
+    case State::Aiming: {
+        float ax = pad.dx / 156.0f;
+        float ay = pad.dy / 156.0f;
+        bool changed = false;
+
+        if (std::abs(ax) > 0.15f) {
+            zRot_ -= ax * cannongame::kCannonRotVel * dt;
+            if (zRot_ < cannongame::kCannonRotMin) zRot_ = cannongame::kCannonRotMin;
+            if (zRot_ > cannongame::kCannonRotMax) zRot_ = cannongame::kCannonRotMax;
+            changed = true;
+        }
+        if (std::abs(ay) > 0.15f) {
+            angle_ += ay * cannongame::kCannonAngleVel * dt;
+            if (angle_ < cannongame::kCannonAngleMin) angle_ = cannongame::kCannonAngleMin;
+            if (angle_ > cannongame::kCannonAngleMax) angle_ = cannongame::kCannonAngleMax;
+            changed = true;
+        }
+
+        if (autoPlay_ && (nowMs - stateMs_) > 1500) {
+            // Compute aim to hit water tower
+            const float dx = towerPos_.x - cx;
+            const float dy = towerPos_.y - cannongame::kCannonY;
+            const float dist = std::sqrt(dx * dx + dy * dy);
+            zRot_ = -std::atan2(dx, dy) * 180.0f / kPi;
+            if (zRot_ < cannongame::kCannonRotMin) zRot_ = cannongame::kCannonRotMin;
+            if (zRot_ > cannongame::kCannonRotMax) zRot_ = cannongame::kCannonRotMax;
+
+            // Target water bucket height relative to cannon
+            const float dz = (towerPos_.z + cannongame::kTowerHeight) - (cannongame::kCannonZ + cannongame::kBarrelPivotZ);
+            const float v = cannongame::kInitialVelocity;
+            const float g = cannongame::kGravity;
+            const float v2 = v * v;
+            const float disc = v2 * v2 - g * (g * dist * dist + 2.0f * dz * v2);
+            if (disc >= 0.0f) {
+                // High arc root
+                const float tanTheta = (v2 + std::sqrt(disc)) / (g * dist);
+                angle_ = std::atan(tanTheta) * 180.0f / kPi;
+                if (angle_ < cannongame::kCannonAngleMin) angle_ = cannongame::kCannonAngleMin;
+                if (angle_ > cannongame::kCannonAngleMax) angle_ = cannongame::kCannonAngleMax;
+            }
+            kDown |= KEY_A;
+        }
+
+        if (changed && (nowMs - lastBroadcastMs_) > 500) {
+            client.sendCannonPosition(zRot_, angle_);
+            lastBroadcastMs_ = nowMs;
+        }
+
+        snprintf(lines_[0], sizeof(lines_[0]), "Aim: Circle Pad  |  Fire: A");
+        snprintf(lines_[1], sizeof(lines_[1]), "Angle: %.1f  Heading: %.1f", angle_, zRot_);
+        snprintf(lines_[2], sizeof(lines_[2]), "Time: %d", timeLeft > 0 ? timeLeft : 0);
+
+        // Camera stays behind cannon
+        camEyeX_ = cx;
+        camEyeY_ = cannongame::kCannonY - 25.0f;
+        camEyeZ_ = cannongame::kCannonZ + 7.0f;
+        camTgtX_ = cx;
+        camTgtY_ = cannongame::kCannonY + 40.0f;
+        camTgtZ_ = cannongame::kCannonZ + 7.0f;
+
+        toonX_ = cx;
+        toonY_ = cannongame::kCannonY;
+        toonZ_ = cannongame::kCannonZ;
+        toonH_ = zRot_;
+
+        if (kDown & KEY_A) {
+            client.sendCannonLit(zRot_, angle_);
+            flight_ = cannongame::calcFlight(cx, zRot_, angle_, towerPos_);
+            if (flight_.hitWhat == cannongame::HitType::Water) {
+                client.sendCannonToonWillLandInWater(flight_.timeOfImpact);
+            }
+            state_ = State::Flying;
+            stateMs_ = nowMs;
+            TT_LOG("cannon_game: fired (rot=%.1f, ang=%.1f), impact in %.2fs (hit=%d)", zRot_, angle_, flight_.timeOfImpact, int(flight_.hitWhat));
+        }
+        break;
+    }
+
+    case State::Flying: {
+        const float t = static_cast<int>(nowMs - stateMs_) / 1000.0f;
+        const cannongame::Vec3 pos = cannongame::trajectoryPos(flight_.startPos, flight_.startVel, t);
+        const cannongame::Vec3 vel = cannongame::trajectoryVel(flight_.startVel, t);
+
+        toonX_ = pos.x;
+        toonY_ = pos.y;
+        toonZ_ = pos.z;
+        toonH_ = std::atan2(-vel.x, vel.y) * 180.0f / kPi;
+
+        // Camera follows toon from behind
+        camEyeX_ = toonX_;
+        camEyeY_ = toonY_ - 24.0f;
+        camEyeZ_ = toonZ_ + 10.0f;
+        camTgtX_ = toonX_;
+        camTgtY_ = toonY_ + 10.0f;
+        camTgtZ_ = toonZ_;
+
+        snprintf(lines_[0], sizeof(lines_[0]), "Weeee!");
+        lines_[1][0] = 0;
+        snprintf(lines_[2], sizeof(lines_[2]), "Time: %d", timeLeft > 0 ? timeLeft : 0);
+
+        if (t >= flight_.timeOfImpact) {
+            if (flight_.hitWhat == cannongame::HitType::Water) {
+                state_ = State::Won;
+                done_ = true;
+                toonZ_ = towerPos_.z + cannongame::kTowerHeight;
+                snprintf(lines_[0], sizeof(lines_[0]), "SPLASH! Direct hit on the tower!");
+                snprintf(lines_[1], sizeof(lines_[1]), "You earned %d jellybeans!", flight_.score);
+                TT_LOG("cannon_game: landed in water, score %d", flight_.score);
+            } else {
+                state_ = State::Landed;
+                stateMs_ = nowMs;
+                if (flight_.hitWhat == cannongame::HitType::Tower) {
+                    snprintf(lines_[0], sizeof(lines_[0]), "CLANG! Hit the tower.");
+                } else {
+                    snprintf(lines_[0], sizeof(lines_[0]), "OOF! Hit the ground.");
+                    toonZ_ = 0.0f;
+                }
+                lines_[1][0] = 0;
+            }
+        }
+        break;
+    }
+
+    case State::Landed: {
+        const float inState = static_cast<int>(nowMs - stateMs_) / 1000.0f;
+        if (inState > 2.0f) {
+            state_ = State::Aiming;
+            stateMs_ = nowMs;
+        }
+        break;
+    }
+
+    case State::Won:
+        // Wait for server gameOver / PurchaseManager
+        break;
+    }
+}
+
+void CannonGame::toonPose(float* x, float* y, float* z, float* h) const {
+    *x = toonX_;
+    *y = toonY_;
+    *z = toonZ_;
+    *h = toonH_;
+}
+
+void CannonGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
+    *eye = FVec3_New(camEyeX_, camEyeY_, camEyeZ_);
+    *target = FVec3_New(camTgtX_, camTgtY_, camTgtZ_);
+}
+
+void CannonGame::draw(render::Renderer& renderer) {
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+
+    // Ground
+    if (ground_.loaded()) renderer.drawModel(ground_, m);
+
+    // Hill
+    if (hill_.loaded()) {
+        Mtx_Identity(&m);
+        renderer.drawModel(hill_, m);
+    }
+
+    // Water tower
+    if (tower_.loaded()) {
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, towerPos_.x, towerPos_.y, towerPos_.z, true);
+        renderer.drawModel(tower_, m);
+    }
+
+    // Cannons
+    for (int i = 0; i < numPlayers_; ++i) {
+        const float cx = cannongame::cannonX(i, numPlayers_);
+        const float rot = (i == slot_) ? zRot_ : 0.0f;
+        const float ang = (i == slot_) ? angle_ : cannongame::kCannonAngleMin;
+
+        // Base
+        if (cannonBase_.loaded()) {
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, cx, cannongame::kCannonY, cannongame::kCannonZ, true);
+            Mtx_RotateZ(&m, rot * kPi / 180.0f, true);
+            renderer.drawModel(cannonBase_, m);
+        }
+
+        // Barrel (rotates around Z by rot, pitches around X by ang)
+        if (cannonBarrel_.loaded()) {
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, cx, cannongame::kCannonY, cannongame::kCannonZ + cannongame::kBarrelPivotZ, true);
+            Mtx_RotateZ(&m, rot * kPi / 180.0f, true);
+            Mtx_RotateX(&m, -ang * kPi / 180.0f, true); // Pitch up
+            renderer.drawModel(cannonBarrel_, m);
+        }
+    }
+}
+
+} // namespace tt::game
