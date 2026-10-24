@@ -153,7 +153,7 @@ void BossBattle::leave(BossFrame& frame) {
         home_ = 11000;
         frame.place.load(home_);
     }
-    frame.client.changeZone(home_);
+    if (frame.client.zoneId() != home_) frame.client.changeZone(home_);
     float x = 0;
     float y = 0;
     float z = 0;
@@ -816,6 +816,9 @@ bool BossBattle::frame(BossFrame& frame) {
     }
     const net::BossState state = frame.client.boss() ? *frame.client.boss() : net::BossState{};
     const BossPhase phase = bossPhase(state.phase);
+    if (!state.active && frame.client.inZone() && Place::available(frame.client.zoneId())) {
+        home_ = frame.client.zoneId(); // a new login may already have selected a safe place
+    }
     if (!state.active || state.doId != bossId_ || frame.client.ownStats().hp <= 0 ||
         (failed_ && (frame.input.down & KEY_B)) ||
         (phase == BossPhase::Epilogue && nowMs - state.phaseMs >= 1500 && ((frame.input.down & KEY_A) ||

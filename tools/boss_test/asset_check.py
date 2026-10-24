@@ -34,6 +34,14 @@ for part in ('legs', 'torso', 'head'):
     offset, stride = header[13:15]
     assert len({blob[offset + frame * stride:offset + (frame + 1) * stride]
                 for frame in range(header[4])}) > 1, part
+anchor = (OUT / 'vp_lobby_anchor.txt').read_text().split()
+assert anchor[:2] == ['BPA1', '1'] and len(anchor) == 5
+scene = (OUT / 'vp_scene.bin').read_bytes()
+assert len(scene) == 56 and struct.unpack_from('<4sHH', scene) == (b'BSC1', 1, 3)
+npcs = (OUT / 'vp_npcs.bin').read_bytes()
+magic, version, count = struct.unpack_from('<4sHH', npcs)
+assert magic == b'BND1' and version == 1 and count == 41 and len(npcs) == 8 + count * 19
+assert all(npcs[8 + row * 19 + 4] == ord('t') for row in range(count))
 budget = report['budget']
 assert budget['clip_pair_geometry'] <= 6 * 1024 * 1024
 assert budget['textures'] <= 8 * 1024 * 1024

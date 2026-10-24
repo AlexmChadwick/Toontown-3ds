@@ -7,6 +7,7 @@ ignored sdmc-out tree. All textures are at most 128 px, ETC1/ETC1A4 by default.
 import ast
 import hashlib
 import json
+import math
 import os
 import re
 import struct
@@ -24,7 +25,7 @@ OUT = ROOT / 'sdmc-out/3ds/toontown3ds/data/boss'
 sys.path.insert(0, str(HERE))
 
 import numpy as np
-from panda3d.core import BamCache, Filename, NodePath, Vec3, loadPrcFileData
+from panda3d.core import BamCache, Filename, GeomVertexData, GeomVertexReader, GeomVertexWriter, Mat4, NodePath, Thread, Vec3, loadPrcFileData
 BamCache.getGlobalPtr().setActive(False)
 loadPrcFileData('', 'window-type none\naudio-library-name null\nmodel-cache-dir\n'
                 f'model-path {RESOURCES}\ntextures-power-2 none\nnotify-level error')
@@ -36,13 +37,69 @@ import tta
 import ttm
 
 
+class StableBossExtractor(extract.Extractor):
+    """Evaluate weighted skin matrices in double precision in a stable order.
+
+    Boss torso vertices have multiple influences. Panda's float accumulation
+    order varies with transform addresses, moving a few vertices across a TTA
+    quantization boundary. Keep stock joint matrices, but sum their weights with
+    math.fsum and transform the original vertices in float64.
+    """
+    validated = set()
+
+    def _add_geom(self, geom, state, matrix, tint, layer, animated):
+        source = geom.getVertexData()
+        blends = source.getTransformBlendTable() if animated else None
+        if blends is not None:
+            matrices = []
+            for index in range(blends.getNumBlends()):
+                blend = blends.getBlend(index)
+                terms = []
+                for influence in range(blend.getNumTransforms()):
+                    transform = Mat4()
+                    blend.getTransform(influence).getMatrix(transform)
+                    weight = blend.getWeight(influence)
+                    terms.append([float(transform.getCell(row, column)) * weight
+                                  for row in range(4) for column in range(4)])
+                matrices.append([math.fsum(term[cell] for term in terms) for cell in range(16)]
+                                if terms else np.eye(4).reshape(-1).tolist())
+            matrices = np.array(matrices, dtype=np.float64).reshape(-1, 4, 4)
+            rows = source.getNumRows()
+            vertices = np.ones((rows, 4), dtype=np.float64)
+            indices = np.zeros(rows, dtype=np.int32)
+            positions = GeomVertexReader(source, 'vertex')
+            weights = GeomVertexReader(source, 'transform_blend')
+            for row in range(rows):
+                vertices[row, :3] = positions.getData3()
+                indices[row] = weights.getData1i()
+            result = np.einsum('ni,nij->nj', vertices, matrices[indices])[:, :3]
+            key = int(source.this)
+            if key not in self.validated:
+                panda = source.animateVertices(True, Thread.getCurrentThread())
+                reader = GeomVertexReader(panda, 'vertex')
+                expected = np.array([tuple(reader.getData3()) for _ in range(rows)])
+                if np.max(np.abs(result - expected)) > 0.001:
+                    raise ValueError('Stable boss skinning differs from Panda by more than 0.001 units')
+                self.validated.add(key)
+            data = GeomVertexData(source)
+            writer = GeomVertexWriter(data, 'vertex')
+            for position in result:
+                writer.setData3(*position)
+            geom = geom.makeCopy()
+            geom.setVertexData(data)
+            animated = False
+        super()._add_geom(geom, state, matrix, tint, layer, animated)
+
+
 def attachment(node, root):
     matrix = node.getMat(root)
-    return [[matrix.getCell(column, row) for column in range(4)] for row in range(3)]
+    values = np.round([[matrix.getCell(column, row) for column in range(4)] for row in range(3)], 5)
+    values[values == 0] = 0  # canonical positive zero in float attachment records
+    return values.tolist()
 
 
 def write_model(name, node, animated=False):
-    extractor = extract.Extractor(max_tex=128)
+    extractor = StableBossExtractor(max_tex=128)
     extractor.add(node, animated=animated)
     stats = ttm.write(str(OUT / name), extractor.textures, extractor.batches())
     if stats['geometry_bytes'] > 6 * 1024 * 1024 or stats['texture_bytes'] > 8 * 1024 * 1024:
@@ -194,22 +251,22 @@ def main():
             for frame in range(0, 1 if clip.startswith('hatch_') else source_frames, step):
                 actor.pose(source_clip, frame, partName=part)
                 actor.update(force=True)
-                current = extract.Extractor(max_tex=128, encode_textures=False)
+                current = StableBossExtractor(max_tex=128, encode_textures=False)
                 current.add(node, animated=True, skip_under=(tread_node,) if tread_node else ())
                 positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
                 if len(positions) != vertices:
                     raise ValueError(f'{part}/{clip}: vertex order/count changed')
-                frames.append(positions)
+                frames.append(np.round(positions, 4))
                 if joint is not None:
                     attachments.append(attachment(joint, node))
                 if tread_node:
                     tread_copy.setMat(tread_node.getMat(node))
-                    current = extract.Extractor(max_tex=128, encode_textures=False)
+                    current = StableBossExtractor(max_tex=128, encode_textures=False)
                     current.add(tread_holder)
                     positions = np.concatenate([ttm._rebase_uvs(batch).verts[:, :3] for batch in current.batches()])
                     if len(positions) != report['models']['vp_treads']['vertices']:
                         raise ValueError(f'treads/{clip}: vertex order/count changed')
-                    treads.append(positions)
+                    treads.append(np.round(positions, 4))
             name = f'vp_{part}_{clip}.tta'
             stats = tta.write(str(OUT / name), frames, source_fps / step, attachments or None)
             report['clips'][name] = dict(stats, source_frames=source_frames, source_fps=source_fps)

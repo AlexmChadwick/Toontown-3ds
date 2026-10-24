@@ -450,6 +450,13 @@ void Client::fail(const char* why, bool retry) {
     }
     error_ = errorBuf_;
     TT_LOG("net: error in %s: %s", stateName(state_), why);
+    // A VP dynamic zone is destroyed when its riders disconnect. Reconnect to
+    // the static lobby instead of requesting an interest in the abandoned office.
+    if (boss_.active && boss_.kind == BossKind::Sellbot) {
+        cfg_.zoneId = 11100; // ToontownGlobals.SellbotLobby
+        targetZone_ = 11100;
+        numVisZones_ = 0;
+    }
     transport_->disconnect();
     resetWorld();
     if (!retry || fatal_) {
