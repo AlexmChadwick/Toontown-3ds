@@ -1,6 +1,6 @@
 #include "core/memory.h"
 
-#include <3ds/types.h>
+#include <3ds.h>
 
 // libctru reads these at startup to size the heaps. Pinning them explicitly keeps
 // the split identical across Old/New 3DS and HBL/CIA launches instead of depending
@@ -9,3 +9,25 @@ extern "C" {
 u32 __ctru_heap_size = tt::mem::kHeapBudget;
 u32 __ctru_linear_heap_size = tt::mem::kLinearBudget;
 }
+
+namespace tt::mem {
+
+namespace {
+LightLock gLinearLock;
+bool gLinearLockReady = false;
+} // namespace
+
+void linearLockInit() {
+    LightLock_Init(&gLinearLock);
+    gLinearLockReady = true;
+}
+
+void linearLock() {
+    if (gLinearLockReady) LightLock_Lock(&gLinearLock);
+}
+
+void linearUnlock() {
+    if (gLinearLockReady) LightLock_Unlock(&gLinearLock);
+}
+
+} // namespace tt::mem

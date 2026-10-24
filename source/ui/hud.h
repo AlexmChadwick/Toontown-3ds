@@ -11,6 +11,7 @@ struct HudValues {
     int money = 0, maxMoney = 40;
     float headRgb[3] = {0.7f, 0.7f, 0.8f}; // laff meter face colour (toon head colour)
     bool online = false;
+    const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
 };
 
 class Hud {
@@ -22,7 +23,9 @@ public:
 private:
     C2D_TextBuf buf_ = nullptr;
     int lastHp_ = -1, lastMaxHp_ = -1, lastMoney_ = -1;
-    C2D_Text hpText_{}, moneyText_{};
+    C2D_Text hpText_{}, moneyText_{}, toastText_{};
+    const char* lastToast_ = nullptr;
+    C2D_TextBuf toastBuf_ = nullptr;
 };
 
 } // namespace tt::ui

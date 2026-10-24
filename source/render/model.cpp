@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "core/memory.h"
 
 namespace tt::render {
 
@@ -46,7 +47,12 @@ bool loadTexture(FILE* f, const TexEntry& e, C3D_Tex* tex) {
     p.format = static_cast<GPU_TEXCOLOR>(e.format);
     p.type = GPU_TEX_2D;
     p.onVram = false;
-    if (!C3D_TexInitWithParams(tex, nullptr, p)) {
+    bool inited;
+    {
+        mem::LinearGuard g;
+        inited = C3D_TexInitWithParams(tex, nullptr, p);
+    }
+    if (!inited) {
         TT_LOG("texture: out of linear memory for %.32s", e.name);
         *tex = C3D_Tex{};
         return false;
@@ -55,7 +61,10 @@ bool loadTexture(FILE* f, const TexEntry& e, C3D_Tex* tex) {
     if (total != e.dataSize || !readAt(f, e.dataOffset, tex->data, total)) {
         TT_LOG("texture: %.32s size mismatch or short read (%lu != %lu)", e.name, (unsigned long)total,
                (unsigned long)e.dataSize);
-        C3D_TexDelete(tex);
+        {
+            mem::LinearGuard g;
+            C3D_TexDelete(tex);
+        }
         *tex = C3D_Tex{};
         return false;
     }
@@ -78,6 +87,7 @@ void Tints::setAll(float r, float g, float b) {
 Model::~Model() { unload(); }
 
 void Model::unload() {
+    mem::LinearGuard g;
     if (textures_) {
         for (u16 i = 0; i < numTextures_; i++) {
             if (textures_[i].data) C3D_TexDelete(&textures_[i]);
@@ -131,8 +141,11 @@ bool Model::load(const char* path) {
     batches_ = static_cast<Batch*>(malloc(sizeof(Batch) * numBatches_));
     texEntries = static_cast<TexEntry*>(malloc(sizeof(TexEntry) * (numTextures_ ? numTextures_ : 1)));
     textures_ = static_cast<C3D_Tex*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(C3D_Tex)));
-    vertices_ = linearAlloc(numVertices_ * kVertexSize);
-    indices_ = static_cast<u16*>(linearAlloc(numIndices_ * sizeof(u16)));
+    {
+        mem::LinearGuard g;
+        vertices_ = linearAlloc(numVertices_ * kVertexSize);
+        indices_ = static_cast<u16*>(linearAlloc(numIndices_ * sizeof(u16)));
+    }
     ok = batches_ && texEntries && textures_ && vertices_ && indices_;
     ok = ok && readAt(f, h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
     ok = ok && readAt(f, h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);

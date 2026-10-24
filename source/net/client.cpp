@@ -20,6 +20,7 @@ constexpr uint32_t kManagementZone = 2;    // OTP_ZONE_ID_MANAGEMENT / OTPGlobal
 constexpr uint16_t kDistrictInterest = 1;
 constexpr uint16_t kUberInterest = 2;
 constexpr uint16_t kZoneInterest = 3;
+constexpr uint32_t kQuietZone = 1; // OTPGlobals.QuietZone
 constexpr uint32_t kStepTimeoutMs = 20000;
 constexpr uint32_t kBackoffMinMs = 1000;
 constexpr uint32_t kBackoffMaxMs = 30000;
@@ -225,6 +226,7 @@ const char* stateName(State s) {
     case State::PlayAvatar: return "play avatar";
     case State::EnterZone: return "entering zone";
     case State::InZone: return "in zone";
+    case State::ChangingZone: return "changing zone";
     case State::Backoff: return "reconnect wait";
     case State::Failed: return "failed";
     }
@@ -727,6 +729,27 @@ void Client::handleInterestDone(uint32_t context, uint16_t handle) {
         uberDone_ = true;
     } else if (context == zoneCtx_) {
         zoneDone_ = true;
+    } else if (context == quietCtx_ && state_ == State::ChangingZone && !quietDone_) {
+        // In the quiet zone: everything from the old zone is gone. Now open the new one.
+        quietDone_ = true;
+        cfg_.zoneId = targetZone_;
+        sendSetLocation(avatarId_, shardId_, targetZone_);
+        zoneCtx_ = nextContext_;
+        zoneDone_ = false;
+        uint32_t zones[kMaxVisZones + 1];
+        int n = 0;
+        zones[n++] = targetZone_;
+        for (int i = 0; i < numVisZones_; ++i) {
+            if (visZones_[i] != targetZone_) zones[n++] = visZones_[i];
+        }
+        if (n == 1) sendAddInterest(kZoneInterest, shardId_, targetZone_);
+        else sendAddInterestMultiple(kZoneInterest, shardId_, zones, n);
+    }
+    if (state_ == State::ChangingZone && quietDone_ && zoneDone_) {
+        setState(State::InZone);
+        TT_LOG("net: now in zone %u", unsigned(cfg_.zoneId));
+        pushEvent(EventType::EnteredZone, avatarId_);
+        return;
     }
     if (state_ == State::EnterZone && uberDone_ && zoneDone_ && zoneReadyMs_ == 0) {
         zoneReadyMs_ = now_ ? now_ : 1;
@@ -892,7 +915,8 @@ const char* Client::progressText() const {
     case State::CreateAvatar: return "Creating your toon...";
     case State::PlayAvatar: return "Getting your toon ready...";
     case State::EnterZone: return "Entering Toontown Central...";
-    case State::InZone: return "In Toontown Central";
+    case State::InZone: return "In Toontown";
+    case State::ChangingZone: return "Travelling...";
     case State::Backoff: return "Connection lost. Reconnecting soon...";
     case State::Failed: return "Disconnected";
     }
@@ -1235,6 +1259,49 @@ void Client::sendAddInterest(uint16_t handle, uint32_t parent, uint32_t zone) {
     w.u32(parent);
     w.u32(zone);
     finish(w);
+}
+
+void Client::sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uint32_t* zones, int n) {
+    DatagramWriter w = beginMessage(msg::CLIENT_ADD_INTEREST_MULTIPLE);
+    w.u32(nextContext_++);
+    w.u16(handle);
+    w.u32(parent);
+    w.u16(static_cast<uint16_t>(n));
+    for (int i = 0; i < n; ++i) w.u32(zones[i]);
+    finish(w);
+}
+
+void Client::dropZoneObjects() {
+    // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
+    // server also sends OBJECT_LEAVING; unknown ids are ignored then).
+    for (RemoteToon& t : toons_) {
+        if (t.active) pushEvent(EventType::Despawn, t.doId);
+        t.active = false;
+    }
+    numToons_ = 0;
+    for (NpcToon& n : npcs_) {
+        if (n.active) pushEvent(EventType::NpcDespawn, n.doId);
+        n.active = false;
+    }
+    for (Treasure& t : treasures_) {
+        if (t.active) pushEvent(EventType::TreasureGone, t.doId);
+        t.active = false;
+    }
+}
+
+bool Client::changeZone(uint32_t zoneId, const uint32_t* visZones, int numVisZones) {
+    if (state_ != State::InZone) return false;
+    targetZone_ = zoneId;
+    numVisZones_ = numVisZones < kMaxVisZones ? numVisZones : kMaxVisZones;
+    for (int i = 0; i < numVisZones_; ++i) visZones_[i] = visZones[i];
+    TT_LOG("net: changing zone %u -> %u (%d vis zones)", unsigned(cfg_.zoneId), unsigned(zoneId), numVisZones_);
+    sendSetLocation(avatarId_, shardId_, kQuietZone);
+    quietCtx_ = nextContext_;
+    quietDone_ = false;
+    sendAddInterest(kZoneInterest, shardId_, kQuietZone);
+    dropZoneObjects();
+    setState(State::ChangingZone);
+    return true;
 }
 
 void Client::sendSetLocation(uint32_t doId, uint32_t parent, uint32_t zone) {

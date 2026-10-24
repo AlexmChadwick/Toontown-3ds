@@ -25,6 +25,7 @@
 #include "ui/hud.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
 #include "world/toon_avatar.h"
@@ -47,6 +48,7 @@ constexpr int kStressCols = 8;
 constexpr int kMaxStressToons = 64;
 // DistributedSmoothNode broadcast period: 0.2 s (5 Hz) while moving.
 constexpr u32 kPosSendIntervalMs = 200;
+constexpr u32 kStartZone = 2000; // ToontownGlobals.ToontownCentral
 constexpr float kHideToonCameraDistance = 2.5f;
 constexpr int kMaxMapMarkers = 64;
 constexpr float kStressSpacing = 4.0f;
@@ -79,6 +81,7 @@ int main() {
     gfxSet3D(false); // stereo is opt-in only
     romfsInit();
     tt::log::init();
+    tt::mem::linearLockInit();
 
     bool isNew3ds = false;
     APT_CheckNew3DS(&isNew3ds);
@@ -105,10 +108,10 @@ int main() {
     if (!renderer.init() || !ui.init()) TT_LOG("boot: renderer/ui init failed");
 
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
-    Model terrain;
-    terrain.load("romfs:/baked/ttc_sz.ttm");
-    tt::world::CollisionWorld collision;
-    collision.load("romfs:/baked/ttc_sz.ttc");
+    // The zone we're in (starts in the Toontown Central playground).
+    static tt::world::Place place;
+    place.load(kStartZone);
+    Model& terrain = place.model();
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
     toonCache.init();
@@ -123,7 +126,11 @@ int main() {
     remoteToons.init(&toonCache);
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
     static tt::world::ZoneActors zoneActors;
-    zoneActors.init(&toonCache, "romfs:/baked/ttc_sz.pts", "romfs:/baked/icecream.ttm");
+    zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
+    u32 lastExitZone = 0;       // exit trigger we're standing in (toast/zone change once per entry)
+    const char* toast = nullptr;
+    float toastAge = 99.0f;
+    char toastBuf[96];
     const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
     u32 grabRequested = 0;
     u32 lastTouchedTreasure = 0;
@@ -180,7 +187,7 @@ int main() {
     };
 
     tt::world::Player player;
-    player.setCollision(&collision);
+    player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
     tt::ui::State uiState;
     tt::ui::Balloons balloons;
@@ -290,6 +297,21 @@ int main() {
         }
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
+            // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
+            const char* want = !strcmp(autotest.label(), "exit: tunnel 2132") ? "linktunnel_tt_2132" : "sz19:";
+            const tt::world::CollisionWorld& cw = place.collision();
+            for (int i = 0; i < cw.numTriggers(); i++) {
+                const tt::world::CollTrigger& t = cw.trigger(i);
+                if (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger")) continue;
+                const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;
+                if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
+                    player.reset(cx, cy, t.min[2], player.headingDeg());
+                    TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
+                }
+                break;
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "grab treasure") && !autotestGrabbed) {
             // Test-only: stand on the nearest treasure so the grab path runs.
             float tx, ty, tz;
@@ -325,6 +347,37 @@ int main() {
             footstepAnim = anim;
         }
         localToon.update(dt);
+
+        // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
+        // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
+        const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
+            const bool canTravel = !netStarted || net.inZone();
+            if (!tt::world::Place::available(exitHere.targetZone)) {
+                snprintf(toastBuf, sizeof(toastBuf), "Zone %lu isn't installed yet. Coming soon!",
+                         static_cast<unsigned long>(exitHere.targetZone));
+                TT_LOG("place: exit %s -> zone %lu (not installed)", exitHere.name,
+                       static_cast<unsigned long>(exitHere.targetZone));
+                toast = toastBuf;
+                toastAge = 0.0f;
+            } else if (canTravel) {
+                const u32 fromZone = place.zoneId();
+                remoteToons.clear();
+                if (place.load(exitHere.targetZone)) {
+                    zoneActors.loadPoints(place.pointsPath());
+                    float ax, ay, az, ah;
+                    place.arrival(fromZone, &ax, &ay, &az, &ah);
+                    player.reset(ax, ay, az, ah);
+                    if (netStarted) net.changeZone(exitHere.targetZone);
+                    lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
+                    continue;
+                }
+                place.load(fromZone); // fall back to where we were
+            }
+        }
+        lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
+        toastAge += dt;
+        if (toastAge > 3.0f) toast = nullptr;
 
         if (netStarted) {
             const u32 nowMs = tt::net::plat::nowMs();
@@ -465,6 +518,7 @@ int main() {
                 hv.maxMoney = st.maxMoney;
                 for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
             }
+            hv.toast = toast;
             hud.draw(renderer.topLeft(), hv);
         }
         const struct mallinfo mi = mallinfo();
@@ -479,7 +533,9 @@ int main() {
         // Static landmarks plus other players (blue).
         tt::ui::MapMarker mapMarkers[kMaxMapMarkers];
         int numMapMarkers = 0;
-        for (const tt::ui::MapMarker& mk : markers) mapMarkers[numMapMarkers++] = mk;
+        if (place.zoneId() == kStartZone) {
+            for (const tt::ui::MapMarker& mk : markers) mapMarkers[numMapMarkers++] = mk;
+        }
         float remoteXY[2 * kMaxMapMarkers];
         const int numRemote = remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
         for (int i = 0; i < numRemote; i++) {
@@ -514,7 +570,7 @@ int main() {
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();
-    terrain.unload();
+    place.unload();
     balloons.shutdown();
     ui.shutdown();
     renderer.shutdown();

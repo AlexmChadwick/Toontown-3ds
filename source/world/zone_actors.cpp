@@ -22,8 +22,14 @@ constexpr float kNametagMaxDistance = 60.0f; // far tags behind buildings are ju
 
 bool ZoneActors::init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath) {
     cache_ = cache;
+    loadPoints(pointsPath);
+    treasureModel_.load(treasureModelPath);
+    return true;
+}
+
+void ZoneActors::loadPoints(const char* pointsPath) {
     numPoints_ = 0;
-    if (FILE* f = fopen(pointsPath, "r")) {
+    if (FILE* f = pointsPath && pointsPath[0] ? fopen(pointsPath, "r") : nullptr) {
         char line[128];
         while (numPoints_ < kMaxPoints && fgets(line, sizeof(line), f)) {
             Point& p = points_[numPoints_];
@@ -31,9 +37,7 @@ bool ZoneActors::init(ToonCache* cache, const char* pointsPath, const char* trea
         }
         fclose(f);
     }
-    TT_LOG("zone: %d anchor points from %s", numPoints_, pointsPath);
-    treasureModel_.load(treasureModelPath);
-    return true;
+    TT_LOG("zone: %d anchor points from %s", numPoints_, pointsPath ? pointsPath : "(none)");
 }
 
 void ZoneActors::shutdown() {

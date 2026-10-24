@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "core/memory.h"
 
 namespace tt::render {
 
@@ -39,7 +40,10 @@ bool readAt(FILE* f, u32 offset, void* dst, u32 size) {
 Anim::~Anim() { unload(); }
 
 void Anim::unload() {
-    if (frames_) linearFree(frames_);
+    if (frames_) {
+        mem::LinearGuard g;
+        linearFree(frames_);
+    }
     free(attach_);
     frames_ = nullptr;
     attach_ = nullptr;
@@ -64,7 +68,10 @@ bool Anim::load(const char* path) {
         memcpy(posScale_, h.posScale, sizeof(posScale_));
         memcpy(posOffset_, h.posOffset, sizeof(posOffset_));
         const u32 bytes = numFrames_ * frameStride_;
-        frames_ = linearAlloc(bytes);
+        {
+            mem::LinearGuard g;
+            frames_ = linearAlloc(bytes);
+        }
         ok = frames_ && readAt(f, h.framesOffset, frames_, bytes);
         if (ok) GSPGPU_FlushDataCache(frames_, bytes);
         if (ok && (h.flags & 1)) {

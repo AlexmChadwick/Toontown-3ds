@@ -20,6 +20,8 @@ public:
     static constexpr int kMaxPoints = 64;
 
     bool init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath);
+    // New zone: reload anchor points (NPCs of the old zone are dropped by the client).
+    void loadPoints(const char* pointsPath);
     void shutdown();
     void handleEvent(const net::Event& ev, const net::Client& client);
     void update(float dt);

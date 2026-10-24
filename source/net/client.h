@@ -91,7 +91,7 @@ struct Event {
 
 enum class State : uint8_t {
     Idle, Connecting, Hello, Login, Districts, AvatarList, ChooseAvatar, CreateAvatar, PlayAvatar,
-    EnterZone, InZone, Backoff, Failed,
+    EnterZone, InZone, ChangingZone, Backoff, Failed,
 };
 const char* stateName(State s);
 
@@ -218,6 +218,16 @@ public:
     bool sendStop();
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
     bool sendAnimState(const char* name, float rate);
+    // Zone change through the quiet zone (QuietZoneState): location + interest to zone 1,
+    // drop the old zone's objects, then location + interest to `zoneId` (+ `visZones` for
+    // streets: [branch] + visgroup vis list). Load the new zone's geometry BEFORE calling
+    // (DNA-anchored objects generate as soon as the interest opens). InZone again (and an
+    // EnteredZone event) when the server confirms. Only valid while inZone().
+    static constexpr int kMaxVisZones = 24;
+    bool changeZone(uint32_t zoneId, const uint32_t* visZones = nullptr, int numVisZones = 0);
+    bool changingZone() const { return state_ == State::ChangingZone; }
+    uint32_t zoneId() const { return cfg_.zoneId; }
+
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
     // DistributedTreasure.requestGrab (clsend): the AI answers with setGrab(avId) or setReject.
@@ -270,6 +280,13 @@ private:
     bool finish(DatagramWriter& w);
     void sendHello();
     void sendAddInterest(uint16_t handle, uint32_t parent, uint32_t zone);
+    void sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uint32_t* zones, int n);
+    void dropZoneObjects();
+    uint32_t targetZone_ = 0;
+    uint32_t visZones_[kMaxVisZones] = {};
+    int numVisZones_ = 0;
+    uint32_t quietCtx_ = 0;
+    bool quietDone_ = false;
     void sendSetLocation(uint32_t doId, uint32_t parent, uint32_t zone);
     void sendRequestLogin();
     void sendRequestAvatarList();

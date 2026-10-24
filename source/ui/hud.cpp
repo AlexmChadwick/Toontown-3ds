@@ -13,15 +13,33 @@ constexpr float kJarX = 352.0f, kJarY = 190.0f;
 
 bool Hud::init() {
     buf_ = C2D_TextBufNew(64);
-    return buf_ != nullptr;
+    toastBuf_ = C2D_TextBufNew(160);
+    return buf_ != nullptr && toastBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
-    buf_ = nullptr;
+    if (toastBuf_) C2D_TextBufDelete(toastBuf_);
+    buf_ = toastBuf_ = nullptr;
 }
 
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
+    if (v.toast) {
+        if (v.toast != lastToast_) {
+            C2D_TextBufClear(toastBuf_);
+            C2D_TextParse(&toastText_, toastBuf_, v.toast);
+            C2D_TextOptimize(&toastText_);
+            lastToast_ = v.toast;
+        }
+        C2D_SceneBegin(top);
+        float w, h;
+        C2D_TextGetDimensions(&toastText_, 0.6f, 0.6f, &w, &h);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        C2D_DrawRectSolid(200 - w * 0.5f - 10, 70, 0.5f, w + 20, h + 12, C2D_Color32(0x10, 0x18, 0x30, 0xD0));
+        C2D_DrawText(&toastText_, C2D_WithColor, 200 - w * 0.5f, 76, 0.5f, 0.6f, 0.6f,
+                     C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
     if (!v.online) return; // stats come from the server
     // Re-parse text only when the numbers change (citro2d parsing is expensive).
     if (v.hp != lastHp_ || v.maxHp != lastMaxHp_ || v.money != lastMoney_) {

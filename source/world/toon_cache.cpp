@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 
 #include "core/log.h"
+#include "core/memory.h"
 
 namespace tt::world {
 
@@ -139,7 +140,10 @@ void ToonCache::shutdown() {
         p.state = SlotState::Free;
     }
     for (ToonClothing& c : clothes_) {
-        if (c.state == SlotState::Ready) C3D_TexDelete(&c.tex);
+        if (c.state == SlotState::Ready) {
+            mem::LinearGuard g;
+            C3D_TexDelete(&c.tex);
+        }
         c = ToonClothing{};
     }
     fallback_ = ToonLook{};
@@ -388,7 +392,10 @@ void ToonCache::loadPart(ToonPart& p) {
 }
 
 void ToonCache::loadClothing(ToonClothing& c) {
-    if (c.tex.data) C3D_TexDelete(&c.tex); // recycled slot
+    if (c.tex.data) {
+        mem::LinearGuard g;
+        C3D_TexDelete(&c.tex); // recycled slot
+    }
     c.tex = C3D_Tex{};
     const bool ok = render::loadTexture(clothesFile_, clothesEntries_[c.texIndex], &c.tex);
     __sync_synchronize();
