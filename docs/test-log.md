@@ -133,6 +133,19 @@ need hardware.
 - **Performance:** 166–171 draws, 13.1–13.3k tris, 30 fps, heap 1.9 MB (incl. a 1 MB
   socket buffer), linear 18 MB free.
 
+### 2026-10-23 — Streets, interiors, all playgrounds, teleport
+- **Target:** Azahar 2126.2, Old 3DS mode, local server.
+- **TTC playground from `2000.tz`:** 87–89 draws (was 171 as one model).
+- **Silly Street (2100):** in through the tunnel and confirmed by the server as zone
+  2132. 41 draws / 5.6k tris at the entrance. The toon walks out of the tunnel mouth
+  facing the street.
+- **Gag Shop interior (2519, Antigravity bake):** through the door, then back out to the
+  playground. Clerk Clara and Clerk Clark stand at their anchors.
+- **Teleport (Map tab):** TTC → Donald's Dock → Daisy Gardens → The Brrrgh. Each hood
+  loads in about 0.5 s and plays its own music, and the server confirms each zone. The
+  Brrrgh runs at 139 draws / 10.3k tris.
+- **Caveat:** the host Mac was busy during these runs, so the fps samples are noisy.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

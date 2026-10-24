@@ -30,8 +30,13 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "grab treasure", "grab"},
-    {2.0f, 0, 0, 0, 0, -1, -1, 0, "exit: tunnel 2132", "exit_tunnel"},
-    {2.0f, 0, 0, 0, 0, -1, -1, 0, "exit: door sz19", "exit_door"},
+    {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: door sz19", "exit_door"},
+    {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "exit_interior"},
+    {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: tunnel 2132", "exit_tunnel"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "teleport DD", "hood_dd"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 180, 191, 0, "teleport BR", "hood_br"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);

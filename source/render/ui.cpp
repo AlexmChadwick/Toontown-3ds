@@ -20,9 +20,14 @@ const float kToonColors[kNumToonColors][3] = {
     {0.898438f, 0.617188f, 0.90625f},  {0.7f, 0.7f, 0.8f},               {0.3f, 0.3f, 0.35f},
 };
 
+const unsigned kTeleportHoods[kNumTeleportHoods] = {2000, 1000, 5000, 4000, 3000, 9000, 6000, 8000};
+
 namespace {
 
 constexpr float kW = 320.0f;
+// Map tab teleport row (just above the tab bar).
+constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
+const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
 constexpr float kTabW = kW / kTabCount;
@@ -123,6 +128,12 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (!(down & KEY_TOUCH) || t.py >= kTabY) return 0;
 
     switch (s.tab) {
+    case kTabMap:
+        if (t.py >= kHoodRowY && t.py < kHoodRowY + kHoodRowH) {
+            const int i = static_cast<int>(t.px / kHoodW);
+            if (i >= 0 && i < kNumTeleportHoods) s.teleportRequest = kTeleportHoods[i];
+        }
+        break;
     case kTabToon:
         for (int i = 0; i < 3; i++) {
             if (inRect(t, 8 + i * 102, 8, 98, 28)) s.colorTarget = i;
@@ -172,7 +183,7 @@ void Ui::drawTabs(const State& s) {
 
 void Ui::drawMap(const Context& c) {
     // Fit zone bounds into the content area, preserving aspect. Map +Y is up.
-    const float areaX = 8, areaY = 8, areaW = kW - 16, areaH = kTabY - 16;
+    const float areaX = 8, areaY = 8, areaW = kW - 16, areaH = kHoodRowY - 14;
     const float zw = c.zoneMaxX - c.zoneMinX, zh = c.zoneMaxY - c.zoneMinY;
     const float scale = fminf(areaW / zw, areaH / zh);
     const float ox = areaX + (areaW - zw * scale) * 0.5f;
@@ -194,7 +205,15 @@ void Ui::drawMap(const Context& c) {
     // Long, narrow arrow so the tip is unambiguous at this size.
     C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
-    text(8, 8, 0.45f, kWhite, "Toontown Central  (%.0f, %.0f)", c.playerX, c.playerY);
+    text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
+    // Teleport row: tap a playground to go there (installed ones only).
+    for (int i = 0; i < kNumTeleportHoods; i++) {
+        const bool have = c.hoodsAvailable & (1u << i);
+        const bool here = kTeleportHoods[i] == c.currentHood;
+        const float x = i * kHoodW + 1;
+        C2D_DrawRectSolid(x, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH, here ? kAccent : have ? kPanel : kBg);
+        text(x + 6, kHoodRowY + 6, 0.42f, here ? kBg : have ? kWhite : kDim, "%s", kHoodShort[i]);
+    }
 }
 
 void Ui::drawToon(const State& s) {

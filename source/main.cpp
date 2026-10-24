@@ -117,7 +117,20 @@ int main() {
 
     // Audio: silent (not fatal) if the DSP is unavailable, e.g. no sdmc:/3ds/dspfirm.cdc on hardware.
     tt::audio::init();
-    tt::audio::playMusic("romfs:/baked/audio/ttc_nbrhood.tsnd", true);
+    // Playground music per hood (toontown/safezone/*SafeZoneLoader.py musicFile): TTC is in
+    // RomFS, the others on the SD set (tools/pipeline/bake_hoods.py).
+    auto playHoodMusic = [](u32 zone) {
+        const u32 hood = tt::world::hoodOf(zone);
+        char path[80];
+        if (hood == 2000) {
+            snprintf(path, sizeof(path), "romfs:/baked/audio/ttc_nbrhood.tsnd");
+        } else {
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%lu.tsnd", static_cast<unsigned long>(hood));
+        }
+        tt::audio::stopMusic(300);
+        tt::audio::playMusic(path, true);
+    };
+    playHoodMusic(2000);
     const tt::audio::SfxId sfxWalk = tt::audio::loadSfx("romfs:/baked/audio/footstep_walk.tsnd");
     const tt::audio::SfxId sfxRun = tt::audio::loadSfx("romfs:/baked/audio/footstep_run.tsnd");
     const tt::audio::SfxId sfxClick = tt::audio::loadSfx("romfs:/baked/audio/gui_click.tsnd");
@@ -156,7 +169,11 @@ int main() {
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
-    u32 lastExitZone = 0;       // exit trigger we're standing in (toast/zone change once per entry)
+    u32 lastExitZone = 0;
+    unsigned hoodsAvailable = 0;
+    for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
+        if (tt::world::Place::available(tt::ui::kTeleportHoods[i])) hoodsAvailable |= 1u << i;
+    }       // exit trigger we're standing in (toast/zone change once per entry)
     const char* toast = nullptr;
     float toastAge = 99.0f;
     char toastBuf[96];
@@ -344,11 +361,15 @@ int main() {
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
+            const bool interiorDoor = !strcmp(autotest.label(), "exit: interior door");
             const char* want = !strcmp(autotest.label(), "exit: tunnel 2132") ? "linktunnel_tt_2132" : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
             for (int i = 0; i < cw.numTriggers(); i++) {
                 const tt::world::CollTrigger& t = cw.trigger(i);
-                if (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger")) continue;
+                if (interiorDoor ? !strstr(t.name, "door_trigger")
+                                 : (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger"))) {
+                    continue;
+                }
                 const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;
                 if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
                     player.reset(cx, cy, t.min[2], player.headingDeg());
@@ -406,8 +427,8 @@ int main() {
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        u32 travelTarget = 0;
         if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
-            const bool canTravel = !netStarted || net.inZone();
             if (!tt::world::Place::available(exitHere.targetZone)) {
                 snprintf(toastBuf, sizeof(toastBuf), "Zone %lu isn't installed yet. Coming soon!",
                          static_cast<unsigned long>(exitHere.targetZone));
@@ -415,20 +436,29 @@ int main() {
                        static_cast<unsigned long>(exitHere.targetZone));
                 toast = toastBuf;
                 toastAge = 0.0f;
-            } else if (canTravel) {
-                const u32 fromZone = place.zoneId();
-                remoteToons.clear();
-                if (place.load(exitHere.targetZone)) {
-                    zoneActors.loadPoints(place.pointsPath());
-                    float ax, ay, az, ah;
-                    place.arrival(fromZone, &ax, &ay, &az, &ah);
-                    player.reset(ax, ay, az, ah);
-                    if (netStarted) net.changeZone(exitHere.targetZone);
-                    lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
-                    continue;
-                }
-                place.load(fromZone); // fall back to where we were
+            } else {
+                travelTarget = exitHere.targetZone;
             }
+        }
+        if (uiState.teleportRequest) {
+            // Map tab teleport to a playground (upstream: Shticker Book map page).
+            if (tt::world::Place::available(uiState.teleportRequest)) travelTarget = uiState.teleportRequest;
+            uiState.teleportRequest = 0;
+        }
+        if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
+            const u32 fromZone = place.zoneId();
+            remoteToons.clear();
+            if (place.load(travelTarget)) {
+                zoneActors.loadPoints(place.pointsPath());
+                float ax, ay, az, ah;
+                place.arrival(fromZone, &ax, &ay, &az, &ah);
+                player.reset(ax, ay, az, ah);
+                if (netStarted) net.changeZone(travelTarget);
+                lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
+                if (tt::world::hoodOf(travelTarget) != tt::world::hoodOf(fromZone)) playHoodMusic(travelTarget);
+                continue;
+            }
+            place.load(fromZone); // fall back to where we were
         }
         lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
         toastAge += dt;
@@ -633,6 +663,9 @@ int main() {
         ctx.vramFreeKB = vramSpaceFree() / 1024;
         ctx.isNew3ds = isNew3ds;
         ctx.zoneId = place.zoneId();
+        ctx.currentZone = place.zoneId();
+        ctx.currentHood = tt::world::hoodOf(place.zoneId());
+        ctx.hoodsAvailable = hoodsAvailable;
         if (netStarted) {
             ctx.netState = tt::net::stateName(net.state());
             ctx.netInBps = netInBps;

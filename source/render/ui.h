@@ -19,6 +19,8 @@ struct State {
     int bodyColor = 17;  // index into kToonColors (ToonDNA.allColorsList)
     int shirtColor = 2;
     int bottomColor = 18;
+    // Map tab teleport: hood zone id the player tapped (main clears it), 0 = none.
+    unsigned teleportRequest = 0;
 };
 
 struct MapMarker {
@@ -32,6 +34,10 @@ struct Context {
     float zoneMinX, zoneMinY, zoneMaxX, zoneMaxY;
     const MapMarker* markers;
     int numMarkers;
+    // Teleport row on the Map tab: which hoods are installed (bit i = kTeleportHoods[i]).
+    unsigned hoodsAvailable = 0;
+    unsigned currentHood = 0;
+    unsigned currentZone = 0;
     // Debug
     float fps, cpuMs, gpuMs, drawMs;
     unsigned drawCalls, triangles, modelsDrawn, modelsCulled;
@@ -43,6 +49,9 @@ struct Context {
     unsigned netInBps = 0, netOutBps = 0;
     int remoteToons = 0;
 };
+
+constexpr int kNumTeleportHoods = 8;
+extern const unsigned kTeleportHoods[kNumTeleportHoods];
 
 constexpr int kNumToonColors = 27;
 // toontown/toon/ToonDNA.py allColorsList (RGB).

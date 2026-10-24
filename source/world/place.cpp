@@ -20,6 +20,19 @@ constexpr float kDegToRad = 3.14159265f / 180.0f;
 // Arrival offset in front of a tunnel or door (toward the zone), toon units.
 constexpr float kArrivalDistance = 8.0f;
 
+// First entry of each hood's dropPoints (toontown/distributed/HoodMgr.py): where a toon
+// lands when teleporting into a playground. x, y, z, h.
+struct DropPoint {
+    u32 zone;
+    float x, y, z, h;
+};
+const DropPoint kDropPoints[] = {
+    {1000, -28.0f, -2.5f, 5.8f, 120.0f},  {2000, -60.0f, -8.0f, 1.3f, -90.0f},
+    {3000, 35.0f, -32.0f, 6.2f, 138.0f},   {4000, 86.0f, 44.0f, -13.5f, 121.1f},
+    {5000, 0.0f, 0.0f, 0.0f, -10.5f},      {6000, -165.8f, 108.0f, 0.025f, 252.0f},
+    {8000, -0.7f, 62.0f, 0.08f, 182.0f},   {9000, 77.0f, 91.0f, 0.0f, 124.4f},
+};
+
 bool exists(const char* path) {
     struct stat st;
     return stat(path, &st) == 0;
@@ -220,6 +233,17 @@ void Place::arrival(u32 fromZone, float* x, float* y, float* z, float* h) const 
     if (!back && kind() == PlaceKind::Interior) {
         for (int i = 0; i < cw.numTriggers() && !back; i++) {
             if (strstr(cw.trigger(i).name, "door")) back = &cw.trigger(i);
+        }
+    }
+    if (!back && kind() == PlaceKind::Playground) {
+        for (const DropPoint& d : kDropPoints) {
+            if (d.zone == zoneId_) {
+                *x = d.x;
+                *y = d.y;
+                *z = d.z;
+                *h = d.h;
+                return;
+            }
         }
     }
     if (!back) {
