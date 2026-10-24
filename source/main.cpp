@@ -549,6 +549,17 @@ int main() {
                 talk.chooseQuest(0);
             }
         }
+        if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
+            // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
+            static u32 tailorNextMs = 0;
+            const u32 now = tt::net::plat::nowMs();
+            if (place.zoneId() != 2521 && !uiState.teleportRequest && fadeDir == 0) uiState.teleportRequest = 2521;
+            float npc[4];
+            if (place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 && now > tailorNextMs) {
+                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
+                tailorNextMs = now + 5000;
+            }
+        }
         if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
             // Test-only: teleport straight to a Cog HQ courtyard (upstream gets there by tunnel).
             static const char* lastGo = nullptr;
