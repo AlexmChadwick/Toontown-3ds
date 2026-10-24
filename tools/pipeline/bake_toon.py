@@ -98,7 +98,13 @@ def head_prefix(head):
 
 # Runtime animation name -> upstream file suffix, phase (Toon.py Phase3/Phase3_5AnimList).
 ANIMS = {'neutral': ('neutral', 3), 'run': ('run', 3), 'walk': ('walk', 3.5),
-         'jump-idle': ('jump-zhang', 3.5), 'wave': ('wave', 3.5)}
+         'jump-idle': ('jump-zhang', 3.5), 'wave': ('wave', 3.5),
+         'throw': ('pie-throw', 3.5), 'pushbutton': ('press-button', 3.5),
+         'cringe': ('cringe', 3.5), 'conked': ('conked', 3.5),
+         'sidestep-left': ('sidestep-left', 3.5), 'sidestep-right': ('jump-back-right', 3.5),
+         'duck': ('duck', 3.5), 'victory': ('victory-dance', 3.5),
+         'lose': ('lose', 5), 'sad-walk': ('losewalk', 4),
+         'teleport': ('teleport', 3.5), 'book': ('book', 3.5)}
 BAKE_FPS = 12.0
 LODS = ('500', '250')
 
@@ -466,6 +472,8 @@ def main():
     ap.add_argument('--legs', default=','.join(LEGS))
     ap.add_argument('--lods', '--lod', default=','.join(LODS))
     ap.add_argument('--anims', default=','.join(ANIMS))
+    ap.add_argument('--battle-only', action='store_true',
+                    help='battle clips plus neutral as the unchanged base-mesh pose')
     ap.add_argument('--max-tex', type=int, default=128)
     ap.add_argument('--clothes-max-tex', type=int, default=64,
                     help='clothing textures are up to 128x128 upstream; 64 keeps clothes.ttx ~1/4 the size')
@@ -474,6 +482,8 @@ def main():
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)
     ap.add_argument('--worker', nargs=2, metavar=('KIND', 'CODE'), help=argparse.SUPPRESS)
     args = ap.parse_args()
+    if args.battle_only:
+        args.anims = ','.join(a for a in ANIMS if a not in ('run', 'walk', 'jump-idle', 'wave'))
     if args.worker:
         return worker(args)
     heads = csv(args.heads, ToonDNA.toonHeadTypes)
