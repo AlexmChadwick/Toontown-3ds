@@ -91,9 +91,17 @@ echo "uberdog up (pid $UPID)"
 
 # 3. AI district (same args as ref/open-toontown/darwin/start-ai-server.sh)
 DISTRICT="${DISTRICT_NAME:-Toon Valley}"
+# Optional test overrides (PRC): AI_MINIGAME_ID=8 makes every trolley ride the Catching game
+# (MinigameCreatorAI reads minigame-id; ToontownGlobals *GameId values).
+AI_PRC=(etc/Configrc.prc)
+if [ -n "${AI_MINIGAME_ID:-}" ]; then
+    printf 'minigame-id %s\n' "$AI_MINIGAME_ID" > "$RUN/ai-test.prc"
+    AI_PRC+=("$RUN/ai-test.prc")
+    echo "ai: forcing minigame-id $AI_MINIGAME_ID"
+fi
 "$PY" -m toontown.ai.AIStart --base-channel 401000000 --max-channels 999999 \
     --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
-    --district-name "$DISTRICT" \
+    --district-name "$DISTRICT" "${AI_PRC[@]}" \
     > "$LOGS/ai-$STAMP.log" 2>&1 < /dev/null &
 AIPID=$!; echo "ai $AIPID" >> "$RUN/pids"
 ln -sfn "ai-$STAMP.log" "$LOGS/ai.log"

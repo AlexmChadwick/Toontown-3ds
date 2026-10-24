@@ -30,7 +30,9 @@
 #include "world/boat.h"
 #include "world/cchar.h"
 #include "world/suits.h"
+#include "game/minigame_session.h"
 #include "world/battle.h"
+#include "world/trolley.h"
 #include "world/fishing.h"
 #include "world/place.h"
 #include "world/player.h"
@@ -333,6 +335,10 @@ int main() {
     fishing.init(&player, &net);
     // Street cog battles (world/battle.*, docs/design/combat.md); the panel is ui/battle_panel.*.
     static tt::world::Battle battle;
+    // The playground trolley and the minigame it leads to (docs/design/trolley.md).
+    static tt::world::TrolleyRide trolley;
+    trolley.setZone(kStartZone);
+    static tt::game::MinigameSession minigame;
     tt::world::BattleView battleView;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
@@ -350,7 +356,7 @@ int main() {
     autotest.begin();
     const char* shotName = nullptr;
     bool autotestGrabbed = false;
-    bool autotestClerk = false, autotestBoarded = false;
+    bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false;
     unsigned netInBps = 0, netOutBps = 0;
     uint32_t lastBytesIn = 0, lastBytesOut = 0;
 
@@ -505,6 +511,14 @@ int main() {
             float sx, sy, sz, sh;
             if (fishing.nearestSpot(player.x(), player.y(), &sx, &sy, &sz, &sh)) player.reset(sx, sy, sz + 0.5f, sh);
         }
+        if (autotest.active() && !strcmp(autotest.label(), "board trolley") && !trolley.seated() &&
+            !minigame.active() && !autotestBoardedTrolley) {
+            // Test-only: walk into the TTC trolley station (trolley_sphere centre).
+            float bx, by, bz;
+            trolley.boardingPoint(&bx, &by, &bz);
+            if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
+            autotestBoardedTrolley = true;
+        }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
@@ -587,6 +601,14 @@ int main() {
             in.down &= ~(KEY_A | KEY_B);
         }
         tt::prof::lap(tt::prof::kInput);
+        const circlePosition minigamePad = in.pad;
+        if (minigame.active() || trolley.seated()) { // seated or in a game: the toon isn't walking
+            if (trolley.seated() && (in.down & KEY_B)) trolley.hopOff(net);
+            in.pad.dx = 0;
+            in.pad.dy = 0;
+            in.held &= ~(KEY_A | KEY_B);
+            in.down &= ~(KEY_A | KEY_B);
+        }
         if (battle.active()) { // the battle places the toon; the circle pad and A/B do nothing
             in.pad.dx = 0;
             in.pad.dy = 0;
@@ -605,6 +627,19 @@ int main() {
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         player.update(in, dt);
         fishing.applyCamera();
+        if (trolley.seated() || minigame.inScene()) {
+            float sx, sy, sz, sh;
+            C3D_FVec eye, target;
+            if (minigame.inScene()) {
+                minigame.toonPose(&sx, &sy, &sz, &sh);
+                minigame.camera(&eye, &target);
+            } else {
+                trolley.seatPose(&sx, &sy, &sz, &sh);
+                trolley.camera(&eye, &target);
+            }
+            player.reset(sx, sy, sz, sh);
+            player.overrideCamera(eye, target);
+        }
         if (battle.inBattle()) {
             tt::world::BattleActorPose lp;
             if (battle.localPose(&lp)) player.reset(lp.x, lp.y, lp.z, lp.h);
@@ -617,6 +652,7 @@ int main() {
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
         localToon.play(anim, animRate);
+        if (minigame.inScene()) localToon.play(minigame.toonRunning() ? tt::world::kAnimRun : tt::world::kAnimNeutral, 1.0f);
         if (battle.inBattle()) { // the battle movie animates the toon
             tt::world::BattleActorPose lp;
             if (battle.localPose(&lp)) localToon.play(static_cast<tt::world::ToonAnim>(lp.anim), 1.0f);
@@ -651,8 +687,8 @@ int main() {
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
         u32 travelTarget = 0;
-        if (fadeDir != 0) {
-            // A transition is running: no new exits.
+        if (fadeDir != 0 || minigame.active() || trolley.seated()) {
+            // A transition is running, or we are on the trolley / away at a minigame: no exits.
         } else if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
             if (!tt::world::Place::available(exitHere.targetZone)) {
                 snprintf(toastBuf, sizeof(toastBuf), "Zone %lu isn't installed yet. Coming soon!",
@@ -703,6 +739,7 @@ int main() {
                 zoneActors.loadPoints(place.pointsPath());
                 cchars.setZone(travelTarget);
                 fishing.setZone(travelTarget, place.pointsPath());
+                trolley.setZone(travelTarget);
                 suits.setZone(travelTarget);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
@@ -735,6 +772,8 @@ int main() {
                 cchars.handleEvent(ev, net, nowMs);
                 fishing.handleEvent(ev);
                 battle.handleEvent(ev, net, nowMs);
+                trolley.handleEvent(ev, net, nowMs);
+                minigame.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::ShopMovie) {
@@ -820,7 +859,8 @@ int main() {
             const u32 nowMs = tt::net::plat::nowMs();
             // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
             // walking into someone else's fight joins it.
-            if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active()) {
+            if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active() && !minigame.active() &&
+                !trolley.seated()) {
                 if (const u32 cog = suits.touching(player.x(), player.y(), player.z())) {
                     float cx, cy, cz, ch;
                     if (suits.pose(cog, &cx, &cy, &cz, &ch)) {
@@ -829,6 +869,46 @@ int main() {
                     }
                 }
                 battle.checkJoin(net, player.x(), player.y(), player.z(), player.headingDeg(), nowMs);
+            }
+            if (!battle.active() && !minigame.active() && fadeDir == 0) {
+                trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
+            }
+            {
+                int seat;
+                if (trolley.popExit(&seat)) { // hopped off: stand beside the station
+                    float x, y, z, h;
+                    trolley.exitPose(seat, &x, &y, &z, &h);
+                    player.reset(x, y, z, h);
+                }
+                u32 mgZone;
+                u16 mgGame;
+                if (trolley.popMinigame(&mgZone, &mgGame)) {
+                    minigame.begin(net, mgZone, mgGame, trolley.hood(), nowMs);
+                    player.setCollision(nullptr); // the stage is flat; the playground stays loaded
+                    remoteToons.clear();
+                }
+                minigame.setAutoPlay(autotest.active()); // test-only: run under the fruit
+                minigame.update(net, minigamePad, dt, nowMs);
+                if (const u32 home = minigame.popReturn()) {
+                    // Back from the game: teleport into the playground (Playground.enterTeleportIn).
+                    player.setCollision(&place.collision());
+                    net.changeZone(home);
+                    float ax, ay, az, ah;
+                    place.arrival(0, &ax, &ay, &az, &ah);
+                    player.reset(ax, ay, az, ah);
+                    net.sendSetParent(tt::net::kParentRender);
+                    tt::audio::playSfx(sfxTeleport);
+                }
+                if (const char* m = trolley.popMessage()) {
+                    toast = m;
+                    toastAge = 0.0f;
+                }
+                const int left = trolley.seated() ? trolley.countdown(net, nowMs) : -1;
+                if (left >= 0) {
+                    snprintf(toastBuf, sizeof(toastBuf), "The trolley leaves in %d...  (B: hop off)", left);
+                    toast = toastBuf;
+                    toastAge = 0.0f;
+                }
             }
             battle.setAutoPlay(autotest.active());
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
@@ -873,7 +953,11 @@ int main() {
             const int eyeSign = stereoActive ? (e == 0 ? -1 : 1) : 0;
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
-            place.draw(renderer, player.cameraEye());
+            if (minigame.active()) {
+                minigame.draw(renderer); // the playground is hidden while we are away
+            } else {
+                place.draw(renderer, player.cameraEye());
+            }
             tt::prof::lap(tt::prof::kDrawPlace);
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
@@ -1043,6 +1127,10 @@ int main() {
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();
+        if (minigame.active()) {
+            ctx.infoTitle = minigame.title();
+            for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);
+        }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
 
@@ -1057,6 +1145,7 @@ int main() {
     zoneActors.shutdown();
     cchars.shutdown();
     fishing.shutdown();
+    minigame.shutdown();
     boat.shutdown();
     tt::world::AssetLoader::shutdown();
     suits.shutdown();

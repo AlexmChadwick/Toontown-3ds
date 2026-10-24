@@ -52,6 +52,9 @@ struct Context {
     unsigned zoneId = 0;
     unsigned netInBps = 0, netOutBps = 0;
     int remoteToons = 0;
+    // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
+    const char* infoTitle = nullptr;
+    const char* infoLines[3] = {};
     // Gags tab (owner view of our toon); null = offline.
     const uint16_t* gagExp = nullptr;            // [7]
     const uint8_t (*gagCount)[7] = nullptr;      // [7][7]
@@ -113,6 +116,7 @@ private:
     void drawToon(const State& s);
     void drawSettings(const State& s);
     void drawGags(const Context& c);
+    void drawInfo(const Context& c);
     void drawDebug(const Context& c);
 
     void unloadMap();

@@ -275,6 +275,33 @@ need hardware.
   - multi-toon battles and joining someone else's fight
 - No PANIC.
 
+### 2026-10-24 — Trolley and the Catching game, end to end
+- **Target:** Azahar 2126.2, Old 3DS mode, local server started with
+  `AI_MINIGAME_ID=8 tools/server/start.sh` (forces Catch).
+- **Flow, all against the stock AI:**
+  - The toon walks into the TTC trolley sphere, sends requestBoard, and gets fillSlot
+    (seat 0). The countdown shows as a toast.
+  - setMinigameZone(61000, 8), then setParent(hidden) and changeZone(61000).
+  - DistributedCatchGame (class 131) generates. We send setAvatarJoined, show the rules
+    for 4 s, then send setAvatarReady.
+  - setGameStart. The schedule is 24 drops, 18 of them apples, identical to upstream
+    (host-tested in `tools/catch_test`).
+  - With the autotest steering, the toon catches 18 of 18 (claimCatch each) and then
+    sends reportDone.
+  - setGameExit, then setAvatarExited.
+  - PurchaseManager (class 176) pays 13 jellybeans. We send requestExit, the AI answers
+    setPurchaseExit, and we send setInventory(done=1).
+  - changeZone(2000) teleports us back to the playground, and the jar shows 13.
+- **Rendering.** The treehouse stage draws at 1,870 tris with the fruit models;
+  29.9 fps.
+- **Not yet:**
+  - other minigames: aborted at once, which pays 1–7 beans
+  - the trolley car does not drive (static in the zone bake)
+  - sit/eat animations
+  - cogs walking on the catch stage
+  - the gag purchase screen
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

@@ -378,6 +378,16 @@ server.
     - Character and boat models now load on the shared background loader
       (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
       main thread; never hold `LinearGuard` around `Model::load`)
+- ✅ **Street battles** (`world/battle.*`, `ui/battle_panel.*`): cog contact, the whole
+  DistributedBattle flow, a gag picker from the inventory, placeholder movie effects, and
+  going sad back to the playground.
+- ✅ **Trolley and minigames** (`world/trolley.*`, `game/minigame_session.*`,
+  `game/catch_logic.*`): boarding, the minigame framework, the Catching game, and the
+  PurchaseManager exit. Other games are aborted (the AI pays 1–7 beans).
+  `AI_MINIGAME_ID=<id> tools/server/start.sh` forces a game.
+- ✅ **Fishing** (practice mode; the stock AI spawns no spots), the **Gag Shop clerk**,
+  **boat riding**, **minimaps**, the **Gags tab**, a **frame profiler** (Debug tab),
+  and **sounds** (doors, teleport, place music, ambience).
 - Next:
   - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`). For now a
     0.4 s fade out (the toon walks on into the tunnel or door), the load, then a 0.4 s fade in.

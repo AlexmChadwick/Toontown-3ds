@@ -180,6 +180,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         battle_.draw(*battleView_, battleGags_);
         return;
     }
+    if (c.infoTitle) {
+        drawInfo(c);
+        return;
+    }
     if (c.fishing) {
         fishingPanel_.draw(*c.fishing, kTabY);
         drawTabs(s);
@@ -349,6 +353,13 @@ void Ui::drawSettings(const State& s) {
     text(kBtnX + kBtnW + 12, kStressY + 10, 0.5f, kWhite, "Stress toons: %d", s.stressToons);
     text(12, 140, 0.45f, kDim, "Stress toons are extra copies of the toon,");
     text(12, 156, 0.45f, kDim, "used to measure the Old 3DS draw budget.");
+}
+
+void Ui::drawInfo(const Context& c) {
+    text(12, 12, 0.7f, kAccent, "%s", c.infoTitle);
+    for (int i = 0; i < 3; i++) {
+        if (c.infoLines[i] && c.infoLines[i][0]) text(12, 60 + i * 30, 0.55f, kWhite, "%s", c.infoLines[i]);
+    }
 }
 
 void Ui::drawGags(const Context& c) {
