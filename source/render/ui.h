@@ -9,6 +9,7 @@
 #include "ui/battle_panel.h"
 #include "ui/quest_panel.h"
 #include "ui/shop_panel.h"
+#include "ui/tailor_panel.h"
 #include "ui/fishing_panel.h"
 
 namespace tt::ui {
@@ -94,6 +95,7 @@ public:
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ShopPanel& shop() { return shop_; }
+    TailorPanel& tailor() { return tailor_; }
     // Street battle (world/battle.*): while a view is set the battle panel owns the bottom
     // screen. Call every frame before handleInput (null when not fighting).
     void setBattle(const world::BattleView* view, const BattleGags& gags) {
@@ -151,6 +153,7 @@ private:
     int lastTab_ = -1;
     ChatMenu chat_;
     ShopPanel shop_;
+    TailorPanel tailor_;
     BattlePanel battle_;
     QuestPanel quest_;
     // Whisper targets seen at the last draw (handleInput runs before draw each frame).

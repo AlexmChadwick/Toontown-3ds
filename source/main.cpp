@@ -237,6 +237,8 @@ int main() {
     bool localLookFromServer = false;
     tt::world::ToonAvatar localToon;
     localToon.setLook(&localLook, &toonCache.fallback());
+    tt::ui::TailorPanel& tailor = ui.tailor();
+    tailor.setPreview(&toonCache, &localLook);
     static tt::world::RemoteToons remoteToons;
     remoteToons.init(&toonCache);
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
@@ -278,6 +280,7 @@ int main() {
     // Gag shop (docs/design/shop.md): walking into a clerk's tube sends avatarEnter once per contact.
     tt::ui::ShopPanel& shop = ui.shop();
     u32 lastTouchedClerk = 0;
+    u32 lastTouchedTailor = 0;
     u32 lastTouchedQuestNpc = 0;
     // Talking to quest-giving NPC toons (ToonTasks; quest/quest_talk.*, ui/quest_panel.*).
     static tt::quest::Talk talk;
@@ -681,6 +684,11 @@ int main() {
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
         }
+        if (tailor.active()) { // browsing clothes freezes the toon at the tailor
+            in.pad.dx = 0;
+            in.pad.dy = 0;
+            in.held &= ~(KEY_A | KEY_B);
+        }
         // Donald's boat: its deck collision carries the toon (Player::setPlatform); pose first.
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
@@ -852,12 +860,20 @@ int main() {
                         toastAge = 0.0f;
                     }
                 }
+                if (ev.type == tt::net::EventType::TailorMovie) {
+                    tailor.onMovie(net, nowMs);
+                    if (const char* note = tailor.takeNotice()) {
+                        toast = note;
+                        toastAge = 0.0f;
+                    }
+                }
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
                 }
             }
             shop.update(net, nowMs);
+            tailor.update(net, nowMs);
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
                 tt::net::FriendEvent fe;
@@ -934,6 +950,11 @@ int main() {
                                                          tt::dc::DistributedNPCClerk::kClassId);
                 if (clerk && clerk != lastTouchedClerk && !shop.active() && fadeDir == 0) net.sendClerkAvatarEnter(clerk);
                 lastTouchedClerk = clerk;
+                const u32 tailorNpc = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                             tt::dc::DistributedNPCTailor::kClassId);
+                if (tailorNpc && tailorNpc != lastTouchedTailor && !tailor.active() && !shop.active() && fadeDir == 0)
+                    net.sendTailorAvatarEnter(tailorNpc);
+                lastTouchedTailor = tailorNpc;
                 // Quest givers: walking into one starts the conversation (DistributedNPCToon.avatarEnter).
                 u32 giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                    tt::dc::DistributedNPCToon::kClassId);

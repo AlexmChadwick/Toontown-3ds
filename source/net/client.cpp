@@ -70,6 +70,8 @@ TT_SIG(DistributedNPCToonBase, setPositionIndex, "u8");
 TT_SIG(DistributedNPCToonBase, avatarEnter, "");
 TT_SIG(DistributedNPCClerk, setMovie, "u8,u32,u32,i16");
 TT_SIG(DistributedNPCClerk, setInventory, "blob,i16,u8");
+TT_SIG(DistributedNPCTailor, setMovie, "u8,u32,u32,i16");
+TT_SIG(DistributedNPCTailor, setDNA, "blob,i8,u8");
 // quests section
 TT_SIG(DistributedToon, setQuests, "u32[]");
 TT_SIG(DistributedToon, setQuestHistory, "u16[]");
@@ -450,6 +452,7 @@ void Client::resetWorld() {
         n.active = false;
     }
     shopMovie_ = ShopMovie{}; // the clerk is gone; a session with it cannot continue
+    tailorMovie_ = TailorMovie{};
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
         t.active = false;
@@ -837,6 +840,10 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     }
     if (fieldId == dc::DistributedNPCClerk::k_setMovie) {
         handleClerkMovie(r, doId);
+        return;
+    }
+    if (fieldId == dc::DistributedNPCTailor::k_setMovie) {
+        handleTailorMovie(r, doId);
         return;
     }
     if (handleTrolleyField(r, doId, fieldId)) return;
@@ -1937,12 +1944,42 @@ void Client::handleClerkMovie(DatagramReader& r, uint32_t doId) {
         const uint32_t t = networkToLocal(ts, now_);
         if (int32_t(now_ - t) >= 0) start = t;
     }
+
     m.deadlineMs = start + kClerkCountdownMs;
     if (int32_t(m.deadlineMs - now_) > int32_t(kClerkCountdownMs)) m.deadlineMs = now_ + kClerkCountdownMs;
     m.seq = shopMovie_.seq + 1;
     shopMovie_ = m;
     TT_LOG("net: clerk %u setMovie mode %u av %u", unsigned(doId), unsigned(mode), unsigned(avId));
     pushEvent(EventType::ShopMovie, doId);
+}
+
+void Client::handleTailorMovie(DatagramReader& r, uint32_t doId) {
+    const NpcToon* n = findNpc(doId);
+    if (!n || n->classId != dc::DistributedNPCTailor::kClassId) return;
+    const uint8_t mode = r.u8();
+    const uint32_t npcId = r.u32();
+    const uint32_t avId = r.u32();
+    const int16_t ts = r.i16();
+    if (!r.ok()) return;
+    const bool ours = avId == avatarId_ && avatarId_ != 0;
+    if (!ours && mode != kTailorMovieClear) return;
+    if (mode == kTailorMovieClear && tailorMovie_.tailorDoId != doId) return;
+    TailorMovie m;
+    m.tailorDoId = doId;
+    m.mode = mode;
+    m.npcId = npcId;
+    m.avId = avId;
+    uint32_t start = now_;
+    if (timeSynced_) {
+        const uint32_t t = networkToLocal(ts, now_);
+        if (int32_t(now_ - t) >= 0) start = t;
+    }
+    m.deadlineMs = start + kTailorCountdownMs;
+    if (int32_t(m.deadlineMs - now_) > int32_t(kTailorCountdownMs)) m.deadlineMs = now_ + kTailorCountdownMs;
+    m.seq = tailorMovie_.seq + 1;
+    tailorMovie_ = m;
+    TT_LOG("net: tailor %u setMovie mode %u av %u", unsigned(doId), unsigned(mode), unsigned(avId));
+    pushEvent(EventType::TailorMovie, doId);
 }
 
 bool Client::sendClerkAvatarEnter(uint32_t clerkDoId) {
@@ -1963,6 +2000,25 @@ bool Client::sendClerkSetInventory(uint32_t clerkDoId, const uint8_t inv[7][7], 
     w.blob(blob, sizeof(blob));
     w.i16(money);
     w.u8(done ? 1 : 0);
+    return finish(w);
+}
+
+bool Client::sendTailorAvatarEnter(uint32_t tailorDoId) {
+    if (state_ != State::InZone) return false;
+    const NpcToon* n = findNpc(tailorDoId);
+    if (!n || n->classId != dc::DistributedNPCTailor::kClassId) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, tailorDoId, DistributedNPCToonBase, avatarEnter);
+    return finish(w);
+}
+
+bool Client::sendTailorDNA(uint32_t tailorDoId, const uint8_t dna[kDnaSize], int8_t finished, uint8_t which) {
+    if (state_ != State::InZone || !tailorOpenFor(tailorDoId) || !world::isValidNetString(dna, kDnaSize)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, tailorDoId, DistributedNPCTailor, setDNA);
+    w.blob(dna, kDnaSize);
+    w.i8(finished);
+    w.u8(which);
     return finish(w);
 }
 
@@ -2304,6 +2360,7 @@ void Client::dropZoneObjects() {
         n.active = false;
     }
     shopMovie_ = ShopMovie{}; // the clerk is gone; a session with it cannot continue
+    tailorMovie_ = TailorMovie{};
     movieHead_ = movieTail_ = 0; // quests section: pending NPC movies belong to the old zone
     for (Treasure& t : treasures_) {
         if (t.active) pushEvent(EventType::TreasureGone, t.doId);
