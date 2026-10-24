@@ -143,7 +143,9 @@ void TailorPanel::update(net::Client& client, uint32_t nowMs) {
     world::makeNetString(dna, blob);
     const uint8_t which = cancel ? 0 : uint8_t((changedTop_ ? net::kTailorWhichShirt : 0) |
                                                (changedBottom_ ? net::kTailorWhichShorts : 0));
-    client.sendTailorDNA(tailor_, blob, 1, which);
+    // DistributedNPCTailorAI.setDNA: finished 2 + which buys (needs a clothing ticket from a
+    // ToonTask reward, or the tailor's freeClothes); finished 1 puts the old clothes back.
+    client.sendTailorDNA(tailor_, blob, cancel || !which ? 1 : 2, which);
     if (cancel) {
         working_ = original_;
         preview();
