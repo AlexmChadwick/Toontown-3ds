@@ -12,6 +12,8 @@ struct HudValues {
     float headRgb[3] = {0.7f, 0.7f, 0.8f}; // laff meter face colour (toon head colour)
     bool online = false;
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
+    bool racing = false;
+    int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
 };
 
 class Hud {
@@ -22,8 +24,10 @@ public:
 
 private:
     C2D_TextBuf buf_ = nullptr;
+    C2D_TextBuf raceBuf_ = nullptr;
     int lastHp_ = -1, lastMaxHp_ = -1, lastMoney_ = -1;
     C2D_Text hpText_{}, moneyText_{}, toastText_{};
+    C2D_Text raceText_{};
     const char* lastToast_ = nullptr;
     C2D_TextBuf toastBuf_ = nullptr;
 };

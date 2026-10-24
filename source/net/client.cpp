@@ -801,6 +801,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleTrolleyEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (handleRacingEnter(doId, classId, r, req, reqCount, other)) return;
     if (classId == dc::DistributedFactory::kClassId) {
         handleFactoryEnter(doId, classId, r, req, reqCount, other);
         return;
@@ -934,6 +935,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (handleFacilityField(r, doId, fieldId)) return;
     if (handleEstateField(r, doId, fieldId)) return;
     if (handleCogField(r, doId, fieldId)) return;
+    if (handleRacingField(r, doId, fieldId)) return;
     for (NpcToon& n : npcs_) {
         if (n.active && n.doId == doId) {
             handleNpcField(n, r, fieldId);
@@ -1033,6 +1035,10 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 
 void Client::handleLeaving(uint32_t doId) {
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
+    for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
+    for (RacingBlock& b : racingBlocks_) if (b.active && b.doId == doId) { b = RacingBlock{}; pushEvent(EventType::RacingGone, doId); return; }
+    for (RacingVehicle& v : racingVehicles_) if (v.active && v.doId == doId) { v = RacingVehicle{}; pushEvent(EventType::RacingGone, doId); return; }
+    if (racingRace_.active && racingRace_.doId == doId) { racingRace_ = RacingRace{}; pushEvent(EventType::RacingGone, doId); return; }
     if (RemoteToon* t = toonById(doId)) {
         t->active = false;
         --numToons_;
@@ -2540,6 +2546,7 @@ void Client::dropZoneObjects() {
     clearBattles();
     clearCogObjects();
     clearTrolleyObjects();
+    clearRacing();
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
@@ -4035,6 +4042,177 @@ bool Client::sendRaceChoice(uint8_t choice) {
     TT_NET_UPDATE(w, minigame_.doId, DistributedRaceGame, setAvatarChoice);
     w.u8(choice);
     return finish(w);
+}
+
+// ============================== Goofy Speedway racing ======================
+void Client::clearRacing() {
+    for (RacingPad& p : racingPads_) p = RacingPad{};
+    for (RacingBlock& b : racingBlocks_) b = RacingBlock{};
+    for (RacingVehicle& v : racingVehicles_) v = RacingVehicle{};
+    if (racingRace_.active) pushEvent(EventType::RacingGone, racingRace_.doId);
+    racingRace_ = RacingRace{};
+}
+
+bool Client::handleRacingEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                               uint16_t reqCount, bool other) {
+    const bool padClass = classId == dc::DistributedRacePad::kClassId;
+    const bool blockClass = classId == dc::DistributedStartingBlock::kClassId;
+    const bool vehicleClass = classId == dc::DistributedVehicle::kClassId;
+    const bool raceClass = classId == dc::DistributedRace::kClassId;
+    if (!padClass && !blockClass && !vehicleClass && !raceClass) return false;
+    auto apply = [&](uint16_t id) {
+        if (padClass) {
+            RacingPad* p = nullptr;
+            for (RacingPad& s : racingPads_) if (s.active && s.doId == doId) p = &s;
+            if (!p) for (RacingPad& s : racingPads_) if (!s.active) { p = &s; break; }
+            if (!p) { skipField(r, id); return; }
+            p->doId = doId;
+            if (id == dc::DistributedRacePad::k_setState) {
+                r.string(p->state, sizeof(p->state)); r.i16();
+            } else if (id == dc::DistributedRacePad::k_setRaceZone) p->raceZone = r.u32();
+            else if (id == dc::DistributedRacePad::k_setTrackInfo) {
+                Bytes b = r.blob(); p->trackCount = uint8_t(std::min<size_t>(b.len / 2, 8));
+                for (uint8_t i = 0; i < p->trackCount; ++i) p->trackIds[i] = uint16_t(b.data[2*i] | (b.data[2*i+1] << 8));
+            } else skipField(r, id);
+            p->active = r.ok();
+        } else if (blockClass) {
+            RacingBlock* b = nullptr;
+            for (RacingBlock& s : racingBlocks_) if (s.active && s.doId == doId) b = &s;
+            if (!b) for (RacingBlock& s : racingBlocks_) if (!s.active) { b = &s; break; }
+            if (!b) { skipField(r, id); return; }
+            b->doId = doId;
+            if (id == dc::DistributedStartingBlock::k_setPadDoId) b->padDoId = r.u32();
+            else if (id == dc::DistributedStartingBlock::k_setPadLocationId) b->location = r.u8();
+            else if (id == dc::DistributedStartingBlock::k_setOccupied) b->occupant = r.u32();
+            else if (id == dc::DistributedStartingBlock::k_setPosHpr) {
+                b->x=r.i16()/10.0f; b->y=r.i16()/10.0f; b->z=r.i16()/10.0f;
+                b->h=r.i16()/10.0f; b->p=r.i16()/10.0f; b->r=r.i16()/10.0f;
+            } else skipField(r, id);
+            b->active = r.ok();
+        } else if (vehicleClass) {
+            RacingVehicle* v = nullptr;
+            for (RacingVehicle& s : racingVehicles_) if (s.active && s.doId == doId) v = &s;
+            if (!v) for (RacingVehicle& s : racingVehicles_) if (!s.active) { v = &s; break; }
+            if (!v) { skipField(r, id); return; }
+            v->doId = doId;
+            switch (id) {
+            case dc::DistributedVehicle::k_setOwner: v->owner = r.u32(); break;
+            case dc::DistributedVehicle::k_setState: v->state = char(r.i8()); v->driver = r.u32(); break;
+            case dc::DistributedVehicle::k_setBodyType: v->body = r.i8(); break;
+            case dc::DistributedVehicle::k_setBodyColor: v->bodyColor = r.i8(); break;
+            case dc::DistributedVehicle::k_setAccessoryColor: v->accessoryColor = r.i8(); break;
+            case dc::DistributedVehicle::k_setEngineBlockType: v->engine = r.i8(); break;
+            case dc::DistributedVehicle::k_setSpoilerType: v->spoiler = r.i8(); break;
+            case dc::DistributedVehicle::k_setFrontWheelWellType: v->frontWheels = r.i8(); break;
+            case dc::DistributedVehicle::k_setBackWheelWellType: v->backWheels = r.i8(); break;
+            case dc::DistributedVehicle::k_setRimType: v->rims = r.i8(); break;
+            case dc::DistributedVehicle::k_setDecalType: v->decal = r.i8(); break;
+            default: skipField(r, id); break;
+            }
+            v->active = r.ok();
+        } else {
+            racingRace_.doId = doId; racingRace_.active = true;
+            switch (id) {
+            case dc::DistributedRace::k_setZoneId: racingRace_.zone = r.u32(); break;
+            case dc::DistributedRace::k_setTrackId: racingRace_.track = r.u16(); break;
+            case dc::DistributedRace::k_setRaceType: racingRace_.raceType = r.u16(); break;
+            case dc::DistributedRace::k_setLapCount: racingRace_.laps = r.u8(); break;
+            case dc::DistributedRace::k_setAvatars: {
+                Bytes b = r.blob(); racingRace_.numRacers = uint8_t(std::min<size_t>(b.len/4, 8));
+                for (uint8_t i=0;i<racingRace_.numRacers;++i) memcpy(&racingRace_.racers[i], b.data+4*i, 4);
+                break;
+            }
+            default: skipField(r, id); break;
+            }
+        }
+    };
+    for (uint16_t i=0; i<reqCount && r.ok(); ++i) apply(req[i]);
+    if (other && r.ok()) {
+        const uint16_t n = r.u16();
+        for (uint16_t i=0; i<n && r.ok(); ++i) apply(r.u16());
+    }
+    if (!r.ok()) return true;
+    if (raceClass) pushEvent(EventType::RacingRaceUp, doId);
+    else if (padClass) pushEvent(EventType::RacingPadUp, doId);
+    else if (blockClass) pushEvent(EventType::RacingBlockUp, doId);
+    else pushEvent(EventType::RacingVehicleUp, doId);
+    return true;
+}
+
+bool Client::handleRacingField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) {
+        if (fieldId == dc::DistributedRacePad::k_setState) { r.string(p.state, sizeof(p.state)); r.i16(); }
+        else if (fieldId == dc::DistributedRacePad::k_setRaceZone) p.raceZone = r.u32();
+        else if (fieldId == dc::DistributedRacePad::k_setTrackInfo) { Bytes b=r.blob(); p.trackCount=uint8_t(std::min<size_t>(b.len/2,8)); for(uint8_t i=0;i<p.trackCount;++i)p.trackIds[i]=uint16_t(b.data[2*i]|(b.data[2*i+1]<<8)); }
+        else skipField(r, fieldId);
+        if (r.ok()) pushEvent(EventType::RacingPadState, doId);
+        return true;
+    }
+    for (RacingBlock& b : racingBlocks_) if (b.active && b.doId == doId) {
+        if (fieldId == dc::DistributedStartingBlock::k_setOccupied) b.occupant=r.u32();
+        else if (fieldId == dc::DistributedStartingBlock::k_setPosHpr) { b.x=r.i16()/10.0f;b.y=r.i16()/10.0f;b.z=r.i16()/10.0f;b.h=r.i16()/10.0f;b.p=r.i16()/10.0f;b.r=r.i16()/10.0f; }
+        else skipField(r, fieldId);
+        if (r.ok()) pushEvent(EventType::RacingBlockState, doId);
+        return true;
+    }
+    for (RacingVehicle& v : racingVehicles_) if (v.active && v.doId == doId) {
+        if (fieldId == dc::DistributedVehicle::k_setOwner) v.owner=r.u32();
+        else if (fieldId == dc::DistributedVehicle::k_setState) { v.state=char(r.i8());v.driver=r.u32(); }
+        else skipField(r, fieldId);
+        if (r.ok()) pushEvent(EventType::RacingVehicleState, doId);
+        return true;
+    }
+    if (racingRace_.active && racingRace_.doId == doId) {
+        if (fieldId == dc::DistributedRace::k_setTrackId) racingRace_.track=r.u16();
+        else if (fieldId == dc::DistributedRace::k_setLapCount) racingRace_.laps=r.u8();
+        else if (fieldId == dc::DistributedRace::k_startRace) { racingRace_.startTs=r.i16(); racingRace_.started=true; }
+        else if (fieldId == dc::DistributedRace::k_setPlace) { r.u32(); r.i32(); racingRace_.localLap=r.u8(); racingRace_.localPlace=r.u32(); }
+        else if (fieldId == dc::DistributedRace::k_goToSpeedway) { skipField(r, fieldId); racingRace_.finished=true; }
+        else skipField(r, fieldId);
+        if (r.ok()) pushEvent(EventType::RacingRaceState, doId);
+        return true;
+    }
+    return false;
+}
+
+bool Client::sendRacingEnter(uint32_t blockDoId, bool paid) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, blockDoId, DistributedStartingBlock, requestEnter); w.u8(paid ? 1 : 0); return finish(w);
+}
+bool Client::sendRacingExit(uint32_t blockDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, blockDoId, DistributedStartingBlock, requestExit); return finish(w);
+}
+bool Client::sendRacingMovieDone(uint32_t blockDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, blockDoId, DistributedStartingBlock, movieFinished); return finish(w);
+}
+bool Client::sendRacingControl(uint32_t vehicleDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, vehicleDoId, DistributedVehicle, requestControl); return finish(w);
+}
+bool Client::sendRacingPark(uint32_t vehicleDoId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, vehicleDoId, DistributedVehicle, requestParked); return finish(w);
+}
+bool Client::sendRacingInput(uint32_t vehicleDoId, int8_t input) {
+    (void)vehicleDoId; (void)input;
+    return false; // setInput is clrecv in the stock DC; movement uses DistributedSmoothNode.
+}
+bool Client::sendRacingThrow(uint32_t raceDoId, float x, float y, float z) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, raceDoId, DistributedRace, requestThrow); w.i32(int32_t(x*1000)); w.i32(int32_t(y*1000)); w.i32(int32_t(z*1000)); return finish(w);
+}
+bool Client::sendRacingGag(uint32_t raceDoId, uint8_t track, uint8_t level, uint8_t count) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, raceDoId, DistributedRace, hasGag); w.u8(track); w.u8(level); w.u8(count); return finish(w);
 }
 
 // DistributedPhotoGame
