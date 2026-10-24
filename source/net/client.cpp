@@ -452,9 +452,9 @@ void Client::fail(const char* why, bool retry) {
     TT_LOG("net: error in %s: %s", stateName(state_), why);
     // A VP dynamic zone is destroyed when its riders disconnect. Reconnect to
     // the static lobby instead of requesting an interest in the abandoned office.
-    if (boss_.active && boss_.kind == BossKind::Sellbot) {
-        cfg_.zoneId = 11100; // ToontownGlobals.SellbotLobby
-        targetZone_ = 11100;
+    if (boss_.active && (boss_.kind == BossKind::Sellbot || boss_.kind == BossKind::Cashbot)) {
+        cfg_.zoneId = boss_.kind == BossKind::Cashbot ? 12100 : 11100;
+        targetZone_ = cfg_.zoneId;
         numVisZones_ = 0;
     }
     transport_->disconnect();
@@ -470,7 +470,7 @@ void Client::fail(const char* why, bool retry) {
 }
 
 void Client::resetWorld() {
-    boss_ = BossState{};
+    resetBoss();
     bossPies_ = 0;
     bool hadWorld = state_ == State::InZone || numToons_ > 0;
     for (RemoteToon& t : toons_) {
@@ -1058,7 +1058,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
-    if (boss_.active && boss_.doId == doId) boss_ = BossState{};
+    bossLeaving(doId); // boss lifecycle hook
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
     for (RacingBlock& b : racingBlocks_) if (b.active && b.doId == doId) { b = RacingBlock{}; pushEvent(EventType::RacingGone, doId); return; }
@@ -2546,7 +2546,7 @@ void Client::sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uin
 }
 
 void Client::dropZoneObjects() {
-    boss_ = BossState{};
+    resetBoss();
     bossPies_ = 0;
     // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
     // server also sends OBJECT_LEAVING; unknown ids are ignored then).

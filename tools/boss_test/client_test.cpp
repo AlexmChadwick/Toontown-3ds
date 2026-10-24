@@ -42,6 +42,8 @@ public:
     unsigned messages = 0;
 };
 
+#include "cfo_client.inc"
+
 int main() {
     RecordingTransport transport;
     Client client;
@@ -116,6 +118,7 @@ int main() {
     assert(!client.sendVpHit());
     assert(!client.sendVpHitInsides());
     assert(!client.sendBossZap(0, 0, 0, 0, 0, 0, kBossAreaAttack));
+    testCfo(client, transport);
     client.cfg_.zoneId = 61001;
     client.forceReconnect("boss test disconnect");
     assert(client.zoneId() == 11100 && !client.boss());

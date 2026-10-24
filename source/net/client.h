@@ -1702,6 +1702,15 @@ public:
     const BossState* boss() const { return boss_.active ? &boss_ : nullptr; }
     uint16_t bossPies() const { return bossPies_; }
     uint8_t bossPieType() const { return bossPieType_; }
+    const CfoChild& cfoChildSlot(int index) const { return cfoChildren_[index]; }
+    const CfoChild* findCfoChild(uint32_t doId) const;
+    bool sendCfoControl(uint32_t craneId, bool control);
+    bool sendCfoCable(uint32_t craneId, uint8_t sequence, float y, float h, const float links[3][3]);
+    enum class CfoAction { Grab, Drop, Floor, Free, Hit, Initial, Stun, Battle, Treasure };
+    bool sendCfoObject(uint32_t objectId, CfoAction action, float value = 0,
+                       float x = 0, float y = 0, float z = 0, float heading = 0);
+    bool sendCfoPose(uint32_t objectId, float x, float y, float z, float heading);
+    bool sendCfoReward();
     bool spendBossPie();
     bool sendBossEnter();
     bool sendBossExit();
@@ -1723,6 +1732,15 @@ private:
     bool bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fieldId);
     void positionBossBattle(Battle& battle);
     bool bossParticipant() const;
+    bool handleCfoEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
+                        const uint16_t* required, uint16_t count, bool other);
+    bool handleCfoField(DatagramReader& reader, uint32_t doId, uint16_t fieldId);
+    void bossLeaving(uint32_t doId);
+    void resetBoss();
+    bool cfoParticipant() const;
+    CfoChild* cfoChild(uint32_t doId);
+    CfoChild cfoChildren_[kMaxCfoChildren];
+    bool cfoRewardSent_ = false;
     BossState boss_;
     uint16_t bossPies_ = 0;
     uint8_t bossPieType_ = 0;

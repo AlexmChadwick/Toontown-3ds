@@ -25,6 +25,7 @@ BOSS_SIGNATURE(DistributedBossCog, zapToon, "i16/10,i16/10,i16/10,i16/10,i16/10,
 
 bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
                              const uint16_t* required, uint16_t count, bool other) {
+    if (handleCfoEnter(doId, classId, reader, required, count, other)) return true;
     const BossKind kind = bossKind(classId);
     if (kind == BossKind::None) return false;
     BossState next;
@@ -56,6 +57,7 @@ bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& re
 }
 
 bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fieldId) {
+    if (handleCfoField(reader, doId, fieldId)) return true;
     if (!boss_.active || boss_.doId != doId) return false;
     if (!applyBossField(boss_, fieldId, reader, now_, avatarId_)) {
         TT_LOG("boss: malformed field %u", unsigned(fieldId));
@@ -143,7 +145,18 @@ bool Client::bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fi
 }
 
 void Client::positionBossBattle(Battle& battle) {
-    if (!boss_.active || battle.bossId != boss_.doId || boss_.kind != BossKind::Sellbot) return;
+    if (!boss_.active || battle.bossId != boss_.doId) return;
+    if (boss_.kind == BossKind::Cashbot) {
+        // CashbotBossBattleOnePosHpr (120,-230,0,90), local battle Y +/-25.
+        battle.x = battle.bossSide ? 95 : 145;
+        battle.y = -230;
+        battle.z = 0;
+        battle.sx = battle.x + (battle.bossSide ? -1 : 1);
+        battle.sy = battle.y;
+        battle.sz = 0;
+        return;
+    }
+    if (boss_.kind != BossKind::Sellbot) return;
     // DistributedBossCogAI.setBattlePos and ToontownGlobals.BossCogBattle[AB]PosHpr.
     // Both VP rounds face -90 degrees: local +/-25 Y becomes +/-25 world X.
     battle.x = battle.bossSide ? 25 : -25;
@@ -218,7 +231,8 @@ bool Client::sendBossZap(float x, float y, float z, float heading, float directi
                          float directionY, uint8_t attack) {
     if (!bossParticipant() || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z) ||
         !std::isfinite(heading) || !std::isfinite(directionX) || !std::isfinite(directionY)) return false;
-    if (attack < kBossElectricFence || attack > kBossStrafeAttack ||
+    if (((attack < kBossElectricFence || attack > kBossStrafeAttack) &&
+         !(boss_.kind == BossKind::Cashbot && attack == kBossSlowDirectedAttack)) ||
         std::strcmp(boss_.phase, "BattleThree")) return false;
     DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(writer, boss_.doId, DistributedBossCog, zapToon);

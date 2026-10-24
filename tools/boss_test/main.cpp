@@ -5,6 +5,7 @@
 
 #include "net/boss_state.h"
 #include "world/boss_logic.h"
+#include "world/cfo_logic.h"
 
 namespace dc = tt::dc;
 using namespace tt::net;
@@ -41,7 +42,23 @@ static void referenceVectors(const char* path) {
         state.classId = classId;
         state.kind = bossKind(classId);
         DatagramReader reader(buffer, size);
-        assert(applyBossField(state, field, reader, 1000, 42));
+        if (cfoKind(classId) == CfoKind::None) {
+            assert(applyBossField(state, field, reader, 1000, 42));
+        } else {
+            CfoChild child;
+            child.classId = classId;
+            child.kind = cfoKind(classId);
+            assert(applyCfoField(child, field, reader, 1000));
+            for (uint32_t length = 0; length < size; ++length) {
+                CfoChild truncatedChild = child;
+                DatagramReader truncated(buffer, length);
+                assert(!applyCfoField(truncatedChild, field, truncated, 2000));
+                assert(std::memcmp(&child, &truncatedChild, sizeof(child)) == 0);
+            }
+            if (field == dc::DistributedCashbotBossCrane::k_setCablePos) {
+                assert(child.sequence == 255 && child.armY == 24.5f && child.links[2][2] == -20);
+            }
+        }
         assert(reader.remaining() == 0);
         ++count;
     }
@@ -52,6 +69,21 @@ static void referenceVectors(const char* path) {
 
 int main(int argc, char** argv) {
     if (argc > 1) referenceVectors(argv[1]);
+    CfoCable cable;
+    cable.reset();
+    for (int frame = 0; frame < 900; ++frame) cable.update(1, 1, 1.0f / 30, false);
+    assert(cable.y == 25 && cable.heading == 45);
+    Vec3 magnet = cable.magnet(0);
+    assert(std::isfinite(magnet.x) && magnet.z > 0 && magnet.z < 40);
+    assert(cfoImpact({0, 10, 0}, 0) == 1);
+    assert(cfoImpact({0, -10, 0}, 0) == 0);
+    assert(cfoImpact({0, 0, 0}, 0) == 0);
+    CfoChild goon;
+    goon.scale = 1;
+    assert(cfoGoonStun(goon, {0, 0, 0}, {0, 0, 3.8f}));
+    assert(!cfoGoonStun(goon, {0, 0, 0}, {0, 0, 0}));
+    assert(cfoGoonDetect(goon, {0, 0, 0}, {0, 10, 0}));
+    assert(!cfoGoonDetect(goon, {0, 0, 0}, {0, -10, 0}));
     static_assert(dc::kHash == 547155168, "stock DC hash");
     BossState state;
     state.kind = BossKind::Sellbot;
