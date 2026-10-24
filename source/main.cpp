@@ -747,6 +747,48 @@ int main() {
                     player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
                 }
             }
+            if (!strcmp(autotest.label(), "factory: crates")) {
+                float cx = 0, cy = 0, cz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestCrate(level, player.x(), player.y(), player.z(), &cx, &cy, &cz)) {
+                    player.reset(cx - 3.5f, cy, cz + 0.1f, 90.0f);
+                }
+            }
+            if (!strcmp(autotest.label(), "da office: lasers")) {
+                float lx = 0, ly = 0, lz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestLaserField(level, player.x(), player.y(), player.z(), &lx, &ly, &lz)) {
+                    player.reset(lx + 4.0f, ly + 4.0f, lz + 0.1f, 0.0f);
+                }
+            }
+            if (!strcmp(autotest.label(), "da office: security cam")) {
+                float kx = 0, ky = 0, kz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestCamera(level, player.x(), player.y(), player.z(), &kx, &ky, &kz)) {
+                    player.reset(kx + 2.0f, ky + 2.0f, kz + 0.1f, 0.0f);
+                }
+            }
+            if (!strcmp(autotest.label(), "club: maze")) {
+                float mx = 0, my = 0, mz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestMaze(level, player.x(), player.y(), player.z(), &mx, &my, &mz)) {
+                    player.reset(mx, my + 2.0f, mz + 0.1f, 0.0f);
+                }
+            }
+            if (!strcmp(autotest.label(), "club: moles")) {
+                float hx = 0, hy = 0, hz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestMoleField(level, player.x(), player.y(), player.z(), &hx, &hy, &hz)) {
+                    player.reset(hx, hy, hz + 0.1f, 0.0f);
+                }
+            }
+            if (!strcmp(autotest.label(), "club: golf green")) {
+                float gx = 0, gy = 0, gz = 0;
+                if (autotest.stepBegan() &&
+                    level.games().nearestGolfGreen(level, player.x(), player.y(), player.z(), &gx, &gy, &gz)) {
+                    player.reset(gx + 3.0f, gy + 13.0f, gz + 0.1f, 180.0f);
+                }
+            }
             const char* label = autotest.label();
             auto facilityStep = [label](const char* step) { // "mint: <step>", "da office: <step>", "club: <step>"
                 const char* colon = strstr(label, ": ");

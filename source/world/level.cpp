@@ -227,6 +227,9 @@ void Level::loadProps() {
         if (fscanf(f, "%f %f %f %f %f %f", &b[0], &b[1], &b[2], &b[3], &b[4], &b[5]) == 6) memcpy(doorBox_, b, sizeof(b));
         fclose(f);
     }
+    // ---- level games (world/level_games.*) ----
+    games_.loadProps();
+    // ---- end level games ----
 }
 
 // DistributedDoorEntity's FourState tracks (opening 5 s, open, closing 6 s, closed) and the
@@ -1775,6 +1778,9 @@ void Level::shutdown() {
     facilityDoId_ = facilityZoneId_ = 0;
     active_ = spawned_ = false;
     for (Cog& c : cogs_) c = Cog{};
+    // ---- level games (world/level_games.*) ----
+    games_.shutdown();
+    // ---- end level games ----
 }
 
 bool Level::spawnPose(float* x, float* y, float* z, float* h) {
@@ -2052,6 +2058,9 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateMovers(x, y, z, nowMs);
     updateGoons(client, x, y, z, nowMs);
     updateElevators(client, x, y, z, nowMs);
+    // ---- level games (world/level_games.*) ----
+    games_.update(client, *this, x, y, z, dt, nowMs);
+    // ---- end level games ----
     if (floor_) {
         updatePiece(x, y, z);
         if (!interestSent_) sendFloorInterest(client);
@@ -2253,6 +2262,9 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawMovers(renderer);
     drawGoons(renderer);
     drawElevators(renderer);
+    // ---- level games (world/level_games.*) ----
+    games_.draw(renderer, eye);
+    // ---- end level games ----
 }
 
 } // namespace tt::world

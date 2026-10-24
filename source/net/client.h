@@ -445,6 +445,45 @@ struct LevelEntityObj {
     bool grabbedByUs = false;
     float pauseTime = 0;     // DistributedGoon.setMovie(mode -> movie, avId -> avatarId, pauseTime, ts -> movieMs)
     bool crushed = false;    // DistributedCrushableEntity.setCrushed
+    // ---- level games (world/level_games.*) ----
+    uint32_t battleId = 0;
+    uint32_t suits[8] = {};
+    uint8_t numSuits = 0;
+    bool blockerActive = false;
+    bool finished = false;
+
+    uint8_t gridNumX = 0, gridNumY = 0;
+    uint8_t fieldData[144] = {};
+    uint8_t fieldDataLen = 0;
+    uint8_t success = 0;
+    bool activeLF = true;
+    char gridGame[16] = {};
+
+    uint8_t targetHash = 0;
+
+    uint8_t crateSide = 0;
+    float movePos[6] = {};
+    uint32_t moveAvId = 0;
+    bool moving = false;
+    uint32_t moveStartMs = 0;
+    bool pushAccepted = false;
+    bool pushRejected = false;
+
+    float pathPts[6] = {};
+
+    uint32_t roomDoId = 0;
+    uint32_t gameStartMs = 0;
+    bool gameOver = false;
+
+    uint8_t molesWhackedTarget = 0;
+    uint16_t gameDuration = 0;
+    int16_t score = 0;
+    bool pityWin = false;
+
+    uint16_t boardsLeft = 0;
+    uint32_t joinedToons[4] = {};
+    uint8_t numJoinedToons = 0;
+    // ---- end level games ----
     bool active = false;
 };
 constexpr int kMaxLevelEntities = 128;
@@ -1173,6 +1212,23 @@ public:
     bool sendLevelSuitBattle(uint32_t doId, float x, float y, float z, float h);
     bool sendLevelSuitAlert(uint32_t doId);   // setAlert(our avId): a chase cog saw us
     bool sendLevelSuitStrayed(uint32_t doId); // setStrayed: chased more than 10 from its spawn
+    // ---- level games (world/level_games.*) ----
+    bool sendLaserHit(uint32_t doId, int8_t newX, int8_t newY, int8_t oldX, int8_t oldY);
+    bool sendLaserTrapFire(uint32_t doId);
+    bool sendCameraTrapFire(uint32_t doId);
+    bool sendCratePush(uint32_t doId, uint8_t side);
+    bool sendCrateDone(uint32_t doId);
+    bool sendMazeTriggered(uint32_t doId);
+    bool sendMazeFinished(uint32_t doId);
+    bool sendMazeDamage(uint32_t doId);
+    bool sendMoleTriggered(uint32_t doId);
+    bool sendMoleWhacked(uint32_t doId, int8_t moleIndex, int16_t popupNum);
+    bool sendMoleBomb(uint32_t doId, int8_t moleIndex, int16_t popupNum, int32_t ts);
+    bool sendMoleDamage(uint32_t doId);
+    bool sendGolfJoin(uint32_t doId);
+    bool sendGolfLeave(uint32_t doId);
+    bool sendGolfBoard(uint32_t doId, uint8_t index);
+    // ---- end level games ----
     // World pose of a level battle cell (world/level.*): applied to level battles on generate.
     using LevelBattlePlacer = bool (*)(void* user, uint32_t levelDoId, uint32_t cellId, float* x, float* y,
                                        float* z, float* h);
