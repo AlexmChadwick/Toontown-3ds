@@ -55,6 +55,13 @@ public:
     void lockVisibility(uint32_t zoneId) { lockZoneId_ = zoneId; }
     void unlockVisibility() { lockZoneId_ = 0; }
     uint32_t levelDoId() const { return levelDoId_; }
+    // DistributedFactory.setDefeated -> FactoryInterior.handleFactoryWinEvent: teleport to the
+    // hood (ZoneUtil.getHoodId: the Sellbot factory's 11500 -> 11000). 0 until then; once.
+    uint32_t popWinDestination() {
+        const uint32_t z = winDestination_;
+        winDestination_ = 0;
+        return z;
+    }
     int currentZoneNum() const { return zoneNum_; }
     // Autotest: world position of the nearest cog that can fight / of a blocker; false if none.
     bool nearestCog(float x, float y, float z, float* cx, float* cy, float* cz) const;
@@ -83,6 +90,16 @@ public:
         const LevelEntity& e = spec_.entity(i);
         *x = e.world[9], *y = e.world[10], *z = e.world[11];
         return true;
+    }
+    // Autotest: the spawn of the level's boss cog (CogData 'boss': 1, the foreman).
+    bool foremanPosition(float* x, float* y, float* z) const {
+        for (int i = active_ ? spec_.next("cogSpec", -1) : -1; i >= 0; i = spec_.next("cogSpec", i)) {
+            const LevelEntity& e = spec_.entity(i);
+            if (!spec_.integer(e, "boss", 0)) continue;
+            *x = e.world[9], *y = e.world[10], *z = e.world[11];
+            return true;
+        }
+        return false;
     }
     // Autotest: the live pose of the nearest walking goon; false if none.
     bool nearestGoon(float x, float y, float z, float* gx, float* gy, float* gz, float* gh) const {
@@ -169,6 +186,8 @@ private:
     int entityCycle_[net::kMaxLevelEntities] = {};
     uint8_t entityState_[net::kMaxLevelEntities] = {};
     uint32_t levelStartMs_ = 0;
+    uint32_t winDestination_ = 0;
+    bool won_ = false;
     int squishDamage_ = 0;
     float squishZ_ = 0;
     bool stunned_ = false;

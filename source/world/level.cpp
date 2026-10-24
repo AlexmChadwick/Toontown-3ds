@@ -1417,12 +1417,18 @@ void Level::handleEvent(const net::Event& ev, net::Client& client) {
             if (!name || !load(name)) return;
             active_ = true;
             spawned_ = false;
+            won_ = false;
             zoneNum_ = -1;
             lockZoneId_ = sentLock_ = 0;
             for (Cog& c : cogs_) c = Cog{};
             client.setLevelBattlePlacer(&Level::battleCellThunk, this);
         }
         begin(*f);
+        if (f->defeated && !won_) {
+            won_ = true;
+            winDestination_ = f->factoryId - f->factoryId % 1000; // ZoneUtil.getHoodId
+            TT_LOG("level: factory defeated -> zone %u", unsigned(winDestination_));
+        }
     } else if (ev.type == EventType::FactoryGone) {
         shutdown();
     }
@@ -1735,7 +1741,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
                 requested = true;
             }
         }
-        suits.setExternal(c->doId, s.name, s.levelDist, c->x, c->y, c->z, c->h, c->walking, !s.reserve);
+        suits.setExternal(c->doId, s.name, s.levelDist, c->x, c->y, c->z, c->h, c->walking, !s.reserve, s.skelecog != 0);
     }
 
     // BattleBlocker.startBattle: walking into a blocker joins its battle or fights its cogs.

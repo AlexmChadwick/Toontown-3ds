@@ -33,6 +33,8 @@ public:
     void setReady() { ready_ = true; }
     bool waiting() const { return active_ && !ready_; }
     float stepTime() const { return t_; } // seconds into the current step
+    // True on the first frame the main loop sees each step (a long frame cannot skip it).
+    bool stepBegan() const { return active_ && ready_ && stepFrames_ == 1; }
     // Non-null for one frame when the script wants a screenshot.
     const char* pendingShot() const { return pendingShot_; }
 
@@ -45,10 +47,13 @@ private:
     bool ready_ = true; // false: started part-way, waiting for setReady()
     float t_ = 0.0f;
     bool stepStarted_ = false;
+    int stepFrames_ = 0; // frames of the current step so far
     const char* pendingShot_ = nullptr;
     float nextSeriesShot_ = 0.0f;
     int seriesIndex_ = 0;
     char seriesName_[40] = {};
+    char only_[192] = {}; // "only" line: comma-separated label prefixes (empty = every step)
+    bool selected(const char* label) const;
 };
 
 } // namespace tt::autotest

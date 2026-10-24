@@ -600,7 +600,7 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
         }
-        if (autotest.active() && !strcmp(autotest.label(), "go home") && autotest.stepTime() < 0.05f) {
+        if (autotest.active() && !strcmp(autotest.label(), "go home") && autotest.stepBegan()) {
             uiState.homeRequest = true; // test-only: the Map tab's Home button
         }
         if (autotest.active() && !strncmp(autotest.label(), "golf: ", 6)) {
@@ -622,7 +622,7 @@ int main() {
             uiState.teleportRequest = 8000;
         }
         if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && racing.active() &&
-            autotest.stepTime() < 0.1f) {
+            autotest.stepBegan()) {
             in.down |= KEY_A;
         }
         if (autotest.active() && !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200 &&
@@ -677,7 +677,7 @@ int main() {
                                           {"factory: conveyor", "conveyorBelt", 2.0f}};
             for (const Drop& drop : kDrops) {
                 float gx, gy, gz;
-                if (!strcmp(autotest.label(), drop.label) && autotest.stepTime() < 0.05f &&
+                if (!strcmp(autotest.label(), drop.label) && autotest.stepBegan() &&
                     level.specPosition(drop.type, &gx, &gy, &gz))
                     player.reset(gx, gy, gz + drop.dz, 90.0f);
             }
@@ -686,26 +686,30 @@ int main() {
                 const bool zap = !strcmp(autotest.label(), "factory: goon zap");
                 const bool stun = !strcmp(autotest.label(), "factory: goon stun");
                 float gx = 0, gy = 0, gz = 0, gh = 0;
-                if ((zap || stun) && autotest.stepTime() < 0.05f &&
+                if ((zap || stun) && autotest.stepBegan() &&
                     level.nearestGoon(player.x(), player.y(), player.z(), &gx, &gy, &gz, &gh)) {
                     const float r = gh * kDegToRad;
                     if (zap) player.reset(gx - sinf(r) * 8.0f, gy + cosf(r) * 8.0f, gz + 0.2f, gh + 180.0f);
                     else player.reset(gx - sinf(r) * 0.8f, gy + cosf(r) * 0.8f, gz + 6.6f, gh); // just above, led
                 }
             }
-            if (!strcmp(autotest.label(), "factory: barrel") && autotest.stepTime() < 0.05f) {
+            if (!strcmp(autotest.label(), "factory: barrel") && autotest.stepBegan()) {
                 float bx, by, bz;
                 if (level.specPosition("gagBarrel", &bx, &by, &bz)) player.reset(bx, by - 4.0f, bz + 0.5f, 0.0f);
             }
-            if (!strcmp(autotest.label(), "factory: lift") && autotest.stepTime() < 0.05f) {
+            if (!strcmp(autotest.label(), "factory: foreman") && autotest.stepBegan()) {
+                float fx, fy, fz;
+                if (level.foremanPosition(&fx, &fy, &fz)) player.reset(fx, fy - 6.0f, fz + 0.3f, 0.0f); // walk in
+            }
+            if (!strcmp(autotest.label(), "factory: lift") && autotest.stepBegan()) {
                 float lx, ly, lz;
                 if (level.specPosition("lift", &lx, &ly, &lz)) player.reset(lx, ly, lz + 1.0f, 0.0f); // onto its floor
             }
-            if (!strcmp(autotest.label(), "factory: stomper") && autotest.stepTime() < 0.05f) {
+            if (!strcmp(autotest.label(), "factory: stomper") && autotest.stepBegan()) {
                 float sx, sy, sz;
                 if (level.specPosition("stomper", &sx, &sy, &sz)) player.reset(sx, sy, sz + 0.5f, 0.0f); // under it
             }
-            if (!strcmp(autotest.label(), "factory: button") && autotest.stepTime() < 0.05f) {
+            if (!strcmp(autotest.label(), "factory: button") && autotest.stepBegan()) {
                 float bx, by, bz;
                 if (level.nearestEntity(tt::dc::DistributedButton::kClassId, player.x(), player.y(), player.z(), &bx,
                                         &by, &bz))
@@ -713,7 +717,7 @@ int main() {
             }
             if (!strcmp(autotest.label(), "factory: door")) {
                 float dx, dy, dz, dh;
-                if (autotest.stepTime() < 0.05f &&
+                if (autotest.stepBegan() &&
                     level.nearestDoor(player.x(), player.y(), player.z(), &dx, &dy, &dz, &dh)) {
                     player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
                 }
@@ -1310,6 +1314,9 @@ int main() {
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         if (netStarted && net.inZone()) {
             const u32 nowMs = tt::net::plat::nowMs();
+            if (const u32 hood = level.popWinDestination()) {
+                if (!uiState.teleportRequest) uiState.teleportRequest = hood; // the factory is won
+            }
             if (level.active()) {
                 // Facility cogs walk/chase (level.update ran before the toon moved, see above);
                 // touching one (or a battle blocker) fights.

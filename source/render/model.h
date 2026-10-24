@@ -23,7 +23,7 @@ enum TintSlot : u8 {
 
 // Texture slots (ttm batch entry texSlot): which per-draw texture replaces a batch's own
 // texture. Mirrors tt::world::TexSlot (toon_dna.h) and bake_toon.py TEX_SLOT_*.
-constexpr u32 kTexSlotCount = 4;
+constexpr u32 kTexSlotCount = 5; // 4: a skelecog's department tie (world/suits.*)
 
 enum BlendMode : u8 { kBlendOpaque = 0, kBlendAlphaTest = 1, kBlendAlpha = 2 };
 
@@ -33,7 +33,7 @@ struct Batch {
     u8 flags; // bit0: two-sided
     u8 tint;
     u8 layer;
-    u8 texSlot; // 0 = own texture; 1 shirt, 2 sleeve, 3 bottom (Renderer slotTex override). Older files: 0.
+    u8 texSlot; // 0 = own texture; 1 shirt/blazer, 2 sleeve, 3 bottom/legs, 4 tie (Renderer slotTex override). Older files: 0.
     u8 pad;
     u32 firstVertex;
     u32 numVertices;

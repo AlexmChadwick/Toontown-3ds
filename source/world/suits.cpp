@@ -91,19 +91,52 @@ void SuitActors::loadDepartments() {
     TT_LOG("suits: department pack %s", ok ? "loaded" : "missing or bad");
 }
 
+// File stem of body index b: "suitA" .. "suitC", then "suitA_skeleton" .. "suitC_skeleton".
+static void bodyStem(int b, char* out, size_t size) {
+    snprintf(out, size, "suit%c%s", static_cast<char>('A' + b % 3), b >= 3 ? "_skeleton" : "");
+}
+
 bool SuitActors::loadBody(int b) {
+    if (b < 0 || b >= 6) return false;
     Body& body = bodies_[b];
     if (body.tried) return body.model.loaded();
     body.tried = true;
-    const char letter = static_cast<char>('A' + b);
-    char path[96];
-    snprintf(path, sizeof(path), "%ssuit%c_full.ttm", kSuitDir, letter);
+    char stem[24], path[96];
+    bodyStem(b, stem, sizeof(stem));
+    snprintf(path, sizeof(path), "%s%s_full.ttm", kSuitDir, stem);
     if (!body.model.load(path)) return false;
-    snprintf(path, sizeof(path), "%ssuit%c_full_neutral.tta", kSuitDir, letter);
+    snprintf(path, sizeof(path), "%s%s_full_neutral.tta", kSuitDir, stem);
     body.neutral.load(path);
-    snprintf(path, sizeof(path), "%ssuit%c_full_walk.tta", kSuitDir, letter);
+    snprintf(path, sizeof(path), "%s%s_full_walk.tta", kSuitDir, stem);
     body.walk.load(path);
+    if (b >= 3) loadTies();
     return true;
+}
+
+// Suit.py generateCorporateTie for skeletons: skeleton_ties.ttx, one entry per department.
+void SuitActors::loadTies() {
+    if (tiesLoaded_) return;
+    tiesLoaded_ = true;
+    char path[96];
+    snprintf(path, sizeof(path), "%sskeleton_ties.ttx", kSuitDir);
+    FILE* f = fopen(path, "rb");
+    if (!f) return;
+    struct {
+        char magic[4];
+        u16 version, numTextures, counts[4];
+        u32 mapOffset, texOffset, reserved[2];
+    } h;
+    static_assert(sizeof(h) == 32, "TTX1 header");
+    u16 map[4];
+    render::TexEntry entries[4];
+    bool ok = fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 &&
+              h.counts[0] == 1 && h.counts[1] == 1 && h.counts[2] == 1 && h.counts[3] == 1 && h.numTextures <= 4 &&
+              fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, 2, 4, f) == 4 && fseek(f, h.texOffset, SEEK_SET) == 0 &&
+              fread(entries, sizeof(render::TexEntry), h.numTextures, f) == h.numTextures;
+    for (int d = 0; ok && d < 4; d++) ok = map[d] < h.numTextures && render::loadTexture(f, entries[map[d]], &tieTex_[d]);
+    fclose(f);
+    if (!ok) memset(tieTex_, 0, sizeof(tieTex_));
+    TT_LOG("suits: skeleton ties %s", ok ? "loaded" : "missing or bad");
 }
 
 SuitActors::Head* SuitActors::head(const char* code) {
@@ -121,15 +154,16 @@ SuitActors::Head* SuitActors::head(const char* code) {
 }
 
 const render::Anim* SuitActors::battleClip(int b, const char* name) {
-    if (!name || !*name || b < 0 || b > 2) return nullptr;
+    if (!name || !*name || b < 0 || b >= 6) return nullptr;
     Body& body = bodies_[b];
     for (int i = 0; i < Body::kClips; i++)
         if (body.clipName[i][0] && !strcmp(body.clipName[i], name)) return body.clips[i].loaded() ? &body.clips[i] : nullptr;
     for (int i = 0; i < Body::kClips; i++) {
         if (body.clipName[i][0]) continue;
         snprintf(body.clipName[i], sizeof(body.clipName[i]), "%s", name);
-        char path[112];
-        snprintf(path, sizeof(path), "%ssuit%c_full_%s.tta", kSuitDir, static_cast<char>('A' + b), name);
+        char stem[24], path[112];
+        bodyStem(b, stem, sizeof(stem));
+        snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
         return body.clips[i].load(path) ? &body.clips[i] : nullptr;
     }
     return nullptr;
@@ -138,15 +172,18 @@ const render::Anim* SuitActors::battleClip(int b, const char* name) {
 // actor transform * species scale * body morph; head at the body clip's attach matrix.
 void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world) {
     const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
-    const int b = info ? info->body - 'a' : -1;
+    const int b = info ? info->body - 'a' + (a.skelecog ? 3 : 0) : -1;
     Body& body = bodies_[b < 0 ? 0 : b];
     render::Tints tints;
     tints.setAll(1.0f, 1.0f, 1.0f);
-    for (int i = 0; i < 4; i++) tints.rgba[render::kTintLeg][i] = info ? info->hand[i] : 1.0f; // slot 4: hands
+    for (int i = 0; i < 4 && !a.skelecog; i++) tints.rgba[render::kTintLeg][i] = info ? info->hand[i] : 1.0f; // slot 4: hands
     const int d = deptIndex(a.dept);
-    const C3D_Tex* slot[render::kTexSlotCount] = {nullptr, &deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2]};
+    const C3D_Tex* slot[render::kTexSlotCount] = {nullptr, &deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2],
+                                                  tieTex_[d].data ? &tieTex_[d] : nullptr};
     C3D_Mtx m = world;
-    Mtx_Scale(&m, info->scale, info->scale, info->scale);
+    // Suit.makeSkeleton: getGeomNode().setScale(scale * 1.0173).
+    const float scale = info->scale * (a.skelecog ? 1.0173f : 1.0f);
+    Mtx_Scale(&m, scale, scale, scale);
     // Battle clips (world/battle.h kSuitAnim*) play once from clipStartMs and hold their last frame.
     const char* battleName = nullptr;
     switch (a.pose.anim) {
@@ -170,7 +207,7 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
         float blend;
         render::sampleClip(clip, t, &fa, &fb, &blend);
         renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, deptLoaded_ ? slot : nullptr);
-        if (clip.hasAttach()) {
+        if (clip.hasAttach() && !a.skelecog) { // a skelecog has no head of its own
             if (Head* h = head(info->code)) {
                 C3D_Mtx attach, hm;
                 clip.attach(fa, fb, blend, &attach);
@@ -266,8 +303,11 @@ void SuitActors::refresh(Actor& a, const net::Suit& s, const net::Client& client
     const SuitInfo* info = s.hasDna ? findType(s.name) : nullptr;
     a.type = info ? static_cast<int>(info - kSuitTypes) : -1;
     a.dept = info ? info->dept : s.dept;
+    a.skelecog = s.skelecog != 0;
     if (info) {
-        snprintf(a.label, sizeof(a.label), "%s Level %d", info->name, info->baseLevel + s.levelDist + 1);
+        // TTLocalizer.SuitBaseNameWithLevel; makeSkeleton renames the cog "Skelecog".
+        snprintf(a.label, sizeof(a.label), "%s Level %d", a.skelecog ? "Skelecog" : info->name,
+                 info->baseLevel + s.levelDist + 1);
     } else {
         snprintf(a.label, sizeof(a.label), "Cog");
     }
@@ -430,7 +470,7 @@ void SuitActors::draw(render::Renderer& renderer) {
     for (const Actor& a : actors_) {
         if (!a.active || !a.poseValid || !a.pose.visible || a.pose.alpha <= 0.0f) continue;
         const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
-        if (info && loadBody(info->body - 'a')) {
+        if (info && loadBody(info->body - 'a' + (a.skelecog ? 3 : 0))) {
             Mtx_Identity(&m);
             Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
             Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
@@ -494,7 +534,7 @@ u32 SuitActors::touching(float x, float y, float z) const {
 }
 
 bool SuitActors::setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h,
-                             bool walking, bool visible) {
+                             bool walking, bool visible, bool skelecog) {
     Actor* actor = nullptr;
     for (Actor& a : actors_)
         if (a.active && a.doId == doId) actor = &a;
@@ -510,7 +550,9 @@ bool SuitActors::setExternal(u32 doId, const char* code, int levelDist, float x,
         const SuitInfo* info = findType(code);
         actor->type = info ? static_cast<int>(info - kSuitTypes) : -1;
         actor->dept = info ? info->dept : 'c';
-        if (info) snprintf(actor->label, sizeof(actor->label), "%s Level %d", info->name, info->baseLevel + levelDist + 1);
+        actor->skelecog = skelecog;
+        if (info) snprintf(actor->label, sizeof(actor->label), "%s Level %d", skelecog ? "Skelecog" : info->name,
+                           info->baseLevel + levelDist + 1);
         else snprintf(actor->label, sizeof(actor->label), "Cog");
     }
     actor->pose.x = x, actor->pose.y = y, actor->pose.z = actor->pose.groundZ = z, actor->pose.h = h;

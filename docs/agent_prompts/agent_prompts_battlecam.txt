@@ -1,0 +1,1 @@
+Read /Users/alexchadwick/toontown-3ds-battlecam/AGENT_TASK.md and complete the task it describes. Work only inside /Users/alexchadwick/toontown-3ds-battlecam (branch battlecam). Follow its Rules section exactly (no push, no merge, no Azahar), commit on branch battlecam, and finish with a report of what you did and exactly what to verify in Azahar.

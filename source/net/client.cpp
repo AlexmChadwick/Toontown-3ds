@@ -1810,6 +1810,13 @@ BattleStateId battleStateFromName(const char* name) {
         {"MakeMovie", BattleStateId::MakeMovie},
         {"PlayMovie", BattleStateId::PlayMovie},
         {"Reward", BattleStateId::Reward},
+        // The subclasses' own reward states end the same way (play the reward, rewardDone):
+        // DistributedBattleBldg, DistributedBattleFactory, ...Mint, ...Stage, ...CountryClub.
+        {"BuildingReward", BattleStateId::Reward},
+        {"FactoryReward", BattleStateId::Reward},
+        {"MintReward", BattleStateId::Reward},
+        {"StageReward", BattleStateId::Reward},
+        {"CountryClubReward", BattleStateId::Reward},
         {"Resume", BattleStateId::Resume},
     };
     for (const auto& s : kStates) {

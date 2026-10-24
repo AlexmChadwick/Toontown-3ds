@@ -62,7 +62,7 @@ public:
     // sets their pose every frame; drawing, nametags, battles and overridePose work as above.
     // code: SuitDNA head code; levelDist: setLevelDist. False when no actor slot is free.
     bool setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h, bool walking,
-                     bool visible);
+                     bool visible, bool skelecog = false);
     void removeExternal(u32 doId);
 
 private:
@@ -94,6 +94,7 @@ private:
         bool poseValid = false;
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
+        bool skelecog = false; // DistributedSuitBase.setSkelecog: Suit.makeSkeleton
         float animTime = 0.0f;
         s8 clipArg = -1;
         u32 clipStartMs = 0;
@@ -125,11 +126,15 @@ private:
         render::Model model;
     };
     static constexpr int kMaxHeads = 12;
+    // Bodies 0-2: suitA/B/C; 3-5: their skelecog (cog*_robot) versions.
     bool loadBody(int b);
     Head* head(const char* code);
     void loadDepartments();
     void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
-    Body bodies_[3];
+    Body bodies_[6];
+    C3D_Tex tieTex_[4] = {}; // skeleton_ties.ttx: a skelecog's tie per department (c l m s)
+    bool tiesLoaded_ = false;
+    void loadTies();
     Head heads_[kMaxHeads];
     C3D_Tex deptTex_[4][3] = {}; // [c l m s][blazer, sleeve, legs]
     bool deptLoaded_ = false;

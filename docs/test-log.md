@@ -500,3 +500,34 @@ Azahar, Old 3DS mode, muted, against the local stock server (`AI_DEV=1`). Builds
   - 26.9–29.9 fps inside, heap 2.9–3.9 MB, linear free 17.9 MB.
   - Not yet: stompers, lifts, barrels, goons, crates, gears/conveyor/paint mixers, the
     foreman and the factory end; mint / DA office / country-club rooms on the same runtime.
+
+## 2026-10-24 — Sellbot factory, every entity and the end (world/level.*)
+
+Azahar Old 3DS, muted, stock server with `AI_DEV=1` (plus `AI_DEV_STRONG=1` and
+`AI_DEV_WEAK_COGS=1` for the foreman run). `AUTOTEST_ONLY="go factory,factory: …"`.
+
+- **Buttons:** stand on the entrance-hall button → `requestInteract` → it sinks and turns
+  green (AI "playing").
+- **Stompers (zone 17):** the motions run from the level start; standing beside 20001
+  squishes for 3 laff per stomp (`setOuch`), with Toon.enterSquish and a 4 s stun.
+- **Lift 10041:** rides 43.8 → 208.8 with the toon within ~1 unit of the floor;
+  `setAvatarEnter`/`Leave` once each way (hysteresis).
+- **Barrels (warehouse):** `requestGrab` → `setGrab` by us → the barrel greys (the AI adds
+  the gags).
+- **Gears (lava room):** standing on a vertical gear's rim (z 66.6).
+- **Paint mixer:** carried.
+- **Conveyor:** carried at exactly 2 units/s.
+- **Goons:** a catwalk goon's radar zaps for 7 laff (beam flashes red); dropping onto a goon's
+  head stuns it (collapse pose), on entering only.
+- **The end:** walking into the foreman's cell (skelecog Head Hunter level 9, now drawn as a
+  robot body with its tie) starts the cell battle; it ends in `FactoryReward` (now mapped to
+  Reward, like Building/Mint/Stage/CountryClubReward), `setDefeated` arrives, and the toon
+  teleports to the Sellbot HQ courtyard 11000 (FactoryInterior.handleFactoryWinEvent).
+  Without weak cogs a lone dev toon (137 laff, level-5 gags) lost to the foreman group,
+  which is a four-toon fight upstream: sad → courtyard, also as upstream.
+- **Performance:** 26–30 fps throughout (the dips are the 1 s / 0.25 s screenshot series),
+  heap 3.9 MB, linear free 14–18 MB.
+- **Autotest:** helpers now trigger on a step's first frame (`stepBegan`) instead of
+  `stepTime() < 0.05`, which a screenshot stall could skip.
+- **Still open in the factory:** crates and grids, crusher cells, cut scene, ambient sounds,
+  the foreman-confronted message.

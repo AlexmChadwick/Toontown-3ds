@@ -103,6 +103,7 @@ const Step kScript[] = {
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "factory: goon stun", "factory_goon_stun*"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "factory: entities", "factory_entities*"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "factory: battle", "factory_battle*"},
+    {300.0f, 0, 60, 0, 0, -1, -1, 0, "factory: foreman", "factory_foreman*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "factory: exit", "factory_exit"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: floor", "cog_floor"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: battle", "cog_battle"},
@@ -153,11 +154,12 @@ bool Runner::begin() {
     // Optional lines "from <label prefix>" (skip ahead to that step) and "until <label
     // prefix>" (finish before that step) for quicker iteration.
     char from[64] = {}, until[64] = {};
-    char line[64];
+    char line[256];
     while (fgets(line, sizeof(line), f)) {
         if (char* nl = strchr(line, '\n')) *nl = 0;
-        if (!strncmp(line, "from ", 5)) snprintf(from, sizeof(from), "%s", line + 5);
-        else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%s", line + 6);
+        if (!strncmp(line, "from ", 5)) snprintf(from, sizeof(from), "%.63s", line + 5);
+        else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
+        else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
     }
     fclose(f);
     active_ = true;
@@ -184,6 +186,19 @@ bool Runner::begin() {
     return true;
 }
 
+// "only a,b,c": run just the steps whose labels start with one of the prefixes.
+bool Runner::selected(const char* label) const {
+    const char* p = only_;
+    while (*p) {
+        const char* end = strchr(p, ',');
+        const size_t n = end ? size_t(end - p) : strlen(p);
+        if (n && !strncmp(label, p, n)) return true;
+        if (!end) break;
+        p = end + 1;
+    }
+    return false;
+}
+
 const char* Runner::label() const { return active_ && ready_ && step_ < numSteps_ ? script_[step_].label : ""; }
 
 bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons) {
@@ -194,7 +209,14 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         TT_LOG("autotest: finished");
         return false;
     }
+    while (only_[0] && step_ < numSteps_ && !selected(script_[step_].label)) step_++; // "only" filter
+    if (step_ >= numSteps_) {
+        active_ = false;
+        TT_LOG("autotest: finished");
+        return false;
+    }
     const Step& s = script_[step_];
+    stepFrames_ = stepStarted_ ? stepFrames_ + 1 : 1;
     if (!stepStarted_) {
         TT_LOG("autotest: step %d '%s'", step_, s.label);
         down |= s.downOnce;
