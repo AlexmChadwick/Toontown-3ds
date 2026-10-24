@@ -53,7 +53,9 @@ bool available();
 // Music. path e.g. "romfs:/baked/audio/ttc_nbrhood.tsnd". loop=true uses the
 // file's loop points (whole track for the baked music). Replaces any current
 // track immediately. Returns false on a missing/invalid file (logged).
-bool playMusic(const char* path, bool loop = true);
+// fadeInMs > 0 ramps the volume up from silence over that time (zone-change crossfade:
+// the old track is faded out with stopMusic(fadeMs) first, there is one music stream).
+bool playMusic(const char* path, bool loop = true, int fadeInMs = 0);
 // fadeMs = 0 stops now; otherwise fades out linearly, then stops.
 void stopMusic(int fadeMs = 0);
 bool musicPlaying();
@@ -69,6 +71,10 @@ VoiceHandle playSfx(SfxId id, float volume = 1.0f, float pan = 0.0f, bool loop =
 void stopVoice(VoiceHandle v);
 bool voicePlaying(VoiceHandle v);
 void setVoiceVolume(VoiceHandle v, float volume, float pan = 0.0f);
+
+// SFX voices currently idle (0..kNumSfxVoices). Ambient one-shots use it to stay out of the way
+// of UI/footstep voices: playSfx() steals the oldest voice when none is free.
+int freeVoices();
 
 void setMasterVolume(float v); // 0..1 (ndspSetMasterVol)
 

@@ -23,6 +23,13 @@ Set `boat` (SD, Donald's Dock, source/world/boat.cpp; toontown/safezone/DDSafeZo
   boat_lap      SZ_DD_waterlap   looped while the local toon is on the boat (DDPlayground.enterOnBoat)
 Upstream has no jump sound for toons (LocalAvatar plays none), so none is baked.
 
+The soundscape set (SOUNDSCAPE below; docs/design/audio.md has the table with sources):
+  dest 'romfs'  -> --out        small SFX every zone needs (doors, teleport, SpeedChat, TTC birds)
+  dest 'sd'     -> --sd-out     street/interior music and the other playgrounds' ambient SFX,
+                                streamed / loaded on zone change from sdmc:/3ds/toontown3ds/data/audio/
+SFX kinds: 'sfx' = PCM16 mono 22050 Hz, 'sfx_adpcm' = DSP-ADPCM mono 22050 Hz (0.28x the bytes;
+set TT_SFX_ADPCM=0 or --sfx-pcm16 to bake those as PCM16 for an A/B test).
+
 Decoding uses ffmpeg (found on PATH or /usr/local/bin). Output is deterministic for
 a given ffmpeg build. The bake fails if the total exceeds BUDGET_BYTES.
 """
@@ -40,8 +47,24 @@ import audio_dspadpcm as adp  # noqa: E402
 import audio_tsnd as tsnd  # noqa: E402
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-RES = os.path.join(ROOT, 'ref', 'resources')
+
+
+def _find_resources():
+    """ref/resources of this checkout, else of the main checkout when run from a git worktree."""
+    if os.environ.get('TT_RES'):
+        return os.environ['TT_RES']
+    d = ROOT
+    while True:
+        cand = os.path.join(d, 'ref', 'resources')
+        if (os.path.isdir(cand) and os.listdir(cand)) or os.path.dirname(d) == d:
+            return cand
+        d = os.path.dirname(d)
+
+
+RES = _find_resources()
 BUDGET_BYTES = 3 * 1024 * 1024
+ROMFS_NEW_BUDGET = 300 * 1024          # SOUNDSCAPE assets with dest 'romfs'
+RESIDENT_SFX_BUDGET = 1536 * 1024      # all SOUNDSCAPE SFX loaded at once (2 MB audio - ring - slack)
 MUSIC_RATE = 32000
 SFX_RATE = 22050
 MUSIC_BLOCK_SAMPLES = 1024 * adp.SPF  # 14336 samples = 8 KB per channel per block
@@ -59,13 +82,47 @@ ASSETS = [
     ('gui_popup', 'phase_3/audio/sfx/GUI_balloon_popup.ogg', 'sfx', False),
 ]
 
-BOAT_ASSETS = [
-    ('boat_bell', 'phase_6/audio/sfx/SZ_DD_shipbell.ogg', 'sfx', False),
-    ('boat_foghorn', 'phase_5/audio/sfx/SZ_DD_foghorn.ogg', 'sfx', False),
-    ('boat_creak', 'phase_6/audio/sfx/SZ_DD_dockcreak.ogg', 'sfx', False),
-    ('boat_lap', 'phase_6/audio/sfx/SZ_DD_waterlap.ogg', 'sfx', True),
+# (output name, upstream path, kind, loops, dest). See docs/design/audio.md for the use of each.
+_SFX = 'phase_3.5/audio/sfx/'
+SOUNDSCAPE = [
+    # --- global SFX (RomFS) ---
+    ('door_open', _SFX + 'Door_Open_1.ogg', 'sfx', False, 'romfs'),            # DistributedDoor.py:44
+    ('door_close', _SFX + 'Door_Close_1.ogg', 'sfx', False, 'romfs'),          # DistributedDoor.py:45
+    ('teleport', _SFX + 'AV_teleport.ogg', 'sfx_adpcm', False, 'romfs'),       # Toon.py:1763
+    ('sc_open', _SFX + 'GUI_quicktalker.ogg', 'sfx', False, 'romfs'),          # ToontownChatManager.py:37
+    ('treasure_reject', 'phase_4/audio/sfx/ring_miss.ogg', 'sfx', False, 'romfs'),  # DistributedTreasure.py:20
+    # --- ambient SFX (random one-shots, see *Playground.py) ---
+    ('amb_tt_bird1', 'phase_4/audio/sfx/SZ_TC_bird1.ogg', 'sfx_adpcm', False, 'romfs'),  # TTSafeZoneLoader.py:19
+    ('amb_tt_bird2', 'phase_4/audio/sfx/SZ_TC_bird2.ogg', 'sfx', False, 'romfs'),
+    ('amb_tt_bird3', 'phase_4/audio/sfx/SZ_TC_bird3.ogg', 'sfx_adpcm', False, 'romfs'),
+    ('amb_dd_seagull', 'phase_6/audio/sfx/SZ_DD_Seagull.ogg', 'sfx_adpcm', False, 'sd'),  # DDSafeZoneLoader.py:21
+    ('amb_br_wind1', 'phase_8/audio/sfx/SZ_TB_wind_1.ogg', 'sfx_adpcm', False, 'sd'),     # BRSafeZoneLoader.py:20-22
+    ('amb_br_wind2', 'phase_8/audio/sfx/SZ_TB_wind_2.ogg', 'sfx_adpcm', False, 'sd'),
+    ('amb_br_wind3', 'phase_8/audio/sfx/SZ_TB_wind_3.ogg', 'sfx_adpcm', False, 'sd'),
+    ('amb_dg_bird1', 'phase_8/audio/sfx/SZ_DG_bird_01.ogg', 'sfx_adpcm', False, 'sd'),    # DGSafeZoneLoader.py:17-20
+    ('amb_dg_bird2', 'phase_8/audio/sfx/SZ_DG_bird_02.ogg', 'sfx_adpcm', False, 'sd'),
+    ('amb_dg_bird3', 'phase_8/audio/sfx/SZ_DG_bird_03.ogg', 'sfx_adpcm', False, 'sd'),
+    ('amb_dg_bird4', 'phase_8/audio/sfx/SZ_DG_bird_04.ogg', 'sfx_adpcm', False, 'sd'),
+    # --- street music (TownLoader.musicFile) st_<hood> and interior music (activityMusicFile) in_<hood> ---
+    ('st_2000', 'phase_3.5/audio/bgm/TC_SZ.ogg', 'music', True, 'sd'),
+    ('in_2000', 'phase_3.5/audio/bgm/TC_SZ_activity.ogg', 'music', True, 'sd'),
+    ('st_1000', 'phase_6/audio/bgm/DD_SZ.ogg', 'music', True, 'sd'),
+    ('in_1000', 'phase_6/audio/bgm/DD_SZ_activity.ogg', 'music', True, 'sd'),
+    ('st_4000', 'phase_6/audio/bgm/MM_SZ.ogg', 'music', True, 'sd'),
+    ('in_4000', 'phase_6/audio/bgm/MM_SZ_activity.ogg', 'music', True, 'sd'),
+    ('st_5000', 'phase_8/audio/bgm/DG_SZ.ogg', 'music', True, 'sd'),   # DG's interiors use the same file
+    ('st_3000', 'phase_8/audio/bgm/TB_SZ.ogg', 'music', True, 'sd'),
+    ('in_3000', 'phase_8/audio/bgm/TB_SZ_activity.ogg', 'music', True, 'sd'),
+    ('st_9000', 'phase_8/audio/bgm/DL_SZ.ogg', 'music', True, 'sd'),
+    ('in_9000', 'phase_8/audio/bgm/DL_SZ_activity.ogg', 'music', True, 'sd'),
+    ('in_8000', 'phase_6/audio/bgm/GS_KartShop.ogg', 'music', True, 'sd'),  # Goofy Speedway / Outdoor Zone shops
+    # --- Donald's Dock boat (source/world/boat.cpp; docs/design/boat.md) ---
+    ('boat_bell', 'phase_6/audio/sfx/SZ_DD_shipbell.ogg', 'sfx', False, 'sd'),
+    ('boat_foghorn', 'phase_5/audio/sfx/SZ_DD_foghorn.ogg', 'sfx', False, 'sd'),
+    ('boat_creak', 'phase_6/audio/sfx/SZ_DD_dockcreak.ogg', 'sfx', False, 'sd'),
+    ('boat_lap', 'phase_6/audio/sfx/SZ_DD_waterlap.ogg', 'sfx', True, 'sd'),
 ]
-SETS = {'boot': ASSETS, 'boat': BOAT_ASSETS}
+ALL_ASSETS = [(n, r, k, l, 'romfs') for n, r, k, l in ASSETS] + SOUNDSCAPE
 
 
 def find_ffmpeg():
@@ -111,6 +168,22 @@ def bake_sfx(src, dst, loops):
     return size, n, SFX_RATE, 1, pcm, pcm
 
 
+def bake_sfx_adpcm(src, dst, loops):
+    """Mono DSP-ADPCM SFX: a single block holding the whole sound (loaded with one read)."""
+    pcm = decode_ogg(src, SFX_RATE, 1)
+    n = pcm.shape[1]
+    coefs = [adp.compute_coefs(pcm[0])]
+    data, decoded, headers, h0, h1 = adp.encode([pcm[0]], coefs)
+    block_samples = (n + adp.SPF - 1) // adp.SPF * adp.SPF
+    loop_ctx = [(int(headers[0, 0]), int(h0[0, 0]), int(h1[0, 0]))]
+    block_ctx = [[loop_ctx[0]]]
+    size = tsnd.write(dst, encoding=tsnd.ENC_ADPCM, sample_rate=SFX_RATE, num_samples=n,
+                      channel_data=data, loop=loops, loop_start=0, loop_end=n,
+                      block_samples=block_samples, coefs=coefs,
+                      block_ctx=block_ctx, loop_ctx=loop_ctx)
+    return size, n, SFX_RATE, 1, pcm, [decoded[0]]
+
+
 def snr_db(ref, test):
     ref = ref.astype(np.float64)
     err = ref - test.astype(np.float64)
@@ -121,18 +194,31 @@ def snr_db(ref, test):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('--out', default=os.path.join(ROOT, 'romfs', 'baked', 'audio'))
+    ap.add_argument('--sd-out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'audio'),
+                    help="output for SOUNDSCAPE assets with dest 'sd' (gitignored)")
     ap.add_argument('--only', help='bake only this output name')
-    ap.add_argument('--set', default='boot', choices=sorted(SETS), help='asset set (default: boot, the RomFS set)')
     ap.add_argument('--resources', default=RES, help='ref/resources checkout (default: <repo>/ref/resources)')
+    ap.add_argument('--sfx-pcm16', action='store_true', help="bake 'sfx_adpcm' assets as PCM16 (A/B test)")
     args = ap.parse_args()
+    if os.environ.get('TT_SFX_ADPCM') == '0':
+        args.sfx_pcm16 = True
     os.makedirs(args.out, exist_ok=True)
-    total = 0
-    print(f'{"asset":16} {"enc":6} {"ch":>2} {"rate":>6} {"secs":>6} {"ogg KB":>7} {"tsnd KB":>8} {"SNR dB":>7}')
-    for name, rel, kind, loops in SETS[args.set]:
-        dst = os.path.join(args.out, name + '.tsnd')
+    os.makedirs(args.sd_out, exist_ok=True)
+    totals = {'romfs': 0, 'sd': 0}
+    romfs_new = 0
+    resident = 0
+    print(f'{"asset":16} {"dst":5} {"enc":6} {"ch":>2} {"rate":>6} {"secs":>6} {"ogg KB":>7} {"tsnd KB":>8} {"SNR dB":>7}')
+    for name, rel, kind, loops, dest in ALL_ASSETS:
+        dst = os.path.join(args.out if dest == 'romfs' else args.sd_out, name + '.tsnd')
+        legacy = (name, rel, kind, loops) in ASSETS
         if args.only and args.only != name:
             if os.path.exists(dst):
-                total += os.path.getsize(dst)
+                size = os.path.getsize(dst)
+                totals[dest] += size
+                if not legacy and dest == 'romfs':
+                    romfs_new += size
+                if kind != 'music' and not legacy:
+                    resident += size
             continue
         src = os.path.join(args.resources, rel)
         t0 = time.time()
@@ -140,15 +226,26 @@ def main():
             size, n, rate, ch, ref, dec = bake_music(src, dst, loops)
             snr = min(snr_db(ref[c], dec[c]) for c in range(ch))
             enc = 'ADPCM'
+        elif kind == 'sfx_adpcm' and not args.sfx_pcm16:
+            size, n, rate, ch, ref, dec = bake_sfx_adpcm(src, dst, loops)
+            snr = snr_db(ref[0], dec[0])
+            enc = 'ADPCM'
         else:
             size, n, rate, ch, ref, dec = bake_sfx(src, dst, loops)
             snr = float('inf')
             enc = 'PCM16'
-        total += size
-        print(f'{name:16} {enc:6} {ch:2} {rate:6} {n / rate:6.2f} {os.path.getsize(src) / 1024:7.1f} '
+        totals[dest] += size
+        if not legacy and dest == 'romfs':
+            romfs_new += size
+        if kind != 'music' and not legacy:
+            resident += size
+        print(f'{name:16} {dest:5} {enc:6} {ch:2} {rate:6} {n / rate:6.2f} {os.path.getsize(src) / 1024:7.1f} '
               f'{size / 1024:8.1f} {snr:7.1f}   ({time.time() - t0:.1f}s) <- {rel}')
-    print(f'total {total / 1024:.1f} KB  (budget {BUDGET_BYTES / 1024:.0f} KB)')
-    if total > BUDGET_BYTES:
+    print(f'romfs total {totals["romfs"] / 1024:.1f} KB (budget {BUDGET_BYTES / 1024:.0f} KB), '
+          f'of which soundscape {romfs_new / 1024:.1f} KB (budget {ROMFS_NEW_BUDGET / 1024:.0f} KB)')
+    print(f'sd total {totals["sd"] / 1024:.1f} KB; soundscape SFX if all resident {resident / 1024:.1f} KB '
+          f'(budget {RESIDENT_SFX_BUDGET / 1024:.0f} KB)')
+    if totals['romfs'] > BUDGET_BYTES or romfs_new > ROMFS_NEW_BUDGET or resident > RESIDENT_SFX_BUDGET:
         sys.exit('bake_audio: over budget')
 
 

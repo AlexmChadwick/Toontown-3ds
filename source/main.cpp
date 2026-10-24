@@ -134,9 +134,72 @@ int main() {
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%lu.tsnd", static_cast<unsigned long>(hood));
         }
         tt::audio::stopMusic(300);
-        tt::audio::playMusic(path, true);
+        tt::audio::playMusic(path, true, 300);
     };
     playHoodMusic(2000);
+    // Streets play the hood's town music (TownLoader.musicFile), interiors its activity
+    // music (activityMusicFile); docs/design/audio.md. Falls back to the playground track.
+    auto playPlaceMusic = [&](u32 zone) {
+        const tt::world::PlaceKind kind = tt::world::placeKind(zone);
+        if (kind == tt::world::PlaceKind::Playground) {
+            playHoodMusic(zone);
+            return;
+        }
+        const unsigned long hood = tt::world::hoodOf(zone);
+        char path[80];
+        snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s_%lu.tsnd",
+                 kind == tt::world::PlaceKind::Interior ? "in" : "st", hood);
+        FILE* f = fopen(path, "rb");
+        if (!f && kind == tt::world::PlaceKind::Interior) { // DG's interiors share the street track
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/st_%lu.tsnd", hood);
+            f = fopen(path, "rb");
+        }
+        if (!f) {
+            playHoodMusic(zone);
+            return;
+        }
+        fclose(f);
+        tt::audio::stopMusic(300);
+        tt::audio::playMusic(path, true, 300);
+    };
+    // Playground ambience: random one-shots (birds, gulls, wind) from *SafeZoneLoader.
+    tt::audio::SfxId ambient[4] = {tt::audio::kInvalidSfx, tt::audio::kInvalidSfx, tt::audio::kInvalidSfx,
+                                   tt::audio::kInvalidSfx};
+    int numAmbient = 0;
+    float ambientTimer = 6.0f;
+    auto loadAmbient = [&](u32 zone) {
+        for (int i = 0; i < numAmbient; i++) tt::audio::freeSfx(ambient[i]);
+        numAmbient = 0;
+        if (tt::world::placeKind(zone) != tt::world::PlaceKind::Playground) return;
+        static const char* const kTt[] = {"romfs:/baked/audio/amb_tt_bird1.tsnd", "romfs:/baked/audio/amb_tt_bird2.tsnd",
+                                          "romfs:/baked/audio/amb_tt_bird3.tsnd"};
+        static const char* const kDd[] = {"sdmc:/3ds/toontown3ds/data/audio/amb_dd_seagull.tsnd"};
+        static const char* const kBr[] = {"sdmc:/3ds/toontown3ds/data/audio/amb_br_wind1.tsnd",
+                                          "sdmc:/3ds/toontown3ds/data/audio/amb_br_wind2.tsnd",
+                                          "sdmc:/3ds/toontown3ds/data/audio/amb_br_wind3.tsnd"};
+        static const char* const kDg[] = {"sdmc:/3ds/toontown3ds/data/audio/amb_dg_bird1.tsnd",
+                                          "sdmc:/3ds/toontown3ds/data/audio/amb_dg_bird2.tsnd",
+                                          "sdmc:/3ds/toontown3ds/data/audio/amb_dg_bird3.tsnd",
+                                          "sdmc:/3ds/toontown3ds/data/audio/amb_dg_bird4.tsnd"};
+        const char* const* list = nullptr;
+        int n = 0;
+        switch (zone) {
+        case 2000: list = kTt, n = 3; break;
+        case 1000: list = kDd, n = 1; break;
+        case 3000: list = kBr, n = 3; break;
+        case 5000: list = kDg, n = 4; break;
+        default: break;
+        }
+        for (int i = 0; i < n; i++) {
+            const tt::audio::SfxId id = tt::audio::loadSfx(list[i]);
+            if (id != tt::audio::kInvalidSfx) ambient[numAmbient++] = id;
+        }
+    };
+    loadAmbient(2000);
+    const tt::audio::SfxId sfxDoorOpen = tt::audio::loadSfx("romfs:/baked/audio/door_open.tsnd");
+    const tt::audio::SfxId sfxDoorClose = tt::audio::loadSfx("romfs:/baked/audio/door_close.tsnd");
+    const tt::audio::SfxId sfxTeleport = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
+    const tt::audio::SfxId sfxChatOpen = tt::audio::loadSfx("romfs:/baked/audio/sc_open.tsnd");
     const tt::audio::SfxId sfxWalk = tt::audio::loadSfx("romfs:/baked/audio/footstep_walk.tsnd");
     const tt::audio::SfxId sfxRun = tt::audio::loadSfx("romfs:/baked/audio/footstep_run.tsnd");
     const tt::audio::SfxId sfxClick = tt::audio::loadSfx("romfs:/baked/audio/gui_click.tsnd");
@@ -194,6 +257,7 @@ int main() {
     float fade = 0.0f; // 0 clear .. 1 black
     int fadeDir = 0;   // +1 closing, -1 opening
     bool fadeWalk = false;
+    bool fadeDoor = false; // walking through a building door (door open/close sounds)
     unsigned hoodsAvailable = 0;
     for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
         if (tt::world::Place::available(tt::ui::kTeleportHoods[i])) hoodsAvailable |= 1u << i;
@@ -469,7 +533,16 @@ int main() {
         const int prevTab = uiState.tab;
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
-        if (uiState.tab != prevTab) tt::audio::playSfx(sfxClick);
+        if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
+        ambientTimer -= dt;
+        if (ambientTimer <= 0.0f) {
+            // Like the playgrounds' random ambient loops: a one-shot every 8-20 s, quietly,
+            // only when voices are free so footsteps and UI clicks win.
+            ambientTimer = 8.0f + static_cast<float>(rand() % 1200) / 100.0f;
+            if (numAmbient > 0 && tt::audio::freeVoices() >= 3) {
+                tt::audio::playSfx(ambient[rand() % numAmbient], 0.5f, static_cast<float>(rand() % 100 - 50) / 100.0f);
+            }
+        }
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
             myPhrase = tt::sc::phraseText(speechMsg);
@@ -555,6 +628,9 @@ int main() {
         if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
             fadeTarget = travelTarget; // start closing; travel once the screen is black
             fadeDir = 1;
+            fadeDoor = fadeWalk && exitHere.kind == tt::world::Exit::Door;
+            if (fadeDoor) tt::audio::playSfx(sfxDoorOpen);       // DistributedDoor: door opens
+            else if (!fadeWalk) tt::audio::playSfx(sfxTeleport); // Toon.getTeleportOutTrack
         }
         travelTarget = 0;
         if (fadeDir != 0) {
@@ -585,7 +661,12 @@ int main() {
                 if (netStarted) net.changeZone(travelTarget);
                 place.finishLoading(ax, ay, az, onStreetCell, nullptr);
                 lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
-                if (tt::world::hoodOf(travelTarget) != tt::world::hoodOf(fromZone)) playHoodMusic(travelTarget);
+                if (tt::world::hoodOf(travelTarget) != tt::world::hoodOf(fromZone) ||
+                    tt::world::placeKind(travelTarget) != tt::world::placeKind(fromZone)) {
+                    playPlaceMusic(travelTarget);
+                }
+                loadAmbient(travelTarget);
+                if (fadeDoor) tt::audio::playSfx(sfxDoorClose); // the door shuts behind us
                 continue;
             }
             place.load(fromZone); // fall back to where we were
