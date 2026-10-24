@@ -19,10 +19,11 @@
 #include "render/anim.h"
 #include "render/model.h"
 #include "world/toon_dna.h"
+#include "world/toon_anim.h"
 
 namespace tt::world {
 
-constexpr int kToonAnimCount = 5; // matches ToonAnim::kAnimCount (toon_avatar.h)
+constexpr int kToonAnimCount = kAnimCount; // matches ToonAnim::kAnimCount (toon_avatar.h)
 
 enum class SlotState : u8 {
     Free,   // no key, no memory
@@ -35,12 +36,13 @@ enum class SlotState : u8 {
 struct ToonPart {
     char key[24] = {}; // e.g. "torso_ms_500"
     render::Model model;
-    render::Anim anim[kToonAnimCount]; // missing clips stay unloaded (static heads)
+    render::Anim neutral; // two neutral keys, including the required child attachment
     int refs = 0;
     u32 lastUsed = 0;
     bool animated = false;
     volatile SlotState state = SlotState::Free;
-    u32 bytes = 0; // linear bytes, set by the loader
+    u32 bytes = 0; // conservative allocated bytes, including mips/alignment
+    u32 retiredFrame = 0;
 };
 
 struct ToonClothing {
@@ -48,13 +50,17 @@ struct ToonClothing {
     C3D_Tex tex{};
     int refs = 0;
     u32 lastUsed = 0;
+    u32 retiredFrame = 0, bytes = 0;
     volatile SlotState state = SlotState::Free;
 };
 
 enum class ToonLod : u8 { High = 0, Low = 1 }; // LOD 500 / 250
 
 // Everything needed to draw one toon. Owned by the cache; held via acquire/release.
+class ToonCache;
+
 struct ToonLook {
+    ToonCache* cache = nullptr;
     ToonPart* legs = nullptr;
     ToonPart* torso = nullptr;
     ToonPart* head = nullptr;
@@ -90,6 +96,18 @@ public:
     bool acquire(const ToonDna& dna, ToonLod lod, ToonLook* out);
     void release(ToonLook* look);
 
+    // Before FrameBegin, main thread only. Fences old GPU readers and publishes complete poses.
+    void pump();
+    struct Pose {
+        const render::Anim* parts[3] = {};
+        float blend[3] = {};
+    };
+    // Fixed owner slots; identical body-part/model resources stay shared by looks.
+    bool sample(const void* owner, const ToonLook& look, int clip, float time, bool loop, Pose* pose);
+    void forget(const void* owner);
+    static constexpr int kStreamGroups = 12;
+    static constexpr u32 kStreamVertices = 512;
+    static constexpr u32 kStreamBytes = kStreamGroups*3*2*2*kStreamVertices*8;
     u32 linearBytes() const;
     int partsLoaded() const;
     int pendingLoads() const;
@@ -101,9 +119,28 @@ private:
     bool loaderStep(); // one unit of work; false when idle
     void loadPart(ToonPart& p);
     void loadClothing(ToonClothing& c);
-    void enforceBudget();
+    bool admit(u32 bytes);
+    bool streamStep();
     bool findFile(const char* file, char* out, size_t outSize) const;
 
+    enum class StreamState : u8 { Idle, Queued, Loading, Staged };
+    struct Stream {
+        const void* owner = nullptr;
+        char key[3][24] = {};
+        u32 vertices[3] = {};
+        bool animated[3] = {}, activeFallback[3] = {}, stagedFallback[3] = {};
+        render::Anim active[3], staging[3];
+        FILE* files[3] = {};
+        char fileNames[3][72] = {};
+        bool fileFallback[3] = {};
+        float time = 0, shownTime = 0;
+        bool loop = true, shownLoop = true, valid = false;
+        int clip = 0;
+        u32 generation = 0, loadedGeneration = 0, usedFrame = 0;
+        StreamState state = StreamState::Idle;
+    };
+    Stream streams_[kStreamGroups];
+    u32 frame_ = 1, streamBytes_ = 0;
     ToonPart parts_[kMaxParts];
     ToonClothing clothes_[kMaxClothes];
     ToonLook fallback_;
@@ -114,7 +151,7 @@ private:
     render::TexEntry* clothesEntries_ = nullptr;
     u16 numClothesTex_ = 0;
 
-    LightLock lock_;
+    mutable LightLock lock_;
     LightEvent wake_;
     Thread loader_ = nullptr;
     volatile bool quit_ = false;

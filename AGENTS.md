@@ -199,6 +199,12 @@ Key decisions:
    - **"Draw in front"** (eyes over face, pupils over eyes) uses a per-batch `layer`
      that adds a depth bias (`kLayerDepthBias` in `render/renderer.cpp`).
 5. **Toons.**
+   - Runtime animation catalog: 51 stable clip IDs, shared model/clothing cache,
+     bounded two-frame active/staging windows (12 three-part groups, 576 KiB).
+     The complete Toon cache has a hard 4 MiB admission limit. Call `ToonCache::pump`
+     before GPU frame submission; it fences publication and retired-resource reuse.
+     Whole Toon action files are never eagerly loaded. Battle `playClip` uses this
+     same pool. See `docs/design/toon_anims.md` for controls, hooks and validation.
    - Animation tracks are baked per (species head, torso size, legs size) at a reduced
      rate (12 fps, interpolated), for a minimum set: neutral, walk, run, jump.
    - Skinning runs on the GPU, with ≤ 20 bones per draw (PICA has 96 float uniforms;

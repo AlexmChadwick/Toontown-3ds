@@ -6,6 +6,7 @@
 
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "net/net_platform.h"
 
 namespace tt::world {
 
@@ -34,8 +35,18 @@ float wrapDeg(float d) {
 ToonAnim animFromState(const char* state, bool* locomotion) {
     *locomotion = !strcmp(state, "run") || !strcmp(state, "walk") || !strcmp(state, "Happy");
     if (*locomotion) return kAnimNeutral;
-    if (!strncmp(state, "jump", 4)) return kAnimJumpIdle;
-    return kAnimNeutral; // neutral, Sad, Sleep, emotes, ... (not baked yet)
+    if (!strcmp(state,"Sad")) { *locomotion=true;return kAnimSadNeutral; }
+    if (!strcmp(state,"Catching")) { *locomotion=true;return kAnimCatchNeutral; }
+    if (!strcmp(state,"CatchEating")) { *locomotion=true;return kAnimCatchEatneutral; }
+    if (!strcmp(state,"SitStart")) return kAnimSitStart;
+    if (!strcmp(state,"Sit")) return kAnimSit;
+    if (!strcmp(state,"swim") || !strcmp(state,"swimhold")) return kAnimSwim;
+    if (!strcmp(state,"jumpLand")) return kAnimJumpLand;
+    if (!strcmp(state,"jumpSquat")) return kAnimJumpSquat;
+    if (!strncmp(state,"jump",4)) return kAnimJumpIdle;
+    if (!strcmp(state,"TeleportOut")) return kAnimTeleport;
+    if (!strcmp(state,"TeleportIn")) return kAnimJump;
+    return kAnimNeutral;
 }
 
 // Boat-local pose -> world through the boat's matrix (translate * rotateZ), like a node
@@ -79,6 +90,7 @@ void RemoteToons::refreshLook(Remote& r) {
 
 void RemoteToons::despawn(Remote& r) {
     if (cache_) cache_->release(&r.look);
+    r.avatar.cancel();
     r.avatar.setLook(nullptr);
     r.active = false;
     count_--;
@@ -111,6 +123,8 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
             r->phrase = nullptr;
             r->phraseAge = 99.0f;
             r->speed = r->turnRate = 0.0f;
+            r->emoteSerial=0;
+            r->catchFallAge=2;
             count_++;
         }
         r->x = r->tx = t->x;
@@ -123,8 +137,19 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         applyDna(*r, *t);
         r->stateAnim = animFromState(t->animState, &r->locomotion);
         r->avatar.play(r->stateAnim, 1.0f);
+        r->stateRate=t->animRate;
+        if(t->emoteSerial) { r->emoteSerial=t->emoteSerial;r->avatar.playEmote(t->emoteId,clipElapsed(net::plat::nowMs(),t->emoteMs)); }
         break;
     }
+    case EventType::CatchHitBySuit:
+        if (r) r->catchFallAge=clipElapsed(net::plat::nowMs(),static_cast<u32>(ev.arg));
+        break;
+    case EventType::Emote:
+        if (r && t && t->emoteSerial!=r->emoteSerial) {
+            r->emoteSerial=t->emoteSerial;
+            r->avatar.playEmote(t->emoteId,clipElapsed(net::plat::nowMs(),t->emoteMs));
+        }
+        break;
     case EventType::Despawn:
         if (r) despawn(*r);
         break;
@@ -142,7 +167,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         }
         break;
     case EventType::Anim:
-        if (r && t) r->stateAnim = animFromState(t->animState, &r->locomotion);
+        if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate; }
         break;
     case EventType::Name:
         if (r && t) snprintf(r->name, sizeof(r->name), "%s", t->name);
@@ -172,6 +197,7 @@ void RemoteToons::update(float dt) {
     const float k = 1.0f - expf(-dt / kSmoothTau);
     for (Remote& r : toons_) {
         if (!r.active) continue;
+        const float px=r.x,py=r.y,ph=r.h;
         const float dx = r.tx - r.x, dy = r.ty - r.y, dz = r.tz - r.z;
         if (dx * dx + dy * dy + dz * dz > kSnapDistance * kSnapDistance) {
             r.x = r.tx;
@@ -182,7 +208,6 @@ void RemoteToons::update(float dt) {
             r.y += dy * k;
             r.z += dz * k;
         }
-        const float px = r.x, py = r.y, ph = r.h;
         r.h = wrapDeg(r.h + wrapDeg(r.th - r.h) * k);
         if (dt > 0.0f) {
             // Forward speed along the heading, for Toon.setSpeed-style clip choice.
@@ -192,21 +217,26 @@ void RemoteToons::update(float dt) {
             r.speed += (fwd - r.speed) * sk;
             r.turnRate += (wrapDeg(r.h - ph) / dt - r.turnRate) * sk;
         }
-        if (r.locomotion) {
-            // OTPGlobals RunCutOff 8 / WalkCutOff 0.5, reverse = walk at -1.
-            if (r.speed >= 8.0f) {
-                r.avatar.play(kAnimRun, 1.0f);
-            } else if (r.speed > 0.5f) {
-                r.avatar.play(kAnimWalk, 1.0f);
-            } else if (r.speed < -0.5f) {
-                r.avatar.play(kAnimWalk, -1.0f);
-            } else if (fabsf(r.turnRate) > 5.0f) {
-                r.avatar.play(kAnimWalk, 1.0f);
-            } else {
-                r.avatar.play(kAnimNeutral, 1.0f);
-            }
-        } else {
-            r.avatar.play(r.stateAnim, 1.0f);
+        const ToonLod want=r.distSq>kLowLodDistSq?ToonLod::Low:r.distSq<kHighLodDistSq?ToonLod::High:r.lod;
+        if (want!=r.lod) { r.lod=want;refreshLook(r); }
+        if (r.catchFallAge<56/54.0f) {
+            r.avatar.playAction(kAnimSlipBackward,ClipMode::Once,54/24.0f,12/24.0f,67/24.0f);
+            r.avatar.seek(r.catchFallAge);
+            r.catchFallAge+=dt;
+        } else if (r.locomotion) {
+            ToonAnim idle=kAnimNeutral,walk=kAnimWalk,run=kAnimRun;
+            float rate=1;
+            if (r.stateAnim==kAnimSadNeutral) { idle=kAnimSadNeutral;walk=run=kAnimSadWalk;rate=1.2f; }
+            if (r.stateAnim==kAnimCatchNeutral) { idle=kAnimCatchNeutral;walk=run=kAnimCatchRun; }
+            if (r.stateAnim==kAnimCatchEatneutral) { idle=kAnimCatchEatneutral;walk=run=kAnimCatchEatnrun; }
+            if(r.speed>=8) r.avatar.play(run,rate);
+            else if(r.speed>.5f || fabsf(r.turnRate)>5) r.avatar.play(walk,rate);
+            else if(r.speed<-.5f) r.avatar.play(walk,-1);
+            else r.avatar.play(idle,1);
+        } else if (!r.avatar.emoteActive()) {
+            const bool once=r.stateAnim==kAnimJumpSquat || r.stateAnim==kAnimJumpLand ||
+                r.stateAnim==kAnimSitStart || r.stateAnim==kAnimTeleport || r.stateAnim==kAnimJump;
+            r.avatar.playAction(r.stateAnim,once?ClipMode::Once:ClipMode::Loop,r.stateRate);
         }
         updateWorldPose(r);
         r.avatar.update(dt);
@@ -234,14 +264,6 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         order[best] = tmp;
 
         Remote& r = *order[i];
-        // LOD 250 beyond ~45 units, back to 500 inside ~35 (hysteresis avoids reload churn).
-        const ToonLod want = r.distSq > kLowLodDistSq ? ToonLod::Low
-                             : r.distSq < kHighLodDistSq ? ToonLod::High
-                                                         : r.lod;
-        if (want != r.lod) {
-            r.lod = want;
-            refreshLook(r);
-        }
         C3D_Mtx m;
         Mtx_Identity(&m);
         Mtx_Translate(&m, r.wx, r.wy, r.wz, true);

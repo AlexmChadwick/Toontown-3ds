@@ -234,7 +234,7 @@ int main() {
 
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
-    toonCache.init();
+    if (!toonCache.init()) { TT_LOG("boot: Toon stream pool allocation failed"); return 1; }
     tt::world::AssetLoader::init(); // background .ttm/.tta loads (classic characters, boat)
     if (!toonCache.initFallback()) TT_LOG("boot: default toon failed to load");
     // Local toon: default dog until the server tells us our real DNA.
@@ -272,6 +272,7 @@ int main() {
     float fade = 0.0f; // 0 clear .. 1 black
     int fadeDir = 0;   // +1 closing, -1 opening
     bool fadeWalk = false;
+    float teleportOutAge=0,teleportInAge=-1;
     bool fadeDoor = false; // walking through a building door (door open/close sounds)
     unsigned hoodsAvailable = 0;
     for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
@@ -401,6 +402,7 @@ int main() {
 
     tt::prof::init();
     while (aptMainLoop()) {
+        toonCache.pump(); // publish whole streamed poses after the previous GPU frame
         tt::prof::frameBegin();
         tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
         const u64 now = svcGetSystemTick();
@@ -686,8 +688,15 @@ int main() {
                 tt::audio::playSfx(ambient[rand() % numAmbient], 0.5f, static_cast<float>(rand() % 100 - 50) / 100.0f);
             }
         }
+        ui.setEmoteAccess(netStarted && net.ownStats().hasEmotes?net.ownStats().emoteAccess:nullptr);
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
+            if(speechMsg<0) {
+                const int emote=-1-speechMsg;
+                if(!battle.active() && !fishing.active() && !trolley.seated() && !minigame.active() && fadeDir==0 &&
+                   !localToon.emoteActive() && !uiState.whisperTo && (!netStarted || net.sendEmote(emote))) localToon.playEmote(emote);
+                continue;
+            }
             if (!uiState.whisperTo) { // whispers are private: no balloon over our head
                 myPhrase = tt::sc::phraseText(speechMsg);
                 myPhraseAge = 0.0f;
@@ -696,6 +705,7 @@ int main() {
             pendingSpeech = speechMsg;
         }
         myPhraseAge += dt;
+        if(localToon.bodyLocked() || teleportInAge>=0) { in.pad.dx=in.pad.dy=0;in.down&=~(KEY_A|KEY_B);in.held&=~(KEY_A|KEY_B); }
         if (fadeDir > 0) {
             // Walking out through a tunnel or door: keep going forward, ignore the player.
             in.pad.dx = 0;
@@ -767,8 +777,9 @@ int main() {
         const tt::world::ToonAnim anim = player.animState(&animRate);
         // In battle the movie picks the clip (and the autotest's "clip: *" steps play one).
         const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
-        if (!battle.inBattle() && !clipTest) localToon.play(anim, animRate);
-        if (minigame.inScene()) localToon.play(minigame.toonRunning() ? tt::world::kAnimRun : tt::world::kAnimNeutral, 1.0f);
+        const bool featureAnimation=fishing.active() || trolley.seated() || minigame.inScene() ||
+            teleportInAge>=0 || (fadeDir>0 && !fadeWalk);
+        if (!battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
         if (battle.inBattle()) { // the battle movie animates the toon
             if (!battleClips.count && localLook.ready()) {
                 battleClips.load(localLook, tt::world::kBattleClipNames, tt::world::kNumBattleClips);
@@ -795,6 +806,24 @@ int main() {
             C3D_FrameSync(); // the last frame may still be drawing with them
             battleClips.unload();
         }
+        if(!battle.inBattle() && !clipTest) {
+            localToon.setHeadOnly(false);localToon.setBodyPose();
+            if(minigame.inScene()) minigame.applyAnimation(localToon);
+            else if(trolley.seated()) trolley.applyAnimation(localToon,tt::net::plat::nowMs());
+            else if(fishing.active()) fishing.applyAnimation(localToon);
+            else if(fadeDir>0 && !fadeWalk) {
+                localToon.playAction(tt::world::kAnimTeleport,tt::world::ClipMode::Once);
+                localToon.seek(teleportOutAge);
+            } else if(teleportInAge>=0) {
+                teleportInAge+=dt;
+                if(teleportInAge<.3f) localToon.hold(tt::world::kAnimTeleport,81/24.0f);
+                else {
+                    localToon.playAction(tt::world::kAnimJump,tt::world::ClipMode::Once,1,.45f);
+                    localToon.seek(teleportInAge-.3f);
+                    if(teleportInAge>=.3f+40/24.0f-.45f) teleportInAge=-1;
+                }
+            }
+        }
         if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
             TT_LOG("player: anim %d at %.1f,%.1f,%.2f (ground %.2f)", int(anim), double(player.x()), double(player.y()),
                    double(player.z()), double(player.groundZ()));
@@ -809,6 +838,7 @@ int main() {
             footstepAnim = anim;
         }
         localToon.update(dt);
+        if(localToon.popEmoteFinished() && netStarted) net.sendEmote(-1);
         tt::prof::lap(tt::prof::kPlayer);
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
@@ -859,6 +889,7 @@ int main() {
         if (travelTarget && travelTarget != place.zoneId() && (!netStarted || net.inZone())) {
             fadeTarget = travelTarget; // start closing; travel once the screen is black
             fadeDir = 1;
+            teleportOutAge=0;teleportInAge=-1;localToon.cancel();
             fadeDoor = fadeWalk && exitHere.kind == tt::world::Exit::Door;
             if (fadeDoor) tt::audio::playSfx(sfxDoorOpen);       // DistributedDoor: door opens
             else if (!fadeWalk) tt::audio::playSfx(sfxTeleport); // Toon.getTeleportOutTrack
@@ -866,7 +897,8 @@ int main() {
         travelTarget = 0;
         if (fadeDir != 0) {
             const float before = fade;
-            fade += fadeDir * dt / kFadeSec;
+            if(fadeDir>0 && !fadeWalk) teleportOutAge+=dt;
+            if(fadeDir<0 || fadeWalk || teleportOutAge>=3.0f) fade += fadeDir * dt / kFadeSec;
             if (fadeDir > 0 && fade >= 1.0f) {
                 fade = 1.0f;
                 // Travel on the frame after one fully black frame has been shown.
@@ -893,6 +925,7 @@ int main() {
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
+                if(!fadeWalk) { teleportInAge=0;localToon.cancel(); }
                 if (netStarted) net.changeZone(travelTarget);
                 place.finishLoading(ax, ay, az, onStreetCell, nullptr);
                 lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
@@ -1038,7 +1071,8 @@ int main() {
                 wasMovingNet = movingNow;
                 // Anim *states*, as LocalAvatar sends them: "run" covers all ground locomotion
                 // (others derive walk/run/neutral from our smoothed speed), "jumpAirborne" in the air.
-                const char* netState = player.airborne() ? "jumpAirborne" : "run";
+                const char* netState = trolley.seated()?trolley.toonNetworkState(nowMs):fishing.active()?"off":minigame.inScene()?minigame.toonNetworkState():
+                    (fadeDir>0 && !fadeWalk)?"TeleportOut":teleportInAge>=0?"TeleportIn":player.airborne()?"jumpAirborne":"run";
                 if (netState != sentState) {
                     net.sendAnimState(netState, 1.0f);
                     sentState = netState;
@@ -1158,6 +1192,7 @@ int main() {
                 minigame.update(net, minigamePad, dt, nowMs);
                 if (const u32 home = minigame.popReturn()) {
                     // Back from the game: teleport into the playground (Playground.enterTeleportIn).
+                    teleportInAge=0;localToon.cancel();
                     player.setCollision(&place.collision());
                     net.changeZone(home);
                     float ax, ay, az, ah;
@@ -1263,7 +1298,7 @@ int main() {
             player.worldMatrix(&m);
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (player.cameraDistance() > kHideToonCameraDistance) {
+            if (player.cameraDistance() > kHideToonCameraDistance && !(teleportInAge>=0 && teleportInAge<.3f)) {
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
             remoteToons.draw(renderer, player.x(), player.y());

@@ -35,6 +35,8 @@
 #include "render/renderer.h"
 #include "ui/minigame_purchase_panel.h"
 
+namespace tt::world { class ToonAvatar; }
+
 namespace tt::game {
 
 class MinigameSession {
@@ -60,7 +62,9 @@ public:
     void setAutoPlay(bool on) { autoPlay_ = on; }
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
+    const char* toonNetworkState() const;
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     // Home playground once the purchase step is over (once; 0 = keep going).
     u32 popReturn();
@@ -110,7 +114,7 @@ private:
     int nextDrop_ = 0;
     Live live_[kMaxLive];
     int fruitsCaught_ = 0, anvilsHit_ = 0;
-    float stunned_ = 0.0f;
+    float stunned_ = 0.0f, eating_ = 0.0f;
     float tx_ = 0, ty_ = 0, th_ = 0, speed_ = 0;
     render::Model ground_;
     render::Model objects_[catchgame::kNumDropTypes];

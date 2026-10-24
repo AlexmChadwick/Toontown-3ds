@@ -18,7 +18,7 @@ namespace tt::world {
 
 class RemoteToons {
 public:
-    static constexpr int kMax = 16; // nearest-first visible cap (AGENTS.md M3.5 suggests 8-16)
+    static constexpr int kMax = 8; // nearest-first visible cap (AGENTS.md M3.5 suggests 8-16)
 
     void init(ToonCache* cache) { cache_ = cache; }
     // Toons whose setParent token is kParentDonaldsBoat have boat-local poses; drawn through this boat.
@@ -54,6 +54,9 @@ private:
         ToonAvatar avatar;
         bool locomotion = true; // anim state "run"/"walk"/"Happy": clip follows speed
         ToonAnim stateAnim = kAnimNeutral;
+        float stateRate = 1;
+        u32 emoteSerial = 0;
+        float catchFallAge = 2;
         float speed = 0;        // smoothed forward speed (units/s), for walk/run choice
         float turnRate = 0;
         float distSq = 0;

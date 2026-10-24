@@ -1,4 +1,5 @@
 #include "world/trolley.h"
+#include "world/toon_avatar.h"
 
 #include <cmath>
 
@@ -159,6 +160,7 @@ void TrolleyRide::handleEvent(const net::Event& ev, net::Client& client, u32 now
     case EventType::TrolleyFill:
         if (ev.doId == me) {
             seat_ = ev.arg;
+            seatSinceMs_=nowMs;
             requested_ = false;
             message_ = "All aboard! B hops off the trolley.";
             TT_LOG("trolley: seated in %d", seat_);
@@ -198,6 +200,13 @@ bool TrolleyRide::popMinigame(u32* zone, u16* gameId) {
     *zone = mgZone_;
     *gameId = mgGame_;
     return true;
+}
+
+void TrolleyRide::applyAnimation(ToonAvatar& avatar,u32 nowMs) const {
+    if(!seated()) return;
+    const float age=clipElapsed(nowMs,seatSinceMs_);
+    if(age<22/24.0f) { avatar.playAction(kAnimSitStart,ClipMode::Once);avatar.seek(age); }
+    else { avatar.playAction(kAnimSit,ClipMode::Loop);avatar.seek(age-22/24.0f); }
 }
 
 } // namespace tt::world

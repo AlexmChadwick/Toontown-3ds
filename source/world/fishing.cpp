@@ -1,4 +1,5 @@
 #include "world/fishing.h"
+#include "world/toon_avatar.h"
 
 #include <cmath>
 #include <cstdio>
@@ -19,13 +20,13 @@ constexpr float kEnterRadius = 2.0f;
 constexpr float kRearmRadius = 3.2f;
 constexpr float kEnterZRange = 4.0f;
 constexpr float kRequestTimeoutSec = 3.0f;
-constexpr float kEnterSec = 1.2f;      // sit-down movie (upstream: run to the spot + 'pole' clip)
+constexpr float kEnterSec = 40/24.0f;      // sit-down movie (upstream: run to the spot + 'pole' clip)
 constexpr float kCamLerpSec = 1.5f;    // enterWaiting: camera LerpPosHprInterval duration
-constexpr float kLeaveSec = 0.5f;      // fish-end clip + pole shrinking (LerpScale 0.5 s)
+constexpr float kLeaveSec = 33/24.0f;      // fish-end clip + pole shrinking (LerpScale 0.5 s)
 constexpr float kChargeSec = 1.2f;     // hold A from 0 to full power
 constexpr float kMinPower = 0.08f;     // below this a release is not a cast
 constexpr float kAimRate = 60.0f;      // deg/s with the circle pad
-constexpr float kReelSec = 1.0f;
+constexpr float kReelSec = (64+87+33)/24.0f;
 constexpr float kBobSink = 0.08f;      // __doBobBob amplitude
 constexpr float kPondMargin = 3.0f;    // a bob this far outside the fish region still counts
 constexpr float kMissSec = 1.2f;
@@ -200,6 +201,10 @@ bool Fishing::nearestSpot(float x, float y, float* sx, float* sy, float* sz, flo
 }
 
 void Fishing::setState(State s) {
+    if (s==State::Entering || s==State::Casting || s==State::Reeling || s==State::Leaving) {
+        toonPhase_=s==State::Entering?ToonPhase::Equip:s==State::Casting?ToonPhase::Cast:s==State::Reeling?ToonPhase::Reel:ToonPhase::Exit;
+        toonTime_=0;
+    } else if (s==State::Ready && state_!=State::Entering) { toonPhase_=ToonPhase::Ready;toonTime_=0; }
     state_ = s;
     stateTime_ = 0.0f;
 }
@@ -517,6 +522,7 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
     in.held = 0;
     in.down = 0;
     stateTime_ += dt;
+    toonTime_ += dt;
 
     const bool canAim = state_ == State::Ready || state_ == State::Charging || state_ == State::Waiting ||
                         state_ == State::Result;
@@ -764,6 +770,32 @@ void Fishing::draw(render::Renderer& renderer) {
             renderer.drawModel(line_, m);
         }
     }
+}
+
+void Fishing::applyAnimation(ToonAvatar& avatar) const {
+    if (!active()) return;
+    ToonAnim clip=kAnimPoleNeutral;
+    ClipMode mode=ClipMode::Loop;
+    float age=toonTime_,start=0,rate=1;
+    switch(toonPhase_) {
+    case ToonPhase::Equip:
+        if (age<40/24.0f) { clip=kAnimPole;mode=ClipMode::Once; }
+        break;
+    case ToonPhase::Cast:
+        if (age<80/96.0f) { clip=kAnimCastlong;mode=ClipMode::Once;rate=4; }
+        else if (age<95/24.0f) { clip=kAnimCast;mode=ClipMode::Once;start=20/24.0f;age-=80/96.0f; }
+        else { clip=kAnimFishNeutral;age-=95/24.0f; }
+        break;
+    case ToonPhase::Reel:
+        if(age<64/24.0f) { clip=kAnimReel;mode=ClipMode::Once; }
+        else if(age<(64+87)/24.0f) { clip=kAnimReelNeutral;mode=ClipMode::Once;age-=64/24.0f; }
+        else if(age<kReelSec) { clip=kAnimFishAgain;mode=ClipMode::Once;age-=(64+87)/24.0f; }
+        break;
+    case ToonPhase::Exit: clip=kAnimFishEnd;mode=ClipMode::Once;break;
+    default:break;
+    }
+    avatar.playAction(clip,mode,rate,start);
+    avatar.seek(age);
 }
 
 } // namespace tt::world

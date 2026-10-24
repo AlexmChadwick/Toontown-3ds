@@ -30,6 +30,7 @@ float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScro
 } // namespace
 
 bool ChatMenu::init() {
+    setEmoteAccess(nullptr);
     // Breadcrumb + every label of the largest menu, plus slack for wrapping.
     menuBuf_ = C2D_TextBufNew(sc::kMaxMenuGlyphs + 96);
     staticBuf_ = C2D_TextBufNew(96);
@@ -122,8 +123,14 @@ void ChatMenu::activate(int item) {
         return;
     }
     if (qCount_ < kQueueLen) {
-        queue_[(qHead_ + qCount_) % kQueueLen] = it.value;
+        if (it.value==65535) {
+            if (it.emote<0 || it.emote>=25 || !emoteAccess_[it.emote]) return;
+            queue_[(qHead_ + qCount_) % kQueueLen]=-1-it.emote;
+        } else queue_[(qHead_ + qCount_) % kQueueLen] = it.value;
         qCount_++;
+        if (it.value!=65535 && it.emote>=0 && it.emote<25 && emoteAccess_[it.emote] && qCount_<kQueueLen) {
+            queue_[(qHead_+qCount_)%kQueueLen]=-1-it.emote; ++qCount_;
+        }
     }
     enter(0, -1);
 }
@@ -235,7 +242,8 @@ void ChatMenu::draw(float panelBottom) {
         const bool focused = i == focus_;
         const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? kPanelMenu : kPanel));
         C2D_DrawRectSolid(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap, bg);
-        const u32 fg = focused ? kBg : (it.isMenu ? kMenuText : kWhite);
+        const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
+        const u32 fg = locked ? kDim : focused ? kBg : (it.isMenu ? kMenuText : kWhite);
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {

@@ -35,6 +35,9 @@ public:
     void draw(float panelBottom);
     // Oldest queued phrase the player chose (SpeedChat msgIndex for setSC).
     bool popSpeech(int& msgIndex);
+    void setEmoteAccess(const uint8_t* access) {
+        for (int i=0;i<25;i++) emoteAccess_[i]=!access || access[i]!=0;
+    }
     int menu() const { return menu_; }
 
 private:
@@ -63,6 +66,7 @@ private:
     int pressedRow_ = -1;
     bool pressedBack_ = false;
 
+    bool emoteAccess_[25] = {};
     int queue_[kQueueLen];
     int qHead_ = 0, qCount_ = 0;
 };

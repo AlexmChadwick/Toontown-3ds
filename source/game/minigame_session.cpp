@@ -1,4 +1,5 @@
 #include "game/minigame_session.h"
+#include "world/toon_avatar.h"
 
 #include <cmath>
 #include <cstdio>
@@ -32,7 +33,7 @@ constexpr u16 kPhotoGameId = 16;    // ToontownGlobals.PhotoGameId
 constexpr float kRulesSec = 4.0f;   // our rules screen
 constexpr float kToonCatchRadius = 0.7f;
 constexpr float kToonReach = 3.5f;
-constexpr float kStunSec = 1.5f;
+
 
 float lerpf(float a, float b, float t) { return a + (b - a) * t; }
 
@@ -171,7 +172,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             ty_ = 0;
             th_ = 180.0f;
             speed_ = 0;
-            stunned_ = 0;
+            stunned_ = eating_ = 0;
             snprintf(lines_[0], sizeof(lines_[0]), "Catch the falling %ss!", catchgame::dropTypeName(sched_.fruit));
             snprintf(lines_[1], sizeof(lines_[1]), "Watch out for the anvils.");
             snprintf(lines_[2], sizeof(lines_[2]), "Circle Pad: run");
@@ -495,6 +496,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
                     ay = d > 0.3f ? dy / d : 0.0f;
                 }
             }
+            if(eating_>0) eating_-=dt;
             const float mag = sqrtf(ax * ax + ay * ay);
             speed_ = 0;
             if (stunned_ > 0) {
@@ -544,9 +546,10 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
                     client.sendCatchClaim(static_cast<u32>(l.num), d.type);
                     if (good) {
                         fruitsCaught_++;
+                        eating_=16/24.0f;
                     } else {
                         anvilsHit_++;
-                        stunned_ = kStunSec;
+                        stunned_ = 44/42.0f; // CatchGameToonSD inclusive frame-12 fall interval
                     }
                     snprintf(lines_[0], sizeof(lines_[0]), "Caught %d of %d", fruitsCaught_, sched_.numFruits);
                 }
@@ -795,6 +798,30 @@ void MinigameSession::draw(render::Renderer& renderer) {
             renderer.drawModel(model, m);
         }
     }
+}
+
+const char* MinigameSession::toonNetworkState() const {
+    if(isCatch_) return stunned_>0?"off":eating_>0?"CatchEating":"Catching";
+    if(isRing_ || isDiving_ || (isCannon_ && cannon_.toonRunning())) return "swim";
+    return "off";
+}
+
+void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
+    using namespace world;
+    avatar.setHeadOnly(false);avatar.setBodyPose();
+    if(isCannon_) { cannon_.applyAnimation(avatar);return; }
+    if(isTug_) { tug_.applyAnimation(avatar);return; }
+    if(isRing_ || isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);return; }
+    if(isCatch_) {
+        if(stunned_>0) {
+            avatar.playAction(kAnimSlipForward,ClipMode::Once,42/24.0f,12/24.0f,55/24.0f);
+            avatar.seek(44/42.0f-stunned_);return;
+        }
+        avatar.playAction(eating_>0?(toonRunning()?kAnimCatchEatnrun:kAnimCatchEatneutral):
+            (toonRunning()?kAnimCatchRun:kAnimCatchNeutral),ClipMode::Loop);
+        return;
+    }
+    avatar.play(toonRunning()?kAnimRun:kAnimNeutral,1);
 }
 
 } // namespace tt::game

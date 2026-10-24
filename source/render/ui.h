@@ -95,6 +95,7 @@ public:
     u32 handleInput(u32 keysDown, u32 keysHeld, const touchPosition& touch, State& state);
     u32 handleInput(u32 keysDown, const touchPosition& touch, State& state);
     // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
+    void setEmoteAccess(const uint8_t* access) { chat_.setEmoteAccess(access); }
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ShopPanel& shop() { return shop_; }

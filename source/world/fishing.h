@@ -10,8 +10,7 @@
 //           empty class), so spots come from the zone's .pts anchors (fishing_spot_DNARoot) and
 //           the catch is rolled here with FishGlobals' rules (world/fish_logic.*). Nothing is
 //           charged or credited: the server owns jellybeans and the fish tank.
-// Toon animations (castlong, cast, fish-neutral, ...) are not baked yet (docs/design/fishing.md
-// section 9): the toon keeps its neutral clip while the rod animates.
+// Body clips use the bounded Toon cache; rod/line transforms remain separate.
 #pragma once
 
 #include <3ds.h>
@@ -26,6 +25,8 @@
 #include "world/player.h"
 
 namespace tt::world {
+
+class ToonAvatar;
 
 class Fishing {
 public:
@@ -47,6 +48,7 @@ public:
     // After Player::update: overrides the follow camera while fishing.
     void applyCamera();
     void draw(render::Renderer& renderer);
+    void applyAnimation(ToonAvatar& avatar) const;
     // View for the bottom-screen panel; null when not fishing.
     const ui::FishingView* view() const { return active() ? &view_ : nullptr; }
 
@@ -94,6 +96,9 @@ private:
     Spot spots_[kMaxSpots];
     int numSpots_ = 0;
 
+    enum class ToonPhase : u8 { Equip, Ready, Cast, Reel, Exit };
+    ToonPhase toonPhase_ = ToonPhase::Ready;
+    float toonTime_ = 0;
     State state_ = State::Idle;
     float stateTime_ = 0.0f;
     Spot cur_{};

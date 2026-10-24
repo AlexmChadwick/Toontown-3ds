@@ -62,6 +62,8 @@ struct RemoteToon {
     uint32_t lastUpdateTick; // local clock time we received it (nowMs passed to update)
     char animState[kAnimLen]; // "neutral", "run", "walk", "Happy", ...
     float animRate;
+    int16_t emoteId, emoteStamp;
+    uint32_t emoteMs, emoteSerial;
     uint32_t parentToken;  // setParent: 3 = Donald's boat (pose is boat-local), 2 = render, 1 = hidden, 0 = unset
     char chat[kChatLen];   // last setTalk text (empty when the last chat was SpeedChat)
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
@@ -74,6 +76,7 @@ enum class EventType : uint8_t {
     Spawn,        // a remote toon entered our zone (fields already filled)
     Despawn,      // left; the RemoteToon slot is no longer valid
     Pose,         // new position sample (also flagged: RemoteToon::lastUpdateTick)
+    Emote,        // timestamped setEmoteState (RemoteToon emote fields)
     Anim,         // animState/animRate changed
     Name,
     Dna,
@@ -772,6 +775,8 @@ struct OwnStats {
     uint8_t inventory[7][7] = {}; // count per track, level
     uint8_t trackAccess[7] = {0, 0, 0, 0, 1, 1, 0};
     uint8_t maxCarry = 20;
+    uint8_t emoteAccess[25] = {};
+    bool hasEmotes = false;
     bool hasGags = false; // setInventory received
 };
 
@@ -985,6 +990,7 @@ public:
 
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
+    bool sendEmote(int id, float multiplier=1);
     // DistributedTreasure.requestGrab (clsend): the AI answers with setGrab(avId) or setReject.
     bool sendRequestGrab(uint32_t treasureDoId);
 

@@ -1,4 +1,5 @@
 #include "game/cannon_game.h"
+#include "world/toon_avatar.h"
 
 #include <cmath>
 #include <cstdio>
@@ -176,6 +177,7 @@ void CannonGame::update(net::Client& client, const circlePosition& pad, u32 kDow
         toonY_ = pos.y;
         toonZ_ = pos.z;
         toonH_ = std::atan2(-vel.x, vel.y) * 180.0f / kPi;
+        toonPitch_=-90+std::atan2(vel.z,std::sqrt(vel.x*vel.x+vel.y*vel.y))*180/kPi;
 
         // Camera follows toon from behind
         camEyeX_ = toonX_;
@@ -232,6 +234,14 @@ void CannonGame::toonPose(float* x, float* y, float* z, float* h) const {
     *y = toonY_;
     *z = toonZ_;
     *h = toonH_;
+    if(state_==State::Aiming) {
+        C3D_Mtx barrel;Mtx_Identity(&barrel);
+        Mtx_Translate(&barrel,toonX_,toonY_,toonZ_+cannongame::kBarrelPivotZ,true);
+        Mtx_RotateZ(&barrel,zRot_*kPi/180,true);Mtx_RotateX(&barrel,-angle_*kPi/180,true);
+        *x=barrel.r[0].y*6+barrel.r[0].w;
+        *y=barrel.r[1].y*6+barrel.r[1].w;
+        *z=barrel.r[2].y*6+barrel.r[2].w;
+    }
 }
 
 void CannonGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
@@ -282,6 +292,20 @@ void CannonGame::draw(render::Renderer& renderer) {
             renderer.drawModel(cannonBarrel_, m);
         }
     }
+}
+
+void CannonGame::applyAnimation(world::ToonAvatar& avatar) const {
+    using namespace world;
+    avatar.setHeadOnly(state_==State::Aiming);
+    avatar.setHeadPitch(-angle_-45);
+    const float height=avatar.look()?avatar.look()->nametagHeight-.5f:4;
+    avatar.setBodyPose(state_==State::Flying?toonPitch_:
+        state_==State::Landed && flight_.hitWhat!=cannongame::HitType::Tower?-150:0,
+        state_==State::Flying?-height/2:0);
+    if (state_==State::Flying) avatar.playAction(kAnimSwim,ClipMode::Loop);
+    else if(state_==State::Landed && flight_.hitWhat==cannongame::HitType::Tower) avatar.hold(kAnimSlipForward,25/24.0f);
+    else if(state_==State::Landed) avatar.playAction(kAnimRun,ClipMode::Loop,2);
+    else avatar.playAction(kAnimNeutral,ClipMode::Loop);
 }
 
 } // namespace tt::game

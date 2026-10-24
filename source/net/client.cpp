@@ -54,6 +54,8 @@ TT_SIG(DistributedNode, setParent, "u32");
 TT_SIG(DistributedToon, setName, "string");
 TT_SIG(DistributedToon, setDNAString, "blob");
 TT_SIG(DistributedToon, setAnimState, "string,i16/1000,i16");
+TT_SIG(DistributedToon, setEmoteState, "i16,i16/1000,i16");
+TT_SIG(DistributedToon, setEmoteAccess, "u8[]");
 TT_SIG(DistributedToon, setTalk, "u32,u32,string,string,{u16,u16}[],u8");
 TT_SIG(DistributedToon, setHp, "i16");
 TT_SIG(DistributedToon, setMaxHp, "i16");
@@ -1395,6 +1397,12 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         }
         r.skip(bytes & 1); // malformed odd length: stay aligned with the next field
         pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setEmoteAccess) {
+        const Bytes access=r.blob();
+        if (!r.ok()) return false;
+        memset(ownStats_.emoteAccess,0,sizeof(ownStats_.emoteAccess));
+        for (uint32_t i=0;i<access.len && i<25;i++) ownStats_.emoteAccess[i]=access.data[i]?1:0;
+        ownStats_.hasEmotes=true;
     } else if (fieldId == dc::DistributedToon::k_setMaxCarry) {
         ownStats_.maxCarry = r.u8();
     } else if (fieldId == dc::DistributedToon::k_setFishingRod || fieldId == dc::DistributedToon::k_setMaxFishTank ||
@@ -2311,6 +2319,20 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         if (t.active) pushEvent(EventType::Dna, t.doId);
         break;
     }
+    case dc::DistributedToon::k_setEmoteState: {
+        const int id=r.i16();
+        r.i16(); // stock Toon.doEmote ignores the multiplier
+        const int16_t stamp=r.i16();
+        if (!r.ok()) return false;
+        if (id>=0 && id<25) {
+            const uint32_t time=networkToLocal(stamp,now_);
+            if (t.emoteSerial && (int16_t(uint16_t(stamp)-uint16_t(t.emoteStamp))<0 ||
+                (t.emoteId==id && t.emoteStamp==stamp))) break;
+            t.emoteId=static_cast<int16_t>(id);t.emoteStamp=stamp;t.emoteMs=time;++t.emoteSerial;
+            if (t.active) pushEvent(EventType::Emote,t.doId);
+        }
+        break; // incoming -1 is the stock no-op clear sentinel
+    }
     case dc::DistributedToon::k_setAnimState: {
         Bytes name = r.blob();
         int16_t rate = r.i16();
@@ -2638,7 +2660,7 @@ namespace {
 // toontown/toonbase/ToontownGlobals.py ToonAnimStates (the subset this client sends).
 // The AI bans (and, on stock Open Toontown, crashes in banManager) on any other name.
 const char* const kAllowedAnimStates[] = {"off", "neutral", "run", "walk", "jumpSquat", "jump", "jumpAirborne",
-                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote", "Sit", "Catching", "CatchEating"};
+                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote", "Sit", "SitStart", "swim", "swimhold", "TeleportOut", "TeleportIn", "Catching", "CatchEating"};
 
 bool allowedAnimState(const char* name) {
     for (const char* allowed : kAllowedAnimStates) {
@@ -2660,6 +2682,15 @@ bool Client::sendAnimState(const char* name, float rate) {
     w.string(name);
     w.i16(packFixed(rate, 1000.0f));
     w.i16(networkTime(now_));
+    return finish(w);
+}
+
+bool Client::sendEmote(int id,float multiplier) {
+    if (state_!=State::InZone || id < -1 || id>=25 || !std::isfinite(multiplier)) return false;
+    if (id>=0 && (!ownStats_.hasEmotes || !ownStats_.emoteAccess[id])) return false;
+    DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w,DistributedToon,setEmoteState);
+    w.i16(static_cast<int16_t>(id));w.i16(packFixed(multiplier,1000));w.i16(networkTime(now_));
     return finish(w);
 }
 
@@ -3041,9 +3072,10 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (announce) pushEvent(EventType::CatchEveryoneDone, m.doId);
     } else if (fieldId == dc::DistributedCatchGame::k_hitBySuit) {
         const uint32_t av = r.u32();
-        r.i16();
+        const int16_t stamp = r.i16();
         if (!r.ok()) return false;
-        if (announce && av != avatarId_) pushEvent(EventType::CatchHitBySuit, av);
+        if (announce && av != avatarId_)
+            pushEventArg(EventType::CatchHitBySuit, av, static_cast<int32_t>(timeSynced_ ? networkToLocal(stamp, now_) : now_));
     // ---- DistributedCannonGame ----
     } else if (fieldId == dc::DistributedCannonGame::k_updateCannonPosition) {
         const uint32_t av = r.u32();

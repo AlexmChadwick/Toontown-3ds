@@ -8,6 +8,8 @@
 #include "render/model.h"
 #include "render/renderer.h"
 
+namespace tt::world { class ToonAvatar; }
+
 namespace tt::game {
 
 class CannonGame {
@@ -18,6 +20,7 @@ public:
     void draw(render::Renderer& renderer);
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const { return state_ == State::Flying; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
 
@@ -41,7 +44,7 @@ private:
     cannongame::Vec3 towerPos_;
     cannongame::FlightResult flight_;
 
-    float toonX_ = 0.0f, toonY_ = 0.0f, toonZ_ = 0.0f, toonH_ = 0.0f;
+    float toonX_ = 0.0f, toonY_ = 0.0f, toonZ_ = 0.0f, toonH_ = 0.0f, toonPitch_ = 0.0f;
     float camEyeX_ = 0.0f, camEyeY_ = 0.0f, camEyeZ_ = 0.0f;
     float camTgtX_ = 0.0f, camTgtY_ = 0.0f, camTgtZ_ = 0.0f;
 

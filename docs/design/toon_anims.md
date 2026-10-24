@@ -348,3 +348,114 @@ when admission fails. Never depend on New 3DS memory. Frame interpolation stays
 on the GPU; no runtime BAM/Python/DNA parsing or whole-catalog allocation is added.
 Only the new SD footprint grows. The offline audit and determinism proofs do not
 claim runtime frame time, SD latency, facial rendering or hardware validation.
+
+
+## Runtime implemented on branch `animrt` (2026-10-24)
+
+The handoff above is implemented for the supplied body/attachment clips. Generated
+`source/world/toon_clips.inc` and `toon_timing.inc` expose all 51 stable IDs and
+24 fps source durations, including sparse combinations. Regenerate with
+`.venv/bin/python -I -B tools/gen_toon_anims.py`; the generator audits the linked
+reference BAM headers first. IDs 0..4 remain unchanged.
+
+`ToonCache` retains shared models/clothing and neutral two-key attachment poses.
+Its 12 fixed stream groups each contain three parts, two active frames and two
+staging frames (512 vertices/part). Matching published part keys and frame pairs
+are shared between avatars, with independent interpolation weights; other times
+book bounded owner slots. A loader owns at most 36 clip handles, reads arbitrary
+source samples, and publishes all three parts together through a generation check.
+Missing or invalid clips select neutral with attachments. Late IO retains the
+last complete pose. `pump()` must run before `C3D_FrameBegin`: it fences the prior
+GPU frame before staging swaps or retired-resource reuse. `LinearGuard` protects
+allocations/deletions. Model, clothing, neutral and stream reservations all count
+against admission; referenced resources cannot be evicted to exceed the cap.
+
+`ToonAvatar::playAction` supports Loop/Once/Hold, explicit restart, start/end source
+times, negative rate and elapsed seek; `finished`, `token`, and `cancel` expose
+completion/cancellation. `ToonClipSet::load` now books names, and the existing
+battle `playClip` interface routes through the same pool. It no longer loads whole
+battle files synchronously. One-shot sampling clamps; vertex and attachment keys
+and interpolation always agree. Odd-length source loops retain the short tail
+interval rather than adding an extra baked sample period.
+
+SpeedChat's Emotes submenu has 24 entries (stock IDs 0..24 except legacy no-op 16).
+The server's 25-byte access list gates picks and outgoing calls. Existing linked
+phrase emotes also dispatch publicly through whitelisted `setEmoteState` (field
+480, `i16,i16/1000,i16`); clear is -1. The regenerated DC hash is **547155168**.
+Remote RAM/spawn and live events seek by the converted network timestamp; exact
+duplicates and stale samples are ignored. The multiplier is ignored for incoming
+emotes, as stock `Toon.doEmote` does. Body emotes lock local movement; Yes/No rotate
+the head procedurally. Eye-only, eyelid, muzzle and sound variants need separate
+facial/audio assets and are not synthesized from body TTAs.
+
+Feature hooks bind trolley sit-start -> sit; fishing equip/cast/reel/exit; Catch
+eating, local anvil forward fall and timestamped incoming suit-hit backward fall;
+Cannon head-only aiming, trajectory swim, tower frame-25 hold, ground run and
+water neutral; Ring/Diving swim; Tug frame-3 hold/pull; and teleport-out followed
+by hidden 0.3 s teleport-in, then jump from 0.45 s. The existing Catch scene has no
+local suit collision/render implementation; the backward fall consumes its
+existing network event. Teleport hole/clipping/hand choreography, new precise
+rod/fruit hand tracks and facial effects still require the separate assets named
+above. This change implements the Toon animation hooks and preserves the current
+prop rendering; it does not create those missing assets.
+
+### Runtime budget and validation
+
+| Resource | Bound / measured value |
+|---|---:|
+| Entire Toon linear cache, hard admission cap | 4,194,304 bytes |
+| Preallocated active + staging frame windows | 589,824 bytes (576 KiB) |
+| Remaining cap for shared models, clothes and neutral windows | 3,604,480 bytes |
+| Stream attach matrices, regular heap | 6,912 bytes |
+| Neutral attachment buffers, regular heap | up to 4,608 bytes (48 x 96) |
+| Loader stack, regular heap | 32,768 bytes |
+| Open streamed clip files | at most 36 (+ clothing pack) |
+| Instrumented host stress peak, synthetic models/textures | 4,000,128 bytes |
+
+Metadata, model tables and libc file buffers also use regular heap. The synthetic
+peak verifies admission rather than predicting real scene usage. No whole action
+file or catalog is resident, and streaming requests perform no linear allocation.
+Old 3DS FPS, heap/linear/VRAM peaks and SD latency remain device measurements.
+
+`tools/anim_test/run.py` builds ASan/UBSan tests of playback math and the real
+Anim/ToonCache code against instrumented host GPU/model stubs. It checks source
+periods, reverse/subranges/hold, restart/cancel generations, timestamp wrap/seek,
+all emote mappings/menu IDs, shared frame pairs, sparse neutral attachments,
+truncation refusal, no repeated-request allocations, GPU fencing and hard-cap
+admission. Existing network vectors/single/two-client/reconnect tests, eight
+minigame conformance suites, fishing, Toon DNA, shop, tailor, classic characters,
+projection, zone format units and terrain/assembled-zone collision pass. Full
+suit-path reference tests require the unavailable `panda3d.toontown` server fork;
+full zone-integrity tests require the external baked `.tz` set. Neither was
+regenerated or claimed as run. The required `make -j4` builds with zero source
+warnings; the toolchain linker emits its existing crtn.o GNU-stack warning.
+
+### Main-agent Azahar verification (not run here)
+
+1. Install the full `anims` Toon SD set under
+   `sdmc:/3ds/toontown3ds/data/toon/` (same file names as the table); RomFS alone
+   contains only the boot clips. Run Old 3DS mode with one local and eight nearby
+   remote Toons of mixed species, clothing and LODs. Watch the cache/debug memory
+   report stay <=4 MiB for Toons, total linear <=24 MiB, animation <=6 ms and
+   30 fps; record actual heap/linear/VRAM and frame time in the test log. Change
+   DNA/LOD and zones repeatedly; verify no GPU panic, leaked files or rising memory.
+2. Pick all unlocked Emotes by touch and D-pad, including scrolling to Laugh (24).
+   Verify locked entries do nothing, linked phrases still send, Yes/No move only
+   the head, Think/Salute/Upset reverse/subranges return correctly, Bow/Curtsy keep
+   head and torso attached, and repeating the same emote restarts. With a PC
+   client observe both directions and inject a delayed timestamp: the remote
+   body should start partway through, without an end-to-start one-shot blend.
+3. Board the trolley: sit-start then sit. Fish through equip, charge/cast,
+   waiting, reel/reel-neutral/fish-again, cancel and leave; verify each action
+   restarts on another cast and movement resumes after exiting. Expect the
+   existing approximate rod placement until the new hand tracks are baked.
+4. Play Catch: idle/run/eat and anvil fall; receive a PC player's suit hit and
+   observe the backward fall. Test Cannon head in the barrel, launch swim and
+   tower/ground/water impacts; Ring/Diving swim; Tug idle frame-3 hold and pull.
+5. Map-teleport and return from a minigame: 3.4 s out, arrival hidden for 0.3 s,
+   jump starting at 0.45 s, then movement returns. Tunnel/door walking must still
+   work. Hole/hand clipping choreography is a separately identified asset task.
+6. Fight a Cog through throw, pushbutton, cringe, sidestep, victory and lose using
+   the existing battle movie. Confirm clothes and attachments stay correct while
+   battle clips stream, and moving resumes after the reward. Remove one action
+   TTA, repeat an action and verify neutral fallback without detached body parts.

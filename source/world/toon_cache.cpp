@@ -8,13 +8,14 @@
 #include "core/log.h"
 #include "core/memory.h"
 
+
 namespace tt::world {
 
 namespace {
 
 const char* const kDirs[] = {"sdmc:/3ds/toontown3ds/data/toon", "romfs:/baked/toon"};
 // Clip names as baked; order matches ToonAnim (toon_avatar.h).
-const char* const kClipNames[kToonAnimCount] = {"neutral", "walk", "run", "jump-idle", "wave"};
+
 
 struct TtxHeader {
     char magic[4];
@@ -72,6 +73,14 @@ bool ToonCache::init() {
     LightLock_Init(&lock_);
     LightEvent_Init(&wake_, RESET_ONESHOT);
     quit_ = false;
+    frame_ = 1;
+    for (auto& stream : streams_) for (int p=0;p<3;p++) {
+        if (!stream.active[p].reserveWindow(kStreamVertices) || !stream.staging[p].reserveWindow(kStreamVertices)) {
+            for(auto& allocated:streams_) for(int i=0;i<3;i++) { allocated.active[i].unload();allocated.staging[i].unload(); }
+            streamBytes_=0;return false;
+        }
+        streamBytes_ += kStreamVertices*32;
+    }
 
     char path[128];
     if (findFile("clothes.ttx", path, sizeof(path))) {
@@ -131,9 +140,15 @@ void ToonCache::shutdown() {
         threadFree(loader_);
         loader_ = nullptr;
     }
+    C3D_FrameSync();
+    for (auto& stream : streams_) for (int p=0;p<3;p++) {
+        if(stream.files[p]) { fclose(stream.files[p]);stream.files[p]=nullptr; }
+        stream.active[p].unload(); stream.staging[p].unload();
+    }
+    streamBytes_ = 0;
     for (ToonPart& p : parts_) {
         p.model.unload();
-        for (auto& a : p.anim) a.unload();
+        p.neutral.unload();
         p.key[0] = '\0';
         p.refs = 0;
         p.bytes = 0;
@@ -156,11 +171,10 @@ void ToonCache::shutdown() {
 }
 
 u32 ToonCache::linearBytes() const {
-    u32 total = 0;
-    for (const ToonPart& p : parts_) total += p.state == SlotState::Ready ? p.bytes : 0;
-    for (const ToonClothing& c : clothes_) {
-        if (c.state == SlotState::Ready) total += C3D_TexCalcTotalSize(c.tex.size, c.tex.maxLevel);
-    }
+    Lock lock(lock_);
+    u32 total = streamBytes_;
+    for (const auto& p : parts_) total += p.bytes;
+    for (const auto& c : clothes_) total += c.bytes;
     return total;
 }
 
@@ -201,7 +215,7 @@ ToonPart* ToonCache::bookPart(const char* key, bool animated) {
     }
     if (!slot) {
         for (ToonPart& p : parts_) {
-            if (p.refs == 0 && p.state != SlotState::Queued && (!slot || p.lastUsed < slot->lastUsed)) slot = &p;
+            if (p.refs == 0 && p.retiredFrame < frame_ && p.state != SlotState::Queued && (!slot || p.lastUsed < slot->lastUsed)) slot = &p;
         }
     }
     if (!slot) {
@@ -241,7 +255,7 @@ ToonClothing* ToonCache::bookClothing(u8 table, u8 index) {
     }
     if (!slot) {
         for (ToonClothing& c : clothes_) {
-            if (c.refs == 0 && c.state != SlotState::Queued && (!slot || c.lastUsed < slot->lastUsed)) slot = &c;
+            if (c.refs == 0 && c.retiredFrame < frame_ && c.state != SlotState::Queued && (!slot || c.lastUsed < slot->lastUsed)) slot = &c;
         }
     }
     if (!slot) return nullptr;
@@ -257,16 +271,17 @@ ToonClothing* ToonCache::bookClothing(u8 table, u8 index) {
 void ToonCache::release(ToonLook* look) {
     Lock l(lock_);
     for (ToonPart* p : {look->legs, look->torso, look->head, look->lashes}) {
-        if (p && p->refs > 0) p->refs--;
+        if (p && p->refs > 0 && --p->refs==0) p->retiredFrame=frame_;
     }
     for (ToonClothing* c : look->clothes) {
-        if (c && c->refs > 0) c->refs--;
+        if (c && c->refs > 0 && --c->refs==0) c->retiredFrame=frame_;
     }
     *look = ToonLook{};
 }
 
 bool ToonCache::acquire(const ToonDna& dna, ToonLod lod, ToonLook* out) {
     ToonLook next;
+    next.cache = this;
     ToonPartCodes codes;
     partCodes(dna, &codes);
     const char* lodName = lod == ToonLod::High ? "500" : "250";
@@ -315,55 +330,91 @@ void ToonCache::loaderMain(void* arg) {
 bool ToonCache::loaderStep() {
     ToonPart* part = nullptr;
     ToonClothing* cloth = nullptr;
+    {
+    Lock lock(lock_);
     for (ToonPart& p : parts_) {
-        if (p.state == SlotState::Queued) {
+        if (p.state == SlotState::Queued && p.retiredFrame < frame_) {
             part = &p;
             break;
         }
     }
     if (!part) {
         for (ToonClothing& c : clothes_) {
-            if (c.state == SlotState::Queued) {
+            if (c.state == SlotState::Queued && c.retiredFrame < frame_) {
                 cloth = &c;
                 break;
             }
         }
     }
-    if (!part && !cloth) return false;
-    enforceBudget();
+    }
+    if (!part && !cloth) return streamStep();
     if (part) loadPart(*part);
     if (cloth) loadClothing(*cloth);
     return true;
 }
 
-void ToonCache::enforceBudget() {
-    // Free unreferenced, least recently used parts until under budget. The victim is
-    // taken out of the table under the lock (so the main thread can't re-acquire it),
-    // and its memory is freed afterwards.
-    while (linearBytes() > kBudgetBytes) {
+bool ToonCache::admit(u32 bytes) {
+    while (linearBytes()+bytes > kBudgetBytes) {
         ToonPart* victim = nullptr;
+        ToonClothing* cloth = nullptr;
         {
-            Lock l(lock_);
-            for (ToonPart& p : parts_) {
-                if (p.state == SlotState::Ready && p.refs == 0 && (!victim || p.lastUsed < victim->lastUsed)) {
-                    victim = &p;
-                }
-            }
-            if (!victim) return; // everything is in use: over budget rather than missing toons
-            victim->state = SlotState::Free;
-            victim->key[0] = '\0';
+            Lock lock(lock_);
+            for (auto& p : parts_) if (p.state==SlotState::Ready && !p.refs && p.retiredFrame<frame_ &&
+                (!victim || p.lastUsed<victim->lastUsed)) victim=&p;
+            if (victim) { victim->state=SlotState::Free; victim->key[0]=0; }
+            else for (auto& c : clothes_) if (c.state==SlotState::Ready && !c.refs && c.retiredFrame<frame_ &&
+                (!cloth || c.lastUsed<cloth->lastUsed)) cloth=&c;
+            if (cloth) cloth->state=SlotState::Free;
         }
-        victim->model.unload();
-        for (auto& a : victim->anim) a.unload();
-        victim->bytes = 0;
+        if (victim) {
+            victim->model.unload(); victim->neutral.unload();
+            Lock lock(lock_); victim->bytes=0;
+        } else if (cloth) {
+            { mem::LinearGuard guard; C3D_TexDelete(&cloth->tex); }
+            Lock lock(lock_); cloth->bytes=0;
+        } else { TT_LOG("toon: admission denied (%lu + %lu bytes)",static_cast<unsigned long>(linearBytes()),static_cast<unsigned long>(bytes)); return false; }
     }
+    return true;
+}
+
+namespace {
+u32 alignLinear(u32 bytes) { return (bytes+127)&~127u; }
+u32 textureCost(const render::TexEntry& entry) {
+    if (entry.width<8 || entry.height<8 || entry.width>256 || entry.height>256 ||
+        (entry.width&(entry.width-1)) || (entry.height&(entry.height-1)) ||
+        !entry.mipLevels || entry.mipLevels>6 || entry.format>13) return 0;
+    const u32 bits[14]={32,24,16,16,16,16,16,8,8,8,4,4,4,8};
+    u32 expected=0,w=entry.width,hgt=entry.height;
+    for(u32 m=0;m<entry.mipLevels;m++) {
+        if(w<8 || hgt<8) return 0;
+        expected+=w*hgt*bits[entry.format]/8;w/=2;hgt/=2;
+    }
+    return entry.dataSize==expected?alignLinear(expected):0;
+}
+// Preflight the exact baked buffer sizes, including every mip, before allocating.
+u32 partCost(const char* path,bool animated) {
+    FILE* f=fopen(path,"rb");
+    u8 h[64];
+    if (!f || fread(h,1,64,f)!=64 || memcmp(h,"TTM1",4)) { if (f) fclose(f); return 0; }
+    u16 textures=0; u32 nv=0,ni=0,table=0;
+    memcpy(&textures,h+8,2); memcpy(&nv,h+12,4); memcpy(&ni,h+16,4); memcpy(&table,h+44,4);
+    if (!nv || nv>512 || ni>65535 || textures>64 || fseek(f,table,SEEK_SET)) { fclose(f); return 0; }
+    u32 cost=alignLinear(nv*16)+alignLinear(ni*2)+(animated?alignLinear(nv*16):0);
+    for (u16 i=0;i<textures;i++) {
+        render::TexEntry entry{};
+        if (fread(&entry,sizeof(entry),1,f)!=1 || entry.dataSize>ToonCache::kBudgetBytes) { fclose(f); return 0; }
+        if (!textureCost(entry)) { fclose(f);return 0; }
+        cost+=alignLinear(entry.dataSize);
+    }
+    fclose(f); return cost;
+}
 }
 
 void ToonCache::loadPart(ToonPart& p) {
     const u64 t0 = svcGetSystemTick();
     // Recycled slot: free whatever it held before.
     p.model.unload();
-    for (auto& a : p.anim) a.unload();
+    p.neutral.unload();
     char key[sizeof(p.key)];
     {
         Lock l(lock_);
@@ -371,16 +422,19 @@ void ToonCache::loadPart(ToonPart& p) {
     }
     char file[48], path[128];
     snprintf(file, sizeof(file), "%s.ttm", key);
-    bool ok = findFile(file, path, sizeof(path)) && p.model.load(path);
+    { Lock lock(lock_); p.bytes=0; }
+    bool ok = findFile(file,path,sizeof(path));
+    const u32 cost=ok?partCost(path,p.animated):0;
+    ok = cost && admit(cost) && p.model.load(path);
     if (ok && p.animated) {
-        for (int a = 0; a < kToonAnimCount; a++) {
-            snprintf(file, sizeof(file), "%s_%s.tta", key, kClipNames[a]);
-            if (findFile(file, path, sizeof(path))) p.anim[a].load(path);
-        }
+        snprintf(file,sizeof(file),"%s_neutral.tta",key);
+        FILE* f=findFile(file,path,sizeof(path))?fopen(path,"rb"):nullptr;
+        ok=p.neutral.reserveWindow(p.model.numVertices()) && p.neutral.readWindow(f,0,false,p.model.numVertices());
+        if (f) fclose(f);
     }
-    u32 bytes = p.model.linearBytes();
-    for (const auto& a : p.anim) bytes += a.linearBytes();
-    p.bytes = bytes;
+    if (!ok) { p.model.unload(); p.neutral.unload(); }
+    const u32 bytes=ok?cost:0;
+    { Lock lock(lock_); p.bytes=bytes; }
     __sync_synchronize(); // model/clip data visible before the state flips
     p.state = ok ? SlotState::Ready : SlotState::Failed;
     if (ok) {
@@ -397,9 +451,132 @@ void ToonCache::loadClothing(ToonClothing& c) {
         C3D_TexDelete(&c.tex); // recycled slot
     }
     c.tex = C3D_Tex{};
-    const bool ok = render::loadTexture(clothesFile_, clothesEntries_[c.texIndex], &c.tex);
+    { Lock lock(lock_); c.bytes=0; }
+    const u32 cost=textureCost(clothesEntries_[c.texIndex]);
+    const bool ok = cost && admit(cost) && render::loadTexture(clothesFile_, clothesEntries_[c.texIndex], &c.tex);
+    { Lock lock(lock_); c.bytes=ok?cost:0; }
     __sync_synchronize();
     c.state = ok ? SlotState::Ready : SlotState::Failed;
+}
+
+void ToonCache::pump() {
+    C3D_FrameSync(); // all frees/recycling and staging publication follow this main-thread fence
+    {
+    Lock lock(lock_);
+    ++frame_;
+    for (auto& s : streams_) if (s.state==StreamState::Staged) {
+        if (s.loadedGeneration==s.generation) {
+            for (int p=0;p<3;p++) { s.active[p].swap(s.staging[p]); s.activeFallback[p]=s.stagedFallback[p]; }
+            s.valid=true;
+            s.shownTime=s.time; s.shownLoop=s.loop;
+            s.state=StreamState::Idle;
+        } else s.state=s.owner?StreamState::Queued:StreamState::Idle;
+    }
+    LightEvent_Signal(&wake_);
+    }
+    if(!loader_) while(loaderStep()) {}
+}
+
+void ToonCache::forget(const void* owner) {
+    Lock lock(lock_);
+    for (auto& s : streams_) if (s.owner==owner) {
+        s.owner=nullptr; ++s.generation; s.valid=false;
+        if(s.state!=StreamState::Loading) s.state=StreamState::Idle;
+    }
+}
+
+bool ToonCache::sample(const void* owner,const ToonLook& look,int clip,float time,bool loop,Pose* pose) {
+    if (!owner || clip<0 || clip>=kToonAnimCount) return false;
+    Lock lock(lock_);
+    // Reuse an already published sample for equal part keys and source frames.
+    // Publication/reuse is fenced by pump(), so another owner cannot overwrite it
+    // during this GPU frame. Different blends can still share the same two keys.
+    const ToonPart* requested[3]={look.legs,look.torso,look.head};
+    for (auto& shared:streams_) if (shared.valid && shared.clip==clip) {
+        bool match=true;
+        for(int p=0;p<3;p++) {
+            match=match && !strcmp(shared.key[p],requested[p]->key);
+            if(shared.animated[p] && !shared.activeFallback[p])
+                match=match && shared.active[p].windowMatches(time,loop,nullptr);
+        }
+        if(!match) continue;
+        shared.usedFrame=frame_;
+        for(int p=0;p<3;p++) {
+            pose->parts[p]=shared.active[p].loaded()?&shared.active[p]:nullptr;
+            pose->blend[p]=0;
+            if(!shared.activeFallback[p]) shared.active[p].windowMatches(time,loop,&pose->blend[p]);
+        }
+        return true;
+    }
+    Stream* slot=nullptr;
+    for (auto& s : streams_) if (s.owner==owner) { slot=&s; break; }
+    if (!slot) for (auto& s : streams_) if (s.state==StreamState::Idle &&
+        (!s.owner || s.usedFrame+2<frame_) && (!slot || s.usedFrame<slot->usedFrame)) slot=&s;
+    if (!slot) return false;
+    auto& s=*slot;
+    const ToonPart* parts[3]={look.legs,look.torso,look.head};
+    bool changed=s.owner!=owner || s.clip!=clip;
+    for (int p=0;p<3;p++) changed=changed || strcmp(s.key[p],parts[p]->key)!=0;
+    if (changed) {
+        ++s.generation; s.valid=false; s.owner=owner; s.clip=clip; s.time=time; s.loop=loop;
+        for (int p=0;p<3;p++) { snprintf(s.key[p],sizeof(s.key[p]),"%s",parts[p]->key); s.vertices[p]=parts[p]->model.numVertices(); s.animated[p]=parts[p]->animated; }
+    }
+    s.usedFrame=frame_;
+    bool matches=s.valid;
+    for (int p=0;p<3;p++) if (s.animated[p] && !s.activeFallback[p])
+        matches=matches && s.active[p].windowMatches(time,loop,nullptr);
+    if (!matches || changed) {
+        if (s.state==StreamState::Idle) { s.time=time; s.loop=loop; s.state=StreamState::Queued; LightEvent_Signal(&wake_); }
+    }
+    if (!s.valid) return false;
+    for (int p=0;p<3;p++) {
+        pose->parts[p]=s.active[p].loaded()?&s.active[p]:nullptr;
+        pose->blend[p]=0;
+        if (!s.activeFallback[p]) s.active[p].windowMatches(matches?time:s.shownTime,matches?loop:s.shownLoop,&pose->blend[p]);
+    }
+    return true;
+}
+
+bool ToonCache::streamStep() {
+    Stream* slot=nullptr;
+    char keys[3][24]; u32 vertices[3]; bool animated[3];
+    float time=0; bool loop=false; int clip=0; u32 generation=0;
+    {
+        Lock lock(lock_);
+        for (auto& s : streams_) if (s.state==StreamState::Queued) { slot=&s; break; }
+        if (!slot) return false;
+        slot->state=StreamState::Loading;
+        memcpy(keys,slot->key,sizeof(keys)); memcpy(vertices,slot->vertices,sizeof(vertices));
+        memcpy(animated,slot->animated,sizeof(animated));
+        time=slot->time; loop=slot->loop; clip=slot->clip; generation=slot->generation;
+    }
+    bool fallback[3]={};
+    for (int p=0;p<3;p++) {
+        slot->staging[p].clearWindow();
+        if (!animated[p]) continue;
+        char file[72],path[160];
+        snprintf(file,sizeof(file),"%.23s_%.31s.tta",keys[p],kToonAnimNames[clip]);
+        if(strcmp(file,slot->fileNames[p])) {
+            if(slot->files[p]) fclose(slot->files[p]);
+            snprintf(slot->fileNames[p],sizeof(slot->fileNames[p]),"%s",file);
+            slot->files[p]=findFile(file,path,sizeof(path))?fopen(path,"rb"):nullptr;
+            slot->fileFallback[p]=false;
+        }
+        bool ok=!slot->fileFallback[p] && slot->staging[p].readWindow(slot->files[p],time,loop,vertices[p],
+            toonDuration(static_cast<ToonAnim>(clip),keys[p]));
+        if (!ok) {
+            fallback[p]=true;
+            if(!slot->fileFallback[p]) {
+                if(slot->files[p]) fclose(slot->files[p]);
+                snprintf(file,sizeof(file),"%.23s_neutral.tta",keys[p]);
+                slot->files[p]=findFile(file,path,sizeof(path))?fopen(path,"rb"):nullptr;
+                slot->fileFallback[p]=true;
+            }
+            slot->staging[p].readWindow(slot->files[p],0,false,vertices[p]);
+        }
+    }
+    { Lock lock(lock_); memcpy(slot->stagedFallback,fallback,sizeof(fallback)); slot->loadedGeneration=generation; slot->state=StreamState::Staged; }
+    return true;
 }
 
 } // namespace tt::world

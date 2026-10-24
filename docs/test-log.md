@@ -420,3 +420,43 @@ need hardware.
 - Stereo 3D toggle. Code path exists; untested in emulator.
 - New 3DS mode and the C-stick.
 - Sleep/HOME-menu resume.
+
+
+### 2026-10-24 — animrt: streamed Toon clips and runtime feature hooks (host/build only)
+
+- **Target/build:** branch `animrt`, devkitARM 3DSX build with
+  `DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4`.
+  Zero warnings in source; toolchain crtn.o emits its GNU-stack linker warning.
+  No Azahar or hardware run, per task instructions. FPS, device heap/linear/VRAM
+  and frame timings are **not measured**.
+- **ASan/UBSan:** new `tools/anim_test/run.py` passes playback reverse/subrange/
+  hold/restart/seek, source-loop periods, timestamp wrap and all 25 emote mappings.
+  Real Anim/ToonCache with host GPU/model stubs passes synchronized attachment/
+  vertex samples, shared frame pairs, generation cancellation, sparse fallback,
+  malformed/truncated TTA rejection, GPU-safe reuse, no streaming linear allocations
+  and cap admission. Synthetic peak **4,000,128 bytes**, hard cap **4,194,304**;
+  fixed active/staging pool **589,824**, stream attachments **6,912** heap bytes,
+  neutral attachments up to **4,608**, loader stack **32,768** regular-heap bytes.
+  These are cache bounds and host allocation observations, not device measurements.
+- **Network:** 391 descriptor vectors; single client, two clients and reconnect all
+  pass, including emote access/send/receive, invalid IDs, delayed timestamp bounds,
+  duplicate input and clear sentinel. DC hash stays **547155168**.
+- **Existing conformance:** Catch (398 drops/110 suit walks), Cannon (150 shots),
+  Tug (288 forces), Ring (18 patterns), Maze (100 collisions), Diving (150 frames),
+  Pairing (6 seeds), Vine (20 swings/40 jumps), fishing, Toon DNA (20,000 random
+  cases and 19,584 creation builds), shop (20,000), tailor, classic characters,
+  projection (405 points), zone format units (5), and terrain + assembled TTC
+  collision all pass. Collision reference work was redirected through this
+  worktree's `ref/ref/resources`; Python used `-I -B` for shared imports.
+- **Generation:** clip/timing and SpeedChat tables regenerate byte-identically;
+  dcgen output also matches byte-for-byte. Source audit checks 653 BAM headers,
+  including 10 sparse Bow/Curtsy combinations.
+- **Unavailable suites:** full suit-path tests need the missing server Panda fork
+  (`panda3d.toontown`); full zone-integrity tests need the external baked TZ set.
+  Zone format units and the pure Catch suit-walk schedule comparison did run.
+- **Runtime handoff:** see `docs/design/toon_anims.md`, final implemented-runtime
+  section and six-step Azahar checklist. Install the full anims SD Toon set;
+  verify 30 fps/<=6 ms animation, <=4 MiB Toon cache and <=24 MiB total linear,
+  local + eight remotes, all emotes and sparse parts, fishing/trolley/minigames,
+  teleport and battle clips. Precise new hand props, facial assets and teleport
+  hole/clipping choreography remain separate asset work and are not claimed tested.
