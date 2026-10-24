@@ -42,6 +42,7 @@
 #include "world/battle.h"
 #include "world/trolley.h"
 #include "world/fishing.h"
+#include "world/golf.h"
 #include "world/place.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
@@ -355,6 +356,7 @@ int main() {
     static tt::world::TrolleyRide trolley;
     trolley.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
+    static tt::world::GolfSession golf;
     static tt::world::CogBuildings cogBuildings;
     static tt::world::CogInterior cogInterior;
     static tt::world::Factory factory;
@@ -574,6 +576,16 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "go home") && autotest.stepTime() < 0.05f) {
             uiState.homeRequest = true; // test-only: the Map tab's Home button
         }
+        if (autotest.active() && !strncmp(autotest.label(), "golf: ", 6)) {
+            if (!golf.active() && place.zoneId() != 6000 && !uiState.teleportRequest && fadeDir == 0) {
+                uiState.teleportRequest = 6000; // Acorn Acres
+            }
+            const tt::net::GolfKart* kart = netStarted ? net.golfKart() : nullptr;
+            if (kart && !golf.active() && !strcmp(autotest.label(), "golf: board")) {
+                player.reset(kart->x, kart->y, kart->z, kart->h);
+                net.sendGolfKartBoard();
+            }
+        }
         if (autotest.active() && !strcmp(autotest.label(), "go factory") && place.zoneId() != 11200 &&
             !uiState.teleportRequest && fadeDir == 0) {
             uiState.teleportRequest = 11200; // test-only: Sellbot factory exterior
@@ -744,7 +756,7 @@ int main() {
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
         }
-        if (minigame.active() || trolley.seated()) { // seated or in a game: the toon isn't walking
+        if (minigame.active() || golf.active() || trolley.seated()) { // seated or in a game: the toon isn't walking
             if (trolley.seated() && (in.down & KEY_B)) trolley.hopOff(net);
             in.pad.dx = 0;
             in.pad.dy = 0;
@@ -775,10 +787,13 @@ int main() {
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         if (!racing.driving()) player.update(in, dt);
         fishing.applyCamera();
-        if (trolley.seated() || minigame.inScene()) {
+        if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
-            if (minigame.inScene()) {
+            if (golf.active()) {
+                golf.toonPose(&sx, &sy, &sz, &sh);
+                golf.camera(&eye, &target);
+            } else if (minigame.inScene()) {
                 minigame.toonPose(&sx, &sy, &sz, &sh);
                 minigame.camera(&eye, &target);
             } else {
@@ -988,6 +1003,7 @@ int main() {
                     talk.onNpcGone(ev.doId);
                 }
                 minigame.handleEvent(ev, net, nowMs);
+                golf.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
                 cogBuildings.handleEvent(ev, net);
@@ -1033,7 +1049,7 @@ int main() {
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
             else if (factory.active() && factory.collision()) player.setCollision(factory.collision());
             else if (mintOffice.active() && mintOffice.collision()) player.setCollision(mintOffice.collision());
-            else if (estate.active() || minigame.active()) player.setCollision(nullptr); // flat stages
+            else if (estate.active() || minigame.active() || golf.active()) player.setCollision(nullptr); // flat stages
             else player.setCollision(&place.collision());
             if (racing.active() && racing.collision()) player.setCollision(racing.collision());
             float rx, ry, rz, rh;
@@ -1193,8 +1209,15 @@ int main() {
                 }
                 battle.checkJoin(net, player.x(), player.y(), player.z(), player.headingDeg(), nowMs);
             }
-            if (!battle.active() && !minigame.active() && fadeDir == 0) {
+            if (!battle.active() && !minigame.active() && !golf.active() && fadeDir == 0) {
                 trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
+            }
+            if (!golf.active()) {
+                const tt::net::GolfKart* kart = net.golfKart();
+                if (kart) {
+                    const float dx = player.x() - kart->x, dy = player.y() - kart->y;
+                    if (dx * dx + dy * dy < 9.0f && (in.down & KEY_A)) net.sendGolfKartBoard();
+                }
             }
             cogBuildings.update(net, player.x(), player.y(), player.z(), nowMs);
             if (const u32 dest = cogBuildings.popDestination()) {
@@ -1243,6 +1266,16 @@ int main() {
                     toast = toastBuf;
                     toastAge = 0.0f;
                 }
+                golf.update(net, minigamePad, in.down, dt, nowMs);
+                if (const u32 home = golf.popReturn()) {
+                    golf.shutdown();
+                    net.changeZone(home);
+                    net.sendSetParent(tt::net::kParentRender);
+                    player.setCollision(&place.collision());
+                    float ax, ay, az, ah;
+                    place.arrival(0, &ax, &ay, &az, &ah);
+                    player.reset(ax, ay, az, ah);
+                }
             }
             battle.setAutoPlay(autotest.active());
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
@@ -1287,7 +1320,9 @@ int main() {
             const int eyeSign = stereoActive ? (e == 0 ? -1 : 1) : 0;
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
-            if (minigame.active()) {
+            if (golf.active()) {
+                golf.draw(renderer);
+            } else if (minigame.active()) {
                 minigame.draw(renderer); // the playground is hidden while we are away
             } else if (factory.active()) {
                 factory.draw(renderer, net);
@@ -1340,7 +1375,10 @@ int main() {
             zoneActors.draw(renderer, player.cameraEye());
             boat.draw(renderer);
             cchars.draw(renderer);
-            if (netStarted) trolley.draw(renderer, net, tt::net::plat::nowMs());
+            if (netStarted && !golf.active()) {
+                trolley.draw(renderer, net, tt::net::plat::nowMs());
+                golf.drawKart(renderer, net);
+            }
             fishing.draw(renderer);
             suits.draw(renderer);
             if (netStarted) cogBuildings.draw(renderer, net);
@@ -1516,6 +1554,10 @@ int main() {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);
         }
+        if (golf.active()) {
+            ctx.infoTitle = golf.title();
+            for (int i = 0; i < 3; i++) ctx.infoLines[i] = golf.line(i);
+        }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
 
@@ -1531,6 +1573,7 @@ int main() {
     cchars.shutdown();
     fishing.shutdown();
     minigame.shutdown();
+    golf.shutdown();
     trolley.shutdown();
     boat.shutdown();
     tt::world::AssetLoader::shutdown();

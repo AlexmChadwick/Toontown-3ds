@@ -802,6 +802,13 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         return;
     }
     if (handleRacingEnter(doId, classId, r, req, reqCount, other)) return;
+    if (classId == dc::DistributedGolfKart::kClassId ||
+        classId == dc::DistributedGolfCourse::kClassId ||
+        classId == dc::DistributedGolfHole::kClassId ||
+        classId == dc::DistributedPhysicsWorld::kClassId) {
+        handleGolfEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
     if (classId == dc::DistributedFactory::kClassId) {
         handleFactoryEnter(doId, classId, r, req, reqCount, other);
         return;
@@ -931,6 +938,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         return;
     }
     if (handleTrolleyField(r, doId, fieldId)) return;
+    if (handleGolfField(r, doId, fieldId)) return;
     if (handleFactoryField(r, doId, fieldId)) return;
     if (handleFacilityField(r, doId, fieldId)) return;
     if (handleEstateField(r, doId, fieldId)) return;
@@ -1052,6 +1060,7 @@ void Client::handleLeaving(uint32_t doId) {
         return;
     }
     if (handleTrolleyLeaving(doId)) return;
+    if (handleGolfLeaving(doId)) return;
     if (factory_.active && factory_.doId == doId) {
         factory_.active = false;
         pushEvent(EventType::FactoryGone, doId);
@@ -2547,6 +2556,7 @@ void Client::dropZoneObjects() {
     clearCogObjects();
     clearTrolleyObjects();
     clearRacing();
+    clearGolfObjects();
 }
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
