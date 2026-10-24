@@ -755,6 +755,17 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleTrolleyEnter(doId, r, req, reqCount, other);
         return;
     }
+    if (classId == dc::DistributedFactory::kClassId) {
+        handleFactoryEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
+    if (classId == dc::DistributedLift::kClassId || classId == dc::DistributedDoorEntity::kClassId ||
+        classId == dc::DistributedButton::kClassId || classId == dc::DistributedCrate::kClassId ||
+        classId == dc::DistributedGoon::kClassId || classId == dc::DistributedStomper::kClassId ||
+        classHasField(*cls, dc::DistributedCrushableEntity::k_setPosition)) {
+        handleFactoryEnter(doId, classId, r, req, reqCount, other);
+        return;
+    }
     if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
         handleCogBuildingEnter(doId, r, req, reqCount, other);
         return;
@@ -800,7 +811,8 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleSuitEnter(doId, zone, r, req, reqCount, other);
         return;
     }
-    if (classId == dc::DistributedBattle::kClassId) {
+    if (classId == dc::DistributedBattle::kClassId ||
+        classHasField(*cls, dc::DistributedBattle::k_setState)) {
         handleBattleEnter(doId, zone, r, req, reqCount, other);
         return;
     }
@@ -860,6 +872,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         return;
     }
     if (handleTrolleyField(r, doId, fieldId)) return;
+    if (handleFactoryField(r, doId, fieldId)) return;
     if (handleCogField(r, doId, fieldId)) return;
     for (NpcToon& n : npcs_) {
         if (n.active && n.doId == doId) {
@@ -973,6 +986,18 @@ void Client::handleLeaving(uint32_t doId) {
         return;
     }
     if (handleTrolleyLeaving(doId)) return;
+    if (factory_.active && factory_.doId == doId) {
+        factory_.active = false;
+        pushEvent(EventType::FactoryGone, doId);
+        return;
+    }
+    for (FactoryEntity& e : factoryEntities_) {
+        if (e.active && e.doId == doId) {
+            e.active = false;
+            pushEvent(EventType::FactoryEntityState, doId);
+            return;
+        }
+    }
     for (CogBuilding& b : cogBuildings_) {
         if (b.active && b.doId == doId) {
             b.active = false;
@@ -3703,6 +3728,7 @@ void Client::clearCogObjects() {
     }
     for (CogElevator& e : cogElevators_) e = CogElevator{};
     cogInterior_ = CogInterior{};
+    clearFactoryObjects();
 }
 
 bool Client::sendCogElevatorBoard(uint32_t doId) {
@@ -3737,6 +3763,133 @@ bool Client::sendCogInteriorReserveJoinDone(uint32_t doId) {
     if (!cogInterior_.active || cogInterior_.doId != doId) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedSuitInterior, reserveJoinDone);
+    return finish(w);
+}
+
+// ============================================================= Factory
+static FactoryEntityType factoryEntityType(uint16_t classId) {
+    if (classId == dc::DistributedLift::kClassId) return FactoryEntityType::Lift;
+    if (classId == dc::DistributedDoorEntity::kClassId) return FactoryEntityType::Door;
+    if (classId == dc::DistributedButton::kClassId) return FactoryEntityType::Button;
+    if (classId == dc::DistributedCrate::kClassId) return FactoryEntityType::Crate;
+    if (classId == dc::DistributedGoon::kClassId) return FactoryEntityType::Goon;
+    if (classId == dc::DistributedStomper::kClassId) return FactoryEntityType::Stomper;
+    return FactoryEntityType::Unknown;
+}
+
+bool Client::applyFactoryField(Factory& f, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedFactory::k_setFactoryId) f.factoryId = r.u16();
+    else if (fieldId == dc::DistributedLevel::k_setLevelZoneId) f.levelZoneId = r.u32();
+    else if (fieldId == dc::DistributedLevel::k_setZoneIds) {
+        f.numZones = readU32Array(r, f.zoneIds, 128);
+    } else if (fieldId == dc::DistributedLevel::k_setStartTimestamp) {
+        const int32_t ts = r.i32();
+        f.startMs = timeSynced_ ? networkToLocal(static_cast<int16_t>(ts / 10), now_) : now_;
+    } else if (fieldId == dc::DistributedFactory::k_setSuits) {
+        f.numSuits = readU32Array(r, f.suits, 32);
+        readU32Array(r, f.suits, 32);
+    } else if (fieldId == dc::DistributedFactory::k_setForemanConfronted) {
+        f.foreman = r.u32();
+    } else if (fieldId == dc::DistributedFactory::k_setDefeated) {
+        f.defeated = true;
+    } else return skipField(r, fieldId);
+    return r.ok();
+}
+
+bool Client::applyFactoryEntityField(FactoryEntity& e, DatagramReader& r, uint16_t fieldId) {
+    if (fieldId == dc::DistributedEntity::k_setLevelDoId) e.levelDoId = r.u32();
+    else if (fieldId == dc::DistributedEntity::k_setEntId) e.entId = r.u32();
+    else if (fieldId == dc::DistributedCrushableEntity::k_setPosition) {
+        e.x = r.i16() / 10.0f; e.y = r.i16() / 10.0f; e.z = r.i16() / 10.0f;
+    } else if (fieldId == dc::DistributedInteractiveEntity::k_setState) {
+        char state[24]; r.string(state, sizeof(state)); e.stateStartMs = r.i32();
+        e.state = state[0] ? static_cast<uint8_t>(state[0]) : 0;
+    } else if (fieldId == dc::DistributedLift::k_setStateTransition) {
+        e.state = r.u8(); e.nextState = r.u8(); e.stateStartMs = r.u32();
+    } else if (fieldId == dc::DistributedDoorEntity::k_setDoorState) {
+        e.state = r.u8(); e.stateStartMs = r.i32();
+    } else if (fieldId == dc::DistributedCrushableEntity::k_setCrushed) {
+        e.actorId = r.u32(); e.crushed = r.u8();
+    } else if (fieldId == dc::DistributedStomper::k_setMovie) {
+        e.movie = r.u8(); r.i16(); readU32Array(r, &e.actorId, 1);
+    } else if (fieldId == dc::DistributedGoon::k_setMovie) {
+        e.movie = r.u8(); e.actorId = r.u32(); r.i32(); r.i16();
+    } else if (fieldId == dc::DistributedCrate::k_setMoveTo) {
+        e.actorId = r.u32();
+        e.tx = r.i16() / 10.0f; e.ty = r.i16() / 10.0f; e.tz = r.i16() / 10.0f;
+        r.i16(); r.i16(); r.i16();
+    } else return skipField(r, fieldId);
+    return r.ok();
+}
+
+bool Client::handleFactoryEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
+                                const uint16_t* req, uint16_t reqCount, bool other) {
+    if (classId == dc::DistributedFactory::kClassId) {
+        Factory tmp{}; tmp.doId = doId;
+        bool ok = true;
+        for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyFactoryField(tmp, r, req[n]);
+        if (ok && other) {
+            const uint16_t count = r.u16();
+            for (uint16_t n = 0; n < count && ok; ++n) ok = applyFactoryField(tmp, r, r.u16());
+        }
+        if (!ok || !r.ok()) return false;
+        tmp.active = true; factory_ = tmp; pushEvent(EventType::FactoryUp, doId);
+        return true;
+    }
+    FactoryEntity* dst = nullptr;
+    for (FactoryEntity& e : factoryEntities_) if (e.active && e.doId == doId) dst = &e;
+    for (FactoryEntity& e : factoryEntities_) if (!dst && !e.active) dst = &e;
+    if (!dst) return false;
+    FactoryEntity tmp{}; tmp.doId = doId; tmp.type = factoryEntityType(classId);
+    bool ok = true;
+    for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyFactoryEntityField(tmp, r, req[n]);
+    if (ok && other) {
+        const uint16_t count = r.u16();
+        for (uint16_t n = 0; n < count && ok; ++n) ok = applyFactoryEntityField(tmp, r, r.u16());
+    }
+    if (!ok || !r.ok()) return false;
+    tmp.active = true; *dst = tmp; pushEvent(EventType::FactoryEntityUp, doId);
+    return true;
+}
+
+bool Client::handleFactoryField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (factory_.active && factory_.doId == doId) {
+        if (applyFactoryField(factory_, r, fieldId)) pushEvent(EventType::FactoryState, doId);
+        return true;
+    }
+    for (FactoryEntity& e : factoryEntities_) if (e.active && e.doId == doId) {
+        if (applyFactoryEntityField(e, r, fieldId)) pushEvent(EventType::FactoryEntityState, doId);
+        return true;
+    }
+    return false;
+}
+
+void Client::clearFactoryObjects() {
+    if (factory_.active) pushEvent(EventType::FactoryGone, factory_.doId);
+    factory_ = Factory{};
+    for (FactoryEntity& e : factoryEntities_) e = FactoryEntity{};
+}
+
+bool Client::sendFactoryEntityInteract(uint32_t doId) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedInteractiveEntity, requestInteract);
+    return finish(w);
+}
+
+bool Client::sendFactoryCratePush(uint32_t doId, uint8_t direction) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedCrate, requestPush);
+    w.u8(direction);
+    return finish(w);
+}
+
+bool Client::sendFactoryGoonBattle(uint32_t doId, float distance) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedGoon, requestBattle);
+    w.i16(static_cast<int16_t>(distance * 10.0f));
     return finish(w);
 }
 

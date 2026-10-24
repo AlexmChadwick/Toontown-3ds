@@ -140,6 +140,25 @@ WANTED = {
     'DistributedElevatorExt': ['setFloor'],
     'DistributedElevatorInt': ['requestBuildingExit', 'forcedExit'],
     'DistributedBattleBldg': [],
+    # ---- Sellbot Factory dynamic level (source/world/factory.*, docs/design/factory.md) ----
+    'DistributedFactory': ['setFactoryId', 'setSuits', 'setForemanConfronted', 'setDefeated'],
+    'DistributedLevel': ['setLevelZoneId', 'setPlayerIds', 'setEntranceId', 'setZoneIds',
+                         'setStartTimestamp', 'setAttribChange', 'requestCurrentLevelSpec',
+                         'setSpecDeny', 'setSpecSenderDoId', 'setOuch'],
+    'DistributedEntity': ['setLevelDoId', 'setEntId'],
+    'DistributedInteractiveEntity': ['setAvatarInteract', 'requestInteract', 'rejectInteract',
+                                     'requestExit', 'avatarExit', 'setState'],
+    'DistributedLift': ['setStateTransition', 'setAvatarEnter', 'setAvatarLeave'],
+    'DistributedDoorEntity': ['setLocksState', 'setDoorState', 'requestOpen'],
+    'DistributedButton': [],
+    'DistributedCrushableEntity': ['setPosition', 'setCrushed'],
+    'DistributedCrate': ['requestPush', 'setReject', 'setAccept', 'setMoveTo', 'setDone'],
+    'DistributedGoon': ['requestBattle', 'requestStunned', 'requestResync',
+                        'setParameterize', 'setMovie'],
+    'DistributedStomper': ['setMovie'],
+    'DistributedBattleFactory': [],
+    'DistributedFactoryElevatorExt': ['setEntranceId', 'setFactoryInteriorZone',
+                                      'setFactoryInteriorZoneForce'],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
@@ -151,6 +170,7 @@ WANTED = {
 # Class families whose every subclass gets a table (and a kClassId namespace).
 TABLE_FAMILIES = ['DistributedNPCToonBase', 'DistributedTreasure', 'DistributedDoor',
                   'DistributedCCharBase',                   'DistributedBuilding', 'DistributedAnimatedProp', 'DistributedElevator',
+                  'DistributedEntity', 'DistributedInteractiveEntity', 'DistributedCrushableEntity',
                   # every minigame (the stub must see the DO of a game we cannot play) and both
                   # purchase managers (PurchaseManager, NewbiePurchaseManager)
                   'DistributedMinigame', 'PurchaseManager']
@@ -178,6 +198,9 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  # street battle object (DistributedBattle: street cog fights)
                  'DistributedBattle', 'DistributedBattleBldg', 'DistributedSuitInterior',
                  'DistributedElevatorExt', 'DistributedElevatorInt']
+TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', 'DistributedDoorEntity',
+                  'DistributedButton', 'DistributedCrate', 'DistributedGoon', 'DistributedStomper',
+                  'DistributedBattleFactory', 'DistributedFactoryElevatorExt']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

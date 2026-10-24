@@ -31,6 +31,7 @@
 #include "world/cchar.h"
 #include "world/cog_buildings.h"
 #include "world/cog_interior.h"
+#include "world/factory.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
@@ -351,6 +352,7 @@ int main() {
     static tt::game::MinigameSession minigame;
     static tt::world::CogBuildings cogBuildings;
     static tt::world::CogInterior cogInterior;
+    static tt::world::Factory factory;
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
@@ -902,6 +904,7 @@ int main() {
                 suits.handleEvent(ev, net, nowMs);
                 cogBuildings.handleEvent(ev, net);
                 cogInterior.handleEvent(ev, net, nowMs);
+                factory.handleEvent(ev, net);
                 if (ev.type == tt::net::EventType::ShopMovie) {
                     shop.onMovie(net, nowMs);
                     if (const char* note = shop.takeNotice()) {
@@ -924,7 +927,9 @@ int main() {
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
             cogInterior.update(net, nowMs);
-            if (cogInterior.active()) player.setCollision(nullptr);
+            factory.update(net, player.x(), player.y(), player.z(), nowMs);
+            if (cogInterior.active() || factory.active()) player.setCollision(nullptr);
+            else player.setCollision(&place.collision());
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
                 tt::net::FriendEvent fe;
@@ -1143,6 +1148,8 @@ int main() {
 
             if (minigame.active()) {
                 minigame.draw(renderer); // the playground is hidden while we are away
+            } else if (factory.active()) {
+                factory.draw(renderer, net);
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {

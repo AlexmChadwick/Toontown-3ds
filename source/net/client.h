@@ -122,6 +122,11 @@ enum class EventType : uint8_t {
     CogInteriorState,  // floor interior state/lists changed
     CogInteriorGone,
     CogBuildingGone,
+    FactoryUp,
+    FactoryState,
+    FactoryEntityUp,
+    FactoryEntityState,
+    FactoryGone,
     BattleJoinDenied, // denyLocalToonJoin
     SuitDenied,       // DistributedSuit.denyBattle (doId = the cog we bumped into)
     SuitBrushOff,     // setBrushOff: the cog says no (doId = the cog)
@@ -284,6 +289,25 @@ struct CogInterior {
     bool active = false;
 };
 constexpr int kMaxCogInteriors = 2;
+
+enum class FactoryEntityType : uint8_t { Unknown, Lift, Door, Button, Crate, Goon, Stomper };
+struct FactoryEntity {
+    uint32_t doId = 0, levelDoId = 0, entId = 0, stateStartMs = 0, actorId = 0;
+    FactoryEntityType type = FactoryEntityType::Unknown;
+    float x = 0, y = 0, z = 0, tx = 0, ty = 0, tz = 0;
+    uint8_t state = 0, nextState = 0, movie = 0, crushed = 0;
+    bool active = false;
+};
+constexpr int kMaxFactoryEntities = 64;
+struct Factory {
+    uint32_t doId = 0, levelZoneId = 0, startMs = 0, foreman = 0;
+    uint16_t factoryId = 0;
+    uint32_t zoneIds[128] = {};
+    uint16_t numZones = 0;
+    uint32_t suits[32] = {};
+    uint8_t numSuits = 0;
+    bool defeated = false, active = false;
+};
 // Street cogs (DistributedSuit; docs/design/combat.md section 3). The AI never broadcasts a
 // position: it sends the endpoints of a path through the street's suit graph, the leg the
 // path was at and when, and a path state. source/world/suits.* rebuilds the walk.
@@ -799,6 +823,11 @@ public:
     const CogBuilding& cogBuildingSlot(int i) const { return cogBuildings_[i]; }
     const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
     const CogInterior* cogInterior() const { return cogInterior_.active ? &cogInterior_ : nullptr; }
+    const Factory* factory() const { return factory_.active ? &factory_ : nullptr; }
+    const FactoryEntity& factoryEntitySlot(int n) const { return factoryEntities_[n]; }
+    bool sendFactoryEntityInteract(uint32_t doId);
+    bool sendFactoryCratePush(uint32_t doId, uint8_t direction);
+    bool sendFactoryGoonBattle(uint32_t doId, float distance);
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
@@ -1095,6 +1124,12 @@ private:
     bool applyCogInteriorField(CogInterior& i, DatagramReader& r, uint16_t fieldId);
     bool handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     void clearCogObjects();
+    bool handleFactoryEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                            uint16_t reqCount, bool other);
+    bool applyFactoryField(Factory& f, DatagramReader& r, uint16_t fieldId);
+    bool applyFactoryEntityField(FactoryEntity& e, DatagramReader& r, uint16_t fieldId);
+    bool handleFactoryField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    void clearFactoryObjects();
     // ---- fishing (see the "fishing" section of client.cpp) ----
     FishingPond pond_ = {};
     FishingSpot fishSpots_[kMaxFishSpots] = {};
@@ -1114,6 +1149,8 @@ private:
     CogBuilding cogBuildings_[kMaxCogBuildings] = {};
     CogElevator cogElevators_[kMaxCogElevators] = {};
     CogInterior cogInterior_{};
+    Factory factory_{};
+    FactoryEntity factoryEntities_[kMaxFactoryEntities] = {};
     uint32_t ownBattleId_ = 0;
     bool handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                            bool other);
