@@ -1007,6 +1007,7 @@ bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_
     if (!ok || !r.ok()) return false;
     tmp.active = true;
     *t = tmp;
+    TT_LOG("net: treasure %u at %.1f,%.1f,%.1f", unsigned(doId), double(t->x), double(t->y), double(t->z));
     pushEvent(EventType::TreasureSpawn, doId);
     return true;
 }

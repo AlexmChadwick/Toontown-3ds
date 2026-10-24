@@ -16,6 +16,7 @@ namespace {
 constexpr float kDegToRad = 3.14159265f / 180.0f;
 constexpr float kTreasureRadius = 2.0f; // DistributedTreasure.getSphereRadius
 constexpr float kTreasureFadeSec = 1.0f; // treasureFlyTrack: 0.8 s out + 0.2 s
+constexpr float kNametagMaxDistance = 60.0f; // far tags behind buildings are just clutter
 
 } // namespace
 
@@ -170,7 +171,8 @@ void ZoneActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const 
     for (const Npc& n : npcs_) {
         if (!n.active) continue;
         float sx, sy, depth;
-        if (ui::projectToScreen(proj, view, n.x, n.y, n.z + n.look.nametagHeight, &sx, &sy, &depth)) {
+        if (ui::projectToScreen(proj, view, n.x, n.y, n.z + n.look.nametagHeight, &sx, &sy, &depth) &&
+            depth < kNametagMaxDistance) {
             balloons.addSpeaker(sx, sy, n.name, nullptr, 99.0f, depth);
         }
     }
@@ -184,6 +186,24 @@ u32 ZoneActors::touchingTreasure(float x, float y, float z) const {
         if (dx * dx + dy * dy + dz * dz < reach * reach) return t.doId;
     }
     return 0;
+}
+
+bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const {
+    const Treasure* best = nullptr;
+    float bestD = 0.0f;
+    for (const Treasure& t : treasures_) {
+        if (!t.active || t.grabbed) continue;
+        const float d = (t.x - x) * (t.x - x) + (t.y - y) * (t.y - y);
+        if (!best || d < bestD) {
+            best = &t;
+            bestD = d;
+        }
+    }
+    if (!best) return false;
+    *tx = best->x;
+    *ty = best->y;
+    *tz = best->z;
+    return true;
 }
 
 int ZoneActors::npcCount() const {

@@ -28,6 +28,8 @@ public:
     // Treasure the toon at (x, y, z) is touching, or 0 (DistributedTreasure sphere r = 2).
     u32 touchingTreasure(float x, float y, float z) const;
     int npcCount() const;
+    // Nearest live treasure (autotest helper). False when there is none.
+    bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
 
 private:
     struct Point {

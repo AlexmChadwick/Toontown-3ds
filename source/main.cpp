@@ -6,6 +6,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstring>
 
 #include "audio/audio.h"
 #include "core/autotest.h"
@@ -125,7 +126,7 @@ int main() {
     zoneActors.init(&toonCache, "romfs:/baked/ttc_sz.pts", "romfs:/baked/icecream.ttm");
     const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
     u32 grabRequested = 0;
-    u32 grabRequestMs = 0;
+    u32 lastTouchedTreasure = 0;
     tt::ui::Hud hud;
     hud.init();
 
@@ -193,6 +194,7 @@ int main() {
     tt::autotest::Runner autotest;
     autotest.begin();
     const char* shotName = nullptr;
+    bool autotestGrabbed = false;
 
     // Front end (title / pick / make a toon) unless the scripted autotest runs, which goes
     // straight into the world with automatic login (when online).
@@ -288,6 +290,15 @@ int main() {
         }
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        if (autotest.active() && !strcmp(autotest.label(), "grab treasure") && !autotestGrabbed) {
+            // Test-only: stand on the nearest treasure so the grab path runs.
+            float tx, ty, tz;
+            if (zoneActors.nearestTreasure(player.x(), player.y(), &tx, &ty, &tz)) {
+                player.reset(tx, ty, tz, player.headingDeg());
+                autotestGrabbed = true;
+                TT_LOG("autotest: moved onto treasure at %.1f,%.1f", double(tx), double(ty));
+            }
+        }
 
         const int prevTab = uiState.tab;
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
@@ -356,14 +367,14 @@ int main() {
                     sentState = netState;
                 }
                 if (pendingSpeech >= 0) net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
-                // Walking into a treasure asks the AI for it (DistributedTreasure.handleEnterSphere);
-                // re-ask at most every 2 s if the answer got lost.
+                // Entering a treasure's sphere asks the AI for it once (DistributedTreasure.
+                // handleEnterSphere). The AI refuses while laff is full (validAvatar: hp < maxHp).
                 const u32 touching = zoneActors.touchingTreasure(player.x(), player.y(), player.z());
-                if (touching && (touching != grabRequested || nowMs - grabRequestMs > 2000)) {
+                if (touching && touching != lastTouchedTreasure) {
                     net.sendRequestGrab(touching);
                     grabRequested = touching;
-                    grabRequestMs = nowMs;
                 }
+                lastTouchedTreasure = touching;
             } else {
                 sentState = nullptr; // resend after (re)entering
             }

@@ -29,6 +29,7 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 32, "stress 32 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "grab treasure", "grab"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
