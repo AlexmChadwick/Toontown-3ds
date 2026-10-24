@@ -132,8 +132,16 @@ public:
     // cog's pose and starts waiting. toon* is where we stood (the battle walk starts there).
     bool requestBattle(net::Client& client, uint32_t cogDoId, float cogX, float cogY, float cogZ, float cogH,
                        float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs);
+    // Facility cogs (DistributedFactorySuit.requestBattle, world/level.*): local* is the cog's
+    // pose in its parent entity's space, as upstream sends it.
+    bool requestLevelBattle(net::Client& client, uint32_t cogDoId, float localX, float localY, float localZ,
+                            float localH, float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs);
     // Walking into another toon's fight (lockout radius 9): toonRequestJoin. Call every frame.
     void checkJoin(net::Client& client, float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs);
+    // Join one battle now, wherever it is (a level battle blocker: BattleBlocker.startBattle).
+    bool requestJoin(net::Client& client, uint32_t battleId, float toonX, float toonY, float toonZ, float toonH,
+                     uint32_t nowMs);
+    bool idle() const { return phase_ == BattlePhase::Idle; }
 
     void handleEvent(const net::Event& ev, net::Client& client, uint32_t nowMs);
     void update(net::Client& client, uint32_t nowMs, float dt, const CogPoseSource& cogs);

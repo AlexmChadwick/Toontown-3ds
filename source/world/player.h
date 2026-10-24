@@ -22,6 +22,8 @@ public:
     void setCollision(const CollisionWorld* world) { collision_ = world; }
     void reset(float x, float y, float z, float headingDeg);
     void setHeading(float headingDeg) { heading_ = headingDeg; }
+    // Dynamic walls (closed facility doors, world/level.*) push the toon after update().
+    void setXY(float x, float y) { x_ = x; y_ = y; }
     // Replaces this frame's follow camera (call after update; e.g. fishing's pond view).
     void overrideCamera(const C3D_FVec& eye, const C3D_FVec& target) {
         camEye_ = eye;

@@ -25,7 +25,8 @@ namespace tt::world {
 
 class SuitActors {
 public:
-    static constexpr int kMax = net::kMaxSuits;
+    // Street cogs (net::kMaxSuits) plus the facility cogs of the visible level zones.
+    static constexpr int kMax = 32;
 
     bool init(); // loads the placeholder model; false leaves suits invisible (never fatal)
     void shutdown();
@@ -57,10 +58,16 @@ public:
     // anim: SuitAnim or a battle clip (world/battle.h kSuitAnim*), clipArg/clipStartMs with it.
     void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim = 0,
                       s8 clipArg = -1, u32 clipStartMs = 0);
+    // Facility cogs (DistributedFactorySuit, world/level.*): the level runtime walks them and
+    // sets their pose every frame; drawing, nametags, battles and overridePose work as above.
+    // code: SuitDNA head code; levelDist: setLevelDist. False when no actor slot is free.
+    bool setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h, bool walking,
+                     bool visible);
+    void removeExternal(u32 doId);
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.
-    enum class Mode : u8 { Hidden, Walk, Frozen, FlyAway, DanceFly };
+    enum class Mode : u8 { Hidden, Walk, Frozen, FlyAway, DanceFly, External };
     struct Actor {
         bool active = false;
         u32 doId = 0;

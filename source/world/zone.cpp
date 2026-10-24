@@ -181,6 +181,8 @@ struct Zone::Impl {
     uint16_t order[kMaxChunks] = {};
     uint32_t numOrder = 0;
     bool planned = false;
+    bool extra[kMaxChunks] = {}; // setExtraVisible: chunks shown beyond the cell's PVS
+    bool extraDirty = false;
     Vec3 lastPlan{};
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
@@ -450,7 +452,8 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
             if (d<bestD) { bestD=d; next=static_cast<int>(i); }
         }
     }
-    bool replan=next>=0 && (next!=z.cell || !z.planned);
+    bool replan=next>=0 && (next!=z.cell || !z.planned || z.extraDirty);
+    const bool extrasChanged=replan && z.extraDirty;
     if (next>=0 && !replan && z.h.version==2) {
         const float dx=feet.x-z.lastPlan.x,dy=feet.y-z.lastPlan.y,dz=feet.z-z.lastPlan.z;
         replan=dx*dx+dy*dy+dz*dz>=16.0f; // avoid churn for tiny movements
@@ -461,17 +464,21 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
         memset(z.choice,0,sizeof(z.choice));
         memset(z.failed,0,sizeof(z.failed));
         uint64_t geom=0,tex=0,tris=0,draws=0;
-        for (uint32_t j=0;j<c.numVis;++j) {
-            const uint16_t id=z.vis[c.firstVis+j];
+        uint32_t count=0;
+        auto want=[&](uint16_t id) {
+            if (z.desired[id]) return;
             z.desired[id]=true;
             z.choice[id]=z.h.version==2 ? 1 : 0;
-            z.order[j]=id;
+            z.order[count++]=id;
             const Chunk d=modelInfo(z.chunks[id],z.choice[id]);
             geom+=d.geom; tex+=d.tex; tris+=d.tris; draws+=d.draws;
-        }
-        z.numOrder=c.numVis;
+        };
+        for (uint32_t j=0;j<c.numVis;++j) want(z.vis[c.firstVis+j]);
+        for (uint32_t i=0;i<z.h.chunks;++i) if (z.extra[i]) want(static_cast<uint16_t>(i));
+        z.extraDirty=false;
+        z.numOrder=count;
         // Stable nearest-first insertion sort; fixed storage, no per-frame allocation.
-        for (uint32_t j=1;j<c.numVis;++j) {
+        for (uint32_t j=1;j<count;++j) {
             const uint16_t id=z.order[j];
             const float dist=distance2(feet,z.chunks[id]);
             uint32_t at=j;
@@ -481,7 +488,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
             z.order[at]=id;
         }
         if (z.h.version==2) {
-            for (uint32_t j=0;j<c.numVis;++j) {
+            for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
                 // Hysteresis: a chunk already at full detail keeps it out to 75 units, so a
@@ -501,7 +508,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
         error_[0]=0;
         const uint16_t previous=currentZone();
         z.cell=next;
-        if (callback && previous!=currentZone()) {
+        if (callback && (previous!=currentZone() || extrasChanged)) {
             uint16_t zones[kMaxChunks+1];
             const int count=visibleZones(zones,kMaxChunks+1);
             callback(user,currentZone(),zones,count);
@@ -643,14 +650,27 @@ int Zone::visibleZones(uint16_t* out,int capacity) const {
     int count=1;
     ids[0]=branchZone();
     const Chunk& c=impl_->chunks[impl_->cell];
-    for (uint32_t i=0;i<c.numVis;++i) {
-        const uint16_t id=static_cast<uint16_t>(impl_->chunks[impl_->vis[c.firstVis+i]].zone);
+    auto add=[&](uint32_t chunk) {
+        const uint16_t id=static_cast<uint16_t>(impl_->chunks[chunk].zone);
         bool found=false;
         for (int j=0;j<count;++j) if (ids[j]==id) found=true;
-        if (!found) ids[count++]=id;
-    }
+        if (!found && count<kMaxChunks+1) ids[count++]=id;
+    };
+    for (uint32_t i=0;i<c.numVis;++i) add(impl_->vis[c.firstVis+i]);
+    for (uint32_t i=0;i<impl_->h.chunks;++i) if (impl_->extra[i]) add(i);
     if (out && capacity>0) std::copy(ids,ids+std::min(count,capacity),out);
     return count;
+}
+void Zone::setExtraVisible(const uint16_t* zones, int count) {
+    if (!impl_) return;
+    bool next[kMaxChunks]={};
+    for (int k=0;k<count;++k)
+        for (uint32_t i=0;i<impl_->h.chunks;++i)
+            if (impl_->chunks[i].zone==zones[k]) next[i]=true;
+    if (memcmp(next,impl_->extra,sizeof(next))!=0) {
+        memcpy(impl_->extra,next,sizeof(next));
+        impl_->extraDirty=true;
+    }
 }
 uint16_t Zone::currentZone() const { return impl_ && impl_->cell>=0 ? static_cast<uint16_t>(impl_->chunks[impl_->cell].zone) : 0; }
 uint16_t Zone::branchZone() const { return impl_ ? static_cast<uint16_t>(impl_->h.branch) : 0; }

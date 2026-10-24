@@ -31,6 +31,9 @@ def _patch(name, mod):
                 if self.getMoney() < 40:
                     self.b_setMoney(40)
                 self.b_setEmoteAccess([1] * 25)  # every SpeedChat emote (normally catalog unlocks)
+                # Full gag pouch for the tracks the toon has, so unattended battles can be won.
+                self.inventory.maxOutInv(filterUberGags=1)
+                self.b_setInventory(self.inventory.makeNetString())
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate

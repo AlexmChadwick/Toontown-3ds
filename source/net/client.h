@@ -130,6 +130,10 @@ enum class EventType : uint8_t {
     FactoryEntityUp,
     FactoryEntityState,
     FactoryGone,
+    LevelSuitUp,      // DistributedFactorySuit / MintSuit / StageSuit generated (client_level.cpp)
+    LevelSuitState,   // setConfrontToon / setReturn / setHP / setReserve ...
+    LevelSuitGone,
+    LevelBlockerState, // BattleBlocker generated or changed
     MintUp, MintState, MintRoomUp, MintRoomState, MintGone,
     StageUp, StageState, StageRoomUp, StageRoomState, StageGone,
     EstateManagerUp, EstateZone, EstateUp, EstateState, HouseUp, HouseState,
@@ -361,8 +365,52 @@ struct Factory {
     uint16_t numZones = 0;
     uint32_t suits[32] = {};
     uint8_t numSuits = 0;
+    uint32_t reserveSuits[32] = {};
+    uint8_t numReserveSuits = 0;
+    uint8_t entranceId = 0; // DistributedLevel.setEntranceId (entrancePoint entities' entranceId)
+    uint32_t playerIds[4] = {}; // DistributedLevel.setPlayerIds: entrance placement order
+    uint8_t numPlayers = 0;
     bool defeated = false, active = false;
 };
+
+// ---- facility level Cogs and battle blockers (client_level.cpp, docs/design/levels.md) ----
+// DistributedFactorySuit (and its Mint/Stage subclasses): the spec cogId names its spawn pose,
+// path and battle cell in the level's TLV (world/level.*); the client walks it locally.
+struct LevelSuit {
+    uint32_t doId = 0, levelDoId = 0, cogId = 0;
+    char name[4] = {};      // SuitDNA head code
+    char dept = 0;
+    int16_t levelDist = 0, hp = 0;
+    uint8_t skelecog = 0;
+    bool reserve = false;   // setReserve: waits off stage until it joins a battle
+    bool hasDna = false;
+    uint32_t confrontToon = 0; // setConfrontToon: chase this toon (0 = none)
+    uint32_t returnSerial = 0; // bumped by setReturn
+    uint32_t chaseSerial = 0;  // bumped by setConfrontToon
+    bool active = false;
+};
+constexpr int kMaxLevelSuits = 32;
+// BattleBlocker (and DistributedLaserField): a sphere of spec 'radius' at its entity; walking
+// in starts the battle of its cell's cogs, or joins the running one (BattleBlocker.startBattle).
+struct LevelBlocker {
+    uint32_t doId = 0, levelDoId = 0, entId = 0, battleId = 0;
+    uint32_t suits[8] = {};
+    uint8_t numSuits = 0;
+    bool blockerActive = false, finished = false, active = false;
+};
+constexpr int kMaxLevelBlockers = 24;
+// Distributed level entities the level runtime animates (doors now; see client_level.cpp).
+struct LevelEntityObj {
+    uint32_t doId = 0, levelDoId = 0, entId = 0;
+    uint16_t classId = 0;
+    uint8_t state = 0;     // DistributedDoorEntity.setDoorState: FourState index
+    uint32_t stateMs = 0;  // local time the state began (its network timestamp)
+    uint16_t locks = 0;    // setLocksState: 4 bits per lock (LockBase FourState index)
+    uint32_t locksMs[3] = {}; // local time each lock's state last changed
+    bool active = false;
+};
+constexpr int kMaxLevelEntities = 64;
+// ---- end facility levels ----
 
 struct FacilityRoom {
     uint32_t doId = 0, levelZoneId = 0, startMs = 0, boss = 0;
@@ -583,6 +631,8 @@ struct BattleExperience {
 struct Battle {
     uint32_t doId;
     uint32_t zoneId;
+    uint32_t levelDoId;        // setLevelDoId: facility battles (DistributedLevelBattle), else 0
+    uint32_t battleCellId;     // setBattleCellId: the level spec battle cell it sits on
     float x, y, z;             // setPosition: the battle cell
     float sx, sy, sz;          // setInitialSuitPos: where the first cog touched us
     BattleStateId state;
@@ -1074,6 +1124,25 @@ public:
     const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
     const CogInterior* cogInterior() const { return cogInterior_.active ? &cogInterior_ : nullptr; }
     const Factory* factory() const { return factory_.active ? &factory_ : nullptr; }
+    // ---- facility levels (client_level.cpp) ----
+    const LevelSuit& levelSuitSlot(int n) const { return levelSuits_[n]; }
+    const LevelSuit* findLevelSuit(uint32_t doId) const;
+    const LevelBlocker& levelBlockerSlot(int n) const { return levelBlockers_[n]; }
+    const LevelEntityObj& levelEntitySlot(int n) const { return levelEntities_[n]; }
+    bool sendLevelDoorOpen(uint32_t doId); // DistributedDoorEntity.requestOpen (we bumped the door)
+    // DistributedLevel.setVisibility: location stays the level zone, interest is the level zone,
+    // the UberZone and the visible zones (ids from setZoneIds), like sendSetZoneMsg.
+    bool setLevelVisibility(uint32_t levelZone, const uint32_t* zones, int count);
+    // DistributedFactorySuit.requestBattle: pos/hpr in the cog's parent-entity space (the AI
+    // only keeps them as confrontPos; level battles sit on the cog's battle cell).
+    bool sendLevelSuitBattle(uint32_t doId, float x, float y, float z, float h);
+    bool sendLevelSuitAlert(uint32_t doId);   // setAlert(our avId): a chase cog saw us
+    bool sendLevelSuitStrayed(uint32_t doId); // setStrayed: chased more than 10 from its spawn
+    // World pose of a level battle cell (world/level.*): applied to level battles on generate.
+    using LevelBattlePlacer = bool (*)(void* user, uint32_t levelDoId, uint32_t cellId, float* x, float* y,
+                                       float* z, float* h);
+    void setLevelBattlePlacer(LevelBattlePlacer fn, void* user) { levelBattlePlacer_ = fn; levelBattlePlacerUser_ = user; }
+    // ---- end facility levels ----
     const FactoryEntity& factoryEntitySlot(int n) const { return factoryEntities_[n]; }
     bool sendFactoryEntityInteract(uint32_t doId);
     bool sendFactoryCratePush(uint32_t doId, uint8_t direction);
@@ -1508,6 +1577,11 @@ private:
     CogElevator cogElevators_[kMaxCogElevators] = {};
     CogInterior cogInterior_{};
     Factory factory_{};
+    LevelSuit levelSuits_[kMaxLevelSuits] = {};
+    LevelBattlePlacer levelBattlePlacer_ = nullptr;
+    void* levelBattlePlacerUser_ = nullptr;
+    LevelBlocker levelBlockers_[kMaxLevelBlockers] = {};
+    LevelEntityObj levelEntities_[kMaxLevelEntities] = {};
     FactoryEntity factoryEntities_[kMaxFactoryEntities] = {};
     Mint mint_{};
     Stage stage_{};
@@ -1555,6 +1629,14 @@ private:
     bool applyGolfHoleField(GolfHole& h, DatagramReader& r, uint16_t fieldId, bool announce);
     bool handleGolfField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     bool handleGolfLeaving(uint32_t doId);
+    bool handleLevelEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                          bool other);
+    bool handleLevelField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool handleLevelLeaving(uint32_t doId);
+    void clearLevelObjects();
+    bool applyLevelSuitField(LevelSuit& s, DatagramReader& r, uint16_t fieldId);
+    bool applyLevelBlockerField(LevelBlocker& b, DatagramReader& r, uint16_t fieldId);
+    bool applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_t fieldId);
     void clearGolfObjects();
     void pushEventArg(EventType type, uint32_t doId, int32_t arg);
     uint8_t ownDna_[kDnaSize] = {};

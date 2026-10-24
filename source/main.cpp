@@ -31,7 +31,7 @@
 #include "world/cchar.h"
 #include "world/cog_buildings.h"
 #include "world/cog_interior.h"
-#include "world/factory.h"
+#include "world/level.h"
 #include "world/estate.h"
 #include "world/pets.h"
 #include "world/mint_office.h"
@@ -369,7 +369,7 @@ int main() {
     static tt::world::GolfSession golf;
     static tt::world::CogBuildings cogBuildings;
     static tt::world::CogInterior cogInterior;
-    static tt::world::Factory factory;
+    static tt::world::Level level; // facility levels: the Sellbot factory (world/level.*)
     static tt::world::Estate estate;
     static tt::world::Pets pets;
     static tt::world::MintOffice mintOffice;
@@ -609,7 +609,7 @@ int main() {
             in.down |= KEY_A;
         }
         if (autotest.active() && !strcmp(autotest.label(), "factory: board") && place.zoneId() == 11200 &&
-            !factory.active()) {
+            !level.active()) {
             const tt::world::Place::Point* p = place.point("elevator_origin_0");
             static u32 boardNextMs = 0;
             if (p && tt::net::plat::nowMs() > boardNextMs) { // step into the elevator (re-try every 6 s)
@@ -649,6 +649,23 @@ int main() {
             // Test-only: walk into the first cog; Battle::setAutoPlay picks the gags.
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
+        }
+        if (autotest.active() && level.active() && !battle.active()) {
+            // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
+            float cx, cy, cz;
+            if (!strcmp(autotest.label(), "factory: door")) {
+                float dx, dy, dz, dh;
+                if (autotest.stepTime() < 0.05f &&
+                    level.nearestDoor(player.x(), player.y(), player.z(), &dx, &dy, &dz, &dh)) {
+                    player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
+                }
+            }
+            const bool look = !strcmp(autotest.label(), "factory: entities");
+            const bool fight = !strcmp(autotest.label(), "factory: battle");
+            if ((look || fight) && level.nearestCog(player.x(), player.y(), player.z(), &cx, &cy, &cz)) {
+                if (look) autotestFace(cx, cy, cz, 12.0f);
+                else player.reset(cx, cy - 0.5f, cz, 0.0f);
+            }
         }
         if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
             // Started mid-script: go to a street with cogs (Silly Street) first.
@@ -801,6 +818,10 @@ int main() {
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         if (!racing.driving()) player.update(in, dt);
+        if (level.active()) { // closed facility doors are walls
+            float px = player.x(), py = player.y();
+            if (level.pushOut(&px, &py, player.z())) player.setXY(px, py);
+        }
         fishing.applyCamera();
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
@@ -1023,7 +1044,7 @@ int main() {
                 suits.handleEvent(ev, net, nowMs);
                 cogBuildings.handleEvent(ev, net);
                 cogInterior.handleEvent(ev, net, nowMs);
-                factory.handleEvent(ev, net);
+                level.handleEvent(ev, net);
                 mintOffice.handleEvent(ev, net);
                 racing.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
@@ -1055,14 +1076,13 @@ int main() {
             tailor.update(net, nowMs);
             ui.closet().update(net);
             cogInterior.update(net, nowMs);
-            factory.update(net, player.x(), player.y(), player.z(), nowMs);
             mintOffice.update(net, player.x(), player.y(), player.z(), nowMs);
             racing.update(net, in, dt, player.x(), player.y(), player.z(), nowMs);
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
             pets.update(net);
-            const bool facilityActive = cogInterior.active() || factory.active() || mintOffice.active();
+            const bool facilityActive = cogInterior.active() || level.active() || mintOffice.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
-            else if (factory.active() && factory.collision()) player.setCollision(factory.collision());
+            else if (level.active() && level.collision()) player.setCollision(level.collision());
             else if (mintOffice.active() && mintOffice.collision()) player.setCollision(mintOffice.collision());
             else if (estate.active() || minigame.active() || golf.active()) player.setCollision(nullptr); // flat stages
             else player.setCollision(&place.collision());
@@ -1075,7 +1095,7 @@ int main() {
             if (facilityActive) {
                 float sx, sy, sz, sh;
                 if (cogInterior.spawnPose(&sx, &sy, &sz, &sh) ||
-                    factory.spawnPose(&sx, &sy, &sz, &sh) ||
+                    level.spawnPose(&sx, &sy, &sz, &sh) ||
                     mintOffice.spawnPose(&sx, &sy, &sz, &sh)) {
                     player.reset(sx, sy, sz, sh);
                 }
@@ -1200,15 +1220,30 @@ int main() {
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         if (netStarted && net.inZone()) {
             const u32 nowMs = tt::net::plat::nowMs();
+            if (level.active()) {
+                // Facility cogs walk/chase here; touching one (or a battle blocker) fights.
+                tt::world::LevelBattleAction act;
+                level.update(net, suits, player.x(), player.y(), player.z(), dt, nowMs,
+                             battle.idle() && fadeDir == 0, &act);
+                if (act.cogDoId) {
+                    battle.requestLevelBattle(net, act.cogDoId, act.x, act.y, act.z, act.h, player.x(), player.y(),
+                                              player.z(), player.headingDeg(), nowMs);
+                } else if (act.joinBattle) {
+                    battle.requestJoin(net, act.joinBattle, player.x(), player.y(), player.z(), player.headingDeg(),
+                                       nowMs);
+                }
+                // DistributedLevelBattle.lockLevelViz: keep the battle's zone in view.
+                const tt::net::Battle* nb = battle.active() ? net.findBattle(battle.battleId()) : nullptr;
+                if (nb && nb->levelDoId == level.levelDoId()) level.lockVisibility(nb->zoneId);
+                else level.unlockVisibility();
+            }
             // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
             // walking into someone else's fight joins it.
             if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active() && !minigame.active() &&
                 !trolley.seated()) {
                 uint32_t facilityCog = 0;
                 float facilityX = 0, facilityY = 0, facilityZ = 0, facilityH = 0;
-                bool hasFacilityCog = factory.battleTarget(net, &facilityCog, &facilityX, &facilityY,
-                                                           &facilityZ, &facilityH) ||
-                    cogInterior.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH) ||
+                bool hasFacilityCog = cogInterior.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH) ||
                     mintOffice.battleTarget(net, &facilityCog, &facilityX, &facilityY, &facilityZ, &facilityH);
                 const float fdx = player.x() - facilityX, fdy = player.y() - facilityY;
                 if (hasFacilityCog && fdx * fdx + fdy * fdy < 36.0f) {
@@ -1341,8 +1376,8 @@ int main() {
                 golf.draw(renderer);
             } else if (minigame.active()) {
                 minigame.draw(renderer); // the playground is hidden while we are away
-            } else if (factory.active()) {
-                factory.draw(renderer, net);
+            } else if (level.active()) {
+                level.draw(renderer, player.cameraEye());
             } else if (mintOffice.active()) {
                 mintOffice.draw(renderer, net);
             } else if (racing.active()) {

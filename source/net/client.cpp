@@ -809,6 +809,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
     if (classId == dc::DistributedFactory::kClassId) {
         handleFactoryEnter(doId, classId, r, req, reqCount, other);
         return;
@@ -939,6 +940,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     }
     if (handleTrolleyField(r, doId, fieldId)) return;
     if (handleGolfField(r, doId, fieldId)) return;
+    if (handleLevelField(r, doId, fieldId)) return; // client_level.cpp
     if (handleFactoryField(r, doId, fieldId)) return;
     if (handleFacilityField(r, doId, fieldId)) return;
     if (handleEstateField(r, doId, fieldId)) return;
@@ -1061,6 +1063,7 @@ void Client::handleLeaving(uint32_t doId) {
     }
     if (handleTrolleyLeaving(doId)) return;
     if (handleGolfLeaving(doId)) return;
+    if (handleLevelLeaving(doId)) return; // client_level.cpp
     if (factory_.active && factory_.doId == doId) {
         factory_.active = false;
         pushEvent(EventType::FactoryGone, doId);
@@ -1904,6 +1907,8 @@ bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bo
         b.sz = r.i16() / 10.0f;
         break;
     case dc::DistributedBattle::k_setZoneId: b.zoneId = r.u32(); break;
+    case dc::DistributedBattle::k_setLevelDoId: b.levelDoId = r.u32(); break;
+    case dc::DistributedBattle::k_setBattleCellId: b.battleCellId = r.u32(); break;
     case dc::DistributedBattle::k_setMembers:
         if (parseBattleMembers(b, r) && live) pushEvent(EventType::BattleMembers, b.doId);
         break;
@@ -1978,6 +1983,15 @@ bool Client::handleBattleEnter(uint32_t doId, uint32_t zone, DatagramReader& r, 
         return false;
     }
     tmp.active = true;
+    // DistributedLevelBattle.setBattleCellId: facility battles sit on their spec battle cell
+    // (setPosition is a no-op there); the level runtime knows where that is in our world.
+    float lx, ly, lz, lh;
+    if (tmp.levelDoId && levelBattlePlacer_ &&
+        levelBattlePlacer_(levelBattlePlacerUser_, tmp.levelDoId, tmp.battleCellId, &lx, &ly, &lz, &lh)) {
+        const float rad = lh * 0.01745329252f;
+        tmp.x = lx, tmp.y = ly, tmp.z = lz;
+        tmp.sx = lx - std::sin(rad), tmp.sy = ly + std::cos(rad), tmp.sz = lz; // heading lh
+    }
     *slot = tmp;
     TT_LOG("net: battle %u zone %u at %.1f,%.1f,%.1f state %s: %d cogs, %d toons", unsigned(doId), unsigned(slot->zoneId),
            double(slot->x), double(slot->y), double(slot->z), slot->stateName, int(slot->numSuits),
@@ -4465,6 +4479,7 @@ void Client::clearCogObjects() {
     cogInterior_ = CogInterior{};
     clearFactoryObjects();
     clearFacilityObjects();
+    clearLevelObjects();
 }
 
 bool Client::sendCogElevatorBoard(uint32_t doId) {
@@ -4523,7 +4538,11 @@ bool Client::applyFactoryField(Factory& f, DatagramReader& r, uint16_t fieldId) 
         f.startMs = timeSynced_ ? networkToLocal(static_cast<int16_t>(ts / 10), now_) : now_;
     } else if (fieldId == dc::DistributedFactory::k_setSuits) {
         f.numSuits = readU32Array(r, f.suits, 32);
-        readU32Array(r, f.suits, 32);
+        f.numReserveSuits = readU32Array(r, f.reserveSuits, 32);
+    } else if (fieldId == dc::DistributedLevel::k_setEntranceId) {
+        f.entranceId = r.u8();
+    } else if (fieldId == dc::DistributedLevel::k_setPlayerIds) {
+        f.numPlayers = uint8_t(readU32Array(r, f.playerIds, 4));
     } else if (fieldId == dc::DistributedFactory::k_setForemanConfronted) {
         f.foreman = r.u32();
     } else if (fieldId == dc::DistributedFactory::k_setDefeated) {

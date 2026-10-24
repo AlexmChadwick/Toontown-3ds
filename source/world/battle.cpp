@@ -170,27 +170,50 @@ bool Battle::requestBattle(net::Client& client, uint32_t cogDoId, float cogX, fl
     return true;
 }
 
+bool Battle::requestLevelBattle(net::Client& client, uint32_t cogDoId, float localX, float localY, float localZ,
+                                float localH, float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs) {
+    if (phase_ != BattlePhase::Idle || int32_t(nowMs - cooldownUntilMs_) < 0) return false;
+    if (!client.sendLevelSuitBattle(cogDoId, localX, localY, localZ, localH)) return false;
+    phase_ = BattlePhase::Requested;
+    requestMs_ = nowMs;
+    reqX_ = toonX, reqY_ = toonY, reqZ_ = toonZ, reqH_ = toonH;
+    joining_ = false;
+    return true;
+}
+
+static bool joinable(const net::Battle& b) {
+    return b.numToons < net::kBattleToons &&
+           (b.state == net::BattleStateId::WaitForInput || b.state == net::BattleStateId::PlayMovie ||
+            b.state == net::BattleStateId::FaceOff || b.state == net::BattleStateId::WaitForJoin);
+}
+
+bool Battle::requestJoin(net::Client& client, uint32_t battleId, float toonX, float toonY, float toonZ, float toonH,
+                         uint32_t nowMs) {
+    if (phase_ != BattlePhase::Idle || int32_t(nowMs - joinCooldownMs_) < 0 || !client.inZone()) return false;
+    const net::Battle* b = client.findBattle(battleId);
+    if (!b || b->doId == doneBattle_ || !joinable(*b)) return false;
+    // Position relative to the battle node (setPosition + headsUp(initialSuitPos)).
+    const float dx = toonX - b->x, dy = toonY - b->y;
+    const float ddx = b->sx - b->x, ddy = b->sy - b->y;
+    const float h = (ddx * ddx + ddy * ddy > 1e-4f) ? atan2f(-ddx, ddy) : 0.0f;
+    const float c = cosf(h), s = sinf(h);
+    const float lx = dx * c + dy * s, ly = -dx * s + dy * c;
+    if (!client.sendBattleRequestJoin(b->doId, lx, ly, toonZ - b->z)) return false;
+    phase_ = BattlePhase::Requested;
+    requestMs_ = nowMs;
+    reqX_ = toonX, reqY_ = toonY, reqZ_ = toonZ, reqH_ = toonH;
+    joining_ = true;
+    return true;
+}
+
 void Battle::checkJoin(net::Client& client, float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs) {
     if (phase_ != BattlePhase::Idle || int32_t(nowMs - joinCooldownMs_) < 0 || !client.inZone()) return;
     for (int i = 0; i < net::kMaxBattles; ++i) {
         const net::Battle& b = client.battleSlot(i);
-        if (!b.active || b.doId == doneBattle_ || b.numToons >= net::kBattleToons) continue;
-        if (b.state != net::BattleStateId::WaitForInput && b.state != net::BattleStateId::PlayMovie &&
-            b.state != net::BattleStateId::FaceOff && b.state != net::BattleStateId::WaitForJoin) {
-            continue;
-        }
+        if (!b.active || b.doId == doneBattle_ || !joinable(b)) continue;
         const float dx = toonX - b.x, dy = toonY - b.y;
         if (dx * dx + dy * dy > kJoinRadius * kJoinRadius) continue;
-        // Position relative to the battle node (setPosition + headsUp(initialSuitPos)).
-        const float ddx = b.sx - b.x, ddy = b.sy - b.y;
-        const float h = (ddx * ddx + ddy * ddy > 1e-4f) ? atan2f(-ddx, ddy) : 0.0f;
-        const float c = cosf(h), s = sinf(h);
-        const float lx = dx * c + dy * s, ly = -dx * s + dy * c;
-        if (!client.sendBattleRequestJoin(b.doId, lx, ly, toonZ - b.z)) return;
-        phase_ = BattlePhase::Requested;
-        requestMs_ = nowMs;
-        reqX_ = toonX, reqY_ = toonY, reqZ_ = toonZ, reqH_ = toonH;
-        joining_ = true;
+        requestJoin(client, b.doId, toonX, toonY, toonZ, toonH, nowMs);
         return;
     }
 }

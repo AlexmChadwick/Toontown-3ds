@@ -39,6 +39,10 @@ public:
     // it every frame. A chunk changing LOD keeps drawing its old LOD until then.
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
     bool loading() const; // chunks of the current plan are still in flight
+    // Server zones to show (and report in visibleZones) on top of the current cell's PVS,
+    // e.g. the rooms behind an open facility door (otp/level/VisibilityExtender). The next
+    // update() replans and calls back when the set changes.
+    void setExtraVisible(const uint16_t* zones, int count);
     // Blocks until the current plan is resident (arrival in a new zone).
     void finishLoading(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
     // Renderer performs frustum culling; distance is measured to chunk AABB.

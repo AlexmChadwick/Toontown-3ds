@@ -310,6 +310,13 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
                   'DistributedProjectile', 'DistributedKartPad', 'DistributedRacePad',
                   'DistributedViewPad', 'DistributedStartingBlock', 'DistributedLeaderBoard']
 
+# ---- facility level Cogs and battle blockers (source/net/client_level.cpp, docs/design/levels.md) ----
+WANTED['DistributedFactorySuit'] = ['setLevelDoId', 'setCogId', 'setReserve', 'requestBattle', 'setAlert',
+                                    'setConfrontToon', 'setStrayed', 'setReturn']
+WANTED['BattleBlocker'] = ['setActive', 'setSuits', 'setBattle', 'setBattleFinished']
+TABLE_CLASSES += ['DistributedFactorySuit', 'DistributedMintSuit', 'DistributedStageSuit', 'BattleBlocker']
+# ---- end facility levels ----
+
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.
 WANTED['DistributedToon'] += ['setFriendsList', 'friendsNotify', 'setWhisperSCFrom',

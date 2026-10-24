@@ -96,7 +96,23 @@ def vec(v, default):
     return [float(v[i]) for i in range(3)]
 
 
-def build_tlv(ents, cogs, model, out_path):
+def path_family(level):
+    """GoonPathData.taskZoneId2pathId by facility (PathEntity.setPathIndex)."""
+    if level == 'sellbot_factory':
+        return 'sellbotFactory'
+    if level.startswith('CashbotMint'):
+        return 'cashbotMint'
+    if level.startswith('Lawbot'):
+        return 'lawOfficeStage'
+    return None
+
+
+def goon_paths():
+    import level_spec_load
+    return level_spec_load.load_module('GoonPathData', level_spec_load.UPSTREAM / 'toontown/suit')['Paths']
+
+
+def build_tlv(ents, cogs, model, out_path, family=None):
     from panda3d.core import NodePath
     import tlv
     zones = zone_nodes(model)
@@ -158,6 +174,24 @@ def build_tlv(ents, cogs, model, out_path):
                 n.setPos(*vec(c.get('pos'), (0, 0, 0)))
                 n.setH(float(c.get('h', 0)))
                 attrs = {k: v for k, v in c.items() if k not in ('pos', 'h', 'parentEntId')}
+                # DistributedFactorySuit.setPath: the path entity is reparented (keeping its
+                # local transform) to the cog's parent; the cog walks its GoonPathData points
+                # (x pathScale) there. pathWorld: those points in level-root space.
+                path = ents.get(c.get('path') or -1)
+                if path is not None and family:
+                    pts = goon_paths().get(family, {}).get(path.get('pathIndex'))
+                    if pts:
+                        pn = parent.attachNewNode('cogpath')
+                        pn.setPos(*vec(path.get('pos'), (0, 0, 0)))
+                        pn.setHpr(*vec(path.get('hpr'), (0, 0, 0)))
+                        pn.setScale(*vec(path.get('scale'), (1, 1, 1)))
+                        scale = float(path.get('pathScale', 1.0))
+                        world = []
+                        for p in pts:
+                            q = model.getRelativePoint(pn, (p[0] * scale, p[1] * scale, p[2] * scale))
+                            world += [q[0], q[1], q[2]]
+                        attrs['pathWorld'] = world
+                        pn.removeNode()
                 w.add(i, c['parentEntId'], zone_of(c['parentEntId']), kind, mat12(n, model),
                       vec(c.get('pos'), (0, 0, 0)), [float(c.get('h', 0)), 0, 0], [1, 1, 1], attrs,
                       flags=tlv.FLAG_SYNTHETIC)
@@ -344,7 +378,7 @@ def bake(level, args, base):
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     report = {'level': level, 'spec': spec_name, 'model': mgr['modelFilename']}
-    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv')
+    report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv', path_family(level))
     if not args.tlv_only:
         report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)
         import assemble

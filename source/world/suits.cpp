@@ -368,6 +368,7 @@ void SuitActors::evaluate(Actor& a, u32 nowMs, const CollisionWorld* collision) 
         a.poseValid = true;
         return;
     case Mode::Frozen:
+    case Mode::External: // the level runtime sets the pose (setExternal)
         return; // pose stays
     case Mode::Walk: {
         if (a.legs.numLegs() > 0 && graph_.loaded()) {
@@ -490,6 +491,40 @@ u32 SuitActors::touching(float x, float y, float z) const {
         if (dx * dx + dy * dy < reach * reach && z > a.pose.z - 1.0f && z < a.pose.z + heightOf(a)) return a.doId;
     }
     return 0;
+}
+
+bool SuitActors::setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h,
+                             bool walking, bool visible) {
+    Actor* actor = nullptr;
+    for (Actor& a : actors_)
+        if (a.active && a.doId == doId) actor = &a;
+    if (!actor) {
+        for (Actor& a : actors_)
+            if (!a.active && !actor) actor = &a;
+        if (!actor) return false;
+        actor->~Actor();
+        new (actor) Actor();
+        actor->active = true;
+        actor->doId = doId;
+        actor->mode = Mode::External;
+        const SuitInfo* info = findType(code);
+        actor->type = info ? static_cast<int>(info - kSuitTypes) : -1;
+        actor->dept = info ? info->dept : 'c';
+        if (info) snprintf(actor->label, sizeof(actor->label), "%s Level %d", info->name, info->baseLevel + levelDist + 1);
+        else snprintf(actor->label, sizeof(actor->label), "Cog");
+    }
+    actor->pose.x = x, actor->pose.y = y, actor->pose.z = actor->pose.groundZ = z, actor->pose.h = h;
+    actor->pose.alpha = 1.0f;
+    actor->pose.visible = visible;
+    actor->pose.anim = walking ? kSuitWalk : kSuitNeutral;
+    actor->legType = walking ? kLegWalk : kLegOff;
+    actor->poseValid = true;
+    return true;
+}
+
+void SuitActors::removeExternal(u32 doId) {
+    for (Actor& a : actors_)
+        if (a.active && a.doId == doId && a.mode == Mode::External) a.active = false;
 }
 
 bool SuitActors::pose(u32 doId, float* x, float* y, float* z, float* h) const {
