@@ -33,9 +33,14 @@ public:
     void unload();
     bool loaded() const { return impl_ != nullptr; }
     const char* error() const { return error_; }
-    // Streaming can block on SD I/O. Call once before FrameBegin, never per eye.
+    // Call once before FrameBegin, never per eye.
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
+    // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call
+    // it every frame. A chunk changing LOD keeps drawing its old LOD until then.
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
+    bool loading() const; // chunks of the current plan are still in flight
+    // Blocks until the current plan is resident (arrival in a new zone).
+    void finishLoading(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr);
     // Renderer performs frustum culling; distance is measured to chunk AABB.
     void draw(render::Renderer& renderer, const Vec3& eye, float distance = 120.0f);
     int cellAt(const Vec3& feet, float reach = kFloorReach) const; // -1 on miss
@@ -62,8 +67,10 @@ public:
     CollisionWorld& collision() { return collision_; }
     const CollisionWorld& collision() const { return collision_; }
 
+public:
+    struct Impl; // public so the loader thread entry point can see it
+
 private:
-    struct Impl;
     bool fail(const char* message);
     Impl* impl_ = nullptr;
     CollisionWorld collision_;

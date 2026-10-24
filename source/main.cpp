@@ -458,6 +458,7 @@ int main() {
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
                 if (netStarted) net.changeZone(travelTarget);
+                place.finishLoading(ax, ay, az, onStreetCell, nullptr);
                 lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
                 if (tt::world::hoodOf(travelTarget) != tt::world::hoodOf(fromZone)) playHoodMusic(travelTarget);
                 continue;

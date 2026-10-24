@@ -167,8 +167,22 @@ need hardware.
   back to street 2100.
 - **Teleport:** Donald's Dock (`1000.tz`) at 79 draws / 13.7k tris, then Daisy Gardens
   and The Brrrgh load. No PANIC, and no command-buffer guard hits.
-- **Known issue:** zone loads run on the main thread, about 0.4–1.5 s (2100.tz takes
-  1.46 s). During a load the fps drops to 6–18 for about a second.
+- **Known issue (fixed below):** zone loads ran on the main thread, about 0.4–1.5 s
+  (2100.tz took 1.46 s). During a load the fps dropped to 6–18 for about a second.
+
+### 2026-10-23 — Asynchronous chunk streaming
+- **What changed.** `Zone` reads chunks on a loader thread (core 0, priority 0x31) into
+  staging models, and the main thread swaps them in. A chunk changing LOD keeps drawing
+  its old LOD until the new one arrives. Per-index validation moved from an SD scan at
+  load time into `Model::loadFrom`, in memory.
+- **Header load (parse + validation):**
+  - 2000.tz: 535 → 90 ms
+  - 2100.tz: 1.46 s → 0.25 s
+  - 1000.tz, 5000.tz, 3000.tz: 127–145 ms
+- **Arrival.** `Place::finishLoading` blocks until the first visible set is resident,
+  which takes 0.36–0.80 s. Arrivals have no pop-in, and the whole transition is 0.4–0.9 s.
+- **Walking.** Running across TTC holds 29–30 fps; before, it dipped to 20–23 fps while
+  chunks streamed. Zone changes still drop the fps for about one second.
 
 ### Not yet tested
 - Real hardware (Old or New 3DS).

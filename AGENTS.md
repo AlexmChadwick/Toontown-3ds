@@ -357,6 +357,7 @@ server.
 - ✅ **Every exterior zone streams from `.tz`** (`world/zone.*`, TZ v1 and v2). All 25
   playgrounds and streets are baked by `bake_street.py` with per-visgroup near/far LOD,
   PVS, floor zone ids, triggers, `.pts` anchors and DNA sign lettering (`sign_text.py`).
+  Chunks stream on a loader thread (`Zone` jobs swapped in by `update`).
   Every visible set fits 117 draws / 15,000 tris / 810 KB geometry; the per-zone table
   is in `docs/design/streets.md`. Street cell changes come from floor zone ids
   (`Client::changeStreetCell`).
@@ -364,7 +365,6 @@ server.
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - Classic characters (Mickey, Minnie, …) are in progress on the `chars` worktree.
 - Next:
-  - async zone loading (loads take 0.4–1.5 s on the main thread today)
   - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`)
   - SpeedChat emotes
   - a real hardware run

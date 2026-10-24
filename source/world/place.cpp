@@ -86,6 +86,14 @@ void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) 
     if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
 }
 
+void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user) {
+    if (!zone_.loaded()) return;
+    const u64 t0 = osGetTime();
+    zone_.finishLoading(Vec3{x, y, z}, cb, user);
+    TT_LOG("place: %lu chunks resident in %lu ms", (unsigned long)zone_.numVisible(),
+           (unsigned long)(osGetTime() - t0));
+}
+
 void Place::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     if (zone_.loaded()) {
         zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 120.0f);

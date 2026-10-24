@@ -54,6 +54,8 @@ public:
     // Streams chunks for the toon's cell; cb fires when the server cell (street visgroup)
     // changes, with [branch] + vis zones for the interest. Call once per frame.
     void update(float x, float y, float z, Zone::CellChanged cb, void* user);
+    // Blocks until the chunks around (x, y, z) are resident (arrival; no pop-in).
+    void finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user);
     void draw(render::Renderer& renderer, const C3D_FVec& eye);
     const char* pointsPath() const { return pointsPath_; }
     const Point* point(const char* name) const;

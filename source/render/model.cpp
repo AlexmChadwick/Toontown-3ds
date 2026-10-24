@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 
 #include "core/log.h"
 #include "core/memory.h"
@@ -122,6 +123,25 @@ bool Model::load(const char* path) {
     return ok;
 }
 
+void Model::swap(Model& o) {
+    std::swap(numTextures_, o.numTextures_);
+    std::swap(numBatches_, o.numBatches_);
+    std::swap(numVertices_, o.numVertices_);
+    std::swap(numIndices_, o.numIndices_);
+    for (int i = 0; i < 3; i++) {
+        std::swap(posScale_[i], o.posScale_[i]);
+        std::swap(posOffset_[i], o.posOffset_[i]);
+        std::swap(boundsMin_[i], o.boundsMin_[i]);
+        std::swap(boundsMax_[i], o.boundsMax_[i]);
+    }
+    std::swap(textures_, o.textures_);
+    std::swap(batches_, o.batches_);
+    std::swap(vertices_, o.vertices_);
+    std::swap(indices_, o.indices_);
+    std::swap(linearBytes_, o.linearBytes_);
+    std::swap(absoluteIndices_, o.absoluteIndices_);
+}
+
 bool Model::loadFrom(FILE* f, u32 base, const char* label) {
     unload();
     const char* path = label ? label : "(embedded)";
@@ -162,12 +182,20 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label) {
     if (ok && numVertices_ <= 0x10000) {
         // Rebase batch-relative indices to absolute so the renderer binds one vertex
         // buffer per model instead of one per batch (keeps the GPU command buffer small).
-        for (u16 b = 0; b < numBatches_; b++) {
-            u16* idx = indices_ + batches_[b].firstIndex;
-            const u32 base = batches_[b].firstVertex;
-            for (u32 i = 0; i < batches_[b].numIndices; i++) idx[i] = static_cast<u16>(idx[i] + base);
+        // Also validates every index against its batch (cheap here, in memory).
+        for (u16 b = 0; ok && b < numBatches_; b++) {
+            const Batch& bt = batches_[b];
+            ok = bt.firstVertex <= numVertices_ && bt.numVertices <= numVertices_ - bt.firstVertex &&
+                 bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+            if (!ok) break;
+            u16* idx = indices_ + bt.firstIndex;
+            const u32 base = bt.firstVertex;
+            for (u32 i = 0; i < bt.numIndices; i++) {
+                if (idx[i] >= bt.numVertices) ok = false;
+                idx[i] = static_cast<u16>(idx[i] + base);
+            }
         }
-        absoluteIndices_ = true;
+        absoluteIndices_ = ok;
     }
     if (ok) {
         linearBytes_ = numVertices_ * kVertexSize + numIndices_ * sizeof(u16);

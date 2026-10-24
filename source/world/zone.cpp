@@ -105,7 +105,8 @@ bool validModel(FILE* f, const Chunk& c) {
             (b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>1 || b.tint ||
             b.layer>4 || b.slot || b.pad || b.fv>h.vertices || b.nv>h.vertices-b.fv ||
             b.fi>h.indices || b.ni>h.indices-b.fi || b.ni%3) return false;
-        for (uint32_t j=0;j<b.ni;) {
+        // Model::loadFrom checks indices in memory; only scan here when it cannot.
+        for (uint32_t j=0;h.vertices>0x10000 && j<b.ni;) {
             const uint32_t n=std::min(b.ni-j,static_cast<uint32_t>(512));
             if (!readAt(f,c.offset+h.indexOff+(b.fi+j)*2,ids,n*2)) return false;
             for (uint32_t k=0;k<n;++k) if (ids[k]>=b.nv) return false;
@@ -117,6 +118,9 @@ bool validModel(FILE* f, const Chunk& c) {
 } // namespace
 
 
+// Chunk models are read by a loader thread (core 0, below the main thread's priority,
+// like ToonCache) into staging models; the main thread swaps them in from update().
+// The open .tz is only read by that thread once load() has returned.
 struct Zone::Impl {
     FILE* file = nullptr;
     Header h{};
@@ -126,14 +130,57 @@ struct Zone::Impl {
     Trigger* triggers = nullptr;
     bool resident[kMaxChunks] = {};
     uint8_t lod[kMaxChunks] = {};
+    // The current plan: which chunks should be resident, at which LOD, nearest first.
+    bool desired[kMaxChunks] = {};
+    uint8_t choice[kMaxChunks] = {};
+    bool failed[kMaxChunks] = {}; // load failed for this plan; retried on the next one
+    uint16_t order[kMaxChunks] = {};
+    uint32_t numOrder = 0;
+    bool planned = false;
     Vec3 lastPlan{};
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
     float min[3] = {}, max[3] = {};
 #ifdef __3DS__
+    enum JobState : uint8_t { Free, Queued, Loading, Done, Failed };
+    struct Job {
+        volatile JobState state = Free;
+        uint16_t chunk = 0;
+        uint8_t lod = 0;
+        render::Model model;
+    };
+    static constexpr int kJobs = 3;
     render::Model* models = nullptr;
+    Job jobs[kJobs];
+    LightLock lock;
+    LightEvent wake;
+    Thread thread = nullptr;
+    volatile bool quit = false;
 #endif
 };
+
+#ifdef __3DS__
+namespace {
+void loaderMain(void* arg) {
+    Zone::Impl& z = *static_cast<Zone::Impl*>(arg);
+    while (!z.quit) {
+        Zone::Impl::Job* job = nullptr;
+        LightLock_Lock(&z.lock);
+        for (auto& j : z.jobs)
+            if (j.state == Zone::Impl::Queued) { job = &j; j.state = Zone::Impl::Loading; break; }
+        LightLock_Unlock(&z.lock);
+        if (!job) { LightEvent_Wait(&z.wake); continue; }
+        const Chunk d = modelInfo(z.chunks[job->chunk], job->lod);
+        // Model owns the shared LinearGuard; never lock around this call.
+        const bool ok = job->model.loadFrom(z.file, d.offset, "tz chunk");
+        LightLock_Lock(&z.lock);
+        job->state = ok ? Zone::Impl::Done : Zone::Impl::Failed;
+        LightLock_Unlock(&z.lock);
+    }
+}
+} // namespace
+#endif
+
 Zone::~Zone() { unload(); }
 bool Zone::fail(const char* message) {
     snprintf(error_,sizeof(error_),"%s",message);
@@ -142,6 +189,12 @@ bool Zone::fail(const char* message) {
 void Zone::unload() {
     if (!impl_) return;
 #ifdef __3DS__
+    if (impl_->thread) {
+        impl_->quit = true;
+        LightEvent_Signal(&impl_->wake);
+        threadJoin(impl_->thread, U64_MAX);
+        threadFree(impl_->thread);
+    }
     C3D_FrameSync();
     delete[] impl_->models;
 #endif
@@ -249,6 +302,12 @@ bool Zone::load(const char* path) {
     if (ok) { z.models=new(std::nothrow) render::Model[h.chunks]; ok=z.models!=nullptr; }
 #endif
     if (!ok) { unload(); return fail("zone: invalid TZ/model/collision, budget, heap or I/O failure"); }
+#ifdef __3DS__
+    LightLock_Init(&z.lock);
+    LightEvent_Init(&z.wake, RESET_ONESHOT);
+    z.thread = threadCreate(loaderMain, &z, 32 * 1024, 0x31, 0, false);
+    if (!z.thread) { unload(); return fail("zone: cannot start loader thread"); }
+#endif
     bool firstBounds=true;
     for (uint32_t i=0;i<h.chunks;++i) if (z.chunks[i].size) {
         for (int a=0;a<3;++a) {
@@ -300,94 +359,165 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user) {
             if (d<bestD) { bestD=d; next=static_cast<int>(i); }
         }
     }
-    if (next<0) return true;
-    if (next==z.cell) {
-        if (z.h.version==1) return true;
+    bool replan=next>=0 && (next!=z.cell || !z.planned);
+    if (next>=0 && !replan && z.h.version==2) {
         const float dx=feet.x-z.lastPlan.x,dy=feet.y-z.lastPlan.y,dz=feet.z-z.lastPlan.z;
-        if (dx*dx+dy*dy+dz*dz<16.0f) return true; // avoid SD churn for tiny movements
+        replan=dx*dx+dy*dy+dz*dz>=16.0f; // avoid churn for tiny movements
     }
-    const Chunk& c=z.chunks[next];
-    bool desired[kMaxChunks]={};
-    uint8_t choice[kMaxChunks]={};
-    uint16_t order[kMaxChunks];
-    uint64_t geom=0,tex=0,tris=0,draws=0;
-    for (uint32_t j=0;j<c.numVis;++j) {
-        const uint16_t id=z.vis[c.firstVis+j];
-        desired[id]=true;
-        choice[id]=z.h.version==2 ? 1 : 0;
-        order[j]=id;
-        const Chunk d=modelInfo(z.chunks[id],choice[id]);
-        geom+=d.geom; tex+=d.tex; tris+=d.tris; draws+=d.draws;
-    }
-    if (z.h.version==2) {
+    if (replan) {
+        const Chunk& c=z.chunks[next];
+        memset(z.desired,0,sizeof(z.desired));
+        memset(z.choice,0,sizeof(z.choice));
+        memset(z.failed,0,sizeof(z.failed));
+        uint64_t geom=0,tex=0,tris=0,draws=0;
+        for (uint32_t j=0;j<c.numVis;++j) {
+            const uint16_t id=z.vis[c.firstVis+j];
+            z.desired[id]=true;
+            z.choice[id]=z.h.version==2 ? 1 : 0;
+            z.order[j]=id;
+            const Chunk d=modelInfo(z.chunks[id],z.choice[id]);
+            geom+=d.geom; tex+=d.tex; tris+=d.tris; draws+=d.draws;
+        }
+        z.numOrder=c.numVis;
         // Stable nearest-first insertion sort; fixed storage, no per-frame allocation.
         for (uint32_t j=1;j<c.numVis;++j) {
-            const uint16_t id=order[j];
+            const uint16_t id=z.order[j];
             const float dist=distance2(feet,z.chunks[id]);
             uint32_t at=j;
-            while (at>0 && distance2(feet,z.chunks[order[at-1]])>dist) {
-                order[at]=order[at-1]; --at;
+            while (at>0 && distance2(feet,z.chunks[z.order[at-1]])>dist) {
+                z.order[at]=z.order[at-1]; --at;
             }
-            order[at]=id;
+            z.order[at]=id;
         }
-        for (uint32_t j=0;j<c.numVis;++j) {
-            const uint16_t id=order[j];
-            const Chunk& high=z.chunks[id];
-            if (distance2(feet,high)>65.0f*65.0f) continue;
-            const Chunk low=modelInfo(high,1);
-            const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
-            const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
-            if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=150) {
-                choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
+        if (z.h.version==2) {
+            for (uint32_t j=0;j<c.numVis;++j) {
+                const uint16_t id=z.order[j];
+                const Chunk& high=z.chunks[id];
+                if (distance2(feet,high)>65.0f*65.0f) continue;
+                const Chunk low=modelInfo(high,1);
+                const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
+                const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
+                if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=150) {
+                    z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
+                }
             }
+        }
+        z.lastPlan=feet;
+        z.planned=true;
+        error_[0]=0;
+        const uint16_t previous=currentZone();
+        z.cell=next;
+        if (callback && previous!=currentZone()) {
+            uint16_t zones[kMaxChunks+1];
+            const int count=visibleZones(zones,kMaxChunks+1);
+            callback(user,currentZone(),zones,count);
         }
     }
-    bool changed=next!=z.cell;
-    for (uint32_t i=0;i<z.h.chunks;++i)
-        if (z.resident[i]!=desired[i] || (desired[i] && z.lod[i]!=choice[i])) changed=true;
-    z.lastPlan=feet;
-    if (!changed) return true;
+    if (!z.planned) return true;
+    auto account=[&](uint32_t i,int sign) {
+        const Chunk d=modelInfo(z.chunks[i],z.lod[i]);
+        z.geom+=sign*d.geom; z.tex+=sign*d.tex; z.tris+=sign*d.tris; z.draws+=sign*d.draws;
+    };
+    bool synced=false;
+    auto sync=[&]() {
 #ifdef __3DS__
-    C3D_FrameSync(); // previous frame may still be reading the chunks being evicted
+        if (!synced) C3D_FrameSync(); // the last frame may still read what we free
 #endif
-    for (uint32_t i=0;i<z.h.chunks;++i) if (z.resident[i] && (!desired[i] || z.lod[i]!=choice[i])) {
+        synced=true;
+    };
+    (void)sync;
+#ifdef __3DS__
+    // 1. Swap in finished loads (still wanted) and drop the rest.
+    uint64_t inflightGeom=0,inflightTex=0;
+    for (auto& j:z.jobs) {
+        LightLock_Lock(&z.lock);
+        const Impl::JobState st=j.state;
+        LightLock_Unlock(&z.lock);
+        if (st==Impl::Done || st==Impl::Failed) {
+            const bool wanted=z.desired[j.chunk] && z.choice[j.chunk]==j.lod;
+            if (st==Impl::Done && wanted) {
+                sync();
+                if (z.resident[j.chunk]) account(j.chunk,-1);
+                z.models[j.chunk].swap(j.model);
+                z.resident[j.chunk]=true; z.lod[j.chunk]=j.lod;
+                account(j.chunk,+1);
+            } else if (st==Impl::Failed && wanted) {
+                z.failed[j.chunk]=true;
+                fail("zone: chunk load failed; retried on the next plan");
+            }
+            j.model.unload(); // the old LOD, or an unwanted load: never drawn by the GPU
+            LightLock_Lock(&z.lock);
+            j.state=Impl::Free;
+            LightLock_Unlock(&z.lock);
+        } else if (st!=Impl::Free) {
+            const Chunk d=modelInfo(z.chunks[j.chunk],j.lod);
+            inflightGeom+=d.geom; inflightTex+=d.tex;
+        }
+    }
+#endif
+    // 2. Evict chunks the plan no longer wants. A chunk changing LOD stays drawn until
+    // its replacement arrives.
+    for (uint32_t i=0;i<z.h.chunks;++i) if (z.resident[i] && !z.desired[i]) {
+        sync();
 #ifdef __3DS__
         z.models[i].unload();
 #endif
-        const Chunk d=modelInfo(z.chunks[i],z.lod[i]);
-        z.resident[i]=false; z.geom-=d.geom; z.tex-=d.tex; z.tris-=d.tris; z.draws-=d.draws;
+        account(i,-1);
+        z.resident[i]=false;
     }
-    for (uint32_t i=0;i<z.h.chunks;++i) if (desired[i] && !z.resident[i]) {
-        const Chunk d=modelInfo(z.chunks[i],choice[i]);
-        bool ok=z.geom<=kGeometryBudget-d.geom && z.tex<=kTextureBudget-d.tex;
+    // 3. Queue missing chunks, nearest first.
+    for (uint32_t j=0;j<z.numOrder;++j) {
+        const uint16_t i=z.order[j];
+        if (z.failed[i] || (z.resident[i] && z.lod[i]==z.choice[i])) continue;
+        const Chunk d=modelInfo(z.chunks[i],z.choice[i]);
 #ifdef __3DS__
-        if (ok && d.size) {
-            // Model owns the shared LinearGuard; never lock around this call.
-            ok=z.models[i].loadFrom(z.file,d.offset,"tz chunk");
+        bool queued=false;
+        Impl::Job* slot=nullptr;
+        for (auto& job:z.jobs) {
+            if (job.state!=Impl::Free && job.chunk==i && job.lod==z.choice[i]) queued=true;
+            if (job.state==Impl::Free && !slot) slot=&job;
         }
-#endif
-        if (!ok) {
-            for (uint32_t k=0;k<z.h.chunks;++k) {
-#ifdef __3DS__
-                z.models[k].unload();
-#endif
-                z.resident[k]=false;
-            }
-            z.cell=-1; z.geom=z.tex=z.tris=z.draws=0;
-            return fail("zone: chunk load/linear budget failed; update will retry");
+        if (queued) continue;
+        if (!slot) break;
+        if (!d.size) { // empty chunk: nothing to read
+            if (z.resident[i]) { sync(); z.models[i].unload(); account(i,-1); }
+            z.resident[i]=true; z.lod[i]=z.choice[i];
+            continue;
         }
-        z.resident[i]=true; z.lod[i]=choice[i];
-        z.geom+=d.geom; z.tex+=d.tex; z.tris+=d.tris; z.draws+=d.draws;
-    }
-    const uint16_t previous=currentZone();
-    z.cell=next;
-    error_[0]=0;
-    if (callback && previous!=currentZone()) {
-        uint16_t zones[kMaxChunks+1];
-        const int count=visibleZones(zones,kMaxChunks+1);
-        callback(user,currentZone(),zones,count);
+        if (z.geom+inflightGeom+d.geom>kGeometryBudget || z.tex+inflightTex+d.tex>kTextureBudget) {
+            fail("zone: linear budget full; waiting for evictions");
+            break;
+        }
+        inflightGeom+=d.geom; inflightTex+=d.tex;
+        LightLock_Lock(&z.lock);
+        slot->chunk=i; slot->lod=z.choice[i]; slot->state=Impl::Queued;
+        LightLock_Unlock(&z.lock);
+        LightEvent_Signal(&z.wake);
+#else
+        if (z.resident[i]) account(i,-1);
+        z.resident[i]=true; z.lod[i]=z.choice[i];
+        account(i,+1);
+        (void)d;
+#endif
     }
     return true;
+}
+bool Zone::loading() const {
+    if (!impl_ || !impl_->planned) return false;
+    for (uint32_t j=0;j<impl_->numOrder;++j) {
+        const uint16_t i=impl_->order[j];
+        if (!impl_->failed[i] && !(impl_->resident[i] && impl_->lod[i]==impl_->choice[i])) return true;
+    }
+    return false;
+}
+void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
+    for (int guard=0; guard<3000 && impl_; ++guard) {
+        update(feet,callback,user);
+        if (!loading()) return;
+#ifdef __3DS__
+        svcSleepThread(2 * 1000000LL); // let the loader thread run
+#endif
+    }
 }
 void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance) {
     if (!impl_ || distance<=0) return;

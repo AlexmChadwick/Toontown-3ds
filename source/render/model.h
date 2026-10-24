@@ -80,6 +80,9 @@ public:
     bool loadFrom(FILE* f, u32 base, const char* label = nullptr);
     void unload();
     bool loaded() const { return vertices_ != nullptr; }
+    // Exchanges contents (no GPU work): lets a loader thread fill a staging model that
+    // the main thread then swaps in.
+    void swap(Model& other);
 
     // Dequantization: world = q * posScale + posOffset.
     const float* posScale() const { return posScale_; }
