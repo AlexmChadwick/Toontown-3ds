@@ -351,6 +351,52 @@ def bake_stomper(base, resources, out, name, path):
     return report
 
 
+def bake_crates(base, resources, out):
+    """DistributedCrate: woodCrateB (factory) / CBWoodCrate (mint), plus grid floor wear."""
+    report = {}
+    crate_w = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/woodCrateB.bam'), noCache=True)
+    report['crate_wood'] = write_part(crate_w, None, out / 'crate_wood.ttm')
+    lo, hi = crate_w.getTightBounds()
+    (out / 'crate.box').write_text(' '.join(f'{v:.4f}' for v in (*lo, *hi)) + '\n')
+    report['crate_box'] = [list(lo), list(hi)]
+    crate_w.removeNode()
+
+    crate_cb = base.loader.loadModel(str(resources / 'phase_10/models/cashbotHQ/CBWoodCrate.bam'), noCache=True)
+    report['crate_cbwood'] = write_part(crate_cb, None, out / 'crate_cbwood.ttm')
+    crate_cb.removeNode()
+
+    grid = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/FloorWear.bam'), noCache=True)
+    report['grid_floor'] = write_part(grid, None, out / 'grid_floor.ttm')
+    grid.removeNode()
+    return report
+
+
+def bake_moles(base, resources, out):
+    """DistributedMoleField: mole hole, normal mole, cog bomb mole, and hit mole."""
+    report = {}
+    for name, path in (('mole_hole', 'phase_12/models/bossbotHQ/mole_hole.bam'),
+                       ('mole_norm', 'phase_12/models/bossbotHQ/mole_norm.bam'),
+                       ('mole_cog', 'phase_12/models/bossbotHQ/mole_cog.bam'),
+                       ('mole_hit', 'phase_12/models/bossbotHQ/mole_hit.bam')):
+        model = base.loader.loadModel(str(resources / path), noCache=True)
+        report[name] = write_part(model, None, out / f'{name}.ttm')
+        model.removeNode()
+    return report
+
+
+def bake_golf(base, resources, out):
+    """DistributedGolfGreenGame: bust-a-cog hole and golf ball."""
+    report = {}
+    hole = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_hole.bam'), noCache=True)
+    report['golf_hole'] = write_part(hole, None, out / 'golf_hole.ttm')
+    hole.removeNode()
+
+    ball = base.loader.loadModel(str(resources / 'phase_6/models/golf/golf_ball.bam'), noCache=True)
+    report['golf_ball'] = write_part(ball, None, out / 'golf_ball.ttm')
+    ball.removeNode()
+    return report
+
+
 # Facility entity sounds (paths as the upstream classes load them) -> data/audio/<stem>.tsnd.
 LEVEL_SFX = (
     'phase_4/audio/sfx/CHQ_FACT_stomper_small.ogg',      # DistributedStomper.stomperSounds
@@ -370,6 +416,21 @@ LEVEL_SFX = (
     'phase_9/audio/sfx/CHQ_GOON_hunker_down.ogg',        # DistributedGoon collapse
     'phase_9/audio/sfx/CHQ_GOON_rattle_shake.ogg',       # ... recover
     'phase_9/audio/sfx/CHQ_GOON_tractor_beam_alarmed.ogg',  # ... attack
+    # Laser field & security camera
+    'phase_11/audio/sfx/LB_capacitor_discharge_3.ogg',
+    'phase_11/audio/sfx/LB_sparks_1.ogg',
+    'phase_11/audio/sfx/LB_camera_shutter_2.ogg',
+    'phase_11/audio/sfx/LB_laser_beam_on_2.ogg',
+    'phase_11/audio/sfx/LB_laser_beam_hum_2.ogg',
+    'phase_11/audio/sfx/LB_laser_beam_off_2.ogg',
+    # Crates
+    'phase_9/audio/sfx/CHQ_FACT_crate_effort.ogg',
+    'phase_9/audio/sfx/CHQ_FACT_crate_sliding.ogg',
+    # Mole field
+    'phase_12/audio/sfx/Mole_Surprise.ogg',
+    'phase_12/audio/sfx/Mole_Stomp.ogg',
+    'phase_4/audio/sfx/MG_Tag_C.ogg',
+    'phase_4/audio/sfx/MG_cannon_whizz.ogg',
 )
 
 
@@ -402,7 +463,10 @@ def main():
               'paint_mixer': bake_paint_mixer(base, resources, out),
               'tread': bake_tread(base, resources, out),
               'goons': bake_goons(base, resources, out),
-              'stage_elevator': bake_stage_elevator(base, resources, out)}
+              'stage_elevator': bake_stage_elevator(base, resources, out),
+              'crates': bake_crates(base, resources, out),
+              'moles': bake_moles(base, resources, out),
+              'golf': bake_golf(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}
