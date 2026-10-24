@@ -1,0 +1,980 @@
+#include "world/battle.h"
+
+#include <cmath>
+#include <cstdio>
+#include <cstring>
+
+#include "core/log.h"
+#include "ui/gag_data.h"
+#include "world/suit_tables.h"
+
+namespace tt::world {
+
+namespace {
+
+constexpr float kDegToRad = 3.14159265f / 180.0f;
+constexpr float kPi = 3.14159265f;
+constexpr uint32_t kRequestTimeoutMs = 4000;
+constexpr uint32_t kRequestCooldownMs = 3000;
+constexpr uint32_t kFaceOffTauntMs = 3500;     // BattleBase.FACEOFF_TAUNT_T
+constexpr float kSuitSpeed = 4.8f;             // BattleBase.suitSpeed
+constexpr float kToonSpeed = 8.0f;             // BattleBase.toonSpeed
+constexpr float kRunAwaySec = 3.3f;            // BattleBase.TOON_RUN_T
+constexpr float kRunAwayDistance = 25.0f;
+constexpr uint32_t kInputTimeoutMs = 20000;    // CLIENT_INPUT_TIMEOUT
+constexpr uint32_t kRewardAutoMs = 12000;
+constexpr float kJoinRadius = 9.0f;            // DistributedBattleBase battle lockout tube
+constexpr float kFlashSec = 0.35f;
+constexpr float kDieSec = 1.2f;
+constexpr float kToonHeight = 4.0f;
+
+// BattleBase.suitPoints / suitPendingPoints / toonPoints / toonPendingPoints: (x, y, heading)
+// relative to the battle node.
+struct Slot {
+    float x, y, h;
+};
+constexpr Slot kSuitPoints[4][4] = {
+    {{0, 5, 179}},
+    {{2, 5.3f, 170}, {-2, 5.3f, 180}},
+    {{4, 5.2f, 170}, {0, 6, 179}, {-4, 5.2f, 190}},
+    {{6, 4.4f, 160}, {2, 6.3f, 170}, {-2, 6.3f, 190}, {-6, 4.4f, 200}},
+};
+constexpr Slot kSuitPending[4] = {{-4, 8.2f, 190}, {0, 9, 179}, {4, 8.2f, 170}, {8, 3.2f, 160}};
+constexpr Slot kToonPoints[4][4] = {
+    {{0, -6, 0}},
+    {{1.5f, -6.5f, 5}, {-1.5f, -6.5f, -5}},
+    {{3, -6.75f, 5}, {0, -7, 0}, {-3, -6.75f, -5}},
+    {{4.5f, -7, 10}, {1.5f, -7.5f, 5}, {-1.5f, -7.5f, -5}, {-4.5f, -7, -10}},
+};
+constexpr Slot kToonPending[4] = {{-3, -8, -5}, {0, -9, 0}, {3, -8, 5}, {5.5f, -5.5f, 20}};
+
+constexpr uint32_t kColorDamage = 0xFF2020E0; // ABGR, as ui::Balloons takes it
+constexpr uint32_t kColorHeal = 0xFF20A020;
+constexpr uint32_t kColorMiss = 0xFF707070;
+constexpr uint32_t kColorTaunt = 0xFF2030A0;
+
+int popcount8(unsigned m) {
+    int n = 0;
+    for (; m; m >>= 1) n += int(m & 1u);
+    return n;
+}
+
+// Rank of bit i among the set bits of mask.
+int rankOf(unsigned mask, int i) { return popcount8(mask & ((1u << i) - 1u)); }
+
+float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
+
+float headingTo(float fromX, float fromY, float toX, float toY) {
+    const float dx = toX - fromX, dy = toY - fromY;
+    if (dx * dx + dy * dy < 1e-6f) return 0.0f;
+    return atan2f(-dx, dy) / kDegToRad;
+}
+
+const SuitInfo* findSuitType(const char* code) {
+    for (const SuitInfo& s : kSuitTypes) {
+        if (!strcmp(s.code, code)) return &s;
+    }
+    return nullptr;
+}
+
+} // namespace
+
+bool attackAffectsGroup(int track, int level) {
+    // ToontownBattleGlobals.AvPropTargetCat[AvPropTarget[track]][level]
+    static const uint8_t kCat[4][7] = {{0, 1, 0, 1, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 0}, {1, 1, 1, 1, 1, 1, 1}, {0, 0, 0, 0, 0, 0, 1}};
+    static const uint8_t kTarget[7] = {0, 3, 0, 2, 3, 3, 3};
+    if (track < 0 || track > 6 || level < 0 || level > 6) return false;
+    return kCat[kTarget[track]][level] != 0;
+}
+
+void Battle::reset() {
+    *this = Battle();
+}
+
+// ============================================================ geometry
+void Battle::toWorld(float lx, float ly, float* wx, float* wy) const {
+    const float c = cosf(bh_ * kDegToRad), s = sinf(bh_ * kDegToRad);
+    *wx = bx_ + lx * c - ly * s;
+    *wy = by_ + lx * s + ly * c;
+}
+
+void Battle::fromWorld(float wx, float wy, float* lx, float* ly) const {
+    const float c = cosf(bh_ * kDegToRad), s = sinf(bh_ * kDegToRad);
+    const float dx = wx - bx_, dy = wy - by_;
+    *lx = dx * c + dy * s;
+    *ly = -dx * s + dy * c;
+}
+
+void Battle::cameraEye(float* x, float* y, float* z) const {
+    float wx, wy;
+    toWorld(0.0f, -13.0f, &wx, &wy);
+    *x = wx;
+    *y = wy;
+    *z = bz_ + 15.0f;
+}
+
+void Battle::cameraTarget(float* x, float* y, float* z) const {
+    float wx, wy;
+    toWorld(0.0f, 1.0f, &wx, &wy);
+    *x = wx;
+    *y = wy;
+    *z = bz_ + 1.2f;
+}
+
+// ============================================================ requests
+bool Battle::requestBattle(net::Client& client, uint32_t cogDoId, float cogX, float cogY, float cogZ, float cogH,
+                           float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs) {
+    if (phase_ != BattlePhase::Idle || int32_t(nowMs - cooldownUntilMs_) < 0) return false;
+    if (!client.sendRequestBattle(cogDoId, cogX, cogY, cogZ, cogH, 0.0f, 0.0f)) return false;
+    phase_ = BattlePhase::Requested;
+    requestMs_ = nowMs;
+    reqX_ = toonX, reqY_ = toonY, reqZ_ = toonZ, reqH_ = toonH;
+    joining_ = false;
+    return true;
+}
+
+void Battle::checkJoin(net::Client& client, float toonX, float toonY, float toonZ, float toonH, uint32_t nowMs) {
+    if (phase_ != BattlePhase::Idle || int32_t(nowMs - joinCooldownMs_) < 0 || !client.inZone()) return;
+    for (int i = 0; i < net::kMaxBattles; ++i) {
+        const net::Battle& b = client.battleSlot(i);
+        if (!b.active || b.doId == doneBattle_ || b.numToons >= net::kBattleToons) continue;
+        if (b.state != net::BattleStateId::WaitForInput && b.state != net::BattleStateId::PlayMovie &&
+            b.state != net::BattleStateId::FaceOff && b.state != net::BattleStateId::WaitForJoin) {
+            continue;
+        }
+        const float dx = toonX - b.x, dy = toonY - b.y;
+        if (dx * dx + dy * dy > kJoinRadius * kJoinRadius) continue;
+        // Position relative to the battle node (setPosition + headsUp(initialSuitPos)).
+        const float ddx = b.sx - b.x, ddy = b.sy - b.y;
+        const float h = (ddx * ddx + ddy * ddy > 1e-4f) ? atan2f(-ddx, ddy) : 0.0f;
+        const float c = cosf(h), s = sinf(h);
+        const float lx = dx * c + dy * s, ly = -dx * s + dy * c;
+        if (!client.sendBattleRequestJoin(b.doId, lx, ly, toonZ - b.z)) return;
+        phase_ = BattlePhase::Requested;
+        requestMs_ = nowMs;
+        reqX_ = toonX, reqY_ = toonY, reqZ_ = toonZ, reqH_ = toonH;
+        joining_ = true;
+        return;
+    }
+}
+
+void Battle::handleEvent(const net::Event& ev, net::Client& client, uint32_t nowMs) {
+    (void)client;
+    using net::EventType;
+    switch (ev.type) {
+    case EventType::SuitDenied:
+        // DistributedSuitBase.denyBattle: back to walking.
+        if (phase_ == BattlePhase::Requested && !joining_) {
+            phase_ = BattlePhase::Idle;
+            cooldownUntilMs_ = nowMs + kRequestCooldownMs;
+            message_ = "That cog is too busy to fight right now.";
+        }
+        break;
+    case EventType::BattleJoinDenied:
+        if (phase_ == BattlePhase::Requested && joining_) {
+            phase_ = BattlePhase::Idle;
+            joinCooldownMs_ = nowMs + 5000;
+            message_ = "That battle is full.";
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+const char* Battle::popMessage() {
+    const char* m = message_;
+    message_ = nullptr;
+    return m;
+}
+
+bool Battle::popWentSad() {
+    const bool s = wentSad_;
+    wentSad_ = false;
+    return s;
+}
+
+// ============================================================ actors
+Battle::Actor* Battle::findActor(uint32_t doId) {
+    for (Actor& a : suits_) {
+        if (a.used && a.doId == doId) return &a;
+    }
+    for (Actor& a : toons_) {
+        if (a.used && a.doId == doId) return &a;
+    }
+    return nullptr;
+}
+
+int Battle::memberIndex(const uint32_t* list, int n, uint32_t doId) const {
+    for (int i = 0; i < n; ++i) {
+        if (list[i] == doId) return i;
+    }
+    return -1;
+}
+
+void Battle::goTo(Actor& a, float tx, float ty, float th, float speed, uint32_t startMs, float durOverride) {
+    a.fx = a.x, a.fy = a.y, a.fh = a.h;
+    a.tx = tx, a.ty = ty, a.th = th;
+    const float dx = tx - a.x, dy = ty - a.y;
+    const float dist = sqrtf(dx * dx + dy * dy);
+    a.moveDur = durOverride > 0.0f ? durOverride : (speed > 0.0f ? dist / speed : 0.0f);
+    a.moveStartMs = startMs;
+    a.hasTarget = true;
+}
+
+void Battle::begin(net::Client& client, const net::Battle& nb, const CogPoseSource& cogs, uint32_t nowMs) {
+    (void)cogs;
+    battleId_ = nb.doId;
+    localId_ = client.avatarId();
+    bx_ = nb.x, by_ = nb.y, bz_ = nb.z;
+    const float dx = nb.sx - nb.x, dy = nb.sy - nb.y;
+    bh_ = (dx * dx + dy * dy > 1e-4f) ? atan2f(-dx, dy) / kDegToRad : 0.0f;
+    if (phase_ != BattlePhase::Requested) {
+        float x = bx_, y = by_ - 12.0f, z = bz_;
+        client.avatarPos(localId_, &x, &y, &z);
+        reqX_ = x, reqY_ = y, reqZ_ = z, reqH_ = bh_;
+    }
+    for (Actor& a : suits_) a = Actor();
+    for (Actor& a : toons_) a = Actor();
+    numPopups_ = 0;
+    seenMembers_ = seenState_ = seenAdjust_ = seenMovie_ = 0;
+    state_ = net::BattleStateId::None;
+    chose_ = timeoutSent_ = running_ = false;
+    faceOffSent_ = false;
+    adjustPending_ = false;
+    rewardSent_ = false;
+    movieSent_ = false;
+    moviePlaying_ = false;
+    tauntShown_ = false;
+    numFx_ = fxCursor_ = 0;
+    phase_ = BattlePhase::Waiting;
+    TT_LOG("battle: joined %u at %.1f,%.1f heading %.0f (%d cogs, %d toons)", unsigned(battleId_), double(bx_),
+           double(by_), double(bh_), int(nb.numSuits), int(nb.numToons));
+    (void)nowMs;
+}
+
+void Battle::leave(net::Client& client, bool sad) {
+    TT_LOG("battle: left %u%s", unsigned(battleId_), sad ? " (sad)" : "");
+    doneBattle_ = battleId_;
+    battleId_ = 0;
+    phase_ = BattlePhase::Idle;
+    cooldownUntilMs_ = nowMs_ + 1500;
+    joinCooldownMs_ = nowMs_ + 2500;
+    for (Actor& a : suits_) a = Actor();
+    for (Actor& a : toons_) a = Actor();
+    numSuitPoses_ = numToonPoses_ = 0;
+    numPopups_ = 0;
+    numFx_ = fxCursor_ = 0;
+    moviePlaying_ = false;
+    wentSad_ = sad;
+    (void)client;
+}
+
+void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPoseSource& cogs, uint32_t nowMs) {
+    Actor newSuits[net::kBattleSuits];
+    Actor newToons[net::kBattleToons];
+    for (int i = 0; i < nb.numSuits; ++i) {
+        const uint32_t id = nb.suits[i];
+        const int old = memberIndex_(suits_, id);
+        if (old >= 0) {
+            newSuits[i] = suits_[old];
+            continue;
+        }
+        Actor& a = newSuits[i];
+        a.used = true;
+        a.isToon = false;
+        a.doId = id;
+        float x = bx_, y = by_, h = 0.0f, z = bz_;
+        bool placed = false;
+        if (i == 0 && nb.state == net::BattleStateId::FaceOff) {
+            x = nb.sx, y = nb.sy; // the cog's pose at contact
+            placed = true;
+        } else if (cogs.pose && cogs.pose(cogs.user, id, &x, &y, &z, &h)) {
+            placed = true;
+        }
+        if (!placed) toWorld(0.0f, 14.0f, &x, &y);
+        a.x = x, a.y = y, a.z = bz_;
+        a.h = headingTo(x, y, bx_, by_);
+        const net::Suit* ns = client.findSuit(id);
+        const SuitInfo* info = ns && ns->hasDna ? findSuitType(ns->name) : nullptr;
+        a.height = info ? info->height : 5.0f;
+    }
+    for (int i = 0; i < nb.numToons; ++i) {
+        const uint32_t id = nb.toons[i];
+        const int old = memberIndex_(toons_, id);
+        if (old >= 0) {
+            newToons[i] = toons_[old];
+            continue;
+        }
+        Actor& a = newToons[i];
+        a.used = true;
+        a.isToon = true;
+        a.doId = id;
+        float x = bx_, y = by_ - 12.0f, h = 0.0f;
+        if (id == localId_) {
+            x = reqX_, y = reqY_, h = reqH_;
+        } else if (const net::RemoteToon* t = client.findToon(id)) {
+            x = t->x, y = t->y, h = t->h;
+        } else {
+            toWorld(0.0f, -14.0f, &x, &y);
+        }
+        a.x = x, a.y = y, a.z = bz_, a.h = h;
+        a.height = kToonHeight;
+    }
+    for (int i = 0; i < net::kBattleSuits; ++i) suits_[i] = i < nb.numSuits ? newSuits[i] : Actor();
+    for (int i = 0; i < net::kBattleToons; ++i) toons_[i] = i < nb.numToons ? newToons[i] : Actor();
+
+    // Everyone with the local toon in the fight answers joinDone for each joiner (cog or toon).
+    for (int i = 0; i < nb.numSuits; ++i) {
+        Actor& a = suits_[i];
+        const bool joiningNow = (nb.suitsJoining >> i) & 1;
+        if (joiningNow && !a.joinSent) a.joinPending = true;
+        if (!joiningNow) a.joinPending = false;
+    }
+    for (int i = 0; i < nb.numToons; ++i) {
+        Actor& a = toons_[i];
+        const bool joiningNow = (nb.toonsJoining >> i) & 1;
+        if (joiningNow && !a.joinSent) a.joinPending = true;
+        if (!joiningNow) a.joinPending = false;
+    }
+    (void)nowMs;
+}
+
+// Index of the actor with this doId in a four-slot array, or -1.
+int Battle::memberIndex_(const Actor* arr, uint32_t doId) {
+    for (int i = 0; i < 4; ++i) {
+        if (arr[i].used && arr[i].doId == doId) return i;
+    }
+    return -1;
+}
+
+void Battle::retarget(const net::Battle& nb, uint32_t nowMs) {
+    const bool faceOff = state_ == net::BattleStateId::FaceOff;
+    for (int i = 0; i < nb.numSuits; ++i) {
+        Actor& a = suits_[i];
+        if (!a.used) continue;
+        Slot slot;
+        const unsigned active = nb.suitsActive;
+        bool timed = false;
+        if (faceOff && i == 0) {
+            slot = kSuitPoints[0][0];
+            timed = true;
+        } else if ((active >> i) & 1) {
+            const int n = popcount8(active), r = rankOf(active, i);
+            slot = kSuitPoints[(n > 4 ? 4 : n) - 1][r > 3 ? 3 : r];
+        } else {
+            const unsigned waiting = ~active & ((1u << nb.numSuits) - 1u);
+            const int r = rankOf(waiting, i);
+            slot = kSuitPending[r > 3 ? 3 : r];
+        }
+        float wx, wy;
+        toWorld(slot.x, slot.y, &wx, &wy);
+        const float wh = bh_ + slot.h;
+        if (a.hasTarget && fabsf(a.tx - wx) < 0.05f && fabsf(a.ty - wy) < 0.05f) continue;
+        if (timed) {
+            // FaceOff: the cog taunts for 3.5 s facing the toon, then walks to its slot over the time it
+            // takes it to cover calcFaceoffTime (BattleBase.py:252).
+            const float cdx = bx_ - a.x, cdy = by_ - a.y;
+            const float toCenter = sqrtf(cdx * cdx + cdy * cdy);
+            float dur = fabsf(toCenter - 6.0f) / kSuitSpeed;
+            if (dur < 1e-3f) dur = 1e-3f;
+            goTo(a, wx, wy, wh, kSuitSpeed, faceOffStartMs_ + kFaceOffTauntMs, dur);
+            faceOffEndMs_ = faceOffStartMs_ + kFaceOffTauntMs + uint32_t(dur * 1000.0f);
+            if (toons_[0].used) { // suit.headsUp(toon) while it taunts
+                a.faceH = headingTo(a.x, a.y, toons_[0].x, toons_[0].y);
+                a.faceUntil = a.moveStartMs;
+            }
+        } else {
+            goTo(a, wx, wy, wh, kSuitSpeed, nowMs, 0.0f);
+        }
+        if (a.joinPending) a.joinAtMs = a.moveStartMs + uint32_t(a.moveDur * 1000.0f) + 200u;
+    }
+    for (int i = 0; i < nb.numToons; ++i) {
+        Actor& a = toons_[i];
+        if (!a.used) continue;
+        Slot slot;
+        const unsigned active = nb.toonsActive;
+        bool timed = false, runAway = false;
+        if ((nb.toonsRunning >> i) & 1) {
+            // __makeToonRun: leave the fight at a run, the AI removes us after TOON_RUN_T.
+            slot = kToonPoints[0][0];
+            slot.y -= kRunAwayDistance;
+            slot.h = 180.0f;
+            runAway = true;
+        } else if (faceOff && i == 0) {
+            slot = kToonPoints[0][0];
+            timed = true;
+        } else if ((active >> i) & 1) {
+            const int n = popcount8(active), r = rankOf(active, i);
+            slot = kToonPoints[(n > 4 ? 4 : n) - 1][r > 3 ? 3 : r];
+        } else {
+            const unsigned waiting = ~active & ~unsigned(nb.toonsRunning) & ((1u << nb.numToons) - 1u);
+            const int r = rankOf(waiting, i);
+            slot = kToonPending[r > 3 ? 3 : r];
+        }
+        float wx, wy;
+        toWorld(slot.x, slot.y, &wx, &wy);
+        const float wh = bh_ + slot.h;
+        if (a.hasTarget && fabsf(a.tx - wx) < 0.05f && fabsf(a.ty - wy) < 0.05f) continue;
+        if (timed) {
+            // The toon runs to its slot in the same time as the cog walks to its own.
+            const Actor& s = suits_[0];
+            const float cdx = bx_ - s.x, cdy = by_ - s.y;
+            float dur = fabsf(sqrtf(cdx * cdx + cdy * cdy) - 6.0f) / kSuitSpeed;
+            if (dur < 1e-3f) dur = 1e-3f;
+            goTo(a, wx, wy, wh, kToonSpeed, faceOffStartMs_ + kFaceOffTauntMs, dur);
+            if (!s.used) faceOffEndMs_ = faceOffStartMs_ + kFaceOffTauntMs + uint32_t(dur * 1000.0f);
+            else { // toon.headsUp(suit)
+                a.faceH = headingTo(a.x, a.y, s.x, s.y);
+                a.faceUntil = a.moveStartMs;
+            }
+        } else if (runAway) {
+            goTo(a, wx, wy, wh, kToonSpeed, nowMs, kRunAwaySec);
+        } else {
+            goTo(a, wx, wy, wh, kToonSpeed, nowMs, 0.0f);
+        }
+        if (a.joinPending) a.joinAtMs = a.moveStartMs + uint32_t(a.moveDur * 1000.0f) + 200u;
+    }
+}
+
+// ============================================================ state machine
+void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs) {
+    state_ = nb.state;
+    bool localActive = false, localRunning = false;
+    const int li = memberIndex(nb.toons, nb.numToons, localId_);
+    if (li >= 0) {
+        localActive = (nb.toonsActive >> li) & 1;
+        localRunning = (nb.toonsRunning >> li) & 1;
+    }
+    TT_LOG("battle: state %s (active %d)", nb.stateName, int(localActive));
+    switch (nb.state) {
+    case net::BattleStateId::FaceOff:
+        phase_ = BattlePhase::FaceOff;
+        faceOffStartMs_ = nowMs;
+        faceOffSent_ = false;
+        // The cog and the first toon are placed by retarget() (it needs the state set above).
+        for (Actor& a : suits_) a.hasTarget = false;
+        for (Actor& a : toons_) a.hasTarget = false;
+        break;
+    case net::BattleStateId::WaitForInput:
+        chose_ = timeoutSent_ = false;
+        moviePlaying_ = false;
+        if (localRunning) {
+            phase_ = BattlePhase::Waiting;
+        } else if (localActive) {
+            phase_ = BattlePhase::Input;
+            inputEndMs_ = nb.stateMs + kInputTimeoutMs;
+            autoAtMs_ = nowMs + 700;
+        } else {
+            phase_ = BattlePhase::Waiting; // pending: joined mid-round, active from the next one
+        }
+        break;
+    case net::BattleStateId::MakeMovie:
+        phase_ = BattlePhase::Chosen;
+        break;
+    case net::BattleStateId::PlayMovie:
+        phase_ = BattlePhase::Movie;
+        startMovie(client, nb, nowMs);
+        break;
+    case net::BattleStateId::Reward:
+        phase_ = BattlePhase::Reward;
+        rewardStartMs_ = nowMs;
+        rewardSent_ = false;
+        moviePlaying_ = false;
+        break;
+    case net::BattleStateId::Resume:
+        leave(client, client.ownStats().hp <= 0);
+        break;
+    default:
+        if (phase_ != BattlePhase::Reward) phase_ = BattlePhase::Waiting;
+        break;
+    }
+}
+
+void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs) {
+    (void)client;
+    movieSent_ = false;
+    numFx_ = fxCursor_ = 0;
+    movieStartMs_ = nowMs;
+    if (!nb.movie.active) {
+        // Nothing was chosen by anyone (everyone timed out or passed): nothing to play.
+        moviePlaying_ = true;
+        movieEndMs_ = nowMs + 400;
+        return;
+    }
+    buildMovie(nb.movie);
+    moviePlaying_ = true;
+}
+
+void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value) {
+    if (numFx_ >= kMaxFx) return;
+    fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value)};
+}
+
+// Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
+// the cogs), as a placeholder: attacker hop, number pops over the targets, a shrinking fade for
+// cogs that died. ~2.4 s per toon attack, ~2.2 s per cog attack (the AI waits 12 s each).
+void Battle::buildMovie(const net::BattleMovie& m) {
+    uint32_t t = 300;
+    int order[4];
+    int n = 0;
+    for (int i = 0; i < 4; ++i) {
+        const net::BattleToonAttack& a = m.toonAttacks[i];
+        if (a.track < 0 || a.track > 6 || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        int pos = n++;
+        while (pos > 0) {
+            const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
+            if (p.track < a.track || (p.track == a.track && p.level <= a.level)) break;
+            order[pos] = order[pos - 1];
+            --pos;
+        }
+        order[pos] = i;
+    }
+    for (int k = 0; k < n; ++k) {
+        const net::BattleToonAttack& a = m.toonAttacks[order[k]];
+        const uint32_t who = m.toons[a.toonIdx];
+        uint32_t target = 0;
+        if (a.target >= 0) {
+            if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
+            else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
+        }
+        addFx(t, kFxAttack, who, target, 2200);
+        const uint32_t hitAt = t + 1500;
+        bool any = false;
+        if (a.track == kTrackHeal) {
+            for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
+                if (a.hp[j] > 0) {
+                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j]);
+                    any = true;
+                }
+            }
+        } else {
+            for (int j = 0; j < a.numHp && j < m.numSuits; ++j) {
+                if (a.hp[j] > 0) {
+                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j]);
+                    any = true;
+                }
+            }
+            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0);
+        }
+        uint32_t dur = 2400;
+        for (int j = 0; j < m.numSuits; ++j) {
+            if ((a.died >> j) & 1) {
+                addFx(hitAt + 500, kFxDie, m.suits[j], 0, 0);
+                dur = 3600;
+            }
+        }
+        t += dur;
+    }
+    for (int i = 0; i < 4; ++i) {
+        const net::BattleSuitAttack& s = m.suitAttacks[i];
+        if (s.suitIdx < 0 || s.suitIdx >= m.numSuits || s.attack < 0) continue;
+        const uint32_t who = m.suits[s.suitIdx];
+        const uint32_t target = (s.target >= 0 && s.target < m.numToons) ? m.toons[s.target] : 0;
+        addFx(t, kFxAttack, who, target, 2000);
+        const uint32_t hitAt = t + 1200;
+        bool any = false;
+        for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
+            if ((s.target < 0 || s.target == j) && s.hp[j] > 0) {
+                addFx(hitAt, kFxHit, m.toons[j], who, s.hp[j]);
+                any = true;
+            }
+        }
+        if (!any && s.target >= 0 && s.target < m.numToons) addFx(hitAt, kFxMiss, m.toons[s.target], who, 0);
+        t += 2200;
+    }
+    movieEndMs_ = movieStartMs_ + t + 300;
+    TT_LOG("battle: movie: %d effects, %u ms", numFx_, unsigned(t + 300));
+}
+
+void Battle::addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs, float rise) {
+    int slot = -1;
+    if (numPopups_ < kMaxPopups) {
+        slot = numPopups_++;
+    } else {
+        slot = 0; // replace the oldest
+        for (int i = 1; i < numPopups_; ++i) {
+            if (popupStartMs_[i] < popupStartMs_[slot]) slot = i;
+        }
+    }
+    BattlePopup& p = popups_[slot];
+    p.x = a.x, p.y = a.y, p.z = a.z + a.height + 0.8f;
+    p.age = 0.0f;
+    p.rise = rise;
+    snprintf(p.text, sizeof(p.text), "%s", text);
+    p.color = color;
+    popupStartMs_[slot] = nowMs;
+    popupLifeMs_[slot] = lifeMs;
+}
+
+void Battle::runFx(uint32_t nowMs) {
+    while (fxCursor_ < numFx_ && int32_t(nowMs - (movieStartMs_ + fx_[fxCursor_].at)) >= 0) {
+        const Fx& f = fx_[fxCursor_++];
+        Actor* a = findActor(f.who);
+        if (!a) continue;
+        char text[16];
+        switch (f.kind) {
+        case kFxAttack: {
+            a->attackStart = nowMs;
+            a->attackEnd = nowMs + uint32_t(f.value);
+            if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
+                a->faceH = headingTo(a->x, a->y, t->x, t->y);
+                a->faceUntil = a->attackEnd + 300;
+            }
+            break;
+        }
+        case kFxHit:
+            a->flashEnd = nowMs + uint32_t(kFlashSec * 1000.0f);
+            snprintf(text, sizeof(text), "-%d", int(f.value));
+            addPopup(*a, text, kColorDamage, nowMs);
+            break;
+        case kFxHeal:
+            snprintf(text, sizeof(text), "+%d", int(f.value));
+            addPopup(*a, text, kColorHeal, nowMs);
+            break;
+        case kFxMiss: addPopup(*a, "Miss", kColorMiss, nowMs); break;
+        case kFxDie:
+            a->dying = true;
+            a->dieStart = nowMs;
+            a->flashEnd = nowMs + uint32_t((kDieSec + 0.2f) * 1000.0f);
+            break;
+        default: break;
+        }
+    }
+}
+
+// ============================================================ per frame
+void Battle::autoPick(net::Client& client, const net::Battle& nb) {
+    const net::OwnStats& st = client.ownStats();
+    auto usable = [&](int track, int level) {
+        return st.trackAccess[track] && level < gags::levelsUnlocked(track, st.experience[track]) &&
+               st.inventory[track][level] > 0;
+    };
+    BattleAction act;
+    act.kind = BattleAction::Pass;
+    static const int kTrackOrder[7] = {4, 5, 3, 6, 1, 2, 0};
+    for (int k = 0; k < 7 && act.kind == BattleAction::Pass; ++k) {
+        const int track = kTrackOrder[k];
+        for (int level = 0; level < 7 && act.kind == BattleAction::Pass; ++level) {
+            if (!usable(track, level)) continue;
+            act.kind = BattleAction::Attack;
+            act.track = track;
+            act.level = level;
+            if (track == kTrackHeal) {
+                act.target = localId_;
+            } else {
+                for (int i = 0; i < nb.numSuits; ++i) {
+                    if ((nb.suitsActive >> i) & 1) {
+                        act.target = nb.suits[i];
+                        break;
+                    }
+                }
+                if (act.target == 0 && !attackAffectsGroup(track, level)) act.kind = BattleAction::Pass;
+            }
+        }
+    }
+    perform(client, act, nowMs_);
+}
+
+void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs) {
+    const uint32_t id = battleId_;
+    if (id == 0) return;
+    switch (a.kind) {
+    case BattleAction::Attack:
+        if (phase_ != BattlePhase::Input || chose_) return;
+        if (client.sendBattleRequestAttack(id, int8_t(a.track), int8_t(a.level),
+                                           attackAffectsGroup(a.track, a.level) ? -1 : int32_t(a.target))) {
+            chose_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+        break;
+    case BattleAction::Pass:
+        if (phase_ != BattlePhase::Input || chose_) return;
+        if (client.sendBattleRequestAttack(id, int8_t(kAttackPass), -1, -1)) {
+            chose_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+        break;
+    case BattleAction::Run:
+        if (phase_ != BattlePhase::Input || chose_) return;
+        if (client.sendBattleRequestRun(id)) {
+            chose_ = true;
+            running_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+        break;
+    case BattleAction::Continue:
+        if (phase_ != BattlePhase::Reward || rewardSent_) return;
+        if (client.sendBattleRewardDone(id)) rewardSent_ = true;
+        break;
+    default:
+        break;
+    }
+    (void)nowMs;
+}
+
+void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPoseSource& cogs) {
+    (void)dt;
+    nowMs_ = nowMs;
+    const net::Battle* nb = client.localBattle();
+    if (nb && nb->doId == doneBattle_) nb = nullptr;
+    if (doneBattle_ != 0 && !client.findBattle(doneBattle_)) doneBattle_ = 0;
+    if (!nb) {
+        if (phase_ == BattlePhase::Requested) {
+            if (nowMs - requestMs_ > kRequestTimeoutMs) {
+                TT_LOG("battle: the AI never answered the request");
+                phase_ = BattlePhase::Idle;
+                cooldownUntilMs_ = nowMs + kRequestCooldownMs;
+                joinCooldownMs_ = nowMs + kRequestCooldownMs;
+            }
+        } else if (phase_ != BattlePhase::Idle) {
+            // Our membership ended without a Resume we saw: we ran, were defeated or the object went.
+            leave(client, client.ownStats().hp <= 0);
+        }
+        return;
+    }
+    if (battleId_ != nb->doId) begin(client, *nb, cogs, nowMs);
+
+    if (nb->membersSeq != seenMembers_) {
+        seenMembers_ = nb->membersSeq;
+        syncMembers(client, *nb, cogs, nowMs);
+        // Pending -> active in the middle of WaitForInput (the AI's adjust finished): choose now.
+        const int li = memberIndex(nb->toons, nb->numToons, localId_);
+        if (li >= 0 && state_ == net::BattleStateId::WaitForInput) {
+            const bool active = (nb->toonsActive >> li) & 1, runningNow = (nb->toonsRunning >> li) & 1;
+            if (active && !runningNow && phase_ == BattlePhase::Waiting) {
+                phase_ = BattlePhase::Input;
+                chose_ = timeoutSent_ = false;
+                inputEndMs_ = nowMs + kInputTimeoutMs; // startTimer() with no elapsed time
+                autoAtMs_ = nowMs + 700;
+            } else if (runningNow && phase_ == BattlePhase::Input) {
+                phase_ = BattlePhase::Waiting;
+            }
+        }
+        if (li >= 0 && ((nb->toonsRunning >> li) & 1)) running_ = true;
+    }
+    if (nb->stateSeq != seenState_) {
+        seenState_ = nb->stateSeq;
+        onState(client, *nb, nowMs);
+        if (phase_ == BattlePhase::Idle) return; // Resume
+    }
+    retarget(*nb, nowMs);
+    if (nb->adjustSeq != seenAdjust_) {
+        seenAdjust_ = nb->adjustSeq;
+        // adjust(): the members move to their new slots (retarget did it); answer when they arrive.
+        uint32_t end = nowMs + 300;
+        for (const Actor& a : suits_) {
+            if (a.used && a.hasTarget) {
+                const uint32_t e = a.moveStartMs + uint32_t(a.moveDur * 1000.0f) + 100u;
+                if (int32_t(e - end) > 0) end = e;
+            }
+        }
+        for (const Actor& a : toons_) {
+            if (a.used && a.hasTarget) {
+                const uint32_t e = a.moveStartMs + uint32_t(a.moveDur * 1000.0f) + 100u;
+                if (int32_t(e - end) > 0) end = e;
+            }
+        }
+        adjustDoneAtMs_ = end;
+        adjustPending_ = true;
+    }
+
+    // FaceOff: the first toon reports when the walk-in is over.
+    if (phase_ == BattlePhase::FaceOff) {
+        if (!tauntShown_ && suits_[0].used) {
+            addPopup(suits_[0], "Hold it, Toon!", kColorTaunt, nowMs, kFaceOffTauntMs - 300, 0.0f);
+            tauntShown_ = true;
+        }
+        if (!faceOffSent_ && nb->numToons > 0 && nb->toons[0] == localId_ && int32_t(nowMs - faceOffEndMs_) >= 0) {
+            if (client.sendBattleFaceOffDone(battleId_)) faceOffSent_ = true;
+        }
+    }
+    // WaitForInput: the 20 s countdown; the AI is waiting for requestAttack / toonRequestRun / timeout.
+    if (phase_ == BattlePhase::Input) {
+        if (autoPlay_ && int32_t(nowMs - autoAtMs_) >= 0) {
+            autoPick(client, *nb);
+        } else if (int32_t(nowMs - inputEndMs_) >= 0 && !timeoutSent_) {
+            timeoutSent_ = true;
+            client.sendBattleTimeout(battleId_);
+            chose_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+    }
+    if (adjustPending_ && int32_t(nowMs - adjustDoneAtMs_) >= 0) {
+        client.sendBattleAdjustDone(battleId_);
+        adjustPending_ = false;
+    }
+    // Everyone in the fight acknowledges each joiner's walk (suits and toons).
+    for (Actor& a : suits_) {
+        if (a.used && a.joinPending && !a.joinSent && int32_t(nowMs - a.joinAtMs) >= 0) {
+            client.sendBattleJoinDone(battleId_, a.doId);
+            a.joinSent = true;
+            a.joinPending = false;
+        }
+    }
+    for (Actor& a : toons_) {
+        if (a.used && a.joinPending && !a.joinSent && int32_t(nowMs - a.joinAtMs) >= 0) {
+            client.sendBattleJoinDone(battleId_, a.doId);
+            a.joinSent = true;
+            a.joinPending = false;
+        }
+    }
+    if (moviePlaying_) {
+        runFx(nowMs);
+        if (!movieSent_ && int32_t(nowMs - movieEndMs_) >= 0) {
+            client.sendBattleMovieDone(battleId_);
+            movieSent_ = true;
+        }
+    }
+    if (phase_ == BattlePhase::Reward && !rewardSent_) {
+        const uint32_t wait = autoPlay_ ? 2500u : kRewardAutoMs;
+        if (nowMs - rewardStartMs_ >= wait) {
+            if (client.sendBattleRewardDone(battleId_)) rewardSent_ = true;
+        }
+    }
+    computePoses(nowMs);
+}
+
+void Battle::computePoses(uint32_t nowMs) {
+    auto evaluate = [&](Actor& a, BattleActorPose* out, bool isToon) {
+        float u = 1.0f;
+        if (a.hasTarget) {
+            const float elapsed = float(int32_t(nowMs - a.moveStartMs)) / 1000.0f;
+            u = a.moveDur > 1e-4f ? clamp01(elapsed / a.moveDur) : (elapsed >= 0.0f ? 1.0f : 0.0f);
+            a.x = a.fx + (a.tx - a.fx) * u;
+            a.y = a.fy + (a.ty - a.fy) * u;
+            const float dx = a.tx - a.fx, dy = a.ty - a.fy;
+            const bool started = elapsed >= 0.0f;
+            a.moving = started && u < 1.0f && dx * dx + dy * dy > 0.01f;
+            if (a.moving) a.h = headingTo(a.fx, a.fy, a.tx, a.ty);
+            else if (u >= 1.0f) a.h = a.th;
+        }
+        a.z = bz_;
+        float h = a.h;
+        if (int32_t(nowMs - a.faceUntil) < 0 && !a.moving) h = a.faceH;
+        float hop = 0.0f, scale = 1.0f;
+        const bool attacking = int32_t(nowMs - a.attackStart) >= 0 && int32_t(a.attackEnd - nowMs) > 0;
+        if (attacking) {
+            const float au = float(int32_t(nowMs - a.attackStart)) / float(int32_t(a.attackEnd - a.attackStart));
+            const float bump = sinf(kPi * clamp01(au));
+            hop = bump * (isToon ? 0.5f : 0.9f);
+            if (!isToon) scale = 1.0f + 0.2f * bump;
+        }
+        float flash = clamp01(float(int32_t(a.flashEnd - nowMs)) / (kFlashSec * 1000.0f));
+        if (a.flashEnd == 0 || int32_t(a.flashEnd - nowMs) < 0) flash = 0.0f;
+        bool hidden = a.hidden;
+        if (a.dying) {
+            const float du = float(int32_t(nowMs - a.dieStart)) / (kDieSec * 1000.0f);
+            if (du >= 1.0f) hidden = true;
+            scale *= 1.0f - clamp01(du);
+            flash = 1.0f;
+        }
+        out->doId = a.doId;
+        out->x = a.x, out->y = a.y, out->z = a.z, out->h = h;
+        out->hop = hop;
+        out->scale = scale;
+        out->flash = flash;
+        out->hidden = hidden;
+        if (isToon) out->anim = attacking ? kBattleAnimAttack : (a.moving ? kBattleAnimRun : kBattleAnimNeutral);
+        else out->anim = a.moving ? uint8_t(kSuitWalk) : uint8_t(kSuitNeutral);
+    };
+    numSuitPoses_ = numToonPoses_ = 0;
+    for (Actor& a : suits_) {
+        if (a.used) evaluate(a, &suitPoses_[numSuitPoses_++], false);
+    }
+    for (Actor& a : toons_) {
+        if (a.used) evaluate(a, &toonPoses_[numToonPoses_++], true);
+    }
+    // Age the floating numbers.
+    int w = 0;
+    for (int i = 0; i < numPopups_; ++i) {
+        const uint32_t age = nowMs - popupStartMs_[i];
+        if (age >= popupLifeMs_[i]) continue;
+        popups_[i].age = float(age) / 1000.0f;
+        if (w != i) {
+            popups_[w] = popups_[i];
+            popupStartMs_[w] = popupStartMs_[i];
+            popupLifeMs_[w] = popupLifeMs_[i];
+        }
+        ++w;
+    }
+    numPopups_ = w;
+}
+
+bool Battle::localPose(BattleActorPose* out) const {
+    for (int i = 0; i < numToonPoses_; ++i) {
+        if (toonPoses_[i].doId == localId_) {
+            *out = toonPoses_[i];
+            return true;
+        }
+    }
+    return false;
+}
+
+// ============================================================ panel data
+void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) const {
+    *v = BattleView();
+    v->phase = phase_;
+    const net::Battle* nb = battleId_ ? client.findBattle(battleId_) : nullptr;
+    switch (phase_) {
+    case BattlePhase::Requested: v->status = "Getting ready to fight..."; break;
+    case BattlePhase::FaceOff: v->status = "The cog wants a fight!"; break;
+    case BattlePhase::Waiting: v->status = running_ ? "Running away!" : "Waiting for the next round..."; break;
+    case BattlePhase::Input: v->status = "Choose a gag!"; break;
+    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for the other toons..."; break;
+    case BattlePhase::Movie: v->status = "The round is playing out..."; break;
+    case BattlePhase::Reward: v->status = "You beat the cogs!"; break;
+    default: break;
+    }
+    if (phase_ == BattlePhase::Input) {
+        int ms = int(int32_t(inputEndMs_ - nowMs));
+        if (ms < 0) ms = 0;
+        v->secondsLeft = (ms + 999) / 1000;
+        if (v->secondsLeft > int(kInputTimeoutMs / 1000)) v->secondsLeft = int(kInputTimeoutMs / 1000);
+    }
+    v->canRun = phase_ == BattlePhase::Input;
+    v->rewardSent = rewardSent_;
+    if (!nb) return;
+    for (int i = 0; i < nb->numSuits && v->numCogs < net::kBattleSuits; ++i) {
+        BattleCogView& c = v->cogs[v->numCogs++];
+        c.doId = nb->suits[i];
+        c.active = (nb->suitsActive >> i) & 1;
+        c.lured = (nb->suitsLured >> i) & 1;
+        snprintf(c.name, sizeof(c.name), "Cog");
+        c.level = 0;
+        c.hp = c.maxHp = 0;
+        if (const net::Suit* s = client.findSuit(c.doId)) {
+            c.hp = s->hp;
+            if (const SuitInfo* info = s->hasDna ? findSuitType(s->name) : nullptr) {
+                snprintf(c.name, sizeof(c.name), "%s", info->name);
+                c.level = info->baseLevel + s->levelDist + 1;
+                if (s->levelDist >= 0 && s->levelDist < 5) c.maxHp = info->hp[s->levelDist];
+            }
+            if (c.maxHp < c.hp) c.maxHp = c.hp;
+        }
+    }
+    for (int i = 0; i < nb->numToons && v->numToons < net::kBattleToons; ++i) {
+        BattleToonView& t = v->toons[v->numToons++];
+        t.doId = nb->toons[i];
+        t.active = (nb->toonsActive >> i) & 1;
+        t.running = (nb->toonsRunning >> i) & 1;
+        t.local = t.doId == localId_;
+        const char* name = client.avatarName(t.doId);
+        snprintf(t.name, sizeof(t.name), "%s", name && name[0] ? name : "Toon");
+    }
+    // Experience earned this battle (setBattleExperience block for our toon).
+    for (const net::BattleExpToon& e : nb->exp.toons) {
+        if (e.id < 0 || uint32_t(e.id) != localId_) continue;
+        for (int t = 0; t < 7; ++t) {
+            if (e.earnedExp[t] > 0) {
+                BattleRewardRow& r = v->reward[v->numRewardRows++];
+                r.track = t;
+                r.earned = e.earnedExp[t];
+                r.orig = e.origExp[t];
+            }
+        }
+    }
+    v->cogsDefeated = nb->exp.numDeathGroups;
+}
+
+} // namespace tt::world
