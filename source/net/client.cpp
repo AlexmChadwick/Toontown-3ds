@@ -1221,6 +1221,11 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
         Bytes b = r.blob();
         if (r.ok()) memcpy(ownDna_, b.data, b.len < kDnaSize ? b.len : kDnaSize);
+        if (r.ok()) {
+            char hex[2 * kDnaSize + 1];
+            for (uint32_t i = 0; i < kDnaSize && i < b.len; i++) snprintf(hex + 2 * i, 3, "%02x", ownDna_[i]);
+            TT_LOG("net: our DNA %s", hex);
+        }
     } else if (fieldId == dc::DistributedToon::k_setHp || fieldId == dc::DistributedToon::k_setMaxHp ||
                fieldId == dc::DistributedToon::k_setMoney || fieldId == dc::DistributedToon::k_setMaxMoney ||
                fieldId == dc::DistributedToon::k_setBankMoney) {

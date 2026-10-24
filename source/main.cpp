@@ -735,7 +735,9 @@ int main() {
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
-        if (!battle.inBattle()) localToon.play(anim, animRate); // in battle the movie picks the clip
+        // In battle the movie picks the clip (and the autotest's "clip: *" steps play one).
+        const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
+        if (!battle.inBattle() && !clipTest) localToon.play(anim, animRate);
         if (minigame.inScene()) localToon.play(minigame.toonRunning() ? tt::world::kAnimRun : tt::world::kAnimNeutral, 1.0f);
         if (battle.inBattle()) { // the battle movie animates the toon
             if (!battleClips.count && localLook.ready()) {
