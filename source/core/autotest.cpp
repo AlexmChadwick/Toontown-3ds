@@ -43,6 +43,8 @@ const Step kScript[] = {
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: street door", "street_interior"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "street_back"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "fight cog", "battle_start"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "fight: rounds", "battle_end"},
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "teleport DD", "hood_dd"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "see boat", "boat"},

@@ -45,7 +45,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (v.hp != lastHp_ || v.maxHp != lastMaxHp_ || v.money != lastMoney_) {
         C2D_TextBufClear(buf_);
         char s[32];
-        snprintf(s, sizeof(s), "%d", v.hp);
+        snprintf(s, sizeof(s), "%d", v.hp > 0 ? v.hp : 0); // LaffMeter never shows a negative laff
         C2D_TextParse(&hpText_, buf_, s);
         C2D_TextOptimize(&hpText_);
         snprintf(s, sizeof(s), "%d", v.money);

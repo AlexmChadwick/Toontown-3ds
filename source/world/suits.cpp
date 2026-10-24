@@ -280,7 +280,8 @@ void SuitActors::draw(render::Renderer& renderer) {
         if (!a.active || !a.poseValid || !a.pose.visible || a.pose.alpha <= 0.0f) continue;
         const float h = heightOf(a), w = suitWidth(h);
         const float* tint = kDeptTint[deptIndex(a.dept)];
-        renderer.setBaseTint(tint[0], tint[1], tint[2], 1.0f);
+        const float f = a.flash;
+        renderer.setBaseTint(tint[0] + (1.0f - tint[0]) * f, tint[1] * (1.0f - f), tint[2] * (1.0f - f), 1.0f);
         Mtx_Identity(&m);
         Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
         Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
@@ -319,6 +320,37 @@ int SuitActors::count() const {
     int n = 0;
     for (const Actor& a : actors_) n += a.active && a.poseValid && a.pose.visible;
     return n;
+}
+
+u32 SuitActors::touching(float x, float y, float z) const {
+    for (const Actor& a : actors_) {
+        if (!a.active || !a.poseValid || !a.pose.visible || a.mode != Mode::Walk || a.legType != kLegWalk) continue;
+        const float dx = a.pose.x - x, dy = a.pose.y - y;
+        const float reach = kToonRadius + 1.0f; // tube radius ~1 (Suit.py collision tube) + toon sphere
+        if (dx * dx + dy * dy < reach * reach && z > a.pose.z - 1.0f && z < a.pose.z + heightOf(a)) return a.doId;
+    }
+    return 0;
+}
+
+bool SuitActors::pose(u32 doId, float* x, float* y, float* z, float* h) const {
+    for (const Actor& a : actors_) {
+        if (!a.active || a.doId != doId || !a.poseValid) continue;
+        *x = a.pose.x, *y = a.pose.y, *z = a.pose.z, *h = a.pose.h;
+        return true;
+    }
+    return false;
+}
+
+void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash) {
+    for (Actor& a : actors_) {
+        if (!a.active || a.doId != doId) continue;
+        a.pose.x = x, a.pose.y = y, a.pose.z = a.pose.groundZ = z, a.pose.h = h;
+        a.pose.visible = !hidden;
+        a.pose.alpha = 1.0f;
+        a.poseValid = true;
+        a.mode = Mode::Frozen; // the battle owns it now; a later setPathState resumes the walk
+        a.flash = flash;
+    }
 }
 
 void SuitActors::logState() const {

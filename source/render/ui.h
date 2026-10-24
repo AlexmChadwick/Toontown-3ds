@@ -6,6 +6,7 @@
 
 #include "render/model.h"
 #include "ui/chat_menu.h"
+#include "ui/battle_panel.h"
 #include "ui/shop_panel.h"
 #include "ui/fishing_panel.h"
 
@@ -81,6 +82,13 @@ public:
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ShopPanel& shop() { return shop_; }
+    // Street battle (world/battle.*): while a view is set the battle panel owns the bottom
+    // screen. Call every frame before handleInput (null when not fighting).
+    void setBattle(const world::BattleView* view, const BattleGags& gags) {
+        battleView_ = view;
+        battleGags_ = gags;
+    }
+    BattlePanel& battle() { return battle_; }
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
     // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
     // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
@@ -128,6 +136,9 @@ private:
     int lastTab_ = -1;
     ChatMenu chat_;
     ShopPanel shop_;
+    BattlePanel battle_;
+    const world::BattleView* battleView_ = nullptr;
+    BattleGags battleGags_{};
     FishingPanel fishingPanel_;
 };
 

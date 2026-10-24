@@ -30,6 +30,7 @@
 #include "world/boat.h"
 #include "world/cchar.h"
 #include "world/suits.h"
+#include "world/battle.h"
 #include "world/fishing.h"
 #include "world/place.h"
 #include "world/player.h"
@@ -330,6 +331,9 @@ int main() {
 
     tt::world::Player player;
     fishing.init(&player, &net);
+    // Street cog battles (world/battle.*, docs/design/combat.md); the panel is ui/battle_panel.*.
+    static tt::world::Battle battle;
+    tt::world::BattleView battleView;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
@@ -505,6 +509,11 @@ int main() {
             float cx, cy, cz;
             if (cchars.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
         }
+        if (autotest.active() && !strcmp(autotest.label(), "fight cog") && !battle.active()) {
+            // Test-only: walk into the first cog; Battle::setAutoPlay picks the gags.
+            float cx, cy, cz;
+            if (suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
+        }
         if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 14.0f);
@@ -542,7 +551,16 @@ int main() {
 
         const int prevTab = uiState.tab;
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
+        if (battle.active() && netStarted) {
+            battle.fillView(net, tt::net::plat::nowMs(), &battleView);
+            const tt::net::OwnStats& st = net.ownStats();
+            ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+        } else {
+            ui.setBattle(nullptr, tt::ui::BattleGags{});
+        }
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
+        tt::world::BattleAction battleAction;
+        while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
         if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
         ambientTimer -= dt;
         if (ambientTimer <= 0.0f) {
@@ -569,6 +587,12 @@ int main() {
             in.down &= ~(KEY_A | KEY_B);
         }
         tt::prof::lap(tt::prof::kInput);
+        if (battle.active()) { // the battle places the toon; the circle pad and A/B do nothing
+            in.pad.dx = 0;
+            in.pad.dy = 0;
+            in.held &= ~(KEY_A | KEY_B);
+            in.down &= ~(KEY_A | KEY_B);
+        }
         if (shop.active()) { // standing at the counter: no walking or jumping while the panel is open
             in.pad.dx = 0;
             in.pad.dy = 0;
@@ -581,10 +605,22 @@ int main() {
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
         player.update(in, dt);
         fishing.applyCamera();
+        if (battle.inBattle()) {
+            tt::world::BattleActorPose lp;
+            if (battle.localPose(&lp)) player.reset(lp.x, lp.y, lp.z, lp.h);
+            float ex, ey, ez, tx, ty, tz;
+            battle.cameraEye(&ex, &ey, &ez);
+            battle.cameraTarget(&tx, &ty, &tz);
+            player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
+        }
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         const tt::world::ToonAnim anim = player.animState(&animRate);
         localToon.play(anim, animRate);
+        if (battle.inBattle()) { // the battle movie animates the toon
+            tt::world::BattleActorPose lp;
+            if (battle.localPose(&lp)) localToon.play(static_cast<tt::world::ToonAnim>(lp.anim), 1.0f);
+        }
         if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
             TT_LOG("player: anim %d at %.1f,%.1f,%.2f (ground %.2f)", int(anim), double(player.x()), double(player.y()),
                    double(player.z()), double(player.groundZ()));
@@ -698,6 +734,7 @@ int main() {
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
                 fishing.handleEvent(ev);
+                battle.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::ShopMovie) {
@@ -725,7 +762,8 @@ int main() {
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
                 // we stop, setAnimState on clip changes (DistributedSmoothNode / LocalToon).
-                const bool movingNow = player.moving() || player.airborne() || anim != tt::world::kAnimNeutral;
+                const bool movingNow = !battle.active() &&
+                                       (player.moving() || player.airborne() || anim != tt::world::kAnimNeutral);
                 // On the boat (DDPlayground.enterOnBoat): setParent(SPDonaldsBoat), then poses are boat-local.
                 float nx, ny, nz, nh;
                 player.netPose(&nx, &ny, &nz, &nh);
@@ -778,6 +816,32 @@ int main() {
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
+        if (netStarted && net.inZone()) {
+            const u32 nowMs = tt::net::plat::nowMs();
+            // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
+            // walking into someone else's fight joins it.
+            if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active()) {
+                if (const u32 cog = suits.touching(player.x(), player.y(), player.z())) {
+                    float cx, cy, cz, ch;
+                    if (suits.pose(cog, &cx, &cy, &cz, &ch)) {
+                        battle.requestBattle(net, cog, cx, cy, cz, ch, player.x(), player.y(), player.z(),
+                                             player.headingDeg(), nowMs);
+                    }
+                }
+                battle.checkJoin(net, player.x(), player.y(), player.z(), player.headingDeg(), nowMs);
+            }
+            battle.setAutoPlay(autotest.active());
+            battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
+            for (int i = 0; i < battle.numSuitPoses(); i++) {
+                const tt::world::BattleActorPose& p = battle.suitPose(i);
+                suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash);
+            }
+            if (const char* m = battle.popMessage()) {
+                toast = m;
+                toastAge = 0.0f;
+            }
+            if (battle.popWentSad()) uiState.teleportRequest = tt::world::hoodOf(place.zoneId()); // back to the playground
+        }
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
         applyToonColors(uiState, tints);
         tt::prof::lap(tt::prof::kActors);
@@ -886,6 +950,13 @@ int main() {
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
             suits.addBalloons(balloons, proj, view);
+            for (int i = 0; i < battle.numPopups(); i++) { // damage numbers over the fighters
+                const tt::world::BattlePopup& p = battle.popup(i);
+                float sx, sy, depth;
+                if (tt::ui::projectToScreen(proj, view, p.x, p.y, p.z, &sx, &sy, &depth)) {
+                    balloons.addSpeaker(sx, sy - p.rise * p.age, p.text, nullptr, 99.0f, 0.0f, p.color);
+                }
+            }
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
             tt::prof::lap(tt::prof::kBalloons);

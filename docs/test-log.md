@@ -253,6 +253,28 @@ need hardware.
   autotest's deck drop missed (it landed in the water), so boarding is still untested.
 - No PANIC.
 
+### 2026-10-24 — First street battle against the stock AI
+- **Target:** Azahar 2126.2, Old 3DS mode, local server, Silly Street.
+- **Battle flow, all against the real AI:**
+  - The toon bumps a walking Cold Caller (level 3), and requestBattle → DistributedBattle
+    generates at the battle cell (−190, −220).
+  - FaceOff, then faceOffDone, then WaitForInput.
+  - Our requestAttack: Cupcake (throw L0), then Squirting Flower (squirt L0). Each
+    PlayMovie (5.2 s) is followed by movieDone.
+  - Out of gags, the toon passes (track 98) for 4 rounds while the cog attacks.
+  - The toon reaches 0 laff: setState Resume, the battle object goes away, and the toon
+    goes sad and teleports back to the TTC playground. This is the correct outcome for a
+    15-laff toon against a level-3 cog.
+- **Display.** The bottom panel shows the cog (name, level, HP bar), the gag grid with
+  counts, and Pass/Run. Damage numbers pop over the fighters (−6 on the toon).
+- **Performance.** 29.9 fps throughout; the main thread is busy for 3.0–3.1 ms of the
+  33.4 ms frame.
+- **Not yet:**
+  - real cog models and animations: placeholder boxes until Codex's bake lands
+  - a reward screen: we lost this fight
+  - multi-toon battles and joining someone else's fight
+- No PANIC.
+
 ### Not yet tested
 - Real hardware (Old or New 3DS).
 - Stereo 3D toggle. Code path exists; untested in emulator.

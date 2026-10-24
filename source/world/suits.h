@@ -42,6 +42,16 @@ public:
     // Autotest helper: position of the first visible cog, false when none.
     bool firstPosition(float* x, float* y, float* z) const;
     void logState() const; // one log line per cog (debugging)
+    // A walking cog whose body tube the toon at (x, y, z) touches (DistributedSuit's
+    // CollisionTube, combat.md section 3), or 0. Only cogs on a street walk leg can fight.
+    u32 touching(float x, float y, float z) const;
+    // Current pose of a cog (world/battle.* CogPoseSource); false when unknown or hidden.
+    bool pose(u32 doId, float* x, float* y, float* z, float* h) const;
+    static bool poseThunk(void* self, uint32_t doId, float* x, float* y, float* z, float* h) {
+        return static_cast<const SuitActors*>(self)->pose(doId, x, y, z, h);
+    }
+    // Battles place their cogs themselves: call after update() each frame while in battle.
+    void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash);
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.
@@ -71,6 +81,7 @@ private:
         SuitPose pose{};
         bool poseValid = false;
         u8 legType = kLegOff;
+        float flash = 0.0f; // battle hit tint, set by overridePose for one frame
     };
     void refresh(Actor& a, const net::Suit& s, const net::Client& client, u32 nowMs);
     void enterState(Actor& a, s8 state, u32 nowMs);
