@@ -659,3 +659,47 @@ not strand the player.
   - Assets: `ring_game.ttm` (swimming environment), `ring_ring.ttm`, and Ring audio baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
 - **What differs from upstream:** Circle Pad steers directly in the swimming plane; bottom screen shows color assignments and ring tally.
 - **What to verify in Azahar:** Force `minigame-id 5`; board trolley; swim through rings using Circle Pad; verify ring hits/misses, `setToonGotRing` sent per group, and score tally at end of course.
+
+### 7.5 Maze Game (id 6, DistributedMazeGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes 100 collision checks, 10 tile lookups, and 9 score calculations against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/maze_logic.{h,cpp}`: 28x22 collision tilemap with `doOrthoCollisions` 4-quadrant slide resolution matching upstream Panda3D collision math, 197 collectible treasures, Flunky suit patrolling with waypoint graph and collision detection, upstream score formula (`max(1, treasures / 12) + (all ? 8 : 0)`).
+  - Host test: `tools/maze_test/` compares tile collisions, bounds clamping, and scoring against `maze_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `setTreasureGrabbed`, `allTreasuresTaken`, `hitBySuit`, and sends `claimTreasure`, `hitBySuit`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/maze_game.{h,cpp}` dispatched by `MinigameSession`: Circle Pad tank/analog navigation with wall collision sliding, 3D follow camera tilted down at 45 degrees, treasure rendering and pickup detection, Flunky suit patrolling, bottom-screen maze minimap and treasure counter.
+  - Assets: `maze_1player.ttm`, `maze_treasure.ttm`, and Maze audio (`mg_maze_pickup`, `mg_tag_c`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Maze camera is adapted for 3DS top screen with an angled follow perspective; bottom screen renders a full-grid minimap showing maze layout and remaining treasures.
+- **What to verify in Azahar:** Force `minigame-id 6`; board trolley; navigate maze using Circle Pad; confirm wall sliding prevents moving through hedges; pick up treasures and confirm count increments and `claimTreasure` sent; avoid Flunky suit; verify final score and jellybean payout.
+
+### 7.6 Match Minnie / Pairing (id 11, DistributedPairingGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes byte-for-byte CPython MT19937 RNG shuffle across 6 seeds and 20 evaluation tests against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/pairing_logic.{h,cpp}`: CPython MT19937 PRNG + `_randbelow_with_getrandbits` implementation matching Python 3's exact `random.Random(deckSeed).shuffle` algorithm, 32-card filtered deck (ranks 0..7 across 4 suits), card flip state machine (up to 2 open cards), match evaluation, and upstream low-flip bonus calculation (`PairingGameGlobals.py`).
+  - Host test: `tools/pairing_test/` validates exact 32-card deck construction across multiple seeds and match logic against `pairing_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles required `setDeckSeed`, `setMaxOpenCards`, `openCardResult`, `setEveryoneDone`, and sends `openCardRequest`, `reportDone`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/pairing_game.{h,cpp}`: top screen shows 3D memory room with card grid; bottom screen provides responsive touch grid and D-pad/Circle Pad cursor navigation with A button flip; match detection animations, card turn SFX, match SFX.
+  - Assets: `memory_room.ttm`, `playing_card.ttm`, and Pairing audio (`mg_pairing`, `mg_pairing_match`, `mg_pairing_turn`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Upstream walks the toon across physical floor cards in a 3D room; 3DS provides an intuitive touch-screen card matrix on the bottom screen alongside the 3D room on the top screen.
+- **What to verify in Azahar:** Force `minigame-id 11`; board trolley; flip cards using touch screen or D-pad + A; verify cards reveal corresponding rank/suit matching server seed; verify matching pairs stay revealed and award points; verify `openCardRequest` and `reportDone` protocol flow.
+
+### 7.7 Diving Game (id 9, DistributedDivingGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes 150 simulation frames of swimming physics and 6 score payouts against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/diving_logic.{h,cpp}`: 2D swimming physics in XZ plane with drag damping, natural upward buoyancy (+0.8 dt empty, -0.8 dt carrying chest), sunken treasure chest pickup at bottom (Z <= -40), surface boat delivery at Z >= 25, 3-second stun/freeze on obstacle hit, upstream TTC scoring formula (`10 * 1.5 * (0.25 + 0.75) = 15` per chest).
+  - Host test: `tools/diving_test/` validates drag, buoyancy, velocity damping, chest state changes, and scoring against `diving_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `handleFishCollision`, `handleCrabCollision`, `getCrabMoving`, `treasureRecovered`, and sends `pickupTreasure`, `handleFishCollision`, `handleCrabCollision`, `getCrabMoving`, `treasureRecovered`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/diving_game.{h,cpp}`: Circle Pad directional propulsion, depth gauge tracking, fish spawners across 6 water depth strata, bottom-crawling crab obstacle, smooth underwater camera follow, chest delivery tracking.
+  - Assets: `diving_game.ttm` (underwater scene), `diving_boat.ttm`, `diving_chest.ttm`, and Diving audio (`mg_target`, `mg_diving_hit`, `mg_diving_drop`, `mg_diving_pickup`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen layout: top screen displays 3D underwater perspective tracking the toon, bottom screen provides depth meter, chest status, and oxygen/timer readout.
+- **What to verify in Azahar:** Force `minigame-id 9`; board trolley; swim down using Circle Pad; retrieve sunken chest at the seafloor; swim back to surface boat to deposit; verify collision with fish freezes motion for 3 seconds and drops chest; verify jellybean payout on game over.
+
+### 7.8 Jungle Vines (id 12, DistributedVineGame)
+- **Status:** Done. Builds with 0 warnings on devkitARM; host test passes 20 pendulum swing calculations, 40 parabolic jumps, and 6 score calculations against upstream Python.
+- **Implementation:**
+  - Logic: `source/game/vine_logic.{h,cpp}`: 20 sequential vines spaced at 30 units, sinusoidal pendulum oscillation, pump swing impulse and climb controls, jump velocity decomposition into tangential swing velocity + forward boost, parabolic airborne flight under gravity, catch detection for target vine within 4 units, time bonus scoring at vine 19 (`int(1.0 + timeLeft * 0.1)`).
+  - Host test: `tools/vine_test/` validates swing angles, jump trajectories, landing catch, and score calculation against `vine_ref.py`.
+  - Network: `source/net/client.{h,cpp}` handles `reachedEndVine`, `setNewVine`, `setVineSections`, and sends `reachedEndVine`, `setNewVine`, `claimTreasure`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
+  - Runtime: `source/game/vine_game.{h,cpp}`: Circle Pad Left/Right to pump swing, Up/Down to climb vine height, button A to release and leap forward, side-scrolling dynamic follow camera, bottom-screen progress tracker showing current vine out of 20 and remaining time.
+  - Assets: `vine_game.ttm` (jungle backdrop), `vine_shelf.ttm` (platforms), and Vine audio (`mg_vine`, `mg_vine_bananas`, `mg_vine_fall`, `mg_vine_jump`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+- **What differs from upstream:** Dual-screen presentation with side-scrolling 3D follow camera on top screen and vine course progress meter on bottom screen.
+- **What to verify in Azahar:** Force `minigame-id 12`; board trolley; pump swing with Circle Pad, jump between vines with A; reach end platform (vine 19); verify `reachedEndVine` transmission, time bonus calculation, and jellybean reward.

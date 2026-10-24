@@ -16,8 +16,12 @@
 
 #include "game/cannon_game.h"
 #include "game/catch_logic.h"
+#include "game/diving_game.h"
+#include "game/maze_game.h"
+#include "game/pairing_game.h"
 #include "game/ring_game.h"
 #include "game/tug_game.h"
+#include "game/vine_game.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
@@ -34,7 +38,7 @@ public:
     bool active() const { return phase_ != Phase::Off; }
     // A minigame stage is shown instead of the playground (from the rules until cleanup).
     bool inScene() const {
-        return (isCatch_ || isCannon_ || isTug_ || isRing_) &&
+        return (isCatch_ || isCannon_ || isTug_ || isRing_ || isMaze_ || isPairing_ || isDiving_ || isVine_) &&
                (phase_ == Phase::Rules || phase_ == Phase::WaitStart || phase_ == Phase::Play ||
                 phase_ == Phase::Done);
     }
@@ -74,6 +78,10 @@ private:
     bool isCannon_ = false;
     bool isTug_ = false;
     bool isRing_ = false;
+    bool isMaze_ = false;
+    bool isPairing_ = false;
+    bool isDiving_ = false;
+    bool isVine_ = false;
 
     u32 phaseMs_ = 0;
     u32 returnHood_ = 0;
@@ -89,10 +97,14 @@ private:
     render::Model ground_;
     render::Model objects_[catchgame::kNumDropTypes];
 
-    // Cannon, Tug, Ring
+    // Other minigames
     CannonGame cannon_;
     TugGame tug_;
     RingGame ring_;
+    MazeGame maze_;
+    PairingGame pairing_;
+    DivingGame diving_;
+    VineGame vine_;
 
     bool autoPlay_ = false;
     char title_[40] = {};

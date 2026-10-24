@@ -971,6 +971,127 @@ constexpr const char* sig_setToonGotRing = "u8";
 constexpr const char* sig_setRingGroupResults = "u8";
 } // namespace DistributedRingGame
 
+namespace DistributedMazeGame {
+constexpr uint16_t kClassId = 129;
+constexpr uint16_t k_claimTreasure = 889;
+constexpr uint16_t k_setTreasureGrabbed = 890;
+constexpr uint16_t k_allTreasuresTaken = 891;
+constexpr uint16_t k_hitBySuit = 892;
+constexpr uint16_t kw_claimTreasure = 0x110;
+constexpr uint16_t kw_setTreasureGrabbed = 0x002;
+constexpr uint16_t kw_allTreasuresTaken = 0x002;
+constexpr uint16_t kw_hitBySuit = 0x012;
+constexpr const char* sig_claimTreasure = "u32";
+constexpr const char* sig_setTreasureGrabbed = "u32,u32";
+constexpr const char* sig_allTreasuresTaken = "";
+constexpr const char* sig_hitBySuit = "u32,i16";
+} // namespace DistributedMazeGame
+
+namespace DistributedPairingGame {
+constexpr uint16_t kClassId = 344;
+constexpr uint16_t k_setDeckSeed = 1898;
+constexpr uint16_t k_setMaxOpenCards = 1899;
+constexpr uint16_t k_openCardRequest = 1900;
+constexpr uint16_t k_openCardResult = 1901;
+constexpr uint16_t k_reportDone = 1902;
+constexpr uint16_t k_setEveryoneDone = 1903;
+constexpr uint16_t k_setSignaling = 1904;
+constexpr uint16_t kw_setDeckSeed = 0x007;
+constexpr uint16_t kw_setMaxOpenCards = 0x006;
+constexpr uint16_t kw_openCardRequest = 0x110;
+constexpr uint16_t kw_openCardResult = 0x002;
+constexpr uint16_t kw_reportDone = 0x110;
+constexpr uint16_t kw_setEveryoneDone = 0x002;
+constexpr uint16_t kw_setSignaling = 0x012;
+constexpr const char* sig_setDeckSeed = "u32";
+constexpr const char* sig_setMaxOpenCards = "u8";
+constexpr const char* sig_openCardRequest = "i16,i16";
+constexpr const char* sig_openCardResult = "i16,u32,i16,i8,i16[]";
+constexpr const char* sig_reportDone = "";
+constexpr const char* sig_setEveryoneDone = "";
+constexpr const char* sig_setSignaling = "u32";
+} // namespace DistributedPairingGame
+
+namespace DistributedDivingGame {
+constexpr uint16_t kClassId = 132;
+constexpr uint16_t k_pickupTreasure = 908;
+constexpr uint16_t k_setTreasureGrabbed = 909;
+constexpr uint16_t k_handleFishCollision = 910;
+constexpr uint16_t k_performFishCollision = 911;
+constexpr uint16_t k_handleCrabCollision = 912;
+constexpr uint16_t k_performCrabCollision = 913;
+constexpr uint16_t k_setTreasureDropped = 914;
+constexpr uint16_t k_fishSpawn = 915;
+constexpr uint16_t k_removeFish = 916;
+constexpr uint16_t k_getCrabMoving = 917;
+constexpr uint16_t k_setCrabMoving = 918;
+constexpr uint16_t k_treasureRecovered = 919;
+constexpr uint16_t k_incrementScore = 920;
+constexpr uint16_t kw_pickupTreasure = 0x110;
+constexpr uint16_t kw_setTreasureGrabbed = 0x002;
+constexpr uint16_t kw_handleFishCollision = 0x110;
+constexpr uint16_t kw_performFishCollision = 0x002;
+constexpr uint16_t kw_handleCrabCollision = 0x110;
+constexpr uint16_t kw_performCrabCollision = 0x002;
+constexpr uint16_t kw_setTreasureDropped = 0x002;
+constexpr uint16_t kw_fishSpawn = 0x002;
+constexpr uint16_t kw_removeFish = 0x110;
+constexpr uint16_t kw_getCrabMoving = 0x110;
+constexpr uint16_t kw_setCrabMoving = 0x002;
+constexpr uint16_t kw_treasureRecovered = 0x110;
+constexpr uint16_t kw_incrementScore = 0x002;
+constexpr const char* sig_pickupTreasure = "u32";
+constexpr const char* sig_setTreasureGrabbed = "u32,u32";
+constexpr const char* sig_handleFishCollision = "u32,u32,u32,string";
+constexpr const char* sig_performFishCollision = "u32,u32,u32,i16";
+constexpr const char* sig_handleCrabCollision = "u32,string";
+constexpr const char* sig_performCrabCollision = "u32,i16";
+constexpr const char* sig_setTreasureDropped = "u32,i16";
+constexpr const char* sig_fishSpawn = "i16,u32,u32,u16";
+constexpr const char* sig_removeFish = "u32";
+constexpr const char* sig_getCrabMoving = "u32,i16,i8";
+constexpr const char* sig_setCrabMoving = "u32,i16,i8,i8,i16,i8";
+constexpr const char* sig_treasureRecovered = "";
+constexpr const char* sig_incrementScore = "u32,u32,i16";
+} // namespace DistributedDivingGame
+
+namespace DistributedVineGame {
+constexpr uint16_t kClassId = 351;
+constexpr uint16_t k_reachedEndVine = 1969;
+constexpr uint16_t k_setNewVine = 1970;
+constexpr uint16_t k_setNewVineT = 1971;
+constexpr uint16_t k_setJumpingFromVine = 1972;
+constexpr uint16_t k_claimTreasure = 1973;
+constexpr uint16_t k_setTreasureGrabbed = 1974;
+constexpr uint16_t k_setScore = 1975;
+constexpr uint16_t k_allAtEndVine = 1976;
+constexpr uint16_t k_setFallingFromVine = 1977;
+constexpr uint16_t k_setFallingFromMidair = 1978;
+constexpr uint16_t k_setVineSections = 1979;
+constexpr uint16_t kw_reachedEndVine = 0x110;
+constexpr uint16_t kw_setNewVine = 0x112;
+constexpr uint16_t kw_setNewVineT = 0x012;
+constexpr uint16_t kw_setJumpingFromVine = 0x012;
+constexpr uint16_t kw_claimTreasure = 0x110;
+constexpr uint16_t kw_setTreasureGrabbed = 0x002;
+constexpr uint16_t kw_setScore = 0x002;
+constexpr uint16_t kw_allAtEndVine = 0x002;
+constexpr uint16_t kw_setFallingFromVine = 0x012;
+constexpr uint16_t kw_setFallingFromMidair = 0x012;
+constexpr uint16_t kw_setVineSections = 0x007;
+constexpr const char* sig_reachedEndVine = "i8";
+constexpr const char* sig_setNewVine = "u32,i8,u32/10000,i8";
+constexpr const char* sig_setNewVineT = "u32,u32/10000,i8";
+constexpr const char* sig_setJumpingFromVine = "u32,i8,i8,i32/100,i16/100,i16/100,i16";
+constexpr const char* sig_claimTreasure = "u32";
+constexpr const char* sig_setTreasureGrabbed = "u32,u32";
+constexpr const char* sig_setScore = "u32,u32";
+constexpr const char* sig_allAtEndVine = "";
+constexpr const char* sig_setFallingFromVine = "u32,i8,i8,i32/100,i16/100,i16/100,i16,i8";
+constexpr const char* sig_setFallingFromMidair = "u32,i8,i32/100,i16/100,i16/100,i16,i8";
+constexpr const char* sig_setVineSections = "u8[]";
+} // namespace DistributedVineGame
+
 namespace PurchaseManager {
 constexpr uint16_t kClassId = 176;
 constexpr uint16_t k_setPlayerIds = 1133;
@@ -1251,14 +1372,6 @@ namespace DistributedTagGame {
 constexpr uint16_t kClassId = 128;
 } // namespace DistributedTagGame
 
-namespace DistributedMazeGame {
-constexpr uint16_t kClassId = 129;
-} // namespace DistributedMazeGame
-
-namespace DistributedDivingGame {
-constexpr uint16_t kClassId = 132;
-} // namespace DistributedDivingGame
-
 namespace DistributedTargetGame {
 constexpr uint16_t kClassId = 133;
 } // namespace DistributedTargetGame
@@ -1342,14 +1455,6 @@ constexpr uint16_t kClassId = 239;
 namespace DistributedTravelGame {
 constexpr uint16_t kClassId = 343;
 } // namespace DistributedTravelGame
-
-namespace DistributedPairingGame {
-constexpr uint16_t kClassId = 344;
-} // namespace DistributedPairingGame
-
-namespace DistributedVineGame {
-constexpr uint16_t kClassId = 351;
-} // namespace DistributedVineGame
 
 namespace DistributedIceGame {
 constexpr uint16_t kClassId = 372;

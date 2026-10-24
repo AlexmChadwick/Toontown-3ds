@@ -146,6 +146,26 @@ enum class EventType : uint8_t {
     TugRemoteKeyRate,
     // ---- Ring (DistributedRingGame) ----
     RingGroupResults,
+    // ---- Maze (DistributedMazeGame) ----
+    MazeTreasureGrabbed,
+    MazeAllTreasuresTaken,
+    MazeHitBySuit,
+    // ---- Pairing (DistributedPairingGame) ----
+    PairingOpenCardResult,
+    PairingEveryoneDone,
+    // ---- Diving (DistributedDivingGame) ----
+    DivingTreasureGrabbed,
+    DivingIncrementScore,
+    DivingFishSpawn,
+    DivingCrabMoving,
+    DivingTreasureDropped,
+    DivingPerformFishCollision,
+    DivingPerformCrabCollision,
+    // ---- Vine (DistributedVineGame) ----
+    VineSetVineSections,
+    VineSetScore,
+    VineAllAtEnd,
+    VineTreasureGrabbed,
     PurchaseUp,         // a PurchaseManager / NewbiePurchaseManager generated (purchase())
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
@@ -428,6 +448,46 @@ struct Minigame {
     int16_t ringTimeBase = 0;
     int8_t ringColorIndices[4] = {-1, -1, -1, -1};
     uint8_t ringGroupResult = 0;
+
+    // Maze:
+    uint32_t mazeGrabbedAv = 0;
+    uint32_t mazeGrabbedTreasure = 0;
+    bool mazeAllTaken = false;
+
+    // Pairing:
+    uint32_t pairingDeckSeed = 0;
+    uint8_t pairingMaxOpenCards = 2;
+    int16_t pairingCardToTurnUp = -1;
+    uint32_t pairingOpenAvId = 0;
+    int16_t pairingMatchingCard = -1;
+    int8_t pairingPoints = 0;
+    int16_t pairingCardsToTurnDown[4] = {-1, -1, -1, -1};
+    int pairingTurnDownCount = 0;
+    bool pairingEveryoneDone = false;
+
+    // Diving:
+    uint32_t divingGrabbedAv = 0;
+    uint32_t divingGrabbedChest = 0;
+    uint32_t divingScoreAv = 0;
+    uint32_t divingScoreNewSpot = 0;
+    int16_t divingFishSpawnTs = 0;
+    uint32_t divingFishSpawnCode = 0;
+    uint32_t divingFishSpawnerId = 0;
+    uint16_t divingFishSpawnOffset = 0;
+    uint32_t divingCrabId = 0;
+    int8_t divingCrabRand1 = 0;
+    int8_t divingCrabRand2 = 0;
+    int16_t divingCrabX = 0;
+    int8_t divingCrabDir = 0;
+
+    // Vine:
+    uint8_t vineSections[8] = {};
+    int vineSectionCount = 0;
+    uint32_t vineScoreAv = 0;
+    uint32_t vineScoreVal = 0;
+    bool vineAllAtEnd = false;
+    uint32_t vineGrabbedAv = 0;
+    uint32_t vineGrabbedTreasure = 0;
 };
 // PurchaseManager (176) / NewbiePurchaseManager (177): generated in the minigame's zone when
 // the game ends. minigamePoints[i] is the payout of playerIds[i] (already added to the toon).
@@ -756,6 +816,22 @@ public:
     bool sendTugNewAvIdList(const uint32_t* avIds, int count);
     // DistributedRingGame.
     bool sendRingToonGotRing(uint8_t success);
+    // DistributedMazeGame.
+    bool sendMazeClaimTreasure(uint32_t treasureNum);
+    bool sendMazeHitBySuit(uint32_t avId, int16_t ts);
+    // DistributedPairingGame.
+    bool sendPairingOpenCard(int16_t deckIndex, int16_t bonusGlowCard);
+    bool sendPairingDone();
+    // DistributedDivingGame.
+    bool sendDivingPickupTreasure(uint32_t chestId);
+    bool sendDivingTreasureRecovered();
+    bool sendDivingFishCollision(uint32_t avId, uint32_t spawnId, uint32_t spawnerId, const char* status);
+    bool sendDivingCrabCollision(uint32_t avId, const char* status);
+    bool sendDivingGetCrabMoving(uint32_t crabId, int16_t crabX, int8_t dir);
+    // DistributedVineGame.
+    bool sendVineNewVine(uint32_t avId, int8_t vineIndex, float vineT, int8_t facingRight);
+    bool sendVineReachedEndVine(int8_t vineIndex);
+    bool sendVineClaimTreasure(uint32_t treasureNum);
     // PurchaseManager: requestExit ("Back to Playground"), then setInventory(done=1) after
     // setPurchaseExit with the inventory and money the server last told us (the payout is
     // already in ownStats().money). False when there is no purchase manager.

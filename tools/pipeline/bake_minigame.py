@@ -52,6 +52,23 @@ MODELS = {
     # Ring
     'ring_game': (MG + 'swimming_game', None, (0, 0, 0), 1.0, (0, 75.0, -14.5)),
     'ring_ring': (MG + 'swimming_game_ring', None, (0, 0, 0), 0.75, (0, 0, 0)),
+
+    # Maze
+    'maze_1player': (MG + 'maze_1player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'maze_treasure': ('phase_3.5/models/props/mickeySZ', '**/mickeySZ', (0, -90, 0), 1.6, (0, 0, 0)),
+
+    # Match Minnie / Pairing
+    'memory_room': (MG + 'memory_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'playing_card': ('phase_3.5/models/gui/playingCard', None, (0, 0, 0), 1.0, (0, 0, 0)),
+
+    # Diving
+    'diving_game': (MG + 'diving_game', None, (0, 0, 0), 2.8, (0, 0.5, -41.0)),
+    'diving_boat': (MG + 'diving_game', '**/boat', (0, 0, 0), 2.8, (0, 3.0, 33.25)),
+    'diving_chest': (MG + 'treasure_chest', None, (0, 0, 0), 1.5, (0, 0, 0)),
+
+    # Vine
+    'vine_game': (MG + 'vine_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_shelf': (MG + 'vine_game_shelf', None, (0, 0, 0), 1.0, (0, 0, 0)),
 }
 
 # (output name, upstream path, kind, loops)
@@ -80,6 +97,23 @@ AUDIO = [
     ('mg_ambient_water', 'phase_4/audio/sfx/AV_ambient_water.ogg', 'sfx', False),
     ('ring_get', 'phase_4/audio/sfx/ring_get.ogg', 'sfx', False),
     ('ring_miss', 'phase_4/audio/sfx/ring_miss.ogg', 'sfx', False),
+    # Maze
+    ('mg_maze_pickup', 'phase_4/audio/sfx/MG_maze_pickup.ogg', 'sfx', False),
+    ('mg_tag_c', 'phase_4/audio/sfx/MG_Tag_C.ogg', 'sfx', False),
+    # Pairing
+    ('mg_pairing', 'phase_4/audio/bgm/MG_Pairing.ogg', 'music', False),
+    ('mg_pairing_match', 'phase_4/audio/sfx/MG_pairing_match_bonus_both.ogg', 'sfx', False),
+    ('mg_pairing_turn', 'phase_4/audio/sfx/MG_pairing_card_flip_face_up.ogg', 'sfx', False),
+    # Diving
+    ('mg_target', 'phase_4/audio/bgm/MG_Target.ogg', 'music', False),
+    ('mg_diving_hit', 'phase_4/audio/sfx/diving_game_hit.ogg', 'sfx', False),
+    ('mg_diving_drop', 'phase_4/audio/sfx/diving_treasure_drop_off.ogg', 'sfx', False),
+    ('mg_diving_pickup', 'phase_4/audio/sfx/diving_treasure_pick_up.ogg', 'sfx', False),
+    # Vine
+    ('mg_vine', 'phase_4/audio/bgm/MG_Vine.ogg', 'music', False),
+    ('mg_vine_bananas', 'phase_4/audio/sfx/MG_sfx_vine_game_bananas.ogg', 'sfx', False),
+    ('mg_vine_fall', 'phase_4/audio/sfx/MG_sfx_vine_game_fall.ogg', 'sfx', False),
+    ('mg_vine_jump', 'phase_4/audio/sfx/MG_sfx_vine_game_jump.ogg', 'sfx', False),
 ]
 
 
@@ -108,7 +142,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
