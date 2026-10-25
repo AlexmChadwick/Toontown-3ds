@@ -19,8 +19,10 @@ import random
 random.seed(0)
 
 ROOT = Path(__file__).resolve().parent.parent
-RES = (ROOT / 'ref/ref/resources').resolve()
-UPSTREAM = (ROOT / 'ref/ref/open-toontown').resolve()
+# The main checkout has ref/<submodule>; linked worktrees reach it through ref/ref.
+REF = ROOT / 'ref' if (ROOT / 'ref/open-toontown/toontown').is_dir() else ROOT / 'ref/ref'
+RES = (REF / 'resources').resolve()
+UPSTREAM = (REF / 'open-toontown').resolve()
 OUT_HEADER = ROOT / 'source/world/cog_attack_tables.h'
 OUT_JSON = ROOT / 'tools/cog_attacks_test/reference_vectors.json'
 OUT_DOC = ROOT / 'docs/design/cog_attacks.md'
