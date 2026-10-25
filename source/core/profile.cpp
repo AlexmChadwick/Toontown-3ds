@@ -19,10 +19,11 @@ namespace {
 
 constexpr double kTickHz = 268111856.0; // SYSCLOCK_ARM11
 
-const char* const kNames[kCount] = {"input", "player", "place", "net",  "remote", "actors", "dplace", "dshadow",
-                                    "dtoons", "dact",  "balln", "hud",  "ui",     "audio",  "wait",   "fend",
-    "feupd", "fedraw", "bossupd", "bossdraw", "cogdoupd", "cogdodraw",
-    "levupd", "rooms", "props", "levgames", "minigame", "racing", "golf", "estate", "loads", "other"};
+const char *const kNames[kCount] = {
+    "input",   "player",   "place",    "net",       "remote", "actors", "dplace",  "dshadow",  "dtoons",
+    "dact",    "balln",    "hud",      "ui",        "audio",  "wait",   "fend",    "feupd",    "fedraw",
+    "bossupd", "bossdraw", "cogdoupd", "cogdodraw", "levupd", "rooms",  "props",   "levgames", "minigame",
+    "racing",  "golf",     "estate",   "loads",     "other",  "dmini",  "dracing", "dgolf",    "destate"};
 
 uint64_t defaultClock() {
 #ifdef __3DS__

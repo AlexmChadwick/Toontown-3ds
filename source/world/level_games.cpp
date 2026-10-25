@@ -131,27 +131,27 @@ void LevelGames::loadProps() {
 
     // Models:
     snprintf(path, sizeof(path), "%scrate_wood.ttm", kPropsDir);
-    crateWood_.load(path);
+    assetBatch_.load(crateWood_, path);
     snprintf(path, sizeof(path), "%scrate_cbwood.ttm", kPropsDir);
-    crateCbWood_.load(path);
+    assetBatch_.load(crateCbWood_, path);
     snprintf(path, sizeof(path), "%sgrid_floor.ttm", kPropsDir);
-    gridFloor_.load(path);
+    assetBatch_.load(gridFloor_, path);
 
     snprintf(path, sizeof(path), "%smole_hole.ttm", kPropsDir);
-    moleHole_.load(path);
+    assetBatch_.load(moleHole_, path);
     snprintf(path, sizeof(path), "%smole_norm.ttm", kPropsDir);
-    moleNorm_.load(path);
+    assetBatch_.load(moleNorm_, path);
     snprintf(path, sizeof(path), "%smole_cog.ttm", kPropsDir);
-    moleCog_.load(path);
+    assetBatch_.load(moleCog_, path);
     snprintf(path, sizeof(path), "%smole_hit.ttm", kPropsDir);
-    moleHit_.load(path);
+    assetBatch_.load(moleHit_, path);
 
     snprintf(path, sizeof(path), "%sgolf_hole.ttm", kPropsDir);
-    golfHole_.load(path);
+    assetBatch_.load(golfHole_, path);
     snprintf(path, sizeof(path), "%sgolf_ball.ttm", kPropsDir);
-    golfBall_.load(path);
+    assetBatch_.load(golfBall_, path);
     snprintf(path, sizeof(path), "%sgoon_cone.ttm", kPropsDir);
-    goonCone_.load(path);
+    assetBatch_.load(goonCone_, path);
 
     // Crate box
     snprintf(path, sizeof(path), "%scrate.box", kPropsDir);
@@ -184,6 +184,7 @@ void LevelGames::loadProps() {
 }
 
 void LevelGames::shutdown() {
+    assetBatch_.clear();
     propsLoaded_ = false;
     crateWood_.unload();
     crateCbWood_.unload();

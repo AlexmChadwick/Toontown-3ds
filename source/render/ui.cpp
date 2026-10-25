@@ -1,3 +1,4 @@
+#include "core/nearest.h"
 #include "render/ui.h"
 
 #include "ui/gag_data.h"
@@ -559,11 +560,18 @@ void Ui::drawDebug(const Context& c) {
                   static_cast<double>(prof::busyAvgMs()), static_cast<double>(prof::totalAvgMs()),
                   static_cast<double>(prof::avgMs(prof::kWait)));
         constexpr int kProfRows = 6;
-        for (int i = 0; i < prof::kCount; i++) {
-            const float ms = prof::avgMs(static_cast<prof::Section>(i));
-            const bool hot = ms > 4.0f && i != prof::kWait;
-            debugLine(8 + (i / kProfRows) * 106, 143 + (i % kProfRows) * 10, 0.34f, hot ? bad : kWhite, "%-6s %5.2f",
-                      prof::name(static_cast<prof::Section>(i)), static_cast<double>(ms));
+        constexpr int kProfSlots = 18; // three columns within the 320px screen
+        int selected[kProfSlots];
+        nearestIndices(prof::kCount,
+            [](int index) { return index != prof::kWait; },
+            [](int index) { return -prof::avgMs(static_cast<prof::Section>(index)); },
+            0.0f, selected);
+        for (int slot=0;slot<kProfSlots;++slot) {
+            const int index=selected[slot];
+            if (index<0) continue;
+            const float ms=prof::avgMs(static_cast<prof::Section>(index));
+            debugLine(8+(slot/kProfRows)*106,143+(slot%kProfRows)*10,.34f,ms>4?bad:kWhite,"%-6s %5.2f",
+                      prof::name(static_cast<prof::Section>(index)),static_cast<double>(ms));
         }
         debugLine(8, 199, 0.34f, kDim, "%s", log::recent(0));
     }

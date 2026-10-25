@@ -8,22 +8,29 @@ const float kPlotPos[6][3] = {
 };
 }
 void Estate::unload() {
+    bool resident=terrain_.loaded() || interior_.loaded();
+    for(const auto& model:houses_) resident |= model.loaded();
+    for(const auto& model:furniture_) resident |= model.loaded();
+    if(resident) C3D_FrameSync();
+    assetBatch_.clear();
     terrain_.unload(); interior_.unload();
     for (auto& m : houses_) m.unload();
     for (auto& m : furniture_) m.unload();
 }
 void Estate::loadExterior() {
-    if (!terrain_.loaded()) terrain_.load("sdmc:/3ds/toontown3ds/data/estate/terrain.ttm");
+    if (!terrain_.loaded())
+        assetBatch_.load(terrain_, "sdmc:/3ds/toontown3ds/data/estate/terrain.ttm");
     for (int i = 0; i < 6; ++i) if (!houses_[i].loaded()) {
         char path[112]; snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/estate/house_%d.ttm", i);
-        houses_[i].load(path);
+        assetBatch_.load(houses_[i], path);
     }
 }
 void Estate::loadInterior() {
-    if (!interior_.loaded()) interior_.load("sdmc:/3ds/toontown3ds/data/estate/interior.ttm");
+    if (!interior_.loaded())
+        assetBatch_.load(interior_, "sdmc:/3ds/toontown3ds/data/estate/interior.ttm");
     for (int i = 0; i < 4; ++i) if (!furniture_[i].loaded()) {
         char path[112]; snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/estate/furniture_%d.ttm", i);
-        furniture_[i].load(path);
+        assetBatch_.load(furniture_[i], path);
     }
 }
 void Estate::handleEvent(const net::Event& ev, net::Client& c) {

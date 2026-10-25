@@ -8,6 +8,9 @@
 namespace tt::world {
 
 void GolfSession::shutdown() {
+    // A network event may replace resources before this frame's GPU fence.
+    if (hole_.loaded() || kart_.loaded()) C3D_FrameSync();
+    assetBatch_.clear();
     hole_.unload();
     kart_.unload();
     active_ = false;
@@ -29,7 +32,7 @@ void GolfSession::loadHole(int holeId) {
     char path[128];
     const int model = holeId == 0 ? 18 : ((holeId - 1) % 18) + 1;
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.ttm", model);
-    hole_.load(path);
+    assetBatch_.load(hole_, path);
     ballX_ = 0.0f; ballY_ = 0.0f; ballZ_ = 0.25f; aim_ = 0.0f; power_ = 3.0f; swung_ = false;
 }
 
@@ -41,7 +44,8 @@ void GolfSession::setText() {
 
 void GolfSession::handleEvent(const net::Event& ev, net::Client& client, uint32_t) {
     if (ev.type == net::EventType::GolfKartUp || ev.type == net::EventType::GolfKartState) {
-        if (!kart_.loaded()) kart_.load("sdmc:/3ds/toontown3ds/data/golf/golf_cart3.ttm");
+        if (!kart_.loaded())
+            assetBatch_.load(kart_, "sdmc:/3ds/toontown3ds/data/golf/golf_cart3.ttm");
         return;
     }
     if (ev.type == net::EventType::GolfZone && !active_) {

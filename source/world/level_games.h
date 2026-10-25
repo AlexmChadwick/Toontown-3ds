@@ -17,6 +17,7 @@
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
+#include "world/asset_batch.h"
 #include <3ds.h>
 #endif
 
@@ -135,6 +136,12 @@ inline void calcGolfSpot(int spotIndex, float outPos[3]) {
 
 class LevelGames {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     void loadProps();
     void shutdown();
 
@@ -156,6 +163,7 @@ public:
     bool nearestGolfGreen(const Level& level, float x, float y, float z, float* outX, float* outY, float* outZ) const;
 
 private:
+    BasicAssetBatch<16> assetBatch_;
     bool propsLoaded_ = false;
 
     // Models:

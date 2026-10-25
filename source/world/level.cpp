@@ -1,5 +1,5 @@
-#include "core/profile.h"
 #include "world/level.h"
+#include "core/profile.h"
 
 #include <algorithm>
 #include <cmath>
@@ -82,15 +82,16 @@ void Level::loadProps() {
     char path[112];
     for (int i = 0; i < kDoorParts; ++i) {
         snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, kDoorFiles[i]);
-        if (!doorModels_[i].load(path)) TT_LOG("level: missing %s", path);
+        if (!assetBatch_.load(doorModels_[i], path))
+            TT_LOG("level: missing %s", path);
     }
     const char* stomperNames[2] = {"stomper", "stomper_lb"};
     for (int k = 0; k < 2; ++k) {
         StomperShape& st = stompers_[k];
         snprintf(path, sizeof(path), "%sprops/%s_head.ttm", kDir, stomperNames[k]);
-        st.head.load(path);
+        assetBatch_.load(st.head, path);
         snprintf(path, sizeof(path), "%sprops/%s_shaft.ttm", kDir, stomperNames[k]);
-        st.shaft.load(path);
+        assetBatch_.load(st.shaft, path);
         snprintf(path, sizeof(path), "%sprops/%s.box", kDir, stomperNames[k]);
         if (FILE* f = fopen(path, "r")) {
             float b[9];
@@ -113,7 +114,7 @@ void Level::loadProps() {
     const char* gearNames[2] = {"gear_factory", "gear_mint"};
     for (int k = 0; k < 2; ++k) {
         snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, gearNames[k]);
-        gearModels_[k].load(path);
+        assetBatch_.load(gearModels_[k], path);
         snprintf(path, sizeof(path), "%sprops/%s.box", kDir, gearNames[k]);
         if (FILE* f = fopen(path, "r")) {
             float b[6];
@@ -122,9 +123,9 @@ void Level::loadProps() {
         }
     }
     snprintf(path, sizeof(path), "%sprops/paint_mixer_top.ttm", kDir);
-    mixerTop_.load(path);
+    assetBatch_.load(mixerTop_, path);
     snprintf(path, sizeof(path), "%sprops/paint_mixer_shaft.ttm", kDir);
-    mixerShaft_.load(path);
+    assetBatch_.load(mixerShaft_, path);
     snprintf(path, sizeof(path), "%sprops/paint_mixer.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         char kind[16];
@@ -140,7 +141,7 @@ void Level::loadProps() {
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/tread.ttm", kDir);
-    treadModel_.load(path);
+    assetBatch_.load(treadModel_, path);
     snprintf(path, sizeof(path), "%sprops/tread.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         float b[6];
@@ -151,14 +152,14 @@ void Level::loadProps() {
     const char* goonTypes[2] = {"pg", "sg"};
     for (int k = 0; k < 2; ++k) {
         snprintf(path, sizeof(path), "%sprops/goon_%s_full.ttm", kDir, goonTypes[k]);
-        goonModels_[k].load(path);
+        assetBatch_.load(goonModels_[k], path);
         for (int c = 0; c < kGoonClips; ++c) {
             snprintf(path, sizeof(path), "%sprops/goon_%s_full_%s.tta", kDir, goonTypes[k], kGoonClipNames[c]);
-            goonClips_[k][c].load(path);
+            assetBatch_.load(goonClips_[k][c], path);
         }
     }
     snprintf(path, sizeof(path), "%sprops/goon_cone.ttm", kDir);
-    goonCone_.load(path);
+    assetBatch_.load(goonCone_, path);
     snprintf(path, sizeof(path), "%sprops/goon.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         float b[3];
@@ -166,15 +167,15 @@ void Level::loadProps() {
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/barrel.ttm", kDir);
-    barrelModel_.load(path);
+    assetBatch_.load(barrelModel_, path);
     snprintf(path, sizeof(path), "%sprops/barrel_jar.ttm", kDir);
-    barrelJar_.load(path);
+    assetBatch_.load(barrelJar_, path);
     snprintf(path, sizeof(path), "%sprops/barrel_icecream.ttm", kDir);
-    barrelIcecream_.load(path);
+    assetBatch_.load(barrelIcecream_, path);
     for (int t = 0; t < 7; ++t)
         for (int l = 0; l < 7; ++l) {
             snprintf(path, sizeof(path), "%sprops/gag_icon_%d_%d.ttm", kDir, t, l);
-            gagIcons_[t][l].load(path);
+            assetBatch_.load(gagIcons_[t][l], path);
         }
     snprintf(path, sizeof(path), "%sprops/barrel.box", kDir);
     if (FILE* f = fopen(path, "r")) {
@@ -183,7 +184,7 @@ void Level::loadProps() {
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/lift.ttm", kDir);
-    liftModel_.load(path);
+    assetBatch_.load(liftModel_, path);
     snprintf(path, sizeof(path), "%sprops/lift.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         static const char* const kNames[kLiftBoxes] = {"elevator_floor", "ceiling", "wall_front", "wall_back",
@@ -196,9 +197,9 @@ void Level::loadProps() {
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/button_base.ttm", kDir);
-    buttonBase_.load(path);
+    assetBatch_.load(buttonBase_, path);
     snprintf(path, sizeof(path), "%sprops/button_top.ttm", kDir);
-    buttonTop_.load(path);
+    assetBatch_.load(buttonTop_, path);
     snprintf(path, sizeof(path), "%sprops/button.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         float b[6];
@@ -206,11 +207,11 @@ void Level::loadProps() {
         fclose(f);
     }
     snprintf(path, sizeof(path), "%sprops/stage_elevator.ttm", kDir);
-    elevatorFrame_.load(path);
+    assetBatch_.load(elevatorFrame_, path);
     snprintf(path, sizeof(path), "%sprops/stage_elevator_left.ttm", kDir);
-    elevatorLeft_.load(path);
+    assetBatch_.load(elevatorLeft_, path);
     snprintf(path, sizeof(path), "%sprops/stage_elevator_right.ttm", kDir);
-    elevatorRight_.load(path);
+    assetBatch_.load(elevatorRight_, path);
     snprintf(path, sizeof(path), "%sprops/stage_elevator.box", kDir);
     if (FILE* f = fopen(path, "r")) {
         char kind[16];
@@ -1593,7 +1594,8 @@ bool Level::loadFloor(const net::Facility& fac) {
             p.model = numConnectors_++;
             snprintf(connectorNames_[p.model], sizeof(connectorNames_[p.model]), "%s", fp.name);
             snprintf(path, sizeof(path), "%sprops/%s.ttm", kDir, fp.name);
-            if (!connectorModels_[p.model].load(path)) TT_LOG("level: missing %s", path);
+            if (!assetBatch_.load(connectorModels_[p.model], path))
+                TT_LOG("level: missing %s", path);
         }
     }
     numDoorFrames_ = 0;
@@ -1621,7 +1623,8 @@ bool Level::loadFloor(const net::Facility& fac) {
     TT_LOG("level: floor %s: %d rooms, %d pieces, %d door frames, %d floor tris", file, numRooms_, numPieces_,
            numDoorFrames_, numFloorTris_);
     snprintf(path, sizeof(path), "%sprops/door_frame_0.ttm", kDir);
-    if (numDoorFrames_ && !doorFrameModel_.loaded()) doorFrameModel_.load(path);
+    if (numDoorFrames_ && !doorFrameModel_.loaded())
+        assetBatch_.load(doorFrameModel_, path);
     return true;
 }
 
@@ -1634,7 +1637,8 @@ void Level::loadSpinModels() {
         const char* file = spec_.string(e, "file");
         if (!file) continue;
         snprintf(path, sizeof(path), "%s%s", kDir, file);
-        if (!spinModels_[numSpins_].load(path)) continue;
+        if (!assetBatch_.load(spinModels_[numSpins_], path))
+            continue;
         spinRoom_[numSpins_] = e.room;
         spinEnt_[numSpins_] = uint16_t(e.entId);
         numSpins_++;
@@ -1642,6 +1646,7 @@ void Level::loadSpinModels() {
 }
 
 void Level::activate(net::Client& client) {
+    entryLoading_ = true;
     active_ = true;
     spawned_ = false;
     won_ = false;
@@ -1755,6 +1760,8 @@ void Level::handleEvent(const net::Event& ev, net::Client& client) {
 }
 
 void Level::shutdown() {
+    entryLoading_ = false;
+    assetBatch_.clear();
     if (client_) client_->setLevelBattlePlacer(nullptr, nullptr);
     doorClient_ = nullptr;
     for (Room& r : rooms_) {
@@ -1810,10 +1817,10 @@ bool Level::spawnPose(float* x, float* y, float* z, float* h) {
         for (int i = 0; i < numRooms_; ++i) {
             float l[3];
             toLocal(rooms_[i].placement, *x, *y, *z, l);
-            rooms_[i].zone.finishLoading(Vec3{l[0], l[1], l[2]});
+            rooms_[i].zone.update(Vec3{l[0], l[1], l[2]});
         }
     } else {
-        rooms_[0].zone.finishLoading(Vec3{*x, *y, *z}, &Level::cellChanged, this);
+        rooms_[0].zone.update(Vec3{*x, *y, *z}, &Level::cellChanged, this);
     }
     TT_LOG("level: entrance %d at %.1f,%.1f,%.1f h %.0f", int(entranceId_), double(*x), double(*y), double(*z),
            double(*h));
@@ -2229,10 +2236,12 @@ bool Level::nearestCog(float x, float y, float z, float* cx, float* cy, float* c
         if (d < best) best = d, *cx = c.x, *cy = c.y, *cz = c.z;
     }
     return best < 1e30f;
+    prof::lap(prof::kFacilityUpdate);
 }
 
 void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     if (!active_) return;
+    prof::lap(prof::kDrawPlace);
     // The spec's farPlaneDistance is 1500; the zone vis lists (the factory) or the shown rooms
     // (a floor) already bound what is drawn.
     if (!floor_) {

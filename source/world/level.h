@@ -1,3 +1,4 @@
+#include "world/asset_batch.h"
 // Facility level runtime (docs/design/levels.md): the Sellbot factory (one level), or one floor
 // of a mint / DA office (stage) / country club (a chain of level rooms joined by hallways).
 // Mirrors otp/level/DistributedLevel and DistributedMint/Stage/CountryClub on the client:
@@ -48,6 +49,20 @@ public:
     void draw(render::Renderer& renderer, const C3D_FVec& eye);
     void shutdown();
 
+    void pumpAssets() {
+        assetBatch_.pump();
+        games_.pumpAssets();
+        if (entryLoading_ && spawned_ && !assetBatch_.loading() && !games_.loadingAssets()) {
+            bool pending = false;
+            for (int room = 0; room < numRooms_; ++room)
+                pending |= rooms_[room].zone.loading();
+            if (!pending)
+                entryLoading_ = false;
+        }
+    }
+    bool loadingAssets() const {
+        return entryLoading_ || assetBatch_.loading() || games_.loadingAssets();
+    }
     bool active() const { return active_; }
     // The factory's own collision, or a floor's assembled one (rooms, hallways, door frames).
     const CollisionWorld* collision() const {
@@ -237,6 +252,8 @@ private:
         float lock[3] = {};                              // slide offset of the open halves
         bool lockClosed[3] = {}, lockOpen[3] = {};
     };
+    bool entryLoading_ = false;
+    AssetBatch assetBatch_;
     void loadProps();
     static DoorPose doorPose(const net::LevelEntityObj& d, uint32_t nowMs);
     void updateDoors(net::Client& client, float x, float y, float z, uint32_t nowMs);
