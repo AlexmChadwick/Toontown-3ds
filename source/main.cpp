@@ -759,9 +759,23 @@ int main() {
             place.zoneId() != 8000 && !uiState.teleportRequest && transition.idle()) {
             uiState.teleportRequest = 8000;
         }
-        if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && racing.active() &&
-            autotest.stepBegan()) {
-            in.down |= KEY_A;
+        if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && netStarted) {
+            // Test-only: stand on the first free starting block and press A (DistributedStartingBlock
+            // requestEnter); the AI answers with a race or a refusal (no kart) in the log.
+            static float placedAt = -1.0f;
+            static bool pressed = false;
+            if (autotest.stepBegan()) placedAt = -1.0f, pressed = false;
+            for (int i = 0; i < tt::net::kMaxRacingBlocks && placedAt < 0 && autotest.stepTime() > 1.0f; ++i) {
+                const tt::net::RacingBlock& b = net.racingBlockSlot(i);
+                if (!b.active || b.occupant != 0) continue;
+                player.reset(b.x, b.y, b.z + 0.5f, player.headingDeg());
+                placedAt = autotest.stepTime();
+                TT_LOG("autotest: starting block %u at %.1f,%.1f", unsigned(b.doId), double(b.x), double(b.y));
+            }
+            if (placedAt >= 0 && !pressed && autotest.stepTime() > placedAt + 0.5f) {
+                in.down |= KEY_A; // once the toon stands on the block
+                pressed = true;
+            }
         }
         if (autotest.active() && !level.active()) {
             // Test-only: step into a facility's elevator, re-trying every 6 s: the factory's, the Coin

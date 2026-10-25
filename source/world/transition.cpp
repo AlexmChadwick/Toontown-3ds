@@ -161,6 +161,8 @@ void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const P
     }
     if (!pt && place.kind() == PlaceKind::Interior) pt = place.point("door_origin");
     if (!pt && place.kind() == PlaceKind::Interior) pt = place.point("door_origin_0");
+    // Two-door interiors (the kart shop: DistributedKartShopInterior door_origin_1 / _2) have no _0.
+    if (!pt && place.kind() == PlaceKind::Interior) pt = place.pointWithPrefix("door_origin");
     if (pt) {
         doorOriginX_ = pt->x;
         doorOriginY_ = pt->y;
