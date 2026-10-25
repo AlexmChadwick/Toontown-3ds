@@ -73,7 +73,8 @@ void Renderer::shutdown() {
 void Renderer::bindMode(Mode mode) {
     if (mode == mode_) return;
     mode_ = mode;
-    batchState_.tintValid=false;
+    batchState_.tintValid = false;
+    batchState_.geometryValid = false;
     const Program& p = programs_[mode];
     C3D_BindProgram(const_cast<shaderProgram_s*>(&p.program));
     C3D_AttrInfo* attr = C3D_GetAttrInfo();
@@ -91,7 +92,7 @@ void Renderer::bindMode(Mode mode) {
 
 void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                           int eyeSign) {
-    batchState_=BatchState{};
+    batchState_ = BatchState{};
     eye_ = eye;
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, kClearSky, 0);
     C3D_FrameDrawOn(target);
@@ -130,7 +131,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
 }
 
 void Renderer::endWorld() {
-    batchState_=BatchState{};
+    batchState_ = BatchState{};
     mode_ = kModeNone;
     C3D_AlphaTest(false, GPU_ALWAYS, 0);
     C3D_DepthMap(true, -1.0f, 0.0f);
@@ -177,12 +178,14 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints,
     if (!beginDraw(model.boundsMin(), model.boundsMax(), world)) return;
     setModelView(world, model.posScale(), model.posOffset());
 
-    C3D_BufInfo* buf = C3D_GetBufInfo();
     const u8* vbase = static_cast<const u8*>(model.vertices());
-    if (model.absoluteIndices()) {
+    if (model.absoluteIndices() && batchState_.bindGeometry(model.vertices())) {
+        C3D_BufInfo* buf = C3D_GetBufInfo();
+        ++stats_.bufferBinds;
         BufInfo_Init(buf);
         BufInfo_Add(buf, vbase, kVertexStride, 3, 0x210);
     }
+    if (!model.absoluteIndices()) batchState_.geometryValid=false;
     drawBatches(model, tints, slotTex, !model.absoluteIndices());
 }
 
@@ -204,6 +207,8 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
     C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeMorph].uBlend, blend, 0.0f, 0.0f, 0.0f);
 
     C3D_BufInfo* buf = C3D_GetBufInfo();
+    ++stats_.bufferBinds;
+    batchState_.geometryValid=false;
     BufInfo_Init(buf);
     BufInfo_Add(buf, model.vertices(), kVertexStride, 3, 0x210);
     BufInfo_Add(buf, anim.frame(frameA), kMorphStride, 1, 0x3);
@@ -214,12 +219,11 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
 void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* const* slotTex, bool perBatchBuffer) {
     const int uTint = programs_[mode_].uTint;
     const u8* vbase = static_cast<const u8*>(model.vertices());
-    C3D_BufInfo* buf = C3D_GetBufInfo();
 
     for (u32 i = 0; i < model.numBatches(); i++) {
         const Batch& b = model.batch(i);
 
-        const float* color=tints && b.tint ? tints->rgba[b.tint] : baseTint_;
+        const float *color = tints && b.tint ? tints->rgba[b.tint] : baseTint_;
         if (batchState_.uploadTint(color)) {
             ++stats_.uniformUploads;
             C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, color[0], color[1], color[2], color[3]);
@@ -257,6 +261,8 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
         }
 
         if (perBatchBuffer) {
+            C3D_BufInfo* buf = C3D_GetBufInfo();
+            ++stats_.bufferBinds;
             BufInfo_Init(buf);
             BufInfo_Add(buf, vbase + b.firstVertex * kVertexStride, kVertexStride, 3, 0x210);
         }
