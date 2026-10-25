@@ -358,7 +358,7 @@ void CogAttacks::playSound(const char* soundFile) {
     }
 
     char tsndPath[96];
-    snprintf(tsndPath, sizeof(tsndPath), "data/audio/%s.tsnd", baseName);
+    snprintf(tsndPath, sizeof(tsndPath), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", baseName);
     const audio::SfxId id = audio::loadSfx(tsndPath);
     if (id != audio::kInvalidSfx) {
         snprintf(sfx_[freeIdx].name, sizeof(sfx_[freeIdx].name), "%s", baseName);
