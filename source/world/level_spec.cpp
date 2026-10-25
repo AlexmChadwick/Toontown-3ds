@@ -36,6 +36,9 @@ void compose(const float a[12], const float b[12], float out[12]) {
 LevelSpec::~LevelSpec() { unload(); }
 
 void LevelSpec::unload() {
+    ++revision_;
+    for (auto &entry : findCache_)
+        entry = FindEntry{};
     for (int i = 0; i < numRooms_; ++i) {
         std::free(rooms_[i].data);
         rooms_[i] = Room{};
@@ -108,6 +111,9 @@ int LevelSpec::append(const char* path, const float placement[12]) {
     r.first = numEntities_;
     rooms_[room] = r;
     numRooms_++;
+    ++revision_;
+    for (auto &entry : findCache_)
+        entry = FindEntry{};
     numEntities_ += r.numEntities;
     if (placement) place(rooms_[room], placement);
     return room;
@@ -139,6 +145,19 @@ const LevelEntity& LevelSpec::entity(int index) const {
 }
 
 const LevelEntity* LevelSpec::find(int room, uint32_t entId) const {
+    if (room < 0 || room >= numRooms_)
+        return nullptr;
+    // Direct mapped, with full keys: collisions only cause a reference lookup.
+    const uint32_t slot = ((entId * 2654435761u) ^ (uint32_t(room) * 2246822519u)) >> (32 - 8);
+    FindEntry &entry = findCache_[slot];
+    if (entry.room == room && entry.entity == entId)
+        return entry.result;
+    entry.room = room;
+    entry.entity = entId;
+    entry.result = findReference(room, entId);
+    return entry.result;
+}
+const LevelEntity *LevelSpec::findReference(int room, uint32_t entId) const {
     if (room < 0 || room >= numRooms_) return nullptr;
     const Room& r = rooms_[room];
     int lo = 0, hi = r.numSpec - 1;
