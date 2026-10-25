@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/pad_tables.h"
 #include "world/battle_fx.h"
 
 namespace tt::ui {
@@ -13,9 +14,12 @@ namespace {
 // Layout (bottom screen 320x240).
 constexpr float kNameX = 4, kGridX = 64, kGridY = 26, kCellW = 42, kCellH = 22;
 constexpr float kInfoY = 184;
-constexpr float kBtnY = 202, kBtnH = 34;
-constexpr float kMinusX = 4, kPlusX = 52, kBtnSmallW = 44;
-constexpr float kDoneX = 176, kDoneW = 70, kCancelX = 250, kCancelW = 66;
+// The button row is shared with its focus table (ui/pad_tables.h).
+constexpr float kBtnY = pad::counter::kBtnY, kBtnH = pad::counter::kBtnH;
+constexpr float kMinusX = pad::counter::kMinusX, kPlusX = pad::counter::kPlusX;
+constexpr float kBtnSmallW = pad::counter::kBtnSmallW;
+constexpr float kDoneX = pad::counter::kDoneX, kDoneW = pad::counter::kDoneW;
+constexpr float kCancelX = pad::counter::kCancelX, kCancelW = pad::counter::kCancelW;
 constexpr uint32_t kAutoSubmitMarginMs = 2000; // send before the AI's own 120 s timeout fires
 constexpr uint32_t kNoteMs = 2500;
 
@@ -103,6 +107,7 @@ void ShopPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         // Start the cursor on the first track we may use.
         selTrack_ = 4;
         selLevel_ = 0;
+        pad::buildCounterButtons(buttons_); // padnav: the grid has the focus
         for (int t = 0; t < gags::kTracks; t++) {
             if (profile_.trackAccess[t]) {
                 selTrack_ = t;
@@ -192,10 +197,33 @@ void ShopPanel::update(net::Client& client, uint32_t nowMs) {
 
 u32 ShopPanel::handleInput(u32 down, const touchPosition& t) {
     if (!active_) return 0;
+    // ---- padnav: D-Down past the last track reaches the button row ([-] [+] Done Cancel);
+    // there Left / Right move, A presses, D-Up returns to the gag grid.
+    if (buttons_.hasFocus()) {
+        if (down & KEY_DUP) {
+            buttons_.blur();
+            logGridFocus();
+        } else {
+            int activated = -1;
+            buttons_.handleInput(down & (KEY_DLEFT | KEY_DRIGHT | KEY_A), touchPosition{}, &activated);
+            pressButton(activated);
+        }
+        down &= ~(kDpadKeys | KEY_A);
+    } else if ((down & KEY_DDOWN) && selTrack_ == gags::kTracks - 1) {
+        buttons_.setFocusById(pad::counter::kIdDone);
+        down &= ~KEY_DDOWN;
+    }
+    const int prevTrack = selTrack_;
+    const int prevLevel = selLevel_;
+    // ---- end padnav ----
     if ((down & KEY_DUP) && selTrack_ > 0) { selTrack_--; dirty_ = true; }
     if ((down & KEY_DDOWN) && selTrack_ < gags::kTracks - 1) { selTrack_++; dirty_ = true; }
     if ((down & KEY_DLEFT) && selLevel_ > 0) { selLevel_--; dirty_ = true; }
     if ((down & KEY_DRIGHT) && selLevel_ < kCols - 1) { selLevel_++; dirty_ = true; }
+    // ---- padnav ----
+    if (selTrack_ != prevTrack || selLevel_ != prevLevel) logGridFocus();
+    if (down & KEY_A) buttons_.logActivate(gridId());
+    // ---- end padnav ----
     if (down & KEY_A) buy(selTrack_, selLevel_);
     if (down & KEY_X) dirty_ |= cart_.remove(selTrack_, selLevel_);
     if (down & KEY_START) finish(false);
@@ -215,9 +243,35 @@ u32 ShopPanel::handleInput(u32 down, const touchPosition& t) {
         if (inRect(t, kPlusX, kBtnY, kBtnSmallW, kBtnH)) buy(selTrack_, selLevel_);
         if (inRect(t, kDoneX, kBtnY, kDoneW, kBtnH)) finish(false);
         if (inRect(t, kCancelX, kBtnY, kCancelW, kBtnH)) finish(true);
+        // ---- padnav: a touched button takes the focus; a touch above the row returns it to the grid
+        const int hit = buttons_.itemAt(t.px, t.py);
+        if (hit >= 0) {
+            buttons_.setFocus(hit);
+        } else if (t.py < kBtnY && buttons_.hasFocus()) {
+            buttons_.blur();
+        }
+        // ---- end padnav ----
     }
     return 0xFFFFFFFFu;
 }
+
+// ---- padnav ----
+int ShopPanel::gridId() const {
+    return selTrack_ * 10 + selLevel_;
+}
+
+void ShopPanel::logGridFocus() const {
+    TT_LOG("padnav: shop_grid focus %d", gridId());
+}
+
+// The same actions as touching the buttons.
+void ShopPanel::pressButton(int id) {
+    if (id == pad::counter::kIdMinus) dirty_ |= cart_.remove(selTrack_, selLevel_);
+    if (id == pad::counter::kIdPlus) buy(selTrack_, selLevel_);
+    if (id == pad::counter::kIdDone) finish(false);
+    if (id == pad::counter::kIdCancel) finish(true);
+}
+// ---- end padnav ----
 
 void ShopPanel::rebuildGrid() {
     C2D_TextBufClear(gridBuf_);
@@ -311,6 +365,7 @@ void ShopPanel::draw() {
     C2D_DrawText(&btnText_[1], C2D_WithColor, kPlusX + 16, kBtnY + 6, 0.55f, 0.8f, 0.8f, canAdd ? kWhite : kDim);
     C2D_DrawText(&btnText_[2], C2D_WithColor, kDoneX + 14, kBtnY + 10, 0.55f, 0.55f, 0.55f, kBg);
     C2D_DrawText(&btnText_[3], C2D_WithColor, kCancelX + 8, kBtnY + 10, 0.55f, 0.5f, 0.5f, kWhite);
+    buttons_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui
