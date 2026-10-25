@@ -1409,8 +1409,8 @@ bool Level::nearestEntity(uint16_t classId, float x, float y, float z, float* ex
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
         if (!d.active || d.classId != classId) continue;
-        const LevelEntity* e = specOf(d.levelDoId, d.entId);
-        if (!e || !shown(e->room)) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId); // any room (autotest: go where it is)
+        if (!e) continue;
         const float dx = e->world[9] - x, dy = e->world[10] - y, dz = e->world[11] - z;
         const float dist = dx * dx + dy * dy + dz * dz;
         if (dist < best) best = dist, *ex = e->world[9], *ey = e->world[10], *ez = e->world[11];

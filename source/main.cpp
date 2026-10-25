@@ -747,46 +747,43 @@ int main() {
                     player.reset(dx, dy, dz + 0.2f, dh); // stand at the door: walking in asks it to open
                 }
             }
-            if (!strcmp(autotest.label(), "factory: crates")) {
-                float cx = 0, cy = 0, cz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestCrate(level, player.x(), player.y(), player.z(), &cx, &cy, &cz)) {
-                    player.reset(cx - 3.5f, cy, cz + 0.1f, 90.0f);
-                }
-            }
-            if (!strcmp(autotest.label(), "da office: lasers")) {
-                float lx = 0, ly = 0, lz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestLaserField(level, player.x(), player.y(), player.z(), &lx, &ly, &lz)) {
-                    player.reset(lx + 4.0f, ly + 4.0f, lz + 0.1f, 0.0f);
-                }
-            }
-            if (!strcmp(autotest.label(), "da office: security cam")) {
-                float kx = 0, ky = 0, kz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestCamera(level, player.x(), player.y(), player.z(), &kx, &ky, &kz)) {
-                    player.reset(kx + 2.0f, ky + 2.0f, kz + 0.1f, 0.0f);
-                }
-            }
-            if (!strcmp(autotest.label(), "club: maze")) {
-                float mx = 0, my = 0, mz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestMaze(level, player.x(), player.y(), player.z(), &mx, &my, &mz)) {
-                    player.reset(mx, my + 2.0f, mz + 0.1f, 0.0f);
-                }
-            }
-            if (!strcmp(autotest.label(), "club: moles")) {
-                float hx = 0, hy = 0, hz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestMoleField(level, player.x(), player.y(), player.z(), &hx, &hy, &hz)) {
-                    player.reset(hx, hy, hz + 0.1f, 0.0f);
-                }
-            }
-            if (!strcmp(autotest.label(), "club: golf green")) {
-                float gx = 0, gy = 0, gz = 0;
-                if (autotest.stepBegan() &&
-                    level.games().nearestGolfGreen(level, player.x(), player.y(), player.z(), &gx, &gy, &gz)) {
-                    player.reset(gx + 3.0f, gy + 13.0f, gz + 0.1f, 180.0f);
+            {
+                // Test-only: the room games (world/level_games.*). On the step's first frame go to the
+                // game's spec position (which brings its zone / room into view, so the AI's object
+                // generates), then 2 s later to the live entity, offset to where the game is played.
+                struct Game {
+                    const char* label;
+                    const char* specType;
+                    uint16_t classId;
+                    float dx, dy, dz, h;
+                };
+                static const Game kGames[] = {
+                    {"factory: crates", "crate", tt::dc::DistributedCrate::kClassId, -3.5f, 0, 0.1f, 90},
+                    {"da office: lasers", "laserField", tt::dc::DistributedLaserField::kClassId, 4, 4, 0.1f, 0},
+                    {"da office: security cam", "securityCamera", tt::dc::DistributedSecurityCamera::kClassId, 2, 2,
+                     0.1f, 0},
+                    {"club: maze", "maze", tt::dc::DistributedMaze::kClassId, 0, 2, 0.1f, 0},
+                    {"club: moles", "moleField", tt::dc::DistributedMoleField::kClassId, 0, 0, 0.1f, 0},
+                    {"club: golf green", "golfGreenGame", tt::dc::DistributedGolfGreenGame::kClassId, 3, 13, 0.1f,
+                     180},
+                };
+                static bool gameFound = false;
+                for (const Game& g : kGames) {
+                    if (strcmp(autotest.label(), g.label)) continue;
+                    float gx, gy, gz;
+                    if (autotest.stepBegan()) {
+                        gameFound = false;
+                        if (level.specPosition(g.specType, &gx, &gy, &gz)) player.reset(gx + g.dx, gy + g.dy, gz + 1.0f, g.h);
+                        else TT_LOG("autotest: no %s on this level", g.specType);
+                    } else if (!gameFound && autotest.stepTime() > 2.0f) {
+                        gameFound = true;
+                        if (level.nearestEntity(g.classId, player.x(), player.y(), player.z(), &gx, &gy, &gz)) {
+                            player.reset(gx + g.dx, gy + g.dy, gz + g.dz, g.h);
+                            TT_LOG("autotest: %s at %.1f,%.1f,%.1f", g.specType, double(gx), double(gy), double(gz));
+                        } else {
+                            TT_LOG("autotest: no live %s generated", g.specType);
+                        }
+                    }
                 }
             }
             const char* label = autotest.label();

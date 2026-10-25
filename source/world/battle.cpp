@@ -775,13 +775,14 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
         }
     }
 
-    // Throw, squirt, then sound...; against several cogs sound first (it hits them all).
-    static const int kTrackOrder[7] = {4, 5, 3, 6, 1, 2, 0};
-    static const int kGroupOrder[7] = {3, 4, 5, 6, 1, 2, 0};
+    // Throw, squirt, sound, drop, then toon-up; against several cogs sound first (it hits them
+    // all). Trap and lure do no damage on their own, so autoplay only uses them when forced.
+    static const int kTrackOrder[5] = {4, 5, 3, 6, 0};
+    static const int kGroupOrder[5] = {3, 4, 5, 6, 0};
     int active = 0;
     for (int i = 0; i < nb.numSuits; ++i) active += (nb.suitsActive >> i) & 1;
     const int* order = active > 1 ? kGroupOrder : kTrackOrder;
-    for (int k = 0; k < 7 && act.kind == BattleAction::Pass; ++k) {
+    for (int k = 0; k < 5 && act.kind == BattleAction::Pass; ++k) {
         const int track = order[k];
         for (int level = 6; level >= 0 && act.kind == BattleAction::Pass; --level) { // strongest first
             if (!usable(track, level)) continue;
