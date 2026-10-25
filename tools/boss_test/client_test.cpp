@@ -44,6 +44,7 @@ public:
 
 #include "cfo_client.inc"
 #include "cj_client.inc"
+#include "ceo_client.inc"
 
 int main() {
     RecordingTransport transport;
@@ -121,6 +122,7 @@ int main() {
     assert(!client.sendBossZap(0, 0, 0, 0, 0, 0, kBossAreaAttack));
     testCfo(client, transport);
     testCj(client, transport);
+    testCeo(client, transport);
     client.cfg_.zoneId = 61001;
     client.forceReconnect("boss test disconnect");
     assert(client.zoneId() == 11100 && !client.boss());
@@ -131,6 +133,12 @@ int main() {
     client.cfg_.zoneId = 61002;
     client.forceReconnect("CFO test disconnect");
     assert(client.zoneId() == 12100 && !client.boss() && !client.findCfoChild(300));
+    client.state_ = State::InZone;
+    client.boss_.active = true;
+    client.boss_.kind = BossKind::Bossbot;
+    client.cfg_.zoneId = 61003;
+    client.forceReconnect("CEO test disconnect");
+    assert(client.zoneId() == 10100 && !client.boss() && !client.findCeoChild(801));
     client.stop();
     std::puts("real boss Client: clsend payloads, membership/phase guards, pie stock, reserve barrier, round poses, reconnect: PASS");
 }

@@ -1,12 +1,17 @@
 #pragma once
+
 #include "world/ceo_assets.h"
 #include "world/battle.h"
 #include "world/toon_avatar.h"
+
 namespace tt::world {
+
 struct BossFrame;
+
 class CeoBattle {
 public:
     bool frame(BossFrame& frame);
+
 private:
     struct Shot {
         bool active = false;
@@ -16,12 +21,13 @@ private:
         Vec3 origin{};
         Vec3 target{};
         Vec3 previous{};
-        float age = 0;
-        float duration = 0;
-        float heading = 0;
+        float age = 0.0f;
+        float duration = 0.0f;
+        float heading = 0.0f;
         uint8_t power = 0;
         bool golf = false;
     };
+
     void board(BossFrame& frame, uint32_t nowMs);
     void begin(BossFrame& frame, const net::BossState& state);
     void leave(BossFrame& frame, bool sad);
@@ -31,6 +37,7 @@ private:
     void draw(BossFrame& frame, const net::BossState& state, uint32_t nowMs);
     void drawBoss(BossFrame& frame, const net::BossState& state);
     Vec3 pitcher(int table) const;
+
     CeoAssets assets_;
     bool active_ = false;
     bool entered_ = false;
@@ -55,12 +62,12 @@ private:
     uint32_t usedFood_[2][4] = {};
     uint32_t usedToonup_[2][4] = {};
     char phase_[32] = {};
-    Vec3 bossPosition_{0,355,0};
+    Vec3 bossPosition_{0.0f, 355.0f, 0.0f};
     Vec3 attackTarget_{};
-    float bossHeading_ = 0;
-    float turnRemaining_ = 0;
-    float heading_ = 0;
-    float charge_ = 0;
+    float bossHeading_ = 0.0f;
+    float turnRemaining_ = 0.0f;
+    float heading_ = 0.0f;
+    float charge_ = 0.0f;
     bool charging_ = false;
     bool reached_ = false;
     bool tableHit_ = false;
@@ -72,4 +79,5 @@ private:
     char status_[112] = {};
     char details_[112] = {};
 };
+
 } // namespace tt::world

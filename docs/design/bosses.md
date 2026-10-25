@@ -430,131 +430,110 @@ results. Script duration never forces boss phases or victory. Run a manual
 production encounter as well; the script is a diagnostic, not victory proof.
 
 
-## CEO plan (not implemented)
+## CEO boss: architecture, assets and verification
 
 Sources: `DistributedBossbotBoss{,AI}.py`, `DistributedBanquetTable{,AI}.py`,
-`DistributedGolfSpot{,AI}.py`, `DistributedBattleDiners{,AI}.py`, food-belt code,
+`DistributedGolfSpot{,AI}.py`, `DistributedBattleDiners{,AI}.py`, `DistributedFoodBelt{,AI}.py`,
 and Bossbot Globals / DC definitions.
 
-1. Bake phase_12 bossbotBoss, golfclub, BanquetInterior_1, inside elevator,
-   separate tables, belts, pitchers, food and golf props. Pool tables and golf
-   spots from the baked indexed layout. Stream unrelated banquet sections.
-2. Follow Introduction → BattleOne → PrepareBattleTwo → BattleTwo (serving) →
-   PrepareBattleThree → BattleThree (remaining diner Cog battle) →
-   PrepareBattleFour → BattleFour (water/golf) → Victory → Reward/Epilogue.
-   Serving duration comes from Globals, and the AI owns its timer/barrier.
-3. Add generated BanquetTable, GolfSpot, BattleDiners and food-belt schemas.
-   Serving sends requestGetFood(belt, slot, sequence) and requestServeFood
-   (table, seat). Only toonGotFood/toonServeFood confirms inventory/consumption.
-   Render per-seat diner info/status; use BattleDiners through the Battle API.
-4. Tables grant/revoke control through state-owner messages. requestControl /
-   requestFree, setPitcherPos, clearSmoothing and firingWater are clsend. Use
-   the six signed i32/100 projectile parameters; waterHitBoss is a real swept
-   impact, not a periodic damage request. Track reachedTable/hitTable/
-   awayFromTable so moving/table-destruction attacks match the AI.
-5. GolfSpot has separate ownership and position smoothing; setSwingInfo carries
-   index, i16/10 angle and u8 power. A real ball impact calls ballHitBoss;
-   speed damage is a separate setSpeedDamage(recovery,timestamp) gauge.
-   Globals cap boss damage at 500 and speed damage at 90, recovery 20/minute.
-   Do not reuse the VP's 100-point meter or hatch/stun logic.
-6. Food/toonup requests carry belt/slot/sequence; await server confirmation.
-   Handle water, golf, gear, movement and overtime attack codes separately.
-   Victory's 30 s barrier precedes the AI's firing/reward inventory grant.
+### Architecture and gameplay phases
 
-### CEO exact field contract for the next implementation
+1. **Boarding and elevator entry.**
+   Toons board the Bossbot HQ CEO elevator (`DistributedBBElevator`) from lobby zone 10100.
+   On elevator ride completion, toons enter the banquet room (dynamic arena zone). The
+   encounter registers during zone loading and acknowledges matching state barriers.
+   Lobby disconnect/reconnect safely routes back to static zone 10100.
 
-The following are the declared own fields in pinned `etc/toon.dc` (types,
-modifiers and field names are exact; numeric IDs must come from dcgen). Add
-these child classes to the marked boss schema block before regenerating the
-header. `DistributedBattleWaiters` and `DistributedBattleDiners` have no own
-fields: both inherit DistributedBattleFinal and should use the public Battle
-API, including their actual ReservesJoining barrier. Do not route them through
-DistributedLevel or synthesize a second combat implementation.
+2. **Phase flow and state progression.**
+   - **Introduction:** Condensed cinematic intro, CEO speech (`Ff_speech` -> `Ff_neutral`),
+     camera transitions, and arena initialization.
+   - **BattleOne (Waiters):** Standard Cog battle round against waiter Cogs using the public
+     Battle API (`DistributedBattleWaiters`). Toons defeat waiter Cogs to advance.
+   - **PrepareBattleTwo & BattleTwo (Banquet serving):** 2 food belts (`DistributedFoodBelt`)
+     and 4 banquet tables (`DistributedBanquetTable`). Belts carry oil cans and toonup food.
+     Toons approach belts and send `requestGetFood(belt, slot, seq)` or `requestGetToonup`.
+     Toons carry food to tables and send `requestServeFood(table, seat)`. Only server
+     broadcast confirmations (`toonGotFood`, `toonServeFood`, `toonGotToonup`) alter toon
+     inventory/laff. Table diners transition between hunger states (`kDinerStatusInactive`
+     to `kDinerStatusHidden`); full diners leave happily while unserved diners get angry.
+     The server owns the 300 s serving timer/barrier.
+   - **PrepareBattleThree & BattleThree (Diner Cog battle):** Unsated diners jump down to
+     battle toons (`DistributedBattleDiners`), again handled through the public Battle API.
+   - **PrepareBattleFour & BattleFour (Table water & golf spots):**
+     - **Banquet tables / water pitchers:** Toons approach an unflipped table and press A to
+       send `requestControl()`. State receipt with matching owner grants pitcher control.
+       Circle Pad aims heading/pitch; B fires water streams (`firingWater` with 6 packed
+       `i32/100` coordinates). A swept 3D segment detects boss impacts and sends `waterHitBoss`
+       followed by `hitBoss(1)`. CEO targets tables to crush them (`reachedTable`, `hitTable`,
+       `awayFromTable`), flipping tables and forcing toon release (`requestFree`).
+     - **Golf spots:** Toons approach a free golf tee (`DistributedGolfSpot`) and press A to
+       `requestControl()`. Circle Pad aims heading/pitch; holding B charges swing power.
+       Releasing B sends `setSwingInfo(index, angle, power)`. Swept golf ball impacts send
+       `ballHitBoss(power)`, applying speed damage.
+   - **CEO attacks and boss stats:**
+     - Boss damage gauge is capped at 500 (`kCeoMaxDamage`).
+     - Speed damage gauge is capped at 90 (`kCeoMaxSpeedDamage`), recovering at 20/minute
+       (`kCeoSpeedRecoverRate`). Boss speed and tread roll rate vary dynamically with speed
+       damage and health.
+     - Attacks include directed gear throws (`kAttackCodeGears`), gear showers (`kAttackCodeSweep`),
+       stomp jump shockwaves (`kAttackCodeStomp`), table-charge crushes (`kAttackCodeMoveTable`),
+       and overtime fire bursts (`kAttackCodeFire`).
+   - **Victory & Epilogue:**
+     - 500 damage triggers the victory fall animation (`Fb_fall`).
+     - 30-second victory barrier precedes server reward grants.
+     - Reward/Epilogue: CEO grants Pink Slips (`setPinkSlips`) and suit promotion.
+     - Pressing A on the exit elevator returns to Bossbot HQ lobby (zone 10000/10100).
 
-**DistributedBossbotBoss**
+### CEO assets and memory budget
 
-```text
-setState(string) broadcast ram;
-  setBattleDifficulty(uint8) broadcast ram;
-  requestGetFood(int8, int8, uint32) airecv clsend;
-  toonGotFood(uint32, int8, int8, uint32) broadcast;
-  requestServeFood(int8, int8) airecv clsend;
-  toonServeFood(uint32, int8, int8) broadcast;
-  hitBoss(uint8) airecv clsend;
-  hitToon(uint32) airecv clsend;
-  ballHitBoss(uint8) airecv clsend;
-  setBossDamage(uint16, uint8, int16) broadcast ram;
-  setSpeedDamage(uint16, uint8, int16) broadcast ram;
-  reachedTable(uint8) airecv clsend;
-  hitTable(uint8) airecv clsend;
-  awayFromTable(uint8) airecv clsend;
-  toonGotHealed(uint32) broadcast;
-  requestGetToonup(int8, int8, uint32) airecv clsend;
-  toonGotToonup(uint32, int8, int8, uint32) broadcast;
-```
+Reproduce with `.venv/bin/python -I -B tools/pipeline/bake_boss.py --ceo`.
+Assets reside in `sdmc-out/3ds/toontown3ds/data/boss/ceo_*`. Manifest contains 111 files,
+including 96 animation clips (24 clips x 4 parts at 12 fps) and 9 static models/props.
 
-**DistributedFoodBelt**
+| CEO pool | Measured | Budget / Limit |
+|---|---:|---:|
+| Model geometry (all parts & props) | 324,876 B | 6,291,456 B |
+| Largest four-part clip | 1,505,664 B | 1,700,000 B runtime cap |
+| Geometry + active/pending clip pair | 3,336,204 B | 6,291,456 B linear cap |
+| Textures (ETC1 / ETC1A4 / 8bpp) | 619,392 B | 8,388,608 B linear cap |
+| Collision heap (`ceo_arena.ttc`) | 55,248 B | Regular heap |
+| All CEO files on SD (111 files) | 15,543,141 B | Streamed from SD |
+| Triangles / batches | 9,930 tris / 59 batches | <= 15,000 tris / <= 150 draws |
 
-```text
-setBossCogId(uint32) required broadcast ram;
-  setIndex(uint8) required broadcast ram;
-  setState(char) broadcast ram;
-```
+### CEO DC field contracts
 
-**DistributedBanquetTable**
+Generated via `tools/dcgen/dcgen.py` into `source/net/dc_generated.h`:
 
-```text
-setIndex(uint8) required broadcast ram;
-  setNumDiners(uint8) required broadcast ram;
-  setBossCogId(uint32) required broadcast ram;
-  setDinerInfo(uint8[], uint8[], uint8[]) required broadcast ram;
-  setState(char, uint32, int8) broadcast ram;
-  setDinerStatus(uint8, uint8) broadcast;
-  requestControl() airecv clsend;
-  requestFree(int8) airecv clsend;
-  setPitcherPos(uint8, uint16%360/100, int16) broadcast clsend;
-  clearSmoothing(int8) broadcast clsend;
-  firingWater(int32/100, int32/100, int32/100, int32/100, int32/100, int32/100) broadcast clsend;
-  waterHitBoss(uint8) broadcast clsend;
-```
+| Class | Required / receive fields | clsend fields |
+|---|---|---|
+| DistributedFoodBelt | bossCogId:u32, index:u8; state:char | none |
+| DistributedBanquetTable | index:u8, numDiners:u8, bossCogId:u32, dinerInfo:3*u8[]; state:(char,u32,i8), dinerStatus:(u8,u8) | requestControl(), requestFree:i8, setPitcherPos:(u8,u16%360/100,i16), clearSmoothing:i8, firingWater:6*i32/100, waterHitBoss:u8 |
+| DistributedGolfSpot | index:u8, bossCogId:u32; state:(char,u32,i8), goingToReward() | requestControl(), requestFree:i8, setGolfSpotPos:(u8,u16%360/100,i16), clearSmoothing:i8, setSwingInfo:(u8,i16/10,u8) |
+| DistributedBattleWaiters / DistributedBattleDiners | inherited DistributedBattleFinal required fields | existing public Battle API |
+| DistributedBossbotBoss | state:string, battleDifficulty:u8, damage & speedDamage:(u16,u8,i16), toonGotFood:(u32,i8,i8,u32), toonServeFood:(u32,i8,i8), toonGotHealed:u32, toonGotToonup:(u32,i8,i8,u32) | requestGetFood:(i8,i8,u32), requestServeFood:(i8,i8), hitBoss:u8, hitToon:u32, ballHitBoss:u8, reachedTable:u8, hitTable:u8, awayFromTable:u8, requestGetToonup:(i8,i8,u32) |
 
-**DistributedGolfSpot**
+### Verification and main-agent handoff
 
-```text
-setIndex(uint8) required broadcast ram;
-  setBossCogId(uint32) required broadcast ram;
-  setState(char, uint32, int8) broadcast ram;
-  setGoingToReward() broadcast ram;
-  requestControl() airecv clsend;
-  requestFree(int8) airecv clsend;
-  setGolfSpotPos(uint8, uint16%360/100, int16) broadcast clsend;
-  clearSmoothing(int8) broadcast clsend;
-  setSwingInfo(uint8, int16/10, uint8) broadcast clsend;
-```
+Host tests in `tools/boss_test/run.sh`:
+- 221 Panda vectors for VP, CFO, CJ, and CEO field serialization and truncation guards.
+- CEO kinematics, roll speed scaling, barrier delay, clip lookup, and BossState bounds.
+- Real `Client` test suite (`ceo_client.inc`): food belts, serving food/toonup, table pitcher
+  control/aim/water firing, golf spot control/aim/swing, attacks, pink slips, and reconnect.
+- Floor collision validation (`ceo_collision.cpp`): 11 critical gameplay locations on
+  `ceo_arena.ttc` aligned with zero height error.
+- Regression suite: all 33 test suites pass (`tools/boss_test/regressions.py`).
+- DevkitARM build: 0 compiler warnings in `source/`.
 
-Use separate bounded records keyed by doId, index and bossId, and transactional
-required/OTHER parsing exactly as for CJ children. A table/GolfSpot state carries
-(char, owner u32, signed sequence i8); state receipt, not requestControl, grants
-control. Reject cross-boss/stale-owner/invalid-phase inputs and validate finite
-projectile coordinates before narrowing. Six i32/100 water values are position
-and velocity, not six i16 angles; the unsigned heading uses modulo-360/100.
-Distinguish FoodBelt's char state from these three-argument control states.
-
-Food request sequence is u32, independent of table/spot i8 smoothing sequences.
-Only toonGotFood/toonServeFood/toonGotToonup confirmations change local inventory.
-Do not fire damage when a request is sent. Sweep each actual water/golf projectile
-against the moving boss, acknowledge each impact once, and preserve the server's
-separate health/speed gauges. Serving duration is 300 seconds; damage maximum
-500; speed-damage maximum 90, recovery 20/minute. Tables/food belts/golf spot
-layouts and difficulty-driven child counts must be measured from the pinned
-AI/Globals before choosing fixed pool capacities or baking. Add independent
-Panda vectors, malformed-prefix tests and two-client ownership/sequence tests
-before enabling sends. The fact that a DC field is clsend is insufficient: check
-its corresponding AI implementation (the CJ unused pan fields are a precedent).
-
-Acceptance: two-client table/golf ownership, rejected/stale food sequences,
-remaining diners entering BattleDiners, moving/table attacks, golf slow/recovery,
-water damage to 500, overtime transition and one server-owned firing reward.
+Azahar verification steps (in Old 3DS mode):
+1. **ceo: board** (45 s): Board CEO elevator in Bossbot HQ lobby (10100), verify countdown,
+   door close, transition to arena, and initial boss intro dialogue/pose.
+2. **ceo: banquet** (600 s): Food belts and table serving. Collect food from moving belt slots,
+   serve hungry diners, verify diner satisfaction animations, and monitor waiter battle round.
+3. **ceo: rounds** (600 s): Battle round with remaining diner Cogs using Battle autoplay.
+4. **ceo: golf** (600 s): Table water pitchers and golf spots. Aim pitcher and shoot water streams
+   at CEO; aim golf spots and charge swing power to slow down CEO; dodge CEO gear/stomp attacks.
+5. **ceo: end** (30 s): CEO defeat/fall animation, victory barrier, pink slip reward sequence,
+   and elevator exit back to Bossbot HQ.
 
 ## Verification and integration
 

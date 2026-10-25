@@ -1773,6 +1773,7 @@ public:
     const CeoChild& ceoChildSlot(int slot) const { return ceoChildren_[slot]; }
     const CeoChild* findCeoChild(uint32_t id) const;
     bool sendCeoControl(uint32_t id, bool enter, bool hit = false);
+    bool sendCeoClear(uint32_t id);
     bool sendCeoAim(uint32_t id, uint8_t sequence, float heading);
     bool sendCeoWater(uint32_t id, const float endpoints[6]);
     bool sendCeoWaterHit(uint32_t id, uint8_t damage);

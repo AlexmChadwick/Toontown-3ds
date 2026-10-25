@@ -77,15 +77,22 @@ bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fie
 }
 
 bool Client::bossOwnField(DatagramReader& reader, uint16_t fieldId) {
-    if (fieldId == dc::DistributedToon::k_setNumPies) bossPies_ = reader.u16();
-    else if (fieldId == dc::DistributedToon::k_setPieType) bossPieType_ = reader.u8();
-    else if (fieldId == dc::DistributedToon::k_setPinkSlips) bossPinkSlips_ = reader.u8();
-    else if (fieldId == dc::DistributedToon::k_setCogSummonsEarned) {
+    if (fieldId == dc::DistributedToon::k_setNumPies) {
+        const uint16_t pies = reader.u16();
+        if (reader.ok()) bossPies_ = pies;
+    } else if (fieldId == dc::DistributedToon::k_setPieType) {
+        const uint8_t type = reader.u8();
+        if (reader.ok()) bossPieType_ = type;
+    } else if (fieldId == dc::DistributedToon::k_setPinkSlips) {
+        const uint8_t slips = reader.u8();
+        if (reader.ok()) bossPinkSlips_ = slips;
+    } else if (fieldId == dc::DistributedToon::k_setCogSummonsEarned) {
         const Bytes values = reader.blob();
         if (values.len != sizeof(bossSummons_)) reader.fail();
         if (reader.ok()) std::memcpy(bossSummons_, values.data, sizeof(bossSummons_));
+    } else {
+        return false;
     }
-    else return false;
     return true;
 }
 
