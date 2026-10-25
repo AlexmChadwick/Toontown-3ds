@@ -39,6 +39,9 @@
 #include "world/level.h"
 #include "world/estate.h"
 #include "world/pets.h"
+// ---- clerks: compose the existing kart geometry from authoritative DNA ----
+#include "world/clerk_kart_preview.h"
+// ---- end clerks ----
 #include "world/racing.h"
 #include "world/suits.h"
 #include "game/minigame_session.h"
@@ -303,6 +306,11 @@ int main() {
     u32 lastTouchedTreasure = 0;
     // Gag shop (docs/design/shop.md): walking into a clerk's tube sends avatarEnter once per contact.
     tt::ui::ShopPanel& shop = ui.shop();
+    // ---- clerks: service panels share the existing bottom-screen lifecycle ----
+    tt::ui::ServiceClerkPanel &serviceClerks = ui.serviceClerks();
+    u32 lastTouchedServiceClerk = 0;
+    static tt::world::ClerkKartPreview clerkKartPreview;
+    // ---- end clerks ----
     u32 lastTouchedClerk = 0;
     u32 lastTouchedTailor = 0;
     u32 lastTouchedQuestNpc = 0;
@@ -625,6 +633,51 @@ int main() {
                 talk.chooseQuest(0);
             }
         }
+        // ---- clerks: diagnostics walk toward the actual DNA anchor ----
+        if (autotest.active() && !strncmp(autotest.label(), "clerk: ", 7)) {
+            const char *label = autotest.label();
+            const bool pet = !strcmp(label, "clerk: pet shop") || !strcmp(label, "clerk: adopt");
+            const bool kart = !strcmp(label, "clerk: kart shop");
+            const bool fisherman = !strcmp(label, "clerk: fisherman");
+            const u32 target = pet ? 2522 : kart ? 8501 : 2000;
+            if (place.zoneId() != target) {
+                if (!uiState.teleportRequest && transition.idle())
+                    uiState.teleportRequest = target;
+            } else if (netStarted && net.inZone() && transition.idle()) {
+                const uint16_t type = pet         ? tt::dc::DistributedNPCPetclerk::kClassId
+                                      : kart      ? tt::dc::DistributedNPCKartClerk::kClassId
+                                      : fisherman ? tt::dc::DistributedNPCFisherman::kClassId
+                                                  : tt::dc::DistributedNPCPartyPerson::kClassId;
+                for (int slot = 0; slot < tt::net::kMaxNpcs; ++slot) {
+                    const auto &npc = net.npcSlot(slot);
+                    if (!npc.active || npc.classId != type)
+                        continue;
+                    char name[48];
+                    if (fisherman)
+                        snprintf(name, sizeof(name), "npc_fisherman_origin_%u", unsigned(npc.posIndex));
+                    else if (!pet && !kart)
+                        snprintf(name, sizeof(name), "party_person_%s", npc.posIndex % 2 ? "right" : "left");
+                    else
+                        snprintf(name, sizeof(name), "npc_origin_%u", unsigned(npc.posIndex));
+                    const auto *anchor = place.point(name);
+                    if (!anchor)
+                        continue;
+                    const float angle = anchor->h * 3.14159265f / 180.0f;
+                    const float approach = autotest.stepTime() < 3 ? 9.0f : 2.5f;
+                    const float dx = anchor->x - sinf(angle) * approach - player.x();
+                    const float dy = anchor->y + cosf(angle) * approach - player.y();
+                    if (!serviceClerks.active() && dx * dx + dy * dy > .25f) {
+                        player.setHeading(atan2f(-dx, dy) * 180.0f / 3.14159265f);
+                        in.pad.dx = 0;
+                        in.pad.dy = 90;
+                    }
+                    if (serviceClerks.active() && autotest.stepTime() > 4)
+                        serviceClerks.diagnostic(label);
+                    break;
+                }
+            }
+        }
+        // ---- end clerks ----
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
         }
@@ -1063,6 +1116,13 @@ int main() {
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
         }
+        // ---- clerks: the panel owns input while talking to the counter ----
+        if (serviceClerks.active()) {
+            in.pad = {};
+            in.down &= ~(KEY_A | KEY_B);
+            in.held &= ~(KEY_A | KEY_B);
+        }
+        // ---- end clerks ----
         // Donald's boat: its deck collision carries the toon (Player::setPlatform); pose first.
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
@@ -1358,6 +1418,11 @@ int main() {
                     grabRequested = 0;
                 }
             }
+            // ---- clerks: ordered replies retain COMPLETE even when CLEAR follows ----
+            serviceClerks.update(net, nowMs);
+            if (serviceClerks.active())
+                ui.book().close();
+            // ---- end clerks ----
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
             ui.closet().update(net);
@@ -1456,6 +1521,21 @@ int main() {
                     grabRequested = touching;
                 }
                 lastTouchedTreasure = touching;
+                // ---- clerks: touch the real anchored NPC, once per contact ----
+                u32 serviceNpc = 0;
+                const uint16_t serviceClasses[] = {
+                    tt::dc::DistributedNPCPetclerk::kClassId, tt::dc::DistributedNPCKartClerk::kClassId,
+                    tt::dc::DistributedNPCFisherman::kClassId, tt::dc::DistributedNPCPartyPerson::kClassId};
+                for (uint16_t type : serviceClasses) {
+                    serviceNpc = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net, type);
+                    if (serviceNpc)
+                        break;
+                }
+                if (serviceNpc && serviceNpc != lastTouchedServiceClerk && !serviceClerks.active() && !shop.active() &&
+                    !tailor.active() && !talk.locked() && transition.idle())
+                    net.sendServiceClerkEnter(serviceNpc);
+                lastTouchedServiceClerk = serviceNpc;
+                // ---- end clerks ----
                 const u32 clerk = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                          tt::dc::DistributedNPCClerk::kClassId);
                 if (clerk && clerk != lastTouchedClerk && !shop.active() && transition.idle()) net.sendClerkAvatarEnter(clerk);
@@ -1682,6 +1762,15 @@ int main() {
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        // ---- clerks: publish preview resources only after the GPU fence ----
+        int8_t clerkKartDna[9];
+        clerkKartPreview.select(serviceClerks.kartPreview(clerkKartDna) ? clerkKartDna : nullptr);
+        clerkKartPreview.pump();
+        serviceClerks.setPreviewFailed(clerkKartPreview.failed());
+        if (clerkKartPreview.active())
+            player.overrideCamera(FVec3_New(player.x() + 18, player.y() - 18, player.z() + 12),
+                                  FVec3_New(player.x() + 5, player.y() + 6, player.z() + 2));
+        // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         tt::prof::lap(tt::prof::kWait);
         if (shotName) {
@@ -1716,6 +1805,11 @@ int main() {
             } else {
                 place.draw(renderer, player.cameraEye());
             }
+            // ---- clerks: preview the selected body/equipped accessory components ----
+            if (clerkKartPreview.active())
+                clerkKartPreview.draw(renderer, player.x() + 5, player.y() + 6, player.z(),
+                                      float(tt::net::plat::nowMs() % 12000) * .03f);
+            // ---- end clerks ----
             pets.draw(renderer, net);
             tt::prof::lap(tt::prof::kDrawPlace);
 
@@ -1934,6 +2028,14 @@ int main() {
             ctx.netInBps = netInBps;
             ctx.netOutBps = netOutBps;
             ctx.remoteToons = remoteToons.count();
+            // ---- clerks: authoritative Doodle owner state in the Toon tab ----
+            ctx.clerkProfile = &net.clerkProfile();
+            for (int slot = 0; slot < tt::net::kMaxPets; ++slot) {
+                const auto &pet = net.petSlot(slot);
+                if (pet.active && pet.doId == net.clerkProfile().petId)
+                    ctx.petName = pet.name;
+            }
+            // ---- end clerks ----
             ctx.stats = &net.ownStats();
             ctx.book = &net.ownBook();
             ctx.fish = &net.ownFish();
@@ -1990,6 +2092,9 @@ int main() {
     golf.shutdown();
     trolley.shutdown();
     boat.shutdown();
+    // ---- clerks: release preview before the loader ----
+    clerkKartPreview.shutdown();
+    // ---- end clerks ----
     tt::world::AssetLoader::shutdown();
     suits.shutdown();
     // [interior life]

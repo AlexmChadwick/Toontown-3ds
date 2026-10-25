@@ -640,3 +640,23 @@ crane bounds, collision and budgets. Make and host tests are verified only;
 Azahar, live victory, multiplayer timing and hardware budgets remain mandatory
 main-agent checks in docs/design/cogdo.md. No protected level/boss/toon/battle
 camera/movie/transition files were edited.
+
+### Service clerks (clerks branch, 2026-10-25)
+
+- `docs/design/clerks.md` specifies pet/kart/fisherman/party sessions. Native panels
+  use bounded ordered movies, AI deadlines and authoritative owner resends. SELL
+  NOFISH=3/TROPHY=4 must not be confused with PARTY modes. No local grants.
+- This pinned PetManagerAI sends empty offers and lacks create/delete methods;
+  party canBuyParties is false; fishManager is absent from the AI repository.
+  Native exposes these limitations without inventing services. Host fixtures for
+  positive sales/adoption are explicitly separate from stock-server behavior.
+- Kart previews compose seven or fewer original LOD1 components through the shared
+  loader after the GPU fence, bounded to 512 KiB geometry / 1 MiB textures. The
+  generated SD preview kit at `sdmc-out/3ds/toontown3ds/data/clerks/karts/` may be
+  committed as the owner's requested completed asset delivery, like the Cogdo kit;
+  its Disney-derived contents remain outside MIT. Install it at the same SD path.
+- Pet seed generation is CPython Random/PetUtil compatible, validated independently
+  across all six hoods. Existing estate Doodle geometry gains authoritative palette
+  tint; variant Doodle geometry is outside this change.
+- Host verification and offscreen decoded-asset checks are recorded in test-log.
+  No emulator/hardware claim is made: this task explicitly prohibited Azahar.

@@ -30,6 +30,9 @@
 
 #include <cstdint>
 
+// ---- clerks protocol ----
+#include "net/clerks_state.h"
+// ---- end clerks ----
 #include "net/connection.h"
 #include "net/datagram.h"
 #include "net/quest_net.h"
@@ -1381,6 +1384,20 @@ public:
     static bool decodeLeaderboardPickle(const uint8_t* data, size_t len, HQLeaderboardState& out);
     // [end interior life]
 
+    // ---- clerks: service-shop interfaces ----
+    bool sendServiceClerkEnter(uint32_t id);
+    bool pollClerkMovie(ClerkMovie& movie);
+    bool clerksOpen(ClerkKind kind) const;
+    bool sendPetAdopt(uint8_t index, uint32_t name);
+    bool sendPetReturn();
+    bool sendServiceFishSale(bool sell);
+    bool sendClerkKartBody(uint8_t body);
+    bool sendClerkKartAccessory(uint8_t accessory);
+    bool sendServiceClerkDone();
+    int clerkFishTotal() const;
+    const ClerkSession& clerkSession() const { return clerkSession_; }
+    const ClerkProfile& clerkProfile() const { return clerkProfile_; }
+    // ---- end clerks ----
     // ---- shop (additive section; keep together) ----
     // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
     // may shop for kClerkCountdownMs), NO_MONEY, or freeAvatar when it is busy.
@@ -1719,6 +1736,19 @@ private:
                          bool other);
     bool applySuitField(Suit& s, DatagramReader& r, uint16_t fieldId);
     void clearSuits();
+    // ---- clerks: fixed session, ordered movies, authoritative owner state ----
+    bool handleClerksField(DatagramReader& reader, uint32_t id, uint16_t field);
+    bool handleClerksEnter(uint32_t id, uint16_t classId, DatagramReader& reader,
+                          const uint16_t* required, uint16_t count, bool other);
+    uint32_t clerkNewsManager_ = 0;
+    bool clerkFishHoliday_ = false;
+    bool clerksOwnField(DatagramReader& reader, uint16_t field);
+    void resetClerks(bool owner = true);
+    ClerkSession clerkSession_;
+    ClerkProfile clerkProfile_;
+    ClerkMovie clerkMovies_[kClerkMovieQueue];
+    uint32_t clerkHead_ = 0, clerkTail_ = 0;
+    // ---- end clerks ----
     ShopMovie shopMovie_{};
     TailorMovie tailorMovie_{};
     void handleTailorMovie(DatagramReader& r, uint32_t doId);

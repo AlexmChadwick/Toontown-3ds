@@ -184,6 +184,16 @@ class ClientConn:
         self.last_heartbeat = time.monotonic()
         self.stats = {'pos': 0, 'stop': 0, 'anim': 0, 'parent': 0, 'time': 0}
         self.closed = False
+        # ---- clerks: opt-in fixtures, isolated from ordinary fake-server tests ----
+        self.clerks = None
+        if args.clerks:
+            import importlib.util
+            path = os.path.join(HERE, '..', 'clerks_test', 'fake_clerks.py')
+            spec = importlib.util.spec_from_file_location('fake_clerks', path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            self.clerks = module.ClerkFixture(self, sys.modules[__name__])
+        # ---- end clerks ----
 
     # -- io
     def send(self, body):
@@ -279,6 +289,9 @@ class ClientConn:
             return await self.eject(108, f'unsupported message type {mtype}')
 
     async def handle_field(self, doId, fnum, data):
+        if self.clerks and self.clerks.owns(doId):
+            await self.clerks.handle(doId, fnum, data)
+            return
         if doId == LOGIN_MANAGER:
             cls = CLS['AstronLoginManager']
         elif self.avatar and doId == self.avatar.doId:
@@ -472,6 +485,8 @@ class ClientConn:
             for c in world.clients:
                 if c is not self and c.avatar and (c.avatar.parent, c.avatar.zone) == (parent, zone):
                     self.send(enter_avatar(c.avatar))
+        if self.clerks and (parent, zone) == (DISTRICT_ID, TTC):
+            self.clerks.enter()
         self.send(msg(CLIENT_DONE_INTEREST_RESP, struct.pack('<IH', ctx, handle)))
 
 
@@ -537,6 +552,7 @@ async def heartbeat_watch():
 async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--port', type=int, default=7298)
+    ap.add_argument('--clerks', choices=('stock', 'offers'), default='', help='opt-in service-clerk fixtures')
     ap.add_argument('--drop-after', type=float, default=0,
                     help='close the first in-zone connection after this many seconds (reconnect test)')
     args = ap.parse_args()
