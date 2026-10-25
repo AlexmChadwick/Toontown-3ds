@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_disguise.h"
+#include "ui/pad_tables.h"
 #include "ui/disguise_tables.h"
 #include "ui/suit_heads_atlas.h"
 #include <cstdio>
@@ -40,6 +41,7 @@ constexpr u32 kCardBorder = C2D_Color32(0xB0, 0xA8, 0x98, 0xFF);
 
 void PageDisguise::init() {
     textBuf_ = C2D_TextBufNew(4096);
+    pad::buildBookDepartments(focus_); // padnav
     SuitHeadAtlas::instance().init();
 }
 
@@ -52,6 +54,15 @@ void PageDisguise::shutdown() {
 
 u32 PageDisguise::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
+    // ---- padnav: D-Left / D-Right step through the department tabs (L / R turn pages) ----
+    if (keysDown & (KEY_DLEFT | KEY_DRIGHT)) {
+        const int step = (keysDown & KEY_DLEFT) ? pad::book::kDepts - 1 : 1;
+        activeDept_ = (activeDept_ + step) % pad::book::kDepts;
+        focus_.setFocusById(activeDept_);
+        focus_.logActivate(activeDept_);
+        return keysDown & (KEY_DLEFT | KEY_DRIGHT);
+    }
+    // ---- end padnav ----
     if (keysDown & KEY_TOUCH) {
         // Check 4 department tabs at top: y = 20 .. 38
         if (touch.py >= 20 && touch.py <= 38) {
@@ -59,6 +70,7 @@ u32 PageDisguise::handleInput(u32 keysDown, const touchPosition& touch, BookDraw
                 const float tx = 14.0f + d * 70.0f;
                 if (touch.px >= tx && touch.px <= tx + 66.0f) {
                     activeDept_ = d;
+                    focus_.setFocusById(d); // padnav
                     return KEY_TOUCH;
                 }
             }
@@ -200,6 +212,7 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
         C2D_DrawText(&promoTxt, C2D_WithColor, barX + barW - 130.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
     }
+    focus_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui

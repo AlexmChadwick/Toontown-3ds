@@ -1,14 +1,11 @@
 #include "ui/closet_panel.h"
+#include "ui/pad_tables.h"
 namespace tt::ui {
-namespace {
-bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-}
 bool ClosetPanel::init() { textBuf_ = C2D_TextBufNew(256); return textBuf_ != nullptr; }
 void ClosetPanel::shutdown() {
     if (textBuf_) C2D_TextBufDelete(textBuf_);
     textBuf_ = nullptr; active_ = false;
+    focus_.clear();
 }
 void ClosetPanel::open(const net::Client& client, uint32_t) {
     const net::Closet* c = client.closet();
@@ -16,11 +13,14 @@ void ClosetPanel::open(const net::Client& client, uint32_t) {
     closet_ = c->doId; active_ = true; pending_ = 0;
     C2D_TextBufClear(textBuf_);
     C2D_TextParse(&title_, textBuf_, "Closet");
-    C2D_TextParse(&body_, textBuf_, "A saves your current owned clothes. B cancels.");
+    C2D_TextParse(&body_, textBuf_, "Save keeps your current owned clothes.\nD-Pad picks a button, A presses it. B cancels.");
     C2D_TextParse(&done_, textBuf_, "Save");
     C2D_TextParse(&cancel_, textBuf_, "Cancel");
     C2D_TextOptimize(&title_); C2D_TextOptimize(&body_);
     C2D_TextOptimize(&done_); C2D_TextOptimize(&cancel_);
+    // ---- padnav: Save is focused, so A saves as it always did ----
+    pad::buildCloset(focus_);
+    focus_.setFocusById(pad::closet::kIdDone);
 }
 void ClosetPanel::update(net::Client& client) {
     if (!active_) return;
@@ -33,11 +33,15 @@ void ClosetPanel::update(net::Client& client) {
 }
 u32 ClosetPanel::handleInput(u32 down, const touchPosition& touch) {
     if (!active_) return 0;
-    if ((down & KEY_A) || ((down & KEY_TOUCH) && inRect(touch, 160, 196, 76, 36))) {
+    // ---- padnav: the focus table holds the Save / Cancel touch rectangles ----
+    int activated = -1;
+    focus_.handleInput(down, touch, &activated);
+    if (activated == pad::closet::kIdDone) {
         pending_ = 1;
-    } else if ((down & KEY_B) || ((down & KEY_TOUCH) && inRect(touch, 240, 196, 76, 36))) {
+    } else if (activated == pad::closet::kIdCancel || (down & KEY_B)) {
         pending_ = 2;
     }
+    // ---- end padnav ----
     return 0xFFFFFFFFu;
 }
 void ClosetPanel::draw() {
@@ -53,5 +57,6 @@ void ClosetPanel::draw() {
     C2D_DrawRectSolid(240, 196, 0.5f, 76, 36, panel);
     C2D_DrawText(&done_, C2D_WithColor, 180, 207, 0.5f, 0.52f, 0.52f, bg);
     C2D_DrawText(&cancel_, C2D_WithColor, 248, 207, 0.5f, 0.46f, 0.46f, white);
+    focus_.drawHighlight();
 }
 }

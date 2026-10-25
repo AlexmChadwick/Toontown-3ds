@@ -5,6 +5,8 @@
 #include <cstdio>
 
 #include "ui/gag_data.h"
+#include "ui/pad_tables.h"
+#include "core/log.h"
 #include "world/battle_fx.h"
 
 namespace tt::ui {
@@ -12,9 +14,13 @@ namespace tt::ui {
 namespace {
 
 constexpr float kW = 320.0f;
-constexpr float kCogY = 18, kCogH = 44, kCogW = 78;
-constexpr float kGridY = 66, kRowH = 20, kGridX = 60, kCellW = 35;
-constexpr float kBtnY = 210, kBtnH = 28;
+// The layout is shared with the focus table (ui/pad_tables.h) so touch, D-Pad and drawing agree.
+constexpr float kCogY = pad::battle::kCogY, kCogH = pad::battle::kCogH, kCogW = pad::battle::kCogW;
+constexpr float kGridY = pad::battle::kGridY, kRowH = pad::battle::kRowH;
+constexpr float kGridX = pad::battle::kGridX, kCellW = pad::battle::kCellW;
+constexpr float kBtnY = pad::battle::kBtnY, kBtnH = pad::battle::kBtnH;
+static_assert(pad::battle::kTracks == gags::kTracks && pad::battle::kLevels == gags::kLevels,
+              "the battle focus table assumes the 7 x 7 gag grid");
 
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
@@ -29,10 +35,6 @@ const u32 kTrackColor[gags::kTracks] = {
     C2D_Color32(0x40, 0x70, 0xD8, 0xFF), C2D_Color32(0xE0, 0x80, 0x30, 0xFF), C2D_Color32(0xE0, 0x50, 0xA0, 0xFF),
     C2D_Color32(0x40, 0xB8, 0xD8, 0xFF),
 };
-
-bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
 
 } // namespace
 
@@ -90,28 +92,79 @@ bool BattlePanel::usable(const world::BattleView& v, const BattleGags& g, int tr
 
 u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const world::BattleView& v,
                              const BattleGags& g) {
-    if (!(keysDown & KEY_TOUCH)) return keysDown;
+    // The battle owns every button while its view is shown (main.cpp also freezes the toon).
+    constexpr u32 kAllButtons = 0xFFFFFFFFu;
     if (v.phase == world::BattlePhase::Reward) {
-        if (inRect(touch, 218, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Continue;
-        return keysDown;
+        // Continue: touch it, or A / START (the AI ignores a second rewardDone; Battle guards it).
+        pad::buildBattleReward(focus_);
+        if (!focus_.hasFocus()) focus_.setFocusById(pad::battle::kIdContinue);
+        int activated = -1;
+        focus_.handleInput(keysDown & ~KEY_A, touch, &activated);
+        if (activated < 0 && (keysDown & (KEY_A | KEY_START))) {
+            activated = pad::battle::kIdContinue;
+            focus_.logActivate(activated);
+        }
+        if (activated == pad::battle::kIdContinue) pending_.kind = world::BattleAction::Continue;
+        return kAllButtons;
     }
-    if (v.phase != world::BattlePhase::Input) return keysDown;
-    for (int i = 0; i < v.numCogs; i++) {
-        if (inRect(touch, 2 + i * (kCogW + 1), kCogY, kCogW, kCogH) && v.cogs[i].active) target_ = i;
+    if (v.phase != world::BattlePhase::Input) {
+        focus_.clear(); // the next round starts on the first usable gag again
+        return kAllButtons;
     }
+
+    // ---- padnav: one focus table for the cogs, the gag grid and Pass / Run ----
+    bool cogActive[pad::battle::kMaxCogs] = {};
+    for (int i = 0; i < v.numCogs && i < pad::battle::kMaxCogs; i++) cogActive[i] = v.cogs[i].active;
+    bool usableGag[gags::kTracks * gags::kLevels];
     for (int t = 0; t < gags::kTracks; t++) {
-        for (int l = 0; l < gags::kLevels; l++) {
-            if (!inRect(touch, kGridX + l * (kCellW + 2), kGridY + t * kRowH, kCellW, kRowH - 2)) continue;
-            if (!usable(v, g, t, l)) continue;
+        for (int l = 0; l < gags::kLevels; l++) usableGag[t * gags::kLevels + l] = usable(v, g, t, l);
+    }
+    pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun);
+    if (!focus_.hasFocus()) {
+        // Like TownBattle's attack panel: start on the first gag we can use, else Pass.
+        for (int i = 0; i < focus_.count(); i++) {
+            if (focus_.item(i).enabled && pad::battle::isGagId(focus_.item(i).id)) {
+                focus_.setFocus(i);
+                break;
+            }
+        }
+        if (!focus_.hasFocus()) focus_.setFocusById(pad::battle::kIdPass);
+    }
+
+    // L / R cycle the target cog without leaving the gag grid.
+    const int step = (keysDown & KEY_R) ? 1 : (keysDown & KEY_L) ? -1 : 0;
+    if (step != 0 && v.numCogs > 1) {
+        for (int k = 1; k <= v.numCogs; k++) {
+            const int next = ((target_ + step * k) % v.numCogs + v.numCogs) % v.numCogs;
+            if (v.cogs[next].active) {
+                target_ = next;
+                TT_LOG("padnav: battle target %d", target_);
+                break;
+            }
+        }
+    }
+
+    int activated = -1;
+    focus_.handleInput(keysDown, touch, &activated);
+    if (activated >= pad::battle::kIdCog0 && activated < pad::battle::kIdCog0 + pad::battle::kMaxCogs) {
+        target_ = activated - pad::battle::kIdCog0;
+        TT_LOG("padnav: battle target %d", target_);
+    } else if (pad::battle::isGagId(activated)) {
+        const int t = activated / 10;
+        const int l = activated % 10;
+        if (usable(v, g, t, l)) {
             pending_.kind = world::BattleAction::Attack;
             pending_.track = t;
             pending_.level = l;
             pending_.target = world::attackAffectsGroup(t, l) ? 0 : targetFor(v, t);
         }
+    } else if (activated == pad::battle::kIdPass) {
+        pending_.kind = world::BattleAction::Pass;
+    } else if (activated == pad::battle::kIdRun && v.canRun) {
+        pending_.kind = world::BattleAction::Run;
     }
-    if (inRect(touch, 2, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Pass;
-    if (v.canRun && inRect(touch, 110, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Run;
-    return keysDown;
+    // ---- end padnav ----
+    return kAllButtons;
 }
 
 void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
@@ -162,6 +215,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
         C2D_DrawRectSolid(218, kBtnY, 0.5f, 100, kBtnH, v.rewardSent ? kPanel : kAccent);
         text(236, kBtnY + 6, 0.5f, v.rewardSent ? kDim : kBg, "Continue");
+        focus_.drawHighlight();
         return;
     }
 
@@ -186,6 +240,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     text(36, kBtnY + 6, 0.5f, choosing ? kWhite : kDim, "Pass");
     C2D_DrawRectSolid(110, kBtnY, 0.5f, 100, kBtnH, choosing && v.canRun ? kPanel : kBg);
     text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kWhite : kDim, "Run");
+    if (choosing) focus_.drawHighlight();
 }
 
 } // namespace tt::ui

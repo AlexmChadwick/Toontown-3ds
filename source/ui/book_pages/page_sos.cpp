@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_sos.h"
+#include "ui/pad_tables.h"
 #include "ui/sos_tables.h"
 #include <cstdio>
 
@@ -16,6 +17,7 @@ constexpr u32 kTrackBlue = C2D_Color32(0x20, 0x50, 0xA0, 0xFF);
 
 void PageSos::init() {
     textBuf_ = C2D_TextBufNew(4096);
+    pad::buildBookSosPage(focus_); // padnav
 }
 
 void PageSos::shutdown() {
@@ -26,11 +28,20 @@ void PageSos::shutdown() {
 }
 
 u32 PageSos::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
-    (void)bdc;
+    // ---- padnav: with more than 8 cards, D-Left / D-Right flip "[Page n/2]" ----
+    const int totalCards = bdc.book ? bdc.book->numSosCards : 0;
+    if ((keysDown & (KEY_DLEFT | KEY_DRIGHT)) && totalCards > kCardsPerView) {
+        viewPage_ = 1 - viewPage_;
+        focus_.setFocusById(pad::book::kIdSosPage);
+        focus_.logActivate(pad::book::kIdSosPage);
+        return keysDown & (KEY_DLEFT | KEY_DRIGHT);
+    }
+    // ---- end padnav ----
     if (keysDown & KEY_TOUCH) {
         // Toggle view page if > 8 cards: x = 240..300, y = 18..36
         if (touch.px >= 240 && touch.px <= 300 && touch.py >= 18 && touch.py <= 36) {
             viewPage_ = 1 - viewPage_;
+            focus_.setFocusById(pad::book::kIdSosPage); // padnav
             return KEY_TOUCH;
         }
     }
@@ -131,6 +142,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         C2D_DrawText(&cTxt, C2D_WithColor, cx + 4.0f, cy + 56.0f, 0.6f, 0.28f, 0.28f,
                      C2D_Color32(0x20, 0x60, 0x20, 0xFF));
     }
+    if (totalCards > kCardsPerView) focus_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui

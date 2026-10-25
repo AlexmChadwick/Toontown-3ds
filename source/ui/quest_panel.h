@@ -8,6 +8,7 @@
 
 #include "net/quest_net.h"
 #include "quest/quest_talk.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -26,6 +27,7 @@ private:
 
     C2D_TextBuf buf_ = nullptr;
     char scratch_[quest::kMaxText] = {};
+    FocusGroup focus_{"quest"};
 };
 
 } // namespace tt::ui

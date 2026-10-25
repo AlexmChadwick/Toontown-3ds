@@ -8,6 +8,7 @@
 
 #include "net/client.h"
 #include "ui/shop_rules.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -47,6 +48,12 @@ private:
     shop::Profile profile_{};
     shop::Cart cart_{};
     int selTrack_ = 4, selLevel_ = 0;
+    // ---- padnav: the button row's focus (none while the gag grid has the D-Pad) ----
+    FocusGroup buttons_{"purchase"};
+    int gridId() const;        // track * 10 + level, as logged
+    void logGridFocus() const; // "padnav: purchase_grid focus <id>"
+    void pressButton(int id);  // pad::counter ids
+    // ---- end padnav ----
     int pendingSend_ = 0; // 0 none, 1 Done, 2 Cancel
     bool dirty_ = true;
     int lastSecond_ = -1;

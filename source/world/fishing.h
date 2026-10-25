@@ -108,6 +108,7 @@ private:
     u32 sessionSpot_ = 0; // doId of the spot we are fishing at (server mode)
 
     float aim_ = 0.0f;     // degrees, + = left, relative to the spot heading
+    u32 dpadAimHeld_ = 0;  // padnav: D-Left / D-Right held last frame (logs the aim on release)
     float power_ = 0.0f;   // 0..1
     float castPower_ = 0.0f, castAim_ = 0.0f;
     float castTime_ = 0.0f; // seconds since release

@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_options.h"
+#include "ui/pad_tables.h"
 #include "audio/audio.h"
 #include "render/ui.h"
 #include "net/client.h"
@@ -21,14 +22,11 @@ constexpr u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 constexpr u32 kGreen = C2D_Color32(0x40, 0xA8, 0x40, 0xFF);
 constexpr u32 kRed = C2D_Color32(0xC8, 0x40, 0x40, 0xFF);
 
-inline bool inBox(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-
 } // namespace
 
 void PageOptions::init() {
     textBuf_ = C2D_TextBufNew(1024);
+    pad::buildBookOptions(focus_); // padnav
 }
 
 void PageOptions::shutdown() {
@@ -39,61 +37,55 @@ void PageOptions::shutdown() {
 }
 
 u32 PageOptions::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
-    if (!(keysDown & KEY_TOUCH) || !bdc.state) return 0;
+    if (!bdc.state) return 0;
+    // ---- padnav: one table (pad::buildBookOptions) for touch, the D-Pad and A ----
+    int activated = -1;
+    const u32 used = focus_.handleInput(keysDown, touch, &activated);
+    applyOption(activated, *bdc.state);
+    // The page keeps the whole D-Pad (L / R turn pages), even where a row has one control.
+    return used | (keysDown & kDpadKeys);
+    // ---- end padnav ----
+}
 
-    // Stereo 3D
-    if (inBox(touch, 15, 30, 135, 20)) {
-        bdc.state->stereo = !bdc.state->stereo;
-        return KEY_TOUCH;
+void PageOptions::applyOption(int id, State& s) {
+    switch (id) {
+    case pad::book::kIdStereo:
+        s.stereo = !s.stereo;
+        break;
+    case pad::book::kIdDebugHud:
+        s.debugOverlay = !s.debugOverlay;
+        break;
+    case pad::book::kIdLodBias:
+        s.lodBias = (s.lodBias == 0) ? 1 : 0;
+        break;
+    case pad::book::kIdMusicMinus:
+        s.musicVol = std::max(0, s.musicVol - 10);
+        audio::setMusicVolume(s.musicVol / 100.0f);
+        break;
+    case pad::book::kIdMusicPlus:
+        s.musicVol = std::min(100, s.musicVol + 10);
+        audio::setMusicVolume(s.musicVol / 100.0f);
+        break;
+    case pad::book::kIdSfxMinus:
+        s.sfxVol = std::max(0, s.sfxVol - 10);
+        audio::setMasterVolume(s.sfxVol / 100.0f);
+        break;
+    case pad::book::kIdSfxPlus:
+        s.sfxVol = std::min(100, s.sfxVol + 10);
+        audio::setMasterVolume(s.sfxVol / 100.0f);
+        break;
+    case pad::book::kIdStressMinus:
+        s.stressToons = std::max(0, s.stressToons - 8);
+        break;
+    case pad::book::kIdStressPlus:
+        s.stressToons = std::min(64, s.stressToons + 8);
+        break;
+    case pad::book::kIdQuit:
+        s.quitRequested = true;
+        break;
+    default:
+        break;
     }
-    // Debug Overlay
-    if (inBox(touch, 15, 54, 135, 20)) {
-        bdc.state->debugOverlay = !bdc.state->debugOverlay;
-        return KEY_TOUCH;
-    }
-    // LOD Bias
-    if (inBox(touch, 15, 78, 135, 20)) {
-        bdc.state->lodBias = (bdc.state->lodBias == 0) ? 1 : 0;
-        return KEY_TOUCH;
-    }
-    // Music Vol [-] / [+]
-    if (inBox(touch, 80, 102, 24, 20)) {
-        bdc.state->musicVol = std::max(0, bdc.state->musicVol - 10);
-        audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 102, 24, 20)) {
-        bdc.state->musicVol = std::min(100, bdc.state->musicVol + 10);
-        audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    // SFX Vol [-] / [+]
-    if (inBox(touch, 80, 126, 24, 20)) {
-        bdc.state->sfxVol = std::max(0, bdc.state->sfxVol - 10);
-        audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 126, 24, 20)) {
-        bdc.state->sfxVol = std::min(100, bdc.state->sfxVol + 10);
-        audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    // Stress Toons [-] / [+]
-    if (inBox(touch, 80, 150, 24, 20)) {
-        bdc.state->stressToons = std::max(0, bdc.state->stressToons - 8);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 150, 24, 20)) {
-        bdc.state->stressToons = std::min(64, bdc.state->stressToons + 8);
-        return KEY_TOUCH;
-    }
-    // Quit Game button
-    if (inBox(touch, 15, 176, 135, 20)) {
-        bdc.state->quitRequested = true;
-        return KEY_TOUCH;
-    }
-
-    return 0;
 }
 
 void PageOptions::rebuildText(const BookDrawContext& bdc) {

@@ -3,14 +3,15 @@
 #include <cstdio>
 
 #include "core/log.h"
+#include "ui/pad_tables.h"
 
 namespace tt::ui {
 
 namespace {
 
-constexpr float kTopY = 38.0f;
-constexpr float kBottomY = 94.0f;
-constexpr float kButtonY = 196.0f;
+constexpr float kTopY = pad::tailor::kTopY;
+constexpr float kBottomY = pad::tailor::kBottomY;
+constexpr float kButtonY = pad::tailor::kBtnY;
 constexpr uint32_t kAutoSubmitMarginMs = 2000;
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
@@ -27,6 +28,7 @@ bool inRect(const touchPosition& t, float x, float y, float w, float h) {
 
 bool TailorPanel::init() {
     textBuf_ = C2D_TextBufNew(512);
+    pad::buildTailor(focus_); // padnav
     return textBuf_ != nullptr;
 }
 
@@ -81,6 +83,7 @@ void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         deadlineMs_ = m.deadlineMs;
         nowMs_ = nowMs;
         section_ = 0;
+        focus_.setFocusById(pad::tailor::kIdShirt); // padnav
         topChoice_ = 0;
         bottomChoice_ = 0;
         for (int i = 0; i < world::matShirtCount(working_.gender); i++)
@@ -163,22 +166,49 @@ void TailorPanel::update(net::Client& client, uint32_t nowMs) {
 
 u32 TailorPanel::handleInput(u32 down, const touchPosition& touch) {
     if (!active_) return 0;
-    if (down & KEY_DUP) section_ = 0;
-    if (down & KEY_DDOWN) section_ = 1;
-    if (down & KEY_DLEFT) choose(-1);
-    if (down & KEY_DRIGHT) choose(1);
+    // ---- padnav: D-Up / D-Down pick the shirt row, the shorts row, then Done / Cancel;
+    // Left / Right change the style on a row or move between the buttons; A presses a button.
+    const int focused = focus_.focusedId();
+    const bool onButtons = focused == pad::tailor::kIdDone || focused == pad::tailor::kIdCancel;
+    if (down & KEY_DUP) {
+        section_ = onButtons ? 1 : 0;
+        focus_.setFocusById(section_ == 0 ? pad::tailor::kIdShirt : pad::tailor::kIdShorts);
+    } else if (down & KEY_DDOWN) {
+        if (section_ == 1 && !onButtons) {
+            focus_.setFocusById(pad::tailor::kIdDone);
+        } else if (!onButtons) {
+            section_ = 1;
+            focus_.setFocusById(pad::tailor::kIdShorts);
+        }
+    }
+    if (onButtons) {
+        if (down & KEY_DLEFT) focus_.move(-1, 0);
+        if (down & KEY_DRIGHT) focus_.move(1, 0);
+        if (down & KEY_A) {
+            focus_.logActivate(focused);
+            pendingSend_ = focused == pad::tailor::kIdDone ? 1 : 2;
+        }
+    } else {
+        if (down & KEY_DLEFT) choose(-1);
+        if (down & KEY_DRIGHT) choose(1);
+    }
+    // ---- end padnav ----
     if (down & KEY_START) pendingSend_ = 1;
     if (down & KEY_B) pendingSend_ = 2;
     if (down & KEY_TOUCH) {
         if (inRect(touch, 0, kTopY, 320, 48)) {
             section_ = 0;
+            focus_.setFocusById(pad::tailor::kIdShirt); // padnav
             choose(touch.px < 160 ? -1 : 1);
         } else if (inRect(touch, 0, kBottomY, 320, 48)) {
             section_ = 1;
+            focus_.setFocusById(pad::tailor::kIdShorts); // padnav
             choose(touch.px < 160 ? -1 : 1);
         } else if (inRect(touch, 160, kButtonY, 76, 36)) {
+            focus_.setFocusById(pad::tailor::kIdDone); // padnav
             pendingSend_ = 1;
         } else if (inRect(touch, 240, kButtonY, 76, 36)) {
+            focus_.setFocusById(pad::tailor::kIdCancel); // padnav
             pendingSend_ = 2;
         }
     }
@@ -225,6 +255,7 @@ void TailorPanel::draw() {
     C2D_DrawRectSolid(240, kButtonY, 0.5f, 76, 36, kPanel);
     C2D_DrawText(&doneText_, C2D_WithColor, 180, kButtonY + 11, 0.5f, 0.52f, 0.52f, kBg);
     C2D_DrawText(&cancelText_, C2D_WithColor, 248, kButtonY + 11, 0.5f, 0.46f, 0.46f, kGood);
+    focus_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui

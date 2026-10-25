@@ -91,20 +91,22 @@ void Book::prevPage() {
 u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!isOpen_) return 0;
 
-    if (keysDown & KEY_START) {
+    // ---- padnav: B closes the book like START (upstream's book has a close button only) ----
+    if (keysDown & (KEY_START | KEY_B)) {
         close();
-        return KEY_START;
+        return keysDown & (KEY_START | KEY_B);
     }
 
-    if (keysDown & (KEY_L | KEY_DLEFT)) {
+    if (keysDown & KEY_L) {
         prevPage();
-        return keysDown & (KEY_L | KEY_DLEFT);
+        return KEY_L;
     }
 
-    if (keysDown & (KEY_R | KEY_DRIGHT)) {
+    if (keysDown & KEY_R) {
         nextPage();
-        return keysDown & (KEY_R | KEY_DRIGHT);
+        return KEY_R;
     }
+    // ---- end padnav ----
 
     if (keysDown & KEY_TOUCH) {
         // Top bar buttons
@@ -131,14 +133,26 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
                 return KEY_TOUCH;
             }
         }
-        // Page content interaction
-        else {
-            u32 consumed = pages_[curPage_]->handleInput(keysDown, touch, bdc);
-            return consumed ? consumed : static_cast<u32>(KEY_TOUCH);
-        }
     }
 
-    return 0;
+    // ---- padnav: the page sees the D-Pad and A first (options, map hoods, departments,
+    // genus arrows); a D-Left / D-Right the page does not use turns the page as before.
+    // Pages get only touches between the top bar and the tab bar, as before.
+    constexpr float kTopBarH = 24.0f;
+    constexpr float kTabBarY = 214.0f;
+    const bool pageTouch = (keysDown & KEY_TOUCH) && touch.py >= kTopBarH && touch.py < kTabBarY;
+    const u32 pageKeys = pageTouch ? keysDown : (keysDown & ~KEY_TOUCH);
+    u32 consumed = pages_[curPage_]->handleInput(pageKeys, touch, bdc);
+    if (pageTouch) consumed |= KEY_TOUCH; // a touch on the page never reaches the world
+    if ((keysDown & KEY_DLEFT) && !(consumed & KEY_DLEFT)) {
+        prevPage();
+        consumed |= KEY_DLEFT;
+    } else if ((keysDown & KEY_DRIGHT) && !(consumed & KEY_DRIGHT)) {
+        nextPage();
+        consumed |= KEY_DRIGHT;
+    }
+    return consumed;
+    // ---- end padnav ----
 }
 
 void Book::draw(const BookDrawContext& bdc) {

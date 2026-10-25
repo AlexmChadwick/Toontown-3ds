@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/book_pages/book_page.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -17,6 +18,7 @@ public:
 private:
     int activeGenusIdx_ = 0; // index into distinct genera (0..13)
     C2D_TextBuf textBuf_ = nullptr;
+    FocusGroup focus_{"book_fish"}; // padnav
 };
 
 } // namespace tt::ui

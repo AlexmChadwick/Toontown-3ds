@@ -10,6 +10,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/pad_tables.h" // padnav
 #include "core/memory.h"
 #include "core/profile.h"
 
@@ -53,6 +54,18 @@ constexpr int kSwCols = 9;
 // Settings buttons
 constexpr float kBtnX = 12, kBtnW = 140, kBtnH = 36;
 constexpr float kStereoY = 30, kStressY = 90;
+
+// ---- padnav: the focus tables (ui/pad_tables.h) must match this layout ----
+static_assert(pad::hoods::kCount == kNumTeleportHoods && pad::hoods::kRowY == kHoodRowY &&
+                  pad::hoods::kRowH == kHoodRowH && pad::hoods::kHomeY == kHomeY && pad::hoods::kHomeH == kHomeH,
+              "Map tab focus table");
+static_assert(pad::toon::kNumColors == kNumToonColors && pad::toon::kSwCols == kSwCols && pad::toon::kSwX == kSwX &&
+                  pad::toon::kSwY == kSwY && pad::toon::kSwSize == kSwSize && pad::toon::kSwGap == kSwGap,
+              "Toon tab focus table");
+static_assert(pad::setup::kBtnX == kBtnX && pad::setup::kBtnW == kBtnW && pad::setup::kBtnH == kBtnH &&
+                  pad::setup::kStereoY == kStereoY && pad::setup::kStressY == kStressY,
+              "Setup tab focus table");
+// ---- end padnav ----
 
 bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
@@ -181,6 +194,9 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     // ---- qafix: input and drawing share resolveOwner ----
     const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_);
+    // ---- padnav: a panel that owns the screen drops the tab focus, so A jumps afterwards ----
+    if (owner != PanelOwner::Tabs) tabFocus_.blur();
+    // ---- end padnav ----
     if (owner == PanelOwner::Clerk) return serviceClerks_.handleInput(down, t);
     if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
@@ -195,6 +211,9 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
     if (owner == PanelOwner::Fishing) return down & ~(KEY_A | KEY_B);
     // ---- end qafix ----
+    // ---- padnav: D-Pad / A / B on a focused Map, Toon or Setup tab ----
+    if (const u32 padUsed = handleTabPad(down, t, s)) return padUsed;
+    // ---- end padnav ----
     if (down & KEY_START) {
         book_.open();
         return KEY_START;
@@ -209,18 +228,23 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     }
     if (s.tab != lastTab_) {
         chat_.blur(); // the highlight (and A/B capture) never survives a tab change
+        tabFocus_.blur(); // padnav
         lastTab_ = s.tab;
         return 0;
     }
     if (s.tab == kTabChat) {
         // Header button: cycle the whisper target through the toons in view.
         if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, kW - 100, 2, 96, 24)) {
-            int next = 0;
-            for (int i = 0; i < numNearby_; i++)
-                if (nearbyIds_[i] == s.whisperTo) next = i + 1;
-            s.whisperTo = next < numNearby_ ? nearbyIds_[next] : 0;
+            cycleWhisper(s); // padnav: shared with X
             return down;
         }
+        // ---- padnav: X (already on this tab) presses the "To:" header button ----
+        if ((down & KEY_X) && numNearby_ > 0) {
+            TT_LOG("padnav: chat activate whisper");
+            cycleWhisper(s);
+            return KEY_X;
+        }
+        // ---- end padnav ----
         bool stillHere = s.whisperTo == 0;
         for (int i = 0; i < numNearby_; i++) stillHere |= nearbyIds_[i] == s.whisperTo;
         if (!stillHere) s.whisperTo = 0;
@@ -351,8 +375,94 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     case kTabSettings: drawSettings(s); break;
     default: drawDebug(c); break;
     }
+    // ---- padnav ----
+    toonOnline_ = c.quests != nullptr;
+    tabFocus_.drawHighlight();
+    // ---- end padnav ----
     drawTabs(s);
 }
+
+// ---- padnav: button focus on the Map / Toon / Setup tabs ----
+// Nothing is focused until D-Up or D-Down is pressed on one of these tabs, so A still
+// jumps, B still walks and D-Left / D-Right still change tabs. While a control is focused
+// the D-Pad moves between controls, A presses the focused one and B lets go of the focus.
+// Touch keeps its own code below; a touch on a control while focused moves the focus there.
+u32 Ui::handleTabPad(u32 down, const touchPosition& t, State& s) {
+    switch (s.tab) {
+    case kTabMap:
+        tabFocus_.setPanelName("tab_map");
+        pad::buildHoodRow(tabFocus_);
+        break;
+    case kTabToon:
+        tabFocus_.setPanelName("tab_toon");
+        pad::buildToonTab(tabFocus_, toonOnline_);
+        break;
+    case kTabSettings:
+        tabFocus_.setPanelName("tab_setup");
+        pad::buildSetupTab(tabFocus_);
+        break;
+    default: // Chat has its own menu; Gags and Debug only show information
+        tabFocus_.clear();
+        return 0;
+    }
+    if (!tabFocus_.hasFocus()) {
+        if (!(down & (KEY_DUP | KEY_DDOWN))) return 0;
+        tabFocus_.move(0, (down & KEY_DUP) ? -1 : 1); // focuses the first control
+        return down & (KEY_DUP | KEY_DDOWN);
+    }
+    if (down & KEY_TOUCH) {
+        const int hit = tabFocus_.itemAt(t.px, t.py);
+        if (hit >= 0) tabFocus_.setFocus(hit);
+        return 0; // the touch code in handleInput performs the press
+    }
+    if (down & KEY_B) {
+        tabFocus_.blur();
+        return KEY_B;
+    }
+    int activated = -1;
+    tabFocus_.handleInput(down & (kDpadKeys | KEY_A), t, &activated);
+    activateTabControl(activated, s);
+    return down & (kDpadKeys | KEY_A);
+}
+
+// The same actions as the touch code in handleInput.
+void Ui::activateTabControl(int id, State& s) {
+    if (id < 0) return;
+    if (s.tab == kTabMap) {
+        if (id == pad::hoods::kIdHome) {
+            s.homeRequest = true;
+        } else if (id < kNumTeleportHoods) {
+            s.teleportRequest = kTeleportHoods[id];
+        }
+    } else if (s.tab == kTabToon) {
+        if (id == pad::toon::kIdBook) {
+            book_.open();
+        } else if (id >= pad::toon::kIdTarget0 && id < pad::toon::kIdTarget0 + 3) {
+            s.colorTarget = id - pad::toon::kIdTarget0;
+        } else if (id < kNumToonColors) {
+            int& color = s.colorTarget == 0 ? s.bodyColor : s.colorTarget == 1 ? s.shirtColor : s.bottomColor;
+            color = id;
+        }
+    } else if (s.tab == kTabSettings) {
+        if (id == pad::setup::kIdStereo) {
+            s.stereo = !s.stereo;
+        } else if (id == pad::setup::kIdStressMinus && s.stressToons > 0) {
+            s.stressToons -= s.stressToons > 8 ? 8 : 1;
+        } else if (id == pad::setup::kIdStressPlus && s.stressToons < 64) {
+            s.stressToons += s.stressToons >= 8 ? 8 : 1;
+        }
+    }
+}
+
+// The Chat tab's "To:" button: the next toon in view, then everyone.
+void Ui::cycleWhisper(State& s) {
+    int next = 0;
+    for (int i = 0; i < numNearby_; i++) {
+        if (nearbyIds_[i] == s.whisperTo) next = i + 1;
+    }
+    s.whisperTo = next < numNearby_ ? nearbyIds_[next] : 0;
+}
+// ---- end padnav ----
 
 void Ui::drawTabs(const State& s) {
     C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, kPanel);

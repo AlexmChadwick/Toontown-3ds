@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "core/log.h"
+
 namespace tt::ui {
 
 namespace {
@@ -177,11 +179,14 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
             focus_ = focus_ < n - 1 ? focus_ + 1 : 0;
         }
         ensureVisible(focus_, listH);
+        TT_LOG("padnav: chat focus %d", focus_);
         consumed |= down & (KEY_DUP | KEY_DDOWN);
     } else if ((down & KEY_A) && focus_ >= 0) {
+        TT_LOG("padnav: chat activate %d", focus_);
         activate(focus_);
         consumed |= KEY_A;
     } else if ((down & KEY_B) && focus_ >= 0) {
+        TT_LOG("padnav: chat back");
         goBack(listH);
         consumed |= KEY_B;
     }

@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "ui/gag_data.h"
+#include "ui/pad_tables.h"
 
 namespace tt::ui {
 
@@ -18,11 +19,7 @@ const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
 const u32 kPaper = C2D_Color32(0xF4, 0xEE, 0xD8, 0xFF); // ToonTask poster
 const u32 kInk = C2D_Color32(0x30, 0x28, 0x20, 0xFF);
 
-constexpr float kCardY = 26, kCardH = 58, kCancelY = 210;
-
-bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
+constexpr float kCardY = pad::quest::kCardY, kCardH = pad::quest::kCardH, kCancelY = pad::quest::kCancelY;
 
 } // namespace
 
@@ -34,6 +31,7 @@ bool QuestPanel::init() {
 void QuestPanel::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
     buf_ = nullptr;
+    focus_.clear();
 }
 
 void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth, const char* s) {
@@ -47,32 +45,43 @@ void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth,
 }
 
 u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Talk& talk) {
-    const bool tap = keysDown & KEY_TOUCH;
+    // ---- padnav: focus tables (ui/pad_tables.h); the rectangles are the old touch areas ----
+    int activated = -1;
     switch (talk.phase()) {
     case quest::Talk::Phase::Pages:
-        if ((keysDown & KEY_A) || tap) talk.advance();
+        // Next / Done: A or a tap anywhere advances, as before.
+        pad::buildQuestPages(focus_);
+        focus_.setFocusById(pad::quest::kIdNext);
+        if (keysDown & (KEY_A | KEY_TOUCH)) {
+            focus_.logActivate(pad::quest::kIdNext);
+            talk.advance();
+        }
         break;
     case quest::Talk::Phase::QuestChoice:
-        if (tap) {
-            for (int i = 0; i < talk.numChoices(); i++) {
-                if (inRect(touch, 4, kCardY + i * (kCardH + 4), kW - 8, kCardH)) talk.chooseQuest(i);
-            }
-            if (inRect(touch, 110, kCancelY, 100, 26)) talk.chooseQuest(-1);
+        // No card is focused until the D-Pad is used, so mashing A through the dialog
+        // pages never accepts a quest by accident.
+        pad::buildQuestChoices(focus_, talk.numChoices());
+        focus_.handleInput(keysDown, touch, &activated);
+        if (activated >= 0 && activated < talk.numChoices()) {
+            talk.chooseQuest(activated);
+        } else if (activated == pad::quest::kIdCancel || (keysDown & KEY_B)) {
+            talk.chooseQuest(-1);
         }
-        if (keysDown & KEY_B) talk.chooseQuest(-1);
         break;
     case quest::Talk::Phase::TrackChoice:
-        if (tap) {
-            for (int i = 0; i < talk.numTracks(); i++) {
-                if (inRect(touch, 4 + (i % 2) * 158, kCardY + (i / 2) * 40, 154, 36)) talk.chooseTrack(i);
-            }
-            if (inRect(touch, 110, kCancelY, 100, 26)) talk.chooseTrack(-1);
+        pad::buildTrackChoices(focus_, talk.numTracks());
+        focus_.handleInput(keysDown, touch, &activated);
+        if (activated >= 0 && activated < talk.numTracks()) {
+            talk.chooseTrack(activated);
+        } else if (activated == pad::quest::kIdCancel || (keysDown & KEY_B)) {
+            talk.chooseTrack(-1);
         }
-        if (keysDown & KEY_B) talk.chooseTrack(-1);
         break;
     default:
+        focus_.clear();
         break;
     }
+    // ---- end padnav ----
     return keysDown;
 }
 
@@ -124,6 +133,7 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
     default:
         break;
     }
+    if (talk.phase() != quest::Talk::Phase::Waiting) focus_.drawHighlight();
 }
 
 void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
