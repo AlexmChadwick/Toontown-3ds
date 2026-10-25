@@ -1,4 +1,5 @@
 #include "world/pets.h"
+#include "ui/clerk_rules.h"
 namespace tt::world {
 void Pets::handleEvent(const net::Event& ev) {
     if (ev.type == net::EventType::PetUp && !loaded_)
@@ -12,7 +13,11 @@ void Pets::draw(render::Renderer& renderer, const net::Client& c) const {
         const net::Pet& p = c.petSlot(i);
         if (!p.active) continue;
         C3D_Mtx m; Mtx_Identity(&m); Mtx_Translate(&m, p.x, p.y, p.z, true);
+        const float* color=clerks::petColor(p.body,p.color);
+        const float scale=.8f+.05f*p.colorScale;
+        renderer.setBaseTint(color[0]*scale,color[1]*scale,color[2]*scale,1);
         renderer.drawModel(const_cast<render::Model&>(doodle_), m);
+        renderer.setBaseTint(1,1,1,1);
     }
 }
 void Pets::shutdown() { doodle_.unload(); loaded_ = false; }

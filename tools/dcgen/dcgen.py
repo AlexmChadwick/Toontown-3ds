@@ -439,6 +439,16 @@ for _name, _fields in _COGDO_FIELDS.items():
         TABLE_CLASSES.append(_name)
 # ---- end cogdo protocol ----
 
+# ---- clerks: append fields, never assign protocol IDs by hand ----
+WANTED['DistributedNPCPetclerk'] += ['setPetSeeds', 'petAdopted', 'petReturned', 'fishSold', 'transactionDone']
+WANTED['DistributedToon'] += ['setPetId', 'setKartBodyType', 'setKartBodyColor', 'setKartAccessoryColor',
+    'setKartEngineBlockType', 'setKartSpoilerType', 'setKartFrontWheelWellType',
+    'setKartBackWheelWellType', 'setKartRimType', 'setKartDecalType', 'setKartAccessoriesOwned']
+for _name in ('DistributedNPCPetclerk', 'DistributedNPCKartClerk', 'DistributedNPCFisherman', 'DistributedNPCPartyPerson'):
+    if _name not in TABLE_CLASSES:
+        TABLE_CLASSES.append(_name)
+# ---- end clerks ----
+
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.
 WANTED['DistributedToon'] += ['setFriendsList', 'friendsNotify', 'setWhisperSCFrom',

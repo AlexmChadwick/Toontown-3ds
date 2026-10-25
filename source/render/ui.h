@@ -9,6 +9,7 @@
 #include "ui/battle_panel.h"
 #include "ui/quest_panel.h"
 #include "ui/shop_panel.h"
+#include "ui/service_clerk_panel.h" // clerks
 #include "ui/tailor_panel.h"
 #include "ui/fishing_panel.h"
 #include "ui/closet_panel.h"
@@ -82,6 +83,8 @@ struct Context {
     // Fishing: non-null while the toon is fishing; replaces the tab content (ui/fishing_panel.h).
     const FishingView* fishing = nullptr;
     // Shtiker Book data (null = offline)
+    const net::ClerkProfile* clerkProfile = nullptr; // clerks
+    const char* petName = nullptr; // clerks
     const net::OwnStats* stats = nullptr;
     const net::OwnBookStats* book = nullptr;
     const net::OwnFish* fish = nullptr;
@@ -110,6 +113,7 @@ public:
     void setEmoteAccess(const uint8_t* access) { chat_.setEmoteAccess(access); }
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
+    ServiceClerkPanel& serviceClerks() { return serviceClerks_; } // clerks
     ShopPanel& shop() { return shop_; }
     TailorPanel& tailor() { return tailor_; }
     ClosetPanel& closet() { return closet_; }
@@ -172,6 +176,7 @@ private:
     unsigned frame_ = 0;
     int lastTab_ = -1;
     ChatMenu chat_;
+    ServiceClerkPanel serviceClerks_; // clerks
     ShopPanel shop_;
     TailorPanel tailor_;
     ClosetPanel closet_;

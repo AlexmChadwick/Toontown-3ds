@@ -498,6 +498,8 @@ void Client::fail(const char* why, bool retry) {
 }
 
 void Client::resetWorld() {
+    resetClerks(); // clerks: reset owner/session on disconnect
+
     resetBoss();
     bossPies_ = 0;
     bool hadWorld = state_ == State::InZone || numToons_ > 0;
@@ -988,6 +990,8 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (handleClerksField(r, doId, fieldId)) return; // clerks
+
     if (handleCogdoField(r, doId, fieldId)) return; // cogdo
     if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
@@ -1114,6 +1118,10 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    // ---- clerks: a removed clerk cannot retain transaction authority ----
+    if (clerkSession_.pending == doId || clerkSession_.movie.clerk == doId) resetClerks(false);
+    // ---- end clerks ----
+
     cogdoLeaving(doId); // cogdo lifecycle
     bossLeaving(doId); // boss lifecycle hook
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
@@ -1504,6 +1512,8 @@ uint32_t Client::retryInMs() const {
 }
 
 bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
+    if (clerksOwnField(r, fieldId)) return r.ok(); // clerks
+
     if (bossOwnField(r, fieldId)) return r.ok();
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
@@ -2724,6 +2734,8 @@ void Client::sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uin
 }
 
 void Client::dropZoneObjects() {
+    resetClerks(false); // clerks: retain authoritative owner profile across zones
+
     resetBoss();
     bossPies_ = 0;
     // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
