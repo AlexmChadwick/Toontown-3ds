@@ -30,7 +30,21 @@ constexpr uint8_t kBattleAnimRun = 2;
 constexpr uint8_t kBattleAnimAttack = 4; // the wave clip: gags without their own clip yet
 // Battle clips (bake_toon.py ANIMS; loaded for the local toon by ToonClipSet, kBattleClipNames).
 constexpr uint8_t kBattleAnimClip0 = 10;
-enum BattleClip : uint8_t { kClipThrow = 0, kClipPushButton, kClipCringe, kClipSidestep, kClipVictory, kClipLose, kNumBattleClips };
+enum BattleClip : uint8_t {
+    kClipThrow = 0,
+    kClipPushButton,
+    kClipCringe,
+    kClipSidestep,
+    kClipVictory,
+    kClipLose,
+    // [cog attacks] Toon reactions
+    kClipConked,
+    kClipSidestepRight,
+    kClipDuck,
+    kClipSlipForward,
+    kClipSlipBackward,
+    kNumBattleClips
+};
 extern const char* const kBattleClipNames[kNumBattleClips];
 // Cog battle clips (suit bake; BattleActorPose::clipArg = attack index for kSuitAnimAttack).
 constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAttack = 12, kSuitAnimLose = 13,
@@ -185,6 +199,8 @@ public:
 
     void setFx(BattleFx* fx) { battleFx_ = fx; }
     bool actorPos(uint32_t doId, float* x, float* y, float* z, float* h, bool* isToon = nullptr) const;
+    // [cog attacks]
+    const char* actorCogCode(uint32_t doId) const;
     // The battle's own node: its centre on the ground and heading (DistributedBattleBase.setPosHpr).
     void center(float* x, float* y, float* z, float* h) const { *x = bx_, *y = by_, *z = bz_, *h = bh_; }
     float actorHeight(uint32_t doId) const; // nametag height (Suit.height for Cogs); 0 if unknown
@@ -216,6 +232,9 @@ private:
         uint32_t clipStartMs = 0;
         uint32_t reactUntil = 0;     // toons: cringe (hit) / sidestep (miss) until then
         bool reactHit = false;
+        // [cog attacks]
+        char cogCode[8] = {};
+        int8_t reactClip = -1;
         int baseHp = -1;
         uint32_t faceUntil = 0;
         float faceH = 0;

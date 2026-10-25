@@ -82,6 +82,8 @@ const Step kScript[] = {
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: sound", "movie_sound**"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: drop", "movie_drop**"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: heal", "movie_heal**"},
+    // [cog attacks] Street fight observing multiple Cog attacks
+    {35.0f, 0, 0, 0, 0, -1, -1, 0, "battle: cog attacks", "cog_attacks**"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "fight: rounds", "battle_end**"},
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "move: teleport", "move_teleport**"},

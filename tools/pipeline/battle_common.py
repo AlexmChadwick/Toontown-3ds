@@ -75,7 +75,8 @@ class StableExtractor(extract.Extractor):
                 if key_t not in self.matrix_cache:
                     matrix = LMatrix4f()
                     transform.getMatrix(matrix)
-                    self.matrix_cache[key_t] = (transform.getJoint().getName(),
+                    joint_name = transform.getJoint().getName() if hasattr(transform, 'getJoint') else transform.getName()
+                    self.matrix_cache[key_t] = (joint_name,
                         np.array([[matrix.getCell(r,c) for c in range(4)] for r in range(4)]))
                 name,matrix = self.matrix_cache[key_t]
                 terms.append((name,blend.getWeight(i),matrix))
