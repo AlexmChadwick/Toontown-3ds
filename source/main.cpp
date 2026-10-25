@@ -608,7 +608,8 @@ int main() {
             else if (!strcmp(page, "trophies")) ui.openBookPage(tt::ui::Book::kPageTrophies);
             else if (!strcmp(page, "sos")) ui.openBookPage(tt::ui::Book::kPageSos);
             else if (!strcmp(page, "options")) ui.openBookPage(tt::ui::Book::kPageOptions);
-        } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0) {
+        } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
+                   strncmp(autotest.label(), "pad: book", 9) != 0) { // padnav: those steps drive the book with buttons
             ui.book().close();
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
@@ -1126,6 +1127,60 @@ int main() {
             }
         }
         // [end interior life]
+        // ---- padnav: "pad: ..." autotest steps (docs/design/pad_navigation.md) press only
+        // buttons; these hooks put the toon where a panel opens and wait for it to open.
+        if (autotest.active() && !strncmp(autotest.label(), "pad: ", 5)) {
+            constexpr float kPadPagePressSec = 2.0f;  // one A per dialog page
+            constexpr float kPadAwaySec = 2.0f;       // off the clerk first: the NPC wants a new contact
+            constexpr float kPadAwayDist = 8.0f;
+            constexpr float kPadSafetySec = 1.5f;     // a press step that left its panel open closes it
+            constexpr u32 kPadTailorRetryMs = 5000;
+            const char* padStep = autotest.label();
+            if (!strcmp(padStep, "pad: battle start")) {
+                // Walk into a cog like "fight cog"; the gag choice is left to the pad steps.
+                float cx, cy, cz;
+                if (!battle.active() && suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
+                if (battle.active() && battle.phase() == tt::world::BattlePhase::Input) autotest.finishStep();
+            }
+            if (!strcmp(padStep, "pad: quest pages")) {
+                static float pagePress = 0.0f;
+                if (autotest.stepBegan()) pagePress = 0.0f;
+                pagePress += dt;
+                if (talk.phase() == tt::quest::Talk::Phase::Pages && pagePress >= kPadPagePressSec) {
+                    in.down |= KEY_A; // a button press, as a player would
+                    pagePress = 0.0f;
+                }
+                if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) autotest.finishStep();
+            }
+            if (!strcmp(padStep, "pad: shop open")) {
+                float npc[4];
+                if (!shop.active() && zoneActors.shadowPositions(npc, 1) == 1) {
+                    const float back = autotest.stepTime() < kPadAwaySec ? kPadAwayDist : 2.0f;
+                    player.reset(npc[0], npc[1] - back, npc[2], 0.0f);
+                }
+                if (shop.active()) autotest.finishStep();
+            }
+            if (!strcmp(padStep, "pad: shop press") && autotest.stepTime() > kPadSafetySec && shop.active()) {
+                shop.finish(true);
+            }
+            if (!strcmp(padStep, "pad: tailor open")) {
+                static u32 tailorRetryMs = 0;
+                const u32 now = tt::net::plat::nowMs();
+                if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
+                float npc[4];
+                if (!tailor.active() && place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 &&
+                    now > tailorRetryMs) {
+                    const bool away = autotest.stepTime() < kPadAwaySec;
+                    player.reset(npc[0], npc[1] - (away ? kPadAwayDist : 2.0f), npc[2], 0.0f);
+                    if (!away) tailorRetryMs = now + kPadTailorRetryMs;
+                }
+                if (tailor.active()) autotest.finishStep();
+            }
+            if (!strcmp(padStep, "pad: tailor press") && autotest.stepTime() > kPadSafetySec && tailor.active()) {
+                tailor.cancel();
+            }
+        }
+        // ---- end padnav ----
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
@@ -1894,6 +1949,12 @@ int main() {
             } else {
                 battle.setAutoPlay(false);
             }
+            // ---- padnav: the "pad: battle" steps choose with buttons; "pad: battle rounds" finishes ----
+            if (autotest.active() && !strncmp(autotest.label(), "pad: battle", 11) &&
+                strcmp(autotest.label(), "pad: battle rounds") != 0) {
+                battle.setAutoPlay(false);
+            }
+            // ---- end padnav ----
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
