@@ -11,6 +11,7 @@ Re-implements the deterministic layout, colour selection, and node hierarchy fro
 - toontown/building/ToonInterior.py
 - toontown/building/DistributedDoor.py
 """
+import collections
 import math
 import os
 import random
@@ -270,12 +271,55 @@ def parse_dna_landmarks(dna_path):
 _DNA_CACHE = {}
 
 
-def get_landmark_sign(block, resources, loader, store):
-    """Find and assemble the landmark sign for a block from exterior DNA."""
+class _SignStorage:
+    """The DNA storage as sign_text sees it, with private copies of the dynamic (.ttf) fonts.
+
+    A DynamicTextFont packs glyphs into its pages in the order they are first rendered, so with
+    the shared FontPool font a sign's UVs would depend on every sign baked before it in the
+    process. A fresh copy per sign keeps each interior's bake independent of bake order.
+    """
+
+    def __init__(self, storage):
+        self._storage = storage
+        self._sign_fonts = {}
+        for code, path in storage.fonts.items():
+            if path.lower().endswith('.ttf'):
+                font = storage.loader.loadFont(path, okMissing=True)
+                if font is not None:
+                    self._sign_fonts[code] = font.makeCopy()
+
+    def __getattr__(self, name):
+        return getattr(self._storage, name)
+
+
+class _SignAssembler:
+    """The few assembler fields sign_text.assemble_baseline uses."""
+
+    def __init__(self, storage):
+        self.storage = _SignStorage(storage)
+        self.sign_letters = 0
+        self.sign_baselines = 0
+        self.unresolved = collections.Counter()
+
+    def _find(self, code):
+        return self.storage.find_node(code)
+
+
+def get_landmark_sign(zone_id, block, resources, loader, store):
+    """Assemble the landmark sign of tb<block> on the street (or playground) outside zone_id.
+
+    Upstream (DistributedToonInterior.setup) copies '**/tb<block>:*_landmark_*_DNARoot/**/sign'
+    from the exterior the toon just left. Block numbers repeat on every street, so the exterior
+    is the interior zone's own branch: interior = cell - cell % 100 + 500 + block, hence
+    branch = zone - zone % 100 - 500 (2601 -> 2100, 2518 -> 2000).
+    """
     import dna
     import sign_text
 
+    branch = zone_id - zone_id % 100 - 500
     for hood_id, branch_id, is_sz, rel_path in DNA_REGISTRY:
+        if branch_id != branch:
+            continue
         p = os.path.join(resources, rel_path)
         if not os.path.exists(p):
             continue
@@ -302,17 +346,7 @@ def get_landmark_sign(block, resources, loader, store):
 
         find_sign(tree)
         if sign_node is not None:
-            class DummyAsm:
-                def __init__(self, store):
-                    self.storage = store.storage
-                    self.sign_letters = 0
-                    self.sign_baselines = 0
-                    self.unresolved = {}
-
-                def _find(self, code):
-                    return self.storage.find_node(code)
-
-            asm = DummyAsm(store)
+            asm = _SignAssembler(store.storage)
             code = sign_node.get('code')
             src = store.findNode(code) if code else None
             root = NodePath('sign')
@@ -641,7 +675,7 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
             res_path = os.path.join(HERE, '..', '..', 'ref', 'ref', 'resources')
             if not os.path.exists(res_path):
                 res_path = os.path.join(HERE, '..', '..', 'ref', 'resources')
-        sign_np = get_landmark_sign(block, res_path, loader, store)
+        sign_np = get_landmark_sign(zone_id, block, res_path, loader, store)
         if sign_np is not None:
             new_sign = sign_np.copyTo(sign_origin)
             new_sign.setDepthWrite(1, 1)

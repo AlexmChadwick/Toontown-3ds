@@ -3,7 +3,7 @@
 This document specifies the runtime behaviour, network messages, asset paths, and timings for
 dynamic interior and street elements in Toontown 3DS:
 1. Toon HQ Leaderboard (`DistributedHQInterior`)
-2. Animated Interior Props (Pet Shop fish and Toon HQ periscope)
+2. Animated interior props (the pet shop fish)
 3. Swinging Door Leaves (`DistributedDoor`)
 4. Knock-Knock Doors (`DistributedKnockKnockDoor`)
 5. Landmark Interior Signs (`DistributedToonInterior`)
@@ -40,7 +40,7 @@ dynamic interior and street elements in Toontown 3DS:
   `b'(]q\x00]q\x01]q\x02tq\x03.'` (hex: `28 5d 71 00 5d 71 01 5d 71 02 74 71 03 2e`).
   When scores are present, up to 10 entries (`numLeaders = 10`) are populated.
 - **`setTutorial(uint8 flag)`**:
-  - `flag != 0`: Tutorial mode active. Hides the periscope and wall speakers (`find('**/periscope').hide()`, `find('**/speakers').hide()`).
+  - `flag != 0`: Tutorial mode active. Hides the periscope and wall speakers (`find('**/periscope').hide()`, `find('**/speakers').hide()`). Not implemented: both are baked into the static interior.
   - `flag == 0`: Normal HQ. Shows periscope and speakers. Default on stock server is `0`.
 
 ### 1.3 Board Geometry & Layout
@@ -85,35 +85,18 @@ dynamic interior and street elements in Toontown 3DS:
   - Color scale: `(0.8, 0.9, 1.0, 0.8)` (translucent blue-green aquatic tint)
   - Play rate: `0.7` (looping swim)
 - **Bake Format**:
-  - Baked to `interiorfish.ttm` and `interiorfish_swim.tta` with ETC1 textures.
-  - Runtime animates via `render::Anim` and `Renderer::drawMorph`.
+  - `tools/pipeline/bake_interior_props.py` writes `data/interiors/props/interiorfish.ttm` and
+    `interiorfish_swim.tta` (ETC1, 12 fps) to the SD set.
+  - The fish swims while a `DistributedPetshopInterior` is in our zone (any hood's pet shop),
+    loaded on arrival and freed (after a GPU sync) when the object leaves.
 
-### 2.2 Toon HQ Periscope
-- **Upstream Source**: `ref/ref/open-toontown/toontown/hood/HQPeriscopeAnimatedProp.py`
-- **Assets**:
-  - Model: `phase_3.5/models/props/HQ_periscope-mod.bam`
-  - Animation: `phase_3.5/models/props/HQ_periscope-chan.bam` (149 frames @ 24 fps)
-- **Sequence & Timing**:
-  - Wait 2.0 s
-  - Frames 0..40 (swivel out)
-  - Wait 0.7 s
-  - Frames 40..90 (scan left)
-  - Wait 0.7 s
-  - Frames 91..121 (scan right)
-  - Wait 0.7 s
-  - Frames 121..91 (scan center)
-  - Wait 0.7 s
-  - Frames 90..40 (re-center)
-  - Wait 0.7 s
-  - Frames 40..90
-  - Wait 0.7 s
-  - Frames 91..121
-  - Wait 0.5 s
-  - Frames 121..148 (retract)
-  - Wait 3.0 s
-  - Total loop duration: ~22.38 s.
-- **Tutorial Mode**:
-  When `setTutorial(1)` is active, periscope rendering is disabled.
+### 2.2 Toon HQ periscope: static inside
+- The HQ interior's `periscope` node is **static** upstream: `DistributedHQInterior` only hides
+  or shows it (and `speakers`) for `setTutorial`. It is baked with the interior.
+- The animated periscope (`HQPeriscopeAnimatedProp`, the frame-range track 0-40, 40-90, 91-121,
+  ... with 0.7 s waits) is an **exterior** DNA prop, `animated_prop_HQPeriscopeAnimatedProp`
+  next to the TTC HQ, together with the telescope and the pet shop window fish. Those exterior
+  `animated_prop_*` props are not implemented yet (they bake as static models).
 
 ### 2.3 SillyMeter
 - Non-holiday operation uses the static flat model `phase_3.5/models/modules/tt_m_ara_int_sillyMeterFlat.bam`.
@@ -157,25 +140,37 @@ dynamic interior and street elements in Toontown 3DS:
   - `ref/ref/open-toontown/toontown/toonbase/TTLocalizerEnglish.py`
 
 ### 4.2 Joke Selection Algorithm
-- Each knock-knock door on a street has a `propId` equal to the building `block` number.
-- Default Joke:
-  `KnockKnockJokes[propId % len(KnockKnockJokes)]` (118 jokes total).
-- Contest Jokes by Street Branch (`KnockKnockContestJokes`):
-  - Silly Street (`2100`): If `propId == 44` -> `['Wally', "Wally's not looking, hit him with a pie!"]`
-  - Loopy Lane (`2200`): Dict of 4 jokes for blocks `[10, 11, 23, 24]`
-  - Punchline Place (`2300`): If `propId == 1` -> `['Justin', 'Justin other couple of Cog parts and off we go!']`
-  - Polar Place (`3300`): Dict of 5 jokes for blocks `[12, 17, 23, 24, 25]`
+- Each knock-knock door has `propId` = the building block; `DistributedBuildingAI.enterToon`
+  makes one for every toon building, in the block's visgroup zone.
+- Default joke: `KnockKnockJokes[propId % len(KnockKnockJokes)]` (118 jokes).
+- `KnockKnockContestJokes` by street branch: Silly Street (2100) block 44; Loopy Lane (2200)
+  blocks 27, 28, 40, 41; Punchline Place (2300) block 1; Polar Place (3300) blocks 6, 10, 12, 28,
+  30. Generated into `source/game/knockknock_jokes.cpp` by `tools/gen_knockknock_jokes.py`.
 
-### 4.3 Sequence Timings & Dialog
-- Interaction radius: 6.0 units from door trigger.
-- Overall duration: 8.0 s (`d = 1.0 s` per beat):
-  - `t = 0.0 s`: Door chat balloon: `"Knock, knock."` (`TTLocalizer.DoorKnockKnock`)
-  - `t = 0.5 s`: SFX `GUI_knock_3.ogg`
-  - `t = 1.0 s`: Avatar chat balloon: `"Who's there?"` (`TTLocalizer.DoorWhosThere`)
-  - `t = 2.0 s`: Door chat balloon: `joke[0]` (Setup, e.g. `"Who"`)
-  - `t = 3.0 s`: Avatar chat balloon: `joke[0] + " who?"` (e.g. `"Who who?"`)
-  - `t = 4.0 s`: Door chat balloon: `joke[1]` (Punchline), rimshot SFX `AA_heal_telljoke.ogg`
-  - `t = 8.0 s`: Cleanup and chat balloons fade out.
+### 4.3 Trigger
+- The trigger is the collision sphere `KnockKnockDoorSphere_<block>` that libtoontown's
+  `DNAFlatDoor` puts on every **flat_door** of the block's flat buildings (radius 2.0). It is
+  not in any `.bam` and our assembler does not build it, so
+  `tools/pipeline/bake_knock_doors.py` loads each street with the real libtoontown loader
+  (the server's Panda3D fork) and writes `data/zones/<street>.kkd` (`KKD1`, then
+  `propId x y z radius`). 522 spheres over the 18 streets; playgrounds have none.
+- Our toon's GravityWalker event sphere (centre z + r - 0.1, radius r x 1.04, r = 1.4) entering a
+  sphere sends `requestInteract` once; leaving sends `requestExit`
+  (`DistributedAnimatedProp.enterTrigger` / `exitTrigger`).
+- `DistributedAnimatedPropAI.requestInteract`: if not already `playing`, the AI broadcasts
+  `setAvatarInteract(avId)` and `setState('playing', timestamp)`, then returns to `attract`
+  after 9 s. Otherwise it answers `rejectInteract`.
+
+### 4.4 Sequence Timings & Dialog (`knockKnockTrack(avatar, 8)`, d = 1 s)
+Every client plays it for the toon the AI named, from the state's timestamp:
+- `t = 0.0 s`: door balloon (nametag `Door`, sphere centre + toon height + 2): "Knock, knock."
+- `t = 0.5 s`: `GUI_knock_3.ogg`
+- `t = 1.0 s`: the toon's own balloon: "Who's there?"
+- `t = 2.0 s`: door: `joke[0]`
+- `t = 3.0 s`: the toon: `joke[0] + " who?"`
+- `t = 4.0 s`: door: `joke[1]`, and `AA_heal_telljoke.ogg` from its 2.0 s `startTime` (baked
+  trimmed)
+- `t = 8.0 s`: cleanup.
 
 ---
 

@@ -12,6 +12,7 @@ DatagramWriter Client::beginMessage(uint16_t) { return DatagramWriter(nullptr, 0
 void Client::beginUpdate(DatagramWriter&, uint32_t, uint16_t) {}
 bool Client::finish(DatagramWriter&) { return true; }
 void Client::pushEvent(EventType, uint32_t) {}
+uint32_t Client::networkToLocal(int16_t, uint32_t now) const { return now; }
 } // namespace tt::net
 #endif
 

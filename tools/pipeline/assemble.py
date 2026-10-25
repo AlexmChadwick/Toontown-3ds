@@ -387,6 +387,11 @@ class Assembler:
         door.setScale(NodePath(), 1, 1, 1)
         door.setPosHpr(0.5, 0, 0, 0, 0, 0)
         door.setColor(d.vec('color', WHITE))
+        # libtoontown's DNAFlatDoor keeps no door trigger: a flat door cannot be entered, it only
+        # carries the KnockKnockDoorSphere_<block> (tools/pipeline/bake_knock_doors.py).
+        for coll in door.findAllMatches('**/+CollisionNode'):
+            if 'trigger' in coll.getName():
+                coll.removeNode()
 
     # DNA 'wall'/'windows'/'cornice' outside a flat building: not meaningful.
     def _t_wall(self, d, parent):

@@ -25,6 +25,9 @@ public:
     void setBoat(const BoatActor* boat) { boat_ = boat; }
     void handleEvent(const net::Event& ev, const net::Client& client);
     void clear();
+    // Puts a phrase in a remote toon's chat balloon (avatar.setChatAbsolute), e.g. the
+    // knock-knock lines; ignored for toons that are not here.
+    void say(u32 doId, const char* phrase);
     void update(float dt);
     // Draws the nearest kMax toons to (cx, cy).
     void draw(render::Renderer& renderer, float cx, float cy);

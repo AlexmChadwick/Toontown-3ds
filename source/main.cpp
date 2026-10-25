@@ -283,7 +283,6 @@ int main() {
     // [interior life]
     static tt::world::InteriorLife interiorLife;
     interiorLife.init();
-    interiorLife.setZone(kStartZone, place.pointsPath());
     // [end interior life]
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
@@ -941,9 +940,9 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "interior: hq board")) {
             if (place.zoneId() != 2520 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2520;
             if (place.zoneId() == 2520) {
-                // Face the empty_board at (-47.4427, 29.6598, 8.15647)
+                // Face the empty_board at (-47.4427, 29.6598, 8.15647); the rows are whatever
+                // the server's setLeaderBoard holds (often empty: '-').
                 player.reset(-37.0f, 29.65f, 4.0f, 270.0f);
-                interiorLife.setTestLeaderboard();
             }
         }
         if (autotest.active() && !strcmp(autotest.label(), "interior: pet fish")) {
@@ -954,17 +953,28 @@ int main() {
             }
         }
         if (autotest.active() && !strcmp(autotest.label(), "interior: door leaves")) {
-            if (place.zoneId() == 2000 && transition.idle()) {
-                // Step towards door trigger to initiate door swing
-                player.reset(-149.0f, -28.0f, 4.0f, 90.0f);
+            // The previous step leaves us in the pet shop: walk into its real exit door, which
+            // plays the door-out movie (right leaf) and the door-in movie outside (left leaf).
+            static bool doorWalked = false;
+            if (autotest.stepBegan()) doorWalked = false;
+            const tt::world::CollisionWorld& cw = place.collision();
+            for (int i = 0; !doorWalked && transition.idle() && place.zoneId() % 1000 >= 500 && i < cw.numTriggers(); i++) {
+                const tt::world::CollTrigger& t = cw.trigger(i);
+                if (!strstr(t.name, "door_trigger")) continue;
+                player.reset((t.min[0] + t.max[0]) * 0.5f, (t.min[1] + t.max[1]) * 0.5f, t.min[2], player.headingDeg());
+                TT_LOG("autotest: walking into %s for the door leaves", t.name);
+                doorWalked = true;
             }
         }
         if (autotest.active() && !strcmp(autotest.label(), "street: knock knock")) {
             if (place.zoneId() != 2100 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2100;
-            if (place.zoneId() == 2100) {
-                if (!interiorLife.isKnockKnockActive()) {
-                    interiorLife.triggerKnockKnock(2100, 44);
-                }
+            // Walk into the first knock-knock door sphere once, and let the AI start the joke.
+            static bool knockPlaced = false;
+            if (autotest.stepBegan()) knockPlaced = false;
+            float kx, ky, kz;
+            if (place.zoneId() / 100 == 21 && transition.idle() && !knockPlaced && interiorLife.knockSphere(0, &kx, &ky, &kz)) {
+                player.reset(kx, ky, kz + 0.1f, 0.0f); // walls push the toon out in front of the door
+                knockPlaced = true;
             }
         }
         // [end interior life]
@@ -1271,9 +1281,6 @@ int main() {
                 cogBuildings.setZone(dest);
                 cogBuildings.syncAnchors(place);
                 suits.setZone(dest);
-                // [interior life]
-                interiorLife.setZone(dest, place.pointsPath());
-                // [end interior life]
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
@@ -1328,9 +1335,6 @@ int main() {
                 racing.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
                 pets.handleEvent(ev);
-                // [interior life]
-                interiorLife.handleEvent(ev, net, nowMs);
-                // [end interior life]
                 if (ev.type == tt::net::EventType::ClosetUp) {
                     net.sendClosetEnter(ev.doId);
                     ui.closet().open(net, nowMs);
@@ -1498,7 +1502,19 @@ int main() {
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
         // [interior life]
-        interiorLife.update(dt, player.x(), player.y(), player.z(), net, tt::net::plat::nowMs());
+        if (place.zoneId() != interiorLife.zone()) interiorLife.setZone(place.zoneId());
+        {
+            tt::world::InteriorLife::ToonLine line;
+            if (interiorLife.update(dt, player.x(), player.y(), player.z(), net, tt::net::plat::nowMs(), &line)) {
+                // The toon's knock-knock lines go to its own chat balloon (setChatAbsolute).
+                if (!netStarted || line.avatarId == net.avatarId()) {
+                    myPhrase = line.phrase;
+                    myPhraseAge = 0.0f;
+                } else {
+                    remoteToons.say(line.avatarId, line.phrase);
+                }
+            }
+        }
         // [end interior life]
         if (netStarted && net.inZone()) {
             const u32 nowMs = tt::net::plat::nowMs();
@@ -1762,7 +1778,7 @@ int main() {
             tt::prof::lap(tt::prof::kDrawToons);
             zoneActors.draw(renderer, player.cameraEye());
             // [interior life]
-            interiorLife.draw(renderer, player.cameraEye());
+            interiorLife.draw(renderer);
             // [end interior life]
             boat.draw(renderer);
             cchars.draw(renderer);
@@ -1831,9 +1847,7 @@ int main() {
             cchars.addBalloons(balloons, proj, view);
             suits.addBalloons(balloons, proj, view);
             // [interior life]
-            interiorLife.addBalloons(balloons, proj, view, player.x(), player.y(), player.z(),
-                                     localLook.valid() ? localLook.nametagHeight : 4.0f,
-                                     netStarted && net.avatarName()[0] ? net.avatarName() : "Toon");
+            interiorLife.addBalloons(balloons, proj, view, localLook.valid() ? localLook.nametagHeight : 4.0f);
             // [end interior life]
             for (int i = 0; i < battle.numPopups(); i++) { // damage numbers over the fighters
                 const tt::world::BattlePopup& p = battle.popup(i);

@@ -219,6 +219,16 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
     }
 }
 
+void RemoteToons::say(u32 doId, const char* phrase) {
+    for (Remote& r : toons_) {
+        if (r.active && r.doId == doId) {
+            r.phrase = phrase;
+            r.phraseAge = 0.0f;
+            return;
+        }
+    }
+}
+
 void RemoteToons::clear() {
     for (Remote& r : toons_) {
         if (r.active) despawn(r);

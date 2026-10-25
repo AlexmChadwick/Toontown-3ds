@@ -314,6 +314,17 @@ const Client::KnockKnockDoorState* Client::findKnockKnockDoorByPropId(uint16_t p
 
 bool Client::handleInteriorEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
                                  const uint16_t* req, uint16_t reqCount, bool other) {
+    if (classId == dc::DistributedPetshopInterior::kClassId) {
+        // Only setZoneIdAndBlock (required); DistributedPetshopInterior.setup adds the fish.
+        for (uint16_t n = 0; n < reqCount && r.ok(); ++n) skipField(r, req[n]);
+        if (other && r.ok()) {
+            const uint16_t count = r.u16();
+            for (uint16_t n = 0; n < count && r.ok(); ++n) skipField(r, r.u16());
+        }
+        petshopInteriorDoId_ = doId;
+        TT_LOG("net: pet shop interior %u", unsigned(doId));
+        return true;
+    }
     if (classId == dc::DistributedHQInterior::kClassId) {
         HQLeaderboardState hq{};
         hq.doId = doId;
@@ -350,6 +361,7 @@ bool Client::handleInteriorEnter(uint32_t doId, uint16_t classId, DatagramReader
             }
         }
         hq.active = true;
+        hq.revision = hqLeaderboard_.revision + 1;
         hqLeaderboard_ = hq;
         TT_LOG("net: HQ interior %u (zone %u block %u) generated with %d leaders, tutorial %u",
                unsigned(doId), unsigned(hq.zoneId), unsigned(hq.block), hq.numLeaders, unsigned(hq.tutorial));
@@ -406,10 +418,14 @@ bool Client::handleInteriorEnter(uint32_t doId, uint16_t classId, DatagramReader
             }
         }
         kk.active = true;
+        kk.stateMs = timeSynced_ ? networkToLocal(kk.timestamp, now_) : now_;
+        kk.serial = 1;
         *dst = kk;
-        TT_LOG("net: knock-knock door %u (propId %u avId %u state '%s') generated",
-               unsigned(doId), unsigned(kk.propId), unsigned(kk.avatarId), kk.state);
-        pushEvent(EventType::KnockKnockInteract, doId);
+        if (!strcmp(kk.state, "playing")) {
+            TT_LOG("net: knock-knock door %u (propId %u) generated mid-joke for %u",
+                   unsigned(doId), unsigned(kk.propId), unsigned(kk.avatarId));
+        }
+        pushEvent(EventType::KnockKnockState, doId);
         return true;
     }
 
@@ -427,6 +443,7 @@ bool Client::handleInteriorField(DatagramReader& r, uint32_t doId, uint16_t fiel
             const Bytes b = r.blob();
             if (b.data && b.len > 0) {
                 decodeLeaderboardPickle(b.data, b.len, hqLeaderboard_);
+                hqLeaderboard_.revision++;
                 TT_LOG("net: HQ interior leaderboard updated (%d leaders)", hqLeaderboard_.numLeaders);
                 pushEvent(EventType::HQLeaderboard, doId);
             }
@@ -434,6 +451,7 @@ bool Client::handleInteriorField(DatagramReader& r, uint32_t doId, uint16_t fiel
         }
         if (fieldId == dc::DistributedHQInterior::k_setTutorial) {
             hqLeaderboard_.tutorial = r.u8();
+            hqLeaderboard_.revision++;
             TT_LOG("net: HQ interior tutorial flag set to %u", unsigned(hqLeaderboard_.tutorial));
             pushEvent(EventType::HQTutorial, doId);
             return true;
@@ -455,6 +473,8 @@ bool Client::handleInteriorField(DatagramReader& r, uint32_t doId, uint16_t fiel
             if (fieldId == dc::DistributedAnimatedProp::k_setState) {
                 r.string(knockKnockDoors_[i].state, sizeof(knockKnockDoors_[i].state));
                 knockKnockDoors_[i].timestamp = r.i16();
+                knockKnockDoors_[i].stateMs = timeSynced_ ? networkToLocal(knockKnockDoors_[i].timestamp, now_) : now_;
+                knockKnockDoors_[i].serial++;
                 TT_LOG("net: knock-knock %u state '%s'", unsigned(doId), knockKnockDoors_[i].state);
                 pushEvent(EventType::KnockKnockState, doId);
                 return true;
@@ -467,7 +487,13 @@ bool Client::handleInteriorField(DatagramReader& r, uint32_t doId, uint16_t fiel
 
 bool Client::handleInteriorLeaving(uint32_t doId) {
     if (hqLeaderboard_.active && hqLeaderboard_.doId == doId) {
+        const uint32_t revision = hqLeaderboard_.revision;
         hqLeaderboard_ = HQLeaderboardState{};
+        hqLeaderboard_.revision = revision + 1;
+        return true;
+    }
+    if (petshopInteriorDoId_ == doId) {
+        petshopInteriorDoId_ = 0;
         return true;
     }
 
@@ -483,7 +509,10 @@ bool Client::handleInteriorLeaving(uint32_t doId) {
 }
 
 void Client::clearInteriorObjects() {
+    const uint32_t revision = hqLeaderboard_.revision;
     hqLeaderboard_ = HQLeaderboardState{};
+    hqLeaderboard_.revision = revision + 1;
+    petshopInteriorDoId_ = 0;
     for (size_t i = 0; i < kMaxKnockKnockDoors; ++i) {
         knockKnockDoors_[i] = KnockKnockDoorState{};
     }

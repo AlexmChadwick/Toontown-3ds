@@ -244,9 +244,14 @@ def bake_sfx(src, dst, loops):
     return size, n, SFX_RATE, 1, pcm, pcm
 
 
-def bake_sfx_adpcm(src, dst, loops):
-    """Mono DSP-ADPCM SFX: a single block holding the whole sound (loaded with one read)."""
+def bake_sfx_adpcm(src, dst, loops, start_seconds=0.0):
+    """Mono DSP-ADPCM SFX: a single block holding the whole sound (loaded with one read).
+
+    start_seconds drops the head of the sound, for SFX that upstream always plays from a
+    SoundInterval startTime (the knock-knock rimshot starts at 2.0 s)."""
     pcm = decode_ogg(src, SFX_RATE, 1)
+    if start_seconds > 0:
+        pcm = pcm[:, int(round(start_seconds * SFX_RATE)):]
     n = pcm.shape[1]
     coefs = [adp.compute_coefs(pcm[0])]
     data, decoded, headers, h0, h1 = adp.encode([pcm[0]], coefs)

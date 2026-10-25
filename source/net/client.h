@@ -1357,6 +1357,7 @@ public:
         uint8_t tutorial = 0;
         int numLeaders = 0;
         HQLeaderEntry leaders[10] = {};
+        uint32_t revision = 0; // bumped on every board or tutorial change
     };
 
     struct KnockKnockDoorState {
@@ -1366,9 +1367,13 @@ public:
         uint32_t avatarId = 0;
         char state[32] = {};
         int16_t timestamp = 0;
+        uint32_t stateMs = 0;   // local time the state began (from the network timestamp)
+        uint32_t serial = 0;    // bumped on every setState
     };
 
     const HQLeaderboardState& hqLeaderboard() const { return hqLeaderboard_; }
+    // DistributedPetshopInterior present in our zone (the interior fish swims while it is).
+    bool petshopInterior() const { return petshopInteriorDoId_ != 0; }
     const KnockKnockDoorState* findKnockKnockDoor(uint32_t doId) const;
     const KnockKnockDoorState* findKnockKnockDoorByPropId(uint16_t propId) const;
     bool sendKnockKnockInteract(uint32_t doId);
@@ -1782,7 +1787,8 @@ private:
     NetDoor doors_[kMaxDoors] = {};
     size_t numDoors_ = 0;
     // [interior life]
-    static constexpr size_t kMaxKnockKnockDoors = 32;
+    static constexpr size_t kMaxKnockKnockDoors = 64; // one per toon building; streets have up to 43
+    uint32_t petshopInteriorDoId_ = 0;
     HQLeaderboardState hqLeaderboard_ = {};
     KnockKnockDoorState knockKnockDoors_[kMaxKnockKnockDoors] = {};
 

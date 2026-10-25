@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
-"""Host test: verify that all interior life bakes are deterministic and byte-identical.
+"""Host test: the interior life bakes are deterministic.
 
-Tests:
-- interiorfish.ttm
-- interiorfish_swim.tta
-- periscope.ttm
-- periscope_anim.tta
-- name_star.ttm
-- audio/gui_knock.tsnd
-- audio/tell_joke.tsnd
+Runs the real baker (bake_interior_props.bake_all) twice into fresh SD trees and checks that
+both runs, and the committed sdmc-out copy when present, are byte-identical.
 """
 import hashlib
 import os
@@ -18,103 +12,42 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
-PIPELINE = os.path.join(ROOT, 'tools', 'pipeline')
-if PIPELINE not in sys.path:
-    sys.path.insert(0, PIPELINE)
+sys.path.insert(0, os.path.join(ROOT, 'tools', 'pipeline'))
 
-from direct.showbase.ShowBase import ShowBase
-import bake_audio
-import bake_interior_props
+from direct.showbase.ShowBase import ShowBase  # noqa: E402
+
+import bake_interior_props  # noqa: E402
 
 
 def sha256_file(path):
-    h = hashlib.sha256()
     with open(path, 'rb') as f:
-        while True:
-            chunk = f.read(65536)
-            if not chunk:
-                break
-            h.update(chunk)
-    return h.hexdigest()
-
-
-def bake_all_to_dir(target_dir, base, res):
-    os.makedirs(target_dir, exist_ok=True)
-    os.makedirs(os.path.join(target_dir, 'audio'), exist_ok=True)
-
-    # 1. Pet Shop fish
-    fish_mod = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-zero.bam')
-    fish_anim = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-swim.bam')
-    fish_ttm = os.path.join(target_dir, 'interiorfish.ttm')
-    fish_tta = os.path.join(target_dir, 'interiorfish_swim.tta')
-    bake_interior_props.bake_animated_actor(base, fish_mod, fish_anim, 'swim', fish_ttm, fish_tta, target_fps=12.0)
-
-    # 2. HQ periscope
-    peri_mod = os.path.join(res, 'phase_3.5', 'models', 'props', 'HQ_periscope-mod.bam')
-    peri_anim = os.path.join(res, 'phase_3.5', 'models', 'props', 'HQ_periscope-chan.bam')
-    peri_ttm = os.path.join(target_dir, 'periscope.ttm')
-    peri_tta = os.path.join(target_dir, 'periscope_anim.tta')
-    bake_interior_props.bake_animated_actor(base, peri_mod, peri_anim, 'anim', peri_ttm, peri_tta, target_fps=12.0)
-
-    # 3. Leaderboard trophy star
-    star_mod = os.path.join(res, 'phase_3.5', 'models', 'gui', 'name_star.bam')
-    star_ttm = os.path.join(target_dir, 'name_star.ttm')
-    bake_interior_props.bake_static_model(base, star_mod, star_ttm)
-
-    # 4. Knock-knock SFX
-    sfx_knock_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'GUI_knock_3.ogg')
-    sfx_joke_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'AA_heal_telljoke.ogg')
-    sfx_knock_out = os.path.join(target_dir, 'audio', 'gui_knock.tsnd')
-    sfx_joke_out = os.path.join(target_dir, 'audio', 'tell_joke.tsnd')
-    bake_audio.bake_sfx_adpcm(sfx_knock_src, sfx_knock_out, False)
-    bake_audio.bake_sfx_adpcm(sfx_joke_src, sfx_joke_out, False)
+        return hashlib.sha256(f.read()).hexdigest()
 
 
 def main():
-    print("Testing deterministic bakes for interior life assets...")
     base = ShowBase()
     res = bake_interior_props.find_resources()
-    print(f"Resources: {res}")
-
-    dir1 = tempfile.mkdtemp(prefix='bake_test_1_')
-    dir2 = tempfile.mkdtemp(prefix='bake_test_2_')
-
+    runs = [tempfile.mkdtemp(prefix='interior_life_bake_') for _ in range(2)]
     try:
-        print("Running bake pass 1...")
-        bake_all_to_dir(dir1, base, res)
-
-        print("Running bake pass 2...")
-        bake_all_to_dir(dir2, base, res)
-
-        files = [
-            'interiorfish.ttm',
-            'interiorfish_swim.tta',
-            'periscope.ttm',
-            'periscope_anim.tta',
-            'name_star.ttm',
-            os.path.join('audio', 'gui_knock.tsnd'),
-            os.path.join('audio', 'tell_joke.tsnd'),
-        ]
-
-        all_match = True
-        for rel in files:
-            p1 = os.path.join(dir1, rel)
-            p2 = os.path.join(dir2, rel)
-            h1 = sha256_file(p1)
-            h2 = sha256_file(p2)
-            sz = os.path.getsize(p1)
-            if h1 != h2:
-                print(f"FAIL: {rel} mismatch! ({h1} != {h2})")
-                all_match = False
+        outputs = [bake_interior_props.bake_all(base, res, sd) for sd in runs]
+        failed = False
+        for first, second in zip(*outputs):
+            rel = os.path.relpath(first, runs[0])
+            h1 = sha256_file(first)
+            h2 = sha256_file(second)
+            committed = os.path.join(ROOT, 'sdmc-out', rel)
+            h3 = sha256_file(committed) if os.path.exists(committed) else h1
+            if h1 != h2 or h1 != h3:
+                print(f'FAIL: {rel} differs ({h1[:12]} / {h2[:12]} / sdmc-out {h3[:12]})')
+                failed = True
             else:
-                print(f"PASS: {rel} ({sz} bytes, {h1[:16]}...) byte-identical.")
-
-        if not all_match:
+                print(f'PASS: {rel} ({os.path.getsize(first)} bytes, {h1[:16]})')
+        if failed:
             sys.exit(1)
-        print("ALL BAKE DETERMINISM TESTS PASSED.")
+        print('ALL BAKE DETERMINISM TESTS PASSED.')
     finally:
-        shutil.rmtree(dir1, ignore_errors=True)
-        shutil.rmtree(dir2, ignore_errors=True)
+        for sd in runs:
+            shutil.rmtree(sd, ignore_errors=True)
 
 
 if __name__ == '__main__':

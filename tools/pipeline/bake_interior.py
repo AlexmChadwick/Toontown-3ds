@@ -38,7 +38,6 @@ Preview PNGs written to sdmc-out/previews/interiors/:
 import argparse
 import json
 import os
-import shutil
 import subprocess
 import sys
 import time
@@ -142,8 +141,15 @@ def render_preview_child(zone_id, block, ttm_path, out_png, resources):
 
 
 def _setup_texture_caching():
-    """Enable deterministic texture caching across extractors to avoid re-encoding common assets."""
+    """Share encoded textures across interiors without making a bake depend on bake order.
+
+    The cache key is everything the encoded texture depends on (name, wrap modes, size limit,
+    ETC1 setting and the pixels themselves), so an interior bakes to the same bytes whether it
+    is baked alone or after any others; repeats only skip the costly encode.
+    """
+    import hashlib
     import extract
+    import ttm
     if getattr(extract.Extractor, '_cached_texture_installed', False):
         return
     global_cache = {}
@@ -153,22 +159,28 @@ def _setup_texture_caching():
         key = tex.getFullpath().getFullpath() or tex.getName()
         if key in self._tex_index:
             return self._tex_index[key]
-        if key in global_cache:
-            cached_t = global_cache[key]
-            idx = len(self.textures)
-            self._tex_index[key] = idx
-            self.textures.append(cached_t)
-            return idx
-        idx = orig_texture(self, tex)
-        global_cache[key] = self.textures[idx]
-        return idx
+        if not self.encode_textures:
+            return orig_texture(self, tex)
+        px, ncomp, pfmt = extract.texture_pixels(tex, self.max_tex)
+        wrap_u = extract._WRAP.get(tex.getWrapU(), ttm.GPU_REPEAT)
+        wrap_v = extract._WRAP.get(tex.getWrapV(), ttm.GPU_REPEAT)
+        content = (tex.getName(), wrap_u, wrap_v, self.max_tex, self.etc1, ncomp, str(pfmt), px.shape,
+                   hashlib.sha1(px.tobytes()).hexdigest())
+        cached = global_cache.get(content)
+        if cached is None:
+            fmt = extract.choose_format(px, ncomp, pfmt, etc1=self.etc1)
+            cached = ttm.Texture(tex.getName(), px, fmt, wrap_u, wrap_v)
+            global_cache[content] = cached
+        self._tex_index[key] = len(self.textures)
+        self.textures.append(cached)
+        return self._tex_index[key]
 
     extract.Extractor._texture = cached_texture
     extract.Extractor._cached_texture_installed = True
 
 
 def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
-             spec=None, max_tex=128, want_preview=False, safezone_blocks=None):
+             spec=None, max_tex=128, want_preview=False):
     """Assemble and bake one interior to .ttm, .ttc, .pts, and .json."""
     import assemble
     import collide
@@ -230,24 +242,7 @@ def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
     with open(json_path, 'w') as f:
         json.dump(meta, f, indent=2)
 
-    # 6. Alias for street buildings: create <hood+500+block> if it does not conflict with safezone buildings
-    # (Matches source/world/place.cpp line 200 where hoodOf(zoneId_) was used).
-    if spec and not spec.get('is_safezone', True):
-        hood_id = spec['hood_id']
-        alias_zone = hood_id + 500 + block
-        sz_blocks = safezone_blocks.get(hood_id, set()) if safezone_blocks else set()
-        if alias_zone != zone_id and block not in sz_blocks:
-            alias_stem = os.path.join(out_dir, str(alias_zone))
-            for ext in ('ttm', 'ttc', 'pts', 'json'):
-                src_file = stem + '.' + ext
-                dst_file = alias_stem + '.' + ext
-                if os.path.exists(src_file) and not os.path.exists(dst_file):
-                    try:
-                        os.link(src_file, dst_file)
-                    except OSError:
-                        shutil.copyfile(src_file, dst_file)
-
-    # 7. Render preview in child process if requested
+    # 6. Render preview in child process if requested
     if want_preview:
         cmd = [
             sys.executable, '-I', os.path.abspath(__file__),
@@ -333,12 +328,6 @@ def main():
     # Extract all interior specifications
     specs = interior_assemble.get_all_interior_specs(args.resources)
 
-    # Collect safezone blocks per hood to prevent street alias collisions
-    sz_blocks_by_hood = {}
-    for sp in specs.values():
-        if sp.get('is_safezone', False):
-            sz_blocks_by_hood.setdefault(sp['hood_id'], set()).add(sp['block'])
-
     # Determine targets
     targets = []
     if args.all:
@@ -404,7 +393,6 @@ def main():
             spec=sp,
             max_tex=args.max_tex,
             want_preview=want_preview,
-            safezone_blocks=sz_blocks_by_hood,
         )
         results.append(res)
 

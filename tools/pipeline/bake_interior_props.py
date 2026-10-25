@@ -1,22 +1,17 @@
 #!/usr/bin/env python3
-"""Bake animated interior props (Pet Shop fish, HQ periscope) and interior life assets.
+"""Bake the interior and street life assets (docs/design/interior_life.md).
 
-Outputs:
-  romfs/baked/interiorfish.ttm
-  romfs/baked/interiorfish_swim.tta
-  romfs/baked/periscope.ttm
-  romfs/baked/periscope_anim.tta
-  romfs/baked/name_star.ttm
-  romfs/baked/audio/gui_knock.tsnd
-  romfs/baked/audio/tell_joke.tsnd
-And mirrors into sdmc-out/3ds/toontown3ds/data/interiors/props/ and audio/.
+Outputs, under <sd>/3ds/toontown3ds/data/ (default sd: sdmc-out):
+  interiors/props/interiorfish.ttm, interiorfish_swim.tta   DistributedPetshopInterior fish
+  interiors/props/name_star.ttm                             HQ leaderboard trophy star
+  audio/gui_knock.tsnd, audio/tell_joke.tsnd                DistributedKnockKnockDoor SFX
 
 Usage:
-  .venv/bin/python -I tools/pipeline/bake_interior_props.py
+  .venv/bin/python -I tools/pipeline/bake_interior_props.py [--sd sdmc-out]
 """
+import argparse
 import math
 import os
-import shutil
 import sys
 import numpy as np
 
@@ -117,56 +112,46 @@ def bake_static_model(base, model_path, out_ttm):
     print(f"Baked static model {out_ttm}: {stats['file_bytes']} bytes, {stats['triangles']} tris")
 
 
-def copy_mirror(src, dst):
-    os.makedirs(os.path.dirname(os.path.abspath(dst)), exist_ok=True)
-    shutil.copyfile(src, dst)
+def bake_all(base, res, sd_root):
+    """Bake every asset into sd_root/3ds/toontown3ds/data; returns the written paths."""
+    data = os.path.join(sd_root, '3ds', 'toontown3ds', 'data')
+    props = os.path.join(data, 'interiors', 'props')
+    audio = os.path.join(data, 'audio')
+    os.makedirs(props, exist_ok=True)
+    os.makedirs(audio, exist_ok=True)
+
+    # 1. Pet shop fish (DistributedPetshopInterior.setup: interiorfish-zero + swim)
+    fish_mod = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-zero.bam')
+    fish_anim = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-swim.bam')
+    fish_ttm = os.path.join(props, 'interiorfish.ttm')
+    fish_tta = os.path.join(props, 'interiorfish_swim.tta')
+    bake_animated_actor(base, fish_mod, fish_anim, 'swim', fish_ttm, fish_tta, target_fps=12.0)
+
+    # 2. Leaderboard trophy star (DistributedHQInterior.buildTrophy)
+    star_mod = os.path.join(res, 'phase_3.5', 'models', 'gui', 'name_star.bam')
+    star_ttm = os.path.join(props, 'name_star.ttm')
+    bake_static_model(base, star_mod, star_ttm)
+
+    # 3. Knock-knock SFX
+    sfx_knock_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'GUI_knock_3.ogg')
+    sfx_joke_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'AA_heal_telljoke.ogg')
+    sfx_knock_out = os.path.join(audio, 'gui_knock.tsnd')
+    sfx_joke_out = os.path.join(audio, 'tell_joke.tsnd')
+    bake_audio.bake_sfx_adpcm(sfx_knock_src, sfx_knock_out, False)
+    # DistributedKnockKnockDoor.knockKnockTrack: SoundInterval(self.rimshot, startTime=2.0)
+    bake_audio.bake_sfx_adpcm(sfx_joke_src, sfx_joke_out, False, start_seconds=2.0)
+    return [fish_ttm, fish_tta, star_ttm, sfx_knock_out, sfx_joke_out]
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--sd', default=os.path.join(ROOT, 'sdmc-out'))
+    args = ap.parse_args()
     res = find_resources()
     print(f"Using resources at: {res}")
     base = ShowBase()
-
-    # 1. Pet Shop fish
-    fish_mod = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-zero.bam')
-    fish_anim = os.path.join(res, 'phase_4', 'models', 'props', 'interiorfish-swim.bam')
-    fish_ttm = os.path.join(ROOT, 'romfs', 'baked', 'interiorfish.ttm')
-    fish_tta = os.path.join(ROOT, 'romfs', 'baked', 'interiorfish_swim.tta')
-    bake_animated_actor(base, fish_mod, fish_anim, 'swim', fish_ttm, fish_tta, target_fps=12.0)
-
-    # 2. HQ periscope
-    peri_mod = os.path.join(res, 'phase_3.5', 'models', 'props', 'HQ_periscope-mod.bam')
-    peri_anim = os.path.join(res, 'phase_3.5', 'models', 'props', 'HQ_periscope-chan.bam')
-    peri_ttm = os.path.join(ROOT, 'romfs', 'baked', 'periscope.ttm')
-    peri_tta = os.path.join(ROOT, 'romfs', 'baked', 'periscope_anim.tta')
-    bake_animated_actor(base, peri_mod, peri_anim, 'anim', peri_ttm, peri_tta, target_fps=12.0)
-
-    # 3. Leaderboard trophy star
-    star_mod = os.path.join(res, 'phase_3.5', 'models', 'gui', 'name_star.bam')
-    star_ttm = os.path.join(ROOT, 'romfs', 'baked', 'name_star.ttm')
-    bake_static_model(base, star_mod, star_ttm)
-
-    # 4. Knock-knock SFX
-    sfx_knock_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'GUI_knock_3.ogg')
-    sfx_joke_src = os.path.join(res, 'phase_5', 'audio', 'sfx', 'AA_heal_telljoke.ogg')
-    sfx_knock_out = os.path.join(ROOT, 'romfs', 'baked', 'audio', 'gui_knock.tsnd')
-    sfx_joke_out = os.path.join(ROOT, 'romfs', 'baked', 'audio', 'tell_joke.tsnd')
-    os.makedirs(os.path.dirname(sfx_knock_out), exist_ok=True)
-    bake_audio.bake_sfx_adpcm(sfx_knock_src, sfx_knock_out, False)
-    bake_audio.bake_sfx_adpcm(sfx_joke_src, sfx_joke_out, False)
-    print("Baked knock-knock SFX.")
-
-    # 5. Mirror to sdmc-out
-    sd_props = os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'interiors', 'props')
-    sd_audio = os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'audio')
-    copy_mirror(fish_ttm, os.path.join(sd_props, 'interiorfish.ttm'))
-    copy_mirror(fish_tta, os.path.join(sd_props, 'interiorfish_swim.tta'))
-    copy_mirror(peri_ttm, os.path.join(sd_props, 'periscope.ttm'))
-    copy_mirror(peri_tta, os.path.join(sd_props, 'periscope_anim.tta'))
-    copy_mirror(star_ttm, os.path.join(sd_props, 'name_star.ttm'))
-    copy_mirror(sfx_knock_out, os.path.join(sd_audio, 'gui_knock.tsnd'))
-    copy_mirror(sfx_joke_out, os.path.join(sd_audio, 'tell_joke.tsnd'))
-    print("Mirrored assets to sdmc-out.")
+    for path in bake_all(base, res, args.sd):
+        print(f"{path}: {os.path.getsize(path)} bytes")
 
 
 if __name__ == '__main__':

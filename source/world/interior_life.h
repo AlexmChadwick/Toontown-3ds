@@ -1,7 +1,9 @@
 // Interior and street life (docs/design/interior_life.md):
-// 1. Toon HQ Leaderboard (DistributedHQInterior): empty_board decoding, rows, trophy stars
-// 2. Animated interior props: Pet Shop fish, Toon HQ periscope
-// 3. Knock-knock doors (DistributedKnockKnockDoor): street joke sequences, dialog, timings, SFX
+// 1. Toon HQ leaderboard (DistributedHQInterior): rows, names, scores and trophy stars on the
+//    HQ's empty_board, from the server's setLeaderBoard.
+// 2. The pet shop fish (DistributedPetshopInterior.setup), swimming while that object is here.
+// 3. Knock-knock doors (DistributedKnockKnockDoor): the local toon entering a door's sphere asks
+//    the AI to interact; every client plays the AI's 'playing' state as the joke sequence.
 #pragma once
 
 #include <3ds.h>
@@ -23,56 +25,63 @@ public:
     InteriorLife() = default;
     ~InteriorLife();
 
+    // A line a toon says during a knock-knock joke (avatar.setChatAbsolute upstream). The caller
+    // routes it to the local toon's or a remote toon's own chat balloon.
+    struct ToonLine {
+        uint32_t avatarId = 0;
+        const char* phrase = nullptr;
+    };
+
     bool init();
     void shutdown();
 
-    // Called on zone load / transition
-    void setZone(uint32_t zoneId, const char* ptsPath);
+    // On every zone load. Street zones read their knock-knock spheres (data/zones/<zone>.kkd).
+    void setZone(uint32_t zoneId);
 
-    // Network event dispatch
-    void handleEvent(const net::Event& ev, const net::Client& client, uint32_t nowMs);
+    // Simulation tick. Returns true and fills *line when a toon starts a knock-knock line.
+    bool update(float dt, float playerX, float playerY, float playerZ, net::Client& client, uint32_t nowMs,
+                ToonLine* line);
 
-    // Simulation tick
-    void update(float dt, float playerX, float playerY, float playerZ, net::Client& client, uint32_t nowMs);
+    // 3D world draw: the pet shop fish and the leaderboard trophy stars.
+    void draw(render::Renderer& renderer);
 
-    // 3D world draw (for fish, periscope, trophy stars)
-    void draw(render::Renderer& renderer, const C3D_FVec& eye);
-
-    // Top-screen 2D pass (for HQ leaderboard text on empty_board)
+    // Top-screen 2D pass: the leaderboard text on empty_board.
     void draw2D(const C3D_Mtx& proj, const C3D_Mtx& view);
 
-    // Adds speech balloons for knock-knock interactions
-    void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view,
-                     float playerX, float playerY, float playerZ, float nametagH, const char* playerName);
+    // The door's own balloon (TTLocalizer.DoorNametag) during a knock-knock joke.
+    void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view, float nametagH) const;
 
-    // Autotest helpers
-    void setTestLeaderboard();
-    bool triggerKnockKnock(uint32_t zoneId, uint16_t propId);
-    bool isKnockKnockActive() const { return knockActive_; }
-    bool isHqActive() const { return hqActive_; }
-    bool isPetShopActive() const { return petShopActive_; }
+    bool knockKnockActive() const { return joke_.active; }
+    uint32_t zone() const { return zoneId_; }
+    // Test-only: the centre of knock-knock sphere i in this zone.
+    bool knockSphere(int i, float* x, float* y, float* z) const {
+        if (i < 0 || i >= numSpheres_) return false;
+        *x = spheres_[i].x;
+        *y = spheres_[i].y;
+        *z = spheres_[i].z;
+        return true;
+    }
 
 private:
-    void updateLeaderboardText();
-    void parsePtsPoints(const char* ptsPath);
+    void updateLeaderboardText(const net::Client::HQLeaderboardState& hq);
+    void loadKnockSpheres(uint32_t zoneId);
+    void setHqResident(bool resident);
+    void setPetshopResident(bool resident);
 
     uint32_t zoneId_ = 0;
+
+    // --- Toon HQ leaderboard ---
     bool hqActive_ = false;
-    bool petShopActive_ = false;
-    bool streetActive_ = false;
-
-    // --- Toon HQ Leaderboard ---
-    render::Model starModel_;
-    net::Client::HQLeaderboardState hqState_ = {};
     uint32_t hqRevision_ = 0;
-    float starAngles_[10] = {}; // star rotation angles in degrees
-
-    // Cached 2D text for board
+    uint8_t hqTutorial_ = 0;
+    render::Model starModel_;
+    float starAngles_[10] = {};
     C2D_TextBuf textBuf_ = nullptr;
     C2D_Text titleText_ = {};
     struct RowText {
         C2D_Text nameText = {};
         C2D_Text scoreText = {};
+        bool used = false;
         bool hasStar = false;
         float starScale = 0.6f;
         float spinRate = 0.0f; // deg/s
@@ -80,37 +89,38 @@ private:
     } rows_[10] = {};
     bool textValid_ = false;
 
-    // --- Animated Interior Props ---
-    // Pet shop fish
+    // --- Pet shop fish ---
+    bool petshopActive_ = false;
     render::Model fishModel_;
     render::Anim fishAnim_;
     float fishTime_ = 0.0f;
 
-    // HQ periscope
-    render::Model periscopeModel_;
-    render::Anim periscopeAnim_;
-    float periscopeTime_ = 0.0f;
-
-    // --- Knock-Knock Doors ---
-    struct StreetDoorAnchor {
+    // --- Knock-knock doors ---
+    struct KnockSphere {
         uint16_t propId = 0;
-        float x = 0.0f, y = 0.0f, z = 0.0f, h = 0.0f;
+        float x = 0.0f, y = 0.0f, z = 0.0f, radius = 0.0f;
     };
-    static constexpr size_t kMaxStreetDoors = 32;
-    StreetDoorAnchor streetDoors_[kMaxStreetDoors] = {};
-    size_t numStreetDoors_ = 0;
+    static constexpr int kMaxKnockSpheres = 64; // largest street: 42 (bake_knock_doors.py)
+    KnockSphere spheres_[kMaxKnockSpheres] = {};
+    int numSpheres_ = 0;
+    int insideSphere_ = -1;          // the sphere our toon is in (one request per entry)
+    uint32_t requestedDoId_ = 0;
 
-    bool knockActive_ = false;
-    uint16_t knockPropId_ = 0;
-    uint32_t knockDoId_ = 0;
-    float knockDoorX_ = 0.0f, knockDoorY_ = 0.0f, knockDoorZ_ = 0.0f;
-    float knockTimer_ = 0.0f;
-    int knockBeat_ = -1; // -1 = idle, 0 = knock, 1 = who's there, 2 = setup, 3 = setup who, 4 = punchline
-    game::KnockKnockJoke currentJoke_ = {};
-    char jokeSetupWho_[96] = {};
+    struct Joke {
+        bool active = false;
+        uint32_t doId = 0;
+        uint32_t serial = 0;
+        uint32_t avatarId = 0;
+        uint32_t startMs = 0;
+        int beat = -1;               // last beat started (see kJokeBeats in the .cpp)
+        int sphere = -1;
+        game::KnockKnockJoke text = {};
+        char setupWho[96] = {};
+        const char* doorPhrase = nullptr;
+    } joke_;
 
     audio::SfxId sfxKnock_ = audio::kInvalidSfx;
-    audio::SfxId sfxJoke_ = audio::kInvalidSfx;
+    audio::SfxId sfxRimshot_ = audio::kInvalidSfx;
 };
 
 } // namespace tt::world
