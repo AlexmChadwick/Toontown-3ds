@@ -30,10 +30,6 @@ const u32 kTrackColor[gags::kTracks] = {
     C2D_Color32(0x40, 0xB8, 0xD8, 0xFF),
 };
 
-bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-
 } // namespace
 
 bool BattlePanel::init() {
@@ -90,28 +86,109 @@ bool BattlePanel::usable(const world::BattleView& v, const BattleGags& g, int tr
 
 u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const world::BattleView& v,
                              const BattleGags& g) {
-    if (!(keysDown & KEY_TOUCH)) return keysDown;
     if (v.phase == world::BattlePhase::Reward) {
-        if (inRect(touch, 218, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Continue;
-        return keysDown;
+        focus_.clear();
+        focus_.addItem(100, 218, kBtnY, 100, kBtnH); // Continue button
+        if (!focus_.hasFocus()) focus_.setFocus(0);
+        int activated = -1;
+        focus_.handleInput(keysDown, touch, &activated);
+        if (activated == 100 || (keysDown & (KEY_A | KEY_START))) {
+            pending_.kind = world::BattleAction::Continue;
+        }
+        return 0xFFFFFFFFu;
     }
-    if (v.phase != world::BattlePhase::Input) return keysDown;
-    for (int i = 0; i < v.numCogs; i++) {
-        if (inRect(touch, 2 + i * (kCogW + 1), kCogY, kCogW, kCogH) && v.cogs[i].active) target_ = i;
+
+    if (v.phase != world::BattlePhase::Input) {
+        focus_.clear();
+        return 0xFFFFFFFFu;
     }
+
+    // Input phase: populate interactive elements
+    const int prevId = focus_.focusedId();
+    focus_.clear();
+
+    // 1. Cogs (IDs 1000..1003)
+    for (int i = 0; i < v.numCogs && i < 4; i++) {
+        focus_.addItem(1000 + i, 2 + i * (kCogW + 1), kCogY, kCogW, kCogH, v.cogs[i].active);
+    }
+
+    // 2. Gags grid (IDs track * 10 + level)
     for (int t = 0; t < gags::kTracks; t++) {
         for (int l = 0; l < gags::kLevels; l++) {
-            if (!inRect(touch, kGridX + l * (kCellW + 2), kGridY + t * kRowH, kCellW, kRowH - 2)) continue;
-            if (!usable(v, g, t, l)) continue;
+            const bool ok = usable(v, g, t, l);
+            focus_.addItem(t * 10 + l, kGridX + l * (kCellW + 2), kGridY + t * kRowH, kCellW, kRowH - 2, ok);
+        }
+    }
+
+    // 3. Pass & Run buttons (IDs 9998, 9999)
+    focus_.addItem(9998, 2, kBtnY, 100, kBtnH, true);
+    focus_.addItem(9999, 110, kBtnY, 100, kBtnH, v.canRun);
+
+    // Restore focus or set initial focus to first usable gag
+    if (prevId >= 0) {
+        focus_.setFocusById(prevId);
+    }
+    if (!focus_.hasFocus()) {
+        for (int i = 0; i < focus_.count(); i++) {
+            if (focus_.item(i).enabled && focus_.item(i).id < 1000) {
+                focus_.setFocus(i);
+                break;
+            }
+        }
+        if (!focus_.hasFocus()) focus_.setFocusById(9998); // Pass
+    }
+
+    // L / R shoulder buttons: cycle target cog
+    if (v.numCogs > 1) {
+        if (keysDown & KEY_L) {
+            for (int step = 1; step <= v.numCogs; step++) {
+                int next = (target_ + v.numCogs - step) % v.numCogs;
+                if (v.cogs[next].active) {
+                    target_ = next;
+                    TT_LOG("padnav: battle target %d", target_);
+                    break;
+                }
+            }
+        }
+        if (keysDown & KEY_R) {
+            for (int step = 1; step <= v.numCogs; step++) {
+                int next = (target_ + step) % v.numCogs;
+                if (v.cogs[next].active) {
+                    target_ = next;
+                    TT_LOG("padnav: battle target %d", target_);
+                    break;
+                }
+            }
+        }
+    }
+
+    int activated = -1;
+    focus_.handleInput(keysDown, touch, &activated);
+
+    if (activated >= 1000 && activated <= 1003) {
+        target_ = activated - 1000;
+        TT_LOG("padnav: battle target %d", target_);
+    } else if (activated >= 0 && activated < 1000) {
+        const int t = activated / 10;
+        const int l = activated % 10;
+        if (usable(v, g, t, l)) {
             pending_.kind = world::BattleAction::Attack;
             pending_.track = t;
             pending_.level = l;
             pending_.target = world::attackAffectsGroup(t, l) ? 0 : targetFor(v, t);
         }
+    } else if (activated == 9998) {
+        pending_.kind = world::BattleAction::Pass;
+    } else if (activated == 9999) {
+        if (v.canRun) pending_.kind = world::BattleAction::Run;
     }
-    if (inRect(touch, 2, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Pass;
-    if (v.canRun && inRect(touch, 110, kBtnY, 100, kBtnH)) pending_.kind = world::BattleAction::Run;
-    return keysDown;
+
+    if ((keysDown & KEY_B) && pending_.kind == world::BattleAction::None) {
+        pending_.kind = world::BattleAction::Pass;
+        TT_LOG("padnav: battle activate 9998");
+    }
+
+    return 0xFFFFFFFFu;
 }
 
 void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
@@ -162,6 +239,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
         C2D_DrawRectSolid(218, kBtnY, 0.5f, 100, kBtnH, v.rewardSent ? kPanel : kAccent);
         text(236, kBtnY + 6, 0.5f, v.rewardSent ? kDim : kBg, "Continue");
+        focus_.drawHighlight();
         return;
     }
 
@@ -186,6 +264,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     text(36, kBtnY + 6, 0.5f, choosing ? kWhite : kDim, "Pass");
     C2D_DrawRectSolid(110, kBtnY, 0.5f, 100, kBtnH, choosing && v.canRun ? kPanel : kBg);
     text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kWhite : kDim, "Run");
+    if (choosing) focus_.drawHighlight();
 }
 
 } // namespace tt::ui

@@ -1,4 +1,5 @@
 #include "render/text_cache.h"
+#include "ui/focus.h"
 // Bottom-screen battle panel (replaces the tabs while the local toon is in a street battle):
 // the cogs with their HP (tap one to target it), the gag grid from our inventory, Pass / Run,
 // and the reward screen with Continue. Upstream: TownBattle's attack / target panels.
@@ -42,6 +43,7 @@ private:
     C2D_TextBuf buf_ = nullptr;
     int target_ = 0; // index into BattleView::cogs
     world::BattleAction pending_{};
+    FocusGroup focus_{"battle"};
 };
 
 } // namespace tt::ui
