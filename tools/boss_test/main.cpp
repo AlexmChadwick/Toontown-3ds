@@ -7,7 +7,9 @@
 #include "world/boss_logic.h"
 #include "world/cfo_logic.h"
 #include "world/cj_logic.h"
+#include "world/ceo_logic.h"
 #include "net/cj_state.h"
+#include "net/ceo_state.h"
 
 namespace dc = tt::dc;
 using namespace tt::net;
@@ -44,7 +46,25 @@ static void referenceVectors(const char* path) {
         state.classId = classId;
         state.kind = bossKind(classId);
         DatagramReader reader(buffer, size);
-        if (cjKind(classId) != CjKind::None) {
+        if (ceoKind(classId) != CeoKind::None) {
+            CeoChild child;
+            child.classId = classId;
+            child.kind = ceoKind(classId);
+            assert(applyCeoField(child, field, reader, 1000));
+            for (uint32_t length = 0; length < size; ++length) {
+                CeoChild truncatedChild = child;
+                DatagramReader truncated(buffer, length);
+                assert(!applyCeoField(truncatedChild, field, truncated, 2000));
+                assert(std::memcmp(&child, &truncatedChild, sizeof(child)) == 0);
+            }
+            if (field == dc::DistributedBanquetTable::k_setPitcherPos) {
+                assert(child.sequence == 255 && std::fabs(child.heading - 180.0f) < .01f);
+            } else if (field == dc::DistributedGolfSpot::k_setSwingInfo) {
+                assert(child.golfPower == 80 && std::fabs(child.golfAngle - 45.0f) < .01f && child.golfSequence == 1);
+            } else if (field == dc::DistributedBanquetTable::k_firingWater) {
+                assert(std::fabs(child.water[1] - 10.0f) < .01f && std::fabs(child.water[4] - 50.0f) < .01f);
+            }
+        } else if (cjKind(classId) != CjKind::None) {
             CjChild child;
             child.classId = classId;
             child.kind = cjKind(classId);
@@ -192,5 +212,73 @@ int main(int argc, char** argv) {
     assert(vpPieHit({0, -30, 15}, {0, 30, 15}, {0, 0, 0}, true) == VpPieHit::Body);
     assert(std::fabs(piePosition({0, 0, 0}, 0, 0, 0, 1).y - 100) < .001f);
     assert(std::fabs(piePosition({0, 0, 0}, 0, 0, 0, 1).z) < .001f);
+
+    // --- CEO logic, kinematics & trajectory tests ---
+    const Vec3 rotated = ceoRotate({0, 10, 0}, 90);
+    assert(std::fabs(rotated.x + 10.0f) < .001f && std::fabs(rotated.y) < .001f && rotated.z == 0);
+    CeoLayout ceoLayout{};
+    ceoLayout.tables[0].position = {10, 20, 0};
+    ceoLayout.tables[0].heading = 0;
+    ceoLayout.chairs[0].position = {0, 5, 0};
+    const Vec3 seat = ceoSeat(ceoLayout, 0, 0);
+    assert(seat.x == 10 && seat.y == 25 && seat.z == 0);
+    assert(ceoGolfPosition(0).x == -45.0f && ceoGolfPosition(3).x == 45.0f);
+    const Vec3 ball = ceoBallPosition({0, 100, 0}, 100, 0, 0.75f);
+    assert(ball.y > 100 && ball.z > 0);
+
+    BossState ceoState{};
+    ceoState.kind = BossKind::Bossbot;
+    ceoState.classId = dc::DistributedBossbotBoss::kClassId;
+    ceoState.speedDamage = 50;
+    ceoState.speedRecover = 20;
+    ceoState.speedMs = 1000;
+    assert(ceoSpeedDamage(ceoState, 1000) == 50);
+    assert(ceoSpeedDamage(ceoState, 31000) == 40);
+    assert(ceoSpeedDamage(ceoState, 160000) == 0);
+    ceoState.speedDamage = 0;
+    assert(ceoRollSpeed(ceoState, 1000) == 22.0f);
+    ceoState.speedDamage = 90;
+    assert(ceoRollSpeed(ceoState, 1000) == 7.5f);
+
+    assert(ceoBarrierDelay("WaitForToons") == .5f);
+    assert(ceoBarrierDelay("BattleTwo") == 300.5f);
+    assert(ceoBarrierDelay("BattleFour") == -1);
+
+    std::strcpy(ceoState.phase, "Victory");
+    assert(!std::strcmp(ceoClip(ceoState, 1000), "Ff_speech"));
+    std::strcpy(ceoState.phase, "BattleFour");
+    ceoState.attack = 16;
+    assert(!std::strcmp(ceoClip(ceoState, 1000), "Fb_neutral"));
+    ceoState.attack = 17;
+    assert(!std::strcmp(ceoClip(ceoState, 1000), "golf_swing"));
+
+    // --- CEO BossState network field parsing with truncations ---
+    writer.reset();
+    writer.u16(45);
+    writer.u8(20);
+    writer.i16(-32760);
+    parse(ceoState, dc::DistributedBossbotBoss::k_setSpeedDamage, writer);
+    assert(ceoState.speedDamage == 45 && ceoState.speedRecover == 20 && ceoState.speedStamp == -32760);
+
+    writer.reset();
+    writer.u32(42);
+    writer.i8(0);
+    writer.i8(1);
+    writer.u32(10);
+    parse(ceoState, dc::DistributedBossbotBoss::k_toonGotFood, writer);
+    assert(ceoState.heldFood && ceoState.foodBelt == 0 && ceoState.foodSlot == 1 && ceoState.foodSequence == 10);
+
+    writer.reset();
+    writer.u32(42);
+    writer.i8(2);
+    writer.i8(3);
+    parse(ceoState, dc::DistributedBossbotBoss::k_toonServeFood, writer);
+    assert(!ceoState.heldFood);
+
+    writer.reset();
+    writer.u8(2);
+    parse(ceoState, dc::DistributedBossbotBoss::k_setBattleDifficulty, writer);
+    assert(ceoState.difficulty == 2);
+
     std::puts("boss phase, damage recovery, trajectory, swept hits, bounded parsing and truncations: PASS");
 }

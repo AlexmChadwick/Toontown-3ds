@@ -9,7 +9,7 @@ import sys
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'sdmc-out/3ds/toontown3ds/data/boss'
-prefix = 'cj' if '--cj' in sys.argv else 'cfo' if '--cfo' in sys.argv else 'vp'
+prefix = 'ceo' if '--ceo' in sys.argv else 'cj' if '--cj' in sys.argv else 'cfo' if '--cfo' in sys.argv else 'vp'
 report = json.loads((OUT / (prefix + '_manifest.json')).read_text())
 for name in report['models']:
     assert name + '.ttm' in report['sha256'], f'Missing model in manifest: {name}'
@@ -47,11 +47,15 @@ if prefix == 'vp':
 if prefix == 'cj':
     scene = (OUT / 'cj_scene.bin').read_bytes()
     assert len(scene) == 56 and struct.unpack_from('<4sHH', scene) == (b'CJS1', 1, 4)
-npcs = (OUT / (prefix + '_npcs.bin')).read_bytes()
-magic, version, count = struct.unpack_from('<4sHH', npcs)
-assert magic == b'BND1' and version == 1 and count == (9 if prefix == 'cj' else 1 if prefix == 'cfo' else 41)
-assert len(npcs) == 8 + count * 19
-assert all(npcs[8 + row * 19 + 4] == ord('t') for row in range(count))
+if prefix == 'ceo':
+    scene = (OUT / 'ceo_scene.bin').read_bytes()
+    assert len(scene) == 416 and struct.unpack_from('<4sHH', scene) == (b'BES1', 1, 13)
+if prefix != 'ceo':
+    npcs = (OUT / (prefix + '_npcs.bin')).read_bytes()
+    magic, version, count = struct.unpack_from('<4sHH', npcs)
+    assert magic == b'BND1' and version == 1 and count == (9 if prefix == 'cj' else 1 if prefix == 'cfo' else 41)
+    assert len(npcs) == 8 + count * 19
+    assert all(npcs[8 + row * 19 + 4] == ord('t') for row in range(count))
 budget = report['budget']
 assert budget['clip_pair_geometry'] <= 6 * 1024 * 1024
 assert budget['textures'] <= 8 * 1024 * 1024

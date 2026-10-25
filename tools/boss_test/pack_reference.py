@@ -67,6 +67,45 @@ for name in ('DistributedLawbotCannon', 'DistributedLawbotChair',
             blob = bytes(field.parseString(value))
             assert blob
             records.append((cls.getNumber(), field.getNumber(), blob))
+ceo_boss = dc.getClassByName('DistributedBossbotBoss')
+for field_name, value in [('setSpeedDamage', '(25, 20, -32760)'),
+                          ('setBossDamage', '(120, 20, -32760)'),
+                          ('toonGotFood', '(42, 0, 1, 10)'),
+                          ('toonServeFood', '(42, 2, 3)'),
+                          ('toonGotToonup', '(42, 1, 2, 11)'),
+                          ('setBattleDifficulty', '(1)'),
+                          ('reachedTable', '(3)'),
+                          ('hitTable', '(3)'),
+                          ('awayFromTable', '(3)')]:
+    field = ceo_boss.getFieldByName(field_name)
+    blob = bytes(field.parseString(value))
+    assert blob
+    records.append((ceo_boss.getNumber(), field.getNumber(), blob))
+for name in ('DistributedBanquetTable', 'DistributedGolfSpot', 'DistributedFoodBelt'):
+    cls = dc.getClassByName(name)
+    for index in range(cls.getNumInheritedFields()):
+        field = cls.getInheritedField(index)
+        if field.asMolecularField() is None and (field.isRequired() or field.isRam()):
+            records.append((cls.getNumber(), field.getNumber(), bytes(field.getDefaultValue())))
+    samples = [('setIndex', '(1)'),
+               ('setBossCogId', '(100)'),
+               ('setNumDiners', '(8)'),
+               ('setDinerInfo', '([1,1,1,1,1,1,1,1],[2,2,2,2,2,2,2,2],[8,9,8,9,8,9,8,9])'),
+               ('setDinerStatus', '(3, 1)'),
+               ('setState', '(67, 42, 0)' if name != 'DistributedFoodBelt' else '(78)'),
+               ('setPitcherPos', '(255, 180, -32760)'),
+               ('clearSmoothing', '(0)'),
+               ('firingWater', '(0, 10, 2, 0, 50, 2)'),
+               ('waterHitBoss', '(3)'),
+               ('setGolfSpotPos', '(255, 45, -32760)'),
+               ('setSwingInfo', '(80, 45, 1)'),
+               ('setGoingToReward', '()')]
+    for field_name, value in samples:
+        field = cls.getFieldByName(field_name)
+        if field is not None:
+            blob = bytes(field.parseString(value))
+            assert blob is not None
+            records.append((cls.getNumber(), field.getNumber(), blob))
 out = ROOT / 'sdmc-out/boss-test'
 out.mkdir(parents=True, exist_ok=True)
 (out / 'panda_vectors.bin').write_bytes(b''.join(struct.pack('<HHI', cls, field, len(blob)) + blob
@@ -123,3 +162,30 @@ for offset, name in enumerate(('DistributedLawbotCannon', 'DistributedLawbotChai
     payload = b''.join(required) + struct.pack('<H', len(optional)) + b''.join(optional)
     cj_enters.append(struct.pack('<IHI', 700 + offset, cls.getNumber(), len(payload)) + payload)
 (out / 'cj_enters.bin').write_bytes(b''.join(cj_enters))
+ceo_enters = []
+for offset, name in enumerate(('DistributedBanquetTable', 'DistributedGolfSpot', 'DistributedFoodBelt')):
+    cls = dc.getClassByName(name)
+    required = []
+    optional = []
+    for index in range(cls.getNumInheritedFields()):
+        field = cls.getInheritedField(index)
+        if field.asMolecularField() is not None or not (field.isRequired() or field.isRam()):
+            continue
+        value = bytes(field.getDefaultValue())
+        samples = {
+            'setBossCogId': '(100)',
+            'setIndex': '(1)',
+            'setNumDiners': '(8)',
+            'setDinerInfo': '([1,1,1,1,1,1,1,1],[2,2,2,2,2,2,2,2],[8,9,8,9,8,9,8,9])',
+            'setState': '(67,42,0)' if name != 'DistributedFoodBelt' else '(78)',
+        }
+        if field.getName() in samples:
+            value = bytes(field.parseString(samples[field.getName()]))
+        if field.isRequired():
+            required.append(value)
+        else:
+            optional.append(struct.pack('<H', field.getNumber()) + value)
+    payload = b''.join(required) + struct.pack('<H', len(optional)) + b''.join(optional)
+    ceo_enters.append(struct.pack('<IHI', 800 + offset, cls.getNumber(), len(payload)) + payload)
+(out / 'ceo_enters.bin').write_bytes(b''.join(ceo_enters))
+
