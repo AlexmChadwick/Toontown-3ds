@@ -37,6 +37,7 @@ public:
     // NPC of class `classId` whose collision tube (DistributedNPCToonBase.__initCollisions: tube
     // (0,1,0)-(0,1,5), radius 3.25, in its own frame) the toon's event sphere touches, else 0.
     u32 touchingNpc(float x, float y, float z, const net::Client& client, uint16_t classId) const;
+    bool talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target) const;
     int npcCount() const;
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.

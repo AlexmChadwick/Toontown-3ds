@@ -244,6 +244,27 @@ bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* 
     return true;
 }
 
+bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target) const {
+    for (const Npc& n : npcs_) {
+        if (!n.active || n.doId != npc) continue;
+        // DistributedNPCToon.setupCamera: (-5,9,height-.5), H=-150 P=-2;
+        // Quest/track choice mirrors X and uses H=155, duration 1s easeOut.
+        constexpr float kRadians = 3.14159265f / 180;
+        const float heading = n.h * kRadians;
+        const float x = choice ? 5.0f : -5.0f;
+        *eye = FVec3_New(n.x + x * cosf(heading) - 9 * sinf(heading),
+                        n.y + x * sinf(heading) + 9 * cosf(heading),
+                        n.z + n.look.nametagHeight - 1.0f);
+        const float cameraHeading = (n.h + (choice ? 155.0f : -150.0f)) * kRadians;
+        constexpr float kPitch = -2 * kRadians;
+        *target = FVec3_New(eye->x - sinf(cameraHeading) * cosf(kPitch) * 30,
+                           eye->y + cosf(cameraHeading) * cosf(kPitch) * 30,
+                           eye->z + sinf(kPitch) * 30);
+        return true;
+    }
+    return false;
+}
+
 int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
     int n = 0;
     for (const Npc& s : npcs_) {

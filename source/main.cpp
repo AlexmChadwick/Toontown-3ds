@@ -1216,6 +1216,33 @@ int main() {
                                    (cogInterior.active() && cogInterior.loadingAssets())))
             player.update(in, dt);
         fishing.applyCamera();
+        // ---- qafix: upstream NPC talk camera, with normal collision pull-in ----
+        static u32 talkCameraNpc = 0;
+        static bool talkCameraChoice = false;
+        static float talkCameraAge = 0;
+        static C3D_FVec talkFromEye{}, talkFromTarget{};
+        const bool choiceCamera = talk.phase() == tt::quest::Talk::Phase::QuestChoice ||
+                                  talk.phase() == tt::quest::Talk::Phase::TrackChoice;
+        C3D_FVec talkEye, talkTarget;
+        if (talk.locked() && zoneActors.talkCamera(talk.npcDoId(), choiceCamera, &talkEye, &talkTarget)) {
+            if (talkCameraNpc != talk.npcDoId() || talkCameraChoice != choiceCamera) {
+                talkCameraNpc = talk.npcDoId();
+                talkCameraChoice = choiceCamera;
+                talkCameraAge = 0;
+                talkFromEye = player.cameraEye();
+                talkFromTarget = player.cameraTarget();
+                TT_LOG("quest camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
+            }
+            talkCameraAge = fminf(1.0f, talkCameraAge + dt);
+            const float blend = 1 - (1 - talkCameraAge) * (1 - talkCameraAge);
+            auto mixTalk = [blend](const C3D_FVec& a, const C3D_FVec& b) {
+                return FVec3_New(a.x + (b.x-a.x)*blend, a.y + (b.y-a.y)*blend, a.z + (b.z-a.z)*blend);
+            };
+            player.overrideCameraCollide(mixTalk(talkFromEye, talkEye), mixTalk(talkFromTarget, talkTarget));
+        } else {
+            talkCameraNpc = 0;
+        }
+        // ---- end qafix ----
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
