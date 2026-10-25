@@ -951,6 +951,7 @@ bool BossBattle::frame(BossFrame& frame) {
     prof::lap(prof::kWait);
     frame.cache.pump();
     frame.suits.pumpAssets();
+    prof::lap(prof::kLoads);
     if (frame.shot) {
         char path[128];
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", frame.shot);
@@ -958,6 +959,7 @@ bool BossBattle::frame(BossFrame& frame) {
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", frame.shot);
         shot::dumpTarget(frame.bottom, path);
         frame.shot = nullptr;
+        prof::lap(prof::kCapture);
     }
     loadAssets();
     selectClip(cashbot_ ? cfoClip(state, nowMs) : vpClip(state, nowMs));

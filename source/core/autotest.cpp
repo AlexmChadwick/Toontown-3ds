@@ -214,6 +214,7 @@ constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[
 } // namespace
 
 bool Runner::begin() {
+    shotsEnabled_ = true;
     FILE* f = fopen("sdmc:/3ds/toontown3ds/autotest_fe", "r");
     frontEnd_ = f != nullptr;
     if (!f) f = fopen("sdmc:/3ds/toontown3ds/autotest", "r");
@@ -224,7 +225,10 @@ bool Runner::begin() {
     char line[256];
     while (fgets(line, sizeof(line), f)) {
         if (char* nl = strchr(line, '\n')) *nl = 0;
-        if (!strncmp(line, "from ", 5)) snprintf(from, sizeof(from), "%.63s", line + 5);
+        if (!strcmp(line, "shots off"))
+            shotsEnabled_ = false;
+        else if (!strncmp(line, "from ", 5))
+            snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
     }

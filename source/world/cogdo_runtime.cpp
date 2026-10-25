@@ -837,6 +837,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
     frame.cache.pump();
     frame.suits.pumpAssets();
     assets_.pump();
+    prof::lap(prof::kLoads);
     if (frame.shot) {
         char path[160];
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", frame.shot);
@@ -844,6 +845,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", frame.shot);
         shot::dumpTarget(frame.bottom, path);
         frame.shot = nullptr;
+        prof::lap(prof::kCapture);
     }
     prof::lap(prof::kLoads);
     draw(frame, *interior, game, now);

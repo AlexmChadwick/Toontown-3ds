@@ -511,6 +511,7 @@ int main() {
                 snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
                 tt::shot::dumpTarget(bottom, path);
                 shotName = nullptr;
+                tt::prof::lap(tt::prof::kCapture);
             }
             tt::prof::lap(tt::prof::kLoads);
             frontEnd.drawTop(renderer);
@@ -1821,6 +1822,7 @@ int main() {
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
             tt::shot::dumpTarget(bottom, path);
             shotName = nullptr;
+            tt::prof::lap(tt::prof::kCapture);
         }
         renderer.resetStats();
         C3D_Mtx m;

@@ -58,6 +58,7 @@ enum Section : int {
     kRacingDraw,
     kGolfDraw,
     kEstateDraw,
+    kCapture,
     kCount
 };
 
