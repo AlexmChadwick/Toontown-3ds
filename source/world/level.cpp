@@ -1,3 +1,4 @@
+#include "core/profile.h"
 #include "world/level.h"
 
 #include <algorithm>
@@ -2046,6 +2047,7 @@ void Level::requestBattle(Cog& c, uint32_t nowMs, LevelBattleAction* action) {
 
 void Level::update(net::Client& client, SuitActors& suits, float x, float y, float z, float dt, uint32_t nowMs,
                    bool battleIdle, LevelBattleAction* action) {
+    prof::lap(prof::kPlayer);
     client_ = &client;
     toonX_ = x, toonY_ = y, toonZ_ = z;
     *action = LevelBattleAction{};
@@ -2060,6 +2062,7 @@ void Level::update(net::Client& client, SuitActors& suits, float x, float y, flo
     updateElevators(client, x, y, z, nowMs);
     // ---- level games (world/level_games.*) ----
     games_.update(client, *this, x, y, z, dt, nowMs);
+    prof::lap(prof::kFacilityUpdate);
     // ---- end level games ----
     if (floor_) {
         updatePiece(x, y, z);
@@ -2254,6 +2257,7 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
             renderer.drawModel(doorFrameModel_, m);
         }
     }
+    prof::lap(prof::kFacilityRooms);
     drawDoors(renderer);
     drawButtons(renderer);
     drawStompers(renderer);
@@ -2263,7 +2267,9 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     drawGoons(renderer);
     drawElevators(renderer);
     // ---- level games (world/level_games.*) ----
+    prof::lap(prof::kFacilityProps);
     games_.draw(renderer, eye);
+    prof::lap(prof::kLevelGames);
     // ---- end level games ----
 }
 

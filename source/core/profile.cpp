@@ -20,7 +20,9 @@ namespace {
 constexpr double kTickHz = 268111856.0; // SYSCLOCK_ARM11
 
 const char* const kNames[kCount] = {"input", "player", "place", "net",  "remote", "actors", "dplace", "dshadow",
-                                    "dtoons", "dact",  "balln", "hud",  "ui",     "audio",  "wait",   "fend"};
+                                    "dtoons", "dact",  "balln", "hud",  "ui",     "audio",  "wait",   "fend",
+    "feupd", "fedraw", "bossupd", "bossdraw", "cogdoupd", "cogdodraw",
+    "levupd", "rooms", "props", "levgames", "minigame", "racing", "golf", "estate", "loads", "other"};
 
 uint64_t defaultClock() {
 #ifdef __3DS__
@@ -77,9 +79,8 @@ void frameBegin() {
     State& s = gS;
     const uint64_t now = gClock();
     if (s.open) {
-        // Time after the last lap (an early `continue`) is charged to kAudio, the section
-        // that closes a normal frame.
-        s.frameAcc[kAudio] += now - s.lastLap;
+        // Uninstrumented tails stay visible; never mislabel an early owner as audio.
+        s.frameAcc[kOther] += now - s.lastLap;
         for (int i = 0; i < kCount; i++) {
             const uint64_t t = s.frameAcc[i];
             s.sum[i] += t;
@@ -130,7 +131,7 @@ void logWindow(const char* label) {
     int n = snprintf(line, sizeof(line), "prof: [%s] frames %d total %.2f busy %.2f ms avg:", label, s.framesShown,
                      static_cast<double>(s.totalAvg), static_cast<double>(s.busyAvg));
     for (int i = 0; i < kCount; i++) {
-        if (i == kCount / 2) {
+        if (i && i % 6 == 0) {
             log::write("%s", line);
             n = snprintf(line, sizeof(line), "prof: [%s] avg:", label);
         }
@@ -139,6 +140,10 @@ void logWindow(const char* label) {
     log::write("%s", line);
     n = snprintf(line, sizeof(line), "prof: [%s] max:", label);
     for (int i = 0; i < kCount; i++) {
+        if (i && i % 6 == 0) {
+            log::write("%s", line);
+            n = snprintf(line, sizeof(line), "prof: [%s] max:", label);
+        }
         n = append(line, sizeof(line), n, " %s %.1f", kNames[i], static_cast<double>(s.max[i]));
     }
     log::write("%s", line);

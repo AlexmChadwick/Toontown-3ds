@@ -1,3 +1,4 @@
+#include "core/profile.h"
 #include "world/ceo_battle.h"
 #include "world/boss_battle.h"
 
@@ -940,6 +941,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     }
 
     frame.renderer.endWorld();
+    prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
 
     ui::Context context{};
@@ -1025,7 +1027,9 @@ bool CeoBattle::frame(BossFrame& frame) {
         }
     }
 
+    prof::lap(prof::kBossUpdate);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    prof::lap(prof::kWait);
     frame.cache.pump();
 
     if (frame.shot) {
@@ -1039,11 +1043,15 @@ bool CeoBattle::frame(BossFrame& frame) {
 
     assets_.pump(ceoClip(state, nowMs));
     assets_.clipTime += frame.dt;
+    prof::lap(prof::kLoads);
     draw(frame, state, nowMs);
 
     frame.commandUsage = C3D_GetCmdBufUsage();
+    prof::lap(prof::kBottomUi);
     C3D_FrameEnd(0);
+    prof::lap(prof::kFrameEnd);
     audio::update();
+    prof::lap(prof::kAudio);
     return true;
 }
 

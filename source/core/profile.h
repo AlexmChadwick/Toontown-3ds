@@ -38,6 +38,10 @@ enum Section : int {
     kAudio,      // audio::update and bookkeeping after the frame ends
     kWait,       // C3D_FrameBegin: waits for the previous frame's GPU work and vblank
     kFrameEnd,   // C3D_FrameEnd (queues the frame)
+    kFrontUpdate, kFrontDraw,
+    kBossUpdate, kBossDraw, kCogdoUpdate, kCogdoDraw,
+    kFacilityUpdate, kFacilityRooms, kFacilityProps, kLevelGames,
+    kMinigame, kRacing, kGolf, kEstate, kLoads, kOther,
     kCount
 };
 

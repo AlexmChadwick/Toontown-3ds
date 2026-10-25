@@ -1,3 +1,4 @@
+#include "core/profile.h"
 #include "world/cj_battle.h"
 #include "world/boss_battle.h"
 
@@ -720,6 +721,7 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
@@ -782,7 +784,9 @@ bool CjBattle::frame(BossFrame& frame) {
             }
         }
     }
+    prof::lap(prof::kBossUpdate);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    prof::lap(prof::kWait);
     frame.cache.pump();
     if (frame.shot) {
         char path[128];
@@ -794,10 +798,14 @@ bool CjBattle::frame(BossFrame& frame) {
     }
     assets_.pump(cjClip(state, nowMs));
     assets_.clipTime += frame.dt;
+    prof::lap(prof::kLoads);
     draw(frame, state, nowMs);
     frame.commandUsage = C3D_GetCmdBufUsage();
+    prof::lap(prof::kBottomUi);
     C3D_FrameEnd(0);
+    prof::lap(prof::kFrameEnd);
     audio::update();
+    prof::lap(prof::kAudio);
     return true;
 }
 

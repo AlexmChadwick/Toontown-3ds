@@ -11,6 +11,8 @@
 namespace tt::render {
 
 struct FrameStats {
+    u32 uniformUploads = 0; // API uploads, including matrices
+    u32 textureBinds = 0;
     u32 drawCalls = 0;
     u32 triangles = 0;
     u32 modelsDrawn = 0;

@@ -84,6 +84,7 @@ void Renderer::bindMode(Mode mode) {
         AttrInfo_AddLoader(attr, 3, GPU_SHORT, 4); // frame A position
         AttrInfo_AddLoader(attr, 4, GPU_SHORT, 4); // frame B position
     }
+    ++stats_.uniformUploads;
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, p.uProjection, &projection_);
 }
 
@@ -166,6 +167,7 @@ void Renderer::setModelView(const C3D_Mtx& world, const float* posScale, const f
     Mtx_Scale(&dequant, posScale[0], posScale[1], posScale[2]);
     Mtx_Multiply(&worldQ, &world, &dequant);
     Mtx_Multiply(&modelView, &view_, &worldQ);
+    ++stats_.uniformUploads;
     C3D_FVUnifMtx4x4(GPU_VERTEX_SHADER, programs_[mode_].uModelView, &modelView);
 }
 
@@ -198,6 +200,7 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
     }
     if (!beginDraw(lo, hi, world)) return;
     setModelView(world, anim.posScale(), anim.posOffset());
+    ++stats_.uniformUploads;
     C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeMorph].uBlend, blend, 0.0f, 0.0f, 0.0f);
 
     C3D_BufInfo* buf = C3D_GetBufInfo();
@@ -225,9 +228,11 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
         const int tint = tints ? b.tint : 0;
         if (tint != boundTint) {
             if (tint == 0) {
+                ++stats_.uniformUploads;
                 C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, baseTint_[0], baseTint_[1], baseTint_[2], baseTint_[3]);
             } else {
                 const float* c = tints->rgba[tint];
+                ++stats_.uniformUploads;
                 C3D_FVUnifSet(GPU_VERTEX_SHADER, uTint, c[0], c[1], c[2], c[3]);
             }
             boundTint = tint;
@@ -239,6 +244,7 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
             C3D_TexEnv* env = C3D_GetTexEnv(0);
             C3D_TexEnvInit(env);
             if (tex) {
+                ++stats_.textureBinds;
                 C3D_TexBind(0, const_cast<C3D_Tex*>(tex));
                 C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
                 C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);

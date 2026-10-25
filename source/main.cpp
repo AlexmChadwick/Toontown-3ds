@@ -460,9 +460,22 @@ int main() {
         if (isNew3ds) hidCstickRead(&in.cstick);
         touchPosition touch;
         hidTouchRead(&touch);
+        if (autotest.active() && secondElapsed) {
+            TT_LOG("stats: [%s] fps %.1f cpu %.2f gpu %.2f cmdbuf %.0f%% skipped %lu draws %lu tris %lu uniforms %lu texbinds %lu toons %d remote %d pos %.1f,%.1f,%.1f h %.0f heap %uK "
+                   "linfree %luK",
+                   autotest.label(), fps, C3D_GetProcessingTime(), C3D_GetDrawingTime(), lastCmdBufUsage * 100.0f,
+                   static_cast<unsigned long>(lastStats.modelsSkipped),
+                   static_cast<unsigned long>(lastStats.drawCalls), static_cast<unsigned long>(lastStats.triangles),
+                   static_cast<unsigned long>(lastStats.uniformUploads), static_cast<unsigned long>(lastStats.textureBinds),
+                   uiState.stressToons, remoteToons.count(), player.x(), player.y(), player.z(), player.headingDeg(),
+                   static_cast<unsigned>(mallinfo().uordblks / 1024),
+                   static_cast<unsigned long>(linearSpaceFree() / 1024));
+        }
+        tt::prof::lap(tt::prof::kInput);
         if (inFrontEnd) {
             if (in.down & KEY_START) break;
             if (netStarted) net.update(tt::net::plat::nowMs());
+            tt::prof::lap(tt::prof::kNet);
             autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
             if (autotest.pendingShot()) shotName = autotest.pendingShot();
             const tt::game::Action action = frontEnd.update(in.down, in.held, touch, dt);
@@ -480,7 +493,10 @@ int main() {
                 tt::audio::playSfx(sfxClick);
             }
             if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
+            tt::prof::lap(tt::prof::kFrontUpdate);
             C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            tt::prof::lap(tt::prof::kWait);
+            renderer.resetStats();
             toonCache.pump(); // previous GPU frame is complete: publish streamed poses
             if (shotName) {
                 char path[96];
@@ -490,10 +506,17 @@ int main() {
                 tt::shot::dumpTarget(bottom, path);
                 shotName = nullptr;
             }
+            tt::prof::lap(tt::prof::kLoads);
             frontEnd.drawTop(renderer);
+            tt::prof::lap(tt::prof::kFrontDraw);
             frontEnd.drawBottom(bottom);
+            tt::prof::lap(tt::prof::kBottomUi);
+            lastStats = renderer.stats();
+            lastCmdBufUsage = C3D_GetCmdBufUsage();
             C3D_FrameEnd(0);
+            tt::prof::lap(tt::prof::kFrameEnd);
             tt::audio::update();
+            tt::prof::lap(tt::prof::kAudio);
             continue;
         }
         if ((in.down & KEY_START) && (in.held & KEY_SELECT)) break;
@@ -519,16 +542,6 @@ int main() {
             netOutBps = net.bytesOut() - lastBytesOut;
             lastBytesIn = net.bytesIn();
             lastBytesOut = net.bytesOut();
-        }
-        if (autotest.active() && secondElapsed) {
-            TT_LOG("stats: [%s] fps %.1f cpu %.2f gpu %.2f cmdbuf %.0f%% skipped %lu draws %lu tris %lu toons %d remote %d pos %.1f,%.1f,%.1f h %.0f heap %uK "
-                   "linfree %luK",
-                   autotest.label(), fps, C3D_GetProcessingTime(), C3D_GetDrawingTime(), lastCmdBufUsage * 100.0f,
-                   static_cast<unsigned long>(lastStats.modelsSkipped),
-                   static_cast<unsigned long>(lastStats.drawCalls), static_cast<unsigned long>(lastStats.triangles),
-                   uiState.stressToons, remoteToons.count(), player.x(), player.y(), player.z(), player.headingDeg(),
-                   static_cast<unsigned>(mallinfo().uordblks / 1024),
-                   static_cast<unsigned long>(linearSpaceFree() / 1024));
         }
         // A script started part-way (AUTOTEST_FROM) waits until we stand in a zone online.
         static float autotestSettle = 0.0f;
@@ -1128,7 +1141,9 @@ int main() {
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle());
+        tt::prof::lap(tt::prof::kNet);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        tt::prof::lap(tt::prof::kRacing);
         // The facility level first: its lifts/stompers must be where they are *this* frame
         // before the toon stands on them (it uses last frame's feet).
         tt::world::LevelBattleAction levelAction;
@@ -1427,8 +1442,12 @@ int main() {
             tailor.update(net, nowMs);
             ui.closet().update(net);
             cogInterior.update(net, nowMs);
+            tt::prof::lap(tt::prof::kNet);
             racing.update(net, in, dt, player.x(), player.y(), player.z(), nowMs);
+            tt::prof::lap(tt::prof::kRacing);
+            tt::prof::lap(tt::prof::kNet);
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
+            tt::prof::lap(tt::prof::kEstate);
             pets.update(net);
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
@@ -1673,7 +1692,9 @@ int main() {
                     remoteToons.clear();
                 }
                 minigame.setAutoPlay(autotest.active()); // test-only: run under the fruit
+                tt::prof::lap(tt::prof::kNet);
                 minigame.update(net, minigamePad, dt, nowMs);
+                tt::prof::lap(tt::prof::kMinigame);
                 if (const u32 home = minigame.popReturn()) {
                     // Back from the game: teleport into the playground (Playground.enterTeleportIn).
                     player.setCollision(&place.collision());
@@ -1694,7 +1715,9 @@ int main() {
                     toast = toastBuf;
                     toastAge = 0.0f;
                 }
+                tt::prof::lap(tt::prof::kNet);
                 golf.update(net, minigamePad, in.down, dt, nowMs);
+                tt::prof::lap(tt::prof::kGolf);
                 if (const u32 home = golf.popReturn()) {
                     golf.shutdown();
                     net.changeZone(home);

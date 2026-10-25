@@ -1,3 +1,4 @@
+#include "core/profile.h"
 #include "world/cogdo_runtime.h"
 #include "audio/audio.h"
 #include "core/log.h"
@@ -710,6 +711,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    prof::lap(prof::kCogdoDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
@@ -835,7 +837,9 @@ bool CogdoRuntime::frame(BossFrame &frame) {
             frame.suits.removeExternal(kMazeActorBase + index);
     }
     simulate(frame, *interior, game, now);
+    prof::lap(prof::kCogdoUpdate);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    prof::lap(prof::kWait);
     frame.cache.pump();
     assets_.pump();
     if (frame.shot) {
@@ -846,10 +850,14 @@ bool CogdoRuntime::frame(BossFrame &frame) {
         shot::dumpTarget(frame.bottom, path);
         frame.shot = nullptr;
     }
+    prof::lap(prof::kLoads);
     draw(frame, *interior, game, now);
     frame.commandUsage = C3D_GetCmdBufUsage();
+    prof::lap(prof::kBottomUi);
     C3D_FrameEnd(0);
+    prof::lap(prof::kFrameEnd);
     audio::update();
+    prof::lap(prof::kAudio);
     return true;
 }
 } // namespace tt::world
