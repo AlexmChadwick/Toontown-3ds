@@ -136,6 +136,7 @@ void InteriorLife::setZone(uint32_t zoneId) {
     zoneId_ = zoneId;
     joke_ = Joke{};
     insideSphere_ = -1;
+    requestPending_ = false;
     requestedDoId_ = 0;
     loadKnockSpheres(zoneId);
     if (numSpheres_ > 0 && sfxKnock_ == audio::kInvalidSfx) {
@@ -265,9 +266,15 @@ bool InteriorLife::update(float dt, float playerX, float playerY, float playerZ,
             requestedDoId_ = 0;
         }
         insideSphere_ = inside;
-        if (inside >= 0) {
-            const net::Client::KnockKnockDoorState* door = client.findKnockKnockDoorByPropId(spheres_[inside].propId);
-            if (door && strcmp(door->state, "playing") && client.sendKnockKnockInteract(door->doId)) {
+        requestPending_ = inside >= 0;
+    }
+    // The door object can arrive after we are already in its sphere (its visgroup comes into
+    // interest with the street cell change), so keep trying until it is here, once per entry.
+    if (requestPending_) {
+        const net::Client::KnockKnockDoorState* door = client.findKnockKnockDoorByPropId(spheres_[inside].propId);
+        if (door && strcmp(door->state, "playing")) {
+            requestPending_ = false;
+            if (client.sendKnockKnockInteract(door->doId)) {
                 requestedDoId_ = door->doId;
                 TT_LOG("interior_life: knock-knock door %u (block %u): requestInteract", unsigned(door->doId),
                        unsigned(spheres_[inside].propId));

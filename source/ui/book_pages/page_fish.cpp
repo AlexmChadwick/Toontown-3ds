@@ -143,7 +143,15 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
 
     // List species in this genus
     const float listY = navY + 24.0f;
-    const float itemH = 24.0f;
+    // Rows shrink with the genus size so the list always ends above the trophy bar.
+    const float trophyBarTop = y + 160.0f;
+    int genusSize = 0;
+    for (int i = 0; i < world::fish::kNumSpecies; i++) genusSize += world::fish::kSpecies[i].genus == targetGenus;
+    float itemH = 24.0f;
+    if (genusSize > 0) {
+        const float fit = (trophyBarTop - 4.0f - listY) / genusSize - 3.0f;
+        if (fit < itemH) itemH = fit;
+    }
 
     int slot = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {

@@ -749,7 +749,13 @@ void Battle::runFx(uint32_t nowMs) {
 // ============================================================ per frame
 void Battle::autoPick(net::Client& client, const net::Battle& nb) {
     const net::OwnStats& st = client.ownStats();
+    // TownBattle.checkHealTrapLure: a lone toon cannot toon-up (toons never heal themselves).
+    uint32_t healTarget = 0;
+    for (int i = 0; i < nb.numToons && !healTarget; ++i) {
+        if (nb.toons[i] != localId_) healTarget = nb.toons[i];
+    }
     auto usable = [&](int track, int level) {
+        if (track == kTrackHeal && !healTarget) return false;
         return st.trackAccess[track] && level < gags::levelsUnlocked(track, st.experience[track]) &&
                st.inventory[track][level] > 0;
     };
@@ -762,7 +768,7 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
             act.track = forcedTrack_;
             act.level = level;
             if (forcedTrack_ == kTrackHeal) {
-                act.target = localId_;
+                act.target = healTarget;
             } else {
                 for (int i = 0; i < nb.numSuits; ++i) {
                     if ((nb.suitsActive >> i) & 1) {
@@ -790,7 +796,7 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
             act.track = track;
             act.level = level;
             if (track == kTrackHeal) {
-                act.target = localId_;
+                act.target = healTarget;
             } else {
                 for (int i = 0; i < nb.numSuits; ++i) {
                     if ((nb.suitsActive >> i) & 1) {
@@ -1106,6 +1112,7 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         c.doId = nb->suits[i];
         c.active = (nb->suitsActive >> i) & 1;
         c.lured = (nb->suitsLured >> i) & 1;
+        c.trapped = nb->suitTrap[i] >= 0;
         snprintf(c.name, sizeof(c.name), "Cog");
         c.level = 0;
         c.hp = c.maxHp = 0;
@@ -1135,10 +1142,12 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         snprintf(t.name, sizeof(t.name), "%s", name && name[0] ? name : "Toon");
     }
     // Experience earned this battle (setBattleExperience block for our toon).
+    // RewardPanel shows a bar for every track the toon has, gained experience or not.
+    const net::OwnStats& own = client.ownStats();
     for (const net::BattleExpToon& e : nb->exp.toons) {
         if (e.id < 0 || uint32_t(e.id) != localId_) continue;
         for (int t = 0; t < 7; ++t) {
-            if (e.earnedExp[t] > 0) {
+            if (e.earnedExp[t] > 0 || own.trackAccess[t]) {
                 BattleRewardRow& r = v->reward[v->numRewardRows++];
                 r.track = t;
                 r.earned = e.earnedExp[t];

@@ -82,7 +82,7 @@ struct BattleCogView {
     char name[28];  // "Flunky"
     int level;      // displayed level
     int hp, maxHp;
-    bool active, lured;
+    bool active, lured, trapped;
 };
 struct BattleToonView {
     uint32_t doId;

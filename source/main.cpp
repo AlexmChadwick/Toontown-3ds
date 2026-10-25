@@ -61,9 +61,15 @@
 #include "world/zone_actors.h"
 // [interior life]
 #include "world/interior_life.h"
+#include "world/water.h"
 // [end interior life]
 
 namespace {
+
+// Scenes that own the toon (water checks pause while one runs).
+bool featureBusyForWater(bool fishing, bool trolley, bool minigame, bool transition) {
+    return fishing || trolley || minigame || transition;
+}
 
 using tt::render::Model;
 
@@ -685,8 +691,10 @@ int main() {
             uiState.homeRequest = true; // test-only: the Map tab's Home button
         }
         if (autotest.active() && !strncmp(autotest.label(), "golf: ", 6)) {
-            if (!golf.active() && place.zoneId() != 6000 && !uiState.teleportRequest && transition.idle()) {
-                uiState.teleportRequest = 6000; // Acorn Acres
+            // GZHoodDataAI places the DistributedGolfKarts in Chip 'n Dale's MiniGolf, reached by
+            // the tunnel from Acorn Acres.
+            if (!golf.active() && place.zoneId() != 17000 && !uiState.teleportRequest && transition.idle()) {
+                uiState.teleportRequest = 17000;
             }
             const tt::net::GolfKart* kart = netStarted ? net.golfKart() : nullptr;
             if (kart && !golf.active() && !strcmp(autotest.label(), "golf: board")) {
@@ -1202,7 +1210,16 @@ int main() {
         }
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
-        const tt::world::ToonAnim anim = player.animState(&animRate);
+        tt::world::ToonAnim anim = player.animState(&animRate);
+        // ---- water: swimming in Donald's Dock / Acorn Acres (world/water.*) ----
+        static tt::world::Water water;
+        if (place.zoneId() != water.zone()) water.setZone(place.zoneId(), renderer);
+        const bool swimming = !battle.inBattle() && !featureBusyForWater(fishing.active(), trolley.seated(),
+                                                                       minigame.inScene(), transition.active()) &&
+                              water.update(player.x(), player.y(), player.z(), player.cameraEye().z,
+                                           anim != tt::world::kAnimNeutral, netStarted ? &net : nullptr, renderer);
+        if (swimming) anim = tt::world::kAnimSwim; // Toon.enterSwim loops 'swim'
+        // ---- end water ----
         // In battle the movie picks the clip (and the autotest's "clip: *" steps play one).
         const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
         const bool featureAnimation = fishing.active() || trolley.seated() || minigame.inScene() ||
@@ -1288,7 +1305,12 @@ int main() {
                 travelTarget = exitHere.targetZone;
             }
         }
-        if (uiState.teleportRequest && transition.idle()) {
+        if (uiState.teleportRequest && (minigame.active() || trolley.seated() || battle.active())) {
+            // The Shticker Book (and its map teleport) is disabled on the trolley, in a minigame
+            // or its gag purchase, and in battle upstream; leaving here would strand the session.
+            TT_LOG("teleport to %lu refused (busy)", static_cast<unsigned long>(uiState.teleportRequest));
+            uiState.teleportRequest = 0;
+        } else if (uiState.teleportRequest && transition.idle()) {
             // Map tab teleport to a playground (upstream: Shticker Book map page).
             if (tt::world::Place::available(uiState.teleportRequest)) {
                 transition.startTeleportOut(uiState.teleportRequest, player, netStarted ? &net : nullptr);
@@ -1503,7 +1525,7 @@ int main() {
                 // Anim *states*, as LocalAvatar sends them: "run" covers all ground locomotion
                 // (others derive walk/run/neutral from our smoothed speed), "jumpAirborne" in the air.
                 const char* netState = trolley.seated()?trolley.toonNetworkState(nowMs):fishing.active()?"off":minigame.inScene()?minigame.toonNetworkState():
-                    transition.active() ? transition.toonNetworkState() : player.airborne() ? "jumpAirborne" : "run";
+                    transition.active() ? transition.toonNetworkState() : water.swimming() ? "swim" : player.airborne() ? "jumpAirborne" : "run";
                 if (netState != sentState) {
                     net.sendAnimState(netState, 1.0f);
                     sentState = netState;

@@ -53,6 +53,7 @@ TT_SIG(AstronLoginManager, nameTypedResponse, "u32,u8");
 TT_SIG(AstronLoginManager, acknowledgeAvatarName, "u32");
 TT_SIG(AstronLoginManager, acknowledgeAvatarNameResponse, "");
 TT_SIG(AstronLoginManager, requestRemoveAvatar, "u32");
+TT_SIG(DistributedToon, playSplashEffect, "i16/10,i16/10,i16/10");
 TT_SIG(TutorialManager, requestSkipTutorial, "");
 TT_SIG(TutorialManager, skipTutorialResponse, "u8");
 TT_SIG(DistributedDistrict, setName, "string");
@@ -3003,7 +3004,8 @@ namespace {
 // toontown/toonbase/ToontownGlobals.py ToonAnimStates (the subset this client sends).
 // The AI bans (and, on stock Open Toontown, crashes in banManager) on any other name.
 const char* const kAllowedAnimStates[] = {"off", "neutral", "run", "walk", "jumpSquat", "jump", "jumpAirborne",
-                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote", "Sit", "SitStart", "swim", "swimhold", "TeleportOut", "TeleportIn", "Catching", "CatchEating"};
+                                          "jumpLand", "Happy", "Sad", "Sleep", "Emote", "Sit", "SitStart", "swim", "swimhold", "TeleportOut", "TeleportIn", "Catching", "CatchEating",
+                                          "Died"};
 
 bool allowedAnimState(const char* name) {
     for (const char* allowed : kAllowedAnimStates) {
@@ -3034,6 +3036,17 @@ bool Client::sendEmote(int id,float multiplier) {
     DatagramWriter w=beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w,DistributedToon,setEmoteState);
     w.i16(static_cast<int16_t>(id));w.i16(packFixed(multiplier,1000));w.i16(networkTime(now_));
+    return finish(w);
+}
+
+// DistributedToon.d_playSplashEffect(x, y, z): everyone sees the splash where we fell in.
+bool Client::sendSplashEffect(float x, float y, float z) {
+    if (state_ != State::InZone || !std::isfinite(x) || !std::isfinite(y) || !std::isfinite(z)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, playSplashEffect);
+    w.i16(packFixed(x, 10));
+    w.i16(packFixed(y, 10));
+    w.i16(packFixed(z, 10));
     return finish(w);
 }
 

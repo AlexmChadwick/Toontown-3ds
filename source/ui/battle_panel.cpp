@@ -72,6 +72,17 @@ uint32_t BattlePanel::targetFor(const world::BattleView& v, int track) const {
 bool BattlePanel::usable(const world::BattleView& v, const BattleGags& g, int track, int level) const {
     if (!g.count || !g.access[track] || g.count[track][level] == 0) return false;
     if (level >= gags::levelsUnlocked(track, g.exp[track])) return false;
+    // TownBattle.checkHealTrapLure: no Toon-Up alone, no Trap once every Cog is trapped or lured,
+    // no Lure (or Trap) once every Cog is lured.
+    int lured = 0;
+    int trappedOrLured = 0;
+    for (int i = 0; i < v.numCogs; i++) {
+        lured += v.cogs[i].lured;
+        trappedOrLured += v.cogs[i].lured || v.cogs[i].trapped;
+    }
+    if (track == world::kTrackHeal && v.numToons == 1) return false;
+    if (track == world::kTrackTrap && (trappedOrLured == v.numCogs || lured == v.numCogs)) return false;
+    if (track == world::kTrackLure && lured == v.numCogs) return false;
     return world::attackAffectsGroup(track, level) || targetFor(v, track) != 0;
 }
 
@@ -124,11 +135,28 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
 
     if (v.phase == world::BattlePhase::Reward) {
         text(8, kGridY, 0.5f, kWhite, "Cogs defeated: %d", v.cogsDefeated);
+        // RewardPanel: per track, the experience toward the next gag level and what this
+        // battle added.
         for (int i = 0; i < v.numRewardRows; i++) {
             const world::BattleRewardRow& r = v.reward[i];
-            text(8, kGridY + 20 + i * 18, 0.45f, kWhite, "%s", gags::kTrackNames[r.track]);
-            text(110, kGridY + 20 + i * 18, 0.45f, kAccent, "+%d", r.earned);
-            text(170, kGridY + 20 + i * 18, 0.45f, kDim, "(%d)", r.orig + r.earned);
+            const float y = kGridY + 20 + i * 18;
+            const int total = r.orig + r.earned;
+            int prev = 0;
+            int next = -1;
+            for (int l = 0; l < gags::kLevels; l++) {
+                if (total < gags::kLevelExp[r.track][l]) {
+                    next = gags::kLevelExp[r.track][l];
+                    break;
+                }
+                prev = gags::kLevelExp[r.track][l];
+            }
+            const float f = next < 0 ? 1.0f : float(total - prev) / float(next - prev);
+            text(8, y, 0.42f, kWhite, "%s", gags::kTrackNames[r.track]);
+            C2D_DrawRectSolid(80, y + 3, 0.5f, 120, 9, kPanel);
+            C2D_DrawRectSolid(80, y + 3, 0.55f, 120 * (f < 0 ? 0 : f > 1 ? 1 : f), 9, kTrackColor[r.track]);
+            if (next < 0) text(206, y, 0.38f, kDim, "Max");
+            else text(206, y, 0.38f, kDim, "%d/%d", total, next);
+            if (r.earned > 0) text(272, y, 0.42f, kAccent, "+%d", r.earned);
         }
         C2D_DrawRectSolid(218, kBtnY, 0.5f, 100, kBtnH, v.rewardSent ? kPanel : kAccent);
         text(236, kBtnY + 6, 0.5f, v.rewardSent ? kDim : kBg, "Continue");

@@ -42,7 +42,9 @@ constexpr int kMusicChannelL = 0;
 constexpr int kMusicChannelR = 1;
 constexpr int kSfxFirstChannel = 2;
 constexpr int kNumSfxVoices = 8;
-constexpr int kMaxSfx = 32;
+// Resident SFX: ambient 4, main 7, transitions 4, facility props 15 + room games 13, battle 6,
+// boat 4, fishing, interior life (about 57 at most); each slot only holds a pointer until loaded.
+constexpr int kMaxSfx = 64;
 constexpr size_t kMusicRingBytes = 128 * 1024; // AGENTS.md: music ring <= 256 KB
 
 // Returns false when audio is unavailable (the game continues silently).

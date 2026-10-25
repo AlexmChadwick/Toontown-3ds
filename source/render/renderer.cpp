@@ -90,8 +90,17 @@ void Renderer::bindMode(Mode mode) {
 void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                           int eyeSign) {
     eye_ = eye;
-    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, kClearSky, 0);
+    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, fogOn_ ? fogClear_ : kClearSky, 0);
     C3D_FrameDrawOn(target);
+    if (fogOn_) {
+        // Reversed depth (GPU_GREATER, depth map -1..0): the LUT is indexed with z flipped,
+        // as in citro3d's FogLut_Exp.
+        C3D_FogGasMode(GPU_FOG, GPU_PLAIN_DENSITY, true);
+        C3D_FogColor(fogColor_);
+        C3D_FogLutBind(&fogLut_);
+    } else {
+        C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
+    }
 
     C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
     C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
@@ -126,8 +135,29 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     frustum_[5] = normalizePlane(FVec4_Add(r3, r2)); // z >= -w
 }
 
+void Renderer::setFog(float r, float g, float b, float start, float end) {
+    const auto byte = [](float v) { return u32((v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v) * 255.0f + 0.5f); };
+    fogColor_ = byte(b) << 16 | byte(g) << 8 | byte(r);
+    fogClear_ = byte(r) << 24 | byte(g) << 16 | byte(b) << 8 | 0xFF;
+    if (fogOn_ && start == fogStart_ && end == fogEnd_) return;
+    fogOn_ = true;
+    fogStart_ = start;
+    fogEnd_ = end;
+    // Like FogLut_Exp, but Panda's linear ramp: 1 (no fog) before start, 0 (all fog) past end.
+    float data[256];
+    for (int i = 0; i <= 128; i++) {
+        const float dist = FogLut_CalcZ(i / 128.0f, kNear, kFar);
+        float val = (end - dist) / (end - start);
+        val = val < 0.0f ? 0.0f : val > 1.0f ? 1.0f : val;
+        if (i < 128) data[i] = val;
+        if (i > 0) data[i + 127] = val - data[i - 1];
+    }
+    FogLut_FromArray(&fogLut_, data);
+}
+
 void Renderer::endWorld() {
     mode_ = kModeNone;
+    C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
     C3D_AlphaTest(false, GPU_ALWAYS, 0);
     C3D_DepthMap(true, -1.0f, 0.0f);
     C3D_CullFace(GPU_CULL_NONE);

@@ -204,7 +204,7 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
     if (field == dc::DistributedToon::k_setPetId) {
         const uint32_t pet = reader.u32();
         if (reader.ok()) {
-            TT_LOG("clerks: owner setPetId %u", unsigned(pet));
+            if (pet != clerkProfile_.petId) TT_LOG("clerks: owner setPetId %u", unsigned(pet));
             clerkProfile_.petId = pet;
             ++clerkProfile_.version;
         }
@@ -221,7 +221,7 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
                 reader.fail();
                 return true;
             }
-        TT_LOG("clerks: owner setKartAccessoriesOwned");
+        if (std::memcmp(clerkProfile_.accessories, owned, sizeof(owned))) TT_LOG("clerks: owner setKartAccessoriesOwned");
         std::memcpy(clerkProfile_.accessories, owned, sizeof(owned));
         for (int8_t entry : owned)
             if (entry == clerkSession_.pendingAccessory)
@@ -245,7 +245,8 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
             reader.fail();
             return true;
         }
-        TT_LOG("clerks: owner kart field %d value %d", index, value);
+        // The owner view resends these on every zone entry: log changes only.
+        if (clerkProfile_.kart[index] != value) TT_LOG("clerks: owner kart field %d value %d", index, value);
         clerkProfile_.kart[index] = value;
         if (index == 0 && value == clerkSession_.pendingBody)
             clerkSession_.pendingBody = -1;

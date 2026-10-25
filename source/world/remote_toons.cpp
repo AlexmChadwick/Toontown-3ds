@@ -45,6 +45,7 @@ ToonAnim animFromState(const char* state, bool* locomotion) {
     if (!strcmp(state,"jumpSquat")) return kAnimJumpSquat;
     if (!strncmp(state,"jump",4)) return kAnimJumpIdle;
     if (!strcmp(state,"TeleportOut")) return kAnimTeleport;
+    if (!strcmp(state,"Died")) return kAnimLose; // Toon.enterDied plays 'lose'
     if (!strcmp(state,"TeleportIn")) return kAnimJump;
     return kAnimNeutral;
 }

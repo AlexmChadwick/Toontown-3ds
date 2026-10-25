@@ -29,6 +29,7 @@ HOODS = [
     (6000, 'OZ', 'phase_6/dna/outdoor_zone_sz.dna', 'phase_6/audio/bgm/OZ_SZ.ogg'),
     (8000, 'GS', 'phase_6/dna/goofy_speedway_sz.dna', 'phase_6/audio/bgm/GS_SZ.ogg'),
     (9000, 'DL', 'phase_8/dna/donalds_dreamland_sz.dna', 'phase_8/audio/bgm/DL_nbrhood.ogg'),
+    (17000, 'GZ', 'phase_6/dna/golf_zone_sz.dna', 'phase_6/audio/bgm/GZ_SZ.ogg'),
 ]
 
 

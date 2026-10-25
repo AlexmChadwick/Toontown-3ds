@@ -73,6 +73,7 @@ WANTED = {
                               'setComponentP', 'setComponentR', 'setComponentT',
                               'clearSmoothing'],
     'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setEmoteState', 'setTalk', 'setSC',
+                        'playSplashEffect',  # DDPlayground.__submergeToon (world/water.*)
                         # Owner-view stats for the HUD (source/net/zone_objects.*).
                         'setHp', 'setMaxHp', 'toonUp', 'takeDamage', 'setMoney', 'setMaxMoney',
                         'setBankMoney', 'setMaxBankMoney', 'setExperience', 'setMaxCarry',

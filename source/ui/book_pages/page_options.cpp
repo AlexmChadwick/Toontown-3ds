@@ -124,6 +124,10 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         }
     }
 
+    // The labels are parsed every frame below, so the buffer must start empty every frame
+    // (it filled up after a few frames and every label vanished).
+    C2D_TextBufClear(textBuf_);
+
     // Helper to render formatted text
     auto drawText = [&](float tx, float ty, float scale, u32 col, const char* fmt, ...) {
         char buf[128];

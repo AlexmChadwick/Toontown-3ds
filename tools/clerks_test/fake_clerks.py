@@ -10,10 +10,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 # Read literal constants without importing NPCToons' application initialization.
-_source = (
-    Path(__file__).resolve().parents[2]
-    / "ref/ref/open-toontown/toontown/toon/NPCToons.py"
-)
+_root = Path(__file__).resolve().parents[2]
+# Worktrees link the main checkout's ref/ as ref/ref; the main checkout has it at ref/.
+_ref = _root / "ref/ref" if (_root / "ref/ref").exists() else _root / "ref"
+_source = _ref / "open-toontown/toontown/toon/NPCToons.py"
 _modes = {}
 for _node in ast.parse(_source.read_text()).body:
     if isinstance(_node, ast.Assign):

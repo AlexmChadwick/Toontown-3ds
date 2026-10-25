@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 OUT=sdmc-out/clerks-test
-export TT_ETC="$PWD/ref/ref/open-toontown/etc"
+REF="$PWD/ref/ref"; [ -d "$REF" ] || REF="$PWD/ref"
+export TT_ETC="$REF/open-toontown/etc"
 PORT=7698
 SERVER=''
 trap 'if [ -n "$SERVER" ]; then kill "$SERVER" 2>/dev/null || true; fi' EXIT

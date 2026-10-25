@@ -193,10 +193,25 @@ u32 ZoneActors::touchingTreasure(float x, float y, float z) const {
     return 0;
 }
 
+namespace {
+// DistributedNPCToonBase.setupCollision: CollisionTube((0, 1, 0), (0, 1, 5), getCollSphereRadius()),
+// which each NPC class may override.
+float npcCollisionRadius(uint16_t classId) {
+    if (classId == dc::DistributedNPCPetclerk::kClassId) return 4.0f;       // DistributedNPCPetclerk
+    if (classId == dc::DistributedNPCFlippyInToonHall::kClassId) return 4.0f;
+    if (classId == dc::DistributedNPCScientist::kClassId) return 2.5f;
+    if (classId == dc::DistributedNPCKartClerk::kClassId) return 2.25f;
+    if (classId == dc::DistributedNPCFisherman::kClassId) return 1.0f;
+    if (classId == dc::DistributedNPCPartyPerson::kClassId) return 1.0f;
+    return 3.25f;                                                            // DistributedNPCToonBase
+}
+} // namespace
+
 u32 ZoneActors::touchingNpc(float x, float y, float z, const net::Client& client, uint16_t classId) const {
-    constexpr float kTubeRadius = 3.25f, kTubeLength = 5.0f;
+    constexpr float kTubeLength = 5.0f;
+    const float tubeRadius = npcCollisionRadius(classId);
     // GravityWalker event sphere: centre r - 0.1 above the feet, radius r * 1.04.
-    const float reach = kTubeRadius + kToonRadius * 1.04f;
+    const float reach = tubeRadius + kToonRadius * 1.04f;
     const float cz = z + kToonRadius - 0.1f;
     for (const Npc& n : npcs_) {
         if (!n.active) continue;

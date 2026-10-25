@@ -121,6 +121,10 @@ SOUNDSCAPE = [
     ('boat_foghorn', 'phase_5/audio/sfx/SZ_DD_foghorn.ogg', 'sfx', False, 'sd'),
     ('boat_creak', 'phase_6/audio/sfx/SZ_DD_dockcreak.ogg', 'sfx', False, 'sd'),
     ('boat_lap', 'phase_6/audio/sfx/SZ_DD_waterlap.ogg', 'sfx', True, 'sd'),
+    # DDSafeZoneLoader / OZSafeZoneLoader: swimming in the harbour or the pond.
+    ('swim_stroke', 'phase_4/audio/sfx/AV_swim_single_stroke.ogg', 'sfx_adpcm', True, 'sd'),
+    ('underwater', 'phase_4/audio/sfx/AV_ambient_water.ogg', 'sfx_adpcm', True, 'sd'),
+    ('submerge', 'phase_5.5/audio/sfx/AV_jump_in_water.ogg', 'sfx_adpcm', False, 'sd'),
 ]
 ALL_ASSETS = [(n, r, k, l, 'romfs') for n, r, k, l in ASSETS] + SOUNDSCAPE
 

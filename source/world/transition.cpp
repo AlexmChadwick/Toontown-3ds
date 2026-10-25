@@ -326,7 +326,7 @@ void Transition::startDied(u32 safezoneId, const Player& player, net::Client* ne
 
     TT_LOG("transition: died start -> safezone %lu", static_cast<unsigned long>(safezoneId));
     if (net) {
-        net->sendAnimState("lose", 1.0f);
+        net->sendAnimState("Died", 1.0f); // Place.enterDied: b_setAnimState('Died')
     }
 }
 
@@ -352,7 +352,6 @@ void Transition::startTeleportIn(const Player& player, net::Client* net) {
 }
 
 void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net::Client* net) {
-    (void)loadedZone;
     phase_ = TransitionPhase::Arriving;
     age_ = 0.0f;
     fadeAlpha_ = 1.0f;
@@ -406,8 +405,12 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
             net->sendAnimState("run", 1.0f);
         }
     } else if (type_ == TransitionType::Door) {
-        // Look up interior/exterior door origin
-        const Place::Point* pt = place.point("door_origin");
+        // Coming out of a building: the exterior door of that block (interior zone = cell -
+        // cell % 100 + 500 + block). Going in: the interior's own door_origin.
+        const Place::Point* pt = nullptr;
+        const bool leavingInterior = fromZone_ % 1000 >= 500 && loadedZone % 1000 < 500;
+        if (leavingInterior) pt = place.buildingPoint(fromZone_ % 100);
+        if (!pt) pt = place.point("door_origin");
         if (!pt) pt = place.point("door_origin_0");
         if (pt) {
             doorOriginX_ = pt->x;
@@ -760,7 +763,7 @@ const char* Transition::toonNetworkState() const {
     }
     if (type_ == TransitionType::Tunnel) return "run";
     if (type_ == TransitionType::Door) return "run"; // LocalAvatar sends "run" for all ground locomotion
-    if (type_ == TransitionType::Died) return "lose";
+    if (type_ == TransitionType::Died) return "Died";
     return nullptr;
 }
 

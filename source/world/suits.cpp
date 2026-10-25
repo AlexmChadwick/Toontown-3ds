@@ -170,6 +170,26 @@ const render::Anim* SuitActors::battleClip(int b, const char* name) {
     return nullptr;
 }
 
+bool SuitActors::loadLose(int b) {
+    if (b < 0 || b >= 6) return false;
+    Body& body = bodies_[b];
+    if (!body.loseTried) {
+        body.loseTried = true;
+        char stem[24], path[112];
+        bodyStem(b, stem, sizeof(stem));
+        snprintf(path, sizeof(path), "%s%s_lose_full.ttm", kSuitDir, stem);
+        body.loseModel.load(path);
+        snprintf(path, sizeof(path), "%s%s_lose_full_lose.tta", kSuitDir, stem);
+        body.loseClip.load(path);
+        if (!body.loseModel.loaded() || !body.loseClip.loaded() ||
+            body.loseClip.numVertices() != body.loseModel.numVertices()) {
+            TT_LOG("suits: no usable lose model for %s", stem);
+        }
+    }
+    return body.loseModel.loaded() && body.loseClip.loaded() &&
+           body.loseClip.numVertices() == body.loseModel.numVertices();
+}
+
 // actor transform * species scale * body morph; head at the body clip's attach matrix.
 void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world) {
     const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr;
@@ -195,7 +215,10 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     case 14: battleName = "sidestep-left"; break;
     default: break;
     }
-    const render::Anim* battle = battleName ? battleClip(b, battleName) : nullptr;
+    // A defeated Cog plays 'lose' on its lose model (Suit.getLoseActor), never on the body.
+    const bool losing = a.pose.anim == 13 && loadLose(b < 0 ? 0 : b);
+    render::Model& model = losing ? body.loseModel : body.model;
+    const render::Anim* battle = losing ? &body.loseClip : battleName ? battleClip(b, battleName) : nullptr;
     const render::Anim& clip = battle ? *battle : a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
     float t = a.animTime;
     if (battle) {
@@ -203,11 +226,11 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
         const float last = (clip.numFrames() - 1) / clip.fps();
         t = t < 0 ? 0 : t > last ? last : t;
     }
-    if (clip.loaded() && clip.numVertices() == body.model.numVertices()) {
+    if (clip.loaded() && clip.numVertices() == model.numVertices()) {
         u32 fa, fb;
         float blend;
         render::sampleClip(clip, t, &fa, &fb, &blend);
-        renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, deptLoaded_ ? slot : nullptr);
+        renderer.drawMorph(model, clip, fa, fb, blend, m, &tints, deptLoaded_ ? slot : nullptr);
         if (clip.hasAttach() && !a.skelecog) { // a skelecog has no head of its own
             if (Head* h = head(info->code)) {
                 C3D_Mtx attach, hm;
@@ -238,6 +261,9 @@ void SuitActors::shutdown() {
             b.clips[i].unload();
             b.clipName[i][0] = 0;
         }
+        b.loseModel.unload();
+        b.loseClip.unload();
+        b.loseTried = false;
         b.tried = false;
     }
     for (Head& h : heads_) {
@@ -499,6 +525,8 @@ void SuitActors::draw(render::Renderer& renderer) {
 void SuitActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
     for (const Actor& a : actors_) {
         if (!a.active || !a.poseValid || !a.pose.visible || a.pose.alpha < 0.5f) continue;
+        // MovieUtil.createSuitDeathTrack hides the Cog (and its nametag) for its lose actor.
+        if (a.pose.anim == 13) continue;
         float sx, sy, depth;
         // Avatar.py nametag height: the cog's height + 0.5.
         if (ui::projectToScreen(proj, view, a.pose.x, a.pose.y, a.pose.z + heightOf(a) + 0.5f, &sx, &sy, &depth) &&

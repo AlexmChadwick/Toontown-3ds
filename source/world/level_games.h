@@ -185,7 +185,7 @@ private:
         kSfxCameraAlarm,
         kSfxCount
     };
-    audio::SfxId sfx_[kSfxCount] = {};
+    audio::SfxId sfx_[kSfxCount] = {}; // valid only while propsLoaded_
 
     void playAt(SfxIndex idx, const float pos[3], float vol = 1.0f);
 

@@ -164,33 +164,39 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
         const float barW = 92.0f;
         const float barH = 10.0f;
 
+        // InventoryNew.showTrack: a DirectWaitBar with range nextExp and value curExp (so the
+        // fill is curExp / nextExp), its frame the track colour x 0.6.
+        const u32 col = kTrackColors[t];
+        const u32 dim = C2D_Color32(uint8_t((col & 0xFF) * 6 / 10), uint8_t(((col >> 8) & 0xFF) * 6 / 10),
+                                    uint8_t(((col >> 16) & 0xFF) * 6 / 10), 0xFF);
         C2D_DrawRectSolid(barX, barY, 0.5f, barW, barH, kBarBorder);
-        C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, barW - 2.0f, barH - 2.0f, kBarBg);
+        C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, barW - 2.0f, barH - 2.0f, unlocked ? dim : kBarBg);
 
         if (unlocked) {
             uint16_t curThresh = 0, nextThresh = 10000;
             nextExpThreshold(t, exp, curThresh, nextThresh);
-
-            float frac = 1.0f;
-            if (nextThresh > curThresh) {
-                frac = float(exp - curThresh) / float(nextThresh - curThresh);
-                frac = std::clamp(frac, 0.0f, 1.0f);
-            }
+            const bool uber = exp >= 10000; // regMaxSkill: range UberSkill, "N to Go!"
+            const float range = uber ? 500.0f : float(nextThresh);
+            const float value = uber ? float(exp - 10000) : float(exp);
+            const float frac = std::clamp(range > 0 ? value / range : 1.0f, 0.0f, 1.0f);
             if (frac > 0.0f) {
-                C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, (barW - 2.0f) * frac, barH - 2.0f, kTrackColors[t]);
+                C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, (barW - 2.0f) * frac, barH - 2.0f, col);
             }
 
             if (exp >= 10500) {
                 snprintf(buf, sizeof(buf), "MAXED");
-            } else if (exp >= 10000) {
-                snprintf(buf, sizeof(buf), "%d / 10500", exp);
+            } else if (uber) {
+                snprintf(buf, sizeof(buf), "%d to Go!", 10500 - exp); // TTLocalizer.InventoryUberTrackExp
             } else {
-                snprintf(buf, sizeof(buf), "%d / %d", exp, nextThresh);
+                snprintf(buf, sizeof(buf), "%d / %d", exp, nextThresh); // TTLocalizer.InventoryTrackExp
             }
             C2D_Text expTxt;
             C2D_TextParse(&expTxt, textBuf_, buf);
             C2D_TextOptimize(&expTxt);
-            C2D_DrawText(&expTxt, C2D_WithColor, barX + 3.0f, barY - 1.0f, 0.6f, 0.28f, 0.28f, kInk);
+            float tw = 0.0f;
+            C2D_TextGetDimensions(&expTxt, 0.32f, 0.32f, &tw, nullptr);
+            C2D_DrawText(&expTxt, C2D_WithColor, barX + (barW - tw) * 0.5f, barY - 1.5f, 0.6f, 0.32f, 0.32f,
+                         C2D_Color32(0x10, 0x10, 0x10, 0xFF));
         }
     }
 

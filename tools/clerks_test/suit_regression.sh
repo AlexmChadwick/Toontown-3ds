@@ -18,8 +18,9 @@ if [ ! -x "$SERVER_PY" ]; then
     echo "UNAVAILABLE: suit reference needs the absent tools/server/.venv Panda3D fork (panda3d.toontown)."
     exit 77
 fi
-export TT_RESOURCES="$ROOT/ref/ref/resources"
-$PY "$ROOT/tools/pipeline/bake_suit_paths.py" --resources "$ROOT/ref/ref/resources" --out "$OUT/zones" > /dev/null
+REF="$ROOT/ref/ref"; [ -d "$REF" ] || REF="$ROOT/ref"
+export TT_RESOURCES="$REF/resources"
+$PY "$ROOT/tools/pipeline/bake_suit_paths.py" --resources "$REF/resources" --out "$OUT/zones" > /dev/null
 "$SERVER_PY" -I -B "$ROOT/tools/suit_test/reference.py" "$OUT/reference.txt" --queries "${1:-400}" 2>/dev/null
 clang++ -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -I "$ROOT/source" \
     "$ROOT/source/world/suit_path.cpp" "$ROOT/tools/collision_test/log_stub.cpp" \

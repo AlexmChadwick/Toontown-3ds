@@ -9,6 +9,7 @@ HOODS = {
     6000: ('OZ',6,'outdoor_zone',()),
     8000: ('GS',6,'goofy_speedway',()),
     9000: ('DL',8,'donalds_dreamland',(9100,9200)),
+    17000: ('GZ',6,'golf_zone',()),  # Chip 'n Dale's MiniGolf (ToontownGlobals.GolfZone)
 }
 ZONES = tuple(sorted(z for hood,(_,_,_,streets) in HOODS.items() for z in (hood,*streets)))
 

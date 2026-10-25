@@ -1214,6 +1214,7 @@ public:
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
     bool sendEmote(int id, float multiplier=1);
+    bool sendSplashEffect(float x, float y, float z);
     // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
     bool sendTunnelOut(float startX, float startY, float x, float y, float z, float h);
     bool sendTunnelIn(float endX, float x, float y, float z, float h);

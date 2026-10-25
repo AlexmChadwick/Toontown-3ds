@@ -104,6 +104,7 @@ private:
     KnockSphere spheres_[kMaxKnockSpheres] = {};
     int numSpheres_ = 0;
     int insideSphere_ = -1;          // the sphere our toon is in (one request per entry)
+    bool requestPending_ = false;    // inside a sphere, requestInteract not yet sent
     uint32_t requestedDoId_ = 0;
 
     struct Joke {

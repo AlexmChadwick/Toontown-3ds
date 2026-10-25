@@ -177,7 +177,13 @@ void Book::draw(const BookDrawContext& bdc) {
         const float tx = i * tabW;
         const bool active = (i == curPage_);
         C2D_DrawRectSolid(tx + 1, active ? 212 : 215, 0.42f, tabW - 2, active ? 28 : 25, active ? kTabActive : kTabInactive);
-        C2D_DrawText(&tabTexts_[i], C2D_WithColor, tx + 2, 218, 0.5f, 0.36f, 0.36f, active ? kInk : kWhite);
+        // Shrink a label that would not fit its tab ("Trophies"), and centre it.
+        float labelW = 0.0f;
+        C2D_TextGetDimensions(&tabTexts_[i], 0.36f, 0.36f, &labelW, nullptr);
+        const float fit = labelW > tabW - 4 ? 0.36f * (tabW - 4) / labelW : 0.36f;
+        C2D_TextGetDimensions(&tabTexts_[i], fit, fit, &labelW, nullptr);
+        C2D_DrawText(&tabTexts_[i], C2D_WithColor, tx + (tabW - labelW) * 0.5f, 218, 0.5f, fit, fit,
+                     active ? kInk : kWhite);
     }
 }
 

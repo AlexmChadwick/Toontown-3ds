@@ -135,7 +135,10 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
         text(8, y0 + 22, 0.42f, kDim, kW - 16, "No ToonTasks. Visit a Toon HQ to get one!");
         return;
     }
-    const float rowH = (y1 - y0 - 20) / (q.count < 4 ? 4 : q.count);
+    // Cards share the space between the tasks we carry (up to 64 px each), so a task's text
+    // stays on its card.
+    float rowH = (y1 - y0 - 20) / q.count;
+    if (rowH > 64.0f) rowH = 64.0f;
     for (int i = 0; i < q.count; i++) {
         const net::QuestEntry& e = q.quests[i];
         const float y = y0 + 20 + i * rowH;
@@ -153,6 +156,23 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
             quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), true, scratch_, sizeof(scratch_));
         } else {
             quest::objective(*def, scratch_, sizeof(scratch_));
+        }
+        // The poster's location lines ("Toon HQ\nAny Street\n...") read as one wrapped line here.
+        {
+            char flat[sizeof(scratch_)];
+            size_t n = 0;
+            for (const char* c = scratch_; *c && n + 3 < sizeof(flat); ++c) {
+                if (*c == '\n') {
+                    if (n > 0 && c[1]) {
+                        flat[n++] = ',';
+                        flat[n++] = ' ';
+                    }
+                } else {
+                    flat[n++] = *c;
+                }
+            }
+            flat[n] = 0;
+            memcpy(scratch_, flat, n + 1);
         }
         text(10, y + 13, 0.38f, kInk, kW - 90, scratch_);
         if (!done && quest::progressString(*def, e.progress, line, sizeof(line))) {

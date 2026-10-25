@@ -119,7 +119,13 @@ private:
         static constexpr int kClips = 10;
         char clipName[kClips][24] = {};
         render::Anim clips[kClips];
+        // Suit.getLoseActor: a defeated Cog swaps to its lose-mod model with its own 'lose'
+        // animation (the head is instanced onto its joint_head); loaded the first time.
+        bool loseTried = false;
+        render::Model loseModel;
+        render::Anim loseClip;
     };
+    bool loadLose(int body);
     const render::Anim* battleClip(int body, const char* name);
     struct Head {
         char code[4] = {};

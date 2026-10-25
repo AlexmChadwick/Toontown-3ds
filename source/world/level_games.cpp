@@ -185,6 +185,12 @@ void LevelGames::loadProps() {
 
 void LevelGames::shutdown() {
     propsLoaded_ = false;
+    // loadProps loads these again on the next facility: free them, or each visit leaks
+    // kSfxCount of the kMaxSfx audio slots.
+    for (audio::SfxId& id : sfx_) {
+        if (id != audio::kInvalidSfx) audio::freeSfx(id);
+        id = audio::kInvalidSfx;
+    }
     crateWood_.unload();
     crateCbWood_.unload();
     gridFloor_.unload();
@@ -200,7 +206,7 @@ void LevelGames::shutdown() {
 
 void LevelGames::playAt(SfxIndex idx, const float pos[3], float vol) {
     (void)vol;
-    if (idx >= kSfxCount || !sfx_[idx]) return;
+    if (!propsLoaded_ || idx >= kSfxCount || sfx_[idx] == audio::kInvalidSfx) return;
     const float dx = pos[0] - toonX_, dy = pos[1] - toonY_, dz = pos[2] - toonZ_;
     const float dist2 = dx * dx + dy * dy + dz * dz;
     if (dist2 > 120.0f * 120.0f) return;

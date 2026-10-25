@@ -203,9 +203,8 @@ void MinigamePurchasePanel::rebuildGrid() {
 void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
-    snprintf(buf, sizeof(buf), "Gag Purchase (+%u beans won)", unsigned(beansWon_));
-    C2D_TextParse(&titleText_, infoBuf_, buf);
-    snprintf(buf, sizeof(buf), "Beans: %d", cart_.money);
+    C2D_TextParse(&titleText_, infoBuf_, "Gag Purchase");
+    snprintf(buf, sizeof(buf), "Beans: %d (+%u won)", cart_.money, unsigned(beansWon_));
     C2D_TextParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
     C2D_TextParse(&carryText_, infoBuf_, buf);
@@ -230,10 +229,21 @@ void MinigamePurchasePanel::draw() {
         dirty_ = false;
     }
     C2D_DrawRectSolid(0, 0, 0.1f, 320, 240, kBg);
+    // Title on the left; timer, carry and beans right-aligned from the edge, measured so they
+    // never run into each other.
+    constexpr float kHeadScale = 0.42f;
+    constexpr float kHeadGap = 8.0f;
+    float w = 0.0f;
     C2D_DrawText(&titleText_, C2D_WithColor, 4, 4, 0.5f, 0.45f, 0.45f, kAccent);
-    C2D_DrawText(&beansText_, C2D_WithColor, 170, 4, 0.5f, 0.45f, 0.45f, kGood);
-    C2D_DrawText(&carryText_, C2D_WithColor, 230, 4, 0.5f, 0.45f, 0.45f, kWhite);
-    C2D_DrawText(&timerText_, C2D_WithColor, 280, 4, 0.5f, 0.45f, 0.45f, kDim);
+    C2D_TextGetDimensions(&timerText_, kHeadScale, kHeadScale, &w, nullptr);
+    float right = 316.0f - w;
+    C2D_DrawText(&timerText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kDim);
+    C2D_TextGetDimensions(&carryText_, kHeadScale, kHeadScale, &w, nullptr);
+    right -= kHeadGap + w;
+    C2D_DrawText(&carryText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kWhite);
+    C2D_TextGetDimensions(&beansText_, kHeadScale, kHeadScale, &w, nullptr);
+    right -= kHeadGap + w;
+    C2D_DrawText(&beansText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kGood);
 
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;

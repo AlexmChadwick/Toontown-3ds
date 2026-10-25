@@ -14,3 +14,7 @@ __pycache__/
 # Packaged SD-card tree (make_sd_package.sh); copy to the card, do not commit
 /dist/
 /tools/catch_test/out/
+# Host test build outputs
+/tools/*/out/
+/tools/book_test/book_test
+/tools/name_test/name_test

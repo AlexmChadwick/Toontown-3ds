@@ -46,8 +46,13 @@ public:
         baseTint_[2] = b;
         baseTint_[3] = a;
     }
-    // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map).
+    // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map, fog).
     void endWorld();
+    // Linear distance fog for the world pass (Panda Fog.setLinearRange(start, end), colour
+    // 0..1); the sky clear takes the fog colour too, as upstream fogs the sky. Applied from the
+    // next beginWorld until clearFog.
+    void setFog(float r, float g, float b, float start, float end);
+    void clearFog() { fogOn_ = false; }
 
     const FrameStats& stats() const { return stats_; }
     void resetStats() { stats_ = FrameStats{}; }
@@ -74,6 +79,11 @@ private:
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    bool fogOn_ = false;
+    u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
+    u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
+    float fogStart_ = 0.0f, fogEnd_ = 0.0f;
+    C3D_FogLut fogLut_{};
     Program programs_[kModeCount];
     int mode_ = kModeNone;
 

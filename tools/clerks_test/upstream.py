@@ -6,14 +6,16 @@ import sys
 import types
 
 ROOT = Path(__file__).resolve().parents[2]
-UPSTREAM = ROOT / "ref/ref/open-toontown"
+# Worktrees link the main checkout's ref/ as ref/ref; the main checkout has it at ref/.
+REF = ROOT / 'ref/ref' if (ROOT / 'ref/ref').exists() else ROOT / 'ref'
+UPSTREAM = REF / "open-toontown"
 sys.path.insert(0, str(UPSTREAM))
 sys.modules.setdefault("panda3d.otp", types.ModuleType("panda3d.otp"))
 from panda3d.core import VirtualFileSystem, Filename
 
 vfs = VirtualFileSystem.getGlobalPtr()
 vfs.mount(
-    Filename(str(ROOT / "ref/ref/resources")),
+    Filename(str(REF / "resources")),
     Filename(str(ROOT)),
     VirtualFileSystem.MFReadOnly,
 )

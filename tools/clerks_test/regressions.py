@@ -9,6 +9,8 @@ import sys
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
+# Worktrees link the main checkout's ref/ as ref/ref; the main checkout has it at ref/.
+REF_UPSTREAM = str((ROOT / 'ref/ref' if (ROOT / 'ref/ref').exists() else ROOT / 'ref') / 'open-toontown')
 OUT = ROOT / "sdmc-out/clerks/regressions"
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "tmp").mkdir(exist_ok=True)
@@ -27,7 +29,7 @@ env = dict(
 commands = [
     (
         f"{name}_test",
-        ["bash", f"tools/{name}_test/run_tests.sh", "ref/ref/open-toontown"],
+        ["bash", f"tools/{name}_test/run_tests.sh", REF_UPSTREAM],
     )
     for name in (
         "cannon",
@@ -72,7 +74,7 @@ commands += [
         (
             "shop",
             "tools/shop_test/run_test.py",
-            ["--upstream", "ref/ref/open-toontown"],
+            ["--upstream", REF_UPSTREAM],
         ),
         ("cogbldg", "tools/cogbldg_test/run_test.py", []),
         ("tailor", "tools/tailor_test/run_test.py", []),
