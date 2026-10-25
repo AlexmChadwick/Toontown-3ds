@@ -29,6 +29,9 @@
 #include "ui/speedchat_data.h"
 #include "world/asset_loader.h"
 #include "world/boat.h"
+// ---- cogdo place runtime ----
+#include "world/cogdo_runtime.h"
+// ---- end cogdo ----
 #include "world/boss_battle.h"
 #include "world/cchar.h"
 #include "world/cog_buildings.h"
@@ -531,6 +534,10 @@ int main() {
             tt::world::BossFrame bossFrame{net, player, place, battle, battleFx, suits, remoteToons,
                 localToon, toonCache, renderer, ui, uiState, autotest, bottom, in, touch, dt,
                 shotName, lastStats, lastCmdBufUsage, stereoActive};
+            // ---- cogdo: own both displays while the interior is present ----
+            static tt::world::CogdoRuntime cogdo;
+            if (netStarted && cogdo.frame(bossFrame)) continue;
+            // ---- end cogdo ----
             if (netStarted && bossBattle.frame(bossFrame)) continue;
         }
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {

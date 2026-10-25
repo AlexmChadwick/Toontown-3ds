@@ -412,6 +412,31 @@ for _name, _fields in _BOSS_FIELDS.items():
         TABLE_CLASSES.append(_name)
 WANTED['DistributedToon'] += ['setPieType', 'setNumPies', 'setCogSummonsEarned']
 
+# ---- cogdo protocol: independent of facility levels and boss objects ----
+_COGDO_FIELDS = {
+    'DistributedCogdoElevatorExt': [],
+    'DistributedCogdoElevatorInt': [],
+    'DistributedCogdoInterior': ['setZoneId', 'setExtZoneId', 'setDistBldgDoId', 'setNumFloors', 'setShopOwnerNpcId', 'setSOSNpcId', 'setFOType', 'setToons', 'setSuits', 'setState', 'setAvatarJoined', 'elevatorDone', 'reserveJoinDone', 'toonLeftBarrelRoom', 'toonBarrelRoomIntroDone', 'setBarrelRoomReward', 'toonBarrelRoomRewardDone'],
+    'DistributedCogdoBattleBldg': [],
+    'DistributedCogdoBarrel': ['requestGrab', 'setIndex', 'setState', 'setGrab', 'setReject'],
+    'DistCogdoGame': ['setInteriorId', 'setExteriorZone', 'setDifficultyOverrides', 'setVisible', 'setIntroStart', 'setToonSad', 'setToonDisconnect', 'setAvatarReady', 'setGameStart', 'setGameFinish'],
+    'DistCogdoMazeGame': ['requestAction', 'doAction', 'setNumSuits', 'requestUseGag', 'toonUsedGag', 'requestSuitHitByGag', 'suitHitByGag', 'requestHitBySuit', 'toonHitBySuit', 'requestHitByDrop', 'toonHitByDrop', 'requestPickUp', 'pickUp', 'requestGag', 'hasGag'],
+    'DistCogdoFlyingGame': ['requestAction', 'requestPickUp', 'pickUp', 'debuffPowerup', 'doAction', 'eagleExitCooldown', 'toonSetAsEagleTarget', 'toonClearAsEagleTarget', 'toonDied', 'toonSpawn', 'toonSetBlades', 'toonBladeLost'],
+    'DistCogdoLevelGame': [],
+    'DistCogdoBoardroomGame': [],
+    'DistCogdoCraneGame': [],
+    'DistCogdoCrane': ['setCraneGameId', 'setIndex', 'setState', 'clearSmoothing', 'setCablePos'],
+    'DistCogdoCraneObject': ['setSmXYZH', 'setPosHpr', 'setCraneGameId', 'setObjectState', 'requestGrab', 'rejectGrab', 'requestDrop', 'hitFloor', 'requestFree', 'hitBoss', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setComponentL', 'setComponentX', 'setComponentY', 'setComponentZ', 'setComponentH', 'setComponentP', 'setComponentR', 'setComponentT', 'clearSmoothing'],
+    'DistCogdoCraneMoneyBag': ['setIndex', 'requestInitial'],
+    'DistCogdoCraneCog': ['setGameId', 'setDNAString', 'setSpawnInfo'],
+}
+WANTED['DistributedBuilding'] += ['setVictorReady']
+for _name, _fields in _COGDO_FIELDS.items():
+    WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))
+    if _name not in TABLE_CLASSES:
+        TABLE_CLASSES.append(_name)
+# ---- end cogdo protocol ----
+
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.
 WANTED['DistributedToon'] += ['setFriendsList', 'friendsNotify', 'setWhisperSCFrom',

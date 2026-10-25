@@ -32,6 +32,23 @@ void CogBuildings::setZone(uint32_t zone) {
         shells_[i].dept = static_cast<int8_t>(i);
         shells_[i].loaded = shells_[i].model.load(path);
     }
+    // ---- cogdo exterior: load geometry and door anchor once per street ----
+    cogdoShell_.unload();
+    cogdoShell_.load("sdmc:/3ds/toontown3ds/data/cogdo/shell.ttm");
+    FILE* cogdoPoints = fopen("sdmc:/3ds/toontown3ds/data/cogdo/points.bin", "rb");
+    if (cogdoPoints) {
+        char magic[4] = {};
+        uint16_t version = 0, count = 0;
+        float point[3] = {};
+        const bool valid = fread(magic, 1, 4, cogdoPoints) == 4 && !memcmp(magic, "CGP1", 4) &&
+            fread(&version, 2, 1, cogdoPoints) == 1 && version == 1 &&
+            fread(&count, 2, 1, cogdoPoints) == 1 && count == 5 && fread(point, sizeof(point), 1, cogdoPoints) == 1;
+        if (valid && std::isfinite(point[0]) && std::isfinite(point[1]) && std::isfinite(point[2])) {
+            memcpy(cogdoDoor_, point, sizeof(point));
+        }
+        fclose(cogdoPoints);
+    }
+    // ---- end cogdo exterior ----
     kart_.unload();
     if (zone == 10000) kart_.load("sdmc:/3ds/toontown3ds/data/cogbldg/cog_kart.ttm"); // Bossbot HQ
 }
@@ -131,7 +148,16 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
         Anchor* a = nullptr;
         for (Anchor& candidate : anchors_) if (candidate.used && candidate.block == b->block) a = &candidate;
         if (!a) continue;
-        const float dx = x - a->x, dy = y - a->y, dz = z - a->z;
+        // ---- cogdo exterior: the stock shell is offset from the DNA anchor ----
+        float targetX = a->x, targetY = a->y, targetZ = a->z;
+        if (b->state == net::CogBuildingState::Cogdo) {
+            const float angle = a->h * kDegToRad;
+            targetX += cosf(angle) * cogdoDoor_[0] - sinf(angle) * cogdoDoor_[1];
+            targetY += sinf(angle) * cogdoDoor_[0] + cosf(angle) * cogdoDoor_[1];
+            targetZ += cogdoDoor_[2];
+        }
+        // ---- end cogdo exterior ----
+        const float dx = x - targetX, dy = y - targetY, dz = z - targetZ;
         if (dx * dx + dy * dy + dz * dz < kBoardRadius * kBoardRadius &&
             requestedElevator_ == 0 && client.sendCogElevatorBoard(e.doId)) {
             requestedElevator_ = e.doId;
@@ -154,20 +180,27 @@ void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) c
     }
     for (int n = 0; n < net::kMaxCogBuildings; ++n) {
         const net::CogBuilding& b = client.cogBuildingSlot(n);
-        if (!b.active || b.state != net::CogBuildingState::Suit) continue;
+        // ---- cogdo exterior: all departments use the pinned shared shell ----
+        if (!b.active || (b.state != net::CogBuildingState::Suit && b.state != net::CogBuildingState::Cogdo)) continue;
+        // ---- end cogdo exterior ----
         const Anchor* a = nullptr;
         for (const Anchor& candidate : anchors_) if (candidate.used && candidate.block == b.block) a = &candidate;
         const int dept = b.track < 0 ? 0 : b.track % 4;
-        if (!a || !shells_[dept].loaded) continue;
+        if (!a || (b.state == net::CogBuildingState::Cogdo ? !cogdoShell_.loaded() : !shells_[dept].loaded)) continue;
         C3D_Mtx m;
         Mtx_Identity(&m);
         Mtx_Translate(&m, a->x, a->y, a->z, true);
         Mtx_RotateZ(&m, a->h * kDegToRad, true);
-        renderer.drawModel(const_cast<render::Model&>(shells_[dept].model), m);
+        // ---- cogdo exterior ----
+        render::Model& shell = b.state == net::CogBuildingState::Cogdo ?
+            const_cast<render::Model&>(cogdoShell_) : const_cast<render::Model&>(shells_[dept].model);
+        renderer.drawModel(shell, m);
+        // ---- end cogdo exterior ----
     }
 }
 
 void CogBuildings::shutdown() {
+    cogdoShell_.unload(); // cogdo exterior
     for (Shell& s : shells_) s.model.unload();
 }
 

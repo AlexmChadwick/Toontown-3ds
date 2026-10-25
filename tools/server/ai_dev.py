@@ -73,6 +73,38 @@ def _patch(name, mod):
                   (type(self).__name__, battleNumber, len(suits)), flush=True)
             return result
         cls.generateSuits = generateSuits
+    # ---- cogdo local test switches; production AI remains unchanged ----
+    elif name == 'toontown.building.DistributedBuildingAI':
+        if os.environ.get('AI_DEV_COGDO') != '1':
+            return
+        original = mod.DistributedBuildingAI.enterToon
+
+        def enterToon(self):
+            original(self)
+            if not (2100 <= self.canonicalZoneId < 2200) or getattr(self.air, '_cogdoTestBuilding', None):
+                return
+            self.air._cogdoTestBuilding = self.doId
+
+            def takeOver(task):
+                if not self.isDeleted() and self.isToonBlock():
+                    self.cogdoTakeOver('s', 0, 1)
+                    print('ai_dev: cogdo takeover zone %s block %s' % (self.zoneId, self.block), flush=True)
+                return task.done
+            import builtins
+            manager = getattr(mod, 'taskMgr', getattr(builtins, 'taskMgr', None))
+            if manager is not None:
+                manager.doMethodLater(5, takeOver, self.uniqueName('cogdo-dev-takeover'))
+        mod.DistributedBuildingAI.enterToon = enterToon
+    elif name == 'toontown.cogdominium.DistributedCogdoInteriorAI':
+        game = os.environ.get('AI_DEV_COGDO_GAME', '')
+        if game not in ('maze', 'crane', 'boardroom'):
+            return
+        import builtins
+        repository = getattr(mod, 'simbase', getattr(builtins, 'simbase', None))
+        if repository is not None:
+            repository.forcedCogdoGame = game
+            print('ai_dev: forcing cogdo game %s' % game, flush=True)
+    # ---- end cogdo local switches ----
     elif name == 'toontown.suit.DistributedSuitBaseAI':
         if os.environ.get('AI_DEV_WEAK_COGS') != '1':
             return
@@ -101,7 +133,8 @@ _BOSS_GENERATORS = {'toontown.suit.Distributed%sBossAI' % name
                     for name in ('Sellbot', 'Cashbot', 'Lawbot', 'Bossbot')}
 _TARGETS = {'toontown.toonbase.ToontownAccessAI', 'toontown.building.DistributedElevatorAI',
             'toontown.building.DistributedBossElevatorAI', 'toontown.toon.DistributedToonAI',
-            'toontown.suit.DistributedSuitBaseAI'} | _OWN_CHECK_BOARD | _BOSS_GENERATORS
+            'toontown.suit.DistributedSuitBaseAI', 'toontown.building.DistributedBuildingAI',
+            'toontown.cogdominium.DistributedCogdoInteriorAI'} | _OWN_CHECK_BOARD | _BOSS_GENERATORS
 
 
 class _Hook(importlib.abc.MetaPathFinder):

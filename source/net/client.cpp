@@ -450,6 +450,13 @@ void Client::fail(const char* why, bool retry) {
     }
     error_ = errorBuf_;
     TT_LOG("net: error in %s: %s", stateName(state_), why);
+    // ---- cogdo reconnect: return to the stored street, never a dead interior ----
+    if (const CogdoState* interior = cogdoInterior()) {
+        cfg_.zoneId = interior->exterior;
+        targetZone_ = interior->exterior;
+        numVisZones_ = 0;
+    }
+    // ---- end cogdo reconnect ----
     // A VP dynamic zone is destroyed when its riders disconnect. Reconnect to
     // the static lobby instead of requesting an interest in the abandoned office.
     // ---- CEO boss reconnect: dynamic banquet zones cannot be rejoined. ----
@@ -876,6 +883,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleCogdoEnter(doId, classId, r, req, reqCount, other)) return; // cogdo
     if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
     if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
@@ -970,6 +978,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (handleCogdoField(r, doId, fieldId)) return; // cogdo
     if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
     if (doId == kLoginManagerId) {
@@ -1095,6 +1104,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    cogdoLeaving(doId); // cogdo lifecycle
     bossLeaving(doId); // boss lifecycle hook
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
@@ -4477,7 +4487,12 @@ bool Client::applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t f
         else if (!strcmp(state, "suit")) b.state = CogBuildingState::Suit;
         else if (!strcmp(state, "becomingSuit")) b.state = CogBuildingState::BecomingSuit;
         else if (!strcmp(state, "becomingToon")) b.state = CogBuildingState::BecomingToon;
+        // ---- cogdo exterior states ----
+        else if (!strcmp(state, "cogdo") || !strcmp(state, "becomingCogdo") ||
+                 !strcmp(state, "becomingCogdoFromCogdo") || !strcmp(state, "waitForVictorsFromCogdo")) b.state = CogBuildingState::Cogdo;
+        // ---- end cogdo exterior states ----
         else b.state = CogBuildingState::Other;
+        b.cogdoVictory = !strcmp(state, "waitForVictorsFromCogdo"); // cogdo
         return r.ok();
     }
     return skipField(r, fieldId);
@@ -4496,6 +4511,18 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId <= dc::DistributedElevator::k_fillSlot7) {
         const int n = fieldId - dc::DistributedElevator::k_fillSlot0;
         e.slots[n] = r.u32(); e.slotFlags[n] = r.u8();
+    // ---- cogdo: emptySlot includes the departing avatar before its reason/timestamps ----
+    } else if ((e.classId == dc::DistributedCogdoElevatorExt::kClassId ||
+                e.classId == dc::DistributedCogdoElevatorInt::kClassId) &&
+               fieldId >= dc::DistributedElevator::k_emptySlot0 &&
+               fieldId <= dc::DistributedElevator::k_emptySlot7) {
+        const int slot = fieldId - dc::DistributedElevator::k_emptySlot0;
+        r.u32();
+        r.i8();
+        r.i16();
+        r.i16();
+        e.slots[slot] = 0;
+    // ---- end cogdo ----
     } else if (fieldId >= dc::DistributedElevator::k_emptySlot0 &&
                fieldId <= dc::DistributedElevator::k_emptySlot7) {
         const int n = fieldId - dc::DistributedElevator::k_emptySlot0;
@@ -4624,6 +4651,7 @@ bool Client::handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::clearCogObjects() {
+    clearCogdo(); // cogdo lifecycle
     for (CogBuilding& b : cogBuildings_) {
         if (b.active) pushEvent(EventType::CogBuildingGone, b.doId);
         b = CogBuilding{};

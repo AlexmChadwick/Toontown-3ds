@@ -814,3 +814,31 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
 - **CEO (checkpoint build).** Lobby 10100 → board → arena collision loaded → the banquet
   battle joined; the round was lost the same way. Antigravity's reviewed CEO is now merged
   (`42c9f14`); not yet re-run.
+
+## 2026-10-25 — Cogdominium runtime, branch cogdo (host/build only)
+
+- Build: prescribed devkitARM `make -j4`, based on 42c9f14; zero source warnings.
+  External crtn.o emits the toolchain's GNU-stack linker warning.
+- Platform: host sanitizer suites and offline Panda decoding. **Azahar and hardware
+  were not run**, per task instruction. FPS, live heap/linear/VRAM and frame time:
+  not measured; no claim of a tested live Cogdo victory or proven frame budget.
+- `tools/cogdo_test/run.sh`: PASS. 77 Panda field vectors/every truncated prefix,
+  nine real Client object streams, four inherited elevator/battle/building classes,
+  phase/member/owner guards, per-toon barrel grabs and victor callback. Six seeded
+  full maps/spawns, 3,600 exact walking/drop frames, cooler ordering, collision
+  navigation, difficulty sentinel, bounded crane physics. All five collision meshes
+  load; the maze has continuous ground from entrance to exit.
+- Required `tools/nettest/run_tests.sh`: ALL NET TESTS PASSED. Required
+  `tools/boss_test/run.sh`: parser/logic and real Client PASS. All 33 existing
+  regression suites in `tools/cogdo_test/regressions.py`: PASS.
+- Assets: 40 files (including manifest) byte-identical across independent baker
+  processes. Every TTM header, batch index and texture bound validated. Offscreen
+  decoded maze, suite, exterior and barrel previews compared with source models.
+- Unique largest resident model group: maze geometry 350,748 B and textures
+  739,136 B; 10,650 triangles / 92 batches before actors. Maximum floor collision
+  allocation 30,492 B. Final .text+.rodata+.data+.bss = 2,401,560 B (<4 MiB).
+  Runtime static Cogdo controller = 196,608 B. These are bake/link measurements.
+- Flying is unsupported, without a fabricated course. Crane and boardroom are
+  forced prototypes only. Barrel state handling is tested, but this pinned AI
+  does not naturally route to BarrelRoomIntro. Full controls, actual server flow,
+  simplifications, budgets and the required Azahar checklist: docs/design/cogdo.md.

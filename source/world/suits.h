@@ -62,7 +62,7 @@ public:
     // sets their pose every frame; drawing, nametags, battles and overridePose work as above.
     // code: SuitDNA head code; levelDist: setLevelDist. False when no actor slot is free.
     bool setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h, bool walking,
-                     bool visible, bool skelecog = false);
+                     bool visible, bool skelecog = false, float externalScale = 1); // cogdo: source maze actor scale
     void removeExternal(u32 doId);
 
 private:
@@ -94,6 +94,7 @@ private:
         bool poseValid = false;
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
+        float externalScale = 1; // cogdo: per-maze suit scale; ordinary actors retain 1
         bool skelecog = false; // DistributedSuitBase.setSkelecog: Suit.makeSkeleton
         float animTime = 0.0f;
         s8 clipArg = -1;
