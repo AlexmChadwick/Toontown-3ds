@@ -850,6 +850,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleCogdoEnter(doId, classId, r, req, reqCount, other)) return; // cogdo
     if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
     if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
@@ -944,6 +945,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (handleCogdoField(r, doId, fieldId)) return; // cogdo
     if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
     if (doId == kLoginManagerId) {
@@ -1069,6 +1071,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    cogdoLeaving(doId); // cogdo lifecycle
     bossLeaving(doId); // boss lifecycle hook
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
     for (RacingPad& p : racingPads_) if (p.active && p.doId == doId) { p = RacingPad{}; pushEvent(EventType::RacingGone, doId); return; }
@@ -4434,6 +4437,10 @@ bool Client::applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t f
         else if (!strcmp(state, "suit")) b.state = CogBuildingState::Suit;
         else if (!strcmp(state, "becomingSuit")) b.state = CogBuildingState::BecomingSuit;
         else if (!strcmp(state, "becomingToon")) b.state = CogBuildingState::BecomingToon;
+        // ---- cogdo exterior states ----
+        else if (!strcmp(state, "cogdo") || !strcmp(state, "becomingCogdo") ||
+                 !strcmp(state, "becomingCogdoFromCogdo") || !strcmp(state, "waitForVictorsFromCogdo")) b.state = CogBuildingState::Cogdo;
+        // ---- end cogdo exterior states ----
         else b.state = CogBuildingState::Other;
         return r.ok();
     }
@@ -4581,6 +4588,7 @@ bool Client::handleCogField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::clearCogObjects() {
+    clearCogdo(); // cogdo lifecycle
     for (CogBuilding& b : cogBuildings_) {
         if (b.active) pushEvent(EventType::CogBuildingGone, b.doId);
         b = CogBuilding{};

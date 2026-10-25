@@ -36,6 +36,9 @@
 #include "net/book_net.h"
 #include "net/boss_state.h"
 #include "net/cj_state.h"
+// ---- cogdo protocol ----
+#include "net/cogdo_state.h"
+// ---- end cogdo protocol ----
 #include "net/ceo_state.h"
 
 namespace tt::net {
@@ -316,7 +319,7 @@ struct Boat {
     bool active;
 };
 
-enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other };
+enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other, Cogdo };
 struct CogBuilding {
     uint32_t doId = 0, block = 0, interiorZoneId = 0;
     int8_t track = -1, difficulty = -1, numFloors = -1;
@@ -1195,6 +1198,23 @@ public:
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
+    // ---- cogdo protocol ----
+    const CogdoState* cogdoInterior() const;
+    const CogdoState* cogdoGame() const;
+    const CogdoState* findCogdo(uint32_t id) const;
+    const CogdoState& cogdoSlot(int index) const { return cogdoObjects_[index]; }
+    enum class CogdoInteriorAction { Joined, Elevator, Reserves, BarrelIntro, BarrelReward, LeaveBarrels };
+    bool sendCogdoInterior(CogdoInteriorAction action);
+    bool sendCogdoReady();
+    bool sendCogdoAction(uint8_t action, uint32_t data = 0);
+    bool sendCogdoGag(float x, float y, float heading);
+    bool sendCogdoSuit(uint8_t type, uint8_t serial, bool hitByGag);
+    bool sendCogdoPickup(uint16_t index, uint8_t type = 0);
+    bool sendCogdoCooler(uint8_t index);
+    bool sendCogdoBarrel(uint32_t id);
+    bool sendCogdoCable(uint32_t id, uint8_t sequence, float armY, float heading, const float links[3][3]);
+    bool sendCogdoBag(uint32_t id, bool grab);
+    // ---- end cogdo protocol ----
     const CogBuilding& cogBuildingSlot(int i) const { return cogBuildings_[i]; }
     const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
     const CogInterior* cogInterior() const { return cogInterior_.active ? &cogInterior_ : nullptr; }
@@ -1625,6 +1645,15 @@ private:
     TailorMovie tailorMovie_{};
     void handleTailorMovie(DatagramReader& r, uint32_t doId);
     // ---- Cog buildings (docs/design/cogbuildings.md; additive to the battle parser) ----
+    // ---- cogdo protocol ----
+    bool handleCogdoEnter(uint32_t id, uint16_t classId, DatagramReader& reader,
+                          const uint16_t* required, uint16_t count, bool other);
+    bool handleCogdoField(DatagramReader& reader, uint32_t id, uint16_t field);
+    bool cogdoParticipant() const;
+    void cogdoLeaving(uint32_t id);
+    void clearCogdo();
+    CogdoState cogdoObjects_[kMaxCogdoObjects];
+    // ---- end cogdo protocol ----
     bool handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                                 bool other);
     bool handleCogElevatorEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
