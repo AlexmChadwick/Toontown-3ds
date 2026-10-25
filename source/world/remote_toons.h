@@ -61,6 +61,15 @@ private:
         float speed = 0;        // smoothed forward speed (units/s), for walk/run choice
         float turnRate = 0;
         float distSq = 0;
+        // Tunnel transition playback (source/world/transition.*)
+        bool inTunnelTrack = false;
+        bool isTunnelOut = false;
+        float tunnelAge = 0.0f;
+        float tunnelDuration = 0.0f;
+        float tunnelStraightDur = 0.0f;
+        float tunnelStartX = 0.0f, tunnelStartY = 0.0f;
+        float tunnelEndX = 0.0f;
+        float tunnelOriginX = 0.0f, tunnelOriginY = 0.0f, tunnelOriginZ = 0.0f, tunnelOriginH = 0.0f;
     };
     Remote* find(u32 doId);
     void applyDna(Remote& r, const net::RemoteToon& t);

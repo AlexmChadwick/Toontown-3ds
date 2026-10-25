@@ -169,6 +169,39 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
     case EventType::Anim:
         if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate; }
         break;
+    case EventType::TunnelOut:
+        if (r && t) {
+            r->inTunnelTrack = true;
+            r->isTunnelOut = true;
+            r->tunnelAge = 0.0f;
+            r->tunnelStartX = t->tunnelStartX;
+            r->tunnelStartY = t->tunnelStartY;
+            r->tunnelOriginX = t->tunnelX;
+            r->tunnelOriginY = t->tunnelY;
+            r->tunnelOriginZ = t->tunnelZ;
+            r->tunnelOriginH = t->tunnelH;
+            r->tunnelStraightDur = fabsf(t->tunnelStartY - (-6.0f)) / 20.0f;
+            r->stateAnim = kAnimRun;
+            r->stateRate = 1.0f;
+            r->locomotion = false;
+        }
+        break;
+    case EventType::TunnelIn:
+        if (r && t) {
+            r->inTunnelTrack = true;
+            r->isTunnelOut = false;
+            r->tunnelAge = 0.0f;
+            r->tunnelEndX = t->tunnelEndX;
+            r->tunnelOriginX = t->tunnelX;
+            r->tunnelOriginY = t->tunnelY;
+            r->tunnelOriginZ = t->tunnelZ;
+            r->tunnelOriginH = t->tunnelH;
+            r->tunnelStraightDur = 0.55f;
+            r->stateAnim = kAnimRun;
+            r->stateRate = 1.0f;
+            r->locomotion = false;
+        }
+        break;
     case EventType::Name:
         if (r && t) snprintf(r->name, sizeof(r->name), "%s", t->name);
         break;
@@ -198,17 +231,74 @@ void RemoteToons::update(float dt) {
     for (Remote& r : toons_) {
         if (!r.active) continue;
         const float px=r.x,py=r.y,ph=r.h;
-        const float dx = r.tx - r.x, dy = r.ty - r.y, dz = r.tz - r.z;
-        if (dx * dx + dy * dy + dz * dz > kSnapDistance * kSnapDistance) {
-            r.x = r.tx;
-            r.y = r.ty;
-            r.z = r.tz;
+        if (r.inTunnelTrack) {
+            r.tunnelAge += dt;
+            float lx = 0.0f, ly = 0.0f, lz = 0.025f, lh = 180.0f;
+            if (r.isTunnelOut) {
+                if (r.tunnelAge < r.tunnelStraightDur && r.tunnelStraightDur > 0.001f) {
+                    const float u = r.tunnelAge / r.tunnelStraightDur;
+                    lx = r.tunnelStartX;
+                    ly = r.tunnelStartY + u * (-6.0f - r.tunnelStartY);
+                    lh = 180.0f;
+                } else if (r.tunnelAge < r.tunnelStraightDur + 2.0f) {
+                    const float tp = r.tunnelAge - r.tunnelStraightDur;
+                    const float up = tp / 2.0f;
+                    const float ul = fminf(1.0f, tp / 1.3333f);
+                    const float targetX = 9.0f + (r.tunnelStartX - 9.0f) * 0.4f;
+                    const float curPivotX = (r.tunnelStartX + 14.0f) + ul * (targetX - r.tunnelStartX);
+                    const float theta = -135.0f * up;
+                    const float rad = theta * kDegToRad;
+                    lx = -14.0f + curPivotX * cosf(rad);
+                    ly = -6.0f + curPivotX * sinf(rad);
+                    lh = 180.0f + theta;
+                } else {
+                    r.inTunnelTrack = false;
+                }
+            } else {
+                if (r.tunnelAge < 0.8f) {
+                    const float theta = -135.0f;
+                    const float rad = theta * kDegToRad;
+                    const float curPivotX = r.tunnelEndX + 14.0f;
+                    lx = -14.0f + curPivotX * cosf(rad);
+                    ly = -6.0f + curPivotX * sinf(rad);
+                    lh = 180.0f + theta;
+                } else if (r.tunnelAge < 2.8f) {
+                    const float up = (r.tunnelAge - 0.8f) / 2.0f;
+                    const float theta = -135.0f * (1.0f - up);
+                    const float rad = theta * kDegToRad;
+                    const float curPivotX = r.tunnelEndX + 14.0f;
+                    lx = -14.0f + curPivotX * cosf(rad);
+                    ly = -6.0f + curPivotX * sinf(rad);
+                    lh = 180.0f + theta;
+                } else if (r.tunnelAge < 2.8f + r.tunnelStraightDur) {
+                    const float us = (r.tunnelAge - 2.8f) / r.tunnelStraightDur;
+                    lx = r.tunnelEndX;
+                    ly = -6.0f + us * 11.0f;
+                    lh = 180.0f;
+                } else {
+                    r.inTunnelTrack = false;
+                    r.locomotion = true;
+                }
+            }
+            const float radH = r.tunnelOriginH * kDegToRad;
+            r.x = r.wx = r.tunnelOriginX + lx * cosf(radH) - ly * sinf(radH);
+            r.y = r.wy = r.tunnelOriginY + lx * sinf(radH) + ly * cosf(radH);
+            r.z = r.wz = r.tunnelOriginZ + lz;
+            r.h = r.wh = wrapDeg(r.tunnelOriginH + lh);
+            r.speed = 20.0f;
         } else {
-            r.x += dx * k;
-            r.y += dy * k;
-            r.z += dz * k;
+            const float dx = r.tx - r.x, dy = r.ty - r.y, dz = r.tz - r.z;
+            if (dx * dx + dy * dy + dz * dz > kSnapDistance * kSnapDistance) {
+                r.x = r.tx;
+                r.y = r.ty;
+                r.z = r.tz;
+            } else {
+                r.x += dx * k;
+                r.y += dy * k;
+                r.z += dz * k;
+            }
+            r.h = wrapDeg(r.h + wrapDeg(r.th - r.h) * k);
         }
-        r.h = wrapDeg(r.h + wrapDeg(r.th - r.h) * k);
         if (dt > 0.0f) {
             // Forward speed along the heading, for Toon.setSpeed-style clip choice.
             const float hr = r.h * kDegToRad;
