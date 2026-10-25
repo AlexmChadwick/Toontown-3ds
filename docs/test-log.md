@@ -792,3 +792,25 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
     with an unnamed exit). Find what walks it into that door trigger.
   - Note: `make` does not repack RomFS when a data file changes; delete the `.3dsx` to
     force it.
+
+## 2026-10-25 — boss runs, the "crashes", test-harness fixes
+
+- **The VP "crashes" were the test harness.** Two `azahar_test.sh` runs overlapped. The older
+  run's exit trap ran `pkill -9` on every Azahar, killing the newer run's emulator, and the
+  newer run had backed up the first run's *test* config as the user's. The user's Azahar
+  settings (volume 0.6, New 3DS, 4x, layout 4) were restored from the last clean backup.
+  `azahar_test.sh` now takes a lock (one run at a time) and restores on INT/TERM/HUP, with an
+  interruptible wait.
+- **CPU faults** on the main thread are now logged (`core/crash.*`: type, pc, fault address,
+  registers), since Azahar runs without its exception handler.
+- **VP.** Lobby → elevator → `Introduction` → `BattleOne`.
+  - In one run the lone dev toon won the round, then `RollToBattleTwo` → `PrepareBattleTwo` →
+    `BattleTwo`. That run was cut by the harness bug above.
+  - In the next run it lost `BattleOne`. Cogs survived repeated all-hitting sound rounds,
+    so the `AI_DEV_WEAK_COGS` clamp still does not reach the VP round's Cogs on the running
+    server.
+  - Dev AI: strong toons now get the 80-gag pouch (autoplay had run out of attack gags and
+    healed every round).
+- **CEO (checkpoint build).** Lobby 10100 → board → arena collision loaded → the banquet
+  battle joined; the round was lost the same way. Antigravity's reviewed CEO is now merged
+  (`42c9f14`); not yet re-run.
