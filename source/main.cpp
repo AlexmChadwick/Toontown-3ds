@@ -124,6 +124,12 @@ void applyToonColors(const tt::ui::State& s, tt::render::Tints& t) {
 
 } // namespace
 
+// The main thread's stack (libctru's weak default is 32 KB). main() alone keeps a 16 KB frame of
+// subsystems, so 32 KB left callees too little: a startup crash (PC 0) after the polish merge.
+extern "C" {
+u32 __stacksize__ = 256 * 1024;
+}
+
 int main() {
     gfxInitDefault();
     gfxSet3D(false); // stereo is opt-in only

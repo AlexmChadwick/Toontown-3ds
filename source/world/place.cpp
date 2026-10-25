@@ -163,7 +163,7 @@ void Place::loadPoints() {
         char line[128];
         while (numPoints_ < kMaxPoints && fgets(line, sizeof(line), f)) {
             Point& p = points_[numPoints_];
-            if (sscanf(line, "%39s %f %f %f %f", p.name, &p.x, &p.y, &p.z, &p.h) == 5) numPoints_++;
+            if (sscanf(line, "%63s %f %f %f %f", p.name, &p.x, &p.y, &p.z, &p.h) == 5) numPoints_++;
         }
         fclose(f);
     }

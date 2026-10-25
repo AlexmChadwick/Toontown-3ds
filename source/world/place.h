@@ -26,14 +26,14 @@ u32 hoodOf(u32 zoneId); // 2000 for every TTC zone (2000, 21xx, 25xx, ...)
 struct Exit {
     enum Kind : u8 { None, Tunnel, Door } kind = None;
     u32 targetZone = 0;
-    char name[32] = {};
+    char name[64] = {}; // the trigger owner (DNA root names reach 40+ characters)
 };
 
 class Place {
 public:
     static constexpr int kMaxPoints = 256; // streets: every door and tunnel anchor (up to 177 so far)
     struct Point {
-        char name[40];
+        char name[64]; // e.g. "sz13:toon_landmark_TT_toonhall_DNARoot_door_origin"
         float x, y, z, h;
     };
 

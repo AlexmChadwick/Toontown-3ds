@@ -44,7 +44,7 @@ public:
 
 private:
     struct Point {
-        char name[40];
+        char name[64];
         float x, y, z, h;
     };
     struct Npc {

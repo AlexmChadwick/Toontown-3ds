@@ -114,7 +114,7 @@ void Transition::reset() {
 void Transition::computeTunnelOrigin(const Exit& exit, const Place& place, const Player& player) {
     // The tunnel model's tunnel_origin (bake_zone.write_points "<tunnel>_origin"), which the
     // upstream tunnel tracks are relative to; the DNA root is only a fallback.
-    char originName[48];
+    char originName[80];
     snprintf(originName, sizeof(originName), "%s_origin", exit.name);
     const Place::Point* pt = place.point(originName);
     if (!pt) pt = place.point(exit.name);
@@ -136,7 +136,7 @@ void Transition::computeTunnelOrigin(const Exit& exit, const Place& place, const
 void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const Player& player) {
     const Place::Point* pt = place.point(exit.name);
     if (!pt) {
-        char originName[64];
+        char originName[80];
         snprintf(originName, sizeof(originName), "%s_door_origin", exit.name);
         pt = place.point(originName);
     }
