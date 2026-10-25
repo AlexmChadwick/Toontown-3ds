@@ -154,6 +154,7 @@ public:
     // ---- level games (world/level_games.*) ----
     LevelGames& games() { return games_; }
     const LevelGames& games() const { return games_; }
+    bool nearestEntityTransform(uint16_t classId, float x, float y, float z, float outWorld[12]) const;
     // ---- end level games ----
 
 private:

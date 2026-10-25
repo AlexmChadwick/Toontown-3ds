@@ -290,6 +290,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.movePos[5] = float(r.i16()) / 10.0f;
         e.moving = true;
         e.moveStartMs = now_;
+        TT_LOG("net: crate %u setMoveTo to (%.1f, %.1f, %.1f)", unsigned(e.doId), e.movePos[3], e.movePos[4], e.movePos[5]);
     } else if (fieldId == dc::DistributedGridGoon::k_setPathPts) {
         for (int i = 0; i < 6 && r.ok(); ++i) e.pathPts[i] = float(r.i16()) / 10.0f;
     } else if (fieldId == dc::DistributedMaze::k_setRoomDoId) {
@@ -297,6 +298,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
     } else if (fieldId == dc::DistributedMaze::k_setGameStart) {
         const int16_t ts = r.i16();
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        TT_LOG("net: maze %u setGameStart", unsigned(e.doId));
     } else if (fieldId == dc::DistributedMaze::k_setGameOver) {
         e.gameOver = true;
     } else if (fieldId == dc::DistributedMaze::k_toonFinished) {
@@ -307,6 +309,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
         e.molesWhackedTarget = r.u8();
         e.gameDuration = r.u16();
+        TT_LOG("net: mole field %u setGameStart (duration %u s, target %u)", unsigned(e.doId), unsigned(e.gameDuration), unsigned(e.molesWhackedTarget));
     } else if (fieldId == dc::DistributedMoleField::k_setScore) {
         e.score = r.i16();
     } else if (fieldId == dc::DistributedMoleField::k_updateMole) {
@@ -317,6 +320,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.boardsLeft = r.u16();
         r.i32();
         e.numJoinedToons = uint8_t(readIds(r, e.joinedToons, 4));
+        TT_LOG("net: golf green %u acceptJoin (boardsLeft %u)", unsigned(e.doId), unsigned(e.boardsLeft));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_scoreData) {
         e.boardsLeft = r.u8();
         r.u8();
@@ -701,6 +705,7 @@ bool Client::sendLevelSuitStrayed(uint32_t doId) {
 // ---- level games (world/level_games.*) ----
 bool Client::sendLaserHit(uint32_t doId, int8_t newX, int8_t newY, int8_t oldX, int8_t oldY) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: laser field %u hit (%d, %d) from (%d, %d)", unsigned(doId), int(newX), int(newY), int(oldX), int(oldY));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedLaserField, hit);
     w.i8(newX);
@@ -726,6 +731,7 @@ bool Client::sendCameraTrapFire(uint32_t doId) {
 
 bool Client::sendCratePush(uint32_t doId, uint8_t side) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: crate %u requestPush side %u", unsigned(doId), unsigned(side));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedCrate, requestPush);
     w.u8(side);
@@ -741,6 +747,7 @@ bool Client::sendCrateDone(uint32_t doId) {
 
 bool Client::sendMazeTriggered(uint32_t doId) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: maze %u setClientTriggered", unsigned(doId));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedMaze, setClientTriggered);
     return finish(w);
@@ -762,6 +769,7 @@ bool Client::sendMazeDamage(uint32_t doId) {
 
 bool Client::sendMoleTriggered(uint32_t doId) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: mole field %u setClientTriggered", unsigned(doId));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedMoleField, setClientTriggered);
     return finish(w);
@@ -769,6 +777,7 @@ bool Client::sendMoleTriggered(uint32_t doId) {
 
 bool Client::sendMoleWhacked(uint32_t doId, int8_t moleIndex, int16_t popupNum) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: mole field %u whackedMole hole %d popup %d", unsigned(doId), int(moleIndex), int(popupNum));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedMoleField, whackedMole);
     w.i8(moleIndex);
@@ -795,6 +804,7 @@ bool Client::sendMoleDamage(uint32_t doId) {
 
 bool Client::sendGolfJoin(uint32_t doId) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: golf green %u requestJoin", unsigned(doId));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedGolfGreenGame, requestJoin);
     return finish(w);
@@ -802,6 +812,7 @@ bool Client::sendGolfJoin(uint32_t doId) {
 
 bool Client::sendGolfLeave(uint32_t doId) {
     if (state_ != State::InZone) return false;
+    TT_LOG("net: golf green %u leaveGame", unsigned(doId));
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedGolfGreenGame, leaveGame);
     return finish(w);

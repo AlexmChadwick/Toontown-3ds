@@ -224,6 +224,7 @@ private:
         int scheduleCount = 0;
         uint32_t moleStartMs = 0;
         bool scheduled = false;
+        bool moleTriggered = false;
         float holeElevation[16] = {};
         uint8_t holeType[16] = {};
         bool holeWhacked[16] = {};

@@ -97,6 +97,8 @@ namespace {
 
 constexpr const char* kPropsDir = "sdmc:/3ds/toontown3ds/data/level/props/";
 constexpr const char* kAudioDir = "sdmc:/3ds/toontown3ds/data/audio/";
+constexpr float kPi = 3.14159265358979323846f;
+constexpr float kDegToRad = kPi / 180.0f;
 
 // Math helpers
 inline void toMtxLocal(const float w[12], C3D_Mtx* m) {
@@ -294,6 +296,7 @@ void LevelGames::updateLasers(net::Client& client, Level& level, float toonX, fl
                 slot.lastTileY = tileY;
                 slot.toonInLaser = true;
 
+                TT_LOG("level_games: laser field %u stepped on tile (%d, %d) (sending hit)", unsigned(d.doId), int(tileX), int(tileY));
                 client.sendLaserHit(d.doId, tileX, tileY, oldX, oldY);
 
                 // Hazard symbol check in field data
@@ -302,6 +305,7 @@ void LevelGames::updateLasers(net::Client& client, Level& level, float toonX, fl
                     const uint8_t sym = d.fieldData[symbolIdx];
                     if (games_logic::isLaserHazard(sym)) {
                         playAt(kSfxLBSparks, e->world + 9, 0.9f);
+                        TT_LOG("level_games: laser field %u hazard fired on tile (%d, %d)", unsigned(d.doId), int(tileX), int(tileY));
                         client.sendLaserTrapFire(d.doId);
                     }
                 }
@@ -426,6 +430,7 @@ void LevelGames::updateCrates(net::Client& client, Level& level, float toonX, fl
                     slot.pushSide = side;
                     slot.pushing = true;
                     playAt(kSfxCrateEffort, e->world + 9, 0.8f);
+                    TT_LOG("level_games: pushing crate %u on side %d (sending requestPush)", unsigned(d.doId), side);
                     client.sendCratePush(d.doId, static_cast<uint8_t>(side));
                 }
             }
@@ -449,6 +454,7 @@ void LevelGames::updateMazes(net::Client& client, Level& level, float toonX, flo
         const float distFromOrigin = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1]);
         if (distFromOrigin < 8.0f && !slot.mazeTriggered) {
             slot.mazeTriggered = true;
+            TT_LOG("level_games: toon entered maze %u (sending setClientTriggered)", unsigned(d.doId));
             client.sendMazeTriggered(d.doId);
         }
 
@@ -456,6 +462,7 @@ void LevelGames::updateMazes(net::Client& client, Level& level, float toonX, flo
         const float distFromExit = std::sqrt(localToon[0] * localToon[0] + (localToon[1] - 90.0f) * (localToon[1] - 90.0f));
         if (distFromExit < 15.0f && slot.mazeTriggered && !slot.mazeFinished) {
             slot.mazeFinished = true;
+            TT_LOG("level_games: toon finished maze %u (sending setFinishedMaze)", unsigned(d.doId));
             client.sendMazeFinished(d.doId);
         }
     }
@@ -501,6 +508,14 @@ void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, flo
         float localToon[3];
         toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
 
+        // Trigger mole field when toon approaches
+        const float distToCenter = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1]);
+        if (distToCenter < 35.0f && d.gameStartMs == 0 && !slot.moleTriggered) {
+            slot.moleTriggered = true;
+            TT_LOG("level_games: toon entered mole field %u (sending setClientTriggered)", unsigned(d.doId));
+            client.sendMoleTriggered(d.doId);
+        }
+
         constexpr float kSpacing = 8.0f;
         for (int h = 0; h < 16; ++h) {
             const int col = h % 4;
@@ -517,9 +532,11 @@ void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, flo
 
                 if (slot.holeType[h] == 0) {
                     playAt(kSfxMoleStomp, e->world + 9, 0.9f);
+                    TT_LOG("level_games: whacked mole hole %u on field %u (sending whackedMole)", unsigned(h), unsigned(d.doId));
                     client.sendMoleWhacked(d.doId, static_cast<uint8_t>(h), 1);
                 } else {
                     playAt(kSfxMoleSurprise, e->world + 9, 0.9f);
+                    TT_LOG("level_games: hit bomb mole hole %u on field %u (sending moleBomb)", unsigned(h), unsigned(d.doId));
                     client.sendMoleBomb(d.doId, static_cast<uint8_t>(h), 1, nowMs);
                 }
             }
@@ -560,10 +577,12 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
         if (minDist < 3.0f && !slot.joinedGolf) {
             slot.joinedGolf = true;
             slot.currentSpot = nearestSpot;
+            TT_LOG("level_games: entered golf spot %d on green %u (sending requestJoin)", nearestSpot, unsigned(d.doId));
             client.sendGolfJoin(d.doId);
         } else if (minDist > 6.0f && slot.joinedGolf) {
             slot.joinedGolf = false;
             slot.currentSpot = -1;
+            TT_LOG("level_games: left golf spot on green %u (sending leaveGame)", unsigned(d.doId));
             client.sendGolfLeave(d.doId);
         }
     }
@@ -584,9 +603,26 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
         // 1. Laser fields
         if (d.classId == dc::DistributedLaserField::kClassId) {
             if (d.activeLF && gridFloor_.loaded()) {
+                const float scaleX = level_->spec_.number(*e, "gridScaleX", d.gridNumX > 0 ? float(d.gridNumX) : 8.0f);
+                const float scaleY = level_->spec_.number(*e, "gridScaleY", d.gridNumY > 0 ? float(d.gridNumY) : 8.0f);
                 C3D_Mtx m;
                 toMtxLocal(e->world, &m);
+                // Float slightly above floor to prevent depth fighting (upstream DistributedLaserField: zFloat = 0.05)
+                Mtx_Translate(&m, scaleX * 0.5f, scaleY * 0.5f, 0.08f, true);
+                Mtx_Scale(&m, scaleX / 6.24f, scaleY / 6.24f, 1.0f);
                 renderer.drawModel(const_cast<render::Model&>(gridFloor_), m);
+
+                // Overhead laser hazard cones
+                if (goonCone_.loaded()) {
+                    C3D_Mtx cm;
+                    toMtxLocal(e->world, &cm);
+                    Mtx_Translate(&cm, scaleX * 0.5f, scaleY * 0.5f, 25.0f, true);
+                    Mtx_RotateX(&cm, 180.0f * kDegToRad, true);
+                    Mtx_Scale(&cm, scaleX * 0.25f, scaleY * 0.25f, 25.0f / 3.5f);
+                    renderer.setBaseTint(1.0f, 0.2f, 0.2f, 0.3f);
+                    renderer.drawModel(const_cast<render::Model&>(goonCone_), cm);
+                    renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+                }
             }
         }
         // 2. Security cameras
@@ -625,7 +661,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
 
                     C3D_Mtx m;
                     toMtxLocal(e->world, &m);
-                    Mtx_Translate(&m, hx, hy, 0.0f, true);
+                    Mtx_Translate(&m, hx, hy, 0.08f, true);
                     renderer.drawModel(const_cast<render::Model&>(moleHole_), m);
 
                     const float elev = slot.holeElevation[h];
@@ -653,8 +689,25 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                     games_logic::calcGolfSpot(s, spot);
                     C3D_Mtx m;
                     toMtxLocal(e->world, &m);
-                    Mtx_Translate(&m, spot[0], spot[1], spot[2], true);
+                    // Float slightly above green floor to avoid coplanar depth clipping
+                    Mtx_Translate(&m, spot[0], spot[1], spot[2] + 0.08f, true);
+                    Mtx_Scale(&m, 2.0f, 2.0f, 1.0f);
                     renderer.drawModel(const_cast<render::Model&>(golfHole_), m);
+
+                    if (golfBall_.loaded()) {
+                        C3D_Mtx bm = m;
+                        Mtx_Translate(&bm, 0.0f, 0.0f, 0.35f, true);
+                        renderer.drawModel(const_cast<render::Model&>(golfBall_), bm);
+                    }
+                }
+                // Target cups on green
+                static const float kCups[3][2] = {{0.0f, 35.0f}, {-4.0f, 45.0f}, {4.0f, 45.0f}};
+                for (int c = 0; c < 3; ++c) {
+                    C3D_Mtx cm;
+                    toMtxLocal(e->world, &cm);
+                    Mtx_Translate(&cm, kCups[c][0], kCups[c][1], 0.08f, true);
+                    Mtx_Scale(&cm, 2.5f, 2.5f, 1.0f);
+                    renderer.drawModel(const_cast<render::Model&>(golfHole_), cm);
                 }
             }
         }
