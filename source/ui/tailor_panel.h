@@ -5,6 +5,7 @@
 
 #include "net/client.h"
 #include "world/toon_cache.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -48,6 +49,7 @@ private:
     bool changedTop_ = false;
     bool changedBottom_ = false;
     int pendingSend_ = 0; // 1 Done, 2 Cancel
+    FocusGroup focus_{"tailor"}; // padnav: pad::tailor table, built once in init()
     world::ToonDna original_{};
     world::ToonDna working_{};
     world::ToonCache* cache_ = nullptr;

@@ -2,6 +2,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include "net/client.h"
+#include "ui/focus.h"
 namespace tt::ui {
 class ClosetPanel {
 public:
@@ -19,5 +20,6 @@ private:
     uint8_t pending_ = 0;
     C2D_TextBuf textBuf_ = nullptr;
     C2D_Text title_{}, body_{}, done_{}, cancel_{};
+    FocusGroup focus_{"closet"};
 };
 }
