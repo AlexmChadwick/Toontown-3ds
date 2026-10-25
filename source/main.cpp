@@ -56,6 +56,9 @@
 #include "world/toon_dna.h"
 #include "world/transition.h"
 #include "world/zone_actors.h"
+// [interior life]
+#include "world/interior_life.h"
+// [end interior life]
 
 namespace {
 
@@ -277,6 +280,11 @@ int main() {
     static tt::world::SuitActors suits;
     suits.init();
     suits.setZone(kStartZone);
+    // [interior life]
+    static tt::world::InteriorLife interiorLife;
+    interiorLife.init();
+    interiorLife.setZone(kStartZone, place.pointsPath());
+    // [end interior life]
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
@@ -929,6 +937,37 @@ int main() {
         }
 
         const int prevTab = uiState.tab;
+        // [interior life]
+        if (autotest.active() && !strcmp(autotest.label(), "interior: hq board")) {
+            if (place.zoneId() != 2520 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2520;
+            if (place.zoneId() == 2520) {
+                // Face the empty_board at (-47.4427, 29.6598, 8.15647)
+                player.reset(-37.0f, 29.65f, 4.0f, 270.0f);
+                interiorLife.setTestLeaderboard();
+            }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "interior: pet fish")) {
+            if (place.zoneId() != 2522 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2522;
+            if (place.zoneId() == 2522) {
+                // Face the fish tank at (0, 6, -4)
+                player.reset(0.0f, -2.0f, 0.0f, 0.0f);
+            }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "interior: door leaves")) {
+            if (place.zoneId() == 2000 && transition.idle()) {
+                // Step towards door trigger to initiate door swing
+                player.reset(-149.0f, -28.0f, 4.0f, 90.0f);
+            }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "street: knock knock")) {
+            if (place.zoneId() != 2100 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2100;
+            if (place.zoneId() == 2100) {
+                if (!interiorLife.isKnockKnockActive()) {
+                    interiorLife.triggerKnockKnock(2100, 44);
+                }
+            }
+        }
+        // [end interior life]
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
@@ -1232,6 +1271,9 @@ int main() {
                 cogBuildings.setZone(dest);
                 cogBuildings.syncAnchors(place);
                 suits.setZone(dest);
+                // [interior life]
+                interiorLife.setZone(dest, place.pointsPath());
+                // [end interior life]
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
@@ -1286,6 +1328,9 @@ int main() {
                 racing.handleEvent(ev, net);
                 estate.handleEvent(ev, net);
                 pets.handleEvent(ev);
+                // [interior life]
+                interiorLife.handleEvent(ev, net, nowMs);
+                // [end interior life]
                 if (ev.type == tt::net::EventType::ClosetUp) {
                     net.sendClosetEnter(ev.doId);
                     ui.closet().open(net, nowMs);
@@ -1452,6 +1497,9 @@ int main() {
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
+        // [interior life]
+        interiorLife.update(dt, player.x(), player.y(), player.z(), net, tt::net::plat::nowMs());
+        // [end interior life]
         if (netStarted && net.inZone()) {
             const u32 nowMs = tt::net::plat::nowMs();
             if (const u32 hood = level.popWinDestination()) {
@@ -1713,6 +1761,9 @@ int main() {
             remoteToons.draw(renderer, player.x(), player.y());
             tt::prof::lap(tt::prof::kDrawToons);
             zoneActors.draw(renderer, player.cameraEye());
+            // [interior life]
+            interiorLife.draw(renderer, player.cameraEye());
+            // [end interior life]
             boat.draw(renderer);
             cchars.draw(renderer);
             if (netStarted && !golf.active()) {
@@ -1779,6 +1830,11 @@ int main() {
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
             suits.addBalloons(balloons, proj, view);
+            // [interior life]
+            interiorLife.addBalloons(balloons, proj, view, player.x(), player.y(), player.z(),
+                                     localLook.valid() ? localLook.nametagHeight : 4.0f,
+                                     netStarted && net.avatarName()[0] ? net.avatarName() : "Toon");
+            // [end interior life]
             for (int i = 0; i < battle.numPopups(); i++) { // damage numbers over the fighters
                 const tt::world::BattlePopup& p = battle.popup(i);
                 float sx, sy, depth;
@@ -1788,6 +1844,9 @@ int main() {
             }
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
+            // [interior life]
+            interiorLife.draw2D(proj, view);
+            // [end interior life]
             tt::prof::lap(tt::prof::kBalloons);
             tt::ui::HudValues hv;
             hv.online = netStarted && net.inZone();
@@ -1919,6 +1978,9 @@ int main() {
     boat.shutdown();
     tt::world::AssetLoader::shutdown();
     suits.shutdown();
+    // [interior life]
+    interiorLife.shutdown();
+    // [end interior life]
     battleFx.shutdown();
     if (netStarted) net.stop();
     if (netConnReady) netConn.shutdown();
