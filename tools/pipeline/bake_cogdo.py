@@ -15,6 +15,8 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["TT_ETC1_THREADS"] = "3"
 ROOT = Path(__file__).resolve().parents[2]
+# ref/ in the main checkout; agent worktrees link it as ref/ref.
+REF = ROOT / 'ref' if (ROOT / 'ref/open-toontown/toontown').exists() else ROOT / 'ref/ref'
 sys.path.insert(0, str(ROOT / "tools/pipeline"))
 import extract
 import collide
@@ -25,8 +27,8 @@ BamCache.getGlobalPtr().setActive(False)
 loadPrcFileData("", "window-type none\naudio-library-name null\nmodel-cache-dir\n")
 from direct.showbase.ShowBase import ShowBase
 
-RES = ROOT / "ref/ref/resources"
-UPSTREAM = ROOT / "ref/ref/open-toontown"
+RES = REF / "resources"
+UPSTREAM = REF / "open-toontown"
 OUT = ROOT / "sdmc-out/3ds/toontown3ds/data/cogdo"
 
 

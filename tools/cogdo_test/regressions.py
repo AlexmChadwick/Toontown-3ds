@@ -9,6 +9,8 @@ import sys
 
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
+# ref/ in the main checkout; agent worktrees link it as ref/ref.
+REF = ROOT / 'ref' if (ROOT / 'ref/open-toontown/toontown').exists() else ROOT / 'ref/ref'
 OUT = ROOT / "sdmc-out/cogdo/regressions"
 OUT.mkdir(parents=True, exist_ok=True)
 (OUT / "tmp").mkdir(exist_ok=True)
@@ -27,7 +29,7 @@ env = dict(
 commands = [
     (
         f"{name}_test",
-        ["bash", f"tools/{name}_test/run_tests.sh", "ref/ref/open-toontown"],
+        ["bash", f"tools/{name}_test/run_tests.sh", str(REF / "open-toontown")],
     )
     for name in (
         "cannon",
@@ -72,7 +74,7 @@ commands += [
         (
             "shop",
             "tools/shop_test/run_test.py",
-            ["--upstream", "ref/ref/open-toontown"],
+            ["--upstream", str(REF / "open-toontown")],
         ),
         ("cogbldg", "tools/cogbldg_test/run_test.py", []),
         ("tailor", "tools/tailor_test/run_test.py", []),

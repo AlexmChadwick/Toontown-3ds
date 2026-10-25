@@ -9,11 +9,13 @@ from panda3d.direct import DCFile
 from direct.showbase.RandomNumGen import RandomNumGen
 
 ROOT = Path(__file__).resolve().parents[2]
+# ref/ in the main checkout; agent worktrees link it as ref/ref.
+REF = ROOT / 'ref' if (ROOT / 'ref/open-toontown/toontown').exists() else ROOT / 'ref/ref'
 OUT = ROOT / "sdmc-out/cogdo-test"
 OUT.mkdir(parents=True, exist_ok=True)
 dc = DCFile()
 for name in ("otp.dc", "toon.dc"):
-    assert dc.read(str(ROOT / "ref/ref/open-toontown/etc" / name))
+    assert dc.read(str(REF / "open-toontown/etc" / name))
 assert dc.getHash() == 547155168
 names = [
     "DistributedCogdoInterior",
@@ -96,7 +98,7 @@ import ast
 import runpy
 from types import SimpleNamespace
 
-upstream = ROOT / "ref/ref/open-toontown/toontown"
+upstream = REF / "open-toontown/toontown"
 data = SimpleNamespace(**runpy.run_path(str(upstream / "cogdominium/CogdoMazeData.py")))
 barriers = (
     [(7, 34), (8, 34), (9, 34), (10, 34)],
