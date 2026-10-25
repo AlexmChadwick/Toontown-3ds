@@ -1,3 +1,4 @@
+#include "game/minigame_limits.h"
 #include "game/two_d_game.h"
 
 #include <cmath>
@@ -8,31 +9,25 @@
 
 namespace tt::game {
 
-bool TwoDGame::init(const char* root) {
-    char path[256];
-    std::snprintf(path, sizeof(path), "%s/minigames/toonblitz_game.ttm", root);
-    assetBatch_.load(gameModel_, path);
-    std::snprintf(path, sizeof(path), "%s/minigames/toonblitz_block.ttm", root);
-    assetBatch_.load(blockModel_, path);
-
+bool TwoDGame::init(const char* root, unsigned hood) {
+    (void)root;
+    duration_ = 150;
+    for (const auto& limits : kMinigameLimits)
+        if (limits.hood == hood) duration_ = float(limits.twoDSeconds);
+    // DistributedTwoDGameAI.setupSections supplies the actual section layout.
+    // The old four "test platforms" and x=140 finish were invented content.
+    // Until section geometry is implemented, report only the stock timer expiry.
     player_ = twodgame::PlayerPhysics{};
-    player_.x = 0.0f;
-    player_.z = 0.0f;
-
-    // A few test platforms
-    numPlatforms_ = 4;
-    platforms_[0] = {20.0f, 0.0f, 40.0f, 6.0f};
-    platforms_[1] = {50.0f, 0.0f, 75.0f, 12.0f};
-    platforms_[2] = {85.0f, 0.0f, 110.0f, 18.0f};
-    platforms_[3] = {120.0f, 0.0f, 150.0f, 24.0f};
-
+    player_.x = -39;
+    player_.z = 13.59f; // ToonBlitzGlobals.ToonStartingPosition
+    numPlatforms_ = 0;
     rawScore_ = 0;
     score_ = 0;
     timer_ = 0.0f;
     completed_ = false;
     isDone_ = false;
 
-    TT_LOG("twod game: init platforms=%d", numPlatforms_);
+    TT_LOG("mgpass: limitation id 15: upstream section layout not implemented; no fabricated course or victory");
     return true;
 }
 
@@ -48,39 +43,17 @@ void TwoDGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
     if (isDone_) return;
 
     timer_ += dt;
-    float moveX = pad.dx / 156.0f;
-    if (keysDown & KEY_A) {
-        player_.jump();
-    }
-    player_.step(moveX, platforms_, numPlatforms_, dt);
-
-    // End of course (reach x >= 140)
-    if (player_.x >= 140.0f && !completed_) {
-        completed_ = true;
+    (void)pad;
+    (void)keysDown;
+    if (timer_ >= duration_) {
         isDone_ = true;
-        float timeLeft = twodgame::kGameDurationTTC - timer_;
-        score_ = twodgame::calculateJellybeans(rawScore_, timeLeft, true);
-        client.sendTwoDReportDone();
-        TT_LOG("twod game: completed course time=%.1f score=%d", timer_, score_);
-    } else if (timer_ >= twodgame::kGameDurationTTC) {
-        isDone_ = true;
-        score_ = twodgame::calculateJellybeans(rawScore_, 0.0f, false);
-        TT_LOG("twod game: time out score=%d", score_);
+        client.sendTwoDReportDone(); // DistributedTwoDGame.timerExpired, no toonVictory
+        TT_LOG("twod game: timer expired without a completed course");
     }
 }
 
 void TwoDGame::draw(render::Renderer& renderer) {
-    C3D_Mtx model;
-    Mtx_Identity(&model);
-    if (gameModel_.loaded()) renderer.drawModel(gameModel_, model);
-
-    if (blockModel_.loaded()) {
-        for (int i = 0; i < numPlatforms_; i++) {
-            Mtx_Identity(&model);
-            Mtx_Translate(&model, (platforms_[i].x1 + platforms_[i].x2) * 0.5f, 0.0f, platforms_[i].z2, false);
-            renderer.drawModel(blockModel_, model);
-        }
-    }
+    (void)renderer; // never present ice_game_2d or a Sellbot sign as a Toon Escape course
 }
 
 void TwoDGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
@@ -104,13 +77,13 @@ const char* TwoDGame::line(int i) const {
     if (i < 0 || i >= 3) return "";
     switch (i) {
     case 0:
-        std::snprintf(lines_[0], sizeof(lines_[0]), "Progress: %d%%", static_cast<int>((player_.x / 140.0f) * 100.0f));
+        std::snprintf(lines_[0], sizeof(lines_[0]), "Course sections not implemented");
         break;
     case 1:
-        std::snprintf(lines_[1], sizeof(lines_[1]), "Circle Pad: Run  A: Jump");
+        std::snprintf(lines_[1], sizeof(lines_[1]), "Waiting for the game timer...");
         break;
     case 2: {
-        int left = static_cast<int>(twodgame::kGameDurationTTC - timer_);
+        int left = static_cast<int>(duration_ - timer_);
         std::snprintf(lines_[2], sizeof(lines_[2]), "Time: %d s", left > 0 ? left : 0);
         break;
     }

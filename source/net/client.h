@@ -242,6 +242,7 @@ enum class EventType : uint8_t {
     // ---- Ice (DistributedIceGame) ----
     IceMatchAndRound,
     IceNewState,
+    IceTireInputs, IceFinalPositions, IceScores, // qafix: authoritative round payloads
     IceTimerStart,
     IceAvatarChoice,
     IceTreasureGrabbed,
@@ -907,6 +908,9 @@ struct Minigame {
     uint8_t patternRemoteButtonWrong = 0;
 
     // Ice Slide:
+    int iceInputCount = 0, icePositionCount = 0, iceScoreCount = 0; // qafix
+    float iceFinalPositions[4][3] = {};
+    int16_t iceScores[4] = {};
     int8_t iceMatch = 0;
     int8_t iceRound = 0;
     char iceState[32] = {};

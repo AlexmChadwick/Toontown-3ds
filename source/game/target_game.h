@@ -23,6 +23,7 @@ public:
 
     bool init(const char* root, uint32_t seed, uint32_t safezone);
     void shutdown();
+    void nextRound();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
     void draw(render::Renderer& renderer);

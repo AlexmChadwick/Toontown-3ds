@@ -170,6 +170,7 @@ WANTED = {
     'DistributedIceGame': ['setForceArrowInfo', 'setAvatarChoice', 'endingPositions',
                            'reportScoringMovieDone', 'claimTreasure', 'claimPenalty',
                            'setTimerStartTime', 'setMatchAndRound', 'setNewState',
+                           'setTireInputs', 'setFinalPositions', 'setScores',
                            'setTreasureGrabbed', 'setPenaltyGrabbed'],
     'DistributedRaceGame': ['setTimerStartTime', 'setAvatarChoice', 'setAvatarChose',
                             'setChancePositions', 'setServerChoices'],

@@ -124,7 +124,7 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
                       : isCogThief_ ? "Cog Thief"
                       : isTwoD_ ? "Toon Escape"
                       : isTag_ ? "Tag Game"
-                      : isPattern_ ? "Toon Memory"
+                      : isPattern_ ? "Match Minnie"
                       : isIce_ ? "Ice Slide"
                       : isRace_ ? "Race Game"
                       : isPhoto_ ? "Photo Fun"
@@ -218,7 +218,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTwoD_) {
-            twoD_.init(kDir);
+            twoD_.init(kDir, home_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTag_) {
@@ -230,7 +230,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isIce_) {
-            ice_.init(kDir);
+            ice_.init(kDir, mg->numParticipants);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isRace_) {
@@ -238,7 +238,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isPhoto_) {
-            photo_.init(kDir);
+            photo_.init(kDir, home_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else {
@@ -304,12 +304,46 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         phaseMs_ = nowMs;
         break;
 
+    case EventType::TargetRoundDone:
+        if (isTarget_) {
+            target_.nextRound();
+            doneSent_ = false;
+            setPhase(Phase::Play);
+            phaseMs_ = nowMs;
+        }
+        break;
+
     case EventType::TagSetIt:
         if (isTag_ && mg) tag_.onTag(client.avatarId(), mg->tagItAvId);
         break;
 
+    case EventType::PatternSetPlayerPatterns:
+        if (isPattern_) pattern_.onResults();
+        break;
+
+    case EventType::RaceServerChoices:
+        if (isRace_ && mg) {
+            uint8_t choices[4], positions[4];
+            int16_t rewards[4];
+            const int count = mg->numParticipants < 4 ? mg->numParticipants : 4;
+            for (int i = 0; i < count; ++i) {
+                choices[i] = uint8_t(mg->raceServerChoices[i]);
+                positions[i] = mg->raceServerPositions[i];
+                rewards[i] = mg->raceServerRewards[i];
+            }
+            race_.onSetServerChoices(choices, positions, rewards, count);
+        }
+        break;
+
     case EventType::PatternSetPattern:
         if (isPattern_ && mg) pattern_.onSetPattern(mg->patternSeq, mg->patternSeqLen);
+        break;
+
+    case EventType::IceNewState:
+    case EventType::IceTireInputs:
+    case EventType::IceFinalPositions:
+    case EventType::IceScores:
+        if (isIce_ && mg) ice_.onServer(ev.type, *mg);
         break;
 
     case EventType::IceMatchAndRound:
@@ -336,7 +370,8 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
     }
     u32 kDown = hidKeysDown();
     // Test-only physical button presses: use each game's regular input/sender path.
-    if (autoPlay_ && phase_ == Phase::Play && int(inPhase * 2) != int((inPhase - dt) * 2))
+    if (autoPlay_ && (isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isIce_ || isRace_ || isPhoto_) &&
+        phase_ == Phase::Play && int(inPhase * 2) != int((inPhase - dt) * 2))
         kDown |= KEY_A;
 
     switch (phase_) {
@@ -464,6 +499,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isPattern_) {
+            pattern_.setAutoPlay(autoPlay_);
             pattern_.update(client, pad, kDown, dt, nowMs);
             if (pattern_.isDone() && !doneSent_) {
                 doneSent_ = true;

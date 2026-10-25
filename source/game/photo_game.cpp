@@ -1,3 +1,5 @@
+#include "game/minigame_limits.h"
+#include "core/log.h"
 #include "game/photo_game.h"
 
 #include <cmath>
@@ -6,17 +8,19 @@
 
 namespace tt::game {
 
-bool PhotoGame::init(const char* root) {
+bool PhotoGame::init(const char* root, unsigned hood) {
+    (void)root;
     sim_.init(1, 32);
     camYaw_ = -90.0f;
     camPitch_ = 0.0f;
-    timeRemaining_ = 60.0f;
-
-    char path[256];
-    std::snprintf(path, sizeof(path), "%s/photo_scene.ttm", root);
-    assetBatch_.load(sceneModel_, path);
-    std::snprintf(path, sizeof(path), "%s/photo_subject.ttm", root);
-    assetBatch_.load(subjectModel_, path);
+    timeRemaining_ = 120.0f;
+    for (const auto& limits : kMinigameLimits) {
+        if (limits.hood == hood) {
+            sim_.maxFilm = limits.film;
+            timeRemaining_ = float(limits.photoSeconds);
+        }
+    }
+    TT_LOG("mgpass: limitation id 16: animated photo assignments are not implemented; no fabricated scores");
 
     return true;
 }
@@ -54,48 +58,16 @@ void PhotoGame::update(net::Client& client, const circlePosition& pad, u32 keysD
     // Snap photo
     if (keysDown & KEY_A) {
         if (sim_.filmUsed[0] < sim_.maxFilm) {
-            // Check subject in center of frame
-            // Let subject 0 be at yaw -90, subject 1 at yaw -45, etc.
-            int bestSubject = 0;
-            float bestDiff = 999.0f;
-            for (int s = 0; s < 5; ++s) {
-                float targetYaw = -90.0f + (float)s * 30.0f;
-                float diff = std::fabs(camYaw_ - targetYaw);
-                if (diff < bestDiff) {
-                    bestDiff = diff;
-                    bestSubject = s;
-                }
-            }
-
-            float stars = 1.0f;
-            if (bestDiff < 5.0f) stars = 5.0f;
-            else if (bestDiff < 10.0f) stars = 4.0f;
-            else if (bestDiff < 18.0f) stars = 3.0f;
-            else if (bestDiff < 28.0f) stars = 2.0f;
-
-            sim_.submitPhoto(0, bestSubject, 0, stars);
-            client.sendPhotoScore(bestSubject, 0, stars);
+            // A snapshot with no implemented subject/pose cannot earn invented stars.
+            // DistributedPhotoGame.__testCollisions still consumes film for empty shots.
+            ++sim_.filmUsed[0];
+            if (sim_.filmUsed[0] == sim_.maxFilm) client.sendPhotoFilmOut();
         }
     }
 }
 
 void PhotoGame::draw(render::Renderer& renderer) {
-    if (sceneModel_.loaded()) {
-        C3D_Mtx world;
-        Mtx_Identity(&world);
-        renderer.drawModel(sceneModel_, world);
-    }
-
-    if (subjectModel_.loaded()) {
-        for (int s = 0; s < 5; ++s) {
-            float rad = (-90.0f + (float)s * 30.0f) * 0.0174532925f;
-            float dist = 25.0f;
-            C3D_Mtx world;
-            Mtx_Identity(&world);
-            Mtx_Translate(&world, std::cos(rad) * dist, std::sin(rad) * dist, 0.0f, true);
-            renderer.drawModel(subjectModel_, world);
-        }
-    }
+    (void)renderer; // the owning scene draws its real playground, not camera props as subjects
 }
 
 void PhotoGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
@@ -132,7 +104,7 @@ const char* PhotoGame::line(int i) const {
         return lines_[1];
     }
     if (i == 2) {
-        std::snprintf(lines_[2], sizeof(lines_[2]), "Team Score: %d beans", sim_.scores[0]);
+        std::snprintf(lines_[2], sizeof(lines_[2]), "Subject paths unavailable; score from AI");
         return lines_[2];
     }
     return "";

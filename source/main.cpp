@@ -1897,6 +1897,9 @@ int main() {
                 golf.draw(renderer);
                 tt::prof::lap(tt::prof::kGolfDraw);
             } else if (minigame.active()) {
+                // ---- qafix: Photo uses the real hood, not a viewfinder model as scenery ----
+                if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
+                // ---- end qafix ----
                 minigame.draw(renderer);
                 tt::prof::lap(tt::prof::kMinigameDraw); // the playground is hidden while we are away
             } else if (level.active()) {

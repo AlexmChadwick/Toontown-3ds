@@ -73,6 +73,7 @@ public:
     void shutdown();
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
+    bool photoScene() const { return isPhoto_; }
     bool startedGame() const { return startedGame_; }
     bool endedGame() const { return endedGame_; }
     bool completedPurchase() const { return completedPurchase_; }

@@ -115,7 +115,7 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
             const float dz = swimmer_.z - fish_[i].z;
             if (dx * dx + dz * dz < 1.8f * 1.8f) {
                 diving::applyObstacleHit(swimmer_);
-                client.sendDivingFishCollision(client.ownStats().money, i, i, "normal");
+                client.sendDivingFishCollision(client.avatarId(), i, i, "normal");
             }
         }
     }
@@ -130,7 +130,7 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
         const float dx = swimmer_.x - crabX_;
         if (std::abs(dx) < 2.0f) {
             diving::applyObstacleHit(swimmer_);
-            client.sendDivingCrabCollision(client.ownStats().money, "normal");
+            client.sendDivingCrabCollision(client.avatarId(), "normal");
         }
     }
 
@@ -170,14 +170,12 @@ void DivingGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     if (environModel_.loaded()) {
         Mtx_Identity(&m);
-        Mtx_Translate(&m, 0.0f, 0.5f, -41.0f, true);
-        Mtx_Scale(&m, 2.8f, 2.8f, 2.73f);
+        // The baker already applies DistributedDivingGame environ placement/scale.
         renderer.drawModel(environModel_, m);
     }
     if (boatModel_.loaded()) {
         Mtx_Identity(&m);
-        Mtx_Translate(&m, 0.0f, 3.0f, 33.25f, true);
-        Mtx_Scale(&m, 2.8f, 2.8f, 2.8f);
+        // Boat placement/scale is baked as well.
         renderer.drawModel(boatModel_, m);
     }
     if (chestModel_.loaded()) {
@@ -185,7 +183,7 @@ void DivingGame::draw(render::Renderer& renderer) {
             if (chests_[i].available) {
                 Mtx_Identity(&m);
                 Mtx_Translate(&m, chests_[i].x, 0.0f, chests_[i].z, true);
-                Mtx_Scale(&m, 1.5f, 1.5f, 1.5f);
+                // Chest scale 1.5 is baked.
                 renderer.drawModel(chestModel_, m);
             }
         }
