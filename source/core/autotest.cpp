@@ -65,6 +65,7 @@ const Step kScript[] = {
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "visit clerk", "clerk"},
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "exit_interior"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "move: tunnel", "move_tunnel**"},
+    {4.0f, 0, 0, 0, 0, -1, -1, 0, "tunnel: arrived", "tunnel_arrived*"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: street door", "street_interior"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "street_back"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},

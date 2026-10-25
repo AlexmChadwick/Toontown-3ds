@@ -510,6 +510,13 @@ int main() {
         if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        if (autotest.active()) {
+            if (!strcmp(autotest.label(), "factory: crates") && autotest.stepTime() > 3.0f) {
+                in.pad.dy = 127;
+            } else if (!strcmp(autotest.label(), "da office: lasers") && autotest.stepTime() > 3.0f) {
+                in.pad.dy = 60;
+            }
+        }
         // Boss place: one grouped hook owns both screens until the VP encounter ends.
         {
             static tt::world::BossBattle bossBattle;
@@ -769,9 +776,16 @@ int main() {
                         else TT_LOG("autotest: no %s on this level", g.specType);
                     } else if (!gameFound && autotest.stepTime() > 2.0f) {
                         gameFound = true;
-                        if (level.nearestEntity(g.classId, player.x(), player.y(), player.z(), &gx, &gy, &gz)) {
-                            player.reset(gx + g.dx, gy + g.dy, gz + g.dz, g.h);
-                            TT_LOG("autotest: %s at %.1f,%.1f,%.1f", g.specType, double(gx), double(gy), double(gz));
+                        float w[12];
+                        if (level.nearestEntityTransform(g.classId, player.x(), player.y(), player.z(), w)) {
+                            const float wx = w[0] * g.dx + w[3] * g.dy + w[6] * g.dz + w[9];
+                            const float wy = w[1] * g.dx + w[4] * g.dy + w[7] * g.dz + w[10];
+                            const float wz = w[2] * g.dx + w[5] * g.dy + w[8] * g.dz + w[11];
+                            const float entH = std::atan2(-w[3], w[4]) / kDegToRad;
+                            player.reset(wx, wy, wz, entH + g.h);
+                            TT_LOG("autotest: %s at %.1f,%.1f,%.1f (toon at %.1f,%.1f,%.1f h: %.1f)",
+                                   g.specType, double(w[9]), double(w[10]), double(w[11]),
+                                   double(wx), double(wy), double(wz), double(entH + g.h));
                         } else {
                             TT_LOG("autotest: no live %s generated", g.specType);
                         }
@@ -1135,7 +1149,19 @@ int main() {
             const bool leavingLevel = level.active();
             if ((travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
                 if (exitHere.kind == tt::world::Exit::Door) {
-                    transition.startDoorOut(travelTarget, exitHere, player, place, 0, netStarted ? &net : nullptr);
+                    u32 doorDoId = 0;
+                    if (netStarted) {
+                        u32 block = 0;
+                        if (!strncmp(exitHere.name, "sz", 2) || !strncmp(exitHere.name, "tb", 2)) {
+                            block = static_cast<u32>(strtoul(exitHere.name + 2, nullptr, 10));
+                        } else if (place.kind() == tt::world::PlaceKind::Interior) {
+                            block = place.zoneId() % 100;
+                        }
+                        if (block > 0) {
+                            doorDoId = net.findDoor(block);
+                        }
+                    }
+                    transition.startDoorOut(travelTarget, exitHere, player, place, doorDoId, netStarted ? &net : nullptr);
                 } else {
                     transition.startTunnelOut(travelTarget, exitHere, player, place, netStarted ? &net : nullptr);
                 }
@@ -1171,7 +1197,8 @@ int main() {
                 player.reset(ax, ay, az, ah);
                 if (netStarted) net.changeZone(dest);
                 place.finishLoading(ax, ay, az, onStreetCell, nullptr);
-                lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
+                const tt::world::Exit arrivalExit = place.exitAt(ax, ay, az);
+                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : fromZone; // don't bounce straight back
                 if (tt::world::hoodOf(dest) != tt::world::hoodOf(fromZone) ||
                     tt::world::placeKind(dest) != tt::world::placeKind(fromZone)) {
                     playPlaceMusic(dest);
@@ -1183,7 +1210,9 @@ int main() {
             place.load(fromZone); // fall back to where we were
             transition.reset();
         }
-        lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
+        if (!transition.active()) {
+            lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
+        }
         toastAge += dt;
         if (toastAge > 3.0f) toast = nullptr;
 
@@ -1503,6 +1532,15 @@ int main() {
                 else if (!strncmp(lbl, "battle: squirt", 14)) forced = 5;
                 else if (!strncmp(lbl, "battle: drop", 12)) forced = 6;
                 battle.setAutoPlay(true, forced);
+
+                if (forced >= 0) {
+                    static float battleWaitTime = 0.0f;
+                    if (autotest.stepBegan()) battleWaitTime = 0.0f;
+                    battleWaitTime += dt;
+                    if ((!battle.active() || battle.phase() < tt::world::BattlePhase::Input) && battleWaitTime < 15.0f) {
+                        autotest.hold(dt);
+                    }
+                }
             } else {
                 battle.setAutoPlay(false);
             }

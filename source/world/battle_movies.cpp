@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstring>
+#include "core/log.h"
 #include "world/battle.h"
 #include "world/battle_fx.h"
 #include "render/renderer.h"
@@ -21,6 +22,11 @@ inline float clamp(float v, float lo, float hi) {
 
 inline float lerp(float a, float b, float t) {
     return a + (b - a) * t;
+}
+
+static const char* trackName(int track) {
+    static const char* const kNames[] = {"heal", "trap", "lure", "sound", "throw", "squirt", "drop"};
+    return (track >= 0 && track < 7) ? kNames[track] : "unknown";
 }
 
 } // namespace
@@ -162,6 +168,8 @@ void BattleMovies::placeTrap(uint32_t suitId, int level, uint32_t nowMs, const B
     t.triggered = false;
     t.triggerStartMs = 0;
     t.triggerDurMs = 0;
+
+    TT_LOG("battle_movies: place trap lvl %d on suit %u", level, unsigned(suitId));
 }
 
 bool BattleMovies::triggerTrap(uint32_t suitId, uint32_t nowMs, BattleFx& fx) {
@@ -257,6 +265,8 @@ void BattleMovies::setLured(uint32_t suitId, bool lured, uint32_t nowMs) {
     l.targetOffset = lured ? kSuitLureDistance : 0.0f;
     l.walkStartMs = nowMs;
     l.walkDurMs = 600;
+
+    TT_LOG("battle_movies: suit %u %s", unsigned(suitId), lured ? "lured" : "unlured");
 }
 
 float BattleMovies::getLureOffset(uint32_t suitId) const {
@@ -297,6 +307,8 @@ void BattleMovies::spawnDrop(uint32_t suitId, int level, uint32_t startMs, uint3
     d.targetX = sx;
     d.targetY = sy;
     d.targetZ = sz;
+
+    TT_LOG("battle_movies: spawn drop lvl %d on suit %u", level, unsigned(suitId));
 }
 
 void BattleMovies::onAttack(uint32_t attackerId, uint32_t targetId, int track, int level,
@@ -304,6 +316,9 @@ void BattleMovies::onAttack(uint32_t attackerId, uint32_t targetId, int track, i
                             BattleFx& fx, const Battle& battle) {
     (void)attackerId;
     (void)durMs;
+
+    TT_LOG("battle_movies: attack track %s (lvl %d) attacker %u target %u",
+           trackName(track), level, unsigned(attackerId), unsigned(targetId));
 
     switch (track) {
     case 0: { // Heal
@@ -358,6 +373,9 @@ void BattleMovies::onHit(uint32_t targetId, uint32_t attackerId, int track, int 
                          int hp, bool miss, BattleFx& fx, const Battle& battle) {
     (void)attackerId;
     (void)battle;
+
+    TT_LOG("battle_movies: hit track %s (lvl %d) target %u hp %d miss %d",
+           trackName(track), level, unsigned(targetId), hp, int(miss));
 
     if (track == 2) { // Lure
         if (!miss) {
