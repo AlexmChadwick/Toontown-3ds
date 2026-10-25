@@ -10,7 +10,6 @@ namespace tt::render {
 
 namespace {
 
-constexpr u32 kClearSky = 0x6AB0D9FF; // RGBA8; Toontown-ish sky blue
 constexpr u32 kVertexStride = 16;
 constexpr u32 kMorphStride = 8; // tta frame vertex: s16 x, y, z, pad
 // Depth bias per "draw in front" layer (eyes over face, pupils over eyes).
@@ -94,7 +93,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
                           int eyeSign) {
     batchState_ = BatchState{};
     eye_ = eye;
-    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, fogOn_ ? fogClear_ : kClearSky, 0);
+    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, fogOn_ ? fogClear_ : background_, 0);
     C3D_FrameDrawOn(target);
     if (fogOn_) {
         // Reversed depth (GPU_GREATER, depth map -1..0): the LUT is indexed with z flipped,

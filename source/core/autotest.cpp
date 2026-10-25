@@ -86,6 +86,7 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "move: teleport", "move_teleport**"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "see boat", "boat"},
+    {8.0f, 0, 60, 0, 0, -1, -1, 0, "swim: harbor", "swim*"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "ride boat", "ride"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},
     {8.0f, 0, 0, 0, KEY_TOUCH, 180, 191, 0, "teleport BR", "hood_br"},

@@ -34,6 +34,8 @@ public:
     bool waiting() const { return active_ && !ready_; }
     float stepTime() const { return t_; } // seconds into the current step
     void hold(float dt) { t_ = (t_ > dt) ? (t_ - dt) : 0.0f; }
+    // Ends the current step on the next frame (its goal is already reached).
+    void finishStep() { t_ = 1e9f; }
     // True on the first frame the main loop sees each step (a long frame cannot skip it).
     bool stepBegan() const { return active_ && ready_ && stepFrames_ == 1; }
     // Non-null for one frame when the script wants a screenshot.

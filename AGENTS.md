@@ -317,6 +317,21 @@ Lessons recorded for agents:
   frame of subsystems; the 32 KB default crashed at startup (PC 0).
 - **CPU faults** on the main thread are logged by `core/crash.*` (type, pc, fault address,
   registers).
+- **Street interest includes the branch zone** (`Street.doEnterZone`): the cell, its vis list
+  and `zone - zone % 100`, which holds every `DistributedBuilding`. Without it, buildings,
+  doors and field offices vanish on the first cell change.
+- **No teleports while busy.** Teleports are refused on the trolley, in a minigame or its gag
+  purchase, and in battle (the book is disabled there upstream). Leaving mid-purchase stranded
+  the session for the rest of the game.
+- **Check what the stock AI really creates before building a feature.** `EstateManagerAI`,
+  `DistributedPhoneAI`, `DistributedMailboxAI`, `DistributedTrunkAI` and `CatalogManagerAI` are
+  stubs on this server, so estates, the catalog, mail and accessories cannot run. The `catalog`
+  branch is parked unmerged.
+- **Bakes are order-independent.** Every asset must bake to the same bytes alone or in a batch.
+  Dynamic (`.ttf`) fonts need a fresh copy per sign; process-wide caches key on content.
+- **QA by play-through.** Run the world script in chunks split at `go ...` steps (each facility
+  from boarding) with `AI_MINIGAME_ID=8`, and review the logs and every shot. Fix root causes
+  first: one stuck panel or session can fake dozens of "wrong place" shots.
 
 **Phase 2 — Playground + movement.** Status: mostly done in Azahar (Old 3DS); see
 `docs/test-log.md`.
@@ -424,8 +439,21 @@ server.
 - ✅ **Cogdominiums** (`world/cogdo_*`, `docs/design/cogdo.md`): field offices with the maze
   game (crane / boardroom only behind `AI_DEV_COGDO_GAME`; flying is unsupported, since
   there are no assets).
+- ✅ **Name shop** (`docs/design/names.md`): Pick-A-Name, typed names, name states, deleting
+  toons.
+- ✅ **Interior life** (`docs/design/interior_life.md`): the HQ leaderboard, the pet shop fish,
+  door leaves, knock-knock doors (real `KnockKnockDoorSphere`s from `bake_knock_doors.py`) and
+  landmark interior signs.
+- ✅ **Service clerks** (`docs/design/clerks.md`): pet shop, kart shop, fisherman, party planner.
+- ✅ **Swimming** (`world/water.*`): Donald's Dock and Acorn Acres, with the
+  DDPlayground/OZPlayground depths, the swim state, splash and sounds. `Renderer::setFog` gives
+  linear PICA fog (DD white fog, underwater blue).
+- ✅ **HUD**: the real laff meter (`bake_laff_meter.py`: species head in the head colour, eyes,
+  teeth, frown, numbers). Jellybeans show on the Toon tab and the book's Gags page, as upstream
+  has no jar on the HUD.
 - Next:
-  - the name shop (Pick-A-Name, typed names) — in progress on the `names` worktree
+  - Cog attack movies (`cogattacks` worktree)
+  - the QA defect list and every trolley game (`qafix` worktree)
   - a real hardware run
 
 **Phase 2 — original plan.**

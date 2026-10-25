@@ -145,6 +145,19 @@ extern "C" {
 u32 __stacksize__ = 256 * 1024;
 }
 
+namespace {
+// Main-thread work per frame. citro3d's processing time runs until the GPU queue drains, which in
+// Azahar includes emulated GPU latency (100+ ms readings at 27 fps), so prefer the profiler's busy
+// time (frame total minus the vblank wait).
+float frameCpuMs() {
+#if TT_PROFILE
+    return tt::prof::busyAvgMs();
+#else
+    return C3D_GetProcessingTime();
+#endif
+}
+} // namespace
+
 int main() {
     gfxInitDefault();
     gfxSet3D(false); // stereo is opt-in only
@@ -470,7 +483,7 @@ int main() {
         hidTouchRead(&touch);
         if (autotest.active() && secondElapsed) {
             TT_LOG("stats: [%s] fps %.1f cpu %.2f gpu %.2f cmdbuf %.0f%% skipped %lu draws %lu tris %lu uniforms %lu texbinds %lu vbo %lu",
-                   autotest.label(), fps, C3D_GetProcessingTime(), C3D_GetDrawingTime(), lastCmdBufUsage * 100.0f,
+                   autotest.label(), fps, frameCpuMs(), C3D_GetDrawingTime(), lastCmdBufUsage * 100.0f,
                    static_cast<unsigned long>(lastStats.modelsSkipped),
                    static_cast<unsigned long>(lastStats.drawCalls), static_cast<unsigned long>(lastStats.triangles),
                    static_cast<unsigned long>(lastStats.uniformUploads),
@@ -650,6 +663,13 @@ int main() {
             if (place.zoneId() == 2520 && !talk.locked() && zoneActors.shadowPositions(npc, 1) == 1 && now > hqNextMs) {
                 player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
                 hqNextMs = now + 4000;
+                TT_LOG("autotest: hq officer at %.1f,%.1f,%.1f; toon at %.1f,%.1f,%.1f; touching %u, talk locked %d",
+                       double(npc[0]), double(npc[1]), double(npc[2]), double(player.x()), double(player.y()),
+                       double(player.z()),
+                       unsigned(netStarted ? zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                                    tt::dc::DistributedNPCToon::kClassId)
+                                           : 0u),
+                       talk.locked() ? 1 : 0);
             }
             if (talk.phase() == tt::quest::Talk::Phase::Pages && now > hqNextMs - 2500) {
                 talk.advance();
@@ -689,7 +709,10 @@ int main() {
                     if (!anchor)
                         continue;
                     const float angle = anchor->h * 3.14159265f / 180.0f;
-                    const float approach = autotest.stepTime() < 3 ? 9.0f : 2.5f;
+                    // Walk in from 9 units out, then onto the contact tube's axis (1 unit in front,
+                    // DistributedNPCToonBase CollisionTube (0, 1, 0)): the fisherman's and party
+                    // planner's tubes are only 1.0 wide.
+                    const float approach = autotest.stepTime() < 3 ? 9.0f : 1.0f;
                     const float dx = anchor->x - sinf(angle) * approach - player.x();
                     const float dy = anchor->y + cosf(angle) * approach - player.y();
                     if (!serviceClerks.active() && dx * dx + dy * dy > .25f) {
@@ -704,6 +727,12 @@ int main() {
             }
         }
         // ---- end clerks ----
+        if (autotest.active() && !strcmp(autotest.label(), "swim: harbor") && autotest.stepBegan() &&
+            place.zoneId() == 1000) {
+            // Test-only: drop into Donald's Dock harbour (open water south of the west pier) and
+            // swim forward with the normal camera (DDPlayground.__checkToonUnderwater).
+            player.reset(0.0f, -40.0f, 2.0f, 180.0f);
+        }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
         }
@@ -794,6 +823,10 @@ int main() {
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) player.reset(cx, cy - 0.5f, cz, 0.0f);
         }
+        // Won: the teleport back to Sellbot HQ has landed, so the step's remaining wait is idle.
+        if (autotest.active() && !strcmp(autotest.label(), "factory: foreman") && autotest.stepTime() > 5.0f &&
+            !level.active() && transition.idle())
+            autotest.finishStep();
         if (autotest.active() && level.active() && !battle.active()) {
             // Test-only: look at the nearest factory cog, then walk into it (Battle autoplay fights).
             float cx, cy, cz;
@@ -810,11 +843,27 @@ int main() {
             }
             {
                 // Test-only: stand in front of a goon (its radar zaps us) / drop onto its head (stun).
+                // The crate room shows no goons or Cogs: the steps after it start back where the
+                // crates step began, and each looks every frame until a goon is in view.
+                static float preCrates[3] = {};
+                static bool hasPreCrates = false;
+                static bool goonPlaced = false;
+                if (!strcmp(autotest.label(), "factory: crates") && autotest.stepBegan()) {
+                    preCrates[0] = player.x(), preCrates[1] = player.y(), preCrates[2] = player.z();
+                    hasPreCrates = true;
+                }
                 const bool zap = !strcmp(autotest.label(), "factory: goon zap");
                 const bool stun = !strcmp(autotest.label(), "factory: goon stun");
+                if (zap && autotest.stepBegan() && hasPreCrates) {
+                    player.reset(preCrates[0], preCrates[1], preCrates[2] + 0.2f, player.headingDeg());
+                    hasPreCrates = false;
+                }
+                if ((zap || stun) && autotest.stepBegan()) goonPlaced = false;
                 float gx = 0, gy = 0, gz = 0, gh = 0;
-                if ((zap || stun) && autotest.stepBegan() &&
+                if ((zap || stun) && !goonPlaced && autotest.stepTime() > 1.0f &&
                     level.nearestGoon(player.x(), player.y(), player.z(), &gx, &gy, &gz, &gh)) {
+                    goonPlaced = true;
+                    TT_LOG("autotest: goon at %.1f,%.1f,%.1f h %.0f", double(gx), double(gy), double(gz), double(gh));
                     const float r = gh * kDegToRad;
                     if (zap) player.reset(gx - sinf(r) * 8.0f, gy + cosf(r) * 8.0f, gz + 0.2f, gh + 180.0f);
                     else player.reset(gx - sinf(r) * 0.8f, gy + cosf(r) * 0.8f, gz + 6.6f, gh); // just above, led
@@ -860,7 +909,7 @@ int main() {
                     float dx, dy, dz, h;
                 };
                 static const Game kGames[] = {
-                    {"factory: crates", "crate", tt::dc::DistributedCrate::kClassId, -3.5f, 0, 0.1f, 90},
+                    {"factory: crates", "crate", tt::dc::DistributedCrate::kClassId, -3.5f, 0, 0.1f, -90}, // face +x
                     {"da office: lasers", "laserField", tt::dc::DistributedLaserField::kClassId, 4, 4, 0.1f, 0},
                     {"da office: security cam", "securityCamera", tt::dc::DistributedSecurityCamera::kClassId, 2, 2,
                      0.1f, 0},
@@ -1581,20 +1630,22 @@ int main() {
                     if (serviceNpc)
                         break;
                 }
-                if (serviceNpc && serviceNpc != lastTouchedServiceClerk && !serviceClerks.active() && !shop.active() &&
-                    !tailor.active() && !talk.locked() && transition.idle())
+                // A touch counts once it is acted on: one made while busy (a teleport still landing
+                // inside the NPC's sphere, another panel open) fires when the toon is free.
+                const bool npcFree = !serviceClerks.active() && !shop.active() && !tailor.active() && !talk.locked() &&
+                                     transition.idle();
+                if (serviceNpc && serviceNpc != lastTouchedServiceClerk && npcFree)
                     net.sendServiceClerkEnter(serviceNpc);
-                lastTouchedServiceClerk = serviceNpc;
+                if (npcFree || !serviceNpc) lastTouchedServiceClerk = serviceNpc;
                 // ---- end clerks ----
                 const u32 clerk = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                          tt::dc::DistributedNPCClerk::kClassId);
-                if (clerk && clerk != lastTouchedClerk && !shop.active() && transition.idle()) net.sendClerkAvatarEnter(clerk);
-                lastTouchedClerk = clerk;
+                if (clerk && clerk != lastTouchedClerk && npcFree) net.sendClerkAvatarEnter(clerk);
+                if (npcFree || !clerk) lastTouchedClerk = clerk;
                 const u32 tailorNpc = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                              tt::dc::DistributedNPCTailor::kClassId);
-                if (tailorNpc && tailorNpc != lastTouchedTailor && !tailor.active() && !shop.active() && transition.idle())
-                    net.sendTailorAvatarEnter(tailorNpc);
-                lastTouchedTailor = tailorNpc;
+                if (tailorNpc && tailorNpc != lastTouchedTailor && npcFree) net.sendTailorAvatarEnter(tailorNpc);
+                if (npcFree || !tailorNpc) lastTouchedTailor = tailorNpc;
                 // Quest givers: walking into one starts the conversation (DistributedNPCToon.avatarEnter).
                 u32 giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                    tt::dc::DistributedNPCToon::kClassId);
@@ -1602,12 +1653,12 @@ int main() {
                     giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                    tt::dc::DistributedNPCSpecialQuestGiver::kClassId);
                 }
-                if (giver && giver != lastTouchedQuestNpc && !talk.locked() && !shop.active() && transition.idle()) {
+                if (giver && giver != lastTouchedQuestNpc && npcFree) {
                     talk.setLocal(net.avatarId(), net.avatarName());
                     talk.begin(giver);
                     TT_LOG("quest: talking to NPC %u", unsigned(giver));
                 }
-                lastTouchedQuestNpc = giver;
+                if (npcFree || !giver) lastTouchedQuestNpc = giver;
                 tt::quest::TalkAction ta;
                 while (talk.popAction(ta)) {
                     switch (ta.kind) {
@@ -1852,6 +1903,10 @@ int main() {
         for (int e = 0; e < eyes; e++) {
             C3D_RenderTarget* target = e == 0 ? renderer.topLeft() : renderer.topRight();
             const int eyeSign = stereoActive ? (e == 0 ? -1 : 1) : 0;
+            // Indoors (interiors, facilities) gaps show OTPGlobals.DefaultBackgroundColor (0.3 grey),
+            // not the playground sky blue.
+            const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
+            renderer.setBackground(indoors ? 0x4C4C4CFF : 0x6AB0D9FF);
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
             if (golf.active()) {
@@ -2033,6 +2088,10 @@ int main() {
                 hv.money = st.money;
                 hv.maxMoney = st.maxMoney;
                 for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
+                tt::world::ToonDna hudDna;
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &hudDna)) {
+                    hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
+                }
             }
             hv.toast = toast;
             if (racing.driving() || racing.active()) {
@@ -2075,7 +2134,7 @@ int main() {
         ctx.markers = mapMarkers;
         ctx.numMarkers = numMapMarkers;
         ctx.fps = fps;
-        ctx.cpuMs = C3D_GetProcessingTime();
+        ctx.cpuMs = frameCpuMs();
         ctx.gpuMs = C3D_GetDrawingTime();
         ctx.drawCalls = lastStats.drawCalls;
         ctx.triangles = lastStats.triangles;

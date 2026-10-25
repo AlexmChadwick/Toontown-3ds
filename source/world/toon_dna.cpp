@@ -147,6 +147,8 @@ void partCodes(const ToonDna& dna, ToonPartCodes* out) {
     copyCode(out->legs, sizeof(out->legs), t::kLegTypes[dna.legs < t::kNumLegTypes ? dna.legs : 0]);
     copyCode(out->head, sizeof(out->head), head);
     char clothes = torsoType[1] ? torsoType[1] : 's'; // naked -> shorts
+    // Toon.generateToonClothes: a girl's torso model follows her bottom (swapToonTorso to
+    // torso[0] + 'd' for a skirt, + 's' for shorts), whatever the DNA's torso letter says.
     if (dna.gender == Gender::Female) {
         const unsigned bot = dna.botTex < t::kNumGirlBottoms ? dna.botTex : 0;
         clothes = t::kGirlBottomIsSkirt[bot] ? 'd' : 's';

@@ -55,6 +55,9 @@ public:
     // Linear distance fog for the world pass (Panda Fog.setLinearRange(start, end), colour
     // 0..1); the sky clear takes the fog colour too, as upstream fogs the sky. Applied from the
     // next beginWorld until clearFog.
+    // Clear colour where no geometry covers the screen (sky blue outdoors, the default
+    // grey indoors); fog replaces it with the fog colour.
+    void setBackground(u32 rgba8) { background_ = rgba8; }
     void setFog(float r, float g, float b, float start, float end);
     void clearFog() { fogOn_ = false; }
 
@@ -83,6 +86,7 @@ private:
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
