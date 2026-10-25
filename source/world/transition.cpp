@@ -82,6 +82,9 @@ inline void worldToLocal(float ox, float oy, float oz, float oh,
 void Transition::init() {
     portalModel_.load("romfs:/baked/portal.ttm");
     doorModel_.load("romfs:/baked/door_right.ttm");
+    // [interior life: door leaves]
+    doorModelLeft_.load("romfs:/baked/door_left.ttm");
+    // [end interior life: door leaves]
 
     sfxTeleport_ = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
     sfxDoorOpen_ = tt::audio::loadSfx("romfs:/baked/audio/door_open.tsnd");
@@ -92,6 +95,9 @@ void Transition::init() {
 void Transition::shutdown() {
     portalModel_.unload();
     doorModel_.unload();
+    // [interior life: door leaves]
+    doorModelLeft_.unload();
+    // [end interior life: door leaves]
     reset();
 }
 
@@ -769,18 +775,35 @@ void Transition::drawWorld(render::Renderer& renderer) {
         renderer.drawModel(portalModel_, m);
     }
 
-    if (doorActive_ && doorModel_.loaded()) {
-        C3D_Mtx m;
-        Mtx_Identity(&m);
-        // Position at door origin
-        Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
-        Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
-        Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
-        // Hinge offset: right door leaf hinge is at (3.591, 0, 3.913)
-        Mtx_Translate(&m, 3.591f, 0.0f, 3.913f, true);
-        Mtx_RotateZ(&m, doorSwing_ * kDegToRad, true);
-        renderer.drawModel(doorModel_, m);
+    // [interior life: door leaves]
+    if (doorActive_) {
+        // Entering (Departing): right door leaf swings open 0 -> +100 deg
+        if (phase_ == TransitionPhase::Departing && doorModel_.loaded()) {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
+            Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
+            Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
+            // Right door hinge: (3.591, 0, 3.913)
+            Mtx_Translate(&m, 3.591f, 0.0f, 3.913f, true);
+            Mtx_RotateZ(&m, doorSwing_ * kDegToRad, true);
+            renderer.drawModel(doorModel_, m);
+        }
+        // Exiting (Arriving): left door leaf swings closed -100 -> 0 deg
+        else if (phase_ == TransitionPhase::Arriving && (doorModelLeft_.loaded() || doorModel_.loaded())) {
+            render::Model& leaf = doorModelLeft_.loaded() ? doorModelLeft_ : doorModel_;
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
+            Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
+            Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
+            // Left door hinge: (-3.577, 0, 3.073)
+            Mtx_Translate(&m, -3.577f, 0.0f, 3.073f, true);
+            Mtx_RotateZ(&m, -doorSwing_ * kDegToRad, true);
+            renderer.drawModel(leaf, m);
+        }
     }
+    // [end interior life: door leaves]
 }
 
 void Transition::drawFade(render::Renderer& renderer, bool stereo) {

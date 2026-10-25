@@ -91,6 +91,9 @@ private:
     // Assets
     render::Model portalModel_;
     render::Model doorModel_;
+    // [interior life: door leaves]
+    render::Model doorModelLeft_;
+    // [end interior life: door leaves]
     tt::audio::SfxId sfxTeleport_ = tt::audio::kInvalidSfx;
     tt::audio::SfxId sfxDoorOpen_ = tt::audio::kInvalidSfx;
     tt::audio::SfxId sfxDoorClose_ = tt::audio::kInvalidSfx;

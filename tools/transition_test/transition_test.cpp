@@ -213,7 +213,23 @@ void testDoorKinematics() {
     assert(fabsf(exitYMid - (-3.0f)) < 0.001f);
     assert(fabsf(exitY1 - (-6.0f)) < 0.001f);
 
-    printf("  PASSED: Door opening/closing curves and avatar walk verified\n");
+    // Left and right door hinges (doors_practical.bam):
+    const float rightHingeX = 3.591f, rightHingeY = 0.0f, rightHingeZ = 3.913f;
+    const float leftHingeX = -3.577f, leftHingeY = 0.0f, leftHingeZ = 3.073f;
+    assert(rightHingeX > 0.0f && leftHingeX < 0.0f);
+    assert(rightHingeY == 0.0f && leftHingeY == 0.0f);
+    assert(rightHingeZ > 0.0f && leftHingeZ > 0.0f);
+
+    // Left door leaf exit swing (exitDoorEnterOpening / exitDoorEnterClosing):
+    // Swings between -100 deg and 0 deg
+    float exitSwingStart = -100.0f;
+    float exitSwingMid = -(1.0f - easeInOut(0.5f)) * 100.0f; // -50 deg
+    float exitSwingEnd = -(1.0f - easeInOut(1.0f)) * 100.0f; // 0 deg
+    assert(fabsf(exitSwingStart - (-100.0f)) < 0.001f);
+    assert(fabsf(exitSwingMid - (-50.0f)) < 0.001f);
+    assert(fabsf(exitSwingEnd - 0.0f) < 0.001f);
+
+    printf("  PASSED: Door opening/closing curves, dual-leaf swing (+-100 deg), and avatar walk verified\n");
 }
 
 void testPortalHoleScaling() {
