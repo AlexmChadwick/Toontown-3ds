@@ -12,10 +12,17 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 MAIN=${TT_ROOT:-$ROOT}
 OUT=${SUIT_TEST_OUT:-${TMPDIR:-/tmp}/tt_suit_test}
 mkdir -p "$OUT"
-PY="$MAIN/.venv/bin/python -I"
+PY="$MAIN/.venv/bin/python -I -B"
 SERVER_PY=${TT_SERVER_PY:-$MAIN/tools/server/.venv/bin/python}
-$PY "$ROOT/tools/pipeline/bake_suit_paths.py" --resources "$MAIN/ref/resources" --out "$OUT/zones" > /dev/null
-"$SERVER_PY" -I "$ROOT/tools/suit_test/reference.py" "$OUT/reference.txt" --queries "${1:-400}" 2>/dev/null
+RESOURCES="$MAIN/ref/resources"
+[ -d "$RESOURCES" ] || RESOURCES="$MAIN/ref/ref/resources"
+if [ ! -x "$SERVER_PY" ]; then
+    echo "UNAVAILABLE: suit reference requires tools/server/.venv with panda3d.toontown"
+    exit 77
+fi
+export TT_RESOURCES="$RESOURCES"
+$PY "$ROOT/tools/pipeline/bake_suit_paths.py" --resources "$RESOURCES" --out "$OUT/zones" > /dev/null
+"$SERVER_PY" -I -B "$ROOT/tools/suit_test/reference.py" "$OUT/reference.txt" --queries "${1:-400}" 2>/dev/null
 clang++ -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -I "$ROOT/source" \
     "$ROOT/source/world/suit_path.cpp" "$ROOT/tools/collision_test/log_stub.cpp" \
     "$ROOT/tools/suit_test/suit_test.cpp" -o "$OUT/suit_test"

@@ -25,6 +25,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'resources')
+if not os.path.isdir(DEFAULT_RESOURCES):
+    DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'ref', 'resources')
 
 
 def load_scene(args, base):

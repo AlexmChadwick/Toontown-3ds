@@ -4,10 +4,12 @@
 # playground DNA. Usage: tools/collision_test/run.sh [model.bam]
 set -e
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
-MODEL=${1:-$ROOT/ref/resources/phase_4/models/neighborhoods/toontown_central.bam}
+RESOURCES="$ROOT/ref/resources"
+[ -d "$RESOURCES" ] || RESOURCES="$ROOT/ref/ref/resources"
+MODEL=${1:-$RESOURCES/phase_4/models/neighborhoods/toontown_central.bam}
 OUT=${COLLISION_TEST_OUT:-${TMPDIR:-/tmp}/tt_collision_test}
 mkdir -p "$OUT"
-PY="$ROOT/.venv/bin/python -I"
+PY="$ROOT/.venv/bin/python -I -B"
 TTC="$OUT/test.ttc"
 $PY "$ROOT/tools/pipeline/bake_collision.py" "$MODEL" "$TTC" > "$OUT/bake.json"
 $PY "$ROOT/tools/collision_test/panda_reference.py" "$MODEL" "$OUT/reference.txt"
@@ -17,7 +19,7 @@ clang++ -std=c++17 -O2 -Wall -Wextra -fno-exceptions -fno-rtti -I "$ROOT/source"
 echo "== terrain: $MODEL"
 "$OUT/collision_test" "$TTC" "$OUT/reference.txt"
 [ -n "$1" ] && exit 0
-D=$ROOT/ref/resources/phase_4/dna
+D=$RESOURCES/phase_4/dna
 $PY "$ROOT/tools/pipeline/bake_collision.py" "$D/toontown_central_sz.dna" "$OUT/zone.ttc" \
     --storage "$D/storage.dna" "$D/storage_TT.dna" "$D/storage_TT_sz.dna" > "$OUT/zone_bake.json"
 $PY "$ROOT/tools/collision_test/panda_reference.py" "$D/toontown_central_sz.dna" "$OUT/zone_reference.txt" \
