@@ -32,7 +32,7 @@ cp "$CFG" "$OUT/qt-config.ini.backup"
 restore() {
     pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
     cp "$OUT/qt-config.ini.backup" "$CFG"
-    rm -f "$SD/autotest"
+    rm -f "$SD/autotest" "$SD/autotest_fe"
     rm -rf "$LOCK"
 }
 trap restore EXIT INT TERM HUP
@@ -47,6 +47,9 @@ rm -f "$SD/log.txt" "$SD"/shot_*.bin
 if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" >> "$SD/autotest"; fi
 if [ -n "${AUTOTEST_UNTIL:-}" ]; then echo "until $AUTOTEST_UNTIL" >> "$SD/autotest"; fi
 if [ -n "${AUTOTEST_ONLY:-}" ]; then echo "only $AUTOTEST_ONLY" >> "$SD/autotest"; fi
+# AUTOTEST_FE=1 runs the front-end script (title, Pick-a-Toon, Make-a-Toon, names) instead; it
+# reads the same from/until/only lines from its own trigger file.
+if [ -n "${AUTOTEST_FE:-}" ]; then cp "$SD/autotest" "$SD/autotest_fe"; else rm -f "$SD/autotest_fe"; fi
 ( "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
 sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 

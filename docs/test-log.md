@@ -880,3 +880,20 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
   - Country club: mole field `setGameStart` (60 s, target 7) and golf `acceptJoin`: PASS.
   - fps: 27–30 on steps without screenshot series, about 20 with them (each dump costs about
     100 ms; the ~113 ms "cpu" lines alternate with ~4 ms ones).
+
+## 2026-10-25 — Name shop merge (branch names), Azahar Old 3DS
+
+- Build: main 3ceab52 (the `names` merge) plus a harness option; `make -j4`, zero warnings in
+  `source/`. `tools/name_test/run_test.sh`, `tools/nettest/run_tests.sh` (twice, with the
+  original tight -20..500 ms emote window restored) pass. Stock server, `AI_DEV=1`.
+- `AUTOTEST_FE=1 tools/dev/azahar_test.sh ...` (new: the harness writes `autotest_fe` with
+  the same from/until/only lines).
+- **Delete toon: PASS.** The confirmation modal shows the toon's name; `requestRemoveAvatar` →
+  "updated avatar list (0 toons)", slot 1 becomes "Make a Toon".
+- **Typed name: PASS.** "Little Pepper" passes the NameCheck port; `setNameTyped` →
+  `nameTypedResponse status=1` (pending: this server has no approver, `status = 1 # TODO`); the
+  toon plays as its default "Brown Cat" while the wish name waits, as upstream.
+- **Pick-A-Name: PASS** (second run with the typed step left out):
+  `namePatternAnswer status=1`, the toon plays as "Frizzy" at once.
+- Name-shop screens: four columns with < / > and toggles, Shuffle, Type Name / Pick Name, the
+  name in the header. Front-end steps run at 30 fps.
