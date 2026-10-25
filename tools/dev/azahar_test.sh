@@ -15,14 +15,27 @@ CFG="$HOME/Library/Application Support/Azahar/config/qt-config.ini"
 SD="$HOME/Library/Application Support/Azahar/sdmc/3ds/toontown3ds"
 mkdir -p "$OUT" "$SD"
 
+# One run at a time: a second run would back up the first one's test config as "the user's"
+# and its exit would kill the first run's emulator (which looks exactly like an app crash).
+LOCK="${TMPDIR:-/tmp}/toontown3ds_azahar_test.lock"
+if ! mkdir "$LOCK" 2>/dev/null; then
+    if kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
+        echo "another azahar_test.sh run (pid $(cat "$LOCK/pid")) is in progress" >&2
+        exit 1
+    fi
+    rm -rf "$LOCK" && mkdir "$LOCK" # a stale lock from a run that was killed
+fi
+echo $$ > "$LOCK/pid"
+
 pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
 cp "$CFG" "$OUT/qt-config.ini.backup"
 restore() {
     pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
     cp "$OUT/qt-config.ini.backup" "$CFG"
     rm -f "$SD/autotest"
+    rm -rf "$LOCK"
 }
-trap restore EXIT
+trap restore EXIT INT TERM HUP
 
 sed -i '' -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=true/is_new_3ds\\default=false/' \
     -e 's/^resolution_factor=[0-9]*/resolution_factor=1/' -e 's/^layout_option=[0-9]*/layout_option=0/' \
@@ -35,7 +48,7 @@ if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" >> "$SD/autotest
 if [ -n "${AUTOTEST_UNTIL:-}" ]; then echo "until $AUTOTEST_UNTIL" >> "$SD/autotest"; fi
 if [ -n "${AUTOTEST_ONLY:-}" ]; then echo "only $AUTOTEST_ONLY" >> "$SD/autotest"; fi
 ( "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
-sleep "$SECS"
+sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
 cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || echo "no log.txt written"
 if ls "$SD"/shot_*.bin >/dev/null 2>&1; then
