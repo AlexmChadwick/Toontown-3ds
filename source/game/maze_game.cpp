@@ -111,7 +111,7 @@ void MazeGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         }
     }
 
-    const float speed = 14.0f; // Toontown normal run speed
+    const float speed = 8.0f; // DistributedMazeGame.TOON_SPEED
     if (std::abs(moveX) > 0.05f || std::abs(moveY) > 0.05f) {
         isRunning_ = true;
         toonH_ = std::atan2(-moveX, -moveY) * 180.0f / 3.14159265f;
@@ -148,7 +148,7 @@ void MazeGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
             const float dy = toonY_ - suits_[i].y;
             if (dx * dx + dy * dy < maze::kSuitHitRadius * maze::kSuitHitRadius) {
                 hitCooldown_ = 2.5f;
-                client.sendMazeHitBySuit(0, 0);
+                client.sendMazeHitBySuit(client.avatarId(), client.networkTime(nowMs));
                 // Respawn toon at center
                 toonX_ = 0.0f;
                 toonY_ = 0.0f;

@@ -9,6 +9,7 @@ bool PatternGame::init(const char* root) {
     sim_.init();
     timer_ = 0.0f;
     roundTime_ = 0.0f;
+    readySent_ = false;
     waitingForPattern_ = true;
     patternSubmitted_ = false;
 
@@ -36,17 +37,9 @@ void PatternGame::update(net::Client& client, const circlePosition& pad, u32 key
     (void)nowMs;
 
     if (waitingForPattern_) {
-        // If not connected to server, synthesize an offline round after delay
-        timer_ += dt;
-        if (timer_ > 1.5f && sim_.round < patterngame::kNumRounds) {
-            timer_ = 0.0f;
-            uint8_t dummy[8];
-            int len = 2 + sim_.round * 2;
-            for (int i = 0; i < len; ++i) {
-                dummy[i] = (uint8_t)(i % 4);
-            }
-            onSetPattern(dummy, len);
-        }
+        // DistributedPatternGameAI waits for reportPlayerReady before generating
+        // each round. Never synthesize a pattern while connected to the AI.
+        if (!readySent_) readySent_ = client.sendPatternReady();
         return;
     }
 
@@ -63,6 +56,9 @@ void PatternGame::update(net::Client& client, const circlePosition& pad, u32 key
         else if (keysDown & KEY_B) pressed = 2;
         else if (keysDown & KEY_Y) pressed = 3;
 
+        if (autoPlay_ && sim_.inputLen < sim_.targetLen &&
+            roundTime_ >= float(sim_.inputLen + 1) * .5f)
+            pressed = sim_.targetPattern[sim_.inputLen];
         if (pressed >= 0) {
             bool ok = sim_.inputButton((uint8_t)pressed);
             client.sendPatternButton((uint8_t)pressed, ok ? 0 : 1);

@@ -21,7 +21,7 @@ public:
     }
     TwoDGame() = default;
 
-    bool init(const char* root);
+    bool init(const char* root, unsigned hood = 2000);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
@@ -42,6 +42,7 @@ private:
     int numPlatforms_ = 0;
     int rawScore_ = 0;
     int score_ = 0;
+    float duration_ = 150;
     float timer_ = 0.0f;
     bool completed_ = false;
     bool isDone_ = false;

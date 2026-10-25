@@ -40,6 +40,14 @@ void TailorPanel::setPreview(world::ToonCache* cache, world::ToonLook* look) {
     look_ = look;
 }
 
+void TailorPanel::dismiss() {
+    if (active_) {
+        working_ = original_;
+        preview();
+        close();
+    }
+}
+
 void TailorPanel::close() {
     active_ = false;
     tailor_ = 0;

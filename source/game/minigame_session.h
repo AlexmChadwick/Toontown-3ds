@@ -73,6 +73,10 @@ public:
     void shutdown();
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
+    bool photoScene() const { return isPhoto_; }
+    bool startedGame() const { return startedGame_; }
+    bool endedGame() const { return endedGame_; }
+    bool completedPurchase() const { return completedPurchase_; }
     bool active() const { return phase_ != Phase::Off; }
     // A minigame stage is shown instead of the playground (from the rules until cleanup).
     bool inScene() const {
@@ -100,6 +104,7 @@ public:
     const char* line(int i) const;
 
 private:
+    bool startedGame_ = false, endedGame_ = false, completedPurchase_ = false;
     world::BasicAssetBatch<32> assetBatch_;
     enum class Phase : u8 { Off, Joining, Rules, WaitStart, Play, Done, Purchase, Leaving };
     struct Live {

@@ -21,7 +21,7 @@ public:
     }
     IceGame() = default;
 
-    bool init(const char* root);
+    bool init(const char* root, int players = 1);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
@@ -35,6 +35,7 @@ public:
     const char* title() const { return "Ice Slide"; }
     const char* line(int i) const;
 
+    void onServer(net::EventType event, const net::Minigame& game);
     void onSetMatchAndRound(uint8_t match, uint8_t round);
 
 private:
@@ -42,8 +43,11 @@ private:
     icegame::Simulation sim_;
     enum class State {
         Aiming,
+        WaitChoices,
         Sliding,
-        Scoring
+        WaitEnding,
+        Scoring,
+        WaitRound
     };
     State state_ = State::Aiming;
 

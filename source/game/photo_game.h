@@ -21,7 +21,7 @@ public:
     }
     PhotoGame() = default;
 
-    bool init(const char* root);
+    bool init(const char* root, unsigned hood = 2000);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);

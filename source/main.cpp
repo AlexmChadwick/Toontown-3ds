@@ -573,6 +573,10 @@ int main() {
         static float autotestSettle = 0.0f;
         if (!netStarted || net.inZone()) autotestSettle += dt;
         if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
+        // ---- qafix: game-agnostic trolley completion gates ----
+        autotest.setTrolleyProgress({trolley.seated(), minigame.startedGame(), minigame.endedGame(),
+                                    minigame.completedPurchase() && !minigame.active()});
+        // ---- end qafix ----
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         if (autotest.active()) {
@@ -1117,6 +1121,13 @@ int main() {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
         ui.setTalk(&talk);
+        // ---- qafix: retire context panels before dispatching any input ----
+        const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active();
+        const bool lostPanelContext = netStarted && !net.inZone();
+        if (exclusivePanel || lostPanelContext || (fishing.active() && !transition.idle())) fishing.cancel();
+        ui.syncContext(net, place.zoneId(), lostPanelContext, exclusivePanel, fishing.active(),
+                       trolley.seated() || minigame.active() || golf.active());
+        // ---- end qafix ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
@@ -1204,7 +1215,8 @@ int main() {
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
-        fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle());
+        fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle() && !exclusivePanel &&
+                            !shop.active() && !tailor.active() && !serviceClerks.active() && !talk.locked());
         tt::prof::lap(tt::prof::kNet);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         tt::prof::lap(tt::prof::kRacing);
@@ -1257,6 +1269,33 @@ int main() {
                                    (cogInterior.active() && cogInterior.loadingAssets())))
             player.update(in, dt);
         fishing.applyCamera();
+        // ---- qafix: upstream NPC talk camera, with normal collision pull-in ----
+        static u32 talkCameraNpc = 0;
+        static bool talkCameraChoice = false;
+        static float talkCameraAge = 0;
+        static C3D_FVec talkFromEye{}, talkFromTarget{};
+        const bool choiceCamera = talk.phase() == tt::quest::Talk::Phase::QuestChoice ||
+                                  talk.phase() == tt::quest::Talk::Phase::TrackChoice;
+        C3D_FVec talkEye, talkTarget;
+        if (talk.locked() && zoneActors.talkCamera(talk.npcDoId(), choiceCamera, &talkEye, &talkTarget)) {
+            if (talkCameraNpc != talk.npcDoId() || talkCameraChoice != choiceCamera) {
+                talkCameraNpc = talk.npcDoId();
+                talkCameraChoice = choiceCamera;
+                talkCameraAge = 0;
+                talkFromEye = player.cameraEye();
+                talkFromTarget = player.cameraTarget();
+                TT_LOG("quest camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
+            }
+            talkCameraAge = fminf(1.0f, talkCameraAge + dt);
+            const float blend = 1 - (1 - talkCameraAge) * (1 - talkCameraAge);
+            auto mixTalk = [blend](const C3D_FVec& a, const C3D_FVec& b) {
+                return FVec3_New(a.x + (b.x-a.x)*blend, a.y + (b.y-a.y)*blend, a.z + (b.z-a.z)*blend);
+            };
+            player.overrideCameraCollide(mixTalk(talkFromEye, talkEye), mixTalk(talkFromTarget, talkTarget));
+        } else {
+            talkCameraNpc = 0;
+        }
+        // ---- end qafix ----
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
@@ -1913,6 +1952,9 @@ int main() {
                 golf.draw(renderer);
                 tt::prof::lap(tt::prof::kGolfDraw);
             } else if (minigame.active()) {
+                // ---- qafix: Photo uses the real hood, not a viewfinder model as scenery ----
+                if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
+                // ---- end qafix ----
                 minigame.draw(renderer);
                 tt::prof::lap(tt::prof::kMinigameDraw); // the playground is hidden while we are away
             } else if (level.active()) {
@@ -2193,6 +2235,13 @@ int main() {
                 ctx.nearbyNames[ctx.numNearby++] = t.name;
             }
         }
+        // ---- qafix: trolley owns its panel before the minigame hand-off ----
+        if (trolley.seated()) {
+            ctx.infoTitle = "Trolley";
+            ctx.infoLines[0] = "Waiting for the trolley to leave...";
+            ctx.infoLines[1] = "B: hop off before departure";
+        }
+        // ---- end qafix ----
         if (minigame.active()) {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);

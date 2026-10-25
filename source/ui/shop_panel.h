@@ -16,6 +16,7 @@ public:
     bool init();
     void shutdown();
 
+    void dismiss(); // zone/disconnect/exclusive-context cleanup
     bool active() const { return active_; }
     // EventType::ShopMovie handler: opens on START for us, closes on TIMEOUT, queues a
     // clerk-speech notice for NO_MONEY / TIMEOUT / COMPLETE (takeNotice).

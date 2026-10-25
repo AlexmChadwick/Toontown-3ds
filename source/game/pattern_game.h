@@ -35,6 +35,8 @@ public:
     const char* title() const { return "Match Minnie"; }
     const char* line(int i) const;
 
+    void onResults() { readySent_ = false; }
+    void setAutoPlay(bool value) { autoPlay_ = value; }
     void onSetPattern(const uint8_t* pattern, int len);
 
 private:
@@ -42,6 +44,8 @@ private:
     patterngame::Simulation sim_;
     float timer_ = 0.0f;
     float roundTime_ = 0.0f;
+    bool autoPlay_ = false;
+    bool readySent_ = false;
     bool waitingForPattern_ = true;
     bool patternSubmitted_ = false;
 

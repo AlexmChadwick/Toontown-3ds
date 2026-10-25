@@ -59,8 +59,8 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
     {7.0f, 0, 0, 0, 0, -1, -1, 0, "board trolley", "trolley"},
     {9.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: ride", "trolley_ride"},
-    {35.0f, 0, 0, 0, 0, -1, -1, 0, "catch game", "catch_play"},
-    {45.0f, 0, 0, 0, 0, -1, -1, 0, "catch: finish", "catch"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: game", "trolley_game*"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: purchase", "trolley_purchase*"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "move: door", "move_door**"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "visit clerk", "clerk"},
     // ---- clerks: real NPC contact, panel actions and ordered reply logs ----
@@ -312,7 +312,16 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
     while (shotLen > 1 && s.shot[shotLen - 1] == '*') { shotLen--; stars++; }
     const bool series = stars > 0;
     const float interval = stars > 1 ? 0.25f : 1.0f;
-    if (t_ >= s.seconds) {
+    // ---- qafix: wall-clock steps cannot escape a live trolley session ----
+    const bool trolleyBlocked = !trolleyProgress_.mayAdvance(s.label);
+    if (t_ >= s.seconds && trolleyBlocked && !trolleyWaiting_) {
+        TT_LOG("trolley-step: waiting '%s'", s.label);
+        trolleyWaiting_ = true;
+    }
+    if (t_ >= s.seconds && !trolleyBlocked) {
+        if (trolleyWaiting_) TT_LOG("trolley-step: complete '%s'", s.label);
+        trolleyWaiting_ = false;
+        // ---- end qafix ----
         pendingShot_ = s.shot;
         if (series) {
             snprintf(seriesName_, sizeof(seriesName_), "%.*s_end", int(shotLen), s.shot);

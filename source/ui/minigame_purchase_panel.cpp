@@ -36,6 +36,7 @@ bool inRect(const touchPosition& t, float x, float y, float w, float h) {
 } // namespace
 
 bool MinigamePurchasePanel::init() {
+    if (staticBuf_) return true; // reuse across trolley rides
     staticBuf_ = C2D_TextBufNew(256);
     gridBuf_ = C2D_TextBufNew(512);
     infoBuf_ = C2D_TextBufNew(512);
@@ -134,10 +135,10 @@ void MinigamePurchasePanel::update(net::Client& client, uint32_t nowMs) {
         if (!valid) TT_LOG("minigame purchase: cart failed local validation, cancelling");
         const bool useCart = !cancel && valid;
         if (!useCart) {
-            cart_.inv[0][0] = cart_.start[0][0]; // restore start
+            std::memcpy(cart_.inv, cart_.start, sizeof(cart_.inv));
             cart_.money = cart_.startMoney;
         }
-        client.sendPurchaseExit();
+        if (!client.sendPurchaseExit()) return;
         done_ = true;
         TT_LOG("minigame purchase: %s exit sent, %d beans left", useCart ? "done" : "cancel", cart_.money);
         close();

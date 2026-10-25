@@ -1,3 +1,4 @@
+#include "net/pairing_answers.h" // qafix: ordered card answers
 // Astron/Open Toontown protocol client: the login -> avatar -> zone state
 // machine and the remote-toon table the game reads (AGENTS.md section 2,
 // "Network"; milestones M3.1-M3.4).
@@ -241,6 +242,7 @@ enum class EventType : uint8_t {
     // ---- Ice (DistributedIceGame) ----
     IceMatchAndRound,
     IceNewState,
+    IceTireInputs, IceFinalPositions, IceScores, // qafix: authoritative round payloads
     IceTimerStart,
     IceAvatarChoice,
     IceTreasureGrabbed,
@@ -830,6 +832,9 @@ struct Minigame {
     bool mazeAllTaken = false;
 
     // Pairing:
+    // ---- qafix: per-message payloads, consumed once by PairingGame ----
+    PairingAnswers pairingAnswers;
+    // ---- end qafix ----
     uint32_t pairingDeckSeed = 0;
     uint8_t pairingMaxOpenCards = 2;
     int16_t pairingCardToTurnUp = -1;
@@ -903,6 +908,9 @@ struct Minigame {
     uint8_t patternRemoteButtonWrong = 0;
 
     // Ice Slide:
+    int iceInputCount = 0, icePositionCount = 0, iceScoreCount = 0; // qafix
+    float iceFinalPositions[4][3] = {};
+    int16_t iceScores[4] = {};
     int8_t iceMatch = 0;
     int8_t iceRound = 0;
     char iceState[32] = {};
@@ -1461,6 +1469,9 @@ public:
     bool sendBattleRequestAttack(uint32_t battleId, int8_t track, int8_t level, int32_t av);
     // ---- trolley and minigames (docs/design/trolley.md) ----
     const Trolley* trolley() const { return trolley_.active ? &trolley_ : nullptr; }
+    // ---- qafix ----
+    bool popPairingAnswer(PairingAnswer& answer) { return minigame_.pairingAnswers.pop(answer); }
+    // ---- end qafix ----
     const Minigame* minigame() const { return minigame_.active ? &minigame_ : nullptr; }
     const Purchase* purchase() const { return purchase_.active ? &purchase_ : nullptr; }
     // DistributedTrolley.requestBoard / requestExit (clsend). False when there is no trolley.

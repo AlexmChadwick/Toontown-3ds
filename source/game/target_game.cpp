@@ -10,11 +10,11 @@ namespace tt::game {
 
 bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
     char path[256];
-    std::snprintf(path, sizeof(path), "%s/minigames/slingshot_desert.ttm", root);
+    std::snprintf(path, sizeof(path), "%starget_ground.ttm", root);
     assetBatch_.load(groundModel_, path);
-    std::snprintf(path, sizeof(path), "%s/minigames/slingshot_sling.ttm", root);
+    std::snprintf(path, sizeof(path), "%starget_sling.ttm", root);
     assetBatch_.load(slingModel_, path);
-    std::snprintf(path, sizeof(path), "%s/minigames/slingshot_tramp.ttm", root);
+    std::snprintf(path, sizeof(path), "%starget_tramp.ttm", root);
     assetBatch_.load(trampModel_, path);
 
     numTargets_ = targetgame::setupTargets(seed, safezone, targets_, targetgame::kMaxTargets);
@@ -27,6 +27,14 @@ bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
 
     TT_LOG("target game: init seed=%lu safezone=%lu targets=%d", static_cast<unsigned long>(seed), static_cast<unsigned long>(safezone), numTargets_);
     return true;
+}
+
+void TargetGame::nextRound() {
+    // DistributedTargetGame.setRoundDone: reset the slingshot for the AI's next round.
+    ++round_;
+    flight_ = targetgame::FlightState{};
+    scoreReported_ = false;
+    isDone_ = false;
 }
 
 void TargetGame::shutdown() {

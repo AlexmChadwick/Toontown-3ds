@@ -3609,6 +3609,21 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
             if (m.pairingTurnDownCount < 4) m.pairingCardsToTurnDown[m.pairingTurnDownCount++] = card;
         }
         if (!r.ok()) return false;
+        // ---- qafix: don't replay a snapshot every frame or lose a TCP batch ----
+        if (announce) {
+            PairingAnswer answer;
+            answer.up = m.pairingCardToTurnUp;
+            answer.avatar = m.pairingOpenAvId;
+            answer.match = m.pairingMatchingCard;
+            answer.points = m.pairingPoints;
+            answer.count = m.pairingTurnDownCount;
+            for (int i = 0; i < answer.count; ++i) answer.down[i] = m.pairingCardsToTurnDown[i];
+            if (!m.pairingAnswers.push(answer)) {
+                TT_LOG("pairing: answer queue overflow");
+                return false;
+            }
+        }
+        // ---- end qafix ----
         if (announce) pushEventArg(EventType::PairingOpenCardResult, m.pairingOpenAvId, int32_t(m.pairingCardToTurnUp));
     } else if (fieldId == dc::DistributedPairingGame::k_setEveryoneDone) {
         m.pairingEveryoneDone = true;
@@ -3793,6 +3808,35 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         m.iceRound = r.i8();
         if (!r.ok()) return false;
         if (announce) pushEventArg(EventType::IceMatchAndRound, m.doId, int32_t((m.iceMatch << 8) | (m.iceRound & 0xFF)));
+    // ---- qafix: DC TireInput and Coord3 arrays (not packed int16 positions) ----
+    } else if (fieldId == dc::DistributedIceGame::k_setTireInputs) {
+        const unsigned bytes = r.u16();
+        if (bytes % 8 || bytes > 32) return false;
+        m.iceInputCount = int(bytes / 8);
+        for (int i = 0; i < m.iceInputCount; ++i) {
+            m.iceChoicesForce[i] = r.i32() / 100.0f;
+            m.iceChoicesDir[i] = r.i32() / 100.0f;
+        }
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::IceTireInputs, m.doId);
+    } else if (fieldId == dc::DistributedIceGame::k_setFinalPositions) {
+        const unsigned bytes = r.u16();
+        if (bytes % 12 || bytes > 48) return false;
+        m.icePositionCount = int(bytes / 12);
+        for (int i = 0; i < m.icePositionCount; ++i)
+            for (int axis = 0; axis < 3; ++axis) m.iceFinalPositions[i][axis] = r.i32() / 100000.0f;
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::IceFinalPositions, m.doId);
+    } else if (fieldId == dc::DistributedIceGame::k_setScores) {
+        m.iceMatch = r.i8();
+        m.iceRound = r.i8();
+        const unsigned bytes = r.u16();
+        if (bytes % 2 || bytes > 8) return false;
+        m.iceScoreCount = int(bytes / 2);
+        for (int i = 0; i < m.iceScoreCount; ++i) m.iceScores[i] = r.i16();
+        if (!r.ok()) return false;
+        if (announce) pushEvent(EventType::IceScores, m.doId);
+    // ---- end qafix ----
     } else if (fieldId == dc::DistributedIceGame::k_setNewState) {
         r.string(m.iceState, sizeof(m.iceState));
         if (!r.ok()) return false;
@@ -4396,11 +4440,13 @@ bool Client::sendIceChoice(float force, float direction) {
 }
 
 bool Client::sendIceEndingPositions(const float* coords, int count) {
-    if (!minigame_.active) return false;
+    // ---- qafix: generated descriptor says Coord3 = three int32/100000 ----
+    if (!minigame_.active || !coords || count < 1 || count > 4) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, minigame_.doId, DistributedIceGame, endingPositions);
-    w.u16(uint16_t(count * 6)); // Coord3 is 3 * int16
-    for (int i = 0; i < count * 3; ++i) w.i16(int16_t(coords[i] * 10.0f));
+    w.u16(uint16_t(count * 12));
+    for (int i = 0; i < count * 3; ++i) w.i32(int32_t(coords[i] * 100000.0f));
+    // ---- end qafix ----
     return finish(w);
 }
 

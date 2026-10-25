@@ -209,17 +209,7 @@ void Player::camera(const Input& in, float dt) {
     camTarget_ = FVec3_New(x_, y_, z_ + kCamLookHeight);
     camEye_ = FVec3_New(x_ + sinf(yaw) * cosf(pitch) * kCamDistance, y_ - cosf(yaw) * cosf(pitch) * kCamDistance,
                         z_ + kCamLookHeight + sinf(pitch) * kCamDistance);
-    if (collision_ && collision_->loaded()) {
-        // Pull the camera in front of walls between it and the toon's head.
-        const Vec3 head{camTarget_.x, camTarget_.y, camTarget_.z};
-        const Vec3 eye{camEye_.x, camEye_.y, camEye_.z};
-        float t = 1.0f;
-        if (collision_->cameraRaycast(head, eye, &t)) {
-            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
-            camEye_ = FVec3_New(head.x + (eye.x - head.x) * t, head.y + (eye.y - head.y) * t,
-                                head.z + (eye.z - head.z) * t);
-        }
-    }
+    avoidCamera(camTarget_);
     if (onPlat_) {
         // The boat's walls and rails: the same segment in platform space (a rigid transform
         // keeps the hit fraction), against the head -> (possibly already shortened) eye.
@@ -238,6 +228,26 @@ void Player::camera(const Input& in, float dt) {
                                 camTarget_.z + (camEye_.z - camTarget_.z) * t);
         }
     }
+}
+
+void Player::avoidCamera(const C3D_FVec& headPosition) {
+    if (collision_ && collision_->loaded()) {
+        // Pull the camera in front of walls between it and the toon's head.
+        const Vec3 head{headPosition.x, headPosition.y, headPosition.z};
+        const Vec3 eye{camEye_.x, camEye_.y, camEye_.z};
+        float t = 1.0f;
+        if (collision_->cameraRaycast(head, eye, &t)) {
+            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
+            camEye_ = FVec3_New(head.x + (eye.x - head.x) * t, head.y + (eye.y - head.y) * t,
+                                head.z + (eye.z - head.z) * t);
+        }
+    }
+}
+
+void Player::overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target) {
+    overrideCamera(eye, target);
+    // NPC talk uses the same head-to-eye collision pull-in as the follow camera.
+    avoidCamera(FVec3_New(x_, y_, z_ + kCamLookHeight));
 }
 
 float Player::cameraDistance() const {

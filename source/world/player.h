@@ -41,6 +41,7 @@ public:
         camEye_ = eye;
         camTarget_ = target;
     }
+    void overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target);
     // Moving platform (Donald's Dock boat). `deck` is the platform's collision in its own frame;
     // (x, y, z, headingDeg) is the platform's current pose in the world (boat-local -> world is
     // translate * rotateZ). Pass deck = nullptr when there is none. Call every frame before update().
@@ -74,6 +75,7 @@ public:
     float cameraDistance() const;
 
 private:
+    void avoidCamera(const C3D_FVec& head);
     void locomote(const Input& in, float dt, const CollisionWorld* world);
     void camera(const Input& in, float dt);
     bool tryBoard();

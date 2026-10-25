@@ -33,7 +33,8 @@ void RaceGame::onSetServerChoices(const uint8_t* choices, const uint8_t* positio
     (void)choices;
     (void)rewards;
     for (int i = 0; i < count && i < 4; ++i) {
-        sim_.positions[i] = positions[i];
+        sim_.positions[i] = positions[i] > racegame::kNumberToWin ? racegame::kNumberToWin : positions[i];
+        if (sim_.positions[i] == racegame::kNumberToWin) sim_.isDone = true;
     }
     choiceSubmitted_ = false;
 }
@@ -56,11 +57,8 @@ void RaceGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
             choiceSubmitted_ = true;
             client.sendRaceChoice(selectedChoice_);
 
-            // If offline, advance solo immediately
-            int ch[4] = {selectedChoice_, 0, 0, 0};
-            int rewards[4];
-            sim_.processChoices(ch, rewards);
-            choiceSubmitted_ = false;
+            // DistributedRaceGame.setServerChoices owns movement and the next turn.
+
         }
     }
 }

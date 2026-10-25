@@ -83,6 +83,7 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
     zone_ = zone;
     gameId_ = gameId;
     home_ = homeHood;
+    startedGame_ = endedGame_ = completedPurchase_ = false;
 
     isCatch_ = (gameId == kCatchGameId);
     isCannon_ = (gameId == kCannonGameId);
@@ -217,7 +218,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTwoD_) {
-            twoD_.init(kDir);
+            twoD_.init(kDir, home_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTag_) {
@@ -229,7 +230,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isIce_) {
-            ice_.init(kDir);
+            ice_.init(kDir, mg->numParticipants);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isRace_) {
@@ -237,7 +238,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isPhoto_) {
-            photo_.init(kDir);
+            photo_.init(kDir, home_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else {
@@ -251,6 +252,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         break;
 
     case EventType::MinigameStart:
+        startedGame_ = true;
+        TT_LOG("mgpass: start id %u", unsigned(gameId_));
         setPhase(Phase::Play);
         phaseMs_ = nowMs;
         TT_LOG("minigame: game %u starts", unsigned(gameId_));
@@ -263,6 +266,9 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
 
     case EventType::MinigameExit:
     case EventType::MinigameAbort:
+        endedGame_ = true;
+        TT_LOG("mgpass: result id %u: %.70s / %.70s", unsigned(gameId_), line(0), line(1));
+        TT_LOG("mgpass: end id %u aborted %u", unsigned(gameId_), unsigned(ev.type == EventType::MinigameAbort));
         if (ev.type == EventType::MinigameExit && !exitedSent_ && client.sendMinigameExited()) exitedSent_ = true;
         unloadCurrent();
         setPhase(Phase::Purchase);
@@ -281,6 +287,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
                 }
             }
         }
+        TT_LOG("mgpass: score id %u beans %lu (server)", unsigned(gameId_), static_cast<unsigned long>(earnedBeans));
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         purchasePanel_.init();
@@ -289,18 +296,54 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     }
 
     case EventType::PurchaseExit:
-        client.sendPurchaseInventory(purchasePanel_.cart().inv, purchasePanel_.cart().money);
+        if (!client.sendPurchaseInventory(purchasePanel_.cart().inv, purchasePanel_.cart().money)) break;
+        completedPurchase_ = true;
+        TT_LOG("mgpass: purchase exit id %u acknowledged, inventory submitted", unsigned(gameId_));
         purchasePanel_.close();
         setPhase(Phase::Leaving);
         phaseMs_ = nowMs;
+        break;
+
+    case EventType::TargetRoundDone:
+        if (isTarget_) {
+            target_.nextRound();
+            doneSent_ = false;
+            setPhase(Phase::Play);
+            phaseMs_ = nowMs;
+        }
         break;
 
     case EventType::TagSetIt:
         if (isTag_ && mg) tag_.onTag(client.avatarId(), mg->tagItAvId);
         break;
 
+    case EventType::PatternSetPlayerPatterns:
+        if (isPattern_) pattern_.onResults();
+        break;
+
+    case EventType::RaceServerChoices:
+        if (isRace_ && mg) {
+            uint8_t choices[4], positions[4];
+            int16_t rewards[4];
+            const int count = mg->numParticipants < 4 ? mg->numParticipants : 4;
+            for (int i = 0; i < count; ++i) {
+                choices[i] = uint8_t(mg->raceServerChoices[i]);
+                positions[i] = mg->raceServerPositions[i];
+                rewards[i] = mg->raceServerRewards[i];
+            }
+            race_.onSetServerChoices(choices, positions, rewards, count);
+        }
+        break;
+
     case EventType::PatternSetPattern:
         if (isPattern_ && mg) pattern_.onSetPattern(mg->patternSeq, mg->patternSeqLen);
+        break;
+
+    case EventType::IceNewState:
+    case EventType::IceTireInputs:
+    case EventType::IceFinalPositions:
+    case EventType::IceScores:
+        if (isIce_ && mg) ice_.onServer(ev.type, *mg);
         break;
 
     case EventType::IceMatchAndRound:
@@ -319,7 +362,17 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
 void MinigameSession::update(net::Client& client, const circlePosition& pad, float dt, u32 nowMs) {
     if (phase_ == Phase::Off) return;
     const float inPhase = static_cast<s32>(nowMs - phaseMs_) / 1000.0f;
-    const u32 kDown = hidKeysDown();
+    if (client.state() == net::State::Backoff || client.state() == net::State::Failed ||
+        client.state() == net::State::Idle) {
+        TT_LOG("mgpass: disconnect id %u (incomplete)", unsigned(gameId_));
+        shutdown();
+        return;
+    }
+    u32 kDown = hidKeysDown();
+    // Test-only physical button presses: use each game's regular input/sender path.
+    if (autoPlay_ && (isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isIce_ || isRace_ || isPhoto_) &&
+        phase_ == Phase::Play && int(inPhase * 2) != int((inPhase - dt) * 2))
+        kDown |= KEY_A;
 
     switch (phase_) {
     case Phase::Rules:
@@ -446,6 +499,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isPattern_) {
+            pattern_.setAutoPlay(autoPlay_);
             pattern_.update(client, pad, kDown, dt, nowMs);
             if (pattern_.isDone() && !doneSent_) {
                 doneSent_ = true;
@@ -576,30 +630,24 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         if (inPhase > 0.5f) {
             returnHood_ = home_;
             setPhase(Phase::Off);
+            TT_LOG("mgpass: returned id %u", unsigned(gameId_));
         }
         break;
 
     case Phase::Purchase:
+        // A requestExit is not setPurchaseExit. Stay here until the server's
+        // reply, then submit inventory(done=1) before returning to the playground.
+        if (autoPlay_ && inPhase > 3 && purchasePanel_.active()) purchasePanel_.finish(false);
         purchasePanel_.update(client, nowMs);
-        if (purchasePanel_.isDone()) {
-            setPhase(Phase::Leaving);
-            phaseMs_ = nowMs;
-        } else {
+        if (purchasePanel_.active()) {
             touchPosition touch;
             hidTouchRead(&touch);
             purchasePanel_.handleInput(kDown, touch);
         }
-        if (inPhase > 30.0f) {
-            returnHood_ = home_;
-            setPhase(Phase::Off);
-        }
         break;
 
     default:
-        if (phase_ != Phase::Play && inPhase > 90.0f) {
-            returnHood_ = home_;
-            setPhase(Phase::Off);
-        }
+        // No timed escape into the world with a live game or purchase object.
         break;
     }
 

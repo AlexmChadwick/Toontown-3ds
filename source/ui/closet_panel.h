@@ -7,6 +7,7 @@ class ClosetPanel {
 public:
     bool init();
     void shutdown();
+    void dismiss() { active_ = false; pending_ = 0; }
     bool active() const { return active_; }
     void open(const net::Client& client, uint32_t nowMs);
     void update(net::Client& client);

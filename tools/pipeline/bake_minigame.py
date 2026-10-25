@@ -5,6 +5,7 @@
         [--out sdmc-out/3ds/toontown3ds/data/minigames] [--only catch|cannon|tug|ring|audio]
 """
 import argparse
+import ast
 import json
 import os
 import sys
@@ -59,7 +60,7 @@ MODELS = {
 
     # Match Minnie / Pairing
     'memory_room': (MG + 'memory_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
-    'playing_card': ('phase_3.5/models/gui/playingCard', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # Pairing cards are composed below, exactly as PairingGameCard.load.
 
     # Diving
     'diving_game': (MG + 'diving_game', None, (0, 0, 0), 2.8, (0, 0.5, -41.0)),
@@ -184,6 +185,65 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
     return stats
 
 
+def literal_assignment(path, name):
+    tree = ast.parse(open(path, encoding='utf-8').read())
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise ValueError(name)
+
+
+def bake_pairing(base, resources, out_dir, max_tex):
+    upstream = os.path.join(ROOT, 'ref', 'ref', 'open-toontown', 'toontown')
+    props = literal_assignment(os.path.join(upstream, 'toonbase', 'ToontownBattleGlobals.py'), 'AvPropsNew')
+    colors = literal_assignment(os.path.join(upstream, 'minigame', 'PairingGameCard.py'), 'CardColors')
+    def load(path):
+        model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, path + '.bam')))
+        if model.isEmpty():
+            raise RuntimeError(path)
+        return model
+    icons = load('phase_3.5/models/gui/inventory_icons')
+    reports = []
+    for rank in range(13):
+        root = NodePath('pairing_card')
+        sign = load('phase_4/models/minigames/garden_sign_memory')
+        sign.find('**/glow').removeNode()
+        sign.find('**/sign1').setColorScale(*colors[rank % len(colors)])
+        sign.find('**/sign2').setColorScale(.12, .35, .5, 1)
+        prop = root.attachNewNode('prop')
+        image = icons.find('**/' + props[rank % 7][rank // 7])
+        if image.isEmpty():
+            raise RuntimeError('missing card gag icon')
+        image.copyTo(prop)
+        prop.setScale(7)
+        prop.setPos(0, 0, .08)
+        prop.setP(-90)
+        prop.reparentTo(sign)
+        sign.reparentTo(root)
+        card = load('phase_3.5/models/gui/playingCard')
+        logo = card.find('**/logo')
+        logo.reparentTo(root)
+        logo.setScale(.45)
+        logo.setP(90)
+        logo.setZ(.025)
+        logo.setX(-.05)
+        logo.setH(180)
+        card.removeNode()
+        root.setScale(2.5)
+        scene = NodePath('scene')
+        root.reparentTo(scene)
+        ex = extract.Extractor(max_tex=max_tex)
+        ex.add(scene)
+        path = os.path.join(out_dir, 'pairing_card_%d.ttm' % rank)
+        stats = ttm.write(path, ex.textures, ex.batches())
+        stats['name'] = 'pairing_card_%d' % rank
+        reports.append(stats)
+        print(json.dumps(stats))
+        root.removeNode()
+    icons.removeNode()
+    return reports
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
@@ -194,7 +254,7 @@ def main():
 
     # Fallback for resources path
     if not os.path.exists(os.path.join(args.resources, 'phase_4')):
-        for cand in [os.path.join(ROOT, 'ref', 'ref', 'resources'), '/Users/alexchadwick/toontown-3ds/ref/resources']:
+        for cand in [os.path.join(ROOT, 'ref', 'ref', 'resources')]:
             if os.path.exists(os.path.join(cand, 'phase_4')):
                 args.resources = cand
                 break
@@ -205,11 +265,14 @@ def main():
     if args.only != 'audio':
         base = ShowBase()
         for name, spec in MODELS.items():
-            if args.only and not name.startswith(args.only):
+            if args.only and not (name.startswith(args.only) or args.only == 'pairing' and name == 'memory_room'):
                 continue
             stats = bake_model(base, args.resources, name, spec, args.out, args.max_tex)
             report['models'].append(stats)
             print(json.dumps(stats))
+
+        if args.only in (None, 'pairing'):
+            report['models'].extend(bake_pairing(base, args.resources, args.out, args.max_tex))
 
     if args.only in (None, 'audio'):
         for name, rel, kind, loops in AUDIO:

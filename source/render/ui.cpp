@@ -1,3 +1,4 @@
+#include "ui/panel_geometry.h" // qafix: bounded map content
 #include "core/nearest.h"
 #include "render/ui.h"
 
@@ -127,22 +128,73 @@ void Ui::text(float x, float y, float scale, u32 color, const char* fmt, ...) {
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.5f, scale, scale, color);
 }
 
+// ---- qafix: every full-screen panel uses the same ownership policy ----
+PanelOwner Ui::resolveOwner(bool fishing, bool info) {
+    const auto* purchase = MinigamePurchasePanel::activeInstance();
+    PanelRequests requests;
+    requests.battle = battleView_ != nullptr;
+    requests.purchase = purchase && purchase->active();
+    requests.info = info;
+    requests.talk = talk_ && talk_->locked();
+    requests.clerk = serviceClerks_.active();
+    requests.shop = shop_.active();
+    requests.tailor = tailor_.active();
+    requests.closet = closet_.active();
+    requests.fishing = fishing;
+    requests.book = book_.isOpen();
+    const PanelOwner owner = choosePanel(requests);
+    if (owner != lastOwner_) {
+        TT_LOG("panel: close owner=%s", panelName(lastOwner_));
+        TT_LOG("panel: open owner=%s", panelName(owner));
+        lastOwner_ = owner;
+    }
+    return owner;
+}
+
+void Ui::syncContext(net::Client& client, unsigned zone, bool lost, bool exclusive,
+                     bool fishing, bool info) {
+    const bool changed = contextZone_ && contextZone_ != zone;
+    contextZone_ = zone;
+    contextFishing_ = fishing;
+    contextInfo_ = info;
+    if (changed || lost || exclusive) {
+        // Cancel transactions before relinquishing them when the object still exists.
+        if (shop_.active()) { shop_.finish(true); shop_.update(client, 0); }
+        if (tailor_.active()) { tailor_.cancel(); tailor_.update(client, 0); }
+        shop_.dismiss();
+        tailor_.dismiss();
+        closet_.dismiss();
+        serviceClerks_.dismiss();
+        if (talk_) talk_->reset();
+        book_.close();
+    }
+    if (changed || lost) {
+        if (auto* purchase = MinigamePurchasePanel::activeInstance()) purchase->close();
+    }
+}
+// ---- end qafix ----
+
 u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
     return handleInput(down, hidKeysHeld() | (down & KEY_TOUCH), t, s);
 }
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
-    if (serviceClerks_.active()) return serviceClerks_.handleInput(down, t); // clerks
-    if (book_.isOpen()) {
+    // ---- qafix: input and drawing share resolveOwner ----
+    const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_);
+    if (owner == PanelOwner::Clerk) return serviceClerks_.handleInput(down, t);
+    if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.state = &s;
         return book_.handleInput(down, t, bdc);
     }
-    if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
-    if (tailor_.active()) return tailor_.handleInput(down, t);
-    if (closet_.active()) return closet_.handleInput(down, t);
-    if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
-    if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Shop) return shop_.handleInput(down, t);
+    if (owner == PanelOwner::Tailor) return tailor_.handleInput(down, t);
+    if (owner == PanelOwner::Closet) return closet_.handleInput(down, t);
+    if (owner == PanelOwner::Battle) return battle_.handleInput(down, t, *battleView_, battleGags_);
+    if (owner == PanelOwner::Talk) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
+    if (owner == PanelOwner::Fishing) return down & ~(KEY_A | KEY_B);
+    // ---- end qafix ----
     if (down & KEY_START) {
         book_.open();
         return KEY_START;
@@ -219,11 +271,12 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
-    if (serviceClerks_.active()) { // clerks
+    const PanelOwner owner = resolveOwner(c.fishing != nullptr, c.infoTitle != nullptr); // qafix
+    if (owner == PanelOwner::Clerk) { // clerks
         serviceClerks_.draw();
         return;
     }
-    if (book_.isOpen()) {
+    if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.stats = c.stats;
         bdc.quests = c.quests;
@@ -244,37 +297,36 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         book_.draw(bdc);
         return;
     }
-    if (shop_.active()) {
+    if (owner == PanelOwner::Shop) {
         shop_.draw();
         return;
     }
-    if (tailor_.active()) {
+    if (owner == PanelOwner::Tailor) {
         tailor_.draw();
         return;
     }
-    if (closet_.active()) {
+    if (owner == PanelOwner::Closet) {
         closet_.draw();
         return;
     }
-    if (battleView_) {
+    if (owner == PanelOwner::Battle) {
         battle_.draw(*battleView_, battleGags_);
         return;
     }
-    if (MinigamePurchasePanel::activeInstance() && MinigamePurchasePanel::activeInstance()->active()) {
+    if (owner == PanelOwner::Purchase) {
         MinigamePurchasePanel::activeInstance()->draw();
         return;
     }
-    if (c.infoTitle) {
+    if (owner == PanelOwner::Info) {
         drawInfo(c);
         return;
     }
-    if (talk_ && talk_->locked()) {
+    if (owner == PanelOwner::Talk) {
         quest_.drawTalk(*talk_);
         return;
     }
-    if (c.fishing) {
+    if (owner == PanelOwner::Fishing) {
         fishingPanel_.draw(*c.fishing, kTabY);
-        drawTabs(s);
         return;
     }
     switch (s.tab) {
@@ -385,10 +437,10 @@ void Ui::setMapZone(unsigned fileZone) {
 void Ui::drawMap(const Context& c) {
     // Fit the map (baked image rectangle, else zone bounds) into the content area,
     // preserving aspect. Map +Y is up.
-    const float areaX = 4, areaY = 4, areaW = kW - 8, areaH = kHoodRowY - 8;
+    const float areaX = 4, areaY = 4, areaW = kW - 8, areaH = kHomeY - 8;
     const float minX = hasMap_ ? mapMinX_ : c.zoneMinX, maxX = hasMap_ ? mapMaxX_ : c.zoneMaxX;
     const float minY = hasMap_ ? mapMinY_ : c.zoneMinY, maxY = hasMap_ ? mapMaxY_ : c.zoneMaxY;
-    const float zw = maxX - minX, zh = maxY - minY;
+    const float zw = fmaxf(1.0f, maxX - minX), zh = fmaxf(1.0f, maxY - minY);
     const float scale = hasMap_ ? fminf(areaW / mapW_, areaH / mapH_) * mapW_ / zw
                                 : fminf(areaW / zw, areaH / zh);
     const float ox = areaX + (areaW - zw * scale) * 0.5f;
@@ -401,19 +453,25 @@ void Ui::drawMap(const Context& c) {
     } else {
         C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
     }
+    // ---- qafix: all marker geometry stays inside the map, above Home ----
+    const MapRect rect{ox, oy, zw * scale, zh * scale};
     // Squares, not C2D_DrawCircleSolid: citro2d circles use the procedural-texture
     // unit and did not render after the 3D pass in Azahar (unverified on hardware).
     for (int i = 0; i < c.numMarkers; i++) {
-        C2D_DrawRectSolid(mx(c.markers[i].x) - 3, my(c.markers[i].y) - 3, 0.55f, 6, 6, c.markers[i].color);
+        float x = mx(c.markers[i].x), y = my(c.markers[i].y);
+        if (rect.marker(&x, &y, 3))
+            C2D_DrawRectSolid(x - 3, y - 3, 0.55f, 6, 6, c.markers[i].color);
     }
     // Player arrow (heading 0 = +Y = up on the map; positive heading turns left).
     const float h = c.playerHeadingDeg * 3.14159265f / 180.0f;
-    const float px = mx(c.playerX), py = my(c.playerY);
+    float px = mx(c.playerX), py = my(c.playerY);
+    const bool playerVisible = rect.marker(&px, &py, 11);
     const float fx = -sinf(h), fy = -cosf(h); // screen-space forward
     const float sx = -fy, sy = fx;
     // Long, narrow arrow so the tip is unambiguous at this size.
-    C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
+    if (playerVisible) C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
+    // ---- end qafix ----
     text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
     C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
     text(18, kHomeY + 6, 0.42f, kBg, "Home");
@@ -565,8 +623,9 @@ void Ui::drawDebug(const Context& c) {
         debugLine(8, 130, 0.4f, prof::busyAvgMs() > 25.0f ? bad : good, "busy %.1f ms  (frame %.1f, wait %.1f)",
                   static_cast<double>(prof::busyAvgMs()), static_cast<double>(prof::totalAvgMs()),
                   static_cast<double>(prof::avgMs(prof::kWait)));
-        constexpr int kProfRows = 6;
-        constexpr int kProfSlots = 18; // three columns within the 320px screen
+        // ---- qafix: reserve a separate footer row before the tabs ----
+        constexpr int kProfRows = 5;
+        constexpr int kProfSlots = 15; // three columns within the 320px screen
         int selected[kProfSlots];
         nearestIndices(prof::kCount,
             [](int index) { return index != prof::kWait; },
@@ -579,7 +638,8 @@ void Ui::drawDebug(const Context& c) {
             debugLine(8+(slot/kProfRows)*106,143+(slot%kProfRows)*10,.34f,ms>4?bad:kWhite,"%-6s %5.2f",
                       prof::name(static_cast<prof::Section>(index)),static_cast<double>(ms));
         }
-        debugLine(8, 199, 0.34f, kDim, "%s", log::recent(0));
+        debugLine(8, 196, 0.32f, kDim, "%.85s", log::recent(0));
+        // ---- end qafix ----
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];

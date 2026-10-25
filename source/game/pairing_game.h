@@ -32,7 +32,7 @@ public:
     bool isDone() const { return done_; }
 
 private:
-    world::BasicAssetBatch<8> assetBatch_;
+    world::BasicAssetBatch<16> assetBatch_;
     enum CardStatus : uint8_t {
         FaceDown,
         FaceUp,
@@ -42,23 +42,30 @@ private:
     bool done_ = false;
     bool autoPlay_ = false;
     uint32_t startMs_ = 0;
+    float duration_ = 120;
     float timeRemaining_ = 90.0f;
 
-    pairing::Card deck_[pairing::kSoloDeckCards];
-    CardStatus cardStatus_[pairing::kSoloDeckCards] = {};
+    pairing::Card deck_[pairing::kMaxDeckCards];
+    CardStatus cardStatus_[pairing::kMaxDeckCards] = {};
     int totalCards_ = pairing::kSoloDeckCards;
     int matches_ = 0;
     int flips_ = 0;
     int score_ = 0;
 
     int cursor_ = 0; // 0..31
-    int openCard1_ = -1;
-    int openCard2_ = -1;
+    bool deckReady_ = false;
+    int pendingCard_ = -1;
+    float autoDelay_ = 0;
+    float matchedAge_[pairing::kMaxDeckCards] = {};
+    float roll_[pairing::kMaxDeckCards] = {};
+    float rollFrom_[pairing::kMaxDeckCards] = {};
+    float flipAge_[pairing::kMaxDeckCards] = {};
+    void turn(int card, CardStatus status);
 
     char lines_[3][48] = {};
 
     render::Model memoryRoomModel_;
-    render::Model cardModel_;
+    render::Model cardModel_[pairing::kMaxRank];
 };
 
 } // namespace tt::game

@@ -6,8 +6,8 @@
 
 namespace tt::game {
 
-bool IceGame::init(const char* root) {
-    sim_.init(1);
+bool IceGame::init(const char* root, int players) {
+    sim_.init(players);
     state_ = State::Aiming;
     aimAngle_ = 45.0f;
     aimForce_ = 50.0f;
@@ -29,9 +29,32 @@ void IceGame::shutdown() {
 }
 
 void IceGame::onSetMatchAndRound(uint8_t match, uint8_t round) {
+    if (sim_.curMatch != match) sim_.resetRound();
     sim_.curMatch = match;
     sim_.curRound = round;
     state_ = State::Aiming;
+}
+
+void IceGame::onServer(net::EventType event, const net::Minigame& game) {
+    if (event == net::EventType::IceTireInputs) {
+        for (int i = 0; i < game.iceInputCount; ++i)
+            sim_.setChoice(i, game.iceChoicesForce[i], game.iceChoicesDir[i]);
+        state_ = State::Sliding;
+    } else if (event == net::EventType::IceFinalPositions) {
+        for (int i = 0; i < game.icePositionCount; ++i) {
+            sim_.tires[i].x = game.iceFinalPositions[i][0];
+            sim_.tires[i].y = game.iceFinalPositions[i][1];
+            sim_.tires[i].moving = false;
+        }
+    } else if (event == net::EventType::IceScores) {
+        for (int i = 0; i < game.iceScoreCount; ++i) sim_.scores[i] = game.iceScores[i];
+    } else if (event == net::EventType::IceNewState) {
+        if (!std::strcmp(game.iceState, "inputChoice")) state_ = State::Aiming;
+        else if (!std::strcmp(game.iceState, "scoring")) {
+            state_ = State::Scoring;
+            scoreTimer_ = 0;
+        } else if (!std::strcmp(game.iceState, "finalResults")) sim_.isDone = true;
+    }
 }
 
 void IceGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
@@ -52,25 +75,24 @@ void IceGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
 
         if (keysDown & KEY_A) {
             client.sendIceChoice(aimForce_, aimAngle_);
-            sim_.setChoice(0, aimForce_, aimAngle_);
-            state_ = State::Sliding;
+            state_ = State::WaitChoices; // wait for the AI's setTireInputs
         }
     } else if (state_ == State::Sliding) {
         sim_.stepPhysics(dt);
         if (sim_.allTiresStopped()) {
-            state_ = State::Scoring;
-            scoreTimer_ = 0.0f;
-            sim_.scoreMatch();
+            float positions[12] = {};
+            for (int i = 0; i < sim_.numPlayers; ++i) {
+                positions[i*3] = sim_.tires[i].x;
+                positions[i*3+1] = sim_.tires[i].y;
+                positions[i*3+2] = icegame::kTireRadius;
+            }
+            client.sendIceEndingPositions(positions, sim_.numPlayers);
+            state_ = State::WaitEnding;
         }
     } else if (state_ == State::Scoring) {
         scoreTimer_ += dt;
-        if (scoreTimer_ > 2.5f) {
-            if (!sim_.isDone) {
-                state_ = State::Aiming;
-                aimAngle_ = 45.0f;
-                aimForce_ = 50.0f;
-            }
-        }
+        // IceGameGlobals.ShowScoresDuration; the AI owns match/round increments.
+        if (scoreTimer_ >= 4.0f && client.sendIceScoringMovieDone()) state_ = State::WaitRound;
     }
 }
 

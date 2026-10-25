@@ -14,6 +14,8 @@ HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
 OTT="$ROOT/ref/open-toontown"
 RES="$ROOT/ref/resources"
+[ -f "$RES/phase_4/dna/storage.dna" ] || RES="$ROOT/ref/ref/resources"
+[ -d "$OTT/toontown" ] || OTT="$ROOT/ref/ref/open-toontown"
 RUN="$HERE/run"
 LOGS="$HERE/logs"
 PY="$HERE/.venv/bin/python"
@@ -81,7 +83,7 @@ export PYTHONPYCACHEPREFIX="$RUN/pycache"
 export PYTHONUNBUFFERED=1
 
 # 2. UberDOG (same args as ref/open-toontown/darwin/start-uberdog-server.sh)
-"$PY" -m toontown.uberdog.UDStart --base-channel 1000000 --max-channels 999999 \
+"$PY" -I "$HERE/run_module.py" toontown.uberdog.UDStart --base-channel 1000000 --max-channels 999999 \
     --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
     > "$LOGS/uberdog-$STAMP.log" 2>&1 < /dev/null &
 UPID=$!; echo "uberdog $UPID" >> "$RUN/pids"
@@ -99,10 +101,10 @@ if [ -n "${AI_MINIGAME_ID:-}" ]; then
     AI_PRC+=("$RUN/ai-test.prc")
     echo "ai: forcing minigame-id $AI_MINIGAME_ID"
 fi
-AI_ENTRY=(-m toontown.ai.AIStart)
+AI_ENTRY=("$HERE/run_module.py" toontown.ai.AIStart)
 # AI_DEV=1: relax entry checks and top up toons for testing (tools/server/ai_dev.py).
-if [ -n "${AI_DEV:-}" ]; then AI_ENTRY=("$HERE/ai_dev.py"); echo "ai: dev test mode (ai_dev.py)"; fi
-"$PY" "${AI_ENTRY[@]}" --base-channel 401000000 --max-channels 999999 \
+if [ -n "${AI_DEV:-}" ]; then AI_ENTRY=("$HERE/run_module.py" --dev-ai); echo "ai: dev test mode (ai_dev.py)"; fi
+"$PY" -I "${AI_ENTRY[@]}" --base-channel 401000000 --max-channels 999999 \
     --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
     --district-name "$DISTRICT" "${AI_PRC[@]}" \
     > "$LOGS/ai-$STAMP.log" 2>&1 < /dev/null &
