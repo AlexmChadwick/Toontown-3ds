@@ -764,6 +764,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
+    if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
 }
 bool CogdoRuntime::frame(BossFrame &frame) {
@@ -834,6 +835,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     prof::lap(prof::kWait);
     frame.cache.pump();
+    frame.suits.pumpAssets();
     assets_.pump();
     if (frame.shot) {
         char path[160];

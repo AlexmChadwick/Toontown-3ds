@@ -1,5 +1,5 @@
-#include "core/profile.h"
 #include "world/ceo_battle.h"
+#include "core/profile.h"
 #include "world/boss_battle.h"
 
 #include <algorithm>
@@ -970,6 +970,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
+    if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
 
     // Damage bar across bottom of touch screen:
@@ -1031,6 +1032,7 @@ bool CeoBattle::frame(BossFrame& frame) {
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     prof::lap(prof::kWait);
     frame.cache.pump();
+    frame.suits.pumpAssets();
 
     if (frame.shot) {
         char path[128];

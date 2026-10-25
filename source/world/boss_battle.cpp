@@ -1,7 +1,7 @@
-#include "core/profile.h"
 #include "world/boss_battle.h"
-#include "world/cj_battle.h"
+#include "core/profile.h"
 #include "world/ceo_battle.h"
+#include "world/cj_battle.h"
 
 #include <algorithm>
 #include <cmath>
@@ -865,6 +865,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
+    if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
     C2D_DrawRectSolid(12, 196, .8f, std::clamp(damage / (cashbot_ ? 500 : 100), 0.0f, 1.0f) * 296, 5,
                       C2D_Color32(220, 80, 40, 255));
@@ -949,6 +950,7 @@ bool BossBattle::frame(BossFrame& frame) {
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
     prof::lap(prof::kWait);
     frame.cache.pump();
+    frame.suits.pumpAssets();
     if (frame.shot) {
         char path[128];
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", frame.shot);

@@ -1803,6 +1803,7 @@ int main() {
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         level.pumpAssets();
+        suits.pumpAssets();
         golf.pumpAssets();
         racing.pumpAssets();
         estate.pumpAssets();

@@ -9,6 +9,7 @@
 //
 // Walking itself lives in world/suit_path.* (host tested against libtoontown).
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -25,6 +26,9 @@ namespace tt::world {
 
 class SuitActors {
 public:
+    void pumpAssets() { assetBatch_.pump(); }
+    bool loadingAssets() const { return assetBatch_.loading(); }
+
     // Street cogs (net::kMaxSuits) plus the facility cogs of the visible level zones.
     static constexpr int kMax = 32;
 
@@ -132,6 +136,8 @@ private:
     Head* head(const char* code);
     void loadDepartments();
     void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
+    // 6 bodies * (model + neutral + walk + 10 clips) + 12 heads = 90.
+    BasicAssetBatch<96> assetBatch_;
     Body bodies_[6];
     C3D_Tex tieTex_[4] = {}; // skeleton_ties.ttx: a skelecog's tie per department (c l m s)
     bool tiesLoaded_ = false;

@@ -105,13 +105,13 @@ bool SuitActors::loadBody(int b) {
     char stem[24], path[96];
     bodyStem(b, stem, sizeof(stem));
     snprintf(path, sizeof(path), "%s%s_full.ttm", kSuitDir, stem);
-    if (!body.model.load(path)) return false;
+    if (!assetBatch_.load(body.model, path)) return false;
     snprintf(path, sizeof(path), "%s%s_full_neutral.tta", kSuitDir, stem);
-    body.neutral.load(path);
+    assetBatch_.load(body.neutral, path);
     snprintf(path, sizeof(path), "%s%s_full_walk.tta", kSuitDir, stem);
-    body.walk.load(path);
+    assetBatch_.load(body.walk, path);
     if (b >= 3) loadTies();
-    return true;
+    return body.model.loaded();
 }
 
 // Suit.py generateCorporateTie for skeletons: skeleton_ties.ttx, one entry per department.
@@ -149,7 +149,8 @@ SuitActors::Head* SuitActors::head(const char* code) {
         snprintf(h.code, sizeof(h.code), "%s", code);
         char path[96];
         snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
-        return h.model.load(path) ? &h : nullptr;
+        assetBatch_.load(h.model, path);
+        return nullptr;
     }
     return nullptr; // cache full (a street rarely shows more than a dozen head types)
 }
@@ -165,7 +166,8 @@ const render::Anim* SuitActors::battleClip(int b, const char* name) {
         char stem[24], path[112];
         bodyStem(b, stem, sizeof(stem));
         snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
-        return body.clips[i].load(path) ? &body.clips[i] : nullptr;
+        assetBatch_.load(body.clips[i], path);
+        return nullptr;
     }
     return nullptr;
 }
@@ -222,6 +224,7 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
 }
 
 void SuitActors::shutdown() {
+    assetBatch_.clear();
     for (Actor& a : actors_) {
         a.legs.clear();
         a.active = false;
