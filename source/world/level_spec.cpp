@@ -148,7 +148,7 @@ const LevelEntity* LevelSpec::find(int room, uint32_t entId) const {
     if (room < 0 || room >= numRooms_)
         return nullptr;
     // Direct mapped, with full keys: collisions only cause a reference lookup.
-    const uint32_t slot = ((entId * 2654435761u) ^ (uint32_t(room) * 2246822519u)) >> (32 - 8);
+    const uint32_t slot = ((entId * 2654435761u) ^ (uint32_t(room) * 2246822519u)) >> (32 - kFindBits);
     FindEntry &entry = findCache_[slot];
     if (entry.room == room && entry.entity == entId)
         return entry.result;

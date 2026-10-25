@@ -25,7 +25,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'resources')
-if not os.path.isdir(DEFAULT_RESOURCES):
+if not os.path.isfile(os.path.join(DEFAULT_RESOURCES, 'phase_4', 'dna', 'storage.dna')):
     DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'ref', 'resources')
 
 

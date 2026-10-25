@@ -5,7 +5,7 @@
 set -e
 ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 RESOURCES="$ROOT/ref/resources"
-[ -d "$RESOURCES" ] || RESOURCES="$ROOT/ref/ref/resources"
+[ -f "$RESOURCES/phase_4/dna/storage.dna" ] || RESOURCES="$ROOT/ref/ref/resources"
 MODEL=${1:-$RESOURCES/phase_4/models/neighborhoods/toontown_central.bam}
 OUT=${COLLISION_TEST_OUT:-${TMPDIR:-/tmp}/tt_collision_test}
 mkdir -p "$OUT"

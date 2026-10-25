@@ -15,7 +15,7 @@ mkdir -p "$OUT"
 PY="$MAIN/.venv/bin/python -I -B"
 SERVER_PY=${TT_SERVER_PY:-$MAIN/tools/server/.venv/bin/python}
 RESOURCES="$MAIN/ref/resources"
-[ -d "$RESOURCES" ] || RESOURCES="$MAIN/ref/ref/resources"
+[ -f "$RESOURCES/phase_4/dna/storage.dna" ] || RESOURCES="$MAIN/ref/ref/resources"
 if [ ! -x "$SERVER_PY" ]; then
     echo "UNAVAILABLE: suit reference requires tools/server/.venv with panda3d.toontown"
     exit 77

@@ -108,7 +108,8 @@ private:
         int room = -1;
         const LevelEntity *result = nullptr;
     };
-    static constexpr int kFindEntries = 256;
+    static constexpr int kFindBits = 8;
+    static constexpr int kFindEntries = 1 << kFindBits;
     mutable FindEntry findCache_[kFindEntries];
     uint32_t revision_ = 0;
     Room rooms_[kMaxRooms];

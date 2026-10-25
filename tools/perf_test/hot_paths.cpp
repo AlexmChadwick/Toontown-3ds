@@ -39,15 +39,25 @@ int main() {
         for (int i = 0; i < 16; ++i)
             assert(std::fabs(a[i] - b[i]) <= .0001f);
     }
+    // Vary all input rows, and consume all outputs: a one-component probe can
+    // otherwise let the host compiler hoist most of the reference multiply.
+    float cases[256][16];
+    for (int sample = 0; sample < 256; ++sample)
+        for (int element = 0; element < 16; ++element)
+            cases[sample][element] = std::sin(float(sample + element) * .31f) * 7;
+    auto consume = [&]() {
+        float sum = 0;
+        for (float value : a)
+            sum += value;
+        sink = sum;
+    };
     const double before = bench([&](int i) {
-        world[0] = i * .0001f;
-        reference(a, world, scale, offset);
-        sink = a[i & 15];
+        reference(a, cases[i & 255], scale, offset);
+        consume();
     });
     const double after = bench([&](int i) {
-        world[0] = i * .0001f;
-        dequantizeWorld(a, world, scale, offset);
-        sink = a[i & 15];
+        dequantizeWorld(a, cases[i & 255], scale, offset);
+        consume();
     });
     BatchState state;
     const float white[4] = {1, 1, 1, 1}, red[4] = {1, 0, 0, 1};
