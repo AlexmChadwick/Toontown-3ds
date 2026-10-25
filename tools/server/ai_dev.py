@@ -114,12 +114,18 @@ def _patch(name, mod):
             orig_level(self, lvl)
             self.maxHP = 1
             self.currHP = 1
+            # Level Cogs get their level after generate: tell clients, or their movies
+            # never show the deaths the AI computes.
+            if self.isGenerated():
+                self.d_setHP(1)
         mod.DistributedSuitBaseAI.setLevel = setLevel
         orig_revive = mod.DistributedSuitBaseAI.useSkeleRevive
 
         def useSkeleRevive(self):  # ... and revives with 1 HP (mint / DA office skelecogs)
             orig_revive(self)
             self.currHP = 1
+            if self.isGenerated():
+                self.d_setHP(1)
         mod.DistributedSuitBaseAI.useSkeleRevive = useSkeleRevive
     else:
         return

@@ -1468,6 +1468,12 @@ int main() {
             const u32 fromZone = transition.fromZone();
             remoteToons.clear();
             if (place.load(dest)) {
+                // Facilities are entered by elevator, never by a transition, so any arrival means we
+                // left one (won, went sad, teleported): end it even if its gone events never come.
+                if (level.active()) {
+                    TT_LOG("level: left for zone %u", unsigned(dest));
+                    level.shutdown();
+                }
                 zoneActors.loadPoints(place.pointsPath());
                 cchars.setZone(dest);
                 fishing.setZone(dest, place.pointsPath());

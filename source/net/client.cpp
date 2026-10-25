@@ -2693,7 +2693,10 @@ District* Client::districtById(uint32_t doId) {
 
 void Client::pushEvent(EventType type, uint32_t doId) {
     if (evHead_ - evTail_ >= uint32_t(kEventQueue)) {
+        // Every dropped event is a state change some subsystem never sees; log 1, 2, 4, 8, ...
         ++droppedEvents_;
+        if ((droppedEvents_ & (droppedEvents_ - 1)) == 0)
+            TT_LOG("net: event queue full, %u events dropped (type %d)", unsigned(droppedEvents_), int(type));
         return;
     }
     events_[evHead_ % kEventQueue] = {type, doId};
@@ -3170,7 +3173,10 @@ bool Client::applyFishSpotField(FishingSpot& s, DatagramReader& r, uint16_t fiel
 
 void Client::pushEventArg(EventType type, uint32_t doId, int32_t arg) {
     if (evHead_ - evTail_ >= uint32_t(kEventQueue)) {
+        // Every dropped event is a state change some subsystem never sees; log 1, 2, 4, 8, ...
         ++droppedEvents_;
+        if ((droppedEvents_ & (droppedEvents_ - 1)) == 0)
+            TT_LOG("net: event queue full, %u events dropped (type %d)", unsigned(droppedEvents_), int(type));
         return;
     }
     Event e{type, doId};

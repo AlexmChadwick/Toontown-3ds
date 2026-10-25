@@ -106,6 +106,9 @@ struct BattleView {
     int numRewardRows = 0;
     BattleRewardRow reward[7];
     int cogsDefeated = 0;
+    // A facility battle that is not the floor's last (DistributedLevelBattle 'Reward'): upstream
+    // only plays the victory dance; no experience is sent and RewardPanel is not shown.
+    bool floorReward = false;
     bool rewardSent = false;
 };
 

@@ -1107,6 +1107,8 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     v->canRun = phase_ == BattlePhase::Input;
     v->rewardSent = rewardSent_;
     if (!nb) return;
+    v->floorReward = nb->levelDoId != 0 && !strcmp(nb->stateName, "Reward");
+    if (phase_ == BattlePhase::Reward && v->floorReward) v->status = "Cogs cleared! Onward...";
     for (int i = 0; i < nb->numSuits && v->numCogs < net::kBattleSuits; ++i) {
         BattleCogView& c = v->cogs[v->numCogs++];
         c.doId = nb->suits[i];

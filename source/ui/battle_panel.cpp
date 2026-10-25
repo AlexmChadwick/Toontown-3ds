@@ -135,7 +135,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         C2D_DrawRectSolid(x + 3, kCogY + 32, 0.56f, (kCogW - 6) * f, 7, f > 0.35f ? kHp : kHpLow);
     }
 
-    if (v.phase == world::BattlePhase::Reward) {
+    if (v.phase == world::BattlePhase::Reward && !v.floorReward) {
         text(8, kGridY, 0.5f, kWhite, "Cogs defeated: %d", v.cogsDefeated);
         // RewardPanel: per track, the experience toward the next gag level and what this
         // battle added.
