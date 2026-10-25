@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_fish.h"
+#include "ui/pad_tables.h"
 #include "world/fish_tables.h"
 #include <cstdio>
 #include <vector>
@@ -40,9 +41,7 @@ constexpr uint8_t kDistinctGenera[14] = {
 
 void PageFish::init() {
     textBuf_ = C2D_TextBufNew(4096);
-    focus_.clear();
-    focus_.addItem(0, 16.0f, 24.0f, 30.0f, 18.0f);  // Prev genus
-    focus_.addItem(1, 274.0f, 24.0f, 30.0f, 18.0f); // Next genus
+    pad::buildBookFishArrows(focus_); // padnav
 }
 
 void PageFish::shutdown() {
@@ -50,22 +49,40 @@ void PageFish::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
-    focus_.clear();
 }
 
 u32 PageFish::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
-    if (focus_.count() == 0) init();
-    int activated = -1;
-    u32 consumed = focus_.handleInput(keysDown, touch, &activated);
-    if (activated == 0) {
+    if (keysDown & KEY_TOUCH) {
+        // Prev genus button: x = 16..46, y = 24..42
+        if (touch.px >= 16 && touch.px <= 46 && touch.py >= 24 && touch.py <= 42) {
+            if (activeGenusIdx_ > 0) activeGenusIdx_--;
+            else activeGenusIdx_ = 13;
+            return KEY_TOUCH;
+        }
+        // Next genus button: x = 274..304, y = 24..42
+        if (touch.px >= 274 && touch.px <= 304 && touch.py >= 24 && touch.py <= 42) {
+            if (activeGenusIdx_ < 13) activeGenusIdx_++;
+            else activeGenusIdx_ = 0;
+            return KEY_TOUCH;
+        }
+    }
+    // D-Left / D-Right press the < / > arrows (padnav: highlighted and logged).
+    if (keysDown & KEY_DLEFT) {
         if (activeGenusIdx_ > 0) activeGenusIdx_--;
         else activeGenusIdx_ = 13;
-    } else if (activated == 1) {
+        focus_.setFocusById(pad::book::kIdGenusPrev);
+        focus_.logActivate(pad::book::kIdGenusPrev);
+        return KEY_DLEFT;
+    }
+    if (keysDown & KEY_DRIGHT) {
         if (activeGenusIdx_ < 13) activeGenusIdx_++;
         else activeGenusIdx_ = 0;
+        focus_.setFocusById(pad::book::kIdGenusNext);
+        focus_.logActivate(pad::book::kIdGenusNext);
+        return KEY_DRIGHT;
     }
-    return consumed;
+    return 0;
 }
 
 void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
@@ -214,7 +231,7 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
         C2D_DrawText(&cntTxt, C2D_WithColor, tx + 1.0f, ty + 2.0f, 0.6f, 0.28f, 0.28f,
                      earned ? C2D_Color32(0x50, 0x30, 0x00, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));
     }
-    focus_.drawHighlight();
+    focus_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui

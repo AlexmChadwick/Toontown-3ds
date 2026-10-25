@@ -17,9 +17,9 @@ public:
 
 private:
     void rebuildText(const BookDrawContext& bdc);
+    void applyOption(int id, State& s); // padnav: the action behind each pad::book option id
 
     C2D_TextBuf textBuf_ = nullptr;
-    FocusGroup focus_{"book_options"};
     int lastMusicVol_ = -1;
     int lastSfxVol_ = -1;
     int lastStress_ = -1;
@@ -27,6 +27,7 @@ private:
     bool lastDebug_ = false;
     int lastLod_ = -1;
     int lastNumDistricts_ = -1;
+    FocusGroup focus_{"book_options"}; // padnav
 };
 
 } // namespace tt::ui

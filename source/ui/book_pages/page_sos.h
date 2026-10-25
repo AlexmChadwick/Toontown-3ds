@@ -18,7 +18,8 @@ public:
 private:
     int viewPage_ = 0; // 0 for cards 0..7, 1 for cards 8..15
     C2D_TextBuf textBuf_ = nullptr;
-    FocusGroup focus_{"book_sos"};
+    static constexpr int kCardsPerView = 8;
+    FocusGroup focus_{"book_sos"}; // padnav
 };
 
 } // namespace tt::ui

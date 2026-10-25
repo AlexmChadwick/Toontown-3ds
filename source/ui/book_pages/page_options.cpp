@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_options.h"
+#include "ui/pad_tables.h"
 #include "audio/audio.h"
 #include "render/ui.h"
 #include "net/client.h"
@@ -25,17 +26,7 @@ constexpr u32 kRed = C2D_Color32(0xC8, 0x40, 0x40, 0xFF);
 
 void PageOptions::init() {
     textBuf_ = C2D_TextBufNew(1024);
-    focus_.clear();
-    focus_.addItem(1, 15, 30, 135, 20);   // Stereo 3D
-    focus_.addItem(2, 15, 54, 135, 20);   // Debug HUD
-    focus_.addItem(3, 15, 78, 135, 20);   // LOD Bias
-    focus_.addItem(4, 80, 102, 22, 20);   // Music -
-    focus_.addItem(5, 126, 102, 22, 20);  // Music +
-    focus_.addItem(6, 80, 126, 22, 20);   // SFX -
-    focus_.addItem(7, 126, 126, 22, 20);  // SFX +
-    focus_.addItem(8, 80, 150, 22, 20);   // Stress -
-    focus_.addItem(9, 126, 150, 22, 20);  // Stress +
-    focus_.addItem(10, 15, 176, 135, 20); // Quit Game
+    pad::buildBookOptions(focus_); // padnav
 }
 
 void PageOptions::shutdown() {
@@ -43,61 +34,58 @@ void PageOptions::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
-    focus_.clear();
 }
 
 u32 PageOptions::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!bdc.state) return 0;
-    if (focus_.count() == 0) init();
-
+    // ---- padnav: one table (pad::buildBookOptions) for touch, the D-Pad and A ----
     int activated = -1;
-    u32 consumed = focus_.handleInput(keysDown, touch, &activated);
+    const u32 used = focus_.handleInput(keysDown, touch, &activated);
+    applyOption(activated, *bdc.state);
+    // The page keeps the whole D-Pad (L / R turn pages), even where a row has one control.
+    return used | (keysDown & kDpadKeys);
+    // ---- end padnav ----
+}
 
-    auto adjust = [&](int id) {
-        switch (id) {
-        case 1:
-            bdc.state->stereo = !bdc.state->stereo;
-            break;
-        case 2:
-            bdc.state->debugOverlay = !bdc.state->debugOverlay;
-            break;
-        case 3:
-            bdc.state->lodBias = (bdc.state->lodBias == 0) ? 1 : 0;
-            break;
-        case 4:
-            bdc.state->musicVol = std::max(0, bdc.state->musicVol - 10);
-            audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-            break;
-        case 5:
-            bdc.state->musicVol = std::min(100, bdc.state->musicVol + 10);
-            audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-            break;
-        case 6:
-            bdc.state->sfxVol = std::max(0, bdc.state->sfxVol - 10);
-            audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-            break;
-        case 7:
-            bdc.state->sfxVol = std::min(100, bdc.state->sfxVol + 10);
-            audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-            break;
-        case 8:
-            bdc.state->stressToons = std::max(0, bdc.state->stressToons - 8);
-            break;
-        case 9:
-            bdc.state->stressToons = std::min(64, bdc.state->stressToons + 8);
-            break;
-        case 10:
-            bdc.state->quitRequested = true;
-            break;
-        default:
-            break;
-        }
-    };
-
-    if (activated > 0) {
-        adjust(activated);
+void PageOptions::applyOption(int id, State& s) {
+    switch (id) {
+    case pad::book::kIdStereo:
+        s.stereo = !s.stereo;
+        break;
+    case pad::book::kIdDebugHud:
+        s.debugOverlay = !s.debugOverlay;
+        break;
+    case pad::book::kIdLodBias:
+        s.lodBias = (s.lodBias == 0) ? 1 : 0;
+        break;
+    case pad::book::kIdMusicMinus:
+        s.musicVol = std::max(0, s.musicVol - 10);
+        audio::setMusicVolume(s.musicVol / 100.0f);
+        break;
+    case pad::book::kIdMusicPlus:
+        s.musicVol = std::min(100, s.musicVol + 10);
+        audio::setMusicVolume(s.musicVol / 100.0f);
+        break;
+    case pad::book::kIdSfxMinus:
+        s.sfxVol = std::max(0, s.sfxVol - 10);
+        audio::setMasterVolume(s.sfxVol / 100.0f);
+        break;
+    case pad::book::kIdSfxPlus:
+        s.sfxVol = std::min(100, s.sfxVol + 10);
+        audio::setMasterVolume(s.sfxVol / 100.0f);
+        break;
+    case pad::book::kIdStressMinus:
+        s.stressToons = std::max(0, s.stressToons - 8);
+        break;
+    case pad::book::kIdStressPlus:
+        s.stressToons = std::min(64, s.stressToons + 8);
+        break;
+    case pad::book::kIdQuit:
+        s.quitRequested = true;
+        break;
+    default:
+        break;
     }
-    return consumed;
 }
 
 void PageOptions::rebuildText(const BookDrawContext& bdc) {
@@ -235,7 +223,6 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         drawText(175, 60, 0.40f, kDim, "No districts online");
         drawText(175, 78, 0.36f, kDim, "(Playing offline)");
     }
-    focus_.drawHighlight();
 }
 
 } // namespace tt::ui

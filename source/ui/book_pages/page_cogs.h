@@ -21,7 +21,7 @@ public:
 private:
     int activeDept_ = 0; // 0 Bossbot, 1 Lawbot, 2 Cashbot, 3 Sellbot
     C2D_TextBuf textBuf_ = nullptr;
-    FocusGroup focus_{"book_cogs"};
+    FocusGroup focus_{"book_cogs"}; // padnav
 };
 
 } // namespace tt::ui

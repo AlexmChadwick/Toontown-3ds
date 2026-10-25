@@ -17,7 +17,7 @@ public:
 
 private:
     C2D_TextBuf textBuf_ = nullptr;
-    FocusGroup focus_{"book_map"};
+    FocusGroup focus_{"book_map"}; // padnav
 };
 
 } // namespace tt::ui
