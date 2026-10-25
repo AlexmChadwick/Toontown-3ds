@@ -560,6 +560,10 @@ int main() {
         static float autotestSettle = 0.0f;
         if (!netStarted || net.inZone()) autotestSettle += dt;
         if (autotest.waiting() && autotestSettle > 3.0f) autotest.setReady();
+        // ---- qafix: game-agnostic trolley completion gates ----
+        autotest.setTrolleyProgress({trolley.seated(), minigame.startedGame(), minigame.endedGame(),
+                                    minigame.completedPurchase() && !minigame.active()});
+        // ---- end qafix ----
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         if (autotest.active()) {

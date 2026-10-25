@@ -1,3 +1,4 @@
+#include "core/trolley_progress.h" // qafix
 // Scripted input for unattended emulator/hardware runs. Enabled only when
 // sdmc:/3ds/toontown3ds/autotest exists; logs per-second stats to log.txt so
 // runs can be compared without a person at the controls.
@@ -22,6 +23,7 @@ struct Step {
 
 class Runner {
 public:
+    void setTrolleyProgress(const TrolleyProgress& progress) { trolleyProgress_ = progress; }
     bool begin(); // returns false (and stays inactive) if the trigger file is absent
     bool active() const { return active_; }
     // Started from autotest_fe: drives the front end instead of the world.
@@ -40,6 +42,8 @@ public:
     const char* pendingShot() const { return shotsEnabled_ ? pendingShot_ : nullptr; }
 
 private:
+    TrolleyProgress trolleyProgress_;
+    bool trolleyWaiting_ = false;
     bool shotsEnabled_ = true;
     bool active_ = false;
     bool frontEnd_ = false;

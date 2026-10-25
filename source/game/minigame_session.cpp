@@ -83,6 +83,7 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
     zone_ = zone;
     gameId_ = gameId;
     home_ = homeHood;
+    startedGame_ = endedGame_ = completedPurchase_ = false;
 
     isCatch_ = (gameId == kCatchGameId);
     isCannon_ = (gameId == kCannonGameId);
@@ -123,7 +124,7 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
                       : isCogThief_ ? "Cog Thief"
                       : isTwoD_ ? "Toon Escape"
                       : isTag_ ? "Tag Game"
-                      : isPattern_ ? "Match Minnie"
+                      : isPattern_ ? "Toon Memory"
                       : isIce_ ? "Ice Slide"
                       : isRace_ ? "Race Game"
                       : isPhoto_ ? "Photo Fun"
@@ -251,6 +252,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         break;
 
     case EventType::MinigameStart:
+        startedGame_ = true;
+        TT_LOG("mgpass: start id %u", unsigned(gameId_));
         setPhase(Phase::Play);
         phaseMs_ = nowMs;
         TT_LOG("minigame: game %u starts", unsigned(gameId_));
@@ -263,6 +266,9 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
 
     case EventType::MinigameExit:
     case EventType::MinigameAbort:
+        endedGame_ = true;
+        TT_LOG("mgpass: result id %u: %.70s / %.70s", unsigned(gameId_), line(0), line(1));
+        TT_LOG("mgpass: end id %u aborted %u", unsigned(gameId_), unsigned(ev.type == EventType::MinigameAbort));
         if (ev.type == EventType::MinigameExit && !exitedSent_ && client.sendMinigameExited()) exitedSent_ = true;
         unloadCurrent();
         setPhase(Phase::Purchase);
@@ -281,6 +287,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
                 }
             }
         }
+        TT_LOG("mgpass: score id %u beans %lu (server)", unsigned(gameId_), static_cast<unsigned long>(earnedBeans));
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         purchasePanel_.init();
@@ -289,7 +296,9 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     }
 
     case EventType::PurchaseExit:
-        client.sendPurchaseInventory(purchasePanel_.cart().inv, purchasePanel_.cart().money);
+        if (!client.sendPurchaseInventory(purchasePanel_.cart().inv, purchasePanel_.cart().money)) break;
+        completedPurchase_ = true;
+        TT_LOG("mgpass: purchase exit id %u acknowledged, inventory submitted", unsigned(gameId_));
         purchasePanel_.close();
         setPhase(Phase::Leaving);
         phaseMs_ = nowMs;
@@ -319,7 +328,16 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
 void MinigameSession::update(net::Client& client, const circlePosition& pad, float dt, u32 nowMs) {
     if (phase_ == Phase::Off) return;
     const float inPhase = static_cast<s32>(nowMs - phaseMs_) / 1000.0f;
-    const u32 kDown = hidKeysDown();
+    if (client.state() == net::State::Backoff || client.state() == net::State::Failed ||
+        client.state() == net::State::Idle) {
+        TT_LOG("mgpass: disconnect id %u (incomplete)", unsigned(gameId_));
+        shutdown();
+        return;
+    }
+    u32 kDown = hidKeysDown();
+    // Test-only physical button presses: use each game's regular input/sender path.
+    if (autoPlay_ && phase_ == Phase::Play && int(inPhase * 2) != int((inPhase - dt) * 2))
+        kDown |= KEY_A;
 
     switch (phase_) {
     case Phase::Rules:
@@ -576,30 +594,24 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         if (inPhase > 0.5f) {
             returnHood_ = home_;
             setPhase(Phase::Off);
+            TT_LOG("mgpass: returned id %u", unsigned(gameId_));
         }
         break;
 
     case Phase::Purchase:
+        // A requestExit is not setPurchaseExit. Stay here until the server's
+        // reply, then submit inventory(done=1) before returning to the playground.
+        if (autoPlay_ && inPhase > 3 && purchasePanel_.active()) purchasePanel_.finish(false);
         purchasePanel_.update(client, nowMs);
-        if (purchasePanel_.isDone()) {
-            setPhase(Phase::Leaving);
-            phaseMs_ = nowMs;
-        } else {
+        if (purchasePanel_.active()) {
             touchPosition touch;
             hidTouchRead(&touch);
             purchasePanel_.handleInput(kDown, touch);
         }
-        if (inPhase > 30.0f) {
-            returnHood_ = home_;
-            setPhase(Phase::Off);
-        }
         break;
 
     default:
-        if (phase_ != Phase::Play && inPhase > 90.0f) {
-            returnHood_ = home_;
-            setPhase(Phase::Off);
-        }
+        // No timed escape into the world with a live game or purchase object.
         break;
     }
 
