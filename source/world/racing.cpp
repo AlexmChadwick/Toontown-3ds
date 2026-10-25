@@ -7,7 +7,8 @@
 namespace tt::world {
 
 void Racing::loadAssets(uint16_t track) {
-    if (loadedTrack_ == track && track_.loaded()) return;
+    if (loadedTrack_ == track)
+        return;
     unloadAssets();
     loadedTrack_ = track;
     const char* names[] = {"screwball_stadium", "screwball_stadium_rev", "rustic_raceway",
@@ -21,14 +22,17 @@ void Racing::loadAssets(uint16_t track) {
     const char* name = names[index];
     char path[128];
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/racing/%s.ttm", name);
-    track_.load(path);
-    kart_.load("sdmc:/3ds/toontown3ds/data/racing/kart_default.ttm");
-    pad_.load("sdmc:/3ds/toontown3ds/data/racing/kart_pad.ttm");
+    assetBatch_.load(track_, path);
+    assetBatch_.load(kart_, "sdmc:/3ds/toontown3ds/data/racing/kart_default.ttm");
+    assetBatch_.load(pad_, "sdmc:/3ds/toontown3ds/data/racing/kart_pad.ttm");
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/racing/%s.ttc", name);
     collision_.load(path);
 }
 
 void Racing::unloadAssets() {
+    // A network event may replace resources before this frame's GPU fence.
+    if (track_.loaded() || kart_.loaded() || pad_.loaded()) C3D_FrameSync();
+    assetBatch_.clear();
     track_.unload(); kart_.unload(); pad_.unload(); collision_.unload(); loadedTrack_ = 0xffff;
 }
 
@@ -42,7 +46,7 @@ void Racing::handleEvent(const net::Event& ev, const net::Client& client) {
         snprintf(hudTitle_, sizeof(hudTitle_), "Goofy Speedway");
     } else if (ev.type == net::EventType::RacingPadUp) {
         active_ = true;
-        pad_.load("sdmc:/3ds/toontown3ds/data/racing/kart_pad.ttm");
+        assetBatch_.load(pad_, "sdmc:/3ds/toontown3ds/data/racing/kart_pad.ttm");
     } else if (ev.type == net::EventType::RacingGone) {
         if (race_ == ev.doId) { race_ = 0; finished_ = false; }
     }

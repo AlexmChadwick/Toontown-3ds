@@ -10,6 +10,7 @@
 // - Ring (DistributedRingGame, id 5)
 // Any other game is aborted at once with requestExit, which the AI pays 1..7 jellybeans for (trolley.md 2.6).
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -41,6 +42,32 @@ namespace tt::game {
 
 class MinigameSession {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+        cannon_.pumpAssets();
+        tug_.pumpAssets();
+        ring_.pumpAssets();
+        maze_.pumpAssets();
+        pairing_.pumpAssets();
+        diving_.pumpAssets();
+        vine_.pumpAssets();
+        target_.pumpAssets();
+        cogThief_.pumpAssets();
+        twoD_.pumpAssets();
+        tag_.pumpAssets();
+        pattern_.pumpAssets();
+        ice_.pumpAssets();
+        race_.pumpAssets();
+        photo_.pumpAssets();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading() || cannon_.loadingAssets() || tug_.loadingAssets() ||
+               ring_.loadingAssets() || maze_.loadingAssets() || pairing_.loadingAssets() ||
+               diving_.loadingAssets() || vine_.loadingAssets() || target_.loadingAssets() ||
+               cogThief_.loadingAssets() || twoD_.loadingAssets() || tag_.loadingAssets() ||
+               pattern_.loadingAssets() || ice_.loadingAssets() || race_.loadingAssets() ||
+               photo_.loadingAssets();
+    }
     static constexpr int kMaxLive = 24; // falling objects on screen at once
 
     void shutdown();
@@ -73,6 +100,7 @@ public:
     const char* line(int i) const;
 
 private:
+    world::BasicAssetBatch<32> assetBatch_;
     enum class Phase : u8 { Off, Joining, Rules, WaitStart, Play, Done, Purchase, Leaving };
     struct Live {
         int num = -1;     // drop index (objNum)

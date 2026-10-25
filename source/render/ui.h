@@ -1,3 +1,4 @@
+#include "render/text_cache.h"
 // Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
 #pragma once
 
@@ -167,6 +168,7 @@ private:
     float mapMinX_ = 0, mapMinY_ = 0, mapMaxX_ = 1, mapMaxY_ = 1;
     unsigned mapW_ = 0, mapH_ = 0;
 
+    render::TextCache textCache_;
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames

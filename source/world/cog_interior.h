@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 
@@ -11,6 +12,12 @@ namespace tt::world {
 
 class CogInterior {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     void handleEvent(const net::Event& ev, net::Client& client, uint32_t nowMs);
     void update(net::Client& client, uint32_t nowMs);
     void draw(render::Renderer& renderer) const;
@@ -23,6 +30,8 @@ public:
     bool battleTarget(const net::Client& client, uint32_t* doId, float* x, float* y, float* z, float* h) const;
 
 private:
+    BasicAssetBatch<2> assetBatch_;
+    int loadedFloor_ = -1;
     void loadFloor(int floor);
     bool active_ = false;
     uint32_t zoneId_ = 0;

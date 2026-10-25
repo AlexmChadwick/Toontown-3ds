@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 
@@ -16,6 +17,12 @@ public:
     void update(net::Client& client, const Input& input, float dt, float x, float y, float z, uint32_t nowMs);
     void draw(render::Renderer& renderer, const net::Client& client) const;
     void shutdown();
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     bool active() const { return active_; }
     bool driving() const { return race_ != 0 && !finished_; }
     const CollisionWorld* collision() const { return collision_.loaded() ? &collision_ : nullptr; }
@@ -28,6 +35,7 @@ public:
     const char* hudLine(int i) const { return i >= 0 && i < 3 ? hudLines_[i] : ""; }
 
 private:
+    BasicAssetBatch<8> assetBatch_;
     void loadAssets(uint16_t track);
     void unloadAssets();
     render::Model track_;
@@ -38,7 +46,7 @@ private:
     float x_ = 0, y_ = 0, z_ = 0, h_ = 0, speed_ = 0;
     uint8_t lap_ = 0, place_ = 1;
     bool active_ = false, finished_ = false, spawned_ = false;
-    uint16_t loadedTrack_ = 0;
+    uint16_t loadedTrack_ = 0xffff;
     char hudTitle_[32] = {};
     char hudLines_[3][48] = {};
 };

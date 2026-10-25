@@ -37,9 +37,10 @@ public:
     // True on the first frame the main loop sees each step (a long frame cannot skip it).
     bool stepBegan() const { return active_ && ready_ && stepFrames_ == 1; }
     // Non-null for one frame when the script wants a screenshot.
-    const char* pendingShot() const { return pendingShot_; }
+    const char* pendingShot() const { return shotsEnabled_ ? pendingShot_ : nullptr; }
 
 private:
+    bool shotsEnabled_ = true;
     bool active_ = false;
     bool frontEnd_ = false;
     const Step* script_ = nullptr;

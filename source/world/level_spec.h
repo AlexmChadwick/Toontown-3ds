@@ -56,6 +56,10 @@ public:
     // Spec entities of one room (binary search); synthetic ones via findSynthetic. The
     // overloads without a room look in room 0 (single-level specs).
     const LevelEntity* find(int room, uint32_t entId) const;
+    const LevelEntity *findReference(int room, uint32_t entId) const;
+    uint32_t revision() const {
+        return revision_;
+    }
     const LevelEntity* find(uint32_t entId) const { return find(0, entId); }
     const LevelEntity* findSynthetic(int room, const char* type, uint32_t id) const;
     const LevelEntity* findSynthetic(const char* type, uint32_t id) const { return findSynthetic(0, type, id); }
@@ -99,6 +103,15 @@ private:
     const Attr* attr(const LevelEntity& e, const char* name) const;
     void place(Room& r, const float placement[12]);
 
+    struct FindEntry {
+        uint32_t entity = 0;
+        int room = -1;
+        const LevelEntity *result = nullptr;
+    };
+    static constexpr int kFindBits = 8;
+    static constexpr int kFindEntries = 1 << kFindBits;
+    mutable FindEntry findCache_[kFindEntries];
+    uint32_t revision_ = 0;
     Room rooms_[kMaxRooms];
     int numRooms_ = 0;
     int numEntities_ = 0;

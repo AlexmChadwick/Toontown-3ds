@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class IceGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     IceGame() = default;
 
     bool init(const char* root);
@@ -31,6 +38,7 @@ public:
     void onSetMatchAndRound(uint8_t match, uint8_t round);
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     icegame::Simulation sim_;
     enum class State {
         Aiming,

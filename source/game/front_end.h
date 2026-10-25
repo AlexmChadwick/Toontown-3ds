@@ -1,3 +1,4 @@
+#include "render/text_cache.h"
 // Front end: Title -> connect/login -> Pick-a-Toon -> Make-a-Toon -> enter the playground.
 // Bottom screen: touch buttons (D-pad + A/B also work). Top screen: a 3D preview of the
 // selected/edited toon with a title overlay.
@@ -103,6 +104,7 @@ private:
     world::ToonAvatar preview_;
     float previewSpin_ = 0.0f;
     float time_ = 0.0f;
+    render::TextCache textCache_;
     C2D_TextBuf textBuf_ = nullptr;
 };
 

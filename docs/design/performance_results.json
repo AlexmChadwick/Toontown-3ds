@@ -1,0 +1,88 @@
+{
+  "date": "2026-10-25",
+  "branch": "perf",
+  "base": "aae224c",
+  "native_run": false,
+  "native_targets_verified": false,
+  "build": "PASS; zero source warnings; third-party crtn.o linker stack note",
+  "regressions": {
+    "cannon_test": 0,
+    "catch_test": 0,
+    "cog_thief_test": 0,
+    "diving_test": 0,
+    "golf_test": 0,
+    "ice_test": 0,
+    "maze_test": 0,
+    "pairing_test": 0,
+    "pattern_test": 0,
+    "photo_test": 0,
+    "race_test": 0,
+    "ring_test": 0,
+    "tag_test": 0,
+    "target_test": 0,
+    "tug_test": 0,
+    "two_d_test": 0,
+    "vine_test": 0,
+    "battle_fx": 0,
+    "battle_cam": 0,
+    "book": 0,
+    "fishing": 0,
+    "level_games": 0,
+    "anim": 0,
+    "factory": 0,
+    "estate": 0,
+    "racing": 0,
+    "facility": 0,
+    "toon_dna": 0,
+    "zone": 0,
+    "shop": 0,
+    "cogbldg": 0,
+    "tailor": 0,
+    "cchar": 0,
+    "nettest": 0,
+    "name": 0,
+    "suit": 77,
+    "collision": 0,
+    "transition": 0,
+    "boss": 0,
+    "cogdo": 0,
+    "clerks": 0,
+    "interiorlife": 0
+  },
+  "unavailable_reason": "Suit ground truth needs missing tools/server/.venv Panda3D fork (panda3d.toontown).",
+  "perf_harness": "PASS",
+  "host_benchmark_output": "[14:06:48.615] prof: [test hitch] hitch total 125.00 busy 125.00 ms largest loads 125.00\nExclusive profiler, early-owner tail, names and busy/wait accounting PASS\nStatic geometry binds in the same trace: 128 -> 1 PASS\ndequantizeWorld ns/draw: before 8.77 after 5.40 speedup 1.62x; 10000 equivalence cases PASS\n128 shared-model instances, same ordered batches: tint uploads 128 -> 1, texture states 128 -> 1 PASS\nUnchanged 80-label frames: parses 800000 -> 80; exact lookup 34.86 ns/string; collision/full/reset/UTF-8 PASS; key bytes 26116\nCogdo stable nearest-six ns/frame: before 293.0 after 125.3 speedup 2.34x; 10000 exact tie/health cases PASS; distance evaluations <=384 -> <=64\nActual TextCache wrapper: 640000 -> 64 parses; buffer-full generations, changing content, UTF-8 and uncached long text PASS (stub font backend)\n[14:06:51.319] assets: batch failed bad.tta\nAssetBatch 160 destinations: direct main-thread loads 160 -> 0, peak staging 4, admissions/publications spread over 41 frames; cancellation/failure/full/reuse PASS; descriptor bytes 21768\nFacility 128-entity draw preparation ns/frame: before 7346.6 after 304.8 speedup 24.10x; exact lookup/collision/matrix/reload/append PASS; draw data 84 B/entity, LevelSpec 5136 B\nOK: 405 grid points, 0 failures\n[14:07:02.628] autotest: start world script (159 steps)\n[14:07:02.629] autotest: start world script (159 steps)\n[14:07:02.630] autotest: start world script (159 steps)\n[14:07:02.630] autotest: start world script (159 steps)\n[14:07:02.630] autotest: step 1 'run forward'\n[14:07:02.630] autotest: step 1 'run forward'\n[14:07:02.630] autotest: finished\n[14:07:02.630] autotest: finished\nActual autotest parser: capture-off getter, default capture and repeated begin reset PASS\n",
+  "elf_bytes": {
+    "before": {
+      "text": 1664592,
+      "data": 56380,
+      "bss": 908832,
+      "total": 2629804
+    },
+    "after": {
+      "text": 1704432,
+      "data": 100180,
+      "bss": 968840,
+      "total": 2773452
+    }
+  },
+  "main_prologue_stack_bytes": {
+    "before": 18144,
+    "after": 77552,
+    "reservation": 262144
+  },
+  "runtime_peak_bytes": {
+    "before": null,
+    "after": null
+  },
+  "reservations_bytes": {
+    "heap": 25165824,
+    "linear": 25165824,
+    "vram_capacity": 6291456
+  },
+  "binary_sha256": {
+    "sdmc-out/perf/profile-baseline.3dsx": "3a0f6f7ae0ec80753a63169681afa437283320172a4ff6ad23417063048898c3",
+    "sdmc-out/perf/optimized.3dsx": "b4072d571b1db5ca32fbbf8060407e63095884a9af799b54248832465783dd1d"
+  },
+  "ab_baseline": "aae224c + 5b3ad75 instrumentation only + identical capture-off parser"
+}

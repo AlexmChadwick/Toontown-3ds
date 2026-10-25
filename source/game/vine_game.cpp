@@ -30,9 +30,9 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
     char path[96];
     std::snprintf(path, sizeof(path), "%svine_game.ttm", kDir);
-    jungleModel_.load(path);
+    assetBatch_.load(jungleModel_, path);
     std::snprintf(path, sizeof(path), "%svine_shelf.ttm", kDir);
-    shelfModel_.load(path);
+    assetBatch_.load(shelfModel_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Vine: 1 / 20");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Bananas: 0  (Time: 70 s)");
@@ -40,6 +40,7 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void VineGame::shutdown() {
+    assetBatch_.clear();
     jungleModel_.unload();
     shelfModel_.unload();
     done_ = true;

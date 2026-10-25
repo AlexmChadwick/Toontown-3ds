@@ -1,3 +1,4 @@
+#include "world/level_draw_data.h"
 // Facility room games runtime (docs/design/level_games.md):
 //   1. Laser fields (DistributedLaserField) & Security cameras (DistributedSecurityCamera)
 //   2. Crates (DistributedCrate) on grids (DistributedGrid) & Crushers (DistributedCrusherEntity)
@@ -12,11 +13,12 @@
 #include <cstring>
 
 #ifdef __3DS__
-#include <3ds.h>
 #include "audio/audio.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
+#include "world/asset_batch.h"
+#include <3ds.h>
 #endif
 
 namespace tt::world {
@@ -134,6 +136,12 @@ inline void calcGolfSpot(int spotIndex, float outPos[3]) {
 
 class LevelGames {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     void loadProps();
     void shutdown();
 
@@ -155,6 +163,7 @@ public:
     bool nearestGolfGreen(const Level& level, float x, float y, float z, float* outX, float* outY, float* outZ) const;
 
 private:
+    BasicAssetBatch<16> assetBatch_;
     bool propsLoaded_ = false;
 
     // Models:
@@ -197,6 +206,9 @@ private:
     void updateGolf(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs);
 
     struct SlotState {
+        const LevelEntity *drawEntity = nullptr;
+        uint32_t drawRevision = 0;
+        LevelDrawData draw;
         // Laser
         int8_t lastTileX = -1, lastTileY = -1;
         bool toonInLaser = false;

@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class RaceGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     RaceGame() = default;
 
     bool init(const char* root);
@@ -32,6 +39,7 @@ public:
     void onSetServerChoices(const uint8_t* choices, const uint8_t* positions, const int16_t* rewards, int count);
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     racegame::Simulation sim_;
     int selectedChoice_ = 1;
     bool choiceSubmitted_ = false;

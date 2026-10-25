@@ -14,12 +14,13 @@ bool PatternGame::init(const char* root) {
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/pattern_stage.ttm", root);
-    stageModel_.load(path);
+    assetBatch_.load(stageModel_, path);
 
     return true;
 }
 
 void PatternGame::shutdown() {
+    assetBatch_.clear();
     stageModel_.unload();
 }
 

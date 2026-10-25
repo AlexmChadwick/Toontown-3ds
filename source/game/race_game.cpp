@@ -13,12 +13,13 @@ bool RaceGame::init(const char* root) {
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/race_track.ttm", root);
-    trackModel_.load(path);
+    assetBatch_.load(trackModel_, path);
 
     return true;
 }
 
 void RaceGame::shutdown() {
+    assetBatch_.clear();
     trackModel_.unload();
 }
 

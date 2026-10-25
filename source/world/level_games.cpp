@@ -131,27 +131,27 @@ void LevelGames::loadProps() {
 
     // Models:
     snprintf(path, sizeof(path), "%scrate_wood.ttm", kPropsDir);
-    crateWood_.load(path);
+    assetBatch_.load(crateWood_, path);
     snprintf(path, sizeof(path), "%scrate_cbwood.ttm", kPropsDir);
-    crateCbWood_.load(path);
+    assetBatch_.load(crateCbWood_, path);
     snprintf(path, sizeof(path), "%sgrid_floor.ttm", kPropsDir);
-    gridFloor_.load(path);
+    assetBatch_.load(gridFloor_, path);
 
     snprintf(path, sizeof(path), "%smole_hole.ttm", kPropsDir);
-    moleHole_.load(path);
+    assetBatch_.load(moleHole_, path);
     snprintf(path, sizeof(path), "%smole_norm.ttm", kPropsDir);
-    moleNorm_.load(path);
+    assetBatch_.load(moleNorm_, path);
     snprintf(path, sizeof(path), "%smole_cog.ttm", kPropsDir);
-    moleCog_.load(path);
+    assetBatch_.load(moleCog_, path);
     snprintf(path, sizeof(path), "%smole_hit.ttm", kPropsDir);
-    moleHit_.load(path);
+    assetBatch_.load(moleHit_, path);
 
     snprintf(path, sizeof(path), "%sgolf_hole.ttm", kPropsDir);
-    golfHole_.load(path);
+    assetBatch_.load(golfHole_, path);
     snprintf(path, sizeof(path), "%sgolf_ball.ttm", kPropsDir);
-    golfBall_.load(path);
+    assetBatch_.load(golfBall_, path);
     snprintf(path, sizeof(path), "%sgoon_cone.ttm", kPropsDir);
-    goonCone_.load(path);
+    assetBatch_.load(goonCone_, path);
 
     // Crate box
     snprintf(path, sizeof(path), "%scrate.box", kPropsDir);
@@ -184,6 +184,7 @@ void LevelGames::loadProps() {
 }
 
 void LevelGames::shutdown() {
+    assetBatch_.clear();
     propsLoaded_ = false;
     // loadProps loads these again on the next facility: free them, or each visit leaks
     // kSfxCount of the kMaxSfx audio slots.
@@ -259,6 +260,17 @@ void LevelGames::update(net::Client& client, Level& level, float toonX, float to
     toonY_ = toonY;
     toonZ_ = toonZ;
     nowMs_ = nowMs;
+
+    for (int index = 0; index < net::kMaxLevelEntities; ++index) {
+        const auto &object = client.levelEntitySlot(index);
+        const auto *entity = object.active ? level.specOf(object.levelDoId, object.entId) : nullptr;
+        auto &slot = slots_[index];
+        if (entity && (slot.drawEntity != entity || slot.drawRevision != level.spec_.revision())) {
+            slot.draw = prepareLevelDraw(level.spec_, *entity);
+            slot.drawEntity = entity;
+            slot.drawRevision = level.spec_.revision();
+        }
+    }
 
     addSolids(level);
 
@@ -618,10 +630,12 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
         // 1. Laser fields
         if (d.classId == dc::DistributedLaserField::kClassId) {
             if (d.activeLF && gridFloor_.loaded()) {
-                const float scaleX = level_->spec_.number(*e, "gridScaleX", d.gridNumX > 0 ? float(d.gridNumX) : 8.0f);
-                const float scaleY = level_->spec_.number(*e, "gridScaleY", d.gridNumY > 0 ? float(d.gridNumY) : 8.0f);
+                const float scaleX =
+                    slot.draw.hasGridX ? slot.draw.gridX : (d.gridNumX > 0 ? float(d.gridNumX) : 8.0f);
+                const float scaleY =
+                    slot.draw.hasGridY ? slot.draw.gridY : (d.gridNumY > 0 ? float(d.gridNumY) : 8.0f);
                 C3D_Mtx m;
-                toMtxLocal(e->world, &m);
+                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                 // Float slightly above floor to prevent depth fighting (upstream DistributedLaserField: zFloat = 0.05)
                 Mtx_Translate(&m, scaleX * 0.5f, scaleY * 0.5f, 0.08f, true);
                 Mtx_Scale(&m, scaleX / 6.24f, scaleY / 6.24f, 1.0f);
@@ -630,7 +644,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 // Overhead laser hazard cones
                 if (goonCone_.loaded()) {
                     C3D_Mtx cm;
-                    toMtxLocal(e->world, &cm);
+                    std::memcpy(cm.m, slot.draw.matrix, sizeof(cm.m));
                     Mtx_Translate(&cm, scaleX * 0.5f, scaleY * 0.5f, 25.0f, true);
                     Mtx_RotateX(&cm, 180.0f * kDegToRad, true);
                     Mtx_Scale(&cm, scaleX * 0.25f, scaleY * 0.25f, 25.0f / 3.5f);
@@ -644,7 +658,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
         else if (d.classId == dc::DistributedSecurityCamera::kClassId) {
             if (goonCone_.loaded()) {
                 C3D_Mtx m;
-                toMtxLocal(e->world, &m);
+                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                 Mtx_Translate(&m, slot.trackX, slot.trackY, 0.0f, true);
                 Mtx_Scale(&m, 0.5f, 0.5f, 1.0f);
                 renderer.drawModel(const_cast<render::Model&>(goonCone_), m);
@@ -652,14 +666,14 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
         }
         // 3. Crates
         else if (d.classId == dc::DistributedCrate::kClassId) {
-            const bool mintStyle = level_->spec_.integer(*e, "modelType", 0) == 1;
+            const bool mintStyle = slot.draw.modelType == 1;
             render::Model& mdl = mintStyle && crateCbWood_.loaded() ? const_cast<render::Model&>(crateCbWood_)
                                                                     : const_cast<render::Model&>(crateWood_);
             if (mdl.loaded()) {
                 C3D_Mtx m;
-                toMtxLocal(e->world, &m);
+                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                 Mtx_Translate(&m, slot.curPos[0], slot.curPos[1], slot.curPos[2], true);
-                const float scale = level_->spec_.number(*e, "scale", 1.0f);
+                const float scale = slot.draw.scale;
                 Mtx_Scale(&m, scale, scale, scale * (d.crushed ? 0.1f : 1.0f));
                 renderer.drawModel(mdl, m);
             }
@@ -675,7 +689,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                     const float hy = (row - 1.5f) * kSpacing;
 
                     C3D_Mtx m;
-                    toMtxLocal(e->world, &m);
+                    std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                     Mtx_Translate(&m, hx, hy, 0.08f, true);
                     renderer.drawModel(const_cast<render::Model&>(moleHole_), m);
 
@@ -703,7 +717,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                     float spot[3];
                     games_logic::calcGolfSpot(s, spot);
                     C3D_Mtx m;
-                    toMtxLocal(e->world, &m);
+                    std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                     // Float slightly above green floor to avoid coplanar depth clipping
                     Mtx_Translate(&m, spot[0], spot[1], spot[2] + 0.08f, true);
                     Mtx_Scale(&m, 2.0f, 2.0f, 1.0f);
@@ -719,7 +733,7 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 static const float kCups[3][2] = {{0.0f, 35.0f}, {-4.0f, 45.0f}, {4.0f, 45.0f}};
                 for (int c = 0; c < 3; ++c) {
                     C3D_Mtx cm;
-                    toMtxLocal(e->world, &cm);
+                    std::memcpy(cm.m, slot.draw.matrix, sizeof(cm.m));
                     Mtx_Translate(&cm, kCups[c][0], kCups[c][1], 0.08f, true);
                     Mtx_Scale(&cm, 2.5f, 2.5f, 1.0f);
                     renderer.drawModel(const_cast<render::Model&>(golfHole_), cm);

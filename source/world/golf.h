@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -13,6 +14,12 @@ class GolfSession {
 public:
     void shutdown();
     void begin(net::Client& client, uint32_t zone, int8_t courseId, uint32_t nowMs);
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     bool active() const { return active_; }
     void handleEvent(const net::Event& ev, net::Client& client, uint32_t nowMs);
     void update(net::Client& client, const circlePosition& pad, uint32_t keysDown, float dt, uint32_t nowMs);
@@ -26,6 +33,7 @@ public:
     const char* line(int i) const { return i >= 0 && i < 3 ? lines_[i] : ""; }
 
 private:
+    BasicAssetBatch<4> assetBatch_;
     void loadHole(int holeId);
     void setText();
 

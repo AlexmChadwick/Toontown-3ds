@@ -1,4 +1,5 @@
 #include "world/ceo_battle.h"
+#include "core/profile.h"
 #include "world/boss_battle.h"
 
 #include <algorithm>
@@ -940,6 +941,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     }
 
     frame.renderer.endWorld();
+    prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
 
     ui::Context context{};
@@ -968,6 +970,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
+    if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
 
     // Damage bar across bottom of touch screen:
@@ -1025,9 +1028,13 @@ bool CeoBattle::frame(BossFrame& frame) {
         }
     }
 
+    prof::lap(prof::kBossUpdate);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    prof::lap(prof::kWait);
     frame.cache.pump();
+    frame.suits.pumpAssets();
 
+    prof::lap(prof::kLoads);
     if (frame.shot) {
         char path[128];
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", frame.shot);
@@ -1035,15 +1042,20 @@ bool CeoBattle::frame(BossFrame& frame) {
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", frame.shot);
         shot::dumpTarget(frame.bottom, path);
         frame.shot = nullptr;
+        prof::lap(prof::kCapture);
     }
 
     assets_.pump(ceoClip(state, nowMs));
     assets_.clipTime += frame.dt;
+    prof::lap(prof::kLoads);
     draw(frame, state, nowMs);
 
     frame.commandUsage = C3D_GetCmdBufUsage();
+    prof::lap(prof::kBottomUi);
     C3D_FrameEnd(0);
+    prof::lap(prof::kFrameEnd);
     audio::update();
+    prof::lap(prof::kAudio);
     return true;
 }
 

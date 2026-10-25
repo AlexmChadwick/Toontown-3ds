@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -14,6 +15,12 @@ namespace tt::game {
 
 class TugGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     void init(net::Client& client, uint32_t nowMs, bool autoPlay);
     void shutdown();
     void update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs);
@@ -28,6 +35,7 @@ public:
     bool isDone() const { return done_; }
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     enum class State : uint8_t { WaitGo, Tugging, ContestOver };
 
     State state_ = State::WaitGo;

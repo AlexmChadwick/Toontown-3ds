@@ -1,3 +1,4 @@
+#include "core/nearest.h"
 #include "render/ui.h"
 
 #include "ui/gag_data.h"
@@ -66,6 +67,7 @@ u32 colorOf(int idx) {
 bool Ui::init() {
     if (!serviceClerks_.init()) return false; // clerks
 
+    textCache_.clear();
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
@@ -121,8 +123,7 @@ void Ui::text(float x, float y, float scale, u32 color, const char* fmt, ...) {
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     C2D_Text t;
-    C2D_TextParse(&t, textBuf_, buf);
-    C2D_TextOptimize(&t);
+    textCache_.parse(&t, textBuf_, buf, 1024);
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.5f, scale, scale, color);
 }
 
@@ -215,7 +216,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
 void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     frame_++;
-    C2D_TextBufClear(textBuf_);
+    // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
     if (serviceClerks_.active()) { // clerks
@@ -559,11 +560,18 @@ void Ui::drawDebug(const Context& c) {
                   static_cast<double>(prof::busyAvgMs()), static_cast<double>(prof::totalAvgMs()),
                   static_cast<double>(prof::avgMs(prof::kWait)));
         constexpr int kProfRows = 6;
-        for (int i = 0; i < prof::kCount; i++) {
-            const float ms = prof::avgMs(static_cast<prof::Section>(i));
-            const bool hot = ms > 4.0f && i != prof::kWait;
-            debugLine(8 + (i / kProfRows) * 106, 143 + (i % kProfRows) * 10, 0.34f, hot ? bad : kWhite, "%-6s %5.2f",
-                      prof::name(static_cast<prof::Section>(i)), static_cast<double>(ms));
+        constexpr int kProfSlots = 18; // three columns within the 320px screen
+        int selected[kProfSlots];
+        nearestIndices(prof::kCount,
+            [](int index) { return index != prof::kWait; },
+            [](int index) { return -prof::avgMs(static_cast<prof::Section>(index)); },
+            0.0f, selected);
+        for (int slot=0;slot<kProfSlots;++slot) {
+            const int index=selected[slot];
+            if (index<0) continue;
+            const float ms=prof::avgMs(static_cast<prof::Section>(index));
+            debugLine(8+(slot/kProfRows)*106,143+(slot%kProfRows)*10,.34f,ms>4?bad:kWhite,"%-6s %5.2f",
+                      prof::name(static_cast<prof::Section>(index)),static_cast<double>(ms));
         }
         debugLine(8, 199, 0.34f, kDim, "%s", log::recent(0));
     }

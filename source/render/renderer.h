@@ -6,11 +6,15 @@
 #include <citro3d.h>
 
 #include "render/anim.h"
+#include "render/hot_paths.h"
 #include "render/model.h"
 
 namespace tt::render {
 
 struct FrameStats {
+    u32 uniformUploads = 0; // API uploads, including matrices
+    u32 textureBinds = 0;
+    u32 bufferBinds = 0;
     u32 drawCalls = 0;
     u32 triangles = 0;
     u32 modelsDrawn = 0;
@@ -95,6 +99,7 @@ private:
     C3D_FVec eye_{};
     C3D_FVec frustum_[6]{}; // world-space planes (xyz normal, w distance), inside >= 0
     FrameStats stats_{};
+    BatchState batchState_{};
 };
 
 } // namespace tt::render

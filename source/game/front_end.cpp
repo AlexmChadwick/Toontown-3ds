@@ -106,6 +106,7 @@ void FrontEnd::randomizePatternName() {
 
 bool FrontEnd::init(world::ToonCache* cache) {
     cache_ = cache;
+    textCache_.clear();
     textBuf_ = C2D_TextBufNew(4096);
     setPreviewDna(world::defaultToonDna());
     preview_.play(world::kAnimWave, 1.0f);
@@ -153,15 +154,13 @@ void FrontEnd::text(float x, float y, float scale, u32 color, const char* fmt, .
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     C2D_Text t;
-    C2D_TextParse(&t, textBuf_, buf);
-    C2D_TextOptimize(&t);
+    textCache_.parse(&t, textBuf_, buf, 4096);
     C2D_DrawText(&t, C2D_WithColor | C2D_WordWrap, x, y, 0.5f, scale, scale, color, kW - x - 8.0f);
 }
 
 void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char* s) {
     C2D_Text t;
-    C2D_TextParse(&t, textBuf_, s);
-    C2D_TextOptimize(&t);
+    textCache_.parse(&t, textBuf_, s, 4096);
     float w, h;
     C2D_TextGetDimensions(&t, scale, scale, &w, &h);
     C2D_DrawText(&t, C2D_WithColor, b.x + (b.w - w) * 0.5f, b.y + (b.h - h) * 0.5f, 0.5f, scale, scale, color);
@@ -626,7 +625,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     renderer.endWorld();
 
     C2D_Prepare();
-    C2D_TextBufClear(textBuf_);
+    // Persistent glyph cache: unchanged strings require no layout work.
     C2D_SceneBegin(renderer.topLeft());
     const u32 kShadow = C2D_Color32(0x10, 0x20, 0x50, 0xA0);
     const char* title = nullptr;
@@ -639,8 +638,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     case Screen::Error: title = "Uh-oh!"; break;
     }
     C2D_Text t;
-    C2D_TextParse(&t, textBuf_, title);
-    C2D_TextOptimize(&t);
+    textCache_.parse(&t, textBuf_, title, 4096);
     float tw, th;
     C2D_TextGetDimensions(&t, 0.9f, 0.9f, &tw, &th);
     C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f + 2, 10, 0.5f, 0.9f, 0.9f, kShadow);
@@ -649,8 +647,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
         const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
         if (pa) {
             C2D_Text n;
-            C2D_TextParse(&n, textBuf_, pa->name);
-            C2D_TextOptimize(&n);
+            textCache_.parse(&n, textBuf_, pa->name, 4096);
             C2D_TextGetDimensions(&n, 0.7f, 0.7f, &tw, &th);
             C2D_DrawText(&n, C2D_WithColor, (400.0f - tw) * 0.5f, 200, 0.5f, 0.7f, 0.7f, kWhite);
 
@@ -671,16 +668,14 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             }
             if (statusStr) {
                 C2D_Text st;
-                C2D_TextParse(&st, textBuf_, statusStr);
-                C2D_TextOptimize(&st);
+                textCache_.parse(&st, textBuf_, statusStr, 4096);
                 C2D_TextGetDimensions(&st, 0.5f, 0.5f, &tw, &th);
                 C2D_DrawText(&st, C2D_WithColor, (400.0f - tw) * 0.5f, 220, 0.5f, 0.5f, 0.5f, statusCol);
             }
         }
     } else if (screen_ == Screen::Make) {
         C2D_Text n;
-        C2D_TextParse(&n, textBuf_, currentName_);
-        C2D_TextOptimize(&n);
+        textCache_.parse(&n, textBuf_, currentName_, 4096);
         C2D_TextGetDimensions(&n, 0.7f, 0.7f, &tw, &th);
         C2D_DrawText(&n, C2D_WithColor, (400.0f - tw) * 0.5f, 210, 0.5f, 0.7f, 0.7f, kWhite);
     }

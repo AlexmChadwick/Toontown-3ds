@@ -1,6 +1,8 @@
 #include "world/cogdo_runtime.h"
 #include "audio/audio.h"
 #include "core/log.h"
+#include "core/nearest.h"
+#include "core/profile.h"
 #include "core/screenshot.h"
 #include "net/net_platform.h"
 #include "ui/sos_tables.h"
@@ -290,21 +292,13 @@ void CogdoRuntime::maze(BossFrame &frame, const net::CogdoState &game, uint32_t 
     }
     // Draw only the six nearest actors. Simulation and hit tests keep every suit.
     bool visible[kCogdoMazeSuits] = {};
-    for (int slot = 0; slot < 6; ++slot) {
-        int candidate = -1;
-        float closest = 1e12f;
-        for (int index = 0; index < maze_.numSuits; ++index) {
-            if (!game.suitHp[index] || visible[index])
-                continue;
-            const float distance = distanceSquared(player, maze_.suits[index].position);
-            if (distance < closest) {
-                closest = distance;
-                candidate = index;
-            }
-        }
-        if (candidate >= 0)
-            visible[candidate] = true;
-    }
+    int nearestActors[6];
+    nearestIndices(
+        maze_.numSuits, [&](int index) { return game.suitHp[index] != 0; },
+        [&](int index) { return distanceSquared(player, maze_.suits[index].position); }, 1e12f, nearestActors);
+    for (int index : nearestActors)
+        if (index >= 0)
+            visible[index] = true;
     for (int index = 0; index < maze_.numSuits; ++index) {
         const auto &suit = maze_.suits[index];
         if (!visible[index]) {
@@ -710,6 +704,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    prof::lap(prof::kCogdoDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
@@ -769,6 +764,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
     context.vramFreeKB = vramSpaceFree() / 1024;
+    if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
 }
 bool CogdoRuntime::frame(BossFrame &frame) {
@@ -835,9 +831,13 @@ bool CogdoRuntime::frame(BossFrame &frame) {
             frame.suits.removeExternal(kMazeActorBase + index);
     }
     simulate(frame, *interior, game, now);
+    prof::lap(prof::kCogdoUpdate);
     C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    prof::lap(prof::kWait);
     frame.cache.pump();
+    frame.suits.pumpAssets();
     assets_.pump();
+    prof::lap(prof::kLoads);
     if (frame.shot) {
         char path[160];
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", frame.shot);
@@ -845,11 +845,16 @@ bool CogdoRuntime::frame(BossFrame &frame) {
         std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", frame.shot);
         shot::dumpTarget(frame.bottom, path);
         frame.shot = nullptr;
+        prof::lap(prof::kCapture);
     }
+    prof::lap(prof::kLoads);
     draw(frame, *interior, game, now);
     frame.commandUsage = C3D_GetCmdBufUsage();
+    prof::lap(prof::kBottomUi);
     C3D_FrameEnd(0);
+    prof::lap(prof::kFrameEnd);
     audio::update();
+    prof::lap(prof::kAudio);
     return true;
 }
 } // namespace tt::world

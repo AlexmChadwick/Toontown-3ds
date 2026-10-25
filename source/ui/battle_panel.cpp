@@ -36,6 +36,7 @@ bool inRect(const touchPosition& t, float x, float y, float w, float h) {
 } // namespace
 
 bool BattlePanel::init() {
+    textCache_.clear();
     buf_ = C2D_TextBufNew(1024);
     return buf_ != nullptr;
 }
@@ -52,7 +53,7 @@ void BattlePanel::text(float x, float y, float scale, u32 color, const char* fmt
     vsnprintf(line, sizeof(line), fmt, ap);
     va_end(ap);
     C2D_Text t;
-    C2D_TextParse(&t, buf_, line);
+    textCache_.parse(&t, buf_, line, 1024);
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.6f, scale, scale, color);
 }
 
@@ -113,7 +114,7 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
 }
 
 void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
-    C2D_TextBufClear(buf_);
+    // Persistent glyph cache: unchanged strings require no layout work.
     C2D_DrawRectSolid(0, 0, 0.5f, kW, 240, kBg);
     text(4, 2, 0.45f, kWhite, "%s", v.status ? v.status : "");
     if (v.secondsLeft >= 0) text(286, 2, 0.5f, v.secondsLeft <= 5 ? kHpLow : kAccent, "%d", v.secondsLeft);

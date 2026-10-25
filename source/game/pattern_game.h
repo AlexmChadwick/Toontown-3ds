@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class PatternGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     PatternGame() = default;
 
     bool init(const char* root);
@@ -31,6 +38,7 @@ public:
     void onSetPattern(const uint8_t* pattern, int len);
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     patterngame::Simulation sim_;
     float timer_ = 0.0f;
     float roundTime_ = 0.0f;

@@ -1,3 +1,4 @@
+#include "render/text_cache.h"
 // Bottom-screen battle panel (replaces the tabs while the local toon is in a street battle):
 // the cogs with their HP (tap one to target it), the gag grid from our inventory, Pass / Run,
 // and the reward screen with Continue. Upstream: TownBattle's attack / target panels.
@@ -37,6 +38,7 @@ private:
     uint32_t targetFor(const world::BattleView& v, int track) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
 
+    render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;
     int target_ = 0; // index into BattleView::cogs
     world::BattleAction pending_{};

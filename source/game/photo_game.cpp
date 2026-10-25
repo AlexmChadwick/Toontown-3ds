@@ -14,14 +14,15 @@ bool PhotoGame::init(const char* root) {
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/photo_scene.ttm", root);
-    sceneModel_.load(path);
+    assetBatch_.load(sceneModel_, path);
     std::snprintf(path, sizeof(path), "%s/photo_subject.ttm", root);
-    subjectModel_.load(path);
+    assetBatch_.load(subjectModel_, path);
 
     return true;
 }
 
 void PhotoGame::shutdown() {
+    assetBatch_.clear();
     sceneModel_.unload();
     subjectModel_.unload();
 }
