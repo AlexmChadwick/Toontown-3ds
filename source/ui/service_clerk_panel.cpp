@@ -231,15 +231,17 @@ void ServiceClerkPanel::activate() {
 u32 ServiceClerkPanel::handleInput(u32 down, const touchPosition &touch) {
     if (!active_)
         return 0;
-    if (down & KEY_B)
+    // ---- padnav: the clerk pages were already button-driven; they now log like the others ----
+    if (down & KEY_B) {
+        TT_LOG("padnav: clerk activate cancel");
         cancel();
-    else if (down & KEY_A)
+    } else if (down & KEY_A) {
+        TT_LOG("padnav: clerk activate %d", selection_);
         activate();
-    else if (down & KEY_DUP)
-        choose(-1);
-    else if (down & KEY_DDOWN)
-        choose(1);
-    else if (page_ == Page::Pets && (down & (KEY_DLEFT | KEY_DRIGHT))) {
+    } else if (down & (KEY_DUP | KEY_DDOWN)) {
+        choose((down & KEY_DUP) ? -1 : 1);
+        TT_LOG("padnav: clerk focus %d", selection_);
+    } else if (page_ == Page::Pets && (down & (KEY_DLEFT | KEY_DRIGHT))) {
         name_ = (name_ + ((down & KEY_DLEFT) ? clerks::kPetNames - 1 : 1)) % clerks::kPetNames;
         dirty_ = true;
     } else if (page_ == Page::Pets && (down & KEY_Y)) {
@@ -251,6 +253,7 @@ u32 ServiceClerkPanel::handleInput(u32 down, const touchPosition &touch) {
         choose(-1);
     else if (down & KEY_R)
         choose(1);
+    // ---- end padnav ----
     if (down & KEY_TOUCH) {
         if (touch.py >= 202) {
             if (touch.px < 75)

@@ -204,6 +204,13 @@ private:
     BattleGags battleGags_{};
     FishingPanel fishingPanel_;
     Book book_;
+    // ---- padnav: button focus on the Map / Toon / Setup tabs (docs/design/pad_navigation.md) ----
+    u32 handleTabPad(u32 down, const touchPosition& touch, State& s);
+    void activateTabControl(int id, State& s);
+    void cycleWhisper(State& s);
+    FocusGroup tabFocus_{"tab"};
+    bool toonOnline_ = false; // the Toon tab's last drawn layout (ToonTasks + book, or colours)
+    // ---- end padnav ----
 };
 
 } // namespace tt::ui
