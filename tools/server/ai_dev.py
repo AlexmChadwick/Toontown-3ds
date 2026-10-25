@@ -38,8 +38,10 @@ def _patch(name, mod):
                 if self.getMoney() < 40:
                     self.b_setMoney(40)
                 self.b_setEmoteAccess([1] * 25)  # every SpeedChat emote (normally catalog unlocks)
-                if strong:  # every gag track (sound hits a whole cog group)
+                if strong:  # every gag track (sound hits a whole cog group) and the biggest pouch
                     self.b_setTrackAccess([1] * 7)
+                    if self.getMaxCarry() < 80:  # ToontownGlobals MaxCarryLimit
+                        self.b_setMaxCarry(80)
                 # Gags up to level 4 (800 exp) and a full pouch, so unattended battles can be won.
                 exp = 6000 if strong else 800
                 for track in range(len(self.experience.experience)):
