@@ -736,3 +736,30 @@ gag track; autoplay picks sound against groups).
   codes/HP, real victory/summon/promotion, loss/sadness/reconnect/second encounter,
   missing assets and eight-toon Old 3DS memory/frame/command peaks. Use autotest
   `from cj: board` for the four shot-series stages, then a manual production run.
+
+## 2026-10-24 — merges: battle cinematics, VP, room games, CFO, CJ, CEO (checkpoint)
+
+Azahar Old 3DS, muted, `AI_DEV=1 AI_DEV_STRONG=1` (+ `AI_DEV_WEAK_COGS=1` for bosses).
+
+- **Battle cinematics.** After the merge every movie shot looked at the street's origin
+  (`BattleCamera::sample` took the battle centre from `actorPos(battleId)`). With
+  `Battle::center`, trap (four rounds), lure (quicksand swallowing the lured Cog) and heal
+  movies frame the fight; the victory dance plays. Sound and drop are not yet seen.
+- **VP.** `DistributedVPElevatorAI` overrides `checkBoard` (REJECT_PROMOTION), so `ai_dev.py`
+  now patches the VP/BB/club elevator subclasses. Lobby 11100 → board →
+  `Elevator` / `Introduction` / `BattleOne`.
+  - The lobby anchor was read from SD every frame (input 30+ ms, ~15 fps); it is now read
+    once.
+  - The lone dev toon lost the Cog round: weak Cogs didn't reach boss rounds (fixed on
+    `bosses5` in `ai_dev.py`), and autoplay wasted rounds on trap and lure (now only when
+    forced). A rerun is pending.
+- **CFO.** Lobby 12100 → board → `Elevator` / `Introduction` / `BattleOne`; the same round
+  loss as the VP. The cranes are not yet reached.
+- **Room games.** Each test step goes to the game's spec position (bringing its zone into
+  view), then to the live object.
+  - Found live: the factory crate, the DA office laser field and security camera, the
+    country-club mole field and golf green. This club floor has no maze.
+  - Crates and the mole hills render.
+  - Not yet seen: the laser grid and golf holes in the shots; any game being played.
+- **CJ / CEO.** Merged; not yet run in Azahar. The CEO is Codex's checkpoint: it builds clean
+  and the net and boss tests pass.
