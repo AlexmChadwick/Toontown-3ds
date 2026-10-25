@@ -2267,4 +2267,24 @@ void Level::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     // ---- end level games ----
 }
 
+// ---- level games (world/level_games.*) ----
+bool Level::nearestEntityTransform(uint16_t classId, float x, float y, float z, float outWorld[12]) const {
+    if (!active_ || !doorClient_) return false;
+    float best = 1e30f;
+    for (int i = 0; i < net::kMaxLevelEntities; ++i) {
+        const net::LevelEntityObj& d = doorClient_->levelEntitySlot(i);
+        if (!d.active || d.classId != classId) continue;
+        const LevelEntity* e = specOf(d.levelDoId, d.entId);
+        if (!e) continue;
+        const float dx = e->world[9] - x, dy = e->world[10] - y, dz = e->world[11] - z;
+        const float dist = dx * dx + dy * dy + dz * dz;
+        if (dist < best) {
+            best = dist;
+            memcpy(outWorld, e->world, sizeof(float) * 12);
+        }
+    }
+    return best < 1e30f;
+}
+// ---- end level games ----
+
 } // namespace tt::world

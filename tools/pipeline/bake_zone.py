@@ -77,6 +77,17 @@ def write_points(root, path):
             continue
         p, h = origin.getPos(root), origin.getH(root)
         lines.append(f'{np_.getName()}_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+    # Building door origins: recorded from door collision triggers so door transitions start at the door
+    for np_ in list(root.findAllMatches('**/door_*_trigger')) + list(root.findAllMatches('**/door_trigger_*')):
+        p, h = np_.getPos(root), np_.getH(root)
+        parent = np_.getParent()
+        name = parent.getName() if not parent.isEmpty() else np_.getName()
+        if not name.startswith('sz') and not name.startswith('tb'):
+            gp = parent.getParent() if not parent.isEmpty() else None
+            if gp and not gp.isEmpty() and (gp.getName().startswith('sz') or gp.getName().startswith('tb')):
+                name = gp.getName()
+        lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+        lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     return len(lines)
