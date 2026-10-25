@@ -7,6 +7,7 @@
 
 #include "render/anim.h"
 #include "render/model.h"
+#include "render/hot_paths.h"
 
 namespace tt::render {
 
@@ -87,6 +88,7 @@ private:
     C3D_FVec eye_{};
     C3D_FVec frustum_[6]{}; // world-space planes (xyz normal, w distance), inside >= 0
     FrameStats stats_{};
+    BatchState batchState_{};
 };
 
 } // namespace tt::render
