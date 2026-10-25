@@ -10,6 +10,7 @@
 
 #include "audio/audio.h"
 #include "core/autotest.h"
+#include "core/crash.h"
 #include "core/config.h"
 #include "core/log.h"
 #include "core/memory.h"
@@ -128,6 +129,7 @@ int main() {
     gfxSet3D(false); // stereo is opt-in only
     romfsInit();
     tt::log::init();
+    tt::crash::installForThisThread(); // a CPU fault on the main thread is logged, not silent
     tt::mem::linearLockInit();
     aptHook(&gAptCookie, onApt, nullptr);
 
