@@ -51,6 +51,26 @@ def _patch(name, mod):
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate
+    elif name in _BOSS_GENERATORS:
+        if os.environ.get('AI_DEV_WEAK_COGS') != '1':
+            return
+        cls = getattr(mod, name.rsplit('.', 1)[1])
+        original = cls.generateSuits
+
+        def generateSuits(self, battleNumber):
+            result = original(self, battleNumber)
+            # Boss rounds generate both active and deferred reserve Cogs. Clamp
+            # at this boundary, after planner setup, and include maxHP: battle
+            # reserve thresholds and revives also consult it, not just currHP.
+            suits = list(result['activeSuits'])
+            suits.extend(entry[0] for entry in result['reserveSuits'])
+            for suit in suits:
+                suit.maxHP = 1
+                suit.currHP = 1
+            print('ai_dev: weak boss Cogs %s round %s count %s' %
+                  (type(self).__name__, battleNumber, len(suits)), flush=True)
+            return result
+        cls.generateSuits = generateSuits
     elif name == 'toontown.suit.DistributedSuitBaseAI':
         if os.environ.get('AI_DEV_WEAK_COGS') != '1':
             return
@@ -58,6 +78,7 @@ def _patch(name, mod):
 
         def setLevel(self, lvl=None):  # every cog spawns with 1 HP (test the end of a facility)
             orig_level(self, lvl)
+            self.maxHP = 1
             self.currHP = 1
         mod.DistributedSuitBaseAI.setLevel = setLevel
         orig_revive = mod.DistributedSuitBaseAI.useSkeleRevive
@@ -74,9 +95,11 @@ def _patch(name, mod):
 # Subclasses that override checkBoard (REJECT_PROMOTION without a Cog suit ready for promotion).
 _OWN_CHECK_BOARD = {'toontown.building.DistributedVPElevatorAI', 'toontown.building.DistributedBBElevatorAI',
                     'toontown.building.DistributedClubElevatorAI'}
+_BOSS_GENERATORS = {'toontown.suit.Distributed%sBossAI' % name
+                    for name in ('Sellbot', 'Cashbot', 'Lawbot', 'Bossbot')}
 _TARGETS = {'toontown.toonbase.ToontownAccessAI', 'toontown.building.DistributedElevatorAI',
             'toontown.building.DistributedBossElevatorAI', 'toontown.toon.DistributedToonAI',
-            'toontown.suit.DistributedSuitBaseAI'} | _OWN_CHECK_BOARD
+            'toontown.suit.DistributedSuitBaseAI'} | _OWN_CHECK_BOARD | _BOSS_GENERATORS
 
 
 class _Hook(importlib.abc.MetaPathFinder):

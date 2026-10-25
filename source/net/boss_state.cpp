@@ -74,6 +74,33 @@ bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
             next.recoverRate = reader.u8();
             next.damageStamp = reader.i16();
         }
+    } else if (named(name, "setSpeedDamage")) {
+        next.speedDamage = reader.u16();
+        next.speedRecover = reader.u8();
+        next.speedStamp = reader.i16();
+        next.speedMs = nowMs;
+    } else if (named(name, "toonGotFood") || named(name, "toonGotToonup")) {
+        const uint32_t toon = reader.u32();
+        const int8_t belt = reader.i8();
+        const int8_t slot = reader.i8();
+        const uint32_t sequence = reader.u32();
+        if (belt < 0 || belt >= 2 || slot < 0 || slot >= 4) reader.fail();
+        if (toon == ownAvatarId && named(name, "toonGotFood")) {
+            next.heldFood = true;
+            next.foodBelt = belt;
+            next.foodSlot = slot;
+            next.foodSequence = sequence;
+            ++next.foodRevision;
+        }
+    } else if (named(name, "toonServeFood")) {
+        const uint32_t toon = reader.u32();
+        const int8_t table = reader.i8();
+        const int8_t seat = reader.i8();
+        if (table < 0 || table >= 13 || seat < 0 || seat >= 8) reader.fail();
+        if (toon == ownAvatarId) {
+            next.heldFood = false;
+            ++next.foodRevision;
+        }
     } else if (named(name, "setAttackCode")) {
         next.attack = reader.u8();
         next.attackToon = reader.u32();

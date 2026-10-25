@@ -154,6 +154,11 @@ const Step kScript[] = {
     {600.0f, 0, 0, 0, 0, -1, -1, 0, "cj: rounds", "cj_rounds*"},
     {1800.0f, 0, 0, 0, 0, -1, -1, 0, "cj: court", "cj_court*"},
     {30.0f, 0, 0, 0, KEY_A, -1, -1, 0, "cj: end", "cj_end*"},
+    {45.0f, 0, 0, 0, 0, -1, -1, 0, "ceo: board", "ceo_board*"},
+    {600.0f, 0, 0, 0, 0, -1, -1, 0, "ceo: banquet", "ceo_banquet*"},
+    {600.0f, 0, 0, 0, 0, -1, -1, 0, "ceo: rounds", "ceo_rounds*"},
+    {1200.0f, 0, 0, 0, 0, -1, -1, 0, "ceo: golf", "ceo_golf*"},
+    {30.0f, 0, 0, 0, KEY_A, -1, -1, 0, "ceo: end", "ceo_end*"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);

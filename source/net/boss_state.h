@@ -66,6 +66,15 @@ struct BossState {
     bool promoted = false;
     uint16_t rewardId = 0;
     uint8_t difficulty = 0;
+    uint16_t speedDamage = 0;
+    uint8_t speedRecover = 0;
+    int16_t speedStamp = 0;
+    uint32_t speedMs = 0;
+    bool heldFood = false;
+    int8_t foodBelt = -1;
+    int8_t foodSlot = -1;
+    uint32_t foodSequence = 0;
+    uint32_t foodRevision = 0;
     uint32_t lawyers[10] = {};
     int numLawyers = 0;
     uint32_t bonusMs = 0;

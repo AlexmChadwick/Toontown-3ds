@@ -25,6 +25,7 @@ BOSS_SIGNATURE(DistributedBossCog, zapToon, "i16/10,i16/10,i16/10,i16/10,i16/10,
 
 bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& reader,
                              const uint16_t* required, uint16_t count, bool other) {
+    if (handleCeoEnter(doId, classId, reader, required, count, other)) return true;
     if (handleCjEnter(doId, classId, reader, required, count, other)) return true;
     if (handleCfoEnter(doId, classId, reader, required, count, other)) return true;
     const BossKind kind = bossKind(classId);
@@ -58,12 +59,16 @@ bool Client::handleBossEnter(uint32_t doId, uint16_t classId, DatagramReader& re
 }
 
 bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fieldId) {
+    if (handleCeoField(reader, doId, fieldId)) return true;
     if (handleCjField(reader, doId, fieldId)) return true;
     if (handleCfoField(reader, doId, fieldId)) return true;
     if (!boss_.active || boss_.doId != doId) return false;
     if (!applyBossField(boss_, fieldId, reader, now_, avatarId_)) {
         TT_LOG("boss: malformed field %u", unsigned(fieldId));
         return true;
+    }
+    if (!std::strcmp(fieldName(fieldId), "setSpeedDamage")) {
+        boss_.speedMs = timeSynced_ ? networkToLocal(boss_.speedStamp, now_) : now_;
     }
     if (!std::strcmp(fieldName(fieldId), "setBossDamage") && boss_.kind != BossKind::Cashbot) {
         boss_.damageMs = timeSynced_ ? networkToLocal(boss_.damageStamp, now_) : now_;
@@ -74,6 +79,7 @@ bool Client::handleBossField(DatagramReader& reader, uint32_t doId, uint16_t fie
 bool Client::bossOwnField(DatagramReader& reader, uint16_t fieldId) {
     if (fieldId == dc::DistributedToon::k_setNumPies) bossPies_ = reader.u16();
     else if (fieldId == dc::DistributedToon::k_setPieType) bossPieType_ = reader.u8();
+    else if (fieldId == dc::DistributedToon::k_setPinkSlips) bossPinkSlips_ = reader.u8();
     else if (fieldId == dc::DistributedToon::k_setCogSummonsEarned) {
         const Bytes values = reader.blob();
         if (values.len != sizeof(bossSummons_)) reader.fail();
@@ -162,6 +168,16 @@ bool Client::bossBattleField(Battle& battle, DatagramReader& reader, uint16_t fi
 
 void Client::positionBossBattle(Battle& battle) {
     if (!boss_.active || battle.bossId != boss_.doId) return;
+    if (boss_.kind == BossKind::Bossbot) {
+        // CEO WaiterBattle[AB]/DinerBattle[AB] offsets under BossbotBossBattle* (0,355,0).
+        battle.x = battle.bossSide ? -20 : 20;
+        battle.y = battle.bossRound == 1 ? -45 : 115;
+        battle.z = 0;
+        battle.sx = battle.x;
+        battle.sy = battle.y + 1;
+        battle.sz = 0;
+        return;
+    }
     if (boss_.kind == BossKind::Cashbot) {
         // CashbotBossBattleOnePosHpr (120,-230,0,90), local battle Y +/-25.
         battle.x = battle.bossSide ? 95 : 145;

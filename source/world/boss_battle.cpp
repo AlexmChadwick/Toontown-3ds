@@ -1,5 +1,6 @@
 #include "world/boss_battle.h"
 #include "world/cj_battle.h"
+#include "world/ceo_battle.h"
 
 #include <algorithm>
 #include <cmath>
@@ -868,6 +869,8 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
 }
 
 bool BossBattle::frame(BossFrame& frame) {
+    static CeoBattle bossbot;
+    if (bossbot.frame(frame)) return true;
     static CjBattle lawbot;
     if (lawbot.frame(frame)) return true;
     const uint32_t nowMs = net::plat::nowMs();
