@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/book_pages/book_page.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -18,6 +19,7 @@ private:
     void rebuildText(const BookDrawContext& bdc);
 
     C2D_TextBuf textBuf_ = nullptr;
+    FocusGroup focus_{"book_options"};
     int lastMusicVol_ = -1;
     int lastSfxVol_ = -1;
     int lastStress_ = -1;

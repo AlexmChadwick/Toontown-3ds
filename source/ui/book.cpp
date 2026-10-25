@@ -91,19 +91,19 @@ void Book::prevPage() {
 u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!isOpen_) return 0;
 
-    if (keysDown & KEY_START) {
+    if (keysDown & (KEY_START | KEY_B)) {
         close();
-        return KEY_START;
+        return keysDown & (KEY_START | KEY_B);
     }
 
-    if (keysDown & (KEY_L | KEY_DLEFT)) {
+    if (keysDown & KEY_L) {
         prevPage();
-        return keysDown & (KEY_L | KEY_DLEFT);
+        return KEY_L;
     }
 
-    if (keysDown & (KEY_R | KEY_DRIGHT)) {
+    if (keysDown & KEY_R) {
         nextPage();
-        return keysDown & (KEY_R | KEY_DRIGHT);
+        return KEY_R;
     }
 
     if (keysDown & KEY_TOUCH) {
@@ -131,12 +131,11 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
                 return KEY_TOUCH;
             }
         }
-        // Page content interaction
-        else {
-            u32 consumed = pages_[curPage_]->handleInput(keysDown, touch, bdc);
-            return consumed ? consumed : static_cast<u32>(KEY_TOUCH);
-        }
     }
+
+    // Page content interaction
+    u32 consumed = pages_[curPage_]->handleInput(keysDown, touch, bdc);
+    if (consumed) return consumed;
 
     return 0;
 }

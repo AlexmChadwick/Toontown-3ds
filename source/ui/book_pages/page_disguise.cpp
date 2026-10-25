@@ -41,6 +41,11 @@ constexpr u32 kCardBorder = C2D_Color32(0xB0, 0xA8, 0x98, 0xFF);
 void PageDisguise::init() {
     textBuf_ = C2D_TextBufNew(4096);
     SuitHeadAtlas::instance().init();
+    focus_.clear();
+    for (int d = 0; d < 4; d++) {
+        focus_.addItem(d, 14.0f + d * 70.0f, 20.0f, 66.0f, 18.0f);
+    }
+    focus_.setFocus(activeDept_);
 }
 
 void PageDisguise::shutdown() {
@@ -48,23 +53,20 @@ void PageDisguise::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
+    focus_.clear();
 }
 
 u32 PageDisguise::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
-    if (keysDown & KEY_TOUCH) {
-        // Check 4 department tabs at top: y = 20 .. 38
-        if (touch.py >= 20 && touch.py <= 38) {
-            for (int d = 0; d < 4; d++) {
-                const float tx = 14.0f + d * 70.0f;
-                if (touch.px >= tx && touch.px <= tx + 66.0f) {
-                    activeDept_ = d;
-                    return KEY_TOUCH;
-                }
-            }
-        }
+    if (focus_.count() == 0) init();
+    int activated = -1;
+    u32 consumed = focus_.handleInput(keysDown, touch, &activated);
+    if (activated >= 0 && activated < 4) {
+        activeDept_ = activated;
+    } else if (focus_.hasFocus() && focus_.focusedId() != activeDept_) {
+        activeDept_ = focus_.focusedId();
     }
-    return 0;
+    return consumed;
 }
 
 void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
@@ -200,6 +202,7 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
         C2D_DrawText(&promoTxt, C2D_WithColor, barX + barW - 130.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
     }
+    focus_.drawHighlight();
 }
 
 } // namespace tt::ui

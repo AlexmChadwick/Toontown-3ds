@@ -19,14 +19,15 @@ constexpr u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 constexpr u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 constexpr u32 kDim = C2D_Color32(0x78, 0x70, 0x68, 0xFF);
 
-inline bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-
 } // namespace
 
 void PageMap::init() {
     textBuf_ = C2D_TextBufNew(512);
+    focus_.clear();
+    focus_.addItem(0, 4, kHomeY, 76, kHomeH);
+    for (int i = 0; i < kNumTeleportHoods; i++) {
+        focus_.addItem(1 + i, i * kHoodW + 1, kHoodRowY, kHoodW - 2, kHoodRowH);
+    }
 }
 
 void PageMap::shutdown() {
@@ -34,25 +35,28 @@ void PageMap::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
+    focus_.clear();
 }
 
 u32 PageMap::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
-    if (!(keysDown & KEY_TOUCH) || !bdc.state) return 0;
+    if (!bdc.state) return 0;
+    if (focus_.count() == 0) init();
 
-    if (inRect(touch, 4, kHomeY, 76, kHomeH)) {
-        bdc.state->homeRequest = true;
-        return KEY_TOUCH;
-    }
-
-    if (touch.py >= kHoodRowY && touch.py < kHoodRowY + kHoodRowH) {
-        const int i = static_cast<int>(touch.px / kHoodW);
-        if (i >= 0 && i < kNumTeleportHoods) {
-            bdc.state->teleportRequest = kTeleportHoods[i];
-            return KEY_TOUCH;
+    if (bdc.ctx) {
+        for (int i = 0; i < kNumTeleportHoods; i++) {
+            const bool have = (bdc.ctx->hoodsAvailable & (1u << i)) != 0;
+            focus_.setItemEnabled(1 + i, have);
         }
     }
 
-    return 0;
+    int activated = -1;
+    u32 consumed = focus_.handleInput(keysDown, touch, &activated);
+    if (activated == 0) {
+        bdc.state->homeRequest = true;
+    } else if (activated >= 1 && activated <= kNumTeleportHoods) {
+        bdc.state->teleportRequest = kTeleportHoods[activated - 1];
+    }
+    return consumed;
 }
 
 void PageMap::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
@@ -123,6 +127,7 @@ void PageMap::draw(float x, float y, float w, float h, const BookDrawContext& bd
         C2D_DrawRectSolid(tx, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH, here ? kAccent : have ? kPanel : kBg);
         drawText(tx + 6, kHoodRowY + 6, 0.42f, here ? kBg : have ? kWhite : kDim, "%s", kHoodShort[i]);
     }
+    focus_.drawHighlight();
 }
 
 } // namespace tt::ui

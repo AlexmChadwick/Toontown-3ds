@@ -21,14 +21,21 @@ constexpr u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 constexpr u32 kGreen = C2D_Color32(0x40, 0xA8, 0x40, 0xFF);
 constexpr u32 kRed = C2D_Color32(0xC8, 0x40, 0x40, 0xFF);
 
-inline bool inBox(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-
 } // namespace
 
 void PageOptions::init() {
     textBuf_ = C2D_TextBufNew(1024);
+    focus_.clear();
+    focus_.addItem(1, 15, 30, 135, 20);   // Stereo 3D
+    focus_.addItem(2, 15, 54, 135, 20);   // Debug HUD
+    focus_.addItem(3, 15, 78, 135, 20);   // LOD Bias
+    focus_.addItem(4, 80, 102, 22, 20);   // Music -
+    focus_.addItem(5, 126, 102, 22, 20);  // Music +
+    focus_.addItem(6, 80, 126, 22, 20);   // SFX -
+    focus_.addItem(7, 126, 126, 22, 20);  // SFX +
+    focus_.addItem(8, 80, 150, 22, 20);   // Stress -
+    focus_.addItem(9, 126, 150, 22, 20);  // Stress +
+    focus_.addItem(10, 15, 176, 135, 20); // Quit Game
 }
 
 void PageOptions::shutdown() {
@@ -36,64 +43,61 @@ void PageOptions::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
+    focus_.clear();
 }
 
 u32 PageOptions::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
-    if (!(keysDown & KEY_TOUCH) || !bdc.state) return 0;
+    if (!bdc.state) return 0;
+    if (focus_.count() == 0) init();
 
-    // Stereo 3D
-    if (inBox(touch, 15, 30, 135, 20)) {
-        bdc.state->stereo = !bdc.state->stereo;
-        return KEY_TOUCH;
-    }
-    // Debug Overlay
-    if (inBox(touch, 15, 54, 135, 20)) {
-        bdc.state->debugOverlay = !bdc.state->debugOverlay;
-        return KEY_TOUCH;
-    }
-    // LOD Bias
-    if (inBox(touch, 15, 78, 135, 20)) {
-        bdc.state->lodBias = (bdc.state->lodBias == 0) ? 1 : 0;
-        return KEY_TOUCH;
-    }
-    // Music Vol [-] / [+]
-    if (inBox(touch, 80, 102, 24, 20)) {
-        bdc.state->musicVol = std::max(0, bdc.state->musicVol - 10);
-        audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 102, 24, 20)) {
-        bdc.state->musicVol = std::min(100, bdc.state->musicVol + 10);
-        audio::setMusicVolume(bdc.state->musicVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    // SFX Vol [-] / [+]
-    if (inBox(touch, 80, 126, 24, 20)) {
-        bdc.state->sfxVol = std::max(0, bdc.state->sfxVol - 10);
-        audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 126, 24, 20)) {
-        bdc.state->sfxVol = std::min(100, bdc.state->sfxVol + 10);
-        audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
-        return KEY_TOUCH;
-    }
-    // Stress Toons [-] / [+]
-    if (inBox(touch, 80, 150, 24, 20)) {
-        bdc.state->stressToons = std::max(0, bdc.state->stressToons - 8);
-        return KEY_TOUCH;
-    }
-    if (inBox(touch, 126, 150, 24, 20)) {
-        bdc.state->stressToons = std::min(64, bdc.state->stressToons + 8);
-        return KEY_TOUCH;
-    }
-    // Quit Game button
-    if (inBox(touch, 15, 176, 135, 20)) {
-        bdc.state->quitRequested = true;
-        return KEY_TOUCH;
-    }
+    int activated = -1;
+    u32 consumed = focus_.handleInput(keysDown, touch, &activated);
 
-    return 0;
+    auto adjust = [&](int id) {
+        switch (id) {
+        case 1:
+            bdc.state->stereo = !bdc.state->stereo;
+            break;
+        case 2:
+            bdc.state->debugOverlay = !bdc.state->debugOverlay;
+            break;
+        case 3:
+            bdc.state->lodBias = (bdc.state->lodBias == 0) ? 1 : 0;
+            break;
+        case 4:
+            bdc.state->musicVol = std::max(0, bdc.state->musicVol - 10);
+            audio::setMusicVolume(bdc.state->musicVol / 100.0f);
+            break;
+        case 5:
+            bdc.state->musicVol = std::min(100, bdc.state->musicVol + 10);
+            audio::setMusicVolume(bdc.state->musicVol / 100.0f);
+            break;
+        case 6:
+            bdc.state->sfxVol = std::max(0, bdc.state->sfxVol - 10);
+            audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
+            break;
+        case 7:
+            bdc.state->sfxVol = std::min(100, bdc.state->sfxVol + 10);
+            audio::setMasterVolume(bdc.state->sfxVol / 100.0f);
+            break;
+        case 8:
+            bdc.state->stressToons = std::max(0, bdc.state->stressToons - 8);
+            break;
+        case 9:
+            bdc.state->stressToons = std::min(64, bdc.state->stressToons + 8);
+            break;
+        case 10:
+            bdc.state->quitRequested = true;
+            break;
+        default:
+            break;
+        }
+    };
+
+    if (activated > 0) {
+        adjust(activated);
+    }
+    return consumed;
 }
 
 void PageOptions::rebuildText(const BookDrawContext& bdc) {
@@ -231,6 +235,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         drawText(175, 60, 0.40f, kDim, "No districts online");
         drawText(175, 78, 0.36f, kDim, "(Playing offline)");
     }
+    focus_.drawHighlight();
 }
 
 } // namespace tt::ui

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/book_pages/book_page.h"
+#include "ui/focus.h"
 
 namespace tt::ui {
 
@@ -16,6 +17,7 @@ public:
 
 private:
     C2D_TextBuf textBuf_ = nullptr;
+    FocusGroup focus_{"book_map"};
 };
 
 } // namespace tt::ui

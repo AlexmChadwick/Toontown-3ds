@@ -23,16 +23,21 @@ void PageSos::shutdown() {
         C2D_TextBufDelete(textBuf_);
         textBuf_ = nullptr;
     }
+    focus_.clear();
 }
 
 u32 PageSos::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
-    (void)bdc;
-    if (keysDown & KEY_TOUCH) {
-        // Toggle view page if > 8 cards: x = 240..300, y = 18..36
-        if (touch.px >= 240 && touch.px <= 300 && touch.py >= 18 && touch.py <= 36) {
-            viewPage_ = 1 - viewPage_;
-            return KEY_TOUCH;
+    const int totalCards = bdc.book ? bdc.book->numSosCards : 0;
+    if (totalCards > 8) {
+        if (focus_.count() == 0) {
+            focus_.addItem(0, 240.0f, 18.0f, 60.0f, 18.0f);
         }
+        int activated = -1;
+        u32 consumed = focus_.handleInput(keysDown, touch, &activated);
+        if (activated == 0) {
+            viewPage_ = 1 - viewPage_;
+        }
+        return consumed;
     }
     return 0;
 }
@@ -131,6 +136,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         C2D_DrawText(&cTxt, C2D_WithColor, cx + 4.0f, cy + 56.0f, 0.6f, 0.28f, 0.28f,
                      C2D_Color32(0x20, 0x60, 0x20, 0xFF));
     }
+    if (totalCards > 8) focus_.drawHighlight();
 }
 
 } // namespace tt::ui
