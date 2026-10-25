@@ -315,10 +315,11 @@ void buildPatternName(int16_t p1, uint8_t f1,
 
     // Upstream: parts[2] += parts.pop(3) (suffix concatenated directly to prefix)
     if (parts[3][0] != '\\0') {
-        const size_t curLen = strlen(parts[2]);
-        if (curLen < sizeof(parts[2]) - 1) {
-            strncat(parts[2], parts[3], sizeof(parts[2]) - curLen - 1);
+        size_t curLen = strlen(parts[2]);
+        for (size_t k = 0; parts[3][k] && curLen + 1 < sizeof(parts[2]); ++k) {
+            parts[2][curLen++] = parts[3][k];
         }
+        parts[2][curLen] = '\\0';
         parts[3][0] = '\\0';
     }
 
@@ -326,15 +327,17 @@ void buildPatternName(int16_t p1, uint8_t f1,
     for (int i = 0; i < 3; i++) {
         if (parts[i][0] != '\\0') {
             if (out[0] != '\\0') {
-                const size_t len = strlen(out);
+                size_t len = strlen(out);
                 if (len + 1 < outSize) {
-                    strncat(out, " ", outSize - len - 1);
+                    out[len] = ' ';
+                    out[len + 1] = '\\0';
                 }
             }
-            const size_t len = strlen(out);
-            if (len < outSize - 1) {
-                strncat(out, parts[i], outSize - len - 1);
+            size_t len = strlen(out);
+            for (size_t k = 0; parts[i][k] && len + 1 < outSize; ++k) {
+                out[len++] = parts[i][k];
             }
+            out[len] = '\\0';
         }
     }
 }
