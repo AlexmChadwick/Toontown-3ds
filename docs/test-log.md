@@ -763,3 +763,22 @@ Azahar Old 3DS, muted, `AI_DEV=1 AI_DEV_STRONG=1` (+ `AI_DEV_WEAK_COGS=1` for bo
   - Not yet seen: the laser grid and golf holes in the shots; any game being played.
 - **CJ / CEO.** Merged; not yet run in Azahar. The CEO is Codex's checkpoint: it builds clean
   and the net and boss tests pass.
+
+## 2026-10-24 — transitions (doors, tunnels, teleports) after the merge
+
+Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
+
+- **Doors.** In and out of the TTC Gag Shop (2519 ↔ 2000), and a Silly Street building
+  (2132 → 2671), run as door transitions with the fade.
+- **Teleport.** "see cog" → 2100 plays the teleport-out / in path.
+- **Tunnels: broken camera / track origin.**
+  - `move: tunnel` starts 2000 → 2132, but the camera ends up inside the terrain (all-green
+    frames).
+  - Cause: `Transition::computeTunnelOrigin` uses the `.pts` point of the trigger owner,
+    `linktunnel_tt_2132_DNARoot` at (−68.4, −202.6). The toon is in that tunnel's
+    `tunnel_trigger` at about (23, −167), about 97 units away. All TTC street tunnels show the
+    same ~97-unit offset.
+  - Upstream tracks are relative to the tunnel model's `tunnel_origin` node, not the DNA
+    root, so every zone's `.pts` needs `tunnel_origin` anchors per link tunnel (zone /
+    street bakers), then a re-bake.
+- **Not yet seen:** `move: teleport` from the map tab (cut off by the run's end).
