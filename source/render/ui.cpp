@@ -128,22 +128,73 @@ void Ui::text(float x, float y, float scale, u32 color, const char* fmt, ...) {
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.5f, scale, scale, color);
 }
 
+// ---- qafix: every full-screen panel uses the same ownership policy ----
+PanelOwner Ui::resolveOwner(bool fishing, bool info) {
+    const auto* purchase = MinigamePurchasePanel::activeInstance();
+    PanelRequests requests;
+    requests.battle = battleView_ != nullptr;
+    requests.purchase = purchase && purchase->active();
+    requests.info = info;
+    requests.talk = talk_ && talk_->locked();
+    requests.clerk = serviceClerks_.active();
+    requests.shop = shop_.active();
+    requests.tailor = tailor_.active();
+    requests.closet = closet_.active();
+    requests.fishing = fishing;
+    requests.book = book_.isOpen();
+    const PanelOwner owner = choosePanel(requests);
+    if (owner != lastOwner_) {
+        TT_LOG("panel: close owner=%s", panelName(lastOwner_));
+        TT_LOG("panel: open owner=%s", panelName(owner));
+        lastOwner_ = owner;
+    }
+    return owner;
+}
+
+void Ui::syncContext(net::Client& client, unsigned zone, bool lost, bool exclusive,
+                     bool fishing, bool info) {
+    const bool changed = contextZone_ && contextZone_ != zone;
+    contextZone_ = zone;
+    contextFishing_ = fishing;
+    contextInfo_ = info;
+    if (changed || lost || exclusive) {
+        // Cancel transactions before relinquishing them when the object still exists.
+        if (shop_.active()) { shop_.finish(true); shop_.update(client, 0); }
+        if (tailor_.active()) { tailor_.cancel(); tailor_.update(client, 0); }
+        shop_.dismiss();
+        tailor_.dismiss();
+        closet_.dismiss();
+        serviceClerks_.dismiss();
+        if (talk_) talk_->reset();
+        book_.close();
+    }
+    if (changed || lost) {
+        if (auto* purchase = MinigamePurchasePanel::activeInstance()) purchase->close();
+    }
+}
+// ---- end qafix ----
+
 u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
     return handleInput(down, hidKeysHeld() | (down & KEY_TOUCH), t, s);
 }
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
-    if (serviceClerks_.active()) return serviceClerks_.handleInput(down, t); // clerks
-    if (book_.isOpen()) {
+    // ---- qafix: input and drawing share resolveOwner ----
+    const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_);
+    if (owner == PanelOwner::Clerk) return serviceClerks_.handleInput(down, t);
+    if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.state = &s;
         return book_.handleInput(down, t, bdc);
     }
-    if (shop_.active()) return shop_.handleInput(down, t); // the shop swallows every button
-    if (tailor_.active()) return tailor_.handleInput(down, t);
-    if (closet_.active()) return closet_.handleInput(down, t);
-    if (battleView_) return battle_.handleInput(down, t, *battleView_, battleGags_);
-    if (talk_ && talk_->locked()) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Shop) return shop_.handleInput(down, t);
+    if (owner == PanelOwner::Tailor) return tailor_.handleInput(down, t);
+    if (owner == PanelOwner::Closet) return closet_.handleInput(down, t);
+    if (owner == PanelOwner::Battle) return battle_.handleInput(down, t, *battleView_, battleGags_);
+    if (owner == PanelOwner::Talk) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
+    if (owner == PanelOwner::Fishing) return down & ~(KEY_A | KEY_B);
+    // ---- end qafix ----
     if (down & KEY_START) {
         book_.open();
         return KEY_START;
@@ -220,11 +271,12 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
-    if (serviceClerks_.active()) { // clerks
+    const PanelOwner owner = resolveOwner(c.fishing != nullptr, c.infoTitle != nullptr); // qafix
+    if (owner == PanelOwner::Clerk) { // clerks
         serviceClerks_.draw();
         return;
     }
-    if (book_.isOpen()) {
+    if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.stats = c.stats;
         bdc.quests = c.quests;
@@ -245,37 +297,36 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         book_.draw(bdc);
         return;
     }
-    if (shop_.active()) {
+    if (owner == PanelOwner::Shop) {
         shop_.draw();
         return;
     }
-    if (tailor_.active()) {
+    if (owner == PanelOwner::Tailor) {
         tailor_.draw();
         return;
     }
-    if (closet_.active()) {
+    if (owner == PanelOwner::Closet) {
         closet_.draw();
         return;
     }
-    if (battleView_) {
+    if (owner == PanelOwner::Battle) {
         battle_.draw(*battleView_, battleGags_);
         return;
     }
-    if (MinigamePurchasePanel::activeInstance() && MinigamePurchasePanel::activeInstance()->active()) {
+    if (owner == PanelOwner::Purchase) {
         MinigamePurchasePanel::activeInstance()->draw();
         return;
     }
-    if (c.infoTitle) {
+    if (owner == PanelOwner::Info) {
         drawInfo(c);
         return;
     }
-    if (talk_ && talk_->locked()) {
+    if (owner == PanelOwner::Talk) {
         quest_.drawTalk(*talk_);
         return;
     }
-    if (c.fishing) {
+    if (owner == PanelOwner::Fishing) {
         fishingPanel_.draw(*c.fishing, kTabY);
-        drawTabs(s);
         return;
     }
     switch (s.tab) {

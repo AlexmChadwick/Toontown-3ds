@@ -1,3 +1,4 @@
+#include "ui/panel_owner.h" // qafix
 #include "render/text_cache.h"
 // Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
 #pragma once
@@ -130,6 +131,10 @@ public:
     BattlePanel& battle() { return battle_; }
     // NPC conversation (quest::Talk): while it is locked the quest panel owns the bottom screen.
     void setTalk(quest::Talk* talk) { talk_ = talk; }
+    // ---- qafix: a single owner for both input and drawing ----
+    void syncContext(net::Client& client, unsigned zone, bool lost, bool exclusive,
+                     bool fishing, bool info);
+    // ---- end qafix ----
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
     // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
     // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
@@ -138,6 +143,12 @@ public:
     void setMapZone(unsigned fileZone);
 
 private:
+    // ---- qafix ----
+    PanelOwner resolveOwner(bool fishing, bool info);
+    PanelOwner lastOwner_ = PanelOwner::Tabs;
+    unsigned contextZone_ = 0;
+    bool contextFishing_ = false, contextInfo_ = false;
+    // ---- end qafix ----
     struct CachedLine {
         C2D_Text text;
         float x, y, scale;

@@ -11,6 +11,7 @@ public:
     void update(net::Client &client, uint32_t now);
     u32 handleInput(u32 down, const touchPosition &touch);
     void draw();
+    void dismiss() { active_ = false; }
     bool active() const {
         return active_;
     }

@@ -67,6 +67,10 @@ void ShopPanel::shutdown() {
     }
 }
 
+void ShopPanel::dismiss() {
+    close();
+}
+
 void ShopPanel::close() {
     active_ = false;
     pendingSend_ = 0;

@@ -1068,6 +1068,13 @@ int main() {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
         ui.setTalk(&talk);
+        // ---- qafix: retire context panels before dispatching any input ----
+        const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active();
+        const bool lostPanelContext = netStarted && !net.inZone();
+        if (exclusivePanel || lostPanelContext || (fishing.active() && !transition.idle())) fishing.cancel();
+        ui.syncContext(net, place.zoneId(), lostPanelContext, exclusivePanel, fishing.active(),
+                       trolley.seated() || minigame.active() || golf.active());
+        // ---- end qafix ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
@@ -1155,7 +1162,8 @@ int main() {
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
-        fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle());
+        fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle() && !exclusivePanel &&
+                            !shop.active() && !tailor.active() && !serviceClerks.active() && !talk.locked());
         tt::prof::lap(tt::prof::kNet);
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         tt::prof::lap(tt::prof::kRacing);
@@ -2134,6 +2142,13 @@ int main() {
                 ctx.nearbyNames[ctx.numNearby++] = t.name;
             }
         }
+        // ---- qafix: trolley owns its panel before the minigame hand-off ----
+        if (trolley.seated()) {
+            ctx.infoTitle = "Trolley";
+            ctx.infoLines[0] = "Waiting for the trolley to leave...";
+            ctx.infoLines[1] = "B: hop off before departure";
+        }
+        // ---- end qafix ----
         if (minigame.active()) {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);
