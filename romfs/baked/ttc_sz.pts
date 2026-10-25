@@ -28,7 +28,7 @@ sz21:toon_landmark_TT_clothes_shop_DNARoot 101.834 162.500 6.827 -30.00
 sz21:toon_landmark_TT_clothes_shop_DNARoot_door_origin 101.834 162.500 6.827 -30.00
 sz13:toon_landmark_TT_toonhall_DNARoot 113.660 0.966 4.550 -90.00
 sz13:toon_landmark_TT_toonhall_DNARoot_door_origin 113.660 0.966 4.550 -90.00
-door_0 24.642 24.859 4.000 135.00
-door_0_door_origin 24.642 24.859 4.000 135.00
-door_1 24.642 24.859 4.000 135.00
-door_1_door_origin 24.642 24.859 4.000 135.00
+sz20:toon_landmark_hqTT_DNARoot/door_0 24.818 24.684 3.998 -225.00
+sz20:toon_landmark_hqTT_DNARoot/door_0_door_origin 24.818 24.684 3.998 -225.00
+sz20:toon_landmark_hqTT_DNARoot/door_1 37.537 37.420 3.998 -45.00
+sz20:toon_landmark_hqTT_DNARoot/door_1_door_origin 37.537 37.420 3.998 -45.00

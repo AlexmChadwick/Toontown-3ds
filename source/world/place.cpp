@@ -201,6 +201,27 @@ const Place::Point* Place::buildingPoint(u32 block) const {
     return nullptr;
 }
 
+const Place::Point* Place::buildingDoorPoint(u32 block, int door) const {
+    // Toon HQs: "<tb|sz><block>:<DNA root>/door_<door>" (bake_zone.write_points).
+    static const char* const kPrefixes[] = {"tb", "sz"};
+    char prefix[16];
+    char suffix[16];
+    snprintf(suffix, sizeof(suffix), "/door_%d", door);
+    const size_t suffixLen = strlen(suffix);
+    for (const char* p : kPrefixes) {
+        snprintf(prefix, sizeof(prefix), "%s%lu:", p, static_cast<unsigned long>(block));
+        const size_t n = strlen(prefix);
+        for (int i = 0; i < numPoints_; i++) {
+            const char* name = points_[i].name;
+            const size_t len = strlen(name);
+            if (!strncmp(name, prefix, n) && len > suffixLen && !strcmp(name + len - suffixLen, suffix)) {
+                return &points_[i];
+            }
+        }
+    }
+    return nullptr;
+}
+
 Exit Place::exitAt(float x, float y, float z) const {
     Exit e;
     int hits[8];

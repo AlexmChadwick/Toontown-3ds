@@ -255,6 +255,14 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
     type_ = TransitionType::Door;
     phase_ = TransitionPhase::Departing;
     fromZone_ = place.zoneId();
+    // An HQ interior's doors are "door_trigger_<block>_<n>" (DistributedHQInterior.setupDoors):
+    // remember n, so the toon comes out of the matching outside door.
+    fromDoor_ = -1;
+    if (const char* tail = strrchr(exit.name, '_')) {
+        if (!strncmp(exit.name, "door_trigger_", 13) && tail > exit.name + 13 && tail[1] >= '0' && tail[1] <= '9') {
+            fromDoor_ = tail[1] - '0';
+        }
+    }
     targetZone_ = targetZone;
     doorDoId_ = doorDoId;
     age_ = 0.0f;
@@ -409,7 +417,8 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
         // cell % 100 + 500 + block). Going in: the interior's own door_origin.
         const Place::Point* pt = nullptr;
         const bool leavingInterior = fromZone_ % 1000 >= 500 && loadedZone % 1000 < 500;
-        if (leavingInterior) pt = place.buildingPoint(fromZone_ % 100);
+        if (leavingInterior && fromDoor_ >= 0) pt = place.buildingDoorPoint(fromZone_ % 100, fromDoor_);
+        if (leavingInterior && !pt) pt = place.buildingPoint(fromZone_ % 100);
         if (!pt) pt = place.point("door_origin");
         if (!pt) pt = place.point("door_origin_0");
         if (pt) {

@@ -86,6 +86,25 @@ def write_points(root, path):
             gp = parent.getParent() if not parent.isEmpty() else None
             if gp and not gp.isEmpty() and (gp.getName().startswith('sz') or gp.getName().startswith('tb')):
                 name = gp.getName()
+            else:
+                # Toon HQs have two doors, door_0 and door_1, deeper in the landmark model: name
+                # them after their DNA root ("sz20:toon_landmark_hqTT_DNARoot/door_0") so a toon
+                # leaving the interior's door N comes out of the matching outside door.
+                building = parent
+                while not building.isEmpty() and not (building.getName()[:2] in ('sz', 'tb') and
+                                                      ':' in building.getName()):
+                    building = building.getParent()
+                if not building.isEmpty():
+                    name = f'{building.getName()}/{parent.getName()}'
+                    # Both door_N nodes sit at the model origin; each door is the midpoint of its
+                    # leftDoor_N / rightDoor_N leaves, facing away from the leaves' own heading.
+                    index = parent.getName().rsplit('_', 1)[-1]
+                    left = parent.find(f'**/leftDoor_{index}')
+                    right = parent.find(f'**/rightDoor_{index}')
+                    if not left.isEmpty() and not right.isEmpty():
+                        p = (left.getPos(root) + right.getPos(root)) * 0.5
+                        h = left.getH(root) - 180.0
+
         lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
         lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
     with open(path, 'w') as f:

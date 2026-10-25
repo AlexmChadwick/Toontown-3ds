@@ -63,6 +63,8 @@ public:
     // A building's DNA root ("tb<block>:<node>" on streets, "sz<block>:<node>" in playgrounds),
     // or a plain "tb<block>" / "sz<block>" anchor; nullptr if neither exists.
     const Point* buildingPoint(u32 block) const;
+    // A Toon HQ's outside door <door> (door_0 / door_1) of that block, or nullptr.
+    const Point* buildingDoorPoint(u32 block, int door) const;
     int numPoints() const { return numPoints_; }
     const Point& pointAt(int idx) const { return points_[idx]; }
 

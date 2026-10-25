@@ -81,6 +81,7 @@ private:
     int fadeDir_ = 0;        // +1 fading out (closing), -1 fading in (opening)
 
     u32 fromZone_ = 0;
+    int fromDoor_ = -1; // HQ interior door index we left by (door_trigger_<block>_<n>)
     u32 targetZone_ = 0;
     u32 doorDoId_ = 0;
 
