@@ -73,6 +73,11 @@ struct RemoteToon {
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
     uint32_t chatMs;
     int16_t hp, maxHp;     // broadcast setHp/setMaxHp (friends detail panel); 0 until received
+    // Transition fields (setTunnelIn / setTunnelOut)
+    float tunnelStartX, tunnelStartY;
+    float tunnelEndX;
+    float tunnelX, tunnelY, tunnelZ, tunnelH;
+    int16_t tunnelTs;
     bool active;
 };
 
@@ -82,6 +87,8 @@ enum class EventType : uint8_t {
     Pose,         // new position sample (also flagged: RemoteToon::lastUpdateTick)
     Emote,        // timestamped setEmoteState (RemoteToon emote fields)
     Anim,         // animState/animRate changed
+    TunnelIn,     // remote toon arrived through tunnel (setTunnelIn)
+    TunnelOut,    // remote toon departed through tunnel (setTunnelOut)
     Name,
     Dna,
     Chat,         // RemoteToon::chat updated
@@ -1175,6 +1182,12 @@ public:
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
     bool sendEmote(int id, float multiplier=1);
+    // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
+    bool sendTunnelOut(float startX, float startY, float x, float y, float z, float h);
+    bool sendTunnelIn(float endX, float x, float y, float z, float h);
+    bool sendDoorRequestEnter(uint32_t doorDoId);
+    bool sendDoorRequestExit(uint32_t doorDoId);
+    // ---- End Transitions ----
     // DistributedTreasure.requestGrab (clsend): the AI answers with setGrab(avId) or setReject.
     bool sendRequestGrab(uint32_t treasureDoId);
 

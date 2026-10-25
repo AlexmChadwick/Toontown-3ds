@@ -2389,6 +2389,42 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         if (t.active) pushEvent(EventType::Anim, t.doId);
         break;
     }
+    case dc::DistributedToon::k_setTunnelIn: {
+        const int16_t ts = r.i16();
+        const int16_t endX = r.i16();
+        const int16_t x = r.i16();
+        const int16_t y = r.i16();
+        const int16_t z = r.i16();
+        const int32_t h = r.i32();
+        if (!r.ok()) return false;
+        t.tunnelEndX = endX / 10.0f;
+        t.tunnelX = x / 10.0f;
+        t.tunnelY = y / 10.0f;
+        t.tunnelZ = z / 100.0f;
+        t.tunnelH = h / 100.0f;
+        t.tunnelTs = ts;
+        if (t.active) pushEvent(EventType::TunnelIn, t.doId);
+        break;
+    }
+    case dc::DistributedToon::k_setTunnelOut: {
+        const int16_t ts = r.i16();
+        const int16_t startX = r.i16();
+        const int16_t startY = r.i16();
+        const int16_t x = r.i16();
+        const int16_t y = r.i16();
+        const int16_t z = r.i16();
+        const int32_t h = r.i32();
+        if (!r.ok()) return false;
+        t.tunnelStartX = startX / 10.0f;
+        t.tunnelStartY = startY / 10.0f;
+        t.tunnelX = x / 10.0f;
+        t.tunnelY = y / 10.0f;
+        t.tunnelZ = z / 100.0f;
+        t.tunnelH = h / 100.0f;
+        t.tunnelTs = ts;
+        if (t.active) pushEvent(EventType::TunnelOut, t.doId);
+        break;
+    }
     case dc::DistributedToon::k_setSC: {
         const uint16_t index = r.u16();
         if (!r.ok()) return false;
@@ -2751,6 +2787,49 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     w.u16(msgIndex);
     return finish(w);
 }
+
+// ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
+bool Client::sendTunnelOut(float startX, float startY, float x, float y, float z, float h) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, setTunnelOut);
+    w.i16(networkTime(now_));
+    w.i16(packFixed(startX, 10.0f));
+    w.i16(packFixed(startY, 10.0f));
+    w.i16(packFixed(x, 10.0f));
+    w.i16(packFixed(y, 10.0f));
+    w.i16(packFixed(z, 100.0f));
+    w.i32(packFixed(h, 100.0f));
+    return finish(w);
+}
+
+bool Client::sendTunnelIn(float endX, float x, float y, float z, float h) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, setTunnelIn);
+    w.i16(networkTime(now_));
+    w.i16(packFixed(endX, 10.0f));
+    w.i16(packFixed(x, 10.0f));
+    w.i16(packFixed(y, 10.0f));
+    w.i16(packFixed(z, 100.0f));
+    w.i32(packFixed(h, 100.0f));
+    return finish(w);
+}
+
+bool Client::sendDoorRequestEnter(uint32_t doorDoId) {
+    if (state_ != State::InZone || doorDoId == 0) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doorDoId, DistributedDoor, requestEnter);
+    return finish(w);
+}
+
+bool Client::sendDoorRequestExit(uint32_t doorDoId) {
+    if (state_ != State::InZone || doorDoId == 0) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doorDoId, DistributedDoor, requestExit);
+    return finish(w);
+}
+// ---- End Transitions ----
 
 const char* Client::avatarName(uint32_t doId) const {
     if (doId == avatarId_ && avatarId_ != 0) return ownName_;
