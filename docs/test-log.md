@@ -842,3 +842,41 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
   forced prototypes only. Barrel state handling is tested, but this pinned AI
   does not naturally route to BarrelRoomIntro. Full controls, actual server flow,
   simplifications, budgets and the required Azahar checklist: docs/design/cogdo.md.
+
+## 2026-10-25 — Field offices end to end; street interest; polish merge runs (Azahar, Old 3DS)
+
+- Build: main after 7c0045b plus this change; `make -j4`, zero warnings in `source/`. Azahar,
+  Old 3DS mode, unattended `tools/dev/azahar_test.sh`; stock server with
+  `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_DEV_COGDO=1`.
+- **Field offices (`cogdo:` steps): PASS end to end.** Board block 6 on 2100 → ride to 2606 →
+  `WaitForAllToonsInside` → maze (seed, 14 Cogs, 9 coolers; gags picked up and thrown, hits
+  logged) → open maze exit → `setGameFinish` → executive suite battle won → `Reward` → back
+  to street cell 2108 → `setVictorReady` sent at once (AI: no victor timeout).
+  26.2–27.1 fps average (shot series running), worst 148 draws / 13.7k tris on the street,
+  61 draws / 7.5k tris in the suite; heap 3.2–3.6 MB, linear free 14.3–17.4 MB.
+- Four bugs found and fixed on the way:
+  - **Street interest lacked the branch zone.** `changeStreetCell` (and `changeZone` into a
+    street cell) sent only the cell + vis list. Upstream `Street.doEnterZone` puts
+    `getBranchZone` first: it holds every `DistributedBuilding`, so after the first cell change
+    every building (and its suit/cogdo state) left the client. Both paths now include it.
+  - **Building pool of 16.** Street 2100 has 43 blocks; the field offices never got a slot.
+    Now 64 buildings / 32 elevators; a full pool is logged.
+  - **The interior join.** `setToons` is not a required field and the AI sends it only after
+    everybody joined, so waiting to see ourselves in it deadlocked `WaitForAllToonsInside`.
+    Like upstream's announceGenerate, an interior in our own zone now counts as ours.
+  - **Victor ready.** The return used `changeZone(cell)` without the branch zone, so the
+    building never arrived and the AI ejected us as "suspicious" after 30 s (fixed by the first
+    item). Also: elevator `emptySlotN` is now parsed as the DC's `u32,i8,i16,i16` for every class
+    (pinned by `TT_SIG`).
+- **Crates: PASS.** The first two faces were refused by `CrushableEntityGrid.checkPush`
+  (`setReject` now logged); side 3 was accepted: `setMoveTo` (3,6) then (3,9). Fixed: a reject
+  never released the push, so a refused crate could not be pushed again, and a later push could
+  be ended by the previous move's finished lerp. The autotest now tries the next face every 3 s.
+- **Polish merge chain:**
+  - street: door → clerk → interior door → tunnel → arrival → street door → teleport → battle
+    movies for throw / trap / lure / sound / drop / heal: PASS. The door after the tunnel is the
+    autotest's own step, not a bounce; its doId 0 is because the cell change was 0.1 s earlier.
+  - DA office lasers: `hit` per tile on two fields, hazard fired: PASS.
+  - Country club: mole field `setGameStart` (60 s, target 7) and golf `acceptJoin`: PASS.
+  - fps: 27–30 on steps without screenshot series, about 20 with them (each dump costs about
+    100 ms; the ~113 ms "cpu" lines alternate with ~4 ms ones).

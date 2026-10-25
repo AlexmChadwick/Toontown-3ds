@@ -178,6 +178,8 @@ TT_SIG(DistributedTrolley, requestBoard, "");
 TT_SIG(DistributedTrolley, rejectBoard, "u32");
 TT_SIG(DistributedTrolley, requestExit, "");
 TT_SIG(DistributedTrolley, setMinigameZone, "u32,u16");
+TT_SIG(DistributedElevator, fillSlot0, "u32,u8");
+TT_SIG(DistributedElevator, emptySlot0, "u32,i8,i16,i16");
 TT_SIG(DistributedMinigame, setParticipants, "u32[]");
 TT_SIG(DistributedMinigame, setTrolleyZone, "u32");
 TT_SIG(DistributedMinigame, setDifficultyOverrides, "i32,i32");
@@ -1221,11 +1223,16 @@ void Client::handleInterestDone(uint32_t context, uint16_t handle) {
         sendSetLocation(avatarId_, shardId_, targetZone_);
         zoneCtx_ = nextContext_;
         zoneDone_ = false;
-        uint32_t zones[kMaxVisZones + 1];
+        uint32_t zones[kMaxVisZones + 2];
         int n = 0;
         zones[n++] = targetZone_;
+        // A street cell (2101..2199, not an interior 2500+) also needs its branch zone, which
+        // holds the street's DistributedBuildings (Street.doEnterZone, Astron path).
+        const uint32_t branchZone = targetZone_ - targetZone_ % 100;
+        const bool streetCell = targetZone_ < 10000 && targetZone_ % 100 != 0 && targetZone_ % 1000 < 500;
+        if (streetCell) zones[n++] = branchZone;
         for (int i = 0; i < numVisZones_; ++i) {
-            if (visZones_[i] != targetZone_) zones[n++] = visZones_[i];
+            if (visZones_[i] != targetZone_ && !(streetCell && visZones_[i] == branchZone)) zones[n++] = visZones_[i];
         }
         if (n == 1) sendAddInterest(kZoneInterest, shardId_, targetZone_);
         else sendAddInterestMultiple(kZoneInterest, shardId_, zones, n);
@@ -2672,11 +2679,15 @@ void Client::dropZoneObjects() {
 
 bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int numVisZones) {
     if (state_ != State::InZone) return false;
-    uint32_t zones[kMaxVisZones + 1];
+    // Street.doEnterZone (Astron): the branch zone comes first. It holds the street's
+    // DistributedBuildings and suit planner, which would leave on every cell change otherwise.
+    const uint32_t branchZone = cellZone - cellZone % 100;
+    uint32_t zones[kMaxVisZones + 2];
     int n = 0;
-    zones[n++] = cellZone;
-    for (int i = 0; i < numVisZones && n <= kMaxVisZones; ++i) {
-        if (visZones[i] != cellZone) zones[n++] = visZones[i];
+    zones[n++] = branchZone;
+    if (cellZone != branchZone) zones[n++] = cellZone;
+    for (int i = 0; i < numVisZones && n <= kMaxVisZones + 1; ++i) {
+        if (visZones[i] != cellZone && visZones[i] != branchZone) zones[n++] = visZones[i];
     }
     cfg_.zoneId = cellZone;
     sendSetLocation(avatarId_, shardId_, cellZone);
@@ -4511,22 +4522,15 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
                fieldId <= dc::DistributedElevator::k_fillSlot7) {
         const int n = fieldId - dc::DistributedElevator::k_fillSlot0;
         e.slots[n] = r.u32(); e.slotFlags[n] = r.u8();
-    // ---- cogdo: emptySlot includes the departing avatar before its reason/timestamps ----
-    } else if ((e.classId == dc::DistributedCogdoElevatorExt::kClassId ||
-                e.classId == dc::DistributedCogdoElevatorInt::kClassId) &&
-               fieldId >= dc::DistributedElevator::k_emptySlot0 &&
+    } else if (fieldId >= dc::DistributedElevator::k_emptySlot0 &&
                fieldId <= dc::DistributedElevator::k_emptySlot7) {
-        const int slot = fieldId - dc::DistributedElevator::k_emptySlot0;
+        // emptySlotN(avId uint32, reason int8, timestamp int16, timeSent int16) in toon.dc.
+        const int n = fieldId - dc::DistributedElevator::k_emptySlot0;
+        e.slots[n] = 0;
         r.u32();
         r.i8();
         r.i16();
         r.i16();
-        e.slots[slot] = 0;
-    // ---- end cogdo ----
-    } else if (fieldId >= dc::DistributedElevator::k_emptySlot0 &&
-               fieldId <= dc::DistributedElevator::k_emptySlot7) {
-        const int n = fieldId - dc::DistributedElevator::k_emptySlot0;
-        e.slots[n] = 0; r.u8(); r.i16(); r.i16();
     } else if (fieldId == dc::DistributedElevator::k_setElevatorTripId) e.tripId = r.u32();
     else if (fieldId == dc::DistributedElevator::k_setMinLaff) e.minLaff = r.u8();
     else if (fieldId == dc::DistributedFactoryElevatorExt::k_setEntranceId ||
@@ -4586,7 +4590,10 @@ bool Client::handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint
     CogBuilding* dst = nullptr;
     for (CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) dst = &b;
     for (CogBuilding& b : cogBuildings_) if (!dst && !b.active) dst = &b;
-    if (!dst) return false;
+    if (!dst) {
+        TT_LOG("net: no free slot for building %u", unsigned(doId));
+        return false;
+    }
     CogBuilding tmp{};
     tmp.doId = doId;
     bool ok = true;
@@ -4598,6 +4605,9 @@ bool Client::handleCogBuildingEnter(uint32_t doId, DatagramReader& r, const uint
     if (!ok || !r.ok()) return false;
     tmp.active = true;
     *dst = tmp;
+    if (tmp.state != CogBuildingState::Toon) {
+        TT_LOG("net: building %u block %u state %d", unsigned(doId), unsigned(tmp.block), int(tmp.state));
+    }
     pushEvent(EventType::CogBuildingUp, doId);
     return true;
 }
@@ -4607,7 +4617,10 @@ bool Client::handleCogElevatorEnter(uint32_t doId, uint16_t classId, DatagramRea
     CogElevator* dst = nullptr;
     for (CogElevator& e : cogElevators_) if (e.active && e.doId == doId) dst = &e;
     for (CogElevator& e : cogElevators_) if (!dst && !e.active) dst = &e;
-    if (!dst) return false;
+    if (!dst) {
+        TT_LOG("net: no free slot for elevator %u (class %u)", unsigned(doId), unsigned(classId));
+        return false;
+    }
     CogElevator tmp{}; tmp.doId = doId; tmp.classId = classId;
     bool ok = true;
     for (uint16_t n = 0; n < reqCount && ok; ++n) ok = applyCogElevatorField(tmp, r, req[n]);
@@ -4615,8 +4628,13 @@ bool Client::handleCogElevatorEnter(uint32_t doId, uint16_t classId, DatagramRea
         const uint16_t count = r.u16();
         for (uint16_t n = 0; n < count && ok; ++n) ok = applyCogElevatorField(tmp, r, r.u16());
     }
-    if (!ok || !r.ok()) return false;
+    if (!ok || !r.ok()) {
+        TT_LOG("net: elevator %u (class %u) failed to parse", unsigned(doId), unsigned(classId));
+        return false;
+    }
     tmp.active = true; *dst = tmp; pushEvent(EventType::CogElevatorUp, doId);
+    TT_LOG("net: elevator %u class %u building %u state %s", unsigned(doId), unsigned(classId),
+           unsigned(tmp.buildingDoId), tmp.state);
     return true;
 }
 

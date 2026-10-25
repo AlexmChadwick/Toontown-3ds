@@ -807,6 +807,31 @@ int main() {
                     }
                 }
             }
+            if (!strcmp(autotest.label(), "factory: crates")) {
+                // Test-only: CrushableEntityGrid refuses a push into a blocked cell (setReject), so
+                // every 3 s without a setMoveTo try the next face, facing the crate.
+                static const float kFaces[4][2] = {{-3.5f, 0}, {3.5f, 0}, {0, -3.5f}, {0, 3.5f}};
+                static int crateFace = 0;
+                if (autotest.stepBegan()) crateFace = 0;
+                bool moved = false;
+                for (int n = 0; n < tt::net::kMaxLevelEntities; ++n) {
+                    const tt::net::LevelEntityObj& e = net.levelEntitySlot(n);
+                    moved |= e.active && e.classId == tt::dc::DistributedCrate::kClassId && e.moving;
+                }
+                float w[12];
+                if (!moved && crateFace < 3 && autotest.stepTime() > 5.0f + 3.0f * float(crateFace) &&
+                    level.nearestEntityTransform(tt::dc::DistributedCrate::kClassId, player.x(), player.y(),
+                                                 player.z(), w)) {
+                    ++crateFace;
+                    const float fx = kFaces[crateFace][0];
+                    const float fy = kFaces[crateFace][1];
+                    const float wx = w[0] * fx + w[3] * fy + w[9];
+                    const float wy = w[1] * fx + w[4] * fy + w[10];
+                    const float faceH = std::atan2(wx - w[9], -(wy - w[10])) / kDegToRad; // forward = toward crate
+                    player.reset(wx, wy, w[11] + 0.1f, faceH);
+                    TT_LOG("autotest: crate face %d (toon at %.1f,%.1f)", crateFace, double(wx), double(wy));
+                }
+            }
             const char* label = autotest.label();
             auto facilityStep = [label](const char* step) { // "mint: <step>", "da office: <step>", "club: <step>"
                 const char* colon = strstr(label, ": ");

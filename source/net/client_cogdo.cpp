@@ -34,6 +34,11 @@ bool Client::cogdoParticipant() const {
     const CogdoState *interior = cogdoInterior();
     if (state_ != State::InZone || !interior)
         return false;
+    // The AI sends setToons only after WaitForAllToonsInside (it is not a required field), so
+    // until then an interior in our own zone means we rode its elevator in: upstream sends
+    // setAvatarJoined from announceGenerate, and DistributedCogdoInteriorAI checks membership.
+    if (interior->numToons == 0)
+        return interior->zone == cfg_.zoneId;
     for (int index = 0; index < interior->numToons; ++index)
         if (interior->toons[index] == avatarId_)
             return true;
@@ -49,17 +54,23 @@ bool Client::handleCogdoEnter(uint32_t id, uint16_t classId, DatagramReader &rea
     next.classId = classId;
     next.kind = kind;
     bool valid = true;
-    for (uint16_t index = 0; index < count && valid; ++index)
-        valid = applyCogdoField(next, required[index], reader, now_, avatarId_);
+    uint16_t field = 0;
+    for (uint16_t index = 0; index < count && valid; ++index) {
+        field = required[index];
+        valid = applyCogdoField(next, field, reader, now_, avatarId_);
+    }
     if (other && valid) {
         const uint16_t fields = reader.u16();
         for (uint16_t index = 0; index < fields && valid && reader.ok(); ++index) {
-            const uint16_t field = reader.u16();
+            field = reader.u16();
             valid = applyCogdoField(next, field, reader, now_, avatarId_);
         }
     }
-    if (!valid || !reader.ok())
+    if (!valid || !reader.ok()) {
+        TT_LOG("cogdo: dropped object %u class %u: field %u (%s) failed to parse", unsigned(id),
+               unsigned(classId), unsigned(field), fieldName(field));
         return true;
+    }
     CogdoState *destination = nullptr;
     int used = 0;
     for (CogdoState &object : cogdoObjects_) {
@@ -72,17 +83,24 @@ bool Client::handleCogdoEnter(uint32_t id, uint16_t classId, DatagramReader &rea
                       : kind == CogdoKind::Crane    ? 4
                       : kind == CogdoKind::MoneyBag ? 8
                                                     : 1;
-    if (!destination && used >= limit)
+    if (!destination && used >= limit) {
+        TT_LOG("cogdo: dropped object %u class %u: %d of this kind already present", unsigned(id),
+               unsigned(classId), used);
         return true;
+    }
     for (CogdoState &object : cogdoObjects_)
         if (!destination && !object.active)
             destination = &object;
-    if (destination) {
-        if (timeSynced_ && next.kind == CogdoKind::Interior)
-            next.stateMs = networkToLocal(next.stamp, now_);
-        next.active = true;
-        *destination = next;
+    if (!destination) {
+        TT_LOG("cogdo: dropped object %u class %u: pool full", unsigned(id), unsigned(classId));
+        return true;
     }
+    if (timeSynced_ && next.kind == CogdoKind::Interior)
+        next.stateMs = networkToLocal(next.stamp, now_);
+    next.active = true;
+    *destination = next;
+    TT_LOG("cogdo: object %u class %u zone %u toons %u state %s", unsigned(id), unsigned(classId),
+           unsigned(next.zone), unsigned(next.numToons), next.kind == CogdoKind::Interior ? next.state : "-");
     return true;
 }
 bool Client::handleCogdoField(DatagramReader &reader, uint32_t id, uint16_t field) {

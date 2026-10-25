@@ -278,8 +278,10 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.targetHash = r.u8();
     } else if (fieldId == dc::DistributedCrate::k_setAccept) {
         e.pushAccepted = true;
+        TT_LOG("net: crate %u setAccept", unsigned(e.doId));
     } else if (fieldId == dc::DistributedCrate::k_setReject) {
         e.pushRejected = true;
+        TT_LOG("net: crate %u setReject (CrushableEntityGrid.checkPush refused)", unsigned(e.doId));
     } else if (fieldId == dc::DistributedCrate::k_setMoveTo) {
         e.moveAvId = r.u32();
         e.movePos[0] = float(r.i16()) / 10.0f;
@@ -732,6 +734,13 @@ bool Client::sendCameraTrapFire(uint32_t doId) {
 bool Client::sendCratePush(uint32_t doId, uint8_t side) {
     if (state_ != State::InZone) return false;
     TT_LOG("net: crate %u requestPush side %u", unsigned(doId), unsigned(side));
+    // A new request starts with no answer (DistributedCrate.setReject resets sentRequest).
+    for (LevelEntityObj& e : levelEntities_) {
+        if (e.active && e.doId == doId) {
+            e.pushAccepted = false;
+            e.pushRejected = false;
+        }
+    }
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, doId, DistributedCrate, requestPush);
     w.u8(side);

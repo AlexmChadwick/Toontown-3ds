@@ -404,10 +404,19 @@ void LevelGames::updateCrates(net::Client& client, Level& level, float toonX, fl
             games_logic::calcCrateLerp(d.movePos, d.movePos + 3, elapsed, kDuration, slot.curPos);
             slot.moveProgress = elapsed / kDuration;
 
-            if (elapsed >= kDuration && slot.pushing) {
+            // Only a setMoveTo that answered this push ends it (an older move has long finished).
+            const bool moveIsOurs = int32_t(d.moveStartMs - slot.pushStartMs) >= 0;
+            if (elapsed >= kDuration && slot.pushing && moveIsOurs) {
                 slot.pushing = false;
                 client.sendCrateDone(d.doId);
             }
+        }
+
+        // DistributedCrate.setReject: the grid cell behind the crate is blocked; the toon may
+        // push again (on another face, or later).
+        if (slot.pushing && d.pushRejected) {
+            slot.pushing = false;
+            TT_LOG("level_games: crate %u push on side %d rejected", unsigned(d.doId), slot.pushSide);
         }
 
         // Push detection: toon walking into crate

@@ -330,7 +330,9 @@ struct CogBuilding {
     uint8_t numVictors = 0;
     bool active = false;
 };
-constexpr int kMaxCogBuildings = 16;
+// DistributedBuildingMgrAI makes one DistributedBuilding per DNA block in the branch zone;
+// the largest street (toontown_central_2100 and friends) has 43 blocks.
+constexpr int kMaxCogBuildings = 64;
 
 struct CogElevator {
     uint32_t doId = 0, buildingDoId = 0, tripId = 0;
@@ -351,7 +353,8 @@ struct CogElevator {
     bool forcedBossDestination = false;
     bool active = false;
 };
-constexpr int kMaxCogElevators = 8;
+// Every suit building and field office on a street has an exterior elevator.
+constexpr int kMaxCogElevators = 32;
 
 struct CogInterior {
     uint32_t doId = 0, zoneId = 0, extZoneId = 0, buildingDoId = 0;
