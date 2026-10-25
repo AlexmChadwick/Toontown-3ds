@@ -174,8 +174,8 @@ void Renderer::setModelView(const C3D_Mtx& world, const float* posScale, const f
 
 void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints, const C3D_Tex* const* slotTex) {
     if (!model.loaded()) return;
-    bindMode(kModeStatic);
     if (!beginDraw(model.boundsMin(), model.boundsMax(), world)) return;
+    bindMode(kModeStatic);
     setModelView(world, model.posScale(), model.posOffset());
 
     const u8* vbase = static_cast<const u8*>(model.vertices());
@@ -195,13 +195,13 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
     if (!model.loaded() || !anim.loaded() || !model.absoluteIndices() || anim.numVertices() != model.numVertices()) {
         return;
     }
-    bindMode(kModeMorph);
     float lo[3], hi[3];
     for (int i = 0; i < 3; i++) {
         lo[i] = anim.posOffset()[i] - 32767.0f * anim.posScale()[i];
         hi[i] = anim.posOffset()[i] + 32767.0f * anim.posScale()[i];
     }
     if (!beginDraw(lo, hi, world)) return;
+    bindMode(kModeMorph);
     setModelView(world, anim.posScale(), anim.posOffset());
     ++stats_.uniformUploads;
     C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeMorph].uBlend, blend, 0.0f, 0.0f, 0.0f);
