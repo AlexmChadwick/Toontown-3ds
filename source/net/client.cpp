@@ -3609,6 +3609,21 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
             if (m.pairingTurnDownCount < 4) m.pairingCardsToTurnDown[m.pairingTurnDownCount++] = card;
         }
         if (!r.ok()) return false;
+        // ---- qafix: don't replay a snapshot every frame or lose a TCP batch ----
+        if (announce) {
+            PairingAnswer answer;
+            answer.up = m.pairingCardToTurnUp;
+            answer.avatar = m.pairingOpenAvId;
+            answer.match = m.pairingMatchingCard;
+            answer.points = m.pairingPoints;
+            answer.count = m.pairingTurnDownCount;
+            for (int i = 0; i < answer.count; ++i) answer.down[i] = m.pairingCardsToTurnDown[i];
+            if (!m.pairingAnswers.push(answer)) {
+                TT_LOG("pairing: answer queue overflow");
+                return false;
+            }
+        }
+        // ---- end qafix ----
         if (announce) pushEventArg(EventType::PairingOpenCardResult, m.pairingOpenAvId, int32_t(m.pairingCardToTurnUp));
     } else if (fieldId == dc::DistributedPairingGame::k_setEveryoneDone) {
         m.pairingEveryoneDone = true;

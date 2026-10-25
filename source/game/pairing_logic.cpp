@@ -113,7 +113,7 @@ void generateDeck(uint32_t seed, int numPlayers, Card outCards[kSoloDeckCards], 
         uint8_t rank = val % kMaxRank;
         uint8_t suit = val / kMaxRank;
         if (rank <= maxRank) {
-            if (outCount < kSoloDeckCards) {
+            if (outCount < kMaxDeckCards) {
                 outCards[outCount].value = val;
                 outCards[outCount].rank = rank;
                 outCards[outCount].suit = suit;

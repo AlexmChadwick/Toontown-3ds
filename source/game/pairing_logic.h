@@ -7,6 +7,7 @@ namespace tt::game::pairing {
 constexpr int kMaxSuit = 4;
 constexpr int kMaxRank = 13;
 constexpr int kTotalDeckCards = 52;
+constexpr int kMaxDeckCards = 40; // PairingGameGlobals: 10 ranks for four players
 constexpr int kSoloDeckCards = 32; // 8 ranks (0..7) * 4 suits
 constexpr int kMaxRankUsedSolo = 7;
 
