@@ -53,6 +53,26 @@ def _patch(name, mod):
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate
+        if os.environ.get('AI_DEV_STRONG') == '1':
+            orig_zone = mod.DistributedToonAI.handleLogicalZoneChange
+
+            def handleLogicalZoneChange(self, newZoneId, oldZoneId):
+                orig_zone(self, newZoneId, oldZoneId)
+                # A long unattended script reaches each facility from a playground or Cog HQ
+                # courtyard: start it healed and stocked, as a player would after a toon-up and
+                # a gag shop, so laff lost in one facility cannot end the next one early.
+                if type(self).__name__ != 'DistributedToonAI' or newZoneId is None:
+                    return
+                if newZoneId % 1000 != 0 and not 10000 <= newZoneId < 14000:
+                    return
+                try:
+                    if self.getHp() < self.getMaxHp():
+                        self.b_setHp(self.getMaxHp())
+                    self.inventory.maxOutInv(filterUberGags=1)
+                    self.b_setInventory(self.inventory.makeNetString())
+                except Exception as e:  # never break the district for a test convenience
+                    print('ai_dev: could not heal toon %s: %s' % (self.doId, e))
+            mod.DistributedToonAI.handleLogicalZoneChange = handleLogicalZoneChange
     elif name in _BOSS_GENERATORS:
         if os.environ.get('AI_DEV_WEAK_COGS') != '1':
             return
