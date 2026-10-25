@@ -8,6 +8,7 @@
 
 #include "core/log.h"
 #include "net/msg_types.h"
+#include "game/name_tables.h"
 #include "world/toon_dna.h"
 
 namespace tt::net {
@@ -45,6 +46,13 @@ TT_SIG(AstronLoginManager, avatarListResponse, "{u32,string,blob,u8,u8}[]");
 TT_SIG(AstronLoginManager, createAvatar, "blob,u8");
 TT_SIG(AstronLoginManager, createAvatarResponse, "u32");
 TT_SIG(AstronLoginManager, requestPlayAvatar, "u32");
+TT_SIG(AstronLoginManager, setNamePattern, "u32,i16,u8,i16,u8,i16,u8,i16,u8");
+TT_SIG(AstronLoginManager, namePatternAnswer, "u32,u8");
+TT_SIG(AstronLoginManager, setNameTyped, "u32,string");
+TT_SIG(AstronLoginManager, nameTypedResponse, "u32,u8");
+TT_SIG(AstronLoginManager, acknowledgeAvatarName, "u32");
+TT_SIG(AstronLoginManager, acknowledgeAvatarNameResponse, "");
+TT_SIG(AstronLoginManager, requestRemoveAvatar, "u32");
 TT_SIG(TutorialManager, requestSkipTutorial, "");
 TT_SIG(TutorialManager, skipTutorialResponse, "u8");
 TT_SIG(DistributedDistrict, setName, "string");
@@ -1283,6 +1291,10 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
             memcpy(pa.dna, dna.data, dna.len < kDnaSize ? dna.len : kDnaSize);
             if (numAvatars_ < kMaxAvatars) avatars_[numAvatars_++] = pa;
         }
+        if (state_ == State::ChooseAvatar) {
+            TT_LOG("net: updated avatar list (%d toons)", numAvatars_);
+            return;
+        }
         if (state_ != State::AvatarList) return;
         TT_LOG("net: %d avatar(s) on account", numAvatars_);
         onAvatarList();
@@ -1298,8 +1310,81 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
         rejoinAvatarId_ = avId;
         ownName_[0] = 0; // the server names it "<Color> <Species>"; the owner view brings it
         memcpy(ownDna_, pendingDna_, kDnaSize);
-        sendRequestPlayAvatar(avatarId_);
-        setState(State::PlayAvatar);
+        if (pendingNameAction_ == 1) {
+            sendSetNamePattern(avId,
+                               pendingPattern_[0], pendingPatternFlags_[0],
+                               pendingPattern_[1], pendingPatternFlags_[1],
+                               pendingPattern_[2], pendingPatternFlags_[2],
+                               pendingPattern_[3], pendingPatternFlags_[3]);
+        } else if (pendingNameAction_ == 2) {
+            sendSetNameTyped(avId, pendingTypedName_);
+        } else {
+            sendRequestPlayAvatar(avatarId_);
+            setState(State::PlayAvatar);
+        }
+    } else if (fieldId == dc::AstronLoginManager::k_namePatternAnswer) {
+        uint32_t avId = r.u32();
+        uint8_t status = r.u8();
+        TT_LOG("net: namePatternAnswer avId=%u status=%u", unsigned(avId), unsigned(status));
+        namePatternResult_ = status;
+        for (int i = 0; i < numAvatars_; ++i) {
+            if (avatars_[i].id == avId) {
+                if (status == 1) {
+                    avatars_[i].nameState = static_cast<uint8_t>(NameState::Locked);
+                    if (pendingPatternName_[0] != '\0') {
+                        strncpy(avatars_[i].name, pendingPatternName_, sizeof(avatars_[i].name) - 1);
+                        avatars_[i].name[sizeof(avatars_[i].name) - 1] = '\0';
+                    }
+                }
+                break;
+            }
+        }
+        if (state_ == State::CreateAvatar && pendingNameAction_ == 1) {
+            if (status == 1 && pendingPatternName_[0] != '\0') {
+                strncpy(ownName_, pendingPatternName_, sizeof(ownName_) - 1);
+                ownName_[sizeof(ownName_) - 1] = '\0';
+            }
+            sendRequestPlayAvatar(avatarId_);
+            setState(State::PlayAvatar);
+        }
+    } else if (fieldId == dc::AstronLoginManager::k_nameTypedResponse) {
+        uint32_t avId = r.u32();
+        uint8_t status = r.u8();
+        TT_LOG("net: nameTypedResponse avId=%u status=%u", unsigned(avId), unsigned(status));
+        nameTypedResult_ = status;
+        for (int i = 0; i < numAvatars_; ++i) {
+            if (avatars_[i].id == avId) {
+                if (status == 1) {
+                    avatars_[i].nameState = static_cast<uint8_t>(NameState::Pending);
+                } else if (status == 2) {
+                    avatars_[i].nameState = static_cast<uint8_t>(NameState::Locked);
+                    if (pendingTypedName_[0] != '\0') {
+                        strncpy(avatars_[i].name, pendingTypedName_, sizeof(avatars_[i].name) - 1);
+                        avatars_[i].name[sizeof(avatars_[i].name) - 1] = '\0';
+                    }
+                }
+                break;
+            }
+        }
+        if (state_ == State::CreateAvatar && pendingNameAction_ == 2) {
+            sendRequestPlayAvatar(avatarId_);
+            setState(State::PlayAvatar);
+        }
+    } else if (fieldId == dc::AstronLoginManager::k_acknowledgeAvatarNameResponse) {
+        TT_LOG("net: acknowledgeAvatarNameResponse");
+        if (pendingAckAvId_ != 0) {
+            for (int i = 0; i < numAvatars_; ++i) {
+                if (avatars_[i].id == pendingAckAvId_) {
+                    if (avatars_[i].nameState == static_cast<uint8_t>(NameState::Approved)) {
+                        avatars_[i].nameState = static_cast<uint8_t>(NameState::Locked);
+                    } else if (avatars_[i].nameState == static_cast<uint8_t>(NameState::Rejected)) {
+                        avatars_[i].nameState = static_cast<uint8_t>(NameState::Open);
+                    }
+                    break;
+                }
+            }
+            pendingAckAvId_ = 0;
+        }
     }
 }
 
@@ -2403,7 +2488,7 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         const int16_t stamp=r.i16();
         if (!r.ok()) return false;
         if (id>=0 && id<25) {
-            const uint32_t time=networkToLocal(stamp,now_);
+            const uint32_t time=timeSynced_ ? networkToLocal(stamp,now_) : now_;
             if (t.emoteSerial && (int16_t(uint16_t(stamp)-uint16_t(t.emoteStamp))<0 ||
                 (t.emoteId==id && t.emoteStamp==stamp))) break;
             t.emoteId=static_cast<int16_t>(id);t.emoteStamp=stamp;t.emoteMs=time;++t.emoteSerial;
@@ -2732,6 +2817,81 @@ void Client::sendRequestPlayAvatar(uint32_t avId) {
     TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, requestPlayAvatar);
     w.u32(avId);
     finish(w);
+}
+
+void Client::setPendingPatternName(int16_t p1, uint8_t f1, int16_t p2, uint8_t f2,
+                                   int16_t p3, uint8_t f3, int16_t p4, uint8_t f4) {
+    pendingNameAction_ = 1;
+    pendingPattern_[0] = p1; pendingPatternFlags_[0] = f1;
+    pendingPattern_[1] = p2; pendingPatternFlags_[1] = f2;
+    pendingPattern_[2] = p3; pendingPatternFlags_[2] = f3;
+    pendingPattern_[3] = p4; pendingPatternFlags_[3] = f4;
+    game::buildPatternName(p1, f1, p2, f2, p3, f3, p4, f4, pendingPatternName_, sizeof(pendingPatternName_));
+}
+
+void Client::setPendingTypedName(const char* name) {
+    pendingNameAction_ = 2;
+    if (name) {
+        strncpy(pendingTypedName_, name, sizeof(pendingTypedName_) - 1);
+        pendingTypedName_[sizeof(pendingTypedName_) - 1] = '\0';
+    } else {
+        pendingTypedName_[0] = '\0';
+    }
+}
+
+void Client::clearPendingName() {
+    pendingNameAction_ = 0;
+    pendingPatternName_[0] = '\0';
+    pendingTypedName_[0] = '\0';
+}
+
+bool Client::sendSetNamePattern(uint32_t avId, int16_t p1, uint8_t f1, int16_t p2, uint8_t f2,
+                                int16_t p3, uint8_t f3, int16_t p4, uint8_t f4) {
+    if (state_ != State::ChooseAvatar && state_ != State::CreateAvatar) return false;
+    namePatternResult_ = -1;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, setNamePattern);
+    w.u32(avId);
+    w.i16(p1);
+    w.u8(f1);
+    w.i16(p2);
+    w.u8(f2);
+    w.i16(p3);
+    w.u8(f3);
+    w.i16(p4);
+    w.u8(f4);
+    finish(w);
+    return true;
+}
+
+bool Client::sendSetNameTyped(uint32_t avId, const char* name) {
+    if (state_ != State::ChooseAvatar && state_ != State::CreateAvatar) return false;
+    nameTypedResult_ = -1;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, setNameTyped);
+    w.u32(avId);
+    w.string(name ? name : "");
+    finish(w);
+    return true;
+}
+
+bool Client::sendAcknowledgeAvatarName(uint32_t avId) {
+    if (state_ != State::ChooseAvatar) return false;
+    pendingAckAvId_ = avId;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, acknowledgeAvatarName);
+    w.u32(avId);
+    finish(w);
+    return true;
+}
+
+bool Client::sendRequestRemoveAvatar(uint32_t avId) {
+    if (state_ != State::ChooseAvatar) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, kLoginManagerId, AstronLoginManager, requestRemoveAvatar);
+    w.u32(avId);
+    finish(w);
+    return true;
 }
 
 void Client::sendRequestServerTime() {

@@ -146,6 +146,8 @@ class Avatar:
     def __init__(self, doId, name, dna, owner=None):
         self.doId, self.name, self.dna, self.owner = doId, name, dna, owner
         self.parent, self.zone = 0, 0
+        self.name_state = 0
+        self.wish_name = ''
         self.ram = {}  # field number -> bytes (broadcast ram fields set by the owner)
 
     def required(self, owner_view):
@@ -315,8 +317,51 @@ class ClientConn:
             self.send(set_field(LOGIN_MANAGER, lm, 'loginResponse', '(' + dna_hex(resp.encode()) + ')'))
         elif name == 'requestAvatarList':
             avs = world.accounts.get(self.token, [])
-            items = ', '.join(f'{{{a.doId}, "{a.name}", {dna_hex(a.dna)}, {i}, 0}}' for i, a in enumerate(avs))
+            items = ', '.join(f'{{{a.doId}, "{a.name}", {dna_hex(a.dna)}, {i}, {a.name_state}}}' for i, a in enumerate(avs))
             log(f'{self.peer} avatar list: {len(avs)}')
+            self.send(set_field(LOGIN_MANAGER, lm, 'avatarListResponse', f'([{items}])'))
+        elif name == 'setNamePattern':
+            (avId, p1, f1, p2, f2, p3, f3, p4, f4) = struct.unpack_from('<Ihibibib', data)
+            avs = world.accounts.get(self.token, [])
+            for a in avs:
+                if a.doId == avId:
+                    a.name = 'Doctor Buzz Boingennerd'
+                    a.name_state = 0
+                    break
+            log(f'{self.peer} setNamePattern avId={avId}')
+            self.send(set_field(LOGIN_MANAGER, lm, 'namePatternAnswer', f'({avId}, 1)'))
+        elif name == 'setNameTyped':
+            (avId,) = struct.unpack_from('<I', data)
+            (n,) = struct.unpack_from('<H', data, 4)
+            tname = data[6:6 + n].decode()
+            avs = world.accounts.get(self.token, [])
+            for a in avs:
+                if a.doId == avId:
+                    a.wish_name = tname
+                    a.name_state = 2
+                    break
+            log(f'{self.peer} setNameTyped avId={avId} "{tname}"')
+            self.send(set_field(LOGIN_MANAGER, lm, 'nameTypedResponse', f'({avId}, 1)'))
+        elif name == 'acknowledgeAvatarName':
+            (avId,) = struct.unpack_from('<I', data)
+            avs = world.accounts.get(self.token, [])
+            for a in avs:
+                if a.doId == avId:
+                    if a.name_state == 3:
+                        a.name = getattr(a, 'wish_name', a.name)
+                        a.name_state = 0
+                    elif a.name_state == 4:
+                        a.name_state = 1
+                    break
+            log(f'{self.peer} acknowledgeAvatarName avId={avId}')
+            self.send(set_field(LOGIN_MANAGER, lm, 'acknowledgeAvatarNameResponse', '()'))
+        elif name == 'requestRemoveAvatar':
+            (avId,) = struct.unpack_from('<I', data)
+            avs = world.accounts.get(self.token, [])
+            world.accounts[self.token] = [a for a in avs if a.doId != avId]
+            log(f'{self.peer} removed avatar {avId}, remaining={len(world.accounts[self.token])}')
+            new_avs = world.accounts[self.token]
+            items = ', '.join(f'{{{a.doId}, "{a.name}", {dna_hex(a.dna)}, {i}, {a.name_state}}}' for i, a in enumerate(new_avs))
             self.send(set_field(LOGIN_MANAGER, lm, 'avatarListResponse', f'([{items}])'))
         elif name == 'createAvatar':
             (n,) = struct.unpack_from('<H', data)

@@ -37,7 +37,9 @@ from panda3d.direct import DCFile
 WANTED = {
     'AstronLoginManager': ['requestLogin', 'loginResponse', 'requestAvatarList',
                            'avatarListResponse', 'createAvatar', 'createAvatarResponse',
-                           'requestPlayAvatar'],
+                           'requestPlayAvatar', 'setNamePattern', 'namePatternAnswer',
+                           'setNameTyped', 'nameTypedResponse', 'acknowledgeAvatarName',
+                           'acknowledgeAvatarNameResponse', 'requestRemoveAvatar'],
     'DistributedDistrict': ['setName', 'setAvailable'],
     'ToontownDistrict': ['setName', 'setAvailable'],
     'EstateManager': ['getEstateZone', 'setEstateZone', 'setAvHouseId', 'exitEstate'],

@@ -10,6 +10,7 @@ CXX="${CXX:-clang++}"
     -I "$ROOT/source" \
     "$ROOT"/source/net/*.cpp \
     "$ROOT"/source/game/*_logic.cpp \
+    "$ROOT/source/game/name_tables.cpp" \
     "$ROOT/source/world/toon_dna.cpp" \
     "$ROOT/source/world/suit_path.cpp" \
     "$ROOT/source/world/level_spec.cpp" \
