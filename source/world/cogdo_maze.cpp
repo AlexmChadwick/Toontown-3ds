@@ -53,7 +53,7 @@ bool CogdoMaze::walkable(int x, int y) const {
            !cells[y][x - 1] && !cells[y - 1][x - 1];
 }
 bool CogdoMaze::load(uint32_t seed, const uint8_t counts[3], float difficulty, const char *directory) {
-    uint8_t tables[9][4][16][16];
+    auto &tables = tables_;
     char path[192];
     std::snprintf(path, sizeof(path), "%smaze_cells.bin", directory);
     FILE *file = std::fopen(path, "rb");
@@ -332,8 +332,8 @@ bool CogdoMaze::route(Vec3 from, Vec3 destination, Vec3 *next) const {
     cell(destination, &endX, &endY);
     if (!accessible(startX, startY))
         return false;
-    int16_t parent[kCogdoMazeSize * kCogdoMazeSize];
-    uint16_t queue[kCogdoMazeSize * kCogdoMazeSize];
+    auto &parent = routeParent_;
+    auto &queue = routeQueue_;
     for (int16_t &value : parent)
         value = -1;
     const int start = startY * kCogdoMazeSize + startX;

@@ -814,8 +814,8 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
   decoded maze, suite, exterior and barrel previews compared with source models.
 - Unique largest resident model group: maze geometry 350,748 B and textures
   739,136 B; 10,650 triangles / 92 batches before actors. Maximum floor collision
-  allocation 30,492 B. Final .text+.rodata+.data+.bss = 2,381,432 B (<4 MiB).
-  Runtime static Cogdo controller = 176,576 B. These are bake/link measurements.
+  allocation 30,492 B. Final .text+.rodata+.data+.bss = 2,401,560 B (<4 MiB).
+  Runtime static Cogdo controller = 196,608 B. These are bake/link measurements.
 - Flying is unsupported, without a fabricated course. Crane and boardroom are
   forced prototypes only. Barrel state handling is tested, but this pinned AI
   does not naturally route to BarrelRoomIntro. Full controls, actual server flow,

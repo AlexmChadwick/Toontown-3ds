@@ -196,9 +196,9 @@ Runtime actors, toon clips, effects, render targets and command buffers are
 additional existing pools; the asset table is not a measured total-frame cost.
 Maze keeps six render actors, 64 simulations, 256 memo slots and 16 cabinet drops.
 Collision heap allocations: maze 7,548 B; suite 30,492 B; barrels 28,532 B;
-battle room 2,076 B; prototype room 6,204 B. No per-frame simulation allocation. The final map totals 2,381,432 bytes
+battle room 2,076 B; prototype room 6,204 B. No per-frame simulation allocation. The final map totals 2,401,560 bytes
 for .text + .rodata + .data + .bss (under 4 MiB); CogdoRuntime occupies
-176,576 static bytes. These are link-map measurements, not live heap readings.
+196,608 static bytes. These are link-map measurements, not live heap readings.
 The final kit is 40 files including its manifest. The manifest counts 2,128,848
 asset bytes excluding itself; the reproducibility report includes every file.
 

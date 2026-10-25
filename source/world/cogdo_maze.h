@@ -57,6 +57,11 @@ private:
     bool occupied(int x, int y, int except) const;
     bool initializeSuits(game::catchgame::RandomNumGen &parent, const uint8_t counts[3]);
     void think(int index, int tick);
+    // Fixed scratch stays off the small ARM11 main-thread stack. Loading and
+    // diagnostic routing are main-thread operations, never concurrent.
+    uint8_t tables_[9][4][16][16] = {};
+    mutable int16_t routeParent_[kCogdoMazeSize * kCogdoMazeSize] = {};
+    mutable uint16_t routeQueue_[kCogdoMazeSize * kCogdoMazeSize] = {};
     float difficulty_ = 0;
 };
 } // namespace tt::world
