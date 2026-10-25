@@ -528,6 +528,9 @@ void Client::resetWorld() {
     clearEstateObjects();
     ownBattleId_ = 0;
     clearTrolleyObjects();
+    // [interior life]
+    clearInteriorObjects();
+    // [end interior life]
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     clearFishing();
     for (District& d : districts_) d.active = false;
@@ -896,6 +899,9 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
     if (handleCogdoEnter(doId, classId, r, req, reqCount, other)) return; // cogdo
     if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
+    // [interior life]
+    if (handleInteriorEnter(doId, classId, r, req, reqCount, other)) return;
+    // [end interior life]
     if (classHasField(*cls, dc::DistributedBuilding::k_setBlock)) {
         handleCogBuildingEnter(doId, r, req, reqCount, other);
         return;
@@ -1013,6 +1019,9 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (handleTrolleyField(r, doId, fieldId)) return;
     if (handleGolfField(r, doId, fieldId)) return;
     if (handleLevelField(r, doId, fieldId)) return; // client_level.cpp
+    // [interior life]
+    if (handleInteriorField(r, doId, fieldId)) return;
+    // [end interior life]
     if (handleEstateField(r, doId, fieldId)) return;
     if (handleCogField(r, doId, fieldId)) return;
     if (handleRacingField(r, doId, fieldId)) return;
@@ -1136,6 +1145,9 @@ void Client::handleLeaving(uint32_t doId) {
     if (handleTrolleyLeaving(doId)) return;
     if (handleGolfLeaving(doId)) return;
     if (handleLevelLeaving(doId)) return; // client_level.cpp
+    // [interior life]
+    if (handleInteriorLeaving(doId)) return;
+    // [end interior life]
     if (estate_.active && estate_.doId == doId) { estate_ = Estate{}; pushEvent(EventType::EstateGone, doId); return; }
     if (closet_.active && closet_.doId == doId) { closet_ = Closet{}; pushEvent(EventType::ClosetGone, doId); return; }
     if (mailboxDoId_ == doId) { mailboxDoId_ = 0; return; }
@@ -2755,6 +2767,9 @@ void Client::dropZoneObjects() {
     clearBattles();
     clearCogObjects();
     clearTrolleyObjects();
+    // [interior life]
+    clearInteriorObjects();
+    // [end interior life]
     clearRacing();
     clearGolfObjects();
 }

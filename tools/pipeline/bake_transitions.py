@@ -77,11 +77,11 @@ def bake_portal(base, res_dir, out_path):
     print(f"Baked portal: {stats['file_bytes']} bytes, {stats['triangles']} tris -> {out_path}")
 
 
-def bake_door_leaf(base, res_dir, out_path):
-    """Bake right door leaf (phase_3.5/models/modules/doors_practical.bam) with hinge at origin."""
+def bake_door_leaf(base, res_dir, node_name, out_path):
+    """Bake a door leaf from doors_practical.bam with hinge at origin."""
     bam_path = os.path.join(res_dir, 'phase_3.5', 'models', 'modules', 'doors_practical.bam')
     m = base.loader.loadModel(Filename.fromOsSpecific(bam_path))
-    d = m.find('**/door_double_round_ur_right')
+    d = m.find(f'**/{node_name}')
     d.setPos(0, 0, 0)
     d.setHpr(0, 0, 0)
 
@@ -90,7 +90,7 @@ def bake_door_leaf(base, res_dir, out_path):
 
     os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
     stats = ttm.write(out_path, ex.textures, ex.batches())
-    print(f"Baked door leaf: {stats['file_bytes']} bytes, {stats['triangles']} tris -> {out_path}")
+    print(f"Baked door leaf ({node_name}): {stats['file_bytes']} bytes, {stats['triangles']} tris -> {out_path}")
 
 
 def bake_death_sfx(res_dir, out_path):
@@ -107,11 +107,13 @@ def main():
     base = ShowBase()
 
     portal_out = os.path.join(ROOT, 'romfs', 'baked', 'portal.ttm')
-    door_out = os.path.join(ROOT, 'romfs', 'baked', 'door_right.ttm')
+    door_right_out = os.path.join(ROOT, 'romfs', 'baked', 'door_right.ttm')
+    door_left_out = os.path.join(ROOT, 'romfs', 'baked', 'door_left.ttm')
     lose_out = os.path.join(ROOT, 'romfs', 'baked', 'audio', 'enc_lose.tsnd')
 
     bake_portal(base, res, portal_out)
-    bake_door_leaf(base, res, door_out)
+    bake_door_leaf(base, res, 'door_double_round_ur_right', door_right_out)
+    bake_door_leaf(base, res, 'door_double_round_ur_left', door_left_out)
     bake_death_sfx(res, lose_out)
     print("All transition assets baked successfully.")
 

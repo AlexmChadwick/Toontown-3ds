@@ -2481,12 +2481,18 @@ constexpr uint16_t kClassId = 64;
 constexpr uint16_t k_setPropId = 429;
 constexpr uint16_t k_setAvatarInteract = 430;
 constexpr uint16_t k_setState = 435;
+constexpr uint16_t k_requestInteract = 431;
+constexpr uint16_t k_requestExit = 433;
 constexpr uint16_t kw_setPropId = 0x007;
 constexpr uint16_t kw_setAvatarInteract = 0x007;
 constexpr uint16_t kw_setState = 0x007;
+constexpr uint16_t kw_requestInteract = 0x110;
+constexpr uint16_t kw_requestExit = 0x110;
 constexpr const char* sig_setPropId = "u16";
 constexpr const char* sig_setAvatarInteract = "u32";
 constexpr const char* sig_setState = "string,i16";
+constexpr const char* sig_requestInteract = "";
+constexpr const char* sig_requestExit = "";
 } // namespace DistributedAnimatedProp
 
 namespace DistributedButterfly {
@@ -2512,10 +2518,13 @@ constexpr const char* sig_setState = "string,i16";
 namespace DistributedHQInterior {
 constexpr uint16_t kClassId = 218;
 constexpr uint16_t k_setZoneIdAndBlock = 1319;
+constexpr uint16_t k_setLeaderBoard = 1320;
 constexpr uint16_t k_setTutorial = 1321;
 constexpr uint16_t kw_setZoneIdAndBlock = 0x007;
+constexpr uint16_t kw_setLeaderBoard = 0x007;
 constexpr uint16_t kw_setTutorial = 0x007;
 constexpr const char* sig_setZoneIdAndBlock = "u32,u16";
+constexpr const char* sig_setLeaderBoard = "blob";
 constexpr const char* sig_setTutorial = "u8";
 } // namespace DistributedHQInterior
 

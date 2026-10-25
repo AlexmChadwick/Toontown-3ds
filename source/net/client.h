@@ -168,6 +168,13 @@ enum class EventType : uint8_t {
     GolfCourseUp, GolfCourseState, GolfHoleUp, GolfHoleState,
     MinigameUp,         // a DistributedMinigame (any game) generated (minigame())
     MinigameReady,      // setGameReady
+    // [interior life]
+    HQLeaderboard,
+    HQTutorial,
+    KnockKnockInteract,
+    KnockKnockState,
+    KnockKnockGone,
+    // [end interior life]
     MinigameStart,      // setGameStart (minigame()->gameStartMs)
     MinigameExit,       // setGameExit
     MinigameAbort,      // setGameAbort
@@ -1335,6 +1342,40 @@ public:
     const District* districts() const { return districts_; }
     int numDistricts() const { return kMaxDistricts; }
 
+    // [interior life]
+    struct HQLeaderEntry {
+        uint32_t avId = 0;
+        char name[32] = {};
+        uint32_t score = 0;
+    };
+
+    struct HQLeaderboardState {
+        bool active = false;
+        uint32_t doId = 0;
+        uint32_t zoneId = 0;
+        uint16_t block = 0;
+        uint8_t tutorial = 0;
+        int numLeaders = 0;
+        HQLeaderEntry leaders[10] = {};
+    };
+
+    struct KnockKnockDoorState {
+        bool active = false;
+        uint32_t doId = 0;
+        uint16_t propId = 0;
+        uint32_t avatarId = 0;
+        char state[32] = {};
+        int16_t timestamp = 0;
+    };
+
+    const HQLeaderboardState& hqLeaderboard() const { return hqLeaderboard_; }
+    const KnockKnockDoorState* findKnockKnockDoor(uint32_t doId) const;
+    const KnockKnockDoorState* findKnockKnockDoorByPropId(uint16_t propId) const;
+    bool sendKnockKnockInteract(uint32_t doId);
+    bool sendKnockKnockExit(uint32_t doId);
+    static bool decodeLeaderboardPickle(const uint8_t* data, size_t len, HQLeaderboardState& out);
+    // [end interior life]
+
     // ---- shop (additive section; keep together) ----
     // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
     // may shop for kClerkCountdownMs), NO_MONEY, or freeAvatar when it is busy.
@@ -1740,6 +1781,17 @@ private:
     uint32_t houseDoorDoId_ = 0;
     NetDoor doors_[kMaxDoors] = {};
     size_t numDoors_ = 0;
+    // [interior life]
+    static constexpr size_t kMaxKnockKnockDoors = 32;
+    HQLeaderboardState hqLeaderboard_ = {};
+    KnockKnockDoorState knockKnockDoors_[kMaxKnockKnockDoors] = {};
+
+    bool handleInteriorEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
+                             const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleInteriorField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool handleInteriorLeaving(uint32_t doId);
+    void clearInteriorObjects();
+    // [end interior life]
     EstateFurniture furniture_[kMaxEstateFurniture] = {};
     Pet pets_[kMaxPets] = {};
     uint32_t ownBattleId_ = 0;
