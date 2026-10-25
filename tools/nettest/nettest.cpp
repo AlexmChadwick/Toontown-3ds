@@ -233,7 +233,7 @@ int runClient(const Options& o) {
                 CHECK(t && t->emoteId>=0 && t->emoteId<25);
                 if(t && t->doId==100000001) CHECK(t->emoteId==24);
                 if(t) {
-                    CHECK(int32_t(now-t->emoteMs)>=-500 && int32_t(now-t->emoteMs)<1000);
+                    CHECK(int32_t(now-t->emoteMs)>=-20 && int32_t(now-t->emoteMs)<500);
                     ++emotes;
                 }
                 break;
