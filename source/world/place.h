@@ -60,6 +60,8 @@ public:
     const char* pointsPath() const { return pointsPath_; }
     const Point* point(const char* name) const;
     const Point* pointWithPrefix(const char* prefix) const;
+    int numPoints() const { return numPoints_; }
+    const Point& pointAt(int idx) const { return points_[idx]; }
 
     // The exit the toon at (x, y, z) is standing in (tunnel/door trigger), if any.
     Exit exitAt(float x, float y, float z) const;

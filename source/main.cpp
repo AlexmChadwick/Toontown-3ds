@@ -50,6 +50,7 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "world/transition.h"
 #include "world/zone_actors.h"
 
 namespace {
@@ -210,9 +211,6 @@ int main() {
         }
     };
     loadAmbient(2000);
-    const tt::audio::SfxId sfxDoorOpen = tt::audio::loadSfx("romfs:/baked/audio/door_open.tsnd");
-    const tt::audio::SfxId sfxDoorClose = tt::audio::loadSfx("romfs:/baked/audio/door_close.tsnd");
-    const tt::audio::SfxId sfxTeleport = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
     const tt::audio::SfxId sfxDecompress = tt::audio::loadSfx("sdmc:/3ds/toontown3ds/data/audio/toon_decompress.tsnd");
     float squishAge = -1.0f; // Toon.enterSquish / stunToon after a factory stomper (world/level.*)
     float zapStunAge = -1.0f; // stunToon after a goon's zap
@@ -272,14 +270,9 @@ int main() {
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
     tt::world::ToonAnim loggedAnim = tt::world::kAnimNeutral;
-    // Zone transitions fade the top screen to black (upstream: the toon walks into the
-    // tunnel/door while the iris closes), load behind the black frame, then fade back in.
-    u32 fadeTarget = 0;
-    float fade = 0.0f; // 0 clear .. 1 black
-    int fadeDir = 0;   // +1 closing, -1 opening
-    bool fadeWalk = false;
-    float teleportOutAge=0,teleportInAge=-1;
-    bool fadeDoor = false; // walking through a building door (door open/close sounds)
+    // Place transitions: tunnels, building doors, teleports, and death.
+    tt::world::Transition transition;
+    transition.init();
     unsigned hoodsAvailable = 0;
     for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
         if (tt::world::Place::available(tt::ui::kTeleportHoods[i])) hoodsAvailable |= 1u << i;
@@ -490,9 +483,7 @@ int main() {
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
-            fade = 0.0f; // a transition in progress is abandoned with the session
-            fadeDir = 0;
-            fadeTarget = 0;
+            transition.reset(); // a transition in progress is abandoned with the session
             frontEnd.reset();
             inFrontEnd = true;
             continue;
@@ -540,13 +531,14 @@ int main() {
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0) {
             ui.book().close();
         }
-        if (autotest.active() && !strncmp(autotest.label(), "exit: ", 6)) {
+        if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
             const bool interiorDoor = !strcmp(autotest.label(), "exit: interior door");
             const bool streetDoor = !strcmp(autotest.label(), "exit: street door");
-            const char* want = !strcmp(autotest.label(), "exit: tunnel 2132") ? "linktunnel_tt_2132"
-                               : streetDoor                                   ? "tb"
-                                                                              : "sz19:";
+            const bool isTunnel = !strcmp(autotest.label(), "exit: tunnel 2132") || !strcmp(autotest.label(), "move: tunnel");
+            const char* want = isTunnel ? "linktunnel_tt_2132"
+                               : streetDoor ? "tb"
+                               : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
             for (int i = 0; i < cw.numTriggers(); i++) {
                 const tt::world::CollTrigger& t = cw.trigger(i);
@@ -590,7 +582,7 @@ int main() {
             // page and take the first ToonTask offered.
             static u32 hqNextMs = 0;
             const u32 now = tt::net::plat::nowMs();
-            if (place.zoneId() != 2520 && !uiState.teleportRequest && fadeDir == 0) uiState.teleportRequest = 2520;
+            if (place.zoneId() != 2520 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2520;
             float npc[4];
             if (place.zoneId() == 2520 && !talk.locked() && zoneActors.shadowPositions(npc, 1) == 1 && now > hqNextMs) {
                 player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
@@ -611,7 +603,7 @@ int main() {
             uiState.homeRequest = true; // test-only: the Map tab's Home button
         }
         if (autotest.active() && !strncmp(autotest.label(), "golf: ", 6)) {
-            if (!golf.active() && place.zoneId() != 6000 && !uiState.teleportRequest && fadeDir == 0) {
+            if (!golf.active() && place.zoneId() != 6000 && !uiState.teleportRequest && transition.idle()) {
                 uiState.teleportRequest = 6000; // Acorn Acres
             }
             const tt::net::GolfKart* kart = netStarted ? net.golfKart() : nullptr;
@@ -621,7 +613,7 @@ int main() {
             }
         }
         if (autotest.active() && !strncmp(autotest.label(), "go speedway", 11) &&
-            place.zoneId() != 8000 && !uiState.teleportRequest && fadeDir == 0) {
+            place.zoneId() != 8000 && !uiState.teleportRequest && transition.idle()) {
             uiState.teleportRequest = 8000;
         }
         if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && racing.active() &&
@@ -662,7 +654,7 @@ int main() {
             // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
             static u32 tailorNextMs = 0;
             const u32 now = tt::net::plat::nowMs();
-            if (place.zoneId() != 2521 && !uiState.teleportRequest && fadeDir == 0) uiState.teleportRequest = 2521;
+            if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
             float npc[4];
             if (place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 && now > tailorNextMs) {
                 player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
@@ -678,7 +670,7 @@ int main() {
                                      {"go da office", 13200},  {"go country club", 10000}};
             for (const Go& g : kGo)
                 if (!strcmp(autotest.label(), g.label) && place.zoneId() != g.zone && !uiState.teleportRequest &&
-                    fadeDir == 0)
+                    transition.idle())
                     uiState.teleportRequest = g.zone;
         }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
@@ -836,7 +828,7 @@ int main() {
         if (autotest.active() && !strcmp(autotest.label(), "see cog")) {
             // Started mid-script: go to a street with cogs (Silly Street) first.
             if (tt::world::placeKind(place.zoneId()) != tt::world::PlaceKind::Street &&
-                !uiState.teleportRequest && fadeDir == 0)
+                !uiState.teleportRequest && transition.idle())
                 uiState.teleportRequest = 2100;
             float cx, cy, cz;
             if (suits.firstPosition(&cx, &cy, &cz)) autotestFace(cx, cy, cz, 9.0f);
@@ -910,7 +902,7 @@ int main() {
         }
         ui.setEmoteAccess(netStarted && net.ownStats().hasEmotes?net.ownStats().emoteAccess:nullptr);
         auto tryEmote = [&](int emote) {
-            if(!battle.active() && !fishing.active() && !trolley.seated() && !minigame.active() && fadeDir==0 &&
+            if(!battle.active() && !fishing.active() && !trolley.seated() && !minigame.active() && transition.idle() &&
                !localToon.emoteActive() && !uiState.whisperTo && (!netStarted || net.sendEmote(emote))) {
                 const bool ok = localToon.playEmote(emote);
                 TT_LOG("emote: %d %s", emote, ok ? "playing" : "no clip");
@@ -938,14 +930,8 @@ int main() {
             pendingSpeech = speechMsg;
         }
         myPhraseAge += dt;
-        if(localToon.bodyLocked() || teleportInAge>=0) { in.pad.dx=in.pad.dy=0;in.down&=~(KEY_A|KEY_B);in.held&=~(KEY_A|KEY_B); }
-        if (fadeDir > 0) {
-            // Walking out through a tunnel or door: keep going forward, ignore the player.
-            in.pad.dx = 0;
-            in.pad.dy = fadeWalk ? 120 : 0;
-            in.held &= ~(KEY_A | KEY_B);
-            in.down &= ~(KEY_A | KEY_B);
-        }
+        if (localToon.bodyLocked()) { in.pad.dx = in.pad.dy = 0; in.down &= ~(KEY_A | KEY_B); in.held &= ~(KEY_A | KEY_B); }
+        transition.applyInput(in.pad, in.held, in.down);
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
         talk.update(dt);
@@ -981,14 +967,14 @@ int main() {
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
-        fishing.handleInput(in, dt, tt::net::plat::nowMs(), fadeDir == 0);
+        fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle());
         racing.update(net, in, dt, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         // The facility level first: its lifts/stompers must be where they are *this* frame
         // before the toon stands on them (it uses last frame's feet).
         tt::world::LevelBattleAction levelAction;
         if (level.active() && netStarted && net.inZone()) {
             level.update(net, suits, player.x(), player.y(), player.z(), dt, tt::net::plat::nowMs(),
-                         battle.idle() && fadeDir == 0, &levelAction);
+                         battle.idle() && transition.idle(), &levelAction);
             float sx, sy, sz, sh;
             if (level.popSeat(&sx, &sy, &sz, &sh)) player.reset(sx, sy, sz, sh); // a floor elevator seat
         }
@@ -1059,8 +1045,8 @@ int main() {
         const tt::world::ToonAnim anim = player.animState(&animRate);
         // In battle the movie picks the clip (and the autotest's "clip: *" steps play one).
         const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
-        const bool featureAnimation=fishing.active() || trolley.seated() || minigame.inScene() ||
-            teleportInAge>=0 || (fadeDir>0 && !fadeWalk);
+        const bool featureAnimation = fishing.active() || trolley.seated() || minigame.inScene() ||
+            transition.active();
         if (!battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
         if (battle.inBattle()) { // the battle movie animates the toon
             if (!battleClips.count && localLook.ready()) {
@@ -1093,17 +1079,8 @@ int main() {
             if(minigame.inScene()) minigame.applyAnimation(localToon);
             else if(trolley.seated()) trolley.applyAnimation(localToon,tt::net::plat::nowMs());
             else if(fishing.active()) fishing.applyAnimation(localToon);
-            else if(fadeDir>0 && !fadeWalk) {
-                localToon.playAction(tt::world::kAnimTeleport,tt::world::ClipMode::Once);
-                localToon.seek(teleportOutAge);
-            } else if(teleportInAge>=0) {
-                teleportInAge+=dt;
-                if(teleportInAge<.3f) localToon.hold(tt::world::kAnimTeleport,81/24.0f);
-                else {
-                    localToon.playAction(tt::world::kAnimJump,tt::world::ClipMode::Once,1,.45f);
-                    localToon.seek(teleportInAge-.3f);
-                    if(teleportInAge>=.3f+40/24.0f-.45f) teleportInAge=-1;
-                }
+            else if(transition.active()) {
+                transition.applyAnimation(localToon, dt);
             }
         }
         if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
@@ -1137,7 +1114,7 @@ int main() {
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
         u32 travelTarget = 0;
-        if (fadeDir != 0 || minigame.active() || trolley.seated()) {
+        if (transition.active() || minigame.active() || trolley.seated()) {
             // A transition is running, or we are on the trolley / away at a minigame: no exits.
         } else if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
             if (!tt::world::Place::available(exitHere.targetZone)) {
@@ -1151,14 +1128,23 @@ int main() {
                 travelTarget = exitHere.targetZone;
             }
         }
-        if (uiState.teleportRequest && fadeDir == 0) {
+        if (uiState.teleportRequest && transition.idle()) {
             // Map tab teleport to a playground (upstream: Shticker Book map page).
-            if (tt::world::Place::available(uiState.teleportRequest)) travelTarget = uiState.teleportRequest;
-            fadeWalk = false;
-        } else if (travelTarget) {
-            fadeWalk = true;
+            if (tt::world::Place::available(uiState.teleportRequest)) {
+                transition.startTeleportOut(uiState.teleportRequest, player, netStarted ? &net : nullptr);
+            }
+            uiState.teleportRequest = 0;
+        } else if (travelTarget && transition.idle()) {
+            const bool leavingLevel = level.active();
+            if ((travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
+                if (exitHere.kind == tt::world::Exit::Door) {
+                    transition.startDoorOut(travelTarget, exitHere, player, place, 0, netStarted ? &net : nullptr);
+                } else {
+                    transition.startTunnelOut(travelTarget, exitHere, player, place, netStarted ? &net : nullptr);
+                }
+            }
         }
-        if (uiState.homeRequest && fadeDir == 0 && netStarted) {
+        if (uiState.homeRequest && transition.idle() && netStarted) {
             if (!net.requestHome()) {
                 // Stock Open Toontown never generates an EstateManager (its estate AI classes
                 // are empty stubs), so there is no home to go to on that server.
@@ -1168,61 +1154,37 @@ int main() {
             uiState.homeRequest = false;
         }
         uiState.teleportRequest = 0;
-        // Inside a facility the HQ it was entered from stays loaded underneath, so travelling to
-        // that same zone (a mint's win -> Cashbot HQ) still has to leave the facility.
-        const bool leavingLevel = level.active();
-        if (travelTarget && (travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
-            fadeTarget = travelTarget; // start closing; travel once the screen is black
-            fadeDir = 1;
-            teleportOutAge=0;teleportInAge=-1;localToon.cancel();
-            fadeDoor = fadeWalk && exitHere.kind == tt::world::Exit::Door;
-            if (fadeDoor) tt::audio::playSfx(sfxDoorOpen);       // DistributedDoor: door opens
-            else if (!fadeWalk) tt::audio::playSfx(sfxTeleport); // Toon.getTeleportOutTrack
-        }
-        travelTarget = 0;
-        if (fadeDir != 0) {
-            const float before = fade;
-            if(fadeDir>0 && !fadeWalk) teleportOutAge+=dt;
-            if(fadeDir<0 || fadeWalk || teleportOutAge>=3.0f) fade += fadeDir * dt / kFadeSec;
-            if (fadeDir > 0 && fade >= 1.0f) {
-                fade = 1.0f;
-                // Travel on the frame after one fully black frame has been shown.
-                if (before >= 1.0f) {
-                    travelTarget = fadeTarget;
-                    fadeDir = -1;
-                }
-            } else if (fadeDir < 0 && fade <= 0.0f) {
-                fade = 0.0f;
-                fadeDir = 0;
-            }
-        }
-        if (travelTarget && (travelTarget != place.zoneId() || leavingLevel) && (!netStarted || net.inZone())) {
-            const u32 fromZone = place.zoneId();
+
+        transition.update(dt, player, place, netStarted ? &net : nullptr);
+
+        if (transition.readyToLoad()) {
+            const u32 dest = transition.targetZone();
+            const u32 fromZone = transition.fromZone();
             remoteToons.clear();
-            if (place.load(travelTarget)) {
+            if (place.load(dest)) {
                 zoneActors.loadPoints(place.pointsPath());
-                cchars.setZone(travelTarget);
-                fishing.setZone(travelTarget, place.pointsPath());
-                trolley.setZone(travelTarget);
-                cogBuildings.setZone(travelTarget);
+                cchars.setZone(dest);
+                fishing.setZone(dest, place.pointsPath());
+                trolley.setZone(dest);
+                cogBuildings.setZone(dest);
                 cogBuildings.syncAnchors(place);
-                suits.setZone(travelTarget);
+                suits.setZone(dest);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
                 player.reset(ax, ay, az, ah);
-                if(!fadeWalk) { teleportInAge=0;localToon.cancel(); }
-                if (netStarted) net.changeZone(travelTarget);
+                if (netStarted) net.changeZone(dest);
                 place.finishLoading(ax, ay, az, onStreetCell, nullptr);
                 lastExitZone = place.exitAt(ax, ay, az).targetZone; // don't bounce straight back
-                if (tt::world::hoodOf(travelTarget) != tt::world::hoodOf(fromZone) ||
-                    tt::world::placeKind(travelTarget) != tt::world::placeKind(fromZone)) {
-                    playPlaceMusic(travelTarget);
+                if (tt::world::hoodOf(dest) != tt::world::hoodOf(fromZone) ||
+                    tt::world::placeKind(dest) != tt::world::placeKind(fromZone)) {
+                    playPlaceMusic(dest);
                 }
-                loadAmbient(travelTarget);
-                if (fadeDoor) tt::audio::playSfx(sfxDoorClose); // the door shuts behind us
+                loadAmbient(dest);
+                transition.notifyLoaded(dest, place, player, netStarted ? &net : nullptr);
                 continue;
             }
             place.load(fromZone); // fall back to where we were
+            transition.reset();
         }
         lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
         toastAge += dt;
@@ -1361,7 +1323,7 @@ int main() {
                 // Anim *states*, as LocalAvatar sends them: "run" covers all ground locomotion
                 // (others derive walk/run/neutral from our smoothed speed), "jumpAirborne" in the air.
                 const char* netState = trolley.seated()?trolley.toonNetworkState(nowMs):fishing.active()?"off":minigame.inScene()?minigame.toonNetworkState():
-                    (fadeDir>0 && !fadeWalk)?"TeleportOut":teleportInAge>=0?"TeleportIn":player.airborne()?"jumpAirborne":"run";
+                    transition.active() ? transition.toonNetworkState() : player.airborne() ? "jumpAirborne" : "run";
                 if (netState != sentState) {
                     net.sendAnimState(netState, 1.0f);
                     sentState = netState;
@@ -1381,11 +1343,11 @@ int main() {
                 lastTouchedTreasure = touching;
                 const u32 clerk = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                          tt::dc::DistributedNPCClerk::kClassId);
-                if (clerk && clerk != lastTouchedClerk && !shop.active() && fadeDir == 0) net.sendClerkAvatarEnter(clerk);
+                if (clerk && clerk != lastTouchedClerk && !shop.active() && transition.idle()) net.sendClerkAvatarEnter(clerk);
                 lastTouchedClerk = clerk;
                 const u32 tailorNpc = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                              tt::dc::DistributedNPCTailor::kClassId);
-                if (tailorNpc && tailorNpc != lastTouchedTailor && !tailor.active() && !shop.active() && fadeDir == 0)
+                if (tailorNpc && tailorNpc != lastTouchedTailor && !tailor.active() && !shop.active() && transition.idle())
                     net.sendTailorAvatarEnter(tailorNpc);
                 lastTouchedTailor = tailorNpc;
                 // Quest givers: walking into one starts the conversation (DistributedNPCToon.avatarEnter).
@@ -1395,7 +1357,7 @@ int main() {
                     giver = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                    tt::dc::DistributedNPCSpecialQuestGiver::kClassId);
                 }
-                if (giver && giver != lastTouchedQuestNpc && !talk.locked() && !shop.active() && fadeDir == 0) {
+                if (giver && giver != lastTouchedQuestNpc && !talk.locked() && !shop.active() && transition.idle()) {
                     talk.setLocal(net.avatarId(), net.avatarName());
                     talk.begin(giver);
                     TT_LOG("quest: talking to NPC %u", unsigned(giver));
@@ -1447,7 +1409,7 @@ int main() {
             }
             // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
             // walking into someone else's fight joins it.
-            if (!battle.active() && fadeDir == 0 && !shop.active() && !fishing.active() && !minigame.active() &&
+            if (!battle.active() && transition.idle() && !shop.active() && !fishing.active() && !minigame.active() &&
                 !trolley.seated()) {
                 uint32_t facilityCog = 0;
                 float facilityX = 0, facilityY = 0, facilityZ = 0, facilityH = 0;
@@ -1466,7 +1428,7 @@ int main() {
                 }
                 battle.checkJoin(net, player.x(), player.y(), player.z(), player.headingDeg(), nowMs);
             }
-            if (!battle.active() && !minigame.active() && !golf.active() && fadeDir == 0) {
+            if (!battle.active() && !minigame.active() && !golf.active() && transition.idle()) {
                 trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
             }
             if (!golf.active()) {
@@ -1504,14 +1466,13 @@ int main() {
                 minigame.update(net, minigamePad, dt, nowMs);
                 if (const u32 home = minigame.popReturn()) {
                     // Back from the game: teleport into the playground (Playground.enterTeleportIn).
-                    teleportInAge=0;localToon.cancel();
                     player.setCollision(&place.collision());
                     net.changeZone(home);
                     float ax, ay, az, ah;
                     place.arrival(0, &ax, &ay, &az, &ah);
                     player.reset(ax, ay, az, ah);
                     net.sendSetParent(tt::net::kParentRender);
-                    tt::audio::playSfx(sfxTeleport);
+                    transition.startTeleportIn(player, &net);
                 }
                 if (const char* m = trolley.popMessage()) {
                     toast = m;
@@ -1566,7 +1527,7 @@ int main() {
                 else if (hood == 12000) hood = 9000;  // Cashbot HQ -> Donald's Dreamland
                 else if (hood == 13000) hood = 3000;  // Lawbot HQ -> The Brrrgh
                 else if (hood == 10000) hood = 1000;  // Bossbot HQ -> Donald's Dock
-                uiState.teleportRequest = hood;
+                transition.startDied(hood, player, &net);
             }
         }
         for (int i = 0; i < uiState.stressToons && i < kMaxStressToons; i++) stressToons[i].update(dt);
@@ -1667,7 +1628,11 @@ int main() {
             }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (player.cameraDistance() > kHideToonCameraDistance && !(teleportInAge>=0 && teleportInAge<.3f)) {
+            if (player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) {
+                if (transition.toonScale() != 1.0f) {
+                    const float ts = transition.toonScale();
+                    Mtx_Scale(&m, ts, ts, ts);
+                }
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
             remoteToons.draw(renderer, player.x(), player.y());
@@ -1709,6 +1674,7 @@ int main() {
                 stressToons[i].draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
             tt::prof::lap(tt::prof::kDrawToons);
+            transition.drawWorld(renderer);
         }
         renderer.endWorld();
         lastStats = renderer.stats();
@@ -1767,15 +1733,7 @@ int main() {
                 hv.racePlace = racing.place();
             }
             hud.draw(renderer.topLeft(), hv);
-            if (fade > 0.0f) {
-                const u32 black = C2D_Color32(0, 0, 0, static_cast<u8>(fade * 255.0f));
-                for (int e = 0; e < (stereoActive ? 2 : 1); e++) {
-                    C2D_SceneBegin(e == 0 ? renderer.topLeft() : renderer.topRight());
-                    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-                    C2D_DrawRectSolid(0, 0, 0.9f, 400, 240, black);
-                }
-                C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // as hud.cpp / balloons.cpp restore it
-            }
+            transition.drawFade(renderer, stereoActive);
             tt::prof::lap(tt::prof::kHud);
         }
         const struct mallinfo mi = mallinfo();
@@ -1892,6 +1850,7 @@ int main() {
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();
+    transition.shutdown();
     dropShadow.unload();
     place.unload();
     balloons.shutdown();
