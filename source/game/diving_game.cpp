@@ -41,11 +41,11 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
     char path[96];
     std::snprintf(path, sizeof(path), "%sdiving_game.ttm", kDir);
-    environModel_.load(path);
+    assetBatch_.load(environModel_, path);
     std::snprintf(path, sizeof(path), "%sdiving_boat.ttm", kDir);
-    boatModel_.load(path);
+    assetBatch_.load(boatModel_, path);
     std::snprintf(path, sizeof(path), "%sdiving_chest.ttm", kDir);
-    chestModel_.load(path);
+    assetBatch_.load(chestModel_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Depth: 0.0 m  (Time: 65 s)");
@@ -53,6 +53,7 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void DivingGame::shutdown() {
+    assetBatch_.clear();
     environModel_.unload();
     boatModel_.unload();
     chestModel_.unload();

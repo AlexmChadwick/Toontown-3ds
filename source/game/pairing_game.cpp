@@ -34,9 +34,9 @@ void PairingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
     char path[96];
     std::snprintf(path, sizeof(path), "%smemory_room.ttm", kDir);
-    memoryRoomModel_.load(path);
+    assetBatch_.load(memoryRoomModel_, path);
     std::snprintf(path, sizeof(path), "%splaying_card.ttm", kDir);
-    cardModel_.load(path);
+    assetBatch_.load(cardModel_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Matches: 0 / 16");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Flips: 0  (Time: 90 s)");
@@ -44,6 +44,7 @@ void PairingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void PairingGame::shutdown() {
+    assetBatch_.clear();
     memoryRoomModel_.unload();
     cardModel_.unload();
     done_ = true;

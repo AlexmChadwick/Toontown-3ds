@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class TagGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     TagGame() = default;
 
     bool init(const char* root, uint32_t itAvId);
@@ -31,6 +38,7 @@ public:
     void onTag(uint32_t tagger, uint32_t tagged);
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     taggame::Simulation sim_;
     float toonX_ = 0.0f;
     float toonY_ = 0.0f;

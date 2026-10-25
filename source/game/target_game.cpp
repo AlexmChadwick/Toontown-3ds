@@ -11,11 +11,11 @@ namespace tt::game {
 bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/minigames/slingshot_desert.ttm", root);
-    groundModel_.load(path);
+    assetBatch_.load(groundModel_, path);
     std::snprintf(path, sizeof(path), "%s/minigames/slingshot_sling.ttm", root);
-    slingModel_.load(path);
+    assetBatch_.load(slingModel_, path);
     std::snprintf(path, sizeof(path), "%s/minigames/slingshot_tramp.ttm", root);
-    trampModel_.load(path);
+    assetBatch_.load(trampModel_, path);
 
     numTargets_ = targetgame::setupTargets(seed, safezone, targets_, targetgame::kMaxTargets);
     flight_ = targetgame::FlightState{};
@@ -30,6 +30,7 @@ bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
 }
 
 void TargetGame::shutdown() {
+    assetBatch_.clear();
     groundModel_.unload();
     slingModel_.unload();
     trampModel_.unload();

@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class CogThiefGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     CogThiefGame() = default;
 
     bool init(const char* root, int numCogs = 5, float cogSpeed = cogthief::kCogSpeedTTC);
@@ -29,6 +36,7 @@ public:
     const char* line(int i) const;
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     cogthief::Simulation sim_;
     float tx_ = 0.0f;
     float ty_ = 12.0f;

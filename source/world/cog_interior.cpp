@@ -31,10 +31,13 @@ void CogInterior::handleEvent(const net::Event& ev, net::Client& client, uint32_
 }
 
 void CogInterior::loadFloor(int floor) {
+    // State changes on one floor do not change immutable baked geometry.
+    if (loadedFloor_ == floor)
+        return;
+    loadedFloor_ = floor;
     char path[112];
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/floor_%d.ttm", floor);
-    room_.unload();
-    room_.load(path);
+    assetBatch_.load(room_, path);
     char collisionPath[128];
     snprintf(collisionPath, sizeof(collisionPath),
              "sdmc:/3ds/toontown3ds/data/cogbldg/floor_%d.ttc", floor);
@@ -93,6 +96,10 @@ void CogInterior::draw(render::Renderer& renderer) const {
 }
 
 void CogInterior::shutdown() {
+    assetBatch_.clear();
+    loadedFloor_ = -1;
+    if (room_.loaded())
+        C3D_FrameSync();
     active_ = false;
     sentElevatorDone_ = false;
     sentReserveDone_ = false;

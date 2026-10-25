@@ -15,9 +15,9 @@ constexpr float kFirstOffset = ringgame::kFirstGroupArrival * ringgame::kRingSwi
 void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     char path[128];
     snprintf(path, sizeof(path), "%sring_game.ttm", kDir);
-    environ_.load(path);
+    assetBatch_.load(environ_, path);
     snprintf(path, sizeof(path), "%sring_ring.ttm", kDir);
-    ringModel_.load(path);
+    assetBatch_.load(ringModel_, path);
 
     const net::Minigame* mg = client.minigame();
     slot_ = 0;
@@ -60,6 +60,7 @@ void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void RingGame::shutdown() {
+    assetBatch_.clear();
     C3D_FrameSync();
     environ_.unload();
     ringModel_.unload();

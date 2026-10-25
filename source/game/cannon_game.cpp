@@ -15,15 +15,15 @@ constexpr float kPi = 3.14159265358979323846f;
 void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     char path[128];
     snprintf(path, sizeof(path), "%scannon_gameground.ttm", kDir);
-    ground_.load(path);
+    assetBatch_.load(ground_, path);
     snprintf(path, sizeof(path), "%scannon_hill.ttm", kDir);
-    hill_.load(path);
+    assetBatch_.load(hill_, path);
     snprintf(path, sizeof(path), "%scannon_tower.ttm", kDir);
-    tower_.load(path);
+    assetBatch_.load(tower_, path);
     snprintf(path, sizeof(path), "%scannon_base.ttm", kDir);
-    cannonBase_.load(path);
+    assetBatch_.load(cannonBase_, path);
     snprintf(path, sizeof(path), "%scannon_barrel.ttm", kDir);
-    cannonBarrel_.load(path);
+    assetBatch_.load(cannonBarrel_, path);
 
     const net::Minigame* mg = client.minigame();
     slot_ = 0;
@@ -76,6 +76,7 @@ void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void CannonGame::shutdown() {
+    assetBatch_.clear();
     C3D_FrameSync();
     ground_.unload();
     hill_.unload();

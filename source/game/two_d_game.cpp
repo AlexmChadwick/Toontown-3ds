@@ -11,9 +11,9 @@ namespace tt::game {
 bool TwoDGame::init(const char* root) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/minigames/toonblitz_game.ttm", root);
-    gameModel_.load(path);
+    assetBatch_.load(gameModel_, path);
     std::snprintf(path, sizeof(path), "%s/minigames/toonblitz_block.ttm", root);
-    blockModel_.load(path);
+    assetBatch_.load(blockModel_, path);
 
     player_ = twodgame::PlayerPhysics{};
     player_.x = 0.0f;
@@ -37,6 +37,7 @@ bool TwoDGame::init(const char* root) {
 }
 
 void TwoDGame::shutdown() {
+    assetBatch_.clear();
     gameModel_.unload();
     blockModel_.unload();
     isDone_ = true;

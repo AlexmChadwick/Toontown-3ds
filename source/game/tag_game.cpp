@@ -15,14 +15,15 @@ bool TagGame::init(const char* root, uint32_t itAvId) {
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/tag_arena.ttm", root);
-    arenaModel_.load(path);
+    assetBatch_.load(arenaModel_, path);
     std::snprintf(path, sizeof(path), "%s/tag_treasure.ttm", root);
-    treasureModel_.load(path);
+    assetBatch_.load(treasureModel_, path);
 
     return true;
 }
 
 void TagGame::shutdown() {
+    assetBatch_.clear();
     arenaModel_.unload();
     treasureModel_.unload();
 }

@@ -3,7 +3,7 @@
 namespace tt::world {
 void Pets::handleEvent(const net::Event &ev) {
     if (ev.type == net::EventType::PetUp && !loaded_)
-        loaded_ = doodle_.load("sdmc:/3ds/toontown3ds/data/estate/doodle.ttm");
+        assetBatch_.load(doodle_, "sdmc:/3ds/toontown3ds/data/estate/doodle.ttm");
     if (ev.type == net::EventType::LeftZone)
         shutdown();
 }
@@ -26,6 +26,9 @@ void Pets::draw(render::Renderer &renderer, const net::Client &c) const {
     }
 }
 void Pets::shutdown() {
+    assetBatch_.clear();
+    if (doodle_.loaded())
+        C3D_FrameSync();
     doodle_.unload();
     loaded_ = false;
 }

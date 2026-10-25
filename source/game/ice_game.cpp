@@ -15,14 +15,15 @@ bool IceGame::init(const char* root) {
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/ice_arena.ttm", root);
-    arenaModel_.load(path);
+    assetBatch_.load(arenaModel_, path);
     std::snprintf(path, sizeof(path), "%s/ice_tire.ttm", root);
-    tireModel_.load(path);
+    assetBatch_.load(tireModel_, path);
 
     return true;
 }
 
 void IceGame::shutdown() {
+    assetBatch_.clear();
     arenaModel_.unload();
     tireModel_.unload();
 }

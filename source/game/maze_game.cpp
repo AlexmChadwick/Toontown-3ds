@@ -32,9 +32,9 @@ void MazeGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
     char path[96];
     std::snprintf(path, sizeof(path), "%smaze_1player.ttm", kDir);
-    mazeModel_.load(path);
+    assetBatch_.load(mazeModel_, path);
     std::snprintf(path, sizeof(path), "%smaze_treasure.ttm", kDir);
-    treasureModel_.load(path);
+    assetBatch_.load(treasureModel_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0 / %d", maze::kNumTreasures);
     std::snprintf(lines_[1], sizeof(lines_[1]), "Time: 60 s");
@@ -42,6 +42,7 @@ void MazeGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void MazeGame::shutdown() {
+    assetBatch_.clear();
     mazeModel_.unload();
     treasureModel_.unload();
     done_ = true;

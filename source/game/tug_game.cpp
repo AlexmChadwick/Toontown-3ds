@@ -14,9 +14,9 @@ constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     char path[128];
     snprintf(path, sizeof(path), "%stug_dock.ttm", kDir);
-    dock_.load(path);
+    assetBatch_.load(dock_, path);
     snprintf(path, sizeof(path), "%stug_rope.ttm", kDir);
-    rope_.load(path);
+    assetBatch_.load(rope_, path);
 
     const net::Minigame* mg = client.minigame();
     slot_ = 0;
@@ -48,6 +48,7 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 }
 
 void TugGame::shutdown() {
+    assetBatch_.clear();
     C3D_FrameSync();
     dock_.unload();
     rope_.unload();

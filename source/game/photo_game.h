@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class PhotoGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     PhotoGame() = default;
 
     bool init(const char* root);
@@ -29,6 +36,7 @@ public:
     const char* line(int i) const;
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     photogame::Simulation sim_;
     float camYaw_ = -90.0f;
     float camPitch_ = 0.0f;

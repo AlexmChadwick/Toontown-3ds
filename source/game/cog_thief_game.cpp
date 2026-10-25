@@ -11,11 +11,11 @@ namespace tt::game {
 bool CogThiefGame::init(const char* root, int numCogs, float cogSpeed) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/minigames/cogthief_ground.ttm", root);
-    groundModel_.load(path);
+    assetBatch_.load(groundModel_, path);
     std::snprintf(path, sizeof(path), "%s/minigames/cogthief_barrel.ttm", root);
-    barrelModel_.load(path);
+    assetBatch_.load(barrelModel_, path);
     std::snprintf(path, sizeof(path), "%s/minigames/cogthief_tank.ttm", root);
-    tankModel_.load(path);
+    assetBatch_.load(tankModel_, path);
 
     sim_.init(numCogs, cogSpeed);
     tx_ = 0.0f;
@@ -30,6 +30,7 @@ bool CogThiefGame::init(const char* root, int numCogs, float cogSpeed) {
 }
 
 void CogThiefGame::shutdown() {
+    assetBatch_.clear();
     groundModel_.unload();
     barrelModel_.unload();
     tankModel_.unload();

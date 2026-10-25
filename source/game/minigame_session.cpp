@@ -45,12 +45,14 @@ void MinigameSession::setPhase(Phase p) {
 }
 
 void MinigameSession::unloadCatch() {
+    assetBatch_.clear();
     C3D_FrameSync();
     ground_.unload();
     for (auto& o : objects_) o.unload();
 }
 
 void MinigameSession::unloadCurrent() {
+    C3D_FrameSync();
     if (isCatch_) unloadCatch();
     if (isCannon_) cannon_.shutdown();
     if (isTug_) tug_.shutdown();
@@ -137,10 +139,10 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
 void MinigameSession::loadCatch(int numPlayers) {
     char path[96];
     snprintf(path, sizeof(path), "%scatch_ground_%d.ttm", kDir, numPlayers < 2 ? 2 : numPlayers > 4 ? 4 : numPlayers);
-    ground_.load(path);
+    assetBatch_.load(ground_, path);
     for (int i = 0; i < catchgame::kNumDropTypes; i++) {
         snprintf(path, sizeof(path), "%scatch_%s.ttm", kDir, catchgame::dropTypeName(i));
-        objects_[i].load(path);
+        assetBatch_.load(objects_[i], path);
     }
 }
 
@@ -321,7 +323,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
 
     switch (phase_) {
     case Phase::Rules:
-        if (inPhase > kRulesSec && !readySent_ && client.sendMinigameReady()) {
+        if (inPhase > kRulesSec && !loadingAssets() && !readySent_ && client.sendMinigameReady()) {
             readySent_ = true;
             setPhase(Phase::WaitStart);
             phaseMs_ = nowMs;

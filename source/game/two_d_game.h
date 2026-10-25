@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class TwoDGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     TwoDGame() = default;
 
     bool init(const char* root);
@@ -29,6 +36,7 @@ public:
     const char* line(int i) const;
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     twodgame::PlayerPhysics player_;
     twodgame::AABB platforms_[8];
     int numPlatforms_ = 0;

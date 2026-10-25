@@ -503,6 +503,7 @@ int main() {
             tt::prof::lap(tt::prof::kWait);
             renderer.resetStats();
             toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+            tt::prof::lap(tt::prof::kLoads);
             if (shotName) {
                 char path[96];
                 snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
@@ -1194,7 +1195,8 @@ int main() {
                 }
             }
         }
-        if (!racing.driving() && !(level.active() && level.loadingAssets()))
+        if (!racing.driving() && !((level.active() && level.loadingAssets()) ||
+                                   (cogInterior.active() && cogInterior.loadingAssets())))
             player.update(in, dt);
         fishing.applyCamera();
         if (trolley.seated() || minigame.inScene() || golf.active()) {
@@ -1803,6 +1805,9 @@ int main() {
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         level.pumpAssets();
+        pets.pumpAssets();
+        cogInterior.pumpAssets();
+        minigame.pumpAssets();
         suits.pumpAssets();
         golf.pumpAssets();
         racing.pumpAssets();
@@ -2121,6 +2126,18 @@ int main() {
             (estate.active() && estate.loadingAssets())) {
             ctx.infoTitle = "Loading scene models";
             ctx.infoLines[0] = "Reading models from SD...";
+        }
+        if (minigame.inScene() && minigame.loadingAssets()) {
+            ctx.infoTitle = "Loading minigame";
+            ctx.infoLines[0] = "Reading models before ready...";
+        }
+        if (cogInterior.active() && cogInterior.loadingAssets()) {
+            ctx.infoTitle = "Loading Cog building";
+            ctx.infoLines[0] = "Reading floor models...";
+        }
+        if (suits.loadingAssets() && !ctx.infoTitle && !battle.inBattle()) {
+            ctx.infoTitle = "Streaming Cog actors";
+            ctx.infoLines[0] = "Reading models and clips...";
         }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);

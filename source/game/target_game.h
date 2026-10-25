@@ -1,4 +1,5 @@
 #pragma once
+#include "world/asset_batch.h"
 
 #include <3ds.h>
 #include <citro3d.h>
@@ -12,6 +13,12 @@ namespace tt::game {
 
 class TargetGame {
 public:
+    void pumpAssets() {
+        assetBatch_.pump();
+    }
+    bool loadingAssets() const {
+        return assetBatch_.loading();
+    }
     TargetGame() = default;
 
     bool init(const char* root, uint32_t seed, uint32_t safezone);
@@ -30,6 +37,7 @@ public:
     const char* line(int i) const;
 
 private:
+    world::BasicAssetBatch<8> assetBatch_;
     targetgame::FlightState flight_;
     targetgame::TargetRing targets_[targetgame::kMaxTargets];
     int numTargets_ = 0;

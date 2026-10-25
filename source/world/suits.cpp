@@ -231,8 +231,8 @@ void SuitActors::shutdown() {
     }
     graph_.unload();
     graphBranch_ = 0;
-    model_.unload();
     C3D_FrameSync();
+    model_.unload();
     for (Body& b : bodies_) {
         b.model.unload();
         b.neutral.unload();
