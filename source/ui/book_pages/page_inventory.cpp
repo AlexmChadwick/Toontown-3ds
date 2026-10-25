@@ -85,6 +85,15 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
     C2D_TextParse(&titleText, textBuf_, buf);
     C2D_TextOptimize(&titleText);
     C2D_DrawText(&titleText, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.45f, 0.45f, kInk);
+    // InventoryPage.moneyDisplay: the jellybean jar's count, on the same page.
+    if (bdc.stats) {
+        snprintf(buf, sizeof(buf), "Jellybeans  %d / %d", bdc.stats->money, bdc.stats->maxMoney);
+        C2D_Text moneyText;
+        C2D_TextParse(&moneyText, textBuf_, buf);
+        C2D_TextOptimize(&moneyText);
+        C2D_DrawText(&moneyText, C2D_WithColor, x + 150.0f, y + 2.0f, 0.5f, 0.45f, 0.45f,
+                     C2D_Color32(0x80, 0x50, 0x00, 0xFF));
+    }
 
     const int8_t trainingTrack = bdc.book ? bdc.book->trackProgressId : -1;
     const uint32_t trainingBits = bdc.book ? bdc.book->trackProgress : 0;

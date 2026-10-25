@@ -429,15 +429,21 @@ void Ui::drawMap(const Context& c) {
 
 void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
+        // Laff and jellybeans (the HUD shows only the laff meter, as upstream).
+        float top = 6;
+        if (c.stats) {
+            text(6, top, .42f, kWhite, "Laff %d/%d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
+            text(130, top, .42f, kAccent, "Jellybeans %d/%d", c.stats->money, c.stats->maxMoney);
+            top += 16;
+        }
         // ---- clerks: show only the AI's current pet association ----
         if (c.clerkProfile) {
             const char* petName = c.clerkProfile->petId
                 ? (c.petName ? c.petName : "Owned (at estate)") : "None";
-            text(6, 6, .38f, kWhite, "Doodle: %s", petName);
-            quest_.drawTasks(*c.quests, 28, 170);
-        } else {
-            quest_.drawTasks(*c.quests, 6, 170);
+            text(6, top, .38f, kWhite, "Doodle: %s", petName);
+            top += 16;
         }
+        quest_.drawTasks(*c.quests, top + 6, 170);
         // ---- end clerks ----
         C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
         text(72, 180, 0.42f, kBg, "Open Shtiker Book (START)");
