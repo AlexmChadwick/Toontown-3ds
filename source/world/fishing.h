@@ -35,6 +35,7 @@ public:
     // player: moved onto the spot and told where the camera goes; net: may be offline.
     void init(Player* player, net::Client* net);
     void shutdown();
+    void cancel(); // context lost: stop immediately, never leave a stale practice panel
     // New zone: reload the local spot anchors from its .pts file and drop any session.
     void setZone(u32 zoneId, const char* pointsPath);
     void handleEvent(const net::Event& ev);

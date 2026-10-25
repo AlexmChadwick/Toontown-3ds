@@ -71,6 +71,17 @@ void Fishing::init(Player* player, net::Client* net) {
     rng_.seed(net::plat::nowMs() | 1u);
 }
 
+void Fishing::cancel() {
+    if (active() && !curLocal_ && net_ && net_->inZone() && sessionSpot_)
+        net_->sendFishRequestExit(sessionSpot_);
+    if (active()) TT_LOG("fishing: context lost, closing spot");
+    state_ = State::Idle;
+    bobVisible_ = false;
+    camStarted_ = false;
+    sessionSpot_ = 0;
+    setResultNone();
+}
+
 void Fishing::shutdown() {
     unloadAssets();
     for (audio::SfxId& s : splash_) {
@@ -205,6 +216,7 @@ void Fishing::setState(State s) {
         toonPhase_=s==State::Entering?ToonPhase::Equip:s==State::Casting?ToonPhase::Cast:s==State::Reeling?ToonPhase::Reel:ToonPhase::Exit;
         toonTime_=0;
     } else if (s==State::Ready && state_!=State::Entering) { toonPhase_=ToonPhase::Ready;toonTime_=0; }
+    if (state_ != s) TT_LOG("fishing: state %u -> %u", unsigned(state_), unsigned(s));
     state_ = s;
     stateTime_ = 0.0f;
 }
@@ -418,6 +430,8 @@ void Fishing::landBob(u32 nowMs) {
 }
 
 void Fishing::onPullIn(const net::FishMovieMsg& m) {
+    // A late result from a previous cast cannot overwrite a new charge.
+    if (state_ != State::Waiting && state_ != State::Casting) return;
     fish::Catch c;
     pendingNewEntry_ = false;
     switch (m.code) {

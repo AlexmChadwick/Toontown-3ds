@@ -1,6 +1,7 @@
 #include "ui/fishing_panel.h"
 
 #include <cstdio>
+#include <cstring>
 
 namespace tt::ui {
 
@@ -67,12 +68,14 @@ void FishingPanel::reparse(const FishingView& v) {
     lastRod_ = v.rod;
     lastPractice_ = v.practice;
     lastResult_ = v.result;
+    lastPhase_ = v.phase;
+    snprintf(lastStatus_, sizeof(lastStatus_), "%s", v.status);
 }
 
 void FishingPanel::draw(const FishingView& v, float contentHeight) {
     if (!buf_) return;
     if (v.revision != revision_ || v.tank != lastTank_ || v.tankMax != lastTankMax_ || v.beans != lastBeans_ ||
-        v.rod != lastRod_ || v.practice != lastPractice_ || v.result != lastResult_) {
+        v.rod != lastRod_ || v.practice != lastPractice_ || v.result != lastResult_ || v.phase != lastPhase_ || strcmp(v.status, lastStatus_)) {
         reparse(v);
     }
     auto text = [&](int slot, float x, float y, float scale, u32 color) {
@@ -91,6 +94,8 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     }
 
     // Power bar (hold A) and aim gauge (circle pad), like the cast arrow of fishingGui.
+    // DistributedFishingSpot hides the cast interface while reeling/entering/leaving.
+    if (v.phase == FishingView::kReady || v.phase == FishingView::kCharging || v.phase == FishingView::kResult) {
     text(kLPowerLabel, 8, kPowerY - 1, 0.45f, kWhiteCol);
     C2D_DrawRectSolid(kBarX, kPowerY, 0.5f, kBarW, kBarH, kPanelFill);
     const float p = v.power < 0.0f ? 0.0f : (v.power > 1.0f ? 1.0f : v.power);
@@ -102,6 +107,8 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     const float a = v.aimMax > 0.0f ? v.aim / v.aimMax : 0.0f; // +1 = full left
     const float mx = kBarX + kBarW * 0.5f - a * (kBarW * 0.5f - 4.0f);
     C2D_DrawRectSolid(mx - 4, kAimY - 2, 0.6f, 8, kBarH + 4, kAccentCol);
+
+    }
 
     // Result card.
     if (v.result != FishingView::kNone) {

@@ -49,6 +49,8 @@ private:
     unsigned revision_ = 0xFFFFFFFFu;
     int lastTank_ = -1, lastTankMax_ = -1, lastBeans_ = -2, lastRod_ = -1;
     bool lastPractice_ = false;
+    char lastStatus_[72] = {};
+    FishingView::Phase lastPhase_ = FishingView::kLeaving;
     FishingView::Result lastResult_ = FishingView::kNone;
 };
 
