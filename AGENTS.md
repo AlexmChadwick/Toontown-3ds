@@ -592,3 +592,29 @@ No protected level/game/toon/battle-camera/movie or main transition files change
 This is host/build verified only: no Azahar, live CJ victory or hardware frame
 budget is claimed. Exact simplifications, controls, CEO field plan and required
 Azahar checks are in docs/design/bosses.md; complete hashes in cj_assets.json.
+
+## 14. Cogdominium runtime (2026-10-25)
+
+`CogdoRuntime` owns a frame while our toon belongs to DistributedCogdoInterior.
+Its marked main/client/building hooks preserve existing facility and boss paths.
+The pinned stock server chooses one maze and then an executive-suite battle;
+all departments use the Mover & Shaker shell. Flying is unsupported (no shipped
+level models); crane and boardroom are opt-in forced prototypes only. Barrels
+have incoming-state support, but this AI revision does not naturally route to
+BarrelRoomIntro. Never invent a successful gate, floor, laff or SOS award.
+
+The worktree-local Cogdo baker uses stock fast-simplification==0.2.0 (installed
+outside the linked .venv), architectural-face preservation, ETC1 with three
+workers, and independent-process hash verification. The self-contained SD kit
+is committed explicitly under sdmc-out/3ds/toontown3ds/data/cogdo; that exception
+includes only the Cogdo kit, not other generated SD data. The runtime validates
+CGM1/CGW1/CGP1/BND1 metadata and streams one model group at a time. Maze geometry
+is 350,748 bytes, textures 739,136 bytes. Six nearest render Cogs share the
+existing actor pool; all 64 possible simulations and 256 memo slots are bounded.
+
+`tools/cogdo_test/run.sh` checks Panda field/truncation vectors, the real Client,
+seeded cells/spawns, exact walking and boss-drop RNG, cooler indexing, navigation,
+crane bounds, collision and budgets. Make and host tests are verified only;
+Azahar, live victory, multiplayer timing and hardware budgets remain mandatory
+main-agent checks in docs/design/cogdo.md. No protected level/boss/toon/battle
+camera/movie/transition files were edited.

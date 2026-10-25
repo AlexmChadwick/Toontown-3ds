@@ -5,7 +5,18 @@ namespace tt::net {
 // 8 money bags and the interior/game/Cog. No per-frame network allocation.
 constexpr int kMaxCogdoObjects = 32;
 constexpr int kMaxCogdoSuits = 64;
-enum class CogdoKind : uint8_t { None, Interior, Maze, Flying, CraneGame, Boardroom, Barrel, Crane, MoneyBag, Cog };
+enum class CogdoKind : uint8_t {
+    None,
+    Interior,
+    Maze,
+    Flying,
+    CraneGame,
+    Boardroom,
+    Barrel,
+    Crane,
+    MoneyBag,
+    Cog
+};
 enum class CogdoGamePhase : uint8_t { Hidden, Visible, Intro, Playing, Finished };
 struct CogdoState {
     uint32_t doId = 0;
@@ -19,7 +30,8 @@ struct CogdoState {
     uint32_t sos = 0;
     int8_t foType = 0;
     int8_t numFloors = 0;
-    int32_t difficulty = -1;
+    int8_t floor = 0;
+    int32_t difficulty = 2147483647; // MinigameGlobals.NoDifficultyOverride
     int32_t playground = -1;
     uint32_t index = 0;
     char state[32] = {};
@@ -37,6 +49,8 @@ struct CogdoState {
     uint8_t numReserves = 0;
     uint8_t suitCounts[3] = {};
     uint8_t suitHp[kMaxCogdoSuits] = {};
+    uint8_t deaths[kMaxCogdoSuits] = {};
+    uint8_t numDeaths = 0;
     bool pickups[256] = {};
     uint16_t memos = 0;
     bool grabbed = false;
@@ -60,5 +74,5 @@ struct CogdoState {
     uint8_t rewardValues[4] = {};
 };
 CogdoKind cogdoKind(uint16_t classId);
-bool applyCogdoField(CogdoState& state, uint16_t field, DatagramReader& reader, uint32_t nowMs, uint32_t ownId);
+bool applyCogdoField(CogdoState &state, uint16_t field, DatagramReader &reader, uint32_t nowMs, uint32_t ownId);
 } // namespace tt::net

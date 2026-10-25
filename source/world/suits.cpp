@@ -3,6 +3,7 @@
 #include "core/memory.h"
 #include "world/suit_assets.h"
 
+#include <algorithm> // cogdo: bounded external actor scale
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -474,6 +475,9 @@ void SuitActors::draw(render::Renderer& renderer) {
             Mtx_Identity(&m);
             Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
             Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
+            // ---- cogdo: model-space scale from CogdoMazeGameGlobals.SuitData ----
+            Mtx_Scale(&m, a.externalScale, a.externalScale, a.externalScale);
+            // ---- end cogdo ----
             const float f = a.flash;
             renderer.setBaseTint(1.0f, 1.0f - f * 0.6f, 1.0f - f * 0.6f, 1.0f); // hit flash
             drawReal(renderer, a, m);
@@ -486,7 +490,7 @@ void SuitActors::draw(render::Renderer& renderer) {
         Mtx_Identity(&m);
         Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
         Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
-        Mtx_Scale(&m, w, w, h);
+        Mtx_Scale(&m, w * a.externalScale, w * a.externalScale, h * a.externalScale); // cogdo
         renderer.drawModel(model_, m);
     }
     renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
@@ -534,7 +538,7 @@ u32 SuitActors::touching(float x, float y, float z) const {
 }
 
 bool SuitActors::setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h,
-                             bool walking, bool visible, bool skelecog) {
+                             bool walking, bool visible, bool skelecog, float externalScale) {
     Actor* actor = nullptr;
     for (Actor& a : actors_)
         if (a.active && a.doId == doId) actor = &a;
@@ -556,6 +560,7 @@ bool SuitActors::setExternal(u32 doId, const char* code, int levelDist, float x,
         else snprintf(actor->label, sizeof(actor->label), "Cog");
     }
     actor->pose.x = x, actor->pose.y = y, actor->pose.z = actor->pose.groundZ = z, actor->pose.h = h;
+    actor->externalScale = std::clamp(externalScale, 0.1f, 3.0f); // cogdo source scale
     actor->pose.alpha = 1.0f;
     actor->pose.visible = visible;
     actor->pose.anim = walking ? kSuitWalk : kSuitNeutral;

@@ -321,6 +321,7 @@ struct Boat {
 
 enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other, Cogdo };
 struct CogBuilding {
+    bool cogdoVictory = false; // ---- cogdo: actual waitForVictorsFromCogdo state ----
     uint32_t doId = 0, block = 0, interiorZoneId = 0;
     int8_t track = -1, difficulty = -1, numFloors = -1;
     CogBuildingState state = CogBuildingState::Unknown;
@@ -1199,6 +1200,7 @@ public:
     const CChar* findCChar(uint32_t doId) const;
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
+    bool cogdoParticipant() const;
     const CogdoState* cogdoInterior() const;
     const CogdoState* cogdoGame() const;
     const CogdoState* findCogdo(uint32_t id) const;
@@ -1206,6 +1208,7 @@ public:
     enum class CogdoInteriorAction { Joined, Elevator, Reserves, BarrelIntro, BarrelReward, LeaveBarrels };
     bool sendCogdoInterior(CogdoInteriorAction action);
     bool sendCogdoReady();
+    bool sendCogdoVictor(uint32_t building);
     bool sendCogdoAction(uint8_t action, uint32_t data = 0);
     bool sendCogdoGag(float x, float y, float heading);
     bool sendCogdoSuit(uint8_t type, uint8_t serial, bool hitByGag);
@@ -1214,6 +1217,8 @@ public:
     bool sendCogdoBarrel(uint32_t id);
     bool sendCogdoCable(uint32_t id, uint8_t sequence, float armY, float heading, const float links[3][3]);
     bool sendCogdoBag(uint32_t id, bool grab);
+    enum class CogdoBagAction { Pose, Floor, Free, Initial };
+    bool sendCogdoBagMotion(uint32_t id, CogdoBagAction action, float x, float y, float z, float h);
     // ---- end cogdo protocol ----
     const CogBuilding& cogBuildingSlot(int i) const { return cogBuildings_[i]; }
     const CogElevator& cogElevatorSlot(int i) const { return cogElevators_[i]; }
@@ -1649,7 +1654,6 @@ private:
     bool handleCogdoEnter(uint32_t id, uint16_t classId, DatagramReader& reader,
                           const uint16_t* required, uint16_t count, bool other);
     bool handleCogdoField(DatagramReader& reader, uint32_t id, uint16_t field);
-    bool cogdoParticipant() const;
     void cogdoLeaving(uint32_t id);
     void clearCogdo();
     CogdoState cogdoObjects_[kMaxCogdoObjects];

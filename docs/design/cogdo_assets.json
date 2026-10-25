@@ -1,0 +1,1099 @@
+{
+  "collisions": {
+    "barrel_room": {
+      "bounds": [
+        [
+          -106.98600769042969,
+          -164.0640106201172,
+          -43.176109313964844
+        ],
+        [
+          116.91000366210938,
+          27.028701782226562,
+          78.39120483398438
+        ]
+      ],
+      "bytes": 27488,
+      "caps": 0,
+      "cell_index_entries": 2769,
+      "cell_size": 8.0,
+      "classes": {
+        "camera_tris": 12,
+        "floor_tris": 24,
+        "wall_tris": 236
+      },
+      "grid": [
+        29,
+        25
+      ],
+      "max_per_cell": {
+        "cam_caps": 0,
+        "cam_tris": 7,
+        "floor_caps": 0,
+        "floor_tris": 14,
+        "wall_caps": 0,
+        "wall_tris": 26
+      },
+      "occupied_cells": 364,
+      "origin": [
+        -112.0,
+        -168.0
+      ],
+      "planes": 0,
+      "skipped": {},
+      "trigger_names": [],
+      "triggers": 0,
+      "tris": 260,
+      "warnings": []
+    },
+    "battle_room": {
+      "bounds": [
+        [
+          -34.2052001953125,
+          -37.500003814697266,
+          -0.02500000037252903
+        ],
+        [
+          35.310699462890625,
+          37.500003814697266,
+          -0.02500000037252903
+        ]
+      ],
+      "bytes": 2064,
+      "caps": 0,
+      "cell_index_entries": 119,
+      "cell_size": 8.0,
+      "classes": {
+        "floor_tris": 2
+      },
+      "grid": [
+        10,
+        10
+      ],
+      "max_per_cell": {
+        "cam_caps": 0,
+        "cam_tris": 0,
+        "floor_caps": 0,
+        "floor_tris": 2,
+        "wall_caps": 0,
+        "wall_tris": 0
+      },
+      "occupied_cells": 100,
+      "origin": [
+        -40.0,
+        -40.0
+      ],
+      "planes": 0,
+      "skipped": {},
+      "trigger_names": [],
+      "triggers": 0,
+      "tris": 2,
+      "warnings": []
+    },
+    "maze_frame": {
+      "bounds": [
+        [
+          -78.0,
+          -78.0,
+          0.0
+        ],
+        [
+          78.0,
+          78.0,
+          0.0
+        ]
+      ],
+      "bytes": 7536,
+      "caps": 0,
+      "cell_index_entries": 458,
+      "cell_size": 8.0,
+      "classes": {
+        "floor_tris": 2
+      },
+      "grid": [
+        20,
+        20
+      ],
+      "max_per_cell": {
+        "cam_caps": 0,
+        "cam_tris": 0,
+        "floor_caps": 0,
+        "floor_tris": 2,
+        "wall_caps": 0,
+        "wall_tris": 0
+      },
+      "occupied_cells": 400,
+      "origin": [
+        -80.0,
+        -80.0
+      ],
+      "planes": 0,
+      "skipped": {},
+      "trigger_names": [],
+      "triggers": 0,
+      "tris": 2,
+      "warnings": []
+    },
+    "prototype_room": {
+      "bounds": [
+        [
+          -16.104101181030273,
+          -169.2030029296875,
+          4.868289947509766
+        ],
+        [
+          89.91799926757812,
+          -60.587398529052734,
+          52.7588005065918
+        ]
+      ],
+      "bytes": 6096,
+      "caps": 0,
+      "cell_index_entries": 495,
+      "cell_size": 8.0,
+      "classes": {
+        "camera_tris": 24,
+        "floor_tris": 2,
+        "wall_tris": 24
+      },
+      "grid": [
+        15,
+        15
+      ],
+      "max_per_cell": {
+        "cam_caps": 0,
+        "cam_tris": 4,
+        "floor_caps": 0,
+        "floor_tris": 2,
+        "wall_caps": 0,
+        "wall_tris": 4
+      },
+      "occupied_cells": 218,
+      "origin": [
+        -24.0,
+        -176.0
+      ],
+      "planes": 0,
+      "skipped": {},
+      "trigger_names": [],
+      "triggers": 0,
+      "tris": 26,
+      "warnings": []
+    },
+    "suite": {
+      "bounds": [
+        [
+          -35.222103118896484,
+          -54.708805084228516,
+          -0.9127539992332458
+        ],
+        [
+          35.2379035949707,
+          54.708805084228516,
+          27.768400192260742
+        ]
+      ],
+      "bytes": 28912,
+      "caps": 0,
+      "cell_index_entries": 2250,
+      "cell_size": 8.0,
+      "classes": {
+        "camera_tris": 346,
+        "floor_tris": 48,
+        "wall_tris": 344
+      },
+      "grid": [
+        10,
+        14
+      ],
+      "max_per_cell": {
+        "cam_caps": 0,
+        "cam_tris": 30,
+        "floor_caps": 0,
+        "floor_tris": 8,
+        "wall_caps": 0,
+        "wall_tris": 29
+      },
+      "occupied_cells": 140,
+      "origin": [
+        -40.0,
+        -56.0
+      ],
+      "planes": 0,
+      "skipped": {},
+      "trigger_names": [],
+      "triggers": 0,
+      "tris": 394,
+      "warnings": []
+    }
+  },
+  "disk_bytes": 2128848,
+  "flying": "Unsupported forced prototype: pinned resources contain no flying level models.",
+  "groups": {
+    "barrels": {
+      "batches": 10,
+      "geometry_bytes": 99080,
+      "texture_bytes": 234560,
+      "triangles": 4908
+    },
+    "battle_floor": {
+      "batches": 7,
+      "geometry_bytes": 47840,
+      "texture_bytes": 65632,
+      "triangles": 1736
+    },
+    "boardroom": {
+      "batches": 10,
+      "geometry_bytes": 16048,
+      "texture_bytes": 62336,
+      "triangles": 504
+    },
+    "crane": {
+      "batches": 15,
+      "geometry_bytes": 20636,
+      "texture_bytes": 75872,
+      "triangles": 698
+    },
+    "maze": {
+      "batches": 92,
+      "geometry_bytes": 350748,
+      "texture_bytes": 739136,
+      "triangles": 10650
+    },
+    "suite": {
+      "batches": 20,
+      "geometry_bytes": 99678,
+      "texture_bytes": 261888,
+      "triangles": 5269
+    }
+  },
+  "metadata": {
+    "cage": [
+      9.61697006225586,
+      34.482601165771484,
+      11.362099647521973
+    ],
+    "cage_door": [
+      9.61697006225586,
+      30.999099731445312,
+      11.362099647521973
+    ],
+    "elevator_loc": [
+      0.0,
+      -74.49700164794922,
+      0.0
+    ],
+    "exit_loc": [
+      0.0,
+      74.5,
+      0.0
+    ],
+    "exterior_door": [
+      15.463000297546387,
+      0.0,
+      0.0
+    ],
+    "maze_quadrant_1_coolers": [
+      [
+        -22.45330047607422,
+        22.501800537109375,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_2_coolers": [
+      [
+        -22.665300369262695,
+        10.513299942016602,
+        0.0,
+        90.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_3_coolers": [
+      [
+        22.572200775146484,
+        10.440500259399414,
+        0.0,
+        -90.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_4_coolers": [
+      [
+        7.4163899421691895,
+        -22.576400756835938,
+        0.0,
+        -180.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_5_coolers": [
+      [
+        22.650699615478516,
+        -22.46269989013672,
+        0.0,
+        -90.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_6_coolers": [
+      [
+        -22.235000610351562,
+        17.18869972229004,
+        0.0,
+        90.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_7_coolers": [
+      [
+        -7.538360118865967,
+        -4.5408501625061035,
+        0.0,
+        -180.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_8_coolers": [
+      [
+        -22.497400283813477,
+        22.540599822998047,
+        0.0,
+        -0.0,
+        0.0,
+        -0.0
+      ]
+    ],
+    "maze_quadrant_9_coolers": [
+      [
+        -22.4606990814209,
+        10.568099975585938,
+        0.0,
+        90.0,
+        0.0,
+        -0.0
+      ]
+    ]
+  },
+  "models": {
+    "balloon": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5233510136604309,
+          -0.54728102684021,
+          0.0006704399711452425
+        ],
+        [
+          0.5869759917259216,
+          0.54728102684021,
+          1.2323399782180786
+        ]
+      ],
+      "file_bytes": 13568,
+      "geometry_bytes": 2232,
+      "source_triangles": 148,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 148,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "barrel": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.968,
+          -1.0482737752539637,
+          0.1834
+        ],
+        [
+          1.078212273093433,
+          1.1340890928479435,
+          3.1946
+        ]
+      ],
+      "file_bytes": 14208,
+      "geometry_bytes": 2864,
+      "source_triangles": 1510,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 128,
+      "uv_clamped": 0,
+      "vertices": 131
+    },
+    "barrel_room": {
+      "batches": 7,
+      "bounds": [
+        [
+          -124.99800109863281,
+          -228.70399475097656,
+          -53.02799987792969
+        ],
+        [
+          217.77099609375,
+          385.4540100097656,
+          76.02369689941406
+        ]
+      ],
+      "file_bytes": 295680,
+      "geometry_bytes": 91504,
+      "source_triangles": 25870,
+      "texture_bytes": 201824,
+      "textures": 15,
+      "triangles": 4616,
+      "uv_clamped": 0,
+      "vertices": 3988
+    },
+    "battle_room": {
+      "batches": 5,
+      "bounds": [
+        [
+          -34.3557014465332,
+          -38.0,
+          -0.02500000037252903
+        ],
+        [
+          35.34510040283203,
+          47.5,
+          28.692699432373047
+        ]
+      ],
+      "file_bytes": 87808,
+      "geometry_bytes": 43128,
+      "source_triangles": 1572,
+      "texture_bytes": 43808,
+      "textures": 4,
+      "triangles": 1572,
+      "uv_clamped": 18,
+      "vertices": 2106
+    },
+    "cabinet": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3884199857711792,
+          -2.0081698894500732,
+          0.0
+        ],
+        [
+          1.3884199857711792,
+          1.265030026435852,
+          5.135260105133057
+        ]
+      ],
+      "file_bytes": 14208,
+      "geometry_bytes": 2756,
+      "source_triangles": 86,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 86,
+      "uv_clamped": 0,
+      "vertices": 140
+    },
+    "crane_arm": {
+      "batches": 1,
+      "bounds": [
+        [
+          -2.077359914779663,
+          -44.265499114990234,
+          -2.212599992752075
+        ],
+        [
+          1.7852200269699097,
+          1.3357900381088257,
+          2.232100009918213
+        ]
+      ],
+      "file_bytes": 4608,
+      "geometry_bytes": 1444,
+      "source_triangles": 38,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 38,
+      "uv_clamped": 0,
+      "vertices": 76
+    },
+    "crane_controls": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.036769986152649,
+          1.265679955482483,
+          0.0
+        ],
+        [
+          0.9245309829711914,
+          3.8115499019622803,
+          3.3187499046325684
+        ]
+      ],
+      "file_bytes": 4352,
+      "geometry_bytes": 1140,
+      "source_triangles": 30,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 60
+    },
+    "crane_magnet": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.877369999885559,
+          -0.6652809977531433,
+          -4.000100135803223
+        ],
+        [
+          2.007580041885376,
+          0.6961809992790222,
+          0.0890503004193306
+        ]
+      ],
+      "file_bytes": 14976,
+      "geometry_bytes": 3608,
+      "source_triangles": 156,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 156,
+      "uv_clamped": 0,
+      "vertices": 167
+    },
+    "crane_stick": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.09276449680328369,
+          -0.164341002702713,
+          -0.005452000070363283
+        ],
+        [
+          0.12636500597000122,
+          0.20108599960803986,
+          1.3453999757766724
+        ]
+      ],
+      "file_bytes": 3840,
+      "geometry_bytes": 696,
+      "source_triangles": 20,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 20,
+      "uv_clamped": 0,
+      "vertices": 36
+    },
+    "elevator": {
+      "batches": 2,
+      "bounds": [
+        [
+          -8.962900161743164,
+          -0.34556400775909424,
+          -0.0588781014084816
+        ],
+        [
+          8.964750289916992,
+          6.086510181427002,
+          12.405200004577637
+        ]
+      ],
+      "file_bytes": 27136,
+      "geometry_bytes": 4712,
+      "source_triangles": 164,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 164,
+      "uv_clamped": 0,
+      "vertices": 233
+    },
+    "exit_door": {
+      "batches": 2,
+      "bounds": [
+        [
+          -8.963560104370117,
+          -0.281607985496521,
+          -0.0588781014084816
+        ],
+        [
+          8.964750289916992,
+          17.77199935913086,
+          12.405200004577637
+        ]
+      ],
+      "file_bytes": 26880,
+      "geometry_bytes": 4452,
+      "source_triangles": 158,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 158,
+      "uv_clamped": 0,
+      "vertices": 219
+    },
+    "maze_divider": {
+      "batches": 3,
+      "bounds": [
+        [
+          -4.958179950714111,
+          -0.40840399265289307,
+          -5.1527226929692915e-11
+        ],
+        [
+          3.9754199981689453,
+          0.37727299332618713,
+          9.523730278015137
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2332,
+      "source_triangles": 90,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 90,
+      "uv_clamped": 0,
+      "vertices": 112
+    },
+    "maze_frame": {
+      "batches": 3,
+      "bounds": [
+        [
+          -76.5,
+          -98.68299865722656,
+          0.0
+        ],
+        [
+          76.5,
+          76.5,
+          51.0
+        ]
+      ],
+      "file_bytes": 45312,
+      "geometry_bytes": 940,
+      "source_triangles": 34,
+      "texture_bytes": 43648,
+      "textures": 3,
+      "triangles": 34,
+      "uv_clamped": 0,
+      "vertices": 46
+    },
+    "maze_quadrant_1": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.544099807739258,
+          -25.50079917907715,
+          -0.10959628468129168
+        ],
+        [
+          25.500499725341797,
+          25.50079917907715,
+          19.23869588884884
+        ]
+      ],
+      "file_bytes": 109184,
+      "geometry_bytes": 36814,
+      "source_triangles": 16661,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1117,
+      "uv_clamped": 0,
+      "vertices": 1882
+    },
+    "maze_quadrant_2": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.500499725341797,
+          -25.500499725341797,
+          -0.019999999552965164
+        ],
+        [
+          25.500499725341797,
+          25.52039909362793,
+          20.858276485283877
+        ]
+      ],
+      "file_bytes": 109312,
+      "geometry_bytes": 37020,
+      "source_triangles": 15079,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1098,
+      "uv_clamped": 0,
+      "vertices": 1902
+    },
+    "maze_quadrant_3": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.512699127197266,
+          -25.500499725341797,
+          -0.04777913595016434
+        ],
+        [
+          25.500499725341797,
+          25.500499725341797,
+          24.091560300773235
+        ]
+      ],
+      "file_bytes": 109824,
+      "geometry_bytes": 37574,
+      "source_triangles": 18053,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1121,
+      "uv_clamped": 0,
+      "vertices": 1928
+    },
+    "maze_quadrant_4": {
+      "batches": 9,
+      "bounds": [
+        [
+          -26.6267,
+          -25.955900192260742,
+          -0.019999999552965164
+        ],
+        [
+          25.500499725341797,
+          25.500499725341797,
+          17.2018
+        ]
+      ],
+      "file_bytes": 115072,
+      "geometry_bytes": 42808,
+      "source_triangles": 26647,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1236,
+      "uv_clamped": 0,
+      "vertices": 2212
+    },
+    "maze_quadrant_5": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.863000869750977,
+          -25.501399993896484,
+          -0.08965917307921015
+        ],
+        [
+          25.500499725341797,
+          25.73200035095215,
+          23.673395542237134
+        ]
+      ],
+      "file_bytes": 112000,
+      "geometry_bytes": 39794,
+      "source_triangles": 22653,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1171,
+      "uv_clamped": 0,
+      "vertices": 2048
+    },
+    "maze_quadrant_6": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.500499725341797,
+          -25.976699829101562,
+          -0.019999999552965164
+        ],
+        [
+          25.976699829101562,
+          25.500499725341797,
+          22.8277
+        ]
+      ],
+      "file_bytes": 109312,
+      "geometry_bytes": 37030,
+      "source_triangles": 16614,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1097,
+      "uv_clamped": 0,
+      "vertices": 1903
+    },
+    "maze_quadrant_7": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.510299682617188,
+          -25.500499725341797,
+          -0.08965054610091902
+        ],
+        [
+          25.51889991760254,
+          25.500499725341797,
+          22.7715
+        ]
+      ],
+      "file_bytes": 111360,
+      "geometry_bytes": 38990,
+      "source_triangles": 20630,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1157,
+      "uv_clamped": 0,
+      "vertices": 2003
+    },
+    "maze_quadrant_8": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.500499725341797,
+          -25.51300048828125,
+          -0.09161476332283848
+        ],
+        [
+          25.500499725341797,
+          25.500499725341797,
+          22.8193
+        ]
+      ],
+      "file_bytes": 108672,
+      "geometry_bytes": 36332,
+      "source_triangles": 17146,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1098,
+      "uv_clamped": 0,
+      "vertices": 1859
+    },
+    "maze_quadrant_9": {
+      "batches": 9,
+      "bounds": [
+        [
+          -25.969999313354492,
+          -25.969999313354492,
+          -0.08969868246473187
+        ],
+        [
+          25.956100463867188,
+          25.96299934387207,
+          17.1542
+        ]
+      ],
+      "file_bytes": 103808,
+      "geometry_bytes": 31510,
+      "source_triangles": 13499,
+      "texture_bytes": 70912,
+      "textures": 7,
+      "triangles": 1033,
+      "uv_clamped": 0,
+      "vertices": 1582
+    },
+    "memo": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7233679890632629,
+          -0.13142600655555725,
+          -0.9049699902534485
+        ],
+        [
+          0.7091249823570251,
+          0.15688499808311462,
+          0.8733199834823608
+        ]
+      ],
+      "file_bytes": 3328,
+      "geometry_bytes": 164,
+      "source_triangles": 6,
+      "texture_bytes": 2720,
+      "textures": 1,
+      "triangles": 6,
+      "uv_clamped": 0,
+      "vertices": 8
+    },
+    "money_bag": {
+      "batches": 3,
+      "bounds": [
+        [
+          -2.8499701023101807,
+          -2.25216007232666,
+          0.0006575160077773035
+        ],
+        [
+          2.9264700412750244,
+          2.0773301124572754,
+          5.2566399574279785
+        ]
+      ],
+      "file_bytes": 19200,
+      "geometry_bytes": 2412,
+      "source_triangles": 114,
+      "texture_bytes": 16288,
+      "textures": 2,
+      "triangles": 114,
+      "uv_clamped": 0,
+      "vertices": 108
+    },
+    "prototype_room": {
+      "batches": 8,
+      "bounds": [
+        [
+          -16.10409927368164,
+          -168.9530029296875,
+          5.887021064758301
+        ],
+        [
+          89.91799926757812,
+          -60.211299896240234,
+          62.58430099487305
+        ]
+      ],
+      "file_bytes": 53248,
+      "geometry_bytes": 11336,
+      "source_triangles": 340,
+      "texture_bytes": 40512,
+      "textures": 8,
+      "triangles": 340,
+      "uv_clamped": 0,
+      "vertices": 581
+    },
+    "shell": {
+      "batches": 4,
+      "bounds": [
+        [
+          -5.61929988861084,
+          -7.170179843902588,
+          -0.0588781014084816
+        ],
+        [
+          38.541900634765625,
+          19.86009979248047,
+          33.3223991394043
+        ]
+      ],
+      "file_bytes": 64768,
+      "geometry_bytes": 20284,
+      "source_triangles": 650,
+      "texture_bytes": 43648,
+      "textures": 4,
+      "triangles": 650,
+      "uv_clamped": 0,
+      "vertices": 1024
+    },
+    "suite": {
+      "batches": 16,
+      "bounds": [
+        [
+          -61.60879898071289,
+          -60.50090026855469,
+          -8.241120338439941
+        ],
+        [
+          57.61069869995117,
+          60.50090026855469,
+          59.6880989074707
+        ]
+      ],
+      "file_bytes": 292864,
+      "geometry_bytes": 93782,
+      "source_triangles": 9538,
+      "texture_bytes": 196416,
+      "textures": 15,
+      "triangles": 5073,
+      "uv_clamped": 0,
+      "vertices": 3959
+    },
+    "suite_cage": {
+      "batches": 1,
+      "bounds": [
+        [
+          6.3959197998046875,
+          30.999101638793945,
+          11.362099647521973
+        ],
+        [
+          12.838000297546387,
+          37.441200256347656,
+          24.296899795532227
+        ]
+      ],
+      "file_bytes": 23424,
+      "geometry_bytes": 1108,
+      "source_triangles": 30,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 58
+    },
+    "suite_door": {
+      "batches": 1,
+      "bounds": [
+        [
+          6.3959197998046875,
+          30.999099731445312,
+          11.362099647521973
+        ],
+        [
+          12.838000297546387,
+          30.999099731445312,
+          17.80419921875
+        ]
+      ],
+      "file_bytes": 22400,
+      "geometry_bytes": 76,
+      "source_triangles": 2,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 2,
+      "uv_clamped": 0,
+      "vertices": 4
+    }
+  },
+  "sha256": {
+    "balloon.ttm": "a290dddc6b1648cfd6261e27e8f0387cb08ae07a00933870c0bc6a7bff88b504",
+    "barrel.ttm": "e86e2bbf02ad99cfa01a36f67246a99922645f95ca6e7d7996034e384d7ac7c3",
+    "barrel_room.ttc": "e160557c5119f873038806b99ceda2365b0490f7b56c90f79b8f84e0a0f121e4",
+    "barrel_room.ttm": "a42acf75ce7725465d98e986ea72f34bf11169fb5d1572895a9d28fe740e2a17",
+    "battle_room.ttc": "9a9598b36fc234426ecba1c49516854c1b472ae557650a781c615711980f39be",
+    "battle_room.ttm": "512ccb692faff2b2e719f20aa805c7abf13a235baf216c7d8f8acc954a8d9080",
+    "cabinet.ttm": "fed00bd88e56549a60468f7f4e9d4c88d8808b736ce060edf5b47498d27533f4",
+    "crane_arm.ttm": "1fd0119bc5017c6bba2b2ec690ae2bc6156b7923ad62da82dc3b672f7816542b",
+    "crane_controls.ttm": "b3cdbb81a83cd143c3616bf6732738ac4be9049f5a61fcd1e2c4cdbbc3207f7f",
+    "crane_magnet.ttm": "c5603523869b2c3a5b001ef6ed500c2f1c3e12f44b0dd9164345c1654d51960d",
+    "crane_stick.ttm": "abc429f43acf73df19b987404dbb5501ed4fe07599f2e242ae15855902bd9443",
+    "elevator.ttm": "261a3713957a389262a2fee9e3b3249e3b01ba770caf45a24cf2a313caa9206d",
+    "exit_door.ttm": "5c85a84747ceb20448da535219a9f940c60ea51eb4419f4ec0ffe0f5a0dbfc4c",
+    "maze_cells.bin": "94ed701101b95768e2bc96b567bbf5b8e6f9462b7322a16ae84a111a9e224f20",
+    "maze_coolers.bin": "0740b7746c18afb1d27156a08f79252cdb6e647509fc384207a7a7ce2dc51dcf",
+    "maze_coolers.json": "636ca00dfc113cd436f9f86d68563d1a4795dea0055201eea25559b08c316299",
+    "maze_divider.ttm": "7fc28b02fec8a7635f873f984fbc8550959f29bed2ab1d8f920263ac5be8af00",
+    "maze_frame.ttc": "587745e85df1e0589d4b46ef975abbcac22c7c1780ba02c7ba7d5aa741a35865",
+    "maze_frame.ttm": "31b912d09059e67a337a837b283ffeaed2c469269e62f4c85a6ad59051c9efa6",
+    "maze_quadrant_1.ttm": "e52a55b32110b0c8e3d9d055f1e419bd6bf138613d354705b61430fb65f27707",
+    "maze_quadrant_2.ttm": "e8713a810242152518319aad8c0bf49b09e0f1751c8f9cbfb2647194d07ede7e",
+    "maze_quadrant_3.ttm": "83d873e4e9ea98bd48999d6eb211726eda3a39fa3353a3b33c4befc44a7b8d17",
+    "maze_quadrant_4.ttm": "44e38084cbd9594aa8a743b169034d97a3baa615a520a4a61c245ff703d05419",
+    "maze_quadrant_5.ttm": "73f547b6e9db734d8c46ac7a9928aa44013058ce08f63a186a563cf7def574d8",
+    "maze_quadrant_6.ttm": "38795d3b1aeb2b019640885813f37ef0e0e548a31881d3e93e0c3f9af5a07d3d",
+    "maze_quadrant_7.ttm": "c1dd8e2a5f81f92aad77109b37c50662cf72ae0ace39d94ca02f890535ed95eb",
+    "maze_quadrant_8.ttm": "974e4cbfdd80992fa355259edc97f428899549c79c4f3729b1ef96d8fe95c1e8",
+    "maze_quadrant_9.ttm": "ff68b2fa957bdf455a2efd9d49773a3f90fec3d437b1cd4db980b25c28663d01",
+    "memo.ttm": "fe384cbf6f526aee2e2d64d06cc470eb0af135bcfe807e512b05786d85f56099",
+    "money_bag.ttm": "761e335a8c048e844c24bdb2a9e7f40c6859c7fb74e23819ea3fea07701c4633",
+    "points.bin": "def20d1903749a293a7bc18c9627ffe2f7c212a3883f51e4206be18d42c946f6",
+    "prototype_room.ttc": "b71ba49da2558ff460146df4fa084851337f808b9172448ec6117a65f3f11d78",
+    "prototype_room.ttm": "ae98359ff9e815f515d76676cb5853b280aa8d31c00ca736e3dccc7f9a8d202b",
+    "shell.ttm": "de1d829d0b477a87292da8a9a3bb2b31e56272ed76c18c6b94b587845ebb5995",
+    "shop_owners.bin": "ee7c6a7756525f4bb3cd1c1e29c684ebb16fd6b115181fc2c6826e7d2bb6d3c9",
+    "suite.ttc": "597fc3915dec80fd18715f87777ddf2081344ef8b9ff3510f52d32b7628a57c2",
+    "suite.ttm": "9dd89aa85544a9ac044d9567ad56dc5a59a748c17f2df4f628a47da662eb003f",
+    "suite_cage.ttm": "ee228cd514819d4206341f1e8ce2eefeefd8f1c42f77b7bf98d114eda03b7fc7",
+    "suite_door.ttm": "9fb572a47c554861e49516af76062eccd732c1cca44ad723f9aa405f773fb346"
+  },
+  "simplifier": "fast-simplification==0.2.0 (single-thread quadrics)",
+  "version": 1
+}

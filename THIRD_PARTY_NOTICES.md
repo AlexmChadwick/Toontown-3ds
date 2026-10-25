@@ -101,3 +101,17 @@ protocol blocks and `tools/pipeline/bake_cj.py` derive from the pinned Open Toon
 sources cited in `docs/design/bosses.md`. The Open Toontown BSD notice above applies.
 Converted CJ game models/textures/animation/collision and DNA metadata remain
 outside the MIT license; no upstream source files are vendored.
+
+## Cogdominiums
+
+The native Cogdo protocol, maze layout/walking/drop algorithms and offline
+metadata tools derive from the pinned Open Toontown cogdominium, MazeBase,
+MazeSuit and NPCToons specifications cited in `docs/design/cogdo.md`. The Open
+Toontown BSD 3-Clause notice above applies. The committed Cogdo SD kit under
+`sdmc-out/3ds/toontown3ds/data/cogdo/` contains Disney-derived models, textures,
+collision and ToonDNA metadata. Like the RomFS assets, it is excluded from this
+project's MIT license; no Disney asset license is granted.
+
+The offline baker optionally imports the separately installed stock
+`fast-simplification==0.2.0` wheel (MIT); its code is not vendored or linked into
+the 3DS client. It is installed in ignored worktree-local tooling scratch.

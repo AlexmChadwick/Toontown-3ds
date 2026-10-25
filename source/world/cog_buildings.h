@@ -33,6 +33,10 @@ private:
     static constexpr int kMaxAnchors = 16;
     Anchor anchors_[kMaxAnchors] = {};
     Shell shells_[4];
+    // ---- cogdo exterior (shared source kept additive) ----
+    render::Model cogdoShell_;
+    float cogdoDoor_[3] = {15.463f, 0, 0};
+    // ---- end cogdo exterior ----
     render::Model kart_; // DistributedCogKart (Coggolf_cart3)
     uint32_t zone_ = 0;
     uint32_t requestedElevator_ = 0;

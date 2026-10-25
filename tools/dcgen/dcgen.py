@@ -426,10 +426,11 @@ _COGDO_FIELDS = {
     'DistCogdoBoardroomGame': [],
     'DistCogdoCraneGame': [],
     'DistCogdoCrane': ['setCraneGameId', 'setIndex', 'setState', 'clearSmoothing', 'setCablePos'],
-    'DistCogdoCraneObject': ['setCraneGameId', 'setObjectState', 'requestGrab', 'rejectGrab', 'requestDrop', 'hitFloor', 'requestFree', 'hitBoss', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setComponentL', 'setComponentX', 'setComponentY', 'setComponentZ', 'setComponentH', 'setComponentP', 'setComponentR', 'setComponentT', 'clearSmoothing'],
+    'DistCogdoCraneObject': ['setSmXYZH', 'setPosHpr', 'setCraneGameId', 'setObjectState', 'requestGrab', 'rejectGrab', 'requestDrop', 'hitFloor', 'requestFree', 'hitBoss', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setComponentL', 'setComponentX', 'setComponentY', 'setComponentZ', 'setComponentH', 'setComponentP', 'setComponentR', 'setComponentT', 'clearSmoothing'],
     'DistCogdoCraneMoneyBag': ['setIndex', 'requestInitial'],
     'DistCogdoCraneCog': ['setGameId', 'setDNAString', 'setSpawnInfo'],
 }
+WANTED['DistributedBuilding'] += ['setVictorReady']
 for _name, _fields in _COGDO_FIELDS.items():
     WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))
     if _name not in TABLE_CLASSES:

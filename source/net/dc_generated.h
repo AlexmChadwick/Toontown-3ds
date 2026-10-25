@@ -1870,14 +1870,17 @@ constexpr uint16_t k_setBlock = 1188;
 constexpr uint16_t k_setSuitData = 1189;
 constexpr uint16_t k_setVictorList = 1190;
 constexpr uint16_t k_setState = 1191;
+constexpr uint16_t k_setVictorReady = 1192;
 constexpr uint16_t kw_setBlock = 0x007;
 constexpr uint16_t kw_setSuitData = 0x007;
 constexpr uint16_t kw_setVictorList = 0x006;
 constexpr uint16_t kw_setState = 0x006;
+constexpr uint16_t kw_setVictorReady = 0x110;
 constexpr const char* sig_setBlock = "u16,u32";
 constexpr const char* sig_setSuitData = "i8,i8,i8";
 constexpr const char* sig_setVictorList = "u32[]";
 constexpr const char* sig_setState = "string,i16";
+constexpr const char* sig_setVictorReady = "";
 } // namespace DistributedBuilding
 
 namespace DistributedSuitInterior {
@@ -3855,6 +3858,8 @@ constexpr const char* sig_setCablePos = "u8,i16/100,u16%360/100,{i16/100,i16/100
 
 namespace DistCogdoCraneObject {
 constexpr uint16_t kClassId = 215;
+constexpr uint16_t k_setSmXYZH = 1310;
+constexpr uint16_t k_setPosHpr = 1289;
 constexpr uint16_t k_setCraneGameId = 1273;
 constexpr uint16_t k_setObjectState = 1274;
 constexpr uint16_t k_requestGrab = 1275;
@@ -3878,6 +3883,8 @@ constexpr uint16_t k_setComponentP = 1299;
 constexpr uint16_t k_setComponentR = 1300;
 constexpr uint16_t k_setComponentT = 1301;
 constexpr uint16_t k_clearSmoothing = 1313;
+constexpr uint16_t kw_setSmXYZH = 0x116;
+constexpr uint16_t kw_setPosHpr = 0x116;
 constexpr uint16_t kw_setCraneGameId = 0x007;
 constexpr uint16_t kw_setObjectState = 0x006;
 constexpr uint16_t kw_requestGrab = 0x110;
@@ -3901,6 +3908,8 @@ constexpr uint16_t kw_setComponentP = 0x116;
 constexpr uint16_t kw_setComponentR = 0x116;
 constexpr uint16_t kw_setComponentT = 0x116;
 constexpr uint16_t kw_clearSmoothing = 0x012;
+constexpr const char* sig_setSmXYZH = "i16/10,i16/10,i16/10,i16%360/10,i16";
+constexpr const char* sig_setPosHpr = "i16/10,i16/10,i16/10,i16%360/10,i16%360/10,i16%360/10";
 constexpr const char* sig_setCraneGameId = "u32";
 constexpr const char* sig_setObjectState = "char,u32,u32";
 constexpr const char* sig_requestGrab = "";
