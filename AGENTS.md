@@ -308,6 +308,15 @@ Lessons recorded for agents:
 - **Verify without a human.** Touch `sdmc:/3ds/toontown3ds/autotest` to run the
   scripted pass. Render-target dumps and `tools/dev/decode_shot.py` give screenshots
   that don't depend on the host screen.
+- **One Azahar run at a time.** `tools/dev/azahar_test.sh` takes a lock and restores the user's
+  Azahar config on exit (including INT/TERM).
+  - Overlapping runs once killed each other's emulator (it looked like app crashes) and left
+    the user's config in test mode.
+  - `make` does not repack RomFS when only a data file changes; delete the `.3dsx`.
+- **Main-thread stack.** It is 256 KB (`__stacksize__` in `main.cpp`). `main()` keeps a 16 KB
+  frame of subsystems; the 32 KB default crashed at startup (PC 0).
+- **CPU faults** on the main thread are logged by `core/crash.*` (type, pc, fault address,
+  registers).
 
 **Phase 2 — Playground + movement.** Status: mostly done in Azahar (Old 3DS); see
 `docs/test-log.md`.
@@ -400,10 +409,23 @@ server.
 - ✅ **Fishing** (practice mode; the stock AI spawns no spots), the **Gag Shop clerk**,
   **boat riding**, **minimaps**, the **Gags tab**, a **frame profiler** (Debug tab),
   and **sounds** (doors, teleport, place music, ambience).
+- ✅ **Place transitions** (`world/transition.*`, `docs/design/transitions.md`):
+  - door, tunnel and teleport movies, plus death
+  - tunnels run from the tunnel model's `tunnel_origin`, and doors from `.pts` door anchors
+  - `requestEnter` with the real `DistributedDoor`
+- ✅ **Cog bosses** (`world/boss_*`, `docs/design/bosses.md`): VP, CFO, CJ and CEO.
+  - In Azahar the VP and CFO board and reach their first Cog rounds, and the VP reached
+    `BattleTwo` once.
+  - The pie / crane / court / golf phases are not yet seen.
+- ✅ **Battle cinematics** (`world/battle_camera.*`, `world/battle_movies.*`):
+  MovieCamera and every gag track.
+- ✅ **Facility room games** (`world/level_games.*`, `docs/design/level_games.md`): laser fields,
+  security cameras, crates, mazes, mole fields and golf greens.
+- ✅ **Cogdominiums** (`world/cogdo_*`, `docs/design/cogdo.md`): field offices with the maze
+  game (crane / boardroom only behind `AI_DEV_COGDO_GAME`; flying is unsupported, since
+  there are no assets).
 - Next:
-  - door/tunnel movies (`setTunnelOut`/`setTunnelIn`, `DistributedDoor.requestEnter`). For now a
-    0.4 s fade out (the toon walks on into the tunnel or door), the load, then a 0.4 s fade in.
-  - SpeedChat emotes
+  - the name shop (Pick-A-Name, typed names) — in progress on the `names` worktree
   - a real hardware run
 
 **Phase 2 — original plan.**
