@@ -115,3 +115,13 @@ project's MIT license; no Disney asset license is granted.
 The offline baker optionally imports the separately installed stock
 `fast-simplification==0.2.0` wheel (MIT); its code is not vendored or linked into
 the 3DS client. It is installed in ignored worktree-local tooling scratch.
+
+## Service clerks
+
+The native clerk flows, generated PetName/PetDNA/PetTraits, KartDNA catalogue and
+FishGlobals rarity tables, and the offline kart attachment transforms derive from
+the pinned Open Toontown specifications listed in `docs/design/clerks.md`. The
+Open Toontown BSD 3-Clause notice above applies; no upstream source files are
+vendored. The original models and textures converted into the committed
+`sdmc-out/3ds/toontown3ds/data/clerks/karts/` SD kit are Disney-derived game assets,
+excluded from this project's MIT license. No Disney asset license is granted.
