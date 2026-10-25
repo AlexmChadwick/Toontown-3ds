@@ -31,7 +31,7 @@ struct Exit {
 
 class Place {
 public:
-    static constexpr int kMaxPoints = 64;
+    static constexpr int kMaxPoints = 256; // streets: every door and tunnel anchor (up to 177 so far)
     struct Point {
         char name[40];
         float x, y, z, h;

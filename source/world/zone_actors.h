@@ -17,7 +17,7 @@ namespace tt::world {
 
 class ZoneActors {
 public:
-    static constexpr int kMaxPoints = 64;
+    static constexpr int kMaxPoints = 256; // streets: every door and tunnel anchor (up to 177 so far)
 
     bool init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath);
     // New zone: reload anchor points (NPCs of the old zone are dropped by the client).
