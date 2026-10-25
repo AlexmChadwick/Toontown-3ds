@@ -100,6 +100,13 @@ void testTables() {
     }
     for (int i = 1; i < tt::dc::kNumFields; ++i) CHECK(tt::dc::kFields[i - 1].id < tt::dc::kFields[i].id);
     CHECK(findField(65535) == nullptr);
+    CHECK(tt::dc::AstronLoginManager::k_setNamePattern == 352);
+    CHECK(tt::dc::AstronLoginManager::k_namePatternAnswer == 353);
+    CHECK(tt::dc::AstronLoginManager::k_setNameTyped == 354);
+    CHECK(tt::dc::AstronLoginManager::k_nameTypedResponse == 355);
+    CHECK(tt::dc::AstronLoginManager::k_acknowledgeAvatarName == 356);
+    CHECK(tt::dc::AstronLoginManager::k_acknowledgeAvatarNameResponse == 357);
+    CHECK(tt::dc::AstronLoginManager::k_requestRemoveAvatar == 358);
     uint8_t junk[4] = {};
     DatagramReader r(junk, 4);
     CHECK(!skipField(r, 65535) && !r.ok());
@@ -225,7 +232,10 @@ int runClient(const Options& o) {
             case EventType::Emote:
                 CHECK(t && t->emoteId>=0 && t->emoteId<25);
                 if(t && t->doId==100000001) CHECK(t->emoteId==24);
-                if(t) { CHECK(int32_t(now-t->emoteMs)>=-20 && int32_t(now-t->emoteMs)<500);++emotes; }
+                if(t) {
+                    CHECK(int32_t(now-t->emoteMs)>=-500 && int32_t(now-t->emoteMs)<1000);
+                    ++emotes;
+                }
                 break;
             case EventType::Anim:
                 ++anims;

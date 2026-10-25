@@ -1134,6 +1134,21 @@ public:
     // ToonDNA.isValidNetString (checked here: the server ejects bad DNA). Only in
     // State::ChooseAvatar; false (nothing sent) otherwise.
     bool createAvatar(const uint8_t dna[kDnaSize], uint8_t slot);
+
+    // ---- avatar naming and management ----
+    void setPendingPatternName(int16_t p1, uint8_t f1, int16_t p2, uint8_t f2,
+                               int16_t p3, uint8_t f3, int16_t p4, uint8_t f4);
+    void setPendingTypedName(const char* name);
+    void clearPendingName();
+
+    bool sendSetNamePattern(uint32_t avId, int16_t p1, uint8_t f1, int16_t p2, uint8_t f2,
+                            int16_t p3, uint8_t f3, int16_t p4, uint8_t f4);
+    bool sendSetNameTyped(uint32_t avId, const char* name);
+    bool sendAcknowledgeAvatarName(uint32_t avId);
+    bool sendRequestRemoveAvatar(uint32_t avId);
+
+    int namePatternResult() const { return namePatternResult_; }
+    int nameTypedResult() const { return nameTypedResult_; }
     // Graceful CLIENT_DISCONNECT and back to State::Idle (the "back to title"
     // path). Keeps the buffers; connect() starts a fresh session with the same config.
     void disconnect();
@@ -1782,6 +1797,14 @@ private:
     uint32_t rejoinAvatarId_ = 0;
     uint32_t newAvatarId_ = 0;
     uint8_t pendingDna_[kDnaSize] = {};
+    uint8_t pendingNameAction_ = 0; // 0 = default, 1 = pattern, 2 = typed
+    int16_t pendingPattern_[4] = {-1, -1, -1, -1};
+    uint8_t pendingPatternFlags_[4] = {1, 1, 1, 0};
+    char pendingPatternName_[kNameLen] = {};
+    char pendingTypedName_[kNameLen] = {};
+    uint32_t pendingAckAvId_ = 0;
+    int namePatternResult_ = -1;
+    int nameTypedResult_ = -1;
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
     uint8_t timeContext_ = 0;

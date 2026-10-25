@@ -1,10 +1,10 @@
 #include "core/autotest.h"
 
 #include <cstring>
-
 #include <cstdio>
 
 #include "core/log.h"
+#include "game/front_end.h"
 
 namespace tt::autotest {
 
@@ -179,6 +179,9 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "fe: title", "fe_title"},
     {6.0f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_pick"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: pick slot 1"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 132, 217, -1, "fe: delete toon", "fe_delete_prompt"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 230, 157, -1, "fe: confirm delete", "fe_deleted"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: select empty slot 1"},
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: make a toon"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 160, 51, -1, "fe: species cat", "fe_species"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> body"},
@@ -187,7 +190,9 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, 191, 76, -1, "fe: colour 6", "fe_color"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> clothes"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 280, 70, -1, "fe: next shirt", "fe_clothes"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> confirm", "fe_confirm"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> name", "fe_name"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},
     {10.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
@@ -268,6 +273,9 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
     stepFrames_ = stepStarted_ ? stepFrames_ + 1 : 1;
     if (!stepStarted_) {
         TT_LOG("autotest: step %d '%s'", step_, s.label);
+        if (!strcmp(s.label, "fe: typed name")) {
+            game::FrontEnd::setTestTypedName("Little Pepper");
+        }
         down |= s.downOnce;
         if (s.touchX >= 0) {
             touch.px = static_cast<u16>(s.touchX);
