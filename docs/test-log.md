@@ -896,4 +896,5 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
 - **Pick-A-Name: PASS** (second run with the typed step left out):
   `namePatternAnswer status=1`, the toon plays as "Frizzy" at once.
 - Name-shop screens: four columns with < / > and toggles, Shuffle, Type Name / Pick Name, the
-  name in the header. Front-end steps run at 30 fps.
+  name in the header. Front-end UI steps log no stats lines; create / first world steps
+  27–30 fps, heap 3.4 MB, linear free 14.9 MB.
