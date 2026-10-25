@@ -112,7 +112,12 @@ void Transition::reset() {
 }
 
 void Transition::computeTunnelOrigin(const Exit& exit, const Place& place, const Player& player) {
-    const Place::Point* pt = place.point(exit.name);
+    // The tunnel model's tunnel_origin (bake_zone.write_points "<tunnel>_origin"), which the
+    // upstream tunnel tracks are relative to; the DNA root is only a fallback.
+    char originName[48];
+    snprintf(originName, sizeof(originName), "%s_origin", exit.name);
+    const Place::Point* pt = place.point(originName);
+    if (!pt) pt = place.point(exit.name);
     if (!pt) pt = place.pointWithPrefix("linktunnel_");
     if (pt) {
         tunnelOriginX_ = pt->x;
@@ -288,12 +293,17 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
         // Look up destination tunnel origin matching fromZone
         char linkName[32];
         snprintf(linkName, sizeof(linkName), "%lu", static_cast<unsigned long>(fromZone_));
+        // Prefer that tunnel's tunnel_origin ("<tunnel>_origin"), then its DNA root.
         const Place::Point* pt = nullptr;
-        for (int i = 0; i < place.numPoints(); i++) {
-            const Place::Point& p = place.pointAt(i);
-            if (!strncmp(p.name, "linktunnel_", 11) && strstr(p.name, linkName)) {
-                pt = &p;
-                break;
+        for (int pass = 0; pass < 2 && !pt; pass++) {
+            for (int i = 0; i < place.numPoints(); i++) {
+                const Place::Point& p = place.pointAt(i);
+                const size_t len = strlen(p.name);
+                const bool origin = len > 7 && !strcmp(p.name + len - 7, "_origin");
+                if (!strncmp(p.name, "linktunnel_", 11) && strstr(p.name, linkName) && origin == (pass == 0)) {
+                    pt = &p;
+                    break;
+                }
             }
         }
         if (!pt) pt = place.pointWithPrefix("linktunnel_");

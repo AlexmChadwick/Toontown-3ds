@@ -782,3 +782,13 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
     root, so every zone's `.pts` needs `tunnel_origin` anchors per link tunnel (zone /
     street bakers), then a re-bake.
 - **Not yet seen:** `move: teleport` from the map tab (cut off by the run's end).
+- **Tunnel origin fixed.** `bake_zone.write_points` now writes `<tunnel>_origin` from the
+  tunnel model's `tunnel_origin` node. All 25 zones were refreshed with
+  `bake_street.py --zone all --points-only` (56 origins), plus the RomFS `ttc_sz.pts`, and
+  `Transition` prefers that point.
+  - 2000 → 2132 now walks into the tunnel with the camera outside, then comes out on the
+    Silly Street side, as upstream.
+  - Still open: about 4 s after arriving, the toon entered building 2670 (`door out start`
+    with an unnamed exit). Find what walks it into that door trigger.
+  - Note: `make` does not repack RomFS when a data file changes; delete the `.3dsx` to
+    force it.

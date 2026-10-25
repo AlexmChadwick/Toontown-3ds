@@ -69,6 +69,14 @@ def write_points(root, path):
         for np_ in root.findAllMatches(pattern):
             p, h = np_.getPos(root), np_.getH(root)
             lines.append(f'{np_.getName()} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+    # The tunnel tracks (DistributedToon.getTunnelOutToonTrack / getTunnelInToonTrack) run
+    # relative to the tunnel model's tunnel_origin node, ~100 units from its DNA root.
+    for np_ in root.findAllMatches('**/linktunnel_*'):
+        origin = np_.find('**/tunnel_origin')
+        if origin.isEmpty():
+            continue
+        p, h = origin.getPos(root), origin.getH(root)
+        lines.append(f'{np_.getName()}_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     return len(lines)

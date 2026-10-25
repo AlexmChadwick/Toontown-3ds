@@ -63,6 +63,12 @@ def bake(zone_id, args, base):
             n.stash()
     import bake_moving_props
     movers = bake_moving_props.split(root, zone_id, args.out)
+    if args.points_only:  # refresh the .pts anchors without re-encoding the zone
+        from bake_zone import write_points
+        num_points = write_points(root, str(Path(args.out) / f'{zone_id}.pts'))
+        num_points += bake_moving_props.append_points(Path(args.out) / f'{zone_id}.pts', movers)
+        print(f'{zone_id}: {num_points} points', flush=True)
+        return {'zone': zone_id, 'points': num_points}
     ex = street_atlas.Extractor()
     chunks, raw, floors = [],[],[]
     whole_collision = collide.extract(root)
@@ -220,6 +226,7 @@ def main():
     ap.add_argument('--grid-size',type=float,default=128)
     ap.add_argument('--distance',type=float,default=120)
     ap.add_argument('--preview',action='store_true')
+    ap.add_argument('--points-only',action='store_true',help='only rewrite the .pts anchor sidecars')
     ap.add_argument('--separate-boat',action='store_true',
                     help="leave donalds_boat out of zone 1000 (bake_boat.py bakes it as 1000_boat.ttm)")
     args=ap.parse_args()
@@ -237,6 +244,8 @@ def main():
                 command.append('--preview')
             if args.separate_boat:
                 command.append('--separate-boat')
+            if args.points_only:
+                command.append('--points-only')
             subprocess.run(command,check=True)
         return
     from panda3d.core import loadPrcFileData, BamCache
