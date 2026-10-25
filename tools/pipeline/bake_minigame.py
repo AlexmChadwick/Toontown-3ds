@@ -194,7 +194,9 @@ def literal_assignment(path, name):
 
 
 def bake_pairing(base, resources, out_dir, max_tex):
-    upstream = os.path.join(ROOT, 'ref', 'ref', 'open-toontown', 'toontown')
+    upstream = os.path.join(ROOT, 'ref', 'open-toontown', 'toontown')
+    if not os.path.isdir(upstream):  # linked worktrees reach the submodules through ref/ref
+        upstream = os.path.join(ROOT, 'ref', 'ref', 'open-toontown', 'toontown')
     props = literal_assignment(os.path.join(upstream, 'toonbase', 'ToontownBattleGlobals.py'), 'AvPropsNew')
     colors = literal_assignment(os.path.join(upstream, 'minigame', 'PairingGameCard.py'), 'CardColors')
     def load(path):
