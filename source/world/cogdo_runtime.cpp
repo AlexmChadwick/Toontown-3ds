@@ -82,9 +82,7 @@ void CogdoRuntime::board(BossFrame &frame) {
         const net::CogBuilding &building = frame.client.cogBuildingSlot(index);
         if (!building.active || building.state != net::CogBuildingState::Cogdo || building.cogdoVictory)
             continue;
-        char name[32];
-        std::snprintf(name, sizeof(name), "tb%u", unsigned(building.block));
-        const Place::Point *anchor = frame.place.point(name);
+        const Place::Point *anchor = frame.place.buildingPoint(building.block);
         if (!anchor)
             continue;
         // Offset from DistributedBuilding.loadCogdo (also in points.bin).

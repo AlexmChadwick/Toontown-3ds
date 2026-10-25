@@ -73,15 +73,8 @@ static bool kartPose(const net::CogElevator& e, uint32_t nowMs, float* x, float*
 }
 
 void CogBuildings::syncAnchors(const Place& place) {
-    char name[16];
-    for (uint32_t block = 0; block < kMaxAnchors; ++block) {
-        snprintf(name, sizeof(name), "tb%lu", static_cast<unsigned long>(block));
-        const Place::Point* p = place.point(name);
-        if (!p) {
-            snprintf(name, sizeof(name), "sz%lu", static_cast<unsigned long>(block));
-            p = place.point(name);
-        }
-        if (p) setAnchor(block, p->x, p->y, p->z, p->h);
+    for (uint32_t block = 0; block < kMaxBlock; ++block) {
+        if (const Place::Point* p = place.buildingPoint(block)) setAnchor(block, p->x, p->y, p->z, p->h);
     }
     for (int i = 0; i < kMaxSpots; ++i) {
         char spot[24];

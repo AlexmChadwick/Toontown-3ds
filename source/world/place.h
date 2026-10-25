@@ -60,6 +60,9 @@ public:
     const char* pointsPath() const { return pointsPath_; }
     const Point* point(const char* name) const;
     const Point* pointWithPrefix(const char* prefix) const;
+    // A building's DNA root ("tb<block>:<node>" on streets, "sz<block>:<node>" in playgrounds),
+    // or a plain "tb<block>" / "sz<block>" anchor; nullptr if neither exists.
+    const Point* buildingPoint(u32 block) const;
     int numPoints() const { return numPoints_; }
     const Point& pointAt(int idx) const { return points_[idx]; }
 

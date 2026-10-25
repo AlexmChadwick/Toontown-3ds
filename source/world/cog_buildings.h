@@ -30,7 +30,8 @@ public:
 private:
     struct Anchor { uint32_t block = 0; float x = 0, y = 0, z = 0, h = 0; bool used = false; };
     struct Shell { render::Model model; int8_t dept = -1; bool loaded = false; };
-    static constexpr int kMaxAnchors = 16;
+    static constexpr int kMaxAnchors = 64;   // buildings with an anchor in one zone (streets have ~40)
+    static constexpr uint32_t kMaxBlock = 128; // DNA block numbers searched for anchors
     Anchor anchors_[kMaxAnchors] = {};
     Shell shells_[4];
     // ---- cogdo exterior (shared source kept additive) ----

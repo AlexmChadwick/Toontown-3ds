@@ -184,6 +184,23 @@ const Place::Point* Place::pointWithPrefix(const char* prefix) const {
     return nullptr;
 }
 
+const Place::Point* Place::buildingPoint(u32 block) const {
+    static const char* const kPrefixes[] = {"tb", "sz"};
+    char name[16];
+    for (const char* prefix : kPrefixes) {
+        snprintf(name, sizeof(name), "%s%lu", prefix, static_cast<unsigned long>(block));
+        if (const Point* p = point(name)) return p;
+        snprintf(name, sizeof(name), "%s%lu:", prefix, static_cast<unsigned long>(block));
+        const size_t n = strlen(name);
+        for (int i = 0; i < numPoints_; i++) {
+            // The DNA root itself, not its door anchors ("..._door_origin", "door_<n>").
+            const char* rest = points_[i].name + n;
+            if (!strncmp(points_[i].name, name, n) && !strstr(rest, "door")) return &points_[i];
+        }
+    }
+    return nullptr;
+}
+
 Exit Place::exitAt(float x, float y, float z) const {
     Exit e;
     int hits[8];
