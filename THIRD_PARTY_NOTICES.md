@@ -93,3 +93,11 @@ stun/grab behavior, Resistance toon DNA and train timings in `source/world/cfo_*
 are derived from the pinned Open Toontown sources listed in `docs/design/bosses.md`.
 The Open Toontown BSD notice above applies. CFO baked assets, including the stock
 NPC DNA metadata, remain converted game assets outside the MIT license.
+
+CJ jury/cannon ballistics, chair placement, gavel timing/heading tables, scale
+pivots/tilt, lawyer evidence/stun timing, barrier/reward semantics and NPC DNA in
+`source/world/cj_*`, `source/net/cj_state.*`, `source/net/client_cj.cpp`, the boss
+protocol blocks and `tools/pipeline/bake_cj.py` derive from the pinned Open Toontown
+sources cited in `docs/design/bosses.md`. The Open Toontown BSD notice above applies.
+Converted CJ game models/textures/animation/collision and DNA metadata remain
+outside the MIT license; no upstream source files are vendored.

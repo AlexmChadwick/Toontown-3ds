@@ -20,10 +20,13 @@ commands = [(f'{name}_test', ['bash', f'tools/{name}_test/run_tests.sh', 'ref/re
                          'pattern', 'photo', 'race', 'ring', 'tag', 'target', 'tug', 'two_d', 'vine')]
 commands += [(name, ['bash', path]) for name, path in (
     ('battle_fx', 'tools/battle_fx_test/run_test.sh'), ('battle_cam', 'tools/battle_cam_test/run_test.sh'), ('book', 'tools/book_test/run.sh'),
-    ('fishing', 'tools/fishing_test/run.sh'))]
+    ('fishing', 'tools/fishing_test/run.sh'), ('level_games', 'tools/level_games_test/run_test.sh'))]
 commands += [(name, [str(ROOT / '.venv/bin/python'), '-I', '-B', path, *args])
              for name, path, args in (
                  ('anim', 'tools/anim_test/run.py', []),
+                 ('factory', 'tools/factory_test/run_test.py', []),
+                 ('estate', 'tests/test_estates.py', []),
+                 ('racing', 'tests/racing_contract_test.py', []),
                  ('facility', 'tests/facility_runtime_test.py', []),
                  ('toon_dna', 'tools/toon_dna_test/run_test.py', []),
                  ('zone', 'tools/zone_test/run.py', ['--unit']),

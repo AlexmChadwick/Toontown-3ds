@@ -57,6 +57,7 @@ private:
     uint32_t aimMs_ = 0;
     uint32_t cannonRequestMs_ = 0;
     uint32_t cannonFire_[8] = {};
+    uint32_t externalIds_[net::kMaxCjChildren] = {};
     uint32_t lawyerAttack_[10] = {};
     uint32_t lawyerHit_[10] = {};
     uint32_t gavelHit_[8] = {};

@@ -542,7 +542,7 @@ Panda's cross-process accumulation noise. The shared loader keeps one active
 four-part clip set and at most one pending set, publishing after the GPU fence.
 Geometry plus the largest clip pair is 5,409,224 bytes; textures are 364,000 bytes.
 
-This is host/build-verified work, **not Azahar- or hardware-verified**. CJ and CEO remain receive schemas plus implementation plans; CFO is covered in section 12. Full
+This is host/build-verified work, **not Azahar- or hardware-verified**. CEO remains an implementation plan; CFO and CJ are covered in sections 12–13. Full
 contract, supported visual simplifications, asset manifest and mandatory Azahar
 checks are in `docs/design/bosses.md` and `docs/design/boss_assets.json`.
 
@@ -569,3 +569,26 @@ Toon-cache/avatar, battle-camera/movie, game or book code was changed.
 This work is host/build verified only. No Azahar or live CFO victory is claimed.
 Exact asset budgets, controls, simplifications, CJ/CEO field contracts and the
 mandatory Azahar checks are in docs/design/bosses.md and cfo_assets.json.
+
+
+## 13. Lawbot CJ runtime (2026-10-24)
+
+BossBattle's existing frame hook dispatches Lawbot encounters to `CjBattle`.
+Its lobby anchor is cached once at zone entry. A targeted CJ elevator destination
+remains valid when the AI clears its seat in the same TCP turn. The independent
+VP/CFO `BossBattle::board` implementation is unchanged. CJ child pools are bounded
+8/12/8/10 (cannons/chairs/gavels/lawyers); incoming snapshots publish transactionally.
+The real jury round uses guarded, owner-only ballistic shots and waits for the
+AI's LOAD before firing again. Defense evidence sends hitBoss(1), never the
+unused DC-only pan methods or client healBoss. Scale damage/weight, prosecution
+healing, bonus, summon inventory and promotions remain server-owned.
+
+`bake_boss.py --cj` adds 16 models, 96 clips and CJS1/BPA1/BND1 metadata under
+ignored SD data/boss. Existing VP/CFO output hashes are unchanged. CJ model
+geometry plus the largest active/pending clip pair is 3,411,950 bytes; runtime
+reserves 3,592,110 bytes, textures 785,664 bytes. Collision uses 48,440 heap bytes.
+No protected level/game/toon/battle-camera/movie or main transition files changed.
+
+This is host/build verified only: no Azahar, live CJ victory or hardware frame
+budget is claimed. Exact simplifications, controls, CEO field plan and required
+Azahar checks are in docs/design/bosses.md; complete hashes in cj_assets.json.

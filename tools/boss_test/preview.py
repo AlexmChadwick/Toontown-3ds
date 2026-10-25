@@ -86,8 +86,15 @@ if prefix == 'cj':
         pan = beam.attachNewNode(name)
         pan.setPos(*metadata['scene_vectors'][index + 2])
         preview_ttm.load(str(OUT / f'cj_scale_{name}.ttm'), {}).reparentTo(pan)
-    base.camera.setPos(-60, -85, 28)
+    base.camera.setPos(0, -75, 22)
     base.camera.lookAt(0, 20, 10)
     for _ in range(2):
         base.graphicsEngine.renderFrame()
     base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses4/cj_arena_preview.png'))
+
+if prefix == 'cj':
+    base.camera.setPos(25, -20, 24)
+    base.camera.lookAt(-3, 12, 15)
+    for _ in range(2):
+        base.graphicsEngine.renderFrame()
+    base.win.saveScreenshot(str(ROOT / 'sdmc-out/bosses4/cj_scale_preview.png'))

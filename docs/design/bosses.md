@@ -285,38 +285,150 @@ The ending camera and Resistance UI present the essential sequence; full stock
 cinematography and audio are not reproduced. Host tests cannot establish a live
 victory or Old 3DS performance. The Azahar checklist below is mandatory.
 
-## CJ plan (not implemented)
+## Lawbot CJ implementation (host/build verified, 2026-10-24)
 
-Sources: `DistributedLawbotBoss{,AI}.py`, `DistributedLawbotCannon{,AI}.py`,
-`DistributedLawbotChair{,AI}.py`, `DistributedLawbotBossGavel{,AI}.py`,
-`DistributedLawbotBossSuit{,AI}.py`, and Lawbot Globals / DC definitions.
+`CjBattle` is an independent encounter controller called from the start of the
+existing `BossBattle::frame` hook. It does not change `BossBattle::board`, main.cpp,
+level runtime, battle movies/camera, toon cache/avatar or game/book code.
 
-1. Bake phase_11 lawbotBoss, LawbotCourtroom3, scale, LB_Elevator, cannon,
-   juror chairs and gavels as separate movable models with matching collision.
-2. Follow common Cog BattleOne, RollToBattleTwo (50 s), PrepareBattleTwo
-   (45 s), BattleTwo (jury cannons), optional RollToBattleThree (20 s),
-   PrepareBattleThree (45 s), BattleThree (evidence/scales), Victory or Defeat,
-   Reward/Epilogue. Acknowledge only the listed actual barrier, not every state.
-3. Generate Cannon, Chair, Gavel and BossSuit schemas. Cannon receives index,
-   pose, movie, cannon updates and timed fire. requestEnter/requestLeave gates
-   local controls; setCannonPosition and setCannonLit use i16/10 angles;
-   setLanded is sent after the client-owned flight really lands. Port the stock
-   jury ballistics and seat collision, with at most LawbotBossCannonBallMax=12
-   airborne balls and chair ownership driven by setToonJurorIndex/state.
-4. Scale starts at 1350 of 2700. Eight jurors balance it; each extra/missing juror
-   adjusts the start by the Globals 68 units. Difficulty and bonus states alter
-   evidence weight, so never hardcode VP's damage. Track lawyer IDs, taunts,
-   bonus entry, gavel states and suit doAttack/doProsecute/doStun.
-5. touchWitnessStand grants evidence. Real evidence impacts call hitBoss(1),
-   healBoss, hitDefensePan/hitProsecutionPan, hitChair(index, result), or
-   hitToon(other), as the AI method requires. Lawyer hits use the lawyer object's
-   hitByToon. Keep pans, evidence and stun timers in bounded pools.
-6. Defeat is a distinct AI state (10 s barrier), not Victory with a negative
-   gauge. Reward grants the AI's Cog summon outcome; render the owner updates.
+The lobby is 13100, successful return is Lawbot HQ 13000 and sadness returns to
+2000. The BPA1 anchor is read once when entering the lobby. The actual baked
+anchor is (118.849998, 87.059502, 51.924500). A targeted CJ elevator destination is
+authorized even if the AI cleared its seat in the same TCP turn. Disconnect
+reconnects to static lobby 13100 instead of the abandoned dynamic arena.
 
-Acceptance: two-client cannon ownership, all juror seat outcomes, scale direction,
-bonus weight, lawyer stuns, gavel dodge timing, both 0-damage defeat and
-2700-damage victory, and the awarded summon inventory.
+The encounter registers during loading, acknowledges only actual matching barriers,
+reuses public Battle for the Cog rounds/reserves and supports both battle sides.
+The initial boss pose is (-2.798,-60,0,0); its later pose is
+(-2.798,89,19.145,0). Introduction and travel cinematics are condensed. Jury
+BattleTwo runs for the real 70-second interval; its barrier cannot be acknowledged
+before 70.5 seconds. It does not advance from a scripted timer alone.
+
+Independent child snapshots have per-kind limits 8 cannons, 12 chairs, 8 gavels and
+10 lawyers. Required/OTHER parsing is transactional, including DNA with embedded
+NULs. Ownership, encounter membership, phase, ammunition, flight and finite angle
+checks guard all cannon requests. Each actual broadcast flight follows the stock
+80-unit/second ballistic trajectory with gravity 32, is swept against the moving
+chairs/static collision, reports one chair result, then sends setLanded once.
+The next shot waits for the AI's next LOAD. The NPC flies; the player remains at
+the cannon. Juror NPC DNA is stock 2001+index. Suit juror visuals use a shared
+Big Wig placeholder and a straight 10-second arrival rather than the upstream
+random suit/propeller sequence. Chair pitch animation and full seated toon clips
+are simplified; the indexed, moving chair positions and server seat outcomes are
+preserved.
+
+Scale damage is AI-owned (0..2700, initial 1350). CJS1 stores the actual beam and
+pan pivots; the beam tilts -40..40 degrees and pans counter-rotate. Evidence uses
+the existing physical pie release/charge/trajectory and swept impacts. A real
+defense hit sends **hitBoss(1)**: the AI applies juror/bonus weight. Stock AI has
+no hitDefensePan/hitProsecutionPan methods despite their DC declarations. A local
+prosecution hit is cosmetic; clients do not send those fields or healBoss.
+Witness contact requests ammunition, other-toon impacts use hitToon(other), and
+lawyer impacts send hitByToon on the actual lawyer object. Lawyers use their
+received DNA/pose and 5-second stun. Their attack lawbooks travel toward the
+received target over the stock 3 seconds, after the 3.15-second release; AI owns
+prosecution healing and the 20-second all-lawyer stun bonus. Gavel pose tables
+match upstream timings/headings. Swept actor/pan boxes and gavel head/handle
+volumes are conservative approximations requiring emulator review. Bench attack
+4 only hits grounded toons during its release window; zap codes 13/14/15 distinguish
+gavel head/handle/lawyer hits. Defeat, Frolic and victory/reward are distinct;
+owner Cog-summon inventory (32 masks; single/building/invasion bits 1/2/4) and
+promotion updates drive the reward display. No client grant or forced victory.
+
+Controls: A boards the lobby elevator, enters a nearby free cannon, or jumps.
+B exits the lobby seat; in a cannon B fires and X leaves, Circle Pad aims; in
+court B holds/releases evidence and D-pad adjusts pitch. Walk to the witness at
+(54,100,0) for evidence. A in Epilogue/Frolic returns to the static destination.
+
+### CJ assets and memory
+
+Reproduce with `.venv/bin/python -I -B tools/pipeline/bake_boss.py --cj`.
+Copy every `cj_*` file from `sdmc-out/3ds/toontown3ds/data/boss/` to SD
+`3ds/toontown3ds/data/boss/`. The normal Lawbot HQ/lobby, toon/clothing and Cog
+asset sets are also required. No server patch is needed beyond the existing
+local AI_DEV hooks. `docs/design/cj_assets.json` is the complete reproducible
+manifest; generated game assets stay ignored and outside the MIT license.
+
+16 TTM models: four boss parts, arena, jury box, scale stand/beam/two pans,
+cannon base/barrel, chair, gavel, tart and lawbook. 96 TTA files cover 24 clips ×
+four parts at 12 fps. Other files: TTC collision, BPA1 lobby anchor, CJS1 v1/count4
+barrel/beam/pan vectors, BND1 nine NPC DNA records. Existing format versions are
+unchanged. ETC1/ETC1A4 and small single-channel textures use maximum 128 dimensions.
+
+| CJ pool | Bytes | Limit |
+|---|---:|---:|
+| Model geometry | 192,110 | Included below |
+| Largest four-part clip | 1,609,920 | 1,700,000 runtime cap |
+| Geometry + actual active/pending clip pair | 3,411,950 | 6,291,456 |
+| Geometry + reserved clip caps | 3,592,110 | 6,291,456 |
+| Textures | 785,664 | 8,388,608 |
+| Collision regular heap | 48,440 | Separate from linear pools |
+| All CJ files on disk (116) | 16,528,929 | Streamed from SD |
+| Build text + data + BSS | 2,066,100 | 4,194,304 |
+
+The manifest has 6,773 unique triangles / 64 batches, **not a worst-frame count**:
+chairs, cannons, gavels, NPCs and lawyers instance geometry. Existing renderer
+frustum/command guards remain active. Measure the simultaneous rendered peaks
+in Old 3DS mode; no 30 fps or hardware-budget claim is made. One active and one
+pending four-part clip set are admitted together and published atomically after
+the GPU fence. Models load serially. Missing/corrupt/over-budget assets show B
+return. The arena and lobby are never resident together; shared toon/Cog caches
+retain their existing bounded budgets.
+
+### CJ verification and main-agent handoff
+
+Host tests: `sh tools/boss_test/run.sh` (ASan/UBSan, 177 independent Panda vectors,
+all truncated field and child-entry prefixes, ownership/payload guards, reload,
+barriers, jury/ballistics/gavels/scale logic, reward masks and real baked floor
+queries), `PORT=7498 bash tools/nettest/run_tests.sh`, and
+`.venv/bin/python -I -B tools/boss_test/regressions.py` (33 suites). The obsolete standalone factory runner now tests current Level/LevelSpec
+contracts and real upstream TLV data without changing protected facility code. Asset checks pass for all three bosses.
+Two independent final CJ bakes match every byte; VP and CFO rebakes exactly match
+their committed manifests (115 files each). Decoded TTM/TTA texture/attachment
+previews are in `sdmc-out/bosses4/`. Build succeeds with zero source warnings;
+the inherited devkitARM crtn.o GNU-stack linker warning remains.
+
+No Azahar or real server encounter was run. The main agent must do these checks:
+
+1. Install the complete CJ set and existing 13000/13100 + toon/Cog assets. Start
+   `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 tools/server/start.sh`. Use both a
+   fresh development toon and a production-ready group; with AI_DEV disabled,
+   verify normal merit/laff rejection. Enter 13100 through its actual door.
+   At the BPA1 anchor, board, B exit, reboard, then ride. Confirm both normal and
+   forced target messages, seat clearing and no interest/eject loop. Verify the
+   cached anchor removes SD reads from subsequent lobby frames.
+2. Watch entry, intro, both Cog sides and reserves. Verify collision at entry
+   and the correct upper-bench placement in a server configuration that uses
+   the optional second Cog round. Test slow SD loading and missing TTM/TTA/CJS1.
+3. With two clients compete for a cannon: only its owner aims/fires; launch the
+   correct NPC, retain the toon at the cannon, hit front/back/edge seats, miss,
+   reload, exhaust all 12 shots and exit. Compare chair occupancy with stock
+   client, moving box alignment and the 70-second transition. Validate the
+   simplified juror/chair visuals and conservative chair impact boxes.
+4. In court inspect scale alignment and direction at 0/1350/2700, refill at the
+   witness, throw low/high/charged evidence, deliberately miss, hit both pans,
+   heal another toon and stun all lawyers. Confirm weight/20-second bonus and
+   prosecution healing against the stock client. Dodge every gavel heading and
+   bench wave; verify jumps, zap codes and HP agree with AI. Review conservative
+   gavel/pan/actor volumes and lawbook timing at low frame rates.
+5. Earn a real victory: verify fall, Reward/Epilogue, summon mask increment,
+   promotion and A return to 13000. Separately test zero-scale Defeat/Frolic,
+   zero-laff sadness, disconnect/reconnect to 13100, and a second encounter
+   without retained clips, child actors or battle UI. Recheck VP/CFO boarding
+   against the main agent's independent board fix; this branch leaves it intact.
+6. In Old 3DS mode stress eight toons plus all children; record fps, heap,
+   linear, VRAM, frame time, draws/triangles and command usage in test-log. Repeat
+   on hardware before asserting the 30 fps target. Check both screens, missing
+   file B return and no memory growth across repeated fights.
+
+Autotest trigger text `from cj: board` runs `cj: board` (45 s), `cj: rounds`
+(600 s), `cj: court` (1800 s), `cj: end` (30 s). All use one-second top/bottom
+shot series `cj_board*`, `cj_rounds*`, `cj_court*`, `cj_end*`. Public Battle autoplay
+handles Cogs; jury autoplay solves and fires real shots; court autoplay refills
+and solves real defense shots. Ordinary collision and guarded senders determine
+results. Script duration never forces boss phases or victory. Run a manual
+production encounter as well; the script is a diagnostic, not victory proof.
+
 
 ## CEO plan (not implemented)
 
@@ -348,6 +460,97 @@ and Bossbot Globals / DC definitions.
 6. Food/toonup requests carry belt/slot/sequence; await server confirmation.
    Handle water, golf, gear, movement and overtime attack codes separately.
    Victory's 30 s barrier precedes the AI's firing/reward inventory grant.
+
+### CEO exact field contract for the next implementation
+
+The following are the declared own fields in pinned `etc/toon.dc` (types,
+modifiers and field names are exact; numeric IDs must come from dcgen). Add
+these child classes to the marked boss schema block before regenerating the
+header. `DistributedBattleWaiters` and `DistributedBattleDiners` have no own
+fields: both inherit DistributedBattleFinal and should use the public Battle
+API, including their actual ReservesJoining barrier. Do not route them through
+DistributedLevel or synthesize a second combat implementation.
+
+**DistributedBossbotBoss**
+
+```text
+setState(string) broadcast ram;
+  setBattleDifficulty(uint8) broadcast ram;
+  requestGetFood(int8, int8, uint32) airecv clsend;
+  toonGotFood(uint32, int8, int8, uint32) broadcast;
+  requestServeFood(int8, int8) airecv clsend;
+  toonServeFood(uint32, int8, int8) broadcast;
+  hitBoss(uint8) airecv clsend;
+  hitToon(uint32) airecv clsend;
+  ballHitBoss(uint8) airecv clsend;
+  setBossDamage(uint16, uint8, int16) broadcast ram;
+  setSpeedDamage(uint16, uint8, int16) broadcast ram;
+  reachedTable(uint8) airecv clsend;
+  hitTable(uint8) airecv clsend;
+  awayFromTable(uint8) airecv clsend;
+  toonGotHealed(uint32) broadcast;
+  requestGetToonup(int8, int8, uint32) airecv clsend;
+  toonGotToonup(uint32, int8, int8, uint32) broadcast;
+```
+
+**DistributedFoodBelt**
+
+```text
+setBossCogId(uint32) required broadcast ram;
+  setIndex(uint8) required broadcast ram;
+  setState(char) broadcast ram;
+```
+
+**DistributedBanquetTable**
+
+```text
+setIndex(uint8) required broadcast ram;
+  setNumDiners(uint8) required broadcast ram;
+  setBossCogId(uint32) required broadcast ram;
+  setDinerInfo(uint8[], uint8[], uint8[]) required broadcast ram;
+  setState(char, uint32, int8) broadcast ram;
+  setDinerStatus(uint8, uint8) broadcast;
+  requestControl() airecv clsend;
+  requestFree(int8) airecv clsend;
+  setPitcherPos(uint8, uint16%360/100, int16) broadcast clsend;
+  clearSmoothing(int8) broadcast clsend;
+  firingWater(int32/100, int32/100, int32/100, int32/100, int32/100, int32/100) broadcast clsend;
+  waterHitBoss(uint8) broadcast clsend;
+```
+
+**DistributedGolfSpot**
+
+```text
+setIndex(uint8) required broadcast ram;
+  setBossCogId(uint32) required broadcast ram;
+  setState(char, uint32, int8) broadcast ram;
+  setGoingToReward() broadcast ram;
+  requestControl() airecv clsend;
+  requestFree(int8) airecv clsend;
+  setGolfSpotPos(uint8, uint16%360/100, int16) broadcast clsend;
+  clearSmoothing(int8) broadcast clsend;
+  setSwingInfo(uint8, int16/10, uint8) broadcast clsend;
+```
+
+Use separate bounded records keyed by doId, index and bossId, and transactional
+required/OTHER parsing exactly as for CJ children. A table/GolfSpot state carries
+(char, owner u32, signed sequence i8); state receipt, not requestControl, grants
+control. Reject cross-boss/stale-owner/invalid-phase inputs and validate finite
+projectile coordinates before narrowing. Six i32/100 water values are position
+and velocity, not six i16 angles; the unsigned heading uses modulo-360/100.
+Distinguish FoodBelt's char state from these three-argument control states.
+
+Food request sequence is u32, independent of table/spot i8 smoothing sequences.
+Only toonGotFood/toonServeFood/toonGotToonup confirmations change local inventory.
+Do not fire damage when a request is sent. Sweep each actual water/golf projectile
+against the moving boss, acknowledge each impact once, and preserve the server's
+separate health/speed gauges. Serving duration is 300 seconds; damage maximum
+500; speed-damage maximum 90, recovery 20/minute. Tables/food belts/golf spot
+layouts and difficulty-driven child counts must be measured from the pinned
+AI/Globals before choosing fixed pool capacities or baking. Add independent
+Panda vectors, malformed-prefix tests and two-client ownership/sequence tests
+before enabling sends. The fact that a DC field is clsend is insufficient: check
+its corresponding AI implementation (the CJ unused pan fields are a precedent).
 
 Acceptance: two-client table/golf ownership, rejected/stale food sequences,
 remaining diners entering BattleDiners, moving/table attacks, golf slow/recovery,

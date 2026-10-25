@@ -681,3 +681,58 @@ gag track; autoplay picks sound against groups).
 - **Evidence:** sdmc-out/bosses3/{build_final,boss_tests_final,net_tests,
   cfo_collision,asset_check,vp_asset_check,preview}.log, determinism.json,
   elf_size.txt, cfo_preview.png, cfo_arena_preview.png and regressions/results.json.
+
+### 2026-10-24 — bosses4 Lawbot CJ (runtime 26987be, final follow-up on branch)
+
+- Platform: macOS host ASan/UBSan + devkitARM build only. **Azahar/hardware not
+  run, per task instruction.** FPS, runtime heap/linear/VRAM and frame GPU/CPU
+  measurements are therefore unavailable. Do not infer a live CJ win from this.
+- Build: `DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4`
+  passes, zero warnings in source/. Inherited crtn.o missing GNU-stack linker
+  warning remains. ELF text/data/BSS: 1,397,096 / 51,444 / 617,560 bytes in the
+  final build; total 2,066,100 (<4 MiB).
+- `sh tools/boss_test/run.sh`: PASS with ASan/UBSan and strict host warnings.
+  177 independent Panda fields; required/OTHER child enter streams; every
+  truncated prefix leaves CJ snapshots unchanged; class/index limits, owner/
+  phase/ammo/reload guards, exact hitChair/index and hitBoss(1), barriers,
+  ballistic/scale/gavel logic, summon bitmask updates and both battle poses.
+  Actual CJ TTC loads 265 triangles, 0 caps, 3 triggers, 32×51 grid, 48,440 bytes
+  heap. Seven floor queries at stock entry, both initial Cog sides, solo cannon,
+  witness and courtroom points all return -0.0252 (within 0.25 of zero).
+- `PORT=7498 bash tools/nettest/run_tests.sh`: PASS. 391 generated descriptor
+  vectors, unit packing, single-client login/zone, remote suit, two clients,
+  heartbeat and forced reconnect all pass. DC hash remains 547155168.
+- `python -I -B tools/boss_test/regressions.py`: 33 suites PASS, covering the
+  original 29 plus level games, estates, racing and the current factory/LevelSpec
+  contract. The extra standalone factory test initially failed because it still
+  required removed factory.h/FCT1. Its runner now checks the current Level API,
+  bakes two real upstream TLV specs to local scratch and executes the existing
+  ASan/UBSan LevelSpec reader/room-placement test. No protected runtime/baker
+  source changed. Factory test reads 572 real factory entities and the mint room.
+- Asset validation: CJ 116/116 file hashes and TTA shape/vertex/attachment
+  checks PASS; 16 TTM, 96 TTA, TTC + BPA1/CJS1/BND1. Two independent final CJ
+  processes produced identical manifests and every file SHA256. VP/CFO rebakes
+  match their committed manifests exactly, 115/115 hashes each. CJ final manifest
+  is docs/design/cj_assets.json; no existing VP/CFO asset changed.
+- CJ measured bytes: models 192,110 geometry; largest four-part clip 1,609,920;
+  geometry + largest active/pending pair 3,411,950; reserved runtime cap aggregate
+  3,592,110; textures 785,664; disk 16,528,929. Manifest unique geometry is
+  6,773 triangles / 64 batches. This is not the instanced worst-frame total.
+- Decoded native TTM/TTA previews checked for attached boss parts and textures.
+  Courtroom/scale previews use native decoded models; actual 3DS camera and
+  conservative collision volumes still require Azahar inspection. UI error/B
+  return and GPU-fenced clip publication are built, not emulator-verified.
+- Intentional visual simplifications: condensed introduction/travel, shared
+  Big Wig juror visuals instead of random suit/propeller movies, simplified
+  seated/tilting chairs and evidence collision volumes; no bespoke CJ audio.
+  CEO remains a plan, now with exact own field lists and types/flags.
+- Evidence: ignored sdmc-out/bosses4/{build,boss_tests,nettests,regressions,
+  cj_collision,cj_asset_check,vp_asset_check,cfo_asset_check,preview}.log,
+  cj_first_manifest.json, cj_repeat_final.log, vp_rebake.log, cfo_rebake.log,
+  regressions/results.json, cj_{preview,arena_preview,scale_preview}.png.
+- Mandatory main-agent checks: docs/design/bosses.md “CJ verification and
+  main-agent handoff” lists elevator/seat race, both Cog sides/reserves, two-client
+  cannon ownership/ammo/chairs, evidence weight/bonus, scale alignment, all hazard
+  codes/HP, real victory/summon/promotion, loss/sadness/reconnect/second encounter,
+  missing assets and eight-toon Old 3DS memory/frame/command peaks. Use autotest
+  `from cj: board` for the four shot-series stages, then a manual production run.

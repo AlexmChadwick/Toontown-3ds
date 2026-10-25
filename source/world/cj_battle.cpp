@@ -128,9 +128,11 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
 void CjBattle::leave(BossFrame& frame, bool sad) {
     C3D_FrameSync();
     frame.client.sendBossExit();
-    for (int index = 0; index < net::kMaxCjChildren; ++index) {
-        const net::CjChild& child = frame.client.cjChildSlot(index);
-        if (child.active) frame.suits.removeExternal(child.doId);
+    // Network deletion can clear a child before this frame observes the exit.
+    // Keep the published actor IDs independently so no ghost survives departure.
+    for (uint32_t& id : externalIds_) {
+        if (id) frame.suits.removeExternal(id);
+        id = 0;
     }
     for (int index = 0; index < 9; ++index) {
         npcs_[index].setLook(nullptr);
@@ -280,6 +282,16 @@ void CjBattle::update(BossFrame& frame, const net::BossState& state, uint32_t no
         float rate = 1;
         const ToonAnim animation = frame.player.animState(&rate);
         frame.toon.play(animation, rate);
+    }
+    for (int slot = 0; slot < net::kMaxCjChildren; ++slot) {
+        const net::CjChild& child = frame.client.cjChildSlot(slot);
+        const uint32_t current = child.active ? child.doId : 0;
+        if (externalIds_[slot] && externalIds_[slot] != current) frame.suits.removeExternal(externalIds_[slot]);
+        externalIds_[slot] = current;
+        if (child.kind == net::CjKind::Lawyer &&
+            (!phaseIs(state, "BattleThree") || !member(state.lawyers, state.numLawyers, current))) {
+            frame.suits.removeExternal(current);
+        }
     }
     if (phaseIs(state, "BattleTwo") && !cogRound) updateCannons(frame, state, nowMs);
     if (phaseIs(state, "BattleThree")) updateCourt(frame, state, nowMs);
@@ -721,8 +733,8 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
     }
     context.infoLines[0] = status_;
     context.infoLines[1] = details_;
-    context.infoLines[2] = assets_.failed() ? "Copy data/boss/cj_*; B: return" : phaseIs(state, "Epilogue") ?
-        "Server awards summon/promotion. A: return to HQ" : phaseIs(state, "BattleTwo") ?
+    context.infoLines[2] = assets_.failed() ? "Copy data/boss/cj_*; B: return" : (phaseIs(state, "Epilogue") || phaseIs(state, "Frolic")) ?
+        "A: return; server owns rewards / defeat" : phaseIs(state, "BattleTwo") ?
         "A: cannon  Pad: aim  B: fire  X: leave" : "A: jump  B: evidence  D-pad: aim  Witness: refill";
     context.heapUsedKB = mallinfo().uordblks / 1024;
     context.linearFreeKB = linearSpaceFree() / 1024;
