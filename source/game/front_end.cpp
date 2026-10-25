@@ -6,10 +6,15 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "game/name_check.h"
+#include "game/name_tables.h"
 
 namespace tt::game {
 
 namespace {
+
+static char sTestTypedName[64] = {};
+static bool sHasTestTypedName = false;
 
 constexpr float kW = 320.0f;
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
@@ -37,6 +42,68 @@ Gui gGui;
 
 } // namespace
 
+void FrontEnd::setTestTypedName(const char* name) {
+    if (name) {
+        snprintf(sTestTypedName, sizeof(sTestTypedName), "%s", name);
+        sHasTestTypedName = true;
+    } else {
+        sTestTypedName[0] = '\0';
+        sHasTestTypedName = false;
+    }
+}
+
+const char* FrontEnd::testTypedName() {
+    return sHasTestTypedName ? sTestTypedName : nullptr;
+}
+
+void FrontEnd::updateConstructedName() {
+    if (nameIsTyped_) {
+        snprintf(currentName_, sizeof(currentName_), "%s", typedName_);
+        return;
+    }
+    const bool male = choice_.gender == world::Gender::Male;
+    int16_t p1 = titleActive_ ? getTitleId(male, titleIndex_) : -1;
+    uint8_t f1 = (p1 != -1 && !strcmp(getNameString(p1), "von")) ? 0 : 1;
+    int16_t p2 = firstActive_ ? getFirstId(male, firstIndex_) : -1;
+    uint8_t f2 = 1;
+    int16_t p3 = lastActive_ ? getPrefixId(prefixIndex_) : -1;
+    uint8_t f3 = 1;
+    int16_t p4 = lastActive_ ? getSuffixId(suffixIndex_) : -1;
+    uint8_t f4 = (p3 != -1 && isCapPrefix(p3)) ? 1 : 0;
+    buildPatternName(p1, f1, p2, f2, p3, f3, p4, f4, currentName_, sizeof(currentName_));
+}
+
+void FrontEnd::randomizePatternName() {
+    nameIsTyped_ = false;
+    nameError_[0] = '\0';
+    const bool male = choice_.gender == world::Gender::Male;
+    int16_t p[4] = {-1, -1, -1, -1};
+    uint8_t f[4] = {0, 0, 0, 0};
+    randomPattern(male, p, f);
+    titleActive_ = (p[0] != -1);
+    if (titleActive_) titleIndex_ = findTitleIndex(male, p[0]);
+    else titleIndex_ = 0;
+    if (titleIndex_ < 0) titleIndex_ = 0;
+
+    firstActive_ = (p[1] != -1);
+    if (firstActive_) firstIndex_ = findFirstIndex(male, p[1]);
+    else firstIndex_ = 0;
+    if (firstIndex_ < 0) firstIndex_ = 0;
+
+    lastActive_ = (p[2] != -1 && p[3] != -1);
+    if (lastActive_) {
+        prefixIndex_ = findPrefixIndex(p[2]);
+        suffixIndex_ = findSuffixIndex(p[3]);
+    } else {
+        prefixIndex_ = 0;
+        suffixIndex_ = 0;
+    }
+    if (prefixIndex_ < 0) prefixIndex_ = 0;
+    if (suffixIndex_ < 0) suffixIndex_ = 0;
+
+    buildPatternName(p[0], f[0], p[1], f[1], p[2], f[2], p[3], f[3], currentName_, sizeof(currentName_));
+}
+
 bool FrontEnd::init(world::ToonCache* cache) {
     cache_ = cache;
     textBuf_ = C2D_TextBufNew(4096);
@@ -53,6 +120,10 @@ void FrontEnd::shutdown() {
 }
 
 void FrontEnd::reset() {
+    confirmDelete_ = false;
+    nameIsTyped_ = false;
+    typedName_[0] = '\0';
+    nameError_[0] = '\0';
     go(Screen::Title);
     setPreviewDna(world::defaultToonDna());
 }
@@ -192,6 +263,21 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
             go(Screen::Connecting);
             break;
         }
+        if (confirmDelete_) {
+            const net::PotentialAvatar* sel = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
+            if (TT_BUTTON((Button{35, 140, 110, 34}), "Cancel", false, true) || back) {
+                confirmDelete_ = false;
+                break;
+            }
+            if (TT_BUTTON((Button{175, 140, 110, 34}), "Delete", true, true)) {
+                if (sel) {
+                    net_->sendRequestRemoveAvatar(sel->id);
+                }
+                confirmDelete_ = false;
+                break;
+            }
+            break;
+        }
         for (int s = 0; s < net::kMaxAvatars; s++) {
             const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(s));
             const Button b{10.0f + (s % 2) * 155.0f, 28.0f + (s / 2) * 54.0f, 145.0f, 48.0f};
@@ -201,18 +287,37 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
             }
         }
         const net::PotentialAvatar* sel = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
-        if (TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true) || back) {
-            net_->disconnect();
-            go(Screen::Title);
-            break;
-        }
-        if (TT_BUTTON((Button{200, 200, 110, 34}), sel ? "Play" : "Make", true, true)) {
-            if (sel) {
-                if (net_->chooseAvatar(sel->id)) go(Screen::Entering);
+        if (sel) {
+            if (TT_BUTTON((Button{10, 200, 80, 34}), "Back", false, true) || back) {
+                net_->disconnect();
+                go(Screen::Title);
+                break;
+            }
+            if (TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true)) {
+                confirmDelete_ = true;
+                break;
+            }
+            if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
+                sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
+                if (TT_BUTTON((Button{175, 200, 135, 34}), "Acknowledge", true, true)) {
+                    net_->sendAcknowledgeAvatarName(sel->id);
+                }
             } else {
+                if (TT_BUTTON((Button{175, 200, 135, 34}), "Play", true, true)) {
+                    if (net_->chooseAvatar(sel->id)) go(Screen::Entering);
+                }
+            }
+        } else {
+            if (TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true) || back) {
+                net_->disconnect();
+                go(Screen::Title);
+                break;
+            }
+            if (TT_BUTTON((Button{200, 200, 110, 34}), "Make", true, true)) {
                 choice_ = world::MakeAToonChoice{};
                 step_ = MakeStep::Species;
                 rebuildMakeDna();
+                randomizePatternName();
                 go(Screen::Make);
             }
         }
@@ -232,12 +337,26 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
             }
             break;
         }
-        if (step_ != MakeStep::Confirm) {
+        if (step_ != MakeStep::Name) {
             if (TT_BUTTON((Button{200, 200, 110, 34}), "Next", true, true)) {
                 step_ = static_cast<MakeStep>(static_cast<int>(step_) + 1);
                 go(Screen::Make);
             }
         } else if (TT_BUTTON((Button{200, 200, 110, 34}), "Create!", true, true)) {
+            if (nameIsTyped_) {
+                net_->setPendingTypedName(typedName_);
+            } else {
+                const bool male = choice_.gender == world::Gender::Male;
+                int16_t p1 = titleActive_ ? getTitleId(male, titleIndex_) : -1;
+                uint8_t f1 = (p1 != -1 && !strcmp(getNameString(p1), "von")) ? 0 : 1;
+                int16_t p2 = firstActive_ ? getFirstId(male, firstIndex_) : -1;
+                uint8_t f2 = 1;
+                int16_t p3 = lastActive_ ? getPrefixId(prefixIndex_) : -1;
+                uint8_t f3 = 1;
+                int16_t p4 = lastActive_ ? getSuffixId(suffixIndex_) : -1;
+                uint8_t f4 = (p3 != -1 && isCapPrefix(p3)) ? 1 : 0;
+                net_->setPendingPatternName(p1, f1, p2, f2, p3, f3, p4, f4);
+            }
             uint8_t net15[world::kDnaNetStringSize];
             world::makeNetString(makeDna_, net15);
             if (net_ && net_->createAvatar(net15, static_cast<uint8_t>(pickSlot_))) {
@@ -312,6 +431,7 @@ void FrontEnd::makeStepInput(u32 down) {
                     // Colour and clothing lists differ by gender: start from their first entries.
                     choice_.headColor = choice_.armColor = choice_.legColor = world::matColor(gender, 0);
                     choice_.shirt = choice_.bottom = 0;
+                    randomizePatternName();
                 }
                 rebuildMakeDna();
             }
@@ -366,6 +486,129 @@ void FrontEnd::makeStepInput(u32 down) {
         }
         break;
     }
+    case MakeStep::Name: {
+        const bool male = choice_.gender == world::Gender::Male;
+        // Toggle buttons:
+        if (TT_BUTTON((Button{6, 56, 72, 22}), titleActive_ ? "Title [X]" : "Title [ ]", titleActive_, true)) {
+            titleActive_ = !titleActive_;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        if (TT_BUTTON((Button{82, 56, 72, 22}), firstActive_ ? "First [X]" : "First [ ]", firstActive_, true)) {
+            if (!firstActive_ || lastActive_) {
+                firstActive_ = !firstActive_;
+                nameIsTyped_ = false;
+                updateConstructedName();
+            }
+        }
+        if (TT_BUTTON((Button{158, 56, 76, 22}), lastActive_ ? "Prefix [X]" : "Prefix [ ]", lastActive_, true)) {
+            if (!lastActive_ || firstActive_) {
+                lastActive_ = !lastActive_;
+                nameIsTyped_ = false;
+                updateConstructedName();
+            }
+        }
+        if (TT_BUTTON((Button{238, 56, 76, 22}), lastActive_ ? "Suffix [X]" : "Suffix [ ]", lastActive_, true)) {
+            if (!lastActive_ || firstActive_) {
+                lastActive_ = !lastActive_;
+                nameIsTyped_ = false;
+                updateConstructedName();
+            }
+        }
+        // Cycle buttons:
+        const int numTitles = getTitleCount(male);
+        if (TT_BUTTON((Button{6, 106, 34, 26}), "<", false, numTitles > 1)) {
+            titleIndex_ = (titleIndex_ + numTitles - 1) % numTitles;
+            titleActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        if (TT_BUTTON((Button{44, 106, 34, 26}), ">", false, numTitles > 1)) {
+            titleIndex_ = (titleIndex_ + 1) % numTitles;
+            titleActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        const int numFirst = getFirstCount(male);
+        if (TT_BUTTON((Button{82, 106, 34, 26}), "<", false, numFirst > 1)) {
+            firstIndex_ = (firstIndex_ + numFirst - 1) % numFirst;
+            firstActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        if (TT_BUTTON((Button{120, 106, 34, 26}), ">", false, numFirst > 1)) {
+            firstIndex_ = (firstIndex_ + 1) % numFirst;
+            firstActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        const int numPrefix = getPrefixCount();
+        if (TT_BUTTON((Button{158, 106, 36, 26}), "<", false, numPrefix > 1)) {
+            prefixIndex_ = (prefixIndex_ + numPrefix - 1) % numPrefix;
+            lastActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        if (TT_BUTTON((Button{198, 106, 36, 26}), ">", false, numPrefix > 1)) {
+            prefixIndex_ = (prefixIndex_ + 1) % numPrefix;
+            lastActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        const int numSuffix = getSuffixCount();
+        if (TT_BUTTON((Button{238, 106, 36, 26}), "<", false, numSuffix > 1)) {
+            suffixIndex_ = (suffixIndex_ + numSuffix - 1) % numSuffix;
+            lastActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        if (TT_BUTTON((Button{278, 106, 36, 26}), ">", false, numSuffix > 1)) {
+            suffixIndex_ = (suffixIndex_ + 1) % numSuffix;
+            lastActive_ = true;
+            nameIsTyped_ = false;
+            updateConstructedName();
+        }
+        // Action buttons:
+        if (TT_BUTTON((Button{16, 148, 90, 32}), "Shuffle", false, true)) {
+            randomizePatternName();
+        }
+        if (TT_BUTTON((Button{116, 148, 100, 32}), "Type Name", nameIsTyped_, true)) {
+            char inputBuf[64] = {};
+            bool gotInput = false;
+            const char* testName = testTypedName();
+            if (testName) {
+                snprintf(inputBuf, sizeof(inputBuf), "%s", testName);
+                setTestTypedName(nullptr);
+                gotInput = true;
+            } else {
+                SwkbdState swkbd;
+                swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, sizeof(inputBuf) - 1);
+                swkbdSetHintText(&swkbd, "Enter your toon's name");
+                SwkbdButton btn = swkbdInputText(&swkbd, inputBuf, sizeof(inputBuf));
+                if (btn == SWKBD_BUTTON_RIGHT) gotInput = true;
+            }
+            if (gotInput) {
+                char badChar = 0;
+                NameCheckResult res = checkName(inputBuf, &badChar);
+                if (res == NameCheckResult::Ok) {
+                    nameError_[0] = '\0';
+                    nameIsTyped_ = true;
+                    snprintf(typedName_, sizeof(typedName_), "%s", inputBuf);
+                    updateConstructedName();
+                } else {
+                    getNameCheckErrorMessage(res, badChar, nameError_, sizeof(nameError_));
+                }
+            }
+        }
+        if (nameIsTyped_) {
+            if (TT_BUTTON((Button{226, 148, 85, 32}), "Pick Name", false, true)) {
+                nameIsTyped_ = false;
+                nameError_[0] = '\0';
+                updateConstructedName();
+            }
+        }
+        break;
+    }
     default:
         break;
     }
@@ -404,8 +647,39 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f, 8, 0.5f, 0.9f, 0.9f, kAccent);
     if (screen_ == Screen::Pick && net_) {
         const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
+        if (pa) {
+            C2D_Text n;
+            C2D_TextParse(&n, textBuf_, pa->name);
+            C2D_TextOptimize(&n);
+            C2D_TextGetDimensions(&n, 0.7f, 0.7f, &tw, &th);
+            C2D_DrawText(&n, C2D_WithColor, (400.0f - tw) * 0.5f, 200, 0.5f, 0.7f, 0.7f, kWhite);
+
+            const char* statusStr = nullptr;
+            u32 statusCol = kDim;
+            if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
+                statusStr = "Name: Open (Tap to choose name)";
+                statusCol = kAccent;
+            } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
+                statusStr = "Name: Under Review";
+                statusCol = kDim;
+            } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
+                statusStr = "Name Approved! Press Acknowledge.";
+                statusCol = C2D_Color32(0x80, 0xFF, 0x80, 0xFF);
+            } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
+                statusStr = "Name Rejected. Press Acknowledge.";
+                statusCol = kRed;
+            }
+            if (statusStr) {
+                C2D_Text st;
+                C2D_TextParse(&st, textBuf_, statusStr);
+                C2D_TextOptimize(&st);
+                C2D_TextGetDimensions(&st, 0.5f, 0.5f, &tw, &th);
+                C2D_DrawText(&st, C2D_WithColor, (400.0f - tw) * 0.5f, 220, 0.5f, 0.5f, 0.5f, statusCol);
+            }
+        }
+    } else if (screen_ == Screen::Make) {
         C2D_Text n;
-        C2D_TextParse(&n, textBuf_, pa ? pa->name : "Empty slot");
+        C2D_TextParse(&n, textBuf_, currentName_);
         C2D_TextOptimize(&n);
         C2D_TextGetDimensions(&n, 0.7f, 0.7f, &tw, &th);
         C2D_DrawText(&n, C2D_WithColor, (400.0f - tw) * 0.5f, 210, 0.5f, 0.7f, 0.7f, kWhite);
@@ -417,7 +691,7 @@ void FrontEnd::drawPickBottom() {
 }
 
 void FrontEnd::drawMakeBottom() {
-    static const char* const kStepNames[] = {"Species", "Body", "Colour", "Clothes", "Ready?"};
+    static const char* const kStepNames[] = {"Species", "Body", "Colour", "Clothes", "Name Shop"};
     text(10, 6, 0.5f, kDim, "Step %d of %d: %s", static_cast<int>(step_) + 1, static_cast<int>(MakeStep::Count),
          kStepNames[static_cast<int>(step_)]);
     switch (step_) {
@@ -434,11 +708,22 @@ void FrontEnd::drawMakeBottom() {
         text(90, 130, 0.55f, kWhite, "%s %u of %u", choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
              unsigned(choice_.bottom + 1), unsigned(world::matBottomCount(choice_.gender)));
         break;
-    case MakeStep::Confirm:
-        text(16, 40, 0.6f, kWhite, "Your new %s will get its name from the server.",
-             world::speciesName(world::species(makeDna_)));
-        text(16, 100, 0.5f, kDim, "Slot %d. Press Create! to start playing.", pickSlot_ + 1);
+    case MakeStep::Name: {
+        const bool male = choice_.gender == world::Gender::Male;
+        textCentered(Button{10, 24, 300, 22}, 0.65f, nameIsTyped_ ? kAccent : kWhite, currentName_);
+        if (nameError_[0]) {
+            textCentered(Button{10, 44, 300, 14}, 0.38f, kRed, nameError_);
+        }
+        const char* titleStr = getNameString(getTitleId(male, titleIndex_));
+        const char* firstStr = getNameString(getFirstId(male, firstIndex_));
+        const char* prefixStr = getNameString(getPrefixId(prefixIndex_));
+        const char* suffixStr = getNameString(getSuffixId(suffixIndex_));
+        textCentered(Button{6, 82, 72, 20}, 0.42f, (!nameIsTyped_ && titleActive_) ? kWhite : kDim, titleStr ? titleStr : "");
+        textCentered(Button{82, 82, 72, 20}, 0.42f, (!nameIsTyped_ && firstActive_) ? kWhite : kDim, firstStr ? firstStr : "");
+        textCentered(Button{158, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kWhite : kDim, prefixStr ? prefixStr : "");
+        textCentered(Button{238, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kWhite : kDim, suffixStr ? suffixStr : "");
         break;
+    }
     default:
         break;
     }
@@ -465,21 +750,63 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         break;
     case Screen::Pick: {
         drawPickBottom();
+        if (confirmDelete_) {
+            const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
+            C2D_DrawRectSolid(18, 43, 0.5f, 284, 154, kAccent);
+            C2D_DrawRectSolid(20, 45, 0.5f, 280, 150, kPanel);
+            textCentered(Button{20, 55, 280, 20}, 0.65f, kWhite, "Delete this Toon?");
+            textCentered(Button{20, 80, 280, 20}, 0.55f, kAccent, sel ? sel->name : "");
+            textCentered(Button{20, 105, 280, 16}, 0.45f, kRed, "This cannot be undone!");
+            TT_BUTTON((Button{35, 140, 110, 34}), "Cancel", false, true);
+            TT_BUTTON((Button{175, 140, 110, 34}), "Delete", true, true);
+            break;
+        }
         for (int s = 0; s < net::kMaxAvatars; s++) {
             const net::PotentialAvatar* pa = net_ ? net_->avatarInSlot(static_cast<uint8_t>(s)) : nullptr;
             const Button b{10.0f + (s % 2) * 155.0f, 28.0f + (s / 2) * 54.0f, 145.0f, 48.0f};
             TT_BUTTON(b, pa ? pa->name : "+ Make a Toon", s == pickSlot_, true);
+            if (pa) {
+                const char* badge = nullptr;
+                u32 col = kDim;
+                if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
+                    badge = "[Name Me]";
+                    col = kAccent;
+                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
+                    badge = "[Pending]";
+                    col = kDim;
+                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
+                    badge = "[Approved!]";
+                    col = C2D_Color32(0x80, 0xFF, 0x80, 0xFF);
+                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
+                    badge = "[Rejected]";
+                    col = kRed;
+                }
+                if (badge) {
+                    text(b.x + 6, b.y + 32, 0.38f, col, "%s", badge);
+                }
+            }
         }
         const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
-        TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
-        TT_BUTTON((Button{200, 200, 110, 34}), sel ? "Play" : "Make", true, true);
+        if (sel) {
+            TT_BUTTON((Button{10, 200, 80, 34}), "Back", false, true);
+            TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true);
+            if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
+                sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
+                TT_BUTTON((Button{175, 200, 135, 34}), "Acknowledge", true, true);
+            } else {
+                TT_BUTTON((Button{175, 200, 135, 34}), "Play", true, true);
+            }
+        } else {
+            TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
+            TT_BUTTON((Button{200, 200, 110, 34}), "Make", true, true);
+        }
         break;
     }
     case Screen::Make:
         drawMakeBottom();
         makeStepInput(0);
         TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
-        TT_BUTTON((Button{200, 200, 110, 34}), step_ == MakeStep::Confirm ? "Create!" : "Next", true, true);
+        TT_BUTTON((Button{200, 200, 110, 34}), step_ == MakeStep::Name ? "Create!" : "Next", true, true);
         break;
     case Screen::Entering:
         text(16, 60, 0.6f, kWhite, "%s", net_ ? net_->progressText() : "");

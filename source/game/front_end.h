@@ -35,6 +35,10 @@ public:
     // Back to the title (e.g. after a fatal disconnect in the world).
     void reset();
 
+    // Test hook for autotest: sets the typed name to use instead of opening swkbd.
+    static void setTestTypedName(const char* name);
+    static const char* testTypedName();
+
     Action update(u32 down, u32 held, const touchPosition& touch, float dt);
     // Top screen: 3D toon preview, then a citro2d overlay. Call between C3D_FrameBegin/End.
     void drawTop(render::Renderer& renderer);
@@ -42,7 +46,7 @@ public:
 
 private:
     enum class Screen : u8 { Title, Connecting, Pick, Make, Entering, Error };
-    enum class MakeStep : u8 { Species, Body, Color, Clothes, Confirm, Count };
+    enum class MakeStep : u8 { Species, Body, Color, Clothes, Name, Count };
 
     struct Button {
         float x, y, w, h;
@@ -56,6 +60,8 @@ private:
     void setPreviewDna(const world::ToonDna& dna);
     void updatePickPreview();
     void rebuildMakeDna();
+    void updateConstructedName();
+    void randomizePatternName();
     void makeStepInput(u32 down);
     void drawMakeBottom();
     void drawPickBottom();
@@ -70,6 +76,22 @@ private:
     world::MakeAToonChoice choice_{};
     world::ToonDna makeDna_{};
     char error_[160] = {};
+
+    // Pick-a-Toon state
+    bool confirmDelete_ = false;
+
+    // Name Shop state
+    bool nameIsTyped_ = false;
+    char typedName_[64] = {};
+    char currentName_[64] = {};
+    char nameError_[128] = {};
+    int titleIndex_ = 0;
+    int firstIndex_ = 0;
+    int prefixIndex_ = 0;
+    int suffixIndex_ = 0;
+    bool titleActive_ = false;
+    bool firstActive_ = true;
+    bool lastActive_ = true;
 
     // Input snapshot for this frame (touch release = tap).
     touchPosition touch_{};
