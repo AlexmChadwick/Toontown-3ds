@@ -38,11 +38,13 @@ struct PkList {
     PkItem items[16] = {};
 };
 
+} // namespace
+
 // Stack-based Python Pickle Protocol 0/1/2 decoder for the Toon HQ leaderboard.
 // Upstream DistributedHQInteriorAI sends:
 //   pickle.dumps(self.air.trophyMgr.getLeaderInfo(), 1)
 // which produces a 3-tuple: (avIds: list[int], names: list[str], scores: list[int]).
-bool decodeLeaderboardPickle(const uint8_t* data, size_t len, Client::HQLeaderboardState& out) {
+bool Client::decodeLeaderboardPickle(const uint8_t* data, size_t len, HQLeaderboardState& out) {
     if (!data || len == 0) return false;
 
     PkItem stack[64];
@@ -291,8 +293,6 @@ bool decodeLeaderboardPickle(const uint8_t* data, size_t len, Client::HQLeaderbo
 
     return true;
 }
-
-} // namespace
 
 const Client::KnockKnockDoorState* Client::findKnockKnockDoor(uint32_t doId) const {
     for (size_t i = 0; i < kMaxKnockKnockDoors; ++i) {

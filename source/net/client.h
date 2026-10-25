@@ -1373,6 +1373,7 @@ public:
     const KnockKnockDoorState* findKnockKnockDoorByPropId(uint16_t propId) const;
     bool sendKnockKnockInteract(uint32_t doId);
     bool sendKnockKnockExit(uint32_t doId);
+    static bool decodeLeaderboardPickle(const uint8_t* data, size_t len, HQLeaderboardState& out);
     // [end interior life]
 
     // ---- shop (additive section; keep together) ----
