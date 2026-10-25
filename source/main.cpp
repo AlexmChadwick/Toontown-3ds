@@ -1769,6 +1769,8 @@ int main() {
                 else if (!strncmp(lbl, "battle: throw", 13)) forced = 4;
                 else if (!strncmp(lbl, "battle: squirt", 14)) forced = 5;
                 else if (!strncmp(lbl, "battle: drop", 12)) forced = 6;
+                // [cog attacks]
+                else if (!strncmp(lbl, "battle: cog attacks", 19)) forced = 4;
                 battle.setAutoPlay(true, forced);
 
                 if (forced >= 0) {

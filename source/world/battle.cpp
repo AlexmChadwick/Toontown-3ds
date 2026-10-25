@@ -8,6 +8,9 @@
 #include "ui/gag_data.h"
 #include "world/battle_fx.h"
 #include "world/suit_tables.h"
+// [cog attacks]
+#include "world/cog_attack_tables.h"
+#include "world/cog_attacks.h"
 
 namespace tt::world {
 
@@ -126,6 +129,16 @@ bool Battle::actorPos(uint32_t doId, float* x, float* y, float* z, float* h, boo
         }
     }
     return false;
+}
+
+// [cog attacks]
+const char* Battle::actorCogCode(uint32_t doId) const {
+    for (int i = 0; i < net::kBattleSuits; ++i) {
+        if (suits_[i].used && suits_[i].doId == doId) {
+            return suits_[i].cogCode;
+        }
+    }
+    return "";
 }
 
 // ============================================================ geometry
@@ -358,6 +371,10 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         net::Client::CogIdentity ns;
         const SuitInfo* info = client.cogIdentity(id, &ns) && ns.hasDna ? findSuitType(ns.name) : nullptr;
         a.height = info ? info->height : 5.0f;
+        // [cog attacks]
+        if (ns.hasDna && ns.name[0]) {
+            snprintf(a.cogCode, sizeof(a.cogCode), "%s", ns.name);
+        }
     }
     for (int i = 0; i < nb.numToons; ++i) {
         const uint32_t id = nb.toons[i];
@@ -383,6 +400,20 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
     }
     for (int i = 0; i < net::kBattleSuits; ++i) suits_[i] = i < nb.numSuits ? newSuits[i] : Actor();
     for (int i = 0; i < net::kBattleToons; ++i) toons_[i] = i < nb.numToons ? newToons[i] : Actor();
+
+    // [cog attacks] Preload Cog attack props for active Cogs
+#ifdef __3DS__
+    if (battleFx_) {
+        const char* codes[net::kBattleSuits];
+        int count = 0;
+        for (int i = 0; i < nb.numSuits; ++i) {
+            if (suits_[i].used && suits_[i].cogCode[0]) {
+                codes[count++] = suits_[i].cogCode;
+            }
+        }
+        battleFx_->cogAttacks().preloadForBattle(codes, count);
+    }
+#endif
 
     // Everyone with the local toon in the fight answers joinDone for each joiner (cog or toon).
     for (int i = 0; i < nb.numSuits; ++i) {
@@ -570,7 +601,11 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
     moviePlaying_ = true;
 }
 
-const char* const kBattleClipNames[kNumBattleClips] = {"throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose"};
+const char* const kBattleClipNames[kNumBattleClips] = {
+    "throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose",
+    // [cog attacks]
+    "conked", "sidestep-right", "duck", "slip-forward", "slip-backward"
+};
 
 void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track, int level) {
     if (numFx_ >= kMaxFx) return;
@@ -646,8 +681,24 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         if (s.suitIdx < 0 || s.suitIdx >= m.numSuits || s.attack < 0) continue;
         const uint32_t who = m.suits[s.suitIdx];
         const uint32_t target = (s.target >= 0 && s.target < m.numToons) ? m.toons[s.target] : 0;
-        addFx(t, kFxAttack, who, target, 2000, -1, s.attack);
-        const uint32_t hitAt = t + 1200;
+
+        // [cog attacks] Exact duration and timing from Cog attack tables
+        uint32_t attackDur = 2000;
+        uint32_t hitAt = t + 1200;
+        uint32_t missAt = t + 1000;
+        const char* code = actorCogCode(who);
+        const int atkId = getCogAttackId(code, s.attack);
+        const CogAttackInfo* info = getCogAttackInfo(atkId);
+        if (info) {
+            const SuitInfo* sInfo = findSuitType(code);
+            const char body = sInfo ? sInfo->body : 'a';
+            const int bodyIdx = body == 'b' ? 1 : (body == 'c' ? 2 : 0);
+            attackDur = info->durationMs[bodyIdx];
+            hitAt = t + (info->hitDelayMs > 0 ? info->hitDelayMs : 1200);
+            missAt = t + (info->dodgeDelayMs > 0 ? info->dodgeDelayMs : 1000);
+        }
+
+        addFx(t, kFxAttack, who, target, attackDur, -1, s.attack);
         bool any = false;
         for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
             if ((s.target < 0 || s.target == j) && s.hp[j] > 0) {
@@ -655,8 +706,8 @@ void Battle::buildMovie(const net::BattleMovie& m) {
                 any = true;
             }
         }
-        if (!any && s.target >= 0 && s.target < m.numToons) addFx(hitAt, kFxMiss, m.toons[s.target], who, 0, -1, s.attack);
-        t += 2200;
+        if (!any && s.target >= 0 && s.target < m.numToons) addFx(missAt, kFxMiss, m.toons[s.target], who, 0, -1, s.attack);
+        t += attackDur;
     }
     movieEndMs_ = movieStartMs_ + t + 300;
     TT_LOG("battle: movie: %d effects, %u ms", numFx_, unsigned(t + 300));
@@ -692,7 +743,8 @@ void Battle::runFx(uint32_t nowMs) {
         case kFxAttack: {
             a->attackStart = nowMs;
             a->attackEnd = nowMs + uint32_t(f.value);
-            a->attackTrack = f.track;
+            // [cog attacks] Gag track (>=0) or suit attack index (0..5)
+            a->attackTrack = f.track >= 0 ? f.track : f.level;
             a->clipStartMs = nowMs;
             if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
@@ -700,7 +752,13 @@ void Battle::runFx(uint32_t nowMs) {
             }
             if (battleFx_) {
                 uint32_t hitMs = nowMs + 1500;
-                if (f.track == kTrackHeal) hitMs = nowMs + 2000;
+                if (f.track < 0) {
+                    // [cog attacks]
+                    const char* code = a->cogCode;
+                    const int atkId = getCogAttackId(code, f.level);
+                    const CogAttackInfo* info = getCogAttackInfo(atkId);
+                    hitMs = nowMs + (info && info->hitDelayMs > 0 ? info->hitDelayMs : 1200);
+                } else if (f.track == kTrackHeal) hitMs = nowMs + 2000;
                 else if (f.track == kTrackTrap) hitMs = nowMs + 2500;
                 else if (f.track == kTrackLure) hitMs = nowMs + 3000;
                 else if (f.track == kTrackSound) hitMs = nowMs + 2500;
@@ -713,6 +771,22 @@ void Battle::runFx(uint32_t nowMs) {
         }
         case kFxHit:
             if (!a->isToon) a->damage += f.value;
+            // [cog attacks] Reaction clip for toons
+            if (a->isToon) {
+                const Actor* by = f.other ? findActor(f.other) : nullptr;
+                const char* code = by ? by->cogCode : "";
+                const int atkId = getCogAttackId(code, f.level);
+                const CogAttackInfo* info = getCogAttackInfo(atkId);
+                if (info) {
+                    if (!strcmp(info->toonHitAnim, "conked")) a->reactClip = kClipConked;
+                    else if (!strcmp(info->toonHitAnim, "slip-forward")) a->reactClip = kClipSlipForward;
+                    else if (!strcmp(info->toonHitAnim, "slip-backward")) a->reactClip = kClipSlipBackward;
+                    else if (!strcmp(info->toonHitAnim, "duck")) a->reactClip = kClipDuck;
+                    else a->reactClip = kClipCringe;
+                } else {
+                    a->reactClip = kClipCringe;
+                }
+            }
             a->reactUntil = nowMs + 1500, a->reactHit = true; // toons cringe; cogs play the gag's react
             a->clipStartMs = nowMs;
             if (!a->isToon) {
@@ -731,6 +805,20 @@ void Battle::runFx(uint32_t nowMs) {
             break;
         case kFxMiss:
             addPopup(*a, "Miss", kColorMiss, nowMs);
+            // [cog attacks] Reaction clip for toons
+            if (a->isToon) {
+                const Actor* by = f.other ? findActor(f.other) : nullptr;
+                const char* code = by ? by->cogCode : "";
+                const int atkId = getCogAttackId(code, f.level);
+                const CogAttackInfo* info = getCogAttackInfo(atkId);
+                if (info) {
+                    if (!strcmp(info->toonMissAnim, "sidestep-right")) a->reactClip = kClipSidestepRight;
+                    else if (!strcmp(info->toonMissAnim, "duck")) a->reactClip = kClipDuck;
+                    else a->reactClip = kClipSidestep;
+                } else {
+                    a->reactClip = kClipSidestep;
+                }
+            }
             a->reactUntil = nowMs + 1200, a->reactHit = false; // dodge: sidestep
             a->clipStartMs = nowMs;
             if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true, this);
@@ -1032,7 +1120,9 @@ void Battle::computePoses(uint32_t nowMs) {
                        : a.attackTrack == kTrackSquirt ? uint8_t(kBattleAnimClip0 + kClipPushButton)
                                                        : kBattleAnimAttack;
             } else if (a.reactUntil && int32_t(a.reactUntil - nowMs) > 0) {
-                anim = kBattleAnimClip0 + (a.reactHit ? kClipCringe : kClipSidestep);
+                // [cog attacks] Reaction clip
+                const int clip = a.reactClip >= 0 ? a.reactClip : (a.reactHit ? int(kClipCringe) : int(kClipSidestep));
+                anim = uint8_t(kBattleAnimClip0 + clip);
             } else if (phase_ == BattlePhase::Reward) {
                 anim = kBattleAnimClip0 + kClipVictory;
             }

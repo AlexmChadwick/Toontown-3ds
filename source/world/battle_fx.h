@@ -19,6 +19,8 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/battle_movies.h"
+// [cog attacks]
+#include "world/cog_attacks.h"
 #endif
 
 namespace tt::world {
@@ -158,6 +160,10 @@ public:
     BattleMovies& movies() { return movies_; }
     const BattleMovies& movies() const { return movies_; }
 
+    // [cog attacks]
+    CogAttacks& cogAttacks() { return cogAttacks_; }
+    const CogAttacks& cogAttacks() const { return cogAttacks_; }
+
     // Frame update and 3D draw
     void update(float dt, uint32_t nowMs, const Battle* battle, const ToonLook* localLook);
     void draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook);
@@ -274,6 +280,9 @@ private:
     bool modelsLoaded_ = false;
 
     BattleMovies movies_;
+
+    // [cog attacks]
+    CogAttacks cogAttacks_;
 
     render::Model* getPropModel(int track, int level);
 };

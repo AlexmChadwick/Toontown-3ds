@@ -339,6 +339,8 @@ bool BattleFx::init() {
     featherAnim_.load("sdmc:/3ds/toontown3ds/data/props/feather_full_action.tta");
 
     movies_.init();
+    // [cog attacks]
+    cogAttacks_.init();
 
     modelsLoaded_ = true;
     reset();
@@ -348,6 +350,8 @@ bool BattleFx::init() {
 void BattleFx::shutdown() {
     reset();
     movies_.shutdown();
+    // [cog attacks]
+    cogAttacks_.shutdown();
     tartModel_.unload();
     fruitpieModel_.unload();
     creampieModel_.unload();
@@ -379,6 +383,8 @@ void BattleFx::shutdown() {
 
 void BattleFx::reset() {
     movies_.reset();
+    // [cog attacks]
+    cogAttacks_.reset();
     for (int i = 0; i < kMaxProps; ++i) props_[i].active = false;
     for (int i = 0; i < kMaxProjectiles; ++i) projectiles_[i].active = false;
     for (int i = 0; i < kMaxSplats; ++i) splats_[i].active = false;
@@ -468,6 +474,11 @@ void BattleFx::playCue(const char* name, float volume) {
 
 void BattleFx::onAttack(uint32_t attackerId, uint32_t targetId, int track, int level,
                         uint32_t startMs, uint32_t durMs, uint32_t hitMs, const Battle* battle) {
+    if (track < 0) {
+        // [cog attacks] Cog attack movie & prop playback
+        cogAttacks_.onAttack(attackerId, targetId, level, startMs, durMs, hitMs, battle);
+        return;
+    }
     if (battle) {
         movies_.onAttack(attackerId, targetId, track, level, startMs, durMs, hitMs, *this, *battle);
     }
@@ -525,6 +536,12 @@ void BattleFx::onAttack(uint32_t attackerId, uint32_t targetId, int track, int l
 }
 
 void BattleFx::onHit(uint32_t targetId, uint32_t attackerId, int track, int level, int hp, bool miss, const Battle* battle) {
+    if (track < 0) {
+        // [cog attacks]
+        cogAttacks_.onHit(targetId, attackerId, level, hp, miss, battle);
+        if (!miss) playCue("toon_hit");
+        return;
+    }
     if (battle) {
         movies_.onHit(targetId, attackerId, track, level, hp, miss, *this, *battle);
     }
@@ -675,6 +692,9 @@ void BattleFx::update(float dt, uint32_t nowMs, const Battle* battle, const Toon
             }
         }
     }
+
+    // [cog attacks]
+    cogAttacks_.update(dt, nowMs, battle);
 }
 
 void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float z) const {
@@ -697,6 +717,8 @@ void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const Toon
 
     if (battle) {
         movies_.draw(renderer, *battle, *this);
+        // [cog attacks]
+        cogAttacks_.draw(renderer, battle);
     }
 
     // 1. Draw active projectiles in flight
