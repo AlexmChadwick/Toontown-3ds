@@ -1266,6 +1266,15 @@ public:
     const Pet& petSlot(int i) const { return pets_[i]; }
     const Closet* closet() const { return closet_.active ? &closet_ : nullptr; }
     uint32_t houseDoorDoId() const { return houseDoorDoId_; }
+    struct NetDoor {
+        uint32_t doId = 0;
+        uint32_t zoneId = 0;
+        uint32_t block = 0;
+        uint8_t doorType = 0;
+        uint8_t doorIndex = 0;
+    };
+    static constexpr size_t kMaxDoors = 32;
+    uint32_t findDoor(uint32_t block, uint8_t doorIndex = 0) const;
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
@@ -1678,6 +1687,8 @@ private:
     Closet closet_{};
     uint32_t mailboxDoId_ = 0, bankDoId_ = 0;
     uint32_t houseDoorDoId_ = 0;
+    NetDoor doors_[kMaxDoors] = {};
+    size_t numDoors_ = 0;
     EstateFurniture furniture_[kMaxEstateFurniture] = {};
     Pet pets_[kMaxPets] = {};
     uint32_t ownBattleId_ = 0;

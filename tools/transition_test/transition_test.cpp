@@ -157,22 +157,28 @@ void testTunnelInTrack() {
     const float rad0 = -kPivotAngle * kDegToRad;
     const float initLx = -14.0f + 14.0f * cosf(rad0);
     const float initLy = -6.0f + 14.0f * sinf(rad0);
+    const float initLh = -kPivotAngle;
     assert(fabsf(initLx - (-14.0f - 14.0f * 0.70710678f)) < 0.01f);
     assert(fabsf(initLy - (-6.0f - 14.0f * 0.70710678f)) < 0.01f);
+    assert(fabsf(initLh - (-135.0f)) < 0.001f);
 
     // At t = 2.8s (end of pivot):
     // theta = 0 deg
     const float pivotEndLx = -14.0f + 14.0f * cosf(0.0f); // -14 + 14 = 0
     const float pivotEndLy = -6.0f + 14.0f * sinf(0.0f); // -6 + 0 = -6
+    const float pivotEndLh = 0.0f;
     assert(fabsf(pivotEndLx - 0.0f) < 0.001f);
     assert(fabsf(pivotEndLy - (-6.0f)) < 0.001f);
+    assert(fabsf(pivotEndLh - 0.0f) < 0.001f);
 
     // At t = 3.35s (end of straight walk):
-    // lx = 0.0, ly = 5.0
+    // lx = 0.0, ly = 5.0, lh = 0.0 (facing forward out of tunnel into street)
     const float finalLx = endX;
     const float finalLy = -6.0f + 1.0f * 11.0f; // 5.0
+    const float finalLh = 0.0f;
     assert(fabsf(finalLx - 0.0f) < 0.001f);
     assert(fabsf(finalLy - 5.0f) < 0.001f);
+    assert(fabsf(finalLh - 0.0f) < 0.001f);
 
     printf("  PASSED: TunnelIn timing and pivot-to-exit continuity verified\n");
 }

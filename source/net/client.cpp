@@ -798,6 +798,32 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         estateManagerDoId_ = doId;
         return;
     }
+    if (classId == dc::DistributedDoor::kClassId || classId == dc::DistributedAnimDoor::kClassId ||
+        classId == dc::DistributedCogHQDoor::kClassId || classId == dc::DistributedSellbotHQDoor::kClassId ||
+        classId == dc::DistributedHouseDoor::kClassId) {
+        NetDoor d;
+        d.doId = doId;
+        d.zoneId = zone;
+        for (uint16_t i = 0; i < reqCount && r.ok(); ++i) {
+            if (req[i] == dc::DistributedDoor::k_setZoneIdAndBlock) {
+                (void)r.u32();
+                d.block = r.u32();
+            } else if (req[i] == dc::DistributedDoor::k_setDoorType) {
+                d.doorType = r.u8();
+            } else if (req[i] == dc::DistributedDoor::k_setDoorIndex) {
+                d.doorIndex = r.u8();
+            } else {
+                skipField(r, req[i]);
+            }
+        }
+        if (numDoors_ < kMaxDoors) {
+            doors_[numDoors_++] = d;
+        }
+        if (classId == dc::DistributedHouseDoor::kClassId) {
+            houseDoorDoId_ = doId;
+        }
+        return;
+    }
     if (classId == dc::DistributedEstate::kClassId || classId == dc::DistributedHouse::kClassId ||
         classId == dc::DistributedHouseInterior::kClassId || classId == dc::DistributedHouseDoor::kClassId ||
         classId == dc::DistributedMailbox::kClassId || classId == dc::DistributedBank::kClassId ||
@@ -1094,7 +1120,13 @@ void Client::handleLeaving(uint32_t doId) {
     if (closet_.active && closet_.doId == doId) { closet_ = Closet{}; pushEvent(EventType::ClosetGone, doId); return; }
     if (mailboxDoId_ == doId) { mailboxDoId_ = 0; return; }
     if (bankDoId_ == doId) { bankDoId_ = 0; return; }
-    if (houseDoorDoId_ == doId) { houseDoorDoId_ = 0; return; }
+    if (houseDoorDoId_ == doId) { houseDoorDoId_ = 0; }
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if (doors_[i].doId == doId) {
+            doors_[i] = doors_[--numDoors_];
+            return;
+        }
+    }
     if (houseInterior_.active && houseInterior_.doId == doId) { houseInterior_ = HouseInterior{}; return; }
     for (EstateHouse& h : estate_.houses) if (h.active && h.doId == doId) { h = EstateHouse{}; return; }
     for (EstateFurniture& f : furniture_) if (f.active && f.doId == doId) { f = EstateFurniture{}; return; }
@@ -2649,6 +2681,7 @@ bool Client::changeZone(uint32_t zoneId, const uint32_t* visZones, int numVisZon
     targetZone_ = zoneId;
     numVisZones_ = numVisZones < kMaxVisZones ? numVisZones : kMaxVisZones;
     for (int i = 0; i < numVisZones_; ++i) visZones_[i] = visZones[i];
+    numDoors_ = 0;
     TT_LOG("net: changing zone %u -> %u (%d vis zones)", unsigned(cfg_.zoneId), unsigned(zoneId), numVisZones_);
     sendSetLocation(avatarId_, shardId_, kQuietZone);
     quietCtx_ = nextContext_;
@@ -4399,6 +4432,16 @@ uint8_t readU32Array(DatagramReader& r, T* out, uint8_t cap) {
     if (!a.ok()) r.fail();
     return n;
 }
+}
+
+uint32_t Client::findDoor(uint32_t block, uint8_t doorIndex) const {
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if (doors_[i].block == block && doors_[i].doorIndex == doorIndex) return doors_[i].doId;
+    }
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if (doors_[i].block == block) return doors_[i].doId;
+    }
+    return 0;
 }
 
 const CogBuilding* Client::findCogBuilding(uint32_t doId) const {

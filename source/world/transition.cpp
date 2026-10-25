@@ -135,6 +135,24 @@ void Transition::computeTunnelOrigin(const Exit& exit, const Place& place, const
 
 void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const Player& player) {
     const Place::Point* pt = place.point(exit.name);
+    if (!pt) {
+        char originName[64];
+        snprintf(originName, sizeof(originName), "%s_door_origin", exit.name);
+        pt = place.point(originName);
+    }
+    if (!pt) {
+        // Try matching by block prefix: e.g. exit.name "sz19:..." -> search prefix "sz19:"
+        const char* colon = strchr(exit.name, ':');
+        if (colon) {
+            char prefix[16];
+            const size_t plen = static_cast<size_t>(colon - exit.name + 1);
+            if (plen < sizeof(prefix)) {
+                memcpy(prefix, exit.name, plen);
+                prefix[plen] = '\0';
+                pt = place.pointWithPrefix(prefix);
+            }
+        }
+    }
     if (!pt && place.kind() == PlaceKind::Interior) pt = place.point("door_origin");
     if (!pt && place.kind() == PlaceKind::Interior) pt = place.point("door_origin_0");
     if (pt) {
@@ -142,13 +160,56 @@ void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const P
         doorOriginY_ = pt->y;
         doorOriginZ_ = pt->z;
         doorOriginH_ = pt->h;
-    } else {
-        // Fallback to player's current position and heading
-        doorOriginX_ = player.x();
-        doorOriginY_ = player.y();
-        doorOriginZ_ = player.z();
-        doorOriginH_ = player.headingDeg();
+        return;
     }
+
+    // Fallback: derive origin from door trigger in collision
+    const CollisionWorld& cw = place.collision();
+    const CollTrigger* match = nullptr;
+    const char* colon = strchr(exit.name, ':');
+    char prefix[16] = {0};
+    if (colon) {
+        const size_t plen = static_cast<size_t>(colon - exit.name + 1);
+        if (plen < sizeof(prefix)) {
+            memcpy(prefix, exit.name, plen);
+            prefix[plen] = '\0';
+        }
+    }
+    for (int i = 0; i < cw.numTriggers() && !match; i++) {
+        const CollTrigger& t = cw.trigger(i);
+        if (!strstr(t.name, "door") || !strstr(t.name, "trigger")) continue;
+        if (!strcmp(t.owner, exit.name) || (prefix[0] && !strncmp(t.owner, prefix, strlen(prefix)))) {
+            match = &t;
+        }
+    }
+    if (match) {
+        doorOriginX_ = (match->min[0] + match->max[0]) * 0.5f;
+        doorOriginY_ = (match->min[1] + match->max[1]) * 0.5f;
+        doorOriginZ_ = match->min[2];
+        const float cz = match->min[2] + 2.0f;
+        float dx = 0.0f, dy = 1.0f, bestScore = -1.0f;
+        for (int i = 0; i < 8; i++) {
+            const float a = i * 3.14159265f / 4.0f;
+            const float ux = cosf(a), uy = sinf(a);
+            float t = 1.0f;
+            const float reach = 40.0f;
+            cw.cameraRaycast(Vec3{doorOriginX_, doorOriginY_, cz},
+                             Vec3{doorOriginX_ + ux * reach, doorOriginY_ + uy * reach, cz}, &t);
+            if (t > bestScore) {
+                bestScore = t;
+                dx = ux;
+                dy = uy;
+            }
+        }
+        doorOriginH_ = atan2f(-dx, dy) / kDegToRad;
+        return;
+    }
+
+    // Fallback to player's current position and heading
+    doorOriginX_ = player.x();
+    doorOriginY_ = player.y();
+    doorOriginZ_ = player.z();
+    doorOriginH_ = player.headingDeg();
 }
 
 void Transition::startTunnelOut(u32 targetZone, const Exit& exit, const Player& player, const Place& place, net::Client* net) {
@@ -277,6 +338,8 @@ void Transition::startTeleportIn(const Player& player, net::Client* net) {
     portalActive_ = true;
     toonVisible_ = false;
 
+    TT_LOG("transition: teleport in start");
+
     if (net) {
         net->sendAnimState("TeleportIn", 1.0f);
     }
@@ -288,6 +351,8 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
     age_ = 0.0f;
     fadeAlpha_ = 1.0f;
     fadeDir_ = -1; // Fade in from black
+
+    TT_LOG("transition: loaded zone %lu (arriving)", static_cast<unsigned long>(loadedZone));
 
     if (type_ == TransitionType::Tunnel) {
         // Look up destination tunnel origin matching fromZone
@@ -386,6 +451,7 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
             fadeAlpha_ = 1.0f;
             phase_ = TransitionPhase::BlackFrame;
             fadeDir_ = 0;
+            TT_LOG("transition: ready to load zone %lu", static_cast<unsigned long>(targetZone_));
             return;
         }
     } else if (fadeDir_ < 0) {
@@ -514,14 +580,14 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
     } else if (phase_ == TransitionPhase::Arriving) {
         switch (type_) {
         case TransitionType::Tunnel: {
-            float lx = 0.0f, ly = 0.0f, lz = 0.025f, lh = 180.0f;
+            float lx = 0.0f, ly = 0.0f, lz = 0.025f, lh = 0.0f;
             if (age_ < 0.8f) {
                 const float curPivotX = tunnelEndX_ + 14.0f;
                 const float theta = -kPivotAngle;
                 const float rad = theta * kDegToRad;
                 lx = -14.0f + curPivotX * cosf(rad);
                 ly = -6.0f + curPivotX * sinf(rad);
-                lh = 180.0f + theta;
+                lh = theta;
             } else if (age_ < 2.8f) {
                 const float up = (age_ - 0.8f) / kPivotDur;
                 const float curPivotX = tunnelEndX_ + 14.0f;
@@ -529,13 +595,26 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
                 const float rad = theta * kDegToRad;
                 lx = -14.0f + curPivotX * cosf(rad);
                 ly = -6.0f + curPivotX * sinf(rad);
-                lh = 180.0f + theta;
+                lh = theta;
             } else if (age_ < tunnelDuration_) {
                 const float us = (age_ - 2.8f) / tunnelStraightDur_;
                 lx = tunnelEndX_;
                 ly = -6.0f + us * 11.0f; // straight walk to Y = 5.0
-                lh = 180.0f;
+                lh = 0.0f;
             } else {
+                lx = tunnelEndX_;
+                ly = 5.0f;
+                lz = 0.025f;
+                lh = 0.0f;
+                float wx, wy, wz, wh;
+                localToWorld(tunnelOriginX_, tunnelOriginY_, tunnelOriginZ_, tunnelOriginH_,
+                             lx, ly, lz, lh, &wx, &wy, &wz, &wh);
+                player.reset(wx, wy, wz, wh);
+                if (net) {
+                    net->sendAnimState("neutral", 1.0f);
+                }
+                TT_LOG("transition: tunnel in complete in zone %lu (pos: %.2f, %.2f, %.2f, h: %.1f)",
+                       static_cast<unsigned long>(targetZone_), wx, wy, wz, wh);
                 reset();
                 return;
             }
@@ -570,6 +649,19 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
                              -1.5f, 5.0f, 4.0f, 180.0f, &cx, &cy, &cz, &ch);
                 player.overrideCamera(FVec3_New(cx, cy, cz), FVec3_New(wx, wy, wz + 2.0f));
             } else {
+                float lx = -1.5f;
+                float ly = -6.0f;
+                float lz = 0.025f;
+                float lh = 179.0f;
+                float wx, wy, wz, wh;
+                localToWorld(doorOriginX_, doorOriginY_, doorOriginZ_, doorOriginH_,
+                             lx, ly, lz, lh, &wx, &wy, &wz, &wh);
+                player.reset(wx, wy, wz, wh);
+                if (net) {
+                    net->sendAnimState("neutral", 1.0f);
+                }
+                TT_LOG("transition: door in complete in zone %lu (pos: %.2f, %.2f, %.2f, h: %.1f)",
+                       static_cast<unsigned long>(targetZone_), wx, wy, wz, wh);
                 reset();
                 return;
             }
@@ -588,6 +680,10 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
                 portalScale_ = (1.0f - easeInOut((age_ - 0.6f) / 0.3f)) * kPortalMaxScale;
                 toonVisible_ = true;
             } else if (age_ >= 1.3f) {
+                if (net) {
+                    net->sendAnimState("neutral", 1.0f);
+                }
+                TT_LOG("transition: teleport in complete in zone %lu", static_cast<unsigned long>(targetZone_));
                 reset();
                 return;
             }
