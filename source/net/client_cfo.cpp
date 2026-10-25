@@ -42,12 +42,14 @@ const CfoChild* Client::findCfoChild(uint32_t doId) const {
 
 void Client::resetBoss() {
     boss_ = BossState{};
+    for (CjChild& child : cjChildren_) child = CjChild{};
     for (CfoChild& child : cfoChildren_) child = CfoChild{};
     cfoRewardSent_ = false;
 }
 
 void Client::bossLeaving(uint32_t doId) {
     if (boss_.active && boss_.doId == doId) resetBoss();
+    if (CjChild* child = cjChild(doId)) *child = CjChild{};
     if (CfoChild* child = cfoChild(doId)) *child = CfoChild{};
 }
 

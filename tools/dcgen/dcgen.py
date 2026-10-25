@@ -383,6 +383,14 @@ _BOSS_FIELDS = {
     'DistributedLawbotBoss': ['setState', 'setBossDamage', 'touchWitnessStand', 'hitBoss', 'healBoss',
                              'hitToon', 'hitDefensePan', 'hitProsecutionPan', 'hitChair', 'setLawyerIds',
                              'setTaunt', 'toonGotHealed', 'enteredBonusState', 'setBattleDifficulty'],
+    'DistributedLawbotCannon': ['setBossCogId', 'setIndex', 'setPosHpr', 'requestEnter',
+                               'setMovie', 'setCannonPosition', 'updateCannonPosition',
+                               'setCannonLit', 'setCannonWillFire', 'setLanded', 'requestLeave'],
+    'DistributedLawbotChair': ['setBossCogId', 'setIndex', 'setState',
+                              'showCogJurorFlying', 'setToonJurorIndex'],
+    'DistributedLawbotBossGavel': ['setBossCogId', 'setIndex', 'setState'],
+    'DistributedLawbotBossSuit': ['setDNAString', 'setPosHpr', 'doAttack',
+                                 'doProsecute', 'hitByToon', 'doStun'],
     'DistributedBossbotBoss': ['setState', 'setBattleDifficulty', 'requestGetFood', 'toonGotFood',
                              'requestServeFood', 'toonServeFood', 'hitBoss', 'hitToon', 'ballHitBoss',
                              'setBossDamage', 'setSpeedDamage', 'reachedTable', 'hitTable',
@@ -395,7 +403,7 @@ for _name, _fields in _BOSS_FIELDS.items():
     WANTED[_name] = list(dict.fromkeys(WANTED.get(_name, []) + _fields))
     if _name not in TABLE_CLASSES:
         TABLE_CLASSES.append(_name)
-WANTED['DistributedToon'] += ['setPieType', 'setNumPies']
+WANTED['DistributedToon'] += ['setPieType', 'setNumPies', 'setCogSummonsEarned']
 
 # ---- friends / whispers (source/net/client_friends.cpp, docs/design/friends.md) ----
 # Additive block: extends the tables above without editing their literals.

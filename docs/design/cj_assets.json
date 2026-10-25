@@ -1,0 +1,1139 @@
+{
+  "budget": {
+    "batches": 64,
+    "clip_pair_geometry": 3411950,
+    "max_clip": 1609920,
+    "model_geometry": 192110,
+    "textures": 785664,
+    "triangles": 6773
+  },
+  "clips": {
+    "cj_head_Bb2Ff_spin.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_head_Bb_neutral.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Bf_neutral.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_DownThrow.tta": {
+      "bytes": 54528,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 680
+    },
+    "cj_head_Fb_UpThrow.tta": {
+      "bytes": 54528,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 680
+    },
+    "cj_head_Fb_down2Up.tta": {
+      "bytes": 163328,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 680
+    },
+    "cj_head_Fb_downHit.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_head_Fb_downLtSwing.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_downNeutral.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_downRtSwing.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_fall.tta": {
+      "bytes": 391808,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 680
+    },
+    "cj_head_Fb_firstHit.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_jump.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Fb_neutral.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Ff2Bb_spin.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_head_Ff_lookRt.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Ff_neutral.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_Ff_speech.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_golf_swing.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_head_hatch_front.tta": {
+      "bytes": 5632,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_hatch_rear.tta": {
+      "bytes": 5632,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_ltTurn2Wave.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_head_turn2Fb.tta": {
+      "bytes": 195968,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 680
+    },
+    "cj_head_wave.tta": {
+      "bytes": 130688,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 680
+    },
+    "cj_legs_Bb2Ff_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cj_legs_Bb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Bf_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_DownThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "cj_legs_Fb_UpThrow.tta": {
+      "bytes": 71296,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 882
+    },
+    "cj_legs_Fb_down2Up.tta": {
+      "bytes": 213376,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 882
+    },
+    "cj_legs_Fb_downHit.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 1,
+      "vertices": 882
+    },
+    "cj_legs_Fb_downLtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_downNeutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_downRtSwing.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_fall.tta": {
+      "bytes": 511616,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 882
+    },
+    "cj_legs_Fb_firstHit.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_jump.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Fb_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Ff2Bb_spin.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cj_legs_Ff_lookRt.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Ff_neutral.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_Ff_speech.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_golf_swing.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cj_legs_hatch_front.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_hatch_rear.tta": {
+      "bytes": 7424,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_ltTurn2Wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cj_legs_turn2Fb.tta": {
+      "bytes": 256000,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 882
+    },
+    "cj_legs_wave.tta": {
+      "bytes": 170624,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 882
+    },
+    "cj_torso_Bb2Ff_spin.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_torso_Bb_neutral.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Bf_neutral.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_DownThrow.tta": {
+      "bytes": 62976,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 779
+    },
+    "cj_torso_Fb_UpThrow.tta": {
+      "bytes": 62976,
+      "frames": 10,
+      "source_fps": 24.0,
+      "source_frames": 20,
+      "vertices": 779
+    },
+    "cj_torso_Fb_down2Up.tta": {
+      "bytes": 188672,
+      "frames": 30,
+      "source_fps": 24.0,
+      "source_frames": 60,
+      "vertices": 779
+    },
+    "cj_torso_Fb_downHit.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_torso_Fb_downLtSwing.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_downNeutral.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_downRtSwing.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_fall.tta": {
+      "bytes": 452352,
+      "frames": 72,
+      "source_fps": 24.0,
+      "source_frames": 144,
+      "vertices": 779
+    },
+    "cj_torso_Fb_firstHit.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_jump.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Fb_neutral.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Ff2Bb_spin.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_torso_Ff_lookRt.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Ff_neutral.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_Ff_speech.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_golf_swing.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_torso_hatch_front.tta": {
+      "bytes": 6528,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_hatch_rear.tta": {
+      "bytes": 6528,
+      "frames": 1,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_ltTurn2Wave.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_torso_turn2Fb.tta": {
+      "bytes": 226304,
+      "frames": 36,
+      "source_fps": 24.0,
+      "source_frames": 72,
+      "vertices": 779
+    },
+    "cj_torso_wave.tta": {
+      "bytes": 150912,
+      "frames": 24,
+      "source_fps": 24.0,
+      "source_frames": 48,
+      "vertices": 779
+    },
+    "cj_treads_Bb2Ff_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cj_treads_Bb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Bf_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_DownThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "cj_treads_Fb_UpThrow.tta": {
+      "bytes": 36480,
+      "frames": 10,
+      "vertices": 454
+    },
+    "cj_treads_Fb_down2Up.tta": {
+      "bytes": 109184,
+      "frames": 30,
+      "vertices": 454
+    },
+    "cj_treads_Fb_downHit.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cj_treads_Fb_downLtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_downNeutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_downRtSwing.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_fall.tta": {
+      "bytes": 261632,
+      "frames": 72,
+      "vertices": 454
+    },
+    "cj_treads_Fb_firstHit.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_jump.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Fb_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Ff2Bb_spin.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cj_treads_Ff_lookRt.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Ff_neutral.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_Ff_speech.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_golf_swing.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cj_treads_hatch_front.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cj_treads_hatch_rear.tta": {
+      "bytes": 3840,
+      "frames": 1,
+      "vertices": 454
+    },
+    "cj_treads_ltTurn2Wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    },
+    "cj_treads_turn2Fb.tta": {
+      "bytes": 130944,
+      "frames": 36,
+      "vertices": 454
+    },
+    "cj_treads_wave.tta": {
+      "bytes": 87296,
+      "frames": 24,
+      "vertices": 454
+    }
+  },
+  "disk_bytes": 16528929,
+  "lobby_anchor": [
+    118.8499984741211,
+    87.05950164794922,
+    51.92449951171875
+  ],
+  "max_texture": 128,
+  "models": {
+    "cj_arena": {
+      "batches": 23,
+      "bounds": [
+        [
+          -926.406005859375,
+          -938.9240112304688,
+          -213.9290008544922
+        ],
+        [
+          1324.81005859375,
+          1041.52001953125,
+          821.7869873046875
+        ]
+      ],
+      "file_bytes": 334592,
+      "geometry_bytes": 60826,
+      "texture_bytes": 270144,
+      "textures": 22,
+      "triangles": 1975,
+      "uv_clamped": 0,
+      "vertices": 3061
+    },
+    "cj_cannon_barrel": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.40024995803833,
+          -1.40024995803833,
+          -1.40024995803833
+        ],
+        [
+          1.40024995803833,
+          5.620369911193848,
+          1.40024995803833
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2020,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 110,
+      "uv_clamped": 0,
+      "vertices": 85
+    },
+    "cj_cannon_base": {
+      "batches": 2,
+      "bounds": [
+        [
+          -3.6072099208831787,
+          -2.492340087890625,
+          -1.634838708852726e-09
+        ],
+        [
+          3.6072099208831787,
+          6.0,
+          2.69881010055542
+        ]
+      ],
+      "file_bytes": 23296,
+      "geometry_bytes": 1028,
+      "texture_bytes": 21792,
+      "textures": 2,
+      "triangles": 54,
+      "uv_clamped": 0,
+      "vertices": 44
+    },
+    "cj_chair": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.6355750560760498,
+          -1.5626100301742554,
+          -0.0023451149463653564
+        ],
+        [
+          1.6416699886322021,
+          1.5659199953079224,
+          5.081399917602539
+        ]
+      ],
+      "file_bytes": 32000,
+      "geometry_bytes": 9756,
+      "texture_bytes": 21792,
+      "textures": 2,
+      "triangles": 362,
+      "uv_clamped": 0,
+      "vertices": 474
+    },
+    "cj_evidence": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9330329895019531,
+          -0.8141250014305115,
+          -5.669722469292537e-10
+        ],
+        [
+          0.9471200108528137,
+          0.8141250014305115,
+          0.695497989654541
+        ]
+      ],
+      "file_bytes": 12416,
+      "geometry_bytes": 1028,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 46,
+      "uv_clamped": 0,
+      "vertices": 47
+    },
+    "cj_gavel": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.0635600090026855,
+          -1.5990899801254272,
+          -0.028565499931573868
+        ],
+        [
+          1.0717600584030151,
+          1.5557500123977661,
+          9.30624008178711
+        ]
+      ],
+      "file_bytes": 18688,
+      "geometry_bytes": 7328,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 456,
+      "uv_clamped": 0,
+      "vertices": 287
+    },
+    "cj_head": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2496345043182373,
+          -2.269854784011841,
+          -1.7992048263549805
+        ],
+        [
+          4.654426097869873,
+          2.2695462703704834,
+          2.4297478199005127
+        ]
+      ],
+      "file_bytes": 35840,
+      "geometry_bytes": 13568,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 448,
+      "uv_clamped": 0,
+      "vertices": 680
+    },
+    "cj_jury_box": {
+      "batches": 1,
+      "bounds": [
+        [
+          52.23860168457031,
+          -20.795799255371094,
+          -0.04109954833984375
+        ],
+        [
+          82.35009765625,
+          51.66529846191406,
+          28.262603759765625
+        ]
+      ],
+      "file_bytes": 13056,
+      "geometry_bytes": 1680,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 56,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "cj_lawbook": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.75,
+          -1.0,
+          0.0
+        ],
+        [
+          0.02500000037252903,
+          7.357935788432357e-11,
+          0.23261100053787231
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2340,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 70,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "cj_legs": {
+      "batches": 5,
+      "bounds": [
+        [
+          -7.804619789123535,
+          -10.32979965209961,
+          -0.005233097821474075
+        ],
+        [
+          7.802390098571777,
+          10.330599784851074,
+          9.844971656799316
+        ]
+      ],
+      "file_bytes": 51200,
+      "geometry_bytes": 17604,
+      "texture_bytes": 32736,
+      "textures": 3,
+      "triangles": 582,
+      "uv_clamped": 0,
+      "vertices": 882
+    },
+    "cj_scale_beam": {
+      "batches": 5,
+      "bounds": [
+        [
+          -0.46162399649620056,
+          -6.118189811706543,
+          -0.7178699970245361
+        ],
+        [
+          0.23340199887752533,
+          6.200349807739258,
+          4.751810073852539
+        ]
+      ],
+      "file_bytes": 62464,
+      "geometry_bytes": 7068,
+      "texture_bytes": 54560,
+      "textures": 4,
+      "triangles": 242,
+      "uv_clamped": 0,
+      "vertices": 351
+    },
+    "cj_scale_defense": {
+      "batches": 3,
+      "bounds": [
+        [
+          -1.7288600206375122,
+          -1.6202800273895264,
+          -7.749360084533691
+        ],
+        [
+          1.7088799476623535,
+          1.8225200176239014,
+          0.049929000437259674
+        ]
+      ],
+      "file_bytes": 66560,
+      "geometry_bytes": 11292,
+      "texture_bytes": 54560,
+      "textures": 3,
+      "triangles": 394,
+      "uv_clamped": 0,
+      "vertices": 558
+    },
+    "cj_scale_prosecution": {
+      "batches": 3,
+      "bounds": [
+        [
+          -1.7088799476623535,
+          -1.664829969406128,
+          -7.731880187988281
+        ],
+        [
+          1.7088799476623535,
+          1.7529200315475464,
+          0.06426160037517548
+        ]
+      ],
+      "file_bytes": 66944,
+      "geometry_bytes": 11660,
+      "texture_bytes": 54560,
+      "textures": 3,
+      "triangles": 402,
+      "uv_clamped": 0,
+      "vertices": 578
+    },
+    "cj_scale_stand": {
+      "batches": 5,
+      "bounds": [
+        [
+          -3.3488099575042725,
+          -7.488840103149414,
+          -0.03566110134124756
+        ],
+        [
+          3.3488099575042725,
+          7.286399841308594,
+          18.392200469970703
+        ]
+      ],
+      "file_bytes": 119424,
+      "geometry_bytes": 20240,
+      "texture_bytes": 98208,
+      "textures": 5,
+      "triangles": 752,
+      "uv_clamped": 0,
+      "vertices": 983
+    },
+    "cj_torso": {
+      "batches": 5,
+      "bounds": [
+        [
+          -6.479006767272949,
+          -6.326910018920898,
+          -0.6859530210494995
+        ],
+        [
+          6.7007622718811035,
+          6.293529987335205,
+          8.677177429199219
+        ]
+      ],
+      "file_bytes": 104448,
+      "geometry_bytes": 16112,
+      "texture_bytes": 87296,
+      "textures": 5,
+      "triangles": 608,
+      "uv_clamped": 0,
+      "vertices": 779
+    },
+    "cj_treads": {
+      "batches": 2,
+      "bounds": [
+        [
+          -8.304530143737793,
+          -10.32979965209961,
+          -5.980840267483245e-10
+        ],
+        [
+          8.304530143737793,
+          10.32979965209961,
+          4.428339958190918
+        ]
+      ],
+      "file_bytes": 22784,
+      "geometry_bytes": 8560,
+      "texture_bytes": 13632,
+      "textures": 2,
+      "triangles": 216,
+      "uv_clamped": 0,
+      "vertices": 454
+    }
+  },
+  "sample_fps": 12,
+  "scene_vectors": [
+    [
+      0.0,
+      -9.005169943065994e-10,
+      1.897029995918274
+    ],
+    [
+      0.0,
+      0.0,
+      12.690950393676758
+    ],
+    [
+      0.0,
+      -4.6919097900390625,
+      0.0024935007095336914
+    ],
+    [
+      0.0,
+      4.790590286254883,
+      0.024830996990203857
+    ]
+  ],
+  "sha256": {
+    "cj_arena.ttc": "4529621d7f1403d481a9b34b3e8c4b9c3bb18d782085decdeea594bda309ca0d",
+    "cj_arena.ttm": "73a528bf1cc11fbcbbb37a9984128cd3f1dc9539f558b7d2e1cd0e649697c9a8",
+    "cj_cannon_barrel.ttm": "585ca6e101d0e8d39a9be979576909e0af8e8389dae3b6633b596b25b11fc1ab",
+    "cj_cannon_base.ttm": "cab6b83dbe1bc246a1be2e0f8825a67e72281ea3b20c77869d11a264f196708e",
+    "cj_chair.ttm": "dabbbd311e5adc4ac9e2e4bcb607775a07d6a134e0ffd971f61a5ed447e541c6",
+    "cj_evidence.ttm": "9b87f082f648be4f8e0f2fd16d85ee63935fa3120ab5585cfcefc5109b70c2eb",
+    "cj_gavel.ttm": "6146d52464a19b814ffcc4ae80347fb5eb98736d22b1615c7be869d34e88eb8a",
+    "cj_head.ttm": "061c032dc145af3d3a12b8419376d5d1a013dfa87a476946015101a54bc294c5",
+    "cj_head_Bb2Ff_spin.tta": "544508474c3ce2cf702bbe4521ddcc22b83a594cc3b84e9e9dbbc0844069d37c",
+    "cj_head_Bb_neutral.tta": "6d49acd502735f055b347d55bfb868d5d9f39526d2ccde1231b459ca91d3d32c",
+    "cj_head_Bf_neutral.tta": "29a6835f4e4513b97f1483e05260223b2378dc28eb783c18f08ae9d135b1f0f2",
+    "cj_head_Fb_DownThrow.tta": "23145626fbe5f7835bc32f386c4c48e71b44d4ee0e5e51eda20d96b9b08a9815",
+    "cj_head_Fb_UpThrow.tta": "932df282758614379cfd08f09ba736aad935d5d076a146ddc5dbc12ff5e44cb1",
+    "cj_head_Fb_down2Up.tta": "cbea5a8fb6f06fc9dd9d6018420f8a7ee074fdbcc56da4e7a7149c27da3f4a62",
+    "cj_head_Fb_downHit.tta": "36aa9d58a683273b34226f4410296cae70560c1904a4c7cfb08a221251eb7c46",
+    "cj_head_Fb_downLtSwing.tta": "880ce936ab8a1fe9ca8f2c8cdeeb8029cb48e1b2acbacd50363ad71f08ac60c1",
+    "cj_head_Fb_downNeutral.tta": "02f6f767e52057c5ba8a1e528021a569caa4cadb06820534044949e6ef6b7ca8",
+    "cj_head_Fb_downRtSwing.tta": "810eb849339d5faba36399a74c559ffdb96c7e5692bcba27b73fe4a0364fa029",
+    "cj_head_Fb_fall.tta": "4d5e4e7c6e2bff2f688933fdfe88171ec740fd22810d8fb2311a77ee2c1f8576",
+    "cj_head_Fb_firstHit.tta": "486d6f75d0855de15a84aef0e40be77751debfae8514dd9de6d9aebb43b41f8d",
+    "cj_head_Fb_jump.tta": "35183fd4ecd1352ea5a4a8ee1bb4af545f8808b02e08e1c780d849937c825a0c",
+    "cj_head_Fb_neutral.tta": "bb391edd27012d04afd70fbc37619a77cbd0d46188b34237694b9a8df6975187",
+    "cj_head_Ff2Bb_spin.tta": "7a76ae5e71e4a38046f73dcf3e8d6ce13691a95e6b5119064581332dc696eeae",
+    "cj_head_Ff_lookRt.tta": "08ad4fd678b23dc15788a9cc433cff41a6ee39a06c3bc2a0772fc42e503da522",
+    "cj_head_Ff_neutral.tta": "78a0a3e3cb40ef883940bf3139fdb8eb96308012f4911ce4d959b7d1e8aac8b8",
+    "cj_head_Ff_speech.tta": "947b2289e04199d1576c089719d57ef97148a3844044ac76ced00af8ab4bf029",
+    "cj_head_golf_swing.tta": "09385c9da6cc4226d1b3acdcc509a7f48354cf1a5ab1cb4e57e468c15cff103c",
+    "cj_head_hatch_front.tta": "d778eb6118ab156ba36cdccc51080b9be0f46b1e61acb6cfe9f19939c019f3fd",
+    "cj_head_hatch_rear.tta": "d778eb6118ab156ba36cdccc51080b9be0f46b1e61acb6cfe9f19939c019f3fd",
+    "cj_head_ltTurn2Wave.tta": "2d9eac61c7868791fe3c715871b2fff0ff6c70e95b8781a3b06bd1cd3109dac3",
+    "cj_head_turn2Fb.tta": "a19fe32c8f5732bbd7596d320d91c17bbcf290fc5d89e648d7d315ca7a31de1e",
+    "cj_head_wave.tta": "1f9a87a51a01e2294239ae13a45a202fc2e973acb937e4f6c325c18dae5a9ebb",
+    "cj_jury_box.ttm": "4be4fb028e5b30882b4478f7bec21356ae19e88790ca6c33e1a83c60a101fb32",
+    "cj_lawbook.ttm": "260713f58230c3a2d67a672b38ce78e6a444568ed2bc4912dadeea4611d16a21",
+    "cj_legs.ttm": "757d5db54f2d32ee4111cfaabf79a224d68ae14f9f7e20aa8f46dc62deefbd0d",
+    "cj_legs_Bb2Ff_spin.tta": "9b0e29a1b900df26ef7e0229c2f70c413a8427c0dec6836d43822eac0b67e627",
+    "cj_legs_Bb_neutral.tta": "ab30b18e4a9bcf7776577bdfd100a95e236cf7c9f1138e8d49fd6045935fd6a8",
+    "cj_legs_Bf_neutral.tta": "6604fce44c314f3d2fe5d387a7aadd31f6be0466a2bc102af6e84d655daaedca",
+    "cj_legs_Fb_DownThrow.tta": "d1243f835328e9468292f5924a79ee7d817d6f62f120bcd1321d7233f2a0fd8f",
+    "cj_legs_Fb_UpThrow.tta": "f0d4eca0a0a5b3f74e4d438e750e5cb3f93fb2e5e6a9ef37b380e09a81eac551",
+    "cj_legs_Fb_down2Up.tta": "cc082172747d7a7efbf5f7167ac40a89a59037aacc4cf8f26f5f4458662f7653",
+    "cj_legs_Fb_downHit.tta": "6314351f9fccd76ee2cbea7401e9d9d76d94764db5263d3ee846096389bd3ffa",
+    "cj_legs_Fb_downLtSwing.tta": "7efbd3890066ad10baaa5046e9d3e795a8a0537cb02b27fb4799950065b75c1c",
+    "cj_legs_Fb_downNeutral.tta": "fa394ac79d6fefec88647cdfe145ff7b9613361032228f347ba7622241f24a55",
+    "cj_legs_Fb_downRtSwing.tta": "5e9597c2f76e414abfe3e6366a760f63489265d99d9962294f4e6ae894763465",
+    "cj_legs_Fb_fall.tta": "f5e2715745b185d56c7dc241b133bba800d32601be819adcf8f6b44404a6602c",
+    "cj_legs_Fb_firstHit.tta": "4b0418235b0abfae1ebc58e910fff2850aa036f8ee380d301fd8ff60d09a2c5a",
+    "cj_legs_Fb_jump.tta": "013b01ab1b2e3ffe221431ceef6da1cb2c1e0b806c2d5e76229ebc9b86b6d32c",
+    "cj_legs_Fb_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "cj_legs_Ff2Bb_spin.tta": "bd94251ff85c3bedb9e8f7fc947f80953c7cc770e3690e7576314f77833b9625",
+    "cj_legs_Ff_lookRt.tta": "992e19b06f2f0b8fa4728385543c5aba97fc863234110001f609b1a9047d4886",
+    "cj_legs_Ff_neutral.tta": "fd7c156b25f940c01c10ceb80256e88905e0d16df6323140c7e49b6a7619e8d9",
+    "cj_legs_Ff_speech.tta": "e9418dab0d0b656d4c33c48748f795dab3e6205be29b2df99ce82fd3c015eba8",
+    "cj_legs_golf_swing.tta": "8f89c86a754f26a9afbb89b132be3013c6fd60dd9f9e61244e423b52e2549c38",
+    "cj_legs_hatch_front.tta": "a9f2c0e1ca19aaa27338762a53aedc275b7a1e40e2c9cb642f14b89b04f30475",
+    "cj_legs_hatch_rear.tta": "57de37ab7c7734a6bb135f71a37595a02f0f1119b44f638dfe2d501968914f38",
+    "cj_legs_ltTurn2Wave.tta": "578573d30aee6797537b7bf9ecfa44e04fd0c7f2eab56d558aec01112bcc0ca7",
+    "cj_legs_turn2Fb.tta": "7b2364fba43bfca1ee658468a047ac7a4adcfb931648efc43c4eff2b6255c950",
+    "cj_legs_wave.tta": "0256a5492c76891a36a0454b8690d59889670da1f233df9b30f4d93d27f905fb",
+    "cj_lobby_anchor.txt": "81382dd99608455a4415b457f1f7826221471358e775137e7ab3f6b4301534ab",
+    "cj_npcs.bin": "3248fad1383db94f5eef65eafb1e7910f7a98c2ebe7214ecaef4d9536e2bb7ad",
+    "cj_scale_beam.ttm": "49e64a4083d495eba2be605f725270947482732f16b3b3ca2ed3fdb2867d9a2d",
+    "cj_scale_defense.ttm": "ddc3eac85e3a649be5118f283c5a1b9d2ca9f2c3eaedf505a3d6dab62aeb4275",
+    "cj_scale_prosecution.ttm": "d717dbd6007a34ead4ce0d60eef6286a78cd88feb07d8e1c4eb3d9f83edd567a",
+    "cj_scale_stand.ttm": "545f5e5e65a04e3ba6ee93947f3029b5aff8d2386c2fc7b56baa9b26d6d506db",
+    "cj_scene.bin": "ea690f08ed1902a2080c21bb32611ffd88bdcf87f3a29498c787da2cdbbb22a7",
+    "cj_torso.ttm": "35d9015a51265a2427f8fdf278d16952387a94fcc2fedd28feff76e2bec243b1",
+    "cj_torso_Bb2Ff_spin.tta": "21423ec4b79b7e79344ae983077e66a562ed91cd3c9d72cc423ae21af8705a63",
+    "cj_torso_Bb_neutral.tta": "8bcb8403807aed0ac9a895b8828670d89a18193755c51e08b9216711616d4409",
+    "cj_torso_Bf_neutral.tta": "0da6b34ebfe995f75e16402a58423153592a4f87f1bd753206c0c7580c62a8d2",
+    "cj_torso_Fb_DownThrow.tta": "28cce0bb56ee1277f401182d0ed83293bb5094f59ec342522f4291df07a2ca85",
+    "cj_torso_Fb_UpThrow.tta": "c339079fe1271d676626905c207e688475d42f9f543245632a4f2b819fc75312",
+    "cj_torso_Fb_down2Up.tta": "a5738b9951e69ef1981d2ce8c7f00f97b96c685640756d24a5122daed47dc617",
+    "cj_torso_Fb_downHit.tta": "52822912cfe95eb6f63d0a8272ec48d2d1bb1278d65b45271d4a88d939978c2a",
+    "cj_torso_Fb_downLtSwing.tta": "ae589af551920a09c66ff890a893e5427546731e86a5ad523f58b3a59c46b6b4",
+    "cj_torso_Fb_downNeutral.tta": "df6c52dd131a7bd96863357fb8b303f54418a0c6939f2c9c0e60d0313a1384d1",
+    "cj_torso_Fb_downRtSwing.tta": "a912e88ae3ecd58c4695db5aae024b05f3327ddf0bb0e874f2f4dbd2aaaf015d",
+    "cj_torso_Fb_fall.tta": "120a1f51cfc296220b586090d9ef27aedc2584cf0d85a856db1a4389640e1ef3",
+    "cj_torso_Fb_firstHit.tta": "1d23f67c0c42773d7d10dee75798a9521245b5c87b7239f7b3fec5aacd3a33a8",
+    "cj_torso_Fb_jump.tta": "2bd10b6af3f337df632552193d367e15a6e53d4b0410082bf2cf9aabeffbfb22",
+    "cj_torso_Fb_neutral.tta": "055dad6da5e289d3016af8a12e325f63e84fde957c240a444a09083cb38afc9a",
+    "cj_torso_Ff2Bb_spin.tta": "28bef840c65481b070c0d5a8769c95a60856e80a8e9b942e50850b4e003b2b5e",
+    "cj_torso_Ff_lookRt.tta": "3b5fa8fb777a86a1d1f8c56c505da03bc6f49581a91af89e5f8a0c75939a7ed4",
+    "cj_torso_Ff_neutral.tta": "0ad2a47663639f48852b311663754c28556327dc5596c4ca82a2a2680b65d9a1",
+    "cj_torso_Ff_speech.tta": "0870551dfd1df996402cfa59324a7e3999ca2fa349ef538fcc629f4075e407b0",
+    "cj_torso_golf_swing.tta": "8f1911ee2c30138cc30a37b5d0ff0034ed5335a40b7b17ba2103475c59a87568",
+    "cj_torso_hatch_front.tta": "a28e18d68f64ff8a072b350e41c526bb12b61df27d3f77cad997b684b32eda7d",
+    "cj_torso_hatch_rear.tta": "a28e18d68f64ff8a072b350e41c526bb12b61df27d3f77cad997b684b32eda7d",
+    "cj_torso_ltTurn2Wave.tta": "aed8824b3ad735d8fd9617aac9be7c2ea30a84848797bc63f28452e34a3d3d06",
+    "cj_torso_turn2Fb.tta": "53a1c451458e81bbdf8e646beb7b80160b8457fbe85df7e001df0a13a89277f9",
+    "cj_torso_wave.tta": "ce25df4f16b37c40c83b55c79f36ab5bde112d2f23e893bf74d3e0c76a5bf99e",
+    "cj_treads.ttm": "bf5119c326c073c0901ec3a0677c99c196fc4e99e4c97375feaea72917c54029",
+    "cj_treads_Bb2Ff_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cj_treads_Bb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Bf_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Fb_DownThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "cj_treads_Fb_UpThrow.tta": "385c493edf422765604d5dcac7726421962ff17a4956d7db79bd383d28c1871e",
+    "cj_treads_Fb_down2Up.tta": "4701ab03d002e1d5ba9fc788b28fe9dee6cb6657b34639e41dd45db7a40308bc",
+    "cj_treads_Fb_downHit.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cj_treads_Fb_downLtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Fb_downNeutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Fb_downRtSwing.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Fb_fall.tta": "d3bcec0dbe70c9ff894981c684c10fe67946eebf88764b150a31f84745c51420",
+    "cj_treads_Fb_firstHit.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Fb_jump.tta": "ce5ff1ac6f4e467ca387037f42dcc9e69d021d03221c099b105216e7327e2c27",
+    "cj_treads_Fb_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Ff2Bb_spin.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cj_treads_Ff_lookRt.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Ff_neutral.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_Ff_speech.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_golf_swing.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cj_treads_hatch_front.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cj_treads_hatch_rear.tta": "fe4b802adcd1ff0815c4c45112e25637326ac84d75da5ced841b66c0ee04856a",
+    "cj_treads_ltTurn2Wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36",
+    "cj_treads_turn2Fb.tta": "b49748508ef71754e5e3899b31dca5be221a2d894c09b25629e13ad85bcf4a4f",
+    "cj_treads_wave.tta": "41884e771edc01ca7d8505362cb14cc9315097143afd5589e71ca11939b2fa36"
+  },
+  "version": 1
+}

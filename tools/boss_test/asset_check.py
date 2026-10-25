@@ -9,7 +9,7 @@ import sys
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'sdmc-out/3ds/toontown3ds/data/boss'
-prefix = 'cfo' if '--cfo' in sys.argv else 'vp'
+prefix = 'cj' if '--cj' in sys.argv else 'cfo' if '--cfo' in sys.argv else 'vp'
 report = json.loads((OUT / (prefix + '_manifest.json')).read_text())
 for name in report['models']:
     assert name + '.ttm' in report['sha256'], f'Missing model in manifest: {name}'
@@ -44,9 +44,12 @@ assert anchor[:2] == ['BPA1', '1'] and len(anchor) == 5
 if prefix == 'vp':
     scene = (OUT / 'vp_scene.bin').read_bytes()
     assert len(scene) == 56 and struct.unpack_from('<4sHH', scene) == (b'BSC1', 1, 3)
+if prefix == 'cj':
+    scene = (OUT / 'cj_scene.bin').read_bytes()
+    assert len(scene) == 56 and struct.unpack_from('<4sHH', scene) == (b'CJS1', 1, 4)
 npcs = (OUT / (prefix + '_npcs.bin')).read_bytes()
 magic, version, count = struct.unpack_from('<4sHH', npcs)
-assert magic == b'BND1' and version == 1 and count == (1 if prefix == 'cfo' else 41)
+assert magic == b'BND1' and version == 1 and count == (9 if prefix == 'cj' else 1 if prefix == 'cfo' else 41)
 assert len(npcs) == 8 + count * 19
 assert all(npcs[8 + row * 19 + 4] == ord('t') for row in range(count))
 budget = report['budget']

@@ -5,7 +5,7 @@ mkdir -p sdmc-out/boss-test
 .venv/bin/python -I -B tools/boss_test/pack_reference.py
 c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
     -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
-    tools/boss_test/main.cpp source/world/boss_logic.cpp source/world/cfo_logic.cpp source/net/boss_state.cpp source/net/cfo_state.cpp \
+    tools/boss_test/main.cpp source/world/boss_logic.cpp source/world/cfo_logic.cpp source/world/cj_logic.cpp source/net/boss_state.cpp source/net/cj_state.cpp source/net/cfo_state.cpp \
     source/net/datagram.cpp -o sdmc-out/boss-test/boss_test
 sdmc-out/boss-test/boss_test sdmc-out/boss-test/panda_vectors.bin
 c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
@@ -22,4 +22,12 @@ if [ -f sdmc-out/3ds/toontown3ds/data/boss/cfo_arena.ttc ]; then
         tools/boss_test/cfo_collision.cpp source/world/collision.cpp \
         tools/collision_test/log_stub.cpp -o sdmc-out/boss-test/cfo_collision
     sdmc-out/boss-test/cfo_collision sdmc-out/3ds/toontown3ds/data/boss/cfo_arena.ttc
+fi
+
+if [ -f sdmc-out/3ds/toontown3ds/data/boss/cj_arena.ttc ]; then
+    c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
+        -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
+        tools/boss_test/cj_collision.cpp source/world/collision.cpp \
+        tools/collision_test/log_stub.cpp -o sdmc-out/boss-test/cj_collision
+    sdmc-out/boss-test/cj_collision sdmc-out/3ds/toontown3ds/data/boss/cj_arena.ttc
 fi

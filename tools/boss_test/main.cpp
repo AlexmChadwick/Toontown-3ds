@@ -6,6 +6,8 @@
 #include "net/boss_state.h"
 #include "world/boss_logic.h"
 #include "world/cfo_logic.h"
+#include "world/cj_logic.h"
+#include "net/cj_state.h"
 
 namespace dc = tt::dc;
 using namespace tt::net;
@@ -42,7 +44,18 @@ static void referenceVectors(const char* path) {
         state.classId = classId;
         state.kind = bossKind(classId);
         DatagramReader reader(buffer, size);
-        if (cfoKind(classId) == CfoKind::None) {
+        if (cjKind(classId) != CjKind::None) {
+            CjChild child;
+            child.classId = classId;
+            child.kind = cjKind(classId);
+            assert(applyCjField(child, field, reader, 1000));
+            for (uint32_t length = 0; length < size; ++length) {
+                CjChild truncatedChild = child;
+                DatagramReader truncated(buffer, length);
+                assert(!applyCjField(truncatedChild, field, truncated, 2000));
+                assert(std::memcmp(&child, &truncatedChild, sizeof(child)) == 0);
+            }
+        } else if (cfoKind(classId) == CfoKind::None) {
             assert(applyBossField(state, field, reader, 1000, 42));
         } else {
             CfoChild child;
@@ -69,6 +82,16 @@ static void referenceVectors(const char* path) {
 
 int main(int argc, char** argv) {
     if (argc > 1) referenceVectors(argv[1]);
+    assert(cjScaleTilt(0) == -40 && cjScaleTilt(1350) == 0 && cjScaleTilt(2700) == 40);
+    assert(cjScaleTilt(9999) == 40);
+    assert(std::fabs(cjChairPosition(0, 0).x - 29.3f) < .001f);
+    assert(std::fabs(cjChairPosition(11, 70).z - 28.2f) < .001f);
+    assert(cjBarrierDelay("BattleTwo") > 70 && cjBarrierDelay("BattleThree") < 0);
+    const CjFlight flight = cjCannonFlight({-80, 10, 0}, -90, 0, 30, {0, 0, 1});
+    const Vec3 position = cjFlightPosition(flight, 1);
+    assert(position.x > -10 && position.x < 0 && std::fabs(position.y - 10) < .001f);
+    assert(std::fabs(position.z - (flight.origin.z + 40 - 16)) < .001f);
+    assert(std::fabs(cjGavelPose(0, .3f).pitch + 80) < .001f);
     CfoCable cable;
     cable.reset();
     for (int frame = 0; frame < 900; ++frame) cable.update(1, 1, 1.0f / 30, false);

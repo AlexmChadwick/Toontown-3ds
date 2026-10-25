@@ -90,6 +90,16 @@ bool applyBossField(BossState& state, uint16_t fieldId, DatagramReader& reader,
         next.promoted = reader.u8() != 0;
     } else if (named(name, "setRewardId")) {
         next.rewardId = reader.u16();
+    } else if (named(name, "setLawyerIds")) {
+        readIds(reader, next.lawyers, 10, &next.numLawyers);
+    } else if (named(name, "enteredBonusState")) {
+        next.bonusMs = nowMs;
+        ++next.bonusRevision;
+    } else if (named(name, "toonGotHealed")) {
+        next.healedToon = reader.u32();
+    } else if (named(name, "setTaunt")) {
+        next.tauntTarget = reader.i8();
+        next.tauntIndex = reader.i8();
     } else if (named(name, "setBattleDifficulty")) {
         next.difficulty = reader.u8();
     } else if (named(name, "setX") || named(name, "setY") || named(name, "setZ") ||

@@ -408,4 +408,8 @@ def main_cfo():
 
 
 if __name__ == '__main__':
-    main_cfo() if '--cfo' in sys.argv else main()
+    if '--cj' in sys.argv:
+        import bake_cj
+        bake_cj.main(sys.modules[__name__])
+    else:
+        main_cfo() if '--cfo' in sys.argv else main()
