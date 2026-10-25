@@ -64,11 +64,11 @@ const Step kScript[] = {
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "move: door", "move_door**"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "visit clerk", "clerk"},
     // ---- clerks: real NPC contact, panel actions and ordered reply logs ----
-    {30.0f,0,0,0,0,-1,-1,0,"clerk: pet shop","clerk_pet*"},
-    {30.0f,0,0,0,0,-1,-1,0,"clerk: adopt","clerk_adopt*"},
-    {30.0f,0,0,0,0,-1,-1,0,"clerk: kart shop","clerk_kart*"},
-    {30.0f,0,0,0,0,-1,-1,0,"clerk: fisherman","clerk_fisherman*"},
-    {30.0f,0,0,0,0,-1,-1,0,"clerk: party planner","clerk_party*"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "clerk: pet shop", "clerk_pet*"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "clerk: adopt", "clerk_adopt*"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "clerk: kart shop", "clerk_kart*"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "clerk: fisherman", "clerk_fisherman*"},
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "clerk: party planner", "clerk_party*"},
     // ---- end clerks ----
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "exit_interior"},
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "move: tunnel", "move_tunnel**"},

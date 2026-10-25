@@ -1692,6 +1692,10 @@ private:
     void clearSuits();
     // ---- clerks: fixed session, ordered movies, authoritative owner state ----
     bool handleClerksField(DatagramReader& reader, uint32_t id, uint16_t field);
+    bool handleClerksEnter(uint32_t id, uint16_t classId, DatagramReader& reader,
+                          const uint16_t* required, uint16_t count, bool other);
+    uint32_t clerkNewsManager_ = 0;
+    bool clerkFishHoliday_ = false;
     bool clerksOwnField(DatagramReader& reader, uint16_t field);
     void resetClerks(bool owner = true);
     ClerkSession clerkSession_;

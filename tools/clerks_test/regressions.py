@@ -79,6 +79,18 @@ commands += [
         ("cchar", "tools/cchar_test/run.py", []),
     )
 ]
+commands += [
+    (name, ["bash", path])
+    for name, path in (
+        ("nettest", "tools/nettest/run_tests.sh"),
+        ("name", "tools/name_test/run_test.sh"),
+        ("suit", "tools/clerks_test/suit_regression.sh"),
+        ("collision", "tools/clerks_test/collision_regression.sh"),
+        ("transition", "tools/transition_test/run_tests.sh"),
+        ("boss", "tools/clerks_test/boss_regression.sh"),
+        ("cogdo", "tools/clerks_test/cogdo_regression.sh"),
+    )
+]
 selected = set(sys.argv[1:])
 results = (
     json.loads((OUT / "results.json").read_text())
@@ -95,7 +107,7 @@ for name, command in commands:
     results[name] = result.returncode
     print(
         name,
-        "PASS" if result.returncode == 0 else f"FAIL ({result.returncode})",
+        "PASS" if result.returncode == 0 else "UNAVAILABLE" if result.returncode == 77 else f"FAIL ({result.returncode})",
         flush=True,
     )
 (OUT / "results.json").write_text(json.dumps(results, indent=2) + "\n")

@@ -27,7 +27,7 @@ def main():
         "#pragma once",
         "#include <cstdint>",
         "namespace tt::clerks {",
-        "struct PetName { uint8_t gender; const char* name; };",
+        "struct PetName {\n    uint8_t gender;\n    const char* name;\n};",
         "inline constexpr PetName kPetNameRows[] = {",
     ]
     assert max(names) == 2712
@@ -43,8 +43,8 @@ def main():
             for index in ids
         ]
         lines.append("inline constexpr uint16_t k%sNames[] = {" % label)
-        for start in range(0,len(ids),16):
-            lines.append("    "+", ".join(map(str,ids[start:start+16]))+",")
+        for start in range(0, len(ids), 16):
+            lines.append("    " + ", ".join(map(str, ids[start : start + 16])) + ",")
         lines.append("};")
     lines.append("inline constexpr float kPetColors[26][4] = {")
     for color in PetDNA.AllPetColors:
@@ -68,7 +68,7 @@ def main():
         + "};"
     )
     lines.append(
-        "struct HoodPets { uint32_t zone; int low, high; uint8_t bodies[7]; uint8_t weights[7]; int count; };"
+        "struct HoodPets {\n    uint32_t zone;\n    int low;\n    int high;\n    uint8_t bodies[7];\n    uint8_t weights[7];\n    int count;\n};"
     )
     lines.append("inline constexpr HoodPets kHoodPets[] = {")
     for zone, weights in PetDNA.PetRarities["body"].items():
@@ -85,7 +85,7 @@ def main():
         )
     lines += [
         "};",
-        "struct KartItem { const char* name; int cost; int type; float color[4]; };",
+        "struct KartItem {\n    const char* name;\n    int cost;\n    int type;\n    float color[4];\n};",
         "inline constexpr KartItem kKartBodies[] = {",
     ]
     for item in KartDNA.KartDict.values():
@@ -109,7 +109,7 @@ def main():
         )
     lines += [
         "};",
-        "struct FishRarity { int genus, species, rarity; };",
+        "struct FishRarity {\n    int genus;\n    int species;\n    int rarity;\n};",
         "inline constexpr FishRarity kFishRarities[] = {",
     ]
     from toontown.fishing import FishGlobals

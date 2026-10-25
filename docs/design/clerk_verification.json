@@ -1,0 +1,71 @@
+{
+  "assets": {
+    "bytes": 3783884,
+    "files": 199,
+    "rebake": "byte-identical across independent baker processes"
+  },
+  "azahar": "not run (task prohibition)",
+  "branch": "clerks",
+  "build": "PASS; zero source warnings; external crtn.o GNU-stack warning",
+  "clerk_reference_cases": {
+    "fish_tanks": 1000,
+    "kart": 5000,
+    "pet": 1530
+  },
+  "client_fixture_modes": [
+    "stock",
+    "offers"
+  ],
+  "client_sanitizers": "PASS",
+  "date": "2026-10-25",
+  "dc_hash": 547155168,
+  "elf": {
+    "bss": 904560,
+    "data": 53764,
+    "text": 1641552,
+    "total": 2599876
+  },
+  "existing_suites": {
+    "anim": 0,
+    "battle_cam": 0,
+    "battle_fx": 0,
+    "book": 0,
+    "boss": 0,
+    "cannon_test": 0,
+    "catch_test": 0,
+    "cchar": 0,
+    "cog_thief_test": 0,
+    "cogbldg": 0,
+    "cogdo": 0,
+    "collision": 0,
+    "diving_test": 0,
+    "estate": 0,
+    "facility": 0,
+    "factory": 0,
+    "fishing": 0,
+    "golf_test": 0,
+    "ice_test": 0,
+    "level_games": 0,
+    "maze_test": 0,
+    "name": 0,
+    "nettest": 0,
+    "pairing_test": 0,
+    "pattern_test": 0,
+    "photo_test": 0,
+    "race_test": 0,
+    "racing": 0,
+    "ring_test": 0,
+    "shop": 0,
+    "suit": 77,
+    "tag_test": 0,
+    "tailor": 0,
+    "target_test": 0,
+    "toon_dna": 0,
+    "transition": 0,
+    "tug_test": 0,
+    "two_d_test": 0,
+    "vine_test": 0,
+    "zone": 0
+  },
+  "runtime_measurements": null
+}

@@ -1,6 +1,7 @@
 #include "net/client.h"
 #include "net/connection.h"
 #include "net/net_platform.h"
+#include "ui/clerk_rules.h"
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
@@ -64,7 +65,8 @@ int main(int argc, char **argv) {
     assert(!client.sendClerkKartAccessory(0));
     assert(!client.sendServiceFishSale(true));
     assert(!client.sendServiceClerkDone());
-    await([] { return client.inZone() && client.findNpc(200000103) && client.ownBook().tickets == 10000; });
+    await([] { return client.inZone() && client.findNpc(200000103) && client.ownBook().tickets == 10000 && client.ownFish().tankCount == 2; });
+    assert(client.clerkFishTotal() == 2 * (tt::clerks::fishValue(0, 0, 16) + tt::clerks::fishValue(1, 0, 40)));
     enter(200000100);
     assert(client.clerkSession().seedsReceived);
     assert(client.clerkSession().seedCount == (offers ? 6 : 0));
@@ -111,7 +113,7 @@ int main(int argc, char **argv) {
     enter(200000102);
     assert(client.sendServiceFishSale(true));
     await([] { return client.clerkSession().movie.mode == 0 && client.ownFish().tankCount == 0; });
-    terminal(200000102, 5);
+    terminal(200000102, 3);
     enter(200000102);
     assert(client.sendServiceFishSale(false));
     await([] { return client.clerkSession().movie.mode == 0; });

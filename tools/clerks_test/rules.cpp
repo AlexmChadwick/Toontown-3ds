@@ -66,4 +66,11 @@ int main() {
     }
     std::fclose(input);
     std::printf("Pinned FishTank totals: %d PASS\n", count);
+    input = std::fopen("sdmc-out/clerks-test/movies.bin", "rb");
+    assert(input);
+    int32_t modes[2];
+    assert(std::fread(modes,8,1,input)==1);
+    assert(modes[0]==kSellNoFish && modes[1]==kSellTrophy);
+    std::fclose(input);
+    std::printf("Pinned NPCToons SELL movie constants: PASS\n");
 }

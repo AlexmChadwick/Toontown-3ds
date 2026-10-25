@@ -2,7 +2,10 @@
 #pragma once
 #include <cstdint>
 namespace tt::clerks {
-struct PetName { uint8_t gender; const char* name; };
+struct PetName {
+    uint8_t gender;
+    const char* name;
+};
 inline constexpr PetName kPetNameRows[] = {
     {0, "Achilles"},
     {0, "Adolfo"},
@@ -3053,7 +3056,14 @@ inline constexpr float kPetColors[26][4] = {
 };
 inline constexpr double kBodyRarity[] = {0.19827586206896552,0.1896551724137931,0.16379310344827586,0.1724137931034483,0.12931034482758622,0.04310344827586207,0.0};
 inline constexpr const char* kBodyNames[] = {"dots","threeStripe","tigerStripe","tummy","turtle","giraffe","leopard"};
-struct HoodPets { uint32_t zone; int low, high; uint8_t bodies[7]; uint8_t weights[7]; int count; };
+struct HoodPets {
+    uint32_t zone;
+    int low;
+    int high;
+    uint8_t bodies[7];
+    uint8_t weights[7];
+    int count;
+};
 inline constexpr HoodPets kHoodPets[] = {
     {2000,100,500,{1,3,0},{50,30,20},3},
     {1000,600,1700,{1,3,0,2},{35,30,20,15},4},
@@ -3062,7 +3072,12 @@ inline constexpr HoodPets kHoodPets[] = {
     {3000,2500,4000,{1,3,0,2,4,5},{5,10,20,25,25,15},6},
     {9000,3000,5000,{1,3,0,2,4,5,6},{5,5,15,20,25,20,10},7},
 };
-struct KartItem { const char* name; int cost; int type; float color[4]; };
+struct KartItem {
+    const char* name;
+    int cost;
+    int type;
+    float color[4];
+};
 inline constexpr KartItem kKartBodies[] = {
     {"Cruiser",100,0,{1,1,1,1}},
     {"Roadster",7500,0,{1,1,1,1}},
@@ -3162,7 +3177,11 @@ inline constexpr KartItem kKartAccessories[] = {
     {"Plum",2500,1,{0.699999988f,0.699999988f,0.800000012f,1.0f}},
     {"Black",10000,1,{0.300000012f,0.300000012f,0.349999994f,1.0f}},
 };
-struct FishRarity { int genus, species, rarity; };
+struct FishRarity {
+    int genus;
+    int species;
+    int rarity;
+};
 inline constexpr FishRarity kFishRarities[] = {
     {0,0,1},
     {0,1,4},

@@ -4027,6 +4027,13 @@ constexpr const char* sig_setDNAString = "blob";
 constexpr const char* sig_setSpawnInfo = "u8,i16";
 } // namespace DistCogdoCraneCog
 
+namespace NewsManager {
+constexpr uint16_t kClassId = 175;
+constexpr uint16_t k_setHolidayIdList = 1125;
+constexpr uint16_t kw_setHolidayIdList = 0x006;
+constexpr const char* sig_setHolidayIdList = "u32[]";
+} // namespace NewsManager
+
 namespace FriendManager {
 constexpr uint16_t kClassId = 28;
 constexpr uint16_t k_friendQuery = 186;
@@ -4077,10 +4084,6 @@ constexpr uint16_t kClassId = 382;
 namespace DistributedTrophyMgr {
 constexpr uint16_t kClassId = 198;
 } // namespace DistributedTrophyMgr
-
-namespace NewsManager {
-constexpr uint16_t kClassId = 175;
-} // namespace NewsManager
 
 namespace SafeZoneManager {
 constexpr uint16_t kClassId = 178;

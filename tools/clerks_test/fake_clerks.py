@@ -5,6 +5,25 @@ stub pet/fish managers. Default nettest and production AI are unchanged.
 """
 
 import struct
+import ast
+from pathlib import Path
+from types import SimpleNamespace
+
+# Read literal constants without importing NPCToons' application initialization.
+_source = (
+    Path(__file__).resolve().parents[2]
+    / "ref/ref/open-toontown/toontown/toon/NPCToons.py"
+)
+_modes = {}
+for _node in ast.parse(_source.read_text()).body:
+    if isinstance(_node, ast.Assign):
+        for _target in _node.targets:
+            if isinstance(_target, ast.Name) and _target.id in (
+                "SELL_MOVIE_NOFISH",
+                "SELL_MOVIE_TROPHY",
+            ):
+                _modes[_target.id] = ast.literal_eval(_node.value)
+NPCToons = SimpleNamespace(**_modes)
 
 
 class ClerkFixture:
@@ -57,6 +76,18 @@ class ClerkFixture:
                     + data,
                 )
             )
+        cls = self.s.CLS["NewsManager"]
+        data = self.s.required_blob(cls, False, {})
+        data += self.s.other_blob(cls, [('setHolidayIdList','([98])')])
+        self.c.send(
+            self.s.msg(
+                self.s.CLIENT_ENTER_OBJECT_REQUIRED_OTHER,
+                struct.pack(
+                    "<IIIH", 200000104, self.s.DISTRICT_ID, self.s.TTC, cls.getNumber()
+                )
+                + data,
+            )
+        )
         self.owner("setMoney", "(1000)")
         self.owner("setBankMoney", "(5000)")
         self.owner("setTickets", f"({self.tickets})")
@@ -84,7 +115,7 @@ class ClerkFixture:
             if number == 200000102:
                 self.fisher_visits += 1
                 if self.fisher_visits == 2:
-                    self.movie(number, 5)
+                    self.movie(number, NPCToons.SELL_MOVIE_NOFISH)
                     self.clear(number)
                     return
                 self.owner("setFishTank", "([0],[0],[32])")
@@ -112,9 +143,9 @@ class ClerkFixture:
             if sell:
                 self.owner("setFishTank", "([],[],[])")
                 self.owner("setMoney", "(1042)")
-                self.movie(number, 7, "[10,70]")
+                self.movie(number, NPCToons.SELL_MOVIE_TROPHY, "[10,70]")
             else:
-                self.movie(number, 5)
+                self.movie(number, NPCToons.SELL_MOVIE_NOFISH)
             self.clear(number)
         elif name == "buyKart":
             costs = [100, 7500, 2500]

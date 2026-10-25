@@ -4,6 +4,36 @@
 #include "ui/clerk_rules.h"
 #include <cstring>
 namespace tt::net {
+static_assert(sizeof(ClerkMovie) == 56, "clerk FIFO budget");
+static_assert(sizeof(ClerkSession) == 100, "clerk session budget");
+static_assert(sizeof(ClerkProfile) == 36, "clerk owner-state budget");
+namespace {
+// PetConstants.PETCLERK_TIMER, KartShopGlobals.KARTCLERK_TIMER;
+// FishermanAI/PartyPersonAI.avatarEnter schedule their timeout after 30 seconds.
+constexpr uint32_t kPetKartTimeoutMs = 180000;
+constexpr uint32_t kFishPartyTimeoutMs = 30000;
+constexpr uint32_t kClerkEnterRetryMs = 5000;
+// ToontownGlobals JELLYBEAN_FISHING_HOLIDAY / _MONTH; FishGlobals multiplier=2.
+constexpr uint32_t kFishingHoliday = 98;
+constexpr uint32_t kFishingHolidayMonth = 114;
+bool readFishingHolidays(DatagramReader &reader, bool &holiday) {
+    const uint16_t bytes = reader.u16();
+    if (bytes % 4 || bytes > 1024) {
+        reader.fail();
+        return false;
+    }
+    bool found = false;
+    for (int index = 0; index < bytes / 4; ++index) {
+        const uint32_t id = reader.u32();
+        found |= id == kFishingHoliday || id == kFishingHolidayMonth;
+    }
+    if (!reader.ok())
+        return false;
+    holiday = found;
+    return true;
+}
+} // namespace
+
 #define TT_NET_UPDATE(writer, id, cls, field)                                                                  \
     static_assert((dc::cls::kw_##field & dc::kKwClsend) != 0, #cls "." #field " must be clsend");              \
     beginUpdate(writer, id, dc::cls::k_##field)
@@ -21,8 +51,11 @@ ClerkKind clerkKind(uint16_t id) {
 void Client::resetClerks(bool owner) {
     clerkSession_ = ClerkSession{};
     clerkHead_ = clerkTail_ = 0;
-    if (owner)
+    if (owner) {
         clerkProfile_ = ClerkProfile{};
+        clerkNewsManager_ = 0;
+        clerkFishHoliday_ = false;
+    }
 }
 bool Client::pollClerkMovie(ClerkMovie &movie) {
     if (clerkTail_ == clerkHead_)
@@ -37,7 +70,41 @@ bool Client::clerksOpen(ClerkKind kind) const {
            movie.avatar == avatarId_ && avatarId_ && movie.mode == 1 && !clerkSession_.finishing &&
            int32_t(movie.deadline - now_) > 0;
 }
+bool Client::handleClerksEnter(uint32_t id, uint16_t classId, DatagramReader &reader, const uint16_t *required,
+                               uint16_t count, bool other) {
+    if (classId != dc::NewsManager::kClassId)
+        return false;
+    bool holiday = false;
+    auto field = [&](uint16_t number) {
+        if (number == dc::NewsManager::k_setHolidayIdList)
+            readFishingHolidays(reader, holiday);
+        else
+            skipField(reader, number);
+    };
+    for (int index = 0; index < count && reader.ok(); ++index)
+        field(required[index]);
+    if (other) {
+        const uint16_t extras = reader.u16();
+        for (int index = 0; index < extras && reader.ok(); ++index)
+            field(reader.u16());
+    }
+    if (reader.ok()) {
+        clerkNewsManager_ = id;
+        clerkFishHoliday_ = holiday;
+        ++clerkProfile_.version;
+    }
+    return true;
+}
 bool Client::handleClerksField(DatagramReader &reader, uint32_t id, uint16_t field) {
+    if (id == clerkNewsManager_ && id && field == dc::NewsManager::k_setHolidayIdList) {
+        bool holiday = false;
+        if (readFishingHolidays(reader, holiday)) {
+            clerkFishHoliday_ = holiday;
+            ++clerkProfile_.version;
+            TT_LOG("clerks: recv setHolidayIdList fish multiplier %u", holiday ? 2 : 1);
+        }
+        return true;
+    }
     const NpcToon *npc = findNpc(id);
     if (!npc || clerkKind(npc->classId) == ClerkKind::None)
         return false;
@@ -56,6 +123,9 @@ bool Client::handleClerksField(DatagramReader &reader, uint32_t id, uint16_t fie
         if (!reader.ok())
             return true;
         TT_LOG("clerks: recv setPetSeeds clerk %u count %u", unsigned(id), unsigned(bytes / 4));
+        for (int index = 0; index < bytes / 4; ++index) {
+            TT_LOG("clerks: setPetSeeds[%d] %u", index, unsigned(seeds[index]));
+        }
         if (clerkSession_.pending == id || clerkSession_.movie.clerk == id) {
             std::memcpy(clerkSession_.seeds, seeds, sizeof(seeds));
             clerkSession_.seedCount = bytes / 4;
@@ -105,12 +175,14 @@ bool Client::handleClerksField(DatagramReader &reader, uint32_t id, uint16_t fie
     for (int index = 0; index < movie.numExtra; ++index) {
         TT_LOG("clerks: setMovie extra[%d] %u", index, unsigned(movie.extra[index]));
     }
+    TT_LOG("clerks: setMovie timestamp %d", int(stamp));
     const bool ours = movie.avatar == avatarId_ && avatarId_;
     if ((!ours && movie.mode != 0) || (movie.mode == 0 && clerkSession_.movie.clerk != id))
         return true;
     if (movie.mode == 1 && clerkSession_.pending != id && clerkSession_.movie.clerk != id)
         return true;
-    const uint32_t window = (kind == ClerkKind::Pet || kind == ClerkKind::Kart) ? 180000 : 30000;
+    const uint32_t window =
+        (kind == ClerkKind::Pet || kind == ClerkKind::Kart) ? kPetKartTimeoutMs : kFishPartyTimeoutMs;
     uint32_t start = now_;
     if (timeSynced_) {
         const uint32_t local = networkToLocal(stamp, now_);
@@ -132,6 +204,7 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
     if (field == dc::DistributedToon::k_setPetId) {
         const uint32_t pet = reader.u32();
         if (reader.ok()) {
+            TT_LOG("clerks: owner setPetId %u", unsigned(pet));
             clerkProfile_.petId = pet;
             ++clerkProfile_.version;
         }
@@ -148,6 +221,7 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
                 reader.fail();
                 return true;
             }
+        TT_LOG("clerks: owner setKartAccessoriesOwned");
         std::memcpy(clerkProfile_.accessories, owned, sizeof(owned));
         for (int8_t entry : owned)
             if (entry == clerkSession_.pendingAccessory)
@@ -171,6 +245,7 @@ bool Client::clerksOwnField(DatagramReader &reader, uint16_t field) {
             reader.fail();
             return true;
         }
+        TT_LOG("clerks: owner kart field %d value %d", index, value);
         clerkProfile_.kart[index] = value;
         if (index == 0 && value == clerkSession_.pendingBody)
             clerkSession_.pendingBody = -1;
@@ -183,7 +258,7 @@ bool Client::sendServiceClerkEnter(uint32_t id) {
     const auto *npc = findNpc(id);
     if (state_ != State::InZone || !npc || clerkKind(npc->classId) == ClerkKind::None)
         return false;
-    if (clerkSession_.pending && now_ - clerkSession_.pendingMs < 5000)
+    if (clerkSession_.pending && now_ - clerkSession_.pendingMs < kClerkEnterRetryMs)
         return false;
     if (clerkSession_.movie.mode == 1 && int32_t(clerkSession_.movie.deadline - now_) > 0)
         return false;
@@ -201,7 +276,7 @@ int Client::clerkFishTotal() const {
     int total = 0;
     for (int index = 0; index < ownFish_.tankCount && index < kMaxFishTank; ++index)
         total += clerks::fishValue(ownFish_.genus[index], ownFish_.species[index], ownFish_.weight[index]);
-    return total;
+    return total * (clerkFishHoliday_ ? 2 : 1);
 }
 bool Client::sendPetAdopt(uint8_t index, uint32_t name) {
     if (!clerksOpen(ClerkKind::Pet) || clerkSession_.petAction || index >= clerkSession_.seedCount ||

@@ -633,9 +633,10 @@ int main() {
             const bool kart = !strcmp(label, "clerk: kart shop");
             const bool fisherman = !strcmp(label, "clerk: fisherman");
             const u32 target = pet ? 2522 : kart ? 8501 : 2000;
-            if (place.zoneId() != target)
-                uiState.teleportRequest = target;
-            else if (netStarted && net.inZone() && transition.idle()) {
+            if (place.zoneId() != target) {
+                if (!uiState.teleportRequest && transition.idle())
+                    uiState.teleportRequest = target;
+            } else if (netStarted && net.inZone() && transition.idle()) {
                 const uint16_t type = pet         ? tt::dc::DistributedNPCPetclerk::kClassId
                                       : kart      ? tt::dc::DistributedNPCKartClerk::kClassId
                                       : fisherman ? tt::dc::DistributedNPCFisherman::kClassId
@@ -2018,7 +2019,9 @@ int main() {
     golf.shutdown();
     trolley.shutdown();
     boat.shutdown();
-    clerkKartPreview.shutdown(); // clerks: release preview before the loader
+    // ---- clerks: release preview before the loader ----
+    clerkKartPreview.shutdown();
+    // ---- end clerks ----
     tt::world::AssetLoader::shutdown();
     suits.shutdown();
     battleFx.shutdown();

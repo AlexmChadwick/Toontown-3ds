@@ -218,7 +218,10 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_TextBufClear(textBuf_);
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
-    if (serviceClerks_.active()) { serviceClerks_.draw(); return; } // clerks
+    if (serviceClerks_.active()) { // clerks
+        serviceClerks_.draw();
+        return;
+    }
     if (book_.isOpen()) {
         BookDrawContext bdc;
         bdc.stats = c.stats;
@@ -427,9 +430,13 @@ void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
         // ---- clerks: show only the AI's current pet association ----
         if (c.clerkProfile) {
-            text(6,6,.38f,kWhite,"Doodle: %s",c.clerkProfile->petId ? (c.petName ? c.petName : "Owned (at estate)") : "None");
+            const char* petName = c.clerkProfile->petId
+                ? (c.petName ? c.petName : "Owned (at estate)") : "None";
+            text(6, 6, .38f, kWhite, "Doodle: %s", petName);
             quest_.drawTasks(*c.quests, 28, 170);
-        } else quest_.drawTasks(*c.quests, 6, 170);
+        } else {
+            quest_.drawTasks(*c.quests, 6, 170);
+        }
         // ---- end clerks ----
         C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
         text(72, 180, 0.42f, kBg, "Open Shtiker Book (START)");

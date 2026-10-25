@@ -880,3 +880,56 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
   - Country club: mole field `setGameStart` (60 s, target 7) and golf `acceptJoin`: PASS.
   - fps: 27–30 on steps without screenshot series, about 20 with them (each dump costs about
     100 ms; the ~113 ms "cpu" lines alternate with ~4 ms ones).
+
+
+## 2026-10-25 — clerks branch: host/build/offscreen verification
+
+- **Scope:** native Pet/Kart/Fisherman/Party sessions, seed generation, owner pet/
+  kart resends, exact ordinary/holiday fish quotes, confirmation UI, real-anchor
+  diagnostics and streamed kart preview. No Azahar, hardware, live AI, push or
+  merge was run for this task. Emulator/hardware functionality remains unverified.
+- **Build:** required devkitARM `make -j4` succeeds, zero warnings in `source/`.
+  The external toolchain `crtn.o` still emits its GNU-stack linker warning.
+  DC regenerated with isolated stock Python; hash remains 547155168.
+- **Clerk ASan/UBSan:** 1,530 real PetUtil vectors across six safezones (DNA,
+  suggested name, trait seed, exact cost), 5,000 real KartDNA prices/ownership
+  cases, 1,000 real FishTank totals, real NPCToons SELL mode constants: PASS.
+  Real Client every truncated movie/seed/11 owner-field prefix, wrong avatar/
+  NPC class, expiry, funds, reset, holiday update/truncation/removal and ordered
+  terminal/CLEAR: PASS. Real Client/Connection with Panda/DC-packed optional fake
+  clerk fixtures (`stock` empty seeds, `offers` six seeds), every new outgoing RPC,
+  NewsManager generate, authoritative pet/kart/ticket resends: PASS, no EJECT.
+  Positive adoption/return/fish-credit fixture results do not claim stock support.
+- **Existing suites:** 39 PASS, including baseline nettest (unit/Panda vectors,
+  login, two clients, suit spawn/path updates, heartbeat, reconnect), shop 20,000
+  cases, tailor, book, fishing, animation, toon DNA, zones, estates/racing,
+  facility/factory/cog building, all 17 trolley logic suites, name, transition,
+  terrain+assembled collision, boss and Cogdo. Local runner copies fix existing
+  worktree resource assumptions and missing name_tables.cpp link inputs; protected
+  runtime/test files are unchanged.
+- **One unavailable legacy suite:** suit-path ground truth needs the absent
+  `tools/server/.venv` Panda3D fork (`panda3d.toontown`). Isolated local runner
+  reports exit 77. No other checkout was accessed to borrow it. This is not a PASS;
+  the all-host-tests requirement cannot be fully verified in this environment.
+- **Assets:** 198 original kart body/component TTMs + manifest, 3,783,884 bytes.
+  Every header/batch/index/texture/budget/hash passes. Fresh-process rebake of all
+  199 outputs, including manifest, is byte-identical. Independent decoded TTM
+  offscreen image inspected for all three bodies and attachments; no Azahar.
+- **Budgets:** worst resident equipped body by independent component maxima:
+  body0 1,231 triangles / 21 batches / 25,018 B geometry / 223,648 B textures;
+  body1 1,161 / 21 / 24,214 / 252,288;
+  body2 1,141 / 24 / 24,526 / 207,264. Seven models maximum; enforced aggregate
+  caps 512 KiB geometry and 1 MiB textures. Fixed protocol sizes: 56 B movie,
+  100 B session, 36 B profile, 896 B FIFO (ARM static assertions).
+  ELF text/data/bss = 1,641,552 / 53,764 / 904,560 = 2,599,876 B (<4 MiB).
+- **Runtime FPS/frame time, heap, linear and VRAM:** not measured; no emulator or
+  hardware run was permitted. Main agent must log those in Old 3DS mode.
+- **Stock-source limits:** empty Doodle offers and missing pet create/delete
+  methods; no AI fishManager for positive sales; parties disabled. Stock expected
+  paths are pet cancel modes 1→11→0, empty fisherman 3→0, party 6→0. Kart purchases
+  work in AI if funded, end 1→2→0, tickets change only by owner resend.
+- **Azahar handoff:** install committed `clerks/karts/` SD kit; run five `clerk:`
+  labels and manually verify confirmations/cancel, live ticket updates, all body/
+  accessory/paint previews, no-assets hint, timeout/zone-exit cleanup and pet Toon
+  tab. Exact zones, DNA anchors, logs and unsupported positive paths are in
+  `docs/design/clerks.md`. Do not expect stock adoption, fish credit or parties.

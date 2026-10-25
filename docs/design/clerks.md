@@ -209,7 +209,11 @@ Each column independently sums the worst component in every category. Header
 preflight and baker enforce **512 KiB geometry / 1 MiB textures**, including all
 seven component models. These sit within the shared zone linear pools; the
 existing global loader budget still applies. CPU metadata and cached panel text
-use regular heap, not per-frame allocations. See clerk_karts.json and
+use regular heap, not per-frame allocations. ARM-checked fixed protocol state is
+56 bytes/movie, 100/session, 36/profile and 896/FIFO; counters and holiday state
+bring the added Client fields to approximately 1,048 bytes. Worst resident kart
+texture descriptor count is 16. The final ELF text/data/bss totals 2,599,876 bytes
+(1,641,552 / 53,764 / 904,560), below the 4 MiB code/static budget. See clerk_karts.json and
 clerk_reproducibility.json for all hashes, byte counts and per-model costs.
 
 ## Fisherman and fish selling
@@ -262,6 +266,10 @@ backs out, then closes a visit. Pet Y switches gender; left/right selects a name
 Adoption replacement, return and kart purchases each have explicit confirmation.
 Movement and jump are frozen while the bottom panel owns input; busy state,
 countdown, wallet+bank, tickets and fish totals are visible.
+
+To run just these steps with the existing world autotest, write `only clerk:`
+to `sdmc:/3ds/toontown3ds/autotest`. Ensure `autotest_fe` is absent, because its
+presence selects the separate front-end script. The filter selects all five labels.
 
 Autotest steps locate the actual network NPC and DNA anchor, request the normal
 zone through the existing teleport request, walk away briefly to release any
@@ -329,3 +337,14 @@ owner updates. Its positive fish-sale and Doodle create/delete branches are
 **fixtures**, not upstream implementations. First party visit mirrors COMINGSOON;
 second START/answer(0) is a fixture for the defensive decline path. The ordinary
 nettest server behavior is unchanged when the option is omitted.
+
+### Verification availability
+
+On this worktree, 39 existing host suites (including nettest and shop) pass. The
+40th, suit-path ground truth, is unavailable: tools/server/.venv and its
+panda3d.toontown fork are absent. Its original runner also assumed ref/resources;
+the local runner corrects that path and returns 77 with the missing dependency,
+rather than substituting a native implementation for the upstream reference.
+No other checkout was opened to borrow that environment. The existing nettest's
+suit spawn/path update checks still pass. Supply the fork inside this worktree
+(or TT_SERVER_PY) to run that separate reference suite.

@@ -1,6 +1,9 @@
 #pragma once
 #include <cstdint>
 namespace tt::clerks {
+// NPCToons.py SELL_MOVIE_*; party modes have a separate numbering scheme.
+constexpr uint8_t kSellNoFish = 3;
+constexpr uint8_t kSellTrophy = 4;
 constexpr int kPetNames = 2713; // TTLocalizer.PetNameIndexMAX
 constexpr int kPetOffers = 6;   // Three sorted seeds, duplicated for PetGenders.
 constexpr int kKartFields = 9;  // KartDNA

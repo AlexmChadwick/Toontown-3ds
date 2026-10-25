@@ -69,10 +69,10 @@ void ServiceClerkPanel::update(net::Client &client, uint32_t now) {
                 result(kind_ == net::ClerkKind::Kart ? "Thanks for visiting the kart shop!"
                                                      : "Thank you for the fish!");
                 break;
-            case 5:
+            case clerks::kSellNoFish:
                 result("Your fish tank is empty.");
                 break;
-            case 7:
+            case clerks::kSellTrophy:
                 std::snprintf(message_, sizeof(message_), "Fishing trophy! %u of %u species collected.",
                               unsigned(movie.extra[0]), unsigned(movie.extra[1]));
                 page_ = Page::Result;
@@ -352,7 +352,10 @@ void ServiceClerkPanel::rebuild() {
         std::snprintf(strings_[3], 128, "%s", message_);
     else if (page_ == Page::Menu) {
         if (kind_ == net::ClerkKind::Pet) {
-            const char *rows[] = {"Sell fish", "Adopt a Doodle", "Return Doodle (confirm)", "Done"};
+            const char *returnLabel = !client_->clerkProfile().petId ? "No Doodle to return"
+                                      : !session.seedCount           ? "Return unavailable on this server"
+                                                                     : "Return Doodle (confirm)";
+            const char *rows[] = {"Sell fish", "Adopt a Doodle", returnLabel, "Done"};
             for (int index = 0; index < 4; ++index)
                 std::snprintf(strings_[3 + index], 128, "%s %s", selection_ == index ? ">" : " ", rows[index]);
             std::snprintf(strings_[7], 128, "Tank: %d fish, value %d beans", tank_, client_->clerkFishTotal());
@@ -372,11 +375,14 @@ void ServiceClerkPanel::rebuild() {
                                                 : "Waiting for the server's Doodle seeds...");
         else {
             const float *color = clerks::petColor(pet_.dna[4], pet_.dna[5]);
+            const float shade = .8f + .05f * pet_.dna[6];
             std::snprintf(strings_[3], 128, "Choice %d of 3: %s", offer_ / 2 + 1, clerks::petName(name_));
             std::snprintf(strings_[4], 128, "Doodle: %s  %d jellybeans", clerks::kBodyNames[pet_.dna[4]],
                           pet_.cost);
             std::snprintf(strings_[5], 128, "%s  RGB %u,%u,%u", offer_ % 2 ? "Boy" : "Girl",
-                          unsigned(color[0] * 255), unsigned(color[1] * 255), unsigned(color[2] * 255));
+                          unsigned(std::min(1.0f, color[0] * shade) * 255),
+                          unsigned(std::min(1.0f, color[1] * shade) * 255),
+                          unsigned(std::min(1.0f, color[2] * shade) * 255));
             std::snprintf(strings_[6], 128, "Y: gender   Left/Right: name");
             if (page_ == Page::ConfirmAdopt)
                 std::snprintf(strings_[7], 128, "%s",
@@ -403,7 +409,7 @@ void ServiceClerkPanel::rebuild() {
             std::snprintf(strings_[7], 128, "Waiting for the AI's ticket/DNA update...");
     }
     if (kind_ == net::ClerkKind::Kart && previewFailed_)
-        std::snprintf(strings_[8],128,"Preview assets unavailable. Install clerks/karts.");
+        std::snprintf(strings_[8], 128, "Preview assets unavailable. Install clerks/karts.");
     std::snprintf(strings_[9], 128, "Prev       Next       A: choose       B: back");
     C2D_TextBufClear(buffer_);
     count_ = 10;

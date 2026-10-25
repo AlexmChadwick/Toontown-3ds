@@ -84,3 +84,10 @@ for _ in range(1000):
     )
 (out / "fish.bin").write_bytes(b"".join(records))
 print("Pinned FishTank sale-total vectors:", len(records))
+
+builtins.simbase.config = {}
+from toontown.toon import NPCToons
+
+(out / "movies.bin").write_bytes(
+    struct.pack("<ii", NPCToons.SELL_MOVIE_NOFISH, NPCToons.SELL_MOVIE_TROPHY)
+)
