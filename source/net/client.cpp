@@ -1332,8 +1332,7 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
                 if (status == 1) {
                     avatars_[i].nameState = static_cast<uint8_t>(NameState::Locked);
                     if (pendingPatternName_[0] != '\0') {
-                        strncpy(avatars_[i].name, pendingPatternName_, sizeof(avatars_[i].name) - 1);
-                        avatars_[i].name[sizeof(avatars_[i].name) - 1] = '\0';
+                        snprintf(avatars_[i].name, sizeof(avatars_[i].name), "%s", pendingPatternName_);
                     }
                 }
                 break;
@@ -1341,8 +1340,7 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
         }
         if (state_ == State::CreateAvatar && pendingNameAction_ == 1) {
             if (status == 1 && pendingPatternName_[0] != '\0') {
-                strncpy(ownName_, pendingPatternName_, sizeof(ownName_) - 1);
-                ownName_[sizeof(ownName_) - 1] = '\0';
+                snprintf(ownName_, sizeof(ownName_), "%s", pendingPatternName_);
             }
             sendRequestPlayAvatar(avatarId_);
             setState(State::PlayAvatar);
@@ -1359,8 +1357,7 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
                 } else if (status == 2) {
                     avatars_[i].nameState = static_cast<uint8_t>(NameState::Locked);
                     if (pendingTypedName_[0] != '\0') {
-                        strncpy(avatars_[i].name, pendingTypedName_, sizeof(avatars_[i].name) - 1);
-                        avatars_[i].name[sizeof(avatars_[i].name) - 1] = '\0';
+                        snprintf(avatars_[i].name, sizeof(avatars_[i].name), "%s", pendingTypedName_);
                     }
                 }
                 break;
@@ -2832,8 +2829,7 @@ void Client::setPendingPatternName(int16_t p1, uint8_t f1, int16_t p2, uint8_t f
 void Client::setPendingTypedName(const char* name) {
     pendingNameAction_ = 2;
     if (name) {
-        strncpy(pendingTypedName_, name, sizeof(pendingTypedName_) - 1);
-        pendingTypedName_[sizeof(pendingTypedName_) - 1] = '\0';
+        snprintf(pendingTypedName_, sizeof(pendingTypedName_), "%s", name);
     } else {
         pendingTypedName_[0] = '\0';
     }
