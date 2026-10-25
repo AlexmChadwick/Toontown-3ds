@@ -14,6 +14,32 @@ namespace tt::net {
 
 namespace {
 
+// Every field this file parses: a DC layout change must fail the build, not the generate.
+#define TT_GSIG(cls, field, expect) \
+    static_assert(dc::sigEq(dc::cls::sig_##field, expect), #cls "." #field " layout changed")
+TT_GSIG(DistributedGolfKart, setGolfCourse, "i8");
+TT_GSIG(DistributedGolfKart, setPosHpr, "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10");
+TT_GSIG(DistributedGolfKart, setState, "string,i16");
+TT_GSIG(DistributedGolfKart, fillSlot0, "u32");
+TT_GSIG(DistributedGolfKart, fillSlot3, "u32");
+TT_GSIG(DistributedGolfKart, emptySlot0, "u32,i16");
+TT_GSIG(DistributedGolfKart, emptySlot3, "u32,i16");
+TT_GSIG(DistributedGolfKart, setGolfZone, "u32,u16");
+TT_GSIG(DistributedGolfCourse, setGolferIds, "u32[]");
+TT_GSIG(DistributedGolfCourse, setCourseId, "i8");
+TT_GSIG(DistributedGolfCourse, setCurHoleIndex, "i8");
+TT_GSIG(DistributedGolfCourse, setCurHoleDoId, "u32");
+TT_GSIG(DistributedGolfCourse, setCourseReady, "i8,i16[],i8");
+TT_GSIG(DistributedGolfCourse, setScores, "i16[]");
+TT_GSIG(DistributedGolfCourse, setCourseAbort, "u32");
+TT_GSIG(DistributedGolfHole, setHoleId, "i8");
+TT_GSIG(DistributedGolfHole, setTimingCycleLength, "u32/1000");
+TT_GSIG(DistributedGolfHole, setGolfCourseDoId, "u32");
+TT_GSIG(DistributedGolfHole, setGolferIds, "u32[]");
+TT_GSIG(DistributedGolfHole, golfersTurn, "u32");
+TT_GSIG(DistributedGolfHole, golferChooseTee, "u32");
+#undef TT_GSIG
+
 void readU32Array(DatagramReader& r, uint32_t* out, int cap, int& count) {
     const uint16_t bytes = r.u16();
     count = 0;
@@ -49,6 +75,7 @@ bool Client::applyGolfKartField(GolfKart& k, DatagramReader& r, uint16_t fieldId
         k.h = r.i16() / 10.0f; k.p = r.i16() / 10.0f; k.r = r.i16() / 10.0f;
     } else if (fieldId == G::k_setState) {
         r.string(k.state, sizeof(k.state));
+        r.i16(); // timestamp: the kart's countdown is drawn from our own clock
         k.stateMs = now_;
     } else if (fieldId >= G::k_fillSlot0 && fieldId <= G::k_fillSlot3) {
         k.slots[fieldId - G::k_fillSlot0] = r.u32();

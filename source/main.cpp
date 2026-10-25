@@ -732,11 +732,18 @@ int main() {
             }
         }
         // ---- end clerks ----
-        if (autotest.active() && !strcmp(autotest.label(), "swim: harbor") && autotest.stepBegan() &&
-            place.zoneId() == 1000) {
+        if (autotest.active() && !strcmp(autotest.label(), "swim: harbor")) {
             // Test-only: drop into Donald's Dock harbour (open water south of the west pier) and
-            // swim forward with the normal camera (DDPlayground.__checkToonUnderwater).
-            player.reset(0.0f, -40.0f, 2.0f, 180.0f);
+            // swim forward with the normal camera (DDPlayground.__checkToonUnderwater). Started
+            // elsewhere, teleport there first.
+            static bool dropped = false;
+            if (autotest.stepBegan()) dropped = false;
+            if (place.zoneId() != 1000 && !uiState.teleportRequest && transition.idle()) {
+                uiState.teleportRequest = 1000;
+            } else if (place.zoneId() == 1000 && transition.idle() && !dropped) {
+                player.reset(0.0f, -40.0f, 2.0f, 180.0f);
+                dropped = true;
+            }
         }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit") && autotest.stepTime() > 9.0f) {
             tailor.cancel(); // never leave the session open (DistributedNPCTailorAI unexpected-exit bug)
