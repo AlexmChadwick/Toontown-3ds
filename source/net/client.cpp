@@ -452,6 +452,12 @@ void Client::fail(const char* why, bool retry) {
     TT_LOG("net: error in %s: %s", stateName(state_), why);
     // A VP dynamic zone is destroyed when its riders disconnect. Reconnect to
     // the static lobby instead of requesting an interest in the abandoned office.
+    // ---- CEO boss reconnect: dynamic banquet zones cannot be rejoined. ----
+    if (boss_.active && boss_.kind == BossKind::Bossbot) {
+        cfg_.zoneId = 10100;
+        targetZone_ = 10100;
+        numVisZones_ = 0;
+    }
     if (boss_.active && boss_.kind == BossKind::Lawbot) {
         cfg_.zoneId = 13100;
         targetZone_ = 13100;

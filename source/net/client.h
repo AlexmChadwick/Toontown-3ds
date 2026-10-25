@@ -36,6 +36,7 @@
 #include "net/book_net.h"
 #include "net/boss_state.h"
 #include "net/cj_state.h"
+#include "net/ceo_state.h"
 
 namespace tt::net {
 
@@ -1756,9 +1757,23 @@ private:
     uint32_t bytesIn_ = 0, bytesOut_ = 0, msgsIn_ = 0, msgsOut_ = 0;
     // ===================== boss protocol (client_boss.cpp) =====================
 public:
+    const CeoChild& ceoChildSlot(int slot) const { return ceoChildren_[slot]; }
+    const CeoChild* findCeoChild(uint32_t id) const;
+    bool sendCeoControl(uint32_t id, bool enter, bool hit = false);
+    bool sendCeoAim(uint32_t id, uint8_t sequence, float heading);
+    bool sendCeoWater(uint32_t id, const float endpoints[6]);
+    bool sendCeoWaterHit(uint32_t id, uint8_t damage);
+    bool sendCeoGolf(uint32_t id, uint8_t power, float angle, uint8_t sequence);
+    bool sendCeoBallHit(uint32_t id, uint8_t damage);
+    bool sendCeoFood(int8_t belt, int8_t slot, uint32_t sequence, bool toonup = false);
+    bool sendCeoServe(uint32_t table, uint8_t seat);
+    enum class CeoTableAction { Reached, Hit, Away };
+    bool sendCeoTable(uint8_t index, CeoTableAction action);
+    bool sendCeoZap(float x, float y, float z, float heading, uint8_t attack);
     const BossState* boss() const { return boss_.active ? &boss_ : nullptr; }
     uint16_t bossPies() const { return bossPies_; }
     unsigned bossSummonsCount() const;
+    uint8_t bossPinkSlips() const { return bossPinkSlips_; }
     uint8_t bossPieType() const { return bossPieType_; }
     const CjChild& cjChildSlot(int index) const { return cjChildren_[index]; }
     const CjChild* findCjChild(uint32_t doId) const;
@@ -1814,9 +1829,16 @@ private:
     CfoChild* cfoChild(uint32_t doId);
     CfoChild cfoChildren_[kMaxCfoChildren];
     bool cfoRewardSent_ = false;
+    bool handleCeoEnter(uint32_t id, uint16_t classId, DatagramReader& reader,
+                        const uint16_t* required, uint16_t count, bool other);
+    bool handleCeoField(DatagramReader& reader, uint32_t id, uint16_t field);
+    bool ceoParticipant(const char* phase) const;
+    CeoChild* ceoChild(uint32_t id);
+    CeoChild ceoChildren_[kMaxCeoChildren];
     BossState boss_;
     uint16_t bossPies_ = 0;
     uint8_t bossPieType_ = 0;
+    uint8_t bossPinkSlips_ = 0;
     uint8_t bossSummons_[32] = {}; // Owner inventory, updated only by the AI.
     // ===================== end boss protocol =====================
 
