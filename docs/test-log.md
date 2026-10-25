@@ -951,3 +951,27 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
   accessory/paint previews, no-assets hint, timeout/zone-exit cleanup and pet Toon
   tab. Exact zones, DNA anchors, logs and unsupported positive paths are in
   `docs/design/clerks.md`. Do not expect stock adoption, fish credit or parties.
+
+### 2026-10-25 — perf host/build verification (no emulator/hardware)
+
+- Native devkitARM make -j4 succeeds, zero source warnings; linker emits its
+  existing third-party crtn.o executable-stack note.
+- Perf harness passes: exclusive/wait/capture/hitch attribution, 10,000 equivalent
+  render matrices, stable nearest-six ties/health, exact text/cache invalidation,
+  572-entity factory spec/cache, bounded asynchronous descriptor lifecycle and
+  405 projection points. ASan/UBSan used for lifecycle/cache/profiler/parser tests.
+- Host final sample: matrix 8.77→5.40 ns (1.62x); factory 128-entity preparation
+  7346.6→304.8 ns (24.10x); Cogdo selection 293.0→125.3 ns (2.34x).
+  Shared-instance tint/texture/VBO state calls 128→1; unchanged 80-label parses
+  800000→80. These are host measurements, not native frame-time claims.
+- 41 existing suites PASS, including interior-life byte-identical rebakes.
+  Suit ground-truth suite UNAVAILABLE (77): own server Panda3D fork is absent;
+  no other checkout was accessed to borrow it. All-host-pass requirement remains
+  unverified for that dependency. Individual logs/results retained in sdmc-out/perf.
+- Base ELF text/data/bss 1664592/56380/908832 B; optimized
+  1704432/100180/968840 B, total 2773452 B (<4 MiB). Main prologue frame
+  18144→77552 B within unchanged 256 KiB stack. Heap/linear reservations remain
+  24/24 MiB, VRAM capacity 6 MiB. Runtime peaks and FPS are unmeasured.
+- No Azahar or hardware was run (task prohibition). Main agent must execute the
+  exact labels and A/B procedure in docs/design/performance.md and append real
+  fps, busy/max, heap/linear/VRAM, draw/state counters and visual comparison.

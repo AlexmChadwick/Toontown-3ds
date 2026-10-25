@@ -660,3 +660,22 @@ camera/movie/transition files were edited.
   tint; variant Doodle geometry is outside this change.
 - Host verification and offscreen decoded-asset checks are recorded in test-log.
   No emulator/hardware claim is made: this task explicitly prohibited Azahar.
+
+### Performance profiling and bounded streaming (perf, 2026-10-25)
+
+Every frame owner separates update/draw/load publication/UI/GPU wait/audio; tails
+are `other`. Screenshot I/O is `shot`; autotest `shots off` disables dumps without
+changing inputs/timings. Frames >=100 ms log a hitch immediately. Compare corrected
+profiler baselines: former early-owner busy included wait and capture I/O could
+inflate dplace. Stats count actual uniform/texture/VBO API calls.
+
+Renderer state reuse preserves ordered draws and invalidates at shader/morph and
+world/2D boundaries. Fixed exact text keys retain original C2D glyph buffers.
+Facility draw data depends on immutable spec revision; dynamic gameplay stays live.
+Model/anim batches use the shared loader's existing 24 slots, <=4 active per batch,
+and publish/replace/free GPU data only at the completed-frame fence. Facility entry
+holds the entrance with a loading indicator until initial chunks/props complete;
+later PVS streaming does not freeze movement. Do not add an IO-thread allocation
+or LinearGuard around file reads. Native timings/resident peaks remain unmeasured;
+see docs/design/performance.md for host evidence, fixed costs and required Azahar
+A/B checks. This task prohibited emulator execution.
