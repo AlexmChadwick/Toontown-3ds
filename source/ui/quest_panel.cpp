@@ -20,10 +20,6 @@ const u32 kInk = C2D_Color32(0x30, 0x28, 0x20, 0xFF);
 
 constexpr float kCardY = 26, kCardH = 58, kCancelY = 210;
 
-bool inRect(const touchPosition& t, float x, float y, float w, float h) {
-    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
-}
-
 } // namespace
 
 bool QuestPanel::init() {
@@ -34,6 +30,7 @@ bool QuestPanel::init() {
 void QuestPanel::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
     buf_ = nullptr;
+    focus_.clear();
 }
 
 void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth, const char* s) {
@@ -47,30 +44,54 @@ void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth,
 }
 
 u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Talk& talk) {
-    const bool tap = keysDown & KEY_TOUCH;
+    const bool tap = (keysDown & KEY_TOUCH) != 0;
     switch (talk.phase()) {
     case quest::Talk::Phase::Pages:
+        focus_.clear();
+        focus_.addItem(0, 110, kCancelY, 100, 26);
+        if (!focus_.hasFocus()) focus_.setFocus(0);
         if ((keysDown & KEY_A) || tap) talk.advance();
         break;
-    case quest::Talk::Phase::QuestChoice:
-        if (tap) {
-            for (int i = 0; i < talk.numChoices(); i++) {
-                if (inRect(touch, 4, kCardY + i * (kCardH + 4), kW - 8, kCardH)) talk.chooseQuest(i);
-            }
-            if (inRect(touch, 110, kCancelY, 100, 26)) talk.chooseQuest(-1);
+    case quest::Talk::Phase::QuestChoice: {
+        const int prevId = focus_.focusedId();
+        focus_.clear();
+        for (int i = 0; i < talk.numChoices(); i++) {
+            focus_.addItem(i, 4, kCardY + i * (kCardH + 4), kW - 8, kCardH);
         }
-        if (keysDown & KEY_B) talk.chooseQuest(-1);
-        break;
-    case quest::Talk::Phase::TrackChoice:
-        if (tap) {
-            for (int i = 0; i < talk.numTracks(); i++) {
-                if (inRect(touch, 4 + (i % 2) * 158, kCardY + (i / 2) * 40, 154, 36)) talk.chooseTrack(i);
-            }
-            if (inRect(touch, 110, kCancelY, 100, 26)) talk.chooseTrack(-1);
+        focus_.addItem(99, 110, kCancelY, 100, 26);
+        if (prevId >= 0) focus_.setFocusById(prevId);
+        if (!focus_.hasFocus()) focus_.setFocus(0);
+
+        int activated = -1;
+        focus_.handleInput(keysDown, touch, &activated);
+        if (activated >= 0 && activated < talk.numChoices()) {
+            talk.chooseQuest(activated);
+        } else if (activated == 99 || (keysDown & KEY_B)) {
+            talk.chooseQuest(-1);
         }
-        if (keysDown & KEY_B) talk.chooseTrack(-1);
         break;
+    }
+    case quest::Talk::Phase::TrackChoice: {
+        const int prevId = focus_.focusedId();
+        focus_.clear();
+        for (int i = 0; i < talk.numTracks(); i++) {
+            focus_.addItem(i, 4 + (i % 2) * 158, kCardY + (i / 2) * 40, 154, 36);
+        }
+        focus_.addItem(99, 110, kCancelY, 100, 26);
+        if (prevId >= 0) focus_.setFocusById(prevId);
+        if (!focus_.hasFocus()) focus_.setFocus(0);
+
+        int activated = -1;
+        focus_.handleInput(keysDown, touch, &activated);
+        if (activated >= 0 && activated < talk.numTracks()) {
+            talk.chooseTrack(activated);
+        } else if (activated == 99 || (keysDown & KEY_B)) {
+            talk.chooseTrack(-1);
+        }
+        break;
+    }
     default:
+        focus_.clear();
         break;
     }
     return keysDown;
@@ -124,6 +145,7 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
     default:
         break;
     }
+    if (talk.phase() != quest::Talk::Phase::Waiting) focus_.drawHighlight();
 }
 
 void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
