@@ -1,7 +1,8 @@
-#include "core/profile.h"
 #include "world/cogdo_runtime.h"
 #include "audio/audio.h"
 #include "core/log.h"
+#include "core/nearest.h"
+#include "core/profile.h"
 #include "core/screenshot.h"
 #include "net/net_platform.h"
 #include "ui/sos_tables.h"
@@ -291,21 +292,13 @@ void CogdoRuntime::maze(BossFrame &frame, const net::CogdoState &game, uint32_t 
     }
     // Draw only the six nearest actors. Simulation and hit tests keep every suit.
     bool visible[kCogdoMazeSuits] = {};
-    for (int slot = 0; slot < 6; ++slot) {
-        int candidate = -1;
-        float closest = 1e12f;
-        for (int index = 0; index < maze_.numSuits; ++index) {
-            if (!game.suitHp[index] || visible[index])
-                continue;
-            const float distance = distanceSquared(player, maze_.suits[index].position);
-            if (distance < closest) {
-                closest = distance;
-                candidate = index;
-            }
-        }
-        if (candidate >= 0)
-            visible[candidate] = true;
-    }
+    int nearestActors[6];
+    nearestIndices(
+        maze_.numSuits, [&](int index) { return game.suitHp[index] != 0; },
+        [&](int index) { return distanceSquared(player, maze_.suits[index].position); }, 1e12f, nearestActors);
+    for (int index : nearestActors)
+        if (index >= 0)
+            visible[index] = true;
     for (int index = 0; index < maze_.numSuits; ++index) {
         const auto &suit = maze_.suits[index];
         if (!visible[index]) {
