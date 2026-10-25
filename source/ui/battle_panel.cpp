@@ -1,3 +1,4 @@
+#include "ui/panel_geometry.h"
 #include "ui/battle_panel.h"
 
 #include <cstdarg>
@@ -129,9 +130,9 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         C2D_DrawRectSolid(x, kCogY, 0.5f, kCogW, kCogH, c.active ? kPanel : kBg);
         text(x + 3, kCogY + 2, 0.38f, c.active ? kWhite : kDim, "%s", c.name);
         text(x + 3, kCogY + 15, 0.38f, kDim, "Level %d%s", c.level, c.lured ? " lured" : "");
-        const float f = c.maxHp > 0 ? static_cast<float>(c.hp) / c.maxHp : 0.0f;
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.55f, kCogW - 6, 7, kBg);
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.56f, (kCogW - 6) * (f < 0 ? 0 : f), 7, f > 0.35f ? kHp : kHpLow);
+        const float f = hpFraction(c.hp, c.maxHp);
+        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.55f, kCogW - 6, 7, kDim);
+        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.56f, (kCogW - 6) * f, 7, f > 0.35f ? kHp : kHpLow);
     }
 
     if (v.phase == world::BattlePhase::Reward) {
