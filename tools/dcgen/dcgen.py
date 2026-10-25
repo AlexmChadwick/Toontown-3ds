@@ -249,10 +249,10 @@ WANTED = {
     'DistributedGrid': [],
     'DistributedGridGoon': ['setPathPts'],
     'DistributedCrusherEntity': [],
-    'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState'],
+    'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState', 'requestInteract', 'requestExit'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
-    'DistributedHQInterior': ['setZoneIdAndBlock', 'setTutorial'],
+    'DistributedHQInterior': ['setZoneIdAndBlock', 'setLeaderBoard', 'setTutorial'],
     'DistributedGagshopInterior': ['setZoneIdAndBlock'],
     'DistributedPetshopInterior': ['setZoneIdAndBlock'],
     # ---- Goofy Speedway racing (source/world/racing.*, docs/design/racing.md) ----
