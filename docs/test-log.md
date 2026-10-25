@@ -975,3 +975,17 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
 - No Azahar or hardware was run (task prohibition). Main agent must execute the
   exact labels and A/B procedure in docs/design/performance.md and append real
   fps, busy/max, heap/linear/VRAM, draw/state counters and visual comparison.
+
+### 2026-10-25 — padnav host/build verification (no emulator/hardware)
+
+- Branch `padnav`: button navigation for every bottom-screen panel
+  (`docs/design/pad_navigation.md`). Native devkitARM `make -j4` succeeds with zero
+  warnings in `source/` (only the toolchain's crtn.o executable-stack linker note).
+- `tools/padnav_test/run.sh` (ASan/UBSan): 118 checks, 0 failures — focus moves, wraps,
+  disabled skips, half-open touch, quiet rebuilds, and every panel's focus table.
+- All other host suites pass, except `tools/suit_test/run.sh`, which is UNAVAILABLE (77):
+  it needs `tools/server/.venv` with panda3d.toontown, as in the perf entry.
+  `tools/perf_test` needed its `3ds.h` stub extended with the new `pad:` step keys.
+- Not run in Azahar or on hardware (task prohibition). fps, heap, linear and VRAM are
+  unmeasured. The main agent must run the `pad:` steps and check the `padnav:` log lines
+  listed in `docs/design/pad_navigation.md`.

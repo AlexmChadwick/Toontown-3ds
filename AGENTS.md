@@ -264,6 +264,17 @@ screen. Tabs along the bottom edge:
 
 The game must be fully playable without the New 3DS extras.
 
+**Pad navigation** (`docs/design/pad_navigation.md`). Every bottom-screen control is reachable
+with buttons through `ui/focus.*` and the per-panel focus tables in `ui/pad_tables.*` (host
+tested by `tools/padnav_test/`).
+- On the Map, Toon and Setup tabs nothing is focused until D-Up or D-Down is pressed, so A
+  still jumps; B lets go of the focus.
+- Panels that own the screen (`ui/panel_owner.h`) take the D-Pad; A presses the focused
+  control and touch moves the focus.
+- B closes the book; L / R turn book pages and cycle the battle target.
+- Every focus change and press is logged as `padnav: <panel> focus <n>` /
+  `padnav: <panel> activate <id>`.
+
 ## 6. Phase plan and milestones
 
 Each phase ends with a stop-and-report: test-log entries plus an update to this file.
@@ -546,7 +557,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
 | `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |
-| Host tests | `tools/suit_test/` (suit paths vs the real libtoontown), `tools/nettest/`, `tools/collision_test/`, `tools/toon_dna_test/`, `source/ui/test/` |
+| Host tests | `tools/suit_test/` (suit paths vs the real libtoontown), `tools/nettest/`, `tools/collision_test/`, `tools/toon_dna_test/`, `tools/padnav_test/` (focus model and panel focus tables), `source/ui/test/` |
 
 ## 9. Verification rules
 

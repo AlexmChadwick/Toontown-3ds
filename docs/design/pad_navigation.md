@@ -1,74 +1,121 @@
-# Pad Navigation Design & Surface Audit
+# Pad navigation: every bottom-screen control with buttons
 
-## Overview
-This document audits every bottom-screen surface and control in Toontown 3DS, detailing how each is reached today (touch or buttons) and how it is reached using button navigation (D-Pad, A, B, L, R) per AGENTS.md section 5.
+AGENTS.md section 5 promises that the D-Pad drives the bottom screen for players who do not use
+touch. This page lists every bottom-screen control, how it was reached before this change, and how
+it is reached with buttons now. Touch is unchanged everywhere.
 
-Every control must be fully reachable and operable with gamepad buttons alone without requiring touch/stylus input. Touch input continues to function identically, and tapping any control immediately updates focus to that element.
+## Focus model (`source/ui/focus.*`, `source/ui/pad_tables.*`)
 
-## Audit Table
-
-| Surface / Panel | Control Element | How reached today | How reached with buttons | Notes |
-|---|---|---|---|---|
-| **Main UI - Tab Bar** (`render/ui.cpp`) | Tab selection (Map, Chat, Toon, Gags, Settings, Debug) | Touch tab bar at bottom (`y >= 208`) or D-Left / D-Right | D-Left / D-Right cycles tabs when unfocused; X opens Chat; Y opens Map | Preserves 3D controls (A jumps, B walks) when unfocused |
-| **Main UI - Map Tab** (`render/ui.cpp`) | "Home" button (`4, kHomeY, 76, kHomeH`) | Touch only | D-Pad navigation highlights Home, A activates (`homeRequest`) | B clears focus |
-| **Main UI - Map Tab** (`render/ui.cpp`) | Hood teleport buttons (TTC, DD, DG, MM, TB, DDL) | Touch only | D-Pad navigation moves between hood buttons, A activates (`teleportRequest`) | B clears focus |
-| **Main UI - Chat Tab** (`ui/chat_menu.cpp`) | Whisper target header button (`kW-100, 2, 96, 24`) | Touch only | D-Up from top menu row focuses whisper button, A cycles target | B exits back to menu |
-| **Main UI - Chat Tab** (`ui/chat_menu.cpp`) | SpeedChat menu rows | D-Up / D-Down, A (activate), B (back), Touch | D-Up / D-Down moves focus, A enters submenu/says phrase, B goes back/blurs | Already supports buttons |
-| **Main UI - Toon Tab** (`render/ui.cpp`) | "Open Shtiker Book" button (`60, 175, 200, 24`, online) | Touch only | D-Pad moves focus to button, A activates (`book_.open()`), or START | B clears focus |
-| **Main UI - Toon Tab** (`render/ui.cpp`) | Body part target buttons (Body, Shirt, Shorts, offline) | Touch only | D-Pad moves focus to target row, D-Left/D-Right switches target, A activates | B clears focus |
-| **Main UI - Toon Tab** (`render/ui.cpp`) | Color swatches grid (3 rows x 9 cols, offline) | Touch only | D-Pad moves across grid, A selects color for active target | B clears focus |
-| **Main UI - Settings Tab** (`render/ui.cpp`) | Stereo 3D toggle (`kBtnX, kStereoY, kBtnW, kBtnH`) | Touch only | D-Pad focuses Stereo 3D button, A toggles stereo mode | B clears focus |
-| **Main UI - Settings Tab** (`render/ui.cpp`) | Stress Toons [-] button (`kBtnX, kStressY, 60, kBtnH`) | Touch only | D-Pad focuses [-] button, A decreases stress count | B clears focus |
-| **Main UI - Settings Tab** (`render/ui.cpp`) | Stress Toons [+] button (`kBtnX+80, kStressY, 60, kBtnH`) | Touch only | D-Pad focuses [+] button, A increases stress count | B clears focus |
-| **Main UI - Gags Tab** (`render/ui.cpp`) | Inventory display | Display only | Display only (no interactive buttons) | Read-only |
-| **Main UI - Debug Tab** (`render/ui.cpp`) | Profiler / Memory display | Display only | Display only (no interactive buttons) | Read-only |
-| **Battle Panel** (`ui/battle_panel.cpp`) | Cog Targets (0..numCogs-1) | Touch only | L/R shoulder buttons cycle target cog directly; or D-Pad navigation to top row, A/D-Pad targets cog | Gold highlight indicates target |
-| **Battle Panel** (`ui/battle_panel.cpp`) | Gag Grid (7 tracks x 7 levels) | Touch only | D-Pad moves across tracks and levels (skipping locked/empty), A selects attack | Follows TownBattle key flow |
-| **Battle Panel** (`ui/battle_panel.cpp`) | Pass button (`2, kBtnY, 100, kBtnH`) | Touch only | D-Down from bottom gag row moves to Pass, A executes Pass | B also can cancel/pass |
-| **Battle Panel** (`ui/battle_panel.cpp`) | Run button (`110, kBtnY, 100, kBtnH`, if canRun) | Touch only | D-Pad moves focus to Run button, A executes Run | Only enabled if `canRun` |
-| **Battle Panel** (`ui/battle_panel.cpp`) | Reward Continue button (`218, kBtnY, 100, kBtnH`) | Touch only | Focus defaults to Continue button, A activates Continue | Advances reward screen |
-| **Shtiker Book - Nav** (`ui/book.cpp`) | Page turning & bottom tabs | L / R shoulder buttons, touch top/bottom buttons | L / R turn pages, START/B closes book; D-Pad navigates within page | L/R page turn upstream |
-| **Book - Map Page** (`book_pages/page_map.cpp`) | "Home" button (`4, kHomeY, 76, kHomeH`) | Touch only | D-Pad focuses Home, A activates (`homeRequest`) | Consistent with Map Tab |
-| **Book - Map Page** (`book_pages/page_map.cpp`) | Hood teleport buttons (TTC, DD, DG, MM, TB, DDL) | Touch only | D-Pad navigates between hoods, A activates (`teleportRequest`) | Consistent with Map Tab |
-| **Book - Tasks Page** (`book_pages/page_quests.cpp`) | ToonTasks cards | Display only | Display only (read-only) | |
-| **Book - Gags Page** (`book_pages/page_inventory.cpp`) | Gag carry / exp bars | Display only | Display only (read-only) | |
-| **Book - Cogs Page** (`book_pages/page_cogs.cpp`) | 4 Department tabs (Boss, Law, Cash, Sell) | Touch only | D-Left / D-Right or focus moves between dept tabs, A selects dept | L/R turns book page |
-| **Book - Disguise Page** (`book_pages/page_disguise.cpp`) | 4 Department tabs (Boss, Law, Cash, Sell) | Touch only | D-Left / D-Right or focus moves between dept tabs, A selects dept | L/R turns book page |
-| **Book - Fish Page** (`book_pages/page_fish.cpp`) | Prev Genus (<) / Next Genus (>) buttons | Touch only (or D-Left/D-Right) | D-Pad focuses < or >, A activates; D-Left / D-Right cycles genus | L/R turns book page |
-| **Book - SOS Page** (`book_pages/page_sos.cpp`) | Page flip button `[Page 1/2]` (>8 cards) | Touch only | D-Pad focuses page toggle button, A toggles page | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | Stereo 3D toggle (`15, 30, 135, 20`) | Touch only | D-Pad moves focus to item, A toggles | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | Debug HUD toggle (`15, 54, 135, 20`) | Touch only | D-Pad moves focus to item, A toggles | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | LOD Bias toggle (`15, 78, 135, 20`) | Touch only | D-Pad moves focus to item, A toggles | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | Music Volume [-] and [+] (`80/126, 102, 24, 20`) | Touch only | D-Pad focuses [-] or [+], A adjusts; or D-Left/D-Right adjusts | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | SFX Volume [-] and [+] (`80/126, 126, 24, 20`) | Touch only | D-Pad focuses [-] or [+], A adjusts; or D-Left/D-Right adjusts | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | Stress Toons [-] and [+] (`80/126, 150, 24, 20`) | Touch only | D-Pad focuses [-] or [+], A adjusts; or D-Left/D-Right adjusts | |
-| **Book - Options Page** (`book_pages/page_options.cpp`) | Quit Game button (`15, 176, 135, 20`) | Touch only | D-Pad focuses Quit Game button, A activates (`quitRequested`) | |
-| **Book - Trophies Page** (`book_pages/page_trophies.cpp`) | Trophies & Records | Display only | Display only (read-only) | |
-| **Quest Talk** (`ui/quest_panel.cpp`) | Dialog pages advance (`Talk::Phase::Pages`) | A or Touch | A advances dialog page | |
-| **Quest Talk** (`ui/quest_panel.cpp`) | Quest choice cards (`Talk::Phase::QuestChoice`) | Touch only | D-Up / D-Down moves focus across quest cards, A accepts choice | B cancels |
-| **Quest Talk** (`ui/quest_panel.cpp`) | Quest cancel button (`Talk::Phase::QuestChoice`) | Touch only or B | D-Down past bottom quest card focuses Cancel, A activates; B cancels | |
-| **Quest Talk** (`ui/quest_panel.cpp`) | Track choice cards (`Talk::Phase::TrackChoice`) | Touch only | D-Pad moves across 2-column track grid, A selects track | B cancels |
-| **Quest Talk** (`ui/quest_panel.cpp`) | Track cancel button (`Talk::Phase::TrackChoice`) | Touch only or B | D-Down past bottom track focuses Cancel, A activates; B cancels | |
-| **Closet Panel** (`ui/closet_panel.cpp`) | "Done" button (`160, 196, 76, 36`) | Touch or KEY_A | D-Left / D-Right moves focus between Done and Cancel, A activates | Visible focus border |
-| **Closet Panel** (`ui/closet_panel.cpp`) | "Cancel" button (`240, 196, 76, 36`) | Touch or KEY_B | D-Left / D-Right moves focus between Done and Cancel, A activates; B cancels | Visible focus border |
-| **Tailor Panel** (`ui/tailor_panel.cpp`) | Shirt section selector (`0, kTopY, 320, 48`) | Touch or D-Up | D-Up focuses Shirt row, D-Left / D-Right changes style | |
-| **Tailor Panel** (`ui/tailor_panel.cpp`) | Shorts section selector (`0, kBottomY, 320, 48`) | Touch or D-Down | D-Down focuses Shorts row, D-Left / D-Right changes style | |
-| **Tailor Panel** (`ui/tailor_panel.cpp`) | "Done" button (`160, kButtonY, 76, 36`) | Touch or KEY_START | D-Down to button row, D-Left/D-Right to Done, A activates; START activates | |
-| **Tailor Panel** (`ui/tailor_panel.cpp`) | "Cancel" button (`240, kButtonY, 76, 36`) | Touch or KEY_B | D-Down to button row, D-Left/D-Right to Cancel, A activates; B cancels | |
-| **Gag Shop** (`ui/shop_panel.cpp`) | Gag Grid (7 tracks x 7 levels) | D-Pad, A (buy), X (remove) | D-Pad moves across tracks/levels, A buys, X removes | Already supports D-Pad |
-| **Gag Shop** (`ui/shop_panel.cpp`) | [-], [+], Done, Cancel buttons | Touch or KEY_START/KEY_B | D-Down from bottom gag row moves to button row (Minus, Plus, Done, Cancel), A activates | Makes visual buttons reachable |
-| **Purchase Panel** (`ui/minigame_purchase_panel.cpp`) | Gag Grid (7 tracks x 7 levels) | D-Pad, A (buy), X (remove) | D-Pad moves across tracks/levels, A buys, X removes | Already supports D-Pad |
-| **Purchase Panel** (`ui/minigame_purchase_panel.cpp`) | [-], [+], Done, Cancel buttons | Touch or KEY_START/KEY_B | D-Down from bottom gag row moves to button row (Minus, Plus, Done, Cancel), A activates | Makes visual buttons reachable |
-| **Service Clerks** (`ui/service_clerk_panel.cpp`) | Menu choices, Pet choices, Bottom buttons | D-Up/D-Down, D-Left/D-Right, A, B, Touch | D-Pad navigates choices/buttons, A activates, B cancels, L/R cycles | Already supports buttons |
-| **Fishing** (`ui/fishing_panel.cpp` / `world/fishing.cpp`) | Power charging & Aiming | Circle Pad (aim), KEY_A (hold charge, release cast), KEY_B (leave) | D-Left / D-Right adjusts aim angle; D-Up / D-Down adjusts power; A casts; B leaves | Fully playable with D-Pad or Circle Pad |
-| **Boss / Facility HUDs** (`world/boss_battle.cpp`, `cj_battle.cpp`, etc.) | Pie throwing, evidence firing, cranes, golf | KEY_A, KEY_B, Circle Pad, Touch | Buttons already mapped for all gameplay actions; touch is supplementary shortcut | |
-
-## Focus Model Specification (`ui/focus.*`)
-- Zero dynamic allocation: fixed structures with no heap allocations per frame.
-- Spatial 2D navigation: Automatically connects controls based on geometry, supporting grids, lists, and heterogeneous layouts.
-- Auto-skips disabled items.
-- High-contrast highlight: Draws a double border (contrasting dark outline + bright gold border) plus semi-transparent gold fill that stands out cleanly against both dark panels and bright paper cards.
-- Touch synchronization: Any touch inside an element immediately sets the focus index to that element.
-- Standardized logging:
-  - `padnav: <panel> focus <n>`
+- A `FocusGroup` is a fixed array (80 items) of rectangles with ids. No allocation.
+- **D-Up / D-Down** go to the nearest control in the same column. If there is none, they go to
+  the nearest control above or below (for example from the gag grid down to Pass), and only
+  then wrap.
+- **D-Left / D-Right** stay on the current row and wrap at its ends.
+- Disabled controls are skipped. With nothing focused, the first press focuses the first control.
+- **A** presses the focused control. **B** backs out (cancel, close, or let go of the focus).
+  **L / R** turn pages where upstream has pages.
+- A touch on a control focuses it. In panels that own the screen, the touch also presses it.
+- `FocusGroup::rebuild()` lets panels whose controls change every frame (battle, quest) rebuild
+  their table without losing the focus or logging every frame.
+- The highlight has a dark 1 px outer frame (for the light book paper), a 2 px gold frame and a
+  translucent gold wash (for the navy panels).
+- `ui/pad_tables.*` holds every panel's focus table. It is plain C++, so
+  `tools/padnav_test/run.sh` checks each table on the host. Panels take their layout constants
+  from it, or `static_assert` that they match.
+- Log lines (one per change, never per frame):
+  - `padnav: <panel> focus <index>`
   - `padnav: <panel> activate <id>`
+  - `padnav: <panel> blur`
+  - Panel-specific: `padnav: battle target <n>`, `padnav: fishing aim <deg>`,
+    `padnav: chat activate whisper`, `padnav: clerk activate cancel`
+
+### Ownership (`ui/panel_owner.h`)
+
+Panels that own the bottom screen take buttons as before: battle, purchase, info, quest talk,
+clerk, shop, tailor, closet, fishing and the book.
+
+On the plain tabs (owner `Tabs`), **nothing is focused until D-Up or D-Down is pressed** on the
+Map, Toon or Setup tab. Until then A jumps, B walks and D-Left / D-Right change tabs, exactly as
+before. While a tab control is focused:
+- the D-Pad moves between its controls and A presses the focused one;
+- B lets go of the focus (it does not walk that frame);
+- X, Y and START keep their meaning.
+
+The focus is dropped on a tab change and whenever another panel takes the screen. A touch on the
+tabs presses the control as before. It only moves the focus if a control was already focused, so
+a touch player's A still jumps.
+
+## Surface table
+
+| Surface (file) | Control | Before | With buttons now |
+|---|---|---|---|
+| Tab bar (`render/ui.cpp`) | Map / Chat / Toon / Gags / Setup / Debug | touch, D-Left / D-Right, X = Chat, Y = Map | unchanged (D-Left / D-Right move inside a focused tab instead) |
+| Map tab (`render/ui.cpp`) | Home | touch only | D-Up / D-Down focus, A presses (`homeRequest`) |
+| Map tab | 8 hood teleport buttons | touch only | D-Down from Home to the row, D-Left / D-Right (wraps), A teleports; unavailable hoods are refused by main.cpp, as with touch |
+| Chat tab (`ui/chat_menu.cpp`) | SpeedChat rows | D-Up / D-Down, A, B, touch | unchanged; now logged `padnav: chat focus/activate` |
+| Chat tab (`render/ui.cpp`) | "To:" whisper target button | touch only | X while already on the Chat tab |
+| Toon tab, online (`render/ui.cpp`) | Open Shtiker Book | touch, START | D-Down focuses it, A opens (START still works) |
+| Toon tab, offline | Body / Shirt / Shorts targets and the 27 colour swatches | touch only | D-Pad across targets and the swatch grid, A picks |
+| Setup tab (`render/ui.cpp`) | Stereo 3D, Stress [-], Stress [+] | touch only | D-Pad focus, A presses |
+| Gags tab, Debug tab | display only (no controls) | — | — |
+| Battle (`ui/battle_panel.cpp`) | gag grid (7 tracks × 7 levels) | touch only | starts on the first usable gag (like TownBattle); D-Pad moves, locked or unusable gags skipped; A attacks |
+| Battle | target cog (up to 4) | touch only | L / R cycle the target; or D-Up to the cog row and A |
+| Battle | Pass, Run | touch only | D-Down below the grid, A presses (Run is skipped when not allowed) |
+| Battle | reward Continue | touch only | A or START (Battle ignores a second rewardDone) |
+| Battle | Fire / SOS | not in this client's battle panel | — |
+| Shtiker Book (`ui/book.cpp`) | page turn, page tabs, close | touch; L / R and D-Left / D-Right turn pages; START closes | L / R turn pages; B or START closes; D-Left / D-Right turn pages unless the page uses them |
+| Book: Map page | Home, 8 hood buttons | touch only | D-Pad focus, A presses |
+| Book: Options page | Stereo, Debug HUD, LOD, Music −/+, SFX −/+, Stress −/+, Quit | touch only | D-Pad focus, A presses |
+| Book: Cogs, Disguise pages | 4 department tabs | touch only | D-Left / D-Right step through them (highlighted) |
+| Book: Fish page | genus < / > | touch; D-Left / D-Right were unreachable (the book took them) | D-Left / D-Right press < / > (highlighted) |
+| Book: SOS page | "[Page n/2]" (more than 8 cards) | touch only | D-Left / D-Right flip it |
+| Book: Gags, Tasks, Trophies pages | display only | — | D-Left / D-Right turn the page |
+| Quest talk (`ui/quest_panel.cpp`) | dialog Next / Done | A or a tap | unchanged; logged |
+| Quest talk | quest cards, Cancel | touch; B cancels | nothing is focused until the D-Pad is used (so mashing A through the pages never accepts a quest); D-Pad, A chooses; B cancels |
+| Quest talk | track cards (2 columns), Later | touch; B cancels | D-Pad over the 2-column grid, A chooses; B cancels |
+| Closet (`ui/closet_panel.cpp`) | Save, Cancel | A = Save, B = Cancel, touch | Save focused on open (A saves, as before); D-Left / D-Right, A presses; B cancels |
+| Tailor (`ui/tailor_panel.cpp`) | shirt row, shorts row | D-Up / D-Down pick, D-Left / D-Right style, touch | unchanged, highlighted |
+| Tailor | Done, Cancel | START, B, touch | D-Down from the shorts row, D-Left / D-Right, A presses |
+| Gag Shop (`ui/shop_panel.cpp`) | gag grid | D-Pad, A buys, X removes | unchanged; logged as `shop_grid` |
+| Gag Shop | [-] [+] Done Cancel | touch; X, A, START, B as shortcuts | D-Down past the last track, D-Left / D-Right (wraps), A presses, D-Up back to the grid |
+| Minigame purchase (`ui/minigame_purchase_panel.cpp`) | gag grid, [-] [+] Done Cancel | as the Gag Shop | as the Gag Shop (`purchase_grid`, `purchase`) |
+| Service clerks (`ui/service_clerk_panel.cpp`) | menu, pets, bodies, accessories, buttons | D-Pad, A, B, L / R, Y, touch | unchanged; now logged `padnav: clerk ...` |
+| Fishing (`world/fishing.cpp`) | aim, cast power, cast, leave | Circle Pad aims; hold / release A casts; B leaves; no touch | D-Left / D-Right also aim (the Circle Pad wins) |
+| Trolley / minigame info panel | display only | — | — |
+| Boss battles (`world/boss_battle.cpp`, `cj_battle.cpp`) | pie throw / evidence fire | B (hold / release) and a touch shortcut | unchanged: B already does it; their Cog rounds use the battle panel above |
+| CEO, CFO, Cogdo (`world/ceo_battle.cpp`, `cfo_*`, `cogdo_runtime.cpp`) | no bottom-screen touch input besides the battle panel | buttons | unchanged |
+| Golf, racing, minigames (`game/*`) | out of scope (other agents own these files) | — | — |
+
+Book page rectangles that differ from their touch areas (the touch areas are kept as they were):
+- the Cogs / Disguise department tabs are drawn 6 px left and 6 px lower than their touch areas;
+- the Fish genus arrows are drawn smaller and lower.
+
+The highlight follows the drawn controls.
+
+## Autotest (`core/autotest.cpp`, hooks in `main.cpp`)
+
+The `pad: ...` steps press only buttons. The main.cpp hooks only move the toon to where a panel
+opens (as the existing steps do), switch battle autoplay off during the pad battle turn, and press
+A once per dialog page in `pad: quest pages`. Each block sits right after the step that sets it
+up, so run the whole script, or an `only` line that keeps those steps too, for example:
+`only tab:,pad:,book:,go fishing,move: door,visit clerk,see cog,fight cog,toon hq: talk,tailor visit`.
+
+| Steps | Expected log lines |
+|---|---|
+| `pad: tab map` … `pad: map release` | `padnav: tab_map focus 0` (Home), a hood focus, `padnav: tab_map blur` |
+| `pad: tab chat`, `pad: chat focus`, `pad: chat whisper`, `pad: chat back` | `padnav: chat focus 0`, `padnav: chat activate whisper` (only with toons in view), `padnav: chat back` |
+| `pad: tab toon`, `pad: toon focus`, `pad: book from toon tab` | `padnav: tab_toon focus 0`, `padnav: tab_toon activate 200` (the book opens online) |
+| `pad: book next page`, `pad: book page turn`, `pad: book close` | the book title page changes in `pad_book_turn.png`; the book closes |
+| `pad: tab setup` … `pad: setup release` | `padnav: tab_setup activate 2`, then `activate 1` (stress 0 → 1 → 0), `blur` |
+| `pad: book options focus` … `pad: book close map` | `padnav: book_options focus 0`, `activate 2` twice (Debug HUD on, off), `padnav: book_map focus 0` |
+| `pad: fish aim` | `padnav: fishing aim <deg>` on release (non-zero once the spot is Ready) |
+| `pad: shop open` … `pad: shop press` | `padnav: shop_grid focus <id>` moves, `padnav: shop focus 2` (Done), `focus 3`, `padnav: shop activate 3` (cancel) |
+| `pad: battle start` … `pad: battle rounds` | `padnav: battle focus <n>` moves, `padnav: battle target <n>` (with 2+ cogs), `padnav: battle activate <gag id>` and the attack request |
+| `pad: quest pages` … `pad: quest choose` | `padnav: quest activate 98` per page, `padnav: quest focus 0/1/0`, `padnav: quest activate 0` |
+| `pad: tailor open` … `pad: tailor press` | `padnav: tailor focus 1`, `focus 2`, `focus 3`, `padnav: tailor activate 3` (cancel) |
+
+Not driven by the autotest:
+- The closet: the stock server's estate closet flow is not in the script.
+- The minigame purchase panel: its steps are gated by the trolley progress tracker.
+
+Both are covered by host tests of their tables.
