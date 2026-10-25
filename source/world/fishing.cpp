@@ -529,7 +529,16 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
     }
 
     // Fishing: the toon stays on the spot; the pad aims and A / B drive the state machine.
-    const float aimAxis = padAxis(in.pad.dx);
+    float aimAxis = padAxis(in.pad.dx);
+    // ---- padnav: D-Left / D-Right aim like a full Circle Pad push (the stick wins) ----
+    const u32 dpadAim = in.held & (KEY_DLEFT | KEY_DRIGHT);
+    if (aimAxis == 0.0f && dpadAim == KEY_DRIGHT) aimAxis = 1.0f;
+    if (aimAxis == 0.0f && dpadAim == KEY_DLEFT) aimAxis = -1.0f;
+    if (dpadAim != dpadAimHeld_ && dpadAimHeld_ != 0) {
+        TT_LOG("padnav: fishing aim %.0f", static_cast<double>(aim_));
+    }
+    dpadAimHeld_ = dpadAim;
+    // ---- end padnav ----
     const bool aDown = (in.down & KEY_A) != 0, aHeld = (in.held & KEY_A) != 0, bDown = (in.down & KEY_B) != 0;
     in.pad = circlePosition{};
     in.cstick = circlePosition{};
