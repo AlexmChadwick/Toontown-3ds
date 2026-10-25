@@ -19,6 +19,8 @@ from panda3d.core import ModelNode, NodePath, Point3, Vec4
 
 from interior_dna import InteriorDNAStore
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+
 # Color definitions from ToonInteriorColors.py:2-12, 23-27
 _wainscottingBase = [
     Vec4(0.8, 0.5, 0.3, 1.0),
@@ -263,6 +265,63 @@ def parse_dna_landmarks(dna_path):
             'article': article_m.group(1) if article_m else '',
         })
     return results
+
+
+_DNA_CACHE = {}
+
+
+def get_landmark_sign(block, resources, loader, store):
+    """Find and assemble the landmark sign for a block from exterior DNA."""
+    import dna
+    import sign_text
+
+    for hood_id, branch_id, is_sz, rel_path in DNA_REGISTRY:
+        p = os.path.join(resources, rel_path)
+        if not os.path.exists(p):
+            continue
+        if p not in _DNA_CACHE:
+            try:
+                _DNA_CACHE[p] = dna.parse_file(p)
+            except Exception:
+                continue
+        tree = _DNA_CACHE[p]
+
+        sign_node = None
+
+        def find_sign(node):
+            nonlocal sign_node
+            if node.kind == 'landmark_building':
+                m = re.match(r'(?:sz|tb)(\d+):', node.name or '')
+                if m and int(m.group(1)) == block:
+                    sign_node = node.find('sign')
+                    return
+            for c in node.children:
+                if sign_node is not None:
+                    return
+                find_sign(c)
+
+        find_sign(tree)
+        if sign_node is not None:
+            class DummyAsm:
+                def __init__(self, store):
+                    self.storage = store.storage
+                    self.sign_letters = 0
+                    self.sign_baselines = 0
+                    self.unresolved = {}
+
+                def _find(self, code):
+                    return self.storage.find_node(code)
+
+            asm = DummyAsm(store)
+            code = sign_node.get('code')
+            src = store.findNode(code) if code else None
+            root = NodePath('sign')
+            if src is not None:
+                src.copyTo(root)
+            for b in sign_node.find_all('baseline'):
+                sign_text.assemble_baseline(asm, b, root)
+            return root
+    return None
 
 
 def _load_npc_data(resources):
@@ -571,6 +630,42 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
         door_origin.setPos(door_origin, 0, -0.025, 0)
         door_color = rng.choice(colors['TI_door'])
         _setup_door_parts(door_np, interior, door_color, f'door_trigger_{block}')
+
+    # Landmark interior sign: DistributedToonInterior.py:105-126
+    sign_origin = interior.find('**/sign_origin;+s')
+    if sign_origin.isEmpty():
+        sign_origin = interior.find('**/sign_origin')
+    if not sign_origin.isEmpty():
+        res_path = getattr(store, 'resources', None)
+        if not res_path:
+            res_path = os.path.join(HERE, '..', '..', 'ref', 'ref', 'resources')
+            if not os.path.exists(res_path):
+                res_path = os.path.join(HERE, '..', '..', 'ref', 'resources')
+        sign_np = get_landmark_sign(block, res_path, loader, store)
+        if sign_np is not None:
+            new_sign = sign_np.copyTo(sign_origin)
+            new_sign.setDepthWrite(1, 1)
+            ll, ur = Point3(), Point3()
+            new_sign.calcTightBounds(ll, ur)
+            width = ur[0] - ll[0]
+            height = ur[2] - ll[2]
+            SIGN_LEFT = -4.0
+            SIGN_RIGHT = 4.0
+            SIGN_BOTTOM = -3.5
+            SIGN_TOP = 1.5
+            if width > 1e-4 and height > 1e-4:
+                x_scale = (SIGN_RIGHT - SIGN_LEFT) / width
+                z_scale = (SIGN_TOP - SIGN_BOTTOM) / height
+                scale = min(x_scale, z_scale)
+                x_center = (ur[0] + ll[0]) / 2.0
+                z_center = (ur[2] + ll[2]) / 2.0
+                new_sign.setPosHprScale(
+                    (SIGN_RIGHT + SIGN_LEFT) / 2.0 - x_center * scale,
+                    -0.1,
+                    (SIGN_TOP + SIGN_BOTTOM) / 2.0 - z_center * scale,
+                    0.0, 0.0, 0.0,
+                    scale, scale, scale,
+                )
 
     return root, spec, selected_room
 
