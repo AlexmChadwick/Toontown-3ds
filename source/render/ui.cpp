@@ -66,6 +66,7 @@ u32 colorOf(int idx) {
 bool Ui::init() {
     if (!serviceClerks_.init()) return false; // clerks
 
+    textCache_.clear();
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(64);
     debugBuf_ = C2D_TextBufNew(1024);
@@ -121,8 +122,7 @@ void Ui::text(float x, float y, float scale, u32 color, const char* fmt, ...) {
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     C2D_Text t;
-    C2D_TextParse(&t, textBuf_, buf);
-    C2D_TextOptimize(&t);
+    textCache_.parse(&t, textBuf_, buf, 1024);
     C2D_DrawText(&t, C2D_WithColor, x, y, 0.5f, scale, scale, color);
 }
 
@@ -215,7 +215,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
 void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     frame_++;
-    C2D_TextBufClear(textBuf_);
+    // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
     if (serviceClerks_.active()) { // clerks

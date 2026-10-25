@@ -30,3 +30,18 @@ unchanged. 10,000 random equivalence cases pass (maximum tolerance 0.0001 in ren
 matrix elements; no collision/gameplay math changed). On this arm64 host, one
 million iterations measured 13.04→11.23 ns/draw (1.16×). Compiler and hardware
 matter; use the same harness for a fresh local comparison.
+
+## Exact persistent text layout
+
+Ui, FrontEnd and BattlePanel now retain parsed glyphs for equal UTF-8 strings.
+Position, scale, colour and word-wrap draw flags are still applied at draw time.
+Their original glyph buffers/capacities are unchanged; a full buffer invalidates
+both glyphs and all keys together. Every render target is still cleared every
+frame. Existing revision/dirty caches in other panels are retained.
+
+The exact fixed hash-key harness checks collision resolution, UTF-8, full capacity,
+content changes and reset. Across 10,000 unchanged 80-label frames, layout calls
+fall from 800,000 to 80; lookup costs 34.91 ns/string on this host. Each key table
+uses 26,116 bytes plus 128 C2D_Text records. No allocation is added to frame paths.
+The front end already changes preview DNA only when its selection/DNA changes;
+there was no per-frame model rebuild to remove.
