@@ -1295,7 +1295,13 @@ public:
     const LevelSuit& levelSuitSlot(int n) const { return levelSuits_[n]; }
     const LevelSuit* findLevelSuit(uint32_t doId) const;
     // Name / level / HP of any cog we know: a street DistributedSuit or a level cog.
-    struct CogIdentity { char name[4]; int16_t levelDist, hp; bool hasDna; };
+    struct CogIdentity {
+        char name[4];
+        int16_t levelDist;
+        int16_t hp;
+        bool hasDna;
+        bool skelecog;
+    };
     bool cogIdentity(uint32_t doId, CogIdentity* out) const;
     const LevelBlocker& levelBlockerSlot(int n) const { return levelBlockers_[n]; }
     const LevelEntityObj& levelEntitySlot(int n) const { return levelEntities_[n]; }

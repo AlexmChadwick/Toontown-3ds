@@ -71,12 +71,18 @@ const LevelSuit* Client::findLevelSuit(uint32_t doId) const {
 bool Client::cogIdentity(uint32_t doId, CogIdentity* out) const {
     if (const Suit* s = findSuit(doId)) {
         memcpy(out->name, s->name, sizeof(out->name));
-        out->levelDist = s->levelDist, out->hp = s->hp, out->hasDna = s->hasDna;
+        out->levelDist = s->levelDist;
+        out->hp = s->hp;
+        out->hasDna = s->hasDna;
+        out->skelecog = s->skelecog != 0;
         return true;
     }
     if (const LevelSuit* s = findLevelSuit(doId)) {
         memcpy(out->name, s->name, sizeof(out->name));
-        out->levelDist = s->levelDist, out->hp = s->hp, out->hasDna = s->hasDna;
+        out->levelDist = s->levelDist;
+        out->hp = s->hp;
+        out->hasDna = s->hasDna;
+        out->skelecog = s->skelecog != 0;
         return true;
     }
     return false;
