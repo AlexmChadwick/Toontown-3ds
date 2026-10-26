@@ -730,6 +730,39 @@ void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
     }
 }
 
+int MinigameSession::placedPlayers(const net::Client& client, MinigamePlayer* out, int max) const {
+    const net::Minigame* mg = client.minigame();
+    if (!mg || !inGame()) return 0;
+    int n = 0;
+    if (isRace_) {
+        // DistributedRaceGame.positionInPlace: everyone stands on their own lane (avIdList index).
+        for (int lane = 0; lane < mg->numParticipants && n < max; ++lane) {
+            if (mg->participants[lane] == client.avatarId()) continue;
+            MinigamePlayer& p = out[n++];
+            p.doId = mg->participants[lane];
+            race_.lanePose(lane, &p.x, &p.y, &p.z, &p.h);
+        }
+    } else if (isPattern_) {
+        // DistributedPatternGame.getBackRowPos: the others stand in the back row, ordered by
+        // remoteAvIdList, facing the camera.
+        constexpr float kBackRowHome[3] = {3.0f, 11.0f, 0.0f};
+        constexpr float kBackRowXSpacing = 1.8f;
+        const int spots = mg->numParticipants - 1;
+        int index = 0;
+        for (int i = 0; i < mg->numParticipants && n < max; ++i) {
+            if (mg->participants[i] == client.avatarId()) continue;
+            MinigamePlayer& p = out[n++];
+            p.doId = mg->participants[i];
+            p.x = kBackRowHome[0] + kBackRowXSpacing * float(index) - kBackRowXSpacing * float(spots - 1) / 2.0f;
+            p.y = kBackRowHome[1];
+            p.z = kBackRowHome[2];
+            p.h = 180.0f; // makeToonLookatCamera: the camera is in front of the stage
+            ++index;
+        }
+    }
+    return n;
+}
+
 int MinigameSession::cogs(MinigameCog* out, int max) const {
     if (phase_ != Phase::Play && phase_ != Phase::Rules) return 0;
     if (isMaze_) return maze_.cogs(out, max);

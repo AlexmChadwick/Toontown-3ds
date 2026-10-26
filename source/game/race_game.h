@@ -31,6 +31,8 @@ public:
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     void toonPose(float* x, float* y, float* z, float* h) const;
     void setLane(int lane) { lane_ = lane; }
+    // Where a lane's toon stands on the board (its current place), in scene units.
+    void lanePose(int lane, float* x, float* y, float* z, float* h) const;
     bool isDone() const { return sim_.isDone; }
     int score() const { return sim_.scores[0]; }
     bool toonRunning() const { return moveTime_ < moveDuration_; }

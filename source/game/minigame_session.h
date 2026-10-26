@@ -84,6 +84,8 @@ public:
     // Games whose client calls startSmooth() on the other participants
     // (Distributed{Catch,CogThief,Diving,Maze,Pairing,Ring,Tag,Target,TwoD}Game): their
     // broadcast setSmPosHpr places them; the other games place everyone from game state.
+    // The other participants this game places itself (Race lanes, Pattern back row); 0 when none.
+    int placedPlayers(const net::Client& client, MinigamePlayer* out, int max) const;
     bool smoothedPlayers() const {
         return isCatch_ || isCogThief_ || isDiving_ || isMaze_ || isPairing_ || isRing_ || isTag_ ||
                isTarget_ || isTwoD_;

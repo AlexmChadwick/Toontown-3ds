@@ -178,6 +178,19 @@ void RaceGame::toonPose(float* x, float* y, float* z, float* h) const {
     if (h) *h = a[3] + (b[3] - a[3]) * f;
 }
 
+void RaceGame::lanePose(int lane, float* x, float* y, float* z, float* h) const {
+    if (lane < 0 || lane >= racegame::kNumLanes) lane = 0;
+    int place = sim_.positions[lane];
+    if (place < 0) place = 0;
+    if (place > racegame::kNumPlaces - 1) place = racegame::kNumPlaces - 1;
+    const float* p = racegame::kLanePosHpr[lane][place];
+    constexpr float kBoardScale = 0.8f; // DistributedRaceGame.load: raceBoard.setScale(0.8)
+    *x = p[0] * kBoardScale;
+    *y = p[1] * kBoardScale;
+    *z = p[2] * kBoardScale;
+    *h = p[3];
+}
+
 const char* RaceGame::line(int i) const {
     if (i == 0) {
         std::snprintf(lines_[0], sizeof(lines_[0]), "Position: %d / %d", sim_.positions[0], racegame::kNumberToWin);
