@@ -5,6 +5,7 @@
 #include <citro3d.h>
 
 #include "game/maze_logic.h"
+#include "game/minigame_cog.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
@@ -25,6 +26,7 @@ public:
     void draw(render::Renderer& renderer);
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    int cogs(MinigameCog* out, int max) const;
     bool toonRunning() const { return isRunning_; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
 

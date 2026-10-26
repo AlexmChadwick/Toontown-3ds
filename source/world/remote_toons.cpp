@@ -94,6 +94,7 @@ void RemoteToons::despawn(Remote& r) {
     r.avatar.cancel();
     r.avatar.setLook(nullptr);
     r.active = false;
+    r.gamePlaced = false;
     count_--;
 }
 
@@ -126,6 +127,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
             r->speed = r->turnRate = 0.0f;
             r->emoteSerial=0;
             r->catchFallAge=2;
+            r->gamePlaced = false;
             count_++;
         }
         r->x = r->tx = t->x;
@@ -155,7 +157,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         if (r) despawn(*r);
         break;
     case EventType::Pose:
-        if (r && t) {
+        if (r && t && !r->gamePlaced) { // a game placing this toon owns its pose (placeExternal)
             r->tx = t->x;
             r->ty = t->y;
             r->tz = t->z;
@@ -235,6 +237,17 @@ void RemoteToons::clear() {
         if (r.active) despawn(r);
     }
     count_ = 0;
+}
+
+void RemoteToons::placeExternal(u32 doId, float x, float y, float z, float h) {
+    Remote* r = find(doId);
+    if (!r) return;
+    r->tx = x;
+    r->ty = y;
+    r->tz = z;
+    r->th = h;
+    r->parent = net::kParentRender;
+    r->gamePlaced = true;
 }
 
 void RemoteToons::update(float dt) {

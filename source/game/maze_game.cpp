@@ -183,6 +183,22 @@ void MazeGame::draw(render::Renderer& renderer) {
     }
 }
 
+int MazeGame::cogs(MinigameCog* out, int max) const {
+    // DistributedMazeGame.__loadSuits: every MazeSuit is a Flunky (MazeSuit suitDnaName 'f').
+    int n = 0;
+    for (int i = 0; i < maze::kNumSuits && n < max; ++i) {
+        MinigameCog& c = out[n++];
+        c.x = suits_[i].x;
+        c.y = suits_[i].y;
+        c.z = 0.0f;
+        c.h = suits_[i].heading;
+        c.code[0] = 'f';
+        c.code[1] = 0;
+        c.walking = true;
+    }
+    return n;
+}
+
 void MazeGame::toonPose(float* x, float* y, float* z, float* h) const {
     if (x) *x = toonX_;
     if (y) *y = toonY_;

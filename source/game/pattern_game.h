@@ -6,6 +6,7 @@
 
 #include "game/pattern_logic.h"
 #include "net/client.h"
+#include "render/anim.h"
 #include "render/model.h"
 #include "render/renderer.h"
 
@@ -49,7 +50,14 @@ private:
     bool waitingForPattern_ = true;
     bool patternSubmitted_ = false;
 
+    // Minnie performing each round's pattern (DistributedPatternGame.enterShowServerPattern).
+    float showStepDuration() const;
+    bool showing() const;
+
     render::Model stageModel_;
+    render::Model minnieModel_;
+    render::Anim minnieClips_[4]; // minnieAnimNames: up, left, down, right
+    float showTime_ = -1.0f;      // seconds since the round's pattern arrived; -1 = no show
 
     mutable char lines_[3][64] = {};
 };

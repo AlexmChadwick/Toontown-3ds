@@ -1935,11 +1935,25 @@ int main() {
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
                 // we stop, setAnimState on clip changes (DistributedSmoothNode / LocalToon).
-                const bool movingNow = !battle.active() &&
-                                       (player.moving() || player.airborne() || anim != tt::world::kAnimNeutral);
+                bool movingNowGame = false; // ---- minigame broadcast ----
+                bool movingNow = !battle.active() &&
+                                 (player.moving() || player.airborne() || anim != tt::world::kAnimNeutral);
                 // On the boat (DDPlayground.enterOnBoat): setParent(SPDonaldsBoat), then poses are boat-local.
                 float nx, ny, nz, nh;
                 player.netPose(&nx, &ny, &nz, &nh);
+                // ---- minigame broadcast: LocalAvatar keeps broadcasting setSmPosHpr in the
+                // game's scene, so the others' clients see our minigame toon, not our playground pose.
+                static float lastGamePose[4] = {};
+                const bool inMinigame = minigame.inGame();
+                if (inMinigame) {
+                    minigame.toonPose(&nx, &ny, &nz, &nh);
+                    const float dx = nx - lastGamePose[0], dy = ny - lastGamePose[1], dz = nz - lastGamePose[2];
+                    const float dh = nh - lastGamePose[3];
+                    movingNowGame = dx * dx + dy * dy + dz * dz > 1e-4f || dh * dh > 1e-2f;
+                    lastGamePose[0] = nx, lastGamePose[1] = ny, lastGamePose[2] = nz, lastGamePose[3] = nh;
+                }
+                // ---- end minigame broadcast ----
+                if (inMinigame) movingNow = movingNowGame; // ---- minigame broadcast ----
                 const bool reparent = player.onPlatform() != netOnBoat;
                 if (reparent) {
                     net.sendSetParent(player.onPlatform() ? tt::net::kParentDonaldsBoat : tt::net::kParentRender);
@@ -2135,6 +2149,21 @@ int main() {
                 tt::prof::lap(tt::prof::kNet);
                 minigame.update(net, minigamePad, dt, nowMs);
                 tt::prof::lap(tt::prof::kMinigame);
+                // ---- minigame Cogs: real suit actors through the shared Suits system ----
+                {
+                    // Local-only actor ids, far above any Astron doId the server allocates.
+                    constexpr u32 kMinigameCogBase = 0xFFF00000u;
+                    static int shownCogs = 0;
+                    tt::game::MinigameCog mgCogs[tt::game::kMaxMinigameCogs];
+                    const int numCogs = minigame.cogs(mgCogs, tt::game::kMaxMinigameCogs);
+                    for (int i = 0; i < numCogs; ++i) {
+                        const tt::game::MinigameCog& c = mgCogs[i];
+                        suits.setExternal(kMinigameCogBase + u32(i), c.code, 0, c.x, c.y, c.z, c.h, c.walking, true);
+                    }
+                    for (int i = numCogs; i < shownCogs; ++i) suits.removeExternal(kMinigameCogBase + u32(i));
+                    shownCogs = numCogs;
+                }
+                // ---- end minigame Cogs ----
                 if (const u32 home = minigame.popReturn()) {
                     // Back from the game: teleport into the playground (Playground.enterTeleportIn).
                     player.setCollision(&place.collision());
@@ -2302,6 +2331,25 @@ int main() {
                 if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
                 // ---- end qafix ----
                 minigame.draw(renderer);
+                suits.draw(renderer); // ---- minigame Cogs (MinigameSession::cogs) ----
+                {
+                    // The other participants a game places from its own state (Race, Pattern).
+                    tt::game::MinigamePlayer placed[tt::net::kMinigamePlayers];
+                    const int numPlaced = minigame.placedPlayers(net, placed, tt::net::kMinigamePlayers);
+                    for (int i = 0; i < numPlaced; ++i)
+                        remoteToons.placeExternal(placed[i].doId, placed[i].x, placed[i].y, placed[i].z, placed[i].h);
+                    if (numPlaced > 0) {
+                        float tx, ty, tz, th;
+                        minigame.toonPose(&tx, &ty, &tz, &th);
+                        remoteToons.draw(renderer, tx, ty);
+                    }
+                }
+                if (minigame.inGame() && minigame.smoothedPlayers()) {
+                    // The other participants, at their broadcast poses (startSmooth games).
+                    float tx, ty, tz, th;
+                    minigame.toonPose(&tx, &ty, &tz, &th);
+                    remoteToons.draw(renderer, tx, ty);
+                }
                 tt::prof::lap(tt::prof::kMinigameDraw); // the playground is hidden while we are away
             } else if (level.active()) {
                 level.draw(renderer, player.cameraEye());

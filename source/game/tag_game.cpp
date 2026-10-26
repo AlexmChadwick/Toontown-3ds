@@ -12,12 +12,15 @@ bool TagGame::init(const char* root, uint32_t itAvId) {
     toonY_ = -15.0f;
     toonH_ = 0.0f;
     isDone_ = false;
+    std::snprintf(itName_, sizeof(itName_), "Toon");
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/tag_arena.ttm", root);
     assetBatch_.load(arenaModel_, path);
     std::snprintf(path, sizeof(path), "%s/tag_treasure.ttm", root);
     assetBatch_.load(treasureModel_, path);
+    std::snprintf(path, sizeof(path), "%s/minigame_sky.ttm", root);
+    assetBatch_.load(skyModel_, path);
 
     return true;
 }
@@ -26,6 +29,7 @@ void TagGame::shutdown() {
     assetBatch_.clear();
     arenaModel_.unload();
     treasureModel_.unload();
+    skyModel_.unload();
 }
 
 void TagGame::onTag(uint32_t tagger, uint32_t tagged) {
@@ -33,9 +37,11 @@ void TagGame::onTag(uint32_t tagger, uint32_t tagged) {
 }
 
 void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
-    (void)client;
     (void)keysDown;
     (void)nowMs;
+
+    const char* name = client.avatarName(sim_.itAvId);
+    if (name && name[0]) std::snprintf(itName_, sizeof(itName_), "%s", name);
 
     if (sim_.timeRemaining > 0.0f) {
         sim_.step(dt);
@@ -47,6 +53,21 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
     // Move local toon
     float dx = (float)pad.dx / 156.0f;
     float dy = (float)pad.dy / 156.0f;
+    if (autoPlay_ && sim_.numTreasures > 0) {
+        // The test autoplay has no Circle Pad input. Follow an available
+        // treasure through the normal local movement path.
+        for (int i = 0; i < sim_.numTreasures; ++i) {
+            if (!sim_.treasures[i].active) continue;
+            dx = sim_.treasures[i].x - toonX_;
+            dy = sim_.treasures[i].y - toonY_;
+            const float length = std::sqrt(dx * dx + dy * dy);
+            if (length > 0.01f) {
+                dx /= length;
+                dy /= length;
+            }
+            break;
+        }
+    }
     if (std::fabs(dx) > 0.15f || std::fabs(dy) > 0.15f) {
         float speed = 16.0f * dt;
         toonX_ += dx * speed;
@@ -74,6 +95,11 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
 }
 
 void TagGame::draw(render::Renderer& renderer) {
+    if (skyModel_.loaded()) {
+        C3D_Mtx world;
+        Mtx_Identity(&world);
+        renderer.drawModel(skyModel_, world);
+    }
     if (arenaModel_.loaded()) {
         C3D_Mtx world;
         Mtx_Identity(&world);
@@ -124,7 +150,7 @@ const char* TagGame::line(int i) const {
         return lines_[1];
     }
     if (i == 2) {
-        std::snprintf(lines_[2], sizeof(lines_[2]), "IT: %lu (cd: %.1fs)", static_cast<unsigned long>(sim_.itAvId), sim_.tagBackTimer);
+        std::snprintf(lines_[2], sizeof(lines_[2]), "IT: %s (cd: %.1fs)", itName_, sim_.tagBackTimer);
         return lines_[2];
     }
     return "";

@@ -155,6 +155,10 @@ void RingGame::draw(render::Renderer& renderer) {
 
     // Rings
     if (ringModel_.loaded()) {
+        // DistributedRingGame colors its shared ring model from
+        // RingGameGlobals.ringColors[colorIndices[p]].
+        const ringgame::RingColor& color = ringgame::kRingColors[rings_[0].colorIndex % 7];
+        renderer.setBaseTint(color.r, color.g, color.b, color.a);
         const float t = static_cast<int>(tt::net::plat::nowMs() - startMs_) / 1000.0f;
         for (int i = 0; i < ringgame::kNumRingGroups; ++i) {
             const float ringY = kFirstOffset + i * kSpacing - ringgame::kRingSwimVel * t;
@@ -164,6 +168,7 @@ void RingGame::draw(render::Renderer& renderer) {
             Mtx_Translate(&m, rings_[i].x, ringY, rings_[i].z, true);
             renderer.drawModel(ringModel_, m);
         }
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
     }
 }
 

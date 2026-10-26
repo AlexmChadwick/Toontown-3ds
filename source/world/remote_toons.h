@@ -29,6 +29,9 @@ public:
     // knock-knock lines; ignored for toons that are not here.
     void say(u32 doId, const char* phrase);
     void update(float dt);
+    // A game that places players from its own state (Race lanes, Pattern rows): the toon walks
+    // (smoothed, with the speed-chosen clip) to this pose instead of its last broadcast sample.
+    void placeExternal(u32 doId, float x, float y, float z, float h);
     // Draws the nearest kMax toons to (cx, cy).
     void draw(render::Renderer& renderer, float cx, float cy);
     // Adds nametags/balloons for toons in front of the camera.
@@ -65,6 +68,7 @@ private:
         float turnRate = 0;
         float distSq = 0;
         // Tunnel transition playback (source/world/transition.*)
+        bool gamePlaced = false; // placeExternal owns the pose; broadcast samples are ignored
         bool inTunnelTrack = false;
         bool isTunnelOut = false;
         float tunnelAge = 0.0f;

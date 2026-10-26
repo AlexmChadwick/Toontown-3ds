@@ -31,6 +31,7 @@ public:
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool isDone() const { return isDone_; }
     int score() const { return sim_.localScore; }
+    void setAutoPlay(bool enabled) { autoPlay_ = enabled; }
 
     const char* title() const { return "Tag"; }
     const char* line(int i) const;
@@ -44,9 +45,12 @@ private:
     float toonY_ = 0.0f;
     float toonH_ = 0.0f;
     bool isDone_ = false;
+    bool autoPlay_ = false;
+    char itName_[net::kNameLen] = {};
 
     render::Model arenaModel_;
     render::Model treasureModel_;
+    render::Model skyModel_;
 
     mutable char lines_[3][64] = {};
 };

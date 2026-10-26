@@ -10,6 +10,8 @@
 // - Ring (DistributedRingGame, id 5)
 // Any other game is aborted at once with requestExit, which the AI pays 1..7 jellybeans for (trolley.md 2.6).
 #pragma once
+
+#include "game/minigame_cog.h"
 #include "world/asset_batch.h"
 
 #include <3ds.h>
@@ -74,7 +76,20 @@ public:
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
     bool photoScene() const { return isPhoto_; }
+    // The Cogs to draw this frame; 0 when the game has none.
+    int cogs(MinigameCog* out, int max) const;
     bool startedGame() const { return startedGame_; }
+    // From setGameStart until the game ends: our toon stands in the game's scene.
+    bool inGame() const { return startedGame_ && !endedGame_ && phase_ == Phase::Play; }
+    // Games whose client calls startSmooth() on the other participants
+    // (Distributed{Catch,CogThief,Diving,Maze,Pairing,Ring,Tag,Target,TwoD}Game): their
+    // broadcast setSmPosHpr places them; the other games place everyone from game state.
+    // The other participants this game places itself (Race lanes, Pattern back row); 0 when none.
+    int placedPlayers(const net::Client& client, MinigamePlayer* out, int max) const;
+    bool smoothedPlayers() const {
+        return isCatch_ || isCogThief_ || isDiving_ || isMaze_ || isPairing_ || isRing_ || isTag_ ||
+               isTarget_ || isTwoD_;
+    }
     bool endedGame() const { return endedGame_; }
     bool completedPurchase() const { return completedPurchase_; }
     bool active() const { return phase_ != Phase::Off; }
