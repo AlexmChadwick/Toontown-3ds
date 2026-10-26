@@ -382,6 +382,9 @@ struct CogElevator {
     float x = 0, y = 0, z = 0, h = 0;
     bool hasPose = false;
     bool forcedBossDestination = false;
+    uint32_t rejectAvatar = 0;
+    uint8_t rejectReason = 0;
+    uint32_t rejectSerial = 0;
     bool active = false;
 };
 // Every suit building and field office on a street has an exterior elevator.
@@ -1402,6 +1405,7 @@ public:
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
     bool sendCogElevatorExit(uint32_t doId);
+    bool sendCogInteriorBuildingExit(uint32_t doId);
     bool sendCogInteriorAvatarJoined(uint32_t doId);
     bool sendCogInteriorElevatorDone(uint32_t doId);
     bool sendCogInteriorReserveJoinDone(uint32_t doId);

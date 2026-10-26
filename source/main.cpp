@@ -891,6 +891,11 @@ int main() {
             static bool wasInside = false;
             if (autotest.stepBegan()) wasInside = false;
             if (cogInterior.active()) wasInside = true;
+            if (cogInterior.active() && !battle.active() && !cogInterior.seated()) {
+                float ex, ey, ez, eh;
+                if (cogInterior.elevatorOutPoint(&ex, &ey, &ez, &eh))
+                    player.reset(ex, ey, ez + 0.5f, eh);
+            }
             if (wasInside && !cogInterior.active() && transition.idle() && autotest.stepTime() > 10.0f)
                 autotest.finishStep();
         }
@@ -1411,7 +1416,8 @@ int main() {
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
         }
-        if (minigame.active() || golf.active() || trolley.seated()) { // seated or in a game: the toon isn't walking
+        if (cogInterior.seated()) cogInterior.handleInput(net, in.down);
+        if (minigame.active() || golf.active() || trolley.seated() || cogInterior.seated()) { // seated or in a game: the toon isn't walking
             if (trolley.seated() && (in.down & KEY_B)) trolley.hopOff(net);
             in.pad.dx = 0;
             in.pad.dy = 0;
@@ -1855,7 +1861,11 @@ int main() {
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
             ui.closet().update(net);
-            cogInterior.update(net, nowMs);
+            cogInterior.update(net, player.x(), player.y(), player.z(), nowMs);
+            if (const char* m = cogInterior.popMessage()) {
+                toast = m;
+                toastAge = 0.0f;
+            }
             tt::prof::lap(tt::prof::kNet);
             // ---- racing2 ----
             // Racing was already simulated once, before the player update.
@@ -1892,6 +1902,8 @@ int main() {
                     level.spawnPose(&sx, &sy, &sz, &sh)) {
                     player.reset(sx, sy, sz, sh);
                 }
+                if (cogInterior.elevatorSeatPose(&sx, &sy, &sz, &sh))
+                    player.reset(sx, sy, sz, sh);
             }
             {
                 // Whispers and friend invites (net/client_friends.cpp) as top-screen toasts.
@@ -2600,6 +2612,17 @@ int main() {
             ctx.infoLines[1] = "B: hop off before departure";
         }
         // ---- end qafix ----
+        if (cogInterior.seated()) {
+            const int left = cogInterior.elevatorCountdown(net, tt::net::plat::nowMs());
+            ctx.infoTitle = "Cog elevator";
+            ctx.infoLines[0] = left >= 0 ? "Leaving in a few seconds..." : "Riding to the next floor...";
+            ctx.infoLines[1] = "B: leave elevator";
+            if (left >= 0) {
+                snprintf(toastBuf, sizeof(toastBuf), "Cog elevator leaves in %d...  (B: leave)", left);
+                toast = toastBuf;
+                toastAge = 0.0f;
+            }
+        }
         if (minigame.active()) {
             ctx.infoTitle = minigame.title();
             for (int i = 0; i < 3; i++) ctx.infoLines[i] = minigame.line(i);
