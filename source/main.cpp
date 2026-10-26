@@ -833,6 +833,12 @@ int main() {
                     const float approach = autotest.stepTime() < 3 ? 9.0f : 1.0f;
                     const float dx = anchor->x - sinf(angle) * approach - player.x();
                     const float dy = anchor->y + cosf(angle) * approach - player.y();
+                    // From far away a straight walk runs into walls: start 9 units in front.
+                    if (!serviceClerks.active() && dx * dx + dy * dy > 15.0f * 15.0f) {
+                        player.reset(anchor->x - sinf(angle) * 9.0f, anchor->y + cosf(angle) * 9.0f, anchor->z + 0.5f,
+                                     anchor->h + 180.0f);
+                        break;
+                    }
                     if (!serviceClerks.active() && dx * dx + dy * dy > .25f) {
                         player.setHeading(atan2f(-dx, dy) * 180.0f / 3.14159265f);
                         in.pad.dx = 0;
