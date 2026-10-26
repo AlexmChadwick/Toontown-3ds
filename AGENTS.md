@@ -343,6 +343,23 @@ Lessons recorded for agents:
 - **QA by play-through.** Run the world script in chunks split at `go ...` steps (each facility
   from boarding) with `AI_MINIGAME_ID=8`, and review the logs and every shot. Fix root causes
   first: one stuck panel or session can fake dozens of "wrong place" shots.
+- **Emulator time must keep up with real time.** Run Azahar passes alone: parallel builds,
+  host suites or App Nap (a hidden Azahar window) slow emulated time. The client's 10 s
+  heartbeats then arrive minutes apart, and Astron ejects it with code 345. That fakes
+  "connection closed by server" bugs. `azahar_test.sh` turns App Nap off for the run, and
+  agent builds run under `nice -n 19`. Compare log time with real time before blaming the client.
+- **Every hand-parsed field needs a layout check, and every handled class must be in the
+  table.** Golf was dead twice over:
+  - `DistributedGolfKart.setState` was read without its i16 timestamp.
+  - The golf classes were missing from dcgen's `TABLE_CLASSES`, so `findClass()` dropped
+    every generate.
+
+  `net: PARSE ...` now logs any message a handler reads only partly or past its end.
+- **Labels are not tests.** Several autotest steps (`cog building: *`) existed without driver
+  code. A step must log what it did and fail visibly when its target is absent.
+- **Codex helpers cannot commit.** The Codex sandbox cannot write `.git`. That includes a
+  worktree's metadata in the main checkout. Give Codex a standalone clone; the main agent reviews,
+  commits and fetches the branch.
 
 **Phase 2 — Playground + movement.** Status: mostly done in Azahar (Old 3DS); see
 `docs/test-log.md`.
@@ -462,9 +479,23 @@ server.
 - ✅ **HUD**: the real laff meter (`bake_laff_meter.py`: species head in the head colour, eyes,
   teeth, frown, numbers). Jellybeans show on the Toon tab and the book's Gags page, as upstream
   has no jar on the HUD.
+- ✅ **Cog attack movies** (`world/cog_attacks.*`, `docs/design/cog_attacks.md`): per-attack
+  timing, props, sounds and toon reactions, seen in Azahar.
+- ✅ **Kart racing** (`racing2`, `docs/design/racing.md`): stock purchase, Practice boarding and
+  barriers are seen in Azahar. Lap counting on the device is being verified.
+- ✅ **Multi-floor Cog buildings**: interior elevators (`DistributedElevatorInt`), countdown and
+  boarding. Merged, not yet run in Azahar.
+- ✅ **Toon Escape and Photo Fun** are real games (`games2`). All 16 trolley games run their
+  lifecycle against the stock AI (`tools/dev/minigame_pass.sh`). A visual-fidelity pass per game is
+  in progress.
+- **Toontorial** (`docs/design/tutorial.md`): the protocol, scripts and baked zones are in. On the
+  device the tutorial place does not load yet (under investigation).
+- **Golf**: the protocol is fixed. ODE-parity ball physics is in progress on the `golf2` branch
+  and is not merged.
+- **Cross-play** with Toontown Mobile: the contract is in `docs/design/crossplay.md`; two-client
+  tests are pending.
 - Next:
-  - Cog attack movies (`cogattacks` worktree)
-  - the QA defect list and every trolley game (`qafix` worktree)
+  - finish the items above
   - a real hardware run
 
 **Phase 2 — original plan.**
