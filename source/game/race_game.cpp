@@ -1,9 +1,17 @@
 #include "game/race_game.h"
 
+#include <cmath>
+
 #include <cstdio>
 #include <cstring>
 
 namespace tt::game {
+
+namespace {
+constexpr float kCameraMoveSeconds = 0.75f; // moveCamera: posQuatInterval(0.75, ...)
+// DistributedRaceGame.cameraTopView (onstage): x, y, z, h, p.
+constexpr float kTopView[5] = {-22.78f, -41.65f, 31.53f, -51.55f, -42.68f};
+} // namespace
 
 bool RaceGame::init(const char* root) {
     sim_.init(1);
@@ -15,6 +23,20 @@ bool RaceGame::init(const char* root) {
     moveEndPosition_ = 0;
     moveTime_ = 0.0f;
     moveDuration_ = 0.0f;
+    lane_ = 0;
+    numRacers_ = 1;
+    {
+        // onstage: the top view until the first move; look 10 units along its heading/pitch.
+        const float h = kTopView[3] * 0.0174532925f;
+        const float p = kTopView[4] * 0.0174532925f;
+        const float look[3] = {-std::sin(h) * std::cos(p), std::cos(h) * std::cos(p), std::sin(p)};
+        for (int i = 0; i < 3; ++i) {
+            camTo_[i] = kTopView[i];
+            camTo_[3 + i] = kTopView[i] + look[i] * 10.0f;
+        }
+        for (int i = 0; i < 6; ++i) camFrom_[i] = camTo_[i];
+        camTime_ = kCameraMoveSeconds;
+    }
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/race_track.ttm", root);
@@ -37,17 +59,19 @@ void RaceGame::onSetChancePositions(const uint8_t* positions, int count) {
 void RaceGame::onSetServerChoices(const uint8_t* choices, const uint8_t* positions, const int16_t* rewards, int count) {
     (void)choices;
     (void)rewards;
-    const int oldPosition = sim_.positions[0];
+    const int oldPosition = sim_.positions[lane_];
     for (int i = 0; i < count && i < 4; ++i) {
         sim_.positions[i] = positions[i] > racegame::kNumberToWin ? racegame::kNumberToWin : positions[i];
         if (sim_.positions[i] == racegame::kNumberToWin) sim_.isDone = true;
     }
     moveStartPosition_ = oldPosition;
-    moveEndPosition_ = sim_.positions[0];
+    moveEndPosition_ = sim_.positions[lane_];
     moveTime_ = 0.0f;
     const int spaces = std::abs(moveEndPosition_ - moveStartPosition_);
     moveDuration_ = spaces > 4 ? float(spaces) / 4.0f : float(spaces) / 1.2f;
     displayedPosition_ = moveEndPosition_;
+    numRacers_ = count < 1 ? 1 : count;
+    moveCamera();
     choiceSubmitted_ = false;
 }
 
@@ -56,6 +80,7 @@ void RaceGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
     (void)nowMs;
 
     if (moveTime_ < moveDuration_) moveTime_ += dt;
+    if (camTime_ < kCameraMoveSeconds) camTime_ += dt;
 
     if (sim_.isDone) return;
 
@@ -88,33 +113,69 @@ void RaceGame::draw(render::Renderer& renderer) {
 }
 
 void RaceGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    const float position = moveDuration_ > 0.0f ?
-        moveStartPosition_ + (moveEndPosition_ - moveStartPosition_) * (moveTime_ / moveDuration_ > 1.0f ? 1.0f : moveTime_ / moveDuration_) :
-        displayedPosition_;
-    const float y = -2.9f * position;
-    if (eye) {
-        eye->x = -18.0f;
-        eye->y = y - 17.0f;
-        eye->z = 20.0f;
-        eye->w = 1.0f;
+    const float t = camTime_ / kCameraMoveSeconds > 1.0f ? 1.0f : camTime_ / kCameraMoveSeconds;
+    float v[6];
+    for (int i = 0; i < 6; ++i) v[i] = camFrom_[i] + (camTo_[i] - camFrom_[i]) * t;
+    if (eye) *eye = FVec4_New(v[0], v[1], v[2], 1.0f);
+    if (target) *target = FVec4_New(v[3], v[4], v[5], 1.0f);
+}
+
+void RaceGame::moveCamera() {
+    // DistributedRaceGame.moveCamera, positions in posHprArray units (render space, as upstream).
+    using racegame::kLanePosHpr;
+    using racegame::kNumberToWin;
+    int best = sim_.positions[0];
+    int bestLane = 0;
+    for (int lane = 0; lane < numRacers_ && lane < racegame::kNumLanes; ++lane) {
+        if (sim_.positions[lane] > best) {
+            best = sim_.positions[lane];
+            bestLane = lane;
+        }
     }
-    if (target) {
-        target->x = -2.0f;
-        target->y = y - 4.0f;
-        target->z = 0.0f;
-        target->w = 1.0f;
+    best = best < kNumberToWin ? best : kNumberToWin;
+    const int own = sim_.positions[lane_];
+    const float* pos1 = kLanePosHpr[lane_][own < kNumberToWin - 4 ? own : kNumberToWin - 4];
+    const int bestLookAt = best + 1;
+    const int ownLookAt = own + 4;
+    const float* pos2;
+    if (ownLookAt >= bestLookAt) {
+        pos2 = kLanePosHpr[lane_][ownLookAt < kNumberToWin ? ownLookAt : kNumberToWin];
+    } else {
+        pos2 = kLanePosHpr[bestLane][bestLookAt < kNumberToWin ? bestLookAt : kNumberToWin];
     }
+    constexpr float kDistanceMultiplier = 0.8f;
+    const float raceFraction = float(best) / float(kNumberToWin);
+    const float height = 10.0f * raceFraction + (1.0f - raceFraction) * 22.0f;
+    const float* lookAt = kLanePosHpr[lane_][own < kNumberToWin - 6 ? own : kNumberToWin - 6];
+    for (int i = 0; i < 6; ++i) camFrom_[i] = camFrom_[i] + (camTo_[i] - camFrom_[i]) *
+                                     (camTime_ / kCameraMoveSeconds > 1.0f ? 1.0f : camTime_ / kCameraMoveSeconds);
+    camTo_[0] = pos2[0] + kDistanceMultiplier * (pos2[0] - pos1[0]);
+    camTo_[1] = pos2[1] + kDistanceMultiplier * (pos2[1] - pos1[1]);
+    camTo_[2] = pos2[2] + height;
+    camTo_[3] = lookAt[0];
+    camTo_[4] = lookAt[1];
+    camTo_[5] = lookAt[2];
+    camTime_ = 0.0f;
 }
 
 void RaceGame::toonPose(float* x, float* y, float* z, float* h) const {
     const float t = moveDuration_ > 0.0f ? (moveTime_ / moveDuration_ > 1.0f ? 1.0f : moveTime_ / moveDuration_) : 1.0f;
-    const float position = moveStartPosition_ + (moveEndPosition_ - moveStartPosition_) * t;
-    // Lane 0 of DistributedRaceGame.posHprArray, approximated along its
-    // authored curved lane. The board's 0.8 scale is applied below too.
-    if (x) *x = (-9.03f + 0.14f * position * position) * 0.8f;
-    if (y) *y = (-2.9f * position) * 0.8f;
-    if (z) *z = 0.025f;
-    if (h) *h = 180.0f - 2.0f * position;
+    float position = moveStartPosition_ + (moveEndPosition_ - moveStartPosition_) * t;
+    if (position < 0.0f) position = 0.0f;
+    if (position > float(racegame::kNumPlaces - 1)) position = float(racegame::kNumPlaces - 1);
+    // DistributedRaceGame.positionInPlace / walkInPlace: the lane's posHprArray entries, relative
+    // to the race board (scaled 0.8 in load); between places the toon walks the straight segment.
+    const int lane = lane_ >= 0 && lane_ < racegame::kNumLanes ? lane_ : 0;
+    const int from = int(position);
+    const int to = from + 1 < racegame::kNumPlaces ? from + 1 : from;
+    const float f = position - float(from);
+    const float* a = racegame::kLanePosHpr[lane][from];
+    const float* b = racegame::kLanePosHpr[lane][to];
+    constexpr float kBoardScale = 0.8f; // DistributedRaceGame.load: raceBoard.setScale(0.8)
+    if (x) *x = (a[0] + (b[0] - a[0]) * f) * kBoardScale;
+    if (y) *y = (a[1] + (b[1] - a[1]) * f) * kBoardScale;
+    if (z) *z = (a[2] + (b[2] - a[2]) * f) * kBoardScale;
+    if (h) *h = a[3] + (b[3] - a[3]) * f;
 }
 
 const char* RaceGame::line(int i) const {

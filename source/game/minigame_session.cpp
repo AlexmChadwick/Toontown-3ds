@@ -237,6 +237,9 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isRace_) {
             race_.init(kDir);
+            // DistributedRaceGame: each toon runs in the lane of its avIdList index.
+            for (int i = 0; i < mg->numParticipants && i < racegame::kNumLanes; ++i)
+                if (mg->participants[i] == client.avatarId()) race_.setLane(i);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isPhoto_) {
