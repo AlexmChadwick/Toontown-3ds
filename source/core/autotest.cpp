@@ -223,9 +223,11 @@ const Step kScript[] = {
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "club: boss", "club_boss*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: exit", "club_exit"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "go speedway", "speedway"},
-    {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: pads", "speedway_pads"},
-    {30.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race", "speedway_race*"},
+    // ---- racing2: bounded real purchase and solo Practice race ----
+    {180.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: pads", "speedway_pads"},
+    {600.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race", "speedway_race*"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: shop", "speedway_shop"},
+    // ---- end racing2 ----
     // ---- cogdo: real local-server flow; series capture asynchronous phases ----
     {60.0f, 0, 0, 0, 0, -1, -1, 0, "cogdo: board", "cogdo_board*"},
     {35.0f, 0, 0, 0, 0, -1, -1, 0, "cogdo: floor", "cogdo_floor*"},

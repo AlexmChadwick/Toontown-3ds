@@ -192,6 +192,9 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 }
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
+    // ---- racing2 ----
+    if (contextRacing_) return down & ~(KEY_A | KEY_B | KEY_R);
+    // ---- end racing2 ----
     // ---- qafix: input and drawing share resolveOwner ----
     const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_);
     // ---- padnav: a panel that owns the screen drops the tab focus, so A jumps afterwards ----
@@ -648,14 +651,36 @@ void Ui::drawSettings(const State& s) {
     text(12, 156, 0.45f, kDim, "used to measure the Old 3DS draw budget.");
 }
 
-void Ui::drawInfo(const Context& c) {
+void Ui::drawInfo(const Context &c) {
+    // ---- racing2 ----
+    if (c.racing) {
+        const auto &race = *c.racing;
+        text(8, 4, .6f, kAccent, "%s", c.infoTitle);
+        for (int i = 0; i < 3; ++i)
+            text(8, 28 + i * 14, .36f, kWhite, "%s", c.infoLines[i] ? c.infoLines[i] : "");
+        auto x = [&](float value) { return 12 + (value - race.minX) / race.spanX * 140; };
+        auto y = [&](float value) { return 194 - (value - race.minY) / race.spanY * 112; };
+        for (int i = 0; i < 64; ++i) {
+            const int next = (i + 1) % 64;
+            C2D_DrawLine(x(race.curve[i][0]), y(race.curve[i][1]), kDim, x(race.curve[next][0]),
+                         y(race.curve[next][1]), kDim, 2, .5f);
+        }
+        for (int i = 0; i < race.count; ++i) {
+            const u32 color = i == 0 ? kAccent : kWhite;
+            C2D_DrawRectSolid(x(race.racers[i][0]) - 2, y(race.racers[i][1]) - 2, .6f, 4, 4, color);
+            text(168, 88 + i * 24, .45f, color, "%s", race.names[i]);
+        }
+        return;
+    }
+    // ---- end racing2 ----
     text(12, 12, 0.7f, kAccent, "%s", c.infoTitle);
     for (int i = 0; i < 3; i++) {
-        if (c.infoLines[i] && c.infoLines[i][0]) text(12, 60 + i * 30, 0.55f, kWhite, "%s", c.infoLines[i]);
+        if (c.infoLines[i] && c.infoLines[i][0])
+            text(12, 60 + i * 30, 0.55f, kWhite, "%s", c.infoLines[i]);
     }
 }
 
-void Ui::drawGags(const Context& c) {
+void Ui::drawGags(const Context &c) {
     // Like the Shticker Book inventory page: one row per track, counts per gag level.
     // Text is re-parsed every kDebugRefreshFrames (shares the debug line cache).
     if (numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {

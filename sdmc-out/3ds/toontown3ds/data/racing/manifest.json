@@ -1,0 +1,355 @@
+{
+  "sha256": {
+    "airborne_acres.trc": "65b09b73fd7ef32fb5c8961992a6d65ff56fb22537877ac8b3db972f8ca48562",
+    "airborne_acres.ttc": "20e56d822344d808bc0cd35352b0b38ad712fc0b2880421b62d1225aca737f3f",
+    "airborne_acres.ttm": "bf1c71a75db30bc71c75431e09d59e152c24d27a6717cecebb0d7a56180be8e8",
+    "airborne_acres_rev.trc": "b5f6815bbbf39d97f5297b43ebf847fd1201bc33e23d81835dd91d745cbb1182",
+    "airborne_acres_rev.ttc": "20e56d822344d808bc0cd35352b0b38ad712fc0b2880421b62d1225aca737f3f",
+    "airborne_acres_rev.ttm": "bf1c71a75db30bc71c75431e09d59e152c24d27a6717cecebb0d7a56180be8e8",
+    "blizzard_boulevard.trc": "272ff786e1a1edeb663593bf6c19ac6d204984ce6cd591710c90e2192466cc41",
+    "blizzard_boulevard.ttc": "09daeb99aa422816a85cd4c897685661de65d7f46f9979c8d04047e2701ef965",
+    "blizzard_boulevard.ttm": "73e369280607c24092118d78e8140c296caa1b2dfb1dda2d58fdf2313eac6d4f",
+    "blizzard_boulevard_rev.trc": "613d5e708ed83109403bc4ca2e75f32827b008fbc3af36c99cca47c37a112186",
+    "blizzard_boulevard_rev.ttc": "09daeb99aa422816a85cd4c897685661de65d7f46f9979c8d04047e2701ef965",
+    "blizzard_boulevard_rev.ttm": "73e369280607c24092118d78e8140c296caa1b2dfb1dda2d58fdf2313eac6d4f",
+    "city_circuit.trc": "9b3f134a72a79b2256b32a15c43f03e4447057d2ff46e031a925bfaba0bd27aa",
+    "city_circuit.ttc": "951a10ba87c554751b90473f765b6582e6e4513f327b7812a6c6efc1d3359fd1",
+    "city_circuit.ttm": "64dc2e04c1cd4bd6c0f02151edc8f09a947d3a24cc45d0b90b13d1d44b6bb3ee",
+    "city_circuit_rev.trc": "389b836e28ddcd990820f8f6c32167f298670c3784801a3c13fa929a37a9a180",
+    "city_circuit_rev.ttc": "951a10ba87c554751b90473f765b6582e6e4513f327b7812a6c6efc1d3359fd1",
+    "city_circuit_rev.ttm": "64dc2e04c1cd4bd6c0f02151edc8f09a947d3a24cc45d0b90b13d1d44b6bb3ee",
+    "corkscrew_coliseum.trc": "63cb8a3b2dc8f82dbb55a0ec1df52afedba6390d05f88fcc7a5d36cc42dc35cf",
+    "corkscrew_coliseum.ttc": "c2b31371ecc6e9f9b9196af5aa0504f84dc945310c80e9f63675b327450082f5",
+    "corkscrew_coliseum.ttm": "0afa80af5284559527cb4ca3baeb55dc645620547c29c6c62f3417b33876b6b4",
+    "corkscrew_coliseum_rev.trc": "565f4f7b693e073af19b35296c6b655d1bf98f5bb38f314727a6d6a31e354127",
+    "corkscrew_coliseum_rev.ttc": "c2b31371ecc6e9f9b9196af5aa0504f84dc945310c80e9f63675b327450082f5",
+    "corkscrew_coliseum_rev.ttm": "0afa80af5284559527cb4ca3baeb55dc645620547c29c6c62f3417b33876b6b4",
+    "rustic_raceway.trc": "02a0a0bf52f1f4870de032431d1103484ad7fe2f68b1c1165bf2c470372a3f96",
+    "rustic_raceway.ttc": "97e92b2ddd87bb411dd58418090cae80de248b88b36e0f6e1d2604dfd2de24e8",
+    "rustic_raceway.ttm": "43bcd3ddbf2217b7ecd9335cbcd7a239a931fe52304fe9e245cb2bb052a96192",
+    "rustic_raceway_rev.trc": "9530590602024205ed5b687da502895677597f877d93e8c79a46d2f040db8a12",
+    "rustic_raceway_rev.ttc": "97e92b2ddd87bb411dd58418090cae80de248b88b36e0f6e1d2604dfd2de24e8",
+    "rustic_raceway_rev.ttm": "43bcd3ddbf2217b7ecd9335cbcd7a239a931fe52304fe9e245cb2bb052a96192",
+    "screwball_stadium.trc": "e34a06c70ed0ede2e88d5e783e32533de96c08a8c2c39855977a79599bd5a4b0",
+    "screwball_stadium.ttc": "79115d6e61417758516538efc415898c0cd1cdc5242ce209718f013a40683e6c",
+    "screwball_stadium.ttm": "0b077e1315079b5de9393db997f83a0cdb38e80bdea20ecaad0bdd7566f4a9b4",
+    "screwball_stadium_rev.trc": "2b118b94c9ff5d1d2fbee1a77fc08970e320b65d0aceb3b71f5269b8d4efc76a",
+    "screwball_stadium_rev.ttc": "79115d6e61417758516538efc415898c0cd1cdc5242ce209718f013a40683e6c",
+    "screwball_stadium_rev.ttm": "0b077e1315079b5de9393db997f83a0cdb38e80bdea20ecaad0bdd7566f4a9b4"
+  },
+  "tracks": [
+    {
+      "batches": 20,
+      "bounds": [
+        [
+          -2191.800048828125,
+          -2191.800048828125,
+          -16.091699600219727
+        ],
+        [
+          2191.800048828125,
+          2191.800048828125,
+          340.2300109863281
+        ]
+      ],
+      "collision_bytes": 41488,
+      "curve_points": 4000,
+      "file_bytes": 325888,
+      "geometry_bytes": 55268,
+      "id": 0,
+      "name": "screwball_stadium",
+      "texture_bytes": 267936,
+      "textures": 17,
+      "triangles": 1550,
+      "uv_clamped": 27,
+      "vertices": 2873
+    },
+    {
+      "batches": 20,
+      "bounds": [
+        [
+          -2191.800048828125,
+          -2191.800048828125,
+          -16.091699600219727
+        ],
+        [
+          2191.800048828125,
+          2191.800048828125,
+          340.2300109863281
+        ]
+      ],
+      "collision_bytes": 41488,
+      "curve_points": 4000,
+      "file_bytes": 325888,
+      "geometry_bytes": 55268,
+      "id": 1,
+      "name": "screwball_stadium_rev",
+      "texture_bytes": 267936,
+      "textures": 17,
+      "triangles": 1550,
+      "uv_clamped": 27,
+      "vertices": 2873
+    },
+    {
+      "batches": 28,
+      "bounds": [
+        [
+          -4491.3798828125,
+          -3952.320068359375,
+          -74.62419891357422
+        ],
+        [
+          4979.43994140625,
+          4159.5498046875,
+          644.6729736328125
+        ]
+      ],
+      "collision_bytes": 184608,
+      "curve_points": 4000,
+      "file_bytes": 526720,
+      "geometry_bytes": 140426,
+      "id": 20,
+      "name": "rustic_raceway",
+      "texture_bytes": 382464,
+      "textures": 25,
+      "triangles": 4071,
+      "uv_clamped": 54,
+      "vertices": 7250
+    },
+    {
+      "batches": 28,
+      "bounds": [
+        [
+          -4491.3798828125,
+          -3952.320068359375,
+          -74.62419891357422
+        ],
+        [
+          4979.43994140625,
+          4159.5498046875,
+          644.6729736328125
+        ]
+      ],
+      "collision_bytes": 184608,
+      "curve_points": 4000,
+      "file_bytes": 526720,
+      "geometry_bytes": 140426,
+      "id": 21,
+      "name": "rustic_raceway_rev",
+      "texture_bytes": 382464,
+      "textures": 25,
+      "triangles": 4071,
+      "uv_clamped": 54,
+      "vertices": 7250
+    },
+    {
+      "batches": 16,
+      "bounds": [
+        [
+          -5861.68017578125,
+          -5861.68017578125,
+          -137.3800048828125
+        ],
+        [
+          5861.68017578125,
+          5861.68017578125,
+          467.63299560546875
+        ]
+      ],
+      "collision_bytes": 112832,
+      "curve_points": 4000,
+      "file_bytes": 369536,
+      "geometry_bytes": 156172,
+      "id": 40,
+      "name": "city_circuit",
+      "texture_bytes": 210688,
+      "textures": 16,
+      "triangles": 2914,
+      "uv_clamped": 42,
+      "vertices": 8668
+    },
+    {
+      "batches": 16,
+      "bounds": [
+        [
+          -5861.68017578125,
+          -5861.68017578125,
+          -137.3800048828125
+        ],
+        [
+          5861.68017578125,
+          5861.68017578125,
+          467.63299560546875
+        ]
+      ],
+      "collision_bytes": 112832,
+      "curve_points": 4000,
+      "file_bytes": 369536,
+      "geometry_bytes": 156172,
+      "id": 41,
+      "name": "city_circuit_rev",
+      "texture_bytes": 210688,
+      "textures": 16,
+      "triangles": 2914,
+      "uv_clamped": 42,
+      "vertices": 8668
+    },
+    {
+      "batches": 15,
+      "bounds": [
+        [
+          -5011.990234375,
+          -3764.830078125,
+          -4.022319793701172
+        ],
+        [
+          3819.030029296875,
+          5066.18994140625,
+          286.110107421875
+        ]
+      ],
+      "collision_bytes": 71216,
+      "curve_points": 4000,
+      "file_bytes": 295424,
+      "geometry_bytes": 90834,
+      "id": 60,
+      "name": "corkscrew_coliseum",
+      "texture_bytes": 202464,
+      "textures": 13,
+      "triangles": 2011,
+      "uv_clamped": 90,
+      "vertices": 4923
+    },
+    {
+      "batches": 15,
+      "bounds": [
+        [
+          -5011.990234375,
+          -3764.830078125,
+          -4.022319793701172
+        ],
+        [
+          3819.030029296875,
+          5066.18994140625,
+          286.110107421875
+        ]
+      ],
+      "collision_bytes": 71216,
+      "curve_points": 4000,
+      "file_bytes": 295424,
+      "geometry_bytes": 90834,
+      "id": 61,
+      "name": "corkscrew_coliseum_rev",
+      "texture_bytes": 202464,
+      "textures": 13,
+      "triangles": 2011,
+      "uv_clamped": 90,
+      "vertices": 4923
+    },
+    {
+      "batches": 27,
+      "bounds": [
+        [
+          -6852.02001953125,
+          -6246.56982421875,
+          -134.76800537109375
+        ],
+        [
+          6691.2001953125,
+          6465.08984375,
+          991.8729858398438
+        ]
+      ],
+      "collision_bytes": 317104,
+      "curve_points": 4000,
+      "file_bytes": 625280,
+      "geometry_bytes": 261142,
+      "id": 62,
+      "name": "airborne_acres",
+      "texture_bytes": 360512,
+      "textures": 26,
+      "triangles": 6201,
+      "uv_clamped": 205,
+      "vertices": 13996
+    },
+    {
+      "batches": 27,
+      "bounds": [
+        [
+          -6852.02001953125,
+          -6246.56982421875,
+          -134.76800537109375
+        ],
+        [
+          6691.2001953125,
+          6465.08984375,
+          991.8729858398438
+        ]
+      ],
+      "collision_bytes": 317104,
+      "curve_points": 4000,
+      "file_bytes": 625280,
+      "geometry_bytes": 261142,
+      "id": 63,
+      "name": "airborne_acres_rev",
+      "texture_bytes": 360512,
+      "textures": 26,
+      "triangles": 6201,
+      "uv_clamped": 205,
+      "vertices": 13996
+    },
+    {
+      "batches": 12,
+      "bounds": [
+        [
+          -9800.849609375,
+          -9081.3203125,
+          -4.5437397956848145
+        ],
+        [
+          9334.990234375,
+          10054.5,
+          98.43289947509766
+        ]
+      ],
+      "collision_bytes": 113616,
+      "curve_points": 4000,
+      "file_bytes": 312448,
+      "geometry_bytes": 134164,
+      "id": 64,
+      "name": "blizzard_boulevard",
+      "texture_bytes": 176576,
+      "textures": 11,
+      "triangles": 2542,
+      "uv_clamped": 48,
+      "vertices": 7432
+    },
+    {
+      "batches": 12,
+      "bounds": [
+        [
+          -9800.849609375,
+          -9081.3203125,
+          -4.5437397956848145
+        ],
+        [
+          9334.990234375,
+          10054.5,
+          98.43289947509766
+        ]
+      ],
+      "collision_bytes": 113616,
+      "curve_points": 4000,
+      "file_bytes": 312448,
+      "geometry_bytes": 134164,
+      "id": 65,
+      "name": "blizzard_boulevard_rev",
+      "texture_bytes": 176576,
+      "textures": 11,
+      "triangles": 2542,
+      "uv_clamped": 48,
+      "vertices": 7432
+    }
+  ],
+  "version": 1
+}

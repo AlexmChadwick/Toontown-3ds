@@ -9,11 +9,32 @@ constexpr uint64_t kTextureLimit = 1024 * 1024;
 } // namespace
 void ClerkKartPreview::path(int code, char *output, int capacity) const {
     const int body = code / 1000, part = code % 1000;
+    if (racingLod_ >= 0) {
+        if (!part)
+            std::snprintf(output, capacity,
+                          "sdmc:/3ds/toontown3ds/data/racing/karts/lod%d/kart_%d_body.ttm",
+                          racingLod_, body);
+        else
+            std::snprintf(output, capacity,
+                          "sdmc:/3ds/toontown3ds/data/racing/karts/lod%d/kart_%d_accessory_%d.ttm",
+                          racingLod_, body, part - 1);
+        return;
+    }
     if (!part)
-        std::snprintf(output, capacity, "sdmc:/3ds/toontown3ds/data/clerks/karts/kart_%d_body.ttm", body);
+        std::snprintf(output, capacity, "sdmc:/3ds/toontown3ds/data/clerks/karts/kart_%d_body.ttm",
+                      body);
     else
-        std::snprintf(output, capacity, "sdmc:/3ds/toontown3ds/data/clerks/karts/kart_%d_accessory_%d.ttm",
-                      body, part - 1);
+        std::snprintf(output, capacity,
+                      "sdmc:/3ds/toontown3ds/data/clerks/karts/kart_%d_accessory_%d.ttm", body,
+                      part - 1);
+}
+void ClerkKartPreview::setRacingLod(int lod) {
+    if (lod == racingLod_)
+        return;
+    racingLod_ = lod;
+    for (int &code : loaded_)
+        code = -1;
+    changed_ = true;
 }
 void ClerkKartPreview::select(const int8_t *dna) {
     active_ = dna != nullptr;
@@ -83,7 +104,8 @@ void ClerkKartPreview::pump() {
         const auto status = AssetLoader::poll(ticket_);
         if (status == LoadStatus::Pending)
             return;
-        if (status != LoadStatus::Ready || !AssetLoader::takeModel(ticket_, models_[ticketIndex_])) {
+        if (status != LoadStatus::Ready ||
+            !AssetLoader::takeModel(ticket_, models_[ticketIndex_])) {
             AssetLoader::cancel(ticket_);
             ticket_ = 0;
             failed_ = true;
@@ -102,7 +124,8 @@ void ClerkKartPreview::pump() {
         return;
     }
 }
-void ClerkKartPreview::draw(render::Renderer &renderer, float x, float y, float z, float heading) {
+void ClerkKartPreview::draw(render::Renderer &renderer, float x, float y, float z, float heading,
+                            float pitch, float roll, float scale) {
     if (!active_ || failed_)
         return;
     render::Tints tints;
@@ -118,6 +141,9 @@ void ClerkKartPreview::draw(render::Renderer &renderer, float x, float y, float 
     Mtx_Identity(&matrix);
     Mtx_Translate(&matrix, x, y, z, true);
     Mtx_RotateZ(&matrix, heading * .01745329252f, true);
+    Mtx_RotateX(&matrix, pitch * .01745329252f, true);
+    Mtx_RotateY(&matrix, roll * .01745329252f, true);
+    Mtx_Scale(&matrix, scale, scale, scale);
     for (auto &model : models_)
         if (model.loaded())
             renderer.drawModel(model, matrix, &tints);

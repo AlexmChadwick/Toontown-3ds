@@ -729,3 +729,26 @@ stock tutorial QuestScripts and rejects unrecognised source data. `tools/tutoria
 checks the generated scripts, tutorial sender signatures/clsend keywords, and zone mapping.
 See `docs/design/tutorial.md` for bake commands, command presentation and the required
 emulator verification; host/build checks do not establish a live tutorial play-through.
+
+### Goofy Speedway racing runtime (racing2, 2026-10-25)
+
+- `docs/design/racing.md` records the stock purchase, boarding, barrier, physics,
+  lap, KartDNA, gag, results and return contracts. All ownership, tickets and
+  results remain authoritative. Solo Practice is allowed by the pinned AI.
+- `tools/racing_test/run.sh` checks the actual upstream control/pie methods with
+  Panda physics, native lap/grid behavior, all outgoing DC packings and original
+  track collision. No emulator/hardware result is implied by those host tests.
+- TRC1 stores the original 4,000-point forward/reverse curve, unsorted original
+  start locators, gag positions and exact floor tags. Never substitute pad collision
+  for track collision or invent a midpoint checkpoint that upstream does not enforce.
+- Four bounded KartDNA instances reuse the clerk component loader, with all three
+  original LODs and generated seat/wheel anchors. Models publish at the shared
+  frame fence. Hard asset/ToonCache budgets remain in effect.
+- The requested completed racing asset delivery is committed explicitly under
+  `sdmc-out/3ds/toontown3ds/data/racing/`, following the Cogdo/clerk SD kit precedent.
+  Those 634 Disney-derived binaries are excluded from MIT; see
+  `THIRD_PARTY_NOTICES.md` and the per-file racing_assets.json SHA-256 manifest.
+- Full-frame Old 3DS 30 FPS, stereo, memory high-water marks and live stock-server
+  payout are pending the main agent's Azahar/hardware pass. Rigid wheels, the
+  unavailable-in-the-51-clip-catalog feedPet flourish and presentation/audio gaps
+  are listed explicitly in racing.md; do not claim complete visual parity.

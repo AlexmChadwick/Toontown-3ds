@@ -281,7 +281,7 @@ WANTED = {
     'DistributedRacePad': ['setState', 'setRaceZone', 'setTrackInfo'],
     'DistributedViewPad': ['setLastEntered'],
     'DistributedStartingBlock': ['setPadDoId', 'setPosHpr', 'setPadLocationId',
-                                 'requestEnter', 'requestExit', 'setOccupied', 'setMovie',
+                                 'requestEnter', 'rejectEnter', 'requestExit', 'setOccupied', 'setMovie',
                                  'movieFinished'],
     'DistributedLeaderBoard': ['setPosHpr'],
 }
@@ -329,7 +329,7 @@ TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', '
                   'DistributedBank', 'DistributedCloset', 'DistributedPet',
                   'DistributedVehicle', 'DistributedRace', 'DistributedGag',
                   'DistributedProjectile', 'DistributedKartPad', 'DistributedRacePad',
-                  'DistributedViewPad', 'DistributedStartingBlock', 'DistributedLeaderBoard']
+                  'DistributedViewPad', 'DistributedStartingBlock', 'DistributedViewingBlock', 'DistributedLeaderBoard']
 
 # ---- facility level Cogs and battle blockers (source/net/client_level.cpp, docs/design/levels.md) ----
 WANTED['DistributedFactorySuit'] = ['setLevelDoId', 'setCogId', 'setReserve', 'requestBattle', 'setAlert',

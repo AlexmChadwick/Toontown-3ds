@@ -1026,3 +1026,51 @@ Server: stock Open Toontown with `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI
 - Frame stats (emulator, not representative of hardware): factory battle 23.5–26.9 fps, busy 11–16 ms,
   81–95 draws, 6.5–7.2k tris; heap 4.0 MB, linear free 12.5 MB, VRAM free 4.2 MB. TTC HQ
   29.9 fps, busy 4.8 ms.
+
+## 2026-10-25 — racing2 host/build/asset verification (no Azahar)
+
+Build: racing2 runtime corresponding to the commit containing this entry;
+ELF SHA-256 `edc611991c425d8d8a7fef20e1cc6c1c16e370dd370b28e57e34ef6a3403695c`.
+Native `DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4`
+passed with zero warnings in source/. The linker retains the existing devkitARM
+crtn.o GNU-stack note. ELF: text 1,776,848 B, data 105,324 B, BSS 988,440 B;
+combined 2,870,612 B, below the 4 MiB code/static budget.
+
+Platform: macOS host plus native cross-build. Old/New 3DS emulator/hardware:
+**not run**, per task instruction. FPS, runtime heap/linear/VRAM high-water marks:
+**not measured**. No claim of an emulator-tested race or server payout is made.
+
+- `bash tools/racing_test/run.sh` PASS, ASan/UBSan: actual pinned
+  DistributedVehicle.__watchControls run with stock Panda Euler physics versus
+  six native 300-frame cases; maximum component difference 0.024902565.
+- Actual pinned Piejectile.__updatePhysics with stock Panda versus two native
+  90-frame targeted/untargeted cases: PASS, maximum difference 0.000976438.
+- Forward/reverse/grid-line lap behavior, wrong way, 14 exact outgoing sender
+  packets versus Panda DC packing, ownership/race guards, truncated result/shot
+  transactions and bounded 16-shot queue: PASS. DC hash remains 547155168.
+- All 12 original tracks: native collision/surface queries match 4,800 independent
+  original Panda floor rays, including legitimate no-floor samples: PASS.
+- Diagnostic steering, actual original Screwball collision, gravity and stock
+  kart physics complete three laps at 71.6 / 141.6 / 211.6 seconds, without moving
+  the kart directly or assigning laps/results. 211.6 is within the stock 240-second
+  qualifying limit; it does not prove a live server's 20-ticket Practice award.
+- Fresh isolated processes rebaked 634 binary assets byte-identically. Generated
+  original seat/wheel/sound timing table also compares byte-identically after its
+  final timing addition. Hashes/budgets: docs/design/racing_assets.json.
+- Full existing `tools/perf_test/regressions.py`: 41 PASS, one UNAVAILABLE (suit,
+  exit 77, because tools/server/.venv with panda3d.toontown is absent). This
+  unavailable reference test is not counted as PASS. No unrelated test is hidden.
+- Additional tools/perf_test/run.sh and tools/cog_attacks_test/run_test.sh PASS.
+- git diff --check PASS. No protected game/boss/level/cogdo/interior-life/toon-cache/
+  battle implementation files were edited; no Azahar, push or merge was run.
+
+Measured offline maxima: track 6,201 triangles / 28 batches (independent maxima),
+261,142 B geometry / 382,464 B textures. Four equipped kart component sets plus
+largest track plus shared props: conservative 387,932 B geometry / 1,425,024 B
+textures, within zone sub-budgets. Maximum TTC plus TRC runtime heap allocation:
+458,080 B. ToonCache retains its existing 4 MiB hard cap. These are asset costs,
+not full-frame or total-process measurements. Four co-located karts/toons/gags can
+exceed the provisional 15k/150 frame envelope; validate actual culling and Old 3DS
+performance before accepting that target. Exact install, expected log lines,
+manual multiplayer/gag/Circuit checks and remaining visual gaps are in
+`docs/design/racing.md`'s Azahar checklist.

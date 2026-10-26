@@ -1,3 +1,4 @@
+#include "ui/racing_view.h" // ---- racing2 ----
 #include "ui/panel_owner.h" // qafix
 #include "render/text_cache.h"
 // Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
@@ -75,6 +76,7 @@ struct Context {
     // Our ToonTasks (Toon tab task list); null = offline.
     const net::OwnQuests* quests = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
+    const RacingView* racing = nullptr; // ---- racing2 ----
     const char* infoTitle = nullptr;
     const char* infoLines[3] = {};
     // Gags tab (owner view of our toon); null = offline.
@@ -132,6 +134,7 @@ public:
     // NPC conversation (quest::Talk): while it is locked the quest panel owns the bottom screen.
     void setTalk(quest::Talk* talk) { talk_ = talk; }
     // ---- qafix: a single owner for both input and drawing ----
+    void setRacingInput(bool racing) { contextRacing_ = racing; } // ---- racing2 ----
     void syncContext(net::Client& client, unsigned zone, bool lost, bool exclusive,
                      bool fishing, bool info);
     // ---- end qafix ----
@@ -148,6 +151,7 @@ private:
     PanelOwner lastOwner_ = PanelOwner::Tabs;
     unsigned contextZone_ = 0;
     bool contextFishing_ = false, contextInfo_ = false;
+    bool contextRacing_ = false; // ---- racing2 ----
     // ---- end qafix ----
     struct CachedLine {
         C2D_Text text;

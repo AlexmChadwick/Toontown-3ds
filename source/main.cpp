@@ -43,6 +43,7 @@
 #include "world/clerk_kart_preview.h"
 // ---- end clerks ----
 #include "world/racing.h"
+#include "world/racing_autotest.h" // ---- racing2 ----
 #include "world/suits.h"
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
@@ -886,24 +887,10 @@ int main() {
             place.zoneId() != 8000 && !uiState.teleportRequest && transition.idle()) {
             uiState.teleportRequest = 8000;
         }
-        if (autotest.active() && !strcmp(autotest.label(), "speedway: race") && netStarted) {
-            // Test-only: stand on the first free starting block and press A (DistributedStartingBlock
-            // requestEnter); the AI answers with a race or a refusal (no kart) in the log.
-            static float placedAt = -1.0f;
-            static bool pressed = false;
-            if (autotest.stepBegan()) placedAt = -1.0f, pressed = false;
-            for (int i = 0; i < tt::net::kMaxRacingBlocks && placedAt < 0 && autotest.stepTime() > 1.0f; ++i) {
-                const tt::net::RacingBlock& b = net.racingBlockSlot(i);
-                if (!b.active || b.occupant != 0) continue;
-                player.reset(b.x, b.y, b.z + 0.5f, player.headingDeg());
-                placedAt = autotest.stepTime();
-                TT_LOG("autotest: starting block %u at %.1f,%.1f", unsigned(b.doId), double(b.x), double(b.y));
-            }
-            if (placedAt >= 0 && !pressed && autotest.stepTime() > placedAt + 0.5f) {
-                in.down |= KEY_A; // once the toon stands on the block
-                pressed = true;
-            }
-        }
+        // ---- racing2 ----
+        static tt::world::RacingAutotest racingAutotest;
+        racingAutotest.update(autotest, net, racing, place, player, &in, transition.idle());
+        // ---- end racing2 ----
         if (autotest.active() && !level.active()) {
             // Test-only: step into a facility's elevator, re-trying every 6 s: the factory's, the Coin
             // Mint's (DistributedMintElevatorExt origin 1: CashbotMintIntA), DA Office A's
@@ -1317,12 +1304,13 @@ int main() {
         }
         ui.setTalk(&talk);
         // ---- qafix: retire context panels before dispatching any input ----
-        const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active();
+        const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active() || racing.driving(); // ---- racing2 ----
         const bool lostPanelContext = netStarted && !net.inZone();
         if (exclusivePanel || lostPanelContext || (fishing.active() && !transition.idle())) fishing.cancel();
         ui.syncContext(net, place.zoneId(), lostPanelContext, exclusivePanel, fishing.active(),
-                       trolley.seated() || minigame.active() || golf.active());
+                       trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
+        ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
@@ -1531,7 +1519,11 @@ int main() {
         const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
         const bool featureAnimation = fishing.active() || trolley.seated() || minigame.inScene() ||
             transition.active();
-        if (!battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
+        if (!racing.driving() && !battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
+        // ---- racing2 ----
+        if (racing.driving())
+            racing.animate(localToon);
+        // ---- end racing2 ----
         if (battle.inBattle()) { // the battle movie animates the toon
             if (!battleClips.count && localLook.ready()) {
                 battleClips.load(localLook, tt::world::kBattleClipNames, tt::world::kNumBattleClips);
@@ -1806,8 +1798,9 @@ int main() {
             ui.closet().update(net);
             cogInterior.update(net, nowMs);
             tt::prof::lap(tt::prof::kNet);
-            racing.update(net, in, dt, player.x(), player.y(), player.z(), nowMs);
-            tt::prof::lap(tt::prof::kRacing);
+            // ---- racing2 ----
+            // Racing was already simulated once, before the player update.
+            // ---- end racing2 ----
             tt::prof::lap(tt::prof::kNet);
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
             tt::prof::lap(tt::prof::kEstate);
@@ -1823,7 +1816,14 @@ int main() {
             else player.setCollision(&place.collision());
             if (racing.active() && racing.collision()) player.setCollision(racing.collision());
             float rx, ry, rz, rh;
-            if (racing.spawnPose(&rx, &ry, &rz, &rh)) player.reset(rx, ry, rz, rh);
+            // ---- racing2 ----
+            if (racing.spawnPose(&rx, &ry, &rz, &rh)) {
+                player.reset(rx, ry, rz, rh);
+                C3D_FVec eye, target;
+                racing.camera(&eye, &target);
+                player.overrideCamera(eye, target);
+            }
+            // ---- end racing2 ----
             if (const u32 raceZone = racing.popDestination()) {
                 net.changeZone(raceZone);
             }
@@ -2290,14 +2290,21 @@ int main() {
             }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) {
+            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) { // ---- racing2 ----
                 if (transition.toonScale() != 1.0f) {
                     const float ts = transition.toonScale();
                     Mtx_Scale(&m, ts, ts, ts);
                 }
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
             }
-            remoteToons.draw(renderer, player.x(), player.y());
+            // ---- racing2 ----
+            if (racing.driving() && !racing.active())
+                racing.draw(renderer, net);
+            if (racing.driving())
+                racing.drawToons(renderer, localToon, remoteToons, net.avatarId());
+            else
+                remoteToons.draw(renderer, player.x(), player.y());
+            // ---- end racing2 ----
             tt::prof::lap(tt::prof::kDrawToons);
             zoneActors.draw(renderer, player.cameraEye());
             // [interior life]
@@ -2360,7 +2367,12 @@ int main() {
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
-            remoteToons.addBalloons(balloons, proj, view);
+            // ---- racing2 ----
+            if (racing.active())
+                racing.addBalloons(balloons, proj, view, net);
+            else
+                remoteToons.addBalloons(balloons, proj, view);
+            // ---- end racing2 ----
             {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
@@ -2418,8 +2430,14 @@ int main() {
             tt::prof::lap(tt::prof::kHud);
         }
         const struct mallinfo mi = mallinfo();
+        // ---- racing2 ----
+        static tt::ui::RacingView racingView;
+        if (racing.active())
+            racing.fillView(&racingView, net);
+        // ---- end racing2 ----
         tt::ui::Context ctx{};
-        if (racing.active()) {
+        if (racing.hudVisible()) { // ---- racing2 ----
+            ctx.racing = racing.active() ? &racingView : nullptr; // ---- racing2 ----
             ctx.infoTitle = racing.hudTitle();
             ctx.infoLines[0] = racing.hudLine(0);
             ctx.infoLines[1] = racing.hudLine(1);
@@ -2557,6 +2575,7 @@ int main() {
     fishing.shutdown();
     minigame.shutdown();
     golf.shutdown();
+    racing.shutdown(); // ---- racing2: release before AssetLoader and ToonCache ----
     trolley.shutdown();
     boat.shutdown();
     // ---- clerks: release preview before the loader ----

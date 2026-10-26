@@ -1,3 +1,4 @@
+#include "net/racing_state.h" // ---- racing2 ----
 #include "net/pairing_answers.h" // qafix: ordered card answers
 // Astron/Open Toontown protocol client: the login -> avatar -> zone state
 // machine and the remote-toon table the game reads (AGENTS.md section 2,
@@ -959,39 +960,7 @@ struct Purchase {
     bool active;
 };
 
-struct RacingPad {
-    uint32_t doId = 0, raceZone = 0;
-    char state[20] = {};
-    uint16_t trackIds[8] = {};
-    uint8_t trackCount = 0;
-    bool active = false;
-};
-struct RacingBlock {
-    uint32_t doId = 0, padDoId = 0, occupant = 0;
-    float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
-    uint8_t location = 0;
-    bool active = false;
-};
-struct RacingVehicle {
-    uint32_t doId = 0, owner = 0, driver = 0;
-    char state = 'P';
-    int8_t body = 0, bodyColor = 0, accessoryColor = 0;
-    int8_t engine = 0, spoiler = 0, frontWheels = 0, backWheels = 0, rims = 0, decal = 0;
-    int8_t input = 0;
-    float x = 0, y = 0, z = 0, h = 0;
-    bool active = false;
-};
-struct RacingRace {
-    uint32_t doId = 0, zone = 0;
-    uint16_t track = 0, raceType = 0, laps = 3;
-    uint32_t racers[8] = {};
-    uint8_t numRacers = 0, localPlace = 0, localLap = 0;
-    int16_t startTs = 0;
-    bool started = false, finished = false, active = false;
-};
-constexpr int kMaxRacingPads = 8;
-constexpr int kMaxRacingBlocks = 8;
-constexpr int kMaxRacingVehicles = 16;
+
 
 // Our toon's owner-view stats (DistributedToon setHp/setMaxHp/setMoney/...).
 struct OwnStats {
@@ -1627,6 +1596,15 @@ public:
     bool sendRacingInput(uint32_t vehicleDoId, int8_t input);
     bool sendRacingThrow(uint32_t raceDoId, float x, float y, float z);
     bool sendRacingGag(uint32_t raceDoId, uint8_t track, uint8_t level, uint8_t count);
+    // ---- racing2 ----
+    bool sendRaceBarrier(uint16_t context);
+    bool sendRaceKart();
+    bool sendRaceProgress(int8_t laps, float fraction, uint32_t nowMs);
+    bool sendRaceLeave();
+    bool sendRaceVehiclePose(uint32_t vehicle, float x, float y, float z, float h, float p, float r, uint32_t nowMs);
+    bool sendRaceHazardHit(uint32_t hazard, uint32_t nowMs);
+    const RacingHazard& racingHazardSlot(int index) const { return racingHazards_[index]; }
+    // ---- end racing2 ----
     // DistributedPhotoGame.
     bool sendPhotoScore(uint8_t subjectIndex, const char* pose, float score);
     bool sendPhotoFilmOut();
@@ -1727,6 +1705,8 @@ private:
                            uint16_t reqCount, bool other);
     bool handleRacingField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     void clearRacing();
+    bool raceParticipant() const; // ---- racing2 ----
+    bool decodeRacingField(DatagramReader& r, uint32_t id, uint16_t field);
     RemoteToon* toonById(uint32_t doId);
     District* districtById(uint32_t doId);
 
@@ -1771,6 +1751,8 @@ private:
     RacingBlock racingBlocks_[kMaxRacingBlocks] = {};
     RacingVehicle racingVehicles_[kMaxRacingVehicles] = {};
     RacingRace racingRace_{};
+    bool racingGenerating_ = false;
+    RacingHazard racingHazards_[32]; // ---- racing2 ----
 
     uint8_t* rx_ = nullptr;             // 64 KB message scratch (heap, once)
     uint8_t tx_[1024];

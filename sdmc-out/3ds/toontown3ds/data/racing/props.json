@@ -1,0 +1,94 @@
+{
+  "anvil": {
+    "batches": 1,
+    "bounds": [
+      [
+        -1.064650058746338,
+        -0.35161298513412476,
+        -0.014283199794590473
+      ],
+      [
+        1.064650058746338,
+        0.35161298513412476,
+        1.4162100553512573
+      ]
+    ],
+    "file_bytes": 12928,
+    "geometry_bytes": 1556,
+    "sha256": "e72811f16535b61f0d53f3058cc89401fd93b396ebf696414e2e87c825196f83",
+    "texture_bytes": 10912,
+    "textures": 1,
+    "triangles": 38,
+    "uv_clamped": 0,
+    "vertices": 83
+  },
+  "banana": {
+    "batches": 1,
+    "bounds": [
+      [
+        -1.2719000577926636,
+        -1.1428500413894653,
+        -0.014740100130438805
+      ],
+      [
+        1.22353994846344,
+        1.2711399793624878,
+        0.9613649845123291
+      ]
+    ],
+    "file_bytes": 13440,
+    "geometry_bytes": 2050,
+    "sha256": "b73cf69b0bad4cc8a30c6b747c30281d28b494dcb6b58bf173913fa954d75f66",
+    "texture_bytes": 10912,
+    "textures": 1,
+    "triangles": 115,
+    "uv_clamped": 0,
+    "vertices": 85
+  },
+  "creampie": {
+    "batches": 1,
+    "bounds": [
+      [
+        -0.6531230807304382,
+        -0.5698875188827515,
+        -3.9688055619713225e-10
+      ],
+      [
+        0.6629840135574341,
+        0.5698875188827515,
+        0.4868485927581787
+      ]
+    ],
+    "file_bytes": 12416,
+    "geometry_bytes": 1028,
+    "sha256": "21ad14cb97aacbd5d3aae02c66910a6c672aa2392a1f70b88702c4a770ba1e92",
+    "texture_bytes": 10912,
+    "textures": 1,
+    "triangles": 46,
+    "uv_clamped": 0,
+    "vertices": 47
+  },
+  "qbox": {
+    "batches": 2,
+    "bounds": [
+      [
+        -0.598800003528595,
+        -0.4921259880065918,
+        0.0
+      ],
+      [
+        0.49664801359176636,
+        0.7302979826927185,
+        1.6093900203704834
+      ]
+    ],
+    "file_bytes": 2048,
+    "geometry_bytes": 948,
+    "sha256": "e60f850d4b30abb0f9e3c7e5d4970ee477d9d6e7497fd600d327f96473bf23c7",
+    "texture_bytes": 672,
+    "textures": 1,
+    "triangles": 30,
+    "uv_clamped": 0,
+    "vertices": 48
+  }
+}

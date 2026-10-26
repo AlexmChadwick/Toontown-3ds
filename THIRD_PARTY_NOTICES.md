@@ -125,3 +125,19 @@ Open Toontown BSD 3-Clause notice above applies; no upstream source files are
 vendored. The original models and textures converted into the committed
 `sdmc-out/3ds/toontown3ds/data/clerks/karts/` SD kit are Disney-derived game assets,
 excluded from this project's MIT license. No Disney asset license is granted.
+
+## Goofy Speedway racing
+
+The native kart physics/progress, racing DC transactions, boarding and barrier
+semantics, KartDNA LOD/attachment transforms, gag probabilities and pie dynamics
+derive from the pinned Open Toontown sources cited in `docs/design/racing.md`.
+The Open Toontown BSD 3-Clause notice above applies; no upstream Python files
+are vendored. Generated seat/wheel/sound timing tables derive from those original
+assets and specifications.
+
+The explicitly committed SD kit under
+`sdmc-out/3ds/toontown3ds/data/racing/` contains 634 converted Disney game assets:
+12 tracks in model/collision/curve formats, 594 KartDNA component models across
+three LODs and four racing prop models. Its models, textures, curves, placement
+and collision data remain outside this project's MIT license. No Disney asset
+license is granted. `docs/design/racing_assets.json` records per-file SHA-256 hashes.

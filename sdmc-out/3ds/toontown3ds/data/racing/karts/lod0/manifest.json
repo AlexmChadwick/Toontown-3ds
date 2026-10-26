@@ -1,0 +1,4581 @@
+{
+  "models": {
+    "kart_0_accessory_0": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.4253527522087097,
+          0.7547093629837036,
+          1.0333322286605835
+        ],
+        [
+          0.41589125990867615,
+          1.5673608779907227,
+          1.5799821615219116
+        ]
+      ],
+      "file_bytes": 35456,
+      "geometry_bytes": 2164,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 86,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_0_accessory_1": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.30298975110054016,
+          0.7910547852516174,
+          1.0699067115783691
+        ],
+        [
+          0.301217257976532,
+          1.4526063203811646,
+          1.6406455039978027
+        ]
+      ],
+      "file_bytes": 37888,
+      "geometry_bytes": 4600,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 196,
+      "uv_clamped": 0,
+      "vertices": 214
+    },
+    "kart_0_accessory_10": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.27237072587013245,
+          0.8698195219039917,
+          1.1339279413223267
+        ],
+        [
+          0.27012625336647034,
+          1.4271198511123657,
+          1.4989863634109497
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_0_accessory_11": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.4146839380264282,
+          -1.3058825731277466,
+          1.1782734394073486
+        ],
+        [
+          0.4270601272583008,
+          -0.5092524886131287,
+          2.1420114040374756
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1664,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 64,
+      "uv_clamped": 0,
+      "vertices": 80
+    },
+    "kart_0_accessory_12": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3925698697566986,
+          -1.6232171058654785,
+          0.6904115676879883
+        ],
+        [
+          0.3925701081752777,
+          -1.1155019998550415,
+          1.514257788658142
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_0_accessory_13": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.28588995337486267,
+          -1.269580602645874,
+          1.1831814050674438
+        ],
+        [
+          0.31408512592315674,
+          -0.6156874895095825,
+          1.927579402923584
+        ]
+      ],
+      "file_bytes": 13568,
+      "geometry_bytes": 2224,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_0_accessory_14": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.029306849464774132,
+          -1.4081645011901855,
+          1.1811673641204834
+        ],
+        [
+          0.029307009652256966,
+          -0.7374045252799988,
+          1.8956634998321533
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_0_accessory_15": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.40679991245269775,
+          -2.1069226264953613,
+          1.2320324182510376
+        ],
+        [
+          0.40612807869911194,
+          -0.918488085269928,
+          1.8791993856430054
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2016,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 112,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_0_accessory_16": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5099719166755676,
+          -1.5032525062561035,
+          1.2538853883743286
+        ],
+        [
+          0.5099720358848572,
+          -0.8928928971290588,
+          1.7412763833999634
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2112,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 128,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_0_accessory_17": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3925698697566986,
+          -1.6232171058654785,
+          0.6904115676879883
+        ],
+        [
+          0.3925701081752777,
+          -1.1155019998550415,
+          1.514257788658142
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_0_accessory_18": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.029306849464774132,
+          -1.4081645011901855,
+          1.1811673641204834
+        ],
+        [
+          0.029307009652256966,
+          -0.7374045252799988,
+          1.8956634998321533
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_0_accessory_19": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.882286787033081,
+          0.22439825534820557,
+          0.9245438575744629
+        ],
+        [
+          0.8802838325500488,
+          1.0243113040924072,
+          1.3399046659469604
+        ]
+      ],
+      "file_bytes": 26368,
+      "geometry_bytes": 3968,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 224,
+      "uv_clamped": 0,
+      "vertices": 164
+    },
+    "kart_0_accessory_2": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.1095561534166336,
+          0.9233659505844116,
+          1.124348759651184
+        ],
+        [
+          0.10955584049224854,
+          1.7059299945831299,
+          1.5650746822357178
+        ]
+      ],
+      "file_bytes": 23424,
+      "geometry_bytes": 1112,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 44,
+      "uv_clamped": 0,
+      "vertices": 53
+    },
+    "kart_0_accessory_20": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.9259979724884033,
+          0.25528067350387573,
+          0.5107618570327759
+        ],
+        [
+          0.9239490032196045,
+          1.3535964488983154,
+          1.232565999031067
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_0_accessory_21": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8877314925193787,
+          -0.3378811776638031,
+          0.32010459899902344
+        ],
+        [
+          0.8856827020645142,
+          0.31842470169067383,
+          0.6057575345039368
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_0_accessory_22": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.9388445019721985,
+          -0.45570918917655945,
+          0.41501384973526
+        ],
+        [
+          0.9367956519126892,
+          0.21389427781105042,
+          1.2432045936584473
+        ]
+      ],
+      "file_bytes": 16256,
+      "geometry_bytes": 4928,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 320,
+      "uv_clamped": 0,
+      "vertices": 188
+    },
+    "kart_0_accessory_23": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.1036335229873657,
+          -0.59144127368927,
+          0.42768511176109314
+        ],
+        [
+          1.1015846729278564,
+          0.2720072865486145,
+          0.8973125219345093
+        ]
+      ],
+      "file_bytes": 14208,
+      "geometry_bytes": 2880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 160,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_0_accessory_24": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.9259979724884033,
+          0.25528067350387573,
+          0.5107618570327759
+        ],
+        [
+          0.9239490032196045,
+          1.3535964488983154,
+          1.232565999031067
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_0_accessory_25": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8877314925193787,
+          -0.3378811776638031,
+          0.32010459899902344
+        ],
+        [
+          0.8856827020645142,
+          0.31842470169067383,
+          0.6057575345039368
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_0_accessory_26": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8877314925193787,
+          -0.3378811776638031,
+          0.32010459899902344
+        ],
+        [
+          0.8856827020645142,
+          0.31842470169067383,
+          0.6057575345039368
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_0_accessory_27": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.219474196434021,
+          -1.5976766347885132,
+          0.44108742475509644
+        ],
+        [
+          1.2178326845169067,
+          -0.7258286476135254,
+          1.1146104335784912
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2728,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 118
+    },
+    "kart_0_accessory_28": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.955300509929657,
+          -1.3359084129333496,
+          0.6847376823425293
+        ],
+        [
+          0.9553006887435913,
+          -0.34978047013282776,
+          1.279098629951477
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1176,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 68,
+      "uv_clamped": 0,
+      "vertices": 48
+    },
+    "kart_0_accessory_29": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.7980250716209412,
+          -1.8835190534591675,
+          0.35350826382637024
+        ],
+        [
+          0.7963839769363403,
+          -1.4481312036514282,
+          0.6116132736206055
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2496,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 96,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_0_accessory_3": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5181081295013428,
+          1.3055951595306396,
+          1.1443803310394287
+        ],
+        [
+          0.5194438695907593,
+          1.5897399187088013,
+          1.6242157220840454
+        ]
+      ],
+      "file_bytes": 14976,
+      "geometry_bytes": 3572,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 174,
+      "uv_clamped": 0,
+      "vertices": 158
+    },
+    "kart_0_accessory_30": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.8313314914703369,
+          -1.1916096210479736,
+          0.9545614123344421
+        ],
+        [
+          0.8296900987625122,
+          -0.5252126455307007,
+          1.68474543094635
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_0_accessory_31": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7947120070457458,
+          -1.6444038152694702,
+          0.13687926530838013
+        ],
+        [
+          0.7930708527565002,
+          -1.4558868408203125,
+          0.5996652841567993
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_0_accessory_32": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.8241745233535767,
+          -1.9517652988433838,
+          0.4442652761936188
+        ],
+        [
+          0.8225334882736206,
+          -1.4111827611923218,
+          0.7679742574691772
+        ]
+      ],
+      "file_bytes": 27392,
+      "geometry_bytes": 4904,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 236,
+      "uv_clamped": 0,
+      "vertices": 218
+    },
+    "kart_0_accessory_33": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.7440705299377441,
+          -1.8484857082366943,
+          0.35045427083969116
+        ],
+        [
+          0.7424294352531433,
+          -1.4644314050674438,
+          0.668560266494751
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1256,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_0_accessory_34": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.8885622620582581,
+          -2.170978307723999,
+          0.44509488344192505
+        ],
+        [
+          0.8869212865829468,
+          -1.2836329936981201,
+          1.1268192529678345
+        ]
+      ],
+      "file_bytes": 13952,
+      "geometry_bytes": 2632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 112
+    },
+    "kart_0_accessory_35": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.8313314914703369,
+          -1.1916096210479736,
+          0.9545614123344421
+        ],
+        [
+          0.8296900987625122,
+          -0.5252126455307007,
+          1.68474543094635
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_0_accessory_36": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.8313314914703369,
+          -1.1916096210479736,
+          0.9545614123344421
+        ],
+        [
+          0.8296900987625122,
+          -0.5252126455307007,
+          1.68474543094635
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_0_accessory_37": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7947120070457458,
+          -1.6444038152694702,
+          0.13687926530838013
+        ],
+        [
+          0.7930708527565002,
+          -1.4558868408203125,
+          0.5996652841567993
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_0_accessory_38": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7947120070457458,
+          -1.6444038152694702,
+          0.13687926530838013
+        ],
+        [
+          0.7930708527565002,
+          -1.4558868408203125,
+          0.5996652841567993
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_0_accessory_39": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.7947120070457458,
+          -1.6444038152694702,
+          0.13687926530838013
+        ],
+        [
+          0.7930708527565002,
+          -1.4558868408203125,
+          0.5996652841567993
+        ]
+      ],
+      "file_bytes": 24704,
+      "geometry_bytes": 2356,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_0_accessory_4": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.4416767656803131,
+          1.0487111806869507,
+          0.95577073097229
+        ],
+        [
+          0.42198726534843445,
+          1.6987569332122803,
+          1.6286611557006836
+        ]
+      ],
+      "file_bytes": 15488,
+      "geometry_bytes": 4132,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 190,
+      "uv_clamped": 0,
+      "vertices": 187
+    },
+    "kart_0_accessory_40": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_41": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_42": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_43": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_44": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_45": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_46": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_47": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_48": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_49": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_5": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2610887289047241,
+          0.9262599945068359,
+          1.2139390707015991
+        ],
+        [
+          0.2590872645378113,
+          1.349824070930481,
+          1.491192102432251
+        ]
+      ],
+      "file_bytes": 23168,
+      "geometry_bytes": 732,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 34,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_0_accessory_50": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_51": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_52": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_53": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_54": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7727159261703491,
+          -1.172200083732605,
+          0.019933432340621948
+        ],
+        [
+          0.7799121141433716,
+          1.0630099773406982,
+          0.6949000358581543
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_0_accessory_55": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_56": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 33792,
+      "geometry_bytes": 680,
+      "texture_bytes": 32704,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_57": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 55552,
+      "geometry_bytes": 680,
+      "texture_bytes": 54528,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_58": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_59": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_6": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.133536696434021,
+          1.0922671556472778,
+          1.1932348012924194
+        ],
+        [
+          0.13153530657291412,
+          1.5267797708511353,
+          1.5435528755187988
+        ]
+      ],
+      "file_bytes": 13312,
+      "geometry_bytes": 1880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 89
+    },
+    "kart_0_accessory_60": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 55552,
+      "geometry_bytes": 680,
+      "texture_bytes": 54528,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_61": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_62": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_63": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_64": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7062920928001404,
+          -0.9862960577011108,
+          0.40212196111679077
+        ],
+        [
+          0.7013999819755554,
+          1.569680094718933,
+          1.4931399822235107
+        ]
+      ],
+      "file_bytes": 28416,
+      "geometry_bytes": 680,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 28,
+      "uv_clamped": 0,
+      "vertices": 32
+    },
+    "kart_0_accessory_7": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.27237072587013245,
+          0.8698195219039917,
+          1.1339279413223267
+        ],
+        [
+          0.27012625336647034,
+          1.4271198511123657,
+          1.4989863634109497
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_0_accessory_8": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.13515014946460724,
+          1.0322239398956299,
+          1.1802403926849365
+        ],
+        [
+          0.13554388284683228,
+          1.4696235656738281,
+          1.5543447732925415
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 72
+    },
+    "kart_0_accessory_9": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.13286912441253662,
+          1.2139899730682373,
+          1.1776659488677979
+        ],
+        [
+          0.13323988020420074,
+          1.5686179399490356,
+          1.5632507801055908
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2488,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_0_body": {
+      "batches": 6,
+      "bounds": [
+        [
+          -0.9594400525093079,
+          -1.7209700345993042,
+          0.04210507869720459
+        ],
+        [
+          0.9614439606666565,
+          1.5615200996398926,
+          1.7699499130249023
+        ]
+      ],
+      "file_bytes": 79232,
+      "geometry_bytes": 12662,
+      "texture_bytes": 65472,
+      "textures": 5,
+      "triangles": 633,
+      "uv_clamped": 0,
+      "vertices": 554
+    },
+    "kart_1_accessory_0": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.42435213923454285,
+          0.5755552649497986,
+          0.8475229144096375
+        ],
+        [
+          0.41689184308052063,
+          1.4020686149597168,
+          1.3141629695892334
+        ]
+      ],
+      "file_bytes": 35456,
+      "geometry_bytes": 2164,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 86,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_1_accessory_1": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.3019891381263733,
+          0.6261072754859924,
+          0.8903930187225342
+        ],
+        [
+          0.30221787095069885,
+          1.2682559490203857,
+          1.4134082794189453
+        ]
+      ],
+      "file_bytes": 37888,
+      "geometry_bytes": 4600,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 196,
+      "uv_clamped": 0,
+      "vertices": 214
+    },
+    "kart_1_accessory_10": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2713701128959656,
+          0.7019637823104858,
+          0.9501028656959534
+        ],
+        [
+          0.2711268365383148,
+          1.2597333192825317,
+          1.2805571556091309
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_1_accessory_11": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.41468387842178345,
+          -1.89664626121521,
+          1.1659035682678223
+        ],
+        [
+          0.4270601272583008,
+          -1.1000162363052368,
+          2.129641532897949
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1664,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 64,
+      "uv_clamped": 0,
+      "vertices": 80
+    },
+    "kart_1_accessory_12": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3866352140903473,
+          -2.110395908355713,
+          0.5404986143112183
+        ],
+        [
+          0.39850473403930664,
+          -1.875817894935608,
+          1.3875584602355957
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_1_accessory_13": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.2858898937702179,
+          -1.8603442907333374,
+          1.1708115339279175
+        ],
+        [
+          0.31408512592315674,
+          -1.2064512968063354,
+          1.9152095317840576
+        ]
+      ],
+      "file_bytes": 13568,
+      "geometry_bytes": 2224,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_1_accessory_14": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.02930683083832264,
+          -1.9989283084869385,
+          1.1687976121902466
+        ],
+        [
+          0.02930702455341816,
+          -1.328168272972107,
+          1.8832935094833374
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_1_accessory_15": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.406799852848053,
+          -2.697686195373535,
+          1.2196625471115112
+        ],
+        [
+          0.40612807869911194,
+          -1.5092518329620361,
+          1.866829514503479
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2016,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 112,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_1_accessory_16": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5099718570709229,
+          -2.0940160751342773,
+          1.2415155172348022
+        ],
+        [
+          0.509972095489502,
+          -1.483656644821167,
+          1.728906512260437
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2112,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 128,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_1_accessory_17": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3866352140903473,
+          -2.110395908355713,
+          0.5404986143112183
+        ],
+        [
+          0.39850473403930664,
+          -1.875817894935608,
+          1.3875584602355957
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_1_accessory_18": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.02930683083832264,
+          -1.9989283084869385,
+          1.1687976121902466
+        ],
+        [
+          0.02930702455341816,
+          -1.328168272972107,
+          1.8832935094833374
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_1_accessory_19": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.6037055253982544,
+          0.6093446612358093,
+          0.7061917185783386
+        ],
+        [
+          0.6184936761856079,
+          1.3979791402816772,
+          1.1554864645004272
+        ]
+      ],
+      "file_bytes": 26368,
+      "geometry_bytes": 3968,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 224,
+      "uv_clamped": 0,
+      "vertices": 164
+    },
+    "kart_1_accessory_2": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.10362154990434647,
+          0.9850106239318848,
+          0.8154012560844421
+        ],
+        [
+          0.11549042910337448,
+          1.7675745487213135,
+          1.2561272382736206
+        ]
+      ],
+      "file_bytes": 23424,
+      "geometry_bytes": 1112,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 44,
+      "uv_clamped": 0,
+      "vertices": 53
+    },
+    "kart_1_accessory_20": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7873079180717468,
+          0.4765489101409912,
+          0.21002405881881714
+        ],
+        [
+          0.8020960688591003,
+          1.57462477684021,
+          0.9313119649887085
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_1_accessory_21": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8474658727645874,
+          -0.2150397002696991,
+          0.04561559110879898
+        ],
+        [
+          0.8622541427612305,
+          0.44102734327316284,
+          0.33075058460235596
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_1_accessory_22": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8985788822174072,
+          -0.33286771178245544,
+          0.14052481949329376
+        ],
+        [
+          0.9133671522140503,
+          0.3364969491958618,
+          0.9681975245475769
+        ]
+      ],
+      "file_bytes": 16256,
+      "geometry_bytes": 4928,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 320,
+      "uv_clamped": 0,
+      "vertices": 188
+    },
+    "kart_1_accessory_23": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.0633678436279297,
+          -0.4685996472835541,
+          0.1531960815191269
+        ],
+        [
+          1.0781559944152832,
+          0.3946099579334259,
+          0.6223055720329285
+        ]
+      ],
+      "file_bytes": 14208,
+      "geometry_bytes": 2880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 160,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_1_accessory_24": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7873079180717468,
+          0.4765489101409912,
+          0.21002405881881714
+        ],
+        [
+          0.8020960688591003,
+          1.57462477684021,
+          0.9313119649887085
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_1_accessory_25": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8474658727645874,
+          -0.2150397002696991,
+          0.04561559110879898
+        ],
+        [
+          0.8622541427612305,
+          0.44102734327316284,
+          0.33075058460235596
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_1_accessory_26": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8474658727645874,
+          -0.2150397002696991,
+          0.04561559110879898
+        ],
+        [
+          0.8622541427612305,
+          0.44102734327316284,
+          0.33075058460235596
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_1_accessory_27": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.018045425415039,
+          -2.294711112976074,
+          0.5097391605377197
+        ],
+        [
+          1.0180449485778809,
+          -1.4223804473876953,
+          1.1835510730743408
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2728,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 118
+    },
+    "kart_1_accessory_28": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.8870123624801636,
+          -1.6413129568099976,
+          0.6686421036720276
+        ],
+        [
+          0.9090783596038818,
+          -0.6551850438117981,
+          1.2630031108856201
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1176,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 68,
+      "uv_clamped": 0,
+      "vertices": 48
+    },
+    "kart_1_accessory_29": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.4869145154953003,
+          -2.4297354221343994,
+          0.22567372024059296
+        ],
+        [
+          0.4869157671928406,
+          -2.0344455242156982,
+          0.48406827449798584
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2496,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 96,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_1_accessory_3": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5121734738349915,
+          1.3672398328781128,
+          0.8354328274726868
+        ],
+        [
+          0.5253784656524658,
+          1.6513845920562744,
+          1.3152681589126587
+        ]
+      ],
+      "file_bytes": 14976,
+      "geometry_bytes": 3572,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 174,
+      "uv_clamped": 0,
+      "vertices": 158
+    },
+    "kart_1_accessory_30": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.629902720451355,
+          -1.8886442184448242,
+          1.0232130289077759
+        ],
+        [
+          0.6299024224281311,
+          -1.2217644453048706,
+          1.7536860704421997
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_1_accessory_31": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.563371479511261,
+          -2.1746253967285156,
+          0.009044736623764038
+        ],
+        [
+          0.563372790813446,
+          -2.064363479614258,
+          0.4721202552318573
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_1_accessory_32": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.5303335189819336,
+          -2.494199275970459,
+          0.3164307177066803
+        ],
+        [
+          0.5303348302841187,
+          -1.989152193069458,
+          0.6404292583465576
+        ]
+      ],
+      "file_bytes": 27392,
+      "geometry_bytes": 4904,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 236,
+      "uv_clamped": 0,
+      "vertices": 218
+    },
+    "kart_1_accessory_33": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.44742250442504883,
+          -2.406947374343872,
+          0.22261972725391388
+        ],
+        [
+          0.4474237859249115,
+          -2.047435998916626,
+          0.5410152673721313
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1256,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_1_accessory_34": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.517537534236908,
+          -2.7188353538513184,
+          0.3172603249549866
+        ],
+        [
+          0.5175387859344482,
+          -1.857918620109558,
+          0.9992742538452148
+        ]
+      ],
+      "file_bytes": 13952,
+      "geometry_bytes": 2632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 112
+    },
+    "kart_1_accessory_35": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.629902720451355,
+          -1.8886442184448242,
+          1.0232130289077759
+        ],
+        [
+          0.6299024224281311,
+          -1.2217644453048706,
+          1.7536860704421997
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_1_accessory_36": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.629902720451355,
+          -1.8886442184448242,
+          1.0232130289077759
+        ],
+        [
+          0.6299024224281311,
+          -1.2217644453048706,
+          1.7536860704421997
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_1_accessory_37": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.563371479511261,
+          -2.1746253967285156,
+          0.009044736623764038
+        ],
+        [
+          0.563372790813446,
+          -2.064363479614258,
+          0.4721202552318573
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_1_accessory_38": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.563371479511261,
+          -2.1746253967285156,
+          0.009044736623764038
+        ],
+        [
+          0.563372790813446,
+          -2.064363479614258,
+          0.4721202552318573
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_1_accessory_39": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.563371479511261,
+          -2.1746253967285156,
+          0.009044736623764038
+        ],
+        [
+          0.563372790813446,
+          -2.064363479614258,
+          0.4721202552318573
+        ]
+      ],
+      "file_bytes": 24704,
+      "geometry_bytes": 2356,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_1_accessory_4": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.44067612290382385,
+          0.8727735280990601,
+          0.8015131950378418
+        ],
+        [
+          0.42298784852027893,
+          1.5432674884796143,
+          1.4021546840667725
+        ]
+      ],
+      "file_bytes": 15488,
+      "geometry_bytes": 4132,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 190,
+      "uv_clamped": 0,
+      "vertices": 187
+    },
+    "kart_1_accessory_40": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_41": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_42": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_43": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_44": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_45": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_46": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_47": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_48": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_49": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_5": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.26008811593055725,
+          0.7567077875137329,
+          1.0139548778533936
+        ],
+        [
+          0.26008784770965576,
+          1.1651495695114136,
+          1.2797188758850098
+        ]
+      ],
+      "file_bytes": 23168,
+      "geometry_bytes": 732,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 34,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_1_accessory_50": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_51": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_52": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_53": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_54": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.3526999950408936,
+          -1.6451399326324463,
+          0.015301495790481567
+        ],
+        [
+          1.3499200344085693,
+          1.3356499671936035,
+          0.9645479917526245
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_1_accessory_55": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_56": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_57": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 88320,
+      "geometry_bytes": 608,
+      "texture_bytes": 87296,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_58": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_59": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_6": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.1325361132621765,
+          0.9279578924179077,
+          1.0054702758789062
+        ],
+        [
+          0.13253585994243622,
+          1.3381381034851074,
+          1.3431167602539062
+        ]
+      ],
+      "file_bytes": 13312,
+      "geometry_bytes": 1880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 89
+    },
+    "kart_1_accessory_60": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 88320,
+      "geometry_bytes": 608,
+      "texture_bytes": 87296,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_61": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_62": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_63": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_64": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.6718161106109619,
+          -1.3875200748443604,
+          0.1229892373085022
+        ],
+        [
+          0.6916317939758301,
+          1.8045499324798584,
+          1.4643399715423584
+        ]
+      ],
+      "file_bytes": 44800,
+      "geometry_bytes": 608,
+      "texture_bytes": 43648,
+      "textures": 2,
+      "triangles": 24,
+      "uv_clamped": 0,
+      "vertices": 29
+    },
+    "kart_1_accessory_7": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2713701128959656,
+          0.7019637823104858,
+          0.9501028656959534
+        ],
+        [
+          0.2711268365383148,
+          1.2597333192825317,
+          1.2805571556091309
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_1_accessory_8": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.1292155385017395,
+          1.093868613243103,
+          0.8712928295135498
+        ],
+        [
+          0.14147847890853882,
+          1.5312682390213013,
+          1.2453972101211548
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 72
+    },
+    "kart_1_accessory_9": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.12693452835083008,
+          1.2756346464157104,
+          0.8687184453010559
+        ],
+        [
+          0.1391744613647461,
+          1.6302626132965088,
+          1.254303216934204
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2488,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_1_body": {
+      "batches": 6,
+      "bounds": [
+        [
+          -1.3472601175308228,
+          -2.113109827041626,
+          0.025000035762786865
+        ],
+        [
+          1.3417301177978516,
+          2.294339895248413,
+          1.701659917831421
+        ]
+      ],
+      "file_bytes": 67584,
+      "geometry_bytes": 10612,
+      "texture_bytes": 55904,
+      "textures": 5,
+      "triangles": 486,
+      "uv_clamped": 0,
+      "vertices": 481
+    },
+    "kart_2_accessory_0": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.4117494821548462,
+          0.5160748958587646,
+          1.5305755138397217
+        ],
+        [
+          0.4294945299625397,
+          1.3773008584976196,
+          1.9307154417037964
+        ]
+      ],
+      "file_bytes": 35456,
+      "geometry_bytes": 2164,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 86,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_2_accessory_1": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.28938648104667664,
+          0.6780035495758057,
+          1.4743889570236206
+        ],
+        [
+          0.3148205280303955,
+          1.3280822038650513,
+          2.0098726749420166
+        ]
+      ],
+      "file_bytes": 37888,
+      "geometry_bytes": 4600,
+      "texture_bytes": 32736,
+      "textures": 2,
+      "triangles": 196,
+      "uv_clamped": 0,
+      "vertices": 214
+    },
+    "kart_2_accessory_10": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2587674558162689,
+          0.7420908212661743,
+          1.537784457206726
+        ],
+        [
+          0.28372952342033386,
+          1.264965295791626,
+          1.9105874300003052
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_2_accessory_11": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.40208131074905396,
+          -1.266068696975708,
+          1.4181567430496216
+        ],
+        [
+          0.43966275453567505,
+          -0.4694386124610901,
+          2.381894588470459
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1664,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 64,
+      "uv_clamped": 0,
+      "vertices": 80
+    },
+    "kart_2_accessory_12": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3759113848209381,
+          -1.5686646699905396,
+          0.8164951205253601
+        ],
+        [
+          0.4092285931110382,
+          -1.2136024236679077,
+          1.6726175546646118
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_2_accessory_13": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.2732873260974884,
+          -1.229766607284546,
+          1.4230647087097168
+        ],
+        [
+          0.326687753200531,
+          -0.575873613357544,
+          2.1674628257751465
+        ]
+      ],
+      "file_bytes": 13568,
+      "geometry_bytes": 2224,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_2_accessory_14": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.016704216599464417,
+          -1.368350625038147,
+          1.421050786972046
+        ],
+        [
+          0.04190964251756668,
+          -0.6975906491279602,
+          2.1355466842651367
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_2_accessory_15": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3941972851753235,
+          -2.067108631134033,
+          1.4719157218933105
+        ],
+        [
+          0.4187307059764862,
+          -0.8786742091178894,
+          2.1190826892852783
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2016,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 112,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_2_accessory_16": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.49736925959587097,
+          -1.463438630104065,
+          1.4937686920166016
+        ],
+        [
+          0.5225747227668762,
+          -0.8530790209770203,
+          1.9811596870422363
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2112,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 128,
+      "uv_clamped": 0,
+      "vertices": 84
+    },
+    "kart_2_accessory_17": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.3759113848209381,
+          -1.5686646699905396,
+          0.8164951205253601
+        ],
+        [
+          0.4092285931110382,
+          -1.2136024236679077,
+          1.6726175546646118
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1544,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 74
+    },
+    "kart_2_accessory_18": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.016704216599464417,
+          -1.368350625038147,
+          1.421050786972046
+        ],
+        [
+          0.04190964251756668,
+          -0.6975906491279602,
+          2.1355466842651367
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1184,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 48,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_2_accessory_19": {
+      "batches": 3,
+      "bounds": [
+        [
+          -1.007543921470642,
+          0.3913334012031555,
+          1.1050491333007812
+        ],
+        [
+          1.029302954673767,
+          1.1963231563568115,
+          1.5824867486953735
+        ]
+      ],
+      "file_bytes": 26368,
+      "geometry_bytes": 3968,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 224,
+      "uv_clamped": 0,
+      "vertices": 164
+    },
+    "kart_2_accessory_2": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.09695351868867874,
+          0.9943392276763916,
+          1.6858214139938354
+        ],
+        [
+          0.1221584752202034,
+          1.7769031524658203,
+          2.126547336578369
+        ]
+      ],
+      "file_bytes": 23424,
+      "geometry_bytes": 1112,
+      "texture_bytes": 21824,
+      "textures": 1,
+      "triangles": 44,
+      "uv_clamped": 0,
+      "vertices": 53
+    },
+    "kart_2_accessory_20": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0604753494262695,
+          0.3942917585372925,
+          0.3218732178211212
+        ],
+        [
+          1.087109088897705,
+          1.4923679828643799,
+          1.043161153793335
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_2_accessory_21": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0085917711257935,
+          -0.28980299830436707,
+          0.3564552068710327
+        ],
+        [
+          1.0337975025177002,
+          0.36626410484313965,
+          0.6415902376174927
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_2_accessory_22": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0597047805786133,
+          -0.4076310098171234,
+          0.4513644576072693
+        ],
+        [
+          1.08491051197052,
+          0.26173368096351624,
+          1.2790372371673584
+        ]
+      ],
+      "file_bytes": 16256,
+      "geometry_bytes": 4928,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 320,
+      "uv_clamped": 0,
+      "vertices": 188
+    },
+    "kart_2_accessory_23": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.2244937419891357,
+          -0.5433629751205444,
+          0.4640357196331024
+        ],
+        [
+          1.2496994733810425,
+          0.3198466897010803,
+          0.9331452250480652
+        ]
+      ],
+      "file_bytes": 14208,
+      "geometry_bytes": 2880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 160,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_2_accessory_24": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0604753494262695,
+          0.3942917585372925,
+          0.3218732178211212
+        ],
+        [
+          1.087109088897705,
+          1.4923679828643799,
+          1.043161153793335
+        ]
+      ],
+      "file_bytes": 12672,
+      "geometry_bytes": 1352,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_2_accessory_25": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0085917711257935,
+          -0.28980299830436707,
+          0.3564552068710327
+        ],
+        [
+          1.0337975025177002,
+          0.36626410484313965,
+          0.6415902376174927
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_2_accessory_26": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0085917711257935,
+          -0.28980299830436707,
+          0.3564552068710327
+        ],
+        [
+          1.0337975025177002,
+          0.36626410484313965,
+          0.6415902376174927
+        ]
+      ],
+      "file_bytes": 13440,
+      "geometry_bytes": 2160,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 104,
+      "uv_clamped": 0,
+      "vertices": 96
+    },
+    "kart_2_accessory_27": {
+      "batches": 1,
+      "bounds": [
+        [
+          -1.0525245666503906,
+          -1.6804389953613281,
+          1.0228350162506104
+        ],
+        [
+          1.077730417251587,
+          -0.8085910081863403,
+          1.6963579654693604
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2728,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 118
+    },
+    "kart_2_accessory_28": {
+      "batches": 2,
+      "bounds": [
+        [
+          -1.0175725221633911,
+          -1.240844488143921,
+          0.7914581894874573
+        ],
+        [
+          1.042778491973877,
+          -0.2547161877155304,
+          1.3858191967010498
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1176,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 68,
+      "uv_clamped": 0,
+      "vertices": 48
+    },
+    "kart_2_accessory_29": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.710879385471344,
+          -1.6333528757095337,
+          0.9600778222084045
+        ],
+        [
+          0.7360810041427612,
+          -1.2385458946228027,
+          1.2181828022003174
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2496,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 96,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_2_accessory_3": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.5055055022239685,
+          1.3765684366226196,
+          1.70585298538208
+        ],
+        [
+          0.5320464968681335,
+          1.6607131958007812,
+          2.1856884956359863
+        ]
+      ],
+      "file_bytes": 14976,
+      "geometry_bytes": 3572,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 174,
+      "uv_clamped": 0,
+      "vertices": 158
+    },
+    "kart_2_accessory_30": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.6643818616867065,
+          -1.2743721008300781,
+          1.536309003829956
+        ],
+        [
+          0.6895878911018372,
+          -0.6079750061035156,
+          2.2664928436279297
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_2_accessory_31": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7873363494873047,
+          -1.37824285030365,
+          0.7434488534927368
+        ],
+        [
+          0.8125380277633667,
+          -1.2684637308120728,
+          1.2062348127365112
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_2_accessory_32": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.7542983889579773,
+          -1.6978168487548828,
+          1.0508347749710083
+        ],
+        [
+          0.7795000076293945,
+          -1.193252444267273,
+          1.3745437860488892
+        ]
+      ],
+      "file_bytes": 27392,
+      "geometry_bytes": 4904,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 236,
+      "uv_clamped": 0,
+      "vertices": 218
+    },
+    "kart_2_accessory_33": {
+      "batches": 3,
+      "bounds": [
+        [
+          -0.6713873744010925,
+          -1.6105648279190063,
+          0.9570238590240479
+        ],
+        [
+          0.6965889930725098,
+          -1.2515361309051514,
+          1.275129795074463
+        ]
+      ],
+      "file_bytes": 12544,
+      "geometry_bytes": 1256,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 60,
+      "uv_clamped": 0,
+      "vertices": 56
+    },
+    "kart_2_accessory_34": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.7415024042129517,
+          -1.9224529266357422,
+          1.0516644716262817
+        ],
+        [
+          0.7667039632797241,
+          -1.062018871307373,
+          1.733388900756836
+        ]
+      ],
+      "file_bytes": 13952,
+      "geometry_bytes": 2632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 112
+    },
+    "kart_2_accessory_35": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.6643818616867065,
+          -1.2743721008300781,
+          1.536309003829956
+        ],
+        [
+          0.6895878911018372,
+          -0.6079750061035156,
+          2.2664928436279297
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_2_accessory_36": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.6643818616867065,
+          -1.2743721008300781,
+          1.536309003829956
+        ],
+        [
+          0.6895878911018372,
+          -0.6079750061035156,
+          2.2664928436279297
+        ]
+      ],
+      "file_bytes": 14080,
+      "geometry_bytes": 2748,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 138,
+      "uv_clamped": 0,
+      "vertices": 120
+    },
+    "kart_2_accessory_37": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7873363494873047,
+          -1.37824285030365,
+          0.7434488534927368
+        ],
+        [
+          0.8125380277633667,
+          -1.2684637308120728,
+          1.2062348127365112
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_2_accessory_38": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7873363494873047,
+          -1.37824285030365,
+          0.7434488534927368
+        ],
+        [
+          0.8125380277633667,
+          -1.2684637308120728,
+          1.2062348127365112
+        ]
+      ],
+      "file_bytes": 13696,
+      "geometry_bytes": 2356,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_2_accessory_39": {
+      "batches": 4,
+      "bounds": [
+        [
+          -0.7873363494873047,
+          -1.37824285030365,
+          0.7434488534927368
+        ],
+        [
+          0.8125380277633667,
+          -1.2684637308120728,
+          1.2062348127365112
+        ]
+      ],
+      "file_bytes": 24704,
+      "geometry_bytes": 2356,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 126,
+      "uv_clamped": 0,
+      "vertices": 100
+    },
+    "kart_2_accessory_4": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.4280734956264496,
+          0.7215018272399902,
+          1.627021074295044
+        ],
+        [
+          0.435590535402298,
+          1.5791445970535278,
+          1.973544716835022
+        ]
+      ],
+      "file_bytes": 15488,
+      "geometry_bytes": 4132,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 190,
+      "uv_clamped": 0,
+      "vertices": 187
+    },
+    "kart_2_accessory_40": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_41": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_42": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_43": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_44": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_45": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_46": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_47": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_48": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_49": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_5": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2474854588508606,
+          0.7796987295150757,
+          1.5809056758880615
+        ],
+        [
+          0.2726905345916748,
+          1.1219966411590576,
+          1.918744444847107
+        ]
+      ],
+      "file_bytes": 23168,
+      "geometry_bytes": 732,
+      "texture_bytes": 21824,
+      "textures": 2,
+      "triangles": 34,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_50": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_51": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_52": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_53": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_54": {
+      "batches": 1,
+      "bounds": [
+        [
+          -0.9700961112976074,
+          -1.200390100479126,
+          0.004415690898895264
+        ],
+        [
+          0.9794281721115112,
+          1.3976200819015503,
+          0.9043360352516174
+        ]
+      ],
+      "file_bytes": 6144,
+      "geometry_bytes": 304,
+      "texture_bytes": 5440,
+      "textures": 1,
+      "triangles": 8,
+      "uv_clamped": 0,
+      "vertices": 16
+    },
+    "kart_2_accessory_55": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_56": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 33920,
+      "geometry_bytes": 708,
+      "texture_bytes": 32704,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_57": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 55680,
+      "geometry_bytes": 708,
+      "texture_bytes": 54528,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_58": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_59": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_6": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.11993345618247986,
+          0.9264255166053772,
+          1.6468534469604492
+        ],
+        [
+          0.14513854682445526,
+          1.2212482690811157,
+          2.0458993911743164
+        ]
+      ],
+      "file_bytes": 13312,
+      "geometry_bytes": 1880,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 76,
+      "uv_clamped": 0,
+      "vertices": 89
+    },
+    "kart_2_accessory_60": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 55680,
+      "geometry_bytes": 708,
+      "texture_bytes": 54528,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_61": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_62": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_63": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_64": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.7709400653839111,
+          -1.3846601247787476,
+          0.3979479670524597
+        ],
+        [
+          0.8027639389038086,
+          1.6379300355911255,
+          1.8100299835205078
+        ]
+      ],
+      "file_bytes": 28544,
+      "geometry_bytes": 708,
+      "texture_bytes": 27264,
+      "textures": 2,
+      "triangles": 30,
+      "uv_clamped": 0,
+      "vertices": 33
+    },
+    "kart_2_accessory_7": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.2587674558162689,
+          0.7420908212661743,
+          1.537784457206726
+        ],
+        [
+          0.28372952342033386,
+          1.264965295791626,
+          1.9105874300003052
+        ]
+      ],
+      "file_bytes": 12800,
+      "geometry_bytes": 1504,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 64
+    },
+    "kart_2_accessory_8": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.12254751473665237,
+          1.1031972169876099,
+          1.741713047027588
+        ],
+        [
+          0.14814651012420654,
+          1.540596842765808,
+          2.1158173084259033
+        ]
+      ],
+      "file_bytes": 12928,
+      "geometry_bytes": 1632,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 80,
+      "uv_clamped": 0,
+      "vertices": 72
+    },
+    "kart_2_accessory_9": {
+      "batches": 2,
+      "bounds": [
+        [
+          -0.12026648968458176,
+          1.2849632501602173,
+          1.7391386032104492
+        ],
+        [
+          0.145842507481575,
+          1.6395912170410156,
+          2.124723434448242
+        ]
+      ],
+      "file_bytes": 13824,
+      "geometry_bytes": 2488,
+      "texture_bytes": 10912,
+      "textures": 1,
+      "triangles": 140,
+      "uv_clamped": 0,
+      "vertices": 103
+    },
+    "kart_2_body": {
+      "batches": 7,
+      "bounds": [
+        [
+          -0.9776601791381836,
+          -1.4829400777816772,
+          0.034866273403167725
+        ],
+        [
+          0.9802922010421753,
+          1.7341101169586182,
+          2.122220039367676
+        ]
+      ],
+      "file_bytes": 78336,
+      "geometry_bytes": 11830,
+      "texture_bytes": 65472,
+      "textures": 5,
+      "triangles": 481,
+      "uv_clamped": 0,
+      "vertices": 559
+    }
+  },
+  "sha256": {
+    "kart_0_accessory_0.ttm": "0eef1cf503a7fcfd1025259ad96982084f33d34629890dc5b3d49ccd7030ea64",
+    "kart_0_accessory_1.ttm": "85c2c246cbee3226421b29ab0b329d5276f72bbac868ca024d8f03dda59f5a88",
+    "kart_0_accessory_10.ttm": "94bae7271a28141435e5444a6adb6e819d83c1c0fe1a8953f56f65c3295c5154",
+    "kart_0_accessory_11.ttm": "5919ae32e84c6f32df1325507a6dd0116f646e7c9c42165dbe76c381db15cc44",
+    "kart_0_accessory_12.ttm": "4fb4d1f240216fa9a4e34c9eabd15566d6914e5cd6a2753e8457f8843282d2d9",
+    "kart_0_accessory_13.ttm": "e4ee6bc129b7a9260f77db4404a69ace3ea9cef6fac77c1c8c856198fa0a6145",
+    "kart_0_accessory_14.ttm": "85f8973dc0830f055928bb49991435cbda0e0dcbdc6f556c0a1f521b46bf7536",
+    "kart_0_accessory_15.ttm": "49521c47bdeed8c87a66fbba942fffa3074ac156a98661e6b2fd0b0023e3f3a6",
+    "kart_0_accessory_16.ttm": "42551d4ff55423d419da3e5135d215971af02a886b25539ee62f0225f5ce99e3",
+    "kart_0_accessory_17.ttm": "8ee5b61f39bfd6071a7c656f80d9ccd224b62a0019dd82ab7a02e319370c53da",
+    "kart_0_accessory_18.ttm": "09303ea96e818389c7b817e27e8284a8a96d091c7a214631b19558baabb1f4b0",
+    "kart_0_accessory_19.ttm": "6c339e755a1a2267614a1e4f94b4ea37085fd446517ff9f479cd0a317e0f08e6",
+    "kart_0_accessory_2.ttm": "e3d25dc732577a9cb90956d6b424aa5a2a8fb2c2f1501d1e3970a0aa16fb678d",
+    "kart_0_accessory_20.ttm": "88a6dfd918d07f5cdfad9780068a7a1d0b415dce320f32aa4118a61a705a5a9e",
+    "kart_0_accessory_21.ttm": "0188f8a2b543ef7756b1b06b29f5436a022e572533fdbc66165cfb5ed5eb4150",
+    "kart_0_accessory_22.ttm": "7799b0a9347a2f4975f0ee52d8ea4bf59cf5c35bd0ddf93bbcc83a679f80dc18",
+    "kart_0_accessory_23.ttm": "007985f847e042c36f552cb35106cd776bfcfb406268be448194276ffa9c855f",
+    "kart_0_accessory_24.ttm": "8bb02da7ed1ae19377d4939225b51423ca95387f2cebc2ac9f3d4f33498bb900",
+    "kart_0_accessory_25.ttm": "35e75f8641b62114eb841a8badaf90e2e3f4e2ff686f3cd883ffff0a2e57b080",
+    "kart_0_accessory_26.ttm": "48ba29b1435150db5fc6faad55956bf8cd6555f9d1dee8d527dfd30fa1bc60a1",
+    "kart_0_accessory_27.ttm": "cc9dc3cd54c507059b49bb77aaa17e1ed7daa60c2f88784e9aa23cb05ba89a55",
+    "kart_0_accessory_28.ttm": "c0bd0ba9879c699ee11db4744e8252eee7f95d3c78e7ad8010f1377077196b33",
+    "kart_0_accessory_29.ttm": "1463cb08b83c69bc36c75b86b7e2ff3ed5a1605fc0a0c0673f69b01dd6fc5ff8",
+    "kart_0_accessory_3.ttm": "49578e497afbbd3944a62e2e85ef6dd49e9bd88f7b4bd22db1e82f85a7744b96",
+    "kart_0_accessory_30.ttm": "eca283955af02ec30b020fee4f93ce78572a07a76183585d3e89feb521eec683",
+    "kart_0_accessory_31.ttm": "38e87d7b28ea25179f2cfe660f5e91835c66bdc6824fa276b72989741dfed7df",
+    "kart_0_accessory_32.ttm": "f3366d66f141d69705ded27b369155546e1791e7cc343683be13b749fcc71dd8",
+    "kart_0_accessory_33.ttm": "d4f5f4b40933f549f7c30b69ee7cc3bc451680bfb4756e3ef680041ac29e1c61",
+    "kart_0_accessory_34.ttm": "7292b3f3f5645dcdde83b21a1c6466f80d052ae0c3b13c684ac76c9b5a468384",
+    "kart_0_accessory_35.ttm": "758a1740908ab5a158a88047a1be495dd9c2971f1ddfc7e42408ee06fe55535a",
+    "kart_0_accessory_36.ttm": "c784b7351c10f0af4c6b9e5e5694055c91891fc1410471da8d071521dace1153",
+    "kart_0_accessory_37.ttm": "da7485a5ddda10e937db716b133fed84bb1bec53a6608fa2625974270e27a742",
+    "kart_0_accessory_38.ttm": "4695172d98ad86bc78280fb8bae4de3055d20190f9471d5a0026db32cbc1c06a",
+    "kart_0_accessory_39.ttm": "759e321bfc93889fff3d324875925529f8447874446b70ec4a9ba101e3943740",
+    "kart_0_accessory_4.ttm": "cc3555fd05d87bcd94cba73aad38523c41731c97cfbe93948ee0ab4f4aa8cb2e",
+    "kart_0_accessory_40.ttm": "5b866dd209e44e95fbaa5897971396dc202df573ba7b1e165ec45d7e5b7da28a",
+    "kart_0_accessory_41.ttm": "898855e3316df21434ef3789004dda9ec00d01ce39b8cbe92b4afa65f0ed58d8",
+    "kart_0_accessory_42.ttm": "37c4752eae6d3831e3e6e260972aa253d01737229ceb8cb4f059f305afd29a4b",
+    "kart_0_accessory_43.ttm": "85db7b0a429e7fd95ccda8c7e092a3d42ff46b7073b264edafa35648b44fc4b3",
+    "kart_0_accessory_44.ttm": "4c2bb8e0d25de2be2e06e163826a52c638f6c8f7d8026600646d9c2dd6a685dc",
+    "kart_0_accessory_45.ttm": "d21ab9b3c3bb48abf1ff3cf9baf3fe3b3c06e58fd593d4125f4103d2b0de672b",
+    "kart_0_accessory_46.ttm": "d8da859a8c65351625448d7972a1a3ff3d34cbe98730f374db2fe432dc2bfaa9",
+    "kart_0_accessory_47.ttm": "c69ae4d0d415ce60dff2c8bc1fecca7b468e304eef5302a486cd5449b1ce1141",
+    "kart_0_accessory_48.ttm": "73c0df83c83e2535a4bc25c8d7d39c11866c4cbd62bc6b449c515fc9cf6d8686",
+    "kart_0_accessory_49.ttm": "775a88ee4d7f3d2e529d4535e0950164a341d36f1289ce79df8c387f030a8130",
+    "kart_0_accessory_5.ttm": "a8c57c3eb6c8be4c1509498f493ec441ca0d099e60f88a31467e2a6a5699099b",
+    "kart_0_accessory_50.ttm": "71b4a10c18886d4d6f07181970aa13b13b55043f1e282fda87a43ddd2cd2ee4b",
+    "kart_0_accessory_51.ttm": "1cb26e34e8f4c4f93159d6241ef0f1d53489e077dba149244f62c7a9dbcbe615",
+    "kart_0_accessory_52.ttm": "a318d3e7555c0627046a56214593d478350ae4cfe18199217b360c6db7a4c778",
+    "kart_0_accessory_53.ttm": "4c18516fe75998cdfd3b562d9ea49d06cda6e1f0531caf809ec45aa8fe44b02f",
+    "kart_0_accessory_54.ttm": "9504fdfdaf8405f0bc8c168ed02cfa719fc8996c9bc75133474c7a998c22f283",
+    "kart_0_accessory_55.ttm": "56d985d70cd4f065e04061a5a982ee7287d1f5fb709bc72d04df5bcab52fdbdc",
+    "kart_0_accessory_56.ttm": "e261c8aa5124093949a79a7137883575cedeb4f125445fb71460611f599559c4",
+    "kart_0_accessory_57.ttm": "8c9b98243e71cffe04a212626e2332f26e2e3081c8addd3efce1c0ed8361748d",
+    "kart_0_accessory_58.ttm": "adb22abf362295ce0ba43a699fcc036827c64bc04b38f895cc5ec62303fcadb0",
+    "kart_0_accessory_59.ttm": "e93805a251dec7d9ed7b9fc4c9079f2336dec2d97b95106df1af48c7ae8a76be",
+    "kart_0_accessory_6.ttm": "51df182b3cf0f6945d94dde445aff75596c6348e8a6b22aa0d5cb7ecf433df48",
+    "kart_0_accessory_60.ttm": "1dde31bfbbdd9b21de46c2f7fff42d8d3765b3bcff78149492e8005fc4d20a9c",
+    "kart_0_accessory_61.ttm": "ce2fc96636d52835c2876bcc8342a4515f44d9e42215161e805733faa929c6f1",
+    "kart_0_accessory_62.ttm": "57f11a5ab17615c81dcdc9884afaa9327272fe10c25c847af548417bc8d8d98a",
+    "kart_0_accessory_63.ttm": "ff08e61f0fbcb24692a1fcd66a4f397822b3a37ddf00e0edb2ad595a83cad413",
+    "kart_0_accessory_64.ttm": "2dc1bc63dec7a03a0a5d46ec03a7f6401ffd26a9fc0cc3545a088153bbbaa4ae",
+    "kart_0_accessory_7.ttm": "f8bdc52eb4c998d9fc44277e82718eeb2d26a11b26bcefa74355c058f404968f",
+    "kart_0_accessory_8.ttm": "e3939be33bdc13251bb1e2e22278d2643b85747845cd8b6793d05dc2ecc18e93",
+    "kart_0_accessory_9.ttm": "17a9347d10ca8ed59eec4870926a992661a43d69204c0ad92d3f3c6e185a541c",
+    "kart_0_body.ttm": "efc8d0ca2c126f2a079b6f74af59a3383b465f162518c8bc00c38de87d7c2184",
+    "kart_1_accessory_0.ttm": "a8dd9f9742105eba48bbbcbd99650485f7687e25dce871b0dbc8e72f53d0a192",
+    "kart_1_accessory_1.ttm": "4ece08ed37adf560914317fab614c89913fb37a5d4d098c55d5cf4eb9c165c71",
+    "kart_1_accessory_10.ttm": "c9a5c6b473a6e78d227b5d379798d79f80feeaa112fc066cd6224fa9e450a018",
+    "kart_1_accessory_11.ttm": "7024aa8b61f68e027c8b4bce2380f6bdd364dbf6171464a37309f0e0c58d2fcc",
+    "kart_1_accessory_12.ttm": "d21e80279cc6abfd50b2ebe23fbec3be94c344f466f6fe9d188ebbfbfae25ff5",
+    "kart_1_accessory_13.ttm": "d08f3fbe387deaf2aa1249bce692ee08e1e4cb3725856c76e148b094f910e4ef",
+    "kart_1_accessory_14.ttm": "af9e41283ad369630807b2bb44c22dfe266d972aef2cb40eda56439e4c146af4",
+    "kart_1_accessory_15.ttm": "c603160905b208f8607ec1b235691e68934cabba15dfc43667d871cd55194fba",
+    "kart_1_accessory_16.ttm": "827ffbaf9047c5e42fae18ba7d926081ae68cd488b455773e4862053e63fb5f5",
+    "kart_1_accessory_17.ttm": "4d4f12a5e881bfea51baa3e0b196399adc2f291c17094c87bb34afbaf87ca4b3",
+    "kart_1_accessory_18.ttm": "7756293a9522512a12b63e22ef6866caf4165015acd838a9369d65783d85f0c1",
+    "kart_1_accessory_19.ttm": "59f2c2506f10e78fc7430599b7782ca8c099a46ba7950c8e17a77dbc2b2a8afe",
+    "kart_1_accessory_2.ttm": "bfcf7470e6c58492ce3d58b386b945d89d706aa94fee006dea1be85da27b43f8",
+    "kart_1_accessory_20.ttm": "e66b3b91d61d0cc41991c9b2bc614b0abe487fb7f5694245d97bfb7cb0103aa5",
+    "kart_1_accessory_21.ttm": "3542971d15da82316bf57a550391149a1e33168062f66bee4796f530d669256b",
+    "kart_1_accessory_22.ttm": "ba040aaaf0604d94130b0825554f6ebd803ebe49032d9bbed285ee95443de6e2",
+    "kart_1_accessory_23.ttm": "6032f6c125239fe8864bd14066275278428ff5d25706ce1a663cce5f175a5ad1",
+    "kart_1_accessory_24.ttm": "857297fac5b35bcab07b410335c9b8ed6b8cc2a6ecb82307f50ec1c085985d02",
+    "kart_1_accessory_25.ttm": "f87d6d52fd9ecc021157190b5525ce859186a18c875f6e0c54950b7b992d1d31",
+    "kart_1_accessory_26.ttm": "7660e93b6d1ed08f1c854ba4b450fc9a39c43b01e27797f938b3c391719d6261",
+    "kart_1_accessory_27.ttm": "16b0711e40dd7060ffdea4fc4e7d93734fad5bb968b362c1eb1d50d160e7b3fe",
+    "kart_1_accessory_28.ttm": "85dd3c7ad059f39d332eeafcf44c32087bd3480c71310e95e7bf2f8a6e1f5d06",
+    "kart_1_accessory_29.ttm": "03a2902f000f334d1e464cf41540655ccc5b5032e9fff1225058fd1a6bb54bd4",
+    "kart_1_accessory_3.ttm": "60ff7080472faea04ba53c2531673f58650f32f1bd282c282f49b338e999bda9",
+    "kart_1_accessory_30.ttm": "5c61580b1a739b4f00ec75516a1280bb8144190378a723e972d7c09d91925176",
+    "kart_1_accessory_31.ttm": "87adfdad057491a49ddfdc70b3c3a8b045cfda013d6e287696f5408efce5eaad",
+    "kart_1_accessory_32.ttm": "bae44163ae9f9f31941d7e5dcc9a9c57a5013a1e6c4cbc6ebf2cbb7d33a7a0ff",
+    "kart_1_accessory_33.ttm": "3651aa303687083e94bc3823767e12445ac612cacd452491b2bbd6268eaa4d6a",
+    "kart_1_accessory_34.ttm": "7499f498e074628c6bbfeddc8c692bb67b1cf584fffa0e91108e4996fe52666f",
+    "kart_1_accessory_35.ttm": "a88a64f79f5d3a101ae2bbf3c629af6d2f0fd91385f149f1aeff85aad4a94b34",
+    "kart_1_accessory_36.ttm": "1026e909c948b271278ae1f3e0ba43b7ad1ca59f742082fb6b63a7ce034c4054",
+    "kart_1_accessory_37.ttm": "3c11a6fd2655e533c54da6d5ac182b4cac60ff2dd1f24ac4925ea4b0fea3eacf",
+    "kart_1_accessory_38.ttm": "13d5260222e192f3146ec7b1e3aa80e7627a888aba6337bec1142cf851fc5dac",
+    "kart_1_accessory_39.ttm": "969b66ce4b6d4f9b2739c84a9cb98179e5fa6f53832dc5018257221a2f15c888",
+    "kart_1_accessory_4.ttm": "9e3556e7f1c60ce6563bcaeb83e9b32a65d11fa8c695b63e2aec947299d39f30",
+    "kart_1_accessory_40.ttm": "296f178934829f3c76aa12b446607396e592560173c9f717a9a652d15b859ff9",
+    "kart_1_accessory_41.ttm": "8c4ecb847e53ae46bf41ca7466f7ab3980baf642e846c724c3329308fe6ec578",
+    "kart_1_accessory_42.ttm": "8393a9725fa20e5d9f5fba518a0a61a58cefaa7fbf3c7f0bc039593c88533df5",
+    "kart_1_accessory_43.ttm": "e5850040a9c812efa4070ad94695c9eaf705ae5bb130a90b7be0afd06f72fbf9",
+    "kart_1_accessory_44.ttm": "33906d19fffa426b70f128e32ca4c5ce17649a89b687e04823a573d62e4b63b0",
+    "kart_1_accessory_45.ttm": "20f2042fc36f4739ca7044fe9dc068aeca7fced668ef6aa295773b835b66000c",
+    "kart_1_accessory_46.ttm": "6971c5e341160f1a33f2458a7cb15190e23f3ea0f08d792f5d5a508fea136dcc",
+    "kart_1_accessory_47.ttm": "2faa8b1e764c64e3f75a650d377ce4f7d123e195c36652da01e2eddde2ecd99e",
+    "kart_1_accessory_48.ttm": "be038a359384a9707fcd174cfae581b6895b3615bb9f899876810d1d5e4c29dd",
+    "kart_1_accessory_49.ttm": "d5661d0e511330b82b59b2cd00e827d77546374ec04812c3b9ed4c17a4cbc1e2",
+    "kart_1_accessory_5.ttm": "6a9ae2feb3749915a1a01b0cff7a764025389a5a498c4a11d4cfe78d04996751",
+    "kart_1_accessory_50.ttm": "b85cac9971627ddcb17ba47ce5c62e90cfbf3ab3f9a17f7b1c7968f5432a90f3",
+    "kart_1_accessory_51.ttm": "050728dfd99ac3a6bf5b026f30c5bcc87db2dcb01af44f3046c230ade051667e",
+    "kart_1_accessory_52.ttm": "e8ea8a264c1d9665f8017e544f88cd647971d3e0253272de5c0645a02a501359",
+    "kart_1_accessory_53.ttm": "9df51191a7122b14ef1cf8aae80675d798a926a6270f926deedc908257af3d55",
+    "kart_1_accessory_54.ttm": "6fa3e3bc9de68378e9715e18e1a6f91f407496d01ac120b69e67d0f220bf0b9e",
+    "kart_1_accessory_55.ttm": "81159d6aff4aa04fef8ed4a109bdac4b078af8244e922022a27b31d7e2b6cd83",
+    "kart_1_accessory_56.ttm": "d706f72a37212f9c6e68351aa42d19a89a1a368ced2f9490999f2ec8c8e36cfa",
+    "kart_1_accessory_57.ttm": "efe172482c5de30bdb4d801a9e1c58a3ee9c60dacf05e767ee488c7d768402c5",
+    "kart_1_accessory_58.ttm": "6775c45932ed4c7b0ef5097773c8b13539380f0ceb387c688604031fcbf29948",
+    "kart_1_accessory_59.ttm": "432f16fc16ccacdc32c06db3e3eceec78ef615db8afb1cae80fc249c8ee119b6",
+    "kart_1_accessory_6.ttm": "0e5150bfb78c2b1a0794f3164e4d6b50ffa14dd176649cf501d5f277e80750de",
+    "kart_1_accessory_60.ttm": "cdf5eacd38c899bbf4cd73cc79471186829ad5f8c113e889e745849a3459cf30",
+    "kart_1_accessory_61.ttm": "2078a87b1be8e51e069418d105e714469ce7bf4e11128b53ed6aa675dd9f0039",
+    "kart_1_accessory_62.ttm": "118c2060646ae21484b5031b037ea89b4090ae45bf2de9cf1b2acd205e9e5861",
+    "kart_1_accessory_63.ttm": "eacadff56b8e90a0642915892436ea930f38ae87d5fb18908c81cde1be549f58",
+    "kart_1_accessory_64.ttm": "23d711698ece25f1dd82cd1beea2d7d0952a2928c04df3b9367a8a0718cefaa3",
+    "kart_1_accessory_7.ttm": "fe5e176dcb6481327acb1858c29b047458c8b451ddee260d948da8c542632d2a",
+    "kart_1_accessory_8.ttm": "c7ce9d0d3d3e05dbc19f8387433c5ec8b74faede648887823553287b84292bc3",
+    "kart_1_accessory_9.ttm": "44cde2a422161dcb97f2c63b47a82559fe4d4744ad044bdad8de245f2fcb3eb8",
+    "kart_1_body.ttm": "d6f7fac529fb7756c0473f07615dc267974c483cdaa0dbfc30e5e0703e17df7d",
+    "kart_2_accessory_0.ttm": "84eba0c05260246cfccbc456d29b01511ee825ee2346dd68c5d27faf37cafce9",
+    "kart_2_accessory_1.ttm": "4a10895074fc005d44e2207bec7290078e263374ebfa38b92b32ce5ec1e178cd",
+    "kart_2_accessory_10.ttm": "604108a36d7949cb2a0daf4417ee5e1dc0543aa4bc48e5a6e2c006f62f53e995",
+    "kart_2_accessory_11.ttm": "bfe9dafefe7631ea498ff54296042a0dd5cace52738f2ea51389693c2a9e9554",
+    "kart_2_accessory_12.ttm": "140ddcbfa4f308e68882a8778f42453733aa690ede569b7a5d91a5b42f856abb",
+    "kart_2_accessory_13.ttm": "ed97d8a375c84ac8eba64741bb57c6c54a494a92a4f78cef59eca9920c71f134",
+    "kart_2_accessory_14.ttm": "99ec80fb8a63d57b425d3cac16a7828dafcba7e436edf97824d56d983856729f",
+    "kart_2_accessory_15.ttm": "3673b159eefb435840d64e3b1befff7e6accb62bfa73171eee2f5a788fc8bddc",
+    "kart_2_accessory_16.ttm": "b18bac2b413402145f48c5fca7311b8da03cb68280fb21c4e4cdeed933f8d424",
+    "kart_2_accessory_17.ttm": "976045cb49a7ccdce8bf87da7ebecf8fc5b4ae77bbf41f66ca900aff80a046e6",
+    "kart_2_accessory_18.ttm": "4d8469d8809ceaded162d71d509df1ef052c6037abd1cabd5bba9952e62359a5",
+    "kart_2_accessory_19.ttm": "6ad6eaf952c6369bc77ba4a8149a6d0ba0e13b19ef8fe01cd479facf8eb016dd",
+    "kart_2_accessory_2.ttm": "cfa1ffad2af1488c2b76dc00e8296fdef7c2672252c226852e5655d8a60e3ae3",
+    "kart_2_accessory_20.ttm": "0383dc8a32fa0ace0f23988c787ccc03bbde8da3a74ea2a5a1c4dce4bf5db633",
+    "kart_2_accessory_21.ttm": "9ff72d09282b79c78c9cf34e68e3970d8dceb76d0d520adfe8cfefa3aade060c",
+    "kart_2_accessory_22.ttm": "e61f9f1a92120dd8c605ce45a1a31568db733e878abad547751b1999e2b87da9",
+    "kart_2_accessory_23.ttm": "7093221bcff187a9167b1b4ea77bf8fb8d6bd40ce1455ddbd182011688d062a5",
+    "kart_2_accessory_24.ttm": "c5e3c7e4b3cf247e920a0fd0b22911f6eeb817cad1ba66d9b11b90f821617eee",
+    "kart_2_accessory_25.ttm": "5b46461c68f055180a677db51a0f2e63f5268063c23bef8cbc2f16288febf5de",
+    "kart_2_accessory_26.ttm": "71ddc934930aeba11ac698474c6bb794b381e41e1800e90731df67ac6be7ba6c",
+    "kart_2_accessory_27.ttm": "ea3ff9cf5234bfc11af3ff87f69c05e252b8fc4b4bb3e2ac51c0d78351d24a46",
+    "kart_2_accessory_28.ttm": "81ab5ca020c088fd14977119b3a0455bd720baab6eaf7c9a60a7c6c773add0ce",
+    "kart_2_accessory_29.ttm": "637a12e42abca3ac0721a01ae63f324497967ba2e88497ff7094759a6d82fd7a",
+    "kart_2_accessory_3.ttm": "705e0c988f5e7bd67b2059eaaac191f1a122e899a3f8e46ab3d963de8933179c",
+    "kart_2_accessory_30.ttm": "347e212f17faefb1b5ba5fd6a587db337b8821f3175f70ac88f5b73938c8cf58",
+    "kart_2_accessory_31.ttm": "8b0affd39035a69b772dc0db47ae25753dd4c4521ec9b1b302e26ad067ce85df",
+    "kart_2_accessory_32.ttm": "2292ccb1e23668671a465b83f9165c3552e1f25991d904d407d050b24ce34def",
+    "kart_2_accessory_33.ttm": "473536edeb162375408f893e5d90e7029fa1cc1461b36c2c498bf23696152aaa",
+    "kart_2_accessory_34.ttm": "b579cf3640af5175cd17b73a21d5a5fe7649d9b296bc0cf4c896dcb78c0a8fc1",
+    "kart_2_accessory_35.ttm": "f9427c7df9d4b35787b6b43337295f1dc3be58b62434e5ba12146e554594eb3e",
+    "kart_2_accessory_36.ttm": "1796f9451a372ed19b2952552fd8a8a6c7c9da3f7aee2b91dc3dd9b1d34d14c2",
+    "kart_2_accessory_37.ttm": "474711dfa345f70eb92aa3a38c9af724f781d8ce571996eb774876d1cfb180ef",
+    "kart_2_accessory_38.ttm": "baf19c155eeabbad9cfc29ce2f51f02da3fc5bee42d3e5f001c8f3997e82aefe",
+    "kart_2_accessory_39.ttm": "bc52b21d38f3beba6eeb1bf6bbb8f81abe726460b1e9cc79dad0d95cd3ab2ca6",
+    "kart_2_accessory_4.ttm": "13d8a231d889fd86589a80f022c2b765571b3a45101f05bd03ddb35bba6fee9d",
+    "kart_2_accessory_40.ttm": "e30d3e69e8757a2b8aff2c98a21cb51d4438bdd0c887ce29a8f7da23e3dc5f16",
+    "kart_2_accessory_41.ttm": "2e33fe30c7a3a95b28dd72b6494c0d252380a9d75f4bd1d63600113654c84b27",
+    "kart_2_accessory_42.ttm": "cf0499b2caa986c478f27d4da6261b9372e711c548fe11acdd332ddd23afd00d",
+    "kart_2_accessory_43.ttm": "bb12266d7677262da1f41f22581579b1cad1032bb6fce9c528a9e908bc58ec1c",
+    "kart_2_accessory_44.ttm": "21be56d6296256f6c65327acc0908df47f127daa0e647a6a216e0e61c38b758d",
+    "kart_2_accessory_45.ttm": "333ed20ae09c654fc3180d4c3f2fb73fc5a7fc697e65244d91b2c7e65916031f",
+    "kart_2_accessory_46.ttm": "9e2cf6bec03998e08bd88b9b8a4b9b24a64fa16ddaecf59a159a52db7dcf454b",
+    "kart_2_accessory_47.ttm": "fece3014b4bad87628f74ca6e42c5f4a7d18ea32c5978eb0a15bc38a1627e391",
+    "kart_2_accessory_48.ttm": "6adaf581be0dc53700dcb3a86b2e3dfb57fb9dbec330e690022e7b75ca7163bb",
+    "kart_2_accessory_49.ttm": "74c9c37c52e33d8680b601021a81790ec442e4f94fd5ac73ad5ebe5c0818c4a1",
+    "kart_2_accessory_5.ttm": "35e4214d0350a4a65fdd96054df929087303c6f3799ffa42fd665d19f8d18daa",
+    "kart_2_accessory_50.ttm": "f31028e509e35e333fd6e8c67b7b090ba90b53e67a4f82ced2dbf1ba0377b3ab",
+    "kart_2_accessory_51.ttm": "024f3900401bc9489b06877405149349d9b0f8a08d030704bd90b04cc8114b9d",
+    "kart_2_accessory_52.ttm": "ba4cd56b5d93b2f53bd5ec1fa8d71cfc58ac8a92238bcadf8653a8e4d2ebf213",
+    "kart_2_accessory_53.ttm": "542b9437ad952fe5c42ed92115019c27e53ab8330f637ef92616de42a79a06f2",
+    "kart_2_accessory_54.ttm": "fe6b568d7ceacb8a63fd0cd3573bf7d69d6b9c3230b89f0e9c7a6d9e94d0a14a",
+    "kart_2_accessory_55.ttm": "fac5747ece1a1f3b5c8dbcc6210c3ef6ebd30f253208a6623b9e367e267b5de5",
+    "kart_2_accessory_56.ttm": "cbfe7dfa866a78e04226ba2eefa4637e395b9bbbffcae06ed4a9df5cd19a5b1a",
+    "kart_2_accessory_57.ttm": "00c916da914eddc3085b31d643020cd6a2478b67d824d87cf01eea3be7d891bf",
+    "kart_2_accessory_58.ttm": "5b032c8c599d534f5502e422167af875090630af1da3aa24b9209751e836636b",
+    "kart_2_accessory_59.ttm": "0b46cd38b004d0806ba8ff0958cbd6ed79f04e97f7110f7e997ddc8471a180cc",
+    "kart_2_accessory_6.ttm": "5eb309a2856ab04579c3a4f1d4be51416c004c48f6b20e3a494332aa42a4f71e",
+    "kart_2_accessory_60.ttm": "bb5769050f794597d01a3d3b366dd7ca37fd95d3c344f482cc5b419089ce098e",
+    "kart_2_accessory_61.ttm": "2ca874102c210651108bcd3f795608c05323760bfe66fca5d74d9cc3470f0e00",
+    "kart_2_accessory_62.ttm": "c4ea80c0f31105a6d87b5451ac7b512bcec28caa11c5846048f58d2127a124f4",
+    "kart_2_accessory_63.ttm": "8dbf00bfeb4da9b47d91bdde50f399c28828b0d9ff20b955dcc6174d4f39e4dd",
+    "kart_2_accessory_64.ttm": "3c821080e67054eaf7e4710106ae680ee46012981a24e1b30f63de93122b3d52",
+    "kart_2_accessory_7.ttm": "7ab54fce358f29d5ef474944a82a2c83bcad4b6773175a84513dc98d7b2294ae",
+    "kart_2_accessory_8.ttm": "daf9268282f69cfb639caaca2061bd247e2ea31ab833aa0b7c99c3d21095e12b",
+    "kart_2_accessory_9.ttm": "af505be200763b5a8bb36d75dc58d3ce2044d726ce25abe1d7dc0f76ff5c9301",
+    "kart_2_body.ttm": "6f2c7fdfa66ffc8f65a7421f9b2645ccd7b975f43afd284565f4d863279d6111"
+  },
+  "version": 1,
+  "worst_resident": {
+    "0": {
+      "batches": 20,
+      "geometry_bytes": 30302,
+      "texture_bytes": 212736,
+      "triangles": 1549
+    },
+    "1": {
+      "batches": 20,
+      "geometry_bytes": 28180,
+      "texture_bytes": 235936,
+      "triangles": 1398
+    },
+    "2": {
+      "batches": 21,
+      "geometry_bytes": 29498,
+      "texture_bytes": 212736,
+      "triangles": 1399
+    }
+  }
+}
