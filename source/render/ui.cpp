@@ -196,7 +196,8 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (contextRacing_) return down & ~(KEY_A | KEY_B | KEY_R);
     // ---- end racing2 ----
     // ---- qafix: input and drawing share resolveOwner ----
-    const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_);
+    // An info panel drawn last frame (loading, streaming Cogs) owns input too: both calls must agree.
+    const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_ || drawnInfo_);
     // ---- padnav: a panel that owns the screen drops the tab focus, so A jumps afterwards ----
     if (owner != PanelOwner::Tabs) tabFocus_.blur();
     // ---- end padnav ----
@@ -298,7 +299,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
-    const PanelOwner owner = resolveOwner(c.fishing != nullptr, c.infoTitle != nullptr); // qafix
+    drawnInfo_ = c.infoTitle != nullptr;
+    const PanelOwner owner = resolveOwner(c.fishing != nullptr, contextInfo_ || drawnInfo_); // qafix
     if (owner == PanelOwner::Clerk) { // clerks
         serviceClerks_.draw();
         return;

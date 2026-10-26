@@ -149,6 +149,7 @@ private:
     // ---- qafix ----
     PanelOwner resolveOwner(bool fishing, bool info);
     PanelOwner lastOwner_ = PanelOwner::Tabs;
+    bool drawnInfo_ = false; // the last drawn frame showed an info panel (ctx.infoTitle)
     unsigned contextZone_ = 0;
     bool contextFishing_ = false, contextInfo_ = false;
     bool contextRacing_ = false; // ---- racing2 ----
