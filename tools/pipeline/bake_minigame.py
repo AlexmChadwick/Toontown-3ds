@@ -118,8 +118,13 @@ MODELS = {
     'pattern_stage': (MG + 'matching_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Ice Slide
-    'ice_arena': (MG + 'ice_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # DistributedIceGame.load: gameBoard = ice_game_icerink (the rink, +-20 x +-15) with the
+    # flat ice_game_2d backdrop under it. No walls: the west and east wall NodePaths are empty.
+    'ice_arena': (MG + 'ice_game_icerink', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_backdrop': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_tire': (MG + 'ice_game_tire', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # The score circle: setScale(0.01) then grown to each score's distance (scoreMovie).
+    'ice_score_circle': (MG + 'ice_game_score_circle', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Race
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -281,7 +286,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'ice', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 

@@ -56,7 +56,9 @@ private:
     float scoreTimer_ = 0.0f;
 
     render::Model arenaModel_;
+    render::Model backdropModel_;
     render::Model tireModel_;
+    render::Model scoreCircleModel_;
 
     mutable char lines_[3][64] = {};
 };
