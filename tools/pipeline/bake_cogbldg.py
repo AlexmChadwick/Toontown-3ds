@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import struct
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
@@ -73,6 +74,52 @@ def floor_anchors(base, source):
     return anchors
 
 
+def bake_elevator_parts(base, source, out):
+    """Write the static cab and its two independently movable door leaves.
+
+    ElevatorUtils addresses these exact nodes.  Keeping their original model-space
+    transforms in each TTM means the 3DS can apply just the opening translation.
+    """
+    import extract
+    import ttm
+    model = base.loader.loadModel(str(source))
+    if model.isEmpty():
+        raise FileNotFoundError(source)
+    for name in ("left-door", "right-door"):
+        node = model.find(f"**/{name}")
+        if node.isEmpty():
+            raise RuntimeError(f"{source}: missing **/{name}")
+        ex = extract.Extractor(max_tex=128)
+        ex.add(node)
+        ttm.write(str(out / f"elevator_{name}.ttm"), ex.textures, ex.batches())
+        node.detachNode()
+    for number in range(1, 6):
+        node = model.find(f"**/floor_light_{number}")
+        if node.isEmpty():
+            raise RuntimeError(f"{source}: missing **/floor_light_{number}")
+        ex = extract.Extractor(max_tex=128)
+        ex.add(node)
+        ttm.write(str(out / f"elevator_floor_light_{number}.ttm"), ex.textures, ex.batches())
+        node.detachNode()
+    # The cab has its leaves removed.  Doors render at their original closed
+    # transforms, or at the translated open transforms.
+    ex = extract.Extractor(max_tex=128)
+    ex.add(model)
+    ttm.write(str(out / "elevator_cab.ttm"), ex.textures, ex.batches())
+    model.removeNode()
+
+
+def write_tcb(out, anchors):
+    # TCB1: magic, uint16 version, uint16 floor count, then two (xyz,hpr) float
+    # anchors per reusable floor: elevator-in followed by elevator-out.
+    with (out / "cogbldg.tcb").open("wb") as f:
+        f.write(struct.pack("<4sHH", b"TCB1", 1, len(anchors)))
+        for floor in sorted(anchors):
+            for name in ("elevator-in", "elevator-out"):
+                a = anchors[floor][name]
+                f.write(struct.pack("<6f", *(a["position"] + a["hpr"])))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--resources", default=str(resources_default()))
@@ -108,7 +155,9 @@ def main():
             manifest.setdefault("collision", {})[stem] = bake_collision(base, source, out / f"{stem}.ttc")
             manifest.setdefault("anchors", {})[stem] = floor_anchors(base, source)
         print(json.dumps({"file": str(path), **stats}))
+    write_tcb(out, manifest["anchors"])
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    bake_elevator_parts(base, sources["interior_elevator"], out)
     base.destroy()
 
 

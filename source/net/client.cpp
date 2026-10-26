@@ -4788,6 +4788,10 @@ bool Client::applyCogElevatorField(CogElevator& e, DatagramReader& r, uint16_t f
         r.i8();
         r.i16();
         r.i16();
+    } else if (fieldId == dc::DistributedElevator::k_rejectBoard) {
+        e.rejectAvatar = r.u32();
+        e.rejectReason = r.u8();
+        ++e.rejectSerial;
     } else if (fieldId == dc::DistributedElevator::k_setElevatorTripId) e.tripId = r.u32();
     else if (fieldId == dc::DistributedElevator::k_setMinLaff) e.minLaff = r.u8();
     else if (fieldId == dc::DistributedFactoryElevatorExt::k_setEntranceId ||
