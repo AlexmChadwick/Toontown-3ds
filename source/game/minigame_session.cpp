@@ -238,7 +238,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isPhoto_) {
-            photo_.init(kDir, home_);
+            // ---- games2 ----: PhotoGameBase seeds assignments with its distributed object id.
+            photo_.init(kDir, home_, mg->doId);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else {
@@ -353,6 +354,27 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::RaceChancePositions:
         if (isRace_ && mg) race_.onSetChancePositions(mg->raceChancePositions, mg->numParticipants);
         break;
+
+    // ---- games2 ----
+    case EventType::TwoDSetSections:
+        if (isTwoD_) twoD_.handleSetSections(client);
+        break;
+    case EventType::TwoDTreasureGrabbed:
+        if (isTwoD_) twoD_.handleTreasureGrabbed(ev.doId, uint8_t(ev.arg >> 8), uint8_t(ev.arg));
+        break;
+    case EventType::TwoDEnemyShot:
+        if (isTwoD_) twoD_.handleEnemyShot(uint8_t(ev.arg >> 24), uint8_t(ev.arg >> 16), uint16_t(ev.arg));
+        break;
+    case EventType::TwoDVictoryScore:
+        if (isTwoD_) twoD_.handleVictoryScore(uint8_t(ev.arg));
+        break;
+    case EventType::TwoDEveryoneDone:
+        if (isTwoD_) twoD_.handleEveryoneDone();
+        break;
+    case EventType::PhotoNewAIScore:
+        if (isPhoto_) photo_.onAIScore(ev.doId, uint8_t(ev.arg >> 24), float(ev.arg & 0xffffff) / 100.0f);
+        break;
+    // ---- games2 ----
 
     default:
         break;
@@ -479,6 +501,9 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isTwoD_) {
+            // ---- games2 ----
+            twoD_.setAutoPlay(autoPlay_);
+            // ---- games2 ----
             twoD_.update(client, pad, kDown, dt, nowMs);
             if (twoD_.isDone() && !doneSent_) {
                 doneSent_ = true;

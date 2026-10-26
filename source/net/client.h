@@ -230,8 +230,13 @@ enum class EventType : uint8_t {
     CogThiefBarrelStolen,
     // ---- Two-D (DistributedTwoDGame) ----
     TwoDSetSections,
-    TwoDTreasureGrabbed,
+    TwoDTreasureGrabbed, // doId = avId, arg = section << 8 | treasure
     TwoDEveryoneDone,
+    // ---- games2 ----
+    TwoDEnemyShot,       // doId = avId, arg = section << 24 | enemy << 16 | health (clamped to 16 bits)
+    TwoDVictoryScore,    // doId = avId, arg = bonus
+    TwoDToonAction,      // doId = avId, arg = kTwoDShoot..kTwoDVictory (toon broadcasts)
+    // ---- games2 ----
     // ---- Tag (DistributedTagGame) ----
     TagSetIt,
     TagTreasureScore,
@@ -253,7 +258,7 @@ enum class EventType : uint8_t {
     RaceChancePositions,
     RaceServerChoices,
     // ---- Photo (DistributedPhotoGame) ----
-    PhotoNewAIScore,
+    PhotoNewAIScore,    // doId = avId, arg = assignment << 24 | score in hundredths (games2)
     PurchaseUp,         // a PurchaseManager / NewbiePurchaseManager generated (purchase())
     PurchaseStates,     // setPlayerStates changed
     PurchaseExit,       // setPurchaseExit
@@ -267,6 +272,10 @@ enum class EventType : uint8_t {
     NpcFree,       // an NPC sent freeAvatar to us: leave the dialog (doId = the NPC object)
     Quests,        // ownQuests() changed
 };
+
+// ---- games2 ----: EventType::TwoDToonAction arguments (DistributedTwoDGame toon broadcasts).
+enum TwoDToonActionCode : int32_t { kTwoDShoot = 0, kTwoDHitByEnemy, kTwoDFellDown, kTwoDSquished, kTwoDVictory };
+// ---- games2 ----
 
 struct Event {
     EventType type;
@@ -887,13 +896,33 @@ struct Minigame {
     int8_t cogThiefDropBarrel = -1;
     int8_t cogThiefStolenBarrel = -1;
 
-    // Two-D:
-    uint8_t twoDSections[16] = {};
+    // ---- games2 ----
+    // Two-D: setSectionsSelected (twoDSectionInfo[]). The caps are above every
+    // ToonBlitzGlobals pool (game/two_d_game.cpp checks them against two_d_tables.h).
+    static constexpr int kTwoDMaxSections = 8;
+    static constexpr int kTwoDMaxEnemies = 8;
+    static constexpr int kTwoDMaxTreasures = 24;
+    static constexpr int kTwoDMaxSpawns = 8;
+    static constexpr int kTwoDMaxStompers = 8;
+    struct TwoDSectionData {
+        uint8_t sectionIndex = 0;
+        uint8_t numEnemies = 0;
+        uint8_t enemyIndices[kTwoDMaxEnemies] = {};
+        uint8_t numTreasures = 0;
+        uint8_t treasureIndices[kTwoDMaxTreasures] = {};
+        uint8_t treasureValues[kTwoDMaxTreasures] = {};
+        uint8_t numSpawns = 0;
+        uint8_t spawnIndices[kTwoDMaxSpawns] = {};
+        uint8_t numStompers = 0;
+        uint8_t stomperIndices[kTwoDMaxStompers] = {};
+    };
+    TwoDSectionData twoDSections[kTwoDMaxSections] = {};
     int twoDSectionCount = 0;
     uint32_t twoDGrabbedAv = 0;
     uint8_t twoDGrabbedSection = 0;
     uint8_t twoDGrabbedTreasure = 0;
     bool twoDEveryoneDone = false;
+    // ---- games2 ----
 
     // Tag:
     uint32_t tagItAvId = 0;
@@ -1537,6 +1566,15 @@ public:
     bool sendCogThiefHitBarrel(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex, float x, float y, float z);
     bool sendCogThiefAtReturnPos(int32_t clientStamp, int8_t cogIndex, int8_t barrelIndex);
     // DistributedTwoDGame.
+    // ---- games2 ----
+    int minigameTwoDSectionCount() const { return minigame_.twoDSectionCount; }
+    const Minigame::TwoDSectionData& minigameTwoDSection(int i) const { return minigame_.twoDSections[i]; }
+    uint32_t minigameTwoDGrabbedAv() const { return minigame_.twoDGrabbedAv; }
+    uint8_t minigameTwoDGrabbedSection() const { return minigame_.twoDGrabbedSection; }
+    uint8_t minigameTwoDGrabbedTreasure() const { return minigame_.twoDGrabbedTreasure; }
+    bool minigameTwoDEveryoneDone() const { return minigame_.twoDEveryoneDone; }
+    bool sendTwoDShootGun(uint32_t avId, int16_t ts);
+    // ---- games2 ----
     bool sendTwoDClaimTreasure(uint8_t sectionIndex, uint8_t treasureIndex);
     bool sendTwoDClaimEnemyShot(uint8_t sectionIndex, uint8_t enemyIndex);
     bool sendTwoDReportDone();
@@ -1571,6 +1609,11 @@ public:
     bool sendRacingThrow(uint32_t raceDoId, float x, float y, float z);
     bool sendRacingGag(uint32_t raceDoId, uint8_t track, uint8_t level, uint8_t count);
     // DistributedPhotoGame.
+    // ---- games2 ----
+    uint32_t minigamePhotoScoreAv() const { return minigame_.photoScoreAv; }
+    uint8_t minigamePhotoScoreAssignment() const { return minigame_.photoScoreAssignment; }
+    float minigamePhotoScoreStars() const { return minigame_.photoScoreStars; }
+    // ---- games2 ----
     bool sendPhotoScore(uint8_t subjectIndex, const char* pose, float score);
     bool sendPhotoFilmOut();
     // PurchaseManager: requestExit ("Back to Playground"), then setInventory(done=1) after

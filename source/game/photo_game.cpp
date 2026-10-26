@@ -8,19 +8,18 @@
 
 namespace tt::game {
 
-bool PhotoGame::init(const char* root, unsigned hood) {
+bool PhotoGame::init(const char* root, unsigned hood, uint32_t gameDoId) {
     (void)root;
-    sim_.init(1, 32);
-    camYaw_ = -90.0f;
-    camPitch_ = 0.0f;
-    timeRemaining_ = 120.0f;
-    for (const auto& limits : kMinigameLimits) {
-        if (limits.hood == hood) {
-            sim_.maxFilm = limits.film;
-            timeRemaining_ = float(limits.photoSeconds);
-        }
-    }
-    TT_LOG("mgpass: limitation id 16: animated photo assignments are not implemented; no fabricated scores");
+    const auto* data = photogame::getHoodPhotoData(hood);
+    sim_.init(1, hood, gameDoId);
+    camYaw_ = data->startH;
+    camPitch_ = data->startP;
+    camX_ = data->camPosX + data->tripOffsetX;
+    camY_ = data->camPosY + data->tripOffsetY;
+    camZ_ = data->camPosZ + data->tripOffsetZ;
+    timeRemaining_ = static_cast<float>(data->timeLimit);
+    elapsed_ = 0.0f;
+    TT_LOG("mgpass: photo start hood=%u film=%d", hood, sim_.maxFilm);
 
     return true;
 }
@@ -37,6 +36,7 @@ void PhotoGame::update(net::Client& client, const circlePosition& pad, u32 keysD
     if (sim_.isDone) return;
 
     timeRemaining_ -= dt;
+    elapsed_ += dt;
     if (timeRemaining_ <= 0.0f) {
         sim_.calculateScores();
         sim_.isDone = true;
@@ -58,11 +58,23 @@ void PhotoGame::update(net::Client& client, const circlePosition& pad, u32 keysD
     // Snap photo
     if (keysDown & KEY_A) {
         if (sim_.filmUsed[0] < sim_.maxFilm) {
-            // A snapshot with no implemented subject/pose cannot earn invented stars.
-            // DistributedPhotoGame.__testCollisions still consumes film for empty shots.
-            ++sim_.filmUsed[0];
+            const photogame::PhotoShotResult shot = sim_.evaluateShot(0, camX_, camY_, camZ_, camYaw_, camPitch_, elapsed_);
+            if (shot.assignmentIndex >= 0 && shot.newHighScore) {
+                client.sendPhotoScore(static_cast<uint8_t>(shot.subjectIndex), shot.poseName, shot.stars);
+                TT_LOG("mgpass: photo score subject=%d pose=%s stars=%.0f", shot.subjectIndex, shot.poseName, shot.stars);
+            }
+            if (sim_.filmUsed[0] >= sim_.maxFilm) {
+                client.sendPhotoFilmOut();
+                TT_LOG("mgpass: photo film out");
+            }
             if (sim_.filmUsed[0] == sim_.maxFilm) client.sendPhotoFilmOut();
         }
+    }
+}
+
+void PhotoGame::onAIScore(uint32_t avId, uint8_t assignment, float stars) {
+    if (sim_.submitAIScore(avId, 0, assignment, stars)) {
+        TT_LOG("mgpass: photo AI score assignment=%u stars=%.0f", assignment, stars);
     }
 }
 
@@ -72,17 +84,17 @@ void PhotoGame::draw(render::Renderer& renderer) {
 
 void PhotoGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     if (eye) {
-        eye->x = 0.0f;
-        eye->y = 0.0f;
-        eye->z = 5.0f;
+        eye->x = camX_;
+        eye->y = camY_;
+        eye->z = camZ_;
         eye->w = 1.0f;
     }
     if (target) {
         float yawRad = camYaw_ * 0.0174532925f;
         float pitchRad = camPitch_ * 0.0174532925f;
-        target->x = std::cos(yawRad) * std::cos(pitchRad) * 20.0f;
-        target->y = std::sin(yawRad) * std::cos(pitchRad) * 20.0f;
-        target->z = 5.0f + std::sin(pitchRad) * 20.0f;
+        target->x = camX_ - std::sin(yawRad) * std::cos(pitchRad) * 20.0f;
+        target->y = camY_ + std::cos(yawRad) * std::cos(pitchRad) * 20.0f;
+        target->z = camZ_ + std::sin(pitchRad) * 20.0f;
         target->w = 1.0f;
     }
 }
@@ -104,7 +116,7 @@ const char* PhotoGame::line(int i) const {
         return lines_[1];
     }
     if (i == 2) {
-        std::snprintf(lines_[2], sizeof(lines_[2]), "Subject paths unavailable; score from AI");
+        std::snprintf(lines_[2], sizeof(lines_[2]), "Frame the assigned subject and pose");
         return lines_[2];
     }
     return "";

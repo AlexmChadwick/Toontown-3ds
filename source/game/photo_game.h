@@ -21,7 +21,7 @@ public:
     }
     PhotoGame() = default;
 
-    bool init(const char* root, unsigned hood = 2000);
+    bool init(const char* root, unsigned hood = 2000, uint32_t gameDoId = 0);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
@@ -31,6 +31,7 @@ public:
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool isDone() const { return sim_.isDone; }
     int score() const { return sim_.scores[0]; }
+    void onAIScore(uint32_t avId, uint8_t assignment, float stars);
 
     const char* title() const { return "Photo Fun"; }
     const char* line(int i) const;
@@ -40,7 +41,11 @@ private:
     photogame::Simulation sim_;
     float camYaw_ = -90.0f;
     float camPitch_ = 0.0f;
+    float camX_ = 0.0f;
+    float camY_ = 0.0f;
+    float camZ_ = 0.0f;
     float timeRemaining_ = 60.0f;
+    float elapsed_ = 0.0f;
 
     render::Model sceneModel_;
     render::Model subjectModel_;
