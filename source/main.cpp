@@ -2135,6 +2135,21 @@ int main() {
                 tt::prof::lap(tt::prof::kNet);
                 minigame.update(net, minigamePad, dt, nowMs);
                 tt::prof::lap(tt::prof::kMinigame);
+                // ---- minigame Cogs: real suit actors through the shared Suits system ----
+                {
+                    // Local-only actor ids, far above any Astron doId the server allocates.
+                    constexpr u32 kMinigameCogBase = 0xFFF00000u;
+                    static int shownCogs = 0;
+                    tt::game::MinigameCog mgCogs[tt::game::kMaxMinigameCogs];
+                    const int numCogs = minigame.cogs(mgCogs, tt::game::kMaxMinigameCogs);
+                    for (int i = 0; i < numCogs; ++i) {
+                        const tt::game::MinigameCog& c = mgCogs[i];
+                        suits.setExternal(kMinigameCogBase + u32(i), c.code, 0, c.x, c.y, c.z, c.h, c.walking, true);
+                    }
+                    for (int i = numCogs; i < shownCogs; ++i) suits.removeExternal(kMinigameCogBase + u32(i));
+                    shownCogs = numCogs;
+                }
+                // ---- end minigame Cogs ----
                 if (const u32 home = minigame.popReturn()) {
                     // Back from the game: teleport into the playground (Playground.enterTeleportIn).
                     player.setCollision(&place.collision());
@@ -2302,6 +2317,7 @@ int main() {
                 if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
                 // ---- end qafix ----
                 minigame.draw(renderer);
+                suits.draw(renderer); // ---- minigame Cogs (MinigameSession::cogs) ----
                 tt::prof::lap(tt::prof::kMinigameDraw); // the playground is hidden while we are away
             } else if (level.active()) {
                 level.draw(renderer, player.cameraEye());

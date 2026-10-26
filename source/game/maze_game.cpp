@@ -35,9 +35,6 @@ void MazeGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(mazeModel_, path);
     std::snprintf(path, sizeof(path), "%smaze_treasure.ttm", kDir);
     assetBatch_.load(treasureModel_, path);
-    // Four MazeSuit actors are active in a solo maze
-    // (DistributedMazeGame.__loadSuits). Reuse the bounded Cog stand-in.
-    assetBatch_.load(suitModel_, "romfs:/baked/suit_placeholder.ttm");
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0 / %d", maze::kNumTreasures);
     std::snprintf(lines_[1], sizeof(lines_[1]), "Time: 60 s");
@@ -48,7 +45,6 @@ void MazeGame::shutdown() {
     assetBatch_.clear();
     mazeModel_.unload();
     treasureModel_.unload();
-    suitModel_.unload();
     done_ = true;
 }
 
@@ -185,14 +181,22 @@ void MazeGame::draw(render::Renderer& renderer) {
             }
         }
     }
-    if (suitModel_.loaded()) {
-        for (int i = 0; i < maze::kNumSuits; ++i) {
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, suits_[i].x, suits_[i].y, 0.0f, true);
-            Mtx_RotateZ(&m, suits_[i].heading * 0.0174532925f, true);
-            renderer.drawModel(suitModel_, m);
-        }
+}
+
+int MazeGame::cogs(MinigameCog* out, int max) const {
+    // DistributedMazeGame.__loadSuits: every MazeSuit is a Flunky (MazeSuit suitDnaName 'f').
+    int n = 0;
+    for (int i = 0; i < maze::kNumSuits && n < max; ++i) {
+        MinigameCog& c = out[n++];
+        c.x = suits_[i].x;
+        c.y = suits_[i].y;
+        c.z = 0.0f;
+        c.h = suits_[i].heading;
+        c.code[0] = 'f';
+        c.code[1] = 0;
+        c.walking = true;
     }
+    return n;
 }
 
 void MazeGame::toonPose(float* x, float* y, float* z, float* h) const {

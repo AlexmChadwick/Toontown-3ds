@@ -1,4 +1,6 @@
 #pragma once
+
+#include "game/minigame_cog.h"
 #include "world/asset_batch.h"
 
 #include <3ds.h>
@@ -30,6 +32,9 @@ public:
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool isDone() const { return isDone_; }
+    // DistributedCogThiefGame.loadCogs: each Cog's suit type from the game's RandomNumGen(doId).
+    void chooseSuitTypes(uint32_t gameDoId);
+    int cogs(MinigameCog* out, int max) const;
     int score() const { return score_; }
 
     const char* title() const { return "Cog Thief"; }
@@ -38,6 +43,9 @@ public:
 private:
     world::BasicAssetBatch<8> assetBatch_;
     cogthief::Simulation sim_;
+    char suitTypes_[cogthief::kMaxCogs][4] = {};
+    float cogHeading_[cogthief::kMaxCogs] = {};
+    cogthief::Vec3 lastCogPos_[cogthief::kMaxCogs] = {};
     float tx_ = 0.0f;
     float ty_ = 12.0f;
     float th_ = 180.0f;

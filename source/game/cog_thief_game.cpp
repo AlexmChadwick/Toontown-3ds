@@ -5,8 +5,40 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "game/panda_rng.h"
 
 namespace tt::game {
+
+namespace {
+// DistributedCogThiefGame.loadCogs suitTypes.
+constexpr const char* kCogThiefSuitTypes[] = {"ds", "ac", "bc", "ms"};
+constexpr int kNumCogThiefSuitTypes = 4;
+} // namespace
+
+void CogThiefGame::chooseSuitTypes(uint32_t gameDoId) {
+    // DistributedMinigame.__createRandomNumGen seeds RandomNumGen(doId); loadCogs is its first use.
+    RandomNumGen rng(gameDoId);
+    for (int i = 0; i < cogthief::kMaxCogs; ++i) {
+        const char* type = kCogThiefSuitTypes[rng.choice(kNumCogThiefSuitTypes)];
+        std::snprintf(suitTypes_[i], sizeof(suitTypes_[i]), "%s", type);
+        if (i + 1 >= sim_.numCogs) break;
+    }
+}
+
+int CogThiefGame::cogs(MinigameCog* out, int max) const {
+    int n = 0;
+    for (int i = 0; i < sim_.numCogs && n < max; ++i) {
+        MinigameCog& c = out[n++];
+        c.x = sim_.cogs[i].pos.x;
+        c.y = sim_.cogs[i].pos.y;
+        c.z = sim_.cogs[i].pos.z;
+        c.h = cogHeading_[i];
+        std::snprintf(c.code, sizeof(c.code), "%s", suitTypes_[i][0] ? suitTypes_[i] : "ds");
+        c.walking = sim_.cogs[i].stunTimer <= 0.0f;
+    }
+    return n;
+}
+
 
 bool CogThiefGame::init(const char* root, int numCogs, float cogSpeed) {
     char path[256];
@@ -65,6 +97,13 @@ void CogThiefGame::update(net::Client& client, const circlePosition& pad, u32 ke
     }
 
     sim_.step(dt);
+    // CogThief turns to face where it walks (Panda heading: 0 faces +Y).
+    for (int i = 0; i < sim_.numCogs; ++i) {
+        const float dx = sim_.cogs[i].pos.x - lastCogPos_[i].x;
+        const float dy = sim_.cogs[i].pos.y - lastCogPos_[i].y;
+        if (dx * dx + dy * dy > 1e-6f) cogHeading_[i] = std::atan2(-dx, dy) * 57.2957795f;
+        lastCogPos_[i] = sim_.cogs[i].pos;
+    }
 
     if (timer_ >= cogthief::kGameDuration || sim_.allBarrelsStolen()) {
         isDone_ = true;

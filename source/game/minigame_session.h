@@ -10,6 +10,8 @@
 // - Ring (DistributedRingGame, id 5)
 // Any other game is aborted at once with requestExit, which the AI pays 1..7 jellybeans for (trolley.md 2.6).
 #pragma once
+
+#include "game/minigame_cog.h"
 #include "world/asset_batch.h"
 
 #include <3ds.h>
@@ -74,6 +76,8 @@ public:
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
     bool photoScene() const { return isPhoto_; }
+    // The Cogs to draw this frame; 0 when the game has none.
+    int cogs(MinigameCog* out, int max) const;
     bool startedGame() const { return startedGame_; }
     bool endedGame() const { return endedGame_; }
     bool completedPurchase() const { return completedPurchase_; }

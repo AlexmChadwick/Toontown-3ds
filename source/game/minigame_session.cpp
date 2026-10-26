@@ -215,6 +215,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isCogThief_) {
             cogThief_.init(kDir);
+            cogThief_.chooseSuitTypes(mg->doId);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTwoD_) {
@@ -724,6 +725,13 @@ void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
         *z = 0.0f;
         *h = th_;
     }
+}
+
+int MinigameSession::cogs(MinigameCog* out, int max) const {
+    if (phase_ != Phase::Play && phase_ != Phase::Rules) return 0;
+    if (isMaze_) return maze_.cogs(out, max);
+    if (isCogThief_) return cogThief_.cogs(out, max);
+    return 0;
 }
 
 bool MinigameSession::toonRunning() const {
