@@ -227,6 +227,89 @@ ALL_STORAGE_FILES = [
 ]
 
 
+# ---- tutorial (docs/design/tutorial.md section 4) ----
+# The Toontorial's two interiors. Their DNA blocks come from tutorial_street.dna; the interior zone
+# follows the usual branch + 500 + block (TutorialManagerAI allocates dynamic zones at run time;
+# world/tutorial_zones.h maps them back to these).
+TUTORIAL_DNA = 'phase_3.5/dna/tutorial_street.dna'
+TUTORIAL_BRANCH = 20000
+TUTORIAL_HOOD = 15000  # ToontownGlobals.Tutorial: ZoneUtil.getCanonicalHoodId under the tutorial override
+# PlayGame.loadDnaStoreTutorial: the tutorial's DNA store holds only these.
+TUTORIAL_STORAGE_FILES = ['phase_3.5/dna/storage_tutorial.dna', 'phase_3.5/dna/storage_interior.dna']
+TUTORIAL_TOM_NPC_ID = 20000   # TutorialBuildingAI: NPCToons.createNPC(20000, ...), TTLocalizer.NPCToonNames
+TUTORIAL_TOM_NAME = 'Tutorial Tom'
+TUTORIAL_HQ_NPC_ID = 1000     # TutorialHQBuildingAI: NPCToons.createNPC(Quests.ToonHQ, ...)
+TUTORIAL_HQ_NAME = 'HQ Harry'  # TTLocalizer.TutorialHQOfficerName
+
+
+def is_tutorial_zone(zone_id):
+    return TUTORIAL_BRANCH <= zone_id < TUTORIAL_BRANCH + 1000
+
+
+def get_tutorial_interior_specs(resources):
+    """Specs for Tutorial Tom's interior (block 2) and the tutorial Toon HQ (block 1)."""
+    specs = {}
+    for lm in parse_dna_landmarks(os.path.join(resources, TUTORIAL_DNA)):
+        block = lm['block']
+        zone = TUTORIAL_BRANCH + 500 + block
+        if lm['building_type'] == 'hq':
+            # TutorialHQBuildingAI: a DistributedHQInteriorAI with setTutorial(1).
+            itype, title = 'hq', 'Toon HQ'
+            npcs = [{'id': TUTORIAL_HQ_NPC_ID, 'name': TUTORIAL_HQ_NAME, 'pos_index': 0}]
+            cam = (-5.0, -8.0, 8.0, -5.0, 25.0, 3.0, 75)
+        else:
+            # TutorialBuildingAI: DistributedTutorialInteriorAI (TutorialManagerAI's "gagBlock").
+            itype, title = 'tutorial', TUTORIAL_TOM_NAME
+            npcs = [{'id': TUTORIAL_TOM_NPC_ID, 'name': TUTORIAL_TOM_NAME, 'pos_index': 0}]
+            cam = (0.0, -2.0, 5.0, 0.0, 14.0, 4.0, 70)
+        specs[zone] = {
+            'canonical_zone': zone,
+            'hood_id': TUTORIAL_HOOD,
+            'branch_id': TUTORIAL_BRANCH,
+            'is_safezone': False,
+            'dna_file': TUTORIAL_DNA,
+            'block': block,
+            'name': title,
+            'building_type': lm['building_type'],
+            'interior_type': itype,
+            'tutorial': True,
+            'resources': resources,  # the street view outside Tom's windows is assembled from DNA
+            'npcs': npcs,
+            'camera': cam,
+        }
+    return specs
+
+
+def _add_tutorial_street_view(root, loader, resources):
+    """DistributedTutorialInterior.setup: the tutorial street, seen through Tom's windows.
+
+    The street is placed at (-17, 42, -0.5) facing 180, Tom's own landmark and the HQ's first
+    door flat are stashed, and so is all of its collision. Its anchors are renamed so the
+    interior's own door and NPC origins stay the only ones in the .pts.
+    """
+    import assemble
+    import dna
+    store = dna.Storage(loader, resources)
+    for f in TUTORIAL_STORAGE_FILES:
+        store.load(os.path.join(resources, f))
+    tree = dna.parse_file(os.path.join(resources, TUTORIAL_DNA), [])
+    street, _ = assemble.assemble(tree, store, seed=1)
+    street.reparentTo(root)
+    street.setPosHpr(-17, 42, -0.5, 180, 0, 0)
+    street.find('**/tb2:toon_landmark_TT_A1_DNARoot').stash()
+    flat = street.find('**/tb1:toon_landmark_hqTT_DNARoot/**/door_flat_0')
+    if not flat.isEmpty():
+        flat.stash()
+    for c in street.findAllMatches('**/+CollisionNode'):
+        c.stash()
+    for pattern in ('**/door_origin*', '**/door_trigger*', '**/npc_*origin*', '**/sign_origin*',
+                    '**/trophy_origin*'):
+        for n in street.findAllMatches(pattern):
+            n.setName('street_' + n.getName())
+    return street
+# ---- end tutorial ----
+
+
 def parse_dna_landmarks(dna_path):
     """Parse landmark_building blocks from a DNA file."""
     with open(dna_path, 'r', encoding='utf-8') as f:
@@ -561,6 +644,10 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
 
     if colors is None:
         hood_id = zone_id - zone_id % 1000
+        # ---- tutorial ----
+        if is_tutorial_zone(zone_id):
+            hood_id = TUTORIAL_HOOD  # ToonInteriorColors.colors[Tutorial]
+        # ---- end tutorial ----
         colors = get_hood_colors(hood_id)
 
     # Deterministic RNG seeded by zone ID:
@@ -584,6 +671,20 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
         door_color = rng.choice(colors['TI_door'])
         _setup_door_parts(door_np, interior, door_color, f'door_trigger_{block}')
 
+    # ---- tutorial ----
+    elif itype == 'tutorial':
+        # DistributedTutorialInterior.setup: the tutorial room with the street outside its windows.
+        interior = loader.loadModel('phase_3.5/models/modules/toon_interior_tutorial').copyTo(root)
+        _add_tutorial_street_view(root, loader, spec['resources'])
+        replace_random_in_model(interior, zone_id, rng, store, colors)
+        # door_double_round_ul with its last letter swapped: door_double_round_ur.
+        door_origin = interior.find('**/door_origin;+s')
+        door_np = door_model.copyTo(door_origin)
+        door_origin.setScale(0.8, 0.8, 0.8)
+        door_origin.setPos(door_origin, 0, -0.025, 0)
+        door_color = rng.choice(colors['TI_door'])
+        _setup_door_parts(door_np, interior, door_color, f'door_trigger_{block}')
+    # ---- end tutorial ----
     elif itype == 'hq':
         # DistributedHQInterior.py:31-40, 148-170
         interior = loader.loadModel('phase_3.5/models/modules/HQ_interior').copyTo(root)
@@ -591,6 +692,13 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
         interior.find('**/crashed_piano').hide()
         interior.find('**/periscope').show()
         interior.find('**/speakers').show()
+        # ---- tutorial ----
+        if spec.get('tutorial'):
+            # TutorialHQBuildingAI: interior.setTutorial(1) -> DistributedHQInterior.setTutorial
+            # hides the periscope and the speakers.
+            interior.find('**/periscope').hide()
+            interior.find('**/speakers').hide()
+        # ---- end tutorial ----
 
         for origin in interior.findAllMatches('**/door_origin*'):
             idx_str = origin.getName()[len('door_origin_'):]

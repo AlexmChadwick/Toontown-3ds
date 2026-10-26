@@ -124,6 +124,11 @@ struct BattleView {
     // only plays the victory dance; no experience is sent and RewardPanel is not shown.
     bool floorReward = false;
     bool rewardSent = false;
+    // ---- tutorial ----
+    // DistributedBattleTutorial: InventoryNew.show with tutorialFlag points arrows at the
+    // throw and squirt buttons under "Click a gag to attack" (TTLocalizer.InventoryClickToAttack).
+    bool tutorialArrows = false;
+    // ---- end tutorial ----
 };
 
 // What the panel asks for.
@@ -204,6 +209,14 @@ public:
     // The battle's own node: its centre on the ground and heading (DistributedBattleBase.setPosHpr).
     void center(float* x, float* y, float* z, float* h) const { *x = bx_, *y = by_, *z = bz_, *h = bh_; }
     float actorHeight(uint32_t doId) const; // nametag height (Suit.height for Cogs); 0 if unknown
+    // ---- tutorial ----
+    // DistributedBattleTutorial: no input timer (startTimer hides it and the AI never times the
+    // round out) and its reward is Movie.playTutorialReward, which world/tutorial.* plays; that
+    // movie's end (handleRewardDone) sends rewardDone through finishTutorialReward().
+    bool tutorialBattle() const { return tutorial_; }
+    bool tutorialRewardPending() const { return tutorial_ && phase_ == BattlePhase::Reward && !rewardSent_; }
+    void finishTutorialReward(net::Client& client);
+    // ---- end tutorial ----
 
 private:
     struct Actor {
@@ -330,6 +343,9 @@ private:
     BattleCamera camera_;
     uint32_t round_ = 0;
     int forcedTrack_ = -1;
+    // ---- tutorial ----
+    bool tutorial_ = false;
+    // ---- end tutorial ----
 };
 
 } // namespace tt::world

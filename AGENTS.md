@@ -707,3 +707,14 @@ later PVS streaming does not freeze movement. Do not add an IO-thread allocation
 or LinearGuard around file reads. Native timings/resident peaks remain unmeasured;
 see docs/design/performance.md for host evidence, fixed costs and required Azahar
 A/B checks. This task prohibited emulator execution.
+
+### Toontorial protocol and assets (tutorial, 2026-10-26)
+
+New avatars choose **Play the Toontorial** or **Skip** before creation; Skip remains the
+default. TutorialManager's runtime-allocated zones are never baked by id: `world/tutorial_zones.h`
+maps them to canonical 20000/20001/20501/20502 assets at the client boundary and translates
+destinations back before Astron location updates. `tools/gen_quest_scripts.py` emits the five
+stock tutorial QuestScripts and rejects unrecognised source data. `tools/tutorial_test/run.sh`
+checks the generated scripts, tutorial sender signatures/clsend keywords, and zone mapping.
+See `docs/design/tutorial.md` for bake commands, command presentation and the required
+emulator verification; host/build checks do not establish a live tutorial play-through.

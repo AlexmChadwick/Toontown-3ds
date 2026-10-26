@@ -26,6 +26,10 @@ Usage:
     # Generate sample preview comparisons (one per hood + shops)
     .venv/bin/python -I tools/pipeline/bake_interior.py --sample-previews
 
+    # The Toontorial's interiors (20501 Toon HQ, 20502 Tutorial Tom's), with the tutorial's own
+    # DNA store (docs/design/tutorial.md section 4); not part of --all
+    .venv/bin/python -I tools/pipeline/bake_interior.py --tutorial
+
 Outputs written to sdmc-out/3ds/toontown3ds/data/interiors/:
     <zone>.ttm   - GPU geometry with merged batches and ETC1/ETC1A4 textures
     <zone>.ttc   - 3DS collision mesh with floor/wall/camera classifications and triggers
@@ -47,6 +51,8 @@ if HERE not in sys.path:
     sys.path.insert(0, HERE)
 
 DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'resources')
+if not os.path.isdir(os.path.join(DEFAULT_RESOURCES, 'phase_4')):
+    DEFAULT_RESOURCES = os.path.join(HERE, '..', '..', 'ref', 'ref', 'resources')
 DEFAULT_OUT_DIR = os.path.join(HERE, '..', '..', 'sdmc-out', '3ds', 'toontown3ds', 'data', 'interiors')
 DEFAULT_PREVIEW_DIR = os.path.join(HERE, '..', '..', 'sdmc-out', 'previews', 'interiors')
 
@@ -93,12 +99,19 @@ def render_preview_child(zone_id, block, ttm_path, out_png, resources):
     base.setBackgroundColor(0.25, 0.35, 0.45, 1.0)
 
     store = interior_dna.InteriorDNAStore(base.loader, resources)
-    for f in interior_assemble.ALL_STORAGE_FILES:
+    # ---- tutorial ----
+    tutorial = interior_assemble.is_tutorial_zone(zone_id)
+    storage_files = interior_assemble.TUTORIAL_STORAGE_FILES if tutorial else interior_assemble.ALL_STORAGE_FILES
+    # ---- end tutorial ----
+    for f in storage_files:
         p = os.path.join(resources, f)
         if os.path.exists(p):
             store.load(p)
 
-    specs = interior_assemble.get_all_interior_specs(resources)
+    if tutorial:
+        specs = interior_assemble.get_tutorial_interior_specs(resources)
+    else:
+        specs = interior_assemble.get_all_interior_specs(resources)
     spec = specs.get(zone_id)
 
     root, spec, _ = interior_assemble.assemble_interior(zone_id, block, base.loader, store, spec=spec)
@@ -294,6 +307,7 @@ def main():
     ap.add_argument('--hood', type=int, help='Bake all interiors for a specific hood (1000, 2000, 3000, 4000, 5000, 8000, 9000)')
     ap.add_argument('--street', type=int, help='Bake all interiors for a specific street branch (e.g. 2100, 1100)')
     ap.add_argument('--sample-previews', action='store_true', help='Generate visual comparison PNGs for the sample set')
+    ap.add_argument('--tutorial', action='store_true', help="Bake the Toontorial's two interiors (20501, 20502)")
     ap.add_argument('--out-dir', default=DEFAULT_OUT_DIR, help='Output directory for baked data')
     ap.add_argument('--preview-dir', default=DEFAULT_PREVIEW_DIR, help='Output directory for preview PNGs')
     ap.add_argument('--max-tex', type=int, default=128, help='Max texture dimension (default 128)')
@@ -315,22 +329,29 @@ def main():
     from direct.showbase.ShowBase import ShowBase
     base = ShowBase()
 
-    # Load all storage DNA files
+    # Load all storage DNA files (the Toontorial has its own store: PlayGame.loadDnaStoreTutorial)
     import interior_dna
     store = interior_dna.InteriorDNAStore(base.loader, args.resources)
     t0 = time.time()
-    for f in interior_assemble.ALL_STORAGE_FILES:
+    tutorial = args.tutorial or (args.zone is not None and interior_assemble.is_tutorial_zone(args.zone))
+    for f in (interior_assemble.TUTORIAL_STORAGE_FILES if tutorial else interior_assemble.ALL_STORAGE_FILES):
         p = os.path.join(args.resources, f)
         if os.path.exists(p):
             store.load(p)
     print(f'Loaded all storage files in {time.time() - t0:.2f} s')
 
     # Extract all interior specifications
-    specs = interior_assemble.get_all_interior_specs(args.resources)
+    if tutorial:
+        specs = interior_assemble.get_tutorial_interior_specs(args.resources)
+    else:
+        specs = interior_assemble.get_all_interior_specs(args.resources)
 
     # Determine targets
     targets = []
-    if args.all:
+    if args.tutorial:
+        for z, sp in sorted(specs.items()):
+            targets.append((z, sp['block'], sp))
+    elif args.all:
         for z in sorted(specs.keys()):
             targets.append((z, specs[z]['block'], specs[z]))
     elif args.all_hoods:
@@ -368,7 +389,8 @@ def main():
         block = args.block if args.block is not None else (sp['block'] if sp else (z % 100))
         targets.append((z, block, sp))
     else:
-        ap.error('Specify a target flag (--all, --all-hoods, --all-streets, --all-ttc, --hood, --street, --zone, or --sample-previews)')
+        ap.error('Specify a target flag (--all, --all-hoods, --all-streets, --all-ttc, --hood, --street, --zone, '
+                 '--tutorial, or --sample-previews)')
 
     print(f'Baking {len(targets)} interior(s)...')
     t_start = time.time()

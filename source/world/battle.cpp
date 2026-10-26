@@ -299,6 +299,9 @@ void Battle::begin(net::Client& client, const net::Battle& nb, const CogPoseSour
     (void)cogs;
     battleId_ = nb.doId;
     localId_ = client.avatarId();
+    // ---- tutorial ----
+    tutorial_ = client.isTutorialBattle(nb.doId);
+    // ---- end tutorial ----
     bx_ = nb.x, by_ = nb.y, bz_ = nb.z;
     const float dx = nb.sx - nb.x, dy = nb.sy - nb.y;
     bh_ = (dx * dx + dy * dy > 1e-4f) ? atan2f(-dx, dy) / kDegToRad : 0.0f;
@@ -928,6 +931,9 @@ void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs)
         break;
     case BattleAction::Continue:
         if (phase_ != BattlePhase::Reward || rewardSent_) return;
+        // ---- tutorial ----
+        if (tutorial_) return; // the tutorial reward movie decides (finishTutorialReward)
+        // ---- end tutorial ----
         if (client.sendBattleRewardDone(id)) rewardSent_ = true;
         break;
     default:
@@ -1016,7 +1022,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
     if (phase_ == BattlePhase::Input) {
         if (autoPlay_ && int32_t(nowMs - autoAtMs_) >= 0) {
             autoPick(client, *nb);
-        } else if (int32_t(nowMs - inputEndMs_) >= 0 && !timeoutSent_) {
+        } else if (int32_t(nowMs - inputEndMs_) >= 0 && !timeoutSent_ && !tutorial_) { // ---- tutorial: no timer
             timeoutSent_ = true;
             client.sendBattleTimeout(battleId_);
             chose_ = true;
@@ -1056,7 +1062,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
             movieSent_ = true;
         }
     }
-    if (phase_ == BattlePhase::Reward && !rewardSent_) {
+    if (phase_ == BattlePhase::Reward && !rewardSent_ && !tutorial_) { // ---- tutorial: finishTutorialReward
         const uint32_t wait = autoPlay_ ? 2500u : kRewardAutoMs;
         if (nowMs - rewardStartMs_ >= wait) {
             if (client.sendBattleRewardDone(battleId_)) rewardSent_ = true;
@@ -1188,7 +1194,13 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     case BattlePhase::Reward: v->status = "You beat the cogs!"; break;
     default: break;
     }
-    if (phase_ == BattlePhase::Input) {
+    // ---- tutorial ----
+    if (tutorial_ && phase_ == BattlePhase::Input) {
+        v->status = "Click a gag to attack"; // TTLocalizer.InventoryClickToAttack ('Click a\ngag to\nattack')
+        v->tutorialArrows = true;
+    }
+    // ---- end tutorial ----
+    if (phase_ == BattlePhase::Input && !tutorial_) {
         int ms = int(int32_t(inputEndMs_ - nowMs));
         if (ms < 0) ms = 0;
         v->secondsLeft = (ms + 999) / 1000;
@@ -1249,5 +1261,12 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     }
     v->cogsDefeated = nb->exp.numDeathGroups;
 }
+
+// ---- tutorial ----
+void Battle::finishTutorialReward(net::Client& client) {
+    if (!tutorialRewardPending()) return;
+    if (client.sendBattleRewardDone(battleId_)) rewardSent_ = true;
+}
+// ---- end tutorial ----
 
 } // namespace tt::world

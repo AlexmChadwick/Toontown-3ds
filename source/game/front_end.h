@@ -46,7 +46,7 @@ public:
     void drawBottom(C3D_RenderTarget* bottom);
 
 private:
-    enum class Screen : u8 { Title, Connecting, Pick, Make, Entering, Error };
+    enum class Screen : u8 { Title, Connecting, Pick, Make, TutorialChoice, Entering, Error };
     enum class MakeStep : u8 { Species, Body, Color, Clothes, Name, Count };
 
     struct Button {
@@ -64,6 +64,7 @@ private:
     void updateConstructedName();
     void randomizePatternName();
     void makeStepInput(u32 down);
+    bool createToon(net::Client::TutorialChoice tutorial);
     void drawMakeBottom();
     void drawPickBottom();
 

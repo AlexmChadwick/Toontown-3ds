@@ -548,6 +548,9 @@ void Client::resetWorld() {
     shardId_ = 0;
     timeManagerId_ = 0;
     tutorialManagerId_ = 0;
+    // ---- tutorial ----
+    resetTutorialSession();
+    // ---- end tutorial ----
     timeSynced_ = false;
     districtCtx_ = uberCtx_ = zoneCtx_ = 0;
     districtsDone_ = uberDone_ = zoneDone_ = false;
@@ -821,6 +824,9 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
     if (classId == dc::TutorialManager::kClassId) {
         tutorialManagerId_ = doId; // arrives with the (shard, 2) interest
         maybeSkipTutorial();
+        // ---- tutorial ----
+        maybeRequestTutorial();
+        // ---- end tutorial ----
         return;
     }
     if (classId == dc::EstateManager::kClassId) {
@@ -952,6 +958,9 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleFishingEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    // ---- tutorial ----
+    if (handleTutorialEnter(doId, classId, zone, r, req, reqCount, other)) return;
+    // ---- end tutorial ----
     if (classId == dc::DistributedSuit::kClassId) {
         handleSuitEnter(doId, zone, r, req, reqCount, other);
         return;
@@ -997,6 +1006,9 @@ void Client::maybeSkipTutorial() {
     // Once per toon created in this session, after requestPlayAvatar (the AI looks
     // our toon up, or waits for it, so it must have been activated already).
     if (skipTutorialSent_ || tutorialManagerId_ == 0 || !playingNewAvatar() || !ownerReceived_) return;
+    // ---- tutorial ----
+    if (tutorialChoice_ == TutorialChoice::Play) return; // requestTutorial instead (client_tutorial.cpp)
+    // ---- end tutorial ----
     sendRequestSkipTutorial();
     skipTutorialSent_ = true;
     TT_LOG("net: requested tutorial skip for new toon %u", unsigned(avatarId_));
@@ -1007,6 +1019,9 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (handleClerksField(r, doId, fieldId))
         return;
     // ---- end clerks ----
+    // ---- tutorial ----
+    if (handleTutorialField(r, doId, fieldId)) return;
+    // ---- end tutorial ----
 
     if (handleCogdoField(r, doId, fieldId)) return; // cogdo
     if (handleBossField(r, doId, fieldId)) return; // bosses
@@ -1176,6 +1191,12 @@ void Client::handleLeaving(uint32_t doId) {
     if (closet_.active && closet_.doId == doId) { closet_ = Closet{}; pushEvent(EventType::ClosetGone, doId); return; }
     if (mailboxDoId_ == doId) { mailboxDoId_ = 0; return; }
     if (bankDoId_ == doId) { bankDoId_ = 0; return; }
+    // ---- tutorial ----
+    if (tutorialInterior_.active && tutorialInterior_.doId == doId) {
+        tutorialInterior_.active = false;
+        return;
+    }
+    // ---- end tutorial ----
     if (houseDoorDoId_ == doId) { houseDoorDoId_ = 0; }
     for (size_t i = 0; i < numDoors_; ++i) {
         if (doors_[i].doId == doId) {
@@ -1305,6 +1326,9 @@ void Client::maybeFinishEnterZone() {
     setState(State::InZone);
     TT_LOG("net: in zone %u of district %u with %d toons", unsigned(cfg_.zoneId),
            unsigned(shardId_), numToons_);
+    // ---- tutorial ----
+    if (tutorialZones_.active() && !tutorialArrivedSent_) sendTutorialToonArrived();
+    // ---- end tutorial ----
     pushEvent(EventType::EnteredZone, avatarId_);
 }
 
@@ -1360,6 +1384,10 @@ void Client::handleLoginManagerField(DatagramReader& r, uint16_t fieldId) {
         newAvatarId_ = avId;
         skipTutorialSent_ = false;
         skipTutorialResult_ = -1;
+        // ---- tutorial ----
+        tutorialDone_ = false;
+        resetTutorialSession();
+        // ---- end tutorial ----
         rejoinAvatarId_ = avId;
         ownName_[0] = 0; // the server names it "<Color> <Species>"; the owner view brings it
         memcpy(ownDna_, pendingDna_, kDnaSize);
@@ -2210,7 +2238,14 @@ const Battle* Client::localBattle() const {
 bool Client::sendRequestBattle(uint32_t suitDoId, float x, float y, float z, float h, float p, float r) {
     if (state_ != State::InZone) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
-    TT_NET_UPDATE(w, suitDoId, DistributedSuit, requestBattle);
+    // ---- tutorial ----
+    if (suitDoId != 0 && suitDoId == tutorialSuitId_) {
+        // DistributedTutorialSuit.d_requestBattle: same layout, its own field.
+        TT_NET_UPDATE(w, suitDoId, DistributedTutorialSuit, requestBattle);
+    } else {
+        TT_NET_UPDATE(w, suitDoId, DistributedSuit, requestBattle);
+    }
+    // ---- end tutorial ----
     w.i16(packFixed(x, 10.0f));
     w.i16(packFixed(y, 10.0f));
     w.i16(packFixed(z, 10.0f));
@@ -2654,6 +2689,17 @@ void Client::maybePickDistrict() {
 }
 
 void Client::enterZone() {
+    // ---- tutorial ----
+    if (tutorialHoldsZone()) {
+        // ToontownClientRepository.enterTutorialQuestion: only the uber zone (where the
+        // TutorialManager lives) until enterTutorial names our zone (client_tutorial.cpp).
+        TT_LOG("net: entering district %u \"%s\" for the Toontorial", unsigned(shardId_), districtName());
+        uberCtx_ = nextContext_;
+        sendAddInterest(kUberInterest, shardId_, kManagementZone);
+        maybeRequestTutorial();
+        return;
+    }
+    // ---- end tutorial ----
     TT_LOG("net: entering district %u \"%s\" zone %u", unsigned(shardId_), districtName(),
            unsigned(cfg_.zoneId));
     sendSetLocation(avatarId_, shardId_, cfg_.zoneId);
@@ -2774,6 +2820,9 @@ void Client::dropZoneObjects() {
 
     resetBoss();
     bossPies_ = 0;
+    // ---- tutorial ----
+    clearTutorialObjects();
+    // ---- end tutorial ----
     // QuietZoneState.dumpAllSubShardObjects: forget everything in the old zone (the
     // server also sends OBJECT_LEAVING; unknown ids are ignored then).
     for (RemoteToon& t : toons_) {
@@ -2832,11 +2881,14 @@ bool Client::changeStreetCell(uint32_t cellZone, const uint16_t* visZones, int n
 
 bool Client::changeZone(uint32_t zoneId, const uint32_t* visZones, int numVisZones) {
     if (state_ != State::InZone) return false;
-    targetZone_ = zoneId;
+    // ---- tutorial ----
+    // World code always names baked/canonical places.  ZoneUtil.overrideOn makes only the
+    // tutorial's four server zones dynamic, so translate at the network boundary.
+    targetZone_ = tutorialZones_.toNetwork(zoneId);
     numVisZones_ = numVisZones < kMaxVisZones ? numVisZones : kMaxVisZones;
     for (int i = 0; i < numVisZones_; ++i) visZones_[i] = visZones[i];
     numDoors_ = 0;
-    TT_LOG("net: changing zone %u -> %u (%d vis zones)", unsigned(cfg_.zoneId), unsigned(zoneId), numVisZones_);
+    TT_LOG("net: changing zone %u -> %u (%d vis zones)", unsigned(cfg_.zoneId), unsigned(targetZone_), numVisZones_);
     sendSetLocation(avatarId_, shardId_, kQuietZone);
     quietCtx_ = nextContext_;
     quietDone_ = false;

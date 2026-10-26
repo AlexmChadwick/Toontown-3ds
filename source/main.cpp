@@ -58,6 +58,9 @@
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
 #include "world/transition.h"
+// ---- tutorial ----
+#include "world/tutorial.h"
+// ---- end tutorial ----
 #include "world/zone_actors.h"
 // [interior life]
 #include "world/interior_life.h"
@@ -335,6 +338,9 @@ int main() {
     u32 lastTouchedQuestNpc = 0;
     // Talking to quest-giving NPC toons (ToonTasks; quest/quest_talk.*, ui/quest_panel.*).
     static tt::quest::Talk talk;
+    // ---- tutorial ----
+    static tt::world::TutorialFlow tutorial;
+    // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
 
@@ -420,6 +426,27 @@ int main() {
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
+    // ---- tutorial ----
+    // enterTutorial already moved our Astron interest to the dynamic shop zone.  Load its
+    // canonical bake before that interest generates Tutorial Tom and the interior objects.
+    auto loadTutorialPlace = [&](u32 networkZone) {
+        const u32 canonical = net.tutorialZones().toCanonical(networkZone);
+        if (!tt::world::TutorialZones::isTutorialPlace(canonical) || place.zoneId() == canonical) return;
+        if (!place.load(canonical)) {
+            TT_LOG("tutorial: missing bake for canonical zone %lu", static_cast<unsigned long>(canonical));
+            return;
+        }
+        zoneActors.loadPoints(place.pointsPath());
+        cchars.setZone(canonical);
+        fishing.setZone(canonical, place.pointsPath());
+        suits.setZone(canonical);
+        float x, y, z, h;
+        place.arrival(0, &x, &y, &z, &h);
+        player.reset(x, y, z, h);
+        TT_LOG("tutorial: loaded canonical zone %lu for server zone %lu", static_cast<unsigned long>(canonical),
+               static_cast<unsigned long>(networkZone));
+    };
+    // ---- end tutorial ----
     tt::ui::State uiState;
     tt::ui::Balloons balloons;
     balloons.init();
@@ -1419,6 +1446,17 @@ int main() {
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated()) {
             // A transition is running, or we are on the trolley / away at a minigame: no exits.
+        // ---- tutorial ----
+        } else if (netStarted && net.inTutorial() && place.zoneId() == tt::world::kTutorialStreet &&
+                   exitHere.kind == tt::world::Exit::Tunnel && exitHere.targetZone != lastExitZone) {
+            // TutorialStreet.handleEnterTunnel posts stopTutorial before TTStreet starts the
+            // normal TTC tunnel.  allDone tears down dynamic objects; the next location is TTC.
+            if (net.sendTutorialAllDone()) {
+                tutorial.stop();
+                travelTarget = tt::world::kToontownCentral;
+                TT_LOG("tutorial: tunnel exit to Toontown Central");
+            }
+        // ---- end tutorial ----
         } else if (exitHere.kind != tt::world::Exit::None && exitHere.targetZone != lastExitZone) {
             if (!tt::world::Place::available(exitHere.targetZone)) {
                 snprintf(toastBuf, sizeof(toastBuf), "Zone %lu isn't installed yet. Coming soon!",
@@ -1525,6 +1563,19 @@ int main() {
             net.update(nowMs);
             tt::net::Event ev;
             while (net.pollEvent(ev)) {
+                // ---- tutorial ----
+                if (ev.type == tt::net::EventType::TutorialEnter) {
+                    loadTutorialPlace(net.zoneId());
+                } else if (ev.type == tt::net::EventType::TutorialInterior) {
+                    tutorial.start(tt::quest::ScriptId::TutorialMickey, false);
+                } else if (ev.type == tt::net::EventType::BlockerMovie) {
+                    tt::net::Client::BlockerMovie movie;
+                    while (net.pollBlockerMovie(movie)) {
+                        if (movie.avId == net.avatarId() && movie.mode == 1)
+                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, false);
+                    }
+                }
+                // ---- end tutorial ----
                 remoteToons.handleEvent(ev, net);
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
@@ -1588,6 +1639,10 @@ int main() {
             estate.update(net, player.x(), player.y(), player.z(), nowMs);
             tt::prof::lap(tt::prof::kEstate);
             pets.update(net);
+            // ---- tutorial ----
+            tutorial.update(dt);
+            if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
+            // ---- end tutorial ----
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
             else if (level.active() && level.collision()) player.setCollision(level.collision());
@@ -1895,6 +1950,14 @@ int main() {
                 battle.setAutoPlay(false);
             }
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
+            // ---- tutorial ----
+            // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
+            // RewardPanel timer.  The compact client presents that acknowledgement on A.
+            if (battle.tutorialRewardPending() && (in.down & KEY_A)) {
+                battle.finishTutorialReward(net);
+                TT_LOG("tutorial: acknowledged Flunky reward");
+            }
+            // ---- end tutorial ----
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
                 suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash, p.anim, p.clipArg, p.clipStartMs);
@@ -2122,6 +2185,12 @@ int main() {
             {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
+                // ---- tutorial ----
+                if (tutorial.active() && net.tutorialInterior().active && tutorial.text()[0]) {
+                    talker = net.tutorialInterior().npcDoId;
+                    said = tutorial.text();
+                }
+                // ---- end tutorial ----
                 zoneActors.setSpeech(talker, said);
             }
             zoneActors.addBalloons(balloons, proj, view);

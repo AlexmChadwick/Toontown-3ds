@@ -63,7 +63,11 @@ WANTED = {
                        'setColorScale', 'setEyeColor', 'setGender', 'setLastSeenTimestamp',
                        'setMood', 'setMovie', 'freeAvatar'],
     'TimeManager': ['requestServerTime', 'serverTime'],
-    'TutorialManager': ['requestSkipTutorial', 'skipTutorialResponse'],
+    'TutorialManager': ['requestTutorial', 'rejectTutorial', 'requestSkipTutorial',
+                        'skipTutorialResponse', 'enterTutorial', 'allDone', 'toonArrived'],
+    'DistributedTutorialSuit': ['requestBattle'],
+    'DistributedTutorialInterior': ['setZoneIdAndBlock', 'setTutorialNpcId'],
+    'DistributedBattleTutorial': [],
     'DistributedNode': ['setParent', 'setX', 'setY', 'setZ', 'setH', 'setP', 'setR', 'setPos', 'setHpr',
                         'setPosHpr', 'setXY', 'setXZ', 'setXYH', 'setXYZH'],
     'DistributedSmoothNode': ['setSmStop', 'setSmPosHpr', 'setSmXYH', 'setSmXYZH', 'setSmXY',
@@ -307,11 +311,11 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  # interiors (2513-2522), reached through DistributedDoor
                  'DistributedToonInterior', 'DistributedToonHallInterior',
                  'DistributedHQInterior', 'DistributedGagshopInterior',
-                 'DistributedPetshopInterior',
+                 'DistributedPetshopInterior', 'DistributedTutorialInterior',
                  # street branch zone / visgroup zones (cogs walking the street)
-                 'DistributedSuitPlanner', 'DistributedSuit',
+                 'DistributedSuitPlanner', 'DistributedSuit', 'DistributedTutorialSuit',
                  # street battle object (DistributedBattle: street cog fights)
-                 'DistributedBattle', 'DistributedBattleBldg', 'DistributedSuitInterior',
+                 'DistributedBattle', 'DistributedBattleBldg', 'DistributedBattleTutorial', 'DistributedSuitInterior',
                  'DistributedElevatorExt', 'DistributedElevatorInt']
 TABLE_CLASSES += ['DistributedFactory', 'DistributedLevel', 'DistributedLift', 'DistributedDoorEntity',
                   'DistributedButton', 'DistributedCrate', 'DistributedGoon', 'DistributedStomper',

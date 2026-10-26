@@ -44,6 +44,9 @@
 #include "net/cogdo_state.h"
 // ---- end cogdo protocol ----
 #include "net/ceo_state.h"
+// ---- tutorial ----
+#include "world/tutorial_zones.h"
+// ---- end tutorial ----
 
 namespace tt::net {
 
@@ -266,6 +269,12 @@ enum class EventType : uint8_t {
     NpcMovie,      // an NPC setMovie arrived: pollNpcMovie() (doId = the NPC object)
     NpcFree,       // an NPC sent freeAvatar to us: leave the dialog (doId = the NPC object)
     Quests,        // ownQuests() changed
+    // ---- tutorial (net/client_tutorial.cpp, docs/design/tutorial.md) ----
+    TutorialEnter,    // TutorialManager.enterTutorial: tutorialZones() are set, entering the shop zone
+    TutorialInterior, // DistributedTutorialInterior generated (tutorialInterior())
+    DoorReply,        // a door answered our requestEnter (pollDoorReply())
+    BlockerMovie,     // DistributedNPCBlocker.setMovie (pollBlockerMovie())
+    // ---- end tutorial ----
 };
 
 struct Event {
@@ -574,6 +583,9 @@ struct Suit {
     int8_t pathState;       // 0 stop, 1 walk, 2 fly away, 3 battle, 4 victory dance then fly away
     bool hasDna;
     bool active;
+    // ---- tutorial ----
+    bool tutorial;          // DistributedTutorialSuit: walks its own loop (world/tutorial.*), no path
+    // ---- end tutorial ----
 };
 constexpr int kMaxSuits = 16;
 struct SuitPlanner {
@@ -1179,6 +1191,51 @@ public:
     bool tutorialSkipSent() const { return skipTutorialSent_; }
     // skipTutorialResponse: -1 not answered yet, 0 refused, 1 ok.
     int tutorialSkipResult() const { return skipTutorialResult_; }
+    // ---- tutorial (net/client_tutorial.cpp, docs/design/tutorial.md) ----
+    // What a toon created in this session does first. Skip (the default, and the automatic
+    // mode's): TutorialManager.requestSkipTutorial, then Toontown Central. Play: the client
+    // enters no zone until TutorialManager.enterTutorial names Tutorial Tom's interior
+    // (ToontownClientRepository.enterTutorialQuestion -> requestTutorial).
+    enum class TutorialChoice : uint8_t { Skip, Play };
+    void setTutorialChoice(TutorialChoice choice);
+    TutorialChoice tutorialChoice() const { return tutorialChoice_; }
+    // The four dynamic zones of our tutorial (inactive before enterTutorial and after allDone).
+    const world::TutorialZones& tutorialZones() const { return tutorialZones_; }
+    bool inTutorial() const { return tutorialZones_.active(); }
+    bool tutorialFinished() const { return tutorialDone_; }
+    // TutorialManager.allDone (TutorialStreet.handleEnterTunnel -> 'stopTutorial'); the zones are
+    // forgotten (ZoneUtil.overrideOff).
+    bool sendTutorialAllDone();
+    struct TutorialInterior {
+        uint32_t doId;
+        uint32_t zoneId;   // setZoneIdAndBlock (the dynamic shop zone)
+        uint16_t block;
+        uint32_t npcDoId;  // setTutorialNpcId: Tutorial Tom's DistributedNPCToon
+        bool active;
+    };
+    const TutorialInterior& tutorialInterior() const { return tutorialInterior_; }
+    // DistributedDoor.setOtherZoneIdAndDoId / rejectEnter(FADoorCodes), sent to us after requestEnter.
+    struct DoorReply {
+        uint32_t doorDoId;
+        uint32_t otherZone; // the zone behind the door (dynamic in the tutorial)
+        uint32_t otherDoId;
+        uint8_t rejectCode; // FADoorCodes value when rejected
+        bool rejected;
+    };
+    bool pollDoorReply(DoorReply& out);
+    // DistributedNPCBlocker.setMovie(mode, npcId, avId, timestamp).
+    struct BlockerMovie {
+        uint32_t npcDoId;
+        uint8_t mode; // NPCToons.BLOCKER_MOVIE_CLEAR 0 / START 1 / TIMEOUT 8
+        uint32_t npcId;
+        uint32_t avId;
+    };
+    bool pollBlockerMovie(BlockerMovie& out);
+    // DistributedNPCBlocker.handleCollisionSphereEnter -> DistributedNPCToonBase.avatarEnter.
+    bool sendBlockerAvatarEnter(uint32_t npcDoId);
+    uint32_t tutorialSuitId() const { return tutorialSuitId_; }
+    bool isTutorialBattle(uint32_t battleDoId) const { return battleDoId != 0 && battleDoId == tutorialBattleId_; }
+    // ---- end tutorial ----
     uint32_t avatarId() const { return avatarId_; }
     uint32_t shardId() const { return shardId_; }
     const char* avatarName() const { return ownName_; }
@@ -1647,6 +1704,18 @@ private:
     void onAvatarList();
     void playAvatar(const PotentialAvatar& pa);
     void maybeSkipTutorial();
+    // ---- tutorial ----
+    bool handleTutorialEnter(uint32_t doId, uint16_t classId, uint32_t zone, DatagramReader& r, const uint16_t* req,
+                             uint16_t reqCount, bool other);
+    bool handleTutorialField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool tutorialHoldsZone() const;
+    void maybeRequestTutorial();
+    void enterTutorialZone();
+    void sendRequestTutorial();
+    void sendTutorialToonArrived();
+    void clearTutorialObjects();
+    void resetTutorialSession();
+    // ---- end tutorial ----
     bool applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId);
     bool applyOwnField(DatagramReader& r, uint16_t fieldId);
     bool applyDistrictField(District& d, DatagramReader& r, uint16_t fieldId);
@@ -1907,6 +1976,21 @@ private:
     int nameTypedResult_ = -1;
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
+    // ---- tutorial (survives reconnects with the new toon, like skipTutorialSent_) ----
+    TutorialChoice tutorialChoice_ = TutorialChoice::Skip;
+    bool tutorialRequested_ = false;  // requestTutorial sent this session
+    bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
+    bool tutorialDone_ = false;       // allDone sent
+    world::TutorialZones tutorialZones_{};
+    TutorialInterior tutorialInterior_{};
+    uint32_t tutorialSuitId_ = 0;
+    uint32_t tutorialBattleId_ = 0;
+    static constexpr int kTutorialQueue = 4;
+    DoorReply doorReplies_[kTutorialQueue] = {};
+    uint32_t doorReplyHead_ = 0, doorReplyTail_ = 0;
+    BlockerMovie blockerMovies_[kTutorialQueue] = {};
+    uint32_t blockerHead_ = 0, blockerTail_ = 0;
+    // ---- end tutorial ----
     uint8_t timeContext_ = 0;
     uint32_t timeRequestMs_ = 0;
     int64_t clockDeltaMs_ = 0;          // local - network, in ms
