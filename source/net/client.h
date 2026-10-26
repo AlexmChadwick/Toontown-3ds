@@ -845,10 +845,13 @@ struct Minigame {
     // ---- game-specific minigame state ----
     // Cannon:
     float cannonZRot[kMinigamePlayers] = {};
-    float cannonAngle[kMinigamePlayers] = {};
+    // Every cannon starts at CANNON_ANGLE_MIN (cannonPositionDict = [0, ANGLE_MIN], DistributedCannonGame.py).
+    float cannonAngle[kMinigamePlayers] = {10.0f, 10.0f, 10.0f, 10.0f};
     float cannonFireTime[kMinigamePlayers] = {};
     float cannonLandTime = 0.0f;
     uint32_t cannonLandedAv = 0;
+    // true once setCannonWillFire arrived for the participant (DistributedCannonGame.cannonPositionDict)
+    bool cannonFired[kMinigamePlayers] = {};
 
     // Tug of War:
     uint8_t tugGameType = 0;
@@ -905,6 +908,20 @@ struct Minigame {
     bool vineAllAtEnd = false;
     uint32_t vineGrabbedAv = 0;
     uint32_t vineGrabbedTreasure = 0;
+    // The reported state of every participant (DistributedVineGame.toonInfo), by participant index:
+    // setNewVine / setNewVineT (attached), setJumpingFromVine, setFallingFromVine and setFallingFromMidair.
+    // arrivalMs is the local time the message arrived; the poses are extrapolated from it.
+    struct VineRemote {
+        enum class Mode : uint8_t { None, Attached, Jumping, Falling };
+        Mode mode = Mode::None;
+        int8_t vineIndex = -1;
+        float vineT = 0.0f;
+        int8_t climbDir = 0;
+        bool facingRight = true;
+        float posX = 0.0f, posZ = 0.0f, velX = 0.0f, velZ = 0.0f;
+        uint32_t arrivalMs = 0;
+    };
+    VineRemote vineRemote[kMinigamePlayers];
 
     // Target:
     uint32_t targetSeed = 0;
@@ -1605,6 +1622,9 @@ public:
     bool sendDivingGetCrabMoving(uint32_t crabId, int16_t crabX, int8_t dir);
     // DistributedVineGame.
     bool sendVineNewVine(uint32_t avId, int8_t vineIndex, float vineT, int8_t facingRight);
+    bool sendVineNewVineT(uint32_t avId, float vineT, int8_t climbDir);
+    bool sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
+                                 float velX, float velZ);
     bool sendVineReachedEndVine(int8_t vineIndex);
     bool sendVineClaimTreasure(uint32_t treasureNum);
     // DistributedTargetGame.
