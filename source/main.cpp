@@ -615,8 +615,8 @@ int main() {
             static bool tutorialSawSuit = false;
             static bool tutorialBattleWon = false;
             static bool tutorialHqVisited = false;
+            static bool tutorialTomTalked = false;
             static bool tutorialHqTalked = false;
-            static bool tutorialShopTalked = false;
             const u32 zone = place.zoneId();
             if (zone != tutorialZone) {
                 tutorialZone = zone;
@@ -640,11 +640,14 @@ int main() {
             // The points below are emitted by the tutorial bakers: never synthesize a position.
             if (net.tutorialSuitId()) tutorialSawSuit = true;
             if (tutorialSawSuit && !net.tutorialSuitId() && net.inTutorial()) tutorialBattleWon = true;
+            // Upstream order: Tom first (his quest 101 unlocks the inside door, TutorialBuildingAI),
+            // then the street Flunky, then Harry (TutorialHQBuildingAI); the tunnel ends the Toontorial.
+            // Tom's street door is locked (TALK_TO_HQ_TOM) after the Flunky and nothing reopens it.
+            if (talk.locked() && zone == tt::world::kTutorialShop) tutorialTomTalked = true;
             if (talk.locked() && zone == tt::world::kTutorialHq) tutorialHqTalked = true;
-            if (talk.locked() && zone == tt::world::kTutorialShop && tutorialHqTalked) tutorialShopTalked = true;
             if (!tutorial.active() && !battle.active() && transition.idle()) {
                 if (zone == tt::world::kTutorialShop) {
-                    if (tutorialHqTalked && !tutorialShopTalked) {
+                    if (!tutorialTomTalked) {
                         float npc[4];
                         if (zoneActors.shadowPositions(npc, 1) == 1) {
                             player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
@@ -664,11 +667,6 @@ int main() {
                         if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
                             player.reset(p->x, p->y, p->z, p->h);
                             TT_LOG("tutorial: enter HQ via %s", p->name);
-                        }
-                    } else if (!tutorialShopTalked) {
-                        if (const tt::world::Place::Point* p = place.point("tb2:toon_landmark_TT_A1_DNARoot_door_origin")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: enter gag shop via %s", p->name);
                         }
                     } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
                         player.reset(p->x, p->y, p->z, p->h);
