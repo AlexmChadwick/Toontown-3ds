@@ -45,6 +45,10 @@ private:
     const char* message_ = nullptr;
     bool spawned_ = false;
     uint32_t lastStateStartMs_ = 0;
+    bool stateInitialized_ = false;
+    bool elevatorRidePending_ = false;
+    uint32_t elevatorRideDoneMs_ = 0;
+    bool boardingLogged_ = false;
 };
 
 } // namespace tt::world

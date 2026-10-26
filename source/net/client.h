@@ -1402,6 +1402,7 @@ public:
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
     bool sendCogElevatorExit(uint32_t doId);
+    bool sendCogInteriorBuildingExit(uint32_t doId);
     bool sendCogInteriorAvatarJoined(uint32_t doId);
     bool sendCogInteriorElevatorDone(uint32_t doId);
     bool sendCogInteriorReserveJoinDone(uint32_t doId);

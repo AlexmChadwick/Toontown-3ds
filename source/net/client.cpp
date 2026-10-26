@@ -4950,6 +4950,13 @@ bool Client::sendCogElevatorExit(uint32_t doId) {
     return finish(w);
 }
 
+bool Client::sendCogInteriorBuildingExit(uint32_t doId) {
+    if (state_ != State::InZone || !findCogElevator(doId)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, doId, DistributedElevatorInt, requestBuildingExit);
+    return finish(w);
+}
+
 bool Client::sendCogInteriorAvatarJoined(uint32_t doId) {
     if (!cogInterior_.active || cogInterior_.doId != doId) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);

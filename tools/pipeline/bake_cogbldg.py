@@ -54,6 +54,25 @@ def bake_collision(base, source, out):
     return stats
 
 
+def floor_anchors(base, source):
+    model = base.loader.loadModel(str(source))
+    if model.isEmpty():
+        raise FileNotFoundError(source)
+    anchors = {}
+    for name in ("elevator-in", "elevator-out"):
+        node = model.find(f"**/{name}")
+        if node.isEmpty():
+            raise RuntimeError(f"{source}: missing **/{name} anchor")
+        pos = node.getPos(model)
+        hpr = node.getHpr(model)
+        anchors[name] = {
+            "position": [round(float(pos.x), 6), round(float(pos.y), 6), round(float(pos.z), 6)],
+            "hpr": [round(float(hpr.x), 6), round(float(hpr.y), 6), round(float(hpr.z), 6)],
+        }
+    model.removeNode()
+    return anchors
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--resources", default=str(resources_default()))
@@ -69,6 +88,7 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     sources = {
         "elevator": resources / "phase_11/models/lawbotHQ/LB_ElevatorScaled.bam",
+        "interior_elevator": resources / "phase_4/models/modules/elevator.bam",
         "floor_0": resources / "phase_7/models/modules/suit_interior.bam",
         "floor_1": resources / "phase_7/models/modules/cubicle_room.bam",
         "floor_2": resources / "phase_7/models/modules/boss_suit_office.bam",
@@ -78,13 +98,15 @@ def main():
     # The same shell geometry is recoloured by the server department at runtime; keeping
     # four named copies makes the SD contract explicit and permits department overrides later.
     sources.update({f"shell_{dept}": sources["floor_0"] for dept in ("c", "l", "m", "s")})
-    manifest = {"sources": {}, "budgets": {"max_triangles": MAX_TRIS, "max_batches": MAX_BATCHES}}
+    manifest = {"format": "TCB1", "version": 1, "sources": {},
+                "budgets": {"max_triangles": MAX_TRIS, "max_batches": MAX_BATCHES}}
     for stem, source in sources.items():
         path = out / f"{stem}.ttm"
         stats = bake_one(base, source, path)
         manifest["sources"][stem] = {"model": str(source), **stats}
         if stem.startswith("floor_"):
             manifest.setdefault("collision", {})[stem] = bake_collision(base, source, out / f"{stem}.ttc")
+            manifest.setdefault("anchors", {})[stem] = floor_anchors(base, source)
         print(json.dumps({"file": str(path), **stats}))
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     base.destroy()
