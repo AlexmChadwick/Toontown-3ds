@@ -113,9 +113,9 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
 
     const float fovy = C3D_AngleFromDegrees(kFovYDeg);
     if (eyeSign == 0) {
-        Mtx_PerspTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, kFar, false);
+        Mtx_PerspTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, farPlane_, false);
     } else {
-        Mtx_PerspStereoTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, kFar, eyeSign * iod, 2.0f, false);
+        Mtx_PerspStereoTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, farPlane_, eyeSign * iod, 2.0f, false);
     }
     // citro2d rebinds its own shader/attributes/texenv every frame, so rebind ours.
     mode_ = kModeNone;
@@ -142,14 +142,15 @@ void Renderer::setFog(float r, float g, float b, float start, float end) {
     const auto byte = [](float v) { return u32((v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v) * 255.0f + 0.5f); };
     fogColor_ = byte(b) << 16 | byte(g) << 8 | byte(r);
     fogClear_ = byte(r) << 24 | byte(g) << 16 | byte(b) << 8 | 0xFF;
-    if (fogOn_ && start == fogStart_ && end == fogEnd_) return;
+    if (fogOn_ && start == fogStart_ && end == fogEnd_ && farPlane_ == fogFar_) return;
     fogOn_ = true;
     fogStart_ = start;
     fogEnd_ = end;
+    fogFar_ = farPlane_;
     // Like FogLut_Exp, but Panda's linear ramp: 1 (no fog) before start, 0 (all fog) past end.
     float data[256];
     for (int i = 0; i <= 128; i++) {
-        const float dist = FogLut_CalcZ(i / 128.0f, kNear, kFar);
+        const float dist = FogLut_CalcZ(i / 128.0f, kNear, farPlane_);
         float val = (end - dist) / (end - start);
         val = val < 0.0f ? 0.0f : val > 1.0f ? 1.0f : val;
         if (i < 128) data[i] = val;

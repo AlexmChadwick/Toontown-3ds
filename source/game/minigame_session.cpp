@@ -381,6 +381,14 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::PhotoNewAIScore:
         if (isPhoto_) photo_.onAIScore(ev.doId, uint8_t(ev.arg >> 24), float(ev.arg & 0xffffff) / 100.0f);
         break;
+    case EventType::DivingFishSpawn:
+        // arg = spawnerId << 16 | fishcode (net/client.cpp). The lane offset is only in the latest
+        // minigame state, which is the spawn that just arrived unless two land in one frame.
+        if (isDiving_) {
+            diving_.spawnFish(uint32_t(ev.arg) & 0xffffu, uint32_t(ev.arg) >> 16,
+                              mg ? mg->divingFishSpawnOffset : 0u);
+        }
+        break;
     // ---- games2 ----
 
     default:
@@ -691,6 +699,27 @@ u32 MinigameSession::popReturn() {
     const u32 h = returnHood_;
     returnHood_ = 0;
     return h;
+}
+
+void MinigameSession::applyWorld(render::Renderer& renderer) {
+    releaseWorld(renderer); // games that set nothing still get the renderer defaults
+    if (isCannon_) {
+        renderer.setFarPlane(CannonGame::kFarPlane);
+    } else if (isRing_) {
+        renderer.setFarPlane(RingGame::kFarPlane);
+        renderer.setBackground(RingGame::kWaterBackground);
+        renderer.setFog(RingGame::kWaterColor[0], RingGame::kWaterColor[1], RingGame::kWaterColor[2],
+                        RingGame::kFogStart, RingGame::kFogEnd);
+        worldFog_ = true;
+    }
+}
+
+void MinigameSession::releaseWorld(render::Renderer& renderer) {
+    renderer.setFarPlane(0.0f);
+    if (worldFog_) {
+        renderer.clearFog();
+        worldFog_ = false;
+    }
 }
 
 void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {

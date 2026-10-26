@@ -2330,6 +2330,8 @@ int main() {
             // not the playground sky blue.
             const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
             renderer.setBackground(indoors ? 0x4C4C4CFF : 0x6AB0D9FF);
+            if (minigame.active()) minigame.applyWorld(renderer);
+            else minigame.releaseWorld(renderer);
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
             if (golf.active()) {

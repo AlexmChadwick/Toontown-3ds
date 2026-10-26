@@ -44,7 +44,8 @@ MODELS = {
     'cannon_tower': (MG + 'toon_cannon_water_tower', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'cannon_hill': (MG + 'cannon_hill', None, (0, 0, 0), 1.0, (0, -127.67, 0)),
     'cannon_base': (MG + 'toon_cannon', '**/cannon_base', (0, 0, 0), 1.0, (0, 0, 0)),
-    'cannon_barrel': (MG + 'toon_cannon', '**/cannon', (0, 0, 0), 1.0, (0, 0, -1.89703)),
+    # The barrel keeps its origin at the pivot (bam pos 0, 0, 1.89703 is applied by the runtime).
+    'cannon_barrel': (MG + 'toon_cannon', '**/cannon', (0, 0, 0), 1.0, (0, 0, 0)),
     # DistributedCannonGame and DistributedTagGame parent TT_sky to render.
     'minigame_sky': ('phase_3.5/models/props/TT_sky', None, (0, 0, 0), 2.8, (0, 0, 0)),
 
@@ -64,10 +65,20 @@ MODELS = {
     'memory_room': (MG + 'memory_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
     # Pairing cards are composed below, exactly as PairingGameCard.load.
 
-    # Diving
-    'diving_game': (MG + 'diving_game', None, (0, 0, 0), 2.8, (0, 0.5, -41.0)),
+    # Diving (DistributedDivingGame.onstage: environModel 2.8, 2.8, 2.73 at (0, 0.5, -41);
+    # boat at (0, 3, 40 - 6.75) scale 2.8; DivingTreasure: treasure.bam with chest-local
+    # scale (1, 0.7, 1) and position (0, 0, -25), then the treasure node scales 0.04 at runtime)
+    'diving_game': (MG + 'diving_game', None, (0, 0, 0), (2.8, 2.8, 2.73), (0, 0.5, -41.0)),
     'diving_boat': (MG + 'diving_game', '**/boat', (0, 0, 0), 2.8, (0, 3.0, 33.25)),
-    'diving_chest': (MG + 'treasure_chest', None, (0, 0, 0), 1.5, (0, 0, 0)),
+    'diving_chest': (MG + 'treasure', None, (0, 0, 0), (1.0, 0.7, 1.0), (0, 0, -25.0)),
+    # Fish: the upstream DivingFishSpawn.createFish actors in their zero (bind) pose. The swim
+    # animation is not baked; the runtime applies each type's heading and scale.
+    'diving_fish_clown': ('phase_4/models/char/clownFish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_pbj': ('phase_4/models/char/PBJfish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_bear': ('phase_4/models/char/BearAcuda-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_balloon': ('phase_4/models/char/balloonFish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_nurse': ('phase_4/models/char/nurseShark-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_piano': ('phase_4/models/char/pianoTuna-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Vine
     # The whole vine_game.bam also holds the animated bats and spiders (they flew across the
@@ -109,8 +120,13 @@ MODELS = {
     'pattern_stage': (MG + 'matching_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Ice Slide
-    'ice_arena': (MG + 'ice_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # DistributedIceGame.load: gameBoard = ice_game_icerink (the rink, +-20 x +-15) with the
+    # flat ice_game_2d backdrop under it. No walls: the west and east wall NodePaths are empty.
+    'ice_arena': (MG + 'ice_game_icerink', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_backdrop': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_tire': (MG + 'ice_game_tire', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # The score circle: setScale(0.01) then grown to each score's distance (scoreMovie).
+    'ice_score_circle': (MG + 'ice_game_score_circle', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Race
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -192,7 +208,10 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
         model = raw_model
     root = NodePath('root')
     model.reparentTo(root)
-    model.setScale(scale)
+    if isinstance(scale, tuple):
+        model.setScale(*scale)
+    else:
+        model.setScale(scale)
     model.setHpr(*hpr)
     model.setPos(*pos)
     ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals
@@ -269,7 +288,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 

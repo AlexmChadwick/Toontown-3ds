@@ -109,6 +109,10 @@ public:
     void setAutoPlay(bool on) { autoPlay_ = on; }
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    // Renderer state the game's world pass needs (far plane, background, fog). applyWorld runs
+    // before beginWorld while a game is active; releaseWorld restores the defaults after it.
+    void applyWorld(render::Renderer& renderer);
+    void releaseWorld(render::Renderer& renderer);
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;
@@ -141,6 +145,7 @@ private:
     bool isCannon_ = false;
     bool isTug_ = false;
     bool isRing_ = false;
+    bool worldFog_ = false; // applyWorld set the fog, so releaseWorld must clear it
     bool isMaze_ = false;
     bool isPairing_ = false;
     bool isDiving_ = false;

@@ -67,6 +67,11 @@ public:
     static constexpr float kNear = 1.0f;
     static constexpr float kFar = 300.0f;
     static constexpr float kFovYDeg = 55.0f;
+    // Far plane of the world pass (Panda base.camLens.setFar). Minigames raise it, as upstream
+    // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores kFar.
+    // Takes effect from the next beginWorld.
+    void setFarPlane(float far) { farPlane_ = far > 0.0f ? far : kFar; }
+    float farPlane() const { return farPlane_; }
 
 private:
     enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
@@ -90,7 +95,8 @@ private:
     bool fogOn_ = false;
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
-    float fogStart_ = 0.0f, fogEnd_ = 0.0f;
+    float fogStart_ = 0.0f, fogEnd_ = 0.0f, fogFar_ = 0.0f;
+    float farPlane_ = kFar;
     C3D_FogLut fogLut_{};
     Program programs_[kModeCount];
     int mode_ = kModeNone;

@@ -6,6 +6,18 @@
 
 namespace tt::game {
 
+namespace {
+// DistributedIceGame / DistributedIceWorld constants (IceGameGlobals.py).
+constexpr float kTireBaseZ = 0.01f;         // TireRadius - (TireRadius - 0.01)
+constexpr float kScoreCircleZ = 0.75f;      // TireRadius / 2
+constexpr float kExpandFeetPerSec = 5.0f;   // ExpandFeetPerSec
+constexpr float kCircleStartScale = 0.01f;  // scoreCircle.setScale(0.01)
+constexpr float kCameraEyeY = -22.0f;       // cameraThreeQuarterView
+constexpr float kCameraEyeZ = 45.0f;
+constexpr float kCameraPitchDeg = 62.89f;   // hpr P -62.89: looking down
+constexpr float kLookDistance = 50.0f;
+} // namespace
+
 bool IceGame::init(const char* root, int players) {
     sim_.init(players);
     state_ = State::Aiming;
@@ -16,8 +28,12 @@ bool IceGame::init(const char* root, int players) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/ice_arena.ttm", root);
     assetBatch_.load(arenaModel_, path);
+    std::snprintf(path, sizeof(path), "%s/ice_backdrop.ttm", root);
+    assetBatch_.load(backdropModel_, path);
     std::snprintf(path, sizeof(path), "%s/ice_tire.ttm", root);
     assetBatch_.load(tireModel_, path);
+    std::snprintf(path, sizeof(path), "%s/ice_score_circle.ttm", root);
+    assetBatch_.load(scoreCircleModel_, path);
 
     return true;
 }
@@ -25,7 +41,9 @@ bool IceGame::init(const char* root, int players) {
 void IceGame::shutdown() {
     assetBatch_.clear();
     arenaModel_.unload();
+    backdropModel_.unload();
     tireModel_.unload();
+    scoreCircleModel_.unload();
 }
 
 void IceGame::onSetMatchAndRound(uint8_t match, uint8_t round) {
@@ -97,31 +115,59 @@ void IceGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
 }
 
 void IceGame::draw(render::Renderer& renderer) {
+    C3D_Mtx world;
     if (arenaModel_.loaded()) {
-        C3D_Mtx world;
         Mtx_Identity(&world);
         renderer.drawModel(arenaModel_, world);
     }
-
-    if (tireModel_.loaded()) {
-        C3D_Mtx world;
+    if (backdropModel_.loaded()) {
         Mtx_Identity(&world);
-        Mtx_Translate(&world, sim_.tires[0].x, sim_.tires[0].y, 0.5f, true);
-        renderer.drawModel(tireModel_, world);
+        renderer.drawModel(backdropModel_, world);
+    }
+
+    // Every player's tire: the model's base sits on the rink (DistributedIceWorld.createTire
+    // puts the holder at TireRadius and the model at -TireRadius + 0.01).
+    if (tireModel_.loaded()) {
+        for (int i = 0; i < sim_.numPlayers && i < 4; ++i) {
+            Mtx_Identity(&world);
+            Mtx_Translate(&world, sim_.tires[i].x, sim_.tires[i].y, kTireBaseZ, true);
+            renderer.drawModel(tireModel_, world);
+        }
+    }
+
+    // The score circle grows from 0.01 at ExpandFeetPerSec to the farthest scoring tire, at
+    // z = TireRadius / 2, half alpha (DistributedIceGame.setScores / scoreCircle).
+    if (state_ == State::Scoring && scoreCircleModel_.loaded()) {
+        float far = 0.0f;
+        for (int i = 0; i < sim_.numPlayers && i < 4; ++i) {
+            const float d = sim_.tires[i].distanceToCenter();
+            if (d > far) far = d;
+        }
+        float radius = kCircleStartScale + kExpandFeetPerSec * scoreTimer_;
+        if (radius > far) radius = far;
+        Mtx_Identity(&world);
+        Mtx_Translate(&world, 0.0f, 0.0f, kScoreCircleZ, true);
+        Mtx_Scale(&world, radius, radius, 1.0f);
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, 0.5f);
+        renderer.drawModel(scoreCircleModel_, world);
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
     }
 }
 
 void IceGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
+    // DistributedIceGame.cameraThreeQuarterView = (0, -22, 45, 0, -62.89, 0): a 50-unit look
+    // along the pitched view direction gives the target.
+    const float pitch = kCameraPitchDeg * 3.14159265f / 180.0f;
     if (eye) {
         eye->x = 0.0f;
-        eye->y = -35.0f;
-        eye->z = 40.0f;
+        eye->y = kCameraEyeY;
+        eye->z = kCameraEyeZ;
         eye->w = 1.0f;
     }
     if (target) {
         target->x = 0.0f;
-        target->y = 0.0f;
-        target->z = 0.0f;
+        target->y = kCameraEyeY + std::cos(pitch) * kLookDistance;
+        target->z = kCameraEyeZ - std::sin(pitch) * kLookDistance;
         target->w = 1.0f;
     }
 }

@@ -10,6 +10,10 @@ namespace tt::game {
 namespace {
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 constexpr float kPi = 3.14159265358979323846f;
+// DistributedCannonGame.py WORLD_SCALE: TT_sky is set to 2.0. The bake stores it at 2.8 (the
+// ground's GROUND_SCALE), so the draw undoes that factor.
+constexpr float kWorldScale = 2.0f;
+constexpr float kSkyBakedScale = 2.8f;
 } // namespace
 
 void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
@@ -54,7 +58,7 @@ void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     lastBroadcastMs_ = nowMs;
 
     zRot_ = 0.0f;
-    angle_ = 35.0f;
+    angle_ = cannongame::kCannonAngleMin; // upstream cannonPositionDict = [0, ANGLE_MIN]
 
     // Position toon in cannon
     const float cx = cannongame::cannonX(slot_, numPlayers_);
@@ -241,10 +245,10 @@ void CannonGame::toonPose(float* x, float* y, float* z, float* h) const {
     if(state_==State::Aiming) {
         C3D_Mtx barrel;Mtx_Identity(&barrel);
         Mtx_Translate(&barrel,toonX_,toonY_,toonZ_+cannongame::kBarrelPivotZ,true);
-        Mtx_RotateZ(&barrel,zRot_*kPi/180,true);Mtx_RotateX(&barrel,-angle_*kPi/180,true);
-        *x=barrel.r[0].y*6+barrel.r[0].w;
-        *y=barrel.r[1].y*6+barrel.r[1].w;
-        *z=barrel.r[2].y*6+barrel.r[2].w;
+        Mtx_RotateZ(&barrel,zRot_*kPi/180,true);Mtx_RotateX(&barrel,angle_*kPi/180,true);
+        *x=barrel.r[0].y*cannongame::kBarrelOffset+barrel.r[0].w;
+        *y=barrel.r[1].y*cannongame::kBarrelOffset+barrel.r[1].w;
+        *z=barrel.r[2].y*cannongame::kBarrelOffset+barrel.r[2].w;
     }
 }
 
@@ -257,10 +261,18 @@ void CannonGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     Mtx_Identity(&m);
 
-    if (sky_.loaded()) renderer.drawModel(sky_, m);
+    if (sky_.loaded()) {
+        Mtx_Identity(&m);
+        const float s = kWorldScale / kSkyBakedScale;
+        Mtx_Scale(&m, s, s, s);
+        renderer.drawModel(sky_, m);
+    }
 
     // Ground
-    if (ground_.loaded()) renderer.drawModel(ground_, m);
+    if (ground_.loaded()) {
+        Mtx_Identity(&m);
+        renderer.drawModel(ground_, m);
+    }
 
     // Hill
     if (hill_.loaded()) {
@@ -289,12 +301,13 @@ void CannonGame::draw(render::Renderer& renderer) {
             renderer.drawModel(cannonBase_, m);
         }
 
-        // Barrel (rotates around Z by rot, pitches around X by ang)
+        // Barrel: the cannon node takes the heading; the barrel node sits at its bam origin
+        // (0, 0, 1.89703) and pitches by +angle (Panda P, nose up).
         if (cannonBarrel_.loaded()) {
             Mtx_Identity(&m);
             Mtx_Translate(&m, cx, cannongame::kCannonY, cannongame::kCannonZ + cannongame::kBarrelPivotZ, true);
             Mtx_RotateZ(&m, rot * kPi / 180.0f, true);
-            Mtx_RotateX(&m, -ang * kPi / 180.0f, true); // Pitch up
+            Mtx_RotateX(&m, ang * kPi / 180.0f, true);
             renderer.drawModel(cannonBarrel_, m);
         }
     }
@@ -303,7 +316,9 @@ void CannonGame::draw(render::Renderer& renderer) {
 void CannonGame::applyAnimation(world::ToonAvatar& avatar) const {
     using namespace world;
     avatar.setHeadOnly(state_==State::Aiming);
-    avatar.setHeadPitch(-angle_-45);
+    // DistributedCannonGame.__loadToonInCannon: the head sits in the barrel at (0, 6, 0) with
+    // hpr (0, -45, 0), so its world pitch is the barrel pitch minus 45.
+    avatar.setHeadPitch(angle_-45);
     const float height=avatar.look()?avatar.look()->nametagHeight-.5f:4;
     avatar.setBodyPose(state_==State::Flying?toonPitch_:
         state_==State::Landed && flight_.hitWhat!=cannongame::HitType::Tower?-150:0,
