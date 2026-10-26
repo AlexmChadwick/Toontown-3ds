@@ -769,6 +769,7 @@ int MinigameSession::cogs(MinigameCog* out, int max) const {
     if (phase_ != Phase::Play && phase_ != Phase::Rules) return 0;
     if (isMaze_) return maze_.cogs(out, max);
     if (isCogThief_) return cogThief_.cogs(out, max);
+    if (isTug_) return tug_.cogs(out, max);
     return 0;
 }
 
