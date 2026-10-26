@@ -21,7 +21,7 @@ public:
     }
     IceGame() = default;
 
-    bool init(const char* root, int players = 1);
+    bool init(const char* root, int players = 1, int slot = 0);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
@@ -29,6 +29,8 @@ public:
 
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     void toonPose(float* x, float* y, float* z, float* h) const;
+    // The tire of the participant at avIdList index 'index' (every toon rides its own tire).
+    void tirePose(int index, float* x, float* y) const;
     bool isDone() const { return sim_.isDone; }
     int score() const { return sim_.scores[0]; }
 
@@ -41,6 +43,7 @@ public:
 private:
     world::BasicAssetBatch<8> assetBatch_;
     icegame::Simulation sim_;
+    int slot_ = 0; // this toon's avIdList index: its tire is sim_.tires[slot_]
     enum class State {
         Aiming,
         WaitChoices,

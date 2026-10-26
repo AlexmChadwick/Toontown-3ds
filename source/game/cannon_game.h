@@ -30,6 +30,8 @@ public:
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const { return state_ == State::Flying; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
+    // The tower the flights aim at (the same for every client: the seed is the minigame doId).
+    const cannongame::Vec3& towerPos() const { return towerPos_; }
 
     const char* line(int i) const { return (i >= 0 && i < 3) ? lines_[i] : ""; }
     bool isDone() const { return done_; }

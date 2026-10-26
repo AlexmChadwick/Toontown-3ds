@@ -59,6 +59,37 @@ Vec3 trajectoryVel(const Vec3& startVel, float t) {
     };
 }
 
+Vec3 barrelHead(float cx, float zRot, float angle) {
+    // The toon's head sits 6 units out of the barrel pivot (__loadToonInCannon: head at (0, 6, 0)).
+    // Barrel: RotateZ(zRot) after RotateX(angle), the same matrices as the local aim (CannonGame::toonPose).
+    const float rotRad = toRadians(zRot);
+    const float angRad = toRadians(angle);
+    return Vec3{
+        cx - kBarrelOffset * std::cos(angRad) * std::sin(rotRad),
+        kCannonY + kBarrelOffset * std::cos(angRad) * std::cos(rotRad),
+        kCannonZ + kBarrelPivotZ + kBarrelOffset * std::sin(angRad)
+    };
+}
+
+RemoteToon remoteToon(float cx, float zRot, float angle, bool fired, float firedElapsed, const Vec3& towerPos) {
+    RemoteToon out;
+    out.heading = zRot; // the flight keeps the cannon heading (__flyTask: setHpr(hRot, ...))
+    if (!fired || firedElapsed < 0.0f) {
+        out.pos = barrelHead(cx, zRot, angle);
+        return out;
+    }
+    const FlightResult flight = calcFlight(cx, zRot, angle, towerPos);
+    // __flyTask runs to timeOfImpact (the toon stays where it hit for LAND_TIME), then
+    // __flySequenceDoneTask puts the head back in the barrel.
+    if (firedElapsed < flight.timeOfImpact + kLandTime) {
+        const float t = firedElapsed < flight.timeOfImpact ? firedElapsed : flight.timeOfImpact;
+        out.pos = trajectoryPos(flight.startPos, flight.startVel, t);
+    } else {
+        out.pos = barrelHead(cx, zRot, angle);
+    }
+    return out;
+}
+
 FlightResult calcFlight(float cx, float zRot, float angle, const Vec3& towerPos) {
     const float rotRad = toRadians(zRot);
     const float angRad = toRadians(angle);
@@ -75,11 +106,7 @@ FlightResult calcFlight(float cx, float zRot, float angle, const Vec3& towerPos)
         kInitialVelocity * sinAng
     };
 
-    const Vec3 startPos{
-        cx - kBarrelOffset * cosAng * sinRot,
-        kCannonY + kBarrelOffset * cosAng * cosRot,
-        kCannonZ + kBarrelPivotZ + kBarrelOffset * sinAng
-    };
+    const Vec3 startPos = barrelHead(cx, zRot, angle);
 
     FlightResult res;
     res.startPos = startPos;

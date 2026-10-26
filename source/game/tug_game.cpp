@@ -18,7 +18,7 @@ constexpr float kRoomScale = 0.4f;
 constexpr float kSkyZ = -5.0f;
 constexpr float kSkyBakedScale = 2.8f;
 // The toons stand on the dock at z 0.1 (dockPositions); the Cog too (origSuitPosHpr).
-constexpr float kDockZ = 0.1f;
+constexpr float kDockZ = tuggame::kDockZ;
 // The rope runs from the right hand (about 0.5 in front of the toon) to the opponent's hand, at
 // hand height. The upstream Rope is a 0.2-thick billboard (rope.ropeNode.setThickness(0.2)).
 constexpr float kHandReach = 0.5f;
@@ -56,7 +56,7 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     }
     // calculatePositions (toon vs Cog): every toon's dock slot, and the Cog's.
     for (int i = 0; i < net::kMinigamePlayers; ++i) {
-        toonX_[i] = i < numPlayers_ ? tuggame::dockX(tuggame::toonDockIndex(numPlayers_, i)) : 0.0f;
+        toonX_[i] = i < numPlayers_ ? tuggame::toonX(numPlayers_, i, 0.0f) : 0.0f;
     }
     toonBaseX_ = tuggame::dockX(tuggame::toonDockIndex(numPlayers_, slot_));
     cogBaseX_ = tuggame::dockX(tuggame::suitDockIndex(numPlayers_));
@@ -145,10 +145,10 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
 
         // Apply offsets from server
         if (mg) {
-            toonOffset_ = mg->tugOffsets[slot_];
+            toonOffset_ = mg->tugOffsets[slot_] / tuggame::kHandycap;
             suitOffset_ = mg->tugSuitOffset;
             for (int i = 0; i < numPlayers_; ++i) {
-                toonX_[i] = tuggame::dockX(tuggame::toonDockIndex(numPlayers_, i)) + mg->tugOffsets[i];
+                toonX_[i] = tuggame::toonX(numPlayers_, i, mg->tugOffsets[i]);
             }
 
             if (mg->tugStopped) {

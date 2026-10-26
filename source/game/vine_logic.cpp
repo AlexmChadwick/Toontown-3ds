@@ -140,6 +140,24 @@ bool jumpReaches(const VineToonState& start, const VineSpec* course, float gameT
     return false;
 }
 
+bool reportedPosition(const ReportedToon& r, const VineSpec* course, float gameTime, float elapsed, float& outX,
+                      float& outZ) {
+    if (elapsed < 0.0f) elapsed = 0.0f;
+    if (r.attached) {
+        if (r.vineIndex < 0 || r.vineIndex >= kNumVines) return false;
+        const float t = std::clamp(r.vineT + float(r.climbDir) * kToonVerticalRate * elapsed, 0.0f, 1.0f);
+        cablePoint(r.vineIndex, course[r.vineIndex], swingAngle(course[r.vineIndex], gameTime), t, outX, outZ);
+        return true;
+    }
+    // The reports are a few seconds apart at most; a longer silence freezes the toon in the air.
+    constexpr float kMaxExtrapolation = 4.0f;
+    const float e = std::min(elapsed, kMaxExtrapolation);
+    outX = r.posX + r.velX * e;
+    outZ = r.posZ + r.velZ * e + 0.5f * kGravity * e * e;
+    if (outZ < 0.0f) outZ = 0.0f;
+    return true;
+}
+
 int calculateScore(int treasures, float timeLeft, bool reachedEnd) {
     int score = treasures;
     if (reachedEnd && timeLeft > 0.0f) {
