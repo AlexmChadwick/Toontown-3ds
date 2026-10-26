@@ -81,9 +81,17 @@ MODELS = {
     'cogthief_barrel': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'cogthief_tank': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
-    # Two-D
-    'twod_game': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
-    'twod_block': ('phase_4/models/props/sign_sellBotHeadHQ', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # Two-D (Toon Escape / ToonBlitz)
+    'twod_block00': (MG + 'toonblitz_game_block00', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_block01': (MG + 'toonblitz_game_block01', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_block02': (MG + 'toonblitz_game_block02', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_block03': (MG + 'toonblitz_game_block03', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_wall': (MG + 'toonblitz_game_wall', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_pipe': (MG + 'toonblitz_game_start', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_elevator': (MG + 'toonblitz_game_elevator', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_stomper': (MG + 'toonblitz_game_stomper', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_arrow': (MG + 'toonblitz_game_arrow', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_treasure': (MG + 'moneyIcon', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Tag
     'tag_arena': (MG + 'tag_arena', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -100,6 +108,7 @@ MODELS = {
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Photo Fun
+    'photo_viewfinder': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'photo_scene': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'photo_subject': (MG + 'photogame_camera', None, (0, 0, 0), 1.0, (0, 0, 0)),
 }
@@ -161,6 +170,8 @@ AUDIO = [
     ('mg_ice_scoring', 'phase_4/audio/sfx/MG_sfx_ice_scoring_1.ogg', 'sfx', False),
     # Race
     ('mg_race_bgm', 'phase_4/audio/bgm/minigame_race.ogg', 'music', False),
+    # Photo Fun
+    ('photo_shutter', 'phase_4/audio/sfx/Photo_shutter.ogg', 'sfx', False),
 ]
 
 
@@ -250,7 +261,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 

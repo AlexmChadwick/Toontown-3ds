@@ -3837,21 +3837,79 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (announce) pushEventArg(EventType::CogThiefBarrelStolen, m.doId, int32_t(m.cogThiefStolenBarrel));
 
     // ---- DistributedTwoDGame ----
+    // ---- games2 ----
     } else if (fieldId == dc::DistributedTwoDGame::k_setSectionsSelected) {
-        const uint16_t bytes = r.u16();
-        // Skip or read complex struct array
-        for (uint16_t i = 0; i < bytes && r.ok(); ++i) r.u8();
-        if (!r.ok()) return false;
+        // twoDSectionInfo[]: sectionIndex, uint8 enemies[], twoDTreasureInfo[], uint8 spawns[],
+        // uint8 stompers[]; every array is prefixed with its byte length.
+        const uint16_t totalBytes = r.u16();
+        const uint32_t endPos = r.pos() + totalBytes;
+        m.twoDSectionCount = 0;
+        auto readList = [&r](uint8_t* out, uint8_t* count, int capacity) {
+            const uint16_t bytes = r.u16();
+            *count = 0;
+            for (uint16_t i = 0; i < bytes && r.ok(); ++i) {
+                const uint8_t v = r.u8();
+                if (*count < capacity) out[(*count)++] = v;
+            }
+        };
+        while (r.ok() && r.pos() < endPos) {
+            Minigame::TwoDSectionData sec{};
+            sec.sectionIndex = r.u8();
+            readList(sec.enemyIndices, &sec.numEnemies, Minigame::kTwoDMaxEnemies);
+            const uint16_t treasureBytes = r.u16();
+            for (uint16_t i = 0; i + 1 < treasureBytes && r.ok(); i += 2) {
+                const uint8_t index = r.u8();
+                const uint8_t value = r.u8();
+                if (sec.numTreasures < Minigame::kTwoDMaxTreasures) {
+                    sec.treasureIndices[sec.numTreasures] = index;
+                    sec.treasureValues[sec.numTreasures] = value;
+                    sec.numTreasures++;
+                }
+            }
+            readList(sec.spawnIndices, &sec.numSpawns, Minigame::kTwoDMaxSpawns);
+            readList(sec.stomperIndices, &sec.numStompers, Minigame::kTwoDMaxStompers);
+            if (r.ok() && m.twoDSectionCount < Minigame::kTwoDMaxSections) m.twoDSections[m.twoDSectionCount++] = sec;
+        }
+        if (!r.ok() || r.pos() != endPos) return false;
         if (announce) pushEvent(EventType::TwoDSetSections, m.doId);
     } else if (fieldId == dc::DistributedTwoDGame::k_setTreasureGrabbed) {
         m.twoDGrabbedAv = r.u32();
         m.twoDGrabbedSection = r.u8();
         m.twoDGrabbedTreasure = r.u8();
         if (!r.ok()) return false;
-        if (announce) pushEventArg(EventType::TwoDTreasureGrabbed, m.twoDGrabbedAv, int32_t(m.twoDGrabbedTreasure));
+        if (announce)
+            pushEventArg(EventType::TwoDTreasureGrabbed, m.twoDGrabbedAv,
+                         int32_t(m.twoDGrabbedSection) << 8 | m.twoDGrabbedTreasure);
+    } else if (fieldId == dc::DistributedTwoDGame::k_setEnemyShot) {
+        const uint32_t av = r.u32();
+        const uint8_t section = r.u8();
+        const uint8_t enemy = r.u8();
+        const uint32_t health = r.u32();
+        if (!r.ok()) return false;
+        if (announce)
+            pushEventArg(EventType::TwoDEnemyShot, av,
+                         int32_t(section) << 24 | int32_t(enemy) << 16 | int32_t(health > 0xffff ? 0xffff : health));
+    } else if (fieldId == dc::DistributedTwoDGame::k_addVictoryScore) {
+        const uint32_t av = r.u32();
+        const uint8_t score = r.u8();
+        if (!r.ok()) return false;
+        if (announce) pushEventArg(EventType::TwoDVictoryScore, av, score);
+    } else if (fieldId == dc::DistributedTwoDGame::k_showShootGun || fieldId == dc::DistributedTwoDGame::k_toonHitByEnemy ||
+               fieldId == dc::DistributedTwoDGame::k_toonFellDown || fieldId == dc::DistributedTwoDGame::k_toonSquished ||
+               fieldId == dc::DistributedTwoDGame::k_toonVictory) {
+        const uint32_t av = r.u32();
+        r.i16(); // timestamp
+        if (!r.ok()) return false;
+        const int32_t action = fieldId == dc::DistributedTwoDGame::k_showShootGun ? kTwoDShoot
+                             : fieldId == dc::DistributedTwoDGame::k_toonHitByEnemy ? kTwoDHitByEnemy
+                             : fieldId == dc::DistributedTwoDGame::k_toonFellDown ? kTwoDFellDown
+                             : fieldId == dc::DistributedTwoDGame::k_toonSquished ? kTwoDSquished
+                             : kTwoDVictory;
+        if (announce) pushEventArg(EventType::TwoDToonAction, av, action);
     } else if (fieldId == dc::DistributedTwoDGame::k_setEveryoneDone) {
         m.twoDEveryoneDone = true;
         if (announce) pushEvent(EventType::TwoDEveryoneDone, m.doId);
+    // ---- games2 ----
 
     // ---- DistributedTagGame ----
     } else if (fieldId == dc::DistributedTagGame::k_setIt) {
@@ -3981,9 +4039,13 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
     } else if (fieldId == dc::DistributedPhotoGame::k_newAIPhotoScore) {
         m.photoScoreAv = r.u32();
         m.photoScoreAssignment = r.u8();
-        m.photoScoreStars = r.u32() / 100.0f;
+        const uint32_t hundredths = r.u32();
+        m.photoScoreStars = hundredths / 100.0f;
         if (!r.ok()) return false;
-        if (announce) pushEventArg(EventType::PhotoNewAIScore, m.photoScoreAv, int32_t(m.photoScoreAssignment));
+        // ---- games2 ----: assignment and score (in hundredths) travel with the event.
+        if (announce)
+            pushEventArg(EventType::PhotoNewAIScore, m.photoScoreAv,
+                         int32_t(m.photoScoreAssignment) << 24 | int32_t(hundredths & 0xffffff));
     } else {
         skipField(r, fieldId); // setStartingVotes, setMetagameRound, game-specific fields
     }
@@ -4421,6 +4483,17 @@ bool Client::sendCogThiefAtReturnPos(int32_t clientStamp, int8_t cogIndex, int8_
 }
 
 // DistributedTwoDGame
+// ---- games2 ----
+bool Client::sendTwoDShootGun(uint32_t avId, int16_t ts) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedTwoDGame, showShootGun);
+    w.u32(avId);
+    w.i16(ts);
+    return finish(w);
+}
+// ---- games2 ----
+
 bool Client::sendTwoDClaimTreasure(uint8_t sectionIndex, uint8_t treasureIndex) {
     if (!minigame_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
@@ -4576,11 +4649,13 @@ bool Client::sendRaceChoice(uint8_t choice) {
 // DistributedPhotoGame
 bool Client::sendPhotoScore(uint8_t subjectIndex, const char* pose, float score) {
     if (!minigame_.active) return false;
+    // ---- games2 ----: char [0-256] and a uint32/100 (Panda rounds to the nearest unit).
+    if (!pose || std::strlen(pose) > 256 || !(score >= 0.0f)) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, minigame_.doId, DistributedPhotoGame, newClientPhotoScore);
     w.u8(subjectIndex);
-    w.string(pose ? pose : "");
-    w.u32(uint32_t(score * 100.0f));
+    w.string(pose);
+    w.u32(uint32_t(std::floor(double(score) * 100.0 + 0.5)));
     return finish(w);
 }
 
