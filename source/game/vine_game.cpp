@@ -1,38 +1,76 @@
 #include "game/vine_game.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include "core/log.h"
 
 namespace tt::game {
 
-static constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
+namespace {
+constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
+// DistributedVineGame.onstage: the start shelf at (-16, 0, 15), the end shelf at the last vine + 20,
+// both scaled (1, 1, 0.75). The shelf models are baked with their own offsets.
+constexpr float kStartShelfX = -16.0f;
+constexpr float kShelfZ = 15.0f;
+constexpr float kShelfScaleZ = 0.75f;
+constexpr float kEndShelfOffset = 20.0f;
+// DistributedVineGame.load: the treasures are placed at vine x + 15 with a random height in
+// randrange(10, 25) (per-client RNG upstream); the midpoint stands in for it here.
+constexpr float kBananaOffsetX = 15.0f;
+constexpr float kBananaZ = 17.5f;
+constexpr float kBananaScale = 0.25f; // VineTreasure: nodePath.setScale(0.25)
+// DistributedVineGame.makeCameraFollowJumpingToon: the side camera at (x, -63.2, 16.3), looking along +y.
+constexpr float kCamY = -63.2f;
+constexpr float kCamZ = 16.3f;
+constexpr float kCamLookDistance = 40.0f;
+// Climbing input (the Circle Pad, like the up/down arrows) and the autoplay's timing candidates.
+constexpr int kPadDeadzone = 20;
+constexpr float kPadFull = 150.0f;
+constexpr float kAutoStartT = 0.25f;
+constexpr float kAutoEndT = 0.95f;
+constexpr float kAutoStepT = 0.05f;
+constexpr float kBananaGrabX = 3.0f;
+constexpr float kBananaGrabZ = 5.0f;
+} // namespace
 
 void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
-    (void)client;
+    (void)nowMs;
     done_ = false;
     autoPlay_ = autoPlay;
-    startMs_ = nowMs;
+    gameTime_ = 0.0f;
     timeRemaining_ = vine::kGameDuration;
 
-    toon_ = {};
-    toon_.state = vine::State::OnVine;
-    toon_.currentVine = 0;
-    toon_.vineT = 0.5f;
-    toon_.swingTime = 0.0f;
-    vine::getVineToonPos(0, toon_.vineT, 0.0f, toon_.posX, toon_.posZ);
-
-    for (int i = 0; i < vine::kNumVines - 1; ++i) {
-        bananaTaken_[i] = false;
+    // setVineSections: the server's section per four vines picks the course (VineGameGlobals.CourseSections).
+    const net::Minigame* mg = client.minigame();
+    uint8_t sections[8] = {};
+    int numSections = 0;
+    if (mg && mg->vineSectionCount > 0) {
+        numSections = mg->vineSectionCount;
+        for (int i = 0; i < numSections; ++i) sections[i] = mg->vineSections[i];
     }
+    if (!vine::buildCourse(sections, numSections, course_)) {
+        // No usable sections from the server: the first course section keeps the game playable.
+        TT_LOG("vine: no usable vineSections (%d), using section 0", numSections);
+        const uint8_t fallback[4] = {0, 0, 0, 0};
+        vine::buildCourse(fallback, 4, course_);
+    }
+
+    toon_ = {};
+    vine::attachToVine(toon_, 0, course_[0], vine::swingAngle(course_[0], gameTime_), vine::kVineStartingT);
+    for (bool& taken : bananaTaken_) taken = false;
     bananas_ = 0;
     score_ = 1;
 
     char path[96];
-    std::snprintf(path, sizeof(path), "%svine_game.ttm", kDir);
-    assetBatch_.load(jungleModel_, path);
-    std::snprintf(path, sizeof(path), "%svine_shelf.ttm", kDir);
-    assetBatch_.load(shelfModel_, path);
+    std::snprintf(path, sizeof(path), "%svine_background.ttm", kDir);
+    assetBatch_.load(background_, path);
+    std::snprintf(path, sizeof(path), "%svine_bananas.ttm", kDir);
+    assetBatch_.load(bananaModel_, path);
+    std::snprintf(path, sizeof(path), "%svine_start.ttm", kDir);
+    assetBatch_.load(startShelf_, path);
+    std::snprintf(path, sizeof(path), "%svine_end.ttm", kDir);
+    assetBatch_.load(endShelf_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Vine: 1 / 20");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Bananas: 0  (Time: 70 s)");
@@ -41,8 +79,10 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
 void VineGame::shutdown() {
     assetBatch_.clear();
-    jungleModel_.unload();
-    shelfModel_.unload();
+    background_.unload();
+    bananaModel_.unload();
+    startShelf_.unload();
+    endShelf_.unload();
     done_ = true;
 }
 
@@ -55,63 +95,76 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         timeRemaining_ = 0.0f;
         done_ = true;
     }
+    gameTime_ += dt;
+    const int last = vine::kNumVines - 1;
 
     if (toon_.state == vine::State::OnVine) {
-        // Climbing up/down on vine
-        constexpr int kDeadzone = 20;
-        if (std::abs(pad.dy) > kDeadzone) {
-            toon_.vineT -= (pad.dy / 150.0f) * 0.8f * dt;
-            if (toon_.vineT < 0.2f) toon_.vineT = 0.2f;
-            else if (toon_.vineT > 0.85f) toon_.vineT = 0.85f;
+        const int cur = toon_.currentVine;
+        // Climb (upArrowKeyHandler / downArrowKeyHandler): ToonVerticalRate of the cable per second.
+        // Pad up shortens the reach towards the pivot; the end vine cannot be climbed.
+        if (cur != last) {
+            float t = toon_.vineT;
+            if (pad.dy > kPadDeadzone) t -= vine::kToonVerticalRate * dt * (pad.dy / kPadFull);
+            else if (pad.dy < -kPadDeadzone) t += vine::kToonVerticalRate * dt * (-pad.dy / kPadFull);
+            toon_.vineT = std::clamp(t, 0.0f, 1.0f);
         }
+        float angle = vine::swingAngle(course_[cur], gameTime_);
+        vine::attachToVine(toon_, cur, course_[cur], angle, toon_.vineT);
 
-        // Pumping swing momentum with Left/Right
-        float pump = 1.0f;
-        if (std::abs(pad.dx) > kDeadzone) {
-            pump += (std::abs(pad.dx) / 150.0f) * 0.5f;
-        }
-        toon_.swingTime += dt * pump;
-
-        const float angle = vine::getVineAngle(toon_.swingTime);
-        vine::getVineToonPos(toon_.currentVine, toon_.vineT, angle, toon_.posX, toon_.posZ);
-
-        // AutoPlay jump at forward swing peak
-        bool doJump = (kDown & KEY_A) != 0;
-        if (autoPlay_) {
-            const float omega = (2.0f * 3.14159265f) / 3.0f;
-            const float angVel = 0.785398f * omega * std::cos(omega * toon_.swingTime);
-            if (angle > 0.35f && angVel > 0.0f) {
-                doJump = true;
+        // Jumps: right (or A) leaves towards the next vine, left towards the previous one
+        // (rightArrowKeyHandler / leftArrowKeyHandler: no forward jump from the end vine, no back jump from vine 0).
+        bool jumpForward = (kDown & (KEY_A | KEY_DRIGHT)) != 0 && cur != last;
+        bool jumpBack = (kDown & KEY_DLEFT) != 0 && cur != 0 && cur != last;
+        if (autoPlay_ && cur != last && !jumpBack) {
+            // Test autoplay: pick the climb t whose jump the physics will carry onto the next vine.
+            for (float cand = kAutoStartT; cand <= kAutoEndT + 1e-4f && !jumpForward; cand += kAutoStepT) {
+                vine::VineToonState probe = toon_;
+                probe.vineT = cand;
+                vine::attachToVine(probe, cur, course_[cur], angle, cand);
+                if (vine::jumpReaches(probe, course_, gameTime_, cur + 1, true)) {
+                    toon_.vineT = cand;
+                    vine::attachToVine(toon_, cur, course_[cur], angle, cand);
+                    jumpForward = true;
+                }
             }
         }
-
-        if (doJump) {
-            const float omega = (2.0f * 3.14159265f) / 3.0f;
-            const float angVel = 0.785398f * omega * std::cos(omega * toon_.swingTime);
-            vine::jumpFromVine(toon_, angle, angVel);
+        if (jumpForward || jumpBack) {
+            angle = vine::swingAngle(course_[cur], gameTime_);
+            vine::jumpFromVine(toon_, angle, jumpForward, gameTime_);
         }
     } else if (toon_.state == vine::State::Jumping) {
         vine::updateJump(toon_, dt);
 
-        // Check banana pickup between vines
-        const int between = toon_.currentVine;
-        if (between >= 0 && between < vine::kNumVines - 1 && !bananaTaken_[between]) {
-            const float bananaX = between * vine::kVineSpacing + (vine::kVineSpacing * 0.5f);
-            if (std::abs(toon_.posX - bananaX) < 3.0f && std::abs(toon_.posZ - 16.0f) < 5.0f) {
-                bananaTaken_[between] = true;
-                bananas_++;
-                client.sendVineClaimTreasure(between);
-                score_ = vine::calculateScore(bananas_, timeRemaining_, false);
+        if (toon_.posZ < 0.0f) {
+            // handleLocalToonFellDown: back onto the vine we jumped from, near its top.
+            const int back = std::max(0, toon_.lastJumpVine);
+            vine::attachToVine(toon_, back, course_[back], vine::swingAngle(course_[back], gameTime_),
+                               vine::kVineFellDownT);
+        } else {
+            // Banana pickup between vines (the treasure grab sphere).
+            const int between = toon_.lastJumpVine;
+            if (between >= 0 && between < last && !bananaTaken_[between]) {
+                const float bananaX = between * vine::kVineSpacing + kBananaOffsetX;
+                if (std::abs(toon_.posX - bananaX) < kBananaGrabX && std::abs(toon_.posZ - kBananaZ) < kBananaGrabZ) {
+                    bananaTaken_[between] = true;
+                    bananas_++;
+                    client.sendVineClaimTreasure(between);
+                    score_ = vine::calculateScore(bananas_, timeRemaining_, false);
+                }
             }
-        }
 
-        // Check catch next vine
-        if (vine::checkVineCatch(toon_)) {
-            client.sendVineNewVine(client.avatarId(), int8_t(toon_.currentVine), toon_.vineT, 1);
-            if (toon_.state == vine::State::Finished) {
-                client.sendVineReachedEndVine(int8_t(toon_.currentVine));
-                score_ = vine::calculateScore(bananas_, timeRemaining_, true);
-                done_ = true;
+            int caughtVine = 0;
+            float caughtT = 0.0f;
+            if (vine::findCatch(toon_, course_, gameTime_, &caughtVine, &caughtT)) {
+                vine::attachToVine(toon_, caughtVine, course_[caughtVine],
+                                   vine::swingAngle(course_[caughtVine], gameTime_), caughtT);
+                client.sendVineNewVine(client.avatarId(), int8_t(caughtVine), toon_.vineT, toon_.facingRight ? 1 : 0);
+                if (caughtVine == last) {
+                    toon_.state = vine::State::Finished;
+                    client.sendVineReachedEndVine(int8_t(caughtVine));
+                    score_ = vine::calculateScore(bananas_, timeRemaining_, true);
+                    done_ = true;
+                }
             }
         }
     }
@@ -123,19 +176,31 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
 
 void VineGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
-    if (jungleModel_.loaded()) {
+    // The backdrop is fixed at the origin (upstream gameBoard.setPosHpr(0, 0, 0, ...)).
+    if (background_.loaded()) {
         Mtx_Identity(&m);
-        Mtx_Translate(&m, toon_.posX, 0.0f, 0.0f, true);
-        renderer.drawModel(jungleModel_, m);
+        renderer.drawModel(background_, m);
     }
-    if (shelfModel_.loaded()) {
-        for (int i = 0; i < vine::kNumVines; ++i) {
-            const float vx = i * vine::kVineSpacing;
-            if (std::abs(vx - toon_.posX) < 50.0f) {
-                Mtx_Identity(&m);
-                Mtx_Translate(&m, vx, 0.0f, vine::kVineTopZ, true);
-                renderer.drawModel(shelfModel_, m);
-            }
+    if (startShelf_.loaded()) {
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, kStartShelfX, 0.0f, kShelfZ, true);
+        Mtx_Scale(&m, 1.0f, 1.0f, kShelfScaleZ);
+        renderer.drawModel(startShelf_, m);
+    }
+    if (endShelf_.loaded()) {
+        const float endX = (vine::kNumVines - 1) * vine::kVineSpacing + kEndShelfOffset;
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, endX, 0.0f, kShelfZ, true);
+        Mtx_Scale(&m, 1.0f, 1.0f, kShelfScaleZ);
+        renderer.drawModel(endShelf_, m);
+    }
+    if (bananaModel_.loaded()) {
+        for (int i = 0; i < vine::kNumVines - 1; ++i) {
+            if (bananaTaken_[i]) continue;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, i * vine::kVineSpacing + kBananaOffsetX, 0.0f, kBananaZ, true);
+            Mtx_Scale(&m, kBananaScale, kBananaScale, kBananaScale);
+            renderer.drawModel(bananaModel_, m);
         }
     }
 }
@@ -148,18 +213,11 @@ void VineGame::toonPose(float* x, float* y, float* z, float* h) const {
 }
 
 void VineGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    if (target) {
-        target->x = toon_.posX + 4.0f;
-        target->y = 0.0f;
-        target->z = toon_.posZ + 2.0f;
-        target->w = 1.0f;
-    }
-    if (eye) {
-        eye->x = toon_.posX;
-        eye->y = -30.0f;
-        eye->z = toon_.posZ + 4.0f;
-        eye->w = 1.0f;
-    }
+    // The side view follows the toon along the course, between the start and the next vine.
+    const float maxX = (std::min(toon_.currentVine + 1, vine::kNumVines - 1)) * vine::kVineSpacing;
+    const float ex = std::clamp(toon_.posX, 0.0f, maxX);
+    if (eye) *eye = FVec3_New(ex, kCamY, kCamZ);
+    if (target) *target = FVec3_New(ex, kCamY + kCamLookDistance, kCamZ);
 }
 
 } // namespace tt::game

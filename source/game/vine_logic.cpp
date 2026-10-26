@@ -1,87 +1,142 @@
 #include "game/vine_logic.h"
 
-#include <cmath>
+#include "game/vine_tables.h"
+
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 
 namespace tt::game::vine {
 
-float getVineAngle(float swingTime, float period, float maxAngleRad) {
-    if (period <= 0.0f) period = 3.0f;
-    const float omega = (2.0f * 3.14159265f) / period;
-    float val = maxAngleRad * std::sin(omega * swingTime);
-    if (std::abs(val) < 1e-5f) val = 0.0f;
-    return val;
+namespace {
+
+constexpr float kDegToRad = kPi / 180.0f;
+constexpr float kVerticalDeg = -90.0f; // SwingVine: the cable hangs straight down at -90 degrees
+constexpr float kSimStep = 1.0f / 30.0f;   // reach test step
+constexpr float kSimHorizon = 2.0f;        // seconds a jump is checked for a catch
+
+// Squared distance from (px, pz) to the cable segment of a vine.
+float cableDistance(float px, float pz, int vineIndex, const VineSpec& vine, float angleRad) {
+    float bx, bz;
+    cablePoint(vineIndex, vine, angleRad, 1.0f, bx, bz);
+    const float ax = vineIndex * kVineSpacing;
+    const float az = kVineTopZ;
+    const float dx = bx - ax, dz = bz - az;
+    const float len2 = dx * dx + dz * dz;
+    float u = 0.0f;
+    if (len2 > 0.0f) u = std::clamp(((px - ax) * dx + (pz - az) * dz) / len2, 0.0f, 1.0f);
+    const float ex = ax + u * dx - px, ez = az + u * dz - pz;
+    return std::sqrt(ex * ex + ez * ez);
 }
 
-void getVineToonPos(int vineIndex, float vineT, float angleRad, float& outX, float& outZ) {
-    const float pivotX = vineIndex * kVineSpacing;
-    const float pivotZ = kVineTopZ;
-    const float length = vineT * kVineHeight;
-
-    outX = pivotX + length * std::sin(angleRad);
-    outZ = pivotZ - length * std::cos(angleRad);
+// Launch velocity for a jump from a cable point (DistributedVineGame.makeLocalToonJump): the normal
+// of the cable tangent, cross(tangent, +Y), times JumpSpeed * t.
+void launchVelocity(float angleRad, float t, bool forward, float& vx, float& vz, bool& right) {
+    // The tangent from the pivot to the bottom is (cos, sin); cross((tx,0,tz),(0,1,0)) = (-tz, 0, tx).
+    float nx = -std::sin(angleRad), nz = std::cos(angleRad);
+    if (!forward) {
+        nx = -nx;
+        nz = -nz;
+    }
+    const float speed = kJumpSpeed * t;
+    vx = nx * speed;
+    vz = nz * speed;
+    right = nx >= 0.0f;
 }
 
-void jumpFromVine(VineToonState& s, float angleRad, float angularVel) {
+} // namespace
+
+bool buildCourse(const uint8_t* sections, int numSections, VineSpec* out) {
+    int n = 0;
+    for (int i = 0; i < numSections && n < kNumVines; ++i) {
+        const int sec = sections[i];
+        if (sec < 0 || sec >= kNumCourseSections) return false;
+        for (int k = 0; k < kVinesPerSection && n < kNumVines; ++k, ++n) {
+            const CourseVine& v = kCourseSections[sec][k];
+            out[n] = {v.length, v.baseAngle, v.period};
+        }
+    }
+    return n == kNumVines;
+}
+
+float swingAngle(const VineSpec& vine, float gameTime) {
+    // startSwing begins at the minimum angle; each half period eases to the other end.
+    const float period = vine.period > 0.0f ? vine.period : 1.0f;
+    const float deg = kVerticalDeg - vine.baseAngleDeg * std::cos(2.0f * kPi * gameTime / period);
+    return deg * kDegToRad;
+}
+
+void cablePoint(int vineIndex, const VineSpec& vine, float angleRad, float t, float& outX, float& outZ) {
+    const float length = t * vine.length;
+    outX = vineIndex * kVineSpacing + length * std::cos(angleRad);
+    outZ = kVineTopZ + length * std::sin(angleRad);
+}
+
+void attachToVine(VineToonState& s, int vineIndex, const VineSpec& vine, float angleRad, float t) {
+    s.state = State::OnVine;
+    s.currentVine = vineIndex;
+    s.vineT = std::clamp(t, 0.0f, 1.0f);
+    cablePoint(vineIndex, vine, angleRad, s.vineT, s.posX, s.posZ);
+    s.velX = 0.0f;
+    s.velZ = 0.0f;
+}
+
+void jumpFromVine(VineToonState& s, float angleRad, bool forward, float gameTime) {
+    launchVelocity(angleRad, s.vineT, forward, s.velX, s.velZ, s.facingRight);
     s.state = State::Jumping;
-    const float length = s.vineT * kVineHeight;
-    // Tangential speed
-    const float tangSpeed = length * angularVel;
-
-    // Velocity decomposition + jump impulse forward
-    s.velX = tangSpeed * std::cos(angleRad) + 12.0f;
-    s.velZ = -tangSpeed * std::sin(angleRad) + 6.0f;
-    if (s.velX < 4.0f) s.velX = 4.0f;
+    s.lastJumpVine = s.currentVine;
+    s.jumpTime = gameTime;
 }
 
 void updateJump(VineToonState& s, float dt) {
     if (s.state != State::Jumping) return;
-
     s.velZ += kGravity * dt;
     s.posX += s.velX * dt;
     s.posZ += s.velZ * dt;
-
-    // Check fell below jungle floor
-    if (s.posZ < -5.0f) {
-        s.state = State::Falling;
-        // Respawn at current vine
-        s.posZ = 15.0f;
-        s.velX = 0.0f;
-        s.velZ = 0.0f;
-        s.state = State::OnVine;
-        s.swingTime = 0.0f;
-    }
 }
 
-bool checkVineCatch(VineToonState& s) {
+bool findCatch(const VineToonState& s, const VineSpec* course, float gameTime, int* vineOut, float* tOut) {
     if (s.state != State::Jumping) return false;
-
-    // Next vine target
-    const int nextVine = s.currentVine + 1;
-    if (nextVine >= kNumVines) {
-        // Reached end platform
-        if (s.posX >= (kNumVines - 1) * kVineSpacing - 2.0f && s.posZ >= 5.0f) {
-            s.state = State::Finished;
-            s.currentVine = kNumVines - 1;
-            return true;
-        }
-        return false;
-    }
-
-    const float targetX = nextVine * kVineSpacing;
-    // Catch window: within 4.0 units horizontally and height between 4 and 28
-    if (std::abs(s.posX - targetX) < 4.0f && s.posZ >= 4.0f && s.posZ <= 28.0f) {
-        s.currentVine = nextVine;
-        s.state = (nextVine == kNumVines - 1) ? State::Finished : State::OnVine;
-        s.vineT = (kVineTopZ - s.posZ) / kVineHeight;
-        if (s.vineT < 0.2f) s.vineT = 0.2f;
-        else if (s.vineT > 0.85f) s.vineT = 0.85f;
-        s.swingTime = 0.25f; // start with slight swing momentum
-        s.velX = 0.0f;
-        s.velZ = 0.0f;
+    const float reach = kLocalPhysicsRadius + kTubeRadius;
+    for (int j = std::max(0, s.lastJumpVine - 1); j <= std::min(kNumVines - 1, s.lastJumpVine + 1); ++j) {
+        if (j == s.lastJumpVine && gameTime - s.jumpTime < kJumpTimeBuffer) continue;
+        const float angle = swingAngle(course[j], gameTime);
+        if (cableDistance(s.posX, s.posZ, j, course[j], angle) >= reach) continue;
+        // calcTFromTubeHit: the position along the cable, clamped to the cable.
+        const float ax = j * kVineSpacing, az = kVineTopZ;
+        float bx, bz;
+        cablePoint(j, course[j], angle, 1.0f, bx, bz);
+        const float dx = bx - ax, dz = bz - az;
+        const float len2 = dx * dx + dz * dz;
+        const float u = len2 > 0.0f ? ((s.posX - ax) * dx + (s.posZ - az) * dz) / len2 : 0.0f;
+        if (vineOut) *vineOut = j;
+        if (tOut) *tOut = std::clamp(u, 0.0f, 1.0f);
         return true;
     }
+    return false;
+}
 
+bool jumpReaches(const VineToonState& start, const VineSpec* course, float gameTime, int targetVine, bool forward) {
+    if (targetVine < 0 || targetVine >= kNumVines) return false;
+    const int held = start.currentVine;
+    if (std::abs(targetVine - held) != 1) return false;
+    const float angle = swingAngle(course[held], gameTime);
+    float px, pz;
+    cablePoint(held, course[held], angle, start.vineT, px, pz);
+    VineToonState sim = start;
+    sim.posX = px;
+    sim.posZ = pz;
+    sim.state = State::Jumping;
+    sim.lastJumpVine = held;
+    sim.jumpTime = gameTime;
+    launchVelocity(angle, start.vineT, forward, sim.velX, sim.velZ, sim.facingRight);
+    const float reach = kLocalPhysicsRadius + kTubeRadius;
+    for (float tau = kSimStep; tau <= kSimHorizon; tau += kSimStep) {
+        updateJump(sim, kSimStep);
+        if (sim.posZ < 0.0f) return false;
+        const float targetAngle = swingAngle(course[targetVine], gameTime + tau);
+        if (cableDistance(sim.posX, sim.posZ, targetVine, course[targetVine], targetAngle) < reach) return true;
+    }
     return false;
 }
 

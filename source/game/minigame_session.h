@@ -95,10 +95,11 @@ public:
     bool active() const { return phase_ != Phase::Off; }
     // A minigame stage is shown instead of the playground (from the rules until cleanup).
     bool inScene() const {
+        // Purchase and Leaving keep the game's last scene (the purchase panel is on the bottom screen).
         return (isCatch_ || isCannon_ || isTug_ || isRing_ || isMaze_ || isPairing_ || isDiving_ || isVine_ ||
                 isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isPattern_ || isIce_ || isRace_ || isPhoto_) &&
                (phase_ == Phase::Rules || phase_ == Phase::WaitStart || phase_ == Phase::Play ||
-                phase_ == Phase::Done);
+                phase_ == Phase::Done || phase_ == Phase::Purchase || phase_ == Phase::Leaving);
     }
     void handleEvent(const net::Event& ev, net::Client& client, u32 nowMs);
     // pad: circle pad, moves the toon on the stage (OrthoWalk: screen up = +y).

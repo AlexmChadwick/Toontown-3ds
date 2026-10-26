@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <citro3d.h>
 
+#include "game/minigame_cog.h"
 #include "game/tug_logic.h"
 #include "net/client.h"
 #include "render/model.h"
@@ -30,6 +31,8 @@ public:
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const { return state_ == State::Tugging; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
+    // The opponent Cog (toon vs Cog): DistributedTugOfWarGame.createSuits, drawn through world::Suits.
+    int cogs(MinigameCog* out, int max) const;
 
     const char* line(int i) const { return (i >= 0 && i < 3) ? lines_[i] : ""; }
     bool isDone() const { return done_; }
@@ -52,7 +55,12 @@ private:
     float toonOffset_ = 0.0f;
     float suitOffset_ = 0.0f;
     bool won_ = false;
+    float toonBaseX_ = tuggame::kLeftDockX;  // this toon's dock slot
+    float cogBaseX_ = tuggame::kRightDockX;  // the Cog's dock slot
+    float toonX_[net::kMinigamePlayers] = {}; // every toon's dock x plus its server offset (ropes)
+    int suitLevel_ = 1;                       // sendGameType suit: the Cog head code
 
+    render::Model sky_;
     render::Model dock_;
     render::Model rope_;
 

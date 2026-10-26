@@ -10,10 +10,41 @@ constexpr int kWinBeans = 15;
 constexpr int kLossBeans = 4;
 
 constexpr float kDockY = 18.0f;
-constexpr float kLeftDockX = -6.0f;  // solo toon base X
-constexpr float kRightDockX = 6.0f;  // solo cog base X
+constexpr float kLeftDockX = -6.0f;  // solo toon base X (dock index 2)
+constexpr float kRightDockX = 6.0f;  // solo cog base X (dock index 7)
 constexpr float kWaterMinX = -2.0f;
 constexpr float kWaterMaxX = 2.0f;
+
+// DistributedTugOfWarGame.calculatePositions: dockPositions k<5 at -9.0+1.5k and k>=5 at 3+1.5(k-5),
+// all at y = kDockY (the dock's water is under them). Toon-vs-Cog toons sit at the listed indices
+// and the Cog at index 7 (6 with four toons); toons face hpr 240, the Cog hpr 120 (createSuits).
+constexpr int kNumDockSlots = 10;
+constexpr float kToonHeading = 240.0f;
+constexpr float kCogHeading = 120.0f;
+inline float dockX(int k) {
+    return k < 5 ? -9.0f + 1.5f * k : 3.0f + 1.5f * (k - 5);
+}
+// Index of the toon at arrangement slot 'slot' in a toon-vs-cog game with 'numPlayers' toons.
+inline int toonDockIndex(int numPlayers, int slot) {
+    static constexpr int kLayout[5][4] = {{0, 0, 0, 0}, {2, 0, 0, 0}, {1, 2, 0, 0}, {0, 1, 2, 0}, {0, 1, 2, 3}};
+    if (numPlayers < 1 || numPlayers > 4) return 2;
+    if (slot < 0) slot = 0;
+    if (slot >= numPlayers) slot = numPlayers - 1;
+    return kLayout[numPlayers][slot];
+}
+inline int suitDockIndex(int numPlayers) {
+    return numPlayers == 4 ? 6 : 7;
+}
+// DistributedTugOfWarGame.sendGameType: suit level 1..4 is the Cog head code (default Flunky 'f').
+inline const char* suitCode(int suitLevel) {
+    switch (suitLevel) {
+    case 1: return "pp";
+    case 2: return "dt";
+    case 3: return "gh";
+    case 4: return "cr";
+    default: return "f";
+    }
+}
 
 struct TargetRate {
     float duration;

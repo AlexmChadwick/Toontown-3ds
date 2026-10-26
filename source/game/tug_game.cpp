@@ -9,10 +9,35 @@ namespace tt::game {
 
 namespace {
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
+
+// DistributedTugOfWarGame.load / onstage: the dock room at (0, 18.39, -FloorOffset), scale 0.4.
+constexpr float kRoomY = 18.39f;
+constexpr float kFloorOffset = 0.025f; // ToontownGlobals.FloorOffset
+constexpr float kRoomScale = 0.4f;
+// onstage: sky.setZ(-5); TT_sky is baked at scale 2.8 for the cannon game, so undo that.
+constexpr float kSkyZ = -5.0f;
+constexpr float kSkyBakedScale = 2.8f;
+// The toons stand on the dock at z 0.1 (dockPositions); the Cog too (origSuitPosHpr).
+constexpr float kDockZ = 0.1f;
+// The rope runs from the right hand (about 0.5 in front of the toon) to the opponent's hand, at
+// hand height. The upstream Rope is a 0.2-thick billboard (rope.ropeNode.setThickness(0.2)).
+constexpr float kHandReach = 0.5f;
+constexpr float kRopeZ = 2.0f;
+constexpr float kRopeThickness = 0.2f;
+// initCamera: the game camera at (0, 1.0838, 2.745) with hpr (-1.13, 1.042, 0).
+constexpr float kCamX = 0.0f;
+constexpr float kCamY = 1.0838f;
+constexpr float kCamZ = 2.745f;
+constexpr float kCamHeadingDeg = -1.13f;
+constexpr float kCamPitchDeg = 1.042f;
+constexpr float kCamLookDistance = 20.0f; // the target only sets the view direction
+constexpr float kDegToRad = 3.14159265f / 180.0f;
 } // namespace
 
 void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     char path[128];
+    snprintf(path, sizeof(path), "%sminigame_sky.ttm", kDir);
+    assetBatch_.load(sky_, path);
     snprintf(path, sizeof(path), "%stug_dock.ttm", kDir);
     assetBatch_.load(dock_, path);
     snprintf(path, sizeof(path), "%stug_rope.ttm", kDir);
@@ -22,11 +47,19 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     slot_ = 0;
     numPlayers_ = mg ? mg->numParticipants : 1;
     if (numPlayers_ < 1) numPlayers_ = 1;
+    if (numPlayers_ > net::kMinigamePlayers) numPlayers_ = net::kMinigamePlayers;
     if (mg) {
         for (int i = 0; i < numPlayers_; ++i) {
             if (mg->participants[i] == client.avatarId()) slot_ = i;
         }
+        suitLevel_ = mg->tugSuitType;
     }
+    // calculatePositions (toon vs Cog): every toon's dock slot, and the Cog's.
+    for (int i = 0; i < net::kMinigamePlayers; ++i) {
+        toonX_[i] = i < numPlayers_ ? tuggame::dockX(tuggame::toonDockIndex(numPlayers_, i)) : 0.0f;
+    }
+    toonBaseX_ = tuggame::dockX(tuggame::toonDockIndex(numPlayers_, slot_));
+    cogBaseX_ = tuggame::dockX(tuggame::suitDockIndex(numPlayers_));
 
     state_ = State::WaitGo;
     done_ = false;
@@ -50,6 +83,7 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 void TugGame::shutdown() {
     assetBatch_.clear();
     C3D_FrameSync();
+    sky_.unload();
     dock_.unload();
     rope_.unload();
 }
@@ -113,6 +147,9 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
         if (mg) {
             toonOffset_ = mg->tugOffsets[slot_];
             suitOffset_ = mg->tugSuitOffset;
+            for (int i = 0; i < numPlayers_; ++i) {
+                toonX_[i] = tuggame::dockX(tuggame::toonDockIndex(numPlayers_, i)) + mg->tugOffsets[i];
+            }
 
             if (mg->tugStopped) {
                 state_ = State::ContestOver;
@@ -120,8 +157,8 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
             }
         }
 
-        const float toonX = tuggame::kLeftDockX + toonOffset_;
-        const float cogX = tuggame::kRightDockX + suitOffset_;
+        const float toonX = toonBaseX_ + toonOffset_;
+        const float cogX = cogBaseX_ + suitOffset_;
 
         // Check falling into water/mud
         if (tuggame::checkToonFallen(toonX)) {
@@ -139,7 +176,7 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
         } else if (elapsedSec >= tuggame::kGameDuration) {
             state_ = State::ContestOver;
             done_ = true;
-            won_ = (toonX - tuggame::kLeftDockX) < (cogX - tuggame::kRightDockX);
+            won_ = (toonX - toonBaseX_) < (cogX - cogBaseX_);
         }
 
         snprintf(lines_[0], sizeof(lines_[0]), "Pull! Alternate Left / Right");
@@ -160,37 +197,66 @@ void TugGame::update(net::Client& client, const circlePosition& pad, u32 kDown, 
 }
 
 void TugGame::toonPose(float* x, float* y, float* z, float* h) const {
-    *x = tuggame::kLeftDockX + toonOffset_;
+    *x = toonBaseX_ + toonOffset_;
     *y = tuggame::kDockY;
-    *z = 0.1f;
-    *h = 240.0f; // facing right towards cog
+    *z = kDockZ;
+    *h = tuggame::kToonHeading; // facing right towards cog
 }
 
 void TugGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    *eye = FVec3_New(0.0f, 2.0f, 6.0f);
-    *target = FVec3_New(0.0f, tuggame::kDockY, 2.0f);
+    // Heading/pitch to a forward vector (Panda: heading 0 looks along +y, pitch up is positive).
+    const float h = kCamHeadingDeg * kDegToRad, p = kCamPitchDeg * kDegToRad;
+    const float fx = -sinf(h) * cosf(p), fy = cosf(h) * cosf(p), fz = sinf(p);
+    *eye = FVec3_New(kCamX, kCamY, kCamZ);
+    *target = FVec3_New(kCamX + fx * kCamLookDistance, kCamY + fy * kCamLookDistance, kCamZ + fz * kCamLookDistance);
+}
+
+int TugGame::cogs(MinigameCog* out, int max) const {
+    if (max < 1) return 0;
+    // createSuits: the Cog's dock slot, hpr 120, pulled by the server's suit offset.
+    MinigameCog& c = out[0];
+    c.x = cogBaseX_ + suitOffset_;
+    c.y = tuggame::kDockY;
+    c.z = kDockZ;
+    c.h = tuggame::kCogHeading;
+    std::snprintf(c.code, sizeof(c.code), "%s", tuggame::suitCode(suitLevel_));
+    c.walking = false; // the tug-o-war pose is not in the Suits animation set; it holds neutral
+    return 1;
 }
 
 void TugGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     Mtx_Identity(&m);
 
-    // Dock
+    // The sky dome (TT_sky) at z -5, then the dock room with its water.
+    if (sky_.loaded()) {
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, 0.0f, 0.0f, kSkyZ, true);
+        Mtx_Scale(&m, 1.0f / kSkyBakedScale, 1.0f / kSkyBakedScale, 1.0f / kSkyBakedScale);
+        renderer.drawModel(sky_, m);
+    }
     if (dock_.loaded()) {
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, 0.0f, kRoomY, -kFloorOffset, true);
+        Mtx_Scale(&m, kRoomScale, kRoomScale, kRoomScale);
         renderer.drawModel(dock_, m);
     }
 
-    // Rope stretched between toon and cog
+    // One rope per toon, from its hand to the Cog's hand (numRopes = numPlayers for toon vs Cog).
     if (rope_.loaded()) {
-        const float toonX = tuggame::kLeftDockX + toonOffset_;
-        const float cogX = tuggame::kRightDockX + suitOffset_;
-        const float midX = (toonX + cogX) * 0.5f;
-        const float len = std::abs(cogX - toonX);
+        const float cogX = cogBaseX_ + suitOffset_;
+        for (int i = 0; i < numPlayers_; ++i) {
+            const float fromX = toonX_[i] + kHandReach;
+            const float toX = cogX - kHandReach;
+            const float midX = (fromX + toX) * 0.5f;
+            const float len = std::abs(toX - fromX);
+            if (len <= 0.0f) continue;
 
-        Mtx_Identity(&m);
-        Mtx_Translate(&m, midX, tuggame::kDockY, 1.2f, true);
-        Mtx_Scale(&m, len, 1.0f, 1.0f);
-        renderer.drawModel(rope_, m);
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, midX, tuggame::kDockY, kRopeZ, true);
+            Mtx_Scale(&m, len, 1.0f, kRopeThickness);
+            renderer.drawModel(rope_, m);
+        }
     }
 }
 

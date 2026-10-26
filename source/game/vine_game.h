@@ -35,9 +35,10 @@ private:
     world::BasicAssetBatch<8> assetBatch_;
     bool done_ = false;
     bool autoPlay_ = false;
-    uint32_t startMs_ = 0;
+    float gameTime_ = 0.0f; // seconds since the game started: the swings run on it
     float timeRemaining_ = vine::kGameDuration;
 
+    vine::VineSpec course_[vine::kNumVines] = {};
     vine::VineToonState toon_;
     bool bananaTaken_[vine::kNumVines - 1] = {};
     int bananas_ = 0;
@@ -45,8 +46,10 @@ private:
 
     char lines_[3][48] = {};
 
-    render::Model jungleModel_;
-    render::Model shelfModel_;
+    render::Model background_; // vine_game '**/background': the backdrop at y 15.5
+    render::Model bananaModel_; // vine_game '**/bananas'
+    render::Model startShelf_; // vine_game_shelf '**/start1'
+    render::Model endShelf_;   // vine_game_shelf '**/end1'
 };
 
 } // namespace tt::game
