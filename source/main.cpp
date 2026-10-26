@@ -1750,6 +1750,18 @@ int main() {
         // ---- tutorial ----
         // enterTutorial can arrive while the front end still owns the event queue, so the world
         // loads Tutorial Tom's interior (or whichever tutorial place the server has us in) here.
+        if (netStarted && net.tutorialZones().active()) {
+            static u32 tutorialDiagMs = 0;
+            const u32 diagNow = tt::net::plat::nowMs();
+            if (diagNow - tutorialDiagMs > 2000 &&
+                place.zoneId() != net.tutorialZones().toCanonical(net.zoneId())) {
+                tutorialDiagMs = diagNow;
+                TT_LOG("tutorial: place %lu, server zone %lu -> %lu, in zone %d, transition idle %d",
+                       static_cast<unsigned long>(place.zoneId()), static_cast<unsigned long>(net.zoneId()),
+                       static_cast<unsigned long>(net.tutorialZones().toCanonical(net.zoneId())),
+                       net.inZone() ? 1 : 0, transition.idle() ? 1 : 0);
+            }
+        }
         if (netStarted && net.inZone() && net.tutorialZones().active() && transition.idle()) {
             const u32 canonical = net.tutorialZones().toCanonical(net.zoneId());
             if (tt::world::TutorialZones::isTutorialPlace(canonical) && place.zoneId() != canonical)
