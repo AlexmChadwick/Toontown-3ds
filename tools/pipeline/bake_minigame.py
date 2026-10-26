@@ -45,6 +45,8 @@ MODELS = {
     'cannon_hill': (MG + 'cannon_hill', None, (0, 0, 0), 1.0, (0, -127.67, 0)),
     'cannon_base': (MG + 'toon_cannon', '**/cannon_base', (0, 0, 0), 1.0, (0, 0, 0)),
     'cannon_barrel': (MG + 'toon_cannon', '**/cannon', (0, 0, 0), 1.0, (0, 0, -1.89703)),
+    # DistributedCannonGame and DistributedTagGame parent TT_sky to render.
+    'minigame_sky': ('phase_3.5/models/props/TT_sky', None, (0, 0, 0), 2.8, (0, 0, 0)),
 
     # Tug of War
     'tug_dock': (MG + 'tug_of_war_dock', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -278,7 +280,8 @@ def main():
     if args.only != 'audio':
         base = ShowBase()
         for name, spec in MODELS.items():
-            if args.only and not (name.startswith(args.only) or args.only == 'pairing' and name == 'memory_room'):
+            needs_sky = args.only == 'cannon' and name == 'minigame_sky'
+            if args.only and not (name.startswith(args.only) or needs_sky or args.only == 'pairing' and name == 'memory_room'):
                 continue
             stats = bake_model(base, args.resources, name, spec, args.out, args.max_tex)
             report['models'].append(stats)

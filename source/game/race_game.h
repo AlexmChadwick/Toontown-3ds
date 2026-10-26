@@ -31,6 +31,7 @@ public:
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool isDone() const { return sim_.isDone; }
     int score() const { return sim_.scores[0]; }
+    bool toonRunning() const { return moveTime_ < moveDuration_; }
 
     const char* title() const { return "Race Game"; }
     const char* line(int i) const;
@@ -44,6 +45,11 @@ private:
     int selectedChoice_ = 1;
     bool choiceSubmitted_ = false;
     float timer_ = 0.0f;
+    int displayedPosition_ = 0;
+    int moveStartPosition_ = 0;
+    int moveEndPosition_ = 0;
+    float moveTime_ = 0.0f;
+    float moveDuration_ = 0.0f;
 
     render::Model trackModel_;
 

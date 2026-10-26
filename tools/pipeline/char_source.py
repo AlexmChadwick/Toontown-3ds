@@ -6,6 +6,12 @@ from types import SimpleNamespace
 ROOT = Path(__file__).resolve().parents[2]
 UPSTREAM = ROOT / 'ref/open-toontown'
 RESOURCES = ROOT / 'ref/resources'
+# Linked worktrees keep the pinned upstream repositories under ref/ref.  Keep
+# this data-only reader usable from both the primary checkout and worktrees.
+if not (UPSTREAM / 'toontown/char/CharDNA.py').is_file():
+    UPSTREAM = ROOT / 'ref/ref/open-toontown'
+if not (RESOURCES / 'phase_3').is_dir():
+    RESOURCES = ROOT / 'ref/ref/resources'
 def _names():
     tree = ast.parse((UPSTREAM / 'toontown/char/CharDNA.py').read_text())
     codes = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)

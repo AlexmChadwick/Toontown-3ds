@@ -20,7 +20,7 @@ public:
     void shutdown();
 
     bool active() const { return active_; }
-    void open(const net::Client& client, uint32_t beansWon, uint32_t nowMs);
+    void open(const net::Client& client, uint32_t beansWon, uint32_t deadlineMs, uint32_t nowMs);
     void close();
 
     void update(net::Client& client, uint32_t nowMs);

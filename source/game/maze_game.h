@@ -55,6 +55,7 @@ private:
 
     render::Model mazeModel_;
     render::Model treasureModel_;
+    render::Model suitModel_;
 };
 
 } // namespace tt::game

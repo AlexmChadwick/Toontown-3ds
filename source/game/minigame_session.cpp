@@ -223,6 +223,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isTag_) {
             tag_.init(kDir, mg->tagItAvId ? mg->tagItAvId : client.avatarId());
+            tag_.setAutoPlay(autoPlay_);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isPattern_) {
@@ -292,7 +293,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         purchasePanel_.init();
-        purchasePanel_.open(client, earnedBeans, nowMs);
+        const uint32_t deadlineMs = p && p->deadlineMs ? p->deadlineMs : nowMs + net::kPurchaseCountdownMs;
+        purchasePanel_.open(client, earnedBeans, deadlineMs, nowMs);
         break;
     }
 
@@ -732,6 +734,7 @@ bool MinigameSession::toonRunning() const {
     if (isPairing_) return pairing_.toonRunning();
     if (isDiving_) return diving_.toonRunning();
     if (isVine_) return vine_.toonRunning();
+    if (isRace_) return race_.toonRunning();
     return speed_ > 0.5f;
 }
 

@@ -24,6 +24,8 @@ void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(cannonBase_, path);
     snprintf(path, sizeof(path), "%scannon_barrel.ttm", kDir);
     assetBatch_.load(cannonBarrel_, path);
+    snprintf(path, sizeof(path), "%sminigame_sky.ttm", kDir);
+    assetBatch_.load(sky_, path);
 
     const net::Minigame* mg = client.minigame();
     slot_ = 0;
@@ -83,6 +85,7 @@ void CannonGame::shutdown() {
     tower_.unload();
     cannonBase_.unload();
     cannonBarrel_.unload();
+    sky_.unload();
 }
 
 void CannonGame::update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs) {
@@ -253,6 +256,8 @@ void CannonGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
 void CannonGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     Mtx_Identity(&m);
+
+    if (sky_.loaded()) renderer.drawModel(sky_, m);
 
     // Ground
     if (ground_.loaded()) renderer.drawModel(ground_, m);

@@ -10,6 +10,11 @@ bool RaceGame::init(const char* root) {
     selectedChoice_ = 1;
     choiceSubmitted_ = false;
     timer_ = 0.0f;
+    displayedPosition_ = 0;
+    moveStartPosition_ = 0;
+    moveEndPosition_ = 0;
+    moveTime_ = 0.0f;
+    moveDuration_ = 0.0f;
 
     char path[256];
     std::snprintf(path, sizeof(path), "%s/race_track.ttm", root);
@@ -32,17 +37,25 @@ void RaceGame::onSetChancePositions(const uint8_t* positions, int count) {
 void RaceGame::onSetServerChoices(const uint8_t* choices, const uint8_t* positions, const int16_t* rewards, int count) {
     (void)choices;
     (void)rewards;
+    const int oldPosition = sim_.positions[0];
     for (int i = 0; i < count && i < 4; ++i) {
         sim_.positions[i] = positions[i] > racegame::kNumberToWin ? racegame::kNumberToWin : positions[i];
         if (sim_.positions[i] == racegame::kNumberToWin) sim_.isDone = true;
     }
+    moveStartPosition_ = oldPosition;
+    moveEndPosition_ = sim_.positions[0];
+    moveTime_ = 0.0f;
+    const int spaces = std::abs(moveEndPosition_ - moveStartPosition_);
+    moveDuration_ = spaces > 4 ? float(spaces) / 4.0f : float(spaces) / 1.2f;
+    displayedPosition_ = moveEndPosition_;
     choiceSubmitted_ = false;
 }
 
 void RaceGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
     (void)pad;
-    (void)dt;
     (void)nowMs;
+
+    if (moveTime_ < moveDuration_) moveTime_ += dt;
 
     if (sim_.isDone) return;
 
@@ -67,31 +80,41 @@ void RaceGame::draw(render::Renderer& renderer) {
     if (trackModel_.loaded()) {
         C3D_Mtx world;
         Mtx_Identity(&world);
+        // DistributedRaceGame.load scales the board to 0.8.  Omitting this
+        // made the board sit outside the upstream camera framing.
+        Mtx_Scale(&world, 0.8f, 0.8f, 0.8f);
         renderer.drawModel(trackModel_, world);
     }
 }
 
 void RaceGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    float x = (float)sim_.positions[0] * 5.0f;
+    const float position = moveDuration_ > 0.0f ?
+        moveStartPosition_ + (moveEndPosition_ - moveStartPosition_) * (moveTime_ / moveDuration_ > 1.0f ? 1.0f : moveTime_ / moveDuration_) :
+        displayedPosition_;
+    const float y = -2.9f * position;
     if (eye) {
-        eye->x = x;
-        eye->y = -25.0f;
-        eye->z = 15.0f;
+        eye->x = -18.0f;
+        eye->y = y - 17.0f;
+        eye->z = 20.0f;
         eye->w = 1.0f;
     }
     if (target) {
-        target->x = x;
-        target->y = 0.0f;
-        target->z = 2.0f;
+        target->x = -2.0f;
+        target->y = y - 4.0f;
+        target->z = 0.0f;
         target->w = 1.0f;
     }
 }
 
 void RaceGame::toonPose(float* x, float* y, float* z, float* h) const {
-    if (x) *x = (float)sim_.positions[0] * 5.0f;
-    if (y) *y = 0.0f;
-    if (z) *z = 0.0f;
-    if (h) *h = 90.0f;
+    const float t = moveDuration_ > 0.0f ? (moveTime_ / moveDuration_ > 1.0f ? 1.0f : moveTime_ / moveDuration_) : 1.0f;
+    const float position = moveStartPosition_ + (moveEndPosition_ - moveStartPosition_) * t;
+    // Lane 0 of DistributedRaceGame.posHprArray, approximated along its
+    // authored curved lane. The board's 0.8 scale is applied below too.
+    if (x) *x = (-9.03f + 0.14f * position * position) * 0.8f;
+    if (y) *y = (-2.9f * position) * 0.8f;
+    if (z) *z = 0.025f;
+    if (h) *h = 180.0f - 2.0f * position;
 }
 
 const char* RaceGame::line(int i) const {

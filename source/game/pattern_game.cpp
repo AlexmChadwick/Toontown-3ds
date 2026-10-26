@@ -16,6 +16,7 @@ bool PatternGame::init(const char* root) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/pattern_stage.ttm", root);
     assetBatch_.load(stageModel_, path);
+    assetBatch_.load(minnieModel_, "sdmc:/3ds/toontown3ds/data/chars/minnie_800.ttm");
 
     return true;
 }
@@ -23,6 +24,7 @@ bool PatternGame::init(const char* root) {
 void PatternGame::shutdown() {
     assetBatch_.clear();
     stageModel_.unload();
+    minnieModel_.unload();
 }
 
 void PatternGame::onSetPattern(const uint8_t* pattern, int len) {
@@ -86,21 +88,31 @@ void PatternGame::draw(render::Renderer& renderer) {
     if (stageModel_.loaded()) {
         C3D_Mtx world;
         Mtx_Identity(&world);
+        // DistributedPatternGame.onstage offsets matching_room by 18.39.
+        Mtx_Translate(&world, 0.0f, 18.39f, 0.0f, true);
         renderer.drawModel(stageModel_, world);
+    }
+    if (minnieModel_.loaded()) {
+        C3D_Mtx world;
+        Mtx_Identity(&world);
+        // DistributedPatternGame.setToonRefs puts Minnie at (-1.6, 20, 0).
+        Mtx_Translate(&world, -1.6f, 20.0f, 0.0f, true);
+        Mtx_RotateZ(&world, 180.0f * 0.0174532925f, true);
+        renderer.drawModel(minnieModel_, world);
     }
 }
 
 void PatternGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     if (eye) {
         eye->x = 0.0f;
-        eye->y = -22.0f;
-        eye->z = 6.0f;
+        eye->y = -8.0f;
+        eye->z = 8.0f;
         eye->w = 1.0f;
     }
     if (target) {
         target->x = 0.0f;
-        target->y = 0.0f;
-        target->z = 4.0f;
+        target->y = 18.0f;
+        target->z = 3.0f;
         target->w = 1.0f;
     }
 }

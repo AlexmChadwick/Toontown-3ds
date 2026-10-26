@@ -4088,6 +4088,17 @@ bool Client::applyPurchaseField(Purchase& p, DatagramReader& r, uint16_t fieldId
     } else if (fieldId == P::k_setPlayerStates) {
         for (int i = 0; i < kMinigamePlayers; ++i) p.playerStates[i] = r.u8();
         if (announce && r.ok()) pushEvent(EventType::PurchaseStates, p.doId);
+    } else if (fieldId == P::k_setCountdown) {
+        const int16_t timestamp = r.i16();
+        uint32_t startMs = now_;
+        if (timeSynced_) {
+            const uint32_t translated = networkToLocal(timestamp, now_);
+            if (int32_t(now_ - translated) >= 0) startMs = translated;
+        }
+        p.deadlineMs = startMs + kPurchaseCountdownMs;
+        if (int32_t(p.deadlineMs - now_) > int32_t(kPurchaseCountdownMs)) {
+            p.deadlineMs = now_ + kPurchaseCountdownMs;
+        }
     } else if (fieldId == P::k_setPurchaseExit) {
         p.exitMsg = true;
         if (announce) pushEvent(EventType::PurchaseExit, p.doId);

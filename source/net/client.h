@@ -615,6 +615,7 @@ constexpr uint8_t kPurchaseMovieStart = 1;
 constexpr uint8_t kPurchaseMovieComplete = 2;
 constexpr uint8_t kPurchaseMovieNoMoney = 3;
 constexpr uint8_t kPurchaseMovieTimeout = 8;
+constexpr uint32_t kPurchaseCountdownMs = 120000; // PurchaseManagerConstants.PURCHASE_COUNTDOWN_TIME
 constexpr uint32_t kClerkCountdownMs = 120000; // NPCToons.CLERK_COUNTDOWN_TIME
 // Latest setMovie of the clerk we are dealing with (only movies about us or CLEAR are kept).
 struct ShopMovie {
@@ -988,6 +989,7 @@ struct Purchase {
     uint8_t minigamePoints[kMinigamePlayers];
     uint8_t playerMoney[kMinigamePlayers]; // before the payout
     uint8_t playerStates[kMinigamePlayers];
+    uint32_t deadlineMs; // local deadline reconstructed from PurchaseManager.setCountdown
     bool exitMsg;
     bool active;
 };

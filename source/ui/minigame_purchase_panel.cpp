@@ -80,7 +80,7 @@ void MinigamePurchasePanel::setNote(const char* msg, uint32_t nowMs) {
     dirty_ = true;
 }
 
-void MinigamePurchasePanel::open(const net::Client& client, uint32_t beansWon, uint32_t nowMs) {
+void MinigamePurchasePanel::open(const net::Client& client, uint32_t beansWon, uint32_t deadlineMs, uint32_t nowMs) {
     const net::OwnStats& st = client.ownStats();
     for (int t = 0; t < gags::kTracks; t++) {
         profile_.experience[t] = st.experience[t];
@@ -90,7 +90,10 @@ void MinigamePurchasePanel::open(const net::Client& client, uint32_t beansWon, u
     cart_.reset(st.inventory, st.money);
 
     beansWon_ = beansWon;
-    deadlineMs_ = nowMs + 120000;
+    // PurchaseManager.setCountdown is a network timestamp.  The client reconstructs
+    // this local deadline when it decodes the required field; do not restart the
+    // upstream PurchaseManagerConstants.PURCHASE_COUNTDOWN_TIME window on generate.
+    deadlineMs_ = deadlineMs;
     nowMs_ = nowMs;
     pendingSend_ = 0;
     done_ = false;

@@ -50,6 +50,7 @@ private:
     bool patternSubmitted_ = false;
 
     render::Model stageModel_;
+    render::Model minnieModel_;
 
     mutable char lines_[3][64] = {};
 };

@@ -61,6 +61,7 @@ private:
     render::Model tower_;
     render::Model cannonBase_;
     render::Model cannonBarrel_;
+    render::Model sky_;
 
     char lines_[3][64] = {};
 };

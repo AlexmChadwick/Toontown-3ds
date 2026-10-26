@@ -35,6 +35,9 @@ void MazeGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(mazeModel_, path);
     std::snprintf(path, sizeof(path), "%smaze_treasure.ttm", kDir);
     assetBatch_.load(treasureModel_, path);
+    // Four MazeSuit actors are active in a solo maze
+    // (DistributedMazeGame.__loadSuits). Reuse the bounded Cog stand-in.
+    assetBatch_.load(suitModel_, "romfs:/baked/suit_placeholder.ttm");
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0 / %d", maze::kNumTreasures);
     std::snprintf(lines_[1], sizeof(lines_[1]), "Time: 60 s");
@@ -45,6 +48,7 @@ void MazeGame::shutdown() {
     assetBatch_.clear();
     mazeModel_.unload();
     treasureModel_.unload();
+    suitModel_.unload();
     done_ = true;
 }
 
@@ -179,6 +183,14 @@ void MazeGame::draw(render::Renderer& renderer) {
                     renderer.drawModel(treasureModel_, m);
                 }
             }
+        }
+    }
+    if (suitModel_.loaded()) {
+        for (int i = 0; i < maze::kNumSuits; ++i) {
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, suits_[i].x, suits_[i].y, 0.0f, true);
+            Mtx_RotateZ(&m, suits_[i].heading * 0.0174532925f, true);
+            renderer.drawModel(suitModel_, m);
         }
     }
 }
