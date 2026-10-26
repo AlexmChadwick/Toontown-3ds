@@ -14,7 +14,17 @@ HOODS = {
 ZONES = tuple(sorted(z for hood,(_,_,_,streets) in HOODS.items() for z in (hood,*streets)))
 
 
+# The Toontorial street (docs/design/tutorial.md section 4). Not in ZONES: it is baked on its own
+# (bake_street.py --zone 20000). PlayGame.loadDnaStoreTutorial loads only these two storage files
+# (TutorialHood has no storage file and TutorialTownLoader.createHood passes loadStorage=0).
+TUTORIAL_BRANCH = 20000
+TUTORIAL_STORAGE = ['phase_3.5/dna/storage_tutorial.dna', 'phase_3.5/dna/storage_interior.dna']
+TUTORIAL_DNA = 'phase_3.5/dna/tutorial_street.dna'
+
+
 def paths(zone):
+    if zone == TUTORIAL_BRANCH:
+        return False, list(TUTORIAL_STORAGE), TUTORIAL_DNA
     hood=zone-zone%1000
     code,phase,name,streets=HOODS[hood]
     playground=zone==hood

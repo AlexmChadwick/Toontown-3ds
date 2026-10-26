@@ -49,6 +49,8 @@ def bake(zone_id, args, base):
     import street_catalog
     import street_lod
     resources = Path(args.resources)
+    if not (resources / 'phase_4/dna/storage.dna').exists():
+        resources = ROOT / 'ref/ref/resources'
     store = dna.Storage(base.loader, str(resources))
     playground,storages,src=street_catalog.paths(zone_id)
     for s in storages:

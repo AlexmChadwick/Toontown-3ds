@@ -7,6 +7,9 @@
 #include <sys/stat.h>
 
 #include "core/log.h"
+// ---- tutorial ----
+#include "world/tutorial_zones.h"
+// ---- end tutorial ----
 
 namespace tt::world {
 
@@ -45,6 +48,11 @@ bool exists(const char* path) {
 } // namespace
 
 PlaceKind placeKind(u32 zoneId) {
+    // ---- tutorial ----
+    // The Toontorial street (world/tutorial_zones.h): branch 20000 and its one visgroup 20001 are
+    // a street, baked as zones/20000.tz like any other branch.
+    if (zoneId == kTutorialBranch || zoneId == kTutorialStreet) return PlaceKind::Street;
+    // ---- end tutorial ----
     // Cog HQ courtyards and lobbies (10000-13999) are standalone zones, one file each.
     if (zoneId >= 10000 && zoneId < 14000) return PlaceKind::Playground;
     const u32 local = zoneId % 1000;
@@ -53,7 +61,14 @@ PlaceKind placeKind(u32 zoneId) {
     return PlaceKind::Street;
 }
 
-u32 hoodOf(u32 zoneId) { return zoneId - zoneId % 1000; }
+u32 hoodOf(u32 zoneId) {
+    // ---- tutorial ----
+    // TutorialHood is Toontown Central's town: TutorialTownLoader extends TTTownLoader (TC_SZ town
+    // music, TC_SZ_activity indoors, the TT sky), so its places play and show as TTC's.
+    if (TutorialZones::isTutorialPlace(zoneId)) return kToontownCentral;
+    // ---- end tutorial ----
+    return zoneId - zoneId % 1000;
+}
 
 bool Place::resolve(u32 zoneId, const char* ext, char* out, size_t outSize) const {
     if (zoneId == kTtcPlayground) {

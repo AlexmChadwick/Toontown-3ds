@@ -342,25 +342,24 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
                 go(Screen::Make);
             }
         } else if (TT_BUTTON((Button{200, 200, 110, 34}), "Create!", true, true)) {
-            if (nameIsTyped_) {
-                net_->setPendingTypedName(typedName_);
-            } else {
-                const bool male = choice_.gender == world::Gender::Male;
-                int16_t p1 = titleActive_ ? getTitleId(male, titleIndex_) : -1;
-                uint8_t f1 = (p1 != -1 && !strcmp(getNameString(p1), "von")) ? 0 : 1;
-                int16_t p2 = firstActive_ ? getFirstId(male, firstIndex_) : -1;
-                uint8_t f2 = 1;
-                int16_t p3 = lastActive_ ? getPrefixId(prefixIndex_) : -1;
-                uint8_t f3 = 1;
-                int16_t p4 = lastActive_ ? getSuffixId(suffixIndex_) : -1;
-                uint8_t f4 = (p3 != -1 && isCapPrefix(p3)) ? 1 : 0;
-                net_->setPendingPatternName(p1, f1, p2, f2, p3, f3, p4, f4);
+            // TutorialManager only accepts the choice after the avatar exists, but before we
+            // enter a place.  Keep it on its own screen so the player has the same explicit
+            // choice as ToontownClientRepository.enterTutorialQuestion.
+            go(Screen::TutorialChoice);
+        }
+        break;
+
+    case Screen::TutorialChoice:
+        if (TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true)) {
+            if (createToon(net::Client::TutorialChoice::Play)) go(Screen::Entering);
+            else {
+                snprintf(error_, sizeof(error_), "That toon could not be created. Try different choices.");
+                go(Screen::Error);
             }
-            uint8_t net15[world::kDnaNetStringSize];
-            world::makeNetString(makeDna_, net15);
-            if (net_ && net_->createAvatar(net15, static_cast<uint8_t>(pickSlot_))) {
-                go(Screen::Entering);
-            } else {
+        }
+        if (TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true) || back) {
+            if (createToon(net::Client::TutorialChoice::Skip)) go(Screen::Entering);
+            else {
                 snprintf(error_, sizeof(error_), "That toon could not be created. Try different choices.");
                 go(Screen::Error);
             }
@@ -386,6 +385,26 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
     gGui.count = gGui.index;
     if (gGui.count > 0 && gGui.cursor >= gGui.count) gGui.cursor = gGui.count - 1;
     return action;
+}
+
+bool FrontEnd::createToon(net::Client::TutorialChoice tutorial) {
+    if (!net_) return false;
+    if (nameIsTyped_) {
+        net_->setPendingTypedName(typedName_);
+    } else {
+        const bool male = choice_.gender == world::Gender::Male;
+        const int16_t p1 = titleActive_ ? getTitleId(male, titleIndex_) : -1;
+        const uint8_t f1 = (p1 != -1 && !strcmp(getNameString(p1), "von")) ? 0 : 1;
+        const int16_t p2 = firstActive_ ? getFirstId(male, firstIndex_) : -1;
+        const int16_t p3 = lastActive_ ? getPrefixId(prefixIndex_) : -1;
+        const int16_t p4 = lastActive_ ? getSuffixId(suffixIndex_) : -1;
+        const uint8_t f4 = (p3 != -1 && isCapPrefix(p3)) ? 1 : 0;
+        net_->setPendingPatternName(p1, f1, p2, 1, p3, 1, p4, f4);
+    }
+    uint8_t net15[world::kDnaNetStringSize];
+    world::makeNetString(makeDna_, net15);
+    net_->setTutorialChoice(tutorial);
+    return net_->createAvatar(net15, static_cast<uint8_t>(pickSlot_));
 }
 
 void FrontEnd::makeStepInput(u32 down) {
@@ -634,6 +653,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     case Screen::Connecting: title = "Connecting..."; break;
     case Screen::Pick: title = "Pick a Toon"; break;
     case Screen::Make: title = "Make a Toon"; break;
+    case Screen::TutorialChoice: title = "The Toontorial"; break;
     case Screen::Entering: title = "Heading to Toontown Central"; break;
     case Screen::Error: title = "Uh-oh!"; break;
     }
@@ -802,6 +822,14 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         makeStepInput(0);
         TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
         TT_BUTTON((Button{200, 200, 110, 34}), step_ == MakeStep::Name ? "Create!" : "Next", true, true);
+        break;
+    case Screen::TutorialChoice:
+        textCentered(Button{18, 38, 284, 62}, 0.62f, kWhite, "Play the Toontorial?");
+        textCentered(Button{18, 86, 284, 30}, 0.42f, kDim,
+                     "Learn the basics with Tutorial Tom, then reach Toontown Central.");
+        TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true);
+        TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true);
+        textCentered(Button{18, 185, 284, 20}, 0.38f, kDim, "B also skips the Toontorial.");
         break;
     case Screen::Entering:
         text(16, 60, 0.6f, kWhite, "%s", net_ ? net_->progressText() : "");

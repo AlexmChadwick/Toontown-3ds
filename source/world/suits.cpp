@@ -405,13 +405,18 @@ void SuitActors::handleEvent(const net::Event& ev, const net::Client& client, u3
         for (Actor& a : actors_) {
             if (!a.active) continue;
             const net::Suit* s = client.findSuit(a.doId);
-            if (s) refresh(a, *s, client, nowMs);
+            if (s && !s->tutorial) refresh(a, *s, client, nowMs); // ---- tutorial: world/tutorial.* walks it
         }
         return;
     }
     if (ev.type != EventType::SuitSpawn && ev.type != EventType::SuitUpdate) return;
     const net::Suit* s = client.findSuit(ev.doId);
     if (!s) return;
+    // ---- tutorial ----
+    // The tutorial Flunky has no path: world/tutorial.* walks DistributedTutorialSuit's loop
+    // and poses it with setExternal.
+    if (s->tutorial) return;
+    // ---- end tutorial ----
     Actor* actor = nullptr;
     for (Actor& a : actors_) {
         if (a.active && a.doId == ev.doId) actor = &a;

@@ -282,7 +282,10 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> name", "fe_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},
-    {10.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_world"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_tutorial_choice"},
+    // The stock/front-end regression keeps the historical skip path.  A dedicated manual
+    // Toontorial pass chooses the left "Play it" button at (85, 150).
+    {10.0f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
 constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[0]);
