@@ -70,8 +70,12 @@ MODELS = {
     'diving_chest': (MG + 'treasure_chest', None, (0, 0, 0), 1.5, (0, 0, 0)),
 
     # Vine
-    'vine_game': (MG + 'vine_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
-    'vine_shelf': (MG + 'vine_game_shelf', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # The whole vine_game.bam also holds the animated bats and spiders (they flew across the
+    # screen as static meshes), so bake only the parts DistributedVineGame places statically.
+    'vine_background': (MG + 'vine_game', '**/background', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bananas': (MG + 'vine_game', '**/bananas', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_start': (MG + 'vine_game_shelf', '**/start1', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_end': (MG + 'vine_game_shelf', '**/end1', (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Target
     'target_ground': (MG + 'slingshot_game_desert4', None, (0, 0, 0), 1.0, (0, 0, 0)),

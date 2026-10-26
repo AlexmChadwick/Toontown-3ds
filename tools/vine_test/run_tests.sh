@@ -9,7 +9,7 @@ mkdir -p "$OUT"
     -fsanitize=address,undefined -I "$ROOT/source" \
     "$ROOT/source/game/vine_logic.cpp" "$HERE/vine_test.cpp" -o "$OUT/vine_test"
 "$OUT/vine_test" > "$OUT/cpp.txt"
-"$PY" -I "$HERE/vine_ref.py" > "$OUT/py.txt"
+"$PY" -I "$HERE/vine_ref.py" "$@" > "$OUT/py.txt"
 if diff -u "$OUT/py.txt" "$OUT/cpp.txt" > "$OUT/diff.txt"; then
     echo "vine_logic matches upstream: $(grep -c '^swing step ' "$OUT/py.txt") swings, $(grep -c '^jump frame ' "$OUT/py.txt") jumps, $(grep -c '^score: ' "$OUT/py.txt") scores"
 else
