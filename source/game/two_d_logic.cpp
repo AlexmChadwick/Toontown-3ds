@@ -516,16 +516,25 @@ void Simulation::collide(float t) {
     // Wall sphere (CollisionHandlerPusher): every WallBitmask polygon, then the tangible Cog
     // spheres.
     float cx = x_, cz = z_ + kAvatarRadius;
+    const float contactX = cx;
+    const float contactZ = cz;
     bool stashed[kMaxStompers];
     for (int i = 0; i < course_->numStompers; ++i) stashed[i] = t < stomperStashedUntil_[i];
-    forEachSegment(*course_, stashed, t, x_, [&](const Segment& s, float ox, float oz, float scale) {
-        if (s.kind == SegKind::Floor) return;
-        const float depth = pushDepth(s, ox, oz, scale, cx, cz, kAvatarRadius);
-        if (depth > 0.0f) {
-            cx += s.nx * depth;
-            cz += s.nz * depth;
-        }
-    });
+    auto pushKind = [&](SegKind wanted) {
+        forEachSegment(*course_, stashed, t, x_, [&](const Segment& s, float ox, float oz, float scale) {
+            if (s.kind != wanted) return;
+            const float depth = pushDepth(s, ox, oz, scale, contactX, contactZ, kAvatarRadius);
+            if (depth > 0.0f) {
+                cx += s.nx * depth;
+                cz += s.nz * depth;
+            }
+        });
+    };
+    // CollisionHandlerPusher resolves the model's `wall` node before `floor1`.  Preserve
+    // that ordering: a toon brushing a platform's vertical face during a jump is pushed
+    // sideways before the underside clamps the body.
+    pushKind(SegKind::Wall);
+    pushKind(SegKind::Ceiling);
     for (int i = 0; i < course_->numEnemies; ++i) {
         if (!enemyAlive_[i]) continue;
         float ex, ez, eh;
