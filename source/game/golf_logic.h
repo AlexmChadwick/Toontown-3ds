@@ -28,6 +28,12 @@ public:
     // Bounded ODE QuickStep-compatible sphere/trimesh step.  The contact list
     // and solver rows are fixed-size, so a swing cannot allocate per frame.
     void simulate(Ball& ball, uint16_t* touchedCup = nullptr);
+    // These flags describe the ray pass made by the most recent simulate().
+    // GolfHoleBase owns the recording history, so it also owns OOB recovery.
+    bool rayHit() const { return rayHit_; }
+    bool rayHitGrass() const { return rayHitGrass_; }
+    bool rayOnSlick() const { return rayOnSlick_; }
+    bool takeOutOfBoundsReset();
     uint32_t triangleCount() const { return count_; }
 
 private:
@@ -36,6 +42,10 @@ private:
     float lastRayX_ = 0.0f, lastRayY_ = 0.0f, lastRayZ_ = 0.25f;
     uint16_t missingRaySteps_ = 0;
     bool haveRay_ = false;
+    bool rayHit_ = false;
+    bool rayHitGrass_ = false;
+    bool rayOnSlick_ = false;
+    bool outOfBoundsReset_ = false;
 };
 
 // GolfHoleBase records at most 2,100 90 Hz samples, then reduces the movie to

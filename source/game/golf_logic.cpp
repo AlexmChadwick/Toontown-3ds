@@ -37,7 +37,7 @@ void closest(const Triangle& t, float px, float py, float pz, float& x, float& y
 }
 }
 Physics::~Physics(){clear();}
-void Physics::clear(){std::free(triangles_);triangles_=nullptr;count_=capacity_=0;lastRayX_=0;lastRayY_=0;lastRayZ_=kRadius;missingRaySteps_=0;haveRay_=false;}
+void Physics::clear(){std::free(triangles_);triangles_=nullptr;count_=capacity_=0;lastRayX_=0;lastRayY_=0;lastRayZ_=kRadius;missingRaySteps_=0;haveRay_=false;rayHit_=false;rayHitGrass_=false;rayOnSlick_=false;outOfBoundsReset_=false;}
 bool Physics::addTriangle(const Triangle& t){if(count_==capacity_){uint32_t n=capacity_?capacity_*2:64;Triangle* p=static_cast<Triangle*>(std::realloc(triangles_,n*sizeof(Triangle)));if(!p)return false;triangles_=p;capacity_=n;}triangles_[count_++]=t;return true;}
 bool Physics::load(const char* path){clear();FILE* f=std::fopen(path,"rb");if(!f)return false;FileHeader h={};if(std::fread(&h,sizeof(h),1,f)!=1||std::memcmp(h.magic,"GPH1",4)||h.version!=1||h.triangles>20000){std::fclose(f);return false;}for(uint32_t i=0;i<h.triangles;i++){FileTriangle in={};if(std::fread(&in,sizeof(in),1,f)!=1||in.surface>uint8_t(Surface::Slick)){clear();std::fclose(f);return false;}Triangle t={};std::memcpy(t.p,in.p,sizeof(t.p));t.surface=static_cast<Surface>(in.surface);if(!addTriangle(t)){clear();std::fclose(f);return false;}}std::fclose(f);return true;}
 void swing(Ball& b,float power,float x,float y){float l=std::sqrt(x*x+y*y);if(l<.001f)return;x/=l;y/=l;b.vx=x*power/3;b.vy=y*power/3;b.vz=0;b.wx=b.wy=b.wz=0;b.resting=false;}
@@ -133,6 +133,10 @@ bool rayFloor(const Triangle& triangle, float x, float y, float z, float& hitZ) 
 void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
     if (ball.resting) return;
 
+    rayHit_ = false;
+    rayHitGrass_ = false;
+    rayOnSlick_ = false;
+
     Contact contacts[kMaxContacts] = {};
     int contactCount = 0;
     float strongestDampen = 0.0f;
@@ -211,7 +215,16 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
     float rayZ = -1.0e30f;
     for (uint32_t i = 0; i < count_; ++i) {
         float hitZ;
-        if (rayFloor(triangles_[i], ball.x, ball.y, ball.z, hitZ) && hitZ > rayZ) rayZ = hitZ;
+        if (rayFloor(triangles_[i], ball.x, ball.y, ball.z, hitZ)) {
+            rayHit_ = true;
+            // postStep walks every ray contact.  greenIn and onSlick are not
+            // properties of just the nearest triangle: overlapping cup/grass
+            // and hard/grass meshes report both contacts to ODE.
+            if (triangles_[i].surface == Surface::Grass) rayHitGrass_ = true;
+            if (triangles_[i].surface == Surface::Slick || triangles_[i].surface == Surface::Hard)
+                rayOnSlick_ = true;
+            if (hitZ > rayZ) rayZ = hitZ;
+        }
     }
     if (rayZ > -1.0e20f) {
         lastRayX_ = ball.x;
@@ -222,14 +235,12 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
         if (ball.z < rayZ + 0.2f) ball.z = lastRayZ_;
     } else if (haveRay_) {
         ++missingRaySteps_;
-        // GolfHoleBase lets the OOB ray miss for 270 ticks before restoring a
-        // recorded in-bounds position.  This bounded equivalent has one body,
-        // so its last ray point is that checkpoint.
+        // GolfHoleBase lets the OOB ray miss for 270 ticks, then restores its
+        // earlier recording[greenIn] checkpoint.  The recorder holds that
+        // fixed-size history and consumes this signal below.
         if (missingRaySteps_ > 270) {
-            ball.x = lastRayX_; ball.y = lastRayY_; ball.z = lastRayZ_;
-            ball.vx = ball.vy = ball.vz = 0.0f;
-            ball.wx = ball.wy = ball.wz = 0.0f;
-            ball.resting = true;
+            outOfBoundsReset_ = true;
+            missingRaySteps_ = 0;
         }
     }
 
@@ -240,6 +251,11 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
         ball.vx *= factor; ball.vy *= factor; ball.vz *= factor;
         ball.wx *= factor; ball.wy *= factor; ball.wz *= factor;
     }
+}
+bool Physics::takeOutOfBoundsReset() {
+    const bool reset = outOfBoundsReset_;
+    outOfBoundsReset_ = false;
+    return reset;
 }
 void step(Ball& b,float dt){if(b.resting)return;b.vz+=kGravity*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.z+=b.vz*dt;if(b.z<=kRadius){b.z=kRadius;if(std::fabs(b.vz)>.25f)b.vz=-b.vz*.15f;else b.vz=0;b.vx*=.986f;b.vy*=.986f;if(std::fabs(b.vx)+std::fabs(b.vy)+std::fabs(b.vz)<.03f){b.vx=b.vy=b.vz=0;b.resting=true;}}}
 bool inCup(const Ball&b,float x,float y,float z){float dx=b.x-x,dy=b.y-y,dz=b.z-z;return dx*dx+dy*dy+dz*dz<=.75f*.75f;}
@@ -275,7 +291,20 @@ void recordRaw(Movie&m,Physics&p,const Ball&start,float power,float x,float y,fl
     // force, then records that settled state as frame zero.
     p.simulate(b,&cup);
     swing(b,power,x,y);
-    for (uint16_t frame=0; frame<kMaxMovieFrames; ++frame) {
+    // This is the bounded equivalent of GolfHoleBase.recording.  greenIn is
+    // deliberately an index into the recording rather than a saved last ray
+    // point: OOB recovery rewinds to the last grass sample (minus two frames),
+    // drops newer samples, and can then retry the same path.
+    uint16_t frame = 0;
+    int greenIn = 0;
+    int resetAt = 100000;
+    uint8_t resetCount = 0;
+    uint8_t ballRocket = 0;
+    uint16_t inCount = 0;
+    bool haveGreenIn = false;
+    Ball lastGrassVelocity{};
+    while (frame < kMaxMovieFrames) {
+        if (m.count >= kMaxMovieFrames) break;
         m.frames[m.count]=b; m.frameIds[m.count++]=frame;
         // GolfHoleBase.record, not ODE auto-disable (which stock explicitly
         // turns off), decides that a stationary grass ball is done.
@@ -285,10 +314,51 @@ void recordRaw(Movie&m,Physics&p,const Ball&start,float power,float x,float y,fl
             const float d5x = b.x - past5.x, d5y = b.y - past5.y, d5z = b.z - past5.z;
             const float d10x = b.x - past10.x, d10y = b.y - past10.y, d10z = b.z - past10.z;
             if (d5x*d5x + d5y*d5y + d5z*d5z < kRestMotionSq &&
-                d10x*d10x + d10y*d10y + d10z*d10z < kRestMotionSq) b.resting = true;
+                d10x*d10x + d10y*d10y + d10z*d10z < kRestMotionSq && !p.rayOnSlick()) b.resting = true;
         }
         if (b.resting) break;
         p.simulate(b,&cup);
+        ++frame;
+        if (p.rayHit()) ++inCount;
+        else inCount = 0;
+        if (ballRocket && inCount > 1) {
+            --ballRocket;
+            b.vx *= 2.0f;
+            b.vy *= 2.0f;
+            b.vz *= 2.0f;
+        }
+        if (p.rayHitGrass()) {
+            // postStep sees self.frame after record() advanced it.  m.count is
+            // therefore the exact slot that the following record will occupy.
+            greenIn = int(m.count);
+            haveGreenIn = true;
+            lastGrassVelocity = b;
+        }
+        if (p.takeOutOfBoundsReset() && haveGreenIn) {
+            if (greenIn > 2) greenIn -= 2;
+            if (greenIn > resetAt) greenIn = resetAt - 10;
+            if (resetCount > 3) greenIn = 0;
+            if (greenIn < 0) greenIn = 0;
+            ++resetCount;
+            b = m.frames[uint16_t(greenIn)];
+            b.z += 0.27f;
+            b.wx = b.wy = b.wz = 0.0f;
+            if (resetCount < 3) {
+                b.vx = 0.5f * lastGrassVelocity.vx;
+                b.vy = 0.5f * lastGrassVelocity.vy;
+                b.vz = 0.5f * lastGrassVelocity.vz;
+                ++ballRocket;
+            } else {
+                b.vx = b.vy = b.vz = 0.0f;
+                b.resting = true;
+            }
+            // GolfHoleBase slices both recordings and resets self.frame here.
+            m.count = uint16_t(greenIn);
+            frame = uint16_t(greenIn);
+            resetAt = greenIn;
+            cup = 0;
+            continue;
+        }
         if(cup&&inCup(b,cupX,cupY,cupZ)){m.ballInFrame=frame;break;}
         if(b.resting){if(m.count<kMaxMovieFrames){m.frames[m.count]=b;m.frameIds[m.count++]=uint16_t(frame+1);}break;}
     }

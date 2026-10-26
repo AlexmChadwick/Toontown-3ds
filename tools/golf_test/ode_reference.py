@@ -113,8 +113,10 @@ def make_cases(hole_id, tee, cup):
         {"name": "direct-normal", "power": 45.0, "dir": aim(dx, dy)},
         {"name": "direct-full", "power": 82.0, "dir": aim(dx, dy)},
         {"name": "bank-angle", "power": 72.0, "dir": aim(dx - 0.35 * dy, dy + 0.35 * dx)},
-        {"name": "cup-approach", "power": 1.0, "dir": [0.0, 1.0],
-         "start": [cup[0], cup[1] - 0.4, cup[2] + GolfGlobals.GOLF_BALL_RADIUS]},
+        # Starts directly over the bottom so the ball must cross the cup mesh;
+        # this guards the in-hole branch as well as ordinary near-cup motion.
+        {"name": "cup-drop", "power": 0.0, "dir": [0.0, 1.0],
+         "start": [cup[0], cup[1], cup[2] + 2.0]},
     ]
 
 
