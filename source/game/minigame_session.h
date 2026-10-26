@@ -79,6 +79,15 @@ public:
     // The Cogs to draw this frame; 0 when the game has none.
     int cogs(MinigameCog* out, int max) const;
     bool startedGame() const { return startedGame_; }
+    // From setGameStart until the game ends: our toon stands in the game's scene.
+    bool inGame() const { return startedGame_ && !endedGame_ && phase_ == Phase::Play; }
+    // Games whose client calls startSmooth() on the other participants
+    // (Distributed{Catch,CogThief,Diving,Maze,Pairing,Ring,Tag,Target,TwoD}Game): their
+    // broadcast setSmPosHpr places them; the other games place everyone from game state.
+    bool smoothedPlayers() const {
+        return isCatch_ || isCogThief_ || isDiving_ || isMaze_ || isPairing_ || isRing_ || isTag_ ||
+               isTarget_ || isTwoD_;
+    }
     bool endedGame() const { return endedGame_; }
     bool completedPurchase() const { return completedPurchase_; }
     bool active() const { return phase_ != Phase::Off; }
