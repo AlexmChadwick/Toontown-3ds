@@ -1936,6 +1936,10 @@ private:
     Event events_[kEventQueue];
     uint32_t evHead_ = 0, evTail_ = 0;
     uint32_t droppedEvents_ = 0;
+    // Parse checks (checkParsed): one log per class / field id.
+    void checkParsed(const DatagramReader& r, uint32_t bodyStart, bool isField, uint16_t id);
+    uint8_t parseWarnedClasses_[1024 / 8] = {};
+    uint8_t parseWarnedFields_[8192 / 8] = {};
 
     uint32_t bytesIn_ = 0, bytesOut_ = 0, msgsIn_ = 0, msgsOut_ = 0;
     // ===================== boss protocol (client_boss.cpp) =====================

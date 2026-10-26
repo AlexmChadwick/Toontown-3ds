@@ -615,6 +615,27 @@ void Client::update(uint32_t nowMs) {
     }
 }
 
+// A handler that reads part of a message but not all of it (or reads past its end) has a field
+// layout wrong: every later field is misread and the object silently breaks (a golf kart whose
+// setState timestamp was not read never generated). Log each class / field once.
+void Client::checkParsed(const DatagramReader& r, uint32_t bodyStart, bool isField, uint16_t id) {
+    const bool overrun = !r.ok();
+    const bool partial = r.ok() && r.pos() > bodyStart && r.remaining() != 0;
+    if (!overrun && !partial) return;
+    uint8_t* seen = isField ? parseWarnedFields_ : parseWarnedClasses_;
+    const uint32_t cap = isField ? sizeof(parseWarnedFields_) * 8 : sizeof(parseWarnedClasses_) * 8;
+    if (id >= cap || (seen[id / 8] & (1u << (id % 8)))) return;
+    seen[id / 8] |= uint8_t(1u << (id % 8));
+    if (isField) {
+        TT_LOG("net: PARSE field %u: %s (%u bytes left)", unsigned(id), overrun ? "read past the end" : "not fully read",
+               unsigned(overrun ? 0 : r.remaining()));
+    } else {
+        const dc::ClassDesc* cls = findClass(id);
+        TT_LOG("net: PARSE generate of %s (%u): %s (%u bytes left)", cls ? cls->name : "?", unsigned(id),
+               overrun ? "read past the end" : "not fully read", unsigned(overrun ? 0 : r.remaining()));
+    }
+}
+
 void Client::handleMessage(DatagramReader& r) {
     uint16_t type = r.u16();
     switch (type) {
@@ -653,13 +674,20 @@ void Client::handleMessage(DatagramReader& r) {
     case msg::CLIENT_ENTER_OBJECT_REQUIRED:
     case msg::CLIENT_ENTER_OBJECT_REQUIRED_OTHER:
     case msg::CLIENT_ENTER_OBJECT_REQUIRED_OWNER:
-    case msg::CLIENT_ENTER_OBJECT_REQUIRED_OTHER_OWNER:
+    case msg::CLIENT_ENTER_OBJECT_REQUIRED_OTHER_OWNER: {
+        // Header: doId, parent, zone, classId.
+        const uint32_t start = r.pos();
+        const uint16_t classId = r.remaining() >= 14 ? uint16_t(r.cursor()[12] | (r.cursor()[13] << 8)) : 0;
         handleEnter(r, type);
+        checkParsed(r, start + 14, false, classId);
         break;
+    }
     case msg::CLIENT_OBJECT_SET_FIELD: {
         uint32_t doId = r.u32();
         uint16_t fieldId = r.u16();
+        const uint32_t start = r.pos();
         if (r.ok()) handleSetField(r, doId, fieldId);
+        checkParsed(r, start, true, fieldId);
         break;
     }
     case msg::CLIENT_OBJECT_SET_FIELDS: {
