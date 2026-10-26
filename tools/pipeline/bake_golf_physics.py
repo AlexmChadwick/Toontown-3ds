@@ -18,7 +18,7 @@ RESOURCES = next((p for p in (ROOT / "ref" / "resources", ROOT / "ref" / "ref" /
                   if (p / "phase_6").exists()), ROOT / "ref" / "resources")
 OUT = ROOT / "sdmc-out" / "3ds" / "toontown3ds" / "data" / "golf"
 SURFACES = (("softSurface/**/grass*", 0), ("softSurface/**/slick*", 4),
-            ("softSurface/**/hole*", 3), ("hardSurface", 2))
+            ("softSurface/**/hole*", 3), ("hardSurface/**/+GeomNode", 2))
 
 def triangles(root, pattern, surface):
     found = root.findAllMatches("**/" + pattern)

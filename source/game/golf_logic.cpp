@@ -76,10 +76,19 @@ void normalize(float& x, float& y, float& z) {
 
 void tangentBasis(float nx, float ny, float nz, float& tx, float& ty, float& tz,
                   float& ux, float& uy, float& uz) {
-    if (std::fabs(nz) < 0.707f) cross(0, 0, 1, nx, ny, nz, tx, ty, tz);
-    else cross(0, 1, 0, nx, ny, nz, tx, ty, tz);
-    normalize(tx, ty, tz);
-    cross(nx, ny, nz, tx, ty, tz, ux, uy, uz);
+    // dPlaneSpace, used by ODE's contact-joint setup when no fdir1 is set.
+    // Its axes matter because QuickStep clamps each friction row separately.
+    if (std::fabs(nz) > 0.70710678f) {
+        const float a = ny * ny + nz * nz;
+        const float k = 1.0f / std::sqrt(a);
+        tx = 0.0f; ty = -nz * k; tz = ny * k;
+        ux = a * k; uy = -nx * tz; uz = nx * ty;
+    } else {
+        const float a = nx * nx + ny * ny;
+        const float k = 1.0f / std::sqrt(a);
+        tx = -ny * k; ty = nx * k; tz = 0.0f;
+        ux = -nz * ty; uy = nz * tx; uz = a * k;
+    }
 }
 
 float contactVelocity(const Ball& ball, float nx, float ny, float nz,

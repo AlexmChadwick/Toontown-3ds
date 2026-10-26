@@ -58,9 +58,24 @@ class HoleHarness(DirectObject, GolfHoleBase.GolfHoleBase, PhysicsWorldBase.Phys
         self.ball = None
         self.rawRecording = []
         self._capturedRawRecording = False
+        self.contactTrace = []
 
     def curGolfBall(self):
         return self.ball
+
+    def postStep(self):
+        # Retain a compact view of the actual ODE contact generation.  It is
+        # diagnostic output for the host parity test, never runtime data.
+        GolfHoleBase.GolfHoleBase.postStep(self)
+        entries = []
+        for entry in self.colEntries:
+            entries.append({
+                "ids": [self.space.getCollideId(entry.getGeom1()),
+                        self.space.getCollideId(entry.getGeom2())],
+                "points": [vec(entry.getContactPoint(i))
+                           for i in range(entry.getNumContacts())],
+            })
+        self.contactTrace.append(entries)
 
     def loadBlockers(self):
         # DistributedGolfHoleAI.loadBlockers with golf-all-blockers left at its
@@ -145,6 +160,7 @@ def ode_movie(hole_id, case):
         "start": vec(start), "cup": vec(cup), "frames": frames, "movie": movie,
         "inCup": bool(harness.ballInHoleFrame), "final": vec(end),
         "ballInFrame": int(harness.ballInHoleFrame),
+        "contacts": harness.contactTrace,
     }
     harness.delete()
     return result
