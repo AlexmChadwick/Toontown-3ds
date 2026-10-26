@@ -19,6 +19,9 @@ public:
     void setAnchor(uint32_t block, float x, float y, float z, float h);
     void shutdown();
     const char* popMessage();
+    // Autotest: the boarding point of a Cog-owned building's elevator in this zone (the DNA
+    // anchor the contact test uses); false if none.
+    bool suitElevatorPoint(const net::Client& client, float* x, float* y, float* z, float* h) const;
     // Where the elevator we rode is taking us (a Cog building interior or a factory / mint /
     // DA office zone), once; 0 when not leaving. The caller changes zone.
     uint32_t popDestination() {

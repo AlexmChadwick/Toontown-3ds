@@ -195,8 +195,8 @@ const Step kScript[] = {
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "factory: battle", "factory_battle*"},
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "factory: foreman", "factory_foreman*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "factory: exit", "factory_exit"},
-    {20.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: floor", "cog_floor"},
-    {45.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: battle", "cog_battle"},
+    {120.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: floor", "cog_floor*"}, // street search + elevator
+    {600.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: battle", "cog_battle*"}, // ends when back outside
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "cog building: exit", "cog_exit"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "go mint", "mint_ext"},
     {40.0f, 0, 0, 0, 0, -1, -1, 0, "mint: board", "mint_in"},

@@ -852,6 +852,49 @@ int main() {
             }
         }
         // ---- end clerks ----
+        // ---- cog building autotest ----
+        // Test-only: visit streets until one has a Cog-owned building, then stand in its elevator
+        // (CogBuildings boards on contact); the floors then play out with battle autoplay, and the
+        // battle step ends once the server has put us back on the street.
+        if (autotest.active() && !strcmp(autotest.label(), "cog building: floor") && netStarted) {
+            static const u32 kStreets[] = {2100, 2200, 2300, 1100, 1200, 1300, 5100, 5200, 5300, 4100, 4200,
+                                           4300, 3100, 3200, 3300, 9100, 9200};
+            static int street = 0;
+            static u32 arrivedMs = 0;
+            static bool boarded = false;
+            const u32 now = tt::net::plat::nowMs();
+            if (autotest.stepBegan()) street = 0, arrivedMs = 0, boarded = false;
+            const u32 here = place.zoneId() - place.zoneId() % 100;
+            const bool onStreet = tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Street;
+            if (cogInterior.active() || boarded) {
+                // inside, or riding the elevator up
+                if (cogInterior.active() && autotest.stepTime() > 2.0f) autotest.finishStep();
+            } else if (here != kStreets[street] || !onStreet) {
+                if (!uiState.teleportRequest && transition.idle()) uiState.teleportRequest = kStreets[street];
+                arrivedMs = 0;
+            } else if (transition.idle() && net.inZone()) {
+                if (arrivedMs == 0) arrivedMs = now;
+                float ex, ey, ez, eh;
+                if (cogBuildings.suitElevatorPoint(net, &ex, &ey, &ez, &eh)) {
+                    player.reset(ex, ey, ez + 0.5f, eh);
+                    boarded = true;
+                    TT_LOG("autotest: cog building elevator in %lu at %.1f,%.1f", static_cast<unsigned long>(here),
+                           double(ex), double(ey));
+                } else if (now - arrivedMs > 4000) {
+                    TT_LOG("autotest: no Cog building in %lu", static_cast<unsigned long>(here));
+                    street = (street + 1) % int(sizeof(kStreets) / sizeof(kStreets[0]));
+                    arrivedMs = 0;
+                }
+            }
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "cog building: battle")) {
+            static bool wasInside = false;
+            if (autotest.stepBegan()) wasInside = false;
+            if (cogInterior.active()) wasInside = true;
+            if (wasInside && !cogInterior.active() && transition.idle() && autotest.stepTime() > 10.0f)
+                autotest.finishStep();
+        }
+        // ---- end cog building autotest ----
         if (autotest.active() && !strcmp(autotest.label(), "swim: harbor")) {
             // Test-only: drop into Donald's Dock harbour (open water south of the west pier) and
             // swim forward with the normal camera (DDPlayground.__checkToonUnderwater). Started

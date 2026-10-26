@@ -160,6 +160,24 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
     }
 }
 
+bool CogBuildings::suitElevatorPoint(const net::Client& client, float* x, float* y, float* z, float* h) const {
+    for (int n = 0; n < net::kMaxCogElevators; ++n) {
+        const net::CogElevator& e = client.cogElevatorSlot(n);
+        if (!e.active || e.buildingDoId == 0) continue;
+        const net::CogBuilding* b = client.findCogBuilding(e.buildingDoId);
+        if (!b || b->state != net::CogBuildingState::Suit) continue;
+        for (const Anchor& a : anchors_) {
+            if (!a.used || a.block != b->block) continue;
+            *x = a.x;
+            *y = a.y;
+            *z = a.z;
+            *h = a.h;
+            return true;
+        }
+    }
+    return false;
+}
+
 void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) const {
     for (int n = 0; kart_.loaded() && n < net::kMaxCogElevators; ++n) {
         const net::CogElevator& e = client.cogElevatorSlot(n);
