@@ -25,6 +25,8 @@ public:
     void draw(render::Renderer& renderer);
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    // Another participant's toon from its reported vine state (see vine::reportedPosition); false if none.
+    bool remotePose(const net::Minigame::VineRemote& v, uint32_t nowMs, float* x, float* z, float* h) const;
     bool toonRunning() const { return false; }
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
 
@@ -37,6 +39,11 @@ private:
     bool autoPlay_ = false;
     float gameTime_ = 0.0f; // seconds since the game started: the swings run on it
     float timeRemaining_ = vine::kGameDuration;
+    // What this toon has announced (DistributedVineGame.b_setNewVine / b_setNewVineT): the start shelf,
+    // the climb direction last sent, and when the climb position was last sent.
+    bool announced_ = false;
+    int sentClimbDir_ = 0;
+    uint32_t lastClimbSendMs_ = 0;
 
     vine::VineSpec course_[vine::kNumVines] = {};
     vine::VineToonState toon_;

@@ -18,8 +18,9 @@ constexpr float kCameraPitchDeg = 62.89f;   // hpr P -62.89: looking down
 constexpr float kLookDistance = 50.0f;
 } // namespace
 
-bool IceGame::init(const char* root, int players) {
+bool IceGame::init(const char* root, int players, int slot) {
     sim_.init(players);
+    slot_ = (slot >= 0 && slot < 4) ? slot : 0;
     state_ = State::Aiming;
     aimAngle_ = 45.0f;
     aimForce_ = 50.0f;
@@ -172,9 +173,16 @@ void IceGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     }
 }
 
+void IceGame::tirePose(int index, float* x, float* y) const {
+    if (index < 0 || index >= 4) index = 0;
+    if (x) *x = sim_.tires[index].x;
+    if (y) *y = sim_.tires[index].y;
+}
+
 void IceGame::toonPose(float* x, float* y, float* z, float* h) const {
-    if (x) *x = sim_.tires[0].x;
-    if (y) *y = sim_.tires[0].y;
+    // DistributedIceGame.forceLocalToonToTire: the local toon rides its own tire.
+    if (x) *x = sim_.tires[slot_].x;
+    if (y) *y = sim_.tires[slot_].y;
     if (z) *z = 0.8f;
     if (h) *h = aimAngle_;
 }

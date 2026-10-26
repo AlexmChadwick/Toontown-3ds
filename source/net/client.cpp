@@ -3522,6 +3522,13 @@ bool Client::handleTrolleyEnter(uint32_t doId, DatagramReader& r, const uint16_t
     return true;
 }
 
+// The participant index (avIdList order) of avId in a minigame, or -1.
+static int participantSlot(const Minigame& m, uint32_t avId) {
+    for (int i = 0; i < m.numParticipants && i < kMinigamePlayers; ++i)
+        if (m.participants[i] == avId) return i;
+    return -1;
+}
+
 bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId, bool announce) {
     namespace M = dc::DistributedMinigame;
     if (fieldId == M::k_setParticipants) {
@@ -3589,6 +3596,7 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
                 m.cannonFireTime[i] = fireTime / 100.0f;
                 m.cannonZRot[i] = zRot / 100.0f;
                 m.cannonAngle[i] = ang / 100.0f;
+                m.cannonFired[i] = true;
                 break;
             }
         }
@@ -3787,6 +3795,92 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         m.vineGrabbedTreasure = r.u32();
         if (!r.ok()) return false;
         if (announce) pushEventArg(EventType::VineTreasureGrabbed, m.vineGrabbedAv, int32_t(m.vineGrabbedTreasure));
+    } else if (fieldId == dc::DistributedVineGame::k_setNewVine) {
+        // setNewVine(uint32, int8, uint32/10000, int8): the toon grabs vineIndex at vineT.
+        const uint32_t av = r.u32();
+        const int8_t vineIndex = r.i8();
+        const float vineT = r.u32() / 10000.0f;
+        const bool facingRight = r.i8() != 0;
+        if (!r.ok()) return false;
+        if (const int i = participantSlot(m, av); i >= 0) {
+            Minigame::VineRemote& v = m.vineRemote[i];
+            v.mode = Minigame::VineRemote::Mode::Attached;
+            v.vineIndex = vineIndex;
+            v.vineT = vineT;
+            v.climbDir = 0;
+            v.facingRight = facingRight;
+            v.arrivalMs = now_;
+        }
+    } else if (fieldId == dc::DistributedVineGame::k_setNewVineT) {
+        // setNewVineT(uint32, uint32/10000, int8): the climb moves along the vine at climbDir.
+        const uint32_t av = r.u32();
+        const float vineT = r.u32() / 10000.0f;
+        const int8_t climbDir = r.i8();
+        if (!r.ok()) return false;
+        if (const int i = participantSlot(m, av); i >= 0) {
+            Minigame::VineRemote& v = m.vineRemote[i];
+            v.vineT = vineT;
+            v.climbDir = climbDir;
+            v.arrivalMs = now_;
+        }
+    } else if (fieldId == dc::DistributedVineGame::k_setJumpingFromVine) {
+        // setJumpingFromVine(uint32, int8, int8, int32/100, int16/100, int16/100, int16)
+        const uint32_t av = r.u32();
+        const int8_t vineIndex = r.i8();
+        const bool facingRight = r.i8() != 0;
+        const float posX = r.i32() / 100.0f;
+        const float posZ = r.i16() / 100.0f;
+        const float velX = r.i16() / 100.0f;
+        const float velZ = r.i16();
+        if (!r.ok()) return false;
+        if (const int i = participantSlot(m, av); i >= 0) {
+            Minigame::VineRemote& v = m.vineRemote[i];
+            v.mode = Minigame::VineRemote::Mode::Jumping;
+            v.vineIndex = vineIndex;
+            v.climbDir = 0;
+            v.facingRight = facingRight;
+            v.posX = posX, v.posZ = posZ, v.velX = velX, v.velZ = velZ;
+            v.arrivalMs = now_;
+        }
+    } else if (fieldId == dc::DistributedVineGame::k_setFallingFromVine) {
+        // setFallingFromVine(uint32, int8, int8, int32/100, int16/100, int16/100, int16, int8)
+        const uint32_t av = r.u32();
+        const int8_t vineIndex = r.i8();
+        const bool facingRight = r.i8() != 0;
+        const float posX = r.i32() / 100.0f;
+        const float posZ = r.i16() / 100.0f;
+        const float velX = r.i16() / 100.0f;
+        const float velZ = r.i16();
+        r.i8(); // fallingInfo: the bat or spider hit; it does not move the toon
+        if (!r.ok()) return false;
+        if (const int i = participantSlot(m, av); i >= 0) {
+            Minigame::VineRemote& v = m.vineRemote[i];
+            v.mode = Minigame::VineRemote::Mode::Falling;
+            v.vineIndex = vineIndex;
+            v.climbDir = 0;
+            v.facingRight = facingRight;
+            v.posX = posX, v.posZ = posZ, v.velX = velX, v.velZ = velZ;
+            v.arrivalMs = now_;
+        }
+    } else if (fieldId == dc::DistributedVineGame::k_setFallingFromMidair) {
+        // setFallingFromMidair(uint32, int8, int32/100, int16/100, int16/100, int16, int8)
+        const uint32_t av = r.u32();
+        const bool facingRight = r.i8() != 0;
+        const float posX = r.i32() / 100.0f;
+        const float posZ = r.i16() / 100.0f;
+        const float velX = r.i16() / 100.0f;
+        const float velZ = r.i16();
+        r.i8(); // fallingInfo
+        if (!r.ok()) return false;
+        if (const int i = participantSlot(m, av); i >= 0) {
+            Minigame::VineRemote& v = m.vineRemote[i];
+            v.mode = Minigame::VineRemote::Mode::Falling;
+            v.vineIndex = -1;
+            v.climbDir = 0;
+            v.facingRight = facingRight;
+            v.posX = posX, v.posZ = posZ, v.velX = velX, v.velZ = velZ;
+            v.arrivalMs = now_;
+        }
 
     // ---- DistributedTargetGame ----
     } else if (fieldId == dc::DistributedTargetGame::k_setTargetSeed) {
@@ -4395,6 +4489,38 @@ bool Client::sendVineNewVine(uint32_t avId, int8_t vineIndex, float vineT, int8_
     w.i8(vineIndex);
     w.u32(uint32_t(vineT * 10000.0f));
     w.i8(facingRight);
+    return finish(w);
+}
+
+// Floats travel as the DC's fixed-point integers (int32/100, int16/100, int16 raw); out-of-range values clamp.
+static int16_t clampInt16(float v) {
+    if (v > 32767.0f) return 32767;
+    if (v < -32768.0f) return -32768;
+    return int16_t(v);
+}
+
+bool Client::sendVineNewVineT(uint32_t avId, float vineT, int8_t climbDir) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setNewVineT);
+    w.u32(avId);
+    w.u32(uint32_t(vineT * 10000.0f));
+    w.i8(climbDir);
+    return finish(w);
+}
+
+bool Client::sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
+                                     float velX, float velZ) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setJumpingFromVine);
+    w.u32(avId);
+    w.i8(vineIndex);
+    w.i8(facingRight);
+    w.i32(int32_t(posX * 100.0f));
+    w.i16(clampInt16(posZ * 100.0f));
+    w.i16(clampInt16(velX * 100.0f));
+    w.i16(clampInt16(velZ));
     return finish(w);
 }
 

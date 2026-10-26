@@ -32,6 +32,8 @@ constexpr float kAutoEndT = 0.95f;
 constexpr float kAutoStepT = 0.05f;
 constexpr float kBananaGrabX = 3.0f;
 constexpr float kBananaGrabZ = 5.0f;
+// d_setNewVineT: sent at once when the climb direction changes, otherwise after more than 0.2 s.
+constexpr uint32_t kClimbSendMs = 200;
 } // namespace
 
 void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
@@ -87,8 +89,12 @@ void VineGame::shutdown() {
 }
 
 void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs) {
-    (void)nowMs;
     if (done_) return;
+    if (!announced_) {
+        // enterPlay: attachLocalToonToVine(0, VineStartingT) broadcasts the start shelf's vine.
+        announced_ = true;
+        client.sendVineNewVine(client.avatarId(), int8_t(toon_.currentVine), toon_.vineT, 1);
+    }
 
     timeRemaining_ -= dt;
     if (timeRemaining_ <= 0.0f) {
@@ -107,6 +113,13 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
             if (pad.dy > kPadDeadzone) t -= vine::kToonVerticalRate * dt * (pad.dy / kPadFull);
             else if (pad.dy < -kPadDeadzone) t += vine::kToonVerticalRate * dt * (-pad.dy / kPadFull);
             toon_.vineT = std::clamp(t, 0.0f, 1.0f);
+        }
+        // setNewVineT: the climb direction (-1 towards the pivot, as upstream's climbDir) and the position.
+        const int climbDir = cur == last ? 0 : (pad.dy > kPadDeadzone ? -1 : (pad.dy < -kPadDeadzone ? 1 : 0));
+        if (climbDir != sentClimbDir_ || (climbDir != 0 && nowMs - lastClimbSendMs_ > kClimbSendMs)) {
+            client.sendVineNewVineT(client.avatarId(), toon_.vineT, int8_t(climbDir));
+            sentClimbDir_ = climbDir;
+            lastClimbSendMs_ = nowMs;
         }
         float angle = vine::swingAngle(course_[cur], gameTime_);
         vine::attachToVine(toon_, cur, course_[cur], angle, toon_.vineT);
@@ -131,6 +144,9 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         if (jumpForward || jumpBack) {
             angle = vine::swingAngle(course_[cur], gameTime_);
             vine::jumpFromVine(toon_, angle, jumpForward, gameTime_);
+            sentClimbDir_ = 0;
+            client.sendVineJumpingFromVine(client.avatarId(), int8_t(cur), toon_.facingRight ? 1 : 0, toon_.posX,
+                                           toon_.posZ, toon_.velX, toon_.velZ);
         }
     } else if (toon_.state == vine::State::Jumping) {
         vine::updateJump(toon_, dt);
@@ -140,6 +156,7 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
             const int back = std::max(0, toon_.lastJumpVine);
             vine::attachToVine(toon_, back, course_[back], vine::swingAngle(course_[back], gameTime_),
                                vine::kVineFellDownT);
+            client.sendVineNewVine(client.avatarId(), int8_t(back), toon_.vineT, toon_.facingRight ? 1 : 0);
         } else {
             // Banana pickup between vines (the treasure grab sphere).
             const int between = toon_.lastJumpVine;
@@ -159,6 +176,7 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
                 vine::attachToVine(toon_, caughtVine, course_[caughtVine],
                                    vine::swingAngle(course_[caughtVine], gameTime_), caughtT);
                 client.sendVineNewVine(client.avatarId(), int8_t(caughtVine), toon_.vineT, toon_.facingRight ? 1 : 0);
+                sentClimbDir_ = 0;
                 if (caughtVine == last) {
                     toon_.state = vine::State::Finished;
                     client.sendVineReachedEndVine(int8_t(caughtVine));
@@ -210,6 +228,27 @@ void VineGame::toonPose(float* x, float* y, float* z, float* h) const {
     if (y) *y = 0.0f;
     if (z) *z = toon_.posZ;
     if (h) *h = 90.0f; // facing right along the jungle track
+}
+
+bool VineGame::remotePose(const net::Minigame::VineRemote& v, uint32_t nowMs, float* x, float* z, float* h) const {
+    if (v.mode == net::Minigame::VineRemote::Mode::None) return false;
+    vine::ReportedToon r;
+    r.attached = v.mode == net::Minigame::VineRemote::Mode::Attached;
+    r.vineIndex = v.vineIndex;
+    r.vineT = v.vineT;
+    r.climbDir = v.climbDir;
+    r.posX = v.posX;
+    r.posZ = v.posZ;
+    r.velX = v.velX;
+    r.velZ = v.velZ;
+    const float elapsed = static_cast<int32_t>(nowMs - v.arrivalMs) / 1000.0f;
+    float px = 0.0f, pz = 0.0f;
+    if (!vine::reportedPosition(r, course_, gameTime_, elapsed, px, pz)) return false;
+    if (x) *x = px;
+    if (z) *z = pz;
+    // The toon faces right along the track; a jump or fall heads with its velocity (makeOtherToonJump).
+    if (h) *h = r.attached ? 90.0f : (v.velX >= 0.0f ? -90.0f : 90.0f);
+    return true;
 }
 
 void VineGame::camera(C3D_FVec* eye, C3D_FVec* target) const {

@@ -28,6 +28,7 @@ constexpr float kTowerYRange = 200.0f;
 constexpr float kTowerXRange = 100.0f;
 constexpr float kBarrelOffset = 6.0f;
 constexpr float kBarrelPivotZ = 1.89703f;
+constexpr float kLandTime = 2.0f; // DistributedCannonGame.LAND_TIME
 
 enum class HitType : uint8_t { Ground = 0, Tower = 1, Water = 2 };
 
@@ -49,6 +50,16 @@ int calcScore(float landTime);
 Vec3 getTowerPosition(RandomNumGen& rng, float difficulty);
 float cannonX(int slot, int numPlayers);
 FlightResult calcFlight(float cx, float zRot, float angle, const Vec3& towerPos);
+// The head of a toon in its cannon (DistributedCannonGame.__loadToonInCannon): the barrel's end.
+Vec3 barrelHead(float cx, float zRot, float angle);
+// Another toon's pose (DistributedCannonGame): in its cannon until its shot is fired; from setCannonWillFire
+// the flight (__flyTask) runs at the fire time, then the toon rests at the impact for LAND_TIME and goes back.
+// firedElapsed is game seconds since the fire (negative before it). heading is the cannon heading (zRot).
+struct RemoteToon {
+    Vec3 pos;
+    float heading = 0.0f;
+};
+RemoteToon remoteToon(float cx, float zRot, float angle, bool fired, float firedElapsed, const Vec3& towerPos);
 Vec3 trajectoryPos(const Vec3& startPos, const Vec3& startVel, float t);
 Vec3 trajectoryVel(const Vec3& startVel, float t);
 

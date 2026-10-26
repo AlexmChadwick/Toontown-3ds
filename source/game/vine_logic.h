@@ -77,6 +77,21 @@ bool findCatch(const VineToonState& s, const VineSpec* course, float gameTime, i
 // test autoplay to choose a timing that the real physics will also catch.
 bool jumpReaches(const VineToonState& start, const VineSpec* course, float gameTime, int targetVine, bool forward);
 
+// Another toon's reported state (DistributedVineGame.toonInfo): attached to a vine at vineT, or airborne
+// from (posX, posZ) with velocity (velX, velZ), as its setNewVine / setJumpingFromVine / setFalling* sent.
+struct ReportedToon {
+    bool attached = false;
+    int vineIndex = -1;
+    float vineT = 0.0f;
+    int climbDir = 0; // setNewVineT: -1 climbs towards the pivot, 1 towards the cable end
+    float posX = 0.0f, posZ = 0.0f, velX = 0.0f, velZ = 0.0f;
+};
+// Where the reported toon is 'elapsed' seconds after its message: the cable point on the swing at gameTime
+// (__updateOtherToonsClimbing moves vineT at ToonVerticalRate), or the ballistic flight under kGravity that the
+// physics of makeOtherToonJump integrates. Airborne toons stop at the floor. Returns false for a bad vine.
+bool reportedPosition(const ReportedToon& r, const VineSpec* course, float gameTime, float elapsed, float& outX,
+                      float& outZ);
+
 // Final score calculation matching DistributedVineGameAI.py:checkForEndVine
 int calculateScore(int treasures, float timeLeft, bool reachedEnd);
 

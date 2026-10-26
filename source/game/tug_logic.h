@@ -10,6 +10,7 @@ constexpr int kWinBeans = 15;
 constexpr int kLossBeans = 4;
 
 constexpr float kDockY = 18.0f;
+constexpr float kDockZ = 0.1f;      // dockPositions z
 constexpr float kLeftDockX = -6.0f;  // solo toon base X (dock index 2)
 constexpr float kRightDockX = 6.0f;  // solo cog base X (dock index 7)
 constexpr float kWaterMinX = -2.0f;
@@ -24,6 +25,9 @@ constexpr float kCogHeading = 120.0f;
 inline float dockX(int k) {
     return k < 5 ? -9.0f + 1.5f * k : 3.0f + 1.5f * (k - 5);
 }
+// DistributedTugOfWarGame.handycap (= 2.0, set in __init__): moveToons places a toon at origPos.x + offset / handycap.
+constexpr float kHandycap = 2.0f;
+constexpr int kTugOfWarToonVsCog = 1; // TugOfWarGameGlobals.TOON_VS_COG (TOON_VS_TOON = 0)
 // Index of the toon at arrangement slot 'slot' in a toon-vs-cog game with 'numPlayers' toons.
 inline int toonDockIndex(int numPlayers, int slot) {
     static constexpr int kLayout[5][4] = {{0, 0, 0, 0}, {2, 0, 0, 0}, {1, 2, 0, 0}, {0, 1, 2, 0}, {0, 1, 2, 3}};
@@ -31,6 +35,10 @@ inline int toonDockIndex(int numPlayers, int slot) {
     if (slot < 0) slot = 0;
     if (slot >= numPlayers) slot = numPlayers - 1;
     return kLayout[numPlayers][slot];
+}
+// A toon's x in its dock slot plus the server's offset (DistributedTugOfWarGame.moveToons).
+inline float toonX(int numPlayers, int index, float serverOffset) {
+    return dockX(toonDockIndex(numPlayers, index)) + serverOffset / kHandycap;
 }
 inline int suitDockIndex(int numPlayers) {
     return numPlayers == 4 ? 6 : 7;
