@@ -44,7 +44,8 @@ MODELS = {
     'cannon_tower': (MG + 'toon_cannon_water_tower', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'cannon_hill': (MG + 'cannon_hill', None, (0, 0, 0), 1.0, (0, -127.67, 0)),
     'cannon_base': (MG + 'toon_cannon', '**/cannon_base', (0, 0, 0), 1.0, (0, 0, 0)),
-    'cannon_barrel': (MG + 'toon_cannon', '**/cannon', (0, 0, 0), 1.0, (0, 0, -1.89703)),
+    # The barrel keeps its origin at the pivot (bam pos 0, 0, 1.89703 is applied by the runtime).
+    'cannon_barrel': (MG + 'toon_cannon', '**/cannon', (0, 0, 0), 1.0, (0, 0, 0)),
     # DistributedCannonGame and DistributedTagGame parent TT_sky to render.
     'minigame_sky': ('phase_3.5/models/props/TT_sky', None, (0, 0, 0), 2.8, (0, 0, 0)),
 

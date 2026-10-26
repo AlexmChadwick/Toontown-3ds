@@ -693,6 +693,10 @@ u32 MinigameSession::popReturn() {
     return h;
 }
 
+float MinigameSession::farPlane() const {
+    return isCannon_ ? CannonGame::kFarPlane : 0.0f;
+}
+
 void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
     if (isCannon_) {
         cannon_.toonPose(x, y, z, h);

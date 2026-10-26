@@ -109,6 +109,8 @@ public:
     void setAutoPlay(bool on) { autoPlay_ = on; }
 
     void toonPose(float* x, float* y, float* z, float* h) const;
+    // World far plane this game needs (0 = the renderer default); see Renderer::setFarPlane.
+    float farPlane() const;
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;

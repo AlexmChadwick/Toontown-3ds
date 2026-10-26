@@ -33,6 +33,10 @@ public:
 
     const char* line(int i) const { return (i >= 0 && i < 3) ? lines_[i] : ""; }
     bool isDone() const { return done_; }
+    // FAR_PLANE_DIST = 600 * WORLD_SCALE (DistributedCannonGame.py): the ground and sky dome
+    // reach past the default 300-unit far plane.
+    static constexpr float kFarPlane = 1200.0f;
+    float farPlane() const { return kFarPlane; }
 
 private:
     world::BasicAssetBatch<8> assetBatch_;
