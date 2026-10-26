@@ -1397,7 +1397,11 @@ int main() {
             pendingSpeech = speechMsg;
         }
         myPhraseAge += dt;
-        if (localToon.bodyLocked()) { in.pad.dx = in.pad.dy = 0; in.down &= ~(KEY_A | KEY_B); in.held &= ~(KEY_A | KEY_B); }
+        if (localToon.bodyLocked() && !racing.driving()) {
+            in.pad.dx = in.pad.dy = 0;
+            in.down &= ~(KEY_A | KEY_B);
+            in.held &= ~(KEY_A | KEY_B);
+        }
         transition.applyInput(in.pad, in.held, in.down);
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
