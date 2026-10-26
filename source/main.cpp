@@ -1631,7 +1631,12 @@ int main() {
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
         place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
-        if (gStreetCell.pending && netStarted && net.inZone() && gStreetCell.cell != net.zoneId()) {
+        // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
+        // from the start zone's playground would move us out of Tutorial Tom's interior before
+        // its place loads, and the tutorial street is a single cell anyway. ----
+        if (gStreetCell.pending && netStarted && net.tutorialZones().active()) {
+            gStreetCell.pending = false;
+        } else if (gStreetCell.pending && netStarted && net.inZone() && gStreetCell.cell != net.zoneId()) {
             if (net.changeStreetCell(gStreetCell.cell, gStreetCell.zones, gStreetCell.count)) {
                 gStreetCell.pending = false;
             }
