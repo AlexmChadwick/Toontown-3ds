@@ -17,6 +17,9 @@ constexpr float kInvInertia = 1.0f / (0.4f * kBallMass * kRadius * kRadius);
 constexpr float kContactErp = 0.9f;
 constexpr float kContactCfm = 1.0e-5f;
 constexpr int kQuickStepIterations = 8;
+// dWorldQuickStep's default SOR factor.  Golf never changes it after world
+// creation, so this is the ODE 0.x default rather than a tuning parameter.
+constexpr float kQuickStepSor = 1.3f;
 constexpr int kMaxContacts = 64;
 constexpr float kRestMotionSq = 0.002f;
 struct FileHeader { char magic[4]; uint16_t version, reserved; uint32_t triangles; };
@@ -91,27 +94,27 @@ void tangentBasis(float nx, float ny, float nz, float& tx, float& ty, float& tz,
     }
 }
 
-float contactVelocity(const Ball& ball, float nx, float ny, float nz,
-                      float tx, float ty, float tz) {
-    const float rx = -kRadius * nx, ry = -kRadius * ny, rz = -kRadius * nz;
+float contactVelocity(const Ball& ball, const Contact& contact, float tx, float ty, float tz) {
+    // dJointCreateContact uses dContactGeom::pos as its anchor.  For an edge
+    // contact this is the closest mesh point, not the point at -radius*n.
+    const float rx = contact.x - ball.x, ry = contact.y - ball.y, rz = contact.z - ball.z;
     float ax, ay, az;
     cross(ball.wx, ball.wy, ball.wz, rx, ry, rz, ax, ay, az);
     return dot(ball.vx + ax, ball.vy + ay, ball.vz + az, tx, ty, tz);
 }
 
-float effectiveMass(float nx, float ny, float nz, float tx, float ty, float tz) {
-    const float rx = -kRadius * nx, ry = -kRadius * ny, rz = -kRadius * nz;
+float effectiveMass(const Ball& ball, const Contact& contact, float tx, float ty, float tz) {
+    const float rx = contact.x - ball.x, ry = contact.y - ball.y, rz = contact.z - ball.z;
     float cx, cy, cz;
     cross(rx, ry, rz, tx, ty, tz, cx, cy, cz);
     return kInvMass + kInvInertia * dot(cx, cy, cz, cx, cy, cz) + kContactCfm / kStep;
 }
 
-void applyImpulse(Ball& ball, float nx, float ny, float nz, float tx, float ty, float tz,
-                  float impulse) {
+void applyImpulse(Ball& ball, const Contact& contact, float tx, float ty, float tz, float impulse) {
     ball.vx += tx * impulse * kInvMass;
     ball.vy += ty * impulse * kInvMass;
     ball.vz += tz * impulse * kInvMass;
-    const float rx = -kRadius * nx, ry = -kRadius * ny, rz = -kRadius * nz;
+    const float rx = contact.x - ball.x, ry = contact.y - ball.y, rz = contact.z - ball.z;
     float ax, ay, az;
     cross(rx, ry, rz, tx * impulse, ty * impulse, tz * impulse, ax, ay, az);
     ball.wx += ax * kInvInertia;
@@ -154,19 +157,20 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
         const Triangle& triangle = triangles_[i];
         float qx, qy, qz;
         closest(triangle, ball.x, ball.y, ball.z, qx, qy, qz);
-        float nx = ball.x - qx, ny = ball.y - qy, nz = ball.z - qz;
-        const float distanceSq = dot(nx, ny, nz, nx, ny, nz);
+        float dx = ball.x - qx, dy = ball.y - qy, dz = ball.z - qz;
+        const float distanceSq = dot(dx, dy, dz, dx, dy, dz);
         if (distanceSq >= kRadius * kRadius) continue;
         const float distance = std::sqrt(distanceSq);
-        if (distance > 1.0e-5f) {
-            const float inverse = 1.0f / distance;
-            nx *= inverse; ny *= inverse; nz *= inverse;
-        } else {
-            cross(triangle.p[3] - triangle.p[0], triangle.p[4] - triangle.p[1], triangle.p[5] - triangle.p[2],
-                  triangle.p[6] - triangle.p[0], triangle.p[7] - triangle.p[1], triangle.p[8] - triangle.p[2],
-                  nx, ny, nz);
-            normalize(nx, ny, nz);
-        }
+        // dCollideSTL keeps the triangle's face normal for every contact,
+        // including a closest point on an edge or vertex.  It does *not* use
+        // the radial point-to-sphere normal there.  That distinction is
+        // material at the three-contact hard-wall corner on hole 6: ODE
+        // reports three +X normals with distinct depths.
+        float nx, ny, nz;
+        cross(triangle.p[3] - triangle.p[0], triangle.p[4] - triangle.p[1], triangle.p[5] - triangle.p[2],
+              triangle.p[6] - triangle.p[0], triangle.p[7] - triangle.p[1], triangle.p[8] - triangle.p[2],
+              nx, ny, nz);
+        normalize(nx, ny, nz);
         Contact& contact = contacts[contactCount++];
         contact.nx = nx; contact.ny = ny; contact.nz = nz;
         contact.x = qx; contact.y = qy; contact.z = qz;
@@ -174,6 +178,22 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
         contact.surface = triangle.surface;
         const SurfaceParams params = surfaceParams(triangle.surface);
         if (params.dampen > strongestDampen) strongestDampen = params.dampen;
+    }
+
+    // OdeSimpleSpace reports the later-created hard trimesh before the grass
+    // trimeshes.  QuickStep preserves that contact-joint row order, which is
+    // observable when a ball hits a wall while still touching the green.
+    // GPH stores surfaces in bake order (grass first), so restore the ODE
+    // ordering before building the PGS rows.
+    for (int i = 1; i < contactCount; ++i) {
+        Contact value = contacts[i];
+        const int valueOrder = value.surface == Surface::Hard ? 0 : 1;
+        int j = i;
+        while (j > 0 && (contacts[j - 1].surface == Surface::Hard ? 0 : 1) > valueOrder) {
+            contacts[j] = contacts[j - 1];
+            --j;
+        }
+        contacts[j] = value;
     }
 
     // dWorldQuickStep first applies gravity/forces, solves its contact rows eight
@@ -189,31 +209,28 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
             float targetVelocity = kContactErp * contact.depth / kStep;
             if (normalVelocity < -params.bounceVelocity)
                 targetVelocity = std::max(targetVelocity, -params.bounce * normalVelocity);
-            const float mass = effectiveMass(contact.nx, contact.ny, contact.nz,
-                                             contact.nx, contact.ny, contact.nz);
-            float delta = (targetVelocity - normalVelocity -
-                           contact.normalImpulse * kContactCfm / kStep) / mass;
+            const float mass = effectiveMass(ball, contact, contact.nx, contact.ny, contact.nz);
+            float delta = kQuickStepSor * (targetVelocity - normalVelocity -
+                                           contact.normalImpulse * kContactCfm / kStep) / mass;
             const float oldNormal = contact.normalImpulse;
             contact.normalImpulse = std::max(0.0f, oldNormal + delta);
-            applyImpulse(ball, contact.nx, contact.ny, contact.nz, contact.nx, contact.ny, contact.nz,
+            applyImpulse(ball, contact, contact.nx, contact.ny, contact.nz,
                          contact.normalImpulse - oldNormal);
 
             float tx, ty, tz, ux, uy, uz;
             tangentBasis(contact.nx, contact.ny, contact.nz, tx, ty, tz, ux, uy, uz);
             const float maxFriction = params.mu * contact.normalImpulse;
-            const float tangentMass = effectiveMass(contact.nx, contact.ny, contact.nz, tx, ty, tz);
-            const float vt1 = contactVelocity(ball, contact.nx, contact.ny, contact.nz, tx, ty, tz);
+            const float tangentMass = effectiveMass(ball, contact, tx, ty, tz);
+            const float vt1 = contactVelocity(ball, contact, tx, ty, tz);
             const float oldTangent1 = contact.tangent1Impulse;
             contact.tangent1Impulse = std::max(-maxFriction, std::min(maxFriction,
-                oldTangent1 - vt1 / tangentMass));
-            applyImpulse(ball, contact.nx, contact.ny, contact.nz, tx, ty, tz,
-                         contact.tangent1Impulse - oldTangent1);
-            const float vt2 = contactVelocity(ball, contact.nx, contact.ny, contact.nz, ux, uy, uz);
+                oldTangent1 - kQuickStepSor * vt1 / tangentMass));
+            applyImpulse(ball, contact, tx, ty, tz, contact.tangent1Impulse - oldTangent1);
+            const float vt2 = contactVelocity(ball, contact, ux, uy, uz);
             const float oldTangent2 = contact.tangent2Impulse;
             contact.tangent2Impulse = std::max(-maxFriction, std::min(maxFriction,
-                oldTangent2 - vt2 / tangentMass));
-            applyImpulse(ball, contact.nx, contact.ny, contact.nz, ux, uy, uz,
-                         contact.tangent2Impulse - oldTangent2);
+                oldTangent2 - kQuickStepSor * vt2 / tangentMass));
+            applyImpulse(ball, contact, ux, uy, uz, contact.tangent2Impulse - oldTangent2);
         }
     }
     ball.x += ball.vx * kStep;

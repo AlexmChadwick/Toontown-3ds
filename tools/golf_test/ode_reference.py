@@ -74,6 +74,16 @@ class HoleHarness(DirectObject, GolfHoleBase.GolfHoleBase, PhysicsWorldBase.Phys
                         self.space.getCollideId(entry.getGeom2())],
                 "points": [vec(entry.getContactPoint(i))
                            for i in range(entry.getNumContacts())],
+                # Keep the narrow-phase result, not just its points.  A
+                # sphere/mesh edge hit may retain the face normal while its
+                # anchor and depth come from the closest edge point.
+                "normals": [vec(entry.getContactGeom(i).getNormal())
+                            for i in range(entry.getNumContacts())],
+                "depths": [float(entry.getContactGeom(i).getDepth())
+                           for i in range(entry.getNumContacts())],
+                "sides": [[int(entry.getContactGeom(i).getSide1()),
+                           int(entry.getContactGeom(i).getSide2())]
+                          for i in range(entry.getNumContacts())],
             })
         self.contactTrace.append(entries)
 
