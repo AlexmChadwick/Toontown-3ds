@@ -989,3 +989,40 @@ Azahar Old 3DS, `AUTOTEST_FROM="move: door" AUTOTEST_UNTIL="see boat"`.
 - Not run in Azahar or on hardware (task prohibition). fps, heap, linear and VRAM are
   unmeasured. The main agent must run the `pad:` steps and check the `padnav:` log lines
   listed in `docs/design/pad_navigation.md`.
+
+### 2026-10-25/26 — QA pass 2 and targeted passes (Azahar, Old 3DS mode)
+
+Build: main after the qafix/cogattacks/padnav merges (pass 2 ran the older 14:06 build).
+Server: stock Open Toontown with `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_DEV_COGDO=1`.
+
+- **Pass 2 (whole world script, 7 chunks)** found and led to fixes for:
+  - Toon HQ talk never starting: a touch made during the teleport-in latched the NPC as handled
+    (also clerks and tailors).
+  - Going sad in a facility left the level active: an empty world with the battle's Cogs in the
+    playground. Transitions now end any active facility.
+  - Facility room battles showing "Cogs defeated: 0": upstream only plays the victory dance there.
+  - Gaps in interiors and facilities showed sky blue; they are now DefaultBackgroundColor grey.
+  - The debug CPU figure was citro3d's GPU-queue-inclusive time (100+ ms); it is now profiler busy time.
+  - The kart shop door loop (8000 <-> 8501 every 3 s): its door points have no `_0`.
+  - The autotest factory goon/entity/battle steps tested nothing after the crate room. Laff now
+    carries correctly: dev-strong toons are healed on reaching a playground or Cog HQ.
+- **Pass A (targeted):**
+  - Verified: HQ talk starts (officer assigns a quest: QUEST_MOVIE_ASSIGN), Match Minnie with
+    real garden-sign cards (lifecycle `mgpass: start/end/score/purchase exit/returned id 11`),
+    the new laff meter, fisherman and party clerks, HQ / pet shop / door leaves / knock-knock
+    steps, and the speedway starting block.
+  - Golf had never worked: `DistributedGolfKart.setState` (string,i16) was read without its
+    timestamp, so every kart generate failed. Fixed; every incoming message is now checked
+    (`net: PARSE` log lines).
+  - Not covered: Cog attack movies (1 HP dev Cogs die before attacking) and swimming (the step
+    filtered out its teleport; it now teleports itself).
+- **Pass B (factory → DA office):**
+  - Verified: the factory is complete. Button, stomper, lift, barrel, gear, mixer, conveyor, door,
+    crate pushes (two refusals, then setMoveTo), goon zap and stun, a room battle, the foreman, and
+    `level: left for zone 11000`.
+  - From the Cog building step on, Azahar was CPU-starved by parallel agent builds. Astron ejected
+    it four times for heartbeat timeouts (345), so the mint / DA office results are invalid and
+    must be rerun alone.
+- Frame stats (emulator, not representative of hardware): factory battle 23.5–26.9 fps, busy 11–16 ms,
+  81–95 draws, 6.5–7.2k tris; heap 4.0 MB, linear free 12.5 MB, VRAM free 4.2 MB. TTC HQ
+  29.9 fps, busy 4.8 ms.
