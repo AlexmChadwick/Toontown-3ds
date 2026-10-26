@@ -32,6 +32,8 @@
 
 #include <cstdint>
 
+namespace tt::golf { struct Movie; }
+
 // ---- clerks protocol ----
 #include "net/clerks_state.h"
 // ---- end clerks ----
@@ -808,6 +810,15 @@ struct GolfHole {
     int numGolfers = 0, currentGolfer = 0;
     uint8_t tee = 0;
     float ballX = 0, ballY = 0, ballZ = 0;
+    // assignRecordSwing is sent only to the elected recorder.  The native client
+    // records the supplied shot and answers with ballMovie2AI; it never invents
+    // ballInHole.
+    uint32_t recordAvatar = 0;
+    float recordCycle = 0, recordDirX = 0, recordDirY = 0;
+    int32_t recordPower = 0;
+    uint16_t recordCommonBytes = 0;
+    uint8_t recordCommon[512] = {};
+    bool recordPending = false;
     uint32_t swingSeq = 0;
     bool active = false;
 };
@@ -1549,11 +1560,13 @@ public:
     bool sendGolfKartBoard();
     bool sendGolfKartExit();
     bool sendGolfReadyCourse();
+    bool sendGolfJoined();
     bool sendGolfReadyHole();
     bool sendGolfExitCourse();
     bool sendGolfDoneReward();
     bool sendGolfTee(uint8_t tee);
     bool sendGolfSwing(float cycleTime, int32_t power, float x, float y, float z, float dirX, float dirY);
+    bool sendGolfMovie(float cycleTime, uint32_t avatar, const golf::Movie& movie);
     bool sendGolfTurnDone();
     bool sendGolfBallInHole();
     // DistributedMinigame base protocol (all clsend; docs/design/trolley.md 2.2).

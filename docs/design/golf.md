@@ -12,11 +12,22 @@ Acres (17000) after `setCourseExit` or the local B exit request.
 Stock golf runs a 90 Hz physics step with gravity -25, ERP 0.8, CFM 1e-5,
 QuickStep iterations 8, a 0.25-unit ball radius, and a 0.75-unit cup acceptance
 radius. The server selects a trusted golfer and accepts that client's
-`ballMovie2AI`; it does not independently recompute the trajectory. The client
-therefore emits a deterministic movie (initial and contact samples) after
-`postSwingState`. `source/game/golf_logic.*` mirrors the stable flight/bounce
-portion used by the host test; the runtime keeps the network movie bounded and
-allocation-free.
+`ballMovie2AI`; it does not independently recompute the trajectory.
+
+The native client has the course join/ready/tee barriers and never sends
+`ballInHole` itself. When the AI sends `assignRecordSwing` to this client, it
+loads the selected hole's `GPH1` collision data, records a fixed 90 Hz movie,
+and returns that movie with `ballMovie2AI`. The client logs the assignment, sent
+movie, received movie and every `setScores` update.
+
+`GPH1` is little-endian and versioned: `<4sHHI>` (`GPH1`, version 1, reserved,
+triangle count), followed by `<9fB3x>` collision triangles. Surface ids mirror
+`GolfGlobals`: grass 0, hard 2, cup 3 and slick 4. The integrator uses the
+upstream gravity (-25), radius (.25), 90 Hz timestep, grass/slick friction and
+hard/grass restitution constants. It approximates ODE trimesh contact with a
+closest-triangle sphere contact, so it is deliberately not advertised as ODE
+bit parity; a Panda-ODE comparison is still required before treating a full
+course autotest as validated.
 
 ## Assets
 
@@ -27,6 +38,11 @@ physics-data names. Textures are emitted through the existing TTM pipeline and
 are ETC1-compatible under the repository texture configuration. The runtime
 loads only the selected hole model and keeps the existing Old 3DS linear-memory
 budgets.
+
+`tools/pipeline/bake_golf_physics.py` reads the corresponding stock BAM nodes
+(`softSurface/grass*`, `softSurface/slick*`, `softSurface/hole*`, and
+`hardSurface`) and emits `holeN.gph`. The bake is deterministic; the 18 files
+contain 6,717 collision triangles in total.
 
 ## Autotest / Azahar
 
