@@ -43,6 +43,7 @@ void Player::reset(float x, float y, float z, float headingDeg) {
     y_ = y;
     z_ = z;
     heading_ = headingDeg;
+    probeX_ = x_, probeY_ = y_;
     speed_ = vz_ = 0;
     onPlat_ = false;
     camYawOffset_ = 0;
@@ -112,6 +113,7 @@ void Player::update(const Input& in, float dt) {
         lx_ = x_, ly_ = y_, lz_ = z_, lh_ = heading_, lground_ = ground_;
         toWorld();
         if (!found) leavePlatform(); // walked off the edge: the zone's collision takes over
+        probeX_ = x_, probeY_ = y_; // platform-local motion has no world-space overshoot
     } else {
         locomote(in, dt, collision_);
     }
@@ -134,6 +136,7 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
     const float h = heading_ * kDegToRad;
     // Panda heading: H=0 faces +Y, positive H turns left (CCW seen from above).
     const float dx = -sinf(h) * speed_ * dt, dy = cosf(h) * speed_ * dt;
+    probeX_ = x_ + dx, probeY_ = y_ + dy; // the unpushed move (Player::probeX)
     const bool grounded = !airborne();
     const bool jumping = (in.down & KEY_A) && grounded;
     if (jumping) vz_ = kJumpVelocity;

@@ -55,6 +55,11 @@ public:
     float x() const { return x_; }
     float y() const { return y_; }
     float z() const { return z_; }
+    // The horizontal position the toon tried to reach this frame, before the wall slide. Trigger
+    // tests (doors, tunnels) use it: GravityWalker's event sphere is traversed on the moved, not yet
+    // pushed-back, position, so a toon pressed against a flush door still touches its trigger.
+    float probeX() const { return probeX_; }
+    float probeY() const { return probeY_; }
     float headingDeg() const { return heading_; }
     bool moving() const { return speed_ != 0.0f; }
     float groundZ() const { return ground_; }
@@ -83,6 +88,7 @@ private:
     void leavePlatform();
 
     float x_ = 0, y_ = 0, z_ = 0;
+    float probeX_ = 0, probeY_ = 0; // see probeX()
     float heading_ = 0; // degrees, CCW from +Y
     float speed_ = 0;
     float turnRate_ = 0; // deg/s this frame

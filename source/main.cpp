@@ -1646,7 +1646,7 @@ int main() {
 
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
-        const tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        const tt::world::Exit exitHere = place.exitAt(player.probeX(), player.probeY(), player.z());
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated()) {
             // A transition is running, or we are on the trolley / away at a minigame: no exits.
@@ -1696,8 +1696,14 @@ int main() {
                         } else if (place.kind() == tt::world::PlaceKind::Interior) {
                             block = place.zoneId() % 100;
                         }
+                        // Two-door interiors (Toon HQ) name each trigger door_trigger_<block>_<index>.
+                        u8 doorIndex = 0;
+                        if (place.kind() == tt::world::PlaceKind::Interior && !strncmp(exitHere.name, "door_trigger_", 13)) {
+                            const char* index = strchr(exitHere.name + 13, '_');
+                            if (index) doorIndex = static_cast<u8>(strtoul(index + 1, nullptr, 10));
+                        }
                         if (block > 0) {
-                            doorDoId = net.findDoor(block);
+                            doorDoId = net.findDoor(block, doorIndex);
                         }
                     }
                     transition.startDoorOut(travelTarget, exitHere, player, place, doorDoId, netStarted ? &net : nullptr);

@@ -286,6 +286,11 @@ Exit Place::exitAt(float x, float y, float z) const {
         if (kind() == PlaceKind::Interior && strstr(t.name, "door") && strstr(t.name, "trigger")) {
             e.kind = Exit::Door;
             e.targetZone = zoneId_ - zoneId_ % 100 - 500;
+            // ---- tutorial ----
+            // The Toontorial's interiors open onto the tutorial street (DistributedDoor
+            // setOtherZoneIdAndDoId on the street door), never the branch 20000 they are numbered from.
+            if (TutorialZones::isTutorialPlace(zoneId_)) e.targetZone = kTutorialStreet;
+            // ---- end tutorial ----
             snprintf(e.name, sizeof(e.name), "%s", t.name);
             return e;
         }
