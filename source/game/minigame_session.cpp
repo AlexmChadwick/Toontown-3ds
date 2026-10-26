@@ -276,7 +276,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         TT_LOG("mgpass: result id %u: %.70s / %.70s", unsigned(gameId_), line(0), line(1));
         TT_LOG("mgpass: end id %u aborted %u", unsigned(gameId_), unsigned(ev.type == EventType::MinigameAbort));
         if (ev.type == EventType::MinigameExit && !exitedSent_ && client.sendMinigameExited()) exitedSent_ = true;
-        unloadCurrent();
+        // The game's scene stays resident through the purchase (upstream keeps the last frame
+        // until the purchase step is over); it is unloaded when we leave (Phase::Leaving).
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         snprintf(lines_[1], sizeof(lines_[1]), "Counting jellybeans...");
@@ -660,6 +661,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
     case Phase::Leaving:
         if (inPhase > 0.5f) {
             returnHood_ = home_;
+            unloadCurrent();
             setPhase(Phase::Off);
             TT_LOG("mgpass: returned id %u", unsigned(gameId_));
         }
