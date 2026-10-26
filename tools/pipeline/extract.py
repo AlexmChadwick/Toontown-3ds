@@ -8,7 +8,7 @@ import fnmatch
 import os
 
 import numpy as np
-from panda3d.core import (ColorAttrib, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
+from panda3d.core import (ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
                           PNMImage, SamplerState, Texture, TextureAttrib, TexMatrixAttrib,
                           Thread, TransparencyAttrib)
 
@@ -90,7 +90,7 @@ def choose_format(px, ncomp, panda_fmt, etc1=None, binary_alpha_5551=None):
 
 class Extractor:
     def __init__(self, max_tex=128, tint_rules=(), layer_rules=(), encode_textures=True,
-                 etc1=None):
+                 etc1=None, decals=False):
         self.max_tex = max_tex
         self.etc1 = etc1                 # None: env TT_ETC1 (default on)
         # False: assign texture indices in discovery order but skip pixel work. Used to
@@ -98,6 +98,11 @@ class Extractor:
         self.encode_textures = encode_textures
         self.tint_rules = tint_rules     # [(glob on node name, slot)]
         self.layer_rules = layer_rules   # [(glob on node name, layer)]
+        # True: Panda DecalEffect becomes draw-in-front layers. A decal node's first geom is the
+        # base; its later geoms and its child nodes are decals coplanar with it, which would
+        # z-fight without the runtime's per-layer depth bias. Off by default so existing bakes
+        # keep their bytes.
+        self.decals = decals
         self.textures = []
         self._tex_index = {}
         self._groups = {}                # state key -> list of (verts, indices)
@@ -143,9 +148,24 @@ class Extractor:
             tint = self._match(self.tint_rules, gnp, root)
             layer = self._match(self.layer_rules, gnp, root)
             gn = gnp.node()
+            decal_depth = self._decal_depth(gnp, root) if self.decals else 0
+            own_decal = self.decals and gn.getEffect(DecalEffect.getClassType()) is not None
             for gi in range(gn.getNumGeoms()):
+                geom_layer = max(layer, decal_depth + (1 if own_decal and gi > 0 else 0))
                 self._add_geom(gn.getGeom(gi), net_state.compose(gn.getGeomState(gi)),
-                               mat, tint, layer, animated)
+                               mat, tint, geom_layer, animated)
+
+    def _decal_depth(self, node_path, root):
+        """How many DecalEffect ancestors (strictly above node_path, below or at root) it has."""
+        depth = 0
+        p = node_path.getParent()
+        while not p.isEmpty():
+            if p.node().getEffect(DecalEffect.getClassType()) is not None:
+                depth += 1
+            if p == root:
+                break
+            p = p.getParent()
+        return depth
 
     def _add_geom(self, geom, state, mat, tint, layer, animated):
         vdata = geom.getVertexData()

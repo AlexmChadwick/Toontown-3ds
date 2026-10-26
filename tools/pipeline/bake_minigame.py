@@ -189,7 +189,7 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
     model.setScale(scale)
     model.setHpr(*hpr)
     model.setPos(*pos)
-    ex = extract.Extractor(max_tex=max_tex)
+    ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals
     # The anvil is a one-joint Character: apply its (bind pose) skinning.
     ex.add(root, animated=model.find('**/+Character').isEmpty() is False)
     path = os.path.join(out_dir, name + '.ttm')
@@ -247,7 +247,7 @@ def bake_pairing(base, resources, out_dir, max_tex):
         root.setScale(2.5)
         scene = NodePath('scene')
         root.reparentTo(scene)
-        ex = extract.Extractor(max_tex=max_tex)
+        ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals
         ex.add(scene)
         path = os.path.join(out_dir, 'pairing_card_%d.ttm' % rank)
         stats = ttm.write(path, ex.textures, ex.batches())
