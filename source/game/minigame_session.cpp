@@ -322,7 +322,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         break;
 
     case EventType::TagSetIt:
-        if (isTag_ && mg) tag_.onTag(client.avatarId(), mg->tagItAvId);
+        if (isTag_ && mg) tag_.setIt(mg->tagItAvId);
         break;
 
     case EventType::PatternSetPlayerPatterns:

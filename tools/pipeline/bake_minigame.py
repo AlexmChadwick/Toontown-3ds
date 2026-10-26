@@ -102,6 +102,8 @@ MODELS = {
     # Tag
     'tag_arena': (MG + 'tag_arena', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'tag_treasure': ('phase_3.5/models/props/mickeySZ', '**/mickeySZ', (0, -90, 0), 1.6, (0, 0, 0)),
+    # DistributedTagGame.load: the IT sign drawn above the IT toon (setIt: itPointer.setZ(getHeight())).
+    'tag_pointer': (MG + 'bboard-pointer', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Pattern
     'pattern_stage': (MG + 'matching_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -267,7 +269,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
