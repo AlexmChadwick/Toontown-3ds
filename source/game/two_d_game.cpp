@@ -65,6 +65,7 @@ void TwoDGame::handleSetSections(const net::Client& client) {
         return;
     }
     sim_.init(&course_, localIndex, 3.0f);
+    autopilot_.reset();
     courseAssembled_ = true;
     TT_LOG("mgpass: twod sections=%d blocks=%d enemies=%d treasures=%d", count, course_.numBlocks, course_.numEnemies, course_.numTreasures);
 }
@@ -96,7 +97,7 @@ void TwoDGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
     input.move = pad.dx > 20 ? 1 : pad.dx < -20 ? -1 : 0;
     input.jump = (keysDown & KEY_A) != 0;
     input.shoot = (keysDown & KEY_B) != 0;
-    if (autoPlay_) input = twodgame::autopilot(sim_, timer_, dt);
+    if (autoPlay_) input = autopilot_.input(sim_, timer_, dt);
     twodgame::Events events;
     sim_.step(input, timer_, dt, &events);
     const int16_t stamp = static_cast<int16_t>((nowMs / 10) & 0xffff);

@@ -814,79 +814,195 @@ void Simulation::step(const Input& in, float t, float dt, Events* ev) {
 
 namespace {
 
-struct Rollout {
-    float x = 0.0f;
-    bool failed = false;
-    float survived = 0.0f;
-};
+constexpr int kActions = 6;
+constexpr int kIdleAction = 2;
+// Search heuristic weights; physics and motion constants above cite upstream.
+constexpr float kHeightWeight = 0.7f;
+constexpr float kGroundBonus = 8.0f;
+constexpr float kVictoryScore = 10000.0f;
+constexpr float kMergeDistance = 0.6f;
 
-Rollout rollout(Simulation sim, const Input& first, float hold, float t, float horizon, float dt) {
-    Rollout r;
-    Events ev;
-    const float startX = sim.x();
-    float elapsed = 0.0f;
-    while (elapsed < horizon) {
-        Input in;
-        if (elapsed < hold) in = first;
-        t += dt;
-        elapsed += dt;
-        sim.step(in, t, dt, &ev);
-        if (ev.fellDown || ev.hitByEnemy || ev.squished) {
-            r.failed = true;
-            break;
-        }
-        if (ev.victory) {
-            r.x = 1e6f;
-            return r;
-        }
-    }
-    r.survived = elapsed;
-    r.x = sim.x() - startX;
-    return r;
+Input actionInput(int action) {
+    Input in;
+    in.move = action < 2 ? 1 : action < 4 ? 0 : -1;
+    in.jump = (action % 2) != 0;
+    // The normal gun cooldown and server-owned enemy health still apply.
+    in.shoot = true;
+    return in;
 }
 
 } // namespace
 
-Input autopilot(const Simulation& sim, float t, float dt) {
-    Input best;
-    if (sim.state() != ToonState::Normal) return best;
-    (void)dt;
-    struct Candidate {
-        int move;
-        bool jump;
-        float hold;
-    };
-    static const Candidate kCandidates[] = {
-        {1, false, 0.3f}, {1, true, 1.0f}, {1, true, 0.6f}, {1, false, 1.0f}, {0, false, 0.3f},
-        {-1, false, 0.3f}, {-1, true, 1.0f}, {0, true, 0.3f}, {1, true, 0.3f},
-    };
-    constexpr float kStep = 1.0f / 15.0f;
-    constexpr float kHorizon = 2.4f;
-    float bestScore = -1e9f;
-    for (const Candidate& c : kCandidates) {
-        Input in;
-        in.move = c.move;
-        in.jump = c.jump;
-        const Rollout r = rollout(sim, in, c.hold, t, kHorizon, kStep);
-        const float score = r.failed ? -1000.0f + r.survived : r.x;
-        if (score > bestScore + 0.01f) {
-            bestScore = score;
-            best = in;
+void Autopilot::reset() {
+    queued_ = 0;
+    cursor_ = 0;
+    searching_ = false;
+    projection_ = 0;
+    stepsLastFrame_ = 0;
+}
+
+void Autopilot::beginSearch(const Simulation& root, float nextTime, float dt) {
+    beam_[0][0].sim = root;
+    current_ = 0;
+    count_ = 1;
+    nextCount_ = 0;
+    depth_ = 0;
+    node_ = 0;
+    action_ = 0;
+    frame_ = 0;
+    stepDt_ = dt;
+    times_[0] = nextTime;
+    for (int i = 1; i <= kPlanFrames; ++i) {
+        times_[i] = times_[i - 1] + dt;
+    }
+    searching_ = true;
+}
+
+void Autopilot::retainCandidate() {
+    const Simulation& sim = candidate_.sim;
+    candidate_.score = sim.x() + kHeightWeight * sim.z();
+    if (!sim.airborne()) {
+        candidate_.score += kGroundBonus;
+    }
+    if (sim.state() == ToonState::Victory) {
+        candidate_.score += kVictoryScore;
+    }
+    int duplicate = -1;
+    for (int i = 0; i < nextCount_; ++i) {
+        const Node& other = beam_[1 - current_][i];
+        // Keep distinct takeoff / landing states, including the jump-release latch.
+        if (std::fabs(other.sim.x() - sim.x()) < kMergeDistance &&
+            std::fabs(other.sim.z() - sim.z()) < kMergeDistance &&
+            other.sim.airborne() == sim.airborne() &&
+            other.path[depth_] % 2 == action_ % 2) {
+            duplicate = i;
+            break;
         }
     }
-    // Squirt any Cog ahead within the bullet's reach.
-    const Course& course = sim.course();
-    const float facing = -std::sin(sim.heading() * kDegToRad);
-    for (int i = 0; i < course.numEnemies; ++i) {
-        if (!sim.enemyAlive(i)) continue;
-        float ex, ez, eh;
-        course.enemyPose(i, t, &ex, &ez, &eh);
-        const float ahead = (ex - sim.x()) * facing;
-        if (ahead > 0.0f && ahead < kBulletEndY + kEnemySphereRadius &&
-            std::fabs(ez + kEnemySphereZ - (sim.z() + kBulletZ)) < kEnemySphereRadius + kBulletRadius)
-            best.shoot = true;
+    if (duplicate >= 0) {
+        if (candidate_.score > beam_[1 - current_][duplicate].score) {
+            beam_[1 - current_][duplicate] = candidate_;
+        }
+        return;
     }
-    return best;
+    if (nextCount_ < kBeamWidth) {
+        beam_[1 - current_][nextCount_++] = candidate_;
+        return;
+    }
+    int worst = 0;
+    for (int i = 1; i < nextCount_; ++i) {
+        if (beam_[1 - current_][i].score < beam_[1 - current_][worst].score) {
+            worst = i;
+        }
+    }
+    if (candidate_.score > beam_[1 - current_][worst].score) {
+        beam_[1 - current_][worst] = candidate_;
+    }
+}
+
+void Autopilot::publish() {
+    int best = 0;
+    for (int i = 1; i < count_; ++i) {
+        const bool grounded = !beam_[current_][i].sim.airborne();
+        const bool bestGrounded = !beam_[current_][best].sim.airborne();
+        if ((grounded && !bestGrounded) ||
+            (grounded == bestGrounded && beam_[current_][i].score > beam_[current_][best].score)) {
+            best = i;
+        }
+    }
+    const Node& chosen = beam_[current_][best];
+    const int frames = depth_ * kMacroFrames;
+    for (int i = 0; i < frames; ++i) {
+        queue_[(cursor_ + queued_ + i) % (2 * kPlanFrames)] = chosen.path[i / kMacroFrames];
+    }
+    queued_ += frames;
+    tail_ = chosen.sim;
+    tailTime_ = times_[frames];
+    searching_ = false;
+}
+
+void Autopilot::expand() {
+    if (frame_ == 0) {
+        candidate_ = beam_[current_][node_];
+        candidate_.path[depth_] = static_cast<uint8_t>(action_);
+    }
+    Events ev;
+    candidate_.sim.step(actionInput(action_), times_[depth_ * kMacroFrames + frame_], stepDt_, &ev);
+    ++stepsLastFrame_;
+    ++frame_;
+    const bool failed = candidate_.sim.state() != ToonState::Normal &&
+                        candidate_.sim.state() != ToonState::Victory;
+    if (!failed && frame_ < kMacroFrames) {
+        return;
+    }
+    if (!failed) {
+        retainCandidate();
+    }
+    frame_ = 0;
+    ++action_;
+    if (action_ < kActions) {
+        return;
+    }
+    action_ = 0;
+    ++node_;
+    if (node_ < count_) {
+        return;
+    }
+    node_ = 0;
+    if (nextCount_ == 0) {
+        publish();
+        return;
+    }
+    count_ = nextCount_;
+    nextCount_ = 0;
+    current_ = 1 - current_;
+    ++depth_;
+    if (depth_ == kSearchDepth) {
+        publish();
+    }
+}
+
+Input Autopilot::input(const Simulation& sim, float t, float dt) {
+    stepsLastFrame_ = 0;
+    if (sim.state() != ToonState::Normal) {
+        reset();
+        return Input{};
+    }
+    if (queued_ == 0) {
+        // Bootstrap on legal idle inputs. Project the same wait into a future search root;
+        // the projection and beam work share the per-frame simulation-step budget.
+        reset();
+        queued_ = kPlanFrames;
+        for (int i = 0; i < queued_; ++i) {
+            queue_[i] = kIdleAction;
+        }
+        tail_ = sim;
+        tailTime_ = t;
+        stepDt_ = dt;
+        projection_ = kPlanFrames;
+    }
+    while (stepsLastFrame_ < kStepsPerFrame) {
+        if (projection_ > 0) {
+            Events ev;
+            tail_.step(actionInput(kIdleAction), tailTime_, stepDt_, &ev);
+            tailTime_ += stepDt_;
+            --projection_;
+            ++stepsLastFrame_;
+            if (projection_ == 0) {
+                beginSearch(tail_, tailTime_, stepDt_);
+            }
+        } else if (searching_) {
+            expand();
+        } else if (queued_ <= kPlanFrames) {
+            beginSearch(tail_, tailTime_, dt);
+        } else {
+            break;
+        }
+    }
+    const Input result = actionInput(queue_[cursor_]);
+    cursor_ = (cursor_ + 1) % (2 * kPlanFrames);
+    --queued_;
+    return result;
 }
 
 } // namespace tt::twodgame

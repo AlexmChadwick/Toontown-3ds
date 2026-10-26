@@ -37,6 +37,7 @@ private:
     world::BasicAssetBatch<16> assetBatch_;
     twodgame::Course course_;
     twodgame::Simulation sim_;
+    twodgame::Autopilot autopilot_;
     unsigned hood_ = 2000;
     float timer_ = 0.0f;
     int score_ = 0;

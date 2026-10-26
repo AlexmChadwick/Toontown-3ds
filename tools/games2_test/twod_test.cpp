@@ -63,13 +63,14 @@ void toSelections(const Minigame& m, tb::SectionSelection* out) {
 bool autoplay(const tb::Course& course, uint32_t hood, int players, float* finishTime, int* treasures) {
     static tb::Simulation sim;
     sim.init(&course, 0, 3.0f);
+    tb::Autopilot autopilot;
     int health[tb::kMaxEnemies];
     for (int i = 0; i < course.numEnemies; ++i) health[i] = tb::kEnemyBaseHealth * players;
     const float duration = tb::hoodRules(hood).gameDuration;
     const float dt = 1.0f / 30.0f;
     *treasures = 0;
     for (float t = dt; t < duration; t += dt) {
-        const tb::Input in = tb::autopilot(sim, t, dt);
+        const tb::Input in = autopilot.input(sim, t, dt);
         tb::Events ev;
         sim.step(in, t, dt, &ev);
         *treasures += ev.treasureGrabs;
@@ -154,7 +155,7 @@ int main() {
             int grabbed = 0;
             // The sampled course proves autoPlay reaches a server-selected result; all
             // hood vectors still validate the exact DC packing and course layout.
-            if (selects == 0 && autoplay(course, hood, int(players), &finish, &grabbed)) {
+            if (autoplay(course, hood, int(players), &finish, &grabbed)) {
                 ++finished;
                 std::printf("autopilot hood %u players %u: finished at %.1f s, %d treasures\n", hood, players,
                             double(finish), grabbed);
@@ -209,5 +210,5 @@ int main() {
     std::printf("twod: %d Panda-packed setSectionsSelected parsed and laid out; walker = GravityWalker over %d "
                 "frames in %d runs (worst %.4f); autopilot finished %d of %d AI courses\n",
                 selects, physicsFrames, physicsRuns, double(worstPhysics), finished, selects);
-    return finished == 1 ? 0 : 1;
+    return finished == selects ? 0 : 1;
 }

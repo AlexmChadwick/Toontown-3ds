@@ -296,9 +296,51 @@ int jellybeans(int rawScore);
 // DistributedTwoDGameAI.toonVictory: int(BaseBonusOnCompletion + BonusPerSecondLeft * timeLeft), >= 0.
 int victoryBonus(uint32_t hood, float timeLeft);
 
-// Test-only autopilot (autotest autoPlay and tools/games2_test): rolls the real simulation
-// forward for each candidate input and keeps the one that makes the most progress without
-// falling, being hit or squished.
-Input autopilot(const Simulation& sim, float t, float dt);
+// Test-only controller. No heap allocation or modification of the live Simulation.
+class Autopilot {
+public:
+    // Search tuning, not upstream game rules. A four-second horizon at the app's 30 Hz.
+    static constexpr int kBeamWidth = 8;
+    static constexpr int kMacroFrames = 6;
+    static constexpr int kSearchDepth = 20;
+    static constexpr int kPlanFrames = kMacroFrames * kSearchDepth;
+    static constexpr int kStepsPerFrame = 64;
+
+    Input input(const Simulation& sim, float t, float dt);
+    void reset();
+    int stepsLastFrame() const { return stepsLastFrame_; }
+
+private:
+    struct Node {
+        Simulation sim;
+        uint8_t path[kSearchDepth] = {};
+        float score = 0.0f;
+    };
+
+    void beginSearch(const Simulation& root, float nextTime, float dt);
+    void expand();
+    void retainCandidate();
+    void publish();
+
+    Node beam_[2][kBeamWidth];
+    Node candidate_;
+    Simulation tail_;
+    uint8_t queue_[2 * kPlanFrames] = {};
+    int queued_ = 0;
+    int cursor_ = 0;
+    int current_ = 0;
+    int count_ = 0;
+    int nextCount_ = 0;
+    int depth_ = 0;
+    int node_ = 0;
+    int action_ = 0;
+    int frame_ = 0;
+    int projection_ = 0;
+    int stepsLastFrame_ = 0;
+    float times_[kPlanFrames + 1] = {};
+    float stepDt_ = 0.0f;
+    float tailTime_ = 0.0f;
+    bool searching_ = false;
+};
 
 } // namespace tt::twodgame
