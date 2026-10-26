@@ -1510,6 +1510,7 @@ public:
     bool sendGolfKartBoard();
     bool sendGolfKartExit();
     bool sendGolfReadyCourse();
+    bool sendGolfJoined();
     bool sendGolfReadyHole();
     bool sendGolfExitCourse();
     bool sendGolfDoneReward();

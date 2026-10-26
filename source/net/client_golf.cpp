@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "game/golf_logic.h"
 #include "net/msg_types.h"
 
 namespace tt::net {
@@ -120,6 +121,8 @@ bool Client::applyGolfCourseField(GolfCourse& c, DatagramReader& r, uint16_t fie
     } else {
         skipField(r, fieldId);
     }
+    TT_LOG("golf: course %u field %u hole %d golfers %d scores %d reward %d exit %d", unsigned(c.doId),
+           unsigned(fieldId), int(c.currentHole), c.numGolfers, c.numScores, int(c.reward), int(c.exiting));
     if (announce && r.ok()) pushEvent(EventType::GolfCourseState, c.doId);
     return r.ok();
 }
@@ -150,6 +153,7 @@ bool Client::applyGolfHoleField(GolfHole& h, DatagramReader& r, uint16_t fieldId
         r.u16(); r.u16(); r.u16();
         const uint16_t commonBytes = r.u16(); r.skip(commonBytes);
         h.swingSeq++;
+        TT_LOG("golf: movie received hole %u frames %u", unsigned(h.doId), unsigned(movieBytes / 14));
     } else {
         skipField(r, fieldId);
     }
@@ -178,14 +182,14 @@ bool Client::handleGolfEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
         for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyGolfCourseField(tmp, r, req[i], false);
         if (ok && other) { const uint16_t n = r.u16(); for (uint16_t i = 0; i < n && ok; ++i) ok = applyGolfCourseField(tmp, r, r.u16(), false); }
         if (!ok) return false;
-        tmp.active = true; golfCourse_ = tmp; pushEvent(EventType::GolfCourseUp, doId); return true;
+        tmp.active = true; golfCourse_ = tmp; TT_LOG("golf: course arrived %u golfers %d", unsigned(doId), tmp.numGolfers); pushEvent(EventType::GolfCourseUp, doId); return true;
     }
     GolfHole tmp{}; tmp.doId = doId;
     bool ok = true;
     for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyGolfHoleField(tmp, r, req[i], false);
     if (ok && other) { const uint16_t n = r.u16(); for (uint16_t i = 0; i < n && ok; ++i) ok = applyGolfHoleField(tmp, r, r.u16(), false); }
     if (!ok) return false;
-    tmp.active = true; golfHole_ = tmp; pushEvent(EventType::GolfHoleUp, doId); return true;
+    tmp.active = true; golfHole_ = tmp; TT_LOG("golf: hole arrived %u id %d", unsigned(doId), int(tmp.holeId)); pushEvent(EventType::GolfHoleUp, doId); return true;
 }
 
 bool Client::handleGolfField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
@@ -226,6 +230,14 @@ bool Client::sendGolfReadyCourse() {
     if (!golfCourse_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, golfCourse_.doId, DistributedGolfCourse, setAvatarReadyCourse);
+    return finish(w);
+}
+
+bool Client::sendGolfJoined() {
+    if (!golfCourse_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, golfCourse_.doId, DistributedGolfCourse, setAvatarJoined);
+    TT_LOG("golf: course joined %u", unsigned(golfCourse_.doId));
     return finish(w);
 }
 
@@ -273,21 +285,8 @@ bool Client::sendGolfSwing(float cycleTime, int32_t power, float x, float y, flo
     w.i32(static_cast<int32_t>(dirX * 1000.0f)); w.i32(static_cast<int32_t>(dirY * 1000.0f));
     w.u16(0);
     w.u16(0);
-    if (!finish(w)) return false;
-
-    // The stock AI trusts the selected client's movie. A two-sample straight shot is
-    // deterministic, bounded, and lets a solo stock-server course advance.
-    uint8_t movie[64]; DatagramWriter m(movie, sizeof(movie));
-    m.i16(0); m.i32(static_cast<int32_t>(x * 100000.0f)); m.i32(static_cast<int32_t>(y * 100000.0f)); m.i32(static_cast<int32_t>(z * 100000.0f));
-    const float distance = static_cast<float>(power) * 0.35f;
-    const float ex = x + dirX * distance, ey = y + dirY * distance;
-    m.i16(9); m.i32(static_cast<int32_t>(ex * 100000.0f)); m.i32(static_cast<int32_t>(ey * 100000.0f)); m.i32(static_cast<int32_t>(z * 100000.0f));
-    DatagramWriter outW = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
-    TT_NET_UPDATE(outW, golfHole_.doId, DistributedGolfHole, ballMovie2AI);
-    outW.u32(static_cast<uint32_t>(cycleTime * 1000.0f)); outW.u32(avatarId_);
-    outW.u16(static_cast<uint16_t>(m.size())); outW.bytes(m.data(), m.size());
-    outW.u16(0); outW.u16(9); outW.u16(9); outW.u16(9); outW.u16(0);
-    return finish(outW);
+    TT_LOG("golf: swing sent hole %u power %ld", unsigned(golfHole_.doId), long(power));
+    return finish(w);
 }
 
 bool Client::sendGolfTurnDone() {

@@ -12,11 +12,14 @@ Acres (17000) after `setCourseExit` or the local B exit request.
 Stock golf runs a 90 Hz physics step with gravity -25, ERP 0.8, CFM 1e-5,
 QuickStep iterations 8, a 0.25-unit ball radius, and a 0.75-unit cup acceptance
 radius. The server selects a trusted golfer and accepts that client's
-`ballMovie2AI`; it does not independently recompute the trajectory. The client
-therefore emits a deterministic movie (initial and contact samples) after
-`postSwingState`. `source/game/golf_logic.*` mirrors the stable flight/bounce
-portion used by the host test; the runtime keeps the network movie bounded and
-allocation-free.
+`ballMovie2AI`; it does not independently recompute the trajectory.
+
+The current native client has the course join/ready/tee barriers and does not
+send `ballInHole` itself. Its local `golf_logic` recording is a deterministic,
+collision-free host-tested approximation only; it is not a substitute for the
+upstream ODE collision world and must not be used to claim a cup. Full trusted
+`assignRecordSwing` playback still requires a generated DC constant plus baked
+hard/soft/cup collision meshes for every hole.
 
 ## Assets
 

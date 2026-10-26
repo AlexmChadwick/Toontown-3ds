@@ -26,6 +26,7 @@ void GolfSession::begin(net::Client&, uint32_t zone, int8_t courseId, uint32_t n
     snprintf(lines_[0], sizeof(lines_[0]), "Course %d  |  A: swing", int(courseId));
     snprintf(lines_[1], sizeof(lines_[1]), "Circle pad: aim / power");
     snprintf(lines_[2], sizeof(lines_[2]), "B: leave course");
+    TT_LOG("golf: zone %u course %d", unsigned(zone), int(courseId));
 }
 
 void GolfSession::loadHole(int holeId) {
@@ -34,6 +35,7 @@ void GolfSession::loadHole(int holeId) {
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.ttm", model);
     assetBatch_.load(hole_, path);
     ballX_ = 0.0f; ballY_ = 0.0f; ballZ_ = 0.25f; aim_ = 0.0f; power_ = 3.0f; swung_ = false;
+    TT_LOG("golf: hole %d loaded", holeId);
 }
 
 void GolfSession::setText() {
@@ -42,32 +44,51 @@ void GolfSession::setText() {
     snprintf(lines_[2], sizeof(lines_[2]), "B: exit to Acorn Acres");
 }
 
-void GolfSession::handleEvent(const net::Event& ev, net::Client& client, uint32_t) {
+void GolfSession::handleEvent(const net::Event& ev, net::Client& client, uint32_t nowMs) {
     if (ev.type == net::EventType::GolfKartUp || ev.type == net::EventType::GolfKartState) {
         if (!kart_.loaded())
             assetBatch_.load(kart_, "sdmc:/3ds/toontown3ds/data/golf/golf_cart3.ttm");
         return;
     }
     if (ev.type == net::EventType::GolfZone && !active_) {
-        begin(client, ev.doId, -1, 0);
+        begin(client, ev.doId, client.golfKart() ? client.golfKart()->courseId : -1, nowMs);
         client.changeZone(ev.doId);
+        TT_LOG("golf: change zone %u", unsigned(ev.doId));
         return;
     }
     if (!active_) return;
-    if (ev.type == net::EventType::GolfCourseUp && !sentCourseReady_) {
-        sentCourseReady_ = client.sendGolfReadyCourse();
+    if (ev.type == net::EventType::GolfCourseUp) {
+        if (!sentJoined_) sentJoined_ = client.sendGolfJoined();
+        if (!sentCourseReady_) sentCourseReady_ = client.sendGolfReadyCourse();
+        TT_LOG("golf: course handshake joined=%d ready=%d", int(sentJoined_), int(sentCourseReady_));
     } else if (ev.type == net::EventType::GolfHoleUp) {
         const net::GolfHole* h = client.golfHole();
         loadHole(h ? h->holeId : 0);
         sentHoleReady_ = client.sendGolfReadyHole();
         setText();
+        TT_LOG("golf: hole ready=%d", int(sentHoleReady_));
     } else if (ev.type == net::EventType::GolfHoleState) {
         const net::GolfHole* h = client.golfHole();
-        if (h) { ballX_ = h->ballX; ballY_ = h->ballY; ballZ_ = h->ballZ; }
+        if (h) {
+            ballX_ = h->ballX;
+            ballY_ = h->ballY;
+            ballZ_ = h->ballZ;
+            if (h->currentGolfer == static_cast<int>(client.avatarId()) && !sentTee_) {
+                sentTee_ = client.sendGolfTee(0);
+                TT_LOG("golf: tee selected=%d", int(sentTee_));
+            }
+        }
         setText();
     } else if (ev.type == net::EventType::GolfCourseState && client.golfCourse() &&
                (client.golfCourse()->exiting || client.golfCourse()->reward)) {
-        returnPending_ = returnZone_;
+        if (client.golfCourse()->reward && !sentRewardDone_) {
+            sentRewardDone_ = client.sendGolfDoneReward();
+            TT_LOG("golf: reward done=%d", int(sentRewardDone_));
+        }
+        if (client.golfCourse()->exiting) {
+            returnPending_ = returnZone_;
+            TT_LOG("golf: exit received");
+        }
     }
 }
 
@@ -79,17 +100,19 @@ void GolfSession::update(net::Client& client, const circlePosition& pad, uint32_
     if (power_ > 7.0f) power_ = 7.0f;
     if ((keysDown & KEY_B) != 0) {
         client.sendGolfExitCourse();
-        returnPending_ = returnZone_;
+        TT_LOG("golf: exit requested");
     } else if ((keysDown & KEY_A) != 0 && client.golfHole() && !swung_) {
         const float a = aim_ * 3.14159265f / 180.0f;
         const float dx = sinf(a), dy = cosf(a);
         swung_ = client.sendGolfSwing((nowMs - startedMs_) / 1000.0f, static_cast<int32_t>(power_), ballX_, ballY_,
                                       ballZ_, dx, dy);
-        if (swung_ && client.golfHole()) client.sendGolfTurnDone();
+        swingMs_ = nowMs;
+        TT_LOG("golf: swing requested=%d", int(swung_));
     }
-    if (swung_ && client.golfHole() && nowMs - startedMs_ > 1200) {
-        client.sendGolfBallInHole();
+    if (swung_ && nowMs - swingMs_ > 1200) {
+        client.sendGolfTurnDone();
         swung_ = false;
+        TT_LOG("golf: playback acknowledged");
     }
     setText();
 }
