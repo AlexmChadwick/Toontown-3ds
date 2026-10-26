@@ -13,10 +13,10 @@ import types
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-UPSTREAM = ROOT / "ref" / "ref" / "open-toontown"
-RESOURCES = ROOT / "ref" / "ref" / "resources"
-if not RESOURCES.exists():
-    RESOURCES = ROOT / "ref" / "resources"
+# The main checkout has ref/<submodule>; linked worktrees and clones reach it through ref/ref.
+REF = ROOT / "ref" if (ROOT / "ref" / "open-toontown" / "toontown").is_dir() else ROOT / "ref" / "ref"
+UPSTREAM = REF / "open-toontown"
+RESOURCES = REF / "resources"
 
 sys.path.insert(0, str(UPSTREAM))
 
