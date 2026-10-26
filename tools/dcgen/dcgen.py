@@ -359,6 +359,9 @@ TABLE_CLASSES += ['DistributedElevatorFloor', 'DistributedClubElevator']
 # ---- facility room games (docs/design/level_games.md) ----
 TABLE_CLASSES += ['DistributedMoleField', 'DistributedGolfGreenGame', 'DistributedGrid',
                   'DistributedGridGoon', 'DistributedCrusherEntity']
+# Chip 'n Dale's MiniGolf (client_golf.cpp): without these the client drops every golf generate.
+TABLE_CLASSES += ['DistributedGolfKart', 'DistributedGolfCourse', 'DistributedGolfHole',
+                  'DistributedPhysicsWorld']
 # ---- end facility levels ----
 
 # ---- Cog boss battles (client_boss.cpp, docs/design/bosses.md) ----
