@@ -45,6 +45,7 @@ namespace {
 
 struct Contact {
     float nx, ny, nz;
+    float x, y, z;
     float depth;
     Surface surface;
     float normalImpulse;
@@ -159,11 +160,11 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
         }
         Contact& contact = contacts[contactCount++];
         contact.nx = nx; contact.ny = ny; contact.nz = nz;
+        contact.x = qx; contact.y = qy; contact.z = qz;
         contact.depth = kRadius - distance;
         contact.surface = triangle.surface;
         const SurfaceParams params = surfaceParams(triangle.surface);
         if (params.dampen > strongestDampen) strongestDampen = params.dampen;
-        if (triangle.surface == Surface::Cup && touchedCup) *touchedCup = 1;
     }
 
     // dWorldQuickStep first applies gravity/forces, solves its contact rows eight
@@ -209,6 +210,17 @@ void Physics::simulate(Ball& ball, uint16_t* touchedCup) {
     ball.x += ball.vx * kStep;
     ball.y += ball.vy * kStep;
     ball.z += ball.vz * kStep;
+
+    // GolfHoleBase only records a cup touch when the mesh contact is below the
+    // ball underside.  A rim/side contact is not a sunk putt.
+    if (touchedCup) {
+        for (int i = 0; i < contactCount; ++i) {
+            if (contacts[i].surface == Surface::Cup && contacts[i].z < ball.z - 0.05f) {
+                *touchedCup = 1;
+                break;
+            }
+        }
+    }
 
     // GolfHoleBase.postStep pins the ball ray's grass/hard contact just above
     // the surface whenever the sphere has numerically sunk beneath it.
@@ -258,7 +270,7 @@ bool Physics::takeOutOfBoundsReset() {
     return reset;
 }
 void step(Ball& b,float dt){if(b.resting)return;b.vz+=kGravity*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.z+=b.vz*dt;if(b.z<=kRadius){b.z=kRadius;if(std::fabs(b.vz)>.25f)b.vz=-b.vz*.15f;else b.vz=0;b.vx*=.986f;b.vy*=.986f;if(std::fabs(b.vx)+std::fabs(b.vy)+std::fabs(b.vz)<.03f){b.vx=b.vy=b.vz=0;b.resting=true;}}}
-bool inCup(const Ball&b,float x,float y,float z){float dx=b.x-x,dy=b.y-y,dz=b.z-z;return dx*dx+dy*dy+dz*dz<=.75f*.75f;}
+bool inCup(const Ball&b,float x,float y,float z){float dx=b.x-x,dy=b.y-y,dz=b.z-z;return dx*dx+dy*dy+dz*dz<=.375f*.375f;}
 bool predictable(const Movie& movie, uint16_t index, float error) {
     if (!index || index + 1 >= movie.count) return false;
     const uint16_t first = movie.frameIds[index - 1];
@@ -287,6 +299,7 @@ void reduceMovie(Movie& movie) {
 }
 void recordRaw(Movie&m,Physics&p,const Ball&start,float power,float x,float y,float cupX,float cupY,float cupZ){
     m=Movie{}; Ball b=start; b.resting=false; uint16_t cup=0;
+    bool didHoleBreak = false;
     // GolfHoleBase settles the positioned sphere once before applying the club
     // force, then records that settled state as frame zero.
     p.simulate(b,&cup);
@@ -359,7 +372,15 @@ void recordRaw(Movie&m,Physics&p,const Ball&start,float power,float x,float y,fl
             cup = 0;
             continue;
         }
-        if(cup&&inCup(b,cupX,cupY,cupZ)){m.ballInFrame=frame;break;}
+        if (cup && inCup(b, cupX, cupY, cupZ) && !didHoleBreak) {
+            // Stock keeps simulating after this, but halves the body velocity
+            // once.  A later grass contact can still revoke ballInHoleFrame.
+            m.ballInFrame = frame;
+            b.vx *= 0.5f; b.vy *= 0.5f; b.vz *= 0.5f;
+            b.wx *= 0.5f; b.wy *= 0.5f; b.wz *= 0.5f;
+            didHoleBreak = true;
+        }
+        if (p.rayHitGrass()) m.ballInFrame = 0;
         if(b.resting){if(m.count<kMaxMovieFrames){m.frames[m.count]=b;m.frameIds[m.count++]=uint16_t(frame+1);}break;}
     }
 }

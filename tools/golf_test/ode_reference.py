@@ -44,7 +44,10 @@ for module in (GolfHoleBase, PhysicsWorldBase):
     module.eventMgr = base.eventMgr
 
 
-class HoleHarness(DirectObject, PhysicsWorldBase.PhysicsWorldBase, GolfHoleBase.GolfHoleBase):
+# GolfHoleBase supplies the golf-specific postStep/preStep implementation;
+# PhysicsWorldBase supplies simulate().  The order is significant: putting the
+# physics base first silently skips GolfHoleBase.postStep during recording.
+class HoleHarness(DirectObject, GolfHoleBase.GolfHoleBase, PhysicsWorldBase.PhysicsWorldBase):
     notify = DirectNotifyGlobal.directNotify.newCategory("GolfOdeReference")
 
     def __init__(self, hole_id):
@@ -54,6 +57,7 @@ class HoleHarness(DirectObject, PhysicsWorldBase.PhysicsWorldBase, GolfHoleBase.
         self.holeInfo = GolfGlobals.HoleInfo[hole_id]
         self.ball = None
         self.rawRecording = []
+        self._capturedRawRecording = False
 
     def curGolfBall(self):
         return self.ball
@@ -80,7 +84,12 @@ class HoleHarness(DirectObject, PhysicsWorldBase.PhysicsWorldBase, GolfHoleBase.
         self.hardSurfaceNodePath.flattenStrong()
 
     def processRecording(self, error_mult=1.0):
-        self.rawRecording = list(self.recording)
+        # GolfHoleBase recursively calls self.processRecording() while reducing
+        # the list.  Capture only the first invocation: later calls see an
+        # already-pruned list and are not the integration reference.
+        if not self._capturedRawRecording:
+            self.rawRecording = list(self.recording)
+            self._capturedRawRecording = True
         return GolfHoleBase.GolfHoleBase.processRecording(self, error_mult)
 
     def prepare(self):
