@@ -299,22 +299,26 @@ int victoryBonus(uint32_t hood, float timeLeft);
 // Test-only controller. No heap allocation or modification of the live Simulation.
 class Autopilot {
 public:
-    // Search tuning, not upstream game rules. A four-second horizon at the app's 30 Hz.
+    // Search tuning, not upstream game rules. A 4.4-second horizon at the app's 30 Hz.
     static constexpr int kBeamWidth = 8;
     static constexpr int kMacroFrames = 6;
-    static constexpr int kSearchDepth = 20;
+    static constexpr int kSearchDepth = 22;
     static constexpr int kPlanFrames = kMacroFrames * kSearchDepth;
     static constexpr int kStepsPerFrame = 64;
 
     Input input(const Simulation& sim, float t, float dt);
     void reset();
     int stepsLastFrame() const { return stepsLastFrame_; }
+    float predictedX() const { return predictedX_; }
+    float predictedZ() const { return predictedZ_; }
+    void copyPredictedPath(uint8_t* out, int capacity) const;
 
 private:
     struct Node {
         Simulation sim;
         uint8_t path[kSearchDepth] = {};
         float score = 0.0f;
+        int enemyHealth[kMaxEnemies] = {};
     };
 
     void beginSearch(const Simulation& root, float nextTime, float dt);
@@ -340,6 +344,9 @@ private:
     float times_[kPlanFrames + 1] = {};
     float stepDt_ = 0.0f;
     float tailTime_ = 0.0f;
+    float predictedX_ = 0.0f;
+    float predictedZ_ = 0.0f;
+    uint8_t predictedPath_[kSearchDepth] = {};
     bool searching_ = false;
 };
 

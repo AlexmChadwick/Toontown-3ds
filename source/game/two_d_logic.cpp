@@ -1,5 +1,6 @@
 #include "game/two_d_logic.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -843,6 +844,9 @@ void Autopilot::reset() {
 
 void Autopilot::beginSearch(const Simulation& root, float nextTime, float dt) {
     beam_[0][0].sim = root;
+    for (int i = 0; i < root.course().numEnemies; ++i) {
+        beam_[0][0].enemyHealth[i] = root.enemyAlive(i) ? kEnemyBaseHealth * root.course().numPlayers : 0;
+    }
     current_ = 0;
     count_ = 1;
     nextCount_ = 0;
@@ -911,6 +915,9 @@ void Autopilot::publish() {
         }
     }
     const Node& chosen = beam_[current_][best];
+    predictedX_ = chosen.sim.x();
+    predictedZ_ = chosen.sim.z();
+    std::memcpy(predictedPath_, chosen.path, sizeof(predictedPath_));
     const int frames = depth_ * kMacroFrames;
     for (int i = 0; i < frames; ++i) {
         queue_[(cursor_ + queued_ + i) % (2 * kPlanFrames)] = chosen.path[i / kMacroFrames];
@@ -921,13 +928,30 @@ void Autopilot::publish() {
     searching_ = false;
 }
 
+void Autopilot::copyPredictedPath(uint8_t* out, int capacity) const {
+    if (!out || capacity <= 0) return;
+    const int count = std::min(capacity, kSearchDepth);
+    std::memcpy(out, predictedPath_, static_cast<size_t>(count));
+}
+
 void Autopilot::expand() {
     if (frame_ == 0) {
         candidate_ = beam_[current_][node_];
         candidate_.path[depth_] = static_cast<uint8_t>(action_);
     }
     Events ev;
-    candidate_.sim.step(actionInput(action_), times_[depth_ * kMacroFrames + frame_], stepDt_, &ev);
+    const float stepTime = times_[depth_ * kMacroFrames + frame_];
+    candidate_.sim.step(actionInput(action_), stepTime, stepDt_, &ev);
+    // DistributedTwoDGameAI starts each Cog at EnemyBaseHealth * numPlayers and applies
+    // DamagePerBullet for each legal claimEnemyShot. Mirror those outcomes in this branch.
+    for (int i = 0; i < ev.enemyShots; ++i) {
+        const int enemy = candidate_.sim.course().findEnemy(ev.shotSection[i], ev.shotIndex[i]);
+        if (enemy < 0 || candidate_.enemyHealth[enemy] <= 0) continue;
+        candidate_.enemyHealth[enemy] -= kDamagePerBullet;
+        if (candidate_.enemyHealth[enemy] <= 0) {
+            candidate_.sim.enemyKilled(enemy, stepTime);
+        }
+    }
     ++stepsLastFrame_;
     ++frame_;
     const bool failed = candidate_.sim.state() != ToonState::Normal &&
