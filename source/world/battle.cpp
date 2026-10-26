@@ -879,7 +879,8 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
     int active = 0;
     for (int i = 0; i < nb.numSuits; ++i) active += (nb.suitsActive >> i) & 1;
     const int* order = active > 1 ? kGroupOrder : kTrackOrder;
-    for (int k = 0; k < 5 && act.kind == BattleAction::Pass; ++k) {
+    // kAutoPass: the toon passes every round, so the Cogs attack (autotest of Cog attack movies).
+    for (int k = 0; k < 5 && act.kind == BattleAction::Pass && forcedTrack_ != kAutoPass; ++k) {
         const int track = order[k];
         for (int level = 6; level >= 0 && act.kind == BattleAction::Pass; --level) { // strongest first
             if (!usable(track, level)) continue;

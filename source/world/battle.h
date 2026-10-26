@@ -171,6 +171,8 @@ public:
     // The panel's choice (only honoured in WaitForInput / Reward).
     void perform(net::Client& client, const BattleAction& a, uint32_t nowMs);
     // Test hook (also used by the unattended autotest): pick the first usable gag and cog ourselves.
+    // forcedTrack: a gag track 0..6, -1 for the normal choice, or kAutoPass to pass every round.
+    static constexpr int kAutoPass = 7;
     void setAutoPlay(bool on, int forcedTrack = -1) { autoPlay_ = on; forcedTrack_ = forcedTrack; }
     void setForcedTrack(int track) { forcedTrack_ = track; }
     int forcedTrack() const { return forcedTrack_; }
