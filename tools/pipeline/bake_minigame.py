@@ -65,10 +65,20 @@ MODELS = {
     'memory_room': (MG + 'memory_room', None, (0, 0, 0), 1.0, (0, 0, 0)),
     # Pairing cards are composed below, exactly as PairingGameCard.load.
 
-    # Diving
-    'diving_game': (MG + 'diving_game', None, (0, 0, 0), 2.8, (0, 0.5, -41.0)),
+    # Diving (DistributedDivingGame.onstage: environModel 2.8, 2.8, 2.73 at (0, 0.5, -41);
+    # boat at (0, 3, 40 - 6.75) scale 2.8; DivingTreasure: treasure.bam with chest-local
+    # scale (1, 0.7, 1) and position (0, 0, -25), then the treasure node scales 0.04 at runtime)
+    'diving_game': (MG + 'diving_game', None, (0, 0, 0), (2.8, 2.8, 2.73), (0, 0.5, -41.0)),
     'diving_boat': (MG + 'diving_game', '**/boat', (0, 0, 0), 2.8, (0, 3.0, 33.25)),
-    'diving_chest': (MG + 'treasure_chest', None, (0, 0, 0), 1.5, (0, 0, 0)),
+    'diving_chest': (MG + 'treasure', None, (0, 0, 0), (1.0, 0.7, 1.0), (0, 0, -25.0)),
+    # Fish: the upstream DivingFishSpawn.createFish actors in their zero (bind) pose. The swim
+    # animation is not baked; the runtime applies each type's heading and scale.
+    'diving_fish_clown': ('phase_4/models/char/clownFish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_pbj': ('phase_4/models/char/PBJfish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_bear': ('phase_4/models/char/BearAcuda-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_balloon': ('phase_4/models/char/balloonFish-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_nurse': ('phase_4/models/char/nurseShark-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'diving_fish_piano': ('phase_4/models/char/pianoTuna-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Vine
     # The whole vine_game.bam also holds the animated bats and spiders (they flew across the
@@ -191,7 +201,10 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
         model = raw_model
     root = NodePath('root')
     model.reparentTo(root)
-    model.setScale(scale)
+    if isinstance(scale, tuple):
+        model.setScale(*scale)
+    else:
+        model.setScale(scale)
     model.setHpr(*hpr)
     model.setPos(*pos)
     ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals

@@ -381,6 +381,14 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::PhotoNewAIScore:
         if (isPhoto_) photo_.onAIScore(ev.doId, uint8_t(ev.arg >> 24), float(ev.arg & 0xffffff) / 100.0f);
         break;
+    case EventType::DivingFishSpawn:
+        // arg = spawnerId << 16 | fishcode (net/client.cpp). The lane offset is only in the latest
+        // minigame state, which is the spawn that just arrived unless two land in one frame.
+        if (isDiving_) {
+            diving_.spawnFish(uint32_t(ev.arg) & 0xffffu, uint32_t(ev.arg) >> 16,
+                              mg ? mg->divingFishSpawnOffset : 0u);
+        }
+        break;
     // ---- games2 ----
 
     default:

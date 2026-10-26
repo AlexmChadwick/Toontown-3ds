@@ -8,6 +8,77 @@ namespace tt::game {
 
 static constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 
+namespace {
+constexpr float kPi = 3.14159265358979323846f;
+// DistributedDivingGame.LAG_COMP and SPEEDMULT (the AI's difficulty pattern; 1.0 when the
+// client has none).
+constexpr float kLagComp = 1.25f;
+constexpr float kSpeedMult = 1.0f;
+// DistributedDivingGame.spawnX = 24 * LAG_COMP; spawners sit at -spawnX (even ids) or +spawnX.
+constexpr float kSpawnX = 24.0f * kLagComp;
+constexpr float kFishSpawnY = 0.6f;   // spawnY
+constexpr float kTreasureY = 0.25f;   // DivingTreasure treasureNode y
+constexpr float kTreasureScale = 0.04f;
+constexpr float kFishCrossDist = 50.0f;   // LerpPosInterval pos = position + 50 * direction
+constexpr float kFishWaveAmplitude = 3.0f; // DistributedDivingGame.pbjMove
+constexpr float kFishWavePeriod = 5.0f;    // pbj specialLerp duration, before LAG_COMP
+constexpr float kReachMargin = 0.8f;       // swimmer reach around a fish's hit radius
+
+struct FishType {
+    const char* model; // baked name, see tools/pipeline/bake_minigame.py
+    float duration;    // DistributedDivingGame.fishSpawn base seconds across the tank
+    float radius;      // rough hit radius (DivingFishSpawn.createFish collision spheres)
+    float scale[3];    // createFish setScale
+};
+
+// DivingFishSpawn.createFish order: clown 0, pbj 1, bear 2, balloon 3, nurse 4, piano 5.
+constexpr FishType kFishTypes[6] = {
+    {"diving_fish_clown", 8.0f, 1.2f, {1.0f, 1.0f, 1.0f}},
+    {"diving_fish_pbj", 12.0f, 1.0f, {1.0f, 1.0f, 1.0f}},
+    {"diving_fish_bear", 20.0f, 3.0f, {0.4f, 1.7f, 1.7f}},
+    {"diving_fish_balloon", 10.0f, 0.2f, {2.0f, 2.0f, 2.0f}},
+    {"diving_fish_nurse", 20.0f, 1.0f, {0.5f, 1.7f, 1.7f}},
+    {"diving_fish_piano", 5.0f, 1.0f, {1.4f, 1.4f, 1.4f}},
+};
+
+// createFish setH: clown, bear and nurse face 90 * direction, PBJ 15 * direction, the balloon
+// faces 0, and the piano faces 0 going left and 180 going right.
+float fishHeading(int type, int dir) {
+    switch (type) {
+    case 0:
+    case 2:
+    case 4:
+        return 90.0f * float(dir);
+    case 1:
+        return 15.0f * float(dir);
+    case 3:
+        return 0.0f;
+    default:
+        return dir < 0 ? 0.0f : 180.0f;
+    }
+}
+} // namespace
+
+void DivingGame::spawnFish(uint32_t fishCode, uint32_t spawnerId, uint32_t offset) {
+    // createFish returns nothing for an unknown code, so no fish id is used up.
+    if (fishCode >= uint32_t(kFishTypeCount) || spawnerId >= uint32_t(diving::kNumSpawners)) return;
+    const uint16_t id = spawnCount_[spawnerId]++;
+    for (Fish& f : fish_) {
+        if (f.active) continue;
+        f = Fish{};
+        f.active = true;
+        f.type = uint8_t(fishCode);
+        f.spawner = uint8_t(spawnerId);
+        f.id = id;
+        f.dir = diving::kSpawnerDir[spawnerId];
+        f.offset = float(offset);
+        f.x = (spawnerId % 2 == 0) ? -kSpawnX : kSpawnX;
+        f.z = diving::kSpawnerZ[spawnerId];
+        return;
+    }
+    TT_LOG("diving: fish pool full, spawn %u dropped", unsigned(id));
+}
+
 void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     (void)client;
     done_ = false;
@@ -22,19 +93,13 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     recoveries_ = 0;
     score_ = 5;
 
-    // 3 chests at seabed
-    chests_[0] = {-10.0f, diving::kSeabedZ, true};
-    chests_[1] = {0.0f, diving::kSeabedZ, true};
-    chests_[2] = {10.0f, diving::kSeabedZ, true};
-
-    // Fish at spawner depths
-    for (int i = 0; i < diving::kNumSpawners; ++i) {
-        fish_[i].z = diving::kSpawnerZ[i];
-        fish_[i].dir = diving::kSpawnerDir[i];
-        fish_[i].speed = 6.0f + (i * 1.2f);
-        fish_[i].x = (fish_[i].dir > 0) ? diving::kMinX - 4.0f : diving::kMaxX + 4.0f;
-        fish_[i].active = true;
+    // DivingTreasure: treasureNode at (-15 + 10 * i, 0.25, -36).
+    for (int i = 0; i < 3; ++i) {
+        chests_[i] = {-15.0f + 10.0f * float(i), diving::kSeabedZ, true};
     }
+
+    for (Fish& f : fish_) f = Fish{};
+    for (uint16_t& c : spawnCount_) c = 0;
 
     crabX_ = 0.0f;
     crabDir_ = 1;
@@ -46,6 +111,10 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(boatModel_, path);
     std::snprintf(path, sizeof(path), "%sdiving_chest.ttm", kDir);
     assetBatch_.load(chestModel_, path);
+    for (int i = 0; i < kFishTypeCount; ++i) {
+        std::snprintf(path, sizeof(path), "%s%s.ttm", kDir, kFishTypes[i].model);
+        assetBatch_.load(fishModel_[i], path);
+    }
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Depth: 0.0 m  (Time: 65 s)");
@@ -57,6 +126,7 @@ void DivingGame::shutdown() {
     environModel_.unload();
     boatModel_.unload();
     chestModel_.unload();
+    for (render::Model& m : fishModel_) m.unload();
     done_ = true;
 }
 
@@ -100,22 +170,37 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
     // Update swimmer physics
     diving::updateSwimmer(swimmer_, inputX, inputZ, dt);
 
-    // Update fish movement
-    for (int i = 0; i < diving::kNumSpawners; ++i) {
-        fish_[i].x += fish_[i].dir * fish_[i].speed * dt;
-        if (fish_[i].dir > 0 && fish_[i].x > diving::kMaxX + 5.0f) {
-            fish_[i].x = diving::kMinX - 5.0f;
-        } else if (fish_[i].dir < 0 && fish_[i].x < diving::kMinX - 5.0f) {
-            fish_[i].x = diving::kMaxX + 5.0f;
+    // AI fish: advance each crossing fish and hit-test the swimmer (the server counts the hit by
+    // the fish id and spawner, as DistributedDivingGame.fishCollision does).
+    for (Fish& f : fish_) {
+        if (!f.active) continue;
+        const float duration = kFishTypes[f.type].duration * kLagComp * kSpeedMult;
+        f.elapsed += dt;
+        if (f.elapsed >= duration) {
+            f.active = false;
+            continue;
+        }
+        const float t = f.elapsed / duration;
+        const float startX = (f.spawner % 2 == 0) ? -kSpawnX : kSpawnX;
+        f.x = startX + float(f.dir) * kFishCrossDist * t;
+        const float z0 = diving::kSpawnerZ[f.spawner];
+        if (f.type == 1) {
+            const float wave = kFishWavePeriod * kLagComp * kSpeedMult;
+            const float phase = 2.0f * kPi * std::fmod(f.elapsed / wave, 1.0f) + f.offset * 3.0f;
+            f.z = z0 + std::sin(phase) * kFishWaveAmplitude;
+        } else if (f.type == 0 || f.type == 3 || f.type == 5) {
+            f.z = z0 + (f.offset - 4.0f) / 2.0f * t;
+        } else {
+            f.z = z0;
         }
 
-        // Collision with fish
         if (swimmer_.freezeTimer <= 0.0f) {
-            const float dx = swimmer_.x - fish_[i].x;
-            const float dz = swimmer_.z - fish_[i].z;
-            if (dx * dx + dz * dz < 1.8f * 1.8f) {
+            const float dx = swimmer_.x - f.x;
+            const float dz = swimmer_.z - f.z;
+            const float reach = kFishTypes[f.type].radius + kReachMargin;
+            if (dx * dx + dz * dz < reach * reach) {
                 diving::applyObstacleHit(swimmer_);
-                client.sendDivingFishCollision(client.avatarId(), i, i, "normal");
+                client.sendDivingFishCollision(client.avatarId(), f.id, f.spawner, "normal");
             }
         }
     }
@@ -181,12 +266,22 @@ void DivingGame::draw(render::Renderer& renderer) {
     if (chestModel_.loaded()) {
         for (int i = 0; i < 3; ++i) {
             if (chests_[i].available) {
+                // treasureNode: position, then scale 0.04; the chest-local offset is baked.
                 Mtx_Identity(&m);
-                Mtx_Translate(&m, chests_[i].x, 0.0f, chests_[i].z, true);
-                // Chest scale 1.5 is baked.
+                Mtx_Translate(&m, chests_[i].x, kTreasureY, chests_[i].z, true);
+                Mtx_Scale(&m, kTreasureScale, kTreasureScale, kTreasureScale);
                 renderer.drawModel(chestModel_, m);
             }
         }
+    }
+    for (const Fish& f : fish_) {
+        if (!f.active || !fishModel_[f.type].loaded()) continue;
+        const FishType& type = kFishTypes[f.type];
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, f.x, kFishSpawnY, f.z, true);
+        Mtx_RotateZ(&m, fishHeading(f.type, f.dir) * kPi / 180.0f, true);
+        Mtx_Scale(&m, type.scale[0], type.scale[1], type.scale[2]);
+        renderer.drawModel(fishModel_[f.type], m);
     }
 }
 
