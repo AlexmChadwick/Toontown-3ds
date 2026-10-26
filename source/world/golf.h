@@ -52,9 +52,11 @@ private:
     uint32_t returnZone_ = 17000;
     uint32_t returnPending_ = 0;
     float aim_ = 0.0f;
-    float power_ = 3.0f;
+    float power_ = 50.0f;
     float ballX_ = 0.0f, ballY_ = 0.0f, ballZ_ = 0.25f;
     golf::Ball ball_;
+    golf::Physics physics_;
+    float recordedCycle_ = -1.0f;
     render::Model hole_;
     render::Model kart_;
     render::Model ballModel_;

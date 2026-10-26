@@ -34,7 +34,9 @@ void GolfSession::loadHole(int holeId) {
     const int model = holeId == 0 ? 18 : ((holeId - 1) % 18) + 1;
     snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.ttm", model);
     assetBatch_.load(hole_, path);
-    ballX_ = 0.0f; ballY_ = 0.0f; ballZ_ = 0.25f; aim_ = 0.0f; power_ = 3.0f; swung_ = false;
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.gph", model);
+    if (!physics_.load(path)) TT_LOG("golf: missing physics %s", path);
+    ballX_ = 0.0f; ballY_ = 0.0f; ballZ_ = 0.25f; aim_ = 0.0f; power_ = 50.0f; swung_ = false;
     TT_LOG("golf: hole %d loaded", holeId);
 }
 
@@ -77,6 +79,18 @@ void GolfSession::handleEvent(const net::Event& ev, net::Client& client, uint32_
                 sentTee_ = client.sendGolfTee(0);
                 TT_LOG("golf: tee selected=%d", int(sentTee_));
             }
+            if (h->recordPending && h->recordAvatar == client.avatarId() && h->recordCycle != recordedCycle_) {
+                golf::Movie movie;
+                golf::Ball start; start.x = h->ballX; start.y = h->ballY; start.z = h->ballZ;
+                // Cup contact is represented by the baked cup mesh; the final distance
+                // check remains the stock server's responsibility.
+                golf::recordSwing(movie, physics_, start, static_cast<float>(h->recordPower), h->recordDirX,
+                                  h->recordDirY, ballX_, ballY_, ballZ_);
+                if (client.sendGolfMovie(h->recordCycle, h->recordAvatar, movie)) {
+                    recordedCycle_ = h->recordCycle;
+                    TT_LOG("golf: recorder movie accepted frames %u", unsigned(movie.count));
+                }
+            }
         }
         setText();
     } else if (ev.type == net::EventType::GolfCourseState && client.golfCourse() &&
@@ -97,7 +111,7 @@ void GolfSession::update(net::Client& client, const circlePosition& pad, uint32_
     aim_ += static_cast<float>(pad.dx) * dt * 0.08f;
     power_ += static_cast<float>(pad.dy) * dt * 0.01f;
     if (power_ < 1.0f) power_ = 1.0f;
-    if (power_ > 7.0f) power_ = 7.0f;
+    if (power_ > 100.0f) power_ = 100.0f;
     if ((keysDown & KEY_B) != 0) {
         client.sendGolfExitCourse();
         TT_LOG("golf: exit requested");

@@ -39,6 +39,7 @@ TT_GSIG(DistributedGolfHole, setGolfCourseDoId, "u32");
 TT_GSIG(DistributedGolfHole, setGolferIds, "u32[]");
 TT_GSIG(DistributedGolfHole, golfersTurn, "u32");
 TT_GSIG(DistributedGolfHole, golferChooseTee, "u32");
+TT_GSIG(DistributedGolfHole, assignRecordSwing, "u32,u32/1000,i32,i32/1000,i32/1000,i32/1000,i32/1000,i32/1000,{u8,u8,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000,i32/100000}[]");
 #undef TT_GSIG
 
 void readU32Array(DatagramReader& r, uint32_t* out, int cap, int& count) {
@@ -123,6 +124,10 @@ bool Client::applyGolfCourseField(GolfCourse& c, DatagramReader& r, uint16_t fie
     }
     TT_LOG("golf: course %u field %u hole %d golfers %d scores %d reward %d exit %d", unsigned(c.doId),
            unsigned(fieldId), int(c.currentHole), c.numGolfers, c.numScores, int(c.reward), int(c.exiting));
+    if (fieldId == G::k_setScores) {
+        for (int i = 0; i < c.numScores; ++i)
+            TT_LOG("golf: score course %u golfer %d strokes %d", unsigned(c.doId), i, int(c.scores[i]));
+    }
     if (announce && r.ok()) pushEvent(EventType::GolfCourseState, c.doId);
     return r.ok();
 }
@@ -154,6 +159,19 @@ bool Client::applyGolfHoleField(GolfHole& h, DatagramReader& r, uint16_t fieldId
         const uint16_t commonBytes = r.u16(); r.skip(commonBytes);
         h.swingSeq++;
         TT_LOG("golf: movie received hole %u frames %u", unsigned(h.doId), unsigned(movieBytes / 14));
+    } else if (fieldId == G::k_assignRecordSwing) {
+        h.recordAvatar = r.u32();
+        h.recordCycle = r.u32() / 1000.0f;
+        h.recordPower = r.i32();
+        h.ballX = fixed(r, 1000.0f); h.ballY = fixed(r, 1000.0f); h.ballZ = fixed(r, 1000.0f);
+        h.recordDirX = fixed(r, 1000.0f); h.recordDirY = fixed(r, 1000.0f);
+        const uint16_t commonBytes = r.u16();
+        if (commonBytes > sizeof(h.recordCommon)) r.fail();
+        const Bytes common = r.fixed(commonBytes);
+        h.recordCommonBytes = static_cast<uint16_t>(common.len);
+        if (common.len) memcpy(h.recordCommon, common.data, common.len);
+        h.recordPending = r.ok();
+        TT_LOG("golf: recorder assigned hole %u av %u power %ld", unsigned(h.doId), unsigned(h.recordAvatar), long(h.recordPower));
     } else {
         skipField(r, fieldId);
     }
@@ -293,6 +311,26 @@ bool Client::sendGolfTurnDone() {
     if (!golfHole_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_UPDATE(w, golfHole_.doId, DistributedGolfHole, turnDone);
+    return finish(w);
+}
+
+bool Client::sendGolfMovie(float cycleTime, uint32_t avatar, const golf::Movie& movie) {
+    if (!golfHole_.active || !movie.count) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, golfHole_.doId, DistributedGolfHole, ballMovie2AI);
+    w.u32(static_cast<uint32_t>(cycleTime * 1000.0f)); w.u32(avatar);
+    const uint16_t bytes = static_cast<uint16_t>(movie.count * 14);
+    w.u16(bytes);
+    for (uint16_t i = 0; i < movie.count; ++i) {
+        w.i16(i); w.i32(static_cast<int32_t>(movie.frames[i].x * 100000.0f));
+        w.i32(static_cast<int32_t>(movie.frames[i].y * 100000.0f)); w.i32(static_cast<int32_t>(movie.frames[i].z * 100000.0f));
+    }
+    w.u16(bytes);
+    for (uint16_t i = 0; i < movie.count; ++i) { w.i16(i); w.i32(0); w.i32(0); w.i32(0); }
+    w.u16(movie.ballInFrame); w.u16(0); w.u16(0);
+    // Echo the assignment's moving-object state exactly, as GolfHoleBase does.
+    w.u16(golfHole_.recordCommonBytes); w.bytes(golfHole_.recordCommon, golfHole_.recordCommonBytes);
+    TT_LOG("golf: movie sent hole %u frames %u in %u", unsigned(golfHole_.doId), unsigned(movie.count), unsigned(movie.ballInFrame));
     return finish(w);
 }
 
