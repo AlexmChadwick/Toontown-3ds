@@ -562,7 +562,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isPhoto_) {
-            photo_.update(client, pad, kDown, dt, nowMs);
+            photo_.update(client, pad, kDown, hidKeysHeld(), dt, nowMs, autoPlay_);
             if (photo_.isDone() && !doneSent_) {
                 doneSent_ = true;
                 setPhase(Phase::Done);

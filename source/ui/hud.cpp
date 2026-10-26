@@ -36,6 +36,39 @@ void Hud::shutdown() {
     buf_ = raceBuf_ = toastBuf_ = nullptr;
 }
 
+namespace {
+
+// Photo Fun viewfinder (DistributedPhotoGame's photo_game_viewfinder frame, drawn as flat
+// bars): corner brackets around the sight, which stays at the centre of the top screen because
+// the tripod camera always looks where the swivel points.
+constexpr float kVfLeft = 120.0f, kVfRight = 280.0f, kVfTop = 70.0f, kVfBottom = 170.0f;
+constexpr float kVfArm = 22.0f, kVfThick = 3.0f;
+constexpr float kVfSightArm = 9.0f;
+constexpr float kVfZ = 0.45f;
+
+void drawViewfinder(C3D_RenderTarget* top) {
+    C2D_SceneBegin(top);
+    C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+    const u32 c = C2D_Color32(0xFF, 0xFF, 0xFF, 0xE0);
+    const float cx = (kVfLeft + kVfRight) * 0.5f;
+    const float cy = (kVfTop + kVfBottom) * 0.5f;
+    // Top-left, top-right, bottom-left, bottom-right corners.
+    C2D_DrawRectSolid(kVfLeft, kVfTop, kVfZ, kVfArm, kVfThick, c);
+    C2D_DrawRectSolid(kVfLeft, kVfTop, kVfZ, kVfThick, kVfArm, c);
+    C2D_DrawRectSolid(kVfRight - kVfArm, kVfTop, kVfZ, kVfArm, kVfThick, c);
+    C2D_DrawRectSolid(kVfRight - kVfThick, kVfTop, kVfZ, kVfThick, kVfArm, c);
+    C2D_DrawRectSolid(kVfLeft, kVfBottom - kVfThick, kVfZ, kVfArm, kVfThick, c);
+    C2D_DrawRectSolid(kVfLeft, kVfBottom - kVfArm, kVfZ, kVfThick, kVfArm, c);
+    C2D_DrawRectSolid(kVfRight - kVfArm, kVfBottom - kVfThick, kVfZ, kVfArm, kVfThick, c);
+    C2D_DrawRectSolid(kVfRight - kVfThick, kVfBottom - kVfArm, kVfZ, kVfThick, kVfArm, c);
+    // Sight.
+    C2D_DrawRectSolid(cx - kVfSightArm, cy - 0.5f, kVfZ, 2 * kVfSightArm, 1.0f, c);
+    C2D_DrawRectSolid(cx - 0.5f, cy - kVfSightArm, kVfZ, 1.0f, 2 * kVfSightArm, c);
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+}
+
+} // namespace
+
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (v.toast) {
         if (v.toast != lastToast_) {
@@ -53,6 +86,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
+    if (v.photoViewfinder) drawViewfinder(top);
     if (!v.online) return; // stats come from the server
     // Re-parse text only when the numbers change (citro2d parsing is expensive).
     if (v.hp != lastHp_ && lastHp_ >= 0) {
