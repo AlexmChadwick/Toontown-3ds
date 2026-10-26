@@ -693,8 +693,25 @@ u32 MinigameSession::popReturn() {
     return h;
 }
 
-float MinigameSession::farPlane() const {
-    return isCannon_ ? CannonGame::kFarPlane : 0.0f;
+void MinigameSession::applyWorld(render::Renderer& renderer) {
+    releaseWorld(renderer); // games that set nothing still get the renderer defaults
+    if (isCannon_) {
+        renderer.setFarPlane(CannonGame::kFarPlane);
+    } else if (isRing_) {
+        renderer.setFarPlane(RingGame::kFarPlane);
+        renderer.setBackground(RingGame::kWaterBackground);
+        renderer.setFog(RingGame::kWaterColor[0], RingGame::kWaterColor[1], RingGame::kWaterColor[2],
+                        RingGame::kFogStart, RingGame::kFogEnd);
+        worldFog_ = true;
+    }
+}
+
+void MinigameSession::releaseWorld(render::Renderer& renderer) {
+    renderer.setFarPlane(0.0f);
+    if (worldFog_) {
+        renderer.clearFog();
+        worldFog_ = false;
+    }
 }
 
 void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {

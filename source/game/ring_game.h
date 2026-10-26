@@ -31,6 +31,14 @@ public:
     const char* line(int i) const { return (i >= 0 && i < 3) ? lines_[i] : ""; }
     bool isDone() const { return done_; }
 
+    // DistributedRingGame: FAR_PLANE_DIST 150, the water background and linear fog WATER_COLOR
+    // (0, 0, 0.6) from 0.1 to FAR_PLANE_DIST - 1, applied by MinigameSession::applyWorld.
+    static constexpr float kFarPlane = 150.0f;
+    static constexpr uint32_t kWaterBackground = 0x000099FF; // RGBA8 of (0, 0, 0.6, 1)
+    static constexpr float kWaterColor[3] = {0.0f, 0.0f, 0.6f};
+    static constexpr float kFogStart = 0.1f;
+    static constexpr float kFogEnd = kFarPlane - 1.0f;
+
 private:
     world::BasicAssetBatch<8> assetBatch_;
     bool done_ = false;

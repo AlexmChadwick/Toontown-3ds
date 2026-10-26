@@ -8,8 +8,14 @@ namespace tt::game {
 
 namespace {
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
-constexpr float kSpacing = ringgame::kRingGroupArrivalPeriod * ringgame::kRingSwimVel; // 60.0f
-constexpr float kFirstOffset = ringgame::kFirstGroupArrival * ringgame::kRingSwimVel;   // 80.0f
+constexpr float kSpacing = ringgame::kRingGroupSpacing;                               // 67.5
+constexpr float kFirstOffset = ringgame::kFarPlaneDist;                               // 135
+// DistributedRingGame.defineConstants: ENVIRON_LENGTH 150, ENVIRON_START_OFFSET 20. The baked
+// swimming_game already sits at its upstream placement (0, 75, -14.5).
+constexpr float kEnvironLength = 150.0f;
+constexpr float kEnvironStartOffset = 20.0f;
+constexpr int kEnvironRowCount = 2;
+constexpr int kEnvironSideCount = 2; // blocks at +-150 and +-300 (x = 0 is the model)
 } // namespace
 
 void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
@@ -148,9 +154,20 @@ void RingGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     Mtx_Identity(&m);
 
-    // Underwater environment
+    // Underwater environment: DistributedRingGame.load instances the environ model ('model' at
+    // x 0 and 'blocks' at x +-150, +-300) in two rows along Y, and __updateEnvironTask scrolls
+    // the whole node by distance = (t * TOON_SWIM_VEL) mod ENVIRON_LENGTH + ENVIRON_START_OFFSET.
     if (environ_.loaded()) {
-        renderer.drawModel(environ_, m);
+        const float t = static_cast<int>(tt::net::plat::nowMs() - startMs_) / 1000.0f;
+        const float distance = std::fmod(t * ringgame::kRingSwimVel, kEnvironLength) + kEnvironStartOffset;
+        for (int row = 0; row < kEnvironRowCount; ++row) {
+            const float y = kEnvironLength * row - distance;
+            for (int col = -kEnvironSideCount; col <= kEnvironSideCount; ++col) {
+                Mtx_Identity(&m);
+                Mtx_Translate(&m, kEnvironLength * col, y, 0.0f, true);
+                renderer.drawModel(environ_, m);
+            }
+        }
     }
 
     // Rings

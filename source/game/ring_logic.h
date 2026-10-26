@@ -10,9 +10,12 @@ constexpr float kMaxToonXZ = 10.0f;
 constexpr float kToonSpeed = 10.0f; // units / sec in XZ plane
 constexpr float kRingRadius = 3.0f;
 constexpr float kRingRadiusSqrd = (3.0f * 1.025f) * (3.0f * 1.025f); // 9.455625f
+// DistributedRingGame.defineConstants: FAR_PLANE_DIST 150 with CAMERA_Y -15 and TOON_Y 0.
+constexpr float kFarPlaneDist = 135.0f;
 constexpr float kRingGroupArrivalPeriod = 3.0f; // seconds between ring groups
-constexpr float kFirstGroupArrival = 4.0f;      // seconds before first group arrives
-constexpr float kRingSwimVel = 20.0f;           // units/sec along Y
+constexpr float kRingGroupSpacing = kFarPlaneDist / 2.0f;                  // RING_GROUP_SPACING 67.5
+constexpr float kRingSwimVel = kRingGroupSpacing / kRingGroupArrivalPeriod; // TOON_SWIM_VEL 22.5
+constexpr float kFirstGroupArrival = kFarPlaneDist / kRingSwimVel;         // T_FIRST_RING_GROUP_ARRIVES 6.0
 
 // Ring color definitions
 struct RingColor {
