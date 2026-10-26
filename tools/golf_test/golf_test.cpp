@@ -21,7 +21,7 @@ int main(int argc, char** argv) {
         const float cupY = std::strtof(argv[10], nullptr);
         const float cupZ = std::strtof(argv[11], nullptr);
         tt::golf::Movie movie;
-        tt::golf::recordRaw(movie, physics, start, power, dirX, dirY, cupX, cupY, cupZ);
+        tt::golf::recordSwing(movie, physics, start, power, dirX, dirY, cupX, cupY, cupZ);
         std::printf("inCup %u\n", movie.ballInFrame ? 1U : 0U);
         for (uint16_t i = 0; i < movie.count; ++i) {
             const tt::golf::Ball& ball = movie.frames[i];

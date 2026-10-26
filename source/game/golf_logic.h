@@ -7,6 +7,8 @@ namespace tt::golf {
 struct Ball {
     float x = 0, y = 0, z = 0.25f;
     float vx = 0, vy = 0, vz = 0;
+    // ODE keeps angular state; grass friction exchanges it with linear motion.
+    float wx = 0, wy = 0, wz = 0;
     bool resting = true;
 };
 
@@ -23,12 +25,17 @@ public:
     bool load(const char* path);
     void clear();
     bool addTriangle(const Triangle& triangle); // host tests and generated fixtures
+    // Bounded ODE QuickStep-compatible sphere/trimesh step.  The contact list
+    // and solver rows are fixed-size, so a swing cannot allocate per frame.
     void simulate(Ball& ball, uint16_t* touchedCup = nullptr);
     uint32_t triangleCount() const { return count_; }
 
 private:
     Triangle* triangles_ = nullptr;
     uint32_t count_ = 0, capacity_ = 0;
+    float lastRayX_ = 0.0f, lastRayY_ = 0.0f, lastRayZ_ = 0.25f;
+    uint16_t missingRaySteps_ = 0;
+    bool haveRay_ = false;
 };
 
 // GolfHoleBase records at most 2,100 90 Hz samples, then reduces the movie to
