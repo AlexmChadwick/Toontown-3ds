@@ -8,11 +8,11 @@ BonusPerSecondLeft = 0.8
 def calculateJellybeans(rawScore, timeLeft, completed):
     total = rawScore
     if completed and timeLeft > 0:
-        total += BaseBonusOnCompletion + int(BonusPerSecondLeft * timeLeft)
+        total += int(BaseBonusOnCompletion + BonusPerSecondLeft * timeLeft)
     if total < 0:
         total = 0
     beans = math.sqrt(total * ScoreToJellyBeansMultiplier)
-    return max(1, int(beans + 0.5))
+    return max(1, int(beans))
 
 def main():
     cases = [

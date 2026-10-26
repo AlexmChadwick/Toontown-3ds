@@ -18,7 +18,11 @@ int main() {
     };
 
     for (const auto& c : cases) {
-        int jb = tt::twodgame::calculateJellybeans(c.raw, c.tl, c.comp);
+        int score = c.raw;
+        if (c.comp && c.tl > 0.0f) {
+            score += tt::twodgame::victoryBonus(2000, c.tl);
+        }
+        int jb = tt::twodgame::jellybeans(score);
         std::printf("raw=%d tl=%.1f comp=%s -> %d\n", c.raw, c.tl, c.comp ? "True" : "False", jb);
     }
     return 0;

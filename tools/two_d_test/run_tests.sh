@@ -4,7 +4,7 @@ DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$DIR/../.."
 
 mkdir -p "$DIR/out"
-/Users/alexchadwick/toontown-3ds-minigames3/.venv/bin/python -I "$DIR/two_d_ref.py" > "$DIR/out/ref.txt"
+"$ROOT/.venv/bin/python" -I "$DIR/two_d_ref.py" > "$DIR/out/ref.txt"
 
 clang++ -std=c++17 -I"$ROOT/source" "$DIR/two_d_test.cpp" "$ROOT/source/game/two_d_logic.cpp" -o "$DIR/out/two_d_test"
 "$DIR/out/two_d_test" > "$DIR/out/cpp.txt"

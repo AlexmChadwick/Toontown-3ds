@@ -339,8 +339,10 @@ PhotoShotResult Simulation::evaluateShot(int playerIdx, float camX, float camY, 
     if (bestSubject >= 0) {
         res.hitSubject = true;
         res.subjectIndex = bestSubject;
-        std::strncpy(res.poseName, bestPose.poseName, sizeof(res.poseName) - 1);
-        res.poseName[sizeof(res.poseName) - 1] = '\0';
+        const size_t poseLength = std::strlen(bestPose.poseName);
+        const size_t copyLength = std::min(poseLength, sizeof(res.poseName) - 1);
+        std::memcpy(res.poseName, bestPose.poseName, copyLength);
+        res.poseName[copyLength] = '\0';
         res.stars = static_cast<float>(bestScore);
 
         // Check matching assignment
