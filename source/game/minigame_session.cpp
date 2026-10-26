@@ -12,6 +12,15 @@ namespace tt::game {
 
 namespace {
 
+// This client's avIdList index in the minigame (0 when it is not listed).
+int mySlot(const net::Client& client) {
+    const net::Minigame* mg = client.minigame();
+    if (!mg) return 0;
+    for (int i = 0; i < mg->numParticipants && i < net::kMinigamePlayers; ++i)
+        if (mg->participants[i] == client.avatarId()) return i;
+    return 0;
+}
+
 constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 constexpr u16 kRaceGameId = 1;      // ToontownGlobals.RaceGameId
 constexpr u16 kCannonGameId = 2;    // ToontownGlobals.CannonGameId
@@ -232,7 +241,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isIce_) {
-            ice_.init(kDir, mg->numParticipants);
+            ice_.init(kDir, mg->numParticipants, mySlot(client));
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isRace_) {
@@ -761,18 +770,26 @@ void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
     }
 }
 
-int MinigameSession::placedPlayers(const net::Client& client, MinigamePlayer* out, int max) const {
+int MinigameSession::placedPlayers(const net::Client& client, uint32_t nowMs, MinigamePlayer* out, int max) const {
     const net::Minigame* mg = client.minigame();
     if (!mg || !inGame()) return 0;
     int n = 0;
+    // The other participants in avIdList order, skipping ourselves. 'place' writes the pose of
+    // participant i and returns false when the game does not place it (nothing is consumed then).
+    auto forOthers = [&](auto place) {
+        for (int i = 0; i < mg->numParticipants && n < max; ++i) {
+            if (mg->participants[i] == client.avatarId()) continue;
+            MinigamePlayer p{};
+            p.doId = mg->participants[i];
+            if (place(i, p)) out[n++] = p;
+        }
+    };
     if (isRace_) {
         // DistributedRaceGame.positionInPlace: everyone stands on their own lane (avIdList index).
-        for (int lane = 0; lane < mg->numParticipants && n < max; ++lane) {
-            if (mg->participants[lane] == client.avatarId()) continue;
-            MinigamePlayer& p = out[n++];
-            p.doId = mg->participants[lane];
+        forOthers([&](int lane, MinigamePlayer& p) {
             race_.lanePose(lane, &p.x, &p.y, &p.z, &p.h);
-        }
+            return true;
+        });
     } else if (isPattern_) {
         // DistributedPatternGame.getBackRowPos: the others stand in the back row, ordered by
         // remoteAvIdList, facing the camera.
@@ -780,17 +797,59 @@ int MinigameSession::placedPlayers(const net::Client& client, MinigamePlayer* ou
         constexpr float kBackRowXSpacing = 1.8f;
         const int spots = mg->numParticipants - 1;
         int index = 0;
-        for (int i = 0; i < mg->numParticipants && n < max; ++i) {
-            if (mg->participants[i] == client.avatarId()) continue;
-            MinigamePlayer& p = out[n++];
-            p.doId = mg->participants[i];
+        forOthers([&](int, MinigamePlayer& p) {
             p.x = kBackRowHome[0] + kBackRowXSpacing * float(index) - kBackRowXSpacing * float(spots - 1) / 2.0f;
             p.y = kBackRowHome[1];
             p.z = kBackRowHome[2];
             p.h = 180.0f; // makeToonLookatCamera: the camera is in front of the stage
             ++index;
+            return true;
+        });
+    } else if (isCannon_) {
+        // DistributedCannonGame: each toon is in its own cannon (cannonLocationDict by avIdList index,
+        // head at the barrel end) until its shot; setCannonWillFire starts the flight at fireTime, a game
+        // time. The game clock is local time since setGameStart's timestamp.
+        const float gameNow = static_cast<int32_t>(nowMs - mg->gameStartMs) / 1000.0f;
+        forOthers([&](int i, MinigamePlayer& p) {
+            const cannongame::RemoteToon rt = cannongame::remoteToon(
+                cannongame::cannonX(i, mg->numParticipants), mg->cannonZRot[i], mg->cannonAngle[i],
+                mg->cannonFired[i], gameNow - mg->cannonFireTime[i], cannon_.towerPos());
+            p.x = rt.pos.x;
+            p.y = rt.pos.y;
+            p.z = rt.pos.z;
+            p.h = rt.heading;
+            return true;
+        });
+    } else if (isTug_) {
+        // DistributedTugOfWarGame.calculatePositions and moveToons (toon vs Cog only): each toon at its
+        // dock slot by avIdList order, facing the Cog, pulled by the server's offset. Toon vs toon places
+        // the other toon at a shuffled slot upstream, which the 3DS does not reproduce yet: not placed.
+        if (mg->tugGameType == tuggame::kTugOfWarToonVsCog) {
+            forOthers([&](int i, MinigamePlayer& p) {
+                p.x = tuggame::toonX(mg->numParticipants, i, mg->tugOffsets[i]);
+                p.y = tuggame::kDockY;
+                p.z = tuggame::kDockZ;
+                p.h = tuggame::kToonHeading;
+                return true;
+            });
         }
+    } else if (isVine_) {
+        // DistributedVineGame.toonInfo: the reported vine state of each other toon.
+        forOthers([&](int i, MinigamePlayer& p) {
+            p.y = 0.0f; // the track is the x-z plane (VineToonState)
+            return vine_.remotePose(mg->vineRemote[i], nowMs, &p.x, &p.z, &p.h);
+        });
+    } else if (isIce_) {
+        // DistributedIceGame.setGameReady: every toon rides its own tire (the tires are simulated on
+        // every client from the same setTireInputs). The heading is the last launch direction sent.
+        forOthers([&](int i, MinigamePlayer& p) {
+            ice_.tirePose(i, &p.x, &p.y);
+            p.z = 0.8f; // IceGame::toonPose
+            p.h = mg->iceChoicesDir[i];
+            return true;
+        });
     }
+    // Photo Fun places nobody: DistributedPhotoGame.onstage only loads the local toon into the tripod.
     return n;
 }
 

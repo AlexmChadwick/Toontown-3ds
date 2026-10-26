@@ -2346,7 +2346,7 @@ int main() {
                 {
                     // The other participants a game places from its own state (Race, Pattern).
                     tt::game::MinigamePlayer placed[tt::net::kMinigamePlayers];
-                    const int numPlaced = minigame.placedPlayers(net, placed, tt::net::kMinigamePlayers);
+                    const int numPlaced = minigame.placedPlayers(net, tt::net::plat::nowMs(), placed, tt::net::kMinigamePlayers);
                     for (int i = 0; i < numPlaced; ++i)
                         remoteToons.placeExternal(placed[i].doId, placed[i].x, placed[i].y, placed[i].z, placed[i].h);
                     if (numPlaced > 0) {
