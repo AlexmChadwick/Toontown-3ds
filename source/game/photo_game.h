@@ -24,7 +24,9 @@ public:
     bool init(const char* root, unsigned hood = 2000, uint32_t gameDoId = 0);
     void shutdown();
 
-    void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
+    // autoAim: test autoplay steers the tripod at matching subjects and snaps when on one.
+    void update(net::Client& client, const circlePosition& pad, u32 keysDown, u32 keysHeld, float dt, u32 nowMs,
+                bool autoAim);
     void draw(render::Renderer& renderer);
 
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
@@ -39,11 +41,12 @@ public:
 private:
     world::BasicAssetBatch<8> assetBatch_;
     photogame::Simulation sim_;
-    float camYaw_ = -90.0f;
-    float camPitch_ = 0.0f;
-    float camX_ = 0.0f;
-    float camY_ = 0.0f;
-    float camZ_ = 0.0f;
+    // The camera is the tripod swivel (upstream __putCameraOnTripod), not a free camera.
+    photogame::Swivel swivel_;
+    float eyeX_ = 0.0f;
+    float eyeY_ = 0.0f;
+    float eyeZ_ = 0.0f;
+    float shotCooldown_ = 0.0f;
     float timeRemaining_ = 60.0f;
     float elapsed_ = 0.0f;
 

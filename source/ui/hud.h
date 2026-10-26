@@ -17,6 +17,7 @@ struct HudValues {
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
+    bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
 };
 
 class Hud {

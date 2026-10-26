@@ -2557,6 +2557,7 @@ int main() {
                 }
             }
             hv.toast = toast;
+            hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;
                 hv.raceSpeed = int(racing.speed() + 0.5f);

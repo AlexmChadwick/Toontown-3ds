@@ -382,6 +382,8 @@ struct HoodPhotoData {
     float camPosX, camPosY, camPosZ;
     float tripOffsetX, tripOffsetY, tripOffsetZ;
     float startH, startP, startR;
+    float rootX, rootY, rootZ; // photoRoot world position (gazebo / tripod base)
+    int hasRoot;               // 0 when the upstream root is not known
     const PathInfo* paths;
     int numPaths;
     const PoseSetInfo* poseSets;
@@ -468,6 +470,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, 50.00f, 20.00f,
         0.00f, 0.00f, 7.00f,
         -87.8752f, -0.3785f, 0.0000f,
+        -60.9400f, -8.8000f, -2.0000f, 1,
         kHood_2000_PathInfo, 4,
         kHood_2000_PoseSetInfo, 3
     };
@@ -477,6 +480,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, 50.00f, 20.00f,
         0.00f, -4.00f, 9.00f,
         218.2110f, -6.7879f, 0.0000f,
+        0.0000f, 0.0000f, 0.0000f, 0,
         kHood_1000_PathInfo, 5,
         kHood_1000_PoseSetInfo, 4
     };
@@ -486,6 +490,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, 50.00f, 20.00f,
         0.00f, 0.00f, 6.00f,
         0.0000f, 0.0000f, 0.0000f,
+        1.3900f, 92.9100f, 2.0000f, 1,
         kHood_5000_PathInfo, 4,
         kHood_5000_PoseSetInfo, 3
     };
@@ -495,6 +500,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, -50.00f, 20.00f,
         0.00f, 0.00f, 6.00f,
         71.3028f, -3.1293f, 0.0000f,
+        103.6000f, -61.0000f, -4.4970f, 1,
         kHood_4000_PathInfo, 4,
         kHood_4000_PoseSetInfo, 3
     };
@@ -504,6 +510,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, 50.00f, 20.00f,
         0.00f, 0.00f, 6.00f,
         -49.4010f, -11.6266f, 0.0000f,
+        -110.0000f, -48.0000f, 8.5670f, 1,
         kHood_3000_PathInfo, 4,
         kHood_3000_PoseSetInfo, 3
     };
@@ -513,6 +520,7 @@ inline const HoodPhotoData* getHoodPhotoData(uint32_t hoodId) {
         0.00f, 50.00f, 20.00f,
         0.00f, 0.00f, 6.00f,
         -137.1830f, -9.0624f, 0.0000f,
+        -70.2280f, 87.5880f, 4.3970f, 1,
         kHood_9000_PathInfo, 4,
         kHood_9000_PoseSetInfo, 3
     };

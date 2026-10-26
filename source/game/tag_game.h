@@ -36,21 +36,28 @@ public:
     const char* title() const { return "Tag"; }
     const char* line(int i) const;
 
-    void onTag(uint32_t tagger, uint32_t tagged);
+    // TagSetIt from the AI: the new IT (DistributedTagGame.setIt).
+    void setIt(uint32_t avId) { sim_.setIt(avId); }
 
 private:
     world::BasicAssetBatch<8> assetBatch_;
     taggame::Simulation sim_;
-    float toonX_ = 0.0f;
-    float toonY_ = 0.0f;
-    float toonH_ = 0.0f;
+    taggame::Walker me_;
+    float tagSendCooldown_ = 0.0f;
     bool isDone_ = false;
     bool autoPlay_ = false;
     char itName_[net::kNameLen] = {};
 
+    // The IT sign (DistributedTagGame.itPointer, reparented to the IT toon at its height).
+    bool itPointerValid_ = false;
+    float itPointerX_ = 0.0f;
+    float itPointerY_ = 0.0f;
+    float itPointerZ_ = 0.0f;
+
     render::Model arenaModel_;
     render::Model treasureModel_;
     render::Model skyModel_;
+    render::Model pointerModel_;
 
     mutable char lines_[3][64] = {};
 };

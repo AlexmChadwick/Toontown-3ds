@@ -322,7 +322,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         break;
 
     case EventType::TagSetIt:
-        if (isTag_ && mg) tag_.onTag(client.avatarId(), mg->tagItAvId);
+        if (isTag_ && mg) tag_.setIt(mg->tagItAvId);
         break;
 
     case EventType::PatternSetPlayerPatterns:
@@ -562,7 +562,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isPhoto_) {
-            photo_.update(client, pad, kDown, dt, nowMs);
+            photo_.update(client, pad, kDown, hidKeysHeld(), dt, nowMs, autoPlay_);
             if (photo_.isDone() && !doneSent_) {
                 doneSent_ = true;
                 setPhase(Phase::Done);

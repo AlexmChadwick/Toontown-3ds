@@ -50,4 +50,23 @@ public:
     void calculateScores();
 };
 
+// Upstream toon_cannon.bam: the "cannon" swivel node sits at (0, 0, 1.89703) above the tripod root,
+// and the camera is parented to it (DistributedPhotoGame.__putCameraOnTripod).
+constexpr float kTripodPivotZ = 1.89703f;
+
+// Upstream DistributedPhotoGame.__localPhotoMoveTask: the tripod swivel's heading and pitch.
+// Yaw is never clamped upstream (PHOTO_ROTATION_MIN/MAX are unused there); pitch is clamped.
+struct Swivel {
+    float h = 0.0f;
+    float p = 0.0f;
+};
+
+// turn > 0 turns left (LEFT adds PHOTO_ROTATION_VEL), tilt > 0 looks up (UP adds PHOTO_ANGLE_VEL).
+// Both are analog in [-1, 1].
+void stepSwivel(Swivel& sw, float turn, float tilt, float dt);
+
+// Test autoplay: steers the swivel at a subject whose pose matches an open assignment and
+// returns true once the swivel is on it (inside evaluateShot's cone), so the shot scores.
+bool planAutoShot(const Simulation& sim, float eyeX, float eyeY, float eyeZ, Swivel& sw, float gameTime, float dt);
+
 } // namespace tt::photogame

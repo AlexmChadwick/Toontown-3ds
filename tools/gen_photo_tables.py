@@ -6,7 +6,36 @@
 Never invent data or hand-copy numbers.
 """
 import os
+import re
 import sys
+
+def photo_roots(root, dna_root):
+    """photoRoot world positions per hood, as DistributedPhotoGame.construct* places them.
+
+    TTC: the prop_gazebo node in the zone DNA (constructTTC). DG/MM/BR/DL: the literal
+    setPos in each construct function. DD's root is the DNA center_island, which is not
+    parsed here, so it stays unknown (hasRoot 0) rather than guessed.
+    """
+    roots = {}
+    dna_path = os.path.join(dna_root, 'phase_4', 'dna', 'toontown_central_sz.dna')
+    with open(dna_path, 'r') as f:
+        dna = f.read()
+    m = re.search(r'prop "prop_gazebo_DNARoot" \[\s*code \[ "prop_gazebo" \]\s*pos \[ ([^\]]+) \]', dna)
+    if m:
+        roots[2000] = tuple(float(v) for v in m.group(1).split())
+
+    src_path = os.path.join(root, 'toontown', 'minigame', 'DistributedPhotoGame.py')
+    with open(src_path, 'r') as f:
+        src = f.read()
+    for func, hood in (('constructDG', 5000), ('constructMM', 4000),
+                       ('constructBR', 3000), ('constructDL', 9000)):
+        m = re.search(r'def %s\(self\):(.*?)\n    def ' % func, src, re.S)
+        if not m:
+            continue
+        p = re.search(r'self\.photoRoot\.setPos\(([^)]*)\)', m.group(1))
+        if p:
+            roots[hood] = tuple(float(v) for v in p.group(1).split(','))
+    return roots
 
 def main():
     root = sys.argv[1] if len(sys.argv) > 1 else 'ref/open-toontown'
@@ -16,6 +45,11 @@ def main():
     src_path = os.path.join(root, 'toontown', 'minigame', 'PhotoGameGlobals.py')
     with open(src_path, 'r') as f:
         code = f.read()
+
+    dna_root = os.path.join(os.path.dirname(root.rstrip(os.sep)), 'resources')
+    if not os.path.isdir(dna_root):
+        dna_root = 'ref/ref/resources'
+    roots = photo_roots(root, dna_root)
 
     lines = []
     for line in code.splitlines():
@@ -118,6 +152,8 @@ def main():
     out.append('    float camPosX, camPosY, camPosZ;')
     out.append('    float tripOffsetX, tripOffsetY, tripOffsetZ;')
     out.append('    float startH, startP, startR;')
+    out.append('    float rootX, rootY, rootZ; // photoRoot world position (gazebo / tripod base)')
+    out.append('    int hasRoot;               // 0 when the upstream root is not known')
     out.append('    const PathInfo* paths;')
     out.append('    int numPaths;')
     out.append('    const PoseSetInfo* poseSets;')
@@ -152,6 +188,8 @@ def main():
         out.append(f'        {c.x:.2f}f, {c.y:.2f}f, {c.z:.2f}f,')
         out.append(f'        {tr.x:.2f}f, {tr.y:.2f}f, {tr.z:.2f}f,')
         out.append(f'        {hpr.x:.4f}f, {hpr.y:.4f}f, {hpr.z:.4f}f,')
+        rx, ry, rz = roots.get(hood, (0.0, 0.0, 0.0))
+        out.append(f'        {rx:.4f}f, {ry:.4f}f, {rz:.4f}f, {1 if hood in roots else 0},')
         out.append(f'        kHood_{hood}_PathInfo, {len(data["PATHS"])},')
         out.append(f'        kHood_{hood}_PoseSetInfo, {len(data["ANIMATIONS"])}')
         out.append('    };')

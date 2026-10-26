@@ -401,4 +401,80 @@ void Simulation::calculateScores() {
     }
 }
 
+namespace {
+
+float clampUnit(float v) {
+    return v < -1.0f ? -1.0f : (v > 1.0f ? 1.0f : v);
+}
+
+float wrapDegrees(float deg) {
+    while (deg > 180.0f) deg -= 360.0f;
+    while (deg < -180.0f) deg += 360.0f;
+    return deg;
+}
+
+constexpr float kRadToDeg = 57.2957795f;
+// evaluateShot counts a subject inside a cone of slope 0.35 and range (5, 150); aim well inside it.
+constexpr float kAutoAlignDeg = 2.5f;
+constexpr float kAutoMinDist = 6.0f;
+constexpr float kAutoMaxDist = 120.0f;
+// Proportional steering: a full-scale stick command at 10 degrees of error.
+constexpr float kAutoGainPerDeg = 0.1f;
+// evaluateShot aims at pose.z + 2.5 (the subject's head).
+constexpr float kSubjectHeadZ = 2.5f;
+
+} // namespace
+
+void stepSwivel(Swivel& sw, float turn, float tilt, float dt) {
+    sw.h += kPhotoRotationVel * clampUnit(turn) * dt;
+    sw.p += kPhotoAngleVel * clampUnit(tilt) * dt;
+    if (sw.p < kPhotoAngleMin) sw.p = kPhotoAngleMin;
+    if (sw.p > kPhotoAngleMax) sw.p = kPhotoAngleMax;
+    sw.h = wrapDegrees(sw.h);
+}
+
+bool planAutoShot(const Simulation& sim, float eyeX, float eyeY, float eyeZ, Swivel& sw, float gameTime, float dt) {
+    const auto* data = getHoodPhotoData(sim.safezoneId);
+    if (!data || data->numPaths == 0) return false;
+
+    int best = -1;
+    float bestH = 0.0f;
+    float bestP = 0.0f;
+    float bestCost = 1.0e9f;
+    for (int s = 0; s < data->numPaths; ++s) {
+        SubjectPose pose;
+        sim.getSubjectPose(s, gameTime, pose);
+
+        bool matches = false;
+        for (int a = 0; a < kOnscreenAssignments && !matches; ++a) {
+            matches = sim.assignments[a].subjectIndex == s &&
+                      std::strcmp(sim.assignments[a].poseName, pose.poseName) == 0;
+        }
+        if (!matches) continue;
+
+        const float dx = pose.x - eyeX;
+        const float dy = pose.y - eyeY;
+        const float dz = (pose.z + kSubjectHeadZ) - eyeZ;
+        const float horiz = std::sqrt(dx * dx + dy * dy);
+        const float dist = std::sqrt(horiz * horiz + dz * dz);
+        if (dist < kAutoMinDist || dist > kAutoMaxDist) continue;
+
+        const float desH = std::atan2(-dx, dy) * kRadToDeg; // inverse of the forward vector in evaluateShot
+        const float desP = std::atan2(dz, horiz) * kRadToDeg;
+        if (desP < kPhotoAngleMin || desP > kPhotoAngleMax) continue; // the swivel cannot reach it
+
+        const float cost = std::fabs(wrapDegrees(desH - sw.h)) + std::fabs(desP - sw.p);
+        if (cost < bestCost) {
+            bestCost = cost;
+            best = s;
+            bestH = desH;
+            bestP = desP;
+        }
+    }
+    if (best < 0) return false;
+
+    stepSwivel(sw, wrapDegrees(bestH - sw.h) * kAutoGainPerDeg, (bestP - sw.p) * kAutoGainPerDeg, dt);
+    return std::fabs(wrapDegrees(bestH - sw.h)) <= kAutoAlignDeg && std::fabs(bestP - sw.p) <= kAutoAlignDeg;
+}
+
 } // namespace tt::photogame
