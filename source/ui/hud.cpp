@@ -10,8 +10,13 @@ namespace tt::ui {
 
 namespace {
 
-constexpr float kLaffX = 34.0f, kLaffY = 206.0f, kLaffR = 24.0f;
-constexpr float kLaffSize = 64.0f; // on-screen size of one atlas cell (the whole meter)
+// The meter is larger than upstream's share of the screen: at 64 px the numbers in the eyes were
+// unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
+constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
+constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
+// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70).
+constexpr float kLaffLabelMaxW = 0.19f;
+constexpr float kLaffLabelMinScale = 0.34f, kLaffLabelMaxScale = 0.46f;
 constexpr float kPulseChange = 0.333f;      // ToontownIntervals.PULSE_GUI_CHANGE
 constexpr float kPulseSeconds = 0.2f;       // PULSE_GUI_DURATION, each half
 // LaffMeter.fractions: tooth i shows while hp > maxHp * fraction (teeth listed 6 .. 1).
@@ -179,11 +184,19 @@ void Hud::drawLaffMeter(const HudValues& v) {
         }
     }
     part(kLaffEyes, nullptr);
-    // Labels: upstream text_scale 0.4 is ~6 px here; keep them readable on the 3DS.
+    // Labels: upstream text_scale 0.4 is only ~8 px here, so draw them as large as the eye whites
+    // allow. Both labels share one scale, shrunk until the wider one fits its eye.
     float scale = kLaffLabelHeight * size / 30.0f;
-    if (scale < 0.3f) scale = 0.3f;
+    if (scale < kLaffLabelMinScale) scale = kLaffLabelMinScale;
+    if (scale > kLaffLabelMaxScale) scale = kLaffLabelMaxScale;
+    float w = 0.0f, h = 0.0f, wMax = 0.0f;
+    C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
+    wMax = w;
+    C2D_TextGetDimensions(&maxText_, scale, scale, &w, &h);
+    if (w > wMax) wMax = w;
+    const float fitW = kLaffLabelMaxW * size;
+    if (wMax > fitW && wMax > 0.0f) scale *= fitW / wMax;
     const u32 ink = C2D_Color32(0x10, 0x10, 0x10, 0xFF);
-    float w = 0.0f, h = 0.0f;
     C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
     C2D_DrawText(&hpText_, C2D_WithColor, x0 + kLaffHpLabel[0] * size - w * 0.5f,
                  y0 + kLaffHpLabel[1] * size - h * 0.5f, 0.5f, scale, scale, ink);
