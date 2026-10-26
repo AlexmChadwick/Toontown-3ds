@@ -2194,7 +2194,18 @@ int main() {
             // ---- end tutorial ----
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
-                suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h, p.hidden, p.flash, p.anim, p.clipArg, p.clipStartMs);
+                // A level battle can start in an adjacent room whose Cog has not been drawn yet.
+                // BattleBase creates every member regardless of camera visibility, so materialize
+                // the actor before applying the battle-owned pose.
+                tt::net::Client::CogIdentity cog;
+                if (net.cogIdentity(p.doId, &cog) && cog.hasDna) {
+                    suits.setExternal(p.doId, cog.name, cog.levelDist,
+                                      p.x, p.y, p.z + p.hop, p.h,
+                                      false, !p.hidden, cog.skelecog);
+                }
+                suits.overridePose(p.doId, p.x, p.y, p.z + p.hop, p.h,
+                                  p.hidden, p.flash, p.anim, p.clipArg,
+                                  p.clipStartMs);
             }
             battleFx.update(dt, nowMs, &battle, localLook.valid() ? &localLook : nullptr);
             if (const char* m = battle.popMessage()) {
