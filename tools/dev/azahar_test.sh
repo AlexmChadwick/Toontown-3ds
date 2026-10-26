@@ -29,9 +29,16 @@ echo $$ > "$LOCK/pid"
 
 pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
 cp "$CFG" "$OUT/qt-config.ini.backup"
+# App Nap throttles Azahar while its window is hidden: emulated time then falls behind real time
+# and the server ejects the client for missing heartbeats (345). Disable it for this run only.
+BUNDLE=org.azahar-emu.azahar
+NAP_BEFORE=$(defaults read "$BUNDLE" NSAppSleepDisabled 2>/dev/null || echo unset)
+defaults write "$BUNDLE" NSAppSleepDisabled -bool YES
 restore() {
     pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
     cp "$OUT/qt-config.ini.backup" "$CFG"
+    if [ "$NAP_BEFORE" = unset ]; then defaults delete "$BUNDLE" NSAppSleepDisabled 2>/dev/null || true
+    else defaults write "$BUNDLE" NSAppSleepDisabled -bool "$NAP_BEFORE"; fi
     rm -f "$SD/autotest" "$SD/autotest_fe"
     rm -rf "$LOCK"
 }
@@ -52,7 +59,7 @@ if [ -n "${AUTOTEST_EXTRA:-}" ]; then printf '%s\n' "$AUTOTEST_EXTRA" | tr ';' '
 # AUTOTEST_FE=1 runs the front-end script (title, Pick-a-Toon, Make-a-Toon, names) instead; it
 # reads the same from/until/only lines from its own trigger file.
 if [ -n "${AUTOTEST_FE:-}" ]; then cp "$SD/autotest" "$SD/autotest_fe"; else rm -f "$SD/autotest_fe"; fi
-( "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
+( caffeinate -i "$AZ" "$APP" </dev/null >/dev/null 2>&1 & ) # no idle sleep mid-run
 sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
 cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || echo "no log.txt written"
