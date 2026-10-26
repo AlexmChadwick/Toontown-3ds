@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
-#   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
+#   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
 # Temporarily switches Azahar to Old 3DS / 1x / both screens / no update check,
 # then always restores the user's config. Leaves log.txt and decoded shot PNGs in out-dir.
@@ -47,6 +47,8 @@ rm -f "$SD/log.txt" "$SD"/shot_*.bin
 if [ -n "${AUTOTEST_FROM:-}" ]; then echo "from $AUTOTEST_FROM" >> "$SD/autotest"; fi
 if [ -n "${AUTOTEST_UNTIL:-}" ]; then echo "until $AUTOTEST_UNTIL" >> "$SD/autotest"; fi
 if [ -n "${AUTOTEST_ONLY:-}" ]; then echo "only $AUTOTEST_ONLY" >> "$SD/autotest"; fi
+# AUTOTEST_EXTRA: more trigger lines, separated by ';' (e.g. "tutorial;shots off").
+if [ -n "${AUTOTEST_EXTRA:-}" ]; then printf '%s\n' "$AUTOTEST_EXTRA" | tr ';' '\n' >> "$SD/autotest"; fi
 # AUTOTEST_FE=1 runs the front-end script (title, Pick-a-Toon, Make-a-Toon, names) instead; it
 # reads the same from/until/only lines from its own trigger file.
 if [ -n "${AUTOTEST_FE:-}" ]; then cp "$SD/autotest" "$SD/autotest_fe"; else rm -f "$SD/autotest_fe"; fi
