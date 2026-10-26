@@ -322,11 +322,11 @@ bool Client::sendGolfMovie(float cycleTime, uint32_t avatar, const golf::Movie& 
     const uint16_t bytes = static_cast<uint16_t>(movie.count * 14);
     w.u16(bytes);
     for (uint16_t i = 0; i < movie.count; ++i) {
-        w.i16(i); w.i32(static_cast<int32_t>(movie.frames[i].x * 100000.0f));
+        w.i16(movie.frameIds[i]); w.i32(static_cast<int32_t>(movie.frames[i].x * 100000.0f));
         w.i32(static_cast<int32_t>(movie.frames[i].y * 100000.0f)); w.i32(static_cast<int32_t>(movie.frames[i].z * 100000.0f));
     }
     w.u16(bytes);
-    for (uint16_t i = 0; i < movie.count; ++i) { w.i16(i); w.i32(0); w.i32(0); w.i32(0); }
+    for (uint16_t i = 0; i < movie.count; ++i) { w.i16(movie.frameIds[i]); w.i32(0); w.i32(0); w.i32(0); }
     w.u16(movie.ballInFrame); w.u16(0); w.u16(0);
     // Echo the assignment's moving-object state exactly, as GolfHoleBase does.
     w.u16(golfHole_.recordCommonBytes); w.bytes(golfHole_.recordCommon, golfHole_.recordCommonBytes);

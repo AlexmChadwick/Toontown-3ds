@@ -31,9 +31,12 @@ private:
     uint32_t count_ = 0, capacity_ = 0;
 };
 
-constexpr int kMaxMovieFrames = 360;
+// GolfHoleBase records at most 2,100 90 Hz samples, then reduces the movie to
+// the visible trajectory points before sending it to the AI.
+constexpr int kMaxMovieFrames = 2101;
 struct Movie {
     Ball frames[kMaxMovieFrames] = {};
+    uint16_t frameIds[kMaxMovieFrames] = {};
     uint16_t count = 0;
     uint16_t ballInFrame = 0;
 };
@@ -42,6 +45,8 @@ struct Movie {
 void swing(Ball& ball, float power, float dirX, float dirY);
 void step(Ball& ball, float dt);
 bool inCup(const Ball& ball, float cupX, float cupY, float cupZ);
+void recordRaw(Movie& movie, Physics& physics, const Ball& start, float power, float dirX, float dirY,
+               float cupX, float cupY, float cupZ);
 void recordSwing(Movie& movie, Physics& physics, const Ball& start, float power, float dirX, float dirY,
                  float cupX, float cupY, float cupZ);
 

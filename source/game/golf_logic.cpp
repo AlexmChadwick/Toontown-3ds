@@ -35,5 +35,40 @@ void swing(Ball& b,float power,float x,float y){float l=std::sqrt(x*x+y*y);if(l<
 void Physics::simulate(Ball& b,uint16_t* touchedCup){if(b.resting)return;b.vz+=kGravity*kStep;b.x+=b.vx*kStep;b.y+=b.vy*kStep;b.z+=b.vz*kStep;bool ground=false,slick=false;for(uint32_t i=0;i<count_;i++){const Triangle&t=triangles_[i];float qx,qy,qz;closest(t,b.x,b.y,b.z,qx,qy,qz);float dx=b.x-qx,dy=b.y-qy,dz=b.z-qz,ds=dx*dx+dy*dy+dz*dz;if(ds>=kRadius*kRadius)continue;if(t.surface==Surface::Cup&&touchedCup)*touchedCup=1;float nx,ny,nz;if(ds>.000001f){float il=1/std::sqrt(ds);nx=dx*il;ny=dy*il;nz=dz*il;}else{cross(t.p[3]-t.p[0],t.p[4]-t.p[1],t.p[5]-t.p[2],t.p[6]-t.p[0],t.p[7]-t.p[1],t.p[8]-t.p[2],nx,ny,nz);float il=1/std::sqrt(dot(nx,ny,nz,nx,ny,nz));nx*=il;ny*=il;nz*=il;}float pen=kRadius-std::sqrt(ds),vn=dot(b.vx,b.vy,b.vz,nx,ny,nz);b.x+=nx*pen;b.y+=ny*pen;b.z+=nz*pen;if(vn<0){float bounce=t.surface==Surface::Hard?.9f:.15f;b.vx-=(1+bounce)*vn*nx;b.vy-=(1+bounce)*vn*ny;b.vz-=(1+bounce)*vn*nz;}if(nz>.35f){ground=true;slick|=t.surface==Surface::Slick;}}if(ground){float f=slick?.99917f:.986f;b.vx*=f;b.vy*=f;}if(std::fabs(b.vx)+std::fabs(b.vy)+std::fabs(b.vz)<.03f&&ground){b.vx=b.vy=b.vz=0;b.resting=true;}}
 void step(Ball& b,float dt){if(b.resting)return;b.vz+=kGravity*dt;b.x+=b.vx*dt;b.y+=b.vy*dt;b.z+=b.vz*dt;if(b.z<=kRadius){b.z=kRadius;if(std::fabs(b.vz)>.25f)b.vz=-b.vz*.15f;else b.vz=0;b.vx*=.986f;b.vy*=.986f;if(std::fabs(b.vx)+std::fabs(b.vy)+std::fabs(b.vz)<.03f){b.vx=b.vy=b.vz=0;b.resting=true;}}}
 bool inCup(const Ball&b,float x,float y,float z){float dx=b.x-x,dy=b.y-y,dz=b.z-z;return dx*dx+dy*dy+dz*dz<=.75f*.75f;}
-void recordSwing(Movie&m,Physics&p,const Ball&start,float power,float x,float y,float cupX,float cupY,float cupZ){m=Movie{};Ball b=start;swing(b,power,x,y);uint16_t cup=0;for(int frame=0;frame<kMaxMovieFrames;frame++){m.frames[m.count++]=b;p.simulate(b,&cup);if(cup&&inCup(b,cupX,cupY,cupZ)){m.ballInFrame=uint16_t(frame);break;}if(b.resting){m.frames[m.count++]=b;break;}}}
+bool predictable(const Movie& movie, uint16_t index, float error) {
+    if (!index || index + 1 >= movie.count) return false;
+    const uint16_t first = movie.frameIds[index - 1];
+    const uint16_t last = movie.frameIds[index + 1];
+    if (last == first) return false;
+    const float t = float(movie.frameIds[index] - first) / float(last - first);
+    const Ball& a = movie.frames[index - 1]; const Ball& b = movie.frames[index]; const Ball& c = movie.frames[index + 1];
+    return std::fabs((a.x + (c.x - a.x) * t) - b.x) <= error &&
+           std::fabs((a.y + (c.y - a.y) * t) - b.y) <= error &&
+           std::fabs((a.z + (c.z - a.z) * t) - b.z) <= error;
+}
+void reduceMovie(Movie& movie) {
+    float error = .05f;
+    for (;;) {
+        uint16_t removed = 0;
+        for (uint16_t i = 1; i + 1 < movie.count;) {
+            if (!predictable(movie, i, error)) { ++i; continue; }
+            for (uint16_t j = i; j + 1 < movie.count; ++j) {
+                movie.frames[j] = movie.frames[j + 1]; movie.frameIds[j] = movie.frameIds[j + 1];
+            }
+            --movie.count; ++removed;
+        }
+        if (removed <= 5 || movie.count <= 120) break;
+        error *= 1.25f;
+    }
+}
+void recordRaw(Movie&m,Physics&p,const Ball&start,float power,float x,float y,float cupX,float cupY,float cupZ){
+    m=Movie{}; Ball b=start; swing(b,power,x,y); uint16_t cup=0;
+    for (uint16_t frame=0; frame<kMaxMovieFrames; ++frame) {
+        m.frames[m.count]=b; m.frameIds[m.count++]=frame;
+        p.simulate(b,&cup);
+        if(cup&&inCup(b,cupX,cupY,cupZ)){m.ballInFrame=frame;break;}
+        if(b.resting){if(m.count<kMaxMovieFrames){m.frames[m.count]=b;m.frameIds[m.count++]=uint16_t(frame+1);}break;}
+    }
+}
+void recordSwing(Movie&m,Physics&p,const Ball&start,float power,float x,float y,float cupX,float cupY,float cupZ){recordRaw(m,p,start,power,x,y,cupX,cupY,cupZ);reduceMovie(m);}
 } // namespace tt::golf
