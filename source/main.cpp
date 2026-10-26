@@ -1706,6 +1706,15 @@ int main() {
         if (toastAge > 3.0f) toast = nullptr;
 
         tt::prof::lap(tt::prof::kPlace);
+        // ---- tutorial ----
+        // enterTutorial can arrive while the front end still owns the event queue, so the world
+        // loads Tutorial Tom's interior (or whichever tutorial place the server has us in) here.
+        if (netStarted && net.inZone() && net.tutorialZones().active() && transition.idle()) {
+            const u32 canonical = net.tutorialZones().toCanonical(net.zoneId());
+            if (tt::world::TutorialZones::isTutorialPlace(canonical) && place.zoneId() != canonical)
+                loadTutorialPlace(net.zoneId());
+        }
+        // ---- end tutorial ----
         if (netStarted) {
             const u32 nowMs = tt::net::plat::nowMs();
             net.update(nowMs);
