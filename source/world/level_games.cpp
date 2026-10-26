@@ -661,7 +661,12 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                 Mtx_Translate(&m, slot.trackX, slot.trackY, 0.0f, true);
                 Mtx_Scale(&m, 0.5f, 0.5f, 1.0f);
+                // Like DistributedGoon's radar, the security camera's detection volume is a
+                // translucent overlay.  Drawing the cone with the default opaque tint hides
+                // the room whenever a large face crosses the camera.
+                renderer.setBaseTint(1.0f, 0.2f, 0.2f, 0.2f);
                 renderer.drawModel(const_cast<render::Model&>(goonCone_), m);
+                renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
             }
         }
         // 3. Crates
