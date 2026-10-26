@@ -217,6 +217,12 @@ const Step kFrontEndScript[] = {
 };
 constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[0]);
 
+// Kept alive while main.cpp drives the server-led tutorial scenes.  Unlike the ordinary
+// wall-clock test steps this ends only when TutorialManager.allDone succeeds.
+const Step kTutorialScript[] = {
+    {900.0f, 0, 0, 0, 0, -1, -1, -1, "tutorial: play", "tutorial*"},
+};
+
 } // namespace
 
 bool Runner::begin() {
@@ -233,6 +239,8 @@ bool Runner::begin() {
         if (char* nl = strchr(line, '\n')) *nl = 0;
         if (!strcmp(line, "shots off"))
             shotsEnabled_ = false;
+        else if (!strcmp(line, "tutorial"))
+            tutorial_ = true;
         else if (!strncmp(line, "from ", 5))
             snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
@@ -300,9 +308,13 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
             game::FrontEnd::setTestTypedName("Little Pepper");
         }
         down |= s.downOnce;
-        if (s.touchX >= 0) {
-            touch.px = static_cast<u16>(s.touchX);
-            touch.py = static_cast<u16>(s.touchY);
+        int touchX = s.touchX;
+        int touchY = s.touchY;
+        // FrontEnd::TutorialChoice: Play it is the left button, Skip is the established default.
+        if (!strcmp(s.label, "fe: tutorial skip") && tutorial_) touchX = 85;
+        if (touchX >= 0) {
+            touch.px = static_cast<u16>(touchX);
+            touch.py = static_cast<u16>(touchY);
             held |= KEY_TOUCH;
         }
         if (s.stressToons >= 0) stressToons = s.stressToons;
@@ -337,6 +349,12 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         seriesIndex_ = 0;
         stepStarted_ = false;
         step_++;
+        if (tutorial_ && frontEnd_ && step_ == numSteps_) {
+            script_ = kTutorialScript;
+            numSteps_ = sizeof(kTutorialScript) / sizeof(kTutorialScript[0]);
+            step_ = 0;
+            TT_LOG("tutorial: autotest selected Play it");
+        }
     } else if (series && t_ >= nextSeriesShot_ + interval) {
         nextSeriesShot_ += interval;
         snprintf(seriesName_, sizeof(seriesName_), "%.*s_%03d", int(shotLen), s.shot, ++seriesIndex_);

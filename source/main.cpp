@@ -606,6 +606,92 @@ int main() {
         // ---- end qafix ----
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
+        // ---- tutorial ----
+        // The Toontorial pass uses the same UI acknowledgements as a player.  QuestParser's
+        // WAIT_EVENT gates are posted only when that exact generated script asks for them.
+        if (autotest.tutorialPath()) {
+            static u32 tutorialZone = 0;
+            static bool tutorialSawSuit = false;
+            static bool tutorialBattleWon = false;
+            static bool tutorialHqVisited = false;
+            static bool tutorialHqTalked = false;
+            static bool tutorialShopTalked = false;
+            const u32 zone = place.zoneId();
+            if (zone != tutorialZone) {
+                tutorialZone = zone;
+                TT_LOG("tutorial: zone canonical %lu server %lu", static_cast<unsigned long>(zone),
+                       static_cast<unsigned long>(net.zoneId()));
+            }
+            if (tutorial.active()) {
+                in.down |= KEY_A; // confirm every generated CHAT_CONFIRM page
+                const char* event = tutorial.waitingEvent();
+                if (event && tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+            }
+            if (talk.phase() == tt::quest::Talk::Phase::Pages) talk.advance();
+            if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) talk.chooseQuest(0);
+            if (talk.phase() == tt::quest::Talk::Phase::TrackChoice) talk.chooseTrack(0);
+            if (battle.tutorialBattle()) {
+                battle.setAutoPlay(true, -1); // select an available cupcake/flower as InventoryNew permits
+            }
+            if (battle.tutorialRewardPending()) in.down |= KEY_A;
+            if (!net.inTutorial() && net.tutorialFinished()) autotest.finishStep();
+
+            // The points below are emitted by the tutorial bakers: never synthesize a position.
+            if (net.tutorialSuitId()) tutorialSawSuit = true;
+            if (tutorialSawSuit && !net.tutorialSuitId() && net.inTutorial()) tutorialBattleWon = true;
+            if (talk.locked() && zone == tt::world::kTutorialHq) tutorialHqTalked = true;
+            if (talk.locked() && zone == tt::world::kTutorialShop && tutorialHqTalked) tutorialShopTalked = true;
+            if (!tutorial.active() && !battle.active() && transition.idle()) {
+                if (zone == tt::world::kTutorialShop) {
+                    if (tutorialHqTalked && !tutorialShopTalked) {
+                        float npc[4];
+                        if (zoneActors.shadowPositions(npc, 1) == 1) {
+                            player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
+                            TT_LOG("tutorial: talk to Tutorial Tom at %.1f %.1f %.1f", double(npc[0]), double(npc[1]),
+                                   double(npc[2]));
+                        }
+                    } else if (const tt::world::Place::Point* p = place.point("door_origin")) {
+                        player.reset(p->x, p->y, p->z, p->h);
+                        TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                    }
+                } else if (zone == tt::world::kTutorialStreet) {
+                    float sx, sy, sz, sh;
+                    if (!tutorialBattleWon && suits.pose(net.tutorialSuitId(), &sx, &sy, &sz, &sh)) {
+                        player.reset(sx, sy, sz, sh);
+                        TT_LOG("tutorial: approach Flunky %.1f %.1f %.1f", double(sx), double(sy), double(sz));
+                    } else if (!tutorialHqVisited) {
+                        if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
+                            player.reset(p->x, p->y, p->z, p->h);
+                            TT_LOG("tutorial: enter HQ via %s", p->name);
+                        }
+                    } else if (!tutorialShopTalked) {
+                        if (const tt::world::Place::Point* p = place.point("tb2:toon_landmark_TT_A1_DNARoot_door_origin")) {
+                            player.reset(p->x, p->y, p->z, p->h);
+                            TT_LOG("tutorial: enter gag shop via %s", p->name);
+                        }
+                    } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
+                        player.reset(p->x, p->y, p->z, p->h);
+                        TT_LOG("tutorial: leave for Toontown Central via %s", p->name);
+                    }
+                } else if (zone == tt::world::kTutorialHq) {
+                    if (tutorialHqTalked) {
+                        if (const tt::world::Place::Point* p = place.point("door_origin_1")) {
+                            player.reset(p->x, p->y, p->z, p->h);
+                            TT_LOG("tutorial: leave HQ via %s", p->name);
+                        }
+                    } else {
+                        float npc[4];
+                        if (zoneActors.shadowPositions(npc, 1) == 1) {
+                            player.reset(npc[0], npc[1] + 2.5f, npc[2], 180.0f);
+                            tutorialHqVisited = true;
+                            TT_LOG("tutorial: talk at NPC anchor %.1f %.1f %.1f", double(npc[0]), double(npc[1]),
+                                   double(npc[2]));
+                        }
+                    }
+                }
+            }
+        }
+        // ---- end tutorial ----
         if (autotest.active()) {
             if (!strcmp(autotest.label(), "factory: crates") && autotest.stepTime() > 3.0f) {
                 in.pad.dy = 127;
@@ -1573,6 +1659,16 @@ int main() {
                     while (net.pollBlockerMovie(movie)) {
                         if (movie.avId == net.avatarId() && movie.mode == 1)
                             tutorial.start(tt::quest::ScriptId::TutorialBlocker, false);
+                    }
+                } else if (ev.type == tt::net::EventType::Quests && autotest.tutorialPath()) {
+                    const tt::net::OwnQuests& quests = net.ownQuests();
+                    TT_LOG("tutorial: quest update %d carried", quests.count);
+                    for (int i = 0; i < quests.count; ++i) {
+                        TT_LOG("tutorial: quest %lu from %lu to %lu progress %lu",
+                               static_cast<unsigned long>(quests.quests[i].questId),
+                               static_cast<unsigned long>(quests.quests[i].fromNpc),
+                               static_cast<unsigned long>(quests.quests[i].toNpc),
+                               static_cast<unsigned long>(quests.quests[i].progress));
                     }
                 }
                 // ---- end tutorial ----

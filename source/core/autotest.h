@@ -28,6 +28,8 @@ public:
     bool active() const { return active_; }
     // Started from autotest_fe: drives the front end instead of the world.
     bool frontEndScript() const { return frontEnd_; }
+    // "tutorial" in autotest_fe selects Play it and continues with the Toontorial driver.
+    bool tutorialPath() const { return tutorial_; }
     // Overrides input for this frame. Returns false when the script is finished.
     bool apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons);
     const char* label() const;
@@ -49,6 +51,7 @@ private:
     bool shotsEnabled_ = true;
     bool active_ = false;
     bool frontEnd_ = false;
+    bool tutorial_ = false;
     const Step* script_ = nullptr;
     int numSteps_ = 0;
     int step_ = 0;
