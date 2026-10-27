@@ -704,14 +704,40 @@ int main() {
                             TT_LOG("tutorial: enter HQ via %s", p->name);
                         }
                     } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
-                        player.reset(p->x, p->y, p->z, p->h);
-                        TT_LOG("tutorial: leave for Toontown Central via %s", p->name);
+                        // The origin faces out of the tunnel: start a few units out in the street,
+                        // turn round and run in, as a player does (a standing toon never reaches
+                        // the tunnel trigger).
+                        static bool runningIn = false;
+                        if (!runningIn) {
+                            const float hr = p->h * 3.14159265f / 180.0f;
+                            player.reset(p->x - sinf(hr) * 4.0f, p->y + cosf(hr) * 4.0f, p->z, p->h + 180.0f);
+                            runningIn = true;
+                            TT_LOG("tutorial: leave for Toontown Central via %s", p->name);
+                        }
+                        in.pad.dx = 0;
+                        in.pad.dy = 150;
                     }
                 } else if (zone == tt::world::kTutorialHq) {
                     if (tutorialHqTalked) {
                         if (const tt::world::Place::Point* p = place.point("door_origin_1")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: leave HQ via %s", p->name);
+                            if (lastExitZone != 0) {
+                                // Still on the arrival door's trigger: a walking player steps off it
+                                // (clearing the no-bounce guard) before reaching the other door.
+                                const float hr = p->h * 3.14159265f / 180.0f;
+                                player.reset(p->x + sinf(hr) * 4.0f, p->y - cosf(hr) * 4.0f, p->z, p->h);
+                            } else {
+                                // Run into the door from just inside it: the flush trigger is
+                                // touched by the moving toon's probe, not by one standing still.
+                                static bool runningOut = false;
+                                if (!runningOut) {
+                                    const float hr = p->h * 3.14159265f / 180.0f;
+                                    player.reset(p->x + sinf(hr) * 2.0f, p->y - cosf(hr) * 2.0f, p->z, p->h);
+                                    runningOut = true;
+                                    TT_LOG("tutorial: leave HQ via %s", p->name);
+                                }
+                                in.pad.dx = 0;
+                                in.pad.dy = 150;
+                            }
                         }
                     } else {
                         float npc[4];
@@ -1687,7 +1713,9 @@ int main() {
             // out): no exits. The Cog floor shares the toon interior's zone id, not its doors.
         // ---- tutorial ----
         } else if (netStarted && net.inTutorial() && place.zoneId() == tt::world::kTutorialStreet &&
-                   exitHere.kind == tt::world::Exit::Tunnel && exitHere.targetZone != lastExitZone) {
+                   exitHere.kind == tt::world::Exit::Tunnel) {
+            // No lastExitZone guard: the tutorial tunnel is linktunnel_tt_0 (target zone 0, which is
+            // also lastExitZone off every trigger), and nothing arrives through it to bounce back.
             // TutorialStreet.handleEnterTunnel posts stopTutorial before TTStreet starts the
             // normal TTC tunnel.  allDone tears down dynamic objects; the next location is TTC.
             if (net.sendTutorialAllDone()) {
