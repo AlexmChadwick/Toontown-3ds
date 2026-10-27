@@ -120,7 +120,7 @@ def run_real(out, zones=None):
             assert anchor.exists()
             for line in anchor.read_text().splitlines():
                 fields=line.split()
-                assert len(fields)==5 and len(fields[0])<=39 and all(np.isfinite(float(x)) for x in fields[1:])
+                assert len(fields)==5 and len(fields[0])<=63 and all(np.isfinite(float(x)) for x in fields[1:])
             data=path.read_bytes()
             zone=tz.validate(data)
             points=[]; covered=set()
@@ -153,19 +153,25 @@ def run_real(out, zones=None):
             co,vo,fo,to=h[8:12]
             d=bytearray(data); struct.pack_into('<H',d,vo,65535); bad('vis',d)
             d=bytearray(data); struct.pack_into('<H',d,fo+36,65535); bad('floor',d)
-            d=bytearray(data); struct.pack_into('<I',d,co+(88 if zone['version']==2 else 20),7*1024*1024); bad('budget',d)
+            d=bytearray(data); struct.pack_into('<I',d,co+(88 if zone['version']>=2 else 20),7*1024*1024); bad('budget',d)
             d=bytearray(data); struct.pack_into('<I',d,co+12,len(data)+128); bad('model-offset',d)
             c=next(c for c in zone['chunks'] if c['size'])
             d=bytearray(data); d[c['offset']:c['offset']+4]=b'FAIL'; bad('model-magic',d)
             d=bytearray(data); struct.pack_into('<I',d,to+24,99); bad('trigger',d)
-            if zone['version']==2:
+            if zone['version']>=2:
                 d=bytearray(data); struct.pack_into('<I',d,co+80,len(data)+128); bad('low-offset',d)
                 d=bytearray(data); struct.pack_into('<I',d,co+100,15001); bad('tri-budget',d)
+            if zone['version']==3:
+                # A pooled texture offset past the pool, and a pool running past the file.
+                m=next(m for m in zone['chunks'] if m['size'] and struct.unpack_from('<H',data,m['offset']+8)[0])
+                d=bytearray(data); tt=struct.unpack_from('<I',data,m['offset']+44)[0]
+                struct.pack_into('<I',d,m['offset']+tt+8,len(data)); bad('pool-texture',d)
+                d=bytearray(data); struct.pack_into('<I',d,60,len(data)); bad('pool-size',d)
                 # Repack the same data in v1 to prove the old layout still loads.
                 legacy=[]
                 for i,c in enumerate(zone['chunks']):
                     legacy.append(dict(c,vis=[i],stats=dict(c['stats'],bounds=c['bounds']),
-                                       model=data[c['offset']:c['offset']+c['size']]))
+                                       model=tz.model_bytes(data,c['offset'],c['size'])))
                 legacy_path=tmp/'legacy.tz'
                 floors=[(np.array(f[:9]).reshape(3,3),f[9],f[10]) for f in zone['floors']]
                 triggers=[{'min':t[:3],'max':t[3:6],'kind':t[6],

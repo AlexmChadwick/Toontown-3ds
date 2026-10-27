@@ -74,6 +74,10 @@ def untile(data, w, h, fmt):
 
 def load(path, tints):
     buf = open(path, 'rb').read()
+    if struct.unpack_from('<H', buf, 4)[0] == 2:  # pooled (tools/pipeline/ttm_pool.py)
+        import ttm_pool
+        from pathlib import Path
+        buf = ttm_pool.standalone(buf, ttm_pool.read_pool(Path(path).parent))
     (magic, ver, _, ntex, nbatch, nv, ni, sx, sy, sz, ox, oy, oz,
      tex_off, batch_off, v_off, i_off, _) = struct.unpack_from('<4sHHHHII3f3fIIIII', buf, 0)
     assert magic == ttm.MAGIC and ver == ttm.VERSION

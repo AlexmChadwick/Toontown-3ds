@@ -13,6 +13,9 @@ namespace tt::render {
 namespace {
 
 constexpr u16 kVersion = 1;
+// v2: identical layout, but texture data lives in the directory's shared pool file
+// (textures.ttp, tools/pipeline/ttm_pool.py) and dataOffset is an offset into that file.
+constexpr u16 kPooledVersion = 2;
 constexpr u32 kVertexSize = 16;
 
 struct Header {
@@ -118,7 +121,24 @@ bool Model::load(const char* path) {
     // Large reads go straight to their destination; a bigger stdio buffer cuts
     // per-call overhead on RomFS/SD.
     setvbuf(f, nullptr, _IOFBF, 32 * 1024);
-    const bool ok = loadFrom(f, 0, path);
+    // A pooled (v2) model reads its textures from textures.ttp next to it.
+    FILE* pool = nullptr;
+    Header h;
+    if (readAt(f, 0, &h, sizeof(h)) && !memcmp(h.magic, "TTM1", 4) && h.version == kPooledVersion) {
+        char poolPath[160];
+        const char* slash = strrchr(path, '/');
+        const int dir = slash ? static_cast<int>(slash - path + 1) : 0;
+        snprintf(poolPath, sizeof(poolPath), "%.*stextures.ttp", dir, path);
+        pool = fopen(poolPath, "rb");
+        char magic[8] = {};
+        if (pool && (fread(magic, 1, 8, pool) != 8 || memcmp(magic, "TTP1\x01\0\0\0", 8))) {
+            fclose(pool);
+            pool = nullptr;
+        }
+        if (!pool) TT_LOG("model: %s needs %s (missing or bad)", path, poolPath);
+    }
+    const bool ok = loadFrom(f, 0, path, pool);
+    if (pool) fclose(pool);
     fclose(f);
     return ok;
 }
@@ -142,13 +162,14 @@ void Model::swap(Model& o) {
     std::swap(absoluteIndices_, o.absoluteIndices_);
 }
 
-bool Model::loadFrom(FILE* f, u32 base, const char* label) {
+bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     unload();
     const char* path = label ? label : "(embedded)";
 
     Header h;
     TexEntry* texEntries = nullptr;
-    bool ok = readAt(f, base, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 && h.version == kVersion;
+    bool ok = readAt(f, base, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 &&
+              (h.version == kVersion || (h.version == kPooledVersion && pool));
     if (!ok) {
         TT_LOG("model: bad header in %s", path);
         return false;
@@ -176,7 +197,8 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label) {
     ok = batches_ && texEntries && textures_ && vertices_ && indices_;
     ok = ok && readAt(f, base + h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
     ok = ok && readAt(f, base + h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
-    for (u16 i = 0; ok && i < numTextures_; i++) texEntries[i].dataOffset += base; // offsets are file-relative
+    FILE* texFile = h.version == kPooledVersion ? pool : f;
+    for (u16 i = 0; ok && texFile == f && i < numTextures_; i++) texEntries[i].dataOffset += base; // file-relative
     ok = ok && readAt(f, base + h.vertexOffset, vertices_, numVertices_ * kVertexSize);
     ok = ok && readAt(f, base + h.indexOffset, indices_, numIndices_ * sizeof(u16));
     if (ok && numVertices_ <= 0x10000) {
@@ -204,7 +226,7 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label) {
     }
 
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        ok = loadTexture(f, texEntries[i], &textures_[i]);
+        ok = loadTexture(texFile, texEntries[i], &textures_[i]);
         if (ok) linearBytes_ += textures_[i].size;
     }
 

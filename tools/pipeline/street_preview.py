@@ -144,7 +144,7 @@ def main():
             size=c['low_size'] if lod else c['size']
             if not size:
                 continue
-            model=load_model(data[offset:offset+size],cache)
+            model=load_model(tz.model_bytes(data,offset,size),cache)
             model.reparentTo(group)
             models[i,lod]=model
     lo,hi=group.getTightBounds()

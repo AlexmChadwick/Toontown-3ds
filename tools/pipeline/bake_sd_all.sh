@@ -19,7 +19,7 @@
 #   world     bake_hoods (playground music + fallback .ttm/.ttc) -> [bake_street per zone,
 #             1000 with --separate-boat, + the Toontorial street 20000] || [bake_coghq --audio]
 #             -> bake_boat -> bake_suit_paths -> bake_minimap (reads every .tz)
-#   interiors bake_interior --all, --tutorial -> bake_interior_props
+#   interiors bake_interior --all, --tutorial -> bake_interior_props -> ttm_pool (interiors)
 #   level     bake_level --level all -> bake_level_props -> bake_facility_floors (needs the room
 #             levels) -> bake_boss VP, --cfo, --cj, --ceo (one at a time: they share data/boss)
 #   battle    bake_suit -> bake_props -> bake_suit_props -> battle_audio -> bake_suit_heads_atlas
@@ -156,6 +156,9 @@ lane_interiors() {
     step interiors py tools/pipeline/bake_interior.py --all --no-preview --resources "$RES"
     step interiors-tutorial py tools/pipeline/bake_interior.py --tutorial --no-preview --resources "$RES"
     step interior-props py tools/pipeline/bake_interior_props.py --sd sdmc-out
+    # One shared textures.ttp for all interiors (about 170 MB -> 42 MB); rerun after any
+    # single-interior rebake.
+    step interiors-pool py tools/pipeline/ttm_pool.py "$DATA/interiors"
 }
 
 lane_level() {

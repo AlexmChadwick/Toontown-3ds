@@ -102,7 +102,7 @@ class Renderer:
             off, size = (c['low_offset'], c['low_size']) if c['low_size'] else (c['offset'], c['size'])
             if not size:
                 continue
-            street_preview.load_model(data[off:off + size], self.cache).reparentTo(group)
+            street_preview.load_model(tz.model_bytes(data, off, size), self.cache).reparentTo(group)
         top = max(group.getTightBounds()[1].z, 0.0) + 100.0
         lens = OrthographicLens()
         lens.setFilmSize(side, side)

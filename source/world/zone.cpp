@@ -15,7 +15,8 @@ struct Header {
     char magic[4];
     uint16_t version, flags;
     uint32_t branch, chunks, vis, floors, triggers;
-    uint32_t chunkOff, visOff, floorOff, triggerOff, collisionOff, collisionSize, size, reserved[2];
+    uint32_t chunkOff, visOff, floorOff, triggerOff, collisionOff, collisionSize, size;
+    uint32_t poolOff, poolSize; // v3 shared texture pool (zero and reserved in v1/v2)
 };
 struct Chunk {
     uint32_t zone, firstVis, numVis, offset, size, geom, tex, draws, tris;
@@ -58,8 +59,10 @@ float distance2(const Vec3& p, const Chunk& c) {
     }
     return result;
 }
-// Validate every field trusted by Model::load before permitting GPU allocation.
-bool validModel(FILE* f, const Chunk& c) {
+// Validate every field trusted by Model::load before permitting GPU allocation. In v3 a
+// texture's data may live in the zone's shared pool instead of the blob: its blob-relative
+// offset then wraps (u32) to the pool, exactly as Model::loadFrom rebases it.
+bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
     struct ModelHeader {
         char magic[4]; uint16_t version, flags, textures, batches;
         uint32_t vertices, indices; float scale[3], offset[3];
@@ -79,7 +82,10 @@ bool validModel(FILE* f, const Chunk& c) {
         Tex t;
         if (!readAt(f,c.offset+h.texOff+i*48,&t,sizeof(t)) || t.w<8 || t.h<8 || t.w>256 || t.h>256 ||
             (t.w & (t.w-1)) || (t.h & (t.h-1)) || !t.mips || t.mips>6 ||
-            (t.ws!=0 && t.ws!=2) || (t.wt!=0 && t.wt!=2) || !span(t.off,t.size,1,c.size)) return false;
+            (t.ws!=0 && t.ws!=2) || (t.wt!=0 && t.wt!=2)) return false;
+        const uint32_t at=c.offset+t.off;
+        const bool pooled=poolSize && at>=poolOff && t.size<=poolSize && at-poolOff<=poolSize-t.size;
+        if (!pooled && !span(t.off,t.size,1,c.size)) return false;
         uint32_t bpp=0;
         switch(t.fmt) {
             case 0: bpp=32; break;
@@ -304,15 +310,17 @@ bool Zone::load(const char* path) {
     z.file=fopen(path,"rb");
     bool ok=z.file && readAt(z.file,0,&z.h,sizeof(z.h));
     Header& h=z.h;
-    ok=ok && !memcmp(h.magic,"TZ01",4) && (h.version==1 || h.version==2) && !h.flags && !h.reserved[0] && !h.reserved[1] &&
+    ok=ok && !memcmp(h.magic,"TZ01",4) && h.version>=1 && h.version<=3 && !h.flags &&
+       (h.version==3 || (!h.poolOff && !h.poolSize)) &&
        h.branch>0 && h.branch<=65535 && h.chunks>0 && h.chunks<=kMaxChunks &&
        h.vis<=kMaxChunks*kMaxChunks && h.floors<=100000 && h.triggers<=4096 && h.size<=128u*1024*1024;
-    const uint32_t stride=h.version==2 ? 104 : 80;
+    const uint32_t stride=h.version>=2 ? 104 : 80;
     if (ok) {
         ok=fseek(z.file,0,SEEK_END)==0 && ftell(z.file)==static_cast<long>(h.size) &&
            section(h.chunkOff,h.chunks,stride,h.size) && section(h.visOff,h.vis,2,h.size) &&
            section(h.floorOff,h.floors,40,h.size) && section(h.triggerOff,h.triggers,156,h.size) &&
-           h.collisionSize>=96 && h.collisionSize<=8u*1024*1024 && section(h.collisionOff,h.collisionSize,1,h.size);
+           h.collisionSize>=96 && h.collisionSize<=8u*1024*1024 && section(h.collisionOff,h.collisionSize,1,h.size) &&
+           (!h.poolSize || section(h.poolOff,h.poolSize,1,h.size));
     }
     if (ok) {
         z.chunks=static_cast<Chunk*>(calloc(h.chunks,sizeof(Chunk)));
@@ -342,16 +350,16 @@ bool Zone::load(const char* path) {
             const Floor& f=z.floors[c.firstFloor+j];
             ok=f.cell==i && f.zone==c.zone;
         }
-        if (c.size) ok=ok && section(c.offset,c.size,1,h.size) && validModel(z.file,c);
+        if (c.size) ok=ok && section(c.offset,c.size,1,h.size) && validModel(z.file,c,h.poolOff,h.poolSize);
         else ok=ok && !(c.offset || c.geom || c.tex || c.draws || c.tris);
-        if (h.version==2) {
+        if (h.version>=2) {
             const Chunk low=modelInfo(c,1);
-            if (low.size) ok=ok && section(low.offset,low.size,1,h.size) && validModel(z.file,low);
+            if (low.size) ok=ok && section(low.offset,low.size,1,h.size) && validModel(z.file,low,h.poolOff,h.poolSize);
             else ok=ok && !(low.offset || low.geom || low.tex || low.draws || low.tris);
         }
     }
     // Sections must be disjoint, including blobs (prevents aliasing metadata).
-    uint32_t starts[kMaxChunks*2+5], ends[kMaxChunks*2+5];
+    uint32_t starts[kMaxChunks*2+6], ends[kMaxChunks*2+6];
     int ranges=0;
     auto addRange=[&](uint32_t off,uint32_t size) {
         if (size) { starts[ranges]=off; ends[ranges++]=off+size; }
@@ -359,10 +367,10 @@ bool Zone::load(const char* path) {
     if (ok) {
         addRange(h.chunkOff,h.chunks*stride); addRange(h.visOff,h.vis*2);
         addRange(h.floorOff,h.floors*40); addRange(h.triggerOff,h.triggers*156);
-        addRange(h.collisionOff,h.collisionSize);
+        addRange(h.collisionOff,h.collisionSize); addRange(h.poolOff,h.poolSize);
         for (uint32_t i=0;i<h.chunks;++i) {
             addRange(z.chunks[i].offset,z.chunks[i].size);
-            if (h.version==2) addRange(z.chunks[i].lowOffset,z.chunks[i].lowSize);
+            if (h.version>=2) addRange(z.chunks[i].lowOffset,z.chunks[i].lowSize);
         }
         for (int i=0;i<ranges;++i) for (int j=i+1;j<ranges;++j)
             if (starts[i]<ends[j] && starts[j]<ends[i]) ok=false;
@@ -380,7 +388,7 @@ bool Zone::load(const char* path) {
         uint64_t geom=0,tex=0,draws=0,tris=0;
         const Chunk& c=z.chunks[i];
         for (uint32_t j=0;j<c.numVis;++j) {
-            const Chunk v=modelInfo(z.chunks[z.vis[c.firstVis+j]],h.version==2 ? 1 : 0);
+            const Chunk v=modelInfo(z.chunks[z.vis[c.firstVis+j]],h.version>=2 ? 1 : 0);
             geom+=v.geom; tex+=v.tex; draws+=v.draws; tris+=v.tris;
         }
         ok=geom<=kGeometryBudget && tex<=kTextureBudget && draws<=150 && (h.version==1 || tris<=kTriangleBudget);
@@ -454,7 +462,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     }
     bool replan=next>=0 && (next!=z.cell || !z.planned || z.extraDirty);
     const bool extrasChanged=replan && z.extraDirty;
-    if (next>=0 && !replan && z.h.version==2) {
+    if (next>=0 && !replan && z.h.version>=2) {
         const float dx=feet.x-z.lastPlan.x,dy=feet.y-z.lastPlan.y,dz=feet.z-z.lastPlan.z;
         replan=dx*dx+dy*dy+dz*dz>=16.0f; // avoid churn for tiny movements
     }
@@ -468,7 +476,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         auto want=[&](uint16_t id) {
             if (z.desired[id]) return;
             z.desired[id]=true;
-            z.choice[id]=z.h.version==2 ? 1 : 0;
+            z.choice[id]=z.h.version>=2 ? 1 : 0;
             z.order[count++]=id;
             const Chunk d=modelInfo(z.chunks[id],z.choice[id]);
             geom+=d.geom; tex+=d.tex; tris+=d.tris; draws+=d.draws;
@@ -487,7 +495,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             }
             z.order[at]=id;
         }
-        if (z.h.version==2) {
+        if (z.h.version>=2) {
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];

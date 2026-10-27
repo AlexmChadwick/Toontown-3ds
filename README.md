@@ -87,7 +87,7 @@ do not replace it. The result looks like this:
 
 ```
 sdmc:/3ds/toontown3ds/toontown3ds.3dsx   Homebrew Launcher app
-sdmc:/3ds/toontown3ds/data/             baked SD data set, about 480 MB
+sdmc:/3ds/toontown3ds/data/             baked SD data set, about 600 MB
 sdmc:/3ds/toontown3ds/server.txt        server settings (see below)
 ```
 

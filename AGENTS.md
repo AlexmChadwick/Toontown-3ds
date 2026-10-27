@@ -169,6 +169,10 @@ Key decisions:
    - Cells: playgrounds are split into a uniform grid. Streets use DNA visgroups.
    - Each chunk is one contiguous blob that can be read straight into `linearAlloc`
      memory.
+   - **TZ v3** (current) stores each distinct texture payload once in a per-file pool;
+     chunk TTMs point into it (`docs/design/streets.md`). Interiors share one
+     `interiors/textures.ttp` (pooled TTM v2, `tools/pipeline/ttm_pool.py`). Never let a
+     baker copy the same atlas page into every chunk file again: that doubled the SD set.
 3. **Baked mesh data.**
    - Positions are quantized to `int16`; UVs use `int16` or `u8`.
    - Vertex color is `u8×4`.
@@ -582,6 +586,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/dcgen/dcgen.py` | DC → `source/net/dc_generated.h` (IDs, hash, field descriptors) |
 | `tools/gen_speedchat.py`, `tools/gen_toon_tables.py` | generated SpeedChat and ToonDNA tables |
 | `tools/server/` | local Open Toontown server (`setup.sh` on macOS, `setup_linux.sh` on Linux x86_64, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
+| `tools/pipeline/ttm_pool.py` | one shared `textures.ttp` per model directory (interiors), TTM v2; `tz.py <files>` repacks `.tz` to v3 |
 | `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |

@@ -8,7 +8,7 @@ Each zone is one scene model (see coghq_catalog.py), not DNA. The baker applies 
 renames the upstream CogHQLoader subclasses apply at load time, extracts collision, tunnel and
 door triggers with collide.py, then chunks the visible geometry into a uniform XY grid exactly
 like the playgrounds of bake_street.py (PVS = cells within --distance, far LOD from
-street_lod.py, atlases from street_atlas.py) and writes TZ v2 with tz.py.
+street_lod.py, atlases from street_atlas.py) and writes TZ v3 (shared texture pool) with tz.py.
 
 Outputs per zone: <zone>.tz, <zone>.pts (tunnel/door anchors) and <zone>.json (budget report).
 --audio also bakes the HQ music to <out>/../audio/<hood>.tsnd for the four HQ hoods.
@@ -231,7 +231,7 @@ def bake(zone_id, args, base):
     arrival = hq_arrivals.write_anchor(args.resources, zone_id, out/f'{zone_id}.pts', whole)
     num_points += int(arrival is not None)
     report.update({
-        'arrival': arrival, 'version': 2, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
+        'arrival': arrival, 'version': 3, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
         'before': before['worst'], 'low': low_report['worst'], 'planned_worst': planned, 'lod': lod_report,
         'points': num_points, 'floor_triangles': len(floors), 'triggers': len(triggers),
         'trigger_list': [{k: t[k] for k in ('kind', 'name', 'owner')} for t in triggers],

@@ -209,7 +209,7 @@ def bake(zone_id, args, base):
     from bake_zone import write_points
     num_points=write_points(root,str(out/f'{zone_id}.pts'))
     num_points += bake_moving_props.append_points(out/f'{zone_id}.pts', movers)
-    report.update({'moving_props':movers,'version':2,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
+    report.update({'moving_props':movers,'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),

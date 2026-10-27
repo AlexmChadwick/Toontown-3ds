@@ -76,8 +76,9 @@ public:
     // data is read straight into linear memory; only the small tables use the heap.
     bool load(const char* path);
     // Loads a TTM embedded at byte `base` of an open file (e.g. a .tz chunk). Leaves the
-    // file open; `label` is used in log messages.
-    bool loadFrom(FILE* f, u32 base, const char* label = nullptr);
+    // file open; `label` is used in log messages. `pool` is the open textures.ttp that a
+    // pooled (v2) model reads its texture data from; v2 models fail without it.
+    bool loadFrom(FILE* f, u32 base, const char* label = nullptr, FILE* pool = nullptr);
     void unload();
     bool loaded() const { return vertices_ != nullptr; }
     // Exchanges contents (no GPU work): lets a loader thread fill a staging model that

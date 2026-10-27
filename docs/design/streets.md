@@ -71,6 +71,29 @@ The C++ loader reads old entries at their original 80-byte stride into zeroed
 the new 15k guarantee applies to v2. Host tests repack every exterior as v1 and load
 it through the actual C++ code, in addition to testing every v2 output.
 
+## Format v3: shared texture pool (2026-10-27)
+
+Every chunk TTM used to carry its own copy of each atlas page it touched, so a page shared
+by 30 chunks was stored 30 times (near and far). Across all `.tz` files that was 271 MB of
+texture copies for about 12 MB of distinct payloads. TZ v3 (the `tz.write` default) keeps
+the v2 layout and stores each distinct payload once in a pool after the last blob; the
+header's two former reserved words are the pool offset and size. Embedded TTMs keep their
+full texture tables but end after their index data, and each entry's blob-relative
+`dataOffset` points forward into the pool, so `Model::loadFrom` is unchanged. Both readers
+(`tz.validate`, `zone.cpp`) require every pooled payload to lie inside the pool.
+`tz.model_bytes()` rebuilds a standalone TTM for host tools.
+
+Residency is unchanged: each loaded chunk still uploads its own copy of a texture, and the
+budgets count those copies. Existing files convert without a rebake (lossless; v3 -> v2
+gives back the original bytes):
+
+```sh
+.venv/bin/python -I tools/pipeline/tz.py sdmc-out/3ds/toontown3ds/data/{zones,estate,level}/*.tz
+.venv/bin/python -I tools/pipeline/tz.py --version 2 <file>.tz   # back to v2
+```
+
+Sizes on SD: zones 389 -> 131 MB (2100.tz 22.0 -> 6.2 MB), level 68 -> 58 MB.
+
 ## Geometry reduction and runtime selection
 
 Near geometry is preserved, apart from the pre-existing quantization/atlasing and
