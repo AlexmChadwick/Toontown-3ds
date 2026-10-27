@@ -1269,6 +1269,7 @@ int main() {
             if (facilityStep("boss") && autotest.stepBegan()) {
                 float fx, fy, fz;
                 if (level.foremanPosition(&fx, &fy, &fz)) player.reset(fx, fy - 6.0f, fz + 0.3f, 0.0f); // walk in
+                else TT_LOG("autotest: FAIL '%s': no boss Cog on this floor (not the top floor?)", autotest.label());
             }
             const bool look = !strcmp(autotest.label(), "factory: entities");
             const bool fight = !strcmp(autotest.label(), "factory: battle") || facilityStep("battle");

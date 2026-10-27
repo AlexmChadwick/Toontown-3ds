@@ -1146,3 +1146,26 @@ AI_MINIGAME_ID=8`. SD data: the 2026-10-27 bake, repacked to TZ v3 + pooled inte
   (the toon never moved), then the run was ejected (345) at the boss step with a 300 s
   heartbeat timeout: emulated time had stopped for over 5 minutes.
 - A street load still takes 1.0-1.3 s on the main thread (inside the teleport fade).
+
+## 2026-10-27 (round 4) — DA office won, dynamic-zone reconnect (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Build `20d4701`, live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8`,
+`ASTRON_HEARTBEAT_TIMEOUT_MS=300000`).
+
+- **Last round's DA office result was invalid.** Its log shows `connection closed by server`
+  8 s after boarding (Astron 345, the rig's emulated-time stall), then a reconnect *into zone
+  61000*: the AI had already deleted that stage, so the "floor" had no Cogs, no elevator and
+  incoming bytes stayed flat (8902 B) for the rest of the run. The "missing floor elevator"
+  was this, not an elevator bug.
+- **Forced drop** (`drop at da office: lasers`): `zone 61024 is dynamic and dies with us;
+  rejoining at zone 13200`, reconnect in 2 s, `rejoined at zone 13200`, teleport into the
+  Lawbot courtyard, controllable (screenshot). No crash or PARSE line.
+- **DA office end to end** (`go da office` .. `da office: boss`): floor 1 walked, lasers,
+  security camera, room battle won, `requestBoard floor elevator` → seat 0 → `riding to the
+  next floor, zone 61048` → floor 2's elevator → zone 61054 → boss battle (Legal Eagles) won
+  in two rounds → `StageReward` → `level: 13300 defeated -> zone 13000`. 26-30 fps
+  (10 fps for one second at a floor load, behind the elevator fade), 15-68 draws, ≤ 8.0k
+  tris, heap 3.4-4.0 MB, linear free 9.5-16 MB, VRAM free 4.2 MB. No PARSE/EJECT lines.
+- Found there: the Lawbot HQ arrival started 68 units up and fell (the reset used the DA
+  office's collision); fixed in `20d4701`.
+- nettest: all pass, with a new dynamic-zone drop case.

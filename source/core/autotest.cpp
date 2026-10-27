@@ -220,6 +220,7 @@ const Step kScript[] = {
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: moles", "club_moles**"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf green", "club_golf**"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "club: battle", "club_battle*"},
+    {90.0f, 0, 0, 0, 0, -1, -1, 0, "club: next floor", "club_next"}, // the kart room's golf kart
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "club: boss", "club_boss*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: exit", "club_exit"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "go speedway", "speedway"},
