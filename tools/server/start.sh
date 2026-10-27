@@ -71,6 +71,14 @@ sed -e "s#\.\./\.\./etc/#$OTT/etc/#g" \
     -e "s#directory: \.\./databases/astrondb#directory: $RUN/astrondb#" \
     -e "s#output: \.\./logs/#output: $LOGS/#" \
     "$OTT/astron/config/astrond.yml" > "$RUN/astrond.yml"
+# ASTRON_HEARTBEAT_TIMEOUT_MS: test rigs only. The client heartbeats every 10 s of *emulated*
+# time; an emulator running below 1/6 speed (Azahar with software GL in heavy scenes) misses
+# the stock 60 s timeout and is ejected with 345. Unset = the stock 60000.
+if [ -n "${ASTRON_HEARTBEAT_TIMEOUT_MS:-}" ]; then
+    sed -i.bak "s/heartbeat_timeout: 60000/heartbeat_timeout: $ASTRON_HEARTBEAT_TIMEOUT_MS/" "$RUN/astrond.yml"
+    rm -f "$RUN/astrond.yml.bak"
+    echo "astron: heartbeat timeout $ASTRON_HEARTBEAT_TIMEOUT_MS ms (test override)"
+fi
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
 : > "$RUN/pids"

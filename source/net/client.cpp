@@ -4907,8 +4907,9 @@ bool Client::applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t f
         else b.state = CogBuildingState::Other;
         b.cogdoVictory = !strcmp(state, "waitForVictorsFromCogdo"); // cogdo
         b.suitVictory = !strcmp(state, "waitForVictors");
-        TT_LOG("net: building %lu block %lu -> %s", static_cast<unsigned long>(b.doId),
-               static_cast<unsigned long>(b.block), state);
+        if (strcmp(state, "toon") && strcmp(state, "suit") && strcmp(state, "cogdo")) // transitions only
+            TT_LOG("net: building %lu block %lu -> %s", static_cast<unsigned long>(b.doId),
+                   static_cast<unsigned long>(b.block), state);
         return r.ok();
     }
     return skipField(r, fieldId);

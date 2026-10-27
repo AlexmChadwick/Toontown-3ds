@@ -186,9 +186,11 @@ int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char**
     return fd;
 }
 
-bool tcpWait(int fd, bool wantWrite, int timeoutMs) {
+int tcpWait(int fd, bool wantWrite, int timeoutMs) {
     pollfd p{fd, short(POLLIN | (wantWrite ? POLLOUT : 0)), 0};
-    return poll(&p, 1, timeoutMs) > 0;
+    if (poll(&p, 1, timeoutMs) <= 0) return 0;
+    return ((p.revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL)) ? kTcpReadable : 0) |
+           ((p.revents & POLLOUT) ? kTcpWritable : 0);
 }
 
 int tcpRecv(int fd, void* buf, int len) {

@@ -71,9 +71,11 @@ void socketsExit();
 // Blocking-with-timeout TCP connect; the returned socket is non-blocking.
 // Returns -1 on failure (err describes why).
 int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err);
-// Waits until the socket is readable (or, if wantWrite, writable). Returns
-// false on timeout; true when ready or on error (the next recv/send reports it).
-bool tcpWait(int fd, bool wantWrite, int timeoutMs);
+// Waits until the socket is readable (or, if wantWrite, writable). Returns a mask of
+// kTcpReadable / kTcpWritable, 0 on timeout. Errors and hang-ups count as readable, so
+// the next recv reports them.
+constexpr int kTcpReadable = 1, kTcpWritable = 2;
+int tcpWait(int fd, bool wantWrite, int timeoutMs);
 // > 0 bytes moved; 0 would block; -1 closed by peer or error.
 int tcpRecv(int fd, void* buf, int len);
 int tcpSend(int fd, const void* buf, int len);

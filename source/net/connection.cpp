@@ -256,8 +256,10 @@ void Connection::run() {
             plat::LockGuard g(sendLock_);
             pending = send_.used();
         }
-        plat::tcpWait(fd_, pending > 0, pending > 0 ? 2 : 10);
-        if (!pumpRecv()) { closeSocket("connection closed by server"); continue; }
+        // recv only when poll reports data (or a hang-up): on hardware every recv is a SOC
+        // service call, and an idle loop runs ~100 times a second.
+        const int ready = plat::tcpWait(fd_, pending > 0, pending > 0 ? 2 : 10);
+        if ((ready & plat::kTcpReadable) && !pumpRecv()) { closeSocket("connection closed by server"); continue; }
         uint32_t freeSpace;
         {
             plat::LockGuard g(recvLock_);
