@@ -1843,6 +1843,9 @@ int main() {
                 suits.setZone(dest);
                 float ax, ay, az, ah;
                 place.arrival(fromZone, &ax, &ay, &az, &ah);
+                // reset() settles the toon on the ground at once: use the new place's floor, not a
+                // facility's we just left (a DA office floor put the Lawbot HQ arrival 68 units up).
+                player.setCollision(&place.collision());
                 player.reset(ax, ay, az, ah);
                 if (netStarted) net.changeZone(dest);
                 place.finishLoading(ax, ay, az, onStreetCell, nullptr);
