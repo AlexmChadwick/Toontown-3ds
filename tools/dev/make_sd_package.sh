@@ -47,6 +47,20 @@ if [ ! -d "$SRC" ]; then
     exit 1
 fi
 
+# The server allocates fresh zone ids for every Toontorial, but the client deliberately
+# loads these canonical bakes.  Keep packaging useful for partial developer data sets while
+# making an omitted tutorial kit visible instead of failing much later as "zone not installed".
+TUTORIAL_ASSETS="zones/20000.tz interiors/20501.ttm interiors/20501.ttc interiors/20502.ttm interiors/20502.ttc"
+MISSING_TUTORIAL=""
+for asset in $TUTORIAL_ASSETS; do
+    [ -f "$SRC/$asset" ] || MISSING_TUTORIAL="$MISSING_TUTORIAL $asset"
+done
+if [ -n "$MISSING_TUTORIAL" ]; then
+    echo "warning: Toontorial assets are incomplete; Play the Toontorial will not load." >&2
+    echo "         Missing:$MISSING_TUTORIAL" >&2
+    echo "         Bake them with the two Toontorial commands in README.md." >&2
+fi
+
 APPDIR="$OUT/3ds/toontown3ds"
 mkdir -p "$APPDIR/data"
 

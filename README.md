@@ -44,7 +44,7 @@ plan, and [docs/test-log.md](docs/test-log.md) for measured results.
 3. **For the asset pipeline (Phase 1+):** Python 3.12 + stock `panda3d==1.10.15`.
    ```bash
    uv venv -p 3.12 .venv
-   uv pip install --python .venv panda3d==1.10.15
+   uv pip install --python .venv panda3d==1.10.15 numpy
    ```
 4. **Upstream reference repos** live in `ref/` as pinned, shallow git submodules.
    You need them only to re-bake assets or regenerate `dc_generated.h`. The
@@ -134,12 +134,16 @@ make assets                 # bake_phase1.sh: TTC boot set into romfs/baked/,
 .venv/bin/python -I tools/pipeline/bake_boat.py --resources ref/resources  # Donald's Dock boat
 .venv/bin/python -I tools/pipeline/bake_street.py --zone 1000 --separate-boat  # 1000.tz without the boat
 .venv/bin/python -I tools/pipeline/bake_interior.py --all     # interiors/ (536 buildings)
+.venv/bin/python -I tools/pipeline/bake_street.py --zone 20000 # Toontorial street (dynamic server zone)
+.venv/bin/python -I tools/pipeline/bake_interior.py --tutorial # Toontorial HQ and Tutorial Tom interiors
 .venv/bin/python -I tools/pipeline/bake_char.py              # chars/ (classic characters)
 .venv/bin/python -I tools/pipeline/char_paths_bin.py sdmc-out/3ds/toontown3ds/data/chars  # chars/*.tcp walk graphs
 ```
 
 Order matters. `bake_minimap.py` reads the zone files, and the 1000 street bake is
-redone after `bake_boat.py`. Output goes to `sdmc-out/3ds/toontown3ds/data/`, which
+redone after `bake_boat.py`. The Toontorial uses runtime-allocated server zones, but its
+client assets always use canonical ids 20000, 20501, and 20502; do not rename those files.
+Output goes to `sdmc-out/3ds/toontown3ds/data/`, which
 `tools/dev/make_sd_package.sh` packages. The bakers are deterministic. Each one prints a
 budget report and fails if a budget is exceeded. `bake_audio.py` (footstep and UI
 sounds) writes to `romfs/baked/audio` by default. Pass `--out` to write elsewhere.
