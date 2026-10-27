@@ -806,6 +806,20 @@ void Level::updateElevators(net::Client& client, float x, float y, float z, uint
     for (int i = 0; i < net::kMaxLevelElevators; ++i) {
         const net::LevelElevator& e = client.levelElevatorSlot(i);
         const LevelEntity* m = e.active ? elevatorMarker(e) : nullptr;
+        if (e.active && !m && nowMs - elevatorUnresolvedMs_ > 5000) {
+            // Every 5 s while it lasts: why the elevator's marker does not resolve.
+            elevatorUnresolvedMs_ = nowMs;
+            int markers = 0;
+            for (int k = 0; k < net::kMaxLevelEntities; ++k) {
+                const net::LevelEntityObj& d = client.levelEntitySlot(k);
+                if (!d.active || d.classId != dc::DistributedElevatorMarker::kClassId) continue;
+                ++markers;
+                TT_LOG("level: marker %u level %u ent %u room %d%s", unsigned(d.doId), unsigned(d.levelDoId),
+                       unsigned(d.entId), roomOf(d.levelDoId), d.doId == e.latch ? " (latch)" : "");
+            }
+            TT_LOG("level: elevator %u latch %u unresolved, %d marker(s)", unsigned(e.doId), unsigned(e.latch),
+                   markers);
+        }
         if (!m || !shown(m->room)) continue;
         const bool closed = elevatorDoors(e, nowMs) > 0.99f;
         for (int k = 0; k < numElevatorBoxes_; ++k) {
