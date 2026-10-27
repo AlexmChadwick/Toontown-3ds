@@ -748,12 +748,13 @@ void Ui::drawDebug(const Context& c) {
         debugLine(8, 60, 0.5f, c.heapUsedKB < c.heapBudgetKB ? kWhite : bad, "heap  %u / %u KB used", c.heapUsedKB,
                   c.heapBudgetKB);
         debugLine(8, 78, 0.5f, kWhite, "linear %u / %u KB free", c.linearFreeKB, c.linearBudgetKB);
-        debugLine(8, 96, 0.5f, kWhite, "vram  %u KB free", c.vramFreeKB);
+        // Rows stay within the 320 px screen: zone and toons share the vram row.
+        debugLine(8, 96, 0.5f, kWhite, "vram  %u KB free   zone %u  toons %d", c.vramFreeKB, c.zoneId,
+                  c.remoteToons);
         if (c.netState) {
-            debugLine(8, 114, 0.45f, kWhite, "net %s  zone %u  in %u B/s out %u B/s  toons %d", c.netState, c.zoneId,
-                      c.netInBps, c.netOutBps, c.remoteToons);
+            debugLine(8, 114, 0.45f, kWhite, "net %s   in %u  out %u B/s", c.netState, c.netInBps, c.netOutBps);
         } else {
-            debugLine(8, 114, 0.45f, kDim, "offline  zone %u", c.zoneId);
+            debugLine(8, 114, 0.45f, kDim, "net offline");
         }
         // Main-thread CPU breakdown (core/profile.h): mean ms per frame over the last second.
         // "wait" is the vblank/GPU sync, not CPU work; busy = total - wait.
@@ -775,7 +776,7 @@ void Ui::drawDebug(const Context& c) {
             debugLine(8+(slot/kProfRows)*106,143+(slot%kProfRows)*10,.34f,ms>4?bad:kWhite,"%-6s %5.2f",
                       prof::name(static_cast<prof::Section>(index)),static_cast<double>(ms));
         }
-        debugLine(8, 196, 0.32f, kDim, "%.85s", log::recent(0));
+        debugLine(8, 196, 0.32f, kDim, "%.68s", log::recent(0));
         // ---- end qafix ----
     }
     for (int i = 0; i < numDebugLines_; i++) {
