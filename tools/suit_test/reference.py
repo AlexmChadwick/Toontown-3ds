@@ -27,7 +27,7 @@ from panda3d.core import getModelPath
 from panda3d.toontown import DNAStorage, DNASuitPoint, SuitLegList, loadDNAFileAI
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
-RES = os.environ.get('TT_RESOURCES', '/Users/alexchadwick/toontown-3ds/ref/resources')
+RES = os.environ.get('TT_RESOURCES', os.path.join(ROOT, 'ref', 'resources'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'pipeline'))
 import street_catalog  # noqa: E402  (pure python, no panda needed)
 
