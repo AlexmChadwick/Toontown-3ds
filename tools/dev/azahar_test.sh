@@ -10,9 +10,23 @@ cd "$(dirname "$0")/../.."
 APP=${1:-$PWD/toontown3ds.3dsx}
 SECS=${2:-62}
 OUT=${3:-$(mktemp -d)}
-AZ=/Applications/Azahar.app/Contents/MacOS/azahar
-CFG="$HOME/Library/Application Support/Azahar/config/qt-config.ini"
-SD="$HOME/Library/Application Support/Azahar/sdmc/3ds/toontown3ds"
+if [ "$(uname)" = Darwin ]; then
+    AZ=/Applications/Azahar.app/Contents/MacOS/azahar
+    AZ_PAT="Azahar.app/Contents/MacOS/azahar"
+    CFG="$HOME/Library/Application Support/Azahar/config/qt-config.ini"
+    AZ_DATA="$HOME/Library/Application Support/Azahar"
+else
+    # Linux: the extracted AppImage (azahar.AppImage --appimage-extract), run under Xvfb.
+    AZ=${AZAHAR:-$HOME/azahar/squashfs-root/AppRun}
+    AZ_PAT="squashfs-root/AppRun"
+    CFG="$HOME/.config/azahar-emu/qt-config.ini"
+    AZ_DATA="$HOME/.local/share/azahar-emu"
+    if [ ! -f "$CFG" ]; then # first run: let Azahar write its default config
+        timeout -s KILL 15 xvfb-run -a "$AZ" </dev/null >/dev/null 2>&1 || true
+        pkill -9 -f "$AZ_PAT" 2>/dev/null || true
+    fi
+fi
+SD="$AZ_DATA/sdmc/3ds/toontown3ds"
 mkdir -p "$OUT" "$SD"
 
 # One run at a time: a second run would back up the first one's test config as "the user's"
@@ -27,24 +41,29 @@ if ! mkdir "$LOCK" 2>/dev/null; then
 fi
 echo $$ > "$LOCK/pid"
 
-pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
+pkill -9 -f "$AZ_PAT" 2>/dev/null || true
 cp "$CFG" "$OUT/qt-config.ini.backup"
 # App Nap throttles Azahar while its window is hidden: emulated time then falls behind real time
 # and the server ejects the client for missing heartbeats (345). Disable it for this run only.
 BUNDLE=org.azahar-emu.azahar
-NAP_BEFORE=$(defaults read "$BUNDLE" NSAppSleepDisabled 2>/dev/null || echo unset)
-defaults write "$BUNDLE" NSAppSleepDisabled -bool YES
+if [ "$(uname)" = Darwin ]; then
+    NAP_BEFORE=$(defaults read "$BUNDLE" NSAppSleepDisabled 2>/dev/null || echo unset)
+    defaults write "$BUNDLE" NSAppSleepDisabled -bool YES
+fi
 restore() {
-    pkill -9 -f "Azahar.app/Contents/MacOS/azahar" 2>/dev/null || true
+    pkill -9 -f "$AZ_PAT" 2>/dev/null || true
     cp "$OUT/qt-config.ini.backup" "$CFG"
-    if [ "$NAP_BEFORE" = unset ]; then defaults delete "$BUNDLE" NSAppSleepDisabled 2>/dev/null || true
-    else defaults write "$BUNDLE" NSAppSleepDisabled -bool "$NAP_BEFORE"; fi
+    if [ "$(uname)" = Darwin ]; then
+        if [ "$NAP_BEFORE" = unset ]; then defaults delete "$BUNDLE" NSAppSleepDisabled 2>/dev/null || true
+        else defaults write "$BUNDLE" NSAppSleepDisabled -bool "$NAP_BEFORE"; fi
+    fi
     rm -f "$SD/autotest" "$SD/autotest_fe"
     rm -rf "$LOCK"
 }
 trap restore EXIT INT TERM HUP
 
-sed -i '' -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=true/is_new_3ds\\default=false/' \
+SEDI=(sed -i); [ "$(uname)" = Darwin ] && SEDI=(sed -i '')
+"${SEDI[@]}" -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=true/is_new_3ds\\default=false/' \
     -e 's/^resolution_factor=[0-9]*/resolution_factor=1/' -e 's/^layout_option=[0-9]*/layout_option=0/' \
     -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' \
     -e 's/^volume=.*/volume=0/' "$CFG" # muted (the user's volume comes back with the config restore)
@@ -59,13 +78,17 @@ if [ -n "${AUTOTEST_EXTRA:-}" ]; then printf '%s\n' "$AUTOTEST_EXTRA" | tr ';' '
 # AUTOTEST_FE=1 runs the front-end script (title, Pick-a-Toon, Make-a-Toon, names) instead; it
 # reads the same from/until/only lines from its own trigger file.
 if [ -n "${AUTOTEST_FE:-}" ]; then cp "$SD/autotest" "$SD/autotest_fe"; else rm -f "$SD/autotest_fe"; fi
-( caffeinate -i "$AZ" "$APP" </dev/null >/dev/null 2>&1 & ) # no idle sleep mid-run
+if [ "$(uname)" = Darwin ]; then
+    ( caffeinate -i "$AZ" "$APP" </dev/null >/dev/null 2>&1 & ) # no idle sleep mid-run
+else
+    ( xvfb-run -a -s "-screen 0 1280x800x24" "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
+fi
 sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
 cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || echo "no log.txt written"
 if ls "$SD"/shot_*.bin >/dev/null 2>&1; then
     .venv/bin/python -I tools/dev/decode_shot.py "$SD"/shot_*.bin --out-dir "$OUT" >/dev/null
 fi
-grep -c -E "PANIC|Unreachable" "$HOME/Library/Application Support/Azahar/log/azahar_log.txt" \
+grep -c -E "PANIC|Unreachable" "$AZ_DATA/log/azahar_log.txt" \
     | sed 's/^/emulator panics: /' || true
 echo "results in $OUT"
