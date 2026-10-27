@@ -45,6 +45,9 @@ public:
     bool active() const { return phase_ != TransitionPhase::Idle; }
     bool readyToLoad() const { return phase_ == TransitionPhase::BlackFrame; }
     float fade() const { return fadeAlpha_; }
+    // DistributedDoor.rejectEnter: the AI refused our requestEnter, the door movie was cancelled and
+    // the toon put back. Returns the FADoorCodes message once (nullptr when there is none to show).
+    bool takeDoorReject(const char** message);
     u32 targetZone() const { return targetZone_; }
     u32 fromZone() const { return fromZone_; }
 
@@ -113,6 +116,11 @@ private:
     float doorStartX_ = 0.0f, doorStartY_ = 0.0f;
     float doorSwing_ = 0.0f; // degrees (0 .. 100)
     bool doorActive_ = false;
+    // The door movie waits at the threshold for the AI's setOtherZoneIdAndDoId / rejectEnter.
+    bool doorAwaitReply_ = false;
+    bool doorRejected_ = false;
+    u8 doorRejectCode_ = 0;
+    float doorFromX_ = 0.0f, doorFromY_ = 0.0f, doorFromZ_ = 0.0f, doorFromH_ = 0.0f;
 
     // Portal hole kinematics (upstream Toon.py)
     float portalX_ = 0.0f, portalY_ = 0.0f, portalZ_ = 0.0f;

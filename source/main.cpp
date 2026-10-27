@@ -61,6 +61,37 @@
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
+
+namespace {
+// DistributedTutorialSuit.enterWalk: makePathTrack over these points at 4.5 units/s, looped. Each
+// leg first turns the cog (headsUp) towards its end point, then lerps there.
+constexpr float kFlunkyPath[][2] = {{55, 15}, {55, 25}, {25, 25}, {25, 15}, {55, 15}};
+constexpr float kFlunkyZ = -0.5f;
+constexpr float kFlunkySpeed = 4.5f;
+constexpr float kFlunkyReach = 2.4f; // the suit's battle tube plus the toon's sphere (SuitActors::touching)
+constexpr int kFlunkyLegs = int(sizeof(kFlunkyPath) / sizeof(kFlunkyPath[0])) - 1;
+
+void flunkyPose(float seconds, float* x, float* y, float* h) {
+    float loop = 0.0f;
+    for (int i = 0; i < kFlunkyLegs; ++i) {
+        loop += hypotf(kFlunkyPath[i + 1][0] - kFlunkyPath[i][0], kFlunkyPath[i + 1][1] - kFlunkyPath[i][1]);
+    }
+    float d = fmodf(seconds * kFlunkySpeed, loop);
+    for (int i = 0; i < kFlunkyLegs; ++i) {
+        const float dx = kFlunkyPath[i + 1][0] - kFlunkyPath[i][0];
+        const float dy = kFlunkyPath[i + 1][1] - kFlunkyPath[i][1];
+        const float len = hypotf(dx, dy);
+        if (d <= len || i == kFlunkyLegs - 1) {
+            const float u = len > 0.0f ? fminf(d / len, 1.0f) : 0.0f;
+            *x = kFlunkyPath[i][0] + dx * u;
+            *y = kFlunkyPath[i][1] + dy * u;
+            *h = atan2f(-dx, dy) * 180.0f / 3.14159265f; // Panda heading: 0 faces +Y
+            return;
+        }
+        d -= len;
+    }
+}
+} // namespace
 // ---- end tutorial ----
 #include "world/zone_actors.h"
 // [interior life]
@@ -660,9 +691,12 @@ int main() {
                     }
                 } else if (zone == tt::world::kTutorialStreet) {
                     float sx, sy, sz, sh;
-                    if (!tutorialBattleWon && suits.pose(net.tutorialSuitId(), &sx, &sy, &sz, &sh)) {
-                        player.reset(sx, sy, sz, sh);
-                        TT_LOG("tutorial: approach Flunky %.1f %.1f %.1f", double(sx), double(sy), double(sz));
+                    if (!tutorialBattleWon) {
+                        // The HQ door stays locked (DEFEAT_FLUNKY_HQ) until the Flunky is beaten.
+                        if (suits.pose(net.tutorialSuitId(), &sx, &sy, &sz, &sh)) {
+                            player.reset(sx, sy, sz, sh);
+                            TT_LOG("tutorial: approach Flunky %.1f %.1f %.1f", double(sx), double(sy), double(sz));
+                        }
                     } else if (!tutorialHqVisited) {
                         if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
                             player.reset(p->x, p->y, p->z, p->h);
@@ -1722,6 +1756,11 @@ int main() {
         uiState.teleportRequest = 0;
 
         transition.update(dt, player, place, netStarted ? &net : nullptr);
+        const char* doorReject = nullptr;
+        if (transition.takeDoorReject(&doorReject) && doorReject) {
+            toast = doorReject;
+            toastAge = 0.0f;
+        }
 
         if (transition.readyToLoad()) {
             const u32 dest = transition.targetZone();
@@ -2099,6 +2138,33 @@ int main() {
                 if (nb && level.ownsLevel(nb->levelDoId)) level.lockVisibility(nb->zoneId);
                 else level.unlockVisibility();
             }
+            // ---- tutorial ----
+            // The tutorial Flunky has no suit path; walk its fixed loop until a battle owns it.
+            {
+                static u32 flunkyId = 0;
+                static u32 flunkySinceMs = 0;
+                const u32 id = net.tutorialSuitId();
+                const tt::net::Suit* flunky = id ? net.findSuit(id) : nullptr;
+                if (flunky && id != flunkyId) {
+                    flunkyId = id;
+                    flunkySinceMs = nowMs;
+                }
+                if (flunky && !battle.active()) {
+                    float fx, fy, fh;
+                    flunkyPose((nowMs - flunkySinceMs) / 1000.0f, &fx, &fy, &fh);
+                    suits.setExternal(id, flunky->name, flunky->levelDist, fx, fy, kFlunkyZ, fh, true, true);
+                    // enableBattleDetect('walk'): touching the walking Flunky requests the battle.
+                    const float dx = player.x() - fx, dy = player.y() - fy;
+                    if (transition.idle() && dx * dx + dy * dy < kFlunkyReach * kFlunkyReach) {
+                        battle.requestBattle(net, id, fx, fy, kFlunkyZ, fh, player.x(), player.y(), player.z(),
+                                             player.headingDeg(), nowMs);
+                    }
+                } else if (!flunky && flunkyId) {
+                    suits.removeExternal(flunkyId);
+                    flunkyId = 0;
+                }
+            }
+            // ---- end tutorial ----
             // Bumping into a walking cog starts a fight (DistributedSuit.handleEnterCollision);
             // walking into someone else's fight joins it.
             if (!battle.active() && transition.idle() && !shop.active() && !fishing.active() && !minigame.active() &&

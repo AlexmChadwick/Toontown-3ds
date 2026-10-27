@@ -17,6 +17,8 @@ constexpr float kRadToDeg = 180.0f / 3.14159265358979323846f;
 constexpr float kToonForwardSpeed = 20.0f; // 16 * 1.25 (ToonSpeedFactor)
 constexpr float kPivotAngle = 135.0f;
 constexpr float kPivotDur = 2.0f;
+// How long the door movie waits for the AI's answer to requestEnter before going in anyway.
+constexpr float kDoorReplyTimeout = 2.0f;
 constexpr float kPivotLerpDur = 1.3333333f; // 2.0 * (90 / 135)
 constexpr float kTunnelCenterOffset = 9.0f;
 constexpr float kTunnelCenterInfluence = 0.6f;
@@ -99,6 +101,31 @@ void Transition::shutdown() {
     doorModelLeft_.unload();
     // [end interior life: door leaves]
     reset();
+}
+
+bool Transition::takeDoorReject(const char** message) {
+    if (!doorRejected_) return false;
+    doorRejected_ = false;
+    // FADoorCodes.reasonDict (TTLocalizer FADoorCodes_*); None entries show no dialog.
+    static const char* const kReasons[] = {
+        nullptr,
+        "You need gags! Go talk to Tutorial Tom!",
+        "Come back here when you have defeated the Flunky!",
+        "Go get your reward from HQ Harry!",
+        "Wrong door! Take the other door to the playground!",
+        "Wrong way! You need to go to the playground!",
+        "Walk up to that Flunky to battle him!",
+        "Go get your reward from Toon Headquarters!",
+        nullptr,
+        "Watch out! There's a Cog in there!",
+        "You'll get caught going in there as a Toon! You need to complete your Sellbot Disguise first!",
+        "You'll get caught going in there as a Toon! You need to complete your Cashbot Disguise first!",
+        "You'll get caught going in there as a Toon! You need to complete your Lawbot Disguise first!",
+        "You'll get caught going in there as a Toon! You need to complete your Bossbot Disguise first!",
+    };
+    constexpr unsigned kReasonCount = sizeof(kReasons) / sizeof(kReasons[0]);
+    *message = doorRejectCode_ < kReasonCount ? kReasons[doorRejectCode_] : nullptr;
+    return true;
 }
 
 void Transition::reset() {
@@ -284,8 +311,18 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
            static_cast<unsigned long>(targetZone), static_cast<unsigned long>(doorDoId),
            doorStartX_, doorStartY_);
 
+    doorAwaitReply_ = false;
+    doorFromX_ = player.x();
+    doorFromY_ = player.y();
+    doorFromZ_ = player.z();
+    doorFromH_ = player.headingDeg();
     if (net && doorDoId_ != 0) {
+        net::Client::DoorReply stale;
+        while (net->pollDoorReply(stale)) {
+            // Answers to earlier doors were never waited on; only this request's reply counts.
+        }
         net->sendDoorRequestEnter(doorDoId_);
+        doorAwaitReply_ = true;
     }
     if (net) {
         net->sendAnimState("walk", 1.0f);
@@ -527,6 +564,29 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
         }
 
         case TransitionType::Door: {
+            if (doorAwaitReply_ && net) {
+                net::Client::DoorReply reply;
+                while (net->pollDoorReply(reply)) {
+                    if (reply.doorDoId != doorDoId_) continue;
+                    doorAwaitReply_ = false;
+                    if (reply.rejected) {
+                        // DistributedDoor.__basicRejectEnter / __faRejectEnter: no movie, back to walk.
+                        const u8 code = reply.rejectCode;
+                        TT_LOG("transition: door %lu rejected (FADoorCodes %u)",
+                               static_cast<unsigned long>(doorDoId_), unsigned(code));
+                        player.reset(doorFromX_, doorFromY_, doorFromZ_, doorFromH_);
+                        if (net) net->sendAnimState("neutral", 1.0f);
+                        reset();
+                        doorRejected_ = true;
+                        doorRejectCode_ = code;
+                        return;
+                    }
+                }
+                if (age_ >= kDoorReplyTimeout) {
+                    TT_LOG("transition: no door reply after %.1f s, entering", double(kDoorReplyTimeout));
+                    doorAwaitReply_ = false;
+                }
+            }
             // Door swing: opens between 0.4s and 1.0s
             if (age_ >= 0.4f && age_ < 1.0f) {
                 doorSwing_ = easeInOut((age_ - 0.4f) / 0.6f) * 100.0f;
@@ -552,8 +612,8 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
                          0.0f, -8.0f, 4.0f, 0.0f, &cx, &cy, &cz, &ch);
             player.overrideCamera(FVec3_New(cx, cy, cz), FVec3_New(wx, wy, wz + 2.0f));
 
-            // Start fade out at 0.5s
-            if (age_ >= 0.5f && fadeDir_ == 0 && fadeAlpha_ < 1.0f) {
+            // Start fade out at 0.5s, once the AI has let us in.
+            if (age_ >= 0.5f && !doorAwaitReply_ && fadeDir_ == 0 && fadeAlpha_ < 1.0f) {
                 fadeDir_ = 1;
             }
             break;
