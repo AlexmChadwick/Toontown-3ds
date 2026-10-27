@@ -3,8 +3,9 @@
 HERE="$(cd "$(dirname "$0")" && pwd)"
 PIDS="$HERE/run/pids"
 [ -f "$PIDS" ] || { echo "Not running (no run/pids)"; exit 0; }
-# Reverse order: AI, UD, then astrond.
-tail -r "$PIDS" | while read -r name pid; do
+# Reverse order: AI, UD, then astrond (tail -r is BSD-only; tac is GNU-only).
+if command -v tac >/dev/null; then REV=(tac); else REV=(tail -r); fi
+"${REV[@]}" "$PIDS" | while read -r name pid; do
     if kill -0 "$pid" 2>/dev/null; then
         kill "$pid" 2>/dev/null
         for _ in $(seq 25); do kill -0 "$pid" 2>/dev/null || break; sleep 0.2; done

@@ -1,9 +1,11 @@
 #!/bin/bash
 # Start the real Open Toontown server stack locally:
-#   astrond (x86_64 prebuilt, Rosetta)  ->  UberDOG  ->  AI district
+#   astrond  ->  UberDOG  ->  AI district
+# macOS: the x86_64 prebuilt astrond in ref/ (Rosetta); Linux: the astrond
+# built by setup_linux.sh into tools/server/.deps/astron/.
 # Client agent listens on 0.0.0.0:7198 (MD on 127.0.0.1:7199).
 #
-# Usage:  tools/server/start.sh          (run tools/server/setup.sh once first)
+# Usage:  tools/server/start.sh          (run setup.sh / setup_linux.sh once first)
 #         tools/server/stop.sh
 #         tools/server/start.sh --reset  (wipe accounts/toons database first)
 #
@@ -19,9 +21,15 @@ RES="$ROOT/ref/resources"
 RUN="$HERE/run"
 LOGS="$HERE/logs"
 PY="$HERE/.venv/bin/python"
+OS="$(uname -s)"
+SETUP="$HERE/setup.sh"; [ "$OS" = Linux ] && SETUP="$HERE/setup_linux.sh"
 
-[ -x "$PY" ] || { echo "Run $HERE/setup.sh first"; exit 1; }
-"$PY" -I -c "import panda3d.toontown" 2>/dev/null || { echo "Panda3D fork missing; run $HERE/setup.sh"; exit 1; }
+[ -x "$PY" ] || { echo "Run $SETUP first"; exit 1; }
+"$PY" -I -c "import panda3d.toontown" 2>/dev/null || { echo "Panda3D fork missing; run $SETUP"; exit 1; }
+if [ "$OS" = Linux ]; then
+    ASTROND="$HERE/.deps/astron/bin/astrond"
+    [ -x "$ASTROND" ] || { echo "astrond missing; run $SETUP"; exit 1; }
+fi
 [ -d "$RES/phase_3" ] || { echo "Missing $RES (ref/resources submodule)"; exit 1; }
 
 if [ -f "$RUN/pids" ]; then
@@ -30,9 +38,22 @@ if [ -f "$RUN/pids" ]; then
     [ $alive = 1 ] && { echo "Server already running (see $RUN/pids). Run stop.sh first."; exit 1; }
     rm -f "$RUN/pids"
 fi
+listening() {  # listening <port>: is something listening on TCP <port>?
+    if [ "$OS" = Darwin ]; then
+        lsof -nP -iTCP:$1 -sTCP:LISTEN >/dev/null 2>&1
+    elif command -v ss >/dev/null; then
+        [ -n "$(ss -Htln "sport = :$1" 2>/dev/null)" ]
+    else  # /proc/net/tcp{,6}: local address field ends in :PORT (hex), state 0A = LISTEN
+        local hex; hex=$(printf '%04X' "$1")
+        awk -v p=":$hex" '$4 == "0A" && substr($2, length($2) - 4) == p { f = 1 } END { exit !f }' \
+            /proc/net/tcp /proc/net/tcp6 2>/dev/null
+    fi
+}
 for port in 7198 7199; do
-    if lsof -nP -iTCP:$port -sTCP:LISTEN >/dev/null 2>&1; then
-        echo "Port $port already in use:"; lsof -nP -iTCP:$port -sTCP:LISTEN; exit 1
+    if listening $port; then
+        echo "Port $port already in use"
+        if [ "$OS" = Darwin ]; then lsof -nP -iTCP:$port -sTCP:LISTEN; elif command -v ss >/dev/null; then ss -tlnp "sport = :$port"; fi
+        exit 1
     fi
 done
 
@@ -64,13 +85,19 @@ wait_for() {  # wait_for <file> <regex> <seconds> <name> <pid>
 }
 
 # 1. Astron
+if [ "$OS" = Linux ]; then
+    # (rpath to tools/server/.deps/env/lib is baked in by setup_linux.sh)
+    (cd "$RUN" && exec "$ASTROND" --boring --loglevel info "$RUN/astrond.yml") \
+        > "$LOGS/astrond-$STAMP.log" 2>&1 < /dev/null &
+else
 # (cwd = astron/darwin so the bare dylib install names resolve; DYLD_* vars
 #  would be stripped by SIP-protected wrappers like nohup/env.)
 (cd "$OTT/astron/darwin" && exec ./astrond --boring --loglevel info "$RUN/astrond.yml") \
     > "$LOGS/astrond-$STAMP.log" 2>&1 < /dev/null &
+fi
 APID=$!; echo "astrond $APID" >> "$RUN/pids"
 ln -sfn "astrond-$STAMP.log" "$LOGS/astrond.log"
-i=0; until lsof -nP -iTCP:7199 -sTCP:LISTEN >/dev/null 2>&1 && lsof -nP -iTCP:7198 -sTCP:LISTEN >/dev/null 2>&1; do
+i=0; until listening 7199 && listening 7198; do
     kill -0 $APID 2>/dev/null || { echo "astrond died:"; cat "$LOGS/astrond-$STAMP.log"; "$HERE/stop.sh"; exit 1; }
     i=$((i+1)); [ $i -gt 100 ] && { echo "astrond not listening"; "$HERE/stop.sh"; exit 1; }
     sleep 0.2

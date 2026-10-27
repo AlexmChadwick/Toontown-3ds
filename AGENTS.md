@@ -581,7 +581,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_facility_floors.py` | every mint / DA office / country-club floor, assembled by the stock upstream layout code → `.tlf` (`docs/design/levels.md`) |
 | `tools/dcgen/dcgen.py` | DC → `source/net/dc_generated.h` (IDs, hash, field descriptors) |
 | `tools/gen_speedchat.py`, `tools/gen_toon_tables.py` | generated SpeedChat and ToonDNA tables |
-| `tools/server/` | local Open Toontown server (`setup.sh`, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
+| `tools/server/` | local Open Toontown server (`setup.sh` on macOS, `setup_linux.sh` on Linux x86_64, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
 | `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |

@@ -159,6 +159,12 @@ tools/server/start.sh --reset   # wipe accounts and toons first
 
 `start.sh` needs `ref/open-toontown` and `ref/resources`. The prebuilt `astrond` is
 x86_64, so on Apple silicon it runs under Rosetta. Logs go to `tools/server/logs/`.
+
+On Linux x86_64, run `tools/server/setup_linux.sh` once instead of `setup.sh`. It needs
+only curl and git (no sudo, no system compiler): it fetches a conda-forge toolchain with
+micromamba into `tools/server/.deps/`, builds `astrond` from Astron and the Panda3D fork
+from source, and creates `tools/server/.venv`. `start.sh` and `stop.sh` work on both
+systems.
 Test the server from the PC with `tools/server/smoke_test.py` before you involve the
 3DS. Then set `host=` in `server.txt` to the PC's LAN address.
 
