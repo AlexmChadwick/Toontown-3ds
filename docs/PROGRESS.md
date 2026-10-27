@@ -59,3 +59,36 @@ Next:
   Toontorial path against the stock server in Old 3DS Azahar mode.
 - Confirm Tutorial Tom's 20502 interior loads, the generated dialogue pages advance, and the
   20502 -> 20001 -> 20501 -> 20001 -> 2000 route completes; record it in `docs/test-log.md`.
+
+## 2026-10-27 — Toontorial dynamic street interest fix
+
+Done:
+
+- Fixed the canonical/dynamic zone boundary when either tutorial interior returns to the
+  tutorial street. The allocated street ID is outside the ordinary street-ID range, so the
+  old generic check opened only the street interest and omitted the allocated branch that owns
+  its `DistributedBuilding` objects.
+- Tutorial street interests now include the server-allocated branch and translate canonical PVS
+  entries before sending them. Added source-contract coverage and documented the interest rule.
+
+Verified:
+
+- `git diff --check` passes.
+- `.venv/bin/python -I tools/gen_quest_scripts.py --check` passes.
+- The tutorial dynamic-interest source-contract checks pass.
+- A native build is unavailable in this Linux image: `make` stops because `DEVKITARM` is unset,
+  and the image has no host C++ compiler. No emulator, live-server, or hardware result is claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial still needs its first Old 3DS Azahar play-through against the
+  stock server. In particular, verify both returns to dynamic street `20001`, the HQ visit, the
+  final TTC tunnel, dialogue paging, and that buildings remain generated after each transition.
+- Real Old 3DS performance and memory high-water marks remain unmeasured.
+
+Next:
+
+- On a provisioned host, run `tools/tutorial_test/run.sh`, build with zero source warnings,
+  package the canonical tutorial assets, and execute the full tutorial route in Azahar.
+- Record the live result and resource measurements in `docs/test-log.md`; fix any presentation or
+  protocol issue found before claiming the Toontorial complete.

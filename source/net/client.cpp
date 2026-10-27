@@ -1324,8 +1324,10 @@ void Client::handleInterestDone(uint32_t context, uint16_t handle) {
         zones[n++] = targetZone_;
         // A street cell (2101..2199, not an interior 2500+) also needs its branch zone, which
         // holds the street's DistributedBuildings (Street.doEnterZone, Astron path).
-        const uint32_t branchZone = targetZone_ - targetZone_ % 100;
-        const bool streetCell = targetZone_ < 10000 && targetZone_ % 100 != 0 && targetZone_ % 1000 < 500;
+        const bool tutorialStreet = tutorialZones_.active() && targetZone_ == tutorialZones_.street;
+        const uint32_t branchZone = tutorialStreet ? tutorialZones_.branch : targetZone_ - targetZone_ % 100;
+        const bool streetCell = tutorialStreet ||
+                                (targetZone_ < 10000 && targetZone_ % 100 != 0 && targetZone_ % 1000 < 500);
         if (streetCell) zones[n++] = branchZone;
         for (int i = 0; i < numVisZones_; ++i) {
             if (visZones_[i] != targetZone_ && !(streetCell && visZones_[i] == branchZone)) zones[n++] = visZones_[i];
@@ -2917,7 +2919,7 @@ bool Client::changeZone(uint32_t zoneId, const uint32_t* visZones, int numVisZon
     // tutorial's four server zones dynamic, so translate at the network boundary.
     targetZone_ = tutorialZones_.toNetwork(zoneId);
     numVisZones_ = numVisZones < kMaxVisZones ? numVisZones : kMaxVisZones;
-    for (int i = 0; i < numVisZones_; ++i) visZones_[i] = visZones[i];
+    for (int i = 0; i < numVisZones_; ++i) visZones_[i] = tutorialZones_.toNetwork(visZones[i]);
     numDoors_ = 0;
     TT_LOG("net: changing zone %u -> %u (%d vis zones)", unsigned(cfg_.zoneId), unsigned(targetZone_), numVisZones_);
     sendSetLocation(avatarId_, shardId_, kQuietZone);

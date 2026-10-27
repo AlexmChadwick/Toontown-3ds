@@ -21,8 +21,11 @@ runtime. `world/tutorial_zones.h` maps them at the network boundary to canonical
 The canonical street is `phase_3.5/dna/tutorial_street.dna`; its sole visgroup is 20001.
 The interior ids are the stock `branch + 500 + block` calculation: `tb2` (Tutorial Tom)
 and `tb1` (HQ). `Client::changeZone` converts canonical destinations back to the dynamic
-id just before sending an Astron location update. Nothing in the baked data contains a
-per-player dynamic id.
+id just before sending an Astron location update. When an interior returns to the street,
+the interest contains both the allocated street and allocated branch; the latter owns the
+`DistributedBuilding` objects just as it does on an ordinary street. Canonical PVS entries
+are translated at the same boundary. Nothing in the baked data contains a per-player
+dynamic id.
 
 Bake the assets from this worktree (Python is isolated):
 

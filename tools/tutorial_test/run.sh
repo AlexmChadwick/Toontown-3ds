@@ -36,6 +36,14 @@ for cls, field in sent:
 
 for marker in ('TutorialMickey', 'QuestAssign101', 'QuestAssign110', 'TutorialBlocker', 'GagIntro'):
     assert marker in Path('source/quest/quest_scripts.h').read_text(), marker
+
+# Returning from either tutorial interior enters the dynamic street.  Unlike an ordinary
+# 21xx street cell, its allocated id is >= DynamicZonesBegin, so client.cpp must identify it
+# explicitly, include the allocated branch (where DistributedBuildings live), and translate
+# any canonical PVS ids before opening the interest.
+assert 'targetZone_ == tutorialZones_.street' in client
+assert 'tutorialStreet ? tutorialZones_.branch' in client
+assert 'visZones_[i] = tutorialZones_.toNetwork(visZones[i])' in client
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 
