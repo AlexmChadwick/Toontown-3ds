@@ -1140,4 +1140,9 @@ AI_MINIGAME_ID=8`. SD data: the 2026-10-27 bake, repacked to TZ v3 + pooled inte
   emulator averaged ~35% of real time (DA office: 182 emulated s in ~520 real s), so the
   client's 10 s (emulated) heartbeats arrived more than 60 real seconds apart. Rig limit, not
   a client bug; the local server now takes `ASTRON_HEARTBEAT_TIMEOUT_MS` for such runs.
+- **DA office** (`go da office` ..): boarded (`elevator: riding to zone 61000`), floor walked,
+  laser field (3 tile hits, hazard fired), security camera, room battle. 30 fps, 87 draws,
+  10.4k tris, heap 3.5 MB, linear free 9.2 MB. The next-floor step found no floor elevator
+  (the toon never moved), then the run was ejected (345) at the boss step with a 300 s
+  heartbeat timeout: emulated time had stopped for over 5 minutes.
 - A street load still takes 1.0-1.3 s on the main thread (inside the teleport fade).

@@ -52,6 +52,9 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - Cashbot mint (`go mint` .. `mint: boss`): boarded, walked every room and hallway, room
   battle, boss battle won (`level: 12500 defeated -> zone 12000`), back in Cashbot HQ.
   29.9 fps in the mint; heap 3.6 MB, linear free >= 9.5 MB.
+- DA office, floor 1: boarded, walked, laser field hits and hazard, security camera, room
+  battle. 30 fps, 87 draws, 10.4k tris, linear free 9.2 MB. The floor elevator was never
+  found (see Known issues).
 
 ### Asset size decisions
 - None downscaled. The size cut is pure de-duplication; every texture keeps its baked
@@ -61,21 +64,27 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - The tailor's upstream toon-facing clothes camera needs its counter hidden; the counter is
   baked into the interior mesh, so the tailor keeps the clerk view.
 - Street loads take 1.0-1.3 s on the main thread; the teleport/door fade covers them.
-- Five runs on this rig were ejected for heartbeat timeouts (345). The `net: link` line and
-  the log clock show it is the rig, not the client: heartbeats are queued every 10 s of
-  emulated time, but in facilities and Cog buildings Azahar (software GL under Xvfb) runs at
-  ~25-40% of real time on average, with dips far lower, so 10 emulated seconds can exceed
-  Astron's 60 real seconds. `ASTRON_HEARTBEAT_TIMEOUT_MS=300000 tools/server/start.sh`
-  raises the timeout for such rigs (stock 60 s when unset). This also makes every
-  emulator-time measurement here (fps, ms) relative to emulated time.
+- **Six runs on this rig were ejected for heartbeat timeouts (345)**, in Cog buildings and
+  facilities. The `net: link` line shows the client queueing a heartbeat every 10 s of
+  emulated time right up to the drop; the log clock shows Azahar's emulated time stopping
+  for 5-10 minutes and resuming exactly when Astron closes the socket, even with the
+  timeout raised to 300 s (`ASTRON_HEARTBEAT_TIMEOUT_MS`, new, test rigs only). Facilities
+  also average only ~35-50% emulation speed here. The stall looks like Azahar's socket
+  emulation (software GL, Xvfb, no audio device); it has not been seen on the Mac rig and
+  needs a hardware run to rule out the client. Fps/ms numbers here are emulated time.
+- **DA office floor elevator**: on floor 1 `level.elevatorPosition` never returns a position,
+  so the next-floor step cannot board (AGENTS.md: stage entry was already listed as open).
+  The country club has the same floor-elevator path and is untested.
 - The net loop now calls `recv()` only when `poll()` reports the socket readable (it ran on
   every ~10 ms idle iteration, a SOC call each on hardware).
-- Still not run on this rig: DA office, country club, speedway, Cogdo, the four
+- Still not run on this rig: DA office floors 2+ and its boss, country club, speedway, Cogdo, the four
   bosses, interior-life steps. No real-hardware run yet.
 - Never relink while Azahar runs the tree's `.3dsx` (RomFS is read from it); test from a copy.
 
 ### Next
-- Run the DA office / club / boss chunks with the strong dev toon.
+- Find why the DA office floor elevator has no position, then the club and boss chunks.
+- Pin down the Azahar socket stall (try `graphics_api` software / Vulkan, an audio sink,
+  or a hardware run).
 - Shared textures in residency too (one upload per zone texture instead of per chunk).
 - First real-hardware run.
 
