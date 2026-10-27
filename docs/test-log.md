@@ -1074,3 +1074,26 @@ exceed the provisional 15k/150 frame envelope; validate actual culling and Old 3
 performance before accepting that target. Exact install, expected log lines,
 manual multiplayer/gag/Circuit checks and remaining visual gaps are in
 `docs/design/racing.md`'s Azahar checklist.
+
+## 2026-10-27 — Linux rig: front end and Toontorial against the live server (Azahar)
+
+Build: `claude/work` at the commit containing this entry, devkitARM 16.1.0 (devkitpro/devkitarm
+image layers), zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb,
+**Old 3DS mode**, 1x, software GL. Server: local stock Open Toontown (`setup_linux.sh`; astrond
+built from Astron master, Panda fork 0661574). SD data: fresh `bake_sd_all.sh` (992 MB).
+Not hardware; GPU timing is not representative. Audio silent (no DSP firmware).
+
+- **Front end** (`autotest_fe`): title (original logo), connect, Pick-a-Toon, Make-a-Toon
+  species/body/colour/clothes/Pick-a-Name/typed name, create, Skip, TTC.
+  TTC after entry: 29.9 fps, cpu 4.8 ms, 88–94 draws, 10.5–12.1k tris, heap 3.5 MB,
+  linear free 15.4–15.7 MB, VRAM free 4.2 MB.
+- **Server unreachable**: Backoff screen now reads "Can't reach the server"; title shows
+  `127.0.0.1:7198`. 30 fps.
+- **Toontorial** (`autotest_fe` + `tutorial`): Tom's interior and Mickey's intro, Tom's quest,
+  door to the street, Flunky battle (throw, squirt, reward), HQ Harry, HQ back door, tunnel,
+  `allDone`, Toontown Central. Three stalls were found and fixed on the way (reward
+  acknowledgement, Flunky id not cleared, tunnel target 0 vs the exit guard). Street:
+  27–30 fps, 25 draws, 7.3k tris. TTC after: 29.9–30 fps, 83 draws, 11.2k tris, cmdbuf 12%.
+- **Offline world script** (no server): moves, tabs, padnav: 27–30 fps, 172 draws,
+  13.3k tris, heap 3.3 MB, linear free 18.8 MB, VRAM free 4.2 MB.
+- Issues left: none blocking in these flows; see docs/PROGRESS.md "Known issues".

@@ -4,6 +4,7 @@
 
 #include "ui/gag_data.h"
 #include "world/battle_fx.h"
+#include "world/place.h"
 #include <cmath>
 #include <cstdarg>
 #include <cstdio>
@@ -565,6 +566,11 @@ void Ui::drawMap(const Context& c) {
 
     if (hasMap_) {
         C2D_DrawImageAt(mapImage_, ox, oy, 0.45f, nullptr, zw * scale / mapW_, zh * scale / mapH_);
+    } else if (world::placeKind(c.currentZone) == world::PlaceKind::Interior) {
+        // No baked map indoors (upstream has none either): a plain floor plan of the room,
+        // so the markers still read as "who is where" instead of sitting on grass.
+        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x8A, 0x63, 0x3E, 0xFF));
+        C2D_DrawRectSolid(ox + 2, oy + 2, 0.5f, zw * scale - 4, zh * scale - 4, C2D_Color32(0xB9, 0x8A, 0x5A, 0xFF));
     } else {
         C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
     }
@@ -587,7 +593,10 @@ void Ui::drawMap(const Context& c) {
     if (playerVisible) C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     // ---- end qafix ----
-    text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
+    if (!hasMap_ && world::placeKind(c.currentZone) == world::PlaceKind::Interior)
+        text(8, 8, 0.45f, kWhite, "Indoors  (zone %u)", c.currentZone);
+    else
+        text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
     C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
     text(18, kHomeY + 6, 0.42f, kBg, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
