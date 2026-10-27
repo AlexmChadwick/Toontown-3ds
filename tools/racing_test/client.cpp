@@ -156,9 +156,13 @@ int main() {
     DatagramReader truncatedShot(bytes, 7);
     assert(client.handleRacingField(truncatedShot, 100, dc::DistributedRace::k_shootPiejectile));
     assert(!truncatedShot.ok() && race.shotSerial == 20);
+    // A dropped connection takes the race with it: nothing may be sent to it on the next session.
+    client.fail("test drop", true);
+    assert(!client.racingRace() && !client.racingBlocks_[0].active && !client.racingVehicles_[0].active &&
+           !client.racingHazards_[0].active && !client.raceParticipant());
     std::printf("racing state: race %zu bytes, pads %zu, blocks %zu, vehicles %zu, hazards %zu\n",
                 sizeof(RacingRace), sizeof(RacingPad) * kMaxRacingPads,
                 sizeof(RacingBlock) * kMaxRacingBlocks, sizeof(RacingVehicle) * kMaxRacingVehicles,
                 sizeof(RacingHazard) * 32);
-    std::puts("racing: 14 DC sender vectors, authorization guards, truncated results PASS");
+    std::puts("racing: 14 DC sender vectors, authorization guards, truncated results, reset on disconnect PASS");
 }

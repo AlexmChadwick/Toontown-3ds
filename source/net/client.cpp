@@ -560,6 +560,11 @@ void Client::resetWorld() {
     // [interior life]
     clearInteriorObjects();
     // [end interior life]
+    // A race or golf course from the dead session must not outlive it: Racing rebuilt itself
+    // from the stale race after a reconnect and acked its barrier, and Astron ejects a client
+    // that updates an object it no longer sees (117).
+    clearRacing();
+    clearGolfObjects();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     clearFishing();
     for (District& d : districts_) d.active = false;
