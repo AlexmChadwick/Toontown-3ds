@@ -320,6 +320,7 @@ bool Runner::begin() {
             snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
+        else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
     }
     fclose(f);
     active_ = true;

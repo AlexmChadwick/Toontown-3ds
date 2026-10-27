@@ -5,6 +5,7 @@
 #pragma once
 
 #include <3ds.h>
+#include <cstring>
 
 namespace tt::autotest {
 
@@ -44,6 +45,9 @@ public:
     bool stepBegan() const { return active_ && ready_ && stepFrames_ == 1; }
     // Non-null for one frame when the script wants a screenshot.
     const char* pendingShot() const { return shotsEnabled_ ? pendingShot_ : nullptr; }
+    // "drop at <label>": true on the first frame of that step, which then drops the connection
+    // (the reconnect path, like a dead socket after sleep).
+    bool dropNow() const { return dropAt_[0] && stepBegan() && !strcmp(label(), dropAt_); }
 
 private:
     TrolleyProgress trolleyProgress_;
@@ -63,6 +67,7 @@ private:
     float nextSeriesShot_ = 0.0f;
     int seriesIndex_ = 0;
     char seriesName_[40] = {};
+    char dropAt_[64] = {};
     char only_[192] = {}; // "only" line: comma-separated label prefixes (empty = every step)
     bool selected(const char* label) const;
 };

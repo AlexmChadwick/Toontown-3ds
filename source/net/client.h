@@ -1218,6 +1218,11 @@ public:
     // Drop the connection and go through the normal retry path, keeping the chosen toon
     // and zone (after sleep, when the socket is known to be dead).
     void forceReconnect(const char* why);
+    // ToontownGlobals.DynamicZonesBegin: zones allocated per facility floor / minigame / estate.
+    static constexpr uint32_t kDynamicZonesBegin = 61000;
+    // Once, after a reconnect that could not rejoin a dynamic zone: the static zone the session
+    // is now in, so the world can follow (the old place is gone on the server).
+    bool takeRelocation(uint32_t* zone);
     // True when the toon being played was created in this session.
     bool playingNewAvatar() const { return newAvatarId_ != 0 && newAvatarId_ == avatarId_; }
     bool tutorialSkipSent() const { return skipTutorialSent_; }
@@ -1811,6 +1816,8 @@ private:
     void sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uint32_t* zones, int n);
     void dropZoneObjects();
     uint32_t targetZone_ = 0;
+    uint32_t lastStaticZone_ = 0; // the latest zone below kDynamicZonesBegin we were in
+    uint32_t relocatedZone_ = 0;  // see takeRelocation
     uint32_t visZones_[kMaxVisZones] = {};
     int numVisZones_ = 0;
     uint32_t quietCtx_ = 0;

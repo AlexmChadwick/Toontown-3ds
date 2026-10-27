@@ -615,6 +615,10 @@ int main() {
             TT_LOG("apt: woke from sleep");
             if (netStarted) net.forceReconnect("woke from sleep");
         }
+        if (netStarted && autotest.active() && autotest.dropNow()) {
+            TT_LOG("autotest: dropping the connection at '%s'", autotest.label());
+            net.forceReconnect("autotest drop");
+        }
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
@@ -1957,6 +1961,23 @@ int main() {
                     tt::audio::playSfx(sfxTreasure);
                     grabRequested = 0;
                 }
+            }
+            // A reconnect could not rejoin the dynamic zone we were in (a facility floor, a minigame,
+            // a race, golf, an estate): the server freed it, and the session is back in a static zone. The old
+            // place is empty, so end it and teleport the world to where the session is.
+            u32 relocated = 0;
+            if (net.takeRelocation(&relocated)) {
+                TT_LOG("net: rejoined at zone %u; leaving place %u", unsigned(relocated), unsigned(place.zoneId()));
+                if (level.active()) level.shutdown();
+                if (minigame.active()) minigame.shutdown(); // its game and purchase objects are gone
+                if (battle.active()) battle.reset();
+                if (racing.active()) racing.shutdown();
+                if (golf.active()) golf.shutdown();
+                if (estate.active()) estate.shutdown();
+                transition.reset();
+                uiState.teleportRequest = relocated; // taken next frame
+                toast = "The connection dropped, so you're back outside.";
+                toastAge = -4.0f; // 7 s: still up for a while after the ~4 s teleport
             }
             // ---- clerks: ordered replies retain COMPLETE even when CLEAR follows ----
             serviceClerks.update(net, nowMs);

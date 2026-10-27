@@ -410,6 +410,13 @@ bool Client::connect() {
     return true;
 }
 
+bool Client::takeRelocation(uint32_t* zone) {
+    if (!relocatedZone_ || state_ != State::InZone || cfg_.zoneId != relocatedZone_) return false;
+    *zone = relocatedZone_;
+    relocatedZone_ = 0;
+    return true;
+}
+
 void Client::forceReconnect(const char* why) {
     if (!transport_ || state_ == State::Idle || state_ == State::Failed) return;
     fail(why, true);
@@ -490,6 +497,21 @@ void Client::fail(const char* why, bool retry) {
     }
     transport_->disconnect();
     resetWorld();
+    // Every other zone from DynamicZonesBegin up (facility floors, minigames, estates, races,
+    // golf) is allocated for its riders and freed when they leave, so a disconnect destroys it:
+    // rejoining it gives an empty world. Go back to the last zone that outlives us (the facility
+    // lobby, the playground); a street cell becomes its playground, which needs no vis list.
+    if (cfg_.zoneId >= kDynamicZonesBegin) {
+        uint32_t back = lastStaticZone_ ? lastStaticZone_ : kTtcPlayground;
+        const bool streetCell = back < 10000 && back % 1000 != 0 && back % 1000 < 500;
+        if (streetCell) back -= back % 1000;
+        TT_LOG("net: zone %u is dynamic and dies with us; rejoining at zone %u", unsigned(cfg_.zoneId),
+               unsigned(back));
+        cfg_.zoneId = back;
+        targetZone_ = back;
+        numVisZones_ = 0;
+        relocatedZone_ = back;
+    }
     if (!retry || fatal_) {
         setState(State::Failed);
         return;
@@ -615,6 +637,7 @@ void Client::update(uint32_t nowMs) {
 
     friendsUpdate(); // friends hook (client_friends.cpp)
     maybeFinishEnterZone();
+    if (state_ == State::InZone && cfg_.zoneId < kDynamicZonesBegin) lastStaticZone_ = cfg_.zoneId;
     // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
     if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
         fail("server did not answer (timeout)", true);
