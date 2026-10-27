@@ -16,6 +16,7 @@ public:
     void setPreview(world::ToonCache* cache, world::ToonLook* look);
     void dismiss(); // zone/disconnect/exclusive-context cleanup
     bool active() const { return active_; }
+    uint32_t tailorDoId() const { return tailor_; }
     // Puts the original clothes back and closes (sent on the next update). Also used by the
     // autotest: the stock AI crashes if a client vanishes with a tailor session open.
     void cancel() {

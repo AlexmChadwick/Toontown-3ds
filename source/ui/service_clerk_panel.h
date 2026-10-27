@@ -18,6 +18,9 @@ public:
     net::ClerkKind kind() const {
         return kind_;
     }
+    uint32_t clerkDoId() const {
+        return clerk_;
+    }
     // Diagnostic actions go through the same guarded, confirmed panel path.
     void diagnostic(const char *label);
     bool kartPreview(int8_t dna[9]) const;

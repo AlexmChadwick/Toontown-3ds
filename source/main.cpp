@@ -857,6 +857,33 @@ int main() {
                 talk.chooseQuest(0);
             }
         }
+        // Test-only: walk up to the first NPC of `classId` like a player: from 9 units in front
+        // of its DNA anchor, then onto its contact tube 1 unit in front (DistributedNPCToonBase
+        // CollisionTube (0, 1, 0)). Teleporting onto the NPC put the toon inside the counter.
+        auto approachNpc = [&](uint16_t classId, bool sessionOpen, float startSec) {
+            if (!netStarted || !net.inZone() || !transition.idle() || sessionOpen) return;
+            for (int slot = 0; slot < tt::net::kMaxNpcs; ++slot) {
+                const auto &npc = net.npcSlot(slot);
+                if (!npc.active || npc.classId != classId) continue;
+                char name[48];
+                snprintf(name, sizeof(name), "npc_origin_%u", unsigned(npc.posIndex));
+                const auto *anchor = place.point(name);
+                if (!anchor) continue;
+                const float angle = anchor->h * 3.14159265f / 180.0f;
+                const float approach = autotest.stepTime() < startSec + 3 ? 9.0f : 1.0f;
+                const float dx = anchor->x - sinf(angle) * approach - player.x();
+                const float dy = anchor->y + cosf(angle) * approach - player.y();
+                if (autotest.stepTime() < startSec || dx * dx + dy * dy > 15.0f * 15.0f) {
+                    player.reset(anchor->x - sinf(angle) * 9.0f, anchor->y + cosf(angle) * 9.0f, anchor->z + 0.5f,
+                                 anchor->h + 180.0f);
+                } else if (dx * dx + dy * dy > .25f) {
+                    player.setHeading(atan2f(-dx, dy) * 180.0f / 3.14159265f);
+                    in.pad.dx = 0;
+                    in.pad.dy = 90;
+                }
+                return;
+            }
+        };
         // ---- clerks: diagnostics walk toward the actual DNA anchor ----
         if (autotest.active() && !strncmp(autotest.label(), "clerk: ", 7)) {
             const char *label = autotest.label();
@@ -1030,14 +1057,8 @@ int main() {
         }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
             // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
-            static u32 tailorNextMs = 0;
-            const u32 now = tt::net::plat::nowMs();
             if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
-            float npc[4];
-            if (place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 && now > tailorNextMs) {
-                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
-                tailorNextMs = now + 5000;
-            }
+            if (place.zoneId() == 2521) approachNpc(tt::dc::DistributedNPCTailor::kClassId, tailor.active(), 0.0f);
         }
         if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
             // Test-only: teleport straight to a Cog HQ courtyard or a facility's entrance (upstream
@@ -1274,12 +1295,9 @@ int main() {
             autotestBought = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "visit clerk") && !autotestClerk) {
-            // Test-only: step onto the first NPC (the Gag Shop clerk) so the shop opens.
-            float npc[4];
-            if (zoneActors.shadowPositions(npc, 1) == 1) {
-                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
-                autotestClerk = true;
-            }
+            // Test-only: walk up to the Gag Shop clerk so the shop opens.
+            approachNpc(tt::dc::DistributedNPCClerk::kClassId, shop.active(), 0.0f);
+            if (shop.active()) autotestClerk = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "ride boat") && boat.active() && !autotestBoarded) {
             // Test-only: drop onto the middle of the deck.
@@ -1352,9 +1370,7 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "pad: ", 5)) {
             constexpr float kPadPagePressSec = 2.0f;  // one A per dialog page
             constexpr float kPadAwaySec = 2.0f;       // off the clerk first: the NPC wants a new contact
-            constexpr float kPadAwayDist = 8.0f;
             constexpr float kPadSafetySec = 1.5f;     // a press step that left its panel open closes it
-            constexpr u32 kPadTailorRetryMs = 5000;
             const char* padStep = autotest.label();
             if (!strcmp(padStep, "pad: battle start")) {
                 // Walk into a cog like "fight cog"; the gag choice is left to the pad steps.
@@ -1373,27 +1389,17 @@ int main() {
                 if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: shop open")) {
-                float npc[4];
-                if (!shop.active() && zoneActors.shadowPositions(npc, 1) == 1) {
-                    const float back = autotest.stepTime() < kPadAwaySec ? kPadAwayDist : 2.0f;
-                    player.reset(npc[0], npc[1] - back, npc[2], 0.0f);
-                }
+                // Away first (the shop just closed), then walk back up to the clerk.
+                approachNpc(tt::dc::DistributedNPCClerk::kClassId, shop.active(), kPadAwaySec);
                 if (shop.active()) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: shop press") && autotest.stepTime() > kPadSafetySec && shop.active()) {
                 shop.finish(true);
             }
             if (!strcmp(padStep, "pad: tailor open")) {
-                static u32 tailorRetryMs = 0;
-                const u32 now = tt::net::plat::nowMs();
                 if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
-                float npc[4];
-                if (!tailor.active() && place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 &&
-                    now > tailorRetryMs) {
-                    const bool away = autotest.stepTime() < kPadAwaySec;
-                    player.reset(npc[0], npc[1] - (away ? kPadAwayDist : 2.0f), npc[2], 0.0f);
-                    if (!away) tailorRetryMs = now + kPadTailorRetryMs;
-                }
+                if (place.zoneId() == 2521)
+                    approachNpc(tt::dc::DistributedNPCTailor::kClassId, tailor.active(), kPadAwaySec);
                 if (tailor.active()) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: tailor press") && autotest.stepTime() > kPadSafetySec && tailor.active()) {
@@ -1572,14 +1578,34 @@ int main() {
         const bool choiceCamera = talk.phase() == tt::quest::Talk::Phase::QuestChoice ||
                                   talk.phase() == tt::quest::Talk::Phase::TrackChoice;
         C3D_FVec talkEye, talkTarget;
-        if (talk.locked() && zoneActors.talkCamera(talk.npcDoId(), choiceCamera, &talkEye, &talkTarget)) {
-            if (talkCameraNpc != talk.npcDoId() || talkCameraChoice != choiceCamera) {
-                talkCameraNpc = talk.npcDoId();
+        // Clerk movies (DistributedNPCClerk/Petclerk/KartClerk/Fisherman/PartyPerson/Tailor
+        // PURCHASE_MOVIE_START) lerp the camera to the same pose as the quest talk. The tailor's
+        // clothes GUI then cuts to face the toon with the tailor and its counter hidden; the
+        // counter is baked into the interior mesh here, so the tailor keeps the clerk view.
+        u32 cameraNpc = 0;
+        bool haveTalkCamera = false;
+        const float localHeight = localLook.valid() ? localLook.nametagHeight : 4.2f;
+        if (talk.locked()) {
+            cameraNpc = talk.npcDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, choiceCamera, &talkEye, &talkTarget);
+        } else if (shop.active() && shop.clerkDoId()) {
+            cameraNpc = shop.clerkDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget);
+        } else if (serviceClerks.active() && serviceClerks.clerkDoId()) {
+            cameraNpc = serviceClerks.clerkDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget, localHeight);
+        } else if (tailor.active() && tailor.tailorDoId()) {
+            cameraNpc = tailor.tailorDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget);
+        }
+        if (haveTalkCamera) {
+            if (talkCameraNpc != cameraNpc || talkCameraChoice != choiceCamera) {
+                talkCameraNpc = cameraNpc;
                 talkCameraChoice = choiceCamera;
                 talkCameraAge = 0;
                 talkFromEye = player.cameraEye();
                 talkFromTarget = player.cameraTarget();
-                TT_LOG("quest camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
+                TT_LOG("talk camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
             }
             talkCameraAge = fminf(1.0f, talkCameraAge + dt);
             const float blend = 1 - (1 - talkCameraAge) * (1 - talkCameraAge);

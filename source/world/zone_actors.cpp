@@ -244,7 +244,7 @@ bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* 
     return true;
 }
 
-bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target) const {
+bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight) const {
     for (const Npc& n : npcs_) {
         if (!n.active || n.doId != npc) continue;
         // DistributedNPCToon.setupCamera: (-5,9,height-.5), H=-150 P=-2;
@@ -254,7 +254,7 @@ bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* targe
         const float x = choice ? 5.0f : -5.0f;
         *eye = FVec3_New(n.x + x * cosf(heading) - 9 * sinf(heading),
                         n.y + x * sinf(heading) + 9 * cosf(heading),
-                        n.z + n.look.nametagHeight - 1.0f);
+                        n.z + (nametagHeight < 0 ? n.look.nametagHeight : nametagHeight) - 1.0f);
         const float cameraHeading = (n.h + (choice ? 155.0f : -150.0f)) * kRadians;
         constexpr float kPitch = -2 * kRadians;
         *target = FVec3_New(eye->x - sinf(cameraHeading) * cosf(kPitch) * 30,
