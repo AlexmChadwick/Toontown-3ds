@@ -1169,3 +1169,31 @@ Build `20d4701`, live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1
 - Found there: the Lawbot HQ arrival started 68 units up and fell (the reset used the DA
   office's collision); fixed in `20d4701`.
 - nettest: all pass, with a new dynamic-zone drop case.
+
+## 2026-10-27 (round 5) — country club, Cogdominium, Speedway race (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8`,
+`ASTRON_HEARTBEAT_TIMEOUT_MS=300000`), SD data from the 2026-10-27 bake (TZ v3), `shots off`.
+
+- **Country club** (build `2189004`, `go country club` .. `club: exit`): kart to zone 61000,
+  floor 1 walked (maze, moles, golf green), room battle won, floor elevators 61018 → 61024 →
+  61030 → 61036 (floor 5), president-room battle won in three movies, `CountryClubReward`,
+  `level: 10600 defeated -> zone 10000`. About 30 fps; up to 177 draws / 14.2k tris; heap
+  3.9 MB, linear free >= 11.0 MB, VRAM free 4.2 MB. Floor changes: 0.2 s + 0.4 s main-thread
+  hitches (`.tlf` and rooms), inside the elevator panel. The driver rode floors 2-4 without
+  walking them (elevators are never locked); now explicit in `8db542f`.
+- **Cogdominium** (build `8db542f`): field office 2103 block 3 → maze (seed 14 Cogs, 9 coolers;
+  throws, Cog hits, exit) → suite battle won → `BuildingReward` → `victor ready` →
+  `becomingToonFromCogdo`. 30 fps, 57 draws, 9.3k tris, heap 3.6 MB, linear free 14.5 MB.
+  Then a 345 (emulated time ~9 min behind wall time); the reconnect rejoined street 2103.
+- **Speedway, before the fix** (build `8db542f`): Practice race on Screwball Stadium, the kart
+  averaged ~20 u/s, never finished a lap; the AI ended the race after ~5 min (kickSlowRacers).
+  Cause: flat 10% wall friction per contact frame (fixed in `7c1eae7`).
+- **Speedway, a drop mid-race** (build `7c1eae7`): a 345 in the rules phase; after the reconnect
+  the client rebuilt the dead race and acked its barrier → Astron 117 eject. Fixed in `183e02b`.
+- **Speedway, after both fixes** (build `183e02b`): owned kart → Practice block → barriers →
+  laps at 41.7 s and 41.8 s (lap 1 includes the grid) → lap 3 → authoritative result → back in
+  8000 with 20 tickets. 29.9 fps average, 25.0 minimum; ≤ 55 draws / 9.0k tris; heap 3.4-3.5 MB,
+  linear free 17.3 MB. No PARSE/EJECT lines.
+- Host: racing_test (all parts, now with wall-contact vectors and the disconnect reset),
+  nettest (all 5 groups) pass.

@@ -3,6 +3,70 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
+
+### Done
+- **Reconnect never rejoins a dead dynamic zone** (round 4). A drop on a facility floor (or
+  in a minigame, race, golf or estate zone, all >= 61000) reconnected into that zone after
+  the AI had freed it: an empty floor with no Cogs, no elevator and no way out. Last round's
+  "DA office floor elevator has no position" was exactly this. The session now returns to the
+  last static zone (the facility lobby; a street cell becomes its playground) and the world
+  follows with a toast. nettest has a dynamic-zone drop case.
+- **Arrivals settle on the new place's floor** (round 4): winning the DA office dropped the
+  toon at Lawbot HQ 68 units in the air (the reset used the facility's collision).
+- **Karts were held to ~20 units/s.** `Racing::update` took a flat 10% off the velocity on
+  every frame the kart touched a wall. Panda's `PhysicsCollisionHandler.apply_net_shove`
+  (read from the Panda source) only counts a kart moving *into* the wall, removes that
+  component, and applies friction 0.1 x cos(velocity, wall normal). On Screwball Stadium the
+  kart slides along the barrier for most of a lap, so it never finished one and the AI kicked
+  it as too slow. The rule is now `racing::Vehicle::wallShove`, shared by the runtime and the
+  host drive test (which had no wall response at all, so it never saw this); new head-on /
+  grazing / moving-away vectors. Host: all 12 tracks run 3 laps, Screwball in 129 s.
+- **A drop mid-race got the next session ejected.** `resetWorld` cleared every object family
+  except racing and golf, so after a reconnect Racing rebuilt itself from the dead race and
+  acked its barrier; Astron ejected the new session (117, update to a nonexistent object).
+  Both are now cleared on disconnect; `racing_test/client` checks it (and fails without it).
+- autotest: the facility `next floor` step rides on to the top floor on purpose (floor
+  elevators are never locked, `DistributedClubElevatorAI.isLocked = 0`) and stops on the floor
+  with the boss Cog.
+
+### Verified (Azahar 2126.2, Old 3DS mode, Linux/Xvfb, live server, `AI_DEV_STRONG`)
+- **DA office won end to end** (round 4): floor 1 (lasers, security camera, room battle),
+  floor elevator, floor 2, boss battle, `StageReward`, back in Lawbot HQ. 26-30 fps.
+- **Country club won end to end**: kart boarding, floor 1 (maze, mole field, golf green,
+  room battle), floor elevators through floors 2-4 to floor 5, the president-room boss
+  battle, `CountryClubReward`, `level: 10600 defeated -> zone 10000`. No PARSE/EJECT lines.
+  ~30 fps, up to 177 draws / 14.2k tris, heap 3.9 MB, linear free >= 11 MB. A floor change
+  costs a 0.2 s + 0.4 s main-thread hitch (floor `.tlf` and room loads), behind the elevator
+  panel.
+- **Cogdominium won end to end** (first run on this rig): field office boarding, the maze
+  (14 Cogs, 9 coolers, gags thrown, exit), the executive-suite battle, `BuildingReward`,
+  `victor ready`, the building back to a toon building. 30 fps, 57 draws, 9.3k tris.
+- **Speedway Practice race end to end** (first time on any rig): owned kart, Practice
+  block, barriers, three laps on Screwball Stadium (~42 s a lap after the fix), the
+  authoritative result, back in the Speedway with 20 tickets. 29.9 fps (min 25), <= 55 draws.
+- Host: racing_test (all parts), nettest (all, including both reconnect cases).
+
+### Asset size decisions
+- None this round.
+
+### Known issues
+- **The Azahar emulated-clock stall still ejects runs here (345).** Three more this round
+  (Cogdo after its win, the Speedway twice). The client sent a heartbeat every 10 s of emulated time
+  each time (outgoing bytes rise by exactly one 4-byte heartbeat frame per 10 s); emulated time
+  ended ~9 minutes behind wall time. Still unseen on the Mac rig; needs a hardware run.
+- A facility floor change freezes the main thread 0.2-0.4 s (behind the elevator panel).
+- The tailor keeps the clerk camera (the counter is baked into the interior mesh).
+- Street loads take 1.0-1.3 s on the main thread (behind the teleport/door fade).
+- Not run on this rig yet: the four boss battles (VP, CFO, CJ, CEO), the estate, golf
+  (unmerged `golf2`), interior-life steps. No real-hardware run yet.
+- Never relink while Azahar runs the tree's `.3dsx`; test from a copy.
+
+### Next
+- The four boss chunks (`boss: board` onward) on this rig.
+- Move facility floor loads off the main thread (the shared loader already handles props).
+- First real-hardware run (frame budget, the socket stall question).
+
 ## 2026-10-27 (later) — SD set halved, Cog buildings winnable, battle hitches, clerk camera
 
 ### Done
