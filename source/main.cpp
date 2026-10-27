@@ -1680,8 +1680,10 @@ int main() {
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
         const tt::world::Exit exitHere = place.exitAt(player.probeX(), player.probeY(), player.z());
         u32 travelTarget = 0;
-        if (transition.active() || minigame.active() || trolley.seated()) {
-            // A transition is running, or we are on the trolley / away at a minigame: no exits.
+        if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
+            // A transition is running, we are on the trolley / away at a minigame, or in a battle or
+            // a Cog building (DistributedSuitInterior has no doors; its elevator is the only way
+            // out): no exits. The Cog floor shares the toon interior's zone id, not its doors.
         // ---- tutorial ----
         } else if (netStarted && net.inTutorial() && place.zoneId() == tt::world::kTutorialStreet &&
                    exitHere.kind == tt::world::Exit::Tunnel && exitHere.targetZone != lastExitZone) {
