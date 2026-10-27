@@ -138,6 +138,9 @@ lane_world() {
     ' _ {} || rc=$?
     wait $coghq || rc=$?
     [[ $rc == 0 ]] || return $rc
+    # Facility elevator anchors (elevator_origin_<n>) appended to the Cog HQ .pts sidecars:
+    # cog_buildings.cpp places the factory/mint/DA office elevators there.
+    step coghq-elevators py tools/pipeline/coghq_elevators.py --zones "$Z" --resources "$RES"
     step boat py tools/pipeline/bake_boat.py --resources "$RES" --out "$Z" --header "$SCRATCH/boat_paths.h"
     step suit-paths py tools/pipeline/bake_suit_paths.py --out "$Z"
     step minimap py tools/pipeline/bake_minimap.py --zones-dir "$Z" --out-dir "$Z" \
