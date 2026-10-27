@@ -39,7 +39,10 @@ private:
     twodgame::Simulation sim_;
     twodgame::Autopilot autopilot_;
     unsigned hood_ = 2000;
+    void sendEvents(net::Client& client, const twodgame::Input& input, const twodgame::Events& events,
+                    int16_t stamp);
     float timer_ = 0.0f;
+    float stepAccumulator_ = 0.0f; // unsimulated time below one fixed step
     int score_ = 0;
     int treasureCount_ = 0;
     bool completed_ = false;

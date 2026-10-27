@@ -58,72 +58,94 @@ void toSelections(const Minigame& m, tb::SectionSelection* out) {
     }
 }
 
+constexpr int kMinFrameMs = 33;
+constexpr int kMaxFrameMs = 100;
+constexpr int kHitchEvery = 47;
+constexpr float kHitchMs = 200.0f;
+
 // Plays a whole game with the autopilot; the AI's side is DistributedTwoDGameAI's health
 // table (EnemyBaseHealth * numPlayers, DamagePerBullet per claim).
-bool autoplay(const tb::Course& course, uint32_t hood, int players, float* finishTime, int* treasures,
-              int* maxExpansionsOut) {
+// With variableFrames the game is driven like TwoDGame::update on the device: frames of 33-100 ms
+// with a 200 ms hitch every 47 frames, each running the fixed steps tb::fixedSteps allows.
+bool autoplay(const tb::Course& course, uint32_t hood, int players, bool variableFrames, float* finishTime,
+              int* treasures, int* maxExpansionsOut) {
     static tb::Simulation sim;
     sim.init(&course, 0, 3.0f);
     tb::Autopilot autopilot;
     int health[tb::kMaxEnemies];
     for (int i = 0; i < course.numEnemies; ++i) health[i] = tb::kEnemyBaseHealth * players;
     const float duration = tb::hoodRules(hood).gameDuration;
-    const float dt = 1.0f / 30.0f;
+    const float dt = tb::kFixedStep;
     *treasures = 0;
     int maxExpansions = 0;
-    for (float t = dt; t < duration; t += dt) {
-        const tb::Input in = autopilot.input(sim, t, dt);
-        if (autopilot.stepsLastFrame() > maxExpansions) maxExpansions = autopilot.stepsLastFrame();
-        tb::Events ev;
-        sim.step(in, t, dt, &ev);
-        *treasures += ev.treasureGrabs;
-        for (int k = 0; k < ev.enemyShots; ++k) {
-            const int e = course.findEnemy(ev.shotSection[k], ev.shotIndex[k]);
-            assert(e >= 0);
-            health[e] -= tb::kDamagePerBullet;
-            if (health[e] <= 0) sim.enemyKilled(e, t);
+    uint32_t rng = hood * 2654435761u + uint32_t(players);
+    float accumulator = 0.0f;
+    int frame = 0;
+    float t = 0.0f;
+    while (t < duration) {
+        float frameDt = dt;
+        if (variableFrames) {
+            rng = rng * 1664525u + 1013904223u;
+            frameDt = (kMinFrameMs + float((rng >> 16) % (kMaxFrameMs - kMinFrameMs + 1))) / 1000.0f;
+            if (frame > 0 && frame % kHitchEvery == 0) frameDt = kHitchMs / 1000.0f;
         }
-        if (ev.victory) {
-            *finishTime = t;
-            *maxExpansionsOut = maxExpansions;
-            assert(maxExpansions <= tb::Autopilot::kStepsPerFrame);
-            return true;
-        }
-        if (hood == 4000 && int(t) % 5 == 0 && std::fabs(t - std::floor(t)) < dt) {
-            uint8_t path[tb::Autopilot::kSearchDepth] = {};
-            autopilot.copyPredictedPath(path, tb::Autopilot::kSearchDepth);
-            std::printf("  trace t=%.1f x=%.2f z=%.2f section=%d state=%d action=%d predicted=(%.2f,%.2f) "
-                        "expansions=%d max=%d\n", double(t), double(sim.x()), double(sim.z()), sim.activeSection(),
-                        int(sim.state()), in.move * 2 + int(in.jump), double(autopilot.predictedX()),
-                        double(autopilot.predictedZ()), autopilot.stepsLastFrame(), maxExpansions);
-            std::printf("    predicted actions:");
-            for (int i = 0; i < tb::Autopilot::kSearchDepth; ++i) {
-                std::printf(" %u", unsigned(path[i]));
+        ++frame;
+        const int steps = tb::fixedSteps(&accumulator, frameDt);
+        for (int step = 0; step < steps && t < duration; ++step) {
+            t += dt;
+            const tb::Input in = autopilot.input(sim, t, dt);
+            if (autopilot.stepsLastFrame() > maxExpansions) maxExpansions = autopilot.stepsLastFrame();
+            tb::Events ev;
+            sim.step(in, t, dt, &ev);
+            *treasures += ev.treasureGrabs;
+            for (int k = 0; k < ev.enemyShots; ++k) {
+                const int e = course.findEnemy(ev.shotSection[k], ev.shotIndex[k]);
+                assert(e >= 0);
+                health[e] -= tb::kDamagePerBullet;
+                if (health[e] <= 0) sim.enemyKilled(e, t);
             }
-            std::printf("\n");
-            for (int i = 0; i < course.numBlocks; ++i) {
-                float bx, bz;
-                course.blockOffset(i, t, &bx, &bz);
-                if (std::fabs(bx - sim.x()) < 12.0f) {
-                    std::printf("    block=%d section=%d type=%d x=%.1f z=%.1f\n", i, course.blocks[i].section,
-                                course.blocks[i].def->type, double(bx), double(bz));
+            if (ev.victory) {
+                *finishTime = t;
+                *maxExpansionsOut = maxExpansions;
+                assert(maxExpansions <= tb::Autopilot::kStepsPerFrame);
+                return true;
+            }
+            if (hood == 4000 && int(t) % 5 == 0 && std::fabs(t - std::floor(t)) < dt) {
+                uint8_t path[tb::Autopilot::kSearchDepth] = {};
+                autopilot.copyPredictedPath(path, tb::Autopilot::kSearchDepth);
+                std::printf("  trace t=%.1f x=%.2f z=%.2f section=%d state=%d action=%d predicted=(%.2f,%.2f) "
+                            "expansions=%d max=%d\n", double(t), double(sim.x()), double(sim.z()), sim.activeSection(),
+                            int(sim.state()), in.move * 2 + int(in.jump), double(autopilot.predictedX()),
+                            double(autopilot.predictedZ()), autopilot.stepsLastFrame(), maxExpansions);
+                std::printf("    predicted actions:");
+                for (int i = 0; i < tb::Autopilot::kSearchDepth; ++i) {
+                    std::printf(" %u", unsigned(path[i]));
                 }
-            }
-            for (int i = 0; i < course.numEnemies; ++i) {
-                float ex, ez, eh;
-                course.enemyPose(i, t, &ex, &ez, &eh);
-                if (std::fabs(ex - sim.x()) < 12.0f) {
-                    std::printf("    enemy=%d section=%u index=%u x=%.1f z=%.1f h=%.1f alive=%d\n", i,
-                                course.enemies[i].section, course.enemies[i].index, double(ex), double(ez),
-                                double(eh), int(sim.enemyAlive(i)));
+                std::printf("\n");
+                for (int i = 0; i < course.numBlocks; ++i) {
+                    float bx, bz;
+                    course.blockOffset(i, t, &bx, &bz);
+                    if (std::fabs(bx - sim.x()) < 12.0f) {
+                        std::printf("    block=%d section=%d type=%d x=%.1f z=%.1f\n", i, course.blocks[i].section,
+                                    course.blocks[i].def->type, double(bx), double(bz));
+                    }
                 }
-            }
-            for (int i = 0; i < course.numStompers; ++i) {
-                if (std::fabs(course.stompers[i].x - sim.x()) < 12.0f) {
-                    std::printf("    stomper=%d section=%u x=%.1f z=%.1f state=%d head=%.1f\n", i,
-                                course.stompers[i].section, double(course.stompers[i].x),
-                                double(course.stompers[i].z), course.stomperState(i, t),
-                                double(course.stomperHeadZ(i, t)));
+                for (int i = 0; i < course.numEnemies; ++i) {
+                    float ex, ez, eh;
+                    course.enemyPose(i, t, &ex, &ez, &eh);
+                    if (std::fabs(ex - sim.x()) < 12.0f) {
+                        std::printf("    enemy=%d section=%u index=%u x=%.1f z=%.1f h=%.1f alive=%d\n", i,
+                                    course.enemies[i].section, course.enemies[i].index, double(ex), double(ez),
+                                    double(eh), int(sim.enemyAlive(i)));
+                    }
+                }
+                for (int i = 0; i < course.numStompers; ++i) {
+                    if (std::fabs(course.stompers[i].x - sim.x()) < 12.0f) {
+                        std::printf("    stomper=%d section=%u x=%.1f z=%.1f state=%d head=%.1f\n", i,
+                                    course.stompers[i].section, double(course.stompers[i].x),
+                                    double(course.stompers[i].z), course.stomperState(i, t),
+                                    double(course.stomperHeadZ(i, t)));
+                    }
                 }
             }
         }
@@ -226,16 +248,20 @@ int main() {
             int maxExpansions = 0;
             // The sampled course proves autoPlay reaches a server-selected result; all
             // hood vectors still validate the exact DC packing and course layout.
-            if (autoplay(course, hood, int(players), &finish, &grabbed, &maxExpansions)) {
-                ++finished;
-                std::printf("autopilot hood %u players %u: finished at %.1f s, %d treasures, max %d "
-                            "planner expansions/frame\n", hood, players, double(finish), grabbed, maxExpansions);
-            } else {
-                std::printf("autopilot hood %u players %u: timer expired at the %.0f s limit, max %d "
-                            "planner expansions/frame\n", hood, players,
-                            double(tb::hoodRules(hood).gameDuration), maxExpansions);
+            for (int variable = 0; variable < 2; ++variable) {
+                const char* frames = variable ? "variable" : "30 Hz";
+                if (autoplay(course, hood, int(players), variable != 0, &finish, &grabbed, &maxExpansions)) {
+                    ++finished;
+                    std::printf("autopilot hood %u players %u %s frames: finished at %.1f s, %d treasures, "
+                                "max %d planner expansions/frame\n", hood, players, frames, double(finish), grabbed,
+                                maxExpansions);
+                } else {
+                    std::printf("autopilot hood %u players %u %s frames: timer expired at the %.0f s limit, "
+                                "max %d planner expansions/frame\n", hood, players, frames,
+                                double(tb::hoodRules(hood).gameDuration), maxExpansions);
+                }
+                ++selects;
             }
-            ++selects;
         } else if (!std::strncmp(line, "physics ", 8)) {
             int count, frames, used;
             assert(std::sscanf(line + 8, "%d %d%n", &count, &frames, &used) == 2);

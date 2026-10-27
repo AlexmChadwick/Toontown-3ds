@@ -43,6 +43,24 @@ constexpr float kJumpForce = 30.0f;         // TwoDDrive: avatarControlJumpForce
 constexpr float kGravity = 64.348f;         // GravityWalker(gravity = 64.348)
 constexpr float kAvatarRadius = 1.4f;       // LocalAvatar.setupControls(avatarRadius = 1.4)
 constexpr float kFloorOffset = 0.025f;      // OTPGlobals.FloorOffset
+// The course runs in fixed steps of the app's 30 Hz tick. Upstream integrates one step per Panda
+// frame; on the 3DS frame times vary, and fixed steps keep the course (and the autopilot's
+// open-loop plan) identical however long a frame took. A long hitch runs at most kMaxSteps steps.
+constexpr float kFixedStep = 1.0f / 30.0f;
+constexpr int kMaxStepsPerFrame = 8;
+
+// Adds dt to *accumulator and returns how many fixed steps to run now.
+inline int fixedSteps(float* accumulator, float dt) {
+    *accumulator += dt;
+    int steps = 0;
+    while (*accumulator >= kFixedStep && steps < kMaxStepsPerFrame) {
+        *accumulator -= kFixedStep;
+        ++steps;
+    }
+    // Drop the excess after a very long hitch rather than spiralling.
+    if (steps == kMaxStepsPerFrame && *accumulator >= kFixedStep) *accumulator = 0.0f;
+    return steps;
+}
 constexpr float kReach = 4.0f;              // setupControls(reach = 4.0)
 constexpr float kEventSphereZ = kAvatarRadius - 0.1f;      // GravityWalker.setupEventSphere
 constexpr float kEventSphereRadius = kAvatarRadius * 1.04f;

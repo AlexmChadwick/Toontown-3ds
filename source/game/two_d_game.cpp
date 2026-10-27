@@ -12,6 +12,7 @@ namespace tt::game {
 bool TwoDGame::init(const char* root, unsigned hood) {
     hood_ = hood;
     timer_ = 0.0f;
+    stepAccumulator_ = 0.0f;
     score_ = treasureCount_ = 0;
     completed_ = isDone_ = courseAssembled_ = false;
     const char* names[] = { "twod_block00", "twod_block01", "twod_block02", "twod_block03" };
@@ -89,18 +90,9 @@ void TwoDGame::handleVictoryScore(uint8_t score) {
     TT_LOG("mgpass: twod AI victory score=%u", score);
 }
 
-void TwoDGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
-    if (isDone_) return;
-    if (!courseAssembled_) { handleSetSections(client); return; }
-    timer_ += dt;
-    twodgame::Input input;
-    input.move = pad.dx > 20 ? 1 : pad.dx < -20 ? -1 : 0;
-    input.jump = (keysDown & KEY_A) != 0;
-    input.shoot = (keysDown & KEY_B) != 0;
-    if (autoPlay_) input = autopilot_.input(sim_, timer_, dt);
-    twodgame::Events events;
-    sim_.step(input, timer_, dt, &events);
-    const int16_t stamp = static_cast<int16_t>((nowMs / 10) & 0xffff);
+// Sends what one simulation step reported, in the order upstream's handlers send it.
+void TwoDGame::sendEvents(net::Client& client, const twodgame::Input& input, const twodgame::Events& events,
+                          int16_t stamp) {
     if (input.shoot && sim_.shooting(timer_)) client.sendTwoDShootGun(client.avatarId(), stamp);
     for (int i = 0; i < events.treasureGrabs; ++i) {
         client.sendTwoDClaimTreasure(events.treasureSection[i], events.treasureIndex[i]);
@@ -119,6 +111,25 @@ void TwoDGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
         client.sendTwoDVictory(client.avatarId(), stamp);
         client.sendTwoDReportDone();
         TT_LOG("mgpass: twod victory t=%.1f", timer_);
+    }
+}
+
+void TwoDGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
+    if (isDone_) return;
+    if (!courseAssembled_) { handleSetSections(client); return; }
+    const int steps = twodgame::fixedSteps(&stepAccumulator_, dt);
+    const int16_t stamp = static_cast<int16_t>((nowMs / 10) & 0xffff);
+    for (int step = 0; step < steps; ++step) {
+        timer_ += twodgame::kFixedStep;
+        twodgame::Input input;
+        input.move = pad.dx > 20 ? 1 : pad.dx < -20 ? -1 : 0;
+        // A button press is one event: it belongs to the first step of this frame only.
+        input.jump = step == 0 && (keysDown & KEY_A) != 0;
+        input.shoot = step == 0 && (keysDown & KEY_B) != 0;
+        if (autoPlay_) input = autopilot_.input(sim_, timer_, twodgame::kFixedStep);
+        twodgame::Events events;
+        sim_.step(input, timer_, twodgame::kFixedStep, &events);
+        sendEvents(client, input, events, stamp);
     }
     if (timer_ >= twodgame::hoodRules(hood_).gameDuration && !completed_) {
         client.sendTwoDReportDone();
