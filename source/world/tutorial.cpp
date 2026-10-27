@@ -35,7 +35,38 @@ void TutorialFlow::update(float dt) {
 }
 
 void TutorialFlow::advance() {
+    if (player_.block() != quest::ScriptPlayer::Block::Chat) return;
+    if (nextPage_) {
+        showPage(nextPage_);
+        return;
+    }
+    text_[0] = 0;
     player_.chatDone();
+}
+
+void TutorialFlow::showPage(const char* text) {
+    nextPage_ = nullptr;
+    if (!text) {
+        text_[0] = 0;
+        return;
+    }
+    const char* end = strchr(text, '\a'); // Nametag's stock page separator
+    size_t len = end ? static_cast<size_t>(end - text) : strlen(text);
+    if (len >= sizeof(text_)) {
+        len = sizeof(text_) - 1;
+        // Never split a UTF-8 code point. Prefer a word boundary for display-sized pages.
+        while (len && (static_cast<unsigned char>(text[len]) & 0xc0) == 0x80) --len;
+        size_t word = len;
+        while (word && text[word] != ' ' && text[word] != '\n') --word;
+        if (word) len = word;
+        nextPage_ = text + len;
+        while (*nextPage_ == ' ' || *nextPage_ == '\n') ++nextPage_;
+    } else if (end) {
+        nextPage_ = end + 1;
+    }
+    memcpy(text_, text, len);
+    text_[len] = 0;
+    TT_LOG("tutorial: dialogue %s", text_);
 }
 
 bool TutorialFlow::postEvent(const char* name) {
@@ -45,6 +76,7 @@ bool TutorialFlow::postEvent(const char* name) {
 void TutorialFlow::stop() {
     player_.stop();
     text_[0] = 0;
+    nextPage_ = nullptr;
     arrows_ = false;
     finished_ = false;
 }
@@ -77,8 +109,7 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
     case quest::ScriptOp::LocalChatPersist:
     case quest::ScriptOp::CCChatConfirm:
     case quest::ScriptOp::CCChatToConfirm:
-        snprintf(text_, sizeof(text_), "%s", text ? text : "");
-        TT_LOG("tutorial: dialogue %s", text_);
+        showPage(text);
         break;
     case quest::ScriptOp::ArrowsOn:
         arrows_ = true;
@@ -87,7 +118,9 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         arrows_ = false;
         break;
     case quest::ScriptOp::FinishQuestMovie:
+    case quest::ScriptOp::ClearChat:
         text_[0] = 0;
+        nextPage_ = nullptr;
         break;
     default:
         // UI-only commands (book obscuring, inventory highlights and camera tracks) retain

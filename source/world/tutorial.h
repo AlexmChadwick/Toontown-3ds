@@ -26,11 +26,16 @@ public:
     void run(const quest::ScriptCmd& cmd, const char* text) override;
 
 private:
+    void showPage(const char* text);
+
     static constexpr int kVars = static_cast<int>(quest::ScriptVar::Count);
     quest::ScriptPlayer player_;
     quest::ScriptXform xforms_[kVars] = {};
     float colors_[kVars][4] = {};
-    char text_[256] = {};
+    // Balloons cache at most 159 bytes plus NUL. Script strings are immutable generated data;
+    // keep the unread tail there rather than truncating a whole multi-page conversation.
+    char text_[160] = {};
+    const char* nextPage_ = nullptr;
     bool arrows_ = false;
     bool finished_ = false;
 };
