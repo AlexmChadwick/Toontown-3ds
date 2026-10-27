@@ -387,16 +387,7 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         collision_.slideCapsule({old.x, old.y, old.z}, kKartRadius, kKartRadius * 2,
                                 {desired.x - old.x, desired.y - old.y, desired.z - old.z});
     // The native collision solver resolves the same sphere with bounded substeps.
-    // Remove the blocked velocity component and apply Panda's dynamic friction (.1).
-    float nx = resolved.x - desired.x, ny = resolved.y - desired.y;
-    const float length = std::sqrt(nx * nx + ny * ny);
-    if (length > .001f) {
-        nx /= length;
-        ny /= length;
-        const float normal = std::min(0.0f, physics_.velocity.x * nx + physics_.velocity.y * ny);
-        physics_.velocity.x = (physics_.velocity.x - nx * normal) * .9f;
-        physics_.velocity.y = (physics_.velocity.y - ny * normal) * .9f;
-    }
+    physics_.wallShove(resolved.x - desired.x, resolved.y - desired.y);
     physics_.position = {resolved.x, resolved.y, resolved.z};
     bool ground = false;
     const float height = collision_.groundHeight(resolved.x, resolved.y, 40000, &ground);

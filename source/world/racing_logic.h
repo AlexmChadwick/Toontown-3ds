@@ -15,6 +15,8 @@ struct Vehicle {
     float speed() const;
     // DistributedVehicle.__watchControls, stock proRacer=0; fixed 60Hz Euler integration.
     void update(float dt, float horizontal, float vertical);
+    // The wall pusher moved the kart by (shoveX, shoveY): PhysicsCollisionHandler.apply_net_shove.
+    void wallShove(float shoveX, float shoveY);
 };
 struct CurvePoint {
     float x, y, z, surface;

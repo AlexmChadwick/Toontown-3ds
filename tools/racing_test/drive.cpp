@@ -9,6 +9,18 @@
 #include <cstdint>
 int main() {
     using namespace tt::racing;
+    { // PhysicsCollisionHandler.apply_net_shove: friction .1 x angle, only moving into the wall.
+        Vehicle v;
+        v.velocity = {0, -100, 0}; // head-on into a wall whose shove is +y
+        v.wallShove(0, .5f);
+        assert(std::fabs(v.velocity.x) < 1e-4f && std::fabs(v.velocity.y) < 1e-4f);
+        v.velocity = {100, -1, 0}; // grazing: keeps ~99.9% of its speed
+        v.wallShove(0, .5f);
+        assert(std::fabs(v.velocity.x - 100 * (1 - .1f * (1 / std::sqrt(10001.0f)))) < 1e-3f && v.velocity.y == 0);
+        v.velocity = {30, 40, 0}; // moving away from the wall: untouched
+        v.wallShove(0, .5f);
+        assert(v.velocity.x == 30 && v.velocity.y == 40);
+    }
     const unsigned ids[] = {0, 1, 20, 21, 40, 41, 60, 61, 62, 63, 64, 65};
     for (unsigned id : ids) {
         Track track;
@@ -46,6 +58,7 @@ int main() {
             const auto resolved = collision.slideCapsule(
                 {old.x, old.y, old.z}, 4, 8,
                 {desired.x - old.x, desired.y - old.y, desired.z - old.z});
+            kart.wallShove(resolved.x - desired.x, resolved.y - desired.y); // as Racing::update
             kart.position = {resolved.x, resolved.y, resolved.z};
             bool found = false;
             const float ground = collision.groundHeight(resolved.x, resolved.y, 40000, &found);

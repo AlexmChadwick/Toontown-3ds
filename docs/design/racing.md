@@ -44,8 +44,11 @@ returns to 8000. Intermediate Circuit results wait for the AI's setRaceZone inst
 slide/lean, per-surface resistance, ice steering/acceleration and delayed three-second
 turbo. The declared upstream maxSpeed=200 is not the actual velocity clamp: the
 stock path clamps at 600. Four original wheel-base locators drive pitch/roll from
-floor rays. The native radius-four wall sphere removes blocked velocity and uses
-0.1 dynamic friction. Its bounded horizontal wall solver is an approximation of
+floor rays. The native radius-four wall sphere follows `apply_net_shove`
+(`racing::Vehicle::wallShove`): only a kart moving into the wall is in contact; the into-wall
+velocity goes and friction is 0.1 x the cosine between velocity and wall normal, so grazing a
+barrier costs almost nothing. (Until 2026-10-27 a flat 10% per contact frame held a
+wall-hugging kart to ~20 units/s and the AI kicked it as too slow.) Its bounded horizontal wall solver is an approximation of
 Panda's PhysicsCollisionHandler, not a claim of bit-exact Panda collision response.
 
 Each track retains its original identity transform and real floor/wall/camera solids.

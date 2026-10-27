@@ -75,7 +75,9 @@ bool Pie::update(float dt, Vector target, float targetSpeed) {
 Controls diagnosticControls(const CurvePoint *points, int count, int pole, const Vehicle &vehicle) {
     if (!points || count < 2 || pole < 0 || pole >= count)
         return {0, 0};
-    const auto &point = points[(pole + 20) % count];
+    // 60 of the 4,000 curve samples ahead: nearer targets sit behind Corkscrew Coliseum's and
+    // Airborne Acres' inner walls, and a kart steered into a wall stalls against it.
+    const auto &point = points[(pole + 60) % count];
     const float heading =
         std::atan2(-(point.x - vehicle.position.x), point.y - vehicle.position.y) / kRadians;
     const float error = std::remainder(heading - vehicle.heading, 360.0f);
@@ -146,6 +148,24 @@ void Vehicle::update(float dt, float horizontal, float vertical) {
         const float increment = stopped ? 0 : horizontal * kStep * 40;
         lean = std::clamp((lean + increment) * std::min(currentSpeed, 150.0f) / 162, -10.0f, 10.0f);
     }
+}
+void Vehicle::wallShove(float shoveX, float shoveY) {
+    const float length = std::sqrt(shoveX * shoveX + shoveY * shoveY);
+    const float speed = std::sqrt(velocity.x * velocity.x + velocity.y * velocity.y + velocity.z * velocity.z);
+    if (length < .001f || speed <= 0)
+        return;
+    const float nx = shoveX / length, ny = shoveY / length;
+    const float into = velocity.x * nx + velocity.y * ny;
+    // angle = -dot(normalize(vel), normalize(force)): only a kart moving into the wall is in
+    // contact. The into-wall component goes, then friction = dynamic coef (.1) x angle, so a
+    // grazing slide along a barrier keeps nearly all its speed and a head-on hit loses 10%.
+    const float angle = -into / speed;
+    if (angle <= 0)
+        return;
+    const float keep = 1 - .1f * angle;
+    velocity.x = (velocity.x - nx * into) * keep;
+    velocity.y = (velocity.y - ny * into) * keep;
+    velocity.z *= keep;
 }
 void Progress::reset(const CurvePoint *points, int count, Vector position, float start) {
     *this = Progress{};
