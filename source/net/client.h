@@ -355,6 +355,7 @@ struct Boat {
 enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other, Cogdo };
 struct CogBuilding {
     bool cogdoVictory = false; // ---- cogdo: actual waitForVictorsFromCogdo state ----
+    bool suitVictory = false;  // waitForVictors: a won Cog building waits for its victors
     uint32_t doId = 0, block = 0, interiorZoneId = 0;
     int8_t track = -1, difficulty = -1, numFloors = -1;
     CogBuildingState state = CogBuildingState::Unknown;
@@ -1334,6 +1335,8 @@ public:
     bool sendCogdoInterior(CogdoInteriorAction action);
     bool sendCogdoReady();
     bool sendCogdoVictor(uint32_t building);
+    // DistributedBuilding.setVictorReady while a won Cog building waits for us (waitForVictors).
+    bool sendVictorReady(uint32_t building);
     bool sendCogdoAction(uint8_t action, uint32_t data = 0);
     bool sendCogdoGag(float x, float y, float heading);
     bool sendCogdoSuit(uint8_t type, uint8_t serial, bool hitByGag);

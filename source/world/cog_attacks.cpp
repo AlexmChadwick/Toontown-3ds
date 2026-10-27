@@ -28,6 +28,7 @@ bool CogAttacks::init() {
 
 void CogAttacks::shutdown() {
     reset();
+    assetBatch_.clear();
     for (int i = 0; i < kMaxPropSlots; ++i) {
         if (propSlots_[i].loaded) {
             propSlots_[i].model.unload();
@@ -86,25 +87,21 @@ CogAttacks::PropSlot* CogAttacks::findOrLoadProp(const char* propName, const cha
         snprintf(modelPath, sizeof(modelPath), "sdmc:/3ds/toontown3ds/data/props/%s.ttm", propName);
     }
 
-    if (!slot.model.load(modelPath)) {
-        TT_LOG("cog_attacks: failed to load %s", modelPath);
-        slot.loaded = false;
+    // Background loader: a synchronous load here froze the battle face-off ~140 ms. The prop is
+    // drawn once published (a missing file logs 'assets: batch failed').
+    if (!assetBatch_.load(slot.model, modelPath)) {
+        TT_LOG("cog_attacks: cannot queue %s", modelPath);
         return nullptr;
     }
-
+    slot.hasAnim = false;
     if (isActor) {
         char animPath[96];
         snprintf(animPath, sizeof(animPath), "sdmc:/3ds/toontown3ds/data/props/%s_full_action.tta", propAnim);
-        slot.hasAnim = slot.anim.load(animPath);
-        if (!slot.hasAnim) {
-            TT_LOG("cog_attacks: failed to load anim %s", animPath);
-        }
-    } else {
-        slot.hasAnim = false;
+        slot.hasAnim = assetBatch_.load(slot.anim, animPath);
     }
 
     slot.loaded = true;
-    TT_LOG("cog_attacks: preloaded prop %s (actor=%d)", propName, isActor ? 1 : 0);
+    TT_LOG("cog_attacks: preloading prop %s (actor=%d)", propName, isActor ? 1 : 0);
     return &slot;
 }
 
@@ -231,7 +228,7 @@ void CogAttacks::draw(render::Renderer& renderer, const Battle* battle) {
 
     for (int i = 0; i < kMaxAttacks; ++i) {
         const ActiveAttack& atk = attacks_[i];
-        if (!atk.active || !atk.prop || !atk.prop->loaded) continue;
+        if (!atk.active || !atk.prop || !atk.prop->loaded || !atk.prop->model.loaded()) continue;
 
         const float age = float(nowMs_ - atk.startMs) / 1000.0f;
         const bool isActor = atk.prop->hasAnim && atk.prop->anim.loaded();

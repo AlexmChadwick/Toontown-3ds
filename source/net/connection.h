@@ -94,6 +94,9 @@ public:
     // Totals since init (approximate; read without locking).
     uint32_t bytesIn() const { return bytesIn_; }
     uint32_t bytesOut() const { return bytesOut_; }
+    // Diagnostics (approximate, unlocked): ms since the last queued heartbeat, send backlog.
+    uint32_t heartbeatAgeMs() const { return heartbeat_ ? plat::nowMs() - lastHeartbeatMs_ : 0; }
+    uint32_t sendBacklog() const { return send_.used(); }
 
 private:
     static void threadEntry(void* self);

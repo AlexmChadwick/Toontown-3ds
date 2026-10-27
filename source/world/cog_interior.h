@@ -28,6 +28,15 @@ public:
     bool seated() const { return elevatorSeat_ >= 0; }
     uint32_t zoneId() const { return zoneId_; }
     const char* popMessage();
+    // DistributedSuitInterior.enterReward: the building is won, leave for its street
+    // (extZoneId) and report in at its elevator (DistributedBuilding.setVictorReady).
+    bool popVictory(uint32_t* exteriorZone, uint32_t* buildingDoId) {
+        if (!victoryZone_) return false;
+        *exteriorZone = victoryZone_;
+        *buildingDoId = victoryBuilding_;
+        victoryZone_ = victoryBuilding_ = 0;
+        return true;
+    }
     const CollisionWorld* collision() const { return collision_.loaded() ? &collision_ : nullptr; }
     bool spawnPose(float* x, float* y, float* z, float* h);
     bool battleTarget(const net::Client& client, uint32_t* doId, float* x, float* y, float* z, float* h) const;
@@ -41,6 +50,7 @@ private:
     int loadedFloor_ = -1;
     void loadFloor(int floor);
     bool active_ = false;
+    uint32_t victoryZone_ = 0, victoryBuilding_ = 0;
     uint32_t zoneId_ = 0;
     uint32_t interiorDoId_ = 0;
     int floor_ = -1;

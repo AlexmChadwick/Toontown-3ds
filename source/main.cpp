@@ -2179,6 +2179,48 @@ int main() {
             if (const u32 hood = level.popWinDestination()) {
                 if (!uiState.teleportRequest) uiState.teleportRequest = hood; // the factory is won
             }
+            // Link health every 10 s: heartbeat age > 20 s or a growing backlog means the net
+            // thread is not getting its heartbeat out (Astron ejects at 60 s with 345).
+            {
+                static u32 linkLogMs = 0;
+                if (nowMs - linkLogMs >= 10000) {
+                    linkLogMs = nowMs;
+                    TT_LOG("net: link out %lu in %lu B, heartbeat %lu ms ago, backlog %lu B",
+                           static_cast<unsigned long>(netConn.bytesOut()), static_cast<unsigned long>(netConn.bytesIn()),
+                           static_cast<unsigned long>(netConn.heartbeatAgeMs()),
+                           static_cast<unsigned long>(netConn.sendBacklog()));
+                }
+            }
+            // A won Cog building (DistributedSuitInterior.enterReward): back to its street, out of
+            // its elevator, then DistributedBuilding.setVictorReady once the building waits for
+            // its victors (waitForVictors), which lets the AI turn it back into a toon building.
+            {
+                static u32 victorBuilding = 0, victorZone = 0, victorSinceMs = 0;
+                static bool victorPlaced = false;
+                u32 vz = 0, vb = 0;
+                if (cogInterior.popVictory(&vz, &vb) && vz && vb) {
+                    victorZone = vz, victorBuilding = vb, victorSinceMs = nowMs, victorPlaced = false;
+                    if (!uiState.teleportRequest) uiState.teleportRequest = vz;
+                }
+                if (victorBuilding && transition.idle() && !cogInterior.active() &&
+                    place.zoneId() - place.zoneId() % 100 == victorZone - victorZone % 100) {
+                    const tt::net::CogBuilding* b = net.findCogBuilding(victorBuilding);
+                    float ex, ey, ez, eh;
+                    if (!victorPlaced && b && cogBuildings.blockPoint(b->block, &ex, &ey, &ez, &eh)) {
+                        const float r = eh * kDegToRad;
+                        player.reset(ex + 5.0f * sinf(r), ey - 5.0f * cosf(r), ez + 0.5f, eh + 180.0f);
+                        victorPlaced = true;
+                    }
+                    if (net.sendVictorReady(victorBuilding)) {
+                        TT_LOG("cog building %lu: victor ready", static_cast<unsigned long>(victorBuilding));
+                        victorBuilding = 0;
+                    }
+                }
+                if (victorBuilding && nowMs - victorSinceMs > 60000) {
+                    TT_LOG("cog building %lu: no waitForVictors within 60 s", static_cast<unsigned long>(victorBuilding));
+                    victorBuilding = 0;
+                }
+            }
             if (level.active()) {
                 // Facility cogs walk/chase (level.update ran before the toon moved, see above);
                 // touching one (or a battle blocker) fights.
@@ -2429,6 +2471,7 @@ int main() {
         cogInterior.pumpAssets();
         minigame.pumpAssets();
         suits.pumpAssets();
+        battleFx.cogAttacks().pumpAssets();
         golf.pumpAssets();
         racing.pumpAssets();
         estate.pumpAssets();
