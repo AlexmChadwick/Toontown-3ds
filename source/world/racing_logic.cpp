@@ -79,9 +79,9 @@ Controls diagnosticControls(const CurvePoint *points, int count, int pole, const
     const float heading =
         std::atan2(-(point.x - vehicle.position.x), point.y - vehicle.position.y) / kRadians;
     const float error = std::remainder(heading - vehicle.heading, 360.0f);
-    const float targetSpeed = std::clamp(140 - std::fabs(error) * 2, 35.0f, 140.0f);
-    return {std::clamp(-error / 30, -1.0f, 1.0f),
-            std::clamp((targetSpeed - vehicle.speed()) / 20, -1.0f, 1.0f)};
+    // Upstream arrow-key driving is binary. The diagnostic only supplies steering;
+    // speed shaping here silently reduced its throttle through every turn.
+    return {std::clamp(-error / 30, -1.0f, 1.0f), 1.0f};
 }
 int trackIndex(unsigned id) {
     constexpr unsigned kIds[] = {0, 1, 20, 21, 40, 41, 60, 61, 62, 63, 64, 65}; // RaceGlobals
