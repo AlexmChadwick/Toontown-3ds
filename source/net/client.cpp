@@ -1290,6 +1290,10 @@ void Client::handleLeaving(uint32_t doId) {
             pushEvent(EventType::SuitGone, doId);
         }
     }
+    if (tutorialSuitId_ && doId == tutorialSuitId_) { // the beaten Flunky: TutorialManager moves on
+        TT_LOG("net: tutorial Flunky %u gone", unsigned(doId));
+        tutorialSuitId_ = 0;
+    }
     for (SuitPlanner& sp : planners_) {
         if (sp.active && sp.doId == doId) sp.active = false;
     }

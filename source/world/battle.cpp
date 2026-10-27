@@ -933,7 +933,9 @@ void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs)
     case BattleAction::Continue:
         if (phase_ != BattlePhase::Reward || rewardSent_) return;
         // ---- tutorial ----
-        if (tutorial_) return; // the tutorial reward movie decides (finishTutorialReward)
+        // No reward timer in the tutorial (Movie.playTutorialReward waits for the player's
+        // acknowledgement); Continue is that acknowledgement, the same as finishTutorialReward.
+        if (tutorial_) TT_LOG("tutorial: acknowledged Flunky reward");
         // ---- end tutorial ----
         if (client.sendBattleRewardDone(id)) rewardSent_ = true;
         break;
