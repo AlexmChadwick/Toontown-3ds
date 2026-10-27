@@ -1256,11 +1256,15 @@ int main() {
             }
             if (facilityStep("next floor")) {
                 // Into the floor elevator's doors (again after any battle there) until we have a seat.
+                // Floor elevators are never locked, so this rides on through the middle floors (their
+                // rooms are the floor-1 kinds the earlier steps cover) and stops on the top floor,
+                // the one with the boss Cog, for the boss step.
                 static u32 elevatorNextMs = 0;
                 const u32 now = tt::net::plat::nowMs();
                 if (autotest.stepBegan()) elevatorNextMs = 0;
-                float ex, ey, ez, eh;
-                if (!level.aboardElevator() && now >= elevatorNextMs &&
+                float ex, ey, ez, eh, bx, by, bz;
+                const bool top = level.foremanPosition(&bx, &by, &bz);
+                if (!level.aboardElevator() && !top && now >= elevatorNextMs &&
                     level.elevatorPosition(&ex, &ey, &ez, &eh)) {
                     player.reset(ex, ey, ez + 0.5f, eh);
                     elevatorNextMs = now + 10000;
