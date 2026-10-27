@@ -3,6 +3,82 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-27 (later) — SD set halved, Cog buildings winnable, battle hitches, clerk camera
+
+### Done
+- **SD data set 992 MB -> 603 MB** (586 MB apparent), with no change to any asset's quality:
+  - Zone `.tz` files copied every atlas page into every chunk that used it (near and far):
+    271 MB of texture copies for ~12 MB of distinct payloads. **TZ v3** stores each payload
+    once in a per-file pool; chunk TTMs point into it (`Model::loadFrom` unchanged). zones
+    389 -> 131 MB (2100.tz 22.0 -> 6.2 MB), level 68 -> 58 MB. `tz.py <files>` converts
+    existing bakes losslessly (v3 -> v2 gives back the original bytes); bakers write v3.
+  - The 538 interiors held 120 MB of copies of ~2 MB of textures. `ttm_pool.py` writes one
+    `interiors/textures.ttp` and pooled TTM v2 models (170 -> 42 MB); deterministic,
+    idempotent, `--unpool` restores the exact v1 bytes; `bake_sd_all.sh` runs it.
+- **Cog buildings could not be won.** Three bugs, found by the first strong-toon run:
+  - The interior elevator was never found: `DistributedElevatorIntAI`'s `bldgDoId` is the
+    interior's doId, not the exterior building's. Toons were stranded on floor 1.
+  - Boarding was edge-triggered on entering the sphere, so a toon already standing in it
+    when the doors opened never boarded. It also accepted the `opening` state, which
+    upstream never does: boarding then wedged the AI (`no transition from opening to
+    allAboard`) and the floor never started.
+  - After the top floor's reward the toon stayed inside forever: `extZoneId` was parsed
+    but unused. `DistributedSuitInterior.enterReward` now takes the toon back to the street
+    at the building's elevator, and `setVictorReady` is sent once the building is in
+    `waitForVictors`, so the AI turns it back into a toon building.
+- **Battle freezes removed.** The battle face-off froze ~140 ms (attack props loaded on
+  the main thread) and each Cog death ~280 ms (lose model and clip loaded synchronously).
+  Both now stream through the shared background loader, the props at battle start and the
+  lose model when a battle first places the Cog.
+- **Clerk camera.** The Gag Shop, tailor, pet, kart, fisherman and party clerks now use
+  upstream's purchase-movie camera (1 s ease to the clerk-relative over-the-shoulder view).
+  The autotest drivers walk up to clerks like a player instead of teleporting inside
+  the counter.
+- Cog building and Cog HQ shells load only on streets (they were loaded synchronously in
+  every playground, interior and HQ: ~250 ms and ~350 KB linear per load).
+- `battle_validate` counts the clothing a battle really holds (it counted the whole 1 MB
+  `clothes.ttx`, which is streamed) and passes with the full SD set.
+- A 10 s `net: link` log line (bytes in/out, heartbeat age, send backlog) for diagnosing
+  disconnects.
+
+### Verified (Azahar 2126.2, Old 3DS mode, Linux/Xvfb, live server with `AI_DEV_STRONG`)
+- v3 zones 2000/1000/5000/3000 and pooled interiors 2519/2521/2522/8501 load and render
+  correctly (screenshots); zone_test (the real C++ loader on the host) passes for v2 and v3,
+  with new corruption cases for the pool.
+- Factory (steps 147-162) to the foreman, won, back to Sellbot HQ: 26-30 fps.
+- Cog building (3 floors) won end to end: floors 1-3, elevator rides, reward, street,
+  `victor ready`. No frame hitch in any of the battles.
+- Gag Shop, tailor and kart shop camera framing (screenshots).
+- Cashbot mint (`go mint` .. `mint: boss`): boarded, walked every room and hallway, room
+  battle, boss battle won (`level: 12500 defeated -> zone 12000`), back in Cashbot HQ.
+  29.9 fps in the mint; heap 3.6 MB, linear free >= 9.5 MB.
+
+### Asset size decisions
+- None downscaled. The size cut is pure de-duplication; every texture keeps its baked
+  resolution and format.
+
+### Known issues
+- The tailor's upstream toon-facing clothes camera needs its counter hidden; the counter is
+  baked into the interior mesh, so the tailor keeps the clerk view.
+- Street loads take 1.0-1.3 s on the main thread; the teleport/door fade covers them.
+- Five runs on this rig were ejected for heartbeat timeouts (345). The `net: link` line and
+  the log clock show it is the rig, not the client: heartbeats are queued every 10 s of
+  emulated time, but in facilities and Cog buildings Azahar (software GL under Xvfb) runs at
+  ~25-40% of real time on average, with dips far lower, so 10 emulated seconds can exceed
+  Astron's 60 real seconds. `ASTRON_HEARTBEAT_TIMEOUT_MS=300000 tools/server/start.sh`
+  raises the timeout for such rigs (stock 60 s when unset). This also makes every
+  emulator-time measurement here (fps, ms) relative to emulated time.
+- The net loop now calls `recv()` only when `poll()` reports the socket readable (it ran on
+  every ~10 ms idle iteration, a SOC call each on hardware).
+- Still not run on this rig: DA office, country club, speedway, Cogdo, the four
+  bosses, interior-life steps. No real-hardware run yet.
+- Never relink while Azahar runs the tree's `.3dsx` (RomFS is read from it); test from a copy.
+
+### Next
+- Run the DA office / club / boss chunks with the strong dev toon.
+- Shared textures in residency too (one upload per zone texture instead of per chunk).
+- First real-hardware run.
+
 ## 2026-10-27 — Linux test rig, front-end polish, Toontorial end to end
 
 ### Done

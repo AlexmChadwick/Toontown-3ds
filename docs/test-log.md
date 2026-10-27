@@ -1104,3 +1104,40 @@ Not hardware; GPU timing is not representative. Audio silent (no DSP firmware).
   14.6k tris; 64 stress toons 29.9 fps / 955 draws / 57.8k tris; factory 21–30 fps with
   screenshots on. Heap ≤ 4.0 MB, linear free ≥ 13.8 MB, VRAM free 4.2 MB.
 - Issues left: none blocking in these flows; see docs/PROGRESS.md "Known issues".
+
+## 2026-10-27 (later) — Linux rig: SD v3 zones/pooled interiors, factory, Cog building win
+
+Build: `claude/work` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, 1x, OpenGL (llvmpipe).
+Server: local stock Open Toontown with `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1
+AI_MINIGAME_ID=8`. SD data: the 2026-10-27 bake, repacked to TZ v3 + pooled interiors
+(603 MB). Not hardware; GPU timing is not representative. Audio silent.
+
+- **TZ v3 / pooled interiors**: 2000, 1000, 5000, 3000, 1100, 2100-2300 stream from v3 files;
+  interiors 2519, 2521, 2522, 8501, 2625 load from `textures.ttp` (2519: 21 textures,
+  262 KB linear, 267-284 ms load vs ~200 ms before; inside the door fade). Screenshots of
+  DG, the Gag Shop, pet shop, kart shop and tailor show correct textures. Host zone_test
+  (C++ loader) passes on 2100/2000 as v2 and v3, including the new pool corruption cases.
+- **Factory** (`go factory` .. `factory: exit`, shots off): every entity step, room battle,
+  foreman won (`level: 11500 defeated -> zone 11000`), back in Sellbot HQ. 26-30 fps,
+  heap 4.0 MB, linear free 11.9-13.4 MB, VRAM free 4.2 MB. Before the fix, each Cog death
+  hitched 275-292 ms (`largest dact`, lose model loaded on the main thread).
+- **Cog building** (1100, 3 floors): three battles, two interior elevator rides, reward,
+  back on 1108, `cog building 401000063: victor ready`. 29.9 fps in the interior, cpu 4 ms,
+  heap 3.3 MB, linear free 17.7 MB. No hitch in any battle (before: ~140 ms at every
+  face-off). Three earlier runs were stuck on floor 1 (elevator never matched / never
+  boarded / boarded while opening) and were then ejected for heartbeat timeouts (345).
+- **Clerk camera**: Gag Shop and tailor sessions frame the clerk over the toon's shoulder
+  (screenshots); the kart session in the script closes too quickly to show it.
+- Host suites rerun: nettest (all), zone_test (2100, 2000, unit), cog_attacks_test,
+  padnav_test (118 checks), battle_validate (3.94 MB of 4 MiB).
+- **Cashbot mint** (`go mint` .. `mint: boss`, after a Cog building chunk): boarded
+  (`elevator: riding to zone 61000`), all 12 pieces walked, room battle, boss won
+  (`level: 12500 defeated -> zone 12000`). 29.9-30.6 fps walking and fighting (dips to 14
+  at entry and 5.5 for one second in the post-win zone load, both behind the loading
+  fade); heap 3.6 MB, linear free 9.5-16.1 MB, VRAM free 4.2 MB.
+- **Heartbeat ejections (345)**: five runs. Log clock vs wall clock: in the facilities the
+  emulator averaged ~35% of real time (DA office: 182 emulated s in ~520 real s), so the
+  client's 10 s (emulated) heartbeats arrived more than 60 real seconds apart. Rig limit, not
+  a client bug; the local server now takes `ASTRON_HEARTBEAT_TIMEOUT_MS` for such runs.
+- A street load still takes 1.0-1.3 s on the main thread (inside the teleport fade).

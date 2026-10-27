@@ -328,6 +328,9 @@ Lessons recorded for agents:
   - Overlapping runs once killed each other's emulator (it looked like app crashes) and left
     the user's config in test mode.
   - `make` does not repack RomFS when only a data file changes; delete the `.3dsx`.
+  - Never rebuild while Azahar runs the tree's `.3dsx`: the emulator reads RomFS from that
+    file on demand, so a relink mid-run feeds the test shifted data. Copy it first
+    (`cp toontown3ds.3dsx /tmp/run.3dsx; tools/dev/azahar_test.sh /tmp/run.3dsx ...`).
 - **Main-thread stack.** It is 256 KB (`__stacksize__` in `main.cpp`). `main()` keeps a 16 KB
   frame of subsystems; the 32 KB default crashed at startup (PC 0).
 - **CPU faults** on the main thread are logged by `core/crash.*` (type, pc, fault address,
@@ -352,6 +355,8 @@ Lessons recorded for agents:
   heartbeats then arrive minutes apart, and Astron ejects it with code 345. That fakes
   "connection closed by server" bugs. `azahar_test.sh` turns App Nap off for the run, and
   agent builds run under `nice -n 19`. Compare log time with real time before blaming the client.
+  On the Linux/Xvfb rig (software GL) facilities run at ~25-40% speed even alone; start the
+  server with `ASTRON_HEARTBEAT_TIMEOUT_MS=300000` for those passes.
 - **Every hand-parsed field needs a layout check, and every handled class must be in the
   table.** Golf was dead twice over:
   - `DistributedGolfKart.setState` was read without its i16 timestamp.
