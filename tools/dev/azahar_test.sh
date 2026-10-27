@@ -18,7 +18,9 @@ if [ "$(uname)" = Darwin ]; then
 else
     # Linux: the extracted AppImage (azahar.AppImage --appimage-extract), run under Xvfb.
     AZ=${AZAHAR:-$HOME/azahar/squashfs-root/AppRun}
-    AZ_PAT="squashfs-root/AppRun"
+    # The emulator binary only: "squashfs-root/AppRun" also matches xvfb-run's command line, and
+    # SIGKILLing xvfb-run leaves its Xvfb server running (51 had piled up on one box).
+    AZ_PAT="squashfs-root/AppRun.wrapped"
     CFG="$HOME/.config/azahar-emu/qt-config.ini"
     AZ_DATA="$HOME/.local/share/azahar-emu"
     if [ ! -f "$CFG" ]; then # first run: let Azahar write its default config
@@ -66,7 +68,11 @@ SEDI=(sed -i); [ "$(uname)" = Darwin ] && SEDI=(sed -i '')
 "${SEDI[@]}" -e 's/^is_new_3ds=true/is_new_3ds=false/' -e 's/^is_new_3ds\\default=true/is_new_3ds\\default=false/' \
     -e 's/^resolution_factor=[0-9]*/resolution_factor=1/' -e 's/^layout_option=[0-9]*/layout_option=0/' \
     -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' \
-    -e 's/^volume=.*/volume=0/' "$CFG" # muted (the user's volume comes back with the config restore)
+    -e 's/^volume=.*/volume=0/' -e 's/^volume\\default=true/volume\\default=false/' "$CFG" # muted (the user's volume comes back with the config restore)
+# No sound device (headless Linux): Auto fails to open cubeb, so pick the Null sink outright.
+if [ "$(uname)" != Darwin ] && [ ! -e /dev/snd ]; then
+    "${SEDI[@]}" -e 's/^output_type=[0-9]*/output_type=1/' -e 's/^output_type\\default=true/output_type\\default=false/' "$CFG"
+fi
 
 rm -f "$SD/log.txt" "$SD"/shot_*.bin
 : > "$SD/autotest"
