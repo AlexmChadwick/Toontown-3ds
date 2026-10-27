@@ -108,16 +108,23 @@ bool FrontEnd::init(world::ToonCache* cache) {
     cache_ = cache;
     textCache_.clear();
     textBuf_ = C2D_TextBufNew(4096);
+    if (!logo_.loaded() && !logo_.load("romfs:/baked/title_logo.ttm")) TT_LOG("frontend: no title_logo.ttm");
     setPreviewDna(world::defaultToonDna());
     preview_.play(world::kAnimWave, 1.0f);
     reset();
     return textBuf_ != nullptr;
 }
 
+void FrontEnd::setServer(const char* host, int port, bool online) {
+    if (online) snprintf(serverLine_, sizeof(serverLine_), "Server: %s:%d (server.txt)", host, port);
+    else snprintf(serverLine_, sizeof(serverLine_), "Online play is off in server.txt");
+}
+
 void FrontEnd::shutdown() {
     if (cache_) cache_->release(&previewLook_);
     if (textBuf_) C2D_TextBufDelete(textBuf_);
     textBuf_ = nullptr;
+    logo_.unload();
 }
 
 void FrontEnd::reset() {
@@ -635,7 +642,10 @@ void FrontEnd::makeStepInput(u32 down) {
 void FrontEnd::drawTop(render::Renderer& renderer) {
     // 3D preview: the toon on its own, slowly turning.
     const float h = previewLook_.valid() ? previewLook_.nametagHeight : 4.0f;
-    renderer.beginWorld(renderer.topLeft(), FVec3_New(0.0f, -h * 2.0f, h * 0.6f), FVec3_New(0.0f, 0.0f, h * 0.5f),
+    // The title logo covers the top third: aim higher there so the toon stands below it.
+    const bool logo = screen_ == Screen::Title && logo_.loaded() && logo_.texture(0);
+    const float aimZ = logo ? h * 0.66f : h * 0.5f;
+    renderer.beginWorld(renderer.topLeft(), FVec3_New(0.0f, -h * 2.0f, aimZ + h * 0.1f), FVec3_New(0.0f, 0.0f, aimZ),
                         0.0f, 0);
     C3D_Mtx m;
     Mtx_Identity(&m);
@@ -649,7 +659,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     const u32 kShadow = C2D_Color32(0x10, 0x20, 0x50, 0xA0);
     const char* title = nullptr;
     switch (screen_) {
-    case Screen::Title: title = "TOONTOWN 3DS"; break;
+    case Screen::Title: title = logo ? nullptr : "TOONTOWN 3DS"; break;
     case Screen::Connecting: title = "Connecting..."; break;
     case Screen::Pick: title = "Pick a Toon"; break;
     case Screen::Make: title = "Make a Toon"; break;
@@ -657,12 +667,20 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     case Screen::Entering: title = "Heading to Toontown Central"; break;
     case Screen::Error: title = "Uh-oh!"; break;
     }
-    C2D_Text t;
-    textCache_.parse(&t, textBuf_, title, 4096);
     float tw, th;
-    C2D_TextGetDimensions(&t, 0.9f, 0.9f, &tw, &th);
-    C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f + 2, 10, 0.5f, 0.9f, 0.9f, kShadow);
-    C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f, 8, 0.5f, 0.9f, 0.9f, kAccent);
+    if (logo) {
+        // progress-background's logo card: 1.708 x 0.6 units, 0.05 below the top edge (2 units tall).
+        Tex3DS_SubTexture sub{256, 128, 0.0f, 1.0f, 1.0f, 0.0f};
+        C2D_Image img{logo_.texture(0), &sub};
+        const float lw = 205.0f, lh = 72.0f;
+        C2D_DrawImageAt(img, (400.0f - lw) * 0.5f, 6.0f, 0.5f, nullptr, lw / 256.0f, lh / 128.0f);
+    } else {
+        C2D_Text t;
+        textCache_.parse(&t, textBuf_, title, 4096);
+        C2D_TextGetDimensions(&t, 0.9f, 0.9f, &tw, &th);
+        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f + 2, 10, 0.5f, 0.9f, 0.9f, kShadow);
+        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f, 8, 0.5f, 0.9f, 0.9f, kAccent);
+    }
     if (screen_ == Screen::Pick && net_) {
         const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
         if (pa) {
@@ -755,7 +773,7 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         text(10, 8, 0.5f, kDim, "A or tap to play. Toons and progress live on the server.");
         TT_BUTTON((Button{40, 70, 240, 48}), "Play online", true, true);
         TT_BUTTON((Button{40, 130, 240, 40}), "Play offline", false, true);
-        text(10, 190, 0.45f, kDim, "Server: sdmc:/3ds/toontown3ds/server.txt");
+        text(10, 190, 0.45f, kDim, "%s", serverLine_[0] ? serverLine_ : "Server: sdmc:/3ds/toontown3ds/server.txt");
         break;
     case Screen::Connecting:
         text(16, 40, 0.6f, kWhite, "%s", net_ ? net_->progressText() : "Starting...");

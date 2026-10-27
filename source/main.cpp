@@ -500,6 +500,7 @@ int main() {
     // straight into the world with automatic login (when online).
     static tt::game::FrontEnd frontEnd;
     frontEnd.init(&toonCache);
+    frontEnd.setServer(settings.host, settings.port, settings.online);
     bool inFrontEnd = !autotest.active() || autotest.frontEndScript();
     if (!inFrontEnd && settings.online) startNet(false);
 

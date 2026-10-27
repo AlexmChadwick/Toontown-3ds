@@ -386,6 +386,7 @@ bool Client::start(Transport& transport, const ClientConfig& cfg) {
     cfg_.playToken = token_;
     fatal_ = false;
     backoffMs_ = 0;
+    everConnected_ = false;
     error_ = "";
     ejectCode_ = 0;
     rejoinAvatarId_ = 0;
@@ -400,6 +401,7 @@ bool Client::connect() {
     now_ = plat::nowMs();
     fatal_ = false;
     backoffMs_ = 0;
+    everConnected_ = false;
     error_ = "";
     ejectCode_ = 0;
     rejoinAvatarId_ = 0;
@@ -562,6 +564,7 @@ void Client::onSessionStart() {
     session_ = transport_->session();
     nextContext_ = 1;
     ejectCode_ = 0;
+    everConnected_ = true;
     sendHello();
     setState(State::Hello);
 }
@@ -1586,7 +1589,8 @@ const char* Client::progressText() const {
     case State::EnterZone: return "Entering Toontown Central...";
     case State::InZone: return "In Toontown";
     case State::ChangingZone: return "Travelling...";
-    case State::Backoff: return "Connection lost. Reconnecting soon...";
+    case State::Backoff:
+        return everConnected_ ? "Connection lost. Reconnecting soon..." : "Can't reach the server. Trying again...";
     case State::Failed: return "Disconnected";
     }
     return "";

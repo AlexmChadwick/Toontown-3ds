@@ -1833,6 +1833,7 @@ private:
     uint32_t session_ = 0;
     uint32_t backoffUntil_ = 0;
     uint32_t backoffMs_ = 0;
+    bool everConnected_ = false; // a session started since start()/connect(): Backoff wording
     bool fatal_ = false;
 
     RacingPad racingPads_[kMaxRacingPads] = {};

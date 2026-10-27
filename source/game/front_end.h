@@ -12,6 +12,7 @@
 #include <citro3d.h>
 
 #include "net/client.h"
+#include "render/model.h"
 #include "render/renderer.h"
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
@@ -33,6 +34,8 @@ public:
     void shutdown();
     // net may be null until StartOnline has been handled.
     void setNet(net::Client* net) { net_ = net; }
+    // Shown on the title screen so a wrong server.txt is obvious before connecting.
+    void setServer(const char* host, int port, bool online);
     // Back to the title (e.g. after a fatal disconnect in the world).
     void reset();
 
@@ -107,6 +110,8 @@ private:
     float time_ = 0.0f;
     render::TextCache textCache_;
     C2D_TextBuf textBuf_ = nullptr;
+    render::Model logo_; // the Toontown Online logo (title screen)
+    char serverLine_[96] = "";
 };
 
 } // namespace tt::game
