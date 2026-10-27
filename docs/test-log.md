@@ -1096,4 +1096,11 @@ Not hardware; GPU timing is not representative. Audio silent (no DSP firmware).
   27–30 fps, 25 draws, 7.3k tris. TTC after: 29.9–30 fps, 83 draws, 11.2k tris, cmdbuf 12%.
 - **Offline world script** (no server): moves, tabs, padnav: 27–30 fps, 172 draws,
   13.3k tris, heap 3.3 MB, linear free 18.8 MB, VRAM free 4.2 MB.
+- **Online world script** (`autotest`, `AI_MINIGAME_ID=8`), steps 0–163 in three chunks:
+  every step ran; teleports arrived in 2519, 1000 (boat + swim), 5000, 3000, 11000–13000,
+  10000; factory boarded (`elevator: riding to zone 61001`) after restoring the elevator
+  anchors, and every factory entity step logged its action. The test toon (15 laff, no
+  gags) went sad in the street battle and the factory battle. TTC 29.9 fps / 156 draws /
+  14.6k tris; 64 stress toons 29.9 fps / 955 draws / 57.8k tris; factory 21–30 fps with
+  screenshots on. Heap ≤ 4.0 MB, linear free ≥ 13.8 MB, VRAM free 4.2 MB.
 - Issues left: none blocking in these flows; see docs/PROGRESS.md "Known issues".

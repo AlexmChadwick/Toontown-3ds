@@ -37,6 +37,11 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - **x86 portability bug**: the HQ leaderboard pickle decoder compared a `uint8_t` with
   `'\x85'`..`'\x87'` (negative on x86, so TUPLE1–3 never matched in host tests).
 - Host tests no longer depend on one Mac's absolute paths (cog thief, target, suit refs).
+- **Map tab indoors** showed a meaningless grass-green square; interiors now get a plain
+  floor-plan panel labelled "Indoors".
+- **Facility elevators missing from a fresh SD bake**: `bake_sd_all.sh` now runs
+  `coghq_elevators.py`, without which the factory/mint/DA office elevators had no anchors
+  (not placed, not boardable).
 
 ### Verified (Azahar 2126.2, Old 3DS mode, Linux/Xvfb, live local server)
 - Title → connect → Pick-a-Toon → Make-a-Toon (all 5 steps, Pick-a-Name and typed name)
@@ -44,6 +49,12 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - Toontorial: Tom's interior, Mickey's intro, Tom's quest, the street, the Flunky battle
   (throw + squirt), reward, HQ Harry, out of the HQ. See test-log for the tunnel result.
 - Offline world script (moves, tabs, padnav, book steps): 27–30 fps, 172 draws, 13.3k tris.
+- Online world script, steps 0–163, in three chunks (`AI_MINIGAME_ID=8`): playground,
+  clips/emotes, treasure, Mickey, fishing, trolley + Catching game + gag purchase, door,
+  Gag Shop/pet/kart/fisherman/party clerks, tunnel, street, street battle (all movie
+  tracks), teleports, DD boat and swimming, DG, BR, all four Cog HQs, Toon HQ quests,
+  tailor, and the Sellbot factory (board, button, stomper, lift, barrel, gear, mixer,
+  conveyor, door, crates, goons, room battle). No PARSE/EJECT/crash lines.
 - Host suites: 30 of 32 pass on x86. `golf_test` needs golf data from the unmerged `golf2`
   branch; `cog_thief_test` passes after the path fix.
 
@@ -62,7 +73,14 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - The autotest presses A every frame in the tutorial, so the Flunky reward panel is only
   shown for one frame in automated runs; a human sees it until they press Continue.
 
+- The scripted test toon is a brand-new 15-laff toon with no gags bought, so it goes sad
+  in the street battle and the factory room battle; the foreman, Cog building, mint, DA
+  office, club, boss and minigame passes after step 163 were not run this round.
+- Factory frames dip to 21–27 fps in Azahar while screenshots are captured (shot I/O
+  4–15 ms/frame); run with `shots off` for frame-rate numbers.
+
 ### Next
-- Run the full world script and the facility/boss passes against the live server on this rig.
+- Give the world script a stronger toon (or dev Cogs) and run steps 164+ (Cog building,
+  mint, DA office, club, bosses, estate, golf, racing) on this rig.
 - Review the zone `.tz` sizes against the SD budget.
 - First real-hardware run.
