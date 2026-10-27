@@ -125,7 +125,7 @@ private:
         render::Anim clips[kClips];
         // Suit.getLoseActor: a defeated Cog swaps to its lose-mod model with its own 'lose'
         // animation (the head is instanced onto its joint_head); loaded the first time.
-        bool loseTried = false;
+        bool loseTried = false, loseBad = false;
         render::Model loseModel;
         render::Anim loseClip;
     };
@@ -142,8 +142,8 @@ private:
     Head* head(const char* code);
     void loadDepartments();
     void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
-    // 6 bodies * (model + neutral + walk + 10 clips) + 12 heads = 90.
-    BasicAssetBatch<96> assetBatch_;
+    // 6 bodies * (model + neutral + walk + 10 clips + lose model + lose clip) + 12 heads = 102.
+    BasicAssetBatch<104> assetBatch_;
     Body bodies_[6];
     C3D_Tex tieTex_[4] = {}; // skeleton_ties.ttx: a skelecog's tie per department (c l m s)
     bool tiesLoaded_ = false;

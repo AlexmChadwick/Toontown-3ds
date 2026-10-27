@@ -175,21 +175,23 @@ const render::Anim* SuitActors::battleClip(int b, const char* name) {
 bool SuitActors::loadLose(int b) {
     if (b < 0 || b >= 6) return false;
     Body& body = bodies_[b];
+    // Background loader (a synchronous load here froze the battle movie ~0.3 s per body at
+    // the moment the Cog died); overridePose requests it as soon as the Cog joins a fight.
     if (!body.loseTried) {
         body.loseTried = true;
         char stem[24], path[112];
         bodyStem(b, stem, sizeof(stem));
         snprintf(path, sizeof(path), "%s%s_lose_full.ttm", kSuitDir, stem);
-        body.loseModel.load(path);
+        assetBatch_.load(body.loseModel, path);
         snprintf(path, sizeof(path), "%s%s_lose_full_lose.tta", kSuitDir, stem);
-        body.loseClip.load(path);
-        if (!body.loseModel.loaded() || !body.loseClip.loaded() ||
-            body.loseClip.numVertices() != body.loseModel.numVertices()) {
-            TT_LOG("suits: no usable lose model for %s", stem);
-        }
+        assetBatch_.load(body.loseClip, path);
     }
-    return body.loseModel.loaded() && body.loseClip.loaded() &&
-           body.loseClip.numVertices() == body.loseModel.numVertices();
+    const bool ready = body.loseModel.loaded() && body.loseClip.loaded();
+    if (ready && body.loseClip.numVertices() != body.loseModel.numVertices() && !body.loseBad) {
+        body.loseBad = true;
+        TT_LOG("suits: lose clip does not match the lose model for body %d", b);
+    }
+    return ready && !body.loseBad;
 }
 
 // actor transform * species scale * body morph; head at the body clip's attach matrix.
@@ -220,7 +222,9 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     // A defeated Cog plays 'lose' on its lose model (Suit.getLoseActor), never on the body.
     const bool losing = a.pose.anim == 13 && loadLose(b < 0 ? 0 : b);
     render::Model& model = losing ? body.loseModel : body.model;
-    const render::Anim* battle = losing ? &body.loseClip : battleName ? battleClip(b, battleName) : nullptr;
+    // Still streaming: hold the body's neutral pose rather than ask for a body 'lose' clip.
+    const render::Anim* battle = losing ? &body.loseClip
+                                 : battleName && a.pose.anim != 13 ? battleClip(b, battleName) : nullptr;
     const render::Anim& clip = battle ? *battle : a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
     float t = a.animTime;
     if (battle) {
@@ -266,7 +270,7 @@ void SuitActors::shutdown() {
         }
         b.loseModel.unload();
         b.loseClip.unload();
-        b.loseTried = false;
+        b.loseTried = b.loseBad = false;
         b.tried = false;
     }
     for (Head& h : heads_) {
@@ -632,6 +636,8 @@ void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool
         a.pose.anim = anim;
         a.clipArg = clipArg;
         a.clipStartMs = clipStartMs;
+        if (const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr)
+            loadLose(info->body - 'a' + (a.skelecog ? 3 : 0)); // ready before the Cog is defeated
     }
 }
 
