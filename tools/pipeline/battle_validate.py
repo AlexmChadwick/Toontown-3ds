@@ -50,6 +50,20 @@ def clip(path,vertices):
                 pair_bytes=2*ttm._align(stride),attach=bool(flags&1))
 
 
+def clothes_resident(path,toons):
+    """clothes.ttx is never resident: ToonCache keeps its map and texture table in heap and
+    reads each toon's shirt, sleeve and bottom texture by seeking. Count that index plus
+    the largest texture of each kind for every toon (both bottom tables can be a toon's)."""
+    data=path.read_bytes();h=struct.unpack_from('<4sHH4HII2I',data)
+    ntex,counts,mapoff,texoff=h[2],h[3:7],h[7],h[8]
+    table=struct.unpack_from(f'<{sum(counts)}H',data,mapoff)
+    sizes=[struct.unpack_from('<HHBBBBII32s',data,texoff+i*48)[7] for i in range(ntex)]
+    largest=[];start=0
+    for n in counts:
+        largest.append(max([sizes[t] for t in table[start:start+n] if t!=65535] or [0]));start+=n
+    per_toon=largest[0]+largest[1]+max(largest[2],largest[3])
+    return 2*sum(counts)+48*ntex+toons*per_toon
+
 def main():
     counts=dict(models=0,clips=0,joint_tracks=0,audio=0,texture_packs=0)
     mesh_info={};clip_info={}
@@ -131,7 +145,7 @@ def main():
         'all_twenty_prop_models_and_two_frames':prop_models+prop_pairs,
         'skeleton_tie_pack':(DATA/'suit/skeleton_ties.ttx').stat().st_size,
         'department_pack':(DATA/'suit/departments.ttx').stat().st_size,
-        'toon_clothes_pack':(DATA/'toon/clothes.ttx').stat().st_size,
+        'four_toons_clothing':clothes_resident(DATA/'toon/clothes.ttx',4),
         'gag_icon_atlas':mesh_info['props/inventory_atlas.ttm']['resident_bytes'],
         'music_ring':audio['music_ring_bytes'],
         'four_sfx_slots_largest_cue':4*max(sfx)+4*128,
