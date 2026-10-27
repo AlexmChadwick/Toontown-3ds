@@ -1,0 +1,1 @@
+Read /Users/alexchadwick/toontown-3ds-bosses3/AGENT_TASK.md and complete the task it describes. Work only inside /Users/alexchadwick/toontown-3ds-bosses3 (branch bosses3). Follow its Rules and Code style sections exactly (no push, no merge, no Azahar), commit on branch bosses3 as you go, and finish with a report of what you did and exactly what to verify in Azahar.

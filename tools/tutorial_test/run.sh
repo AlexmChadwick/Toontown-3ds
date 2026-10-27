@@ -41,6 +41,11 @@ PY
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/toontown-tutorial.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+${CXX:-c++} -std=c++17 -Wall -Wextra -Werror -g \
+    -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
+    source/quest/quest_scripts.cpp source/quest/script_player.cpp source/world/tutorial.cpp \
+    tools/tutorial_test/flow.cpp -o "$tmp/flow"
+"$tmp/flow"
 cat >"$tmp/zones.cpp" <<'CPP'
 #include <cassert>
 #include "world/tutorial_zones.h"
