@@ -170,6 +170,10 @@ void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char*
     textCache_.parse(&t, textBuf_, s, 4096);
     float w, h;
     C2D_TextGetDimensions(&t, scale, scale, &w, &h);
+    if (w > b.w && w > 0.0f) { // never spill past the box (or the screen edge): shrink to fit
+        scale *= b.w / w;
+        C2D_TextGetDimensions(&t, scale, scale, &w, &h);
+    }
     C2D_DrawText(&t, C2D_WithColor, b.x + (b.w - w) * 0.5f, b.y + (b.h - h) * 0.5f, 0.5f, scale, scale, color);
 }
 
@@ -843,8 +847,8 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         break;
     case Screen::TutorialChoice:
         textCentered(Button{18, 38, 284, 62}, 0.62f, kWhite, "Play the Toontorial?");
-        textCentered(Button{18, 86, 284, 30}, 0.42f, kDim,
-                     "Learn the basics with Tutorial Tom, then reach Toontown Central.");
+        textCentered(Button{18, 84, 284, 16}, 0.45f, kDim, "Learn the basics with Tutorial Tom,");
+        textCentered(Button{18, 100, 284, 16}, 0.45f, kDim, "then head to Toontown Central.");
         TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true);
         TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true);
         textCentered(Button{18, 185, 284, 20}, 0.38f, kDim, "B also skips the Toontorial.");
