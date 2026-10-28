@@ -5,9 +5,12 @@
 
 STAMPS is the file written by `smoke_test.py --sc IDX --stamp STAMPS` (one
 '<epoch ms> sc <IDX>' per send). LOG is the 3DS log.txt ('[<epoch ms>] net: chat
-rx <doId> sc <IDX>', osGetTime). Both clocks are the host's when run in Azahar, so
-rx_time - tx_time is the end-to-end latency bot -> 3DS net thread -> main-loop
-drain. Each send is matched to the first unmatched rx of the same index at or
+rx <doId> sc <IDX>', osGetTime). osGetTime counts ms since 1900 and, in Azahar, is NOT
+the host's epoch clock: it is ~2.2e12 ms ahead (1900 vs 1970, minus the host's UTC
+offset) plus an emulator-start phase of seconds. Pass --offset-ms (guest minus host)
+measured for that run; without it a log whose times are not host epoch is rejected
+instead of reporting a meaningless latency. With the offset, rx_time - tx_time is the
+end-to-end latency bot -> 3DS net thread -> main-loop drain. Each send is matched to the first unmatched rx of the same index at or
 after it. Exit 0 = median under the limit with enough samples.
 """
 import argparse
@@ -56,8 +59,15 @@ def main():
     ap.add_argument("log")
     ap.add_argument("--max-median-ms", type=float, default=45.0)
     ap.add_argument("--min-samples", type=int, default=5)
+    ap.add_argument("--offset-ms", type=int, default=0,
+                    help="guest osGetTime minus host epoch ms for this run (see the docstring)")
     a = ap.parse_args()
     stamps, rx = load_stamps(a.stamps), load_rx(a.log)
+    if stamps and rx and not a.offset_ms and abs(rx[0][0] - stamps[0][0]) > 3600 * 1000:
+        print("FAIL: log clock is %.1f h away from the stamps; pass --offset-ms (guest - host)" % (
+            (rx[0][0] - stamps[0][0]) / 3.6e6))
+        return 2
+    rx = [(t - a.offset_ms, i) for t, i in rx]
     lat = match(stamps, rx)
     print("sent %d, received %d, matched %d" % (len(stamps), len(rx), len(lat)))
     if len(lat) < a.min_samples:

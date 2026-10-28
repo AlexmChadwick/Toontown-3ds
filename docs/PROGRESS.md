@@ -398,3 +398,26 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Run `smoke_test.py --sc 5 --stamp /tmp/st` against a private server while Azahar runs the 3DS client, then `net_latency.py`.
+
+## 2026-10-28 — perf round 7: latency analyzer clock fix (live measurement still pending)
+
+### Done
+- Tried the round 6 "Next" (bot `--sc` against a private server on :27610 while Azahar runs the client). The client
+  never reached the server in the available time: the VM was loaded (load ~5 on 8 cores) and the front-end script was
+  still running at 1/10 emulated speed, so **no latency number was obtained**.
+- Found a bug in the round 6 analyzer's premise: the 3DS log's `osGetTime` is **not** the host epoch in Azahar. It is
+  1900-based (+2.2e12 ms), minus the host UTC offset, plus an emulator-start phase of several seconds (observed ~3.5 s
+  ahead). `tools/dev/net_latency.py` now takes `--offset-ms` (guest minus host) and refuses logs whose clock is more than
+  an hour from the stamps, instead of printing a meaningless latency.
+
+### Verified
+- Synthetic stamp/log files: rejected without the offset (exit 2), 30 ms median with it (pass). Not run in Azahar.
+
+### Known issues
+- There is no automatic way to obtain the per-run offset yet. Idea: have the bot log the host receive time of the 3DS's
+  `setSmPosHpr` (5 Hz while moving, `nettrace` on) and take offset = max(guest tx - host rx) + ~3 ms (the 3DS->bot leg
+  was measured at ~3 ms); the max bounds it tightly because the leg latency is never negative.
+- Web->3DS median, full-battle linear peak and any hardware run remain unmeasured.
+
+### Next
+- Implement the pose-based offset calibration, then run the gate on a quiet machine.
