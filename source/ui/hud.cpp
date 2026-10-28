@@ -10,10 +10,6 @@ namespace tt::ui {
 
 namespace {
 
-// The meter is larger than upstream's share of the screen: at 64 px the numbers in the eyes were
-// unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
-constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
-constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
 // Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70).
 constexpr float kLaffLabelMaxW = 0.19f;
 constexpr float kLaffLabelMinScale = 0.34f, kLaffLabelMaxScale = 0.46f;
@@ -122,16 +118,21 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C2D_DrawText(&raceText_, C2D_WithColor, 42, 16, 0.5f, 0.65f, 0.65f, C2D_Color32(0xFF, 0xF0, 0x70, 0xFF));
     }
 
-    // Upstream's HUD is the laff meter alone; jellybeans show on the book's Gags page and the
-    // Toon tab (InventoryPage.moneyDisplay), not over the world.
-    drawLaffMeter(v);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
+}
+
+void Hud::drawBottom(C3D_RenderTarget* bottom, const HudValues& v) {
+    if (!v.online) return;
+    C2D_SceneBegin(bottom);
+    // Keep the baked map useful: the meter occupies the otherwise unlabeled top-right
+    // corner and remains clear of Home, hood teleport buttons and the tab bar.
+    drawLaffMeter(v, 242.0f, 6.0f, 72.0f);
 }
 
 // LaffMeter: the species head in the toon's head colour; at 0 laff the frown on deathColor, at
 // full laff the smile with eyes, otherwise the open smile, eyes and adjustTeeth's teeth; the
 // laff and max numbers sit in the eyes (hpLabel / maxLabel).
-void Hud::drawLaffMeter(const HudValues& v) {
+void Hud::drawLaffMeter(const HudValues& v, float x, float y, float baseSize) {
     if (!laffTried_) {
         laffTried_ = true;
         if (!laffAtlas_.load("romfs:/baked/laff_meter.ttm")) TT_LOG("hud: no laff_meter.ttm");
@@ -150,9 +151,10 @@ void Hud::drawLaffMeter(const HudValues& v) {
             pulse = pulseChange_ + (1.0f - pulseChange_) * (u * u);
         }
     }
-    const float size = kLaffSize * pulse;
-    const float x0 = kLaffX - size * 0.5f;
-    const float y0 = kLaffY - size * 0.5f;
+    const float size = baseSize * pulse;
+    // Pulse around the meter's centre, without changing its nominal anchor.
+    const float x0 = x - (size - baseSize) * 0.5f;
+    const float y0 = y - (size - baseSize) * 0.5f;
     auto part = [&](int index, const C2D_ImageTint* tint) {
         Tex3DS_SubTexture sub;
         sub.width = kLaffCell;

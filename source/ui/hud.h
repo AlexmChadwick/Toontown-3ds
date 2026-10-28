@@ -1,4 +1,4 @@
-// Top-screen HUD (citro2d, drawn after the 3D pass): laff meter and jellybean jar.
+// Split-screen HUD: transient world overlays on top; the Laff meter on the bottom Map.
 #pragma once
 
 #include "render/model.h"
@@ -25,6 +25,7 @@ public:
     bool init();
     void shutdown();
     void draw(C3D_RenderTarget* top, const HudValues& v);
+    void drawBottom(C3D_RenderTarget* bottom, const HudValues& v);
 
 private:
     C2D_TextBuf buf_ = nullptr;
@@ -39,7 +40,7 @@ private:
     // LaffMeter.animatedEffect: pulse larger on a heal, smaller on damage.
     uint64_t pulseStartMs_ = 0;
     float pulseChange_ = 1.0f;
-    void drawLaffMeter(const HudValues& v);
+    void drawLaffMeter(const HudValues& v, float x, float y, float baseSize);
     const char* lastToast_ = nullptr;
     C2D_TextBuf toastBuf_ = nullptr;
 };

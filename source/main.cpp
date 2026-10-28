@@ -2909,6 +2909,7 @@ int main() {
             ctx.infoLines[0] = "Reading models and clips...";
         }
         ui.draw(bottom, uiState, ctx);
+        if (ui.showsMapHud(uiState)) hud.drawBottom(bottom, hv);
         tt::prof::lap(tt::prof::kBottomUi);
 
         C3D_FrameEnd(0);

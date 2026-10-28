@@ -146,6 +146,9 @@ public:
                      bool fishing, bool info);
     // ---- end qafix ----
     void draw(C3D_RenderTarget* target, const State& state, const Context& ctx);
+    // The species-correct Laff meter is a Map HUD element. Other tabs and exclusive
+    // panels keep their full touch area unobstructed.
+    bool showsMapHud(const State& state) const { return lastOwner_ == PanelOwner::Tabs && state.tab == kTabMap; }
     // Map tab image: call when the zone changes (or every frame, it is a no-op for the same
     // id) with the zone *file* id (street cells collapse to the branch, 2101 -> 2100; 0 or an
     // interior = none). Loads sdmc:/3ds/toontown3ds/data/zones/<id>.tmap (bake_minimap.py);
