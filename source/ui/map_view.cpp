@@ -139,7 +139,7 @@ struct RowState {
 RowState gRow;
 char gNote[64] = "";
 u64 gNoteUntil = 0;
-C2D_Text gPlayground;
+C2D_Text gPlayground, gCogHq;
 
 void note(const char* fmt, const char* name) {
     snprintf(gNote, sizeof gNote, fmt, name ? name : "there");
@@ -154,6 +154,8 @@ void drawHoodControls(const Context& c) {
     if (!gPlayground.buf) {
         render::textParse(&gPlayground, gStatic, "Playground");
         C2D_TextOptimize(&gPlayground);
+        render::textParse(&gCogHq, gStatic, "Cog HQ"); // TTLocalizer.MapPageBackToCogHQ
+        C2D_TextOptimize(&gCogHq);
     }
     const world::PlaceKind kind = world::placeKind(c.currentZone);
     gRow.avail = c.hoodsAvailable;
@@ -168,7 +170,7 @@ void drawHoodControls(const Context& c) {
     const bool homeOn = back || c.homeAvailable;
     theme::button(kHomeX, kHomeY, kHomeW, kHomeH, homeOn ? theme::kGreen : theme::kGrey,
                   homeOn ? theme::kGreenDark : theme::kGreyDark);
-    theme::textCentered(back ? gPlayground : gHome, kHomeX + kHomeW * 0.5f, kHomeY + 3, 0.5f,
+    theme::textCentered(!back ? gHome : c.currentHood >= 10000 ? gCogHq : gPlayground, kHomeX + kHomeW * 0.5f, kHomeY + 3, 0.5f,
                         homeOn ? theme::kWhite : theme::kInkSoft, kHomeW - 8);
     // Where we are (the hood / street / building title upstream shows on arrival), or for a
     // moment why a press did nothing.
