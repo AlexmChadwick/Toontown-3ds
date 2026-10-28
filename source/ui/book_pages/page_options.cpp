@@ -23,8 +23,9 @@ void PageOptions::shutdown() { text_.shutdown(); }
 
 u32 PageOptions::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!bdc.state) return 0;
-    // The stress-test steppers are a developer control: only with the Debug tab on.
-    for (int id : {pad::book::kIdStressMinus, pad::book::kIdStressPlus})
+    // The Debug tab toggle and the stress-test steppers are developer controls: they appear only
+    // once SELECT has turned the Debug tab on (a player never sees them).
+    for (int id : {pad::book::kIdDebugHud, pad::book::kIdStressMinus, pad::book::kIdStressPlus})
         focus_.setItemEnabled(focus_.indexOf(id), bdc.state->debugOverlay);
     // ---- padnav: one table (pad::buildBookOptions) for touch, the D-Pad and A ----
     int activated = -1;
@@ -97,8 +98,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
                     value);
     };
     toggle(30, stereo, "Stereo 3D", stereo ? "On" : "Off");
-    toggle(54, debug, "Debug tab", debug ? "On" : "Off");
-    toggle(78, lod > 0, "Detail", lod > 0 ? "Fast" : "Normal");
+    toggle(54, lod > 0, "Detail", lod > 0 ? "Fast" : "Normal");
 
     // - value + steppers.
     auto stepper = [&](float ty, const char* label, int value, const char* fmt, bool enabled) {
@@ -111,9 +111,12 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         text_.centered((kMinusX + kStepW + kPlusX) * 0.5f - 1, ty + 3, theme::kTextTiny,
                        enabled ? theme::kInk : theme::kGreyDark, kPlusX - kMinusX - kStepW + 2, fmt, value);
     };
-    stepper(102, "Music", musicVol, "%d%%", true);
-    stepper(126, "Sound", sfxVol, "%d%%", true);
-    if (debug) stepper(150, "Test toons", stress, "%d", true);
+    stepper(78, "Music", musicVol, "%d%%", true);
+    stepper(102, "Sound", sfxVol, "%d%%", true);
+    if (debug) {
+        toggle(126, true, "Debug tab", "On");
+        stepper(150, "Test toons", stress, "%d", true);
+    }
 
     theme::button(kToggleX, 176, kToggleW, kRowH + 2, theme::kRed, theme::kRedDark, false, 6.0f);
     text_.centered(kToggleX + kToggleW * 0.5f, 178, theme::kTextBody, theme::kWhite, 0, "Quit Toontown");

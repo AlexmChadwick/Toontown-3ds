@@ -33,6 +33,32 @@ void QuestPanel::shutdown() {
     focus_.clear();
 }
 
+namespace {
+
+// "Building\nStreet\nHood" as one line ("Building, Street, Hood") into out.
+void flatten(const char* in, char* out, size_t cap) {
+    size_t n = 0;
+    for (const char* c = in; *c && n + 3 < cap; ++c) {
+        if (*c != '\n') {
+            out[n++] = *c;
+        } else if (n > 0 && c[1]) {
+            out[n++] = ',';
+            out[n++] = ' ';
+        }
+    }
+    out[n] = 0;
+}
+
+// QuestPoster's toNpcName (Toon HQ and the tailor have generic names).
+const char* returnToName(uint32_t npc) {
+    if (npc == quest::kToonHQ) return "HQ Officer";
+    if (npc == quest::kToonTailor) return "Tailor";
+    const char* n = quest::npcName(static_cast<uint16_t>(npc));
+    return n ? n : "a Toon";
+}
+
+} // namespace
+
 void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth, const char* s) {
     C2D_Text t;
     tt::render::textParse(&t, buf_, s);
@@ -175,33 +201,27 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
             continue;
         }
         const bool done = quest::isComplete(*def, e.progress);
-        quest::headline(*def, done, scratch_, sizeof(scratch_));
-        text(16, y + 2, 0.4f, done ? C2D_Color32(0x20, 0x80, 0x20, 0xFF) : kInk, 0, scratch_);
+        // Like the book's ToonTasks card: the task on top, then (once complete) who to return to
+        // and where, or the progress so far. Location lines ("Toon HQ\nAny Street\n...") read as
+        // one line here.
+        quest::objective(*def, scratch_, sizeof(scratch_));
         if (done) {
-            quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), true, scratch_, sizeof(scratch_));
-        } else {
-            quest::objective(*def, scratch_, sizeof(scratch_));
-        }
-        // The poster's location lines ("Toon HQ\nAny Street\n...") read as one wrapped line here.
-        {
-            char flat[sizeof(scratch_)];
-            size_t n = 0;
-            for (const char* c = scratch_; *c && n + 3 < sizeof(flat); ++c) {
-                if (*c == '\n') {
-                    if (n > 0 && c[1]) {
-                        flat[n++] = ',';
-                        flat[n++] = ' ';
-                    }
-                } else {
-                    flat[n++] = *c;
-                }
+            snprintf(line, sizeof(line), "COMPLETE!  %.120s", scratch_);
+            text(16, y + 2, 0.4f, C2D_Color32(0x20, 0x80, 0x20, 0xFF), 0, line);
+            snprintf(line, sizeof(line), "Return to: %s", returnToName(e.toNpc));
+            text(16, y + 14, 0.38f, theme::kRedDark, 0, line);
+            if (rowH >= 38.0f && quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), true, scratch_, sizeof(scratch_)) > 0) {
+                char flat[sizeof(scratch_)];
+                flatten(scratch_, flat, sizeof flat);
+                text(16, y + 26, 0.36f, kInkSoft, kW - 36, flat);
             }
-            flat[n] = 0;
-            memcpy(scratch_, flat, n + 1);
-        }
-        text(16, y + 14, 0.38f, kInk, kW - 100, scratch_);
-        if (!done && quest::progressString(*def, e.progress, line, sizeof(line))) {
-            text(kW - 82, y + 14, 0.38f, theme::kBlueDark, 0, line);
+        } else {
+            quest::headline(*def, false, line, sizeof(line));
+            text(16, y + 2, 0.4f, kInk, 0, line);
+            text(16, y + 14, 0.38f, kInk, kW - 100, scratch_);
+            if (quest::progressString(*def, e.progress, line, sizeof(line))) {
+                text(kW - 82, y + 14, 0.38f, theme::kBlueDark, 0, line);
+            }
         }
     }
 }

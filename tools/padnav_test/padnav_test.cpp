@@ -316,8 +316,6 @@ void testBookTables() {
     CHECK(options.count() == 10);
     options.setFocusById(k::kIdStereo);
     options.move(0, 1);
-    CHECK(options.focusedId() == k::kIdDebugHud);
-    options.move(0, 1);
     CHECK(options.focusedId() == k::kIdLodBias);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdMusicMinus);
@@ -328,13 +326,15 @@ void testBookTables() {
     options.move(-1, 0);
     CHECK(options.focusedId() == k::kIdSfxMinus);
     options.move(0, 1);
+    CHECK(options.focusedId() == k::kIdDebugHud);
+    options.move(0, 1);
     CHECK(options.focusedId() == k::kIdStressMinus);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdQuit);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdStereo);
     // The old touch rectangles (24 px wide steppers) still hit.
-    CHECK(tap(options, 80 + 23, 102 + 10) == k::kIdMusicMinus);
+    CHECK(tap(options, 80 + 23, 78 + 10) == k::kIdMusicMinus);
 
     FocusGroup depts("book_cogs");
     pad::buildBookDepartments(depts);

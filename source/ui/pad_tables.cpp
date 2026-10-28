@@ -114,12 +114,13 @@ void buildBookOptions(FocusGroup& group) {
     constexpr float kMinusX = 80, kPlusX = 126, kStepW = 24;
     group.clear();
     group.addItem(kIdStereo, kToggleX, 30, kToggleW, kRowH);
-    group.addItem(kIdDebugHud, kToggleX, 54, kToggleW, kRowH);
-    group.addItem(kIdLodBias, kToggleX, 78, kToggleW, kRowH);
-    group.addItem(kIdMusicMinus, kMinusX, 102, kStepW, kRowH);
-    group.addItem(kIdMusicPlus, kPlusX, 102, kStepW, kRowH);
-    group.addItem(kIdSfxMinus, kMinusX, 126, kStepW, kRowH);
-    group.addItem(kIdSfxPlus, kPlusX, 126, kStepW, kRowH);
+    group.addItem(kIdLodBias, kToggleX, 54, kToggleW, kRowH);
+    group.addItem(kIdMusicMinus, kMinusX, 78, kStepW, kRowH);
+    group.addItem(kIdMusicPlus, kPlusX, 78, kStepW, kRowH);
+    group.addItem(kIdSfxMinus, kMinusX, 102, kStepW, kRowH);
+    group.addItem(kIdSfxPlus, kPlusX, 102, kStepW, kRowH);
+    // Developer rows: PageOptions enables them only while the Debug tab is on (SELECT).
+    group.addItem(kIdDebugHud, kToggleX, 126, kToggleW, kRowH);
     group.addItem(kIdStressMinus, kMinusX, 150, kStepW, kRowH);
     group.addItem(kIdStressPlus, kPlusX, 150, kStepW, kRowH);
     group.addItem(kIdQuit, kToggleX, 176, kToggleW, kRowH);
