@@ -1,5 +1,6 @@
 #include "render/ui_font.h"
 #include "ui/fishing_panel.h"
+#include "ui/theme.h"
 
 #include <cstdio>
 #include <cstring>
@@ -8,11 +9,11 @@ namespace tt::ui {
 
 namespace {
 
-const u32 kPanelBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanelFill = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kAccentCol = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-const u32 kWhiteCol = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDimCol = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
+// Paper on the sky (ui/theme.h): ink text, a red-brown status line, grey bar troughs.
+const u32 kPanelFill = theme::kGrey;
+const u32 kAccentCol = theme::kRedDark;
+const u32 kWhiteCol = theme::kInk;
+const u32 kDimCol = theme::kInkSoft;
 const u32 kGreen = C2D_Color32(0x5C, 0xD0, 0x5C, 0xFF);
 const u32 kYellow = C2D_Color32(0xF0, 0xE0, 0x30, 0xFF);
 const u32 kRed = C2D_Color32(0xE8, 0x50, 0x40, 0xFF);
@@ -82,11 +83,16 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     auto text = [&](int slot, float x, float y, float scale, u32 color) {
         C2D_DrawText(&lines_[slot], C2D_WithColor, x, y, 0.5f, scale, scale, color);
     };
-    text(kLTitle, 8, 4, 0.6f, kWhiteCol);
-    if (v.practice) text(kLPractice, 200, 8, 0.45f, kAccentCol);
-    text(kLBeans, 8, 28, 0.45f, kDimCol);
+    theme::sky(320.0f, contentHeight);
+    theme::paper(4, 2, 312, contentHeight - 4, 8.0f);
+    text(kLTitle, 12, 6, 0.6f, theme::kBlueDark);
+    if (v.practice) {
+        theme::roundRect(196, 6, 112, 18, 6, theme::kYellow);
+        text(kLPractice, 204, 7, 0.45f, kWhiteCol);
+    }
+    text(kLBeans, 12, 28, 0.45f, kDimCol);
     text(kLTank, 190, 28, 0.45f, kDimCol);
-    text(kLStatus, 8, 48, 0.5f, kAccentCol);
+    text(kLStatus, 12, 48, 0.5f, kAccentCol);
 
     // Waiting for a bite: how much of the cast timeout is used (thin bar under the status).
     if (v.phase == FishingView::kWaiting) {
@@ -114,8 +120,7 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     // Result card.
     if (v.result != FishingView::kNone) {
         const float y = 132.0f, h = 54.0f;
-        C2D_DrawRectSolid(8, y, 0.5f, 304, h, kAccentCol);
-        C2D_DrawRectSolid(10, y + 2, 0.52f, 300, h - 4, kPanelFill);
+        theme::paper(10, y, 300, h, 6.0f, theme::kWhite, theme::kBlue);
         if (v.result == FishingView::kFish) {
             text(kLCaught, 16, y + 4, 0.42f, kDimCol);
             text(kLItem, 16, y + 18, 0.55f, kWhiteCol);
@@ -126,7 +131,7 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
             text(kLValue, 16, y + 36, 0.42f, kAccentCol);
         }
     }
-    text(kLHint, 8, contentHeight - 18, 0.38f, kDimCol);
+    text(kLHint, 12, contentHeight - 22, 0.4f, kDimCol);
 }
 
 } // namespace tt::ui

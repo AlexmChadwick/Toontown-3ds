@@ -25,15 +25,7 @@ constexpr float kCancelX = pad::counter::kCancelX, kCancelW = pad::counter::kCan
 constexpr uint32_t kAutoSubmitMarginMs = 2000;
 constexpr uint32_t kNoteMs = 2500;
 
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kLocked = C2D_Color32(0x16, 0x1E, 0x32, 0xFF);
-const u32 kBought = C2D_Color32(0x6B, 0x52, 0x10, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0x7C, 0x88, 0xA4, 0xFF);
-const u32 kGood = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
-const u32 kBad = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
 
 bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
@@ -288,58 +280,60 @@ void MinigamePurchasePanel::draw() {
         rebuildInfo(nowMs_);
         dirty_ = false;
     }
-    C2D_DrawRectSolid(0, 0, 0.1f, 320, 240, kBg);
+    // The same cream gag panel on the sky as the Gag Shop (ui/shop_panel.cpp).
+    theme::sky();
+    theme::paper(1, 0, 318, 22, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
+    theme::paper(1, kGridY - 3, 318, gags::kTracks * kCellH + 4, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
+    theme::paper(1, kInfoY - 3, 318, 18, 5.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
     // Title on the left; timer, carry and beans right-aligned from the edge, measured so they
     // never run into each other.
     constexpr float kHeadScale = 0.42f;
     constexpr float kHeadGap = 8.0f;
     float w = 0.0f;
-    C2D_DrawText(&titleText_, C2D_WithColor, 4, 4, 0.5f, 0.45f, 0.45f, kAccent);
+    C2D_DrawText(&titleText_, C2D_WithColor, 7, 4, 0.5f, 0.45f, 0.45f, theme::kRedDark);
     C2D_TextGetDimensions(&timerText_, kHeadScale, kHeadScale, &w, nullptr);
     float right = 316.0f - w;
-    C2D_DrawText(&timerText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kDim);
+    C2D_DrawText(&timerText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, theme::kInkSoft);
     C2D_TextGetDimensions(&carryText_, kHeadScale, kHeadScale, &w, nullptr);
     right -= kHeadGap + w;
-    C2D_DrawText(&carryText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kWhite);
+    C2D_DrawText(&carryText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, theme::kInk);
     C2D_TextGetDimensions(&beansText_, kHeadScale, kHeadScale, &w, nullptr);
     right -= kHeadGap + w;
-    C2D_DrawText(&beansText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kGood);
+    C2D_DrawText(&beansText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, theme::kGreenDark);
 
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
-        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX, y + 4, 0.5f, 0.42f, 0.42f,
-                     profile_.trackAccess[t] ? kWhite : kDim);
+        theme::roundRect(kNameX, y + 1, kGridX - kNameX - 3, kCellH - 3, 4,
+                         profile_.trackAccess[t] ? theme::kTrackColors[t] : theme::kGrey, 0.2f);
+        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 4, y + 4, 0.5f, 0.4f, 0.4f,
+                     profile_.trackAccess[t] ? theme::kInk : theme::kInkSoft);
         for (int l = 0; l < kCols; l++) {
             const float x = kGridX + l * kCellW;
             const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
             const bool sel = t == selTrack_ && l == selLevel_;
             const bool hasBought = cart_.bought(t, l) > 0;
-            u32 bg = open ? (hasBought ? kBought : kPanel) : kLocked;
-            if (sel) bg = C2D_Color32(0x40, 0x58, 0x8C, 0xFF);
-            C2D_DrawRectSolid(x, y, 0.2f, kCellW - 2, kCellH - 2, bg);
-            if (sel) {
-                C2D_DrawRectSolid(x - 1, y - 1, 0.25f, kCellW, 1, kAccent);
-                C2D_DrawRectSolid(x - 1, y + kCellH - 2, 0.25f, kCellW, 1, kAccent);
-                C2D_DrawRectSolid(x - 1, y, 0.25f, 1, kCellH - 2, kAccent);
-                C2D_DrawRectSolid(x + kCellW - 2, y, 0.25f, 1, kCellH - 2, kAccent);
-            }
+            const u32 bg = !open ? theme::kGrey : hasBought ? theme::kYellow
+                                                : theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f);
+            theme::roundRect(x, y, kCellW - 2, kCellH - 2, 4, sel ? theme::kRed : theme::kPaperEdge, 0.2f);
+            const float in = sel ? 2.0f : 1.0f;
+            theme::roundRect(x + in, y + in, kCellW - 2 - 2 * in, kCellH - 2 - 2 * in, 3, bg, 0.25f);
             C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + 4, y + 4, 0.5f, 0.40f, 0.40f,
-                         open ? (hasBought ? kAccent : kWhite) : kDim);
+                         open ? theme::kInk : theme::kInkSoft);
         }
     }
 
-    C2D_DrawText(&infoText_, C2D_WithColor, 4, kInfoY, 0.5f, 0.45f, 0.45f, note_[0] ? kBad : kWhite);
+    C2D_DrawText(&infoText_, C2D_WithColor, 6, kInfoY - 2, 0.5f, 0.45f, 0.45f, note_[0] ? theme::kRed : theme::kInk);
 
     // Buttons
-    C2D_DrawRectSolid(kMinusX, kBtnY, 0.3f, kBtnSmallW, kBtnH, kPanel);
-    C2D_DrawRectSolid(kPlusX, kBtnY, 0.3f, kBtnSmallW, kBtnH, kPanel);
-    C2D_DrawRectSolid(kDoneX, kBtnY, 0.3f, kDoneW, kBtnH, kGood);
-    C2D_DrawRectSolid(kCancelX, kBtnY, 0.3f, kCancelW, kBtnH, kPanel);
+    theme::button(kMinusX, kBtnY, kBtnSmallW, kBtnH, theme::kBlue, theme::kBlueDark, false, 6.0f, 0.3f);
+    theme::button(kPlusX, kBtnY, kBtnSmallW, kBtnH, theme::kBlue, theme::kBlueDark, false, 6.0f, 0.3f);
+    theme::button(kDoneX, kBtnY, kDoneW, kBtnH, theme::kGreen, theme::kGreenDark, false, 6.0f, 0.3f);
+    theme::button(kCancelX, kBtnY, kCancelW, kBtnH, theme::kRed, theme::kRedDark, false, 6.0f, 0.3f);
 
-    C2D_DrawText(&btnText_[0], C2D_WithColor, kMinusX + 16, kBtnY + 8, 0.5f, 0.6f, 0.6f, kWhite);
-    C2D_DrawText(&btnText_[1], C2D_WithColor, kPlusX + 16, kBtnY + 8, 0.5f, 0.6f, 0.6f, kWhite);
-    C2D_DrawText(&btnText_[2], C2D_WithColor, kDoneX + 14, kBtnY + 8, 0.5f, 0.55f, 0.55f, C2D_Color32(0x00, 0x30, 0x00, 0xFF));
-    C2D_DrawText(&btnText_[3], C2D_WithColor, kCancelX + 8, kBtnY + 8, 0.5f, 0.5f, 0.5f, kWhite);
+    theme::textCentered(btnText_[0], kMinusX + kBtnSmallW * 0.5f, kBtnY + 5, 0.6f, theme::kWhite);
+    theme::textCentered(btnText_[1], kPlusX + kBtnSmallW * 0.5f, kBtnY + 5, 0.6f, theme::kWhite);
+    theme::textCentered(btnText_[2], kDoneX + kDoneW * 0.5f, kBtnY + 7, 0.55f, theme::kWhite, kDoneW - 6);
+    theme::textCentered(btnText_[3], kCancelX + kCancelW * 0.5f, kBtnY + 7, 0.5f, theme::kWhite, kCancelW - 6);
     buttons_.drawHighlight(); // padnav
 }
 
