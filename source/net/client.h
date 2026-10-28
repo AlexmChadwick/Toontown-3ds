@@ -603,7 +603,7 @@ struct Suit {
     bool tutorial;          // DistributedTutorialSuit: walks its own loop (world/tutorial.*), no path
     // ---- end tutorial ----
 };
-constexpr int kMaxSuits = 16;
+constexpr int kMaxSuits = 48; // the VP generates ~36 at once (both rounds plus reserves)
 struct SuitPlanner {
     uint32_t doId;
     uint32_t zoneId;        // DistributedSuitPlanner.setZoneId: the street branch (2100, ...)
