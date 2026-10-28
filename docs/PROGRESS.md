@@ -3,6 +3,53 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Shared TZ v3 texture residency
+
+### Done
+- Added a zone-local texture residency cache for TZ v3. Chunks that reference the same
+  validated texture-pool payload now share one C3D linear-memory allocation and upload,
+  rather than allocating and reading that atlas page again for every near/far or PVS
+  model that uses it.
+- Kept standalone TTM models and pooled interior TTM v2 files on their existing ownership
+  path. Cache identity includes the absolute pool offset, size, dimensions, format, mip
+  count and wrap modes, so only equivalent GPU textures alias.
+- Made cache borrowing explicit in `render::Model`: swaps carry the cache owner and keys,
+  partial load failures release successful borrows, and model unload never deletes shared
+  C3D data. Cache-reference release happens before taking `LinearGuard`, preserving one
+  lock order between the zone loader and main thread.
+- `Zone::textureBytes()` now reports unique TZ v3 allocations on 3DS, so the debug overlay
+  reflects the actual linear-memory saving instead of the sum of duplicate chunk tables.
+
+### Verified
+- `git diff --check` passes and the implementation is split into a focused code commit.
+- Reviewed loader/main-thread lifetime and synchronization: the loader is joined and the
+  GPU is fenced before models are destroyed; staging jobs and resident models release
+  borrows before the cache destroys its allocations.
+- A 3DS build could not run in this checkout: `make` stops immediately because `DEVKITARM`
+  is unset and no devkitARM installation is present. The generated SD zone set is also
+  absent here, so an Azahar resident-memory A/B measurement was not possible.
+
+### Asset size decisions
+- None. This changes runtime residency and SD reads only; texture formats, resolutions and
+  all original asset data are unchanged.
+
+### Known issues
+- The cache and its new `textureBytes()` telemetry need an equipped Old 3DS Azahar run and
+  a real-hardware run. Verify transitions and repeated near/far LOD changes while watching
+  linear free memory for both savings and leaks.
+- TZ v3 admission remains conservative: the streaming plan sums per-chunk texture bytes,
+  including duplicates, before queueing. This cannot exceed the existing 8 MiB budget but
+  may reject a future visible set that would fit after sharing.
+- Facility collision/layout staging, street transition timing, four boss battles and the
+  first real-hardware performance pass remain open.
+
+### Next
+- Build on the equipped rig and compare `linear free` / zone texture telemetry before and
+  after loading a multi-chunk street, changing cells, and crossing the near/far threshold.
+- Deduplicate the streaming-plan texture budget from the TZ v3 pool keys, then consider
+  bounded eviction only if a measured zone pool is larger than the residency budget.
+- Move facility room collision and layout preparation off the main thread.
+
 ## 2026-10-28 — Zone validation leaves the main thread
 
 ### Done
