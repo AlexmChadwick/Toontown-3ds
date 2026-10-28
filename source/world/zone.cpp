@@ -189,6 +189,11 @@ struct Zone::Impl {
     bool desired[kMaxChunks] = {};
     uint8_t choice[kMaxChunks] = {};
     bool failed[kMaxChunks] = {}; // load failed for this plan; retried on the next one
+    // Detailed TTM validation is intentionally deferred to the loader on 3DS.  A street
+    // can contain two models per chunk and probing all of their scattered tables here
+    // turns Zone::load into a long main-thread SD stall.  0 = unchecked, 1 = valid,
+    // 2 = invalid; indexed by chunk and near/far LOD.
+    uint8_t validated[kMaxChunks][2] = {};
     int retryCountdown = 0;       // updates until failed loads are retried anyway
     uint16_t order[kMaxChunks] = {};
     uint32_t numOrder = 0;
@@ -229,8 +234,12 @@ void loaderMain(void* arg) {
         LightLock_Unlock(&z.lock);
         if (!job) { LightEvent_Wait(&z.wake); continue; }
         const Chunk d = modelInfo(z.chunks[job->chunk], job->lod);
-        // Model owns the shared LinearGuard; never lock around this call.
-        const bool ok = job->model.loadFrom(z.file, d.offset, "tz chunk");
+        uint8_t& validation = z.validated[job->chunk][job->lod];
+        if (!validation)
+            validation = validModel(z.file, d, z.h.poolOff, z.h.poolSize) ? 1 : 2;
+        // Model owns the shared LinearGuard; never lock around this call.  Validation
+        // happens first, before malformed counts or offsets can reach GPU allocation.
+        const bool ok = validation == 1 && job->model.loadFrom(z.file, d.offset, "tz chunk");
         LightLock_Lock(&z.lock);
         job->state = ok ? Zone::Impl::Done : Zone::Impl::Failed;
         LightLock_Unlock(&z.lock);
@@ -357,11 +366,23 @@ bool Zone::load(const char* path) {
             const Floor& f=z.floors[c.firstFloor+j];
             ok=f.cell==i && f.zone==c.zone;
         }
-        if (c.size) ok=ok && section(c.offset,c.size,1,h.size) && validModel(z.file,c,h.poolOff,h.poolSize);
+        if (c.size) {
+            ok=ok && section(c.offset,c.size,1,h.size);
+#ifndef __3DS__
+            // Host integrity tests retain eager whole-file validation.  On device the
+            // existing loader validates only models that become resident, off-thread.
+            ok=ok && validModel(z.file,c,h.poolOff,h.poolSize);
+#endif
+        }
         else ok=ok && !(c.offset || c.geom || c.tex || c.draws || c.tris);
         if (h.version>=2) {
             const Chunk low=modelInfo(c,1);
-            if (low.size) ok=ok && section(low.offset,low.size,1,h.size) && validModel(z.file,low,h.poolOff,h.poolSize);
+            if (low.size) {
+                ok=ok && section(low.offset,low.size,1,h.size);
+#ifndef __3DS__
+                ok=ok && validModel(z.file,low,h.poolOff,h.poolSize);
+#endif
+            }
             else ok=ok && !(low.offset || low.geom || low.tex || low.draws || low.tris);
         }
     }
