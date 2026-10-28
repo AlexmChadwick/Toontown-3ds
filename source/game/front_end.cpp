@@ -192,6 +192,19 @@ void FrontEnd::button(const Button& b, const char* label, bool selected, bool en
     textCentered(Button{b.x, b.y, b.w, b.h - 3}, 0.55f, selected ? th::kInk : enabled ? th::kWhite : th::kInkSoft, label);
 }
 
+// A check box at the left end of a toggle button (draw pass only): white box, red tick when on.
+void FrontEnd::checkBox(const Button& b, bool on) {
+    if (!gGui.drawing) return;
+    namespace th = ui::theme;
+    const float x = b.x + 6, y = b.y + (b.h - 3) * 0.5f - 6;
+    th::roundRect(x, y, 12, 12, 3, th::kInk);
+    th::roundRect(x + 1, y + 1, 10, 10, 2, th::kWhite);
+    if (on) {
+        C2D_DrawLine(x + 2.5f, y + 6, th::kRed, x + 5, y + 9, th::kRed, 2.2f, 0.6f);
+        C2D_DrawLine(x + 5, y + 9, th::kRed, x + 10, y + 2.5f, th::kRed, 2.2f, 0.6f);
+    }
+}
+
 // One button: draws in the draw pass, reports a press (tap or A on the cursor) otherwise.
 #define TT_BUTTON(rect, label, selected, enabled)                                                      \
     [&]() -> bool {                                                                                     \
@@ -528,32 +541,31 @@ void FrontEnd::makeStepInput(u32 down) {
     case MakeStep::Name: {
         const bool male = choice_.gender == world::Gender::Male;
         // Toggle buttons:
-        if (TT_BUTTON((Button{6, 56, 72, 22}), titleActive_ ? "Title [X]" : "Title [ ]", titleActive_, true)) {
+        // Upstream's Pick-A-Name check boxes: Title, First and Last (one box for the two last-name
+        // columns, which are always used together).
+        constexpr Button kTitleBox{6, 56, 72, 22}, kFirstBox{82, 56, 72, 22}, kLastBox{158, 56, 156, 22};
+        if (TT_BUTTON(kTitleBox, "   Title", titleActive_, true)) {
             titleActive_ = !titleActive_;
             nameIsTyped_ = false;
             updateConstructedName();
         }
-        if (TT_BUTTON((Button{82, 56, 72, 22}), firstActive_ ? "First [X]" : "First [ ]", firstActive_, true)) {
+        checkBox(kTitleBox, titleActive_);
+        if (TT_BUTTON(kFirstBox, "   First", firstActive_, true)) {
             if (!firstActive_ || lastActive_) {
                 firstActive_ = !firstActive_;
                 nameIsTyped_ = false;
                 updateConstructedName();
             }
         }
-        if (TT_BUTTON((Button{158, 56, 76, 22}), lastActive_ ? "Prefix [X]" : "Prefix [ ]", lastActive_, true)) {
+        checkBox(kFirstBox, firstActive_);
+        if (TT_BUTTON(kLastBox, "   Last name", lastActive_, true)) {
             if (!lastActive_ || firstActive_) {
                 lastActive_ = !lastActive_;
                 nameIsTyped_ = false;
                 updateConstructedName();
             }
         }
-        if (TT_BUTTON((Button{238, 56, 76, 22}), lastActive_ ? "Suffix [X]" : "Suffix [ ]", lastActive_, true)) {
-            if (!lastActive_ || firstActive_) {
-                lastActive_ = !lastActive_;
-                nameIsTyped_ = false;
-                updateConstructedName();
-            }
-        }
+        checkBox(kLastBox, lastActive_);
         // Cycle buttons:
         const int numTitles = getTitleCount(male);
         if (TT_BUTTON((Button{6, 106, 34, 26}), "<", false, numTitles > 1)) {
@@ -738,7 +750,7 @@ void FrontEnd::drawPickBottom() {
 }
 
 void FrontEnd::drawMakeBottom() {
-    static const char* const kStepNames[] = {"Species", "Body", "Colour", "Clothes", "Name Shop"};
+    static const char* const kStepNames[] = {"Species", "Body", "Color", "Clothes", "Name Shop"};
     text(10, 6, 0.5f, kBSoft, "Step %d of %d: %s", static_cast<int>(step_) + 1, static_cast<int>(MakeStep::Count),
          kStepNames[static_cast<int>(step_)]);
     switch (step_) {

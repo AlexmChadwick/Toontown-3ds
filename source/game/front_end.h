@@ -58,6 +58,7 @@ private:
     bool tapped(const Button& b) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void textCentered(const Button& b, float scale, u32 color, const char* s);
+    void checkBox(const Button& b, bool on);
     void button(const Button& b, const char* label, bool selected = false, bool enabled = true);
 
     void go(Screen s);
