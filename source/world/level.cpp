@@ -1570,6 +1570,7 @@ bool Level::loadRoom(int room, const char* name, const float placement[12]) {
 // DistributedMint/Stage/CountryClub.gotAllRooms: the rooms placed along the floor layout with
 // their hallways and door frames (all baked into the floor's .tlf).
 bool Level::loadFloor(const net::Facility& fac) {
+    const u64 loadStart = svcGetSystemTick();
     char file[112], path[112];
     snprintf(file, sizeof(file), "%sfloors/%s_%u_%u_%u.tlf", kDir, floorKindName(fac.kind), unsigned(fac.facilityId),
              unsigned(fac.kind == net::FacilityKind::Mint ? 0 : fac.layoutIndex), unsigned(fac.floorNum));
@@ -1645,8 +1646,10 @@ bool Level::loadFloor(const net::Facility& fac) {
     if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);
     fclose(f);
     if (!ok) return false;
-    TT_LOG("level: floor %s: %d rooms, %d pieces, %d door frames, %d floor tris", file, numRooms_, numPieces_,
-           numDoorFrames_, numFloorTris_);
+    const unsigned long loadMs = static_cast<unsigned long>((svcGetSystemTick() - loadStart) /
+                                                            (SYSCLOCK_ARM11 / 1000));
+    TT_LOG("level: floor %s: %d rooms, %d pieces, %d door frames, %d floor tris, %lu ms", file, numRooms_,
+           numPieces_, numDoorFrames_, numFloorTris_, loadMs);
     snprintf(path, sizeof(path), "%sprops/door_frame_0.ttm", kDir);
     if (numDoorFrames_ && !doorFrameModel_.loaded())
         assetBatch_.load(doorFrameModel_, path);
