@@ -260,6 +260,12 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true", help="dump every field")
     ap.add_argument("--whisper", type=int, metavar="MSG",
                     help="every 5 s, SpeedChat-whisper phrase MSG to every other toon in view")
+    ap.add_argument("--sc", type=int, metavar="IDX",
+                    help="every --sc-interval s, broadcast SpeedChat phrase IDX (setSC) from our toon")
+    ap.add_argument("--sc-interval", type=float, default=1.0)
+    ap.add_argument("--sc-count", type=int, default=0, help="stop sending after N (0 = until linger ends)")
+    ap.add_argument("--stamp", metavar="FILE",
+                    help="append '<epoch ms> sc <IDX>' per setSC send (for tools/dev/net_latency.py)")
     a = ap.parse_args()
 
     dc = DC()
@@ -324,7 +330,17 @@ def main():
     t0 = time.time()
     next_move = 0
     next_whisper = time.time() + 5.0
+    next_sc = time.time() + 1.0
+    sc_sent = 0
     while time.time() < end:
+        if a.sc is not None and time.time() >= next_sc and (not a.sc_count or sc_sent < a.sc_count):
+            stamp = int(time.time() * 1000)
+            c.set_field(av_id, "DistributedToon", "setSC", a.sc)
+            sc_sent += 1
+            if a.stamp:
+                with open(a.stamp, "a") as f:
+                    f.write("%d sc %d\n" % (stamp, a.sc))
+            next_sc = time.time() + a.sc_interval
         if a.whisper is not None and time.time() >= next_whisper:
             # DistributedToon.setWhisperSCFrom(fromId, msgIndex), sent to the other toon's doId.
             for d, o in list(c.objects.items()):
