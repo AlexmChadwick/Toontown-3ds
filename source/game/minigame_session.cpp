@@ -85,6 +85,7 @@ void MinigameSession::shutdown() {
     unloadCurrent();
     purchasePanel_.shutdown();
     phase_ = Phase::Off;
+    purchaseTutorial_ = purchaseTutorialSelection_ = false;
 }
 
 void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs) {
@@ -93,6 +94,7 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
     gameId_ = gameId;
     home_ = homeHood;
     startedGame_ = endedGame_ = completedPurchase_ = false;
+    purchaseTutorial_ = purchaseTutorialSelection_ = false;
 
     isCatch_ = (gameId == kCatchGameId);
     isCannon_ = (gameId == kCannonGameId);
@@ -687,12 +689,19 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
     case Phase::Purchase:
         // A requestExit is not setPurchaseExit. Stay here until the server's
         // reply, then submit inventory(done=1) before returning to the playground.
-        if (autoPlay_ && inPhase > 3 && purchasePanel_.active()) purchasePanel_.finish(false);
+        if (autoPlay_ && !purchaseTutorial_ && inPhase > 3 && purchasePanel_.active()) purchasePanel_.finish(false);
         purchasePanel_.update(client, nowMs);
         if (purchasePanel_.active()) {
             touchPosition touch;
             hidTouchRead(&touch);
-            purchasePanel_.handleInput(kDown, touch);
+            if (!purchaseTutorial_) {
+                purchasePanel_.handleInput(kDown, touch);
+            } else if (purchaseTutorialSelection_) {
+                // The stock movie enables only the gag panel here.  Keep the 3DS teaching
+                // action equally narrow: A buys the focused gag; buttons and touch cannot
+                // escape the tutorial or acknowledge a different control by accident.
+                purchasePanel_.handleInput(kDown & KEY_A, touchPosition{});
+            }
         }
         break;
 

@@ -107,6 +107,13 @@ public:
     void draw(render::Renderer& renderer);
     // Test hook (autotest): steer toon / auto-play minigame.
     void setAutoPlay(bool on) { autoPlay_ = on; }
+    // NewbiePurchaseManager's gag_intro owns the purchase controls until it reaches the
+    // stock inventory-selection gate.  allowSelection lets that one highlighted gag press
+    // through without allowing Done/Cancel or dialogue confirmations to mutate the cart.
+    void setPurchaseTutorialInput(bool active, bool allowSelection) {
+        purchaseTutorial_ = active;
+        purchaseTutorialSelection_ = allowSelection;
+    }
 
     void toonPose(float* x, float* y, float* z, float* h) const;
     // Renderer state the game's world pass needs (far plane, background, fog). applyWorld runs
@@ -193,6 +200,8 @@ private:
     ui::MinigamePurchasePanel purchasePanel_;
 
     bool autoPlay_ = false;
+    bool purchaseTutorial_ = false;
+    bool purchaseTutorialSelection_ = false;
     char title_[40] = {};
     char lines_[3][64] = {};
 };

@@ -53,6 +53,18 @@ assert 'movie.values[0] == 110' in main
 assert 'net.sendNpcMovieDone(tutorialMovieNpc)' in main
 assert 'dna.gender == tt::world::Gender::Female' in main
 assert 'TutorialMickey, false' not in main
+# NewbiePurchaseManager creates local NPC 2011 and runs gag_intro only for its involved
+# client. The 3DS dispatcher must not treat it as an NPC movie (there is no setMovieDone),
+# and purchase input stays locked except at the generated inventory-selection gate.
+session = Path('source/game/minigame_session.cpp').read_text()
+assert 'purchase->classId == tt::dc::NewbiePurchaseManager::kClassId' in main
+assert 'tutorial.start(tt::quest::ScriptId::GagIntro, false)' in main
+assert 'purchase->playerIds[i] == net.avatarId()' in main
+assert 'tutorialMovieNpc = 0' in main
+assert '"inventory-selection"' in main
+assert 'purchaseTutorialSelection_' in session
+assert 'kDown & KEY_A' in session
+assert 'autoPlay_ && !purchaseTutorial_' in session
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 

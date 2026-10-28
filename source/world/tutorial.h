@@ -16,6 +16,7 @@ public:
     void stop();
 
     bool active() const { return player_.active(); }
+    quest::ScriptId playerId() const { return player_.id(); }
     const char* waitingEvent() const { return player_.waitingEvent(); }
     bool arrows() const { return arrows_; }
     const char* text() const { return text_; }

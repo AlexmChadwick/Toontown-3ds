@@ -1897,6 +1897,20 @@ int main() {
                     talk.onNpcGone(ev.doId);
                 }
                 minigame.handleEvent(ev, net, nowMs);
+                if (ev.type == tt::net::EventType::PurchaseUp) {
+                    const tt::net::Purchase* purchase = net.purchase();
+                    bool localNewbie = purchase && purchase->classId == tt::dc::NewbiePurchaseManager::kClassId;
+                    bool localPlayer = false;
+                    if (purchase) {
+                        for (int i = 0; i < tt::net::kMinigamePlayers; ++i)
+                            localPlayer |= purchase->playerIds[i] == net.avatarId();
+                    }
+                    if (localNewbie && localPlayer) {
+                        tutorialMovieNpc = 0; // gag_intro has no distributed NPC to acknowledge
+                        tutorial.start(tt::quest::ScriptId::GagIntro, false);
+                        TT_LOG("tutorial: newbie gag purchase movie start");
+                    }
+                }
                 golf.handleEvent(ev, net, nowMs);
                 boat.handleEvent(ev, net);
                 suits.handleEvent(ev, net, nowMs);
@@ -1952,6 +1966,10 @@ int main() {
             pets.update(net);
             // ---- tutorial ----
             tutorial.update(dt);
+            const char* tutorialEvent = tutorial.waitingEvent();
+            const bool gagSelection = tutorialEvent && !std::strcmp(tutorialEvent, "inventory-selection");
+            minigame.setPurchaseTutorialInput(
+                tutorial.active() && tutorial.playerId() == tt::quest::ScriptId::GagIntro, gagSelection);
             if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
             if (tutorial.takeFinished() && tutorialMovieNpc) {
                 net.sendNpcMovieDone(tutorialMovieNpc);
@@ -2617,9 +2635,15 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && net.tutorialInterior().active && tutorial.text()[0]) {
-                    talker = net.tutorialInterior().npcDoId;
-                    said = tutorial.text();
+                if (tutorial.active() && tutorial.text()[0]) {
+                    if (net.tutorialInterior().active) {
+                        talker = net.tutorialInterior().npcDoId;
+                        said = tutorial.text();
+                    } else if (tutorial.playerId() == tt::quest::ScriptId::GagIntro) {
+                        // Stock creates local NPC 2011 solely for this movie.  It has no Astron
+                        // object or world actor, so give its dialogue a stable top-screen balloon.
+                        balloons.addSpeaker(200.0f, 205.0f, "Gag Shop Clerk", tutorial.text(), 0.0f);
+                    }
                 }
                 // ---- end tutorial ----
                 zoneActors.setSpeech(talker, said);
