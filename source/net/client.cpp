@@ -2705,6 +2705,8 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         t.chat[0] = '\0';
         t.scIndex = index;
         t.chatMs = now_;
+        TT_LOG("net: chat rx %lu toon %lu speedchat %u", (unsigned long)now_,
+               (unsigned long)t.doId, unsigned(index));
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2729,6 +2731,8 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        TT_LOG("net: chat rx %lu toon %lu talk %s", (unsigned long)now_,
+               (unsigned long)t.doId, t.chat);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -3177,7 +3181,12 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
-    return finish(w);
+    const bool sent = finish(w);
+    if (sent) {
+        TT_LOG("net: chat tx %lu toon %lu speedchat %u", (unsigned long)now_,
+               (unsigned long)avatarId_, unsigned(msgIndex));
+    }
+    return sent;
 }
 
 // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
