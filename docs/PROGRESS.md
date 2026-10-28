@@ -634,3 +634,17 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Quiet machine or hardware: latency gate, battle-in-facility Azahar run, kSmoothTau check. Further host-only re-checks add nothing.
+
+## 2026-10-28 — perf round 21: budget re-check (no code changes)
+
+### Verified (host)
+- `make` up to date; `budget_check.sh` exits 0: static 3,147,076 B (3.00 MiB of 4.00), every zone and the SD set inside budget.
+- Note: in the toolchain export from round 11, set `DEVKITPRO` in its own `export` before using it in `DEVKITARM`/`PATH`. In a
+  single `export A=..  B=$A/..` line `$A` is still empty, so make fails with `/devkitARM/3ds_rules` missing.
+
+### Known issues
+- Unchanged: live web->3DS latency gate, full-battle linear peak beyond the 2.1 MB Azahar reading, the `over the audio budget` log
+  in a long facility battle, the `kSmoothTau` visual check and any hardware run are unmeasured. VM load was ~9-13.
+
+### Next
+- Needs a quiet machine or hardware: latency gate, battle-in-facility Azahar run, `kSmoothTau` check.
