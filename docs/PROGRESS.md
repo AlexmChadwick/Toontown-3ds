@@ -3,6 +3,50 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Non-blocking shared-texture cache admission
+
+### Done
+- Changed TZ v3 LOD queue admission to start from the cache's exact unique resident-byte
+  total instead of the duplicated sum in each chunk header. Incoming and outstanding jobs
+  still reserve their conservative full texture totals until their tables are read, and the
+  cache remains the final hard 8 MiB gate. Shared resident pages therefore no longer cause
+  an avoidable far-LOD choice or premature retirement of the visible model during an upgrade.
+- Removed SD I/O and PICA texture allocation from the zone texture-cache critical section.
+  The loader now reserves pending bytes under the lock, performs the slow load unlocked, then
+  publishes the allocation under the lock. Main-thread eviction and debug telemetry no longer
+  wait behind a texture payload read, while resident plus pending allocations remain bounded.
+- Kept publication safe for a future multi-loader implementation: a concurrently published
+  equivalent page wins, takes the borrow, and the redundant new PICA allocation is reclaimed.
+
+### Verified
+- `git diff --check` passes after each focused code commit. Lock, byte-reservation and failure
+  paths were reviewed for cache hit, load failure, metadata allocation failure, duplicate
+  publication, last-reference eviction and zone destruction.
+- No host C++ compiler or devkitARM exists in this checkout, and the generated full zone set is
+  absent, so the 3DS build, host loader suite and Azahar transition timing could not run here.
+
+### Asset size decisions
+- None. This changes runtime scheduling and admission only; original texture payloads, formats,
+  resolutions and the TZ v3 on-disk representation are unchanged.
+
+### Known issues
+- The near/far planner still sums duplicated per-chunk texture totals before selecting an LOD.
+  Queue admission is now less conservative once the plan exists, but fully exact planning still
+  needs compact per-model pool-reference metadata in a future TZ format.
+- Pending jobs reserve their complete texture totals even after loading begins. This can delay a
+  second job conservatively, but it cannot exceed the linear-memory cap or stall the main thread.
+- The changes need an Old 3DS Azahar PVS/LOD walk and real-hardware SD test. Measure frame-time
+  spikes while the Debug page samples texture residency and verify the cache never exceeds 8 MiB.
+- Facility collision/layout staging, four boss battles and the first real-hardware performance
+  pass remain open.
+
+### Next
+- Add compact TZ pool-reference metadata so planning and pending-job reservation can count the
+  exact union of shared pages without synchronous model-table reads.
+- Measure repeated near/far crossings and PVS changes on the equipped rig, including slow-SD
+  conditions and forced budget pressure.
+- Move facility room collision and layout preparation off the main thread.
+
 ## 2026-10-28 — Bounded shared-texture lifetime and streaming progress
 
 ### Done
