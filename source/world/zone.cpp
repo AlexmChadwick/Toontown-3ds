@@ -695,16 +695,25 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         // LOD replacement normally keeps the old model visible until its successor is
         // ready.  If that temporary double residency would exceed either hard budget,
         // retire the old LOD first; otherwise this job can never be queued and loading()
-        // remains true forever.  Shared v3 pages are released here and reacquired by the
-        // replacement, with the cache enforcing the exact unique-texture limit.
+        // remains true forever.  For v3, residentBytes() is the exact cache allocation
+        // total instead of the duplicated per-chunk sum.  Add conservative maxima for
+        // outstanding jobs and the incoming model because their tables may not have been
+        // read yet (a job that has started may be counted twice briefly, which is safe).
+        // The cache remains the final exact admission check as each page is acquired.
+        const uint64_t texturePressure=z.h.version==3
+            ? z.textureCache.residentBytes()+inflightTex+static_cast<uint64_t>(d.tex)
+            : z.tex+inflightTex+d.tex;
         if (z.resident[i] && (z.geom+inflightGeom+d.geom>kGeometryBudget ||
-                              z.tex+inflightTex+d.tex>kTextureBudget)) {
+                              texturePressure>kTextureBudget)) {
             sync();
             z.models[i].unload();
             account(i,-1);
             z.resident[i]=false;
         }
-        if (z.geom+inflightGeom+d.geom>kGeometryBudget || z.tex+inflightTex+d.tex>kTextureBudget) {
+        const uint64_t textureAfterRetire=z.h.version==3
+            ? z.textureCache.residentBytes()+inflightTex+static_cast<uint64_t>(d.tex)
+            : z.tex+inflightTex+d.tex;
+        if (z.geom+inflightGeom+d.geom>kGeometryBudget || textureAfterRetire>kTextureBudget) {
             fail("zone: linear budget full; waiting for evictions");
             break;
         }
