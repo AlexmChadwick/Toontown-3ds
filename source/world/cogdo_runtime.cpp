@@ -704,6 +704,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     prof::lap(prof::kCogdoDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
