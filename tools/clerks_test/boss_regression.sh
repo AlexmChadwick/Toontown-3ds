@@ -10,7 +10,7 @@ c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
 sdmc-out/boss-test/boss_test sdmc-out/boss-test/panda_vectors.bin
 c++ -std=c++17 -fno-exceptions -fno-rtti -Wall -Wextra -Werror -g -O1 \
     -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
-    tools/boss_test/client_test.cpp source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp \
+    tools/boss_test/client_test.cpp source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp source/quest/quest_data.cpp source/quest/quest_text.cpp \
     source/world/toon_dna.cpp source/world/suit_path.cpp source/world/level_spec.cpp \
     tools/nettest/log_host.cpp -lpthread -o sdmc-out/boss-test/client_test
 sdmc-out/boss-test/client_test

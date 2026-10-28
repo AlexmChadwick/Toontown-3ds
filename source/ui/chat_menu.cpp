@@ -98,7 +98,7 @@ void ChatMenu::setTasks(const net::OwnQuests* quests) {
         if (numTasks_ >= kMaxTaskPhrases) return nullptr;
         TaskPhrase& t = tasks_[numTasks_++];
         t = TaskPhrase{};
-        snprintf(t.text, sizeof t.text, "%s", text);
+        snprintf(t.text, sizeof t.text, "%.*s", int(sizeof t.text) - 1, text);
         return &t;
     };
     for (int i = 0; quests && i < quests->count; i++) {

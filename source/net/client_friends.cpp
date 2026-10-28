@@ -9,6 +9,7 @@
 #include "core/log.h"
 #include "net/client.h"
 #include "net/msg_types.h"
+#include "quest/quest_text.h"
 
 namespace tt::net {
 
@@ -24,6 +25,7 @@ namespace {
 TT_FSIG(DistributedToon, setFriendsList, "{u32,u8}[]");
 TT_FSIG(DistributedToon, friendsNotify, "i32,i8");
 TT_FSIG(DistributedToon, setWhisperSCFrom, "u32,u16");
+TT_FSIG(DistributedToon, setWhisperSCToontaskFrom, "u32,u32,u32,u32,u8");
 TT_FSIG(DistributedToon, setWhisperSCCustomFrom, "u32,u16");
 TT_FSIG(DistributedToon, setWhisperSCEmoteFrom, "u32,u16");
 TT_FSIG(DistributedToon, setSystemMessage, "u32,string");
@@ -104,7 +106,7 @@ bool Client::friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fi
         w.ms = now_;
         if (const RemoteToon* t = findToon(from)) snprintf(w.name, sizeof(w.name), "%s", t->name);
         else if (const FriendInfo* f = findFriend(from)) memcpy(w.name, f->name, sizeof(w.name)); // both kNameLen
-        if (text) snprintf(w.text, sizeof(w.text), "%s", text);
+        if (text) snprintf(w.text, sizeof(w.text), "%.*s", int(sizeof(w.text)) - 1, text);
         push(FriendEventType::Whisper, from);
     };
     if (doId == avatarId_ && avatarId_ != 0) {
@@ -118,6 +120,16 @@ bool Client::friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fi
                                                                                                : WhisperKind::Emote;
             logWhisper(from, kind, index, nullptr);
             TT_LOG("net: whisper %u from %u", unsigned(index), unsigned(from));
+            return true;
+        }
+        if (fieldId == dc::DistributedToon::k_setWhisperSCToontaskFrom) {
+            const uint32_t from = r.u32(), taskId = r.u32(), toNpc = r.u32(), progress = r.u32();
+            const uint8_t msgIndex = r.u8();
+            if (!r.ok()) return true;
+            char text[quest::kScLen];
+            if (!quest::decodeScToontask(taskId, toNpc, progress, msgIndex, text, sizeof(text))) return true;
+            logWhisper(from, WhisperKind::ToonTask, 0, text);
+            TT_LOG("net: chat rx whisper sctask from %u \"%.80s\"", unsigned(from), text);
             return true;
         }
         if (fieldId == dc::DistributedToon::k_setSystemMessage) {
@@ -266,6 +278,31 @@ bool Client::sendWhisperSC(uint32_t toDoId, uint16_t msgIndex) {
     o.kind = WhisperKind::Outgoing;
     o.index = msgIndex;
     o.ms = now_;
+    if (const RemoteToon* t = findToon(toDoId)) snprintf(o.name, sizeof(o.name), "%s", t->name);
+    return true;
+}
+
+bool Client::sendWhisperSCToontask(uint32_t toDoId, uint32_t taskId, uint32_t toNpc, uint32_t progress,
+                                   uint8_t msgIndex, const char* text) {
+    if (state_ != State::InZone || !findToon(toDoId)) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, toDoId, DistributedToon, setWhisperSCToontaskFrom);
+    w.u32(avatarId_);
+    w.u32(taskId);
+    w.u32(toNpc);
+    w.u32(progress);
+    w.u8(msgIndex);
+    if (!finish(w)) return false;
+    TT_LOG("net: chat tx whisper sctask %u/%u to %u", unsigned(taskId), unsigned(msgIndex), unsigned(toDoId));
+    Whisper& o = friends_.log[(friends_.logHead + friends_.logCount) % kWhisperLogLen];
+    if (friends_.logCount < kWhisperLogLen) friends_.logCount++;
+    else friends_.logHead = (friends_.logHead + 1) % kWhisperLogLen;
+    o = Whisper{};
+    o.fromId = avatarId_;
+    o.toId = toDoId;
+    o.kind = WhisperKind::Outgoing;
+    o.ms = now_;
+    if (text) snprintf(o.text, sizeof(o.text), "%.*s", int(sizeof(o.text)) - 1, text);
     if (const RemoteToon* t = findToon(toDoId)) snprintf(o.name, sizeof(o.name), "%s", t->name);
     return true;
 }

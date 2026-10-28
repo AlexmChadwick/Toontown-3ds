@@ -1087,14 +1087,14 @@ struct FriendInvite {
     int32_t context = 0;
     uint32_t sinceMs = 0;
 };
-enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing };
+enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing, ToonTask };
 struct Whisper {
     uint32_t fromId;       // sender (ourselves for Outgoing)
     uint32_t toId;         // recipient (ourselves for incoming)
     WhisperKind kind;
     uint16_t index;        // SpeedChat/custom/emote index (the UI decodes it); 0 for Typed/System
     char name[kNameLen];   // the other party
-    char text[kWhisperTextLen]; // Typed and System text; empty for index-only kinds
+    char text[kWhisperTextLen]; // Typed, System and ToonTask text; empty for index-only kinds
     uint32_t ms;
 };
 struct TeleportResult {
@@ -1321,6 +1321,7 @@ public:
 
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
+    bool sendSCToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex);
     bool sendEmote(int id, float multiplier=1);
     bool sendSplashEffect(float x, float y, float z);
     // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
@@ -1744,6 +1745,9 @@ public:
     const FriendInfo* findFriend(uint32_t doId) const;
     bool isFriend(uint32_t doId) const { return findFriend(doId) != nullptr; }
     bool sendWhisperSC(uint32_t toDoId, uint16_t msgIndex);
+    // setWhisperSCToontaskFrom; `text` is our decoded phrase for the outgoing log line.
+    bool sendWhisperSCToontask(uint32_t toDoId, uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex,
+                               const char* text);
     bool requestFriend(uint32_t avId);
     void cancelFriendRequest();          // cancelFriendQuery when in flight, then back to Idle
     void clearFriendRequest() { friends_.request = FriendRequest(); }

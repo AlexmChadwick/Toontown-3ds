@@ -473,6 +473,10 @@ int main() {
     const char* myPhrase = nullptr;
     float myPhraseAge = 99.0f;
     int pendingSpeech = -1;
+    // A MY TASKS phrase waiting for the net block (static: main()'s frame is kept small).
+    static tt::ui::ChatMenu::TaskPhrase pendingTask;
+    static char myTaskPhrase[tt::quest::kScLen];
+    bool hasPendingTask = false;
     tt::render::Tints tints;
     bool stereoActive = false;
 
@@ -1450,10 +1454,27 @@ int main() {
             if (localToon.emoteActive()) localToon.cancel(); // back-to-back steps; shots land mid-clip
             tryEmote(atoi(autotest.label() + 7));
         }
+        ui.setChatTasks(netStarted && net.inZone() ? &net.ownQuests() : nullptr);
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
             if(speechMsg<0) {
                 tryEmote(-1-speechMsg);
+                continue;
+            }
+            if (speechMsg >= tt::ui::ChatMenu::kTaskCode) {
+                // TOONTASKS > MY TASKS: setSCToontask (said aloud) or setWhisperSCToontaskFrom.
+                const tt::ui::ChatMenu::TaskPhrase* tp = ui.chatTaskPhrase(speechMsg);
+                if (!tp) continue;
+                pendingTask = *tp;
+                hasPendingTask = true;
+                if (!uiState.whisperTo) {
+                    snprintf(myTaskPhrase, sizeof(myTaskPhrase), "%s", tp->text);
+                    myPhrase = myTaskPhrase;
+                    myPhraseAge = 0.0f;
+                }
+                tt::audio::playSfx(sfxClick);
+                ui.logChat(uiState.whisperTo ? "You whisper" : "You", tp->text, uiState.whisperTo != 0, true,
+                           static_cast<u32>(osGetTime()));
                 continue;
             }
             if (!uiState.whisperTo) { // whispers are private: no balloon over our head
@@ -2117,6 +2138,13 @@ int main() {
                     if (uiState.whisperTo) net.sendWhisperSC(uiState.whisperTo, static_cast<uint16_t>(pendingSpeech));
                     else net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
                 }
+                if (hasPendingTask) {
+                    const tt::ui::ChatMenu::TaskPhrase& tp = pendingTask;
+                    if (uiState.whisperTo)
+                        net.sendWhisperSCToontask(uiState.whisperTo, tp.taskId, tp.toNpc, tp.progress, tp.msgIndex,
+                                                  tp.text);
+                    else net.sendSCToontask(tp.taskId, tp.toNpc, tp.progress, tp.msgIndex);
+                }
                 // Entering a treasure's sphere asks the AI for it once (DistributedTreasure.
                 // handleEnterSphere). The AI refuses while laff is full (validAvatar: hp < maxHp).
                 const u32 touching = zoneActors.touchingTreasure(player.x(), player.y(), player.z());
@@ -2181,6 +2209,7 @@ int main() {
             }
         }
         pendingSpeech = -1;
+        hasPendingTask = false;
         tt::prof::lap(tt::prof::kNet);
         remoteToons.update(dt);
         tt::prof::lap(tt::prof::kRemote);

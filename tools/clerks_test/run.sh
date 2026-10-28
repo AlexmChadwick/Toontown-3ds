@@ -9,7 +9,7 @@ FLAGS=(
     -fsanitize=address,undefined -fno-omit-frame-pointer -Isource
 )
 SOURCES=(
-    source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp
+    source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp source/quest/quest_data.cpp source/quest/quest_text.cpp
     source/world/toon_dna.cpp source/world/suit_path.cpp source/world/level_spec.cpp
     tools/nettest/log_host.cpp
 )

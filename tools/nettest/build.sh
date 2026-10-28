@@ -11,6 +11,7 @@ CXX="${CXX:-clang++}"
     "$ROOT"/source/net/*.cpp \
     "$ROOT"/source/game/*_logic.cpp \
     "$ROOT/source/game/name_tables.cpp" \
+    "$ROOT/source/quest/quest_data.cpp" "$ROOT/source/quest/quest_text.cpp" \
     "$ROOT/source/world/toon_dna.cpp" \
     "$ROOT/source/world/suit_path.cpp" \
     "$ROOT/source/world/level_spec.cpp" \

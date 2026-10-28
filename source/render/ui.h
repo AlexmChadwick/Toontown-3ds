@@ -129,6 +129,10 @@ public:
     // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
     void setEmoteAccess(const uint8_t* access) { chat_.setEmoteAccess(access); }
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
+    // SpeedChat TOONTASKS > MY TASKS: rebuilt when our quests change (null = offline).
+    void setChatTasks(const net::OwnQuests* quests) { chat_.setTasks(quests); }
+    // A popSpeech value >= ChatMenu::kTaskCode is a ToonTask phrase.
+    const ChatMenu::TaskPhrase* chatTaskPhrase(int code) const { return chat_.taskPhrase(code); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ServiceClerkPanel& serviceClerks() { return serviceClerks_; } // clerks
     ShopPanel& shop() { return shop_; }

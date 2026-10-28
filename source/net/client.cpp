@@ -9,6 +9,7 @@
 #include "core/log.h"
 #include "net/msg_types.h"
 #include "game/name_tables.h"
+#include "quest/quest_text.h"
 #include "world/toon_dna.h"
 
 namespace tt::net {
@@ -2727,6 +2728,26 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
+    case dc::DistributedToon::k_setSCToontask: {
+        // DistributedToon.setSCToontask: the receiver builds the sentence from the task tuple
+        // (TTSCToontaskTerminal.decodeTTSCToontaskMsg); an unknown one is dropped, as upstream.
+        const uint32_t taskId = r.u32(), toNpc = r.u32(), progress = r.u32();
+        const uint8_t msgIndex = r.u8();
+        if (!r.ok()) return false;
+        char text[quest::kScLen];
+        if (!quest::decodeScToontask(taskId, toNpc, progress, msgIndex, text, sizeof(text))) {
+            TT_LOG("net: chat rx sctask %u/%u/%u/%u from %u undecodable", unsigned(taskId), unsigned(toNpc),
+                   unsigned(progress), unsigned(msgIndex), unsigned(t.doId));
+            break;
+        }
+        snprintf(t.chat, sizeof(t.chat), "%.*s", int(sizeof(t.chat)) - 1, text); // phrases are <= 85 chars
+        t.scIndex = -1;
+        t.chatMs = now_;
+        TT_LOG("net: chat rx sctask %u/%u from %u \"%.80s\"", unsigned(taskId), unsigned(msgIndex), unsigned(t.doId),
+               t.chat);
+        if (t.active) pushEvent(EventType::Chat, t.doId);
+        break;
+    }
     case dc::DistributedNode::k_setParent:
         t.parentToken = r.u32();
         break;
@@ -3207,6 +3228,21 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     w.u16(msgIndex);
     if (!finish(w)) return false;
     TT_LOG("net: chat tx sc %u", unsigned(msgIndex));
+    return true;
+}
+
+// TTSCToontaskMenu phrase: LocalToon.b_setSCToontask (ownsend broadcast).
+bool Client::sendSCToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, setSCToontask);
+    w.u32(taskId);
+    w.u32(toNpc);
+    w.u32(progress);
+    w.u8(msgIndex);
+    if (!finish(w)) return false;
+    TT_LOG("net: chat tx sctask %u/%u/%u/%u", unsigned(taskId), unsigned(toNpc), unsigned(progress),
+           unsigned(msgIndex));
     return true;
 }
 
