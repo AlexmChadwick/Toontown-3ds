@@ -85,6 +85,10 @@ private:
 
     // Pick-a-Toon state
     bool confirmDelete_ = false;
+    // Naming an existing toon whose name is still open (AvatarChoice's "Name Your Toon!"):
+    // the Name Shop step alone, then setNamePattern / setNameTyped for this avatar.
+    uint32_t renameAvId_ = 0;
+    bool sendRename();
 
     // Name Shop state
     bool nameIsTyped_ = false;

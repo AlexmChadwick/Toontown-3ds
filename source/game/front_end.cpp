@@ -186,10 +186,13 @@ void FrontEnd::button(const Button& b, const char* label, bool selected, bool en
     const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
     namespace th = ui::theme;
     if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed); // the D-Pad cursor
-    const u32 face = !enabled ? th::kGrey : selected ? th::kYellow : th::kBlue;
-    const u32 lip = !enabled ? th::kGreyDark : selected ? th::kYellowDark : th::kBlueDark;
+    // Deleting a toon is the one destructive action here: red, like a close button.
+    const bool danger = enabled && !strcmp(label, "Delete");
+    const u32 face = !enabled ? th::kGrey : danger ? th::kRed : selected ? th::kYellow : th::kBlue;
+    const u32 lip = !enabled ? th::kGreyDark : danger ? th::kRedDark : selected ? th::kYellowDark : th::kBlueDark;
     th::button(b.x, b.y, b.w, b.h, face, lip, false, 7.0f);
-    textCentered(Button{b.x, b.y, b.w, b.h - 3}, 0.55f, selected ? th::kInk : enabled ? th::kWhite : th::kInkSoft, label);
+    textCentered(Button{b.x, b.y, b.w, b.h - 3}, 0.55f, selected && !danger ? th::kInk : enabled ? th::kWhite : th::kInkSoft,
+                 label);
 }
 
 // A check box at the left end of a toggle button (draw pass only): white box, red tick when on.
@@ -324,13 +327,32 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
                 go(Screen::Title);
                 break;
             }
+            const bool nameOpen = sel->nameState == static_cast<uint8_t>(net::NameState::Open);
             if (TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true)) {
                 confirmDelete_ = true;
                 break;
             }
-            if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
+            if (nameOpen && TT_BUTTON((Button{175, 200, 66, 34}), "Name", false, true)) {
+                world::ToonDna dna;
+                choice_ = world::MakeAToonChoice{};
+                if (sel->hasDna && world::parseNetString(sel->dna, net::kDnaSize, &dna)) {
+                    choice_.gender = dna.gender;
+                    makeDna_ = dna;
+                }
+                renameAvId_ = sel->id;
+                nameError_[0] = 0;
+                randomizePatternName();
+                step_ = MakeStep::Name;
+                go(Screen::Make);
+                break;
+            }
+            if (nameOpen) {
+                if (TT_BUTTON((Button{245, 200, 65, 34}), "Play", true, true)) {
+                    if (net_->chooseAvatar(sel->id)) go(Screen::Entering);
+                }
+            } else if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
                 sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                if (TT_BUTTON((Button{175, 200, 135, 34}), "Acknowledge", true, true)) {
+                if (TT_BUTTON((Button{175, 200, 135, 34}), "OK", true, true)) {
                     net_->sendAcknowledgeAvatarName(sel->id);
                 }
             } else {
@@ -359,7 +381,11 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
         makeStepInput(down);
         if (screen_ != Screen::Make) break;
         if (TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true) || back) {
-            if (step_ == MakeStep::Species) {
+            if (renameAvId_) { // naming an existing toon: back to Pick-a-Toon
+                renameAvId_ = 0;
+                updatePickPreview();
+                go(Screen::Pick);
+            } else if (step_ == MakeStep::Species) {
                 updatePickPreview();
                 go(Screen::Pick);
             } else {
@@ -372,6 +398,16 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
             if (TT_BUTTON((Button{200, 200, 110, 34}), "Next", true, true)) {
                 step_ = static_cast<MakeStep>(static_cast<int>(step_) + 1);
                 go(Screen::Make);
+            }
+        } else if (renameAvId_) {
+            if (TT_BUTTON((Button{200, 200, 110, 34}), "Done", true, true)) {
+                if (sendRename()) {
+                    renameAvId_ = 0;
+                    updatePickPreview();
+                    go(Screen::Pick);
+                } else {
+                    snprintf(nameError_, sizeof(nameError_), "Couldn't send the name. Try again.");
+                }
             }
         } else if (TT_BUTTON((Button{200, 200, 110, 34}), "Create!", true, true)) {
             // TutorialManager only accepts the choice after the avatar exists, but before we
@@ -417,6 +453,26 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
     gGui.count = gGui.index;
     if (gGui.count > 0 && gGui.cursor >= gGui.count) gGui.cursor = gGui.count - 1;
     return action;
+}
+
+// AvatarChoice's "Name Your Toon!" path: the same name messages Make-A-Toon sends after
+// createAvatar, for an avatar that already exists (the server answers with namePatternAnswer /
+// nameTypedResponse and the slot's name state follows).
+bool FrontEnd::sendRename() {
+    if (!net_ || !renameAvId_) return false;
+    if (nameIsTyped_) {
+        net_->setPendingTypedName(typedName_);
+        return net_->sendSetNameTyped(renameAvId_, typedName_);
+    }
+    const bool male = choice_.gender == world::Gender::Male;
+    const int16_t p1 = titleActive_ ? getTitleId(male, titleIndex_) : -1;
+    const uint8_t f1 = (p1 != -1 && !strcmp(getNameString(p1), "von")) ? 0 : 1;
+    const int16_t p2 = firstActive_ ? getFirstId(male, firstIndex_) : -1;
+    const int16_t p3 = lastActive_ ? getPrefixId(prefixIndex_) : -1;
+    const int16_t p4 = lastActive_ ? getSuffixId(suffixIndex_) : -1;
+    const uint8_t f4 = (p3 != -1 && isCapPrefix(p3)) ? 1 : 0;
+    net_->setPendingPatternName(p1, f1, p2, 1, p3, 1, p4, f4);
+    return net_->sendSetNamePattern(renameAvId_, p1, f1, p2, 1, p3, 1, p4, f4);
 }
 
 bool FrontEnd::createToon(net::Client::TutorialChoice tutorial) {
@@ -688,7 +744,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     case Screen::Title: title = logo ? nullptr : "TOONTOWN 3DS"; break;
     case Screen::Connecting: title = "Connecting..."; break;
     case Screen::Pick: title = "Pick a Toon"; break;
-    case Screen::Make: title = "Make a Toon"; break;
+    case Screen::Make: title = renameAvId_ ? "Name Your Toon" : "Make a Toon"; break;
     case Screen::TutorialChoice: title = "The Toontorial"; break;
     case Screen::Entering: title = "Heading to Toontown Central"; break;
     case Screen::Error: title = "Uh-oh!"; break;
@@ -718,16 +774,16 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             const char* statusStr = nullptr;
             u32 statusCol = kDim;
             if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
-                statusStr = "Name: Open (Tap to choose name)";
+                statusStr = "Name your Toon! Tap Name below.";
                 statusCol = kAccent;
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
-                statusStr = "Name: Under Review";
+                statusStr = "Name pending approval";
                 statusCol = kDim;
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
-                statusStr = "Name Approved! Press Acknowledge.";
+                statusStr = "Name approved! Tap OK.";
                 statusCol = C2D_Color32(0x80, 0xFF, 0x80, 0xFF);
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                statusStr = "Name Rejected. Press Acknowledge.";
+                statusStr = "Name rejected. Tap OK, then pick another.";
                 statusCol = kRed;
             }
             if (statusStr) {
@@ -751,8 +807,12 @@ void FrontEnd::drawPickBottom() {
 
 void FrontEnd::drawMakeBottom() {
     static const char* const kStepNames[] = {"Species", "Body", "Color", "Clothes", "Name Shop"};
-    text(10, 6, 0.5f, kBSoft, "Step %d of %d: %s", static_cast<int>(step_) + 1, static_cast<int>(MakeStep::Count),
-         kStepNames[static_cast<int>(step_)]);
+    if (renameAvId_) {
+        text(10, 6, 0.5f, kBSoft, "Name Shop: name your Toon!");
+    } else {
+        text(10, 6, 0.5f, kBSoft, "Step %d of %d: %s", static_cast<int>(step_) + 1,
+             static_cast<int>(MakeStep::Count), kStepNames[static_cast<int>(step_)]);
+    }
     switch (step_) {
     case MakeStep::Body:
         text(90, 36, 0.5f, kBInk, "%s head %u of %u", kSpeciesLabel[static_cast<int>(choice_.species)],
@@ -829,16 +889,16 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
                 const char* badge = nullptr;
                 u32 col = kBSoft;
                 if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
-                    badge = "[Name Me]";
+                    badge = "Needs a name";
                     col = kBHi;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
-                    badge = "[Pending]";
+                    badge = "Name pending";
                     col = kBSoft;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
-                    badge = "[Approved!]";
+                    badge = "Name approved!";
                     col = ui::theme::kGreenDark;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                    badge = "[Rejected]";
+                    badge = "Name rejected";
                     col = kBErr;
                 }
                 if (badge) {
@@ -850,9 +910,12 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         if (sel) {
             TT_BUTTON((Button{10, 200, 80, 34}), "Back", false, true);
             TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true);
-            if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
+            if (sel->nameState == static_cast<uint8_t>(net::NameState::Open)) {
+                TT_BUTTON((Button{175, 200, 66, 34}), "Name", false, true);
+                TT_BUTTON((Button{245, 200, 65, 34}), "Play", true, true);
+            } else if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
                 sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                TT_BUTTON((Button{175, 200, 135, 34}), "Acknowledge", true, true);
+                TT_BUTTON((Button{175, 200, 135, 34}), "OK", true, true);
             } else {
                 TT_BUTTON((Button{175, 200, 135, 34}), "Play", true, true);
             }
@@ -866,7 +929,8 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         drawMakeBottom();
         makeStepInput(0);
         TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
-        TT_BUTTON((Button{200, 200, 110, 34}), step_ == MakeStep::Name ? "Create!" : "Next", true, true);
+        TT_BUTTON((Button{200, 200, 110, 34}), step_ != MakeStep::Name ? "Next" : renameAvId_ ? "Done" : "Create!", true,
+                  true);
         break;
     case Screen::TutorialChoice:
         textCentered(Button{18, 38, 284, 62}, 0.62f, kBInk, "Play the Toontorial?");
