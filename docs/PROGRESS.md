@@ -463,3 +463,20 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Next
 - Run the latency gate (`smoke_test.py --sc 5 --stamp S --rxstamp R`, then `net_latency.py S log --calibrate R`) on a quiet
   machine, then the first hardware run.
+
+## 2026-10-28 — perf round 10: remote toon smoothing 0.1 s -> 0.06 s
+
+### Done
+- `kSmoothTau` in `source/world/remote_toons.cpp` is 0.06 s (was 0.1 s). A steadily moving remote toon trails its latest
+  sample by speed * tau, so this cuts ~40 ms of on-screen web->3DS latency while the 5 Hz samples stay blended.
+
+### Verified (host)
+- `make` has no source warnings (only the toolchain's crtn.o GNU-stack linker note). Static footprint unchanged: 3,145,932 B.
+- Not run in Azahar or on hardware: whether 0.06 s looks stepped at 5 Hz is a visual judgement still to be made. If it does,
+  raise it toward 0.08 s, or add velocity dead-reckoning (extrapolate the target by the last sample delta).
+
+### Known issues
+- Live web->3DS median, full-battle linear peak and any hardware run remain unmeasured.
+
+### Next
+- Visual check in Azahar with a bot walking in circles; then the latency gate on a quiet machine.

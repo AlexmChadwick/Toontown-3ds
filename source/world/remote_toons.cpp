@@ -14,8 +14,10 @@ namespace {
 
 constexpr float kDegToRad = 3.14159265f / 180.0f;
 // Exponential smoothing time constant toward the latest sample. Senders update at
-// 5 Hz, so ~0.1 s keeps motion continuous without lagging far behind.
-constexpr float kSmoothTau = 0.1f;
+// 5 Hz. A steadily moving toon trails its latest sample by speed * tau, so tau is the
+// extra on-screen latency: 0.06 s (was 0.1 s) keeps the 200 ms sample steps blended
+// while holding that lag inside the ~50 ms-class budget for cross-play.
+constexpr float kSmoothTau = 0.06f;
 // Snap instead of gliding when a toon teleports or we missed many samples.
 constexpr float kSnapDistance = 30.0f;
 constexpr float kSpeedTau = 0.25f; // smoothing for the derived speed (avoids walk/run flicker)
