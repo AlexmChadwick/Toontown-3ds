@@ -197,8 +197,7 @@ private:
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
     C2D_Text tabText_[kTabCount];
     C2D_Text bookText_[9]; // Book tab page buttons
-    C2D_Text homeText_, bookTitle_, bookHint_;
-    C2D_Text hoodText_[8];
+    C2D_Text bookTitle_, bookHint_;
     // Toon tab laff meter numbers (re-parsed only when they change).
     C2D_TextBuf laffBuf_ = nullptr;
     C2D_Text laffHp_{}, laffMax_{};

@@ -160,7 +160,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
 
     // 2. Debug Overlay button
     C2D_DrawRectSolid(15, 54, 0.5f, 135, 20, debug ? kActiveBtn : kBtnBg);
-    drawText(20, 57, 0.42f, debug ? kWhite : kInk, "Debug HUD: %s", debug ? "On" : "Off");
+    drawText(20, 57, 0.42f, debug ? kWhite : kInk, "Debug tab: %s", debug ? "On" : "Off");
 
     // 3. LOD Bias button
     C2D_DrawRectSolid(15, 78, 0.5f, 135, 20, (lod > 0) ? kActiveBtn : kBtnBg);
@@ -183,7 +183,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
     drawText(134, 128, 0.50f, kInk, "+");
 
     // 6. Stress Toons
-    drawText(16, 154, 0.40f, kInk, "Stress:");
+    drawText(16, 154, 0.40f, kInk, "Test toons:");
     C2D_DrawRectSolid(80, 150, 0.5f, 22, 20, kBtnBg);
     drawText(88, 152, 0.50f, kInk, "-");
     drawText(106, 154, 0.38f, kInk, "%d", stress);

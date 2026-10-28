@@ -6,6 +6,7 @@
 #include "ui/gag_data.h"
 #include "ui/laff_meter.h"
 #include "ui/theme.h"
+#include "ui/map_view.h"
 #include "quest/quest_text.h"
 #include "world/battle_fx.h"
 #include "world/place.h"
@@ -41,7 +42,6 @@ constexpr float kW = 320.0f;
 // Map tab: Home and the place label, then the teleport row just above the tab bar.
 constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
 constexpr float kHomeX = 4.0f, kHomeY = 148.0f, kHomeW = 76.0f, kHomeH = 24.0f;
-const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
@@ -101,8 +101,6 @@ bool Ui::init() {
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
     for (int i = 0; i < kTabCount; i++) parseStatic(&tabText_[i], staticBuf_, kTabNames[i]);
     for (int i = 0; i < pad::booktab::kCount; i++) parseStatic(&bookText_[i], staticBuf_, kBookPageNames[i]);
-    for (int i = 0; i < kNumTeleportHoods; i++) parseStatic(&hoodText_[i], staticBuf_, kHoodShort[i]);
-    parseStatic(&homeText_, staticBuf_, "Go Home");
     parseStatic(&bookTitle_, staticBuf_, "Shticker Book");
     parseStatic(&bookHint_, staticBuf_, "Tap a page, or press START anywhere.");
     return true;
@@ -586,78 +584,18 @@ void Ui::setMapZone(unsigned fileZone) {
 }
 
 void Ui::drawMap(const Context& c) {
-    // A paper frame around the map (baked image rectangle, else zone bounds), fitted into the
-    // frame preserving aspect. Map +Y is up.
-    theme::paper(4, 4, kW - 8, kHomeY - 8, 6.0f, theme::kPaperShade);
-    const float areaX = 9, areaY = 9, areaW = kW - 18, areaH = kHomeY - 18;
-    const float minX = hasMap_ ? mapMinX_ : c.zoneMinX, maxX = hasMap_ ? mapMaxX_ : c.zoneMaxX;
-    const float minY = hasMap_ ? mapMinY_ : c.zoneMinY, maxY = hasMap_ ? mapMaxY_ : c.zoneMaxY;
-    const float zw = fmaxf(1.0f, maxX - minX), zh = fmaxf(1.0f, maxY - minY);
-    const float scale = hasMap_ ? fminf(areaW / mapW_, areaH / mapH_) * mapW_ / zw
-                                : fminf(areaW / zw, areaH / zh);
-    const float ox = areaX + (areaW - zw * scale) * 0.5f;
-    const float oy = areaY + (areaH - zh * scale) * 0.5f;
-    auto mx = [&](float x) { return ox + (x - minX) * scale; };
-    auto my = [&](float y) { return oy + (maxY - y) * scale; };
-
-    const bool indoors = !hasMap_ && world::placeKind(c.currentZone) == world::PlaceKind::Interior;
+    MapSource map;
     if (hasMap_) {
-        C2D_DrawImageAt(mapImage_, ox, oy, 0.5f, nullptr, zw * scale / mapW_, zh * scale / mapH_);
-    } else if (indoors) {
-        // No baked map indoors (upstream has none either): a plain floor plan of the room,
-        // so the markers still read as "who is where" instead of sitting on grass.
-        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x8A, 0x63, 0x3E, 0xFF));
-        C2D_DrawRectSolid(ox + 2, oy + 2, 0.5f, zw * scale - 4, zh * scale - 4, C2D_Color32(0xB9, 0x8A, 0x5A, 0xFF));
-    } else {
-        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
+        map.image = &mapImage_;
+        map.minX = mapMinX_;
+        map.minY = mapMinY_;
+        map.maxX = mapMaxX_;
+        map.maxY = mapMaxY_;
+        map.w = mapW_;
+        map.h = mapH_;
     }
-    // ---- qafix: all marker geometry stays inside the map, above Home ----
-    const MapRect rect{ox, oy, zw * scale, zh * scale};
-    // Squares, not C2D_DrawCircleSolid: citro2d circles use the procedural-texture
-    // unit and did not render after the 3D pass in Azahar (unverified on hardware).
-    for (int i = 0; i < c.numMarkers; i++) {
-        float x = mx(c.markers[i].x), y = my(c.markers[i].y);
-        if (rect.marker(&x, &y, 4)) {
-            C2D_DrawRectSolid(x - 4, y - 4, 0.55f, 8, 8, theme::kInk);
-            C2D_DrawRectSolid(x - 3, y - 3, 0.55f, 6, 6, c.markers[i].color);
-        }
-    }
-    // Player arrow (heading 0 = +Y = up on the map; positive heading turns left), outlined in
-    // ink so it reads on grass, water and paths alike.
-    const float h = c.playerHeadingDeg * 3.14159265f / 180.0f;
-    float px = mx(c.playerX), py = my(c.playerY);
-    const bool playerVisible = rect.marker(&px, &py, 13);
-    const float fx = -sinf(h), fy = -cosf(h); // screen-space forward
-    const float sx = -fy, sy = fx;
-    if (playerVisible) {
-        C2D_DrawTriangle(px + fx * 13, py + fy * 13, theme::kInk, px - fx * 7 + sx * 6.5f, py - fy * 7 + sy * 6.5f,
-                         theme::kInk, px - fx * 7 - sx * 6.5f, py - fy * 7 - sy * 6.5f, theme::kInk, 0.6f);
-        C2D_DrawTriangle(px + fx * 10, py + fy * 10, theme::kRed, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f,
-                         theme::kRed, px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, theme::kRed, 0.6f);
-    }
-    // ---- end qafix ----
-
-    // Go Home, and where we are (the hood / street / building title upstream shows on arrival).
-    theme::button(kHomeX, kHomeY, kHomeW, kHomeH, theme::kGreen, theme::kGreenDark);
-    theme::textCentered(homeText_, kHomeX + kHomeW * 0.5f, kHomeY + 3, 0.5f, theme::kWhite, kHomeW - 8);
-    const float labelX = kHomeX + kHomeW + 6, labelW = kW - 4 - labelX;
-    theme::paper(labelX, kHomeY, labelW, kHomeH - 3, 5.0f);
-    const char* where = quest::placeTitle(static_cast<int32_t>(c.currentZone));
-    if (!where) where = indoors ? "Indoors" : "Toontown";
-    C2D_Text label;
-    textCache_.parse(&label, textBuf_, where, 1024);
-    theme::textCentered(label, labelX + labelW * 0.5f, kHomeY + 2, 0.5f, theme::kInk, labelW - 12);
-    // Teleport row: tap a playground to go there (installed ones only).
-    for (int i = 0; i < kNumTeleportHoods; i++) {
-        const bool have = c.hoodsAvailable & (1u << i);
-        const bool here = kTeleportHoods[i] == c.currentHood;
-        const float x = i * kHoodW + 2;
-        const u32 face = here ? theme::kYellow : have ? theme::kBlue : theme::kGrey;
-        const u32 lip = here ? theme::kYellowDark : have ? theme::kBlueDark : theme::kGreyDark;
-        theme::button(x, kHoodRowY, kHoodW - 4, kHoodRowH, face, lip);
-        theme::textCentered(hoodText_[i], x + (kHoodW - 4) * 0.5f, kHoodRowY + 4, 0.48f,
-                            here ? theme::kInk : have ? theme::kWhite : theme::kInkSoft, kHoodW - 8);
-    }
+    drawMapFrame(c, map, 4, 4, kW - 8, kHomeY - 8);
+    drawHoodControls(c);
 }
 
 void Ui::drawToon(const State& s, const Context& c) {
