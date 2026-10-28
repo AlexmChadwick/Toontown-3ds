@@ -3,6 +3,50 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Exact linear-memory accounting for model textures
+
+### Done
+- Fixed `render::Model::linearBytes()` counting only `C3D_Tex::size`, which is the base
+  mip level even though `loadTexture` allocates and reads the complete baked mip chain.
+  Model residency now counts each texture's validated full-chain `dataSize`.
+- Included the 0x80-byte linear-allocation rounding for the separate vertex, index and
+  texture allocations. Boss-scene admission and every other `Model::linearBytes()` caller
+  therefore see a conservative representation of actual Old 3DS linear residency.
+- Applied the same allocation rounding to the zone-local shared-texture cache's resident
+  and pending totals. Its 8 MiB limit is now a hard allocation limit rather than a payload
+  limit that could be exceeded by alignment padding across many atlas pages.
+
+### Verified
+- `git diff --check` passes after each focused code commit.
+- Source review confirms `loadTexture` already requires
+  `C3D_TexCalcTotalSize(tex->size, tex->maxLevel) == TexEntry::dataSize`, so the value now
+  used by residency accounting is exactly the full mip-chain payload accepted by the GPU
+  loader. Toon preflight independently uses the same full-chain bytes and 0x80 alignment.
+- The host performance script could not run because it is hard-coded to `clang++`, which
+  is absent along with every other C++ compiler in this checkout. devkitARM is also absent,
+  so a 3DS build and Azahar memory pass could not be performed here.
+
+### Asset size decisions
+- None. Original texture payloads, mip levels, formats and resolutions are unchanged; only
+  runtime accounting and admission became accurate.
+
+### Known issues
+- Correct accounting can reject a boss scene or model set that the old undercount admitted.
+  That is intentional protection against linear-heap exhaustion, but the affected scenes
+  need an equipped Old 3DS Azahar run to confirm their existing budgets retain enough margin.
+- The TZ v3 near/far planner still sums duplicated per-chunk texture totals before selecting
+  LOD. Shared-cache admission is exact and aligned, but exact planning still needs compact
+  per-model pool-reference metadata.
+- Facility collision/layout staging, four boss battles and the first real-hardware
+  performance pass remain open.
+
+### Next
+- Build on an equipped devkitARM host and exercise Toon churn, boss entry and repeated PVS
+  transitions while watching linear high-water marks and admission failures.
+- Add compact TZ pool-reference metadata so the planner can budget the exact union of shared
+  pages without synchronous scattered reads.
+- Move facility room collision and layout preparation off the main thread.
+
 ## 2026-10-28 — Non-blocking shared-texture cache admission
 
 ### Done
