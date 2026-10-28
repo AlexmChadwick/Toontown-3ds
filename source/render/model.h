@@ -60,6 +60,16 @@ static_assert(sizeof(TexEntry) == 48, "must match ttm.py texture entry");
 // set). On failure `tex` is left deleted/zeroed.
 bool loadTexture(FILE* f, const TexEntry& e, C3D_Tex* tex);
 
+// Optional owner for texture data shared by several embedded models.  acquire() fills
+// `tex` with a borrow of the cached C3D texture; release() drops that borrow.  Calls may
+// come from the model loader and main threads concurrently.
+class TextureCache {
+public:
+    virtual ~TextureCache() = default;
+    virtual bool acquire(FILE* f, const TexEntry& entry, C3D_Tex* tex) = 0;
+    virtual void release(const TexEntry& entry) = 0;
+};
+
 struct Tints {
     float rgba[kTintCount][4];
     void setAll(float r, float g, float b);
@@ -78,7 +88,8 @@ public:
     // Loads a TTM embedded at byte `base` of an open file (e.g. a .tz chunk). Leaves the
     // file open; `label` is used in log messages. `pool` is the open textures.ttp that a
     // pooled (v2) model reads its texture data from; v2 models fail without it.
-    bool loadFrom(FILE* f, u32 base, const char* label = nullptr, FILE* pool = nullptr);
+    bool loadFrom(FILE* f, u32 base, const char* label = nullptr, FILE* pool = nullptr,
+                  TextureCache* cache = nullptr);
     void unload();
     bool loaded() const { return vertices_ != nullptr; }
     // Exchanges contents (no GPU work): lets a loader thread fill a staging model that
@@ -113,6 +124,8 @@ private:
     float boundsMin_[3] = {};
     float boundsMax_[3] = {};
     C3D_Tex* textures_ = nullptr;
+    TexEntry* cachedEntries_ = nullptr;
+    TextureCache* textureCache_ = nullptr;
     Batch* batches_ = nullptr;
     void* vertices_ = nullptr;
     u16* indices_ = nullptr;

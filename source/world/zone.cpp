@@ -7,6 +7,7 @@
 #include <new>
 #ifdef __3DS__
 #include "render/renderer.h"
+#include "core/memory.h"
 #endif
 
 namespace tt::world {
@@ -205,6 +206,58 @@ struct Zone::Impl {
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
     float min[3] = {}, max[3] = {};
 #ifdef __3DS__
+    class ZoneTextureCache final : public render::TextureCache {
+    public:
+        ~ZoneTextureCache() override {
+            mem::LinearGuard guard;
+            for (uint32_t i=0;i<count_;++i) if (entries_[i].tex.data) C3D_TexDelete(&entries_[i].tex);
+            free(entries_);
+        }
+        bool acquire(FILE* f,const render::TexEntry& key,C3D_Tex* out) override {
+            LightLock_Lock(&lock_);
+            for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
+                ++entries_[i].refs; *out=entries_[i].tex; LightLock_Unlock(&lock_); return true;
+            }
+            if (count_==capacity_) {
+                const uint32_t next=capacity_ ? capacity_*2 : 32;
+                Entry* grown=static_cast<Entry*>(realloc(entries_,next*sizeof(Entry)));
+                if (!grown) { LightLock_Unlock(&lock_); return false; }
+                entries_=grown; capacity_=next;
+            }
+            Entry& e=entries_[count_];
+            memset(&e,0,sizeof(e)); e.key=key;
+            const bool ok=render::loadTexture(f,key,&e.tex);
+            if (ok) { e.refs=1; *out=e.tex; ++count_; }
+            LightLock_Unlock(&lock_);
+            return ok;
+        }
+        void release(const render::TexEntry& key) override {
+            LightLock_Lock(&lock_);
+            for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
+                if (entries_[i].refs) --entries_[i].refs;
+                break;
+            }
+            LightLock_Unlock(&lock_);
+        }
+        uint32_t residentBytes() const {
+            uint32_t total=0;
+            LightLock_Lock(const_cast<LightLock*>(&lock_));
+            for (uint32_t i=0;i<count_;++i) total+=entries_[i].tex.size;
+            LightLock_Unlock(const_cast<LightLock*>(&lock_));
+            return total;
+        }
+        void init() { LightLock_Init(&lock_); }
+    private:
+        struct Entry { render::TexEntry key; C3D_Tex tex; uint32_t refs; };
+        static bool same(const render::TexEntry& a,const render::TexEntry& b) {
+            return a.dataOffset==b.dataOffset && a.dataSize==b.dataSize && a.width==b.width &&
+                   a.height==b.height && a.format==b.format && a.mipLevels==b.mipLevels &&
+                   a.wrapS==b.wrapS && a.wrapT==b.wrapT;
+        }
+        mutable LightLock lock_{};
+        Entry* entries_=nullptr;
+        uint32_t count_=0,capacity_=0;
+    } textureCache;
     enum JobState : uint8_t { Free, Queued, Loading, Done, Failed };
     struct Job {
         volatile JobState state = Free;
@@ -239,7 +292,8 @@ void loaderMain(void* arg) {
             validation = validModel(z.file, d, z.h.poolOff, z.h.poolSize) ? 1 : 2;
         // Model owns the shared LinearGuard; never lock around this call.  Validation
         // happens first, before malformed counts or offsets can reach GPU allocation.
-        const bool ok = validation == 1 && job->model.loadFrom(z.file, d.offset, "tz chunk");
+        const bool ok = validation == 1 && job->model.loadFrom(
+            z.file, d.offset, "tz chunk", nullptr, z.h.version == 3 ? &z.textureCache : nullptr);
         LightLock_Lock(&z.lock);
         job->state = ok ? Zone::Impl::Done : Zone::Impl::Failed;
         LightLock_Unlock(&z.lock);
@@ -430,6 +484,7 @@ bool Zone::load(const char* path) {
     if (!ok) { unload(); return fail("zone: invalid TZ/model/collision, budget, heap or I/O failure"); }
 #ifdef __3DS__
     LightLock_Init(&z.lock);
+    z.textureCache.init();
     LightEvent_Init(&z.wake, RESET_ONESHOT);
     z.thread = threadCreate(loaderMain, &z, 32 * 1024, 0x31, 0, false);
     if (!z.thread) { unload(); return fail("zone: cannot start loader thread"); }
@@ -731,7 +786,13 @@ uint32_t Zone::triangles() const { return impl_ ? impl_->tris : 0; }
 uint32_t Zone::drawCalls() const { return impl_ ? impl_->draws : 0; }
 int Zone::chunkLod(int i) const { return impl_ && i>=0 && i<numChunks() && impl_->resident[i] ? impl_->lod[i] : -1; }
 uint32_t Zone::geometryBytes() const { return impl_ ? impl_->geom : 0; }
-uint32_t Zone::textureBytes() const { return impl_ ? impl_->tex : 0; }
+uint32_t Zone::textureBytes() const {
+    if (!impl_) return 0;
+#ifdef __3DS__
+    if (impl_->h.version==3) return impl_->textureCache.residentBytes();
+#endif
+    return impl_->tex;
+}
 int Zone::numTriggers() const { return impl_ ? static_cast<int>(impl_->h.triggers) : 0; }
 const Zone::Trigger* Zone::trigger(int i) const { return i>=0 && i<numTriggers() ? &impl_->triggers[i] : nullptr; }
 int Zone::triggersAt(const Vec3& p,float radius,int* out,int capacity,bool tunnelsOnly) const {

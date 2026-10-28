@@ -91,17 +91,28 @@ void Tints::setAll(float r, float g, float b) {
 Model::~Model() { unload(); }
 
 void Model::unload() {
+    // Never hold LinearGuard while entering a shared cache: acquire takes the cache
+    // lock before allocating linear memory, so the opposite order could deadlock the
+    // loader and main threads.
+    if (textures_ && textureCache_ && cachedEntries_) {
+        for (u16 i = 0; i < numTextures_; i++)
+            if (textures_[i].data) textureCache_->release(cachedEntries_[i]);
+    }
     mem::LinearGuard g;
     if (textures_) {
         for (u16 i = 0; i < numTextures_; i++) {
-            if (textures_[i].data) C3D_TexDelete(&textures_[i]);
+            if (!textures_[i].data) continue;
+            if (!textureCache_) C3D_TexDelete(&textures_[i]);
         }
         free(textures_);
     }
+    free(cachedEntries_);
     free(batches_);
     if (vertices_) linearFree(vertices_);
     if (indices_) linearFree(indices_);
     textures_ = nullptr;
+    cachedEntries_ = nullptr;
+    textureCache_ = nullptr;
     batches_ = nullptr;
     vertices_ = nullptr;
     indices_ = nullptr;
@@ -155,6 +166,8 @@ void Model::swap(Model& o) {
         std::swap(boundsMax_[i], o.boundsMax_[i]);
     }
     std::swap(textures_, o.textures_);
+    std::swap(cachedEntries_, o.cachedEntries_);
+    std::swap(textureCache_, o.textureCache_);
     std::swap(batches_, o.batches_);
     std::swap(vertices_, o.vertices_);
     std::swap(indices_, o.indices_);
@@ -162,7 +175,7 @@ void Model::swap(Model& o) {
     std::swap(absoluteIndices_, o.absoluteIndices_);
 }
 
-bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
+bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool, TextureCache* cache) {
     unload();
     const char* path = label ? label : "(embedded)";
 
@@ -189,12 +202,14 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     batches_ = static_cast<Batch*>(malloc(sizeof(Batch) * numBatches_));
     texEntries = static_cast<TexEntry*>(malloc(sizeof(TexEntry) * (numTextures_ ? numTextures_ : 1)));
     textures_ = static_cast<C3D_Tex*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(C3D_Tex)));
+    if (cache)
+        cachedEntries_ = static_cast<TexEntry*>(malloc(sizeof(TexEntry) * (numTextures_ ? numTextures_ : 1)));
     {
         mem::LinearGuard g;
         vertices_ = linearAlloc(numVertices_ * kVertexSize);
         indices_ = static_cast<u16*>(linearAlloc(numIndices_ * sizeof(u16)));
     }
-    ok = batches_ && texEntries && textures_ && vertices_ && indices_;
+    ok = batches_ && texEntries && textures_ && vertices_ && indices_ && (!cache || cachedEntries_);
     ok = ok && readAt(f, base + h.batchTableOffset, batches_, sizeof(Batch) * numBatches_);
     ok = ok && readAt(f, base + h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
     FILE* texFile = h.version == kPooledVersion ? pool : f;
@@ -226,7 +241,12 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     }
 
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        ok = loadTexture(texFile, texEntries[i], &textures_[i]);
+        // Set this before the first acquire so a later failure releases the successful
+        // borrows instead of deleting the cache's shared C3D allocations.
+        textureCache_ = cache;
+        ok = cache ? cache->acquire(texFile, texEntries[i], &textures_[i])
+                   : loadTexture(texFile, texEntries[i], &textures_[i]);
+        if (ok && cache) cachedEntries_[i] = texEntries[i];
         if (ok) linearBytes_ += textures_[i].size;
     }
 
