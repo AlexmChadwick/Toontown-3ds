@@ -200,12 +200,17 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
         frame.remotes.clear();
         return;
     }
-    const bool cfoScript = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: board");
-    const bool scripted = cfoScript || (frame.test.active() && !std::strcmp(frame.test.label(), "boss: board"));
+    // The rounds steps board again from the lobby: a reconnect returns the toon there (the boss
+    // office dies with the session). They never teleport: board() also runs on the ride into the
+    // office, before the boss object exists.
+    const char* step = frame.test.active() ? frame.test.label() : "";
+    const bool rejoin = !std::strcmp(step, "boss: rounds") || !std::strcmp(step, "cfo: rounds");
+    const bool cfoScript = !std::strcmp(step, "cfo: board") || !std::strcmp(step, "cfo: rounds");
+    const bool scripted = cfoScript || rejoin || !std::strcmp(step, "boss: board");
     const bool cashbot = cfoScript || frame.place.zoneId() == 12100;
     const uint32_t lobby = cashbot ? 12100 : 11100;
     const uint16_t elevatorClass = cashbot ? dc::DistributedCFOElevator::kClassId : dc::DistributedVPElevator::kClassId;
-    if (scripted && frame.place.zoneId() != lobby) {
+    if (scripted && !rejoin && frame.place.zoneId() != lobby) {
         frame.uiState.teleportRequest = lobby;
         return;
     }
