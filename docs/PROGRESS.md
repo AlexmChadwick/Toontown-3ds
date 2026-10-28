@@ -3,6 +3,40 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Shticker Book touch and button-input repair
+
+### Done
+- Fixed the Cogs and Cog Disguises department tabs, Fish Album genus arrows, and SOS
+  ToonFriends page control to use their shared screen-space focus rectangles. Their old manual
+  touch tests used page-local Y coordinates even though the page is drawn below the 24 px book
+  cover bar, leaving controls partly or wholly untappable.
+- Those controls now have one activation path for touch and A, so the visible D-pad focus ring
+  always activates the highlighted control. D-left/right shortcuts remain unchanged.
+- Book input now receives the live `OwnBookStats` pointer before dispatch. SOS pagination can
+  therefore see that the Toon owns more than eight cards; it previously always saw an empty
+  input context and rejected page changes even while drawing both pages.
+- Extended `padnav_test` with exact hitbox and A-activation checks for all repaired controls.
+
+### Verified
+- `padnav_test`: 128 checks, 0 failures (GCC 14 host build with ASan/UBSan).
+- `book_test`: all experience, disguise, golf trophy, SOS table, and quest-text checks pass.
+- `git diff --check` passes.
+
+### Asset size decisions
+- None. This round changes input behavior and tests only.
+
+### Known issues
+- The existing emulator/hardware and gameplay issues below remain open.
+- This workspace does not contain devkitARM/libctru, so the `.3dsx` could not be rebuilt or the
+  repaired controls visually exercised in Azahar here. The affected shared focus model and
+  book data suites were host-tested instead.
+
+### Next
+- Run the book pages in Azahar or on hardware and visually verify touch at the edges of each
+  control, focus rings, and SOS inventories of 9-16 cards.
+- Continue the first real-hardware pass, especially bottom-screen text readability and touch
+  target comfort at native 3DS size.
+
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
 ### Done
