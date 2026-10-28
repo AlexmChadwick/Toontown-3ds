@@ -357,6 +357,11 @@ Lessons recorded for agents:
   agent builds run under `nice -n 19`. Compare log time with real time before blaming the client.
   On the Linux/Xvfb rig (software GL) facilities run at ~25-40% speed even alone; start the
   server with `ASTRON_HEARTBEAT_TIMEOUT_MS=300000` for those passes.
+- **The Linux rig's VM is paused at times** (2026-10-27: a `sleep 30` probe took 189 s; the
+  emulator got 19 s of CPU). Everything stops, so Azahar's emulated clock falls minutes behind
+  wall time and Astron ejects the client (345) on resume. This was the "emulated-clock stall"
+  of rounds 3-5; it is not a client bug. Log `date` from a 30 s loop next to every long run and
+  discard runs whose loop shows a gap.
 - **Every hand-parsed field needs a layout check, and every handled class must be in the
   table.** Golf was dead twice over:
   - `DistributedGolfKart.setState` was read without its i16 timestamp.
