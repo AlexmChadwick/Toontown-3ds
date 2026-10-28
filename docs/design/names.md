@@ -182,10 +182,13 @@ Upstream `otp/namepanel/NameCheck.py` enforces 16 checks in order:
   - On "Create!", sends `createAvatar(dna, slot)`. When `createAvatarResponse(avId)` is received, immediately sends `setNamePattern` (if pattern) or `setNameTyped` (if typed), then enters playground.
 
 ### 5.3 Pick-a-Toon UI
-- Slot badges:
-  - `Open`: "Name Me" (green badge)
-  - `Pending`: "Review" (orange badge)
-  - `Approved`: "Approved" (green badge)
-  - `Rejected`: "Rejected" (red badge)
-- "Acknowledge" button: visible when selected toon is `Approved` or `Rejected`. Tapping sends `acknowledgeAvatarName(avId)`.
+- Slot badges: `Open` "Needs a name", `Pending` "Name pending", `Approved` "Name approved!",
+  `Rejected` "Name rejected".
+- "Name" button (AvatarChoice's "Name Your Toon!"): visible when the selected toon's name is
+  `Open`. It opens the Name Shop step alone ("Name Your Toon"); "Done" sends `setNamePattern`
+  or `setNameTyped` for that existing avatar (Client state ChooseAvatar) and returns to
+  Pick-a-Toon, where the answer updates the slot. Verified live 2026-10-28 (pattern name,
+  `namePatternAnswer` status 1).
+- "OK" button: visible when the selected toon is `Approved` or `Rejected`. Tapping sends
+  `acknowledgeAvatarName(avId)`.
 - "Delete" button: visible for any selected toon. Tapping prompts confirmation modal ("Delete <name>? Cancel / Delete"). Confirming sends `requestRemoveAvatar(avId)`.
