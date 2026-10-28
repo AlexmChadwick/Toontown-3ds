@@ -5,7 +5,7 @@
 
 #include "core/log.h"
 
-#include "ui/laff_meter_atlas.h"
+#include "ui/laff_meter.h"
 
 namespace tt::ui {
 
@@ -15,16 +15,8 @@ namespace {
 // unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
 constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
 constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
-// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70).
-constexpr float kLaffLabelMaxW = 0.19f;
-constexpr float kLaffLabelMinScale = 0.34f, kLaffLabelMaxScale = 0.46f;
 constexpr float kPulseChange = 0.333f;      // ToontownIntervals.PULSE_GUI_CHANGE
 constexpr float kPulseSeconds = 0.2f;       // PULSE_GUI_DURATION, each half
-// LaffMeter.fractions: tooth i shows while hp > maxHp * fraction (teeth listed 6 .. 1).
-constexpr float kToothFractions[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666f, 0.833333f};
-constexpr LaffPart kTeeth[6] = {kLaffTooth6, kLaffTooth5, kLaffTooth4, kLaffTooth3, kLaffTooth2, kLaffTooth1};
-// LaffMeter.deathColor: the head at 0 laff.
-constexpr float kDeathColor[3] = {0.58039216f, 0.80392157f, 0.34117647f};
 
 } // namespace
 
@@ -129,16 +121,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
 }
 
-// LaffMeter: the species head in the toon's head colour; at 0 laff the frown on deathColor, at
-// full laff the smile with eyes, otherwise the open smile, eyes and adjustTeeth's teeth; the
-// laff and max numbers sit in the eyes (hpLabel / maxLabel).
 void Hud::drawLaffMeter(const HudValues& v) {
-    if (!laffTried_) {
-        laffTried_ = true;
-        if (!laffAtlas_.load("romfs:/baked/laff_meter.ttm")) TT_LOG("hud: no laff_meter.ttm");
-    }
-    C3D_Tex* tex = laffAtlas_.loaded() ? laffAtlas_.texture(0) : nullptr;
-    if (!tex) return;
     // The pulse: scale to pulseChange_ (easeOut), then back to 1 (easeIn), 0.2 s each.
     float pulse = 1.0f;
     const float t = (osGetTime() - pulseStartMs_) / 1000.0f;
@@ -152,58 +135,12 @@ void Hud::drawLaffMeter(const HudValues& v) {
         }
     }
     const float size = kLaffSize * pulse;
-    const float x0 = kLaffX - size * 0.5f;
-    const float y0 = kLaffY - size * 0.5f;
-    auto part = [&](int index, const C2D_ImageTint* tint) {
-        Tex3DS_SubTexture sub;
-        sub.width = kLaffCell;
-        sub.height = kLaffCell;
-        sub.left = kLaffCellXY[index][0] / float(kLaffAtlasW);
-        sub.right = (kLaffCellXY[index][0] + kLaffCell) / float(kLaffAtlasW);
-        sub.top = 1.0f - kLaffCellXY[index][1] / float(kLaffAtlasH);
-        sub.bottom = 1.0f - (kLaffCellXY[index][1] + kLaffCell) / float(kLaffAtlasH);
-        C2D_Image img{tex, &sub};
-        C2D_DrawImageAt(img, x0, y0, 0.5f, tint, size / kLaffCell, size / kLaffCell);
-    };
-    const bool dead = v.hp < 1;
-    const bool full = v.hp >= v.maxHp;
-    const float* rgb = dead ? kDeathColor : v.headRgb;
-    C2D_ImageTint headTint;
-    C2D_PlainImageTint(&headTint, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f), 1.0f);
-    C2D_SetTintMode(C2D_TintMult);
-    const int species = v.species >= 0 && v.species < 9 ? v.species : 0;
-    part(kLaffDoghead + species, &headTint);
-    C2D_SetTintMode(C2D_TintSolid);
-    if (dead) {
-        part(kLaffFrown, nullptr);
-        return;
-    }
-    part(full ? kLaffSmile : kLaffOpenSmile, nullptr);
-    if (!full) {
-        for (int i = 0; i < 6; i++) {
-            if (v.hp > v.maxHp * kToothFractions[i]) part(kTeeth[i], nullptr);
-        }
-    }
-    part(kLaffEyes, nullptr);
-    // Labels: upstream text_scale 0.4 is only ~8 px here, so draw them as large as the eye whites
-    // allow. Both labels share one scale, shrunk until the wider one fits its eye.
-    float scale = kLaffLabelHeight * size / 30.0f;
-    if (scale < kLaffLabelMinScale) scale = kLaffLabelMinScale;
-    if (scale > kLaffLabelMaxScale) scale = kLaffLabelMaxScale;
-    float w = 0.0f, h = 0.0f, wMax = 0.0f;
-    C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
-    wMax = w;
-    C2D_TextGetDimensions(&maxText_, scale, scale, &w, &h);
-    if (w > wMax) wMax = w;
-    const float fitW = kLaffLabelMaxW * size;
-    if (wMax > fitW && wMax > 0.0f) scale *= fitW / wMax;
-    const u32 ink = C2D_Color32(0x10, 0x10, 0x10, 0xFF);
-    C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
-    C2D_DrawText(&hpText_, C2D_WithColor, x0 + kLaffHpLabel[0] * size - w * 0.5f,
-                 y0 + kLaffHpLabel[1] * size - h * 0.5f, 0.5f, scale, scale, ink);
-    C2D_TextGetDimensions(&maxText_, scale, scale, &w, &h);
-    C2D_DrawText(&maxText_, C2D_WithColor, x0 + kLaffMaxLabel[0] * size - w * 0.5f,
-                 y0 + kLaffMaxLabel[1] * size - h * 0.5f, 0.5f, scale, scale, ink);
+    LaffFace face;
+    face.hp = v.hp;
+    face.maxHp = v.maxHp;
+    for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
+    face.species = v.species;
+    ui::drawLaffMeter(face, kLaffX - size * 0.5f, kLaffY - size * 0.5f, size, &hpText_, &maxText_);
 }
 
 } // namespace tt::ui

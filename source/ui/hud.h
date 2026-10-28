@@ -33,9 +33,6 @@ private:
     C2D_Text hpText_{}, toastText_{};
     C2D_Text raceText_{};
     C2D_Text maxText_{};
-    // romfs:/baked/laff_meter.ttm (tools/pipeline/bake_laff_meter.py), loaded on first use.
-    render::Model laffAtlas_;
-    bool laffTried_ = false;
     // LaffMeter.animatedEffect: pulse larger on a heal, smaller on damage.
     uint64_t pulseStartMs_ = 0;
     float pulseChange_ = 1.0f;

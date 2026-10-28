@@ -264,7 +264,7 @@ void testHoodRow() {
     }
 }
 
-void testToonAndSetupTabs() {
+void testToonAndBookTabs() {
     namespace t = pad::toon;
     FocusGroup group("tab_toon");
     pad::buildToonTab(group, true);
@@ -289,17 +289,24 @@ void testToonAndSetupTabs() {
     group.move(1, 0);
     CHECK(group.focusedId() == 0); // rows wrap
 
-    namespace s = pad::setup;
-    FocusGroup setup("tab_setup");
-    pad::buildSetupTab(setup);
-    setup.move(0, 1);
-    CHECK(setup.focusedId() == s::kIdStereo);
-    setup.move(0, 1);
-    CHECK(setup.focusedId() == s::kIdStressMinus);
-    setup.move(1, 0);
-    CHECK(setup.focusedId() == s::kIdStressPlus);
-    setup.move(0, -1);
-    CHECK(setup.focusedId() == s::kIdStereo);
+    namespace b = pad::booktab;
+    FocusGroup book("tab_book");
+    pad::buildBookTab(book);
+    CHECK(book.count() == b::kCount);
+    book.move(0, 1);
+    CHECK(book.focusedId() == 0);
+    book.move(1, 0);
+    CHECK(book.focusedId() == 1);
+    book.move(0, 1);
+    CHECK(book.focusedId() == 1 + b::kCols); // straight down a column
+    book.move(0, 1);
+    CHECK(book.focusedId() == 1 + 2 * b::kCols);
+    // Every button sits inside the content area, above the tab bar (y 208).
+    for (int i = 0; i < b::kCount; ++i) {
+        const float x = b::kX0 + (i % b::kCols) * b::kStepX, y = b::kY0 + (i / b::kCols) * b::kStepY;
+        CHECK(x >= 0 && x + b::kBtnW <= pad::kScreenW && y + b::kBtnH <= 208.0f);
+        CHECK(tap(book, int(x + b::kBtnW / 2), int(y + b::kBtnH / 2)) == i);
+    }
 }
 
 void testBookTables() {
@@ -358,7 +365,7 @@ int main() {
     testClosetAndTailor();
     testCounterButtons();
     testHoodRow();
-    testToonAndSetupTabs();
+    testToonAndBookTabs();
     testBookTables();
     std::printf("padnav_test: %d checks, %d failures\n", gChecks, gFailures);
     return gFailures == 0 ? 0 : 1;

@@ -99,12 +99,12 @@ void buildToonTab(FocusGroup& group, bool online) {
     group.addItem(kIdBook, kBookX, kBookY, kBookW, kBookH);
 }
 
-void buildSetupTab(FocusGroup& group) {
-    using namespace setup;
+void buildBookTab(FocusGroup& group) {
+    using namespace booktab;
     group.rebuild();
-    group.addItem(kIdStereo, kBtnX, kStereoY, kBtnW, kBtnH);
-    group.addItem(kIdStressMinus, kBtnX, kStressY, kStressW, kBtnH);
-    group.addItem(kIdStressPlus, kBtnX + kStressPlusDx, kStressY, kStressW, kBtnH);
+    for (int i = 0; i < kCount; i++) {
+        group.addItem(i, kX0 + (i % kCols) * kStepX, kY0 + (i / kCols) * kStepY, kBtnW, kBtnH);
+    }
 }
 
 void buildBookOptions(FocusGroup& group) {

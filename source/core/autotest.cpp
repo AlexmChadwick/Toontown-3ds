@@ -10,9 +10,10 @@ namespace tt::autotest {
 
 namespace {
 
-// Bottom-screen tab centres (render/ui.cpp: 5 tabs across 320 px, bar at y >= 208).
+// Bottom-screen tab centres (render/ui.cpp: Map Chat Toon Gags Book across 320 px, bar at y >= 208;
+// the Debug tab joins them only while SELECT has it on).
 constexpr int kTabY = 224;
-constexpr int tabX(int i) { return 26 + i * 53; } // 6 tabs of 320/6 px
+constexpr int tabX(int i) { return 32 + i * 64; } // 5 tabs of 64 px
 
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
@@ -26,7 +27,9 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "tab: toon"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 8 + 4 * 34 + 15, 44 + 15, -1, "toon: pick color 4", "toon"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "tab: gags", "gags"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(5), kTabY, -1, "tab: debug"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, tabX(4), kTabY, -1, "tab: book", "booktab"},
+    {1.0f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: on", "debug"},
+    {0.5f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: off"},
     // ---- padnav: the tabs and the Shtiker Book with buttons only (no touch) ----
     {1.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "pad: tab map"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map focus"},
@@ -44,15 +47,14 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: book page turn", "pad_book_turn"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book close"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab gags"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab setup"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: setup focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: setup stress"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: setup stress plus"},
-    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: setup press plus", "pad_setup"},
-    {1.0f, 0, 0, 0, KEY_DLEFT, -1, -1, -1, "pad: setup stress minus"},
-    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: setup press minus"},
-    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: setup release"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab debug"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab book"},
+    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: book tab focus"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: book tab right"},
+    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: book tab down", "pad_booktab"},
+    {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book tab press", "pad_booktab_fish"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book tab close"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book tab release"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab wraps to map"},
     // ---- end padnav ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: gags", "book_gags"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: tasks", "book_tasks"},

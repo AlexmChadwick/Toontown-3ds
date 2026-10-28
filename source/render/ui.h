@@ -1,7 +1,8 @@
 #include "ui/racing_view.h" // ---- racing2 ----
 #include "ui/panel_owner.h" // qafix
 #include "render/text_cache.h"
-// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
+// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Book panels, and the Debug
+// panel (SELECT or the book's Options page; docs/design/ui_theme.md).
 #pragma once
 
 #include <3ds.h>
@@ -21,11 +22,13 @@
 
 namespace tt::ui {
 
-enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabSettings, kTabDebug, kTabCount };
+enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabBook, kTabDebug, kTabCount };
+// The Debug tab is in the bar only while State::debugOverlay is on.
+constexpr int kNumPlayerTabs = kTabDebug;
 
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
-    int tab = kTabDebug;
+    int tab = kTabMap;
     bool stereo = false; // opt-in; AGENTS.md display rules
     int stressToons = 0; // extra toon instances for the M1.6 stress test
     int colorTarget = 0; // 0 body, 1 shirt, 2 shorts
@@ -73,6 +76,10 @@ struct Context {
     int numNearby = 0;
     unsigned nearbyIds[8] = {};
     const char* nearbyNames[8] = {};
+    // Toon tab: our name and laff meter face (online only).
+    const char* toonName = nullptr;
+    float headRgb[3] = {0.7f, 0.7f, 0.8f};
+    int species = 0;
     // Our ToonTasks (Toon tab task list); null = offline.
     const net::OwnQuests* quests = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
@@ -168,7 +175,7 @@ private:
     void drawTabs(const State& s);
     void drawMap(const Context& c);
     void drawToon(const State& s, const Context& c);
-    void drawSettings(const State& s);
+    void drawBookTab(const State& s);
     void drawGags(const Context& c);
     void drawInfo(const Context& c);
     void drawDebug(const Context& c);
@@ -189,6 +196,13 @@ private:
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
     C2D_Text tabText_[kTabCount];
+    C2D_Text bookText_[9]; // Book tab page buttons
+    C2D_Text homeText_, bookTitle_, bookHint_;
+    C2D_Text hoodText_[8];
+    // Toon tab laff meter numbers (re-parsed only when they change).
+    C2D_TextBuf laffBuf_ = nullptr;
+    C2D_Text laffHp_{}, laffMax_{};
+    int laffHpShown_ = -1, laffMaxShown_ = -1;
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;
@@ -213,6 +227,7 @@ private:
     u32 handleTabPad(u32 down, const touchPosition& touch, State& s);
     void activateTabControl(int id, State& s);
     void cycleWhisper(State& s);
+    int numTabs(const State& s) const { return s.debugOverlay ? kTabCount : kNumPlayerTabs; }
     FocusGroup tabFocus_{"tab"};
     bool toonOnline_ = false; // the Toon tab's last drawn layout (ToonTasks + book, or colours)
     // ---- end padnav ----

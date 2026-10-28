@@ -6,19 +6,17 @@
 
 #include "ui/gag_data.h"
 #include "ui/pad_tables.h"
+#include "ui/theme.h"
 
 namespace tt::ui {
 
 namespace {
 
 constexpr float kW = 320.0f;
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kPaper = C2D_Color32(0xF4, 0xEE, 0xD8, 0xFF); // ToonTask poster
-const u32 kInk = C2D_Color32(0x30, 0x28, 0x20, 0xFF);
+const u32 kPaper = theme::kPaper; // ToonTask poster
+const u32 kInk = theme::kInk;
+const u32 kInkSoft = theme::kInkSoft;
+const u32 kReward = C2D_Color32(0x20, 0x70, 0x20, 0xFF);
 
 constexpr float kCardY = pad::quest::kCardY, kCardH = pad::quest::kCardH, kCancelY = pad::quest::kCancelY;
 
@@ -88,48 +86,64 @@ u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Tal
 
 void QuestPanel::drawTalk(const quest::Talk& talk) {
     C2D_TextBufClear(buf_);
-    C2D_DrawRectSolid(0, 0, 0.5f, kW, 240, kBg);
-    text(8, 4, 0.55f, kAccent, 0, talk.npcName()[0] ? talk.npcName() : "ToonTask");
+    theme::sky();
+    // The NPC's name as a nametag, then what they say in a white chat balloon (upstream speaks
+    // quest dialog through the NPC's balloon).
+    const char* who = talk.npcName()[0] ? talk.npcName() : "ToonTask";
+    theme::roundRect(4, 2, 200, 20, 6, C2D_Color32(0xFF, 0xFF, 0xFF, 0xC0));
+    text(10, 3, 0.52f, theme::kBlueDark, 0, who);
     switch (talk.phase()) {
     case quest::Talk::Phase::Waiting:
-        text(8, 40, 0.5f, kDim, 0, "...");
+        theme::paper(4, 26, kW - 8, 40, 10.0f, theme::kWhite, theme::kInk);
+        text(16, 34, 0.5f, kInkSoft, 0, "...");
         break;
     case quest::Talk::Phase::Pages: {
-        C2D_DrawRectSolid(4, 24, 0.5f, kW - 8, 176, kPaper);
-        text(12, 30, 0.5f, kInk, kW - 24, talk.pageText());
+        theme::paper(4, 26, kW - 8, 176, 12.0f, theme::kWhite, theme::kInk);
+        // The balloon's tail, pointing up at the speaker's name.
+        C2D_DrawTriangle(28, 27, theme::kInk, 52, 27, theme::kInk, 30, 16, theme::kInk, 0.5f);
+        C2D_DrawTriangle(31, 29, theme::kWhite, 49, 29, theme::kWhite, 32, 20, theme::kWhite, 0.5f);
+        text(14, 34, 0.5f, kInk, kW - 28, talk.pageText());
         char nav[32];
         snprintf(nav, sizeof(nav), "%s  (%d/%d)", talk.onLastPage() ? "Done" : "Next", talk.page() + 1, talk.numPages());
-        C2D_DrawRectSolid(110, kCancelY, 0.5f, 100, 26, kAccent);
-        text(122, kCancelY + 5, 0.45f, kBg, 0, nav);
+        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kOrange,
+                      theme::shade(theme::kOrange, 0.65f));
+        C2D_Text navText;
+        tt::render::textParse(&navText, buf_, nav);
+        theme::textCentered(navText, pad::quest::kCancelX + pad::quest::kCancelW * 0.5f, kCancelY + 4, 0.46f,
+                            theme::kWhite, pad::quest::kCancelW - 8, 0.6f);
         break;
     }
     case quest::Talk::Phase::QuestChoice:
         for (int i = 0; i < talk.numChoices(); i++) {
             const quest::Choice& c = talk.choice(i);
             const float y = kCardY + i * (kCardH + 4);
-            C2D_DrawRectSolid(4, y, 0.5f, kW - 8, kCardH, kPaper);
+            theme::paper(4, y, kW - 8, kCardH, 6.0f, kPaper);
             if (const quest::QuestDef* q = quest::findQuest(c.questId)) {
                 quest::chooseString(*q, scratch_, sizeof(scratch_));
                 text(10, y + 3, 0.42f, kInk, kW - 20, scratch_);
             }
             if (c.rewardId && quest::rewardText(c.rewardId, true, scratch_, sizeof(scratch_))) {
-                text(10, y + kCardH - 16, 0.38f, C2D_Color32(0x20, 0x70, 0x20, 0xFF), kW - 20, scratch_);
+                text(10, y + kCardH - 16, 0.38f, kReward, kW - 20, scratch_);
             }
         }
-        C2D_DrawRectSolid(110, kCancelY, 0.5f, 100, 26, kPanel);
-        text(136, kCancelY + 5, 0.45f, kWhite, 0, "Cancel");
+        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kGrey,
+                      theme::kGreyDark);
+        text(pad::quest::kCancelX + 28, kCancelY + 4, 0.46f, kInk, 0, "Cancel");
         snprintf(scratch_, sizeof(scratch_), "%d s", static_cast<int>(talk.choiceTimeLeft()));
-        text(280, 4, 0.45f, kDim, 0, scratch_);
+        theme::roundRect(268, 2, 48, 20, 6, theme::kYellow);
+        text(276, 3, 0.46f, kInk, 0, scratch_);
         break;
     case quest::Talk::Phase::TrackChoice:
         for (int i = 0; i < talk.numTracks(); i++) {
             const float x = 4 + (i % 2) * 158, y = kCardY + (i / 2) * 40;
-            C2D_DrawRectSolid(x, y, 0.5f, 154, 36, kPanel);
             const int t = talk.track(i);
-            text(x + 10, y + 9, 0.5f, kWhite, 0, t >= 0 && t < gags::kTracks ? gags::kTrackNames[t] : "?");
+            const u32 face = t >= 0 && t < gags::kTracks ? theme::kTrackColors[t] : theme::kGrey;
+            theme::button(x, y, 154, 36, face, theme::shade(face, 0.6f));
+            text(x + 10, y + 7, 0.52f, kInk, 0, t >= 0 && t < gags::kTracks ? gags::kTrackNames[t] : "?");
         }
-        C2D_DrawRectSolid(110, kCancelY, 0.5f, 100, 26, kPanel);
-        text(136, kCancelY + 5, 0.45f, kWhite, 0, "Later");
+        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kGrey,
+                      theme::kGreyDark);
+        text(pad::quest::kCancelX + 32, kCancelY + 4, 0.46f, kInk, 0, "Later");
         break;
     default:
         break;
@@ -141,9 +155,9 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
     C2D_TextBufClear(buf_);
     char line[160];
     snprintf(line, sizeof(line), "ToonTasks  %d / %u", q.count, unsigned(q.carryLimit));
-    text(8, y0, 0.5f, kAccent, 0, line);
+    text(12, y0, 0.5f, theme::kRedDark, 0, line);
     if (q.count == 0) {
-        text(8, y0 + 22, 0.42f, kDim, kW - 16, "No ToonTasks. Visit a Toon HQ to get one!");
+        text(12, y0 + 22, 0.44f, kInkSoft, kW - 24, "No ToonTasks. Visit a Toon HQ to get one!");
         return;
     }
     // Cards share the space between the tasks we carry (up to 64 px each), so a task's text
@@ -153,16 +167,16 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
     for (int i = 0; i < q.count; i++) {
         const net::QuestEntry& e = q.quests[i];
         const float y = y0 + 20 + i * rowH;
-        C2D_DrawRectSolid(4, y, 0.5f, kW - 8, rowH - 3, kPaper);
+        theme::paper(10, y, kW - 20, rowH - 3, 4.0f, theme::kWhite, theme::kPaperShade);
         const quest::QuestDef* def = quest::findQuest(static_cast<uint16_t>(e.questId));
         if (!def) {
             snprintf(line, sizeof(line), "ToonTask %lu", static_cast<unsigned long>(e.questId));
-            text(10, y + 2, 0.42f, kInk, 0, line);
+            text(16, y + 2, 0.42f, kInk, 0, line);
             continue;
         }
         const bool done = quest::isComplete(*def, e.progress);
         quest::headline(*def, done, scratch_, sizeof(scratch_));
-        text(10, y + 1, 0.4f, done ? C2D_Color32(0x20, 0x80, 0x20, 0xFF) : kInk, 0, scratch_);
+        text(16, y + 2, 0.4f, done ? C2D_Color32(0x20, 0x80, 0x20, 0xFF) : kInk, 0, scratch_);
         if (done) {
             quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), true, scratch_, sizeof(scratch_));
         } else {
@@ -185,9 +199,9 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
             flat[n] = 0;
             memcpy(scratch_, flat, n + 1);
         }
-        text(10, y + 13, 0.38f, kInk, kW - 90, scratch_);
+        text(16, y + 14, 0.38f, kInk, kW - 100, scratch_);
         if (!done && quest::progressString(*def, e.progress, line, sizeof(line))) {
-            text(kW - 78, y + 13, 0.38f, kInk, 0, line);
+            text(kW - 82, y + 14, 0.38f, theme::kBlueDark, 0, line);
         }
     }
 }

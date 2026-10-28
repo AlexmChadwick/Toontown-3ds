@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -18,15 +19,15 @@ constexpr float kScrollBarW = 4.0f;
 constexpr float kBackW = 64.0f;
 constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 
-// Same palette as render/ui.cpp.
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kPanelMenu = C2D_Color32(0x34, 0x4C, 0x7C, 0xFF);
-const u32 kPressed = C2D_Color32(0x4A, 0x64, 0x9C, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kMenuText = C2D_Color32(0xFF, 0xE0, 0x8A, 0xFF);
+// SpeedChat's own look (SCColorScheme defaults, ui/theme.h): pale frames, black text, a green
+// rollover and blue submenu arrows.
+const u32 kRow = theme::kScFrame;
+const u32 kRowEdge = theme::kScFrameEdge;
+const u32 kFocus = theme::kScRollover;
+const u32 kPressed = theme::kScPressed;
+const u32 kText = theme::kScText;
+const u32 kTextLocked = C2D_Color32(0x66, 0x66, 0x66, 0xFF); // textDisabledColor 0.4
+const u32 kTitle = theme::kBlueDark;
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
 
@@ -246,20 +247,23 @@ void ChatMenu::draw(float panelBottom) {
         const sc::Item& it = sc::kItems[m.firstItem + i];
         const float y = kHeaderH + i * kRowH - scroll_;
         const bool focused = i == focus_;
-        const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? kPanelMenu : kPanel));
-        C2D_DrawRectSolid(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap, bg);
+        const bool pressed = i == pressedRow_;
+        theme::roundRect(rowX, y + kRowGap * 0.5f, rowW, kRowH - kRowGap, 5, kRowEdge, kZ);
+        theme::roundRect(rowX + 1, y + kRowGap * 0.5f + 1, rowW - 2, kRowH - kRowGap - 2, 4,
+                         focused ? kFocus : pressed ? kPressed : kRow, kZ);
         const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
-        const u32 fg = locked ? kDim : focused ? kBg : (it.isMenu ? kMenuText : kWhite);
+        const u32 fg = locked ? kTextLocked : kText;
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {
-            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 6.0f, ty, kZ, s, s, fg,
+            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 8.0f, ty, kZ, s, s, fg,
                          rowTextW(it.isMenu));
         } else {
-            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 6.0f, ty, kZ, s, s, fg);
+            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 8.0f, ty, kZ, s, s, fg);
         }
-        if (it.isMenu) {
-            C2D_DrawText(&arrow_, C2D_WithColor, rowX + rowW - kArrowW + 4.0f, y + 6.0f, kZ, 0.55f, 0.55f, fg);
+        if (it.isMenu) { // SCMenuHolder's arrow: a solid triangle pointing at the submenu
+            const float ax = rowX + rowW - kArrowW + 4.0f, ay = y + kRowH * 0.5f;
+            C2D_DrawTriangle(ax, ay - 6, theme::kScArrow, ax, ay + 6, theme::kScArrow, ax + 9, ay, theme::kScArrow, kZ);
         }
     }
 
@@ -269,22 +273,23 @@ void ChatMenu::draw(float panelBottom) {
         const float content = m.numItems * kRowH;
         const float barH = listH * listH / content;
         const float barY = kHeaderH + (listH - barH) * (scroll_ / ms);
-        C2D_DrawRectSolid(kW - kMarginX - kScrollBarW, kHeaderH, kZ, kScrollBarW, listH, kPanel);
-        C2D_DrawRectSolid(kW - kMarginX - kScrollBarW, barY, kZ, kScrollBarW, barH, kDim);
+        theme::roundRect(kW - kMarginX - kScrollBarW, kHeaderH, kScrollBarW, listH, 2, kRow, kZ);
+        theme::roundRect(kW - kMarginX - kScrollBarW, barY, kScrollBarW, barH, 2, theme::kScArrow, kZ);
     }
 
     // Header.
-    C2D_DrawRectSolid(0, 0, kZ, kW, kHeaderH, kBg);
+    theme::skyBand(0, kHeaderH, kW, panelBottom, kZ);
     float titleX = kMarginX + 2.0f;
     if (m.parent >= 0) {
-        C2D_DrawRectSolid(kMarginX, 2, kZ, kBackW, kHeaderH - 4, pressedBack_ ? kPressed : kPanelMenu);
-        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ, 0.5f, 0.5f, kWhite);
+        theme::button(kMarginX, 1, kBackW, kHeaderH - 2, pressedBack_ ? kPressed : kRow, kRowEdge, pressedBack_, 6.0f,
+                      kZ);
+        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, pressedBack_ ? 7.0f : 4.0f, kZ, 0.5f, 0.5f, kText);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {
-        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 8.0f, kZ, 0.42f, 0.42f, kDim);
+        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 7.0f, kZ, 0.42f, 0.42f, kTitle);
     }
-    C2D_DrawText(&title_, C2D_WithColor, titleX, 6.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
-                 kAccent);
+    C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
+                 kTitle);
 }
 
 } // namespace tt::ui

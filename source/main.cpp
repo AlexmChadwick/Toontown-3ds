@@ -2833,6 +2833,13 @@ int main() {
             }
             // ---- end clerks ----
             ctx.stats = &net.ownStats();
+            ctx.toonName = net.avatarName();
+            for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
+            {
+                tt::world::ToonDna tabDna;
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna))
+                    ctx.species = static_cast<int>(tt::world::species(tabDna)); // the Toon tab's laff meter
+            }
             ctx.book = &net.ownBook();
             ctx.fish = &net.ownFish();
             ctx.districts = net.districts();

@@ -98,15 +98,12 @@ constexpr int kIdBook = 200;
 // Online the tab shows ToonTasks and only the book button; offline the colour picker.
 void buildToonTab(FocusGroup& group, bool online);
 
-// ---- Setup tab (render/ui.cpp) ----
-namespace setup {
-constexpr float kBtnX = 12, kBtnW = 140, kBtnH = 36, kStereoY = 30, kStressY = 90;
-constexpr float kStressW = 60, kStressPlusDx = 80;
-constexpr int kIdStereo = 0;
-constexpr int kIdStressMinus = 1;
-constexpr int kIdStressPlus = 2;
-} // namespace setup
-void buildSetupTab(FocusGroup& group);
+// ---- Book tab (render/ui.cpp): one button per Shtiker Book page (ids = Book::PageIndex) ----
+namespace booktab {
+constexpr int kCount = 9, kCols = 3;
+constexpr float kX0 = 14, kY0 = 42, kBtnW = 92, kBtnH = 36, kStepX = 100, kStepY = 44;
+} // namespace booktab
+void buildBookTab(FocusGroup& group);
 
 // ---- Shtiker Book pages (ui/book_pages/*). The page area starts at (2, 24). ----
 namespace book {

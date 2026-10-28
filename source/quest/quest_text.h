@@ -77,5 +77,9 @@ int fillInNames(const char* text, const char* avName, uint16_t fromNpc, uint16_t
 // ---- Quests.getNpcLocationDialog pieces (exposed for tests) ----
 int branchZone(int32_t zone);   // ZoneUtil.getCanonicalBranchZone
 int hoodOfZone(int32_t zone);   // ZoneUtil.getCanonicalHoodId
+// Where a zone is, in the localizer's words: an interior's building title ("Loony Labs"), else
+// the street ("Silly Street"), else the neighborhood ("Toontown Central"). nullptr when the zone
+// is not a static place (dynamic facility / minigame zones, unknown ids).
+const char* placeTitle(int32_t zone);
 
 } // namespace tt::quest
