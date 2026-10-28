@@ -1,5 +1,6 @@
 #include "ui/book_pages/page_inventory.h"
 #include "world/battle_fx.h"
+#include "ui/tab_layout.h"
 #include <cstdio>
 #include <algorithm>
 
@@ -17,15 +18,7 @@ constexpr uint16_t kLevels[7][7] = {
     {0, 20, 100, 500, 2000, 6000, 10000}, // Drop
 };
 
-constexpr uint32_t kTrackColors[7] = {
-    C2D_Color32(0xD3, 0x94, 0xFF, 0xFF), // Toon-Up
-    C2D_Color32(0xE0, 0xE0, 0x20, 0xFF), // Trap
-    C2D_Color32(0x20, 0xC0, 0x20, 0xFF), // Lure
-    C2D_Color32(0x40, 0x80, 0xFF, 0xFF), // Sound
-    C2D_Color32(0xFF, 0xA0, 0x20, 0xFF), // Throw
-    C2D_Color32(0xFF, 0x40, 0xC0, 0xFF), // Squirt
-    C2D_Color32(0x20, 0xD0, 0xD0, 0xFF), // Drop
-};
+constexpr const uint32_t* kTrackColors = theme::kTrack;
 
 const char* const kTrackNames[7] = {
     "Toon-Up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"

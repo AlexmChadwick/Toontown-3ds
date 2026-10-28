@@ -5,14 +5,17 @@
 
 #include "core/log.h"
 #include "game/front_end.h"
+#include "ui/tab_layout.h"
 
 namespace tt::autotest {
 
 namespace {
 
-// Bottom-screen tab centres (render/ui.cpp: 5 tabs across 320 px, bar at y >= 208).
+// Bottom-screen tab taps (ui/tab_layout.h, bar at y >= 208). The bar's width per tab depends on
+// whether the Setup/Debug tabs are shown, so a step names the tab (-2 - tab) and apply() puts
+// the tap at that tab's centre in the live layout.
 constexpr int kTabY = 224;
-constexpr int tabX(int i) { return 26 + i * 53; } // 6 tabs of 320/6 px
+constexpr int tabX(int tab) { return -2 - tab; }
 
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
@@ -26,7 +29,8 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "tab: toon"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 8 + 4 * 34 + 15, 44 + 15, -1, "toon: pick color 4", "toon"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "tab: gags", "gags"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(5), kTabY, -1, "tab: debug"},
+    {1.0f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: tabs on (SELECT)", "debug_tabs"},
+    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(ui::kTabDebug), kTabY, -1, "tab: debug"},
     // ---- padnav: the tabs and the Shtiker Book with buttons only (no touch) ----
     {1.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "pad: tab map"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map focus"},
@@ -389,6 +393,7 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         int touchY = s.touchY;
         // FrontEnd::TutorialChoice: Play it is the left button, Skip is the established default.
         if (!strcmp(s.label, "fe: tutorial skip") && tutorial_) touchX = 85;
+        if (touchX <= -2) touchX = int(ui::tabCenterX(-2 - touchX, debugTabs_));
         if (touchX >= 0) {
             touch.px = static_cast<u16>(touchX);
             touch.py = static_cast<u16>(touchY);

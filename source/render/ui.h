@@ -18,14 +18,14 @@
 #include "ui/closet_panel.h"
 #include "ui/minigame_purchase_panel.h"
 #include "ui/book.h"
+#include "ui/tab_layout.h"
 
 namespace tt::ui {
 
-enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabSettings, kTabDebug, kTabCount };
 
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
-    int tab = kTabDebug;
+    int tab = kTabMap;
     bool stereo = false; // opt-in; AGENTS.md display rules
     int stressToons = 0; // extra toon instances for the M1.6 stress test
     int colorTarget = 0; // 0 body, 1 shirt, 2 shorts
@@ -37,7 +37,7 @@ struct State {
     bool homeRequest = false;
     // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
     unsigned whisperTo = 0;
-    bool debugOverlay = false;
+    bool debugOverlay = false; // SELECT / Options > Debug HUD: shows the Setup and Debug tabs
     int lodBias = 0;
     int musicVol = 80;
     int sfxVol = 100;
@@ -188,7 +188,7 @@ private:
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
-    C2D_Text tabText_[kTabCount];
+    C2D_Text tabText_[kTabCount + 1]; // + the book button
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;

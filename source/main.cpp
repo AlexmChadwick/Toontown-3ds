@@ -662,6 +662,7 @@ int main() {
         autotest.setTrolleyProgress({trolley.seated(), minigame.startedGame(), minigame.endedGame(),
                                     minigame.completedPurchase() && !minigame.active()});
         // ---- end qafix ----
+        autotest.setDebugTabs(uiState.debugOverlay);
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         // ---- tutorial ----

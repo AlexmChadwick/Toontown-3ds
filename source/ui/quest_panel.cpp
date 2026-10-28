@@ -1,4 +1,5 @@
 #include "ui/quest_panel.h"
+#include "ui/tab_layout.h"
 
 #include <cstdio>
 #include <cstring>
@@ -140,9 +141,10 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
     C2D_TextBufClear(buf_);
     char line[160];
     snprintf(line, sizeof(line), "ToonTasks  %d / %u", q.count, unsigned(q.carryLimit));
-    text(8, y0, 0.5f, kAccent, 0, line);
+    // Drawn on the Toon tab's book page (ui/tab_layout.h palette).
+    text(8, y0, 0.5f, theme::kCover, 0, line);
     if (q.count == 0) {
-        text(8, y0 + 22, 0.42f, kDim, kW - 16, "No ToonTasks. Visit a Toon HQ to get one!");
+        text(8, y0 + 22, 0.42f, theme::kInkSoft, kW - 16, "No ToonTasks. Visit a Toon HQ to get one!");
         return;
     }
     // Cards share the space between the tasks we carry (up to 64 px each), so a task's text
@@ -152,7 +154,8 @@ void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
     for (int i = 0; i < q.count; i++) {
         const net::QuestEntry& e = q.quests[i];
         const float y = y0 + 20 + i * rowH;
-        C2D_DrawRectSolid(4, y, 0.5f, kW - 8, rowH - 3, kPaper);
+        C2D_DrawRectSolid(4, y, 0.5f, kW - 8, rowH - 3, theme::kPaperEdge);
+        C2D_DrawRectSolid(5, y + 1, 0.5f, kW - 10, rowH - 5, theme::kCard);
         const quest::QuestDef* def = quest::findQuest(static_cast<uint16_t>(e.questId));
         if (!def) {
             snprintf(line, sizeof(line), "ToonTask %lu", static_cast<unsigned long>(e.questId));

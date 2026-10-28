@@ -27,6 +27,8 @@ public:
     void setTrolleyProgress(const TrolleyProgress& progress) { trolleyProgress_ = progress; }
     bool begin(); // returns false (and stays inactive) if the trigger file is absent
     bool active() const { return active_; }
+    // Whether the tab bar shows the Setup/Debug tabs (tab taps land on the live layout).
+    void setDebugTabs(bool on) { debugTabs_ = on; }
     // Started from autotest_fe: drives the front end instead of the world.
     bool frontEndScript() const { return frontEnd_; }
     // "tutorial" in autotest_fe selects Play it and continues with the Toontorial driver.
@@ -53,6 +55,7 @@ private:
     TrolleyProgress trolleyProgress_;
     bool trolleyWaiting_ = false;
     bool shotsEnabled_ = true;
+    bool debugTabs_ = false;
     bool active_ = false;
     bool frontEnd_ = false;
     bool tutorial_ = false;

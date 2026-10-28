@@ -3,6 +3,7 @@
 #include "render/ui.h"
 
 #include "ui/gag_data.h"
+#include "quest/quest_text.h"
 #include "world/battle_fx.h"
 #include "world/place.h"
 #include <cmath>
@@ -38,11 +39,12 @@ constexpr float kW = 320.0f;
 constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
 constexpr float kHomeY = 148.0f, kHomeH = 24.0f;
 const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
-constexpr float kTabH = 32.0f;
-constexpr float kTabY = 240.0f - kTabH;
-constexpr float kTabW = kW / kTabCount;
-const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Setup", "Debug"};
+constexpr float kTabH = kTabBarH;
+constexpr float kTabY = kTabBarY;
+const char* const kTabNames[kTabCount + 1] = {"Map", "Chat", "Toon", "Gags", "Setup", "Debug", "Book"};
 
+// Dark colours: the Debug tab, the info panel and the clear colour under owner panels (which
+// draw their own backgrounds). The player-facing tabs use the Toontown paper (ui/tab_layout.h).
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
@@ -72,6 +74,13 @@ bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
 }
 
+// A Toontown GUI button: dark edge, yellow face (gold when selected, grey when unavailable).
+void button(float x, float y, float w, float h, bool selected, bool enabled = true) {
+    C2D_DrawRectSolid(x, y, 0.5f, w, h, enabled ? theme::kButtonEdge : theme::kPaperEdge);
+    C2D_DrawRectSolid(x + 1, y + 1, 0.5f, w - 2, h - 2,
+                      !enabled ? theme::kButtonOff : selected ? theme::kGold : theme::kButton);
+}
+
 u32 colorOf(int idx) {
     const float* c = kToonColors[idx];
     return C2D_Color32f(c[0], c[1], c[2], 1.0f);
@@ -89,7 +98,7 @@ bool Ui::init() {
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
-    for (int i = 0; i < kTabCount; i++) {
+    for (int i = 0; i <= kTabCount; i++) {
         C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
     }
@@ -199,6 +208,13 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     // ---- qafix: input and drawing share resolveOwner ----
     // An info panel drawn last frame (loading, streaming Cogs) owns input too: both calls must agree.
     const PanelOwner owner = resolveOwner(contextFishing_, contextInfo_ || drawnInfo_);
+    // SELECT shows or hides the developer tabs (Setup, Debug) from anywhere.
+    if (down & KEY_SELECT) {
+        s.debugOverlay = !s.debugOverlay;
+        TT_LOG("ui: debug tabs %s", s.debugOverlay ? "on" : "off");
+        down &= ~KEY_SELECT;
+    }
+    if (!tabVisible(s.tab, s.debugOverlay)) s.tab = kTabMap; // Options > Debug HUD turned off
     // ---- padnav: a panel that owns the screen drops the tab focus, so A jumps afterwards ----
     if (owner != PanelOwner::Tabs) tabFocus_.blur();
     // ---- end padnav ----
@@ -223,13 +239,18 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         book_.open();
         return KEY_START;
     }
-    if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
-    if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
+    const int cycle = tabCycleCount(s.debugOverlay);
+    if (down & KEY_DLEFT) s.tab = (s.tab + cycle - 1) % cycle;
+    if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % cycle;
     if (down & KEY_X) s.tab = kTabChat;
     if (down & KEY_Y) s.tab = kTabMap;
     if ((down & KEY_TOUCH) && t.py >= kTabY) {
-        s.tab = static_cast<int>(t.px / kTabW);
-        if (s.tab >= kTabCount) s.tab = kTabCount - 1;
+        const int hit = tabAt(t.px, s.debugOverlay);
+        if (hit == kTabBook) {
+            book_.open();
+            return down;
+        }
+        s.tab = hit;
     }
     if (s.tab != lastTab_) {
         chat_.blur(); // the highlight (and A/B capture) never survives a tab change
@@ -359,6 +380,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         fishingPanel_.draw(*c.fishing, kTabY);
         return;
     }
+    // The player-facing tabs sit on a Shtiker Book page; Debug keeps its dark console.
+    C2D_DrawRectSolid(0, 0, 0.4f, kW, kTabY, s.tab == kTabDebug ? kBg : theme::kPaper);
     switch (s.tab) {
     case kTabMap: drawMap(c); break;
     case kTabChat: {
@@ -371,8 +394,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
         }
         if (numNearby_ > 0) {
-            C2D_DrawRectSolid(kW - 100, 2, 0.5f, 96, 24, s.whisperTo ? kAccent : kPanel);
-            text(kW - 96, 7, 0.4f, s.whisperTo ? kBg : kWhite, "To: %.12s", target);
+            button(kW - 100, 2, 96, 24, s.whisperTo != 0);
+            text(kW - 94, 7, 0.4f, theme::kInk, "To: %.12s", target);
         }
         break;
     }
@@ -471,11 +494,35 @@ void Ui::cycleWhisper(State& s) {
 // ---- end padnav ----
 
 void Ui::drawTabs(const State& s) {
-    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, kPanel);
-    for (int i = 0; i < kTabCount; i++) {
-        if (i == s.tab) C2D_DrawRectSolid(i * kTabW + 2, kTabY + 2, 0.5f, kTabW - 4, kTabH - 4, kAccent);
-        C2D_DrawText(&tabText_[i], C2D_WithColor, i * kTabW + 10, kTabY + 8, 0.5f, 0.5f, 0.5f,
-                     i == s.tab ? kBg : kWhite);
+    // The Shtiker Book's cover leather, with book-style tabs; the active one is gold.
+    const bool dbg = s.debugOverlay;
+    const int slots = tabSlots(dbg);
+    const float w = tabSlotW(dbg);
+    const float scale = dbg ? 0.42f : 0.5f;
+    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, theme::kCover);
+    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, 2, theme::kCoverDark);
+    for (int slot = 0; slot < slots; slot++) {
+        const int tab = slot == slots - 1 ? kTabBook : slot;
+        const bool on = tab == s.tab;
+        const float x = slot * w;
+        if (on) {
+            C2D_DrawRectSolid(x + 2, kTabY, 0.5f, w - 4, kTabH - 3, theme::kGold);
+        } else {
+            C2D_DrawRectSolid(x + 2, kTabY + 4, 0.5f, w - 4, kTabH - 7, theme::kTabOff);
+        }
+        float tw = 0, th = 0;
+        C2D_TextGetDimensions(&tabText_[tab], scale, scale, &tw, &th);
+        float tx = x + (w - tw) * 0.5f;
+        if (tab == kTabBook && !dbg) {
+            // A little closed book (cover, gold page edge) ahead of the label.
+            const float bx = x + (w - tw - 14) * 0.5f, by = kTabY + 9;
+            C2D_DrawRectSolid(bx, by, 0.52f, 10, 14, theme::kGoldText);
+            C2D_DrawRectSolid(bx, by, 0.53f, 9, 13, theme::kCoverDark);
+            C2D_DrawRectSolid(bx + 2, by + 3, 0.54f, 5, 2, theme::kGold);
+            tx = bx + 14;
+        }
+        C2D_DrawText(&tabText_[tab], C2D_WithColor, tx, kTabY + (on ? 6 : 8), 0.55f, scale, scale,
+                     on ? theme::kInk : theme::kGoldText);
     }
 }
 
@@ -553,7 +600,7 @@ void Ui::setMapZone(unsigned fileZone) {
 void Ui::drawMap(const Context& c) {
     // Fit the map (baked image rectangle, else zone bounds) into the content area,
     // preserving aspect. Map +Y is up.
-    const float areaX = 4, areaY = 4, areaW = kW - 8, areaH = kHomeY - 8;
+    const float areaX = 6, areaY = 24, areaW = kW - 12, areaH = kHomeY - 28;
     const float minX = hasMap_ ? mapMinX_ : c.zoneMinX, maxX = hasMap_ ? mapMaxX_ : c.zoneMaxX;
     const float minY = hasMap_ ? mapMinY_ : c.zoneMinY, maxY = hasMap_ ? mapMaxY_ : c.zoneMaxY;
     const float zw = fmaxf(1.0f, maxX - minX), zh = fmaxf(1.0f, maxY - minY);
@@ -564,6 +611,8 @@ void Ui::drawMap(const Context& c) {
     auto mx = [&](float x) { return ox + (x - minX) * scale; };
     auto my = [&](float y) { return oy + (maxY - y) * scale; };
 
+    // The map sits on a card with a frame, like the Shtiker Book's map page.
+    C2D_DrawRectSolid(ox - 3, oy - 3, 0.44f, zw * scale + 6, zh * scale + 6, theme::kPaperEdge);
     if (hasMap_) {
         C2D_DrawImageAt(mapImage_, ox, oy, 0.45f, nullptr, zw * scale / mapW_, zh * scale / mapH_);
     } else if (world::placeKind(c.currentZone) == world::PlaceKind::Interior) {
@@ -593,19 +642,30 @@ void Ui::drawMap(const Context& c) {
     if (playerVisible) C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     // ---- end qafix ----
-    if (!hasMap_ && world::placeKind(c.currentZone) == world::PlaceKind::Interior)
-        text(8, 8, 0.45f, kWhite, "Indoors  (zone %u)", c.currentZone);
-    else
-        text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
-    C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
-    text(18, kHomeY + 6, 0.42f, kBg, "Home");
+    // Heading: where we are, by name (TTLocalizer's hood / street names).
+    char where[64];
+    quest::placeTitle(int32_t(c.currentZone), where, sizeof where);
+    const bool indoors = world::placeKind(c.currentZone) == world::PlaceKind::Interior;
+    if (indoors) {
+        text(8, 4, 0.5f, theme::kInk, "%s%s", where[0] ? where : "Indoors", where[0] ? "  (indoors)" : "");
+    } else {
+        text(8, 4, 0.5f, theme::kInk, "%s", where[0] ? where : "Toontown");
+    }
+    button(4, kHomeY, 76, kHomeH, false);
+    text(22, kHomeY + 5, 0.45f, theme::kInk, "Home");
+    text(88, kHomeY + 7, 0.38f, theme::kInkSoft, "Tap a playground to teleport there");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
         const float x = i * kHoodW + 1;
-        C2D_DrawRectSolid(x, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH, here ? kAccent : have ? kPanel : kBg);
-        text(x + 6, kHoodRowY + 6, 0.42f, here ? kBg : have ? kWhite : kDim, "%s", kHoodShort[i]);
+        button(x, kHoodRowY, kHoodW - 2, kHoodRowH, here, have || here);
+        float tw = 0;
+        C2D_Text t;
+        textCache_.parse(&t, textBuf_, kHoodShort[i], 1024);
+        C2D_TextGetDimensions(&t, 0.45f, 0.45f, &tw, nullptr);
+        C2D_DrawText(&t, C2D_WithColor, x + (kHoodW - 2 - tw) * 0.5f, kHoodRowY + 6, 0.5f, 0.45f, 0.45f,
+                     have || here ? theme::kInk : theme::kInkFaint);
     }
 }
 
@@ -614,52 +674,53 @@ void Ui::drawToon(const State& s, const Context& c) {
         // Laff and jellybeans (the HUD shows only the laff meter, as upstream).
         float top = 6;
         if (c.stats) {
-            text(6, top, .42f, kWhite, "Laff %d/%d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
-            text(130, top, .42f, kAccent, "Jellybeans %d/%d", c.stats->money, c.stats->maxMoney);
+            text(6, top, .45f, theme::kInk, "Laff %d/%d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
+            text(130, top, .45f, theme::kBean, "Jellybeans %d/%d", c.stats->money, c.stats->maxMoney);
             top += 16;
         }
         // ---- clerks: show only the AI's current pet association ----
         if (c.clerkProfile) {
             const char* petName = c.clerkProfile->petId
                 ? (c.petName ? c.petName : "Owned (at estate)") : "None";
-            text(6, top, .38f, kWhite, "Doodle: %s", petName);
+            text(6, top, .4f, theme::kInkSoft, "Doodle: %s", petName);
             top += 16;
         }
         quest_.drawTasks(*c.quests, top + 6, 170);
         // ---- end clerks ----
-        C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
-        text(72, 180, 0.42f, kBg, "Open Shtiker Book (START)");
+        button(60, 175, 200, 24, false);
+        text(76, 180, 0.42f, theme::kInk, "Open Shtiker Book (START)");
         return;
     }
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};
     for (int i = 0; i < 3; i++) {
-        C2D_DrawRectSolid(8 + i * 102, 8, 0.5f, 98, 28, i == s.colorTarget ? kAccent : kPanel);
-        text(16 + i * 102, 14, 0.5f, i == s.colorTarget ? kBg : kWhite, "%s", kTargets[i]);
+        button(8 + i * 102, 8, 98, 28, i == s.colorTarget);
+        text(16 + i * 102, 14, 0.5f, theme::kInk, "%s", kTargets[i]);
     }
     const int sel = s.colorTarget == 0 ? s.bodyColor : s.colorTarget == 1 ? s.shirtColor : s.bottomColor;
     for (int i = 0; i < kNumToonColors; i++) {
         const float x = kSwX + (i % kSwCols) * (kSwSize + kSwGap);
         const float y = kSwY + (i / kSwCols) * (kSwSize + kSwGap);
-        if (i == sel) C2D_DrawRectSolid(x - 2, y - 2, 0.5f, kSwSize + 4, kSwSize + 4, kWhite);
+        C2D_DrawRectSolid(x - 2, y - 2, 0.5f, kSwSize + 4, kSwSize + 4, i == sel ? theme::kInk : theme::kPaperEdge);
         C2D_DrawRectSolid(x, y, 0.5f, kSwSize, kSwSize, colorOf(i));
     }
-    text(8, 154, 0.45f, kDim, "Tap a color. Head/arms/legs share the body color.");
-    text(8, 172, 0.45f, kDim, "A: jump  B: walk  L/R: orbit camera");
+    text(8, 154, 0.45f, theme::kInkSoft, "Tap a color. Head/arms/legs share the body color.");
+    text(8, 172, 0.45f, theme::kInkSoft, "A: jump  B: walk  L/R: orbit camera");
 }
 
 void Ui::drawSettings(const State& s) {
-    text(12, 8, 0.5f, kWhite, "Settings");
-    C2D_DrawRectSolid(kBtnX, kStereoY, 0.5f, kBtnW, kBtnH, s.stereo ? kAccent : kPanel);
-    text(kBtnX + 8, kStereoY + 10, 0.5f, s.stereo ? kBg : kWhite, "Stereo 3D: %s", s.stereo ? "On" : "Off");
-    text(kBtnX + kBtnW + 12, kStereoY + 10, 0.45f, kDim, "uses the 3D slider");
+    text(12, 8, 0.5f, theme::kInk, "Developer settings");
+    button(kBtnX, kStereoY, kBtnW, kBtnH, s.stereo);
+    text(kBtnX + 8, kStereoY + 10, 0.5f, theme::kInk, "Stereo 3D: %s", s.stereo ? "On" : "Off");
+    text(kBtnX + kBtnW + 12, kStereoY + 10, 0.45f, theme::kInkSoft, "uses the 3D slider");
 
-    C2D_DrawRectSolid(kBtnX, kStressY, 0.5f, 60, kBtnH, kPanel);
-    C2D_DrawRectSolid(kBtnX + 80, kStressY, 0.5f, 60, kBtnH, kPanel);
-    text(kBtnX + 24, kStressY + 8, 0.7f, kWhite, "-");
-    text(kBtnX + 102, kStressY + 8, 0.7f, kWhite, "+");
-    text(kBtnX + kBtnW + 12, kStressY + 10, 0.5f, kWhite, "Stress toons: %d", s.stressToons);
-    text(12, 140, 0.45f, kDim, "Stress toons are extra copies of the toon,");
-    text(12, 156, 0.45f, kDim, "used to measure the Old 3DS draw budget.");
+    button(kBtnX, kStressY, 60, kBtnH, false);
+    button(kBtnX + 80, kStressY, 60, kBtnH, false);
+    text(kBtnX + 24, kStressY + 8, 0.7f, theme::kInk, "-");
+    text(kBtnX + 102, kStressY + 8, 0.7f, theme::kInk, "+");
+    text(kBtnX + kBtnW + 12, kStressY + 10, 0.5f, theme::kInk, "Stress toons: %d", s.stressToons);
+    text(12, 140, 0.45f, theme::kInkSoft, "Stress toons are extra copies of the toon,");
+    text(12, 156, 0.45f, theme::kInkSoft, "used to measure the Old 3DS draw budget.");
+    text(12, 180, 0.42f, theme::kInkSoft, "SELECT hides the Setup and Debug tabs.");
 }
 
 void Ui::drawInfo(const Context &c) {
@@ -698,32 +759,47 @@ void Ui::drawGags(const Context &c) {
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
         if (!c.gagCount) {
-            debugLine(8, 8, 0.5f, kDim, "Gags appear once you are online.");
+            debugLine(8, 8, 0.5f, theme::kInkSoft, "Gags appear once you are online.");
         } else {
             int total = 0;
             for (int t = 0; t < gags::kTracks; t++)
                 for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
-            debugLine(8, 4, 0.5f, kWhite, "Gags  %d / %d", total, c.maxCarry);
+            debugLine(8, 4, 0.5f, theme::kInk, "Gags  %d / %d", total, c.maxCarry);
             for (int t = 0; t < gags::kTracks; t++) {
                 const bool have = c.trackAccess[t];
                 const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
                 const float y = 26 + t * 24;
-                debugLine(8, y, 0.5f, have ? kWhite : kDim, "%s", gags::kTrackNames[t]);
+                debugLine(14, y, 0.45f, have ? theme::kInk : theme::kInkFaint, "%s", gags::kTrackNames[t]);
                 for (int l = 0; l < gags::kLevels; l++) {
                     if (l < levels) {
-                        debugLine(80 + l * 22, y, 0.5f, c.gagCount[t][l] ? kWhite : kDim, "%u",
+                        debugLine(84 + l * 22, y + 4, 0.36f, c.gagCount[t][l] ? theme::kInk : theme::kInkFaint, "%u",
                                   unsigned(c.gagCount[t][l]));
-                    } else {
-                        debugLine(80 + l * 22, y, 0.5f, kDim, "-");
+                    } else if (have) {
+                        debugLine(74 + l * 22, y, 0.45f, theme::kInkFaint, "-");
                     }
                 }
                 const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
                 if (have && next) {
-                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u/%u", unsigned(c.gagExp[t]), unsigned(next));
+                    debugLine(234, y + 2, 0.36f, theme::kInk, "%u / %u", unsigned(c.gagExp[t]), unsigned(next));
                 } else if (have) {
-                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u max", unsigned(c.gagExp[t]));
+                    debugLine(234, y + 2, 0.36f, theme::kInk, "%u max", unsigned(c.gagExp[t]));
+                } else {
+                    debugLine(74, y, 0.4f, theme::kInkFaint, "Locked");
                 }
             }
+        }
+    }
+    if (c.gagCount) {
+        // Track colour strip and experience bar (InventoryNew.showTrack: fill = exp / next).
+        for (int t = 0; t < gags::kTracks; t++) {
+            const float y = 26 + t * 24;
+            C2D_DrawRectSolid(6, y, 0.45f, 4, 18, theme::kTrack[t]);
+            if (!c.trackAccess[t]) continue;
+            const int levels = gags::levelsUnlocked(t, c.gagExp[t]);
+            const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
+            const float frac = next ? fminf(1.0f, float(c.gagExp[t]) / next) : 1.0f;
+            C2D_DrawRectSolid(230, y + 1, 0.45f, 84, 14, theme::kPaperEdge);
+            C2D_DrawRectSolid(231, y + 2, 0.46f, 82 * frac, 12, theme::kTrack[t]);
         }
     }
     for (int i = 0; i < numDebugLines_; i++) {
@@ -736,7 +812,7 @@ void Ui::drawGags(const Context &c) {
             const int levels = gags::levelsUnlocked(t, c.gagExp[t]);
             const float y = 26 + t * 24;
             for (int l = 0; l < levels; l++) {
-                world::GagAtlas::instance().drawIcon(t, l, 68 + l * 22, y + 2, 14.0f, 0.52f,
+                world::GagAtlas::instance().drawIcon(t, l, 70 + l * 22, y + 1, 14.0f, 0.52f,
                                                      c.gagCount[t][l] ? 1.0f : 0.35f);
             }
         }

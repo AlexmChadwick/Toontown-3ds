@@ -213,6 +213,16 @@ int branchZone(int32_t zone) {
 }
 int hoodOfZone(int32_t zone) { return zone < 0 ? 0 : zone - zone % 1000; }
 
+int placeTitle(int32_t zone, char* out, int cap) {
+    const PlaceName* hood = findPlace(kHoodNames, kNumHoodNames, hoodOfZone(zone));
+    if (!hood) return copyStr(out, cap, "");
+    const int branch = branchZone(zone);
+    const PlaceName* street = branch % 1000 ? findPlace(kStreetNames, kNumStreetNames, branch) : nullptr;
+    if (!street) return copyStr(out, cap, str(hood->name));
+    const int n = snprintf(out, size_t(cap), "%s, %s", str(street->name), str(hood->name));
+    return n < 0 ? 0 : (n < cap ? n : cap - 1);
+}
+
 // ============================================================ format
 int format(char* out, int cap, const char* tmpl, const Arg* args, int numArgs) {
     Buf b(out, cap);

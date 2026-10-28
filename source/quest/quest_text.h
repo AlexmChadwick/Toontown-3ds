@@ -60,6 +60,9 @@ int progressString(const QuestDef& q, uint32_t progress, char* out, int cap); //
 int defaultQuestDialog(const QuestDef& q, unsigned pick, char* out, int cap); // getDefaultQuestDialog
 // Destination of an NPC for the poster ("Building\nStreet\nNeighborhood").
 int npcDestination(uint16_t npcId, char* out, int cap);
+// "Silly Street, Toontown Central" for a street cell, the hood name for a playground or its
+// interiors, "" for zones with no name (facilities, dynamic zones).
+int placeTitle(int32_t zone, char* out, int cap);
 int rewardText(uint16_t rewardId, bool poster, char* out, int cap); // Reward.getString / getPosterString
 // Where a quest sends the toon next, as the quest poster prints it: the destination NPC's place,
 // or the quest's cog location. Empty when there is nothing to say.
