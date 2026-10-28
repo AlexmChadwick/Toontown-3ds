@@ -61,8 +61,10 @@ balloon for tutorial quests 101 and 110 with `quest_assign_101` and `quest_assig
 Minnie from byte 4 of the validated local Toon DNA.
 
 Stock book and SpeedChat `WAIT_EVENT` prompts are mouse-driven. On 3DS those controls are already
-on the persistent bottom screen, so A acknowledges the currently highlighted scripted action;
-exact named events remain accepted from touch/UI hooks and the autotest.
+on the persistent bottom screen, so a compact Toontorial panel names the stock action and A
+acknowledges it. Generated `ARROWS_ON` chapters add a highlighted-lesson cue; exact named events
+remain accepted from touch/UI hooks and the autotest. The purchase panel has higher ownership than
+this lesson panel, preserving the real gag grid at `inventory-selection`.
 
 The trolley's stock `NewbiePurchaseManager` (class 177) starts `gag_intro` when the local
 avatar is one of its players. The generated script shares `TutorialFlow`, while the 3DS

@@ -18,6 +18,9 @@ public:
     bool active() const { return player_.active(); }
     quest::ScriptId playerId() const { return player_.id(); }
     const char* waitingEvent() const { return player_.waitingEvent(); }
+    // Short 3DS control hint for the current blocking chapter. Null while the script is
+    // running a timed/camera chapter, when the normal bottom-screen UI should remain visible.
+    const char* prompt() const;
     bool arrows() const { return arrows_; }
     const char* text() const { return text_; }
     bool takeFinished();

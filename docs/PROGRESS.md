@@ -1,5 +1,39 @@
 # Progress
 
+## 2026-10-27 — Toontorial control-cue polish
+
+Done:
+
+- Added context-specific bottom-screen cues for every blocking Toontorial action: dialogue,
+  Shticker Book open/close and pages, SpeedChat, and the Newbie Gag Shop selection.
+- Made generated `ARROWS_ON` chapters visible as a highlighted-lesson cue on 3DS. The real
+  purchase panel retains ownership during gag selection, so this guidance does not replace the
+  purchase grid or weaken its input lock.
+- Extended the host flow assertions and source-contract check to cover the new prompts.
+
+Verified:
+
+- The isolated QuestScript generator check and all tutorial sender/UI source contracts pass.
+- `bash -n tools/tutorial_test/run.sh` and `git diff --check` pass.
+- The sanitizer-backed flow executable cannot be built because this image has no C++ compiler.
+  The native 3DS build is also unavailable because `DEVKITARM` is unset; no emulator, server, or
+  hardware result is claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial still needs its first Old 3DS Azahar play-through against the
+  stock server, including a 320x240 review of these cues and the Gag Shop selection hand-off.
+- The compact tutorial still omits the desktop client's animated arrows, GUI props, and camera
+  choreography; the new panel communicates their actions without fabricating replacement assets.
+- Real Old 3DS performance and memory high-water marks remain unmeasured.
+
+Next:
+
+- On a provisioned host, run the complete tutorial harness and native build, package the canonical
+  tutorial assets, then play the full route in Old 3DS Azahar mode and record it in the test log.
+- If the live pass is sound, replace only the highest-value textual cues with baked original GUI
+  art where it remains readable and within the Old 3DS texture budget.
+
 ## 2026-10-27 — Newbie Gag Shop tutorial integration
 
 Done:

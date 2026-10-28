@@ -2835,6 +2835,16 @@ int main() {
             ctx.infoTitle = "Streaming Cog actors";
             ctx.infoLines[0] = "Reading models and clips...";
         }
+        // ---- tutorial ----
+        // QuestParser's desktop arrows point at modal book/SpeedChat controls.  Those controls
+        // are persistent on 3DS, so show the equivalent lesson and button explicitly.  The
+        // Purchase panel owns the screen ahead of Info and therefore keeps the real gag grid.
+        if (const char* prompt = tutorial.prompt()) {
+            ctx.infoTitle = "Toontorial";
+            ctx.infoLines[0] = prompt;
+            ctx.infoLines[1] = tutorial.arrows() ? "Follow the highlighted lesson." : nullptr;
+        }
+        // ---- end tutorial ----
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
 

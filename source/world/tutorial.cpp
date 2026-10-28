@@ -81,6 +81,24 @@ bool TutorialFlow::postEvent(const char* name) {
     return player_.postEvent(name);
 }
 
+const char* TutorialFlow::prompt() const {
+    if (player_.block() == quest::ScriptPlayer::Block::Chat)
+        return "A: continue";
+    if (player_.block() != quest::ScriptPlayer::Block::Event)
+        return nullptr;
+
+    const char* event = player_.waitingEvent();
+    if (!event) return nullptr;
+    if (!strcmp(event, "enterStickerBook")) return "A: open your Shticker Book";
+    if (!strcmp(event, "exitStickerBook")) return "A: close your Shticker Book";
+    if (!strcmp(event, "stickerBookPageChange-3")) return "A: visit the Gags page";
+    if (!strcmp(event, "stickerBookPageChange-4")) return "A: visit the ToonTasks page";
+    if (!strcmp(event, "enterSpeedChat")) return "A: open SpeedChat";
+    if (!strcmp(event, "SCChatEvent")) return "A: say the highlighted phrase";
+    if (!strcmp(event, "inventory-selection")) return "A: buy the highlighted gag";
+    return "A: continue the lesson";
+}
+
 void TutorialFlow::stop() {
     player_.stop();
     text_[0] = 0;

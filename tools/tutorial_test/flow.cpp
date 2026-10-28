@@ -84,6 +84,7 @@ void ready(tt::world::TutorialFlow& flow) {
     flow.start(ScriptId::TutorialMickey, false);
     flow.update(10.0f);
     assert(flow.active() && flow.text()[0]);
+    assert(flow.prompt() && !strcmp(flow.prompt(), "A: continue"));
 }
 
 void dialogue() {
@@ -156,6 +157,7 @@ void dialogue() {
     }
     const char* event = flow.waitingEvent();
     assert(event && !strcmp(event, "enterStickerBook"));
+    assert(flow.prompt() && !strcmp(flow.prompt(), "A: open your Shticker Book"));
     flow.advance();
     assert(!flow.waitingEvent());
 }

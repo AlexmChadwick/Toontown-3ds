@@ -65,6 +65,13 @@ assert '"inventory-selection"' in main
 assert 'purchaseTutorialSelection_' in session
 assert 'kDown & KEY_A' in session
 assert 'autoPlay_ && !purchaseTutorial_' in session
+assert 'ctx.infoTitle = "Toontorial"' in main
+assert 'tutorial.arrows() ? "Follow the highlighted lesson."' in main
+flow = Path('source/world/tutorial.cpp').read_text()
+for prompt in ('A: continue', 'A: open your Shticker Book', 'A: visit the Gags page',
+               'A: open SpeedChat', 'A: say the highlighted phrase',
+               'A: buy the highlighted gag'):
+    assert prompt in flow, prompt
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 
