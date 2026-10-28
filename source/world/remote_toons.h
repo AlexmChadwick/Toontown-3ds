@@ -51,6 +51,11 @@ private:
         float wx = 0, wy = 0, wz = 0, wh = 0; // displayed pose in the world (== x.. unless parented to the boat)
         u32 parent = 0;                       // setParent token last applied to the pose
         float tx = 0, ty = 0, tz = 0, th = 0; // latest network sample
+        // Dead reckoning: velocity from the last two samples (units/s, deg/s), the sample's local
+        // time, and whether the sender is moving (setSmStop clears it).
+        float vx = 0, vy = 0, vz = 0, vh = 0;
+        u32 sampleMs = 0;
+        bool moving = false;
         char name[32] = {};
         const char* phrase = nullptr;
         float phraseAge = 99.0f;

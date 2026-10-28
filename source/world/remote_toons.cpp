@@ -13,9 +13,15 @@ namespace tt::world {
 namespace {
 
 constexpr float kDegToRad = 3.14159265f / 180.0f;
-// Exponential smoothing time constant toward the latest sample. Senders update at
-// 5 Hz, so ~0.1 s keeps motion continuous without lagging far behind.
-constexpr float kSmoothTau = 0.1f;
+// Remote poses arrive at 5 Hz (setSmPosHpr). The displayed pose chases a *predicted* target:
+// the latest sample moved on by its velocity for the sample's age (sender timestamp to now),
+// capped at kMaxPredictSec, so a running toon is drawn where it is now rather than ~0.2 s
+// behind. A short exponential smoothing (kSmoothTau) hides the correction when a new sample
+// lands; a first-order filter on a moving target lags by v * tau, so tau stays small.
+constexpr float kSmoothTau = 0.05f;
+constexpr float kMaxPredictSec = 0.25f;
+constexpr float kMaxPredictSpeed = 40.0f;   // units/s; above that the samples are a jump
+constexpr float kMaxPredictTurn = 360.0f;   // deg/s
 // Snap instead of gliding when a toon teleports or we missed many samples.
 constexpr float kSnapDistance = 30.0f;
 constexpr float kSpeedTau = 0.25f; // smoothing for the derived speed (avoids walk/run flicker)
@@ -134,6 +140,9 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         r->y = r->ty = t->y;
         r->z = r->tz = t->z;
         r->h = r->th = t->h;
+        r->vx = r->vy = r->vz = r->vh = 0.0f;
+        r->sampleMs = t->sampleMs;
+        r->moving = false;
         r->parent = t->parentToken;
         updateWorldPose(*r);
         snprintf(r->name, sizeof(r->name), "%s", t->name);
@@ -158,6 +167,19 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         break;
     case EventType::Pose:
         if (r && t && !r->gamePlaced) { // a game placing this toon owns its pose (placeExternal)
+            // Velocity between consecutive moving samples, by the sender's own timestamps.
+            const float sdt = static_cast<float>(static_cast<s32>(t->sampleMs - r->sampleMs)) / 1000.0f;
+            const float dx = t->x - r->tx, dy = t->y - r->ty, dh = wrapDeg(t->h - r->th);
+            r->vx = r->vy = r->vz = r->vh = 0.0f;
+            if (t->moving && r->moving && sdt >= 0.05f && sdt <= 1.0f) {
+                const float vx = dx / sdt, vy = dy / sdt;
+                if (vx * vx + vy * vy <= kMaxPredictSpeed * kMaxPredictSpeed) {
+                    r->vx = vx, r->vy = vy; // no vz: a jump arc extrapolated linearly dips into the floor
+                    r->vh = fmaxf(-kMaxPredictTurn, fminf(kMaxPredictTurn, dh / sdt));
+                }
+            }
+            r->moving = t->moving;
+            r->sampleMs = t->sampleMs;
             r->tx = t->x;
             r->ty = t->y;
             r->tz = t->z;
@@ -165,6 +187,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
             if (t->parentToken != r->parent) { // boarded/left the boat: the frame changed, so snap
                 r->parent = t->parentToken;
                 r->x = r->tx, r->y = r->ty, r->z = r->tz, r->h = r->th;
+                r->vx = r->vy = r->vz = r->vh = 0.0f;
                 r->speed = r->turnRate = 0.0f;
             }
         }
@@ -247,11 +270,13 @@ void RemoteToons::placeExternal(u32 doId, float x, float y, float z, float h) {
     r->tz = z;
     r->th = h;
     r->parent = net::kParentRender;
+    r->vx = r->vy = r->vz = r->vh = 0.0f; // the game's own pose: no prediction
     r->gamePlaced = true;
 }
 
 void RemoteToons::update(float dt) {
     const float k = 1.0f - expf(-dt / kSmoothTau);
+    const u32 nowMs = net::plat::nowMs();
     for (Remote& r : toons_) {
         if (!r.active) continue;
         const float px=r.x,py=r.y,ph=r.h;
@@ -311,17 +336,22 @@ void RemoteToons::update(float dt) {
             r.h = r.wh = wrapDeg(r.tunnelOriginH + lh);
             r.speed = 20.0f;
         } else {
-            const float dx = r.tx - r.x, dy = r.ty - r.y, dz = r.tz - r.z;
+            // Predicted target: the sample moved on for its age (0 for a stopped toon).
+            float age = static_cast<float>(static_cast<s32>(nowMs - r.sampleMs)) / 1000.0f;
+            age = fmaxf(0.0f, fminf(kMaxPredictSec, age));
+            const float gx = r.tx + r.vx * age, gy = r.ty + r.vy * age, gz = r.tz + r.vz * age;
+            const float gh = wrapDeg(r.th + r.vh * age);
+            const float dx = gx - r.x, dy = gy - r.y, dz = gz - r.z;
             if (dx * dx + dy * dy + dz * dz > kSnapDistance * kSnapDistance) {
-                r.x = r.tx;
-                r.y = r.ty;
-                r.z = r.tz;
+                r.x = gx;
+                r.y = gy;
+                r.z = gz;
             } else {
                 r.x += dx * k;
                 r.y += dy * k;
                 r.z += dz * k;
             }
-            r.h = wrapDeg(r.h + wrapDeg(r.th - r.h) * k);
+            r.h = wrapDeg(r.h + wrapDeg(gh - r.h) * k);
         }
         if (dt > 0.0f) {
             // Forward speed along the heading, for Toon.setSpeed-style clip choice.
