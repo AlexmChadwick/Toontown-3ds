@@ -372,6 +372,9 @@ int main() {
     static tt::quest::Talk talk;
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
+    // A generated quest-assignment movie replaces Talk's ordinary text for quests 101/110.
+    // Keep the NPC that owns it so FINISH_QUEST_MOVIE can acknowledge the AI exactly once.
+    static u32 tutorialMovieNpc = 0;
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
@@ -1837,7 +1840,10 @@ int main() {
                 if (ev.type == tt::net::EventType::TutorialEnter) {
                     loadTutorialPlace(net.zoneId());
                 } else if (ev.type == tt::net::EventType::TutorialInterior) {
-                    tutorial.start(tt::quest::ScriptId::TutorialMickey, false);
+                    tt::world::ToonDna dna;
+                    const bool female = tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna) &&
+                                        dna.gender == tt::world::Gender::Female;
+                    tutorial.start(tt::quest::ScriptId::TutorialMickey, female);
                 } else if (ev.type == tt::net::EventType::BlockerMovie) {
                     tt::net::Client::BlockerMovie movie;
                     while (net.pollBlockerMovie(movie)) {
@@ -1864,7 +1870,27 @@ int main() {
                 trolley.handleEvent(ev, net, nowMs);
                 if (ev.type == tt::net::EventType::NpcMovie) {
                     tt::net::NpcMovie movie;
-                    while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                    while (net.pollNpcMovie(movie)) {
+                        tt::quest::ScriptId script = tt::quest::ScriptId::Count;
+                        if (net.tutorialZones().active() && movie.avId == net.avatarId() &&
+                            movie.mode == tt::net::kMovieAssign && movie.numValues >= 1) {
+                            if (movie.values[0] == 101) script = tt::quest::ScriptId::QuestAssign101;
+                            else if (movie.values[0] == 110) script = tt::quest::ScriptId::QuestAssign110;
+                        }
+                        if (script != tt::quest::ScriptId::Count) {
+                            // DistributedNPCToon plays these QuestScripts instead of its generic
+                            // assignment balloon. Talk began the avatarEnter exchange, so release
+                            // that presentation while TutorialFlow owns the movie.
+                            talk.reset();
+                            tutorialMovieNpc = movie.npcDoId;
+                            tt::world::ToonDna dna;
+                            const bool female = tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna) &&
+                                                dna.gender == tt::world::Gender::Female;
+                            tutorial.start(script, female);
+                        } else {
+                            talk.onMovie(movie);
+                        }
+                    }
                 } else if (ev.type == tt::net::EventType::NpcFree) {
                     talk.onFree(ev.doId);
                 } else if (ev.type == tt::net::EventType::NpcDespawn) {
@@ -1927,6 +1953,11 @@ int main() {
             // ---- tutorial ----
             tutorial.update(dt);
             if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
+            if (tutorial.takeFinished() && tutorialMovieNpc) {
+                net.sendNpcMovieDone(tutorialMovieNpc);
+                TT_LOG("tutorial: quest movie done for NPC %u", unsigned(tutorialMovieNpc));
+                tutorialMovieNpc = 0;
+            }
             // ---- end tutorial ----
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
@@ -2055,7 +2086,7 @@ int main() {
                 // A touch counts once it is acted on: one made while busy (a teleport still landing
                 // inside the NPC's sphere, another panel open) fires when the toon is free.
                 const bool npcFree = !serviceClerks.active() && !shop.active() && !tailor.active() && !talk.locked() &&
-                                     transition.idle();
+                                     !tutorial.active() && transition.idle();
                 if (serviceNpc && serviceNpc != lastTouchedServiceClerk && npcFree)
                     net.sendServiceClerkEnter(serviceNpc);
                 if (npcFree || !serviceNpc) lastTouchedServiceClerk = serviceNpc;

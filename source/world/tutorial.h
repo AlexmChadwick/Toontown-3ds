@@ -10,6 +10,7 @@ class TutorialFlow final : public quest::ScriptStage {
 public:
     void start(quest::ScriptId id, bool femaleToon);
     void update(float dt);
+    // Acknowledge the current dialogue page or highlighted 3DS UI action.
     void advance();
     bool postEvent(const char* name);
     void stop();

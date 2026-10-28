@@ -55,6 +55,15 @@ are retained for the scene owner. Commands whose Panda target has no 3DS equival
 order but intentionally have no extra visual object; inventory/book actions remain on the
 bottom-screen UI. This is the deliberate visual simplification, not fabricated script data.
 
+Like stock `DistributedNPCToon`, the network movie dispatcher replaces the ordinary assignment
+balloon for tutorial quests 101 and 110 with `quest_assign_101` and `quest_assign_110`, then sends
+`setMovieDone` only when `FINISH_QUEST_MOVIE` runs. Classic-character lines select Mickey or
+Minnie from byte 4 of the validated local Toon DNA.
+
+Stock book and SpeedChat `WAIT_EVENT` prompts are mouse-driven. On 3DS those controls are already
+on the persistent bottom screen, so A acknowledges the currently highlighted scripted action;
+exact named events remain accepted from touch/UI hooks and the autotest.
+
 ## Packet safety and host verification
 
 Every tutorial sender is a `TT_NET_UPDATE` with a generated `TT_SIG` layout assertion:

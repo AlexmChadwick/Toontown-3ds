@@ -35,6 +35,14 @@ void TutorialFlow::update(float dt) {
 }
 
 void TutorialFlow::advance() {
+    // Panda waits for mouse-driven Shticker Book/SpeedChat messenger events here. On 3DS the
+    // same affordances live persistently on the bottom screen, so A activates the highlighted
+    // scripted action. postEvent remains available for exact touch/UI and autotest events.
+    if (player_.block() == quest::ScriptPlayer::Block::Event) {
+        const char* event = player_.waitingEvent();
+        if (event) player_.postEvent(event);
+        return;
+    }
     if (player_.block() != quest::ScriptPlayer::Block::Chat) return;
     if (nextPage_) {
         showPage(nextPage_);

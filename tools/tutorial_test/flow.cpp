@@ -144,6 +144,20 @@ void dialogue() {
     assert(!strchr(flow.text(), '\a'));
     flow.advance();
     assert(flow.text()[0]);
+
+    // The 3DS bottom screen is persistent rather than Panda's modal Shticker Book. A must
+    // acknowledge the highlighted action at stock WAIT_EVENT gates so a real play-through
+    // cannot stall where only the autotest's named event injection used to work.
+    flow.start(ScriptId::QuestAssign110, false);
+    for (int frames = 0; flow.active() && !flow.waitingEvent(); ++frames) {
+        assert(frames < 30000);
+        flow.update(1.0f / 30.0f);
+        if (flow.text()[0]) flow.advance();
+    }
+    const char* event = flow.waitingEvent();
+    assert(event && !strcmp(event, "enterStickerBook"));
+    flow.advance();
+    assert(!flow.waitingEvent());
 }
 
 } // namespace

@@ -21,6 +21,7 @@ import re
 source = Path('source/net/client_tutorial.cpp').read_text()
 client = Path('source/net/client.cpp').read_text()
 header = Path('source/net/dc_generated.h').read_text()
+main = Path('source/main.cpp').read_text()
 
 # Every field emitted by client_tutorial.cpp has both a compile-time TT_SIG and a generated
 # clsend keyword.  This catches a DC regeneration that changes a packet before hardware testing.
@@ -44,6 +45,14 @@ for marker in ('TutorialMickey', 'QuestAssign101', 'QuestAssign110', 'TutorialBl
 assert 'targetZone_ == tutorialZones_.street' in client
 assert 'tutorialStreet ? tutorialZones_.branch' in client
 assert 'visZones_[i] = tutorialZones_.toNetwork(visZones[i])' in client
+# Stock DistributedNPCToon replaces the generic assignment balloon with these two
+# QuestScripts. They finish through setMovieDone; classic-character dialogue selects its
+# Mickey/Minnie branch from local Toon DNA rather than hard-coding the boy path.
+assert 'movie.values[0] == 101' in main
+assert 'movie.values[0] == 110' in main
+assert 'net.sendNpcMovieDone(tutorialMovieNpc)' in main
+assert 'dna.gender == tt::world::Gender::Female' in main
+assert 'TutorialMickey, false' not in main
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 
