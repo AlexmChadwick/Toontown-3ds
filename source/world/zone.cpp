@@ -218,6 +218,11 @@ struct Zone::Impl {
             for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
                 ++entries_[i].refs; *out=entries_[i].tex; LightLock_Unlock(&lock_); return true;
             }
+            // Chunk table totals count shared pages more than once.  Enforce the real
+            // unique allocation total here, at the only point that can grow it.
+            if (key.dataSize>Zone::kTextureBudget-bytes_) {
+                LightLock_Unlock(&lock_); return false;
+            }
             if (count_==capacity_) {
                 const uint32_t next=capacity_ ? capacity_*2 : 32;
                 Entry* grown=static_cast<Entry*>(realloc(entries_,next*sizeof(Entry)));
@@ -227,7 +232,7 @@ struct Zone::Impl {
             Entry& e=entries_[count_];
             memset(&e,0,sizeof(e)); e.key=key;
             const bool ok=render::loadTexture(f,key,&e.tex);
-            if (ok) { e.refs=1; *out=e.tex; ++count_; }
+            if (ok) { e.refs=1; *out=e.tex; bytes_+=key.dataSize; ++count_; }
             LightLock_Unlock(&lock_);
             return ok;
         }
@@ -243,6 +248,7 @@ struct Zone::Impl {
                         mem::LinearGuard guard;
                         C3D_TexDelete(&entries_[i].tex);
                     }
+                    bytes_-=entries_[i].key.dataSize;
                     entries_[i]=entries_[--count_];
                 }
                 break;
@@ -250,9 +256,8 @@ struct Zone::Impl {
             LightLock_Unlock(&lock_);
         }
         uint32_t residentBytes() const {
-            uint32_t total=0;
             LightLock_Lock(const_cast<LightLock*>(&lock_));
-            for (uint32_t i=0;i<count_;++i) total+=entries_[i].tex.size;
+            const uint32_t total=bytes_;
             LightLock_Unlock(const_cast<LightLock*>(&lock_));
             return total;
         }
@@ -266,7 +271,7 @@ struct Zone::Impl {
         }
         mutable LightLock lock_{};
         Entry* entries_=nullptr;
-        uint32_t count_=0,capacity_=0;
+        uint32_t count_=0,capacity_=0,bytes_=0;
     } textureCache;
     enum JobState : uint8_t { Free, Queued, Loading, Done, Failed };
     struct Job {
@@ -686,6 +691,18 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             if (z.resident[i]) { sync(); z.models[i].unload(); account(i,-1); }
             z.resident[i]=true; z.lod[i]=z.choice[i];
             continue;
+        }
+        // LOD replacement normally keeps the old model visible until its successor is
+        // ready.  If that temporary double residency would exceed either hard budget,
+        // retire the old LOD first; otherwise this job can never be queued and loading()
+        // remains true forever.  Shared v3 pages are released here and reacquired by the
+        // replacement, with the cache enforcing the exact unique-texture limit.
+        if (z.resident[i] && (z.geom+inflightGeom+d.geom>kGeometryBudget ||
+                              z.tex+inflightTex+d.tex>kTextureBudget)) {
+            sync();
+            z.models[i].unload();
+            account(i,-1);
+            z.resident[i]=false;
         }
         if (z.geom+inflightGeom+d.geom>kGeometryBudget || z.tex+inflightTex+d.tex>kTextureBudget) {
             fail("zone: linear budget full; waiting for evictions");
