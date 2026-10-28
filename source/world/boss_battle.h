@@ -4,6 +4,7 @@
 
 #include "core/autotest.h"
 #include "render/ui.h"
+#include "ui/hud.h"
 #include "world/asset_loader.h"
 #include "world/battle.h"
 #include "world/battle_fx.h"
@@ -38,6 +39,8 @@ struct BossFrame {
     render::FrameStats& stats;
     float& commandUsage;
     bool& stereoActive;
+    ui::Hud& hud;               // top-screen laff meter and toast, drawn by every owner
+    ui::HudValues hudValues;
 };
 
 class BossBattle {

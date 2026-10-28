@@ -875,6 +875,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     frame.ui.draw(frame.bottom, frame.uiState, context);
     C2D_DrawRectSolid(12, 196, .8f, std::clamp(damage / (cashbot_ ? 500 : 100), 0.0f, 1.0f) * 296, 5,
                       C2D_Color32(220, 80, 40, 255));
+    frame.hud.draw(frame.renderer.topLeft(), frame.hudValues); // laff meter and toast over the world
 }
 
 bool BossBattle::frame(BossFrame& frame) {

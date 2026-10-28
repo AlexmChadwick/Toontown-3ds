@@ -191,6 +191,27 @@ float frameCpuMs() {
     return C3D_GetProcessingTime();
 #endif
 }
+// The HUD values every frame owner shows (laff meter and toast); main adds its minigame and
+// racing extras.
+tt::ui::HudValues baseHudValues(bool online, const tt::net::Client& net, const tt::world::ToonLook& look,
+                                const char* toast) {
+    tt::ui::HudValues hv;
+    hv.online = online;
+    if (hv.online) {
+        const tt::net::OwnStats& st = net.ownStats();
+        hv.hp = st.hp;
+        hv.maxHp = st.maxHp;
+        hv.money = st.money;
+        hv.maxMoney = st.maxMoney;
+        for (int i = 0; i < 3; i++) hv.headRgb[i] = look.tints.rgba[tt::render::kTintHead][i];
+        tt::world::ToonDna hudDna;
+        if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &hudDna)) {
+            hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
+        }
+    }
+    hv.toast = toast;
+    return hv;
+}
 } // namespace
 
 int main() {
@@ -768,12 +789,18 @@ int main() {
             static tt::world::BossBattle bossBattle;
             tt::world::BossFrame bossFrame{net, player, place, battle, battleFx, suits, remoteToons,
                 localToon, toonCache, renderer, ui, uiState, autotest, bottom, in, touch, dt,
-                shotName, lastStats, lastCmdBufUsage, stereoActive};
+                shotName, lastStats, lastCmdBufUsage, stereoActive, hud,
+                baseHudValues(netStarted && net.inZone(), net, localLook, toast)};
             // ---- cogdo: own both displays while the interior is present ----
+            // These owners skip the rest of the loop, where a toast normally ages out.
+            auto ageToast = [&] {
+                toastAge += dt;
+                if (toastAge > 3.0f) toast = nullptr;
+            };
             static tt::world::CogdoRuntime cogdo;
-            if (netStarted && cogdo.frame(bossFrame)) continue;
+            if (netStarted && cogdo.frame(bossFrame)) { ageToast(); continue; }
             // ---- end cogdo ----
-            if (netStarted && bossBattle.frame(bossFrame)) continue;
+            if (netStarted && bossBattle.frame(bossFrame)) { ageToast(); continue; }
         }
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
@@ -2739,21 +2766,7 @@ int main() {
             interiorLife.draw2D(proj, view);
             // [end interior life]
             tt::prof::lap(tt::prof::kBalloons);
-            tt::ui::HudValues hv;
-            hv.online = netStarted && net.inZone();
-            if (hv.online) {
-                const tt::net::OwnStats& st = net.ownStats();
-                hv.hp = st.hp;
-                hv.maxHp = st.maxHp;
-                hv.money = st.money;
-                hv.maxMoney = st.maxMoney;
-                for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
-                tt::world::ToonDna hudDna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &hudDna)) {
-                    hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
-                }
-            }
-            hv.toast = toast;
+            tt::ui::HudValues hv = baseHudValues(netStarted && net.inZone(), net, localLook, toast);
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;

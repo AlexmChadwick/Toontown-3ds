@@ -767,6 +767,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
     context.vramFreeKB = vramSpaceFree() / 1024;
     if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
+    frame.hud.draw(frame.renderer.topLeft(), frame.hudValues); // laff meter and toast over the world
 }
 bool CogdoRuntime::frame(BossFrame &frame) {
     const uint32_t now = net::plat::nowMs();

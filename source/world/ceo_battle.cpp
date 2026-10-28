@@ -977,6 +977,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     // Damage bar across bottom of touch screen:
     const float damageFraction = std::clamp(net::currentBossDamage(state, nowMs) / 500.0f, 0.0f, 1.0f);
     C2D_DrawRectSolid(12.0f, 196.0f, 0.8f, damageFraction * 296.0f, 5.0f, C2D_Color32(220, 80, 40, 255));
+    frame.hud.draw(frame.renderer.topLeft(), frame.hudValues); // laff meter and toast over the world
 }
 
 bool CeoBattle::frame(BossFrame& frame) {

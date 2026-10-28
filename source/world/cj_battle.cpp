@@ -745,6 +745,7 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
     if (frame.suits.loadingAssets()) context.infoLines[2]="Streaming Cog models and clips...";
     frame.ui.draw(frame.bottom, frame.uiState, context);
     C2D_DrawRectSolid(12, 196, .8f, std::clamp(damage / 2700, 0.0f, 1.0f) * 296, 5, C2D_Color32(220, 80, 40, 255));
+    frame.hud.draw(frame.renderer.topLeft(), frame.hudValues); // laff meter and toast over the world
 }
 
 bool CjBattle::frame(BossFrame& frame) {
