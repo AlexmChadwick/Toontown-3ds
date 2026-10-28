@@ -29,7 +29,7 @@ struct MapSource {
 // outside the frame.
 void drawMapFrame(const Context& c, const MapSource& map, float x, float y, float w, float h);
 // Go Home, the place label and the teleport row at the pad::hoods positions.
-void drawHoodControls(const Context& c);
+void drawHoodControls(const Context& c, float homeX); // pad::hoods::kTabHomeX / kBookHomeX
 // The static markers of a zone from its baked anchor names (bake_zone/bake_street .pts):
 // playgrounds get every landmark, streets only the Toon HQ; both get tunnels, the trolley and
 // one marker per fishing dock. names[i] is anchor i's name, xy[2i..] its position.

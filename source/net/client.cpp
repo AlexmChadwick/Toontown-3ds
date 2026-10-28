@@ -2134,6 +2134,25 @@ bool Client::parseBattleMembers(Battle& b, DatagramReader& r) {
     return true;
 }
 
+bool Client::parseChosenToonAttacks(Battle& b, DatagramReader& r) {
+    // setChosenToonAttacks(uint32 ids[], int16 tracks[], int16 levels[], int32 targets[])
+    uint32_t ids[kBattleToons] = {};
+    int16_t tracks[kBattleToons] = {}, levels[kBattleToons] = {};
+    const int n = readU32Array(r, ids, kBattleToons);
+    const int nt = readI16Array(r, tracks, kBattleToons);
+    const int nl = readI16Array(r, levels, kBattleToons);
+    skipArray(r); // targets: the panel shows who chose what, not at whom
+    if (!r.ok()) return false;
+    b.numChosen = uint8_t(n < nt ? (n < nl ? n : nl) : (nt < nl ? nt : nl));
+    for (int i = 0; i < b.numChosen; ++i) {
+        b.chosenIds[i] = ids[i];
+        b.chosenTrack[i] = tracks[i];
+        b.chosenLevel[i] = levels[i];
+    }
+    b.chosenStateSeq = b.stateSeq;
+    return true;
+}
+
 bool Client::parseBattleMovie(Battle& b, DatagramReader& r) {
     BattleMovie m{};
     m.active = r.i8() == 1;
@@ -2215,6 +2234,9 @@ bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bo
         break;
     case dc::DistributedBattle::k_setMovie:
         if (parseBattleMovie(b, r) && live && b.movie.active) pushEvent(EventType::BattleMovie, b.doId);
+        break;
+    case dc::DistributedBattle::k_setChosenToonAttacks:
+        if (parseChosenToonAttacks(b, r) && live) TT_LOG("net: battle %u chosen %d", unsigned(b.doId), int(b.numChosen));
         break;
     case dc::DistributedBattle::k_setBattleExperience:
         if (parseBattleExperience(b, r) && live) pushEvent(EventType::BattleExperience, b.doId);

@@ -2781,6 +2781,7 @@ int main() {
                     hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
                 }
             }
+            hv.laffOnBottom = ui.laffShown();
             hv.toast = toast;
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {

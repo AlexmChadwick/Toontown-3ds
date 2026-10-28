@@ -5,6 +5,7 @@
 
 #include "core/log.h"
 #include "game/front_end.h"
+#include "ui/pad_tables.h"
 
 namespace tt::autotest {
 
@@ -13,7 +14,10 @@ namespace {
 // Bottom-screen tab centres (render/ui.cpp: Map Chat Toon Gags Book across 320 px, bar at y >= 208;
 // the Debug tab joins them only while SELECT has it on).
 constexpr int kTabY = 224;
-constexpr int tabX(int i) { return 32 + i * 64; } // 5 tabs of 64 px
+// The middle of player tab i (5 tabs right of the laff pocket, ui/pad_tables.h).
+constexpr int tabX(int i) { return int((tt::ui::pad::tabX(i, 5) + tt::ui::pad::tabX(i + 1, 5)) * 0.5f); }
+// The Map tab's teleport row (pad::hoods): the middle of hood i.
+constexpr int kHoodTapY = int(tt::ui::pad::hoods::kRowY + tt::ui::pad::hoods::kRowH * 0.5f);
 
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
@@ -33,7 +37,7 @@ const Step kScript[] = {
     // ---- padnav: the tabs and the Shtiker Book with buttons only (no touch) ----
     {1.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "pad: tab map"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map hoods"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: map hoods"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: map next hood", "pad_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: map release"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab chat"},
@@ -90,7 +94,7 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_A, -1, -1, 0, "pad: book options press again"},
     {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: book map page"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book map focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book map hoods", "pad_book_map"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, 0, "pad: book map hoods", "pad_book_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: book close map"},
     // ---- end padnav ----
     {3.0f, 0, 0, 0, 0, -1, -1, 8, "stress 8 toons"},
@@ -165,12 +169,12 @@ const Step kScript[] = {
     {30.0f, 0, 0, 0, 0, -1, -1, 0, "pad: battle rounds", "pad_battle_end*"},
     // ---- end padnav ----
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "move: teleport", "move_teleport**"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 60, kHoodTapY, 0, "move: teleport", "move_teleport**"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "see boat", "boat"},
     {20.0f, 0, 60, 0, 0, -1, -1, 0, "swim: harbor", "swim*"}, // includes a teleport to 1000
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "ride boat", "ride"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 180, 191, 0, "teleport BR", "hood_br"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 100, kHoodTapY, 0, "teleport DG", "hood_dg"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 180, kHoodTapY, 0, "teleport BR", "hood_br"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go sellbot hq", "hq_sell"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go cashbot hq", "hq_cash"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go lawbot hq", "hq_law"},

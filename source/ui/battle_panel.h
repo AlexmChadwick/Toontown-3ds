@@ -8,6 +8,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 
+#include "ui/laff_meter.h"
 #include "world/battle.h"
 
 namespace tt::ui {
@@ -38,6 +39,8 @@ private:
     bool usable(const world::BattleView& v, const BattleGags& g, int track, int level) const;
     uint32_t targetFor(const world::BattleView& v, int track) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
+    void drawToons(const world::BattleView& v, float x0);
+    void centered(float cx, float y, float scale, u32 color, float maxW, const char* str);
 
     render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;
@@ -46,6 +49,9 @@ private:
     uint32_t loggedCog_[4] = {};
     int loggedHp_[4] = {}, loggedMax_[4] = {};
     world::BattleAction pending_{};
+    // Each toon card's laff pulse (LaffMeter.animatedEffect), by the doId it last showed.
+    uint32_t pulseId_[world::kBattleToonCards] = {};
+    LaffPulse pulse_[world::kBattleToonCards];
     FocusGroup focus_{"battle"};
 };
 

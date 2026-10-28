@@ -766,6 +766,13 @@ struct Battle {
     uint32_t movieSeq;         // bumped whenever setMovie arrives with an active movie
     BattleExperience exp;
     uint32_t expSeq;
+    // setChosenToonAttacks (sent after every requestAttack while choosing): each active toon's
+    // pick, for TownBattleToonPanel. Track as the AI sends it: -1 none, -2 un-chose, 0..6 a gag,
+    // 98 PASS, 99 / 97 / 96 SOS, 100 FIRE. chosenStateSeq = stateSeq it arrived under.
+    uint8_t numChosen;
+    uint32_t chosenIds[kBattleToons];
+    int16_t chosenTrack[kBattleToons], chosenLevel[kBattleToons];
+    uint32_t chosenStateSeq;
     uint32_t adjustSeq;
     uint32_t adjustMs;         // local time of the last adjust(ts)
     bool active;
@@ -2010,6 +2017,7 @@ private:
     bool parseBattleMembers(Battle& b, DatagramReader& r);
     bool parseBattleMovie(Battle& b, DatagramReader& r);
     bool parseBattleExperience(Battle& b, DatagramReader& r);
+    bool parseChosenToonAttacks(Battle& b, DatagramReader& r);
     void clearBattles();
     // ---- trolley and minigames ----
     Trolley trolley_ = {};

@@ -246,17 +246,21 @@ void testCounterButtons() {
 void testHoodRow() {
     namespace h = pad::hoods;
     FocusGroup group("map");
-    pad::buildHoodRow(group);
+    pad::buildHoodRow(group, h::kTabHomeX);
     CHECK(group.count() == 1 + h::kCount);
     group.move(0, 1);
-    CHECK(group.focusedId() == h::kIdHome);
+    CHECK(group.focusedId() == 0); // the row first
     group.move(0, 1);
-    CHECK(group.focusedId() >= 0 && group.focusedId() < 2); // the hood under Home
+    CHECK(group.focusedId() == h::kIdHome); // Home is the row below
+    group.move(0, -1);
+    CHECK(group.focusedId() >= 1 && group.focusedId() <= 3); // the hood above Home
     group.setFocusById(h::kCount - 1);
     group.move(1, 0);
     CHECK(group.focusedId() == 0);
-    group.move(0, -1);
-    CHECK(group.focusedId() == h::kIdHome);
+    // Home clears the laff pocket on the tab; the tab bar's tabs start after it.
+    CHECK(h::kTabHomeX >= pad::kLaffPocketW);
+    CHECK(h::kHomeY + h::kHomeH <= pad::kTabBarY);
+    CHECK(pad::tabX(0, 5) == pad::kLaffPocketW && pad::tabX(5, 5) == pad::kScreenW);
     // A touch anywhere in a hood's column hits it, as the old px / width test did.
     for (int i = 0; i < h::kCount; ++i) {
         CHECK(tap(group, int(i * h::kHoodW), int(h::kRowY)) == i);

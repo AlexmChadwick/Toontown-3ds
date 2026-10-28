@@ -17,8 +17,10 @@ constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 18, kCogH = 44, kCogW = 78, kCogGap = 1;
 constexpr float kGridX = 60, kGridY = 66, kRowH = 20, kCellW = 35, kCellGap = 2;
-constexpr float kBtnY = 210, kBtnH = 28, kBtnW = 100;
-constexpr float kPassX = 2, kRunX = 110, kContinueX = 218;
+constexpr float kBtnY = 210, kBtnH = 28, kBtnW = 62, kContinueW = 100;
+constexpr float kPassX = 2, kRunX = 66, kContinueX = 218;
+// TownBattleToonPanel: a laff card per toon right of Pass / Run (left of Continue in the reward).
+constexpr float kToonsX = 130, kToonsRewardX = 2, kToonsW = 188;
 // Gag ids are track * 10 + level (0..66); the rest sit above them.
 constexpr int kIdCog0 = 100; // + cog index
 constexpr int kIdPass = 200;
@@ -75,15 +77,24 @@ constexpr int kIdCancel = 3;
 } // namespace counter
 void buildCounterButtons(FocusGroup& group);
 
-// ---- Map tab (render/ui.cpp) and the book's Map page: Home and the teleport row ----
+// ---- The tab bar (render/ui.cpp): the laff pocket at its left end, then the tabs ----
+constexpr float kTabBarY = 208;
+constexpr float kLaffPocketW = 62, kLaffPocketTop = 176; // tab panels keep this corner clear
+// Tab i of n spans [tabX(i, n), tabX(i + 1, n)).
+constexpr float tabX(int i, int n) { return kLaffPocketW + i * (kScreenW - kLaffPocketW) / n; }
+
+// ---- Map tab (render/ui.cpp) and the book's Map page: the teleport row, then Home ----
 namespace hoods {
 constexpr int kCount = 8; // render/ui.h kNumTeleportHoods
-constexpr float kHomeX = 4, kHomeY = 148, kHomeW = 76, kHomeH = 24;
-constexpr float kRowY = 178, kRowH = 26, kHoodW = kScreenW / kCount;
+constexpr float kRowY = 148, kRowH = 26, kHoodW = kScreenW / kCount;
+// Home and the place label sit under the row: beside the laff pocket on the tab, at the left
+// edge on the book page (which has no pocket).
+constexpr float kHomeY = 178, kHomeW = 76, kHomeH = 24;
+constexpr float kTabHomeX = kLaffPocketW + 2, kBookHomeX = 4;
 constexpr int kIdHome = 100; // hoods are 0..kCount-1
 } // namespace hoods
 // Hood buttons span the whole row so a touch anywhere in a column hits it (as before).
-void buildHoodRow(FocusGroup& group);
+void buildHoodRow(FocusGroup& group, float homeX);
 
 // ---- Toon tab (render/ui.cpp) ----
 namespace toon {

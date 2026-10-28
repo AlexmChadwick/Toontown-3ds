@@ -297,9 +297,11 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             theme::textCentered(t, kBarX + kBarW * 0.5f, y + 0.5f, 0.38f, kInk, kBarW - 6, 0.6f);
             if (r.earned > 0) text(kBarX + kBarW + 6, y, 0.44f, theme::kGreenDark, "+%d", r.earned);
         }
-        theme::button(pad::battle::kContinueX, kBtnY, pad::battle::kBtnW, kBtnH, v.rewardSent ? theme::kGrey : theme::kGreen,
-                      v.rewardSent ? theme::kGreyDark : theme::kGreenDark);
-        text(pad::battle::kContinueX + 22, kBtnY + 4, 0.5f, v.rewardSent ? kInkSoft : theme::kWhite, "Continue");
+        drawToons(v, pad::battle::kToonsRewardX);
+        theme::button(pad::battle::kContinueX, kBtnY, pad::battle::kContinueW, kBtnH,
+                      v.rewardSent ? theme::kGrey : theme::kGreen, v.rewardSent ? theme::kGreyDark : theme::kGreenDark);
+        centered(pad::battle::kContinueX + pad::battle::kContinueW * 0.5f, kBtnY + 4, 0.5f,
+                 v.rewardSent ? kInkSoft : theme::kWhite, pad::battle::kContinueW - 8, "Continue");
         focus_.drawHighlight();
         return;
     }
@@ -327,12 +329,88 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
 
     theme::button(pad::battle::kPassX, kBtnY, pad::battle::kBtnW, kBtnH, choosing ? theme::kBlue : theme::kGrey,
                   choosing ? theme::kBlueDark : theme::kGreyDark);
-    text(pad::battle::kPassX + 36, kBtnY + 4, 0.5f, choosing ? theme::kWhite : kInkSoft, "Pass");
+    centered(pad::battle::kPassX + pad::battle::kBtnW * 0.5f, kBtnY + 4, 0.5f, choosing ? theme::kWhite : kInkSoft,
+             pad::battle::kBtnW - 8, "Pass");
     const bool canRun = choosing && v.canRun;
     theme::button(pad::battle::kRunX, kBtnY, pad::battle::kBtnW, kBtnH, canRun ? theme::kRed : theme::kGrey,
                   canRun ? theme::kRedDark : theme::kGreyDark);
-    text(pad::battle::kRunX + 38, kBtnY + 4, 0.5f, canRun ? theme::kWhite : kInkSoft, "Run");
+    centered(pad::battle::kRunX + pad::battle::kBtnW * 0.5f, kBtnY + 4, 0.5f, canRun ? theme::kWhite : kInkSoft,
+             pad::battle::kBtnW - 8, "Run");
+    drawToons(v, pad::battle::kToonsX);
     if (choosing) focus_.drawHighlight();
+}
+
+void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str) {
+    C2D_Text t;
+    textCache_.parse(&t, buf_, str, 1024);
+    theme::textCentered(t, cx, y, scale, color, maxW);
+}
+
+// TownBattleToonPanel: every toon in the battle with its laff meter (the species head in its
+// head colour) and the laff as a number, since eye numbers are unreadable at this size. Ours
+// wears a yellow frame; a toon that ran is greyed. The top screen's meter is hidden meanwhile.
+void BattlePanel::drawToons(const world::BattleView& v, float x0) {
+    const int n = v.numToons < world::kBattleToonCards ? v.numToons : world::kBattleToonCards;
+    if (n <= 0) return;
+    constexpr float kGap = 2.0f, kMaxCardW = 94.0f;
+    float cw = (pad::battle::kToonsW - (n - 1) * kGap) / n;
+    if (cw > kMaxCardW) cw = kMaxCardW;
+    const float meter = n >= 3 ? 36.0f : 42.0f; // the atlas cell; the head fills ~3/4 of it
+    for (int i = 0; i < n; i++) {
+        const world::BattleToonView& t = v.toons[i];
+        const float x = x0 + i * (cw + kGap);
+        const bool gone = t.running || !t.active;
+        theme::paper(x, kBtnY, cw, kBtnH, 5.0f, gone ? theme::kGrey : theme::kPaper,
+                     t.local ? theme::kYellowDark : theme::kPaperEdge);
+        if (pulseId_[i] != t.doId) {
+            pulseId_[i] = t.doId;
+            pulse_[i] = LaffPulse{};
+        }
+        LaffFace face;
+        face.hp = t.hp;
+        face.maxHp = t.maxHp > 0 ? t.maxHp : (t.hp > 0 ? t.hp : 15);
+        for (int k = 0; k < 3; k++) face.rgb[k] = t.rgb[k];
+        face.species = t.species;
+        const float s = meter * pulse_[i].update(t.hp);
+        drawLaffMeter(face, x + meter * 0.42f - s * 0.5f, kBtnY + kBtnH * 0.5f - s * 0.5f, s, nullptr, nullptr, 0.56f);
+        const float tx = x + meter * 0.82f, tw = cw - meter * 0.82f - 3;
+        char num[24];
+        snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
+        const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
+        const u32 numCol = gone ? kInkSoft : low ? theme::kRedDark : kInk;
+        // TownBattleToonPanel.setValues while choosing: the chosen gag, Pass or SOS ("?" until then).
+        const bool picking = !gone && (v.phase == world::BattlePhase::Input || v.phase == world::BattlePhase::Chosen);
+        const char* pick = nullptr;
+        if (picking && t.choice == world::BattleToonView::kChoiceNone) pick = "?";
+        if (picking && t.choice == world::BattleToonView::kChoicePass) pick = "Pass";
+        if (picking && t.choice == world::BattleToonView::kChoiceSos) pick = "SOS";
+        if (picking && t.choice == world::BattleToonView::kChoiceFire) pick = "Fire";
+        const bool gag = picking && t.choice == world::BattleToonView::kChoiceGag;
+        if (cw >= 80.0f) { // room for the name above the laff, and the pick at the right
+            C2D_Text name;
+            textCache_.parse(&name, buf_, t.name, 1024);
+            theme::textFit(name, tx, kBtnY + 1, 0.36f, gone ? kInkSoft : kInk, tw, 0.6f);
+            if (t.maxHp > 0) snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, t.maxHp);
+            const float pickW = gag || pick ? 22.0f : 0.0f;
+            C2D_Text laff;
+            textCache_.parse(&laff, buf_, num, 1024);
+            theme::textFit(laff, tx, kBtnY + 13, 0.44f, numCol, tw - pickW, 0.6f);
+            const float px = x + cw - 21, py = kBtnY + 12;
+            if (gag) {
+                world::GagAtlas::instance().drawIcon(t.chosenTrack, t.chosenLevel, px, py, 15.0f, 0.6f, 1.0f);
+            } else if (pick) {
+                centered(px + 8, py + 1, 0.36f, kInkSoft, 22, pick);
+            }
+        } else {
+            centered(tx + tw * 0.5f, kBtnY + 6, 0.46f, numCol, tw, num);
+            // A badge on the meter's corner: the gag icon once chosen.
+            if (gag) {
+                theme::roundRect(x + meter * 0.5f, kBtnY + 13, 15, 15, 7.5f, theme::kWhite, 0.58f);
+                world::GagAtlas::instance().drawIcon(t.chosenTrack, t.chosenLevel, x + meter * 0.5f + 1, kBtnY + 14,
+                                                     13.0f, 0.6f, 1.0f);
+            }
+        }
+    }
 }
 
 } // namespace tt::ui

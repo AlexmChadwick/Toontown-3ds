@@ -21,7 +21,7 @@ void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, con
 void buildBattleReward(FocusGroup& group) {
     using namespace battle;
     group.rebuild();
-    group.addItem(kIdContinue, kContinueX, kBtnY, kBtnW, kBtnH);
+    group.addItem(kIdContinue, kContinueX, kBtnY, kContinueW, kBtnH);
 }
 
 void buildQuestPages(FocusGroup& group) {
@@ -73,13 +73,14 @@ void buildCounterButtons(FocusGroup& group) {
     group.addItem(kIdCancel, kCancelX, kBtnY, kCancelW, kBtnH);
 }
 
-void buildHoodRow(FocusGroup& group) {
+void buildHoodRow(FocusGroup& group, float homeX) {
     using namespace hoods;
     group.rebuild();
-    group.addItem(kIdHome, kHomeX, kHomeY, kHomeW, kHomeH);
+    // The row first: the first D-Down lands on a hood (Home is the row below).
     for (int i = 0; i < kCount; i++) {
         group.addItem(i, i * kHoodW, kRowY, kHoodW, kRowH);
     }
+    group.addItem(kIdHome, homeX, kHomeY, kHomeW, kHomeH);
 }
 
 void buildToonTab(FocusGroup& group, bool online) {

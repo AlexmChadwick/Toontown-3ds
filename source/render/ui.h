@@ -20,6 +20,7 @@
 #include "ui/closet_panel.h"
 #include "ui/minigame_purchase_panel.h"
 #include "ui/book.h"
+#include "ui/laff_meter.h"
 
 namespace tt::ui {
 
@@ -161,6 +162,9 @@ public:
     // interior = none). Loads sdmc:/3ds/toontown3ds/data/zones/<id>.tmap (bake_minimap.py);
     // if absent the Map tab keeps its marker-only view. Main thread only (allocates linear).
     void setMapZone(unsigned fileZone);
+    // The last drawn bottom screen showed our laff meter (the tab bar's pocket or the battle
+    // panel's Toon cards), so the top HUD leaves it off the world.
+    bool laffShown() const { return lastOwner_ == PanelOwner::Tabs || lastOwner_ == PanelOwner::Battle; }
     // The Chat tab's recent-chat strip: what was said nearby, by us, or whispered to us.
     // `you` marks our own lines; nothing is drawn after kChatLogMs without new chat.
     void logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs);
@@ -185,7 +189,8 @@ private:
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void debugLine(float x, float y, float scale, u32 color, const char* fmt, ...)
         __attribute__((format(printf, 6, 7)));
-    void drawTabs(const State& s);
+    void drawTabs(const State& s, const Context& c);
+    float chatBottom() const;
     void drawMap(const Context& c);
     void drawToon(const State& s, const Context& c);
     void drawBookTab(const State& s);
@@ -226,10 +231,7 @@ private:
     C2D_Text tabText_[kTabCount];
     C2D_Text bookText_[9]; // Book tab page buttons
     C2D_Text bookTitle_, bookHint_;
-    // Toon tab laff meter numbers (re-parsed only when they change).
-    C2D_TextBuf laffBuf_ = nullptr;
-    C2D_Text laffHp_{}, laffMax_{};
-    int laffHpShown_ = -1, laffMaxShown_ = -1;
+    LaffDisplay laff_; // the tab bar's laff pocket
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;

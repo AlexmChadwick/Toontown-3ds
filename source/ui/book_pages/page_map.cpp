@@ -16,7 +16,7 @@ constexpr float kW = 320.0f;
 } // namespace
 
 void PageMap::init() {
-    pad::buildHoodRow(focus_); // padnav
+    pad::buildHoodRow(focus_, pad::hoods::kBookHomeX); // padnav
 }
 
 void PageMap::shutdown() {
@@ -53,8 +53,8 @@ void PageMap::draw(float x, float y, float w, float h, const BookDrawContext& bd
         map.h = bdc.mapH;
     }
     // The same map and controls as the Map tab, below the book's title bar.
-    drawMapFrame(*bdc.ctx, map, 4, 27, kW - 8, pad::hoods::kHomeY - 30);
-    drawHoodControls(*bdc.ctx);
+    drawMapFrame(*bdc.ctx, map, 4, 27, kW - 8, pad::hoods::kRowY - 31);
+    drawHoodControls(*bdc.ctx, pad::hoods::kBookHomeX);
     focus_.drawHighlight(); // padnav
 }
 

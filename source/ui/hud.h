@@ -2,6 +2,7 @@
 #pragma once
 
 #include "render/model.h"
+#include "ui/laff_meter.h"
 
 #include <3ds.h>
 #include <citro2d.h>
@@ -14,6 +15,7 @@ struct HudValues {
     float headRgb[3] = {0.7f, 0.7f, 0.8f}; // laff meter face colour (toon head colour)
     int species = 0;                         // world::Species: which laff meter head
     bool online = false;
+    bool laffOnBottom = false; // the bottom screen shows the meter: leave it off the world
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
@@ -27,16 +29,10 @@ public:
     void draw(C3D_RenderTarget* top, const HudValues& v);
 
 private:
-    C2D_TextBuf buf_ = nullptr;
     C2D_TextBuf raceBuf_ = nullptr;
-    int lastHp_ = -1, lastMaxHp_ = -1;
-    C2D_Text hpText_{}, toastText_{};
+    C2D_Text toastText_{};
     C2D_Text raceText_{};
-    C2D_Text maxText_{};
-    // LaffMeter.animatedEffect: pulse larger on a heal, smaller on damage.
-    uint64_t pulseStartMs_ = 0;
-    float pulseChange_ = 1.0f;
-    void drawLaffMeter(const HudValues& v);
+    LaffDisplay laff_;
     const char* lastToast_ = nullptr;
     C2D_TextBuf toastBuf_ = nullptr;
 };

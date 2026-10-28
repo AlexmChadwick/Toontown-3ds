@@ -1,6 +1,9 @@
 #include "ui/laff_meter.h"
 
+#include <cstdio>
+
 #include "core/log.h"
+#include "render/ui_font.h"
 #include "render/model.h"
 #include "ui/laff_meter_atlas.h"
 
@@ -16,6 +19,9 @@ constexpr float kToothFractions[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666
 constexpr LaffPart kTeeth[6] = {kLaffTooth6, kLaffTooth5, kLaffTooth4, kLaffTooth3, kLaffTooth2, kLaffTooth1};
 // LaffMeter.deathColor: the head at 0 laff.
 constexpr float kDeathColor[3] = {0.58039216f, 0.80392157f, 0.34117647f};
+
+constexpr float kPulseChange = 0.333f; // ToontownIntervals.PULSE_GUI_CHANGE
+constexpr float kPulseSeconds = 0.2f;  // PULSE_GUI_DURATION, each half
 
 render::Model gAtlas;
 bool gTried = false;
@@ -92,6 +98,53 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
                      y0 + kLaffMaxLabel[1] * size - h * 0.5f, z, scale, scale, ink);
     }
     return true;
+}
+
+float LaffPulse::update(int hp) {
+    if (lastHp_ >= 0 && hp != lastHp_) {
+        change_ = hp > lastHp_ ? 1.0f + kPulseChange : 1.0f - kPulseChange;
+        startMs_ = osGetTime();
+    }
+    lastHp_ = hp;
+    if (!startMs_) return 1.0f;
+    // Scale to change_ (easeOut), then back to 1 (easeIn), 0.2 s each.
+    const float t = (osGetTime() - startMs_) / 1000.0f;
+    if (t >= 2 * kPulseSeconds) return 1.0f;
+    if (t < kPulseSeconds) {
+        const float u = t / kPulseSeconds;
+        return 1.0f + (change_ - 1.0f) * (1.0f - (1.0f - u) * (1.0f - u));
+    }
+    const float u = (t - kPulseSeconds) / kPulseSeconds;
+    return change_ + (1.0f - change_) * (u * u);
+}
+
+bool LaffDisplay::init() {
+    buf_ = C2D_TextBufNew(16);
+    return buf_ != nullptr;
+}
+
+void LaffDisplay::shutdown() {
+    if (buf_) C2D_TextBufDelete(buf_);
+    buf_ = nullptr;
+}
+
+void LaffDisplay::draw(const LaffFace& face, float cx, float cy, float size, float z) {
+    if (!buf_) return;
+    const int hp = face.hp > 0 ? face.hp : 0; // LaffMeter never shows a negative laff
+    if (hp != hpShown_ || face.maxHp != maxShown_) {
+        char n[12];
+        C2D_TextBufClear(buf_);
+        snprintf(n, sizeof n, "%d", hp);
+        render::textParse(&hp_, buf_, n);
+        C2D_TextOptimize(&hp_);
+        snprintf(n, sizeof n, "%d", face.maxHp);
+        render::textParse(&max_, buf_, n);
+        C2D_TextOptimize(&max_);
+        hpShown_ = hp;
+        maxShown_ = face.maxHp;
+    }
+    const float s = size * pulse_.update(face.hp);
+    drawLaffMeter(face, cx - s * 0.5f, cy - s * 0.5f, s, &hp_, &max_, z);
 }
 
 } // namespace tt::ui

@@ -100,10 +100,20 @@ struct BattleCogView {
     char code[4];   // SuitDNA head code ("f", "tbc"); empty until the DNA arrives
     bool skelecog;
 };
+constexpr int kBattleToonCards = 4; // net::kBattleToons (a battle holds four toons)
 struct BattleToonView {
     uint32_t doId;
     char name[24];
     bool active, running, local;
+    // TownBattleToonPanel's laff meter: broadcast setHp / setMaxHp (maxHp 0 = not known yet),
+    // the head species and head colour from the toon's DNA.
+    int hp, maxHp;
+    int species;     // world::Species
+    float rgb[3];
+    // This round's pick (setChosenToonAttacks): kChoiceNone until the toon chooses, else
+    // kChoiceGag (chosenTrack / chosenLevel), kChoicePass or kChoiceSos.
+    enum Choice : uint8_t { kChoiceNone, kChoiceGag, kChoicePass, kChoiceSos, kChoiceFire } choice;
+    int8_t chosenTrack, chosenLevel;
 };
 struct BattleRewardRow {
     int track;

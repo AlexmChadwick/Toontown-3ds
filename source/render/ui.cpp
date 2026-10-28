@@ -41,11 +41,16 @@ const unsigned kTeleportHoods[kNumTeleportHoods] = {2000, 1000, 5000, 4000, 3000
 namespace {
 
 constexpr float kW = 320.0f;
-// Map tab: Home and the place label, then the teleport row just above the tab bar.
-constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
-constexpr float kHomeX = 4.0f, kHomeY = 148.0f, kHomeW = 76.0f, kHomeH = 24.0f;
+// Map tab: the teleport row under the map, then Home and the place label beside the laff pocket.
+constexpr float kHoodRowY = pad::hoods::kRowY, kHoodRowH = pad::hoods::kRowH, kHoodW = pad::hoods::kHoodW;
+constexpr float kHomeX = pad::hoods::kTabHomeX, kHomeY = pad::hoods::kHomeY, kHomeW = pad::hoods::kHomeW,
+                kHomeH = pad::hoods::kHomeH;
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
+// Our Laff meter sits in a pocket at the binder's left end, as upstream's sits at the screen's
+// bottom left; the tabs share the rest of the bar. Panels keep the pocket's corner clear.
+constexpr float kPocketW = pad::kLaffPocketW, kPocketTop = pad::kLaffPocketTop;
+constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~75% of it)
 constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
@@ -65,10 +70,8 @@ constexpr float kSwX = 8, kSwY = 44, kSwSize = 30, kSwGap = 4;
 constexpr int kSwCols = 9;
 
 // ---- padnav: the focus tables (ui/pad_tables.h) must match this layout ----
-static_assert(pad::hoods::kCount == kNumTeleportHoods && pad::hoods::kRowY == kHoodRowY &&
-                  pad::hoods::kRowH == kHoodRowH && pad::hoods::kHomeY == kHomeY && pad::hoods::kHomeH == kHomeH &&
-                  pad::hoods::kHomeX == kHomeX && pad::hoods::kHomeW == kHomeW,
-              "Map tab focus table");
+static_assert(pad::hoods::kCount == kNumTeleportHoods && pad::kTabBarY == kTabY,
+              "Map tab focus table / tab bar");
 static_assert(pad::toon::kNumColors == kNumToonColors && pad::toon::kSwCols == kSwCols && pad::toon::kSwX == kSwX &&
                   pad::toon::kSwY == kSwY && pad::toon::kSwSize == kSwSize && pad::toon::kSwGap == kSwGap,
               "Toon tab focus table");
@@ -98,9 +101,8 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
-    laffBuf_ = C2D_TextBufNew(16);
-    if (!gagText_.init(768) || !chatLogText_.init(512)) return false;
-    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !laffBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
+    if (!gagText_.init(768) || !chatLogText_.init(512) || !laff_.init()) return false;
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
     for (int i = 0; i < kTabCount; i++) parseStatic(&tabText_[i], staticBuf_, kTabNames[i]);
@@ -124,7 +126,8 @@ void Ui::shutdown() {
     book_.shutdown();
     gagText_.shutdown();
     chatLogText_.shutdown();
-    C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_, &laffBuf_};
+    laff_.shutdown();
+    C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
         *b = nullptr;
@@ -256,8 +259,10 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % tabs;
     if (down & KEY_X) s.tab = kTabChat;
     if (down & KEY_Y) s.tab = kTabMap;
-    if ((down & KEY_TOUCH) && t.py >= kTabY) {
-        s.tab = static_cast<int>(t.px / (kW / tabs));
+    if ((down & KEY_TOUCH) && t.px < kPocketW && t.py >= kPocketTop) {
+        s.tab = kTabToon; // the laff pocket: our Toon
+    } else if ((down & KEY_TOUCH) && t.py >= kTabY) {
+        s.tab = static_cast<int>((t.px - kPocketW) / ((kW - kPocketW) / tabs));
         if (s.tab >= tabs) s.tab = tabs - 1;
     }
     if (s.tab != lastTab_) {
@@ -282,7 +287,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         bool stillHere = s.whisperTo == 0;
         for (int i = 0; i < numNearby_; i++) stillHere |= nearbyIds_[i] == s.whisperTo;
         if (!stillHere) s.whisperTo = 0;
-        return chat_.handleInput(down, held, t, chatLogShown() ? kTabY - kChatLogH : kTabY);
+        return chat_.handleInput(down, held, t, chatBottom());
     }
     if (!(down & KEY_TOUCH) || t.py >= kTabY) return 0;
 
@@ -399,12 +404,9 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     switch (tab) {
     case kTabMap: drawMap(c); break;
     case kTabChat: {
-        if (chatLogShown()) {
-            chat_.draw(kTabY - kChatLogH);
-            drawChatLog(kTabY - kChatLogH, kTabY);
-        } else {
-            chat_.draw(kTabY);
-        }
+        chat_.draw(chatBottom());
+        theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
+        if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
         numNearby_ = c.numNearby < 8 ? c.numNearby : 8;
         const char* target = "Everyone";
         for (int i = 0; i < numNearby_; i++) {
@@ -429,7 +431,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     toonOnline_ = c.quests != nullptr;
     tabFocus_.drawHighlight();
     // ---- end padnav ----
-    drawTabs(s);
+    drawTabs(s, c);
 }
 
 // ---- padnav: button focus on the Map / Toon / Book tabs ----
@@ -441,7 +443,7 @@ u32 Ui::handleTabPad(u32 down, const touchPosition& t, State& s) {
     switch (s.tab) {
     case kTabMap:
         tabFocus_.setPanelName("tab_map");
-        pad::buildHoodRow(tabFocus_);
+        pad::buildHoodRow(tabFocus_, kHomeX);
         break;
     case kTabToon:
         tabFocus_.setPanelName("tab_toon");
@@ -522,29 +524,46 @@ bool Ui::chatLogShown() const {
     return chatLogCount_ > 0 && chatNowMs_ - chatLog_[chatLogCount_ - 1].ms < kChatLogMs;
 }
 
+// The SpeedChat menu stops above the recent-chat strip, or above the laff pocket.
+float Ui::chatBottom() const { return chatLogShown() ? kTabY - kChatLogH : kPocketTop; }
+
 // Newest line at the bottom, like a chat window: names in nametag blue (ours in green,
-// whispers in the whisper panel's purple).
+// whispers in the whisper panel's purple). It starts right of the laff pocket.
 void Ui::drawChatLog(float y0, float y1) {
-    theme::paper(4, y0 + 1, kW - 8, y1 - y0 - 3, 6.0f, theme::kScFrame, theme::kScFrameEdge);
+    const float x0 = kPocketW + 2;
+    theme::paper(x0, y0 + 1, kW - 4 - x0, y1 - y0 - 3, 6.0f, theme::kScFrame, theme::kScFrameEdge);
     for (int i = 0; i < chatLogCount_; i++) {
         const ChatLine& l = chatLog_[i];
         const float y = y0 + (y1 - y0 - 3 - chatLogCount_ * 13.5f) * 0.5f + i * 13.5f;
         const u32 nameCol = l.you ? theme::kGreenDark : l.whisper ? theme::rgb(0x80, 0x30, 0xA0) : theme::kBlueDark;
-        const float nw = chatLogText_.fit(10, y, theme::kTextSmall, nameCol, 110, "%s%s:", l.name,
+        const float nw = chatLogText_.fit(x0 + 6, y, theme::kTextSmall, nameCol, 100, "%s%s:", l.name,
                                           l.whisper && !l.you ? " whispers" : "");
-        chatLogText_.fit(14 + nw, y, theme::kTextSmall, theme::kScText, kW - 24 - nw, "%s", l.text);
+        chatLogText_.fit(x0 + 10 + nw, y, theme::kTextSmall, theme::kScText, kW - 14 - x0 - nw, "%s", l.text);
     }
 }
 
 // Shtiker-Book-style tabs on the binder: the open tab is yellow and stands taller.
-void Ui::drawTabs(const State& s) {
+void Ui::drawTabs(const State& s, const Context& c) {
     const int tabs = numTabs(s);
-    const float tw = kW / tabs;
+    const float tw = (kW - kPocketW) / tabs;
     C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, theme::kBinderDark);
-    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, 2, theme::kPaperEdge);
+    C2D_DrawRectSolid(kPocketW, kTabY, 0.5f, kW - kPocketW, 2, theme::kPaperEdge);
+    // The laff pocket: the binder rises at its left end and holds our meter.
+    theme::roundRect(0, kPocketTop, kPocketW, 240 - kPocketTop + 8, 9, theme::kPaperEdge);
+    theme::roundRect(0, kPocketTop + 2, kPocketW - 2, 240 - kPocketTop + 6, 8, theme::kBinderDark);
+    theme::roundRect(3, kPocketTop + 5, kPocketW - 8, 240 - kPocketTop, 6, s.tab == kTabToon ? theme::kBinder
+                                                                                           : theme::shade(theme::kBinder, 0.8f));
+    LaffFace face;
+    if (c.stats) {
+        face.hp = c.stats->hp;
+        face.maxHp = c.stats->maxHp;
+    }
+    for (int i = 0; i < 3; i++) face.rgb[i] = c.headRgb[i];
+    face.species = c.species;
+    laff_.draw(face, kPocketW * 0.5f - 1, kPocketTop + (240 - kPocketTop) * 0.5f + 1, kPocketLaff, 0.55f);
     for (int i = 0; i < tabs; i++) {
         const bool on = i == s.tab;
-        const float x = i * tw + 2, y = on ? kTabY + 2 : kTabY + 5, h = kTabH - (on ? 4 : 7);
+        const float x = kPocketW + i * tw + 2, y = on ? kTabY + 2 : kTabY + 5, h = kTabH - (on ? 4 : 7);
         const u32 face = on ? theme::kYellow : i == kTabDebug ? kPanel : theme::kBinder;
         theme::button(x, y, tw - 4, h, face, on ? theme::kYellowDark : theme::shade(face, 0.6f), false, 5.0f);
         theme::textCentered(tabText_[i], x + (tw - 4) * 0.5f, y + (on ? 4.0f : 3.0f), on ? 0.56f : 0.5f,
@@ -637,54 +656,36 @@ void Ui::drawMap(const Context& c) {
         map.w = mapW_;
         map.h = mapH_;
     }
-    drawMapFrame(c, map, 4, 4, kW - 8, kHomeY - 8);
-    drawHoodControls(c);
+    drawMapFrame(c, map, 4, 4, kW - 8, kHoodRowY - 8);
+    drawHoodControls(c, kHomeX);
 }
 
 void Ui::drawToon(const State& s, const Context& c) {
     theme::paper(4, 4, kW - 8, kTabY - 8, 8.0f);
     if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
-        // Our Laff meter, name and jellybeans (the HUD shows only the laff meter, as upstream).
-        if (c.stats) {
-            const int hp = c.stats->hp > 0 ? c.stats->hp : 0;
-            if (hp != laffHpShown_ || c.stats->maxHp != laffMaxShown_) {
-                char n[8];
-                C2D_TextBufClear(laffBuf_);
-                snprintf(n, sizeof n, "%d", hp);
-                parseStatic(&laffHp_, laffBuf_, n);
-                snprintf(n, sizeof n, "%d", c.stats->maxHp);
-                parseStatic(&laffMax_, laffBuf_, n);
-                laffHpShown_ = hp;
-                laffMaxShown_ = c.stats->maxHp;
-            }
-            LaffFace face;
-            face.hp = c.stats->hp;
-            face.maxHp = c.stats->maxHp;
-            for (int i = 0; i < 3; i++) face.rgb[i] = c.headRgb[i];
-            face.species = c.species;
-            drawLaffMeter(face, 10, 8, 78, &laffHp_, &laffMax_);
-        }
+        // Our name, laff and jellybeans (the laff meter itself is in the tab bar's pocket).
         C2D_Text name;
         textCache_.parse(&name, textBuf_, c.toonName && c.toonName[0] ? c.toonName : "Toon", 1024);
-        theme::textFit(name, 96, 10, 0.7f, theme::kInk, kW - 112);
+        theme::textFit(name, 14, 9, 0.72f, theme::kInk, kW - 28);
         float top = 38;
         if (c.stats) {
             // A few jellybeans in upstream's bean colours, then the count.
             static constexpr u32 kBeans[3] = {theme::rgb(0xE8, 0x3A, 0x6A), theme::rgb(0x6C, 0xC6, 0x3C),
                                               theme::rgb(0xF6, 0xB0, 0x22)};
-            for (int i = 0; i < 3; i++) theme::roundRect(98 + i * 7, top + 4 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
-            text(124, top, .48f, theme::kInk, "Jellybeans  %d / %d", c.stats->money, c.stats->maxMoney);
-            text(124, top + 17, .44f, theme::kInkSoft, "Laff  %d / %d", c.stats->hp > 0 ? c.stats->hp : 0,
-                 c.stats->maxHp);
-            top += 34;
+            for (int i = 0; i < 3; i++) theme::roundRect(14 + i * 7, top + 4 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
+            text(40, top, .48f, theme::kInk, "Jellybeans  %d / %d", c.stats->money, c.stats->maxMoney);
+            text(196, top, .48f, theme::kInk, "Laff  %d / %d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
+            top += 18;
         }
         // ---- clerks: show only the AI's current pet association ----
         if (c.clerkProfile) {
             const char* petName = c.clerkProfile->petId
                 ? (c.petName ? c.petName : "Owned (at estate)") : "None";
-            text(98, top, .42f, theme::kInkSoft, "Doodle: %s", petName);
+            text(14, top, .42f, theme::kInkSoft, "Doodle: %s", petName);
+            top += 16;
         }
-        quest_.drawTasks(*c.quests, 92, 172);
+        C2D_DrawRectSolid(12, top + 2, 0.5f, kW - 24, 1, theme::kPaperShade);
+        quest_.drawTasks(*c.quests, top + 6, 172);
         // ---- end clerks ----
         theme::button(pad::toon::kBookX, pad::toon::kBookY, pad::toon::kBookW, pad::toon::kBookH + 2,
                       theme::kOrange, theme::shade(theme::kOrange, 0.65f));
@@ -789,7 +790,7 @@ void Ui::drawGags(const Context &c) {
         d.trainingTrack = c.book->trackProgressId;
         d.trainingBits = c.book->trackProgress;
     }
-    drawGagTable(gagText_, d, 9, 29, kW - 18, 24.0f);
+    drawGagTable(gagText_, d, 9, 27, kW - 18, 21.0f); // seven rows end above the laff pocket
 }
 
 void Ui::drawDebug(const Context& c) {

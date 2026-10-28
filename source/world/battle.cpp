@@ -8,6 +8,7 @@
 #include "ui/gag_data.h"
 #include "world/battle_fx.h"
 #include "world/suit_tables.h"
+#include "world/toon_dna.h"
 // [cog attacks]
 #include "world/cog_attack_tables.h"
 #include "world/cog_attacks.h"
@@ -1251,6 +1252,40 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         t.local = t.doId == localId_;
         const char* name = client.avatarName(t.doId);
         snprintf(t.name, sizeof(t.name), "%s", name && name[0] ? name : "Toon");
+        const uint8_t* dnaBytes = nullptr;
+        t.hp = t.maxHp = 0;
+        if (t.local) {
+            t.hp = client.ownStats().hp;
+            t.maxHp = client.ownStats().maxHp;
+            dnaBytes = client.avatarDna();
+        } else if (const net::RemoteToon* rt = client.findToon(t.doId)) {
+            t.hp = rt->hp;
+            t.maxHp = rt->maxHp;
+            if (rt->hasDna) dnaBytes = rt->dna;
+        }
+        ToonDna dna;
+        if (!dnaBytes || !parseNetString(dnaBytes, net::kDnaSize, &dna)) dna = defaultToonDna();
+        t.species = static_cast<int>(species(dna));
+        const float* rgb = bodyColor(dna.headColor);
+        for (int k = 0; k < 3; ++k) t.rgb[k] = rgb[k];
+        // TownBattle.updateChosenAttacks: only this round's picks (a new WaitForInput clears them).
+        t.choice = BattleToonView::kChoiceNone;
+        t.chosenTrack = t.chosenLevel = -1;
+        for (int k = 0; nb->chosenStateSeq == nb->stateSeq && k < nb->numChosen; ++k) {
+            if (nb->chosenIds[k] != t.doId) continue;
+            const int track = nb->chosenTrack[k], level = nb->chosenLevel[k];
+            if (track >= 0 && track < 7 && level >= 0 && level < 7) {
+                t.choice = BattleToonView::kChoiceGag;
+                t.chosenTrack = int8_t(track);
+                t.chosenLevel = int8_t(level);
+            } else if (track == 98) { // BattleBase.PASS
+                t.choice = BattleToonView::kChoicePass;
+            } else if (track == 99 || track == 97 || track == 96) { // SOS / NPCSOS / PETSOS
+                t.choice = BattleToonView::kChoiceSos;
+            } else if (track == 100) { // FIRE
+                t.choice = BattleToonView::kChoiceFire;
+            }
+        }
     }
     // Experience earned this battle (setBattleExperience block for our toon).
     // RewardPanel shows a bar for every track the toon has, gained experience or not.

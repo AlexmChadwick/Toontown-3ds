@@ -15,23 +15,20 @@ namespace {
 // unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
 constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
 constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
-constexpr float kPulseChange = 0.333f;      // ToontownIntervals.PULSE_GUI_CHANGE
-constexpr float kPulseSeconds = 0.2f;       // PULSE_GUI_DURATION, each half
 
 } // namespace
 
 bool Hud::init() {
-    buf_ = C2D_TextBufNew(64);
     raceBuf_ = C2D_TextBufNew(96);
     toastBuf_ = C2D_TextBufNew(160);
-    return buf_ != nullptr && raceBuf_ != nullptr && toastBuf_ != nullptr;
+    return laff_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
-    if (buf_) C2D_TextBufDelete(buf_);
+    laff_.shutdown();
     if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
-    buf_ = raceBuf_ = toastBuf_ = nullptr;
+    raceBuf_ = toastBuf_ = nullptr;
 }
 
 namespace {
@@ -86,24 +83,6 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     }
     if (v.photoViewfinder) drawViewfinder(top);
     if (!v.online) return; // stats come from the server
-    // Re-parse text only when the numbers change (citro2d parsing is expensive).
-    if (v.hp != lastHp_ && lastHp_ >= 0) {
-        // ToontownIntervals.getPulseLargerIval / getPulseSmallerIval (PULSE_GUI_CHANGE 0.333).
-        pulseChange_ = v.hp > lastHp_ ? 1.0f + kPulseChange : 1.0f - kPulseChange;
-        pulseStartMs_ = osGetTime();
-    }
-    if (v.hp != lastHp_ || v.maxHp != lastMaxHp_) {
-        C2D_TextBufClear(buf_); // hp, max and money live in buf_ (the race line in raceBuf_)
-        char s[32];
-        snprintf(s, sizeof(s), "%d", v.hp > 0 ? v.hp : 0); // LaffMeter never shows a negative laff
-        tt::render::textParse(&hpText_, buf_, s);
-        C2D_TextOptimize(&hpText_);
-        snprintf(s, sizeof(s), "%d", v.maxHp);
-        tt::render::textParse(&maxText_, buf_, s);
-        C2D_TextOptimize(&maxText_);
-        lastHp_ = v.hp;
-        lastMaxHp_ = v.maxHp;
-    }
     C2D_SceneBegin(top);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); // overlay: never hidden by the world
     if (v.racing) {
@@ -116,31 +95,17 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     }
 
     // Upstream's HUD is the laff meter alone; jellybeans show on the book's Gags page and the
-    // Toon tab (InventoryPage.moneyDisplay), not over the world.
-    drawLaffMeter(v);
-    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
-}
-
-void Hud::drawLaffMeter(const HudValues& v) {
-    // The pulse: scale to pulseChange_ (easeOut), then back to 1 (easeIn), 0.2 s each.
-    float pulse = 1.0f;
-    const float t = (osGetTime() - pulseStartMs_) / 1000.0f;
-    if (pulseStartMs_ && t < 2 * kPulseSeconds) {
-        if (t < kPulseSeconds) {
-            const float u = t / kPulseSeconds;
-            pulse = 1.0f + (pulseChange_ - 1.0f) * (1.0f - (1.0f - u) * (1.0f - u));
-        } else {
-            const float u = (t - kPulseSeconds) / kPulseSeconds;
-            pulse = pulseChange_ + (1.0f - pulseChange_) * (u * u);
-        }
+    // Toon tab (InventoryPage.moneyDisplay), not over the world. While the bottom screen shows
+    // our laff (its tab bar pocket, the battle panel's Toon cards) the world stays clear.
+    if (!v.laffOnBottom) {
+        LaffFace face;
+        face.hp = v.hp;
+        face.maxHp = v.maxHp;
+        for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
+        face.species = v.species;
+        laff_.draw(face, kLaffX, kLaffY, kLaffSize);
     }
-    const float size = kLaffSize * pulse;
-    LaffFace face;
-    face.hp = v.hp;
-    face.maxHp = v.maxHp;
-    for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
-    face.species = v.species;
-    ui::drawLaffMeter(face, kLaffX - size * 0.5f, kLaffY - size * 0.5f, size, &hpText_, &maxText_);
+    C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
 }
 
 } // namespace tt::ui

@@ -148,7 +148,7 @@ void note(const char* fmt, const char* name) {
 
 } // namespace
 
-void drawHoodControls(const Context& c) {
+void drawHoodControls(const Context& c, float homeX) {
     using namespace pad::hoods;
     initText();
     if (!gPlayground.buf) {
@@ -168,13 +168,13 @@ void drawHoodControls(const Context& c) {
     // else Go Home, greyed when the server runs no estates.
     const bool back = !gRow.inPlayground && c.currentHood;
     const bool homeOn = back || c.homeAvailable;
-    theme::button(kHomeX, kHomeY, kHomeW, kHomeH, homeOn ? theme::kGreen : theme::kGrey,
+    theme::button(homeX, kHomeY, kHomeW, kHomeH, homeOn ? theme::kGreen : theme::kGrey,
                   homeOn ? theme::kGreenDark : theme::kGreyDark);
-    theme::textCentered(!back ? gHome : c.currentHood >= 10000 ? gCogHq : gPlayground, kHomeX + kHomeW * 0.5f, kHomeY + 3, 0.5f,
+    theme::textCentered(!back ? gHome : c.currentHood >= 10000 ? gCogHq : gPlayground, homeX + kHomeW * 0.5f, kHomeY + 3, 0.5f,
                         homeOn ? theme::kWhite : theme::kInkSoft, kHomeW - 8);
     // Where we are (the hood / street / building title upstream shows on arrival), or for a
     // moment why a press did nothing.
-    const float labelX = kHomeX + kHomeW + 6, labelW = pad::kScreenW - 4 - labelX;
+    const float labelX = homeX + kHomeW + 6, labelW = pad::kScreenW - 4 - labelX;
     const bool noting = gNote[0] && osGetTime() < gNoteUntil;
     theme::paper(labelX, kHomeY, labelW, kHomeH - 3, 5.0f, noting ? theme::kPaperShade : theme::kPaper);
     const bool indoors = kind == world::PlaceKind::Interior;
