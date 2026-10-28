@@ -130,7 +130,10 @@ def run_real(out, zones=None):
                     assert cell is not None and zone["chunks"][cell]["zone"]==expected
                     points.append((x,y,0,expected))
             for f in zone['floors']:
-                p=np.array(f[:9]).reshape(3,3).mean(axis=0)
+                tri=np.array(f[:9]).reshape(3,3)
+                if np.linalg.norm(np.cross(tri[1]-tri[0],tri[2]-tri[0]))<1e-3:
+                    continue  # degenerate floor (17000 has one): its centroid has no area under it
+                p=tri.mean(axis=0)
                 cell=tz.cell_at(zone,*p)
                 if cell is not None and cell not in covered:
                     covered.add(cell)

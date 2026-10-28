@@ -54,9 +54,13 @@ def main():
     ap.add_argument('shots', nargs='+')
     ap.add_argument('--out-dir')
     args = ap.parse_args()
+    if args.out_dir:
+        os.makedirs(args.out_dir, exist_ok=True)  # PNMImage.write fails silently into a missing dir
     for p in args.shots:
         out = os.path.join(args.out_dir or os.path.dirname(p), os.path.basename(p).replace('.bin', '.png'))
         save_png(decode(p), out)
+        if not os.path.exists(out):
+            sys.exit('could not write ' + out)
         print('wrote', out)
 
 

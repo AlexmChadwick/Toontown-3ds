@@ -33,6 +33,9 @@ int main(int argc,char** argv) {
         assert(zone.zoneAt(p)==expected);
         bool ground=false;
         const float height=zone.collision().groundHeight(p.x,p.y,p.z,&ground);
+        if (!ground || height>p.z+tt::world::kFloorReach)
+            fprintf(stderr,"zone_test: no ground at %.2f %.2f %.2f (zone %u): found %d height %.2f\n",
+                    double(p.x),double(p.y),double(p.z),expected,int(ground),double(height));
         assert(ground && height<=p.z+tt::world::kFloorReach);
         assert(zone.update(p,changed,&events));
         assert(zone.currentZone()==expected);
