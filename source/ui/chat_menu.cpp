@@ -17,14 +17,15 @@ constexpr float kScrollBarW = 4.0f;
 constexpr float kBackW = 64.0f;
 constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 
-// Same palette as render/ui.cpp.
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kPanelMenu = C2D_Color32(0x34, 0x4C, 0x7C, 0xFF);
-const u32 kPressed = C2D_Color32(0x4A, 0x64, 0x9C, 0xFF);
+// SpeedChat is a Shticker Book quick page: parchment phrases and red category cards.
+const u32 kBg = C2D_Color32(0x6E, 0x12, 0x12, 0xFF);
+const u32 kPanel = C2D_Color32(0xF2, 0xEC, 0xDF, 0xFF);
+const u32 kPanelMenu = C2D_Color32(0x91, 0x25, 0x20, 0xFF);
+const u32 kPressed = C2D_Color32(0xD8, 0xC8, 0xAD, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
+const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
+const u32 kDim = C2D_Color32(0x78, 0x68, 0x58, 0xFF);
 const u32 kMenuText = C2D_Color32(0xFF, 0xE0, 0x8A, 0xFF);
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
@@ -248,7 +249,7 @@ void ChatMenu::draw(float panelBottom) {
         const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? kPanelMenu : kPanel));
         C2D_DrawRectSolid(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap, bg);
         const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
-        const u32 fg = locked ? kDim : focused ? kBg : (it.isMenu ? kMenuText : kWhite);
+        const u32 fg = locked ? kDim : focused ? kInk : (it.isMenu ? kMenuText : kInk);
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {

@@ -43,11 +43,18 @@ constexpr float kTabY = 240.0f - kTabH;
 constexpr float kTabW = kW / kVisibleTabCount;
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Setup", "Debug"};
 
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
+// The world tabs are the closed Shticker Book's quick pages.  Keep the same
+// parchment, red-leather and gold language instead of the old renderer-debug blue.
+const u32 kBg = C2D_Color32(0xFA, 0xF6, 0xEE, 0xFF);
+const u32 kPanel = C2D_Color32(0xE8, 0xDE, 0xCA, 0xFF);
+const u32 kPanelAlt = C2D_Color32(0xF2, 0xEC, 0xDF, 0xFF);
+const u32 kLeather = C2D_Color32(0x6E, 0x12, 0x12, 0xFF);
+const u32 kLeatherLight = C2D_Color32(0x91, 0x25, 0x20, 0xFF);
+const u32 kDebugBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
+const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
+const u32 kDim = C2D_Color32(0x78, 0x68, 0x58, 0xFF);
 
 // Toon tab swatch grid
 constexpr float kSwX = 8, kSwY = 44, kSwSize = 30, kSwGap = 4;
@@ -388,8 +395,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
         }
         if (numNearby_ > 0) {
-            C2D_DrawRectSolid(kW - 100, 2, 0.5f, 96, 24, s.whisperTo ? kAccent : kPanel);
-            text(kW - 96, 7, 0.4f, s.whisperTo ? kBg : kWhite, "To: %.12s", target);
+            C2D_DrawRectSolid(kW - 100, 2, 0.5f, 96, 24, s.whisperTo ? kAccent : kLeatherLight);
+            text(kW - 96, 7, 0.4f, s.whisperTo ? kInk : kWhite, "To: %.12s", target);
         }
         break;
     }
@@ -486,13 +493,17 @@ void Ui::cycleWhisper(State& s) {
 // ---- end padnav ----
 
 void Ui::drawTabs(const State& s) {
-    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, kPanel);
+    C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, kLeather);
     for (int i = 0; i < kVisibleTabCount; i++) {
-        if (i == s.tab) C2D_DrawRectSolid(i * kTabW + 2, kTabY + 2, 0.5f, kTabW - 4, kTabH - 4, kAccent);
-        C2D_DrawText(&tabText_[i], C2D_WithColor, i * kTabW + 10, kTabY + 8, 0.5f, 0.5f, 0.5f,
-                     i == s.tab ? kBg : kWhite);
+        const float x = i * kTabW;
+        // The selected bookmark rises out of the leather strip, like the full book tabs.
+        C2D_DrawRectSolid(x + 2, kTabY + (i == s.tab ? 1 : 5), 0.51f, kTabW - 4,
+                          i == s.tab ? kTabH - 1 : kTabH - 5, i == s.tab ? kAccent : kLeatherLight);
+        float tw = 0.0f;
+        C2D_TextGetDimensions(&tabText_[i], 0.5f, 0.5f, &tw, nullptr);
+        C2D_DrawText(&tabText_[i], C2D_WithColor, x + (kTabW - tw) * 0.5f, kTabY + 9, 0.52f, 0.5f, 0.5f,
+                     i == s.tab ? kInk : kWhite);
     }
-    if (s.tab == kTabDebug) text(240, kTabY + 9, 0.38f, kDim, "SELECT: back");
 }
 
 void Ui::unloadMap() {
@@ -609,19 +620,23 @@ void Ui::drawMap(const Context& c) {
     if (playerVisible) C2D_DrawTriangle(px + fx * 11, py + fy * 11, kAccent, px - fx * 5 + sx * 4.5f, py - fy * 5 + sy * 4.5f, kAccent,
                      px - fx * 5 - sx * 4.5f, py - fy * 5 - sy * 4.5f, kAccent, 0.6f);
     // ---- end qafix ----
+    // A small paper label remains legible over every baked map without exposing
+    // implementation zone IDs or coordinates to players.
+    C2D_DrawRectSolid(5, 5, 0.61f, 100, 20, kPanelAlt);
     if (!hasMap_ && world::placeKind(c.currentZone) == world::PlaceKind::Interior)
-        text(8, 8, 0.45f, kWhite, "Indoors  (zone %u)", c.currentZone);
+        text(8, 8, 0.45f, kInk, "You are indoors");
     else
-        text(8, 8, 0.45f, kWhite, "Zone %u  (%.0f, %.0f)", c.currentZone, c.playerX, c.playerY);
+        text(8, 8, 0.45f, kInk, "You are here");
     C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
-    text(18, kHomeY + 6, 0.42f, kBg, "Home");
+    text(18, kHomeY + 6, 0.42f, kInk, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
         const float x = i * kHoodW + 1;
-        C2D_DrawRectSolid(x, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH, here ? kAccent : have ? kPanel : kBg);
-        text(x + 6, kHoodRowY + 6, 0.42f, here ? kBg : have ? kWhite : kDim, "%s", kHoodShort[i]);
+        C2D_DrawRectSolid(x, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH,
+                          here ? kAccent : have ? kLeatherLight : kPanel);
+        text(x + 6, kHoodRowY + 6, 0.42f, here ? kInk : have ? kWhite : kDim, "%s", kHoodShort[i]);
     }
 }
 
@@ -630,7 +645,7 @@ void Ui::drawToon(const State& s, const Context& c) {
         // Laff and jellybeans (the HUD shows only the laff meter, as upstream).
         float top = 6;
         if (c.stats) {
-            text(6, top, .42f, kWhite, "Laff %d/%d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
+            text(6, top, .42f, kInk, "Laff %d/%d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
             text(130, top, .42f, kAccent, "Jellybeans %d/%d", c.stats->money, c.stats->maxMoney);
             top += 16;
         }
@@ -638,19 +653,19 @@ void Ui::drawToon(const State& s, const Context& c) {
         if (c.clerkProfile) {
             const char* petName = c.clerkProfile->petId
                 ? (c.petName ? c.petName : "Owned (at estate)") : "None";
-            text(6, top, .38f, kWhite, "Doodle: %s", petName);
+            text(6, top, .38f, kInk, "Doodle: %s", petName);
             top += 16;
         }
         quest_.drawTasks(*c.quests, top + 6, 170);
         // ---- end clerks ----
         C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
-        text(72, 180, 0.42f, kBg, "Open Shtiker Book (START)");
+        text(72, 180, 0.42f, kInk, "Open Shticker Book (START)");
         return;
     }
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};
     for (int i = 0; i < 3; i++) {
         C2D_DrawRectSolid(8 + i * 102, 8, 0.5f, 98, 28, i == s.colorTarget ? kAccent : kPanel);
-        text(16 + i * 102, 14, 0.5f, i == s.colorTarget ? kBg : kWhite, "%s", kTargets[i]);
+        text(16 + i * 102, 14, 0.5f, i == s.colorTarget ? kInk : kInk, "%s", kTargets[i]);
     }
     const int sel = s.colorTarget == 0 ? s.bodyColor : s.colorTarget == 1 ? s.shirtColor : s.bottomColor;
     for (int i = 0; i < kNumToonColors; i++) {
@@ -664,13 +679,13 @@ void Ui::drawToon(const State& s, const Context& c) {
 }
 
 void Ui::drawSettings(const State& s) {
-    text(12, 8, 0.5f, kWhite, "Settings");
+    text(12, 8, 0.5f, kInk, "Settings");
     C2D_DrawRectSolid(kBtnX, kStereoY, 0.5f, kBtnW, kBtnH, s.stereo ? kAccent : kPanel);
-    text(kBtnX + 8, kStereoY + 10, 0.5f, s.stereo ? kBg : kWhite, "Stereo 3D: %s", s.stereo ? "On" : "Off");
-    text(186, kStereoY + 11, 0.4f, s.stereo ? kBg : kDim, "3D slider controls depth");
+    text(kBtnX + 8, kStereoY + 10, 0.5f, kInk, "Stereo 3D: %s", s.stereo ? "On" : "Off");
+    text(186, kStereoY + 11, 0.4f, kDim, "3D slider controls depth");
 
     C2D_DrawRectSolid(kBtnX, kBookY, 0.5f, kBtnW, kBtnH, kAccent);
-    text(kBtnX + 46, kBookY + 9, 0.52f, kBg, "Open Shticker Book");
+    text(kBtnX + 46, kBookY + 9, 0.52f, kInk, "Open Shticker Book");
     text(12, 134, 0.45f, kDim, "Music, sound, graphics and game options");
     text(12, 151, 0.45f, kDim, "are tucked inside your Shticker Book.");
     text(12, 184, 0.4f, kDim, "SELECT opens the hidden performance view.");
@@ -682,7 +697,7 @@ void Ui::drawInfo(const Context &c) {
         const auto &race = *c.racing;
         text(8, 4, .6f, kAccent, "%s", c.infoTitle);
         for (int i = 0; i < 3; ++i)
-            text(8, 28 + i * 14, .36f, kWhite, "%s", c.infoLines[i] ? c.infoLines[i] : "");
+            text(8, 28 + i * 14, .36f, kInk, "%s", c.infoLines[i] ? c.infoLines[i] : "");
         auto x = [&](float value) { return 12 + (value - race.minX) / race.spanX * 140; };
         auto y = [&](float value) { return 194 - (value - race.minY) / race.spanY * 112; };
         for (int i = 0; i < 64; ++i) {
@@ -691,7 +706,7 @@ void Ui::drawInfo(const Context &c) {
                          y(race.curve[next][1]), kDim, 2, .5f);
         }
         for (int i = 0; i < race.count; ++i) {
-            const u32 color = i == 0 ? kAccent : kWhite;
+            const u32 color = i == 0 ? kAccent : kLeatherLight;
             C2D_DrawRectSolid(x(race.racers[i][0]) - 2, y(race.racers[i][1]) - 2, .6f, 4, 4, color);
             text(168, 88 + i * 24, .45f, color, "%s", race.names[i]);
         }
@@ -701,7 +716,7 @@ void Ui::drawInfo(const Context &c) {
     text(12, 12, 0.7f, kAccent, "%s", c.infoTitle);
     for (int i = 0; i < 3; i++) {
         if (c.infoLines[i] && c.infoLines[i][0])
-            text(12, 60 + i * 30, 0.55f, kWhite, "%s", c.infoLines[i]);
+            text(12, 60 + i * 30, 0.55f, kInk, "%s", c.infoLines[i]);
     }
 }
 
@@ -718,15 +733,15 @@ void Ui::drawGags(const Context &c) {
             int total = 0;
             for (int t = 0; t < gags::kTracks; t++)
                 for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
-            debugLine(8, 4, 0.5f, kWhite, "Gags  %d / %d", total, c.maxCarry);
+            debugLine(8, 4, 0.5f, kInk, "Gags  %d / %d", total, c.maxCarry);
             for (int t = 0; t < gags::kTracks; t++) {
                 const bool have = c.trackAccess[t];
                 const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
                 const float y = 26 + t * 24;
-                debugLine(8, y, 0.5f, have ? kWhite : kDim, "%s", gags::kTrackNames[t]);
+                debugLine(8, y, 0.5f, have ? kInk : kDim, "%s", gags::kTrackNames[t]);
                 for (int l = 0; l < gags::kLevels; l++) {
                     if (l < levels) {
-                        debugLine(80 + l * 22, y, 0.5f, c.gagCount[t][l] ? kWhite : kDim, "%u",
+                        debugLine(80 + l * 22, y, 0.5f, c.gagCount[t][l] ? kInk : kDim, "%u",
                                   unsigned(c.gagCount[t][l]));
                     } else {
                         debugLine(80 + l * 22, y, 0.5f, kDim, "-");
@@ -740,6 +755,10 @@ void Ui::drawGags(const Context &c) {
                 }
             }
         }
+    }
+    if (c.gagCount) {
+        for (int t = 0; t < gags::kTracks; t++)
+            C2D_DrawRectSolid(4, 23 + t * 24, 0.46f, 312, 22, (t & 1) ? kPanelAlt : kPanel);
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
@@ -759,13 +778,17 @@ void Ui::drawGags(const Context &c) {
 }
 
 void Ui::drawDebug(const Context& c) {
+    // Diagnostics deliberately retain the compact high-contrast engineering view.
+    C2D_DrawRectSolid(0, 0, 0.44f, kW, kTabY, kDebugBg);
     if (cachedLinesTab_ != kTabDebug || numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
         const u32 good = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
         const u32 bad = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
+        const u32 debugDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
         cachedLinesTab_ = kTabDebug;
         debugLine(8, 4, 0.5f, kWhite, "Debug  (%s)", c.isNew3ds ? "New 3DS" : "Old 3DS");
+        debugLine(248, 4, 0.36f, kWhite, "SELECT: back");
         debugLine(8, 24, 0.5f, c.fps >= 29.5f ? good : bad, "%.1f fps   cpu %.1f ms  gpu %.1f ms", c.fps, c.cpuMs,
                   c.gpuMs);
         debugLine(8, 42, 0.5f, kWhite, "draws %u  tris %u  models %u (+%u culled)", c.drawCalls, c.triangles,
@@ -779,7 +802,7 @@ void Ui::drawDebug(const Context& c) {
         if (c.netState) {
             debugLine(8, 114, 0.45f, kWhite, "net %s   in %u  out %u B/s", c.netState, c.netInBps, c.netOutBps);
         } else {
-            debugLine(8, 114, 0.45f, kDim, "net offline");
+            debugLine(8, 114, 0.45f, debugDim, "net offline");
         }
         // Main-thread CPU breakdown (core/profile.h): mean ms per frame over the last second.
         // "wait" is the vblank/GPU sync, not CPU work; busy = total - wait.
@@ -801,7 +824,7 @@ void Ui::drawDebug(const Context& c) {
             debugLine(8+(slot/kProfRows)*106,143+(slot%kProfRows)*10,.34f,ms>4?bad:kWhite,"%-6s %5.2f",
                       prof::name(static_cast<prof::Section>(index)),static_cast<double>(ms));
         }
-        debugLine(8, 196, 0.32f, kDim, "%.68s", log::recent(0));
+        debugLine(8, 196, 0.32f, debugDim, "%.68s", log::recent(0));
         // ---- end qafix ----
     }
     for (int i = 0; i < numDebugLines_; i++) {

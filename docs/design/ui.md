@@ -229,6 +229,11 @@ The upstream positions are laff meter `(-1.18, 0, -0.87)`, scale 0.075
 
 ## 4. Shticker Book → bottom-screen tabs
 
+The persistent world tabs use the same visual language as the full book: warm parchment
+content, red-leather bookmarks and a raised gold active tab. SpeedChat category cards use
+red leather while phrases sit on light paper. The compact navy performance panel is not a
+player tab; SELECT temporarily reveals it and returns to the previous page.
+
 Upstream pages are added in `LocalToon.py:330-356`: Options, District (Shard), Map,
 Inventory, ToonTasks, Gag Tracks, Cog Gallery, Photo and Fish, with more later. The book
 GUI is `phase_3.5/models/gui/stickerbook_gui.bam` (23 quads, 12 textures, 2.7 MB raw).

@@ -56,8 +56,9 @@ a touch player's A still jumps.
 | Chat tab (`render/ui.cpp`) | "To:" whisper target button | touch only | X while already on the Chat tab |
 | Toon tab, online (`render/ui.cpp`) | Open Shtiker Book | touch, START | D-Down focuses it, A opens (START still works) |
 | Toon tab, offline | Body / Shirt / Shorts targets and the 27 colour swatches | touch only | D-Pad across targets and the swatch grid, A picks |
-| Setup tab (`render/ui.cpp`) | Stereo 3D, Stress [-], Stress [+] | touch only | D-Pad focus, A presses |
-| Gags tab, Debug tab | display only (no controls) | — | — |
+| Setup tab (`render/ui.cpp`) | Stereo 3D, Open Shticker Book | touch only | D-Pad focus, A presses |
+| Gags tab | display only (no controls) | — | — |
+| Hidden Debug view | SELECT toggles it and restores the previous player tab | — | — |
 | Battle (`ui/battle_panel.cpp`) | gag grid (7 tracks × 7 levels) | touch only | starts on the first usable gag (like TownBattle); D-Pad moves, locked or unusable gags skipped; A attacks |
 | Battle | target cog (up to 4) | touch only | L / R cycle the target; or D-Up to the cog row and A |
 | Battle | Pass, Run | touch only | D-Down below the grid, A presses (Run is skipped when not allowed) |
@@ -65,7 +66,7 @@ a touch player's A still jumps.
 | Battle | Fire / SOS | not in this client's battle panel | — |
 | Shtiker Book (`ui/book.cpp`) | page turn, page tabs, close | touch; L / R and D-Left / D-Right turn pages; START closes | L / R turn pages; B or START closes; D-Left / D-Right turn pages unless the page uses them |
 | Book: Map page | Home, 8 hood buttons | touch only | D-Pad focus, A presses |
-| Book: Options page | Stereo, Debug HUD, LOD, Music −/+, SFX −/+, Stress −/+, Quit | touch only | D-Pad focus, A presses |
+| Book: Options page | Stereo, graphics quality, Music −/+, SFX −/+, Quit | touch only | D-Pad focus, A presses |
 | Book: Cogs, Disguise pages | 4 department tabs | touch only | D-Left / D-Right step through them (highlighted) |
 | Book: Fish page | genus < / > | touch; D-Left / D-Right were unreachable (the book took them) | D-Left / D-Right press < / > (highlighted) |
 | Book: SOS page | "[Page n/2]" (more than 8 cards) | touch only | D-Left / D-Right flip it |
@@ -107,7 +108,7 @@ up, so run the whole script, or an `only` line that keeps those steps too, for e
 | `pad: tab toon`, `pad: toon focus`, `pad: book from toon tab` | `padnav: tab_toon focus 0`, `padnav: tab_toon activate 200` (the book opens online) |
 | `pad: book next page`, `pad: book page turn`, `pad: book close` | the book title page changes in `pad_book_turn.png`; the book closes |
 | `pad: tab setup` … `pad: setup release` | `padnav: tab_setup activate 2`, then `activate 1` (stress 0 → 1 → 0), `blur` |
-| `pad: book options focus` … `pad: book close map` | `padnav: book_options focus 0`, `activate 2` twice (Debug HUD on, off), `padnav: book_map focus 0` |
+| `pad: book options focus` … `pad: book close map` | `padnav: book_options focus 0`, player-setting activations, `padnav: book_map focus 0` |
 | `pad: fish aim` | `padnav: fishing aim <deg>` on release (non-zero once the spot is Ready) |
 | `pad: shop open` … `pad: shop press` | `padnav: shop_grid focus <id>` moves, `padnav: shop focus 2` (Done), `focus 3`, `padnav: shop activate 3` (cancel) |
 | `pad: battle start` … `pad: battle rounds` | `padnav: battle focus <n>` moves, `padnav: battle target <n>` (with 2+ cogs), `padnav: battle activate <gag id>` and the attack request |
