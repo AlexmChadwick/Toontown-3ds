@@ -541,6 +541,12 @@ SfxId loadSfx(const char* path) {
         return kInvalidSfx;
     }
     uint32_t bytes = h.blockBytes;
+    if (gLinearUsed + bytes > kAudioBudgetBytes) {
+        TT_LOG("audio: %s: over the audio budget (%lu + %lu > %lu B)", path, (unsigned long)gLinearUsed,
+               (unsigned long)bytes, (unsigned long)kAudioBudgetBytes);
+        fclose(f);
+        return kInvalidSfx;
+    }
     void* data;
     {
         mem::LinearGuard g; // the asset loader thread allocates linear memory too

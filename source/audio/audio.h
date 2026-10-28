@@ -46,6 +46,9 @@ constexpr int kNumSfxVoices = 8;
 // boat 4, fishing, interior life (about 57 at most); each slot only holds a pointer until loaded.
 constexpr int kMaxSfx = 64;
 constexpr size_t kMusicRingBytes = 128 * 1024; // AGENTS.md: music ring <= 256 KB
+// AGENTS.md audio sub-budget (ring + every resident SFX). loadSfx refuses a cue that would pass it,
+// so no caller combination can overrun the linear budget.
+constexpr size_t kAudioBudgetBytes = 2 * 1024 * 1024;
 
 // Returns false when audio is unavailable (the game continues silently).
 bool init();

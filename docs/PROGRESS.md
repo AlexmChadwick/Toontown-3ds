@@ -591,3 +591,18 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Azahar battle with several gag tracks to confirm no audible cut-offs; latency gate and `kSmoothTau` visual check on a quiet machine.
+
+## 2026-10-28 — perf round 18: global audio budget enforced in loadSfx
+
+### Done
+- `audio::loadSfx` now refuses a cue when music ring + resident SFX would pass `kAudioBudgetBytes` (2 MiB, the AGENTS.md audio
+  sub-budget), logging `audio: <path>: over the audio budget`. Before, only individual callers (battle gag/Cog caches) were
+  bounded, so battle + facility/boat/ambient cues could in principle exceed 2 MiB. Callers already treat `kInvalidSfx` as silent.
+- Always-resident cues are about 0.3 MB; the battle caps add up to 1.5 MiB, so worst-case headroom is tight (about 0.1 MiB).
+
+### Verified (host)
+- `make`: no source warnings. `budget_check.sh` exits 0. `battle_validate.py` could not run here (no panda3d in this shell).
+- Not run in Azahar: whether any real session hits the cap (watch for the new log line).
+
+### Next
+- Azahar battle inside a facility, grep the log for `over the audio budget`; latency gate and `kSmoothTau` check on a quiet machine.
