@@ -1,5 +1,43 @@
 # Progress
 
+## 2026-10-27 — Newbie Gag Shop tutorial integration
+
+Done:
+
+- Connected the stock class-177 `NewbiePurchaseManager` to the generated `gag_intro`
+  QuestScript when the local avatar is one of the manager's players. The local-only gag-shop
+  clerk now presents its dialogue in a stable top-screen balloon; it never sends the NPC
+  `setMovieDone` acknowledgement because upstream's NPC 2011 is not a distributed object.
+- Preserved the stock purchase teaching lock on the 3DS bottom screen. Dialogue A presses no
+  longer buy gags accidentally, Done/Cancel remain unavailable during the movie, and only the
+  focused gag purchase is accepted at the generated `inventory-selection` gate.
+- Prevented trolley autotest from submitting the purchase while the tutorial owns it, and added
+  source-contract coverage for dispatch, local-player filtering, input gating, and autoplay.
+
+Verified:
+
+- The generated QuestScripts check and all five tutorial sender/source contracts pass.
+- `bash -n tools/tutorial_test/run.sh` and `git diff --check` pass.
+- The sanitizer-backed host flow executable could not be built because this image has no C++
+  compiler. The native 3DS build is also unavailable because `DEVKITARM` is unset; `make -n`
+  stops at the toolchain guard. No emulator, live-server, or hardware result is claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial, including the first trolley ride and class-177 Gag Shop movie,
+  still needs its first Old 3DS Azahar play-through against the stock server. Confirm that a gag
+  can be selected at the prompt, purchase exit completes, and quest 110 advances on return.
+- The compact 3DS movie uses the original dialogue and timing but does not render upstream's
+  animated NPC head, arrows, button throbs, or advanced-gag preview.
+- Real Old 3DS performance and memory high-water marks remain unmeasured.
+
+Next:
+
+- On a provisioned host, run `tools/tutorial_test/run.sh`, build with zero warnings, package the
+  canonical tutorial assets, and play the full route in Old 3DS Azahar mode.
+- Review the Gag Shop tutorial at 400x240/320x240 and add the missing decorative cues where they
+  materially improve clarity without compromising the Old 3DS memory and draw budgets.
+
 ## 2026-10-27 — Toontorial quest-movie integration
 
 Done:
