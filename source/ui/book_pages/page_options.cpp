@@ -52,9 +52,6 @@ void PageOptions::applyOption(int id, State& s) {
     case pad::book::kIdStereo:
         s.stereo = !s.stereo;
         break;
-    case pad::book::kIdDebugHud:
-        s.debugOverlay = !s.debugOverlay;
-        break;
     case pad::book::kIdLodBias:
         s.lodBias = (s.lodBias == 0) ? 1 : 0;
         break;
@@ -74,12 +71,6 @@ void PageOptions::applyOption(int id, State& s) {
         s.sfxVol = std::min(100, s.sfxVol + 10);
         audio::setMasterVolume(s.sfxVol / 100.0f);
         break;
-    case pad::book::kIdStressMinus:
-        s.stressToons = std::max(0, s.stressToons - 8);
-        break;
-    case pad::book::kIdStressPlus:
-        s.stressToons = std::min(64, s.stressToons + 8);
-        break;
     case pad::book::kIdQuit:
         s.quitRequested = true;
         break;
@@ -95,9 +86,7 @@ void PageOptions::rebuildText(const BookDrawContext& bdc) {
     if (bdc.state) {
         lastMusicVol_ = bdc.state->musicVol;
         lastSfxVol_ = bdc.state->sfxVol;
-        lastStress_ = bdc.state->stressToons;
         lastStereo_ = bdc.state->stereo;
-        lastDebug_ = bdc.state->debugOverlay;
         lastLod_ = bdc.state->lodBias;
     }
     lastNumDistricts_ = bdc.numDistricts;
@@ -109,8 +98,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
 
     if (bdc.state) {
         if (bdc.state->musicVol != lastMusicVol_ || bdc.state->sfxVol != lastSfxVol_ ||
-            bdc.state->stressToons != lastStress_ || bdc.state->stereo != lastStereo_ ||
-            bdc.state->debugOverlay != lastDebug_ || bdc.state->lodBias != lastLod_ ||
+            bdc.state->stereo != lastStereo_ || bdc.state->lodBias != lastLod_ ||
             bdc.numDistricts != lastNumDistricts_) {
             rebuildText(bdc);
         }
@@ -147,49 +135,38 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
     C2D_DrawRectSolid(309, 26, 0.46f, 1, 178, kCardBorder);
 
     const bool stereo = bdc.state ? bdc.state->stereo : false;
-    const bool debug = bdc.state ? bdc.state->debugOverlay : false;
     const int lod = bdc.state ? bdc.state->lodBias : 0;
     const int musicVol = bdc.state ? bdc.state->musicVol : 80;
     const int sfxVol = bdc.state ? bdc.state->sfxVol : 100;
-    const int stress = bdc.state ? bdc.state->stressToons : 0;
 
     // 1. Stereo 3D button
-    C2D_DrawRectSolid(15, 30, 0.5f, 135, 20, stereo ? kActiveBtn : kBtnBg);
-    drawText(20, 33, 0.42f, stereo ? kWhite : kInk, "Stereo 3D: %s", stereo ? "On" : "Off");
+    C2D_DrawRectSolid(15, 32, 0.5f, 135, 20, stereo ? kActiveBtn : kBtnBg);
+    drawText(20, 35, 0.42f, stereo ? kWhite : kInk, "Stereo 3D: %s", stereo ? "On" : "Off");
 
-    // 2. Debug Overlay button
-    C2D_DrawRectSolid(15, 54, 0.5f, 135, 20, debug ? kActiveBtn : kBtnBg);
-    drawText(20, 57, 0.42f, debug ? kWhite : kInk, "Debug HUD: %s", debug ? "On" : "Off");
-
-    // 3. LOD Bias button
-    C2D_DrawRectSolid(15, 78, 0.5f, 135, 20, (lod > 0) ? kActiveBtn : kBtnBg);
-    drawText(20, 81, 0.42f, (lod > 0) ? kWhite : kInk, "LOD Bias: %s", (lod > 0) ? "Low (Fast)" : "Normal");
+    // 2. Graphics quality. Developer diagnostics remain behind SELECT in the world UI.
+    C2D_DrawRectSolid(15, 60, 0.5f, 135, 20, (lod > 0) ? kActiveBtn : kBtnBg);
+    drawText(20, 63, 0.42f, (lod > 0) ? kWhite : kInk, "Graphics: %s", (lod > 0) ? "Fast" : "Normal");
 
     // 4. Music Volume
-    drawText(16, 106, 0.40f, kInk, "Music:");
-    C2D_DrawRectSolid(80, 102, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 104, 0.50f, kInk, "-");
-    drawText(104, 106, 0.38f, kInk, "%d%%", musicVol);
-    C2D_DrawRectSolid(126, 102, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 104, 0.50f, kInk, "+");
+    drawText(16, 96, 0.40f, kInk, "Music:");
+    C2D_DrawRectSolid(80, 92, 0.5f, 22, 20, kBtnBg);
+    drawText(88, 94, 0.50f, kInk, "-");
+    drawText(104, 96, 0.38f, kInk, "%d%%", musicVol);
+    C2D_DrawRectSolid(126, 92, 0.5f, 22, 20, kBtnBg);
+    drawText(134, 94, 0.50f, kInk, "+");
 
     // 5. SFX Volume
-    drawText(16, 130, 0.40f, kInk, "Sound:");
-    C2D_DrawRectSolid(80, 126, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 128, 0.50f, kInk, "-");
-    drawText(104, 130, 0.38f, kInk, "%d%%", sfxVol);
-    C2D_DrawRectSolid(126, 126, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 128, 0.50f, kInk, "+");
+    drawText(16, 124, 0.40f, kInk, "Sound:");
+    C2D_DrawRectSolid(80, 120, 0.5f, 22, 20, kBtnBg);
+    drawText(88, 122, 0.50f, kInk, "-");
+    drawText(104, 124, 0.38f, kInk, "%d%%", sfxVol);
+    C2D_DrawRectSolid(126, 120, 0.5f, 22, 20, kBtnBg);
+    drawText(134, 122, 0.50f, kInk, "+");
 
-    // 6. Stress Toons
-    drawText(16, 154, 0.40f, kInk, "Stress:");
-    C2D_DrawRectSolid(80, 150, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 152, 0.50f, kInk, "-");
-    drawText(106, 154, 0.38f, kInk, "%d", stress);
-    C2D_DrawRectSolid(126, 150, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 152, 0.50f, kInk, "+");
+    drawText(18, 150, 0.34f, kDim, "SELECT shows performance");
+    drawText(18, 162, 0.34f, kDim, "details while playing.");
 
-    // 7. Quit Game
+    // 5. Quit Game
     C2D_DrawRectSolid(15, 176, 0.5f, 135, 20, kRed);
     drawText(44, 179, 0.42f, kWhite, "Quit Game");
 

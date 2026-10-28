@@ -22,9 +22,7 @@ private:
     C2D_TextBuf textBuf_ = nullptr;
     int lastMusicVol_ = -1;
     int lastSfxVol_ = -1;
-    int lastStress_ = -1;
     bool lastStereo_ = false;
-    bool lastDebug_ = false;
     int lastLod_ = -1;
     int lastNumDistricts_ = -1;
     FocusGroup focus_{"book_options"}; // padnav
