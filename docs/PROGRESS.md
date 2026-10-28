@@ -648,3 +648,21 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Needs a quiet machine or hardware: latency gate, battle-in-facility Azahar run, `kSmoothTau` check.
+
+## 2026-10-28 — perf round 22: runtime memory watermarks
+
+### Done
+- `tt::mem::sampleWatermarks()` (`source/core/memory.*`, called once per frame from `main.cpp`) tracks peak heap, linear and VRAM use.
+  It logs `mem: peak heap X KB, linear Y KB, vram Z KB` whenever any peak grows by 512 KB, and `mem: LOW linear N KB free` once when
+  free linear memory falls under the 2 MB AGENTS.md reserve. Azahar/hardware runs can now assert peaks from `log.txt` instead of
+  reading the overlay. Linear use is computed against `kLinearBudget`; VRAM against 6 MB.
+
+### Verified (host)
+- `make`: no source warnings (only the toolchain's crtn.o executable-stack linker note). `budget_check.sh` exits 0.
+
+### Known issues
+- Not run in Azahar (load ~9): the log lines have not been seen live; the full-battle linear peak, latency gate, `kSmoothTau` check
+  and hardware run remain unmeasured.
+
+### Next
+- First Azahar battle run: grep `mem: peak` / `mem: LOW` and record the numbers in docs/test-log.md.

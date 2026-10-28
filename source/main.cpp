@@ -2767,6 +2767,7 @@ int main() {
             tt::prof::lap(tt::prof::kHud);
         }
         const struct mallinfo mi = mallinfo();
+        tt::mem::sampleWatermarks();
         // ---- racing2 ----
         static tt::ui::RacingView racingView;
         if (racing.active())
