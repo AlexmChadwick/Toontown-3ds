@@ -622,3 +622,15 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Quiet machine: latency gate, battle-in-facility Azahar run, kSmoothTau check; then hardware.
+
+## 2026-10-28 — perf round 20: budget re-check (no code changes)
+
+### Verified (host)
+- `make` up to date (no source warnings); `budget_check.sh` exits 0: static 3,147,076 B (3.00 MiB of 4.00), every zone and the SD set inside budget.
+
+### Known issues
+- Unchanged: live web->3DS latency gate, full-battle linear peak beyond the 2.1 MB Azahar reading, the `over the audio budget` log in a long
+  facility battle, the `kSmoothTau` visual check and any hardware run are unmeasured. VM load was ~10, so no emulator numbers were taken.
+
+### Next
+- Quiet machine or hardware: latency gate, battle-in-facility Azahar run, kSmoothTau check. Further host-only re-checks add nothing.
