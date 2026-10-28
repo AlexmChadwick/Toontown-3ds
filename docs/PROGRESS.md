@@ -3,6 +3,74 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 (round 7) — Toontown bottom screen, receive latency, isolated test runs
+
+### Done
+- **Bottom screen is a Shtiker Book page, not a debug console.** It opened on the Debug tab in
+  dark navy. Now: cream paper, the book's maroon cover as the tab bar with gold active tabs,
+  Toontown's yellow buttons (`ui/tab_layout.h` holds the layout and palette). SpeedChat uses
+  upstream's `SCColorScheme` defaults (near-white frames, green rollover, blue arrows, black
+  text). The Map tab is the default and is titled by place name ("Toontown Central", "Silly
+  Street, Toontown Central") instead of "Zone 2000 (9, 52)". Gags rows get the book's track
+  colours and experience bars; the Toon tab's task cards are readable on paper. A **Book**
+  button sits in the bottom-right corner, where upstream's is. **Setup and Debug are developer
+  tabs**, hidden until SELECT (or Options > Debug HUD, which did nothing before).
+- **Frame pacing cut a frame of latency.** The vblank wait sat inside
+  `C3D_FrameBegin(SYNCDRAW)`, *after* input, the net pump and the simulation, so anything that
+  arrived during the wait (most of a 33 ms frame) was drawn one frame later. The loop now waits
+  at the top (`render/frame_pace.h`); every frame owner (world, front end, VP/CFO, CJ, CEO,
+  Cogdo) begins with `frameBeginFlags()` so nothing waits twice. Input gains the same frame.
+- **Remote toons are drawn where they are, not ~0.1 s × speed behind.** The 0.1 s exponential
+  chase of the last 5 Hz sample is replaced by dead reckoning (sample + velocity × age, capped at
+  0.25 s / 40 u/s, no vertical extrapolation) under a 0.05 s smoothing filter.
+- **Latency is measurable.** The net thread stamps each message on arrival. New log lines:
+  `net: rx chat sc|talk|whisper ... queued N ms`, `net: tx chat ...`, 1 Hz `net: rx pos` /
+  `net: tx pos`, and a 10 s `net: rx latency` median/p90/max. Regression check:
+  `tools/dev/latency_run.sh` (3DS probe `chat every 2`, PC bot `smoke_test.py --echo 100 101`,
+  `tools/dev/latency_check.py`, fails above 45 ms one way). Cross-clock subtraction is not used:
+  Azahar's 3DS clock is host *local* time with a 1 s RTC, so it is off by up to a second.
+- **Placements are broadcast.** Poses were only sent while walking, so a teleport arrival, a
+  zone entry while standing or a placed toon stayed where the others last saw it. A zone change
+  or a >4 unit jump now sends `setSmPosHpr` + `setSmStop` (upstream's `startPosHprBroadcast`
+  sends everything on place entry), held while a transition or battle owns the toon.
+- **Test harness safe for parallel agents.** `azahar_test.sh` gives each Linux run private XDG
+  dirs (config, nand, sysdata, sdmc, log), its own Xvfb display and app copy, launches the
+  emulator via a per-run symlink and kills only that process. The old global
+  `pkill -f squashfs-root/AppRun.wrapped` also matched other agents' `claude` command lines on
+  this box. `SERVER=host:port TOKEN=...` writes `server.txt`; interrupted runs keep `log.txt`.
+  `start.sh`/`stop.sh` take `SERVER_PORT`/`SERVER_RUN` for a private server.
+
+### Verified (Azahar 2126.2, Old 3DS mode, Linux/Xvfb, private live server on 37198)
+- Offline script: every tab and the book (screenshots); 29.9 fps outside screenshot seconds,
+  same distribution before and after the pacing change; heap 3.5 MB, linear free 15.9 MB,
+  VRAM free 4.2 MB. padnav_test (118 checks), nettest (all), book_test, perf_test pass.
+- **Latency** (clean run, no VM pause): 57 echoed probes. Round trip 33 ms median (min 33, max
+  67: one frame), one way bot -> 3DS handled ~16 ms median (max 34), socket -> handled 8 ms
+  median (max 25); 3DS summaries median 8-15 ms. PASS against the 45 ms target.
+- **Pose broadcasts** seen by PC bots: zone-entry pose and treasure placement in TTC; a real Map
+  teleport TTC -> Daisy Gardens arrives at upstream's first DG drop point and the DG bot gets
+  `setSmPosHpr` + `setSmStop`. Chat lines appear as `net: rx chat sc 1 from ... queued 15 ms`.
+
+### Asset size decisions
+- None this round.
+
+### Known issues
+- The latency numbers are emulator numbers on a shared rig whose VM pauses (one run showed a
+  463 s pause and was discarded). The net thread still waits up to 10 ms in `poll()` before
+  noticing a queued send; a hardware run should decide whether a shorter idle poll is worth
+  the extra soc:U calls.
+- The NTP one-way estimate assumes a symmetric path; the 3DS send side is the faster one, so it
+  can understate receive latency by up to half the asymmetry. The `queued` figure is exact.
+- Other trees on this box still run the old `azahar_test.sh` with the global pkill; their runs
+  can still kill each other (this tree's emulator is now immune).
+- `AUTOTEST_ONLY` can include steps whose drivers assume earlier steps ran (the `move: `
+  door driver walked into the Gag Shop in a filtered run).
+- Not run this round: facility/boss chunks. No real-hardware run yet.
+
+### Next
+- Hardware run: frame pacing, latency, the idle poll timeout.
+- Two-client cross-play with the web client on the same server using `latency_run.sh`'s logs.
+
 ## 2026-10-28 (round 6) — the rig "stall" explained, boss rounds reached, boss UI fixes
 
 ### Done

@@ -1229,3 +1229,22 @@ timeout 300 s then 3600 s. A `date` loop every 30 s ran beside the later runs to
 - Host: nettest PASS (one flaky run under load first), boss_test PASS, zone_test PASS (after
   the degenerate-floor fix). `make`: zero warnings in `source/`.
 
+
+## 2026-10-28 (round 7) — new bottom screen, frame pacing, latency check (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Private live server (`SERVER_PORT=37198`, heartbeat timeout 3600 s), isolated Azahar runs.
+
+- **Offline script** (build `c0f6a9d` + `80b43c5`): Map/Chat/Toon/Gags/Setup/Debug tabs, SELECT
+  debug tabs, pad steps, the book. fps per second: 34 × 29.9, 16 × 26.9 (screenshot seconds), 1 ×
+  24.9 — the same spread as the build before the pacing change (24 × 29.9 … 7 × 26.9). 91-122
+  draws, 10.4-12.8k tris; heap 3.47 MB, linear free 15.6-16.0 MB, VRAM free 4.19 MB.
+- **Latency** (`tools/dev/latency_run.sh`, build `10f0e64`): run 1 had a 463 s VM pause
+  (discarded, though its numbers matched). Run 2: 72 probes, 57 echoed; round trip 33 ms
+  median / 33 min / 67 max; bot turnaround 0 ms; one way ~16 ms median, 34 max; socket ->
+  handled 8 ms median, 25 max; `net: rx latency` summaries 59-63 msgs, median 8-15 ms, p90
+  16-25 ms. PASS (target 45 ms one way).
+- **Pose broadcasts** (build with `c55044d`): PC bots receive `setSmPosHpr` + `setSmStop` for the
+  TTC zone-entry pose, the treasure placement (31.1, -43.9) and the arrival after a Map teleport
+  TTC -> Daisy Gardens (`transition: teleport in complete in zone 5000`).
+- Host: padnav_test 118/0, nettest all groups, book_test, perf_test pass. `make`: no warnings in
+  `source/`.
