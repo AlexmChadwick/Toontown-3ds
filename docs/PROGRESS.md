@@ -442,3 +442,24 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Next
 - Run bot (`--sc 5 --stamp S --rxstamp R`) plus an autotest step in which the 3DS sends a chat, then
   `net_latency.py S log.txt --calibrate R` on a quiet machine.
+
+## 2026-10-28 — perf round 9: budget re-verification (no code changes)
+
+### Done
+- Re-checked the budget guards on the current tree; nothing needed fixing.
+
+### Verified (host)
+- `make` is up to date and warning-free. `static_size.sh`: 3,145,932 B (3.00 MiB), headroom 1,048,372 B.
+- `zone_resident.py`: 26 zones, worst far-baseline residency is 2100.tz at 607 KiB geometry + 2112 KiB textures
+  (82 draws, 11,522 tris); worst draw count is 2000.tz at 97. All inside the per-zone budgets.
+- `sd_budget.py`: within budget (zones 104.8 MB of 145, total 292.9 MB of 650; largest file 9200.tz at 7.70 MB).
+
+### Known issues
+- Not attempted this round: the live Azahar latency run, the full-battle linear peak, and any hardware run. Earlier rounds
+  could not finish them on this VM. The on-screen web->3DS latency still includes the once-per-frame drain and the 0.1 s
+  `kSmoothTau`. I did not change either, because the effect can't be judged without a visual or hardware test.
+- A second late-frame drain would not lower displayed latency (state is applied at the next frame start), so it is not planned.
+
+### Next
+- Run the latency gate (`smoke_test.py --sc 5 --stamp S --rxstamp R`, then `net_latency.py S log --calibrate R`) on a quiet
+  machine, then the first hardware run.
