@@ -5,6 +5,7 @@
 
 #include "core/log.h"
 #include "ui/pad_tables.h"
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -14,12 +15,7 @@ constexpr float kTopY = pad::tailor::kTopY;
 constexpr float kBottomY = pad::tailor::kBottomY;
 constexpr float kButtonY = pad::tailor::kBtnY;
 constexpr uint32_t kAutoSubmitMarginMs = 2000;
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kGood = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
 
 bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
@@ -220,15 +216,13 @@ void TailorPanel::rebuildText() {
     C2D_TextBufClear(textBuf_);
     char buf[96];
     tt::render::textParse(&titleText_, textBuf_, "Clothing Store");
-    const world::MatShirtChoice shirt = world::matShirt(working_.gender, static_cast<uint8_t>(topChoice_));
-    snprintf(buf, sizeof(buf), "Shirt  style %u  colour %u/%u", unsigned(shirt.topTex), unsigned(shirt.topTexColor),
-             unsigned(shirt.sleeveTexColor));
+    // As the Make-a-Toon clothes step: which of the tailor's choices is on the toon.
+    snprintf(buf, sizeof(buf), "Shirt   %u of %u", unsigned(topChoice_ + 1), unsigned(world::matShirtCount(working_.gender)));
     tt::render::textParse(&topText_, textBuf_, buf);
-    const world::MatBottomChoice bottom = world::matBottom(working_.gender, static_cast<uint8_t>(bottomChoice_));
-    snprintf(buf, sizeof(buf), "%s  style %u  colour %u", working_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
-             unsigned(bottom.botTex), unsigned(bottom.botTexColor));
+    snprintf(buf, sizeof(buf), "%s   %u of %u", working_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
+             unsigned(bottomChoice_ + 1), unsigned(world::matBottomCount(working_.gender)));
     tt::render::textParse(&bottomText_, textBuf_, buf);
-    tt::render::textParse(&hintText_, textBuf_, "Left/Right changes the selected style and colour");
+    tt::render::textParse(&hintText_, textBuf_, "Up/Down picks shirt or bottoms; Left/Right changes it.");
     const int32_t remain = int32_t(deadlineMs_ - nowMs_);
     snprintf(buf, sizeof(buf), "Time %d:%02d", remain > 0 ? int(remain / 60000) : 0,
              remain > 0 ? int((remain / 1000) % 60) : 0);
@@ -245,17 +239,36 @@ void TailorPanel::draw() {
         rebuildText();
         dirty_ = false;
     }
-    C2D_DrawText(&titleText_, C2D_WithColor, 8, 8, 0.5f, 0.6f, 0.6f, kAccent);
-    C2D_DrawText(&timerText_, C2D_WithColor, 238, 10, 0.5f, 0.42f, 0.42f, kDim);
-    C2D_DrawRectSolid(4, kTopY, 0.5f, 312, 48, section_ == 0 ? kAccent : kPanel);
-    C2D_DrawRectSolid(4, kBottomY, 0.5f, 312, 48, section_ == 1 ? kAccent : kPanel);
-    C2D_DrawText(&topText_, C2D_WithColor, 12, kTopY + 14, 0.5f, 0.48f, 0.48f, kWhite);
-    C2D_DrawText(&bottomText_, C2D_WithColor, 12, kBottomY + 14, 0.5f, 0.5f, 0.5f, kWhite);
-    C2D_DrawText(&hintText_, C2D_WithColor, 8, 154, 0.5f, 0.38f, 0.38f, kDim);
-    C2D_DrawRectSolid(160, kButtonY, 0.5f, 76, 36, kAccent);
-    C2D_DrawRectSolid(240, kButtonY, 0.5f, 76, 36, kPanel);
-    C2D_DrawText(&doneText_, C2D_WithColor, 180, kButtonY + 11, 0.5f, 0.52f, 0.52f, kBg);
-    C2D_DrawText(&cancelText_, C2D_WithColor, 248, kButtonY + 11, 0.5f, 0.46f, 0.46f, kGood);
+    // MakeClothesGUI in the tailor's shop: the clothes choices on cream cards, Done / Cancel.
+    namespace th = theme;
+    th::sky();
+    th::paper(4, 3, 312, kTopY - 8, 7.0f);
+    C2D_DrawText(&titleText_, C2D_WithColor, 12, 7, 0.5f, 0.58f, 0.58f, th::kRedDark);
+    th::roundRect(232, 7, 80, 20, 7, th::kYellow);
+    C2D_DrawText(&timerText_, C2D_WithColor, 240, 9, 0.5f, 0.42f, 0.42f, th::kInk);
+    for (int sec = 0; sec < 2; ++sec) {
+        const float y = sec == 0 ? kTopY : kBottomY;
+        const bool on = section_ == sec;
+        th::paper(4, y, 312, 48, 7.0f, on ? th::rgb(0xFF, 0xEE, 0xA8) : th::kPaper, on ? th::kYellowDark : th::kPaperEdge);
+    }
+    // Touching a row's left / right half steps back / forward (handleInput): show it as arrows.
+    const float rowsY[2] = {kTopY, kBottomY};
+    for (float y : rowsY) {
+        for (int side = 0; side < 2; ++side) {
+            const float bx = side ? 276 : 12, cy = y + 22;
+            th::button(bx, y + 8, 32, 32, th::kScFrame, th::kScFrameEdge, false, 7.0f);
+            const float tip = side ? bx + 22 : bx + 10, base = side ? bx + 12 : bx + 20;
+            C2D_DrawTriangle(tip, cy - 1.5f, th::kBlueDark, base, cy - 8.5f, th::kBlueDark, base, cy + 5.5f, th::kBlueDark, 0.55f);
+        }
+    }
+    th::textCentered(topText_, 160, kTopY + 14, 0.5f, th::kInk, 220);
+    th::textCentered(bottomText_, 160, kBottomY + 14, 0.5f, th::kInk, 220);
+    th::roundRect(4, 150, 312, 20, 6, th::mix(th::kPaper, th::kSkyBottom, 0.3f));
+    C2D_DrawText(&hintText_, C2D_WithColor, 10, 153, 0.5f, 0.4f, 0.4f, th::kInkSoft);
+    th::button(160, kButtonY, 76, 36, th::kGreen, th::kGreenDark, false, 7.0f);
+    th::button(240, kButtonY, 76, 36, th::kRed, th::kRedDark, false, 7.0f);
+    th::textCentered(doneText_, 198, kButtonY + 8, 0.52f, th::kWhite, 70);
+    th::textCentered(cancelText_, 278, kButtonY + 8, 0.5f, th::kWhite, 70);
     focus_.drawHighlight(); // padnav
 }
 

@@ -1,6 +1,7 @@
 #include "render/ui_font.h"
 #include "ui/closet_panel.h"
 #include "ui/pad_tables.h"
+#include "ui/theme.h"
 namespace tt::ui {
 bool ClosetPanel::init() { textBuf_ = C2D_TextBufNew(256); return textBuf_ != nullptr; }
 void ClosetPanel::shutdown() {
@@ -47,17 +48,15 @@ u32 ClosetPanel::handleInput(u32 down, const touchPosition& touch) {
 }
 void ClosetPanel::draw() {
     if (!active_) return;
-    const u32 bg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-    const u32 panel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-    const u32 accent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-    const u32 white = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-    C2D_DrawRectSolid(4, 4, 0.5f, 312, 228, bg);
-    C2D_DrawText(&title_, C2D_WithColor, 10, 12, 0.5f, 0.6f, 0.6f, accent);
-    C2D_DrawText(&body_, C2D_WithColor, 10, 70, 0.5f, 0.45f, 0.45f, white);
-    C2D_DrawRectSolid(160, 196, 0.5f, 76, 36, accent);
-    C2D_DrawRectSolid(240, 196, 0.5f, 76, 36, panel);
-    C2D_DrawText(&done_, C2D_WithColor, 180, 207, 0.5f, 0.52f, 0.52f, bg);
-    C2D_DrawText(&cancel_, C2D_WithColor, 248, 207, 0.5f, 0.46f, 0.46f, white);
+    namespace th = theme;
+    th::sky();
+    th::paper(4, 4, 312, 186, 8.0f);
+    C2D_DrawText(&title_, C2D_WithColor, 12, 10, 0.5f, 0.6f, 0.6f, th::kRedDark);
+    C2D_DrawText(&body_, C2D_WithColor, 12, 70, 0.5f, 0.45f, 0.45f, th::kInk);
+    th::button(160, 196, 76, 36, th::kGreen, th::kGreenDark, false, 7.0f);
+    th::button(240, 196, 76, 36, th::kRed, th::kRedDark, false, 7.0f);
+    th::textCentered(done_, 198, 204, 0.52f, th::kWhite, 70);
+    th::textCentered(cancel_, 278, 204, 0.5f, th::kWhite, 70);
     focus_.drawHighlight();
 }
 }
