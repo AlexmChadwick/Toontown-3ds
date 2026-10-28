@@ -2,6 +2,7 @@
 #include "ui/service_clerk_panel.h"
 #include "core/log.h"
 #include "ui/clerk_tables.h"
+#include "ui/theme.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -350,8 +351,12 @@ void ServiceClerkPanel::rebuild() {
     for (auto &line : strings_)
         line[0] = 0;
     std::snprintf(strings_[0], 128, "%s", title);
-    std::snprintf(strings_[1], 128, "Jar %d + bank %d  Tickets %u  %ds", money_, bank_, unsigned(tickets_),
-                  std::max(0, second_));
+    if (kind_ == net::ClerkKind::Kart)
+        std::snprintf(strings_[1], 128, "Jellybeans %d   Bank %d   Tickets %u", money_, bank_, unsigned(tickets_));
+    else
+        std::snprintf(strings_[1], 128, "Jellybeans %d   Bank %d", money_, bank_);
+    if (page_ != Page::Result)
+        std::snprintf(strings_[2], 128, "%d:%02d", std::max(0, second_) / 60, std::max(0, second_) % 60);
     if (page_ == Page::Result)
         std::snprintf(strings_[3], 128, "%s", message_);
     else if (page_ == Page::Menu) {
@@ -361,12 +366,12 @@ void ServiceClerkPanel::rebuild() {
                                                                      : "Return Doodle (confirm)";
             const char *rows[] = {"Sell fish", "Adopt a Doodle", returnLabel, "Done"};
             for (int index = 0; index < 4; ++index)
-                std::snprintf(strings_[3 + index], 128, "%s %s", selection_ == index ? ">" : " ", rows[index]);
+                std::snprintf(strings_[3 + index], 128, "%s", rows[index]);
             std::snprintf(strings_[7], 128, "Tank: %d fish, value %d beans", tank_, client_->clerkFishTotal());
         } else if (kind_ == net::ClerkKind::Kart) {
             const char *rows[] = {"Kart bodies", "Accessories", "Done"};
             for (int index = 0; index < 3; ++index)
-                std::snprintf(strings_[3 + index], 128, "%s %s", selection_ == index ? ">" : " ", rows[index]);
+                std::snprintf(strings_[3 + index], 128, "%s", rows[index]);
         } else if (kind_ == net::ClerkKind::Fisherman)
             std::snprintf(strings_[3], 128, "Sell %d fish for %d jellybeans?", tank_,
                           client_->clerkFishTotal());
@@ -414,25 +419,64 @@ void ServiceClerkPanel::rebuild() {
     }
     if (kind_ == net::ClerkKind::Kart && previewFailed_)
         std::snprintf(strings_[8], 128, "Preview assets unavailable. Install clerks/karts.");
-    std::snprintf(strings_[9], 128, "Prev       Next       A: choose       B: back");
+    std::snprintf(strings_[9], 128, "%s", page_ == Page::Result ? "OK" : "Choose");
     C2D_TextBufClear(buffer_);
     count_ = 10;
     for (int index = 0; index < count_; ++index) {
         tt::render::textParse(&texts_[index], buffer_, strings_[index]);
         C2D_TextOptimize(&texts_[index]);
     }
+    static const char* const kButtons[3] = {"< Prev", "Next >", "Back"};
+    for (int index = 0; index < 3; ++index) {
+        tt::render::textParse(&btnText_[index], buffer_, kButtons[index]);
+        C2D_TextOptimize(&btnText_[index]);
+    }
     dirty_ = false;
 }
+// Upstream's clerk GUIs are cream DirectGui panels; here the paper card with the countdown badge,
+// SpeedChat-style menu rows and the Prev / Next / Choose / Back buttons (handleInput's touch columns).
 void ServiceClerkPanel::draw() {
     if (!client_)
         return;
     if (dirty_)
         rebuild();
-    C2D_DrawRectSolid(0, 0, .1f, 320, 240, C2D_Color32(25, 37, 60, 255));
-    for (int index = 0; index < count_; ++index) {
-        const float y = index == 9 ? 212 : index * 23 + 6;
-        C2D_DrawText(&texts_[index], C2D_WithColor, 8, y, .6f, index == 0 ? .6f : .38f, index == 0 ? .6f : .38f,
-                     C2D_Color32(255, 255, 255, 255));
+    theme::sky();
+    theme::paper(4, 4, 312, 194, 8.0f);
+    auto line = [&](int index, float x, float y, float scale, u32 color) {
+        if (index < count_ && strings_[index][0])
+            theme::textFit(texts_[index], x, y, scale, color, 300 - x);
+    };
+    line(0, 14, 9, 0.62f, theme::kRedDark);
+    if (strings_[2][0]) { // the AI's deadline, like the battle timer
+        const bool low = second_ <= 10;
+        theme::roundRect(268, 9, 40, 20, 7, low ? theme::kRed : theme::kYellow);
+        theme::textCentered(texts_[2], 288, 10, theme::kTextBody, low ? theme::kWhite : theme::kInk, 36);
+    }
+    line(1, 14, 33, theme::kTextSmall, theme::kInkSoft);
+    C2D_DrawRectSolid(12, 52, 0.5f, 296, 2, theme::kPaperShade);
+    const int rows = page_ != Page::Menu ? 0 : kind_ == net::ClerkKind::Pet ? 4 : kind_ == net::ClerkKind::Kart ? 3 : 0;
+    for (int index = 3; index <= 8; ++index) {
+        const float y = index * 23 + 6;
+        if (index - 3 < rows) {
+            const bool on = selection_ == index - 3;
+            theme::roundRect(12, y - 2, 296, 22, 5, theme::kScFrameEdge);
+            theme::roundRect(13, y - 1, 294, 20, 4, on ? theme::kScRollover : theme::kScFrame);
+            line(index, 22, y, theme::kTextBody, theme::kScText);
+        } else {
+            line(index, 14, y, theme::kTextBody, index == 7 && page_ != Page::Menu ? theme::kRedDark : theme::kInk);
+        }
+    }
+    // Bottom buttons in the touch columns (x < 75 Prev, < 150 Next, < 235 A, else B).
+    struct Btn { float x, w; u32 face, lip; const C2D_Text* label; };
+    const Btn btns[4] = {{4, 68, theme::kBlue, theme::kBlueDark, &btnText_[0]},
+                         {79, 68, theme::kBlue, theme::kBlueDark, &btnText_[1]},
+                         {154, 78, theme::kGreen, theme::kGreenDark, &texts_[9]},
+                         {239, 77, theme::kRed, theme::kRedDark, &btnText_[2]}};
+    for (int i = 0; i < 4; ++i) {
+        if (i == 3 && page_ == Page::Result) continue; // a result only needs OK
+        const Btn& b = btns[i];
+        theme::button(b.x, 204, b.w, 32, b.face, b.lip, false, 7.0f);
+        theme::textCentered(*b.label, b.x + b.w * 0.5f, 210, theme::kTextBody, theme::kWhite, b.w - 8);
     }
 }
 } // namespace tt::ui

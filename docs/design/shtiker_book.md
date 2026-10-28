@@ -73,7 +73,16 @@ Unpacking logic is isolated in `source/net/book_net.h` and `source/net/client_bo
 ## 5. Performance & Hardware Budgets
 
 - **Linear Memory**: The suit heads atlas requires 33 KB of linear memory, well within the 2 MB UI sub-budget.
-- **CPU & Text Rendering**: Citro2d text rendering uses cached `C2D_TextBuf` instances. Text is parsed only when data versions or settings values change (`lastStatsVer_`, `lastBookVer_`, etc.), preventing per-frame CPU parsing penalties.
+- **CPU & Text Rendering**: every page draws its strings through `ui/page_text.*` (`PageText`):
+  printf-style `draw` / `fit` / `centered` / `right` / `wrap` backed by a `render::TextCache`, so an
+  unchanged string is laid out once, not every frame. The cache (~28 KB) is allocated in
+  `PageText::init`: `Ui` (and the book inside it) lives on main()'s 256 KB stack, and nine embedded
+  caches overflowed it at boot. `static_assert(sizeof(Ui) <= 112 KB)` in `render/ui.cpp` guards it.
+- **Text sizes**: use the `theme::kTextTitle / kTextBody / kTextSmall / kTextTiny` ladder (0.52 /
+  0.44 / 0.40 / 0.36). Nothing a player must read goes below `kTextTiny` (~11 px).
+- **Shared rects**: touch, D-Pad focus and drawing of the department tabs, fish genus arrows and the SOS
+  page button all use the `pad::book` constants in `ui/pad_tables.h`.
+- **Gags**: the Gags page and the bottom-screen Gags tab share `ui/gag_table.*`.
 - **No Per-Frame Allocations**: All page drawing code uses stack buffers and fixed arrays.
 
 ---

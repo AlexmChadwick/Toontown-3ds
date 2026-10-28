@@ -52,6 +52,7 @@ private:
     char message_[128] = {};
     char strings_[10][128] = {};
     C2D_Text texts_[10];
+    C2D_Text btnText_[3]; // "< Prev", "Next >", "Back" (parsed with texts_)
     C2D_TextBuf buffer_ = nullptr;
     int count_ = 0;
 };
