@@ -3,6 +3,62 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 (round 8) — SpeedChat ToonTask phrases on the wire, Cog health light, RewardPanel, Toontown buttons
+
+### Done
+- **SpeedChat TOONTASKS > MY TASKS works end to end.** Round 7 built the menu rows but never sent
+  them, and remote task phrases were dropped as unknown fields. The client now sends
+  `setSCToontask` (said aloud) and `setWhisperSCToontaskFrom` (whispers), and receives both:
+  phrases are decoded with `decodeTTSCToontaskMsg` into the speech balloon and whisper log. New
+  `net: chat tx/rx sctask ...` lines. The rows rebuild when our quests change.
+  `tools/sc_test/run.sh` now also drives the real Client (rx, tx byte layout, truncated
+  payloads), and its binary is no longer committed. Host test scripts that link `source/net`
+  add the quest sources.
+- **Battle Cog cards**: the head icon (suit_heads atlas), and a meter in the Cog's own chest-light
+  colours (`Suit.healthColors` / `healthGlowColors`, with `updateHealthBar`'s thresholds and its
+  red/grey blink when critical or defeated). This replaces the flat grey slab. Before the max HP
+  is known the meter is drawn full, not empty. New `battle: cog <id> <code> hp a/b` log line.
+- **Battle reward panel follows `RewardPanel.incrementExp`**: the bar shows absolute experience
+  against the next level, with "6000/10000" centred in a track-coloured bar on a darker frame
+  and "N to Go!" past 10000. Before, it showed only the progress inside the current level, so most
+  bars looked empty. The panel now uses the space the defeated Cogs leave.
+- **Front-end buttons are Toontown's glossy `quit_button` pills** (`theme::pill`; colours sampled
+  from the QuitBtn_UP / QuitBtn_RLVR textures). They are yellow at rest, and the cyan rollover
+  face marks the current choice or the primary action. Delete is red, disabled grey.
+- The Map tab logs a missing `.tmap` instead of failing silently.
+- Autotest: SpeedChat TOONTASKS > MY TASKS with the D-pad, then say the first phrase.
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server)
+- MY TASKS: rows "I need to finish a ToonTask." / "...see an HQ Officer." / "...go to a Toon HQ."
+  for the trolley task. `net: chat tx sctask 110/1000/1000/0`; the balloon and recent-chat strip
+  show the phrase.
+- Street battle in Silly Street: Cog cards with heads and blinking lights (this server runs
+  `AI_DEV_WEAK_COGS`, so every Cog has 1 HP; log `hp 1/20`), the reward panel, and the Map with
+  the baked street minimap and legend.
+- Front end with a fresh account: title, Pick-a-Toon, all five Make-a-Toon steps, Toontorial
+  prompt, delete prompt.
+- Host: sc_test (3152 vectors plus the Client checks), nettest unit (391 descriptor vectors),
+  padnav_test (137 checks), all built with GCC 12. `make` has zero warnings in source/ (it had
+  one from round 7).
+
+### Asset size decisions
+- None. The Cog card reuses the existing 32 KB suit-heads atlas.
+
+### Known issues
+- Receiving `setSCToontask` from another client is covered only by host tests; no second client
+  said a task phrase during this round's runs.
+- During street battles with `movie_*` shots every 0.25 s, Azahar runs at 18-22 fps (shot I/O
+  takes about 109 ms per dump). Run with `shots off` for frame numbers.
+- Only the front end uses the new pills. In-game panels keep the raised-lip `theme::button`.
+- Agents on this box share `/tmp`: use unique output dirs for `azahar_test.sh` runs. Reused
+  names like `/tmp/ui_shots1` mixed this round's shots with another agent's.
+- The earlier known issues stand (no SOS/Fire in battle, no real-hardware run).
+
+### Next
+- Two-client check of task phrases (3DS and web / stock Panda).
+- Bring the pill style (or upstream's InventoryNew buttons) to Pass/Run and the map buttons, if it
+  reads well next to the paper panels.
+
 ## 2026-10-28 — bottom-screen UI: upstream Map rules, markers, task cards, Name Shop, purchase grid
 
 ### Done

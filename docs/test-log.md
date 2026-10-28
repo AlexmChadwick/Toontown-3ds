@@ -1229,3 +1229,16 @@ from render-target dumps.
 - Two of nine runs hit the rig's known emulated-clock stall (log stops mid-script under host
   load); both reruns completed. The gag-shop door step could not enter because this data set
   has no `interiors/`.
+
+## 2026-10-28 (round 8) — Linux rig: SpeedChat MY TASKS, battle Cog cards / reward, front-end pills
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, software GL. Server: the
+shared stock Open Toontown on 7198 (runs `AI_DEV_WEAK_COGS`). SD data: the claude/Toontown-3ds
+full bake. Not hardware.
+
+- TTC, SpeedChat steps: 29.9 fps idle/run, heap 3.2 MB, linear free 16.0 MB, VRAM free 4.2 MB.
+  `net: chat tx sc 100`, `net: chat tx sctask 110/1000/1000/0`.
+- Silly Street battle: 18-22 fps while shooting every 0.25 s (about 109 ms per shot); draws
+  61-68, tris 8.7-9.4k, cmdbuf 12%. Reward panel and Cog cards seen.
+- Front end (fresh account): all screens. No PARSE/EJECT/crash lines in any run.
