@@ -2,6 +2,7 @@
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
 #   [TT_OFFLINE=1 | TT_PORT=n TT_TOKEN=name] [TT_DATA=dir] (Linux, isolated per run)
+#   [SHOTS_DECODE=bottom|top] decode one screen only (raw dumps are always kept in out-dir/bin)
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
 # Temporarily switches Azahar to Old 3DS / 1x / both screens / no update check,
@@ -118,7 +119,13 @@ sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
 cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || echo "no log.txt written"
 if ls "$SD"/shot_*.bin >/dev/null 2>&1; then
-    .venv/bin/python -I tools/dev/decode_shot.py "$SD"/shot_*.bin --out-dir "$OUT" >/dev/null
+    # Raw dumps first: decoding a long script's ~200 shots takes minutes, and a run killed
+    # mid-decode (a caller's timeout) would otherwise lose every shot with the run dir.
+    mkdir -p "$OUT/bin" && cp "$SD"/shot_*.bin "$OUT/bin/"
+    SHOTS=("$OUT"/bin/shot_*.bin)
+    # SHOTS_DECODE=bottom|top decodes one screen only (the other stays raw in out-dir/bin).
+    [ -n "${SHOTS_DECODE:-}" ] && SHOTS=("$OUT"/bin/shot_*_"$SHOTS_DECODE".bin)
+    .venv/bin/python -I tools/dev/decode_shot.py "${SHOTS[@]}" --out-dir "$OUT" >/dev/null
 fi
 grep -c -E "PANIC|Unreachable" "$AZ_DATA/log/azahar_log.txt" \
     | sed 's/^/emulator panics: /' || true
