@@ -8,7 +8,7 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Done
 - Re-audited the two size known issues from the 2026-10-27 Linux-rig entry: both were
   already fixed (see strike-throughs there). Re-baked all street/playground zones on a fresh
-  Linux box (Python 3.11 + panda3d 1.10.15): the largest `.tz` is 5.9 MB.
+  Linux box (Python 3.11 + panda3d 1.10.15): the largest `.tz` is 7.7 MB (9200), zones total 104.7 MB.
 - New `tools/pipeline/sd_budget.py` (run by a full `bake_sd_all.sh`): per-directory ceilings
   for zones/level/interiors, a 650 MB total and a per-file ceiling (8 MB per `.tz`/`.tlf`/`.ttp`),
   so a baker that copies atlas pages per chunk again fails the bake.
@@ -242,7 +242,7 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Known issues
 - ~~SD set 992 MB / `.tz` over 11 MB~~ and ~~`battle_validate` over 4 MiB with the full
   `clothes.ttx`~~: both fixed later the same day (TZ v3 pooling, 603 MB; battle_validate counts
-  resident clothing). Zones re-baked 2026-10-28: largest `.tz` 5.9 MB (2100).
+  resident clothing). Zones re-baked 2026-10-28: largest `.tz` 7.7 MB (9200; 2100 is 5.9 MB), zones 104.7 MB in total.
 - Golf is not merged (`golf2` branch); `golf_test` cannot run without its data.
 - No real-hardware run yet; all frame numbers are emulator numbers.
 - Azahar on Linux runs here without audio (no DSP firmware, no sound device).
