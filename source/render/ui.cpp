@@ -12,6 +12,7 @@
 #include "world/battle_fx.h"
 #include "world/place.h"
 #include <cmath>
+#include <cerrno>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
@@ -570,7 +571,10 @@ void Ui::setMapZone(unsigned fileZone) {
     char path[80];
     snprintf(path, sizeof path, "sdmc:/3ds/toontown3ds/data/zones/%u.tmap", fileZone);
     FILE* f = fopen(path, "rb");
-    if (!f) return;
+    if (!f) {
+        TT_LOG("map: no %s (errno %d): markers only", path, errno);
+        return;
+    }
     unsigned char h[48];
     bool ok = fread(h, 1, sizeof h, f) == sizeof h && memcmp(h, "TMAP", 4) == 0;
     u16 version = 0, w = 0, ht = 0;

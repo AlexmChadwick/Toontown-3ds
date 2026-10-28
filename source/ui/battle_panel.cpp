@@ -3,11 +3,13 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 
 #include "ui/gag_data.h"
 #include "ui/pad_tables.h"
 #include "core/log.h"
 #include "world/battle_fx.h"
+#include "ui/suit_heads_atlas.h"
 #include "ui/theme.h"
 
 namespace tt::ui {
@@ -25,14 +27,57 @@ static_assert(pad::battle::kTracks == gags::kTracks && pad::battle::kLevels == g
 
 const u32 kInk = theme::kInk;
 const u32 kInkSoft = theme::kInkSoft;
-// Suit.healthColors by Suit.updateHealthBar's conditions (green > 95%, yellow > 70%, orange
-// > 30%, red > 5%, else the blinking red / grey).
-u32 healthColor(float f) {
-    if (f > 0.95f) return theme::rgb(0x20, 0xE0, 0x20);
-    if (f > 0.7f) return theme::rgb(0xF0, 0xE0, 0x10);
-    if (f > 0.3f) return theme::rgb(0xFF, 0x80, 0x00);
-    if (f > 0.0f) return theme::rgb(0xF0, 0x10, 0x10);
-    return theme::rgb(0x4C, 0x4C, 0x4C);
+// Suit.updateHealthBar's condition: 0 green (> 95%), 1 yellow (> 70%), 2 orange (> 30%),
+// 3 red (> 5%), 4 blinking red (> 0), 5 defeated (fast blink).
+int healthCondition(float f) {
+    return f > 0.95f ? 0 : f > 0.7f ? 1 : f > 0.3f ? 2 : f > 0.05f ? 3 : f > 0.0f ? 4 : 5;
+}
+
+// Suit.healthColors / healthGlowColors. Conditions 4 and 5 blink between red and grey
+// (__blinkRed / __blinkGray: red 0.75 s then grey 0.1 s; 0.25 s / 0.1 s once defeated).
+void healthColors(int condition, u32* light, u32* glow) {
+    static constexpr u32 kLight[5] = {theme::rgb(0x00, 0xFF, 0x00), theme::rgb(0xFF, 0xFF, 0x00),
+                                      theme::rgb(0xFF, 0x80, 0x00), theme::rgb(0xFF, 0x00, 0x00),
+                                      theme::rgb(0x4C, 0x4C, 0x4C)};
+    static constexpr u32 kGlow[5] = {theme::rgb(0x40, 0xFF, 0x40, 0x80), theme::rgb(0xFF, 0xFF, 0x40, 0x80),
+                                     theme::rgb(0xFF, 0x80, 0x40, 0x80), theme::rgb(0xFF, 0x40, 0x40, 0x80),
+                                     theme::rgb(0x4C, 0x4C, 0x4C, 0x00)};
+    int i = condition;
+    if (condition >= 4) {
+        const u64 period = condition == 4 ? 850 : 350, red = condition == 4 ? 750 : 250;
+        i = osGetTime() % period < red ? 3 : 4;
+    }
+    *light = kLight[i];
+    *glow = kGlow[i];
+}
+
+// The suit's chest light (Suit.generateHealthBar: a round button with a glow) beside a meter
+// in the same colour, so the health reads at a glance on the small screen.
+void drawHealthMeter(float x, float y, float w, float f) {
+    u32 light, glow;
+    healthColors(healthCondition(f), &light, &glow);
+    constexpr float kD = 11.0f; // light diameter
+    theme::roundRect(x - 1.5f, y - 1.5f, kD + 3, kD + 3, (kD + 3) * 0.5f, glow, 0.55f);
+    theme::roundRect(x, y, kD, kD, kD * 0.5f, theme::rgb(0x30, 0x30, 0x30), 0.56f);
+    theme::roundRect(x + 1, y + 1, kD - 2, kD - 2, (kD - 2) * 0.5f, light, 0.57f);
+    theme::roundRect(x + 3, y + 2.5f, 3, 2, 1, theme::mix(light, theme::kWhite, 0.7f), 0.58f); // shine
+    const float bx = x + kD + 3, bw = w - kD - 3, by = y + 2, bh = kD - 4;
+    theme::roundRect(bx, by, bw, bh, bh * 0.5f, theme::rgb(0x30, 0x30, 0x30), 0.56f);
+    theme::roundRect(bx + 1, by + 1, bw - 2, bh - 2, (bh - 2) * 0.5f, theme::rgb(0x5A, 0x5A, 0x5A), 0.57f);
+    if (f > 0.0f) {
+        const float fw = (bw - 2) * f < bh - 2 ? bh - 2 : (bw - 2) * f; // never thinner than round
+        theme::roundRect(bx + 1, by + 1, fw, bh - 2, (bh - 2) * 0.5f, light, 0.58f);
+        theme::roundRect(bx + 2, by + 1.5f, fw - 2 > 0 ? fw - 2 : 0, 1.0f, 0.5f,
+                         theme::mix(light, theme::kWhite, 0.6f), 0.59f);
+    }
+}
+
+int headIndex(const char* code) {
+    if (!code[0]) return -1;
+    for (int i = 0; i < kNumSuitHeads; i++) {
+        if (!strcmp(kSuitHeadSubTex[i].code, code)) return i;
+    }
+    return -1;
 }
 
 } // namespace
@@ -177,7 +222,8 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         text(292, 0, 0.5f, v.secondsLeft <= 5 ? theme::kWhite : kInk, "%d", v.secondsLeft);
     }
 
-    // Cogs: name, level, health. The target wears a red frame.
+    // Cogs: name, head, level and the chest light's health. The target wears a red frame.
+    SuitHeadAtlas::instance().init(); // once; the Cog Gallery shares it
     for (int i = 0; i < v.numCogs && i < 4; i++) {
         const world::BattleCogView& c = v.cogs[i];
         const float x = 2 + i * (kCogW + 1);
@@ -185,38 +231,71 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         theme::paper(x, kCogY, kCogW, kCogH, 5.0f, c.active ? theme::kPaper : theme::kGrey,
                      target ? theme::kRed : theme::kGreyDark);
         if (target) theme::roundRect(x + 1, kCogY + 1, kCogW - 2, 3, 1, theme::kRed);
-        text(x + 5, kCogY + 3, 0.38f, c.active ? kInk : kInkSoft, "%s", c.name);
-        text(x + 5, kCogY + 16, 0.36f, kInkSoft, "Level %d%s", c.level, c.lured ? "  Lured" : "");
-        const float f = hpFraction(c.hp, c.maxHp);
-        theme::roundRect(x + 5, kCogY + 32, kCogW - 10, 7, 3, theme::kGreyDark, 0.55f);
-        if (f > 0.0f) theme::roundRect(x + 5, kCogY + 32, (kCogW - 10) * f, 7, 3, healthColor(f), 0.56f);
+        C2D_Text name;
+        textCache_.parse(&name, buf_, c.name, 1024);
+        theme::textFit(name, x + 4, kCogY + 3, 0.38f, c.active ? kInk : kInkSoft, kCogW - 8, 0.6f);
+        const int head = c.skelecog ? -1 : headIndex(c.code);
+        float rx = x + 4;
+        if (head >= 0) {
+            theme::roundRect(x + 3, kCogY + 16, 25, 25, 5, theme::kPaperShade, 0.56f);
+            SuitHeadAtlas::instance().drawHead(head / 8, head % 8, x + 3.5f, kCogY + 16.5f, 24.0f, 0.58f);
+            rx = x + 31;
+        }
+        if (c.lured) {
+            theme::roundRect(rx - 1, kCogY + 16, 30, 12, 5, theme::kGreen, 0.57f);
+            text(rx + 3, kCogY + 16, 0.34f, theme::kWhite, "Lured");
+        } else if (c.level > 0) {
+            text(rx, kCogY + 16, 0.36f, kInkSoft, "Level %d", c.level);
+        }
+        if (loggedCog_[i] != c.doId || loggedHp_[i] != c.hp || loggedMax_[i] != c.maxHp) {
+            loggedCog_[i] = c.doId;
+            loggedHp_[i] = c.hp;
+            loggedMax_[i] = c.maxHp;
+            TT_LOG("battle: cog %u %s hp %d/%d", unsigned(c.doId), c.code, c.hp, c.maxHp);
+        }
+        // A Cog joins at full health; until its max is known draw it full.
+        const float f = c.maxHp > 0 ? hpFraction(c.hp, c.maxHp) : 1.0f;
+        drawHealthMeter(rx, kCogY + 29, x + kCogW - 4 - rx, f);
     }
 
     if (v.phase == world::BattlePhase::Reward && !v.floorReward) {
-        theme::paper(2, kGridY - 2, kW - 4, kBtnY - kGridY - 2, 6.0f);
-        text(10, kGridY, 0.5f, theme::kRedDark, "Cogs defeated: %d", v.cogsDefeated);
-        // RewardPanel: per track, the experience toward the next gag level and what this
-        // battle added.
+        // RewardPanel: the defeated Cogs have left, so the panel takes the space under the status.
+        const float top = kCogY + 2;
+        theme::paper(2, top, kW - 4, kBtnY - top - 4, 6.0f);
+        text(10, top + 3, 0.5f, theme::kRedDark, "Cogs defeated: %d", v.cogsDefeated);
+        // RewardPanel.incrementExp per track: a bar in the track colour on a darker frame, range =
+        // the next gag level's experience, value = our experience ("exp/next" centred), or the
+        // uber "N to Go!" past regMaxSkill.
+        constexpr int kRegMaxSkill = 10000, kUberSkill = 500;
+        constexpr float kBarX = 76, kBarW = 180, kBarH = 13;
         for (int i = 0; i < v.numRewardRows; i++) {
             const world::BattleRewardRow& r = v.reward[i];
-            const float y = kGridY + 20 + i * 18;
-            const int total = r.orig + r.earned;
-            int prev = 0;
-            int next = -1;
-            for (int l = 0; l < gags::kLevels; l++) {
-                if (total < gags::kLevelExp[r.track][l]) {
-                    next = gags::kLevelExp[r.track][l];
-                    break;
+            const float y = top + 22 + i * 18;
+            int value = r.orig + r.earned;
+            if (value > gags::kMaxSkill) value = gags::kMaxSkill;
+            int range = kUberSkill;
+            char label[24];
+            if (value >= kRegMaxSkill) {
+                value -= kRegMaxSkill;
+                snprintf(label, sizeof label, "%d to Go!", kUberSkill - value);
+            } else {
+                for (int l = 0; l < gags::kLevels; l++) {
+                    if (value < gags::kLevelExp[r.track][l]) {
+                        range = gags::kLevelExp[r.track][l];
+                        break;
+                    }
                 }
-                prev = gags::kLevelExp[r.track][l];
+                snprintf(label, sizeof label, "%d/%d", value, range);
             }
-            const float f = next < 0 ? 1.0f : float(total - prev) / float(next - prev);
+            const float f = range > 0 ? (value >= range ? 1.0f : float(value) / float(range)) : 1.0f;
+            const u32 col = theme::kTrackColors[r.track];
             text(10, y, 0.42f, kInk, "%s", theme::kTrackTitles[r.track]);
-            theme::roundRect(80, y + 3, 120, 10, 4, theme::kGrey);
-            theme::roundRect(80, y + 3, 120 * (f < 0 ? 0 : f > 1 ? 1 : f), 10, 4, theme::kTrackColors[r.track], 0.55f);
-            if (next < 0) text(206, y, 0.38f, kInkSoft, "Max");
-            else text(206, y, 0.38f, kInkSoft, "%d/%d", total, next);
-            if (r.earned > 0) text(272, y, 0.44f, theme::kGreenDark, "+%d", r.earned);
+            theme::roundRect(kBarX, y + 1, kBarW, kBarH, 4, theme::shade(col, 0.7f));
+            if (f > 0.0f) theme::roundRect(kBarX + 1, y + 2, (kBarW - 2) * f, kBarH - 2, 3, col, 0.55f);
+            C2D_Text t;
+            textCache_.parse(&t, buf_, label, 1024);
+            theme::textCentered(t, kBarX + kBarW * 0.5f, y + 0.5f, 0.38f, kInk, kBarW - 6, 0.6f);
+            if (r.earned > 0) text(kBarX + kBarW + 6, y, 0.44f, theme::kGreenDark, "+%d", r.earned);
         }
         theme::button(pad::battle::kContinueX, kBtnY, pad::battle::kBtnW, kBtnH, v.rewardSent ? theme::kGrey : theme::kGreen,
                       v.rewardSent ? theme::kGreyDark : theme::kGreenDark);

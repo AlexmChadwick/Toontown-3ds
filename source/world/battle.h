@@ -95,8 +95,10 @@ struct BattleCogView {
     uint32_t doId;
     char name[28];  // "Flunky"
     int level;      // displayed level
-    int hp, maxHp;
+    int hp, maxHp;  // maxHp 0 = not known yet (drawn full: a Cog joins at full health)
     bool active, lured, trapped;
+    char code[4];   // SuitDNA head code ("f", "tbc"); empty until the DNA arrives
+    bool skelecog;
 };
 struct BattleToonView {
     uint32_t doId;

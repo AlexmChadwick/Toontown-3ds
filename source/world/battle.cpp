@@ -1223,9 +1223,13 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         snprintf(c.name, sizeof(c.name), "Cog");
         c.level = 0;
         c.hp = c.maxHp = 0;
+        c.code[0] = '\0';
+        c.skelecog = false;
         net::Client::CogIdentity ident;
         if (client.cogIdentity(c.doId, &ident)) {
             const net::Client::CogIdentity* s = &ident;
+            if (s->hasDna) snprintf(c.code, sizeof(c.code), "%.3s", s->name);
+            c.skelecog = s->skelecog;
             c.hp = s->hp;
             for (const Actor& a : suits_) {
                 if (a.used && a.doId == c.doId && a.baseHp == s->hp) c.hp = s->hp - a.damage;

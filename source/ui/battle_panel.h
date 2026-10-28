@@ -42,6 +42,9 @@ private:
     render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;
     int target_ = 0; // index into BattleView::cogs
+    // Last health logged per card ("battle: cog <id> hp a/b"), so tests can follow the meter.
+    uint32_t loggedCog_[4] = {};
+    int loggedHp_[4] = {}, loggedMax_[4] = {};
     world::BattleAction pending_{};
     FocusGroup focus_{"battle"};
 };
