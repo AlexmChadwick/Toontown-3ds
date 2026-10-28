@@ -28,13 +28,35 @@ const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
 const u32 kHp = C2D_Color32(0x5C, 0xD0, 0x5C, 0xFF);
+const u32 kHpMid = C2D_Color32(0xF1, 0xC4, 0x32, 0xFF);
 const u32 kHpLow = C2D_Color32(0xE0, 0x50, 0x40, 0xFF);
+const u32 kMeterFrame = C2D_Color32(0x45, 0x2B, 0x18, 0xFF);
+const u32 kMeterEmpty = C2D_Color32(0x73, 0x69, 0x62, 0xFF);
 // Track colours, roughly the Shticker Book's gag pages.
 const u32 kTrackColor[gags::kTracks] = {
     C2D_Color32(0xD8, 0x6A, 0xC8, 0xFF), C2D_Color32(0xD8, 0xC8, 0x40, 0xFF), C2D_Color32(0x40, 0xB0, 0x40, 0xFF),
     C2D_Color32(0x40, 0x70, 0xD8, 0xFF), C2D_Color32(0xE0, 0x80, 0x30, 0xFF), C2D_Color32(0xE0, 0x50, 0xA0, 0xFF),
     C2D_Color32(0x40, 0xB8, 0xD8, 0xFF),
 };
+
+// The stock battle UI reads like the Cog's chest light, not a desktop progress
+// control.  Five inset lamps make damage readable at 3DS size while retaining the
+// green -> amber -> red warning language of the original Cog health light.
+void drawCogHealth(float x, float y, float width, int hp, int maxHp) {
+    constexpr int lamps = 5;
+    constexpr float gap = 2.0f;
+    const float f = hpFraction(hp, maxHp);
+    const int lit = hp > 0 ? static_cast<int>(f * lamps + 0.999f) : 0;
+    const u32 live = f > 0.5f ? kHp : f > 0.25f ? kHpMid : kHpLow;
+    C2D_DrawRectSolid(x, y, 0.55f, width, 10, kMeterFrame);
+    const float lampW = (width - 4 - gap * (lamps - 1)) / lamps;
+    for (int i = 0; i < lamps; i++) {
+        const u32 color = i < lit ? live : kMeterEmpty;
+        C2D_DrawRectSolid(x + 2 + i * (lampW + gap), y + 2, 0.56f, lampW, 6, color);
+        if (i < lit) C2D_DrawRectSolid(x + 3 + i * (lampW + gap), y + 2, 0.57f, lampW - 2, 1,
+                                      C2D_Color32(0xFF, 0xFF, 0xFF, 0x70));
+    }
+}
 
 } // namespace
 
@@ -183,9 +205,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         C2D_DrawRectSolid(x, kCogY, 0.5f, kCogW, kCogH, c.active ? kPanel : kBg);
         text(x + 3, kCogY + 2, 0.38f, c.active ? kWhite : kDim, "%s", c.name);
         text(x + 3, kCogY + 15, 0.38f, kDim, "Level %d%s", c.level, c.lured ? " lured" : "");
-        const float f = hpFraction(c.hp, c.maxHp);
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.55f, kCogW - 6, 7, kDim);
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.56f, (kCogW - 6) * f, 7, f > 0.35f ? kHp : kHpLow);
+        drawCogHealth(x + 3, kCogY + 31, kCogW - 6, c.hp, c.maxHp);
     }
 
     if (v.phase == world::BattlePhase::Reward && !v.floorReward) {

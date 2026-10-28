@@ -721,8 +721,18 @@ void Ui::drawInfo(const Context &c) {
 }
 
 void Ui::drawGags(const Context &c) {
-    // Like the Shticker Book inventory page: one row per track, counts per gag level.
-    // Text is re-parsed every kDebugRefreshFrames (shares the debug line cache).
+    // Like InventoryPage: the real gag art is the focus, with a small carry badge on
+    // each slot and a track-coloured experience meter at the right.  Keep the labels
+    // cached: parsing 49 counts and seven XP strings every frame is expensive on O3DS.
+    static const u32 trackColor[gags::kTracks] = {
+        C2D_Color32(0xD3, 0x94, 0xFF, 0xFF), C2D_Color32(0xE0, 0xE0, 0x20, 0xFF),
+        C2D_Color32(0x20, 0xC0, 0x20, 0xFF), C2D_Color32(0x40, 0x80, 0xFF, 0xFF),
+        C2D_Color32(0xFF, 0xA0, 0x20, 0xFF), C2D_Color32(0xFF, 0x40, 0xC0, 0xFF),
+        C2D_Color32(0x20, 0xD0, 0xD0, 0xFF),
+    };
+    constexpr float rowY = 25.0f, rowH = 25.0f;
+    constexpr float iconX = 67.0f, iconStep = 21.0f, iconSize = 18.0f;
+    constexpr float xpX = 220.0f, xpW = 94.0f, xpH = 9.0f;
     if (cachedLinesTab_ != kTabGags || numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
@@ -733,32 +743,50 @@ void Ui::drawGags(const Context &c) {
             int total = 0;
             for (int t = 0; t < gags::kTracks; t++)
                 for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
-            debugLine(8, 4, 0.5f, kInk, "Gags  %d / %d", total, c.maxCarry);
+            debugLine(8, 3, 0.48f, kInk, "Gags  %d / %d", total, c.maxCarry);
             for (int t = 0; t < gags::kTracks; t++) {
                 const bool have = c.trackAccess[t];
                 const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
-                const float y = 26 + t * 24;
-                debugLine(8, y, 0.5f, have ? kInk : kDim, "%s", gags::kTrackNames[t]);
+                const float y = rowY + t * rowH;
+                debugLine(9, y + 5, 0.38f, have ? kInk : kDim, "%s", gags::kTrackNames[t]);
                 for (int l = 0; l < gags::kLevels; l++) {
                     if (l < levels) {
-                        debugLine(80 + l * 22, y, 0.5f, c.gagCount[t][l] ? kInk : kDim, "%u",
+                        // A compact white carry badge sits below the icon instead of
+                        // obscuring its face (the old layout printed through the art).
+                        debugLine(iconX + l * iconStep + 12, y + 13, 0.30f,
+                                  c.gagCount[t][l] ? kInk : kDim, "%u",
                                   unsigned(c.gagCount[t][l]));
-                    } else {
-                        debugLine(80 + l * 22, y, 0.5f, kDim, "-");
                     }
                 }
                 const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
                 if (have && next) {
-                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u/%u", unsigned(c.gagExp[t]), unsigned(next));
+                    debugLine(xpX + 4, y + 12, 0.30f, kInk, "%u / %u", unsigned(c.gagExp[t]), unsigned(next));
                 } else if (have) {
-                    debugLine(236, 28 + t * 24, 0.4f, kDim, "%u max", unsigned(c.gagExp[t]));
+                    debugLine(xpX + 24, y + 12, 0.30f, kInk, "MAXED");
+                } else {
+                    debugLine(xpX + 24, y + 8, 0.34f, kDim, "Locked");
                 }
             }
         }
     }
     if (c.gagCount) {
-        for (int t = 0; t < gags::kTracks; t++)
-            C2D_DrawRectSolid(4, 23 + t * 24, 0.46f, 312, 22, (t & 1) ? kPanelAlt : kPanel);
+        for (int t = 0; t < gags::kTracks; t++) {
+            const float y = rowY + t * rowH;
+            const bool have = c.trackAccess[t];
+            const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
+            C2D_DrawRectSolid(4, y, 0.46f, 312, rowH - 2, (t & 1) ? kPanelAlt : kPanel);
+            C2D_DrawRectSolid(4, y, 0.48f, 4, rowH - 2, trackColor[t]);
+            if (have) {
+                const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
+                const uint16_t prev = levels > 0 ? gags::kLevelExp[t][levels - 1] : 0;
+                const float frac = next > prev ? std::clamp(float(c.gagExp[t] - prev) / float(next - prev), 0.0f, 1.0f)
+                                               : 1.0f;
+                C2D_DrawRectSolid(xpX, y + 3, 0.49f, xpW, xpH, C2D_Color32(0x88, 0x80, 0x78, 0xFF));
+                C2D_DrawRectSolid(xpX + 1, y + 4, 0.50f, xpW - 2, xpH - 2, C2D_Color32(0xDD, 0xD8, 0xD0, 0xFF));
+                if (frac > 0.0f)
+                    C2D_DrawRectSolid(xpX + 1, y + 4, 0.51f, (xpW - 2) * frac, xpH - 2, trackColor[t]);
+            }
+        }
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
@@ -768,9 +796,9 @@ void Ui::drawGags(const Context &c) {
         for (int t = 0; t < gags::kTracks; t++) {
             if (!c.trackAccess[t]) continue;
             const int levels = gags::levelsUnlocked(t, c.gagExp[t]);
-            const float y = 26 + t * 24;
+            const float y = rowY + t * rowH;
             for (int l = 0; l < levels; l++) {
-                world::GagAtlas::instance().drawIcon(t, l, 68 + l * 22, y + 2, 14.0f, 0.52f,
+                world::GagAtlas::instance().drawIcon(t, l, iconX + l * iconStep, y + 1, iconSize, 0.52f,
                                                      c.gagCount[t][l] ? 1.0f : 0.35f);
             }
         }
