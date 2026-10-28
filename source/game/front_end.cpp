@@ -8,6 +8,7 @@
 #include "core/log.h"
 #include "game/name_check.h"
 #include "game/name_tables.h"
+#include "ui/theme.h"
 
 namespace tt::game {
 
@@ -18,12 +19,16 @@ static bool sHasTestTypedName = false;
 
 constexpr float kW = 320.0f;
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kDisabled = C2D_Color32(0x40, 0x48, 0x5C, 0xFF);
 const u32 kRed = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
+// Bottom screen: the shared Toontown theme (sky, paper card, cartoon buttons, ink text). The
+// constants above stay for the top screen's title text over the 3D scene.
+const u32 kBInk = ui::theme::kInk;
+const u32 kBSoft = ui::theme::kInkSoft;
+const u32 kBErr = ui::theme::kRedDark;
+const u32 kBHi = ui::theme::kBlueDark;
 
 const char* const kSpeciesLabel[9] = {"Dog", "Cat", "Horse", "Mouse", "Rabbit", "Duck", "Monkey", "Bear", "Pig"};
 const char* const kSizeLabel[3] = {"Short", "Medium", "Tall"};
@@ -179,9 +184,12 @@ void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char*
 
 void FrontEnd::button(const Button& b, const char* label, bool selected, bool enabled) {
     const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
-    if (focused) C2D_DrawRectSolid(b.x - 2, b.y - 2, 0.5f, b.w + 4, b.h + 4, kWhite);
-    C2D_DrawRectSolid(b.x, b.y, 0.5f, b.w, b.h, !enabled ? kDisabled : selected ? kAccent : kPanel);
-    textCentered(b, 0.55f, selected ? kBg : enabled ? kWhite : kDim, label);
+    namespace th = ui::theme;
+    if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed); // the D-Pad cursor
+    const u32 face = !enabled ? th::kGrey : selected ? th::kYellow : th::kBlue;
+    const u32 lip = !enabled ? th::kGreyDark : selected ? th::kYellowDark : th::kBlueDark;
+    th::button(b.x, b.y, b.w, b.h, face, lip, false, 7.0f);
+    textCentered(Button{b.x, b.y, b.w, b.h - 3}, 0.55f, selected ? th::kInk : enabled ? th::kWhite : th::kInkSoft, label);
 }
 
 // One button: draws in the draw pass, reports a press (tap or A on the cursor) otherwise.
@@ -483,8 +491,10 @@ void FrontEnd::makeStepInput(u32 down) {
                 const float* rgb = world::bodyColor(c);
                 const bool sel = choice_.headColor == c && (colorTarget_ == 0 || colorTarget_ == 1);
                 const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
-                if (focused || sel) C2D_DrawRectSolid(b.x - 2, b.y - 2, 0.5f, b.w + 4, b.h + 4, focused ? kAccent : kWhite);
-                C2D_DrawRectSolid(b.x, b.y, 0.5f, b.w, b.h, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f));
+                if (focused || sel)
+                    ui::theme::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 8, focused ? ui::theme::kRed : ui::theme::kInk);
+                ui::theme::roundRect(b.x, b.y, b.w, b.h, 6, ui::theme::kPaperEdge);
+                ui::theme::roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 5, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f));
             } else if (tapped(b) || (gGui.activate && gGui.cursorShown && gGui.index - 1 == gGui.cursor)) {
                 if (colorTarget_ == 0 || colorTarget_ == 1) choice_.headColor = c;
                 if (colorTarget_ == 0 || colorTarget_ == 2) choice_.armColor = c;
@@ -724,41 +734,41 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
 }
 
 void FrontEnd::drawPickBottom() {
-    text(10, 6, 0.5f, kDim, "%s", net_ ? net_->districtName() : "");
+    text(10, 6, 0.5f, kBSoft, "%s", net_ ? net_->districtName() : "");
 }
 
 void FrontEnd::drawMakeBottom() {
     static const char* const kStepNames[] = {"Species", "Body", "Colour", "Clothes", "Name Shop"};
-    text(10, 6, 0.5f, kDim, "Step %d of %d: %s", static_cast<int>(step_) + 1, static_cast<int>(MakeStep::Count),
+    text(10, 6, 0.5f, kBSoft, "Step %d of %d: %s", static_cast<int>(step_) + 1, static_cast<int>(MakeStep::Count),
          kStepNames[static_cast<int>(step_)]);
     switch (step_) {
     case MakeStep::Body:
-        text(90, 36, 0.5f, kWhite, "%s head %u of %u", kSpeciesLabel[static_cast<int>(choice_.species)],
+        text(90, 36, 0.5f, kBInk, "%s head %u of %u", kSpeciesLabel[static_cast<int>(choice_.species)],
              unsigned(choice_.headVariant + 1), unsigned(world::headVariantCount(choice_.species)));
-        text(10, 79, 0.5f, kWhite, "Torso");
-        text(10, 121, 0.5f, kWhite, "Legs");
-        text(10, 163, 0.5f, kWhite, "Gender");
+        text(10, 79, 0.5f, kBInk, "Torso");
+        text(10, 121, 0.5f, kBInk, "Legs");
+        text(10, 163, 0.5f, kBInk, "Gender");
         break;
     case MakeStep::Clothes:
-        text(90, 60, 0.55f, kWhite, "Shirt %u of %u", unsigned(choice_.shirt + 1),
+        text(90, 60, 0.55f, kBInk, "Shirt %u of %u", unsigned(choice_.shirt + 1),
              unsigned(world::matShirtCount(choice_.gender)));
-        text(90, 130, 0.55f, kWhite, "%s %u of %u", choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
+        text(90, 130, 0.55f, kBInk, "%s %u of %u", choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
              unsigned(choice_.bottom + 1), unsigned(world::matBottomCount(choice_.gender)));
         break;
     case MakeStep::Name: {
         const bool male = choice_.gender == world::Gender::Male;
-        textCentered(Button{10, 24, 300, 22}, 0.65f, nameIsTyped_ ? kAccent : kWhite, currentName_);
+        textCentered(Button{10, 24, 300, 22}, 0.65f, nameIsTyped_ ? kBHi : kBInk, currentName_);
         if (nameError_[0]) {
-            textCentered(Button{10, 44, 300, 14}, 0.38f, kRed, nameError_);
+            textCentered(Button{10, 44, 300, 14}, 0.38f, kBErr, nameError_);
         }
         const char* titleStr = getNameString(getTitleId(male, titleIndex_));
         const char* firstStr = getNameString(getFirstId(male, firstIndex_));
         const char* prefixStr = getNameString(getPrefixId(prefixIndex_));
         const char* suffixStr = getNameString(getSuffixId(suffixIndex_));
-        textCentered(Button{6, 82, 72, 20}, 0.42f, (!nameIsTyped_ && titleActive_) ? kWhite : kDim, titleStr ? titleStr : "");
-        textCentered(Button{82, 82, 72, 20}, 0.42f, (!nameIsTyped_ && firstActive_) ? kWhite : kDim, firstStr ? firstStr : "");
-        textCentered(Button{158, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kWhite : kDim, prefixStr ? prefixStr : "");
-        textCentered(Button{238, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kWhite : kDim, suffixStr ? suffixStr : "");
+        textCentered(Button{6, 82, 72, 20}, 0.42f, (!nameIsTyped_ && titleActive_) ? kBInk : kBSoft, titleStr ? titleStr : "");
+        textCentered(Button{82, 82, 72, 20}, 0.42f, (!nameIsTyped_ && firstActive_) ? kBInk : kBSoft, firstStr ? firstStr : "");
+        textCentered(Button{158, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kBInk : kBSoft, prefixStr ? prefixStr : "");
+        textCentered(Button{238, 82, 76, 20}, 0.42f, (!nameIsTyped_ && lastActive_) ? kBInk : kBSoft, suffixStr ? suffixStr : "");
         break;
     }
     default:
@@ -769,31 +779,32 @@ void FrontEnd::drawMakeBottom() {
 void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
     C2D_TargetClear(bottom, kBg);
     C2D_SceneBegin(bottom);
+    ui::theme::sky();
+    ui::theme::paper(3, 3, kW - 6, 194, 8.0f); // the screen's content card; buttons sit below it
     gGui.drawing = true;
     gGui.index = 0;
     gGui.activate = false;
     switch (screen_) {
     case Screen::Title:
-        text(10, 8, 0.5f, kDim, "A or tap to play. Toons and progress live on the server.");
+        text(10, 8, 0.5f, kBSoft, "A or tap to play. Toons and progress live on the server.");
         TT_BUTTON((Button{40, 70, 240, 48}), "Play online", true, true);
         TT_BUTTON((Button{40, 130, 240, 40}), "Play offline", false, true);
-        text(10, 190, 0.45f, kDim, "%s", serverLine_[0] ? serverLine_ : "Server: sdmc:/3ds/toontown3ds/server.txt");
+        text(12, 176, 0.42f, kBSoft, "%s", serverLine_[0] ? serverLine_ : "Server: sdmc:/3ds/toontown3ds/server.txt");
         break;
     case Screen::Connecting:
-        text(16, 40, 0.6f, kWhite, "%s", net_ ? net_->progressText() : "Starting...");
-        if (net_ && net_->lastError()[0]) text(16, 90, 0.5f, kRed, "%s", net_->lastError());
-        if (net_ && net_->retryInMs()) text(16, 150, 0.5f, kDim, "Retrying in %lu s", (unsigned long)(net_->retryInMs() / 1000 + 1));
+        text(16, 40, 0.6f, kBInk, "%s", net_ ? net_->progressText() : "Starting...");
+        if (net_ && net_->lastError()[0]) text(16, 90, 0.5f, kBErr, "%s", net_->lastError());
+        if (net_ && net_->retryInMs()) text(16, 150, 0.5f, kBSoft, "Retrying in %lu s", (unsigned long)(net_->retryInMs() / 1000 + 1));
         TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
         break;
     case Screen::Pick: {
         drawPickBottom();
         if (confirmDelete_) {
             const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
-            C2D_DrawRectSolid(18, 43, 0.5f, 284, 154, kAccent);
-            C2D_DrawRectSolid(20, 45, 0.5f, 280, 150, kPanel);
-            textCentered(Button{20, 55, 280, 20}, 0.65f, kWhite, "Delete this Toon?");
-            textCentered(Button{20, 80, 280, 20}, 0.55f, kAccent, sel ? sel->name : "");
-            textCentered(Button{20, 105, 280, 16}, 0.45f, kRed, "This cannot be undone!");
+            ui::theme::paper(18, 43, 284, 154, 8.0f, ui::theme::kPaper, ui::theme::kRed);
+            textCentered(Button{20, 55, 280, 20}, 0.65f, kBInk, "Delete this Toon?");
+            textCentered(Button{20, 80, 280, 20}, 0.55f, kBHi, sel ? sel->name : "");
+            textCentered(Button{20, 105, 280, 16}, 0.45f, kBErr, "This cannot be undone!");
             TT_BUTTON((Button{35, 140, 110, 34}), "Cancel", false, true);
             TT_BUTTON((Button{175, 140, 110, 34}), "Delete", true, true);
             break;
@@ -804,19 +815,19 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
             TT_BUTTON(b, pa ? pa->name : "+ Make a Toon", s == pickSlot_, true);
             if (pa) {
                 const char* badge = nullptr;
-                u32 col = kDim;
+                u32 col = kBSoft;
                 if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
                     badge = "[Name Me]";
-                    col = kAccent;
+                    col = kBHi;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
                     badge = "[Pending]";
-                    col = kDim;
+                    col = kBSoft;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
                     badge = "[Approved!]";
-                    col = C2D_Color32(0x80, 0xFF, 0x80, 0xFF);
+                    col = ui::theme::kGreenDark;
                 } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
                     badge = "[Rejected]";
-                    col = kRed;
+                    col = kBErr;
                 }
                 if (badge) {
                     text(b.x + 6, b.y + 32, 0.38f, col, "%s", badge);
@@ -846,19 +857,19 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         TT_BUTTON((Button{200, 200, 110, 34}), step_ == MakeStep::Name ? "Create!" : "Next", true, true);
         break;
     case Screen::TutorialChoice:
-        textCentered(Button{18, 38, 284, 62}, 0.62f, kWhite, "Play the Toontorial?");
-        textCentered(Button{18, 84, 284, 16}, 0.45f, kDim, "Learn the basics with Tutorial Tom,");
-        textCentered(Button{18, 100, 284, 16}, 0.45f, kDim, "then head to Toontown Central.");
+        textCentered(Button{18, 38, 284, 62}, 0.62f, kBInk, "Play the Toontorial?");
+        textCentered(Button{18, 84, 284, 16}, 0.45f, kBSoft, "Learn the basics with Tutorial Tom,");
+        textCentered(Button{18, 100, 284, 16}, 0.45f, kBSoft, "then head to Toontown Central.");
         TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true);
         TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true);
-        textCentered(Button{18, 185, 284, 20}, 0.38f, kDim, "B also skips the Toontorial.");
+        textCentered(Button{18, 176, 284, 16}, 0.4f, kBSoft, "B also skips the Toontorial.");
         break;
     case Screen::Entering:
-        text(16, 60, 0.6f, kWhite, "%s", net_ ? net_->progressText() : "");
-        if (net_ && net_->lastError()[0]) text(16, 110, 0.5f, kRed, "%s", net_->lastError());
+        text(16, 60, 0.6f, kBInk, "%s", net_ ? net_->progressText() : "");
+        if (net_ && net_->lastError()[0]) text(16, 110, 0.5f, kBErr, "%s", net_->lastError());
         break;
     case Screen::Error:
-        text(16, 40, 0.55f, kRed, "%s", error_[0] ? error_ : "Something went wrong.");
+        text(16, 40, 0.55f, kBErr, "%s", error_[0] ? error_ : "Something went wrong.");
         TT_BUTTON((Button{100, 190, 120, 38}), "OK", true, true);
         break;
     }
