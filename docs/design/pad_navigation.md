@@ -103,7 +103,7 @@ up, so run the whole script, or an `only` line that keeps those steps too, for e
 | Steps | Expected log lines |
 |---|---|
 | `pad: tab map` … `pad: map release` | `padnav: tab_map focus 0` (Home), a hood focus, `padnav: tab_map blur` |
-| `pad: tab chat`, `pad: chat focus`, `pad: chat whisper`, `pad: chat back` | `padnav: chat focus 0`, `padnav: chat activate whisper` (only with toons in view), `padnav: chat back` |
+| `pad: tab chat`, `pad: chat focus`, `pad: chat down`, `pad: chat open hello`, `pad: chat say hello` (shot `pad_chat_said`: the recent-chat strip shows "You: Hi!"), `pad: chat whisper`, `pad: chat back` | `padnav: chat focus 0`, `padnav: chat focus 1`, `padnav: chat activate 1`, `padnav: chat activate 0`, `padnav: chat activate whisper` (only with toons in view), `padnav: chat back` |
 | `pad: tab toon`, `pad: toon focus`, `pad: book from toon tab` | `padnav: tab_toon focus 0`, `padnav: tab_toon activate 200` (the book opens online) |
 | `pad: book next page`, `pad: book page turn`, `pad: book close` | the book title page changes in `pad_book_turn.png`; the book closes |
 | `pad: tab setup` … `pad: setup release` | `padnav: tab_setup activate 2`, then `activate 1` (stress 0 → 1 → 0), `blur` |

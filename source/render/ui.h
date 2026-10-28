@@ -152,6 +152,9 @@ public:
     // interior = none). Loads sdmc:/3ds/toontown3ds/data/zones/<id>.tmap (bake_minimap.py);
     // if absent the Map tab keeps its marker-only view. Main thread only (allocates linear).
     void setMapZone(unsigned fileZone);
+    // The Chat tab's recent-chat strip: what was said nearby, by us, or whispered to us.
+    // `you` marks our own lines; nothing is drawn after kChatLogMs without new chat.
+    void logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs);
 
 private:
     // ---- qafix ----
@@ -194,6 +197,20 @@ private:
 
     render::TextCache textCache_;
     PageText gagText_; // the Gags tab's table (cached per string)
+    PageText chatLogText_;
+    struct ChatLine {
+        char name[24];
+        char text[96];
+        u32 ms;
+        bool whisper, you;
+    };
+    static constexpr int kChatLog = 2;
+    static constexpr u32 kChatLogMs = 60000;
+    ChatLine chatLog_[kChatLog] = {};
+    int chatLogCount_ = 0;
+    u32 chatNowMs_ = 0;
+    bool chatLogShown() const;
+    void drawChatLog(float y0, float y1);
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames

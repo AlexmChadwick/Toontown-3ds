@@ -104,16 +104,16 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     // DistributedFishingSpot hides the cast interface while reeling/entering/leaving.
     if (v.phase == FishingView::kReady || v.phase == FishingView::kCharging || v.phase == FishingView::kResult) {
     text(kLPowerLabel, 8, kPowerY - 1, 0.45f, kWhiteCol);
-    C2D_DrawRectSolid(kBarX, kPowerY, 0.5f, kBarW, kBarH, kPanelFill);
+    theme::roundRect(kBarX, kPowerY, kBarW, kBarH, 4, kPanelFill);
     const float p = v.power < 0.0f ? 0.0f : (v.power > 1.0f ? 1.0f : v.power);
     const u32 pc = p < 0.4f ? kGreen : (p < 0.75f ? kYellow : kRed);
-    C2D_DrawRectSolid(kBarX, kPowerY, 0.55f, kBarW * p, kBarH, pc);
+    if (p > 0.0f) theme::roundRect(kBarX, kPowerY, kBarW * p, kBarH, 4, pc, 0.55f);
     text(kLAimLabel, 8, kAimY - 1, 0.45f, kWhiteCol);
-    C2D_DrawRectSolid(kBarX, kAimY, 0.5f, kBarW, kBarH, kPanelFill);
+    theme::roundRect(kBarX, kAimY, kBarW, kBarH, 4, kPanelFill);
     C2D_DrawRectSolid(kBarX + kBarW * 0.5f - 1, kAimY, 0.55f, 2, kBarH, kDimCol);
     const float a = v.aimMax > 0.0f ? v.aim / v.aimMax : 0.0f; // +1 = full left
     const float mx = kBarX + kBarW * 0.5f - a * (kBarW * 0.5f - 4.0f);
-    C2D_DrawRectSolid(mx - 4, kAimY - 2, 0.6f, 8, kBarH + 4, kAccentCol);
+    theme::roundRect(mx - 4, kAimY - 2, 8, kBarH + 4, 3, kAccentCol, 0.6f);
 
     }
 

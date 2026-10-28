@@ -45,6 +45,7 @@ constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTel
 constexpr float kHomeX = 4.0f, kHomeY = 148.0f, kHomeW = 76.0f, kHomeH = 24.0f;
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
+constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
 const char* const kBookPageNames[pad::booktab::kCount] = {"Gags",       "ToonTasks", "Cog Gallery",
@@ -97,7 +98,7 @@ bool Ui::init() {
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
     laffBuf_ = C2D_TextBufNew(16);
-    if (!gagText_.init(768)) return false;
+    if (!gagText_.init(768) || !chatLogText_.init(512)) return false;
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !laffBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
@@ -121,6 +122,7 @@ void Ui::shutdown() {
     fishingPanel_.shutdown();
     book_.shutdown();
     gagText_.shutdown();
+    chatLogText_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_, &laffBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -279,7 +281,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         bool stillHere = s.whisperTo == 0;
         for (int i = 0; i < numNearby_; i++) stillHere |= nearbyIds_[i] == s.whisperTo;
         if (!stillHere) s.whisperTo = 0;
-        return chat_.handleInput(down, held, t, kTabY);
+        return chat_.handleInput(down, held, t, chatLogShown() ? kTabY - kChatLogH : kTabY);
     }
     if (!(down & KEY_TOUCH) || t.py >= kTabY) return 0;
 
@@ -328,6 +330,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
 void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     frame_++;
+    chatNowMs_ = osGetTime();
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
@@ -387,7 +390,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         return;
     }
     if (owner == PanelOwner::Fishing) {
-        fishingPanel_.draw(*c.fishing, kTabY);
+        fishingPanel_.draw(*c.fishing, 240.0f); // owns the screen: no tab bar under it
         return;
     }
     const int tab = s.tab >= 0 && s.tab < numTabs(s) ? s.tab : kTabMap;
@@ -395,7 +398,12 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     switch (tab) {
     case kTabMap: drawMap(c); break;
     case kTabChat: {
-        chat_.draw(kTabY);
+        if (chatLogShown()) {
+            chat_.draw(kTabY - kChatLogH);
+            drawChatLog(kTabY - kChatLogH, kTabY);
+        } else {
+            chat_.draw(kTabY);
+        }
         numNearby_ = c.numNearby < 8 ? c.numNearby : 8;
         const char* target = "Everyone";
         for (int i = 0; i < numNearby_; i++) {
@@ -498,6 +506,38 @@ void Ui::cycleWhisper(State& s) {
     s.whisperTo = next < numNearby_ ? nearbyIds_[next] : 0;
 }
 // ---- end padnav ----
+
+void Ui::logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs) {
+    if (!text || !text[0]) return;
+    if (chatLogCount_ == kChatLog) {
+        for (int i = 1; i < kChatLog; i++) chatLog_[i - 1] = chatLog_[i];
+        chatLogCount_--;
+    }
+    ChatLine& l = chatLog_[chatLogCount_++];
+    snprintf(l.name, sizeof l.name, "%s", name && name[0] ? name : "Toon");
+    snprintf(l.text, sizeof l.text, "%s", text);
+    l.ms = nowMs;
+    l.whisper = whisper;
+    l.you = you;
+}
+
+bool Ui::chatLogShown() const {
+    return chatLogCount_ > 0 && chatNowMs_ - chatLog_[chatLogCount_ - 1].ms < kChatLogMs;
+}
+
+// Newest line at the bottom, like a chat window: names in nametag blue (ours in green,
+// whispers in the whisper panel's purple).
+void Ui::drawChatLog(float y0, float y1) {
+    theme::paper(4, y0 + 1, kW - 8, y1 - y0 - 3, 6.0f, theme::kScFrame, theme::kScFrameEdge);
+    for (int i = 0; i < chatLogCount_; i++) {
+        const ChatLine& l = chatLog_[i];
+        const float y = y0 + (y1 - y0 - 3 - chatLogCount_ * 13.5f) * 0.5f + i * 13.5f;
+        const u32 nameCol = l.you ? theme::kGreenDark : l.whisper ? theme::rgb(0x80, 0x30, 0xA0) : theme::kBlueDark;
+        const float nw = chatLogText_.fit(10, y, theme::kTextSmall, nameCol, 110, "%s%s:", l.name,
+                                          l.whisper && !l.you ? " whispers" : "");
+        chatLogText_.fit(14 + nw, y, theme::kTextSmall, theme::kScText, kW - 24 - nw, "%s", l.text);
+    }
+}
 
 // Shtiker-Book-style tabs on the binder: the open tab is yellow and stands taller.
 void Ui::drawTabs(const State& s) {

@@ -1476,6 +1476,8 @@ int main() {
             }
             tt::audio::playSfx(sfxClick);
             pendingSpeech = speechMsg;
+            ui.logChat(uiState.whisperTo ? "You whisper" : "You", tt::sc::phraseText(speechMsg), uiState.whisperTo != 0,
+                       true, static_cast<u32>(osGetTime()));
         }
         myPhraseAge += dt;
         if (localToon.bodyLocked() && !racing.driving()) {
@@ -1926,6 +1928,12 @@ int main() {
                 }
                 // ---- end tutorial ----
                 remoteToons.handleEvent(ev, net);
+                if (ev.type == tt::net::EventType::Chat) { // the Chat tab's recent-chat strip
+                    if (const tt::net::RemoteToon* t = net.findToon(ev.doId)) {
+                        const char* said = t->scIndex >= 0 ? tt::sc::phraseText(static_cast<uint16_t>(t->scIndex)) : t->chat;
+                        ui.logChat(t->name, said, false, false, static_cast<u32>(osGetTime()));
+                    }
+                }
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
                 fishing.handleEvent(ev);
@@ -2052,6 +2060,7 @@ int main() {
                                  said ? said : "...");
                         toast = toastBuf;
                         toastAge = 0.0f;
+                        ui.logChat(w.name[0] ? w.name : "A toon", said, true, false, static_cast<u32>(osGetTime()));
                     } else if (fe.type == tt::net::FriendEventType::InviteIn && net.pendingInvite()) {
                         snprintf(toastBuf, sizeof(toastBuf), "%s wants to be friends!", net.pendingInvite()->name);
                         toast = toastBuf;

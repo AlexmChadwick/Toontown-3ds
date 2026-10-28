@@ -38,6 +38,9 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: map release"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab chat"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat focus", "pad_chat"},
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat down"},
+    {0.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open hello", "pad_chat_hello"},
+    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say hello", "pad_chat_said"}, // the recent-chat strip
     {1.0f, 0, 0, 0, KEY_X, -1, -1, -1, "pad: chat whisper"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat back"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab toon"},
