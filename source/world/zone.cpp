@@ -219,22 +219,46 @@ struct Zone::Impl {
                 ++entries_[i].refs; *out=entries_[i].tex; LightLock_Unlock(&lock_); return true;
             }
             // Chunk table totals count shared pages more than once.  Enforce the real
-            // unique allocation total here, at the only point that can grow it.
-            if (key.dataSize>Zone::kTextureBudget-bytes_) {
+            // unique allocation total here, at the only point that can grow it. Reserve
+            // before dropping the lock so even concurrent callers cannot over-admit.
+            if (key.dataSize>Zone::kTextureBudget ||
+                bytes_+pendingBytes_>Zone::kTextureBudget-key.dataSize) {
                 LightLock_Unlock(&lock_); return false;
+            }
+            pendingBytes_+=key.dataSize;
+            LightLock_Unlock(&lock_);
+
+            // SD reads and linear allocation can take milliseconds.  They must not hold
+            // the cache metadata lock: the main thread releases fenced pages and samples
+            // residency for the debug UI while the loader is active.
+            C3D_Tex loaded{};
+            const bool loadedOk=render::loadTexture(f,key,&loaded);
+
+            LightLock_Lock(&lock_);
+            pendingBytes_-=key.dataSize;
+            if (!loadedOk) { LightLock_Unlock(&lock_); return false; }
+            // The zone currently has one loader, but keep this correct if that changes.
+            for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
+                ++entries_[i].refs; *out=entries_[i].tex;
+                LightLock_Unlock(&lock_);
+                { mem::LinearGuard guard; C3D_TexDelete(&loaded); }
+                return true;
             }
             if (count_==capacity_) {
                 const uint32_t next=capacity_ ? capacity_*2 : 32;
                 Entry* grown=static_cast<Entry*>(realloc(entries_,next*sizeof(Entry)));
-                if (!grown) { LightLock_Unlock(&lock_); return false; }
+                if (!grown) {
+                    LightLock_Unlock(&lock_);
+                    { mem::LinearGuard guard; C3D_TexDelete(&loaded); }
+                    return false;
+                }
                 entries_=grown; capacity_=next;
             }
             Entry& e=entries_[count_];
-            memset(&e,0,sizeof(e)); e.key=key;
-            const bool ok=render::loadTexture(f,key,&e.tex);
-            if (ok) { e.refs=1; *out=e.tex; bytes_+=key.dataSize; ++count_; }
+            memset(&e,0,sizeof(e)); e.key=key; e.tex=loaded; e.refs=1; *out=e.tex;
+            bytes_+=key.dataSize; ++count_;
             LightLock_Unlock(&lock_);
-            return ok;
+            return true;
         }
         void release(const render::TexEntry& key) override {
             LightLock_Lock(&lock_);
@@ -257,7 +281,9 @@ struct Zone::Impl {
         }
         uint32_t residentBytes() const {
             LightLock_Lock(const_cast<LightLock*>(&lock_));
-            const uint32_t total=bytes_;
+            // Pending allocations are reserved against the cap and against queue
+            // admission even though they are not resident/drawable yet.
+            const uint32_t total=bytes_+pendingBytes_;
             LightLock_Unlock(const_cast<LightLock*>(&lock_));
             return total;
         }
@@ -271,7 +297,7 @@ struct Zone::Impl {
         }
         mutable LightLock lock_{};
         Entry* entries_=nullptr;
-        uint32_t count_=0,capacity_=0,bytes_=0;
+        uint32_t count_=0,capacity_=0,bytes_=0,pendingBytes_=0;
     } textureCache;
     enum JobState : uint8_t { Free, Queued, Loading, Done, Failed };
     struct Job {
