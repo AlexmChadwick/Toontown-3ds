@@ -3,6 +3,54 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Zone validation leaves the main thread
+
+### Done
+- Removed the largest remaining set of scattered synchronous reads from `Zone::load` on
+  3DS. Detailed TTM texture, batch and (when necessary) index validation now runs in the
+  existing zone loader thread immediately before that chunk is allocated and loaded. A
+  street/facility arrival no longer probes both LODs of every chunk before streaming can
+  begin.
+- Validation results are cached per chunk and LOD. A corrupt chunk still fails before any of
+  its model-controlled counts or offsets reach GPU allocation, and an invalid result is not
+  repeatedly read from SD on retry. Container ranges, disjoint sections, PVS/floor tables,
+  budgets and collision remain validated synchronously before the zone is accepted.
+- Kept eager detailed validation in host builds so the malformed-zone suite continues to
+  reject corruption at `Zone::load`, independent of which cell a test visits.
+- Facility floor logs now include the complete synchronous floor-preparation time in
+  milliseconds, giving the next device/emulator pass a direct comparison point for the
+  metadata and deferred-validation changes.
+
+### Verified
+- `git diff --check` passes for each change and the branch is clean after committing.
+- Source review confirms the loader is the only user of the open TZ file after `load`
+  returns; validation finishes before `Model::loadFrom` and its linear/GPU allocations.
+- The zone host suite could not run in this checkout because importing its fixture/baker
+  support requires the absent `panda3d` module. This image also has no host C++ compiler or
+  devkitARM, so a 3DS build was not possible here.
+
+### Asset size decisions
+- None. Runtime scheduling and logging changed; baked data and original asset quality are
+  unchanged.
+
+### Known issues
+- Deferred validation needs an equipped Azahar and Old 3DS run. The previous measured
+  facility floor transition was 0.2-0.4 s and a street load was 1.0-1.3 s; the new
+  `level: floor ... ms` line should be used for the former.
+- Collision blobs and their cell-index validation are still loaded synchronously for every
+  room. Facility layout assembly itself also remains on the main thread.
+- TZ v3 removes duplicate texture payloads on disk, but resident chunks still upload their
+  own copies to linear memory. Sharing those uploads is the next large memory/I/O win.
+- The four boss battles and real-hardware Old 3DS memory/frame-time measurements remain
+  unverified.
+
+### Next
+- Build and compare facility/street transition logs in Azahar, then on Old 3DS hardware.
+- Stage room collision/zone metadata as a background floor-preparation job, with an atomic
+  main-thread publish after all rooms validate.
+- Add a ref-counted TZ v3 texture residency cache so chunks sharing a pool payload also share
+  one PICA texture allocation and upload.
+
 ## 2026-10-28 — Facility and zone metadata I/O
 
 ### Done
