@@ -256,6 +256,7 @@ bool Client::sendWhisperSC(uint32_t toDoId, uint16_t msgIndex) {
     w.u32(avatarId_);
     w.u16(msgIndex);
     if (!finish(w)) return false;
+    TT_LOG("net: chat tx whisper sc %u to %u", unsigned(msgIndex), unsigned(toDoId));
     Whisper& o = friends_.log[(friends_.logHead + friends_.logCount) % kWhisperLogLen];
     if (friends_.logCount < kWhisperLogLen) friends_.logCount++;
     else friends_.logHead = (friends_.logHead + 1) % kWhisperLogLen;
