@@ -117,7 +117,7 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     float rowH = total ? (trophyY - 3 - listY) / total : 20.0f;
     if (rowH > 22.0f) rowH = 22.0f;
     const float tScale = rowH >= 18.0f ? theme::kTextSmall : theme::kTextTiny;
-    const float ty = (rowH - 1 - (rowH >= 18.0f ? 15.0f : 13.0f)) * 0.5f;
+    const float ty = (rowH - 1 - tScale * 30.0f) * 0.5f; // ImpressBT: ~30 px line at scale 1
     int slot = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {
         const auto& sp = world::fish::kSpecies[i];
@@ -137,9 +137,9 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
 
     // The fishing trophies (one per 10 species), as gold cups.
     for (int t = 0; t < kTrophies; t++) {
-        const float cx = x + 22 + t * ((w - 44) / (kTrophies - 1));
-        trophyCup(cx - 12, trophyY + 3, caught >= (t + 1) * 10);
-        text_.draw(cx - 1, trophyY + 4, theme::kTextTiny, caught >= (t + 1) * 10 ? theme::kInk : theme::kInkSoft,
+        const float cx = x + 30 + t * ((w - 64) / (kTrophies - 1));
+        trophyCup(cx - 12, trophyY + 2, caught >= (t + 1) * 10);
+        text_.draw(cx - 1, trophyY + 3, theme::kTextTiny, caught >= (t + 1) * 10 ? theme::kInk : theme::kInkSoft,
                    "%d", (t + 1) * 10);
     }
     focus_.drawHighlight(); // padnav

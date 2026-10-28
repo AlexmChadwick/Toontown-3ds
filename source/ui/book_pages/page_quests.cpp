@@ -17,20 +17,18 @@ constexpr u32 kDoneEdge = theme::rgb(0x3C, 0x8C, 0x2C);
 constexpr u32 kDoneInk = theme::rgb(0x00, 0x4C, 0x00); // textColor (0, 0.3, 0)
 constexpr u32 kRewardRed = theme::rgb(0xB0, 0x20, 0x20);
 
-// "Building\nStreet\nHood" as one line.
-void flatten(char* s) {
-    char* o = s;
-    for (const char* c = s; *c; ++c) {
-        if (*c == '\n') {
-            if (o != s && c[1]) {
-                *o++ = ',';
-                *o++ = ' ';
-            }
-        } else {
-            *o++ = *c;
+// "Building\nStreet\nHood" as one line ("Building, Street, Hood") into out.
+void flatten(const char* in, char* out, size_t cap) {
+    size_t n = 0;
+    for (const char* c = in; *c && n + 3 < cap; ++c) {
+        if (*c != '\n') {
+            out[n++] = *c;
+        } else if (n > 0 && c[1]) {
+            out[n++] = ',';
+            out[n++] = ' ';
         }
     }
-    *o = 0;
+    out[n] = 0;
 }
 
 // QuestPoster's toNpcName (ToonHQ and the tailor have generic names).
@@ -98,8 +96,9 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
             ly += 12.5f;
         }
         if (ly + 12 <= bottom && quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), done, line, sizeof line) > 0) {
-            flatten(line);
-            text_.fit(cx + 8, ly, theme::kTextTiny, theme::kInkSoft, cw - 16, "%s", line);
+            char flat[160];
+            flatten(line, flat, sizeof flat);
+            text_.fit(cx + 8, ly, theme::kTextTiny, theme::kInkSoft, cw - 16, "%s", flat);
             ly += 12.5f;
         }
         if (ly + 12 <= bottom && quest::rewardText(static_cast<uint16_t>(e.reward), true, line, sizeof line) > 0 &&

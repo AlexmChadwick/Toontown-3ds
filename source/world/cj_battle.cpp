@@ -1,3 +1,4 @@
+#include "ui/boss_titles.h"
 #include "world/cj_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
@@ -726,7 +727,7 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : state.phase;
+    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "Scales %.0f / 2700  Laff %d%s", damage, frame.client.ownStats().hp,
                   state.bonusRevision && nowMs - state.bonusMs < 20000 ? "  BONUS" : "");
     std::snprintf(details_, sizeof(details_), "Evidence %u  Cannon %.0f / %.0f  Aim %.0f", unsigned(frame.client.bossPies()), rotation_, elevation_, pitch_);

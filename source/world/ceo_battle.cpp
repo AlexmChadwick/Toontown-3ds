@@ -1,3 +1,4 @@
+#include "ui/boss_titles.h"
 #include "world/ceo_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
@@ -948,7 +949,7 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     ui::Context context{};
     context.stats = &frame.client.ownStats();
     context.infoTitle = assets_.failed() ? "CEO assets missing / over budget"
-        : !assets_.ready() ? "Loading CEO banquet" : state.phase;
+        : !assets_.ready() ? "Loading CEO banquet" : ui::bossPhaseTitle(state.phase);
 
     std::snprintf(status_, sizeof(status_), "CEO %.0f / 500  Speed %.1f / 90  Laff %d",
         net::currentBossDamage(state, nowMs), ceoSpeedDamage(state, nowMs), frame.client.ownStats().hp);

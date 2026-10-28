@@ -805,3 +805,6 @@ void Ui::drawDebug(const Context& c) {
 }
 
 } // namespace tt::ui
+// main() keeps its Ui on the 256 KB main-thread stack (AGENTS.md). Book pages once embedded a
+// 28 KB TextCache each and overflowed it (PC 0 at boot); keep big caches on the heap.
+static_assert(sizeof(tt::ui::Ui) <= 112 * 1024, "Ui grew: move large members to the heap");

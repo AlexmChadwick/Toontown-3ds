@@ -1,44 +1,31 @@
-#include "render/ui_font.h"
 #include "ui/book_pages/page_options.h"
 #include "ui/pad_tables.h"
 #include "audio/audio.h"
 #include "render/ui.h"
 #include "net/client.h"
-#include <cstdio>
-#include <cstdarg>
+#include "ui/theme.h"
 #include <algorithm>
 
 namespace tt::ui {
 
 namespace {
 
-constexpr u32 kCardBg = C2D_Color32(0xF2, 0xEE, 0xE2, 0xFF);
-constexpr u32 kCardBorder = C2D_Color32(0xD0, 0xC8, 0xB8, 0xFF);
-constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-constexpr u32 kDim = C2D_Color32(0x78, 0x70, 0x68, 0xFF);
-constexpr u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-constexpr u32 kBtnBg = C2D_Color32(0xE0, 0xD8, 0xC8, 0xFF);
-constexpr u32 kActiveBtn = C2D_Color32(0x38, 0x78, 0xC8, 0xFF);
-constexpr u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-constexpr u32 kGreen = C2D_Color32(0x40, 0xA8, 0x40, 0xFF);
-constexpr u32 kRed = C2D_Color32(0xC8, 0x40, 0x40, 0xFF);
+constexpr float kToggleX = 15, kToggleW = 135, kRowH = 20, kMinusX = 80, kPlusX = 126, kStepW = 24;
 
 } // namespace
 
 void PageOptions::init() {
-    textBuf_ = C2D_TextBufNew(1024);
+    text_.init(1024);
     pad::buildBookOptions(focus_); // padnav
 }
 
-void PageOptions::shutdown() {
-    if (textBuf_) {
-        C2D_TextBufDelete(textBuf_);
-        textBuf_ = nullptr;
-    }
-}
+void PageOptions::shutdown() { text_.shutdown(); }
 
 u32 PageOptions::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!bdc.state) return 0;
+    // The stress-test steppers are a developer control: only with the Debug tab on.
+    for (int id : {pad::book::kIdStressMinus, pad::book::kIdStressPlus})
+        focus_.setItemEnabled(focus_.indexOf(id), bdc.state->debugOverlay);
     // ---- padnav: one table (pad::buildBookOptions) for touch, the D-Pad and A ----
     int activated = -1;
     const u32 used = focus_.handleInput(keysDown, touch, &activated);
@@ -89,141 +76,67 @@ void PageOptions::applyOption(int id, State& s) {
     }
 }
 
-void PageOptions::rebuildText(const BookDrawContext& bdc) {
-    if (!textBuf_) return;
-    C2D_TextBufClear(textBuf_);
-
-    if (bdc.state) {
-        lastMusicVol_ = bdc.state->musicVol;
-        lastSfxVol_ = bdc.state->sfxVol;
-        lastStress_ = bdc.state->stressToons;
-        lastStereo_ = bdc.state->stereo;
-        lastDebug_ = bdc.state->debugOverlay;
-        lastLod_ = bdc.state->lodBias;
-    }
-    lastNumDistricts_ = bdc.numDistricts;
-}
-
+// OptionsPage: settings on the left card, the district list (ShardPage) on the right.
 void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
     (void)x; (void)y; (void)w; (void)h;
-    if (!textBuf_) init();
-
-    if (bdc.state) {
-        if (bdc.state->musicVol != lastMusicVol_ || bdc.state->sfxVol != lastSfxVol_ ||
-            bdc.state->stressToons != lastStress_ || bdc.state->stereo != lastStereo_ ||
-            bdc.state->debugOverlay != lastDebug_ || bdc.state->lodBias != lastLod_ ||
-            bdc.numDistricts != lastNumDistricts_) {
-            rebuildText(bdc);
-        }
-    }
-
-    // The labels are parsed every frame below, so the buffer must start empty every frame
-    // (it filled up after a few frames and every label vanished).
-    C2D_TextBufClear(textBuf_);
-
-    // Helper to render formatted text
-    auto drawText = [&](float tx, float ty, float scale, u32 col, const char* fmt, ...) {
-        char buf[128];
-        va_list args;
-        va_start(args, fmt);
-        vsnprintf(buf, sizeof(buf), fmt, args);
-        va_end(args);
-        C2D_Text c2d;
-        tt::render::textParse(&c2d, textBuf_, buf);
-        C2D_DrawText(&c2d, C2D_WithColor, tx, ty, 0.6f, scale, scale, col);
-    };
-
-    // Left card: Game Options
-    C2D_DrawRectSolid(10, 26, 0.45f, 145, 178, kCardBg);
-    C2D_DrawRectSolid(10, 26, 0.46f, 145, 1, kCardBorder);
-    C2D_DrawRectSolid(10, 203, 0.46f, 145, 1, kCardBorder);
-    C2D_DrawRectSolid(10, 26, 0.46f, 1, 178, kCardBorder);
-    C2D_DrawRectSolid(154, 26, 0.46f, 1, 178, kCardBorder);
-
-    // Right card: Districts (Shard)
-    C2D_DrawRectSolid(165, 26, 0.45f, 145, 178, kCardBg);
-    C2D_DrawRectSolid(165, 26, 0.46f, 145, 1, kCardBorder);
-    C2D_DrawRectSolid(165, 203, 0.46f, 145, 1, kCardBorder);
-    C2D_DrawRectSolid(165, 26, 0.46f, 1, 178, kCardBorder);
-    C2D_DrawRectSolid(309, 26, 0.46f, 1, 178, kCardBorder);
-
-    const bool stereo = bdc.state ? bdc.state->stereo : false;
-    const bool debug = bdc.state ? bdc.state->debugOverlay : false;
+    theme::paper(10, 26, 145, 178, 7.0f, theme::kPaper, theme::kPaperEdge);
+    theme::paper(165, 26, 145, 178, 7.0f, theme::kPaper, theme::kPaperEdge);
+    const bool stereo = bdc.state && bdc.state->stereo;
+    const bool debug = bdc.state && bdc.state->debugOverlay;
     const int lod = bdc.state ? bdc.state->lodBias : 0;
     const int musicVol = bdc.state ? bdc.state->musicVol : 80;
     const int sfxVol = bdc.state ? bdc.state->sfxVol : 100;
     const int stress = bdc.state ? bdc.state->stressToons : 0;
 
-    // 1. Stereo 3D button
-    C2D_DrawRectSolid(15, 30, 0.5f, 135, 20, stereo ? kActiveBtn : kBtnBg);
-    drawText(20, 33, 0.42f, stereo ? kWhite : kInk, "Stereo 3D: %s", stereo ? "On" : "Off");
+    // On / off toggles: green when on, like upstream's check buttons.
+    auto toggle = [&](float ty, bool on, const char* label, const char* value) {
+        theme::button(kToggleX, ty, kToggleW, kRowH + 2, on ? theme::kGreen : theme::kPaperShade,
+                      on ? theme::kGreenDark : theme::kGreyDark, false, 6.0f);
+        text_.fit(kToggleX + 7, ty + 2, theme::kTextSmall, on ? theme::kWhite : theme::kInk, 74, "%s", label);
+        text_.right(kToggleX + kToggleW - 7, ty + 2, theme::kTextSmall, on ? theme::kWhite : theme::kInkSoft, 54, "%s",
+                    value);
+    };
+    toggle(30, stereo, "Stereo 3D", stereo ? "On" : "Off");
+    toggle(54, debug, "Debug tab", debug ? "On" : "Off");
+    toggle(78, lod > 0, "Detail", lod > 0 ? "Fast" : "Normal");
 
-    // 2. Debug Overlay button
-    C2D_DrawRectSolid(15, 54, 0.5f, 135, 20, debug ? kActiveBtn : kBtnBg);
-    drawText(20, 57, 0.42f, debug ? kWhite : kInk, "Debug tab: %s", debug ? "On" : "Off");
+    // - value + steppers.
+    auto stepper = [&](float ty, const char* label, int value, const char* fmt, bool enabled) {
+        text_.draw(16, ty + 2, theme::kTextSmall, enabled ? theme::kInk : theme::kGreyDark, "%s", label);
+        const u32 face = enabled ? theme::kBlue : theme::kGrey, lip = enabled ? theme::kBlueDark : theme::kGreyDark;
+        theme::button(kMinusX, ty, kStepW - 2, kRowH + 2, face, lip, false, 6.0f);
+        theme::button(kPlusX, ty, kStepW - 2, kRowH + 2, face, lip, false, 6.0f);
+        text_.centered(kMinusX + (kStepW - 2) * 0.5f, ty, theme::kTextTitle, theme::kWhite, 0, "-");
+        text_.centered(kPlusX + (kStepW - 2) * 0.5f, ty, theme::kTextTitle, theme::kWhite, 0, "+");
+        text_.centered((kMinusX + kStepW + kPlusX) * 0.5f - 1, ty + 3, theme::kTextTiny,
+                       enabled ? theme::kInk : theme::kGreyDark, kPlusX - kMinusX - kStepW + 2, fmt, value);
+    };
+    stepper(102, "Music", musicVol, "%d%%", true);
+    stepper(126, "Sound", sfxVol, "%d%%", true);
+    if (debug) stepper(150, "Test toons", stress, "%d", true);
 
-    // 3. LOD Bias button
-    C2D_DrawRectSolid(15, 78, 0.5f, 135, 20, (lod > 0) ? kActiveBtn : kBtnBg);
-    drawText(20, 81, 0.42f, (lod > 0) ? kWhite : kInk, "LOD Bias: %s", (lod > 0) ? "Low (Fast)" : "Normal");
+    theme::button(kToggleX, 176, kToggleW, kRowH + 2, theme::kRed, theme::kRedDark, false, 6.0f);
+    text_.centered(kToggleX + kToggleW * 0.5f, 178, theme::kTextBody, theme::kWhite, 0, "Quit Toontown");
 
-    // 4. Music Volume
-    drawText(16, 106, 0.40f, kInk, "Music:");
-    C2D_DrawRectSolid(80, 102, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 104, 0.50f, kInk, "-");
-    drawText(104, 106, 0.38f, kInk, "%d%%", musicVol);
-    C2D_DrawRectSolid(126, 102, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 104, 0.50f, kInk, "+");
-
-    // 5. SFX Volume
-    drawText(16, 130, 0.40f, kInk, "Sound:");
-    C2D_DrawRectSolid(80, 126, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 128, 0.50f, kInk, "-");
-    drawText(104, 130, 0.38f, kInk, "%d%%", sfxVol);
-    C2D_DrawRectSolid(126, 126, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 128, 0.50f, kInk, "+");
-
-    // 6. Stress Toons
-    drawText(16, 154, 0.40f, kInk, "Test toons:");
-    C2D_DrawRectSolid(80, 150, 0.5f, 22, 20, kBtnBg);
-    drawText(88, 152, 0.50f, kInk, "-");
-    drawText(106, 154, 0.38f, kInk, "%d", stress);
-    C2D_DrawRectSolid(126, 150, 0.5f, 22, 20, kBtnBg);
-    drawText(134, 152, 0.50f, kInk, "+");
-
-    // 7. Quit Game
-    C2D_DrawRectSolid(15, 176, 0.5f, 135, 20, kRed);
-    drawText(44, 179, 0.42f, kWhite, "Quit Game");
-
-    // Right card: District list
-    drawText(172, 32, 0.46f, kInk, "Districts (Shards)");
-    C2D_DrawRectSolid(170, 46, 0.46f, 135, 1, kCardBorder);
-
-    int drawnDistricts = 0;
-    if (bdc.districts && bdc.numDistricts > 0) {
-        for (int i = 0; i < bdc.numDistricts && drawnDistricts < 7; i++) {
-            const net::District& d = bdc.districts[i];
-            if (!d.active) continue;
-
-            const float dy = 52.0f + drawnDistricts * 21.0f;
-            C2D_DrawRectSolid(170, dy, 0.48f, 135, 18, kBtnBg);
-
-            // Status indicator
-            C2D_DrawRectSolid(174, dy + 5, 0.5f, 8, 8, d.available ? kGreen : kRed);
-
-            // Name
-            drawText(186, dy + 3, 0.38f, kInk, "%.14s", d.name[0] ? d.name : "District");
-
-            // Population / Status tag
-            drawText(272, dy + 3, 0.35f, d.available ? kGreen : kDim, "%s", d.available ? "Avail" : "Full");
-
-            drawnDistricts++;
-        }
+    // Districts: name, and whether it takes more Toons.
+    text_.draw(172, 31, theme::kTextBody, theme::kRedDark, "Districts");
+    C2D_DrawRectSolid(170, 48, 0.5f, 135, 1, theme::kPaperShade);
+    int shown = 0;
+    for (int i = 0; bdc.districts && i < bdc.numDistricts && shown < 7; i++) {
+        const net::District& d = bdc.districts[i];
+        if (!d.active) continue;
+        const float dy = 53.0f + shown++ * 21.0f;
+        theme::roundRect(170, dy, 135, 19, 5, theme::kPaperShade);
+        theme::roundRect(175, dy + 5, 9, 9, 4, d.available ? theme::kGreen : theme::kRed);
+        text_.fit(189, dy + 2, theme::kTextSmall, theme::kInk, 78, "%s", d.name[0] ? d.name : "District");
+        text_.right(301, dy + 3, theme::kTextTiny, d.available ? theme::kGreenDark : theme::kInkSoft, 0, "%s",
+                    d.available ? "Open" : "Full");
     }
-
-    if (drawnDistricts == 0) {
-        drawText(175, 60, 0.40f, kDim, "No districts online");
-        drawText(175, 78, 0.36f, kDim, "(Playing offline)");
+    if (shown == 0) {
+        text_.draw(175, 58, theme::kTextSmall, theme::kInkSoft, "No districts online");
+        text_.draw(175, 75, theme::kTextTiny, theme::kInkSoft, "(Playing offline)");
     }
+    focus_.drawHighlight(); // padnav
 }
 
 } // namespace tt::ui

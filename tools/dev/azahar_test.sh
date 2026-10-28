@@ -127,6 +127,7 @@ if ls "$SD"/shot_*.bin >/dev/null 2>&1; then
     [ -n "${SHOTS_DECODE:-}" ] && SHOTS=("$OUT"/bin/shot_*_"$SHOTS_DECODE".bin)
     .venv/bin/python -I tools/dev/decode_shot.py "${SHOTS[@]}" --out-dir "$OUT" >/dev/null
 fi
+tail -c 1000000 "$AZ_DATA/log/azahar_log.txt" > "$OUT/azahar_log.txt" 2>/dev/null || true # emulator-side failures (last 1 MB)
 grep -c -E "PANIC|Unreachable" "$AZ_DATA/log/azahar_log.txt" \
     | sed 's/^/emulator panics: /' || true
 echo "results in $OUT"

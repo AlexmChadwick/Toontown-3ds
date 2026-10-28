@@ -14,6 +14,9 @@ namespace tt::ui {
 
 class PageText {
 public:
+    PageText() = default;
+    PageText(const PageText&) = delete;
+    PageText& operator=(const PageText&) = delete;
     bool init(size_t glyphs = 2048);
     void shutdown();
 
@@ -38,7 +41,8 @@ private:
     C2D_TextBuf buf_ = nullptr;
     size_t cap_ = 0;
     float z_ = 0.6f;
-    render::TextCache cache_;
+    // On the heap (init): a TextCache is ~28 KB and panels live inside Ui on main()'s stack.
+    render::TextCache* cache_ = nullptr;
 };
 
 } // namespace tt::ui

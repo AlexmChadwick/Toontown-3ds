@@ -1,3 +1,4 @@
+#include "ui/boss_titles.h"
 #include "world/boss_battle.h"
 #include "core/profile.h"
 #include "world/ceo_battle.h"
@@ -839,7 +840,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : state.phase;
+    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "VP %.0f / 100  %s  Laff %d", damage,
                   state.attack == net::kBossDizzyNow ? "STUNNED" : vpHatchOpen(state, nowMs) ? "HATCH OPEN" : "", frame.client.ownStats().hp);
     std::snprintf(details_, sizeof(details_), "Pies %u  Power %.0f%%  Aim %.0f", unsigned(frame.client.bossPies()),
@@ -857,7 +858,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
                            failed_ ? "Copy data/boss from the bake. B: return" :
                            "A jump; B hold/release pie; D-pad aim; cage refills";
     if (cashbot_) {
-        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : state.phase;
+        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : ui::bossPhaseTitle(state.phase);
         std::snprintf(status_, sizeof(status_), "CFO %.0f / 500  Laff %d", damage, frame.client.ownStats().hp);
         std::snprintf(details_, sizeof(details_), "Magnet %s   %s", cfo_.magnetOn() ? "ON" : "OFF",
                       state.attack == net::kBossDizzy ? "STUNNED: throw safes" : "Jump on goons; knock helmet off");

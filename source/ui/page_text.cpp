@@ -3,12 +3,15 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include <new>
 
 namespace tt::ui {
 
 bool PageText::init(size_t glyphs) {
-    cache_.clear();
-    buf_ = C2D_TextBufNew(glyphs);
+    if (!cache_) cache_ = new (std::nothrow) render::TextCache;
+    if (!cache_) return false;
+    cache_->clear();
+    if (!buf_) buf_ = C2D_TextBufNew(glyphs);
     cap_ = glyphs;
     return buf_ != nullptr;
 }
@@ -16,13 +19,14 @@ bool PageText::init(size_t glyphs) {
 void PageText::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
     buf_ = nullptr;
-    cache_.clear();
+    delete cache_;
+    cache_ = nullptr;
 }
 
 float PageText::emit(Align a, float x, float y, float scale, u32 color, float maxW, const char* str) {
-    if (!buf_ || !str[0]) return 0.0f;
+    if (!buf_ || !cache_ || !str[0]) return 0.0f;
     C2D_Text t;
-    cache_.parse(&t, buf_, str, cap_);
+    cache_->parse(&t, buf_, str, cap_);
     float w = 0.0f;
     C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
     if (maxW > 0.0f && w > maxW) {
@@ -65,7 +69,7 @@ float PageText::right(float rx, float y, float scale, u32 color, float maxW, con
 
 int PageText::wrap(float x, float y, float scale, u32 color, float maxW, float lineH, int maxLines,
                    const char* str) {
-    if (!buf_ || !str) return 0;
+    if (!buf_ || !cache_ || !str) return 0;
     char rest[192];
     size_t n = 0;
     for (const char* c = str; *c && n + 1 < sizeof rest; ++c) rest[n++] = *c == '\n' ? ' ' : *c;
@@ -87,7 +91,7 @@ int PageText::wrap(float x, float y, float scale, u32 color, float maxW, float l
                 memcpy(line, p, i);
                 line[i] = 0;
                 C2D_Text t;
-                cache_.parse(&t, buf_, line, cap_);
+                cache_->parse(&t, buf_, line, cap_);
                 float w = 0.0f;
                 C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
                 if (w > maxW && best) break;
