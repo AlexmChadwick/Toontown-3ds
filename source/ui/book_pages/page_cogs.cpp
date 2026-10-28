@@ -62,20 +62,12 @@ u32 PageCogs::handleInput(u32 keysDown, const touchPosition& touch, BookDrawCont
         return keysDown & (KEY_DLEFT | KEY_DRIGHT);
     }
     // ---- end padnav ----
-    if (keysDown & KEY_TOUCH) {
-        // Check 4 department tabs at top: y = 20 .. 38
-        if (touch.py >= 20 && touch.py <= 38) {
-            for (int d = 0; d < 4; d++) {
-                const float tx = 14.0f + d * 70.0f;
-                if (touch.px >= tx && touch.px <= tx + 66.0f) {
-                    activeDept_ = d;
-                    focus_.setFocusById(d); // padnav
-                    return KEY_TOUCH;
-                }
-            }
-        }
-    }
-    return 0;
+    // The shared table uses screen coordinates (the page begins below the 24 px cover
+    // bar), so touch and A activate exactly the rectangles that are drawn.
+    int activated = -1;
+    const u32 used = focus_.handleInput(keysDown & (KEY_TOUCH | KEY_A), touch, &activated);
+    if (activated >= 0 && activated < pad::book::kDepts) activeDept_ = activated;
+    return used;
 }
 
 void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {

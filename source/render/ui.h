@@ -123,6 +123,9 @@ public:
     ClosetPanel& closet() { return closet_; }
     Book& book() { return book_; }
     const Book& book() const { return book_; }
+    // Input runs before the frame's Context is assembled. Keep the persistent owner data
+    // that interactive book pages need (currently SOS pagination) in step with the client.
+    void setBookInput(const net::OwnBookStats* book) { inputBook_ = book; }
     void openBookPage(int page) { book_.open(page); }
     // Street battle (world/battle.*): while a view is set the battle panel owns the bottom
     // screen. Call every frame before handleInput (null when not fighting).
@@ -209,6 +212,7 @@ private:
     BattleGags battleGags_{};
     FishingPanel fishingPanel_;
     Book book_;
+    const net::OwnBookStats* inputBook_ = nullptr;
     // ---- padnav: button focus on the Map / Toon / Setup tabs (docs/design/pad_navigation.md) ----
     u32 handleTabPad(u32 down, const touchPosition& touch, State& s);
     void activateTabControl(int id, State& s);

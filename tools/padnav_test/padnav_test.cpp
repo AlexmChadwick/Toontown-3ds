@@ -332,17 +332,28 @@ void testBookTables() {
     FocusGroup depts("book_cogs");
     pad::buildBookDepartments(depts);
     CHECK(depts.count() == k::kDepts);
+    // These are screen-space rectangles below the book's 24 px cover bar. The old
+    // page-local hit tests accidentally put most of them behind that bar.
+    for (int d = 0; d < k::kDepts; ++d) {
+        CHECK(tap(depts, int(k::kDeptX + d * k::kDeptStep + 1), int(k::kDeptY + 1)) == d);
+    }
     depts.setFocusById(3);
     depts.move(1, 0);
     CHECK(depts.focusedId() == 0);
+    CHECK(press(depts, KEY_A) == 0);
 
     FocusGroup fish("book_fish");
     pad::buildBookFishArrows(fish);
     CHECK(fish.count() == 2 && fish.item(1).id == k::kIdGenusNext);
+    CHECK(tap(fish, int(k::kGenusPrevX + 1), int(k::kGenusY + 1)) == k::kIdGenusPrev);
+    CHECK(tap(fish, int(k::kGenusNextX + 1), int(k::kGenusY + 1)) == k::kIdGenusNext);
+    CHECK(press(fish, KEY_A) == k::kIdGenusNext);
 
     FocusGroup sos("book_sos");
     pad::buildBookSosPage(sos);
     CHECK(sos.count() == 1 && sos.item(0).id == k::kIdSosPage);
+    CHECK(tap(sos, int(k::kSosPageX + 1), int(k::kSosPageY + 1)) == k::kIdSosPage);
+    CHECK(press(sos, KEY_A) == k::kIdSosPage);
 }
 
 } // namespace

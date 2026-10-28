@@ -53,20 +53,6 @@ void PageFish::shutdown() {
 
 u32 PageFish::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
-    if (keysDown & KEY_TOUCH) {
-        // Prev genus button: x = 16..46, y = 24..42
-        if (touch.px >= 16 && touch.px <= 46 && touch.py >= 24 && touch.py <= 42) {
-            if (activeGenusIdx_ > 0) activeGenusIdx_--;
-            else activeGenusIdx_ = 13;
-            return KEY_TOUCH;
-        }
-        // Next genus button: x = 274..304, y = 24..42
-        if (touch.px >= 274 && touch.px <= 304 && touch.py >= 24 && touch.py <= 42) {
-            if (activeGenusIdx_ < 13) activeGenusIdx_++;
-            else activeGenusIdx_ = 0;
-            return KEY_TOUCH;
-        }
-    }
     // D-Left / D-Right press the < / > arrows (padnav: highlighted and logged).
     if (keysDown & KEY_DLEFT) {
         if (activeGenusIdx_ > 0) activeGenusIdx_--;
@@ -82,7 +68,13 @@ u32 PageFish::handleInput(u32 keysDown, const touchPosition& touch, BookDrawCont
         focus_.logActivate(pad::book::kIdGenusNext);
         return KEY_DRIGHT;
     }
-    return 0;
+    int activated = -1;
+    const u32 used = focus_.handleInput(keysDown & (KEY_TOUCH | KEY_A), touch, &activated);
+    if (activated == pad::book::kIdGenusPrev)
+        activeGenusIdx_ = activeGenusIdx_ > 0 ? activeGenusIdx_ - 1 : 13;
+    else if (activated == pad::book::kIdGenusNext)
+        activeGenusIdx_ = activeGenusIdx_ < 13 ? activeGenusIdx_ + 1 : 0;
+    return used;
 }
 
 void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {

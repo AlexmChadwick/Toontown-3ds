@@ -37,15 +37,11 @@ u32 PageSos::handleInput(u32 keysDown, const touchPosition& touch, BookDrawConte
         return keysDown & (KEY_DLEFT | KEY_DRIGHT);
     }
     // ---- end padnav ----
-    if (keysDown & KEY_TOUCH) {
-        // Toggle view page if > 8 cards: x = 240..300, y = 18..36
-        if (touch.px >= 240 && touch.px <= 300 && touch.py >= 18 && touch.py <= 36) {
-            viewPage_ = 1 - viewPage_;
-            focus_.setFocusById(pad::book::kIdSosPage); // padnav
-            return KEY_TOUCH;
-        }
-    }
-    return 0;
+    int activated = -1;
+    const u32 used = focus_.handleInput(keysDown & (KEY_TOUCH | KEY_A), touch, &activated,
+                                        totalCards > kCardsPerView);
+    if (activated == pad::book::kIdSosPage) viewPage_ = 1 - viewPage_;
+    return used;
 }
 
 void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {

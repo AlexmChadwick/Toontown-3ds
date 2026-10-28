@@ -1433,6 +1433,7 @@ int main() {
                        trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
+        ui.setBookInput(netStarted ? &net.ownBook() : nullptr);
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());

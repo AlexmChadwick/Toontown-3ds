@@ -206,6 +206,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.state = &s;
+        bdc.book = inputBook_;
         return book_.handleInput(down, t, bdc);
     }
     if (owner == PanelOwner::Shop) return shop_.handleInput(down, t);
