@@ -290,3 +290,30 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Next
 - Install the devkitARM layers (see 2026-10-27 entry) and re-run `make` plus Azahar passes.
 - Measure the in-battle linear high-water mark on the emulator against the 3.94 MB estimate.
+
+## 2026-10-28 — perf round 2: toolchain on this box, static size, isolated emulator runs
+
+### Done
+- devkitARM/libctru/citro3d fetched from the `devkitpro/devkitarm` Docker Hub layers (to `/tmp/dkp`,
+  outside the tree); `make` builds clean.
+- `tools/dev/azahar_test.sh` (Linux): every run now has its own XDG config/data (nand/sysdata copied from
+  the user's install), its own SD with a `data` symlink to this tree's `sdmc-out` (or `TT_DATA`), its own
+  process group (only that group is killed; no global `pkill`, no shared config backup, no lock needed).
+  `TT_OFFLINE=1` writes `online=0`; `TT_PORT`/`TT_TOKEN` pick a private server and account. macOS path unchanged.
+  Cause: my first run logged in on another agent's live server on :7198 and got their client ejected.
+
+### Verified
+- Static footprint of the ELF: text 1.96 MB + data 0.12 MB + bss 1.07 MB = 3.1 MB, under the 4 MB
+  budget (0.9 MB headroom; biggest bss: `main::level` 360 KB, `main::net` 179 KB, `main::minigame` 116 KB).
+- Offline Azahar pass (Old 3DS, Linux/Xvfb, isolated run, `shots off`): 29.9 fps, heap 3.5 MB, linear free
+  15.6 MB, VRAM free 4.2 MB; zero network lines; the temp run dir is removed on exit.
+- Host: `zone_resident.py` and `sd_budget.py` pass (see the earlier entry).
+
+### Known issues
+- The in-battle linear high-water mark is still unmeasured on the emulator: it needs a private server on its
+  own port (`start.sh` hardcodes 7198/7199) and another agent was using the shared one. Emulator timings on
+  this VM are unreliable (it is paused for minutes at a time).
+
+### Next
+- Make `tools/server/start.sh` take a port base so perf runs can use a private server, then measure the
+  battle linear peak against the 3.94 MB estimate.
