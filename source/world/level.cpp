@@ -1623,12 +1623,16 @@ bool Level::loadFloor(const net::Facility& fac) {
     if (ok && h.numFloorTris) {
         floorTris_ = static_cast<FloorTri*>(malloc(h.numFloorTris * sizeof(FloorTri)));
         ok = floorTris_ != nullptr;
-        for (uint32_t i = 0; ok && i < h.numFloorTris; ++i) {
-            FloorTriRecord t;
-            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(t)), &t, sizeof(t));
-            floorTris_[i].piece = t.roomNum;
-            memcpy(floorTris_[i].v, t.v, sizeof(t.v));
-            numFloorTris_ = int(i + 1);
+        // In blocks: one seek + read per record (up to ~850 a floor) cost an SD round trip each.
+        FloorTriRecord block[64];
+        for (uint32_t i = 0; ok && i < h.numFloorTris;) {
+            const uint32_t n = std::min<uint32_t>(64, h.numFloorTris - i);
+            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(FloorTriRecord)), block, n * sizeof(FloorTriRecord));
+            for (uint32_t k = 0; ok && k < n; ++k, ++i) {
+                floorTris_[i].piece = block[k].roomNum;
+                memcpy(floorTris_[i].v, block[k].v, sizeof(block[k].v));
+                numFloorTris_ = int(i + 1);
+            }
         }
     }
     if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);

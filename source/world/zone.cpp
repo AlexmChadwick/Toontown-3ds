@@ -78,9 +78,13 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
         !span(h.vertexOff,h.vertices,16,c.size) || !span(h.indexOff,h.indices,2,c.size)) return false;
     struct Tex { uint16_t w, h; uint8_t fmt, mips, ws, wt; uint32_t off, size; char name[32]; };
     uint64_t total=0;
+    // Records are read 16 at a time: one seek + read each was an SD round trip per record.
+    static_assert(sizeof(Tex) == 48, "TTM texture record");
+    Tex texBlock[16];
     for (uint32_t i=0;i<h.textures;++i) {
-        Tex t;
-        if (!readAt(f,c.offset+h.texOff+i*48,&t,sizeof(t)) || t.w<8 || t.h<8 || t.w>256 || t.h>256 ||
+        if (i%16==0 && !readAt(f,c.offset+h.texOff+i*48,texBlock,std::min<uint32_t>(16,h.textures-i)*48)) return false;
+        const Tex& t=texBlock[i%16];
+        if (t.w<8 || t.h<8 || t.w>256 || t.h>256 ||
             (t.w & (t.w-1)) || (t.h & (t.h-1)) || !t.mips || t.mips>6 ||
             (t.ws!=0 && t.ws!=2) || (t.wt!=0 && t.wt!=2)) return false;
         const uint32_t at=c.offset+t.off;
@@ -105,10 +109,12 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
     if (total!=c.tex) return false;
     struct Batch { uint16_t texture; uint8_t blend,flags,tint,layer,slot,pad; uint32_t fv,nv,fi,ni; };
     uint16_t ids[512];
+    static_assert(sizeof(Batch) == 24, "TTM batch record");
+    Batch batchBlock[16];
     for (uint32_t i=0;i<h.batches;++i) {
-        Batch b;
-        if (!readAt(f,c.offset+h.batchOff+i*24,&b,sizeof(b)) ||
-            (b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>1 || b.tint ||
+        if (i%16==0 && !readAt(f,c.offset+h.batchOff+i*24,batchBlock,std::min<uint32_t>(16,h.batches-i)*24)) return false;
+        const Batch& b=batchBlock[i%16];
+        if ((b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>1 || b.tint ||
             b.layer>4 || b.slot || b.pad || b.fv>h.vertices || b.nv>h.vertices-b.fv ||
             b.fi>h.indices || b.ni>h.indices-b.fi || b.ni%3) return false;
         // Model::loadFrom checks indices in memory; only scan here when it cannot.
@@ -331,7 +337,8 @@ bool Zone::load(const char* path) {
            readAt(z.file,h.visOff,z.vis,h.vis*2) &&
            readAt(z.file,h.floorOff,z.floors,h.floors*40) && readAt(z.file,h.triggerOff,z.triggers,h.triggers*156);
     }
-    for (uint32_t i=0;ok && i<h.chunks;++i) {
+    if (ok && stride==sizeof(Chunk)) ok=readAt(z.file,h.chunkOff,z.chunks,h.chunks*stride); // v2+: one read
+    else for (uint32_t i=0;ok && i<h.chunks;++i) {
         ok=readAt(z.file,h.chunkOff+i*stride,&z.chunks[i],stride);
     }
     for (uint32_t i=0;ok && i<h.chunks;++i) {
