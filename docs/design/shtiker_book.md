@@ -34,7 +34,7 @@ The book implements 9 pages conforming to `tt::ui::BookPage` (`source/ui/book_pa
 | **5. Fish Album** | `PageFish` | Fish | 70 species across 14 genera from `setFishCollection`. Shows genus pagination (`<` and `>`), caught weights in lb/oz, record badges, and 7 fishing trophies from `setFishingTrophies`. |
 | **6. Trophies** | `PageTrophies` | Trophy | Go-Karting trophies (33), tickets count, and karting history (`setKartingTrophies`, `setTickets`, `setKartingHistory`). Mini-Golf trophies (30), 3 cups, and history calculated deterministically via `calcGolfTrophies` and `calcGolfCups`. |
 | **7. SOS Cards** | `PageSos` | SOS | SOS cards grid from `setNPCFriendsDict`. Displays 1..5 star ratings, track type badge (Toon-Up, Sound, Drop, Lure, Restock, etc.), NPC names from `sos_tables.h`, and remaining call counts. |
-| **8. Options** | `PageOptions` | Option | Stereo 3D toggle, Debug HUD overlay toggle, LOD bias toggle, Music volume controls, Sound volume controls, stress toons adjustment, Quit Game button, and live District / Shard browser from `net.districts()`. |
+| **8. Options** | `PageOptions` | Option | Stereo 3D toggle, LOD bias toggle, Music volume controls, Sound volume controls, the developer rows (Debug HUD toggle, stress toons; shown only after SELECT turns the Debug tab on), Quit Game button, and live District / Shard browser from `net.districts()`. |
 | **9. Map** | `PageMap` | Map | Full Toontown map with player orientation arrow, zone label, "Home" estate button, and 8 playground teleport pads (`kTeleportHoods`). Maintains 100% exact touch coordinate compatibility with existing autotest scripts. |
 
 ---

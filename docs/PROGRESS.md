@@ -3,6 +3,55 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — bottom-screen UI: upstream Map rules, markers, task cards, Name Shop, purchase grid
+
+### Done
+- **Map tab and book Map page follow upstream MapPage.** The client now reads
+  `setTeleportAccess` / `setHoodsVisited`. Hood buttons are blue (teleport), paper (visited, walk
+  there) or grey; a locked press explains itself in the place label instead of teleporting. A map
+  teleport sends `checkTeleportAccess(hood)` first, as `MapPage.__buttonCallback` does (the
+  3DS used to teleport anywhere without it: a protocol divergence, now fixed). The left button
+  is "Playground" / "Cog HQ" off a playground (`backToSafeZone`) and "Go Home" otherwise,
+  greyed when the server has no EstateManager (stock Open Toontown) instead of a dead button.
+- **Map markers from data.** A hardcoded TTC-only marker list (Phase 1) is replaced by markers
+  built per zone from the baked `.pts` anchors: Toon HQ, shops, trolley, fishing docks, tunnels,
+  plus other players, with a legend in the map's empty right margin.
+- **Toon tab task card**: a finished task names the task and "Return to: <NPC>" and the place,
+  like the book page (it said only COMPLETE and a location).
+- **Options page**: the Debug-tab toggle and test-toon stepper show only after SELECT turns the
+  Debug tab on, so players never see developer rows.
+- **Trolley gag purchase**: gag icons in the grid and the Gag Shop's info line (have / added /
+  bag full); the Gag Shop now also says when the bag is full.
+- **Name Shop**: drawn check boxes for Title / First / Last name (was "Title [X]" text), and one
+  Last-name box (Prefix and Suffix were two buttons for one flag). "Color", not "Colour".
+- Toontown capitalisation in battle and front-end strings ("The Cog wants a fight!", "Waiting
+  for other players..." from TTLocalizer).
+- `dcgen`: names `setTeleportAccess` / `checkTeleportAccess` (DC hash unchanged).
+  `tools/padnav_test/run.sh` honours `CXX`.
+
+### Verified
+- Azahar 2126.2, Old 3DS, Linux/Xvfb, live shared server: Map in TTC, Silly Street, DD and DG;
+  Toon tab, Options, street battle panel, trolley purchase, the whole front end. Map tab 29.9
+  fps, heap 3.2 MB, linear free 15.6 MB. Details in test-log.
+- Host: padnav_test (137 checks), nettest unit + descriptor vectors (391). The fake-server part
+  of nettest needs `ref/ref/open-toontown` and was not run.
+
+### Asset size decisions
+- None. The `.tmap` minimaps (32 KB each) were baked for testing only, outside the tree.
+
+### Known issues
+- **No SOS or Fire in the battle panel.** Upstream's TownBattle has SOS (friends, rescued NPC
+  Toons) and Fire (pink slips); the client has no NPCSOS/FIRE request or movie support. Rescued
+  Toons come only from the VP, which this rig cannot reach (emulator stall).
+- Teleport access is not enforced in autotest runs (fresh test toons have none); the gating was
+  checked by eye with a fresh toon.
+- This rig's data set has no `interiors/`, so the door/clerk steps were not re-run this round.
+- The Debug tab itself keeps its dark developer palette (it only appears after SELECT).
+
+### Next
+- Battle SOS (NPC Toons) once a VP rescue can be tested; Fire with pink slips.
+- Re-check the Map back button inside a Cog HQ lobby and a facility on a full data set.
+
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
 ### Done

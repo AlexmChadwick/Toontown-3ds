@@ -1202,3 +1202,30 @@ Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8
   in office 61049 (one: boarding ≈ 20:07, Astron 345 at 20:20:07, ~5 s of emulated time between).
   Boss assets loaded (388 KB linear, 28.6 KB collision heap; 0.34 s load hitch at office entry).
   No boss round was reached; VP/CFO/CJ/CEO stay unverified in an emulator.
+
+## 2026-10-28 — bottom-screen UI pass (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Shared local server on 7198 (another agent's, `AI_DEV_STRONG`), fresh accounts per run. SD data:
+the perf tree's 2026-10-27 set (no `interiors/`), plus `.tmap` minimaps baked for this pass
+(`bake_minimap.py`, all 26 exterior zones) into a private overlay dir. Bottom screens decoded
+from render-target dumps.
+
+- **Map tab / book Map page** (builds `aa9c67e`..`25910eb`): TTC, Silly Street, Donald's Dock
+  and Daisy Gardens show the baked map, the anchor markers (HQ, shops, trolley, fishing,
+  tunnels) and the legend; Silly Street shows "Playground". A fresh toon (no
+  `setTeleportAccess` entries) saw every other hood greyed and Go Home greyed (no
+  EstateManager on the stock server). Autotest runs keep hoods open: `move: teleport` (DD) and
+  `teleport DG` worked. Map tab 29.9 fps, 115 draws, 11.9k tris, heap 3.2 MB, linear free
+  15.6 MB, VRAM free 4.2 MB.
+- **Toon tab**: a finished task reads "COMPLETE!  Ride on the trolley / Return to: HQ Officer /
+  Toon HQ, Any Street, Any Neighborhood".
+- **Options page**: Stereo, Detail, Music, Sound, Quit; the Debug/Test-toon rows are hidden
+  until SELECT. padnav_test 137 checks pass (GCC 12 host build).
+- **Street battle** (Silly Street, Telemarketer / Penny Pincher): the battle panel through
+  FaceOff, input and trap/lure movies; 26.7 fps, 85 draws.
+- **Trolley gag purchase** (Catching game, 18/18): gag icons in every cell, full-bag shading.
+- **Front end** (`AUTOTEST_FE=1`): title, Pick-a-Toon, all five Make-a-Toon steps, Name Shop
+  check boxes, typed name accepted (`nameTypedResponse status=1`), Toontorial choice, world.
+- Two of nine runs hit the rig's known emulated-clock stall (log stops mid-script under host
+  load); both reruns completed. The gag-shop door step could not enter because this data set
+  has no `interiors/`.
