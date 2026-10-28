@@ -336,3 +336,20 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Re-run to `fight: rounds` on a quieter machine for the full-battle peak; then a real-hardware run.
+
+## 2026-10-28 — perf round 4: static-size guard
+
+### Done
+- `tools/dev/static_size.sh`: fails if the ELF's text+data+bss exceeds the 4 MiB static budget.
+- Re-unpacked the devkitARM layers from `/tmp/dkp/*.tgz` into `/tmp/dkp/layers` (the unpacked tree had been
+  cleared; `DEVKITPRO=/tmp/dkp/layers/opt/devkitpro`). `make` is clean.
+
+### Verified (host)
+- Static footprint 3,145,356 B (3.00 MiB), headroom 1,048,948 B. Unchanged from round 2.
+
+### Known issues
+- Full-battle linear peak (all gag tracks, reward, sad path) still unmeasured; no hardware run.
+- Battle resident headroom is only 256 KB of the 4 MiB cap.
+
+### Next
+- Re-run the battle to `fight: rounds` on a quieter machine; first hardware run.
