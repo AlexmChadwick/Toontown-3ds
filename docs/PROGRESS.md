@@ -421,3 +421,24 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Implement the pose-based offset calibration, then run the gate on a quiet machine.
+
+## 2026-10-28 — perf round 8: automatic clock calibration for the latency gate
+
+### Done
+- `smoke_test.py --rxstamp FILE`: the bot logs the host epoch ms at which it receives each `setSC` from another toon.
+- `net_latency.py --calibrate RXFILE`: derives the guest-minus-host offset from the 3DS's own `net: chat tx sc` lines
+  (offset = max(guest_tx - host_rx) + 3 ms leg; the max is tight because the leg is never negative), then runs the usual
+  median gate. Fails (exit 2) if no tx line matches. The 3DS must send at least one chat during the run.
+
+### Verified (host only)
+- Synthetic 1900-based guest log with a 33 ms true latency and a 4 ms tx leg: calibrated to within 1 ms, median 34 ms, OK.
+  `smoke_test.py` byte-compiles. Not run against a live Azahar session, so **no real web->3DS latency is claimed**.
+
+### Known issues
+- Live web->3DS median, full-battle linear peak and any hardware run remain unmeasured. The on-screen latency still
+  includes the once-per-frame drain and the 0.1 s `kSmoothTau` remote smoothing.
+- No host C++ compiler (only gcc C), so `tools/nettest` still cannot run here.
+
+### Next
+- Run bot (`--sc 5 --stamp S --rxstamp R`) plus an autotest step in which the 3DS sends a chat, then
+  `net_latency.py S log.txt --calibrate R` on a quiet machine.

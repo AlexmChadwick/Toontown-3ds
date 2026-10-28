@@ -264,6 +264,9 @@ def main():
                     help="every --sc-interval s, broadcast SpeedChat phrase IDX (setSC) from our toon")
     ap.add_argument("--sc-interval", type=float, default=1.0)
     ap.add_argument("--sc-count", type=int, default=0, help="stop sending after N (0 = until linger ends)")
+    ap.add_argument("--rxstamp", metavar="FILE",
+                    help="append '<host epoch ms> rxsc <doId> <idx>' for each setSC received from another toon "
+                         "(clock calibration for tools/dev/net_latency.py --calibrate)")
     ap.add_argument("--stamp", metavar="FILE",
                     help="append '<epoch ms> sc <IDX>' per setSC send (for tools/dev/net_latency.py)")
     a = ap.parse_args()
@@ -360,7 +363,13 @@ def main():
                         math.degrees(ang) + 180, 0, 0, ts)
             next_move = time.time() + 0.2
         try:
-            c.log(c.handle(*c.recv(0.2)))
+            mt, body = c.recv(0.2)
+            rx_ms = int(time.time() * 1000)
+            ev = c.handle(mt, body)
+            if a.rxstamp and ev[0] == "set_field" and ev[2] == "setSC" and ev[1] != av_id:
+                with open(a.rxstamp, "a") as f:
+                    f.write("%d rxsc %d %d\n" % (rx_ms, ev[1], ev[3][0]))
+            c.log(ev)
         except socket.timeout:
             pass
 
