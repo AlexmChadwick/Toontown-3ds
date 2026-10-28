@@ -1583,10 +1583,14 @@ bool Level::loadFloor(const net::Facility& fac) {
               h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms;
     if (!ok) TT_LOG("level: %s: bad file, or %u pieces for %u rooms", file, unsigned(h.numPieces), unsigned(fac.numRooms));
     numPieces_ = 0;
+    // These tables are small and bounded (31 pieces / 32 door frames today). Reading each
+    // record with readAt used to turn them into dozens of seeks and SD transactions during
+    // the elevator fade. Keep the raw records on the stack and preserve the processing order.
+    FloorPiece floorPieces[kMaxPieces];
+    if (ok && h.numPieces)
+        ok = readAt(f, long(h.piecesOffset), floorPieces, h.numPieces * sizeof(FloorPiece));
     for (int i = 0; ok && i < h.numPieces; ++i) {
-        FloorPiece fp;
-        ok = readAt(f, long(h.piecesOffset + i * sizeof(fp)), &fp, sizeof(fp));
-        if (!ok) break;
+        FloorPiece& fp = floorPieces[i];
         fp.name[47] = 0;
         Piece& p = pieces_[numPieces_++];
         memcpy(p.placement, fp.mat, sizeof(p.placement));
@@ -1613,9 +1617,12 @@ bool Level::loadFloor(const net::Facility& fac) {
         }
     }
     numDoorFrames_ = 0;
+    FloorDoor floorDoors[kMaxDoorFrames];
+    if (ok && h.numDoorFrames > kMaxDoorFrames) ok = false;
+    if (ok && h.numDoorFrames)
+        ok = readAt(f, long(h.doorFramesOffset), floorDoors, h.numDoorFrames * sizeof(FloorDoor));
     for (int i = 0; ok && i < h.numDoorFrames && numDoorFrames_ < kMaxDoorFrames; ++i) {
-        FloorDoor d;
-        ok = readAt(f, long(h.doorFramesOffset + i * sizeof(d)), &d, sizeof(d));
+        const FloorDoor& d = floorDoors[i];
         DoorFrame& df = doorFrames_[numDoorFrames_++];
         memcpy(df.placement, d.mat, sizeof(df.placement));
         df.piece = d.roomNum;
