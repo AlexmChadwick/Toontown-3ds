@@ -1197,3 +1197,8 @@ Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8
   linear free 17.3 MB. No PARSE/EJECT lines.
 - Host: racing_test (all parts, now with wall-contact vectors and the disconnect reset),
   nettest (all 5 groups) pass.
+- **Sellbot VP, three attempts** (builds `bfafa3f`, `17438b9` (Null audio sink), `9252e56`): every
+  one hit the rig's emulated-clock stall within seconds of the lobby or of `boss: phase Elevator`
+  in office 61049 (one: boarding ≈ 20:07, Astron 345 at 20:20:07, ~5 s of emulated time between).
+  Boss assets loaded (388 KB linear, 28.6 KB collision heap; 0.34 s load hitch at office entry).
+  No boss round was reached; VP/CFO/CJ/CEO stay unverified in an emulator.
