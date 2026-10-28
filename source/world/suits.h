@@ -30,7 +30,7 @@ public:
     bool loadingAssets() const { return assetBatch_.loading(); }
 
     // Street cogs (net::kMaxSuits) plus the facility cogs of the visible level zones.
-    static constexpr int kMax = 48;
+    static constexpr int kMax = 96; // net::kMaxSuits + 16 facility cogs
 
     bool init(); // loads the placeholder model; false leaves suits invisible (never fatal)
     void shutdown();
