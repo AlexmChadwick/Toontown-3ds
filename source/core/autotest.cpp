@@ -43,6 +43,22 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say hello", "pad_chat_said"}, // the recent-chat strip
     {1.0f, 0, 0, 0, KEY_X, -1, -1, -1, "pad: chat whisper"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat back"},
+    // SpeedChat TOONTASKS > MY TASKS (TTSCToontaskMenu). The menu is still in HELLO: focus a row,
+    // B back to the root, B lets go, then Up wraps from the top row past OK, No, Yes, GAG SHOP
+    // and BATTLE to TOONTASKS; then MY TASKS and its first phrase (setSCToontask online).
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat tasks hello row"},
+    {0.5f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat tasks to root"},
+    {0.5f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat tasks release"},
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat tasks focus"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 1"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 2"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 3"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 4"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 5"},
+    {0.5f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 6", "pad_chat_toontasks"},
+    {0.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open toontasks"},
+    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open my tasks", "pad_chat_mytasks"},
+    {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say task", "pad_chat_task_said"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab toon"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: toon focus", "pad_toon"},
     {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book from toon tab", "pad_book"},
