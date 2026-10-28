@@ -3,6 +3,44 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Facility and zone metadata I/O
+
+### Done
+- Reduced synchronous SD transactions while entering a facility floor or street. TZ v2/v3
+  chunk tables are read in one operation, TTM texture and batch tables are validated in
+  bounded blocks, and facility floor-triangle records are read 64 at a time instead of one
+  seek/read per triangle (up to about 850 records per floor).
+- Finished the same treatment for the small TLF layout tables: all floor pieces and all door
+  frames are now read once per table. Their existing hard bounds (at most 32 records) keep
+  stack use below 6 KiB and no persistent memory or asset size is added. Over-limit door-frame
+  counts now reject the floor instead of being silently truncated.
+
+### Verified
+- `git diff --check` passes.
+- Source review confirms record processing order and on-disk structures are unchanged; reads
+  still fail closed on short/corrupt files.
+- This checkout's minimal Linux image has no C++ frontend/devkitARM and no Panda3D virtualenv,
+  so the host suites and 3DS build could not be executed here. The attempted zone unit test
+  stopped at the missing `panda3d` module; the performance suite stopped at missing `clang++`.
+
+### Asset size decisions
+- None. This round changes only runtime I/O; no original assets were converted or downscaled.
+
+### Known issues
+- The facility-floor improvement still needs measurement in Azahar and on hardware; the last
+  measured floor transition paused the main thread for 0.2-0.4 s before these I/O changes.
+- Street loads remain synchronous and last measured at 1.0-1.3 s, though their fade hides the
+  stall. Room TZ validation and collision loading still occur on the main thread.
+- The four boss battles and a real-hardware Old 3DS performance/memory run remain unverified.
+
+### Next
+- Build and run the facility chunks on an equipped rig, comparing elevator-fade hitch duration
+  before and after these metadata changes.
+- Move facility room preparation off the main thread, or split it into a background staging
+  phase with main-thread publication; keep all linear allocations guarded.
+- Share each TZ v3 texture upload across resident chunks so the on-disk de-duplication also
+  reduces linear-memory use and upload work.
+
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
 ### Done
