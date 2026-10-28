@@ -635,6 +635,7 @@ void Client::update(uint32_t nowMs) {
         if (n < 0) { TT_LOG("net: dropped oversize message"); continue; }
         bytesIn_ += uint32_t(n);
         ++msgsIn_;
+        noteRxLatency(plat::nowMs());
         DatagramReader r(rx_, uint32_t(n));
         handleMessage(r);
         if (state_ == State::Backoff || state_ == State::Failed || state_ == State::Idle) return;
@@ -647,6 +648,30 @@ void Client::update(uint32_t nowMs) {
     if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
         fail("server did not answer (timeout)", true);
     }
+}
+
+void Client::noteRxLatency(uint32_t nowMs) {
+    const uint32_t arrived = transport_->lastArrivalMs();
+    rxQueueMs_ = arrived && int32_t(nowMs - arrived) > 0 ? nowMs - arrived : 0;
+    ++rxLatHist_[rxQueueMs_ < 63 ? rxQueueMs_ : 63];
+    ++rxLatCount_;
+    if (rxQueueMs_ > rxLatMax_) rxLatMax_ = rxQueueMs_;
+    if (!rxLatSinceMs_) rxLatSinceMs_ = nowMs;
+    if (nowMs - rxLatSinceMs_ < 10000) return;
+    // Median / p90 of the socket-to-handled delay: the wait for the main loop's next net pump.
+    uint32_t seen = 0, median = 0, p90 = 0;
+    bool haveMedian = false;
+    for (uint32_t i = 0; i < 64; i++) {
+        seen += rxLatHist_[i];
+        if (!haveMedian && seen * 2 >= rxLatCount_) { median = i; haveMedian = true; }
+        if (seen * 10 >= rxLatCount_ * 9) { p90 = i; break; }
+    }
+    TT_LOG("net: rx latency %lu msgs, median %lu ms, p90 %lu ms, max %lu ms (socket -> handled)",
+           static_cast<unsigned long>(rxLatCount_), static_cast<unsigned long>(median),
+           static_cast<unsigned long>(p90), static_cast<unsigned long>(rxLatMax_));
+    memset(rxLatHist_, 0, sizeof(rxLatHist_));
+    rxLatCount_ = rxLatMax_ = 0;
+    rxLatSinceMs_ = nowMs;
 }
 
 // A handler that reads part of a message but not all of it (or reads past its end) has a field
@@ -2621,6 +2646,11 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         if (!r.ok()) return false;
         if (!timed) t.sampleMs = now_;
         t.lastUpdateTick = now_;
+        if (now_ - rxPosLogMs_ >= 1000) {
+            rxPosLogMs_ = now_;
+            TT_LOG("net: rx pos %lu (%.1f, %.1f, %.1f) h %.0f queued %lu ms", static_cast<unsigned long>(t.doId),
+                   double(t.x), double(t.y), double(t.z), double(t.h), static_cast<unsigned long>(rxQueueMs_));
+        }
         bool wasMoving = t.moving;
         t.moving = fieldId != dc::DistributedSmoothNode::k_setSmStop;
         if (t.active && (t.moving || wasMoving)) pushEvent(EventType::Pose, t.doId);
@@ -2705,6 +2735,8 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         t.chat[0] = '\0';
         t.scIndex = index;
         t.chatMs = now_;
+        TT_LOG("net: rx chat sc %u from %lu queued %lu ms", unsigned(index), static_cast<unsigned long>(t.doId),
+               static_cast<unsigned long>(rxQueueMs_));
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2729,6 +2761,8 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        TT_LOG("net: rx chat talk from %lu \"%.80s\" queued %lu ms", static_cast<unsigned long>(t.doId), t.chat,
+               static_cast<unsigned long>(rxQueueMs_));
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -3110,7 +3144,13 @@ bool Client::sendPosHpr(float x, float y, float z, float h, float p, float r) {
     w.i16(packAngle(p));
     w.i16(packAngle(r));
     w.i16(networkTime(now_));
-    return finish(w);
+    const bool sent = finish(w);
+    if (now_ - txPosLogMs_ >= 1000) {
+        txPosLogMs_ = now_;
+        TT_LOG("net: tx pos (%.1f, %.1f, %.1f) h %.0f zone %lu", double(x), double(y), double(z), double(h),
+               static_cast<unsigned long>(cfg_.zoneId));
+    }
+    return sent;
 }
 
 bool Client::sendStop() {
@@ -3177,7 +3217,9 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
-    return finish(w);
+    const bool sent = finish(w);
+    TT_LOG("net: tx chat sc %u%s", unsigned(msgIndex), sent ? "" : " (not sent)");
+    return sent;
 }
 
 // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----

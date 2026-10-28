@@ -42,6 +42,9 @@ public:
     // Pop one complete message body into out. Returns its length, 0 if none is
     // pending, -1 if it does not fit (the message is dropped).
     virtual int recvMessage(uint8_t* out, uint32_t cap) = 0;
+    // plat::nowMs() when the message last returned by recvMessage arrived from the socket
+    // (0 = unknown). The gap to its handling is the client's receive latency.
+    virtual uint32_t lastArrivalMs() const { return 0; }
     // Start/stop the automatic CLIENT_HEARTBEAT (only valid after HELLO_RESP).
     virtual void setHeartbeat(bool on) = 0;
 };
@@ -60,6 +63,9 @@ public:
     void consume(uint32_t n) { tail_ += n; }
     bool push(const void* p, uint32_t n);           // all or nothing
     void peek(void* dst, uint32_t n) const;         // n <= used()
+    uint32_t head() const { return head_; }
+    uint32_t tail() const { return tail_; }
+    uint8_t at(uint32_t pos) const { return buf_[pos & (cap_ - 1)]; } // free-running position
 
 private:
     uint8_t* buf_ = nullptr;
@@ -89,6 +95,7 @@ public:
     const char* lastError() const override { return error_; }
     bool sendMessage(const uint8_t* body, uint32_t len) override;
     int recvMessage(uint8_t* out, uint32_t cap) override;
+    uint32_t lastArrivalMs() const override { return lastArrivalMs_; }
     void setHeartbeat(bool on) override { heartbeat_ = on; }
 
     // Totals since init (approximate; read without locking).
@@ -105,6 +112,17 @@ private:
     void closeSocket(const char* why);
     bool pumpSend();
     bool pumpRecv();
+    void stampArrivals(); // under recvLock_
+
+    // Arrival time of each complete message in recv_, stamped by the net thread as soon as its
+    // last byte is read (under recvLock_). scanPos_ is the ring position of the first message
+    // not stamped yet; a full stamp ring just leaves later messages unstamped (they read as
+    // "arrived now").
+    static constexpr uint32_t kStampRing = 512;
+    uint32_t stamps_[kStampRing] = {};
+    uint32_t stampHead_ = 0, stampTail_ = 0;
+    uint32_t scanPos_ = 0;
+    uint32_t lastArrivalMs_ = 0;
 
     plat::Thread thread_;
     plat::Mutex sendLock_;

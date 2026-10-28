@@ -117,7 +117,8 @@ bool Client::friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fi
                                      : fieldId == dc::DistributedToon::k_setWhisperSCCustomFrom ? WhisperKind::Custom
                                                                                                : WhisperKind::Emote;
             logWhisper(from, kind, index, nullptr);
-            TT_LOG("net: whisper %u from %u", unsigned(index), unsigned(from));
+            TT_LOG("net: rx chat whisper sc %u from %u queued %lu ms", unsigned(index), unsigned(from),
+                   static_cast<unsigned long>(rxQueueMs_));
             return true;
         }
         if (fieldId == dc::DistributedToon::k_setSystemMessage) {
@@ -256,6 +257,7 @@ bool Client::sendWhisperSC(uint32_t toDoId, uint16_t msgIndex) {
     w.u32(avatarId_);
     w.u16(msgIndex);
     if (!finish(w)) return false;
+    TT_LOG("net: tx chat whisper sc %u to %lu", unsigned(msgIndex), static_cast<unsigned long>(toDoId));
     Whisper& o = friends_.log[(friends_.logHead + friends_.logCount) % kWhisperLogLen];
     if (friends_.logCount < kWhisperLogLen) friends_.logCount++;
     else friends_.logHead = (friends_.logHead + 1) % kWhisperLogLen;

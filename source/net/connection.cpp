@@ -119,11 +119,29 @@ int Connection::recvMessage(uint8_t* out, uint32_t cap) {
     recv_.consume(2);
     if (len > cap) {
         recv_.consume(len);
+        if (stampTail_ != stampHead_ && int32_t(scanPos_ - recv_.tail()) >= 0) ++stampTail_;
+        else scanPos_ = recv_.tail();
         return -1;
     }
     recv_.peek(out, len);
     recv_.consume(len);
+    if (stampTail_ != stampHead_ && int32_t(scanPos_ - recv_.tail()) >= 0) {
+        lastArrivalMs_ = stamps_[stampTail_++ % kStampRing];
+    } else { // not stamped (stamp ring was full): it arrived no later than now
+        lastArrivalMs_ = plat::nowMs();
+        scanPos_ = recv_.tail();
+    }
     return int(len);
+}
+
+void Connection::stampArrivals() {
+    const uint32_t now = plat::nowMs();
+    while (recv_.head() - scanPos_ >= 2 && stampHead_ - stampTail_ < kStampRing) {
+        const uint32_t len = uint32_t(recv_.at(scanPos_) | (recv_.at(scanPos_ + 1) << 8));
+        if (recv_.head() - scanPos_ < 2 + len) break;
+        stamps_[stampHead_++ % kStampRing] = now;
+        scanPos_ += 2 + len;
+    }
 }
 
 void Connection::threadEntry(void* self) { static_cast<Connection*>(self)->run(); }
@@ -160,6 +178,7 @@ void Connection::doConnect() {
     {
         plat::LockGuard r(recvLock_);
         recv_.clear();
+        stampHead_ = stampTail_ = scanPos_ = 0;
     }
     plat::LockGuard g(sendLock_);
     send_.clear();
@@ -205,6 +224,7 @@ bool Connection::pumpRecv() {
         {
             plat::LockGuard g(recvLock_);
             recv_.commit(uint32_t(got));
+            stampArrivals();
         }
         bytesIn_ = bytesIn_ + uint32_t(got);
     }

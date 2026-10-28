@@ -2107,6 +2107,16 @@ private:
     uint8_t parseWarnedFields_[8192 / 8] = {};
 
     uint32_t bytesIn_ = 0, bytesOut_ = 0, msgsIn_ = 0, msgsOut_ = 0;
+    // Receive latency (socket arrival on the net thread -> handled here), for the `net: rx`
+    // lines and the 10 s `net: rx latency` summary. rxQueueMs_ is the current message's.
+    uint32_t rxQueueMs_ = 0;
+    uint16_t rxLatHist_[64] = {}; // 1 ms buckets; the last one holds >= 63 ms
+    uint32_t rxLatCount_ = 0, rxLatMax_ = 0, rxLatSinceMs_ = 0;
+    uint32_t rxPosLogMs_ = 0, txPosLogMs_ = 0; // `net: rx pos` / `net: tx pos`: at most 1 Hz
+    void noteRxLatency(uint32_t nowMs);
+public:
+    uint32_t rxQueueMs() const { return rxQueueMs_; }
+private:
     // ===================== boss protocol (client_boss.cpp) =====================
 public:
     const CeoChild& ceoChildSlot(int slot) const { return ceoChildren_[slot]; }
