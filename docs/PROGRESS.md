@@ -26,10 +26,10 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   except racing and golf, so after a reconnect Racing rebuilt itself from the dead race and
   acked its barrier; Astron ejected the new session (117, update to a nonexistent object).
   Both are now cleared on disconnect; `racing_test/client` checks it (and fails without it).
-- Test rig (`azahar_test.sh`): runs are now really muted (Azahar ignores a value while its
-  `\default` flag is set), use the Null audio sink when there is no `/dev/snd`, and no longer
-  leak an Xvfb server per run (the kill pattern also matched `xvfb-run`; 51 had piled up).
-  The VP/CFO `rounds` steps re-board from the lobby after a reconnect.
+- `azahar_test.sh`: runs really are muted now (Azahar ignores a value while its `\default` flag
+  is true), headless Linux uses the Null audio sink, and the kill pattern no longer leaves an
+  Xvfb server behind per run (51 had piled up on this box). The VP/CFO `rounds` steps re-board
+  from the lobby after a reconnect instead of idling.
 - autotest: the facility `next floor` step rides on to the top floor on purpose (floor
   elevators are never locked, `DistributedClubElevatorAI.isLocked = 0`) and stops on the floor
   with the boss Cog.
@@ -55,13 +55,15 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - None this round.
 
 ### Known issues
-- **The Azahar emulated-clock stall still ejects runs here (345), and it blocked every boss
-  run.** Six more this round: Cogdo after its win, the Speedway twice, and all three Sellbot
-  VP attempts, which froze in the lobby or within ~5 s of entering the office (13-14 minutes
-  of wall time against seconds of emulated time, while the client sat in idle 30 fps frames).
-  The Null audio sink did not help; the host had load ~2 on 8 cores. The client sent a heartbeat every 10 s of emulated time
-  each time (outgoing bytes rise by exactly one 4-byte heartbeat frame per 10 s); emulated time
-  ended ~9 minutes behind wall time. Still unseen on the Mac rig; needs a hardware run.
+- **The Azahar emulated-clock stall still ejects runs here (345)**, and it now blocks the boss
+  battles entirely. Six more this round: Cogdo after its win, the Speedway twice, and all
+  three Sellbot VP attempts, each within seconds of entering the lobby or the boss office
+  (one froze ~13 min of wall time over ~5 s of emulated time, during idle 30 fps frames). The
+  client keeps sending heartbeats in emulated time (outgoing bytes rise by exactly one 4-byte
+  frame per 10 s). Ruled out: CPU starvation (load < 3.5 on 8 cores while Azahar spins) and
+  the failed audio sink (the Null sink stalls the same way). Still unseen on the Mac rig.
+  **The four boss battles therefore remain unverified in an emulator**; they need the Mac rig
+  or hardware.
 - A facility floor change freezes the main thread 0.2-0.4 s (behind the elevator panel).
 - The tailor keeps the clerk camera (the counter is baked into the interior mesh).
 - Street loads take 1.0-1.3 s on the main thread (behind the teleport/door fade).
@@ -70,7 +72,8 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - Never relink while Azahar runs the tree's `.3dsx`; test from a copy.
 
 ### Next
-- The four boss chunks (`boss: board` onward) on this rig.
+- The four boss chunks (`boss: board` onward) on the Mac rig or hardware; this rig can't hold
+  them.
 - Move facility floor loads off the main thread (the shared loader already handles props).
 - First real-hardware run (frame budget, the socket stall question).
 
