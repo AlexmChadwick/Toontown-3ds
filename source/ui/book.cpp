@@ -1,5 +1,6 @@
 #include "render/ui_font.h"
 #include "ui/book.h"
+#include "ui/theme.h"
 #include <cstdio>
 
 namespace tt::ui {
@@ -26,7 +27,7 @@ bool Book::init() {
 
     tt::render::textParse(&prevText_, staticBuf_, "< Prev");
     tt::render::textParse(&nextText_, staticBuf_, "Next >");
-    tt::render::textParse(&closeText_, staticBuf_, "[X]");
+    tt::render::textParse(&closeText_, staticBuf_, "X");
 
     for (int i = 0; i < kPageCount; i++) {
         tt::render::textParse(&tabTexts_[i], staticBuf_, pages_[i]->tabName());
@@ -159,13 +160,16 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
 void Book::draw(const BookDrawContext& bdc) {
     if (!isOpen_) return;
 
-    // Binder cover header
+    // Binder cover header: Prev / Next as paper tabs, a red close button (touch areas in
+    // handleInput: x < 55, 220..275, >= 280).
     C2D_DrawRectSolid(0, 0, 0.40f, 320, 24, kCoverHeader);
-
-    // Prev / Next / Close
-    C2D_DrawText(&prevText_, C2D_WithColor, 8, 5, 0.5f, 0.42f, 0.42f, kGoldText);
-    C2D_DrawText(&nextText_, C2D_WithColor, 226, 5, 0.5f, 0.42f, 0.42f, kGoldText);
-    C2D_DrawText(&closeText_, C2D_WithColor, 290, 5, 0.5f, 0.42f, 0.42f, kCloseText);
+    theme::roundRect(3, 3, 50, 18, 5, kTabInactive, 0.41f);
+    theme::roundRect(222, 3, 52, 18, 5, kTabInactive, 0.41f);
+    theme::roundRect(284, 2, 32, 20, 6, theme::kRedDark, 0.41f);
+    theme::roundRect(285, 2, 30, 18, 5, theme::kRed, 0.41f);
+    theme::textCentered(prevText_, 28, 4, 0.42f, kGoldText, 46, 0.5f);
+    theme::textCentered(nextText_, 248, 4, 0.42f, kGoldText, 48, 0.5f);
+    theme::textCentered(closeText_, 300, 3, 0.5f, kWhite, 26, 0.5f);
 
     // Title & page number in center
     if (dynamicBuf_) {
@@ -174,7 +178,7 @@ void Book::draw(const BookDrawContext& bdc) {
         snprintf(titleBuf, sizeof(titleBuf), "%s (%d/%d)", pages_[curPage_]->title(), curPage_ + 1, kPageCount);
         C2D_Text titleText;
         tt::render::textParse(&titleText, dynamicBuf_, titleBuf);
-        C2D_DrawText(&titleText, C2D_WithColor, 70, 5, 0.5f, 0.42f, 0.42f, kWhite);
+        theme::textCentered(titleText, 137, 4, 0.46f, kWhite, 160, 0.5f);
     }
 
     // Main page parchment paper
@@ -185,20 +189,16 @@ void Book::draw(const BookDrawContext& bdc) {
     // Draw active page
     pages_[curPage_]->draw(2, 24, 316, 188, bdc);
 
-    // Bottom tab bar
+    // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold.
     C2D_DrawRectSolid(0, 212, 0.40f, 320, 28, kCoverBottom);
     const float tabW = 320.0f / kPageCount;
     for (int i = 0; i < kPageCount; i++) {
         const float tx = i * tabW;
         const bool active = (i == curPage_);
-        C2D_DrawRectSolid(tx + 1, active ? 212 : 215, 0.42f, tabW - 2, active ? 28 : 25, active ? kTabActive : kTabInactive);
-        // Shrink a label that would not fit its tab ("Trophies"), and centre it.
-        float labelW = 0.0f;
-        C2D_TextGetDimensions(&tabTexts_[i], 0.36f, 0.36f, &labelW, nullptr);
-        const float fit = labelW > tabW - 4 ? 0.36f * (tabW - 4) / labelW : 0.36f;
-        C2D_TextGetDimensions(&tabTexts_[i], fit, fit, &labelW, nullptr);
-        C2D_DrawText(&tabTexts_[i], C2D_WithColor, tx + (tabW - labelW) * 0.5f, 218, 0.5f, fit, fit,
-                     active ? kInk : kWhite);
+        const float ty = active ? 211.0f : 214.0f;
+        theme::roundRect(tx + 1, ty, tabW - 2, 240 - ty + 6, 5, active ? kTabActive : kTabInactive, 0.42f);
+        theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 218.0f : 220.0f, 0.4f, active ? kInk : kWhite,
+                            tabW - 4, 0.5f);
     }
 }
 
