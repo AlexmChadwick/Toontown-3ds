@@ -500,3 +500,18 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - On a quiet machine: bot `--sc 5 --stamp S --rxstamp R`, then `net_latency.py S log --calibrate R`; then the first hardware run.
+
+## 2026-10-28 — perf round 12: re-verification (no code changes)
+
+### Verified (host)
+- `make` up to date; `static_size.sh` 3,145,932 B (3.00 MiB of 4.00). `zone_resident.py` shows every zone inside budget (worst
+  tails: 2200.tz 590 KiB geometry + 1792 KiB textures, 63 draws, 11,202 tris).
+- Toolchain note: set `DEVKITPRO` in its own `export`, then `DEVKITARM=$DEVKITPRO/devkitARM`. One combined line expands the
+  old value and fails with `/devkitARM/3ds_rules: No such file`. `sd_budget.py` lives under `tools/pipeline/`, not `tools/dev/`.
+
+### Known issues
+- Unchanged: live web->3DS latency gate, full-battle linear peak and any hardware run are unmeasured (VM load ~5, emulator
+  not at real speed). No numbers are claimed.
+
+### Next
+- Run the latency gate and a visual check of the 0.06 s `kSmoothTau` on a quiet machine, then the first hardware run.
