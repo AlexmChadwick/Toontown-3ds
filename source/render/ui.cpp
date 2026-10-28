@@ -713,9 +713,10 @@ void Ui::drawInfo(const Context &c) {
 void Ui::drawGags(const Context &c) {
     // Like the Shticker Book inventory page: one row per track, counts per gag level.
     // Text is re-parsed every kDebugRefreshFrames (shares the debug line cache).
-    if (numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
+    if (cachedLinesTab_ != kTabGags || numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
+        cachedLinesTab_ = kTabGags;
         if (!c.gagCount) {
             debugLine(8, 8, 0.5f, kDim, "Gags appear once you are online.");
         } else {
@@ -763,11 +764,12 @@ void Ui::drawGags(const Context &c) {
 }
 
 void Ui::drawDebug(const Context& c) {
-    if (numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
+    if (cachedLinesTab_ != kTabDebug || numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
         const u32 good = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
         const u32 bad = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
+        cachedLinesTab_ = kTabDebug;
         debugLine(8, 4, 0.5f, kWhite, "Debug  (%s)", c.isNew3ds ? "New 3DS" : "Old 3DS");
         debugLine(8, 24, 0.5f, c.fps >= 29.5f ? good : bad, "%.1f fps   cpu %.1f ms  gpu %.1f ms", c.fps, c.cpuMs,
                   c.gpuMs);

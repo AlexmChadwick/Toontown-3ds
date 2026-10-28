@@ -198,6 +198,7 @@ private:
     C2D_Text tabText_[kTabCount];
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
+    int cachedLinesTab_ = -1;
     unsigned frame_ = 0;
     int lastTab_ = -1;
     ChatMenu chat_;
