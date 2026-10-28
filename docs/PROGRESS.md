@@ -558,3 +558,15 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Quiet-machine latency gate and kSmoothTau visual check; first hardware run.
+
+## 2026-10-28 — perf round 16: budget re-check (no code changes)
+
+### Verified (host)
+- `make` up to date; `tools/dev/budget_check.sh` exits 0: static 3,145,932 B (3.00 MiB of 4.00), every zone and the SD set inside budget.
+
+### Known issues
+- Unchanged: live web->3DS latency gate, full-battle linear peak beyond the 2.1 MB Azahar reading, the 0.06 s `kSmoothTau`
+  visual check and any hardware run are unmeasured. VM load was ~10, so no emulator numbers were taken.
+
+### Next
+- Needs a quiet machine (or hardware): latency gate, kSmoothTau visual check, then dead-reckoning if stepped.
