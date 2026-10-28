@@ -69,6 +69,58 @@ void roundRect(float x, float y, float w, float h, float r, u32 c, float z) {
     corner(x + w - r, y + h - r, r, 1, 1, c, z);
 }
 
+namespace {
+// A pill (fully rounded ends) as horizontal strips, so the ends stay round at any size and the
+// face can carry a vertical gradient: top -> mid over the upper `knee` of the height, then mid ->
+// bottom (the quit_button face stays bright and darkens only towards its lower edge).
+u32 gradientAt(u32 top, u32 mid, u32 bottom, float knee, float t) {
+    return t < knee ? lerpColor(top, mid, t / knee) : lerpColor(mid, bottom, (t - knee) / (1.0f - knee));
+}
+
+void stripPill(float x, float y, float w, float h, u32 top, u32 mid, u32 bottom, float knee, float z) {
+    if (w <= 0 || h <= 0) return;
+    const float r = (w < h ? w : h) * 0.5f;
+    const int n = int(h / 1.5f) + 1;
+    for (int i = 0; i < n; i++) {
+        const float y0 = y + h * i / n, y1 = y + h * (i + 1) / n;
+        const float dy = (y0 + y1) * 0.5f - (y + h * 0.5f);
+        // Only the round ends are inset: the band of rows within r of the vertical centre is full width.
+        float inset = 0.0f;
+        const float over = fabsf(dy) - (h * 0.5f - r);
+        if (over > 0.0f) inset = r - sqrtf(r * r - (over < r ? over * over : r * r));
+        const u32 c0 = gradientAt(top, mid, bottom, knee, (y0 - y) / h);
+        const u32 c1 = gradientAt(top, mid, bottom, knee, (y1 - y) / h);
+        C2D_DrawRectangle(x + inset, y0, z, w - 2 * inset, y1 - y0, c0, c0, c1, c1);
+    }
+}
+
+struct PillColors {
+    u32 outline, top, mid, bottom;
+};
+// Sampled from the quit_button textures (UP / RLVR); red and grey follow the same shading.
+constexpr PillColors kPills[4] = {
+    {rgb(0x89, 0x6C, 0x15), rgb(0xF8, 0xF6, 0x40), rgb(0xF0, 0xEE, 0x1C), rgb(0xB8, 0xB4, 0x00)},
+    {rgb(0x2E, 0x57, 0x60), rgb(0x38, 0xD4, 0xF8), rgb(0x1C, 0xC8, 0xF0), rgb(0x00, 0x8A, 0xA8)},
+    {rgb(0x6A, 0x10, 0x0C), rgb(0xF6, 0x70, 0x5E), rgb(0xE8, 0x48, 0x38), rgb(0xA8, 0x20, 0x16)},
+    {rgb(0x74, 0x6E, 0x64), rgb(0xE6, 0xE0, 0xD4), rgb(0xD8, 0xD2, 0xC6), rgb(0xA8, 0xA2, 0x96)},
+};
+} // namespace
+
+void pill(float x, float y, float w, float h, Pill style, bool down, float z) {
+    const PillColors& c = kPills[int(style)];
+    const u32 top = down ? c.mid : c.top;
+    stripPill(x, y, w, h, c.outline, c.outline, c.outline, 0.5f, z);
+    stripPill(x + 1.5f, y + 1.5f, w - 3, h - 3, top, c.mid, c.bottom, 0.6f, z);
+    // The gloss: a soft lighter band across the upper part of the face.
+    const float gh = (h - 3) * 0.3f;
+    const u32 g0 = lerpColor(top, kWhite, 0.45f), g1 = lerpColor(c.mid, kWhite, 0.08f);
+    stripPill(x + h * 0.3f, y + 2.5f, w - h * 0.6f, gh, g0, lerpColor(g0, g1, 0.5f), g1, 0.5f, z);
+}
+
+u32 pillInk(Pill style) {
+    return style == Pill::Red ? kWhite : style == Pill::Grey ? kInkSoft : kInk;
+}
+
 void paper(float x, float y, float w, float h, float r, u32 fill, u32 edge, float z) {
     roundRect(x, y, w, h, r, edge, z);
     roundRect(x + 2, y + 2, w - 4, h - 4, r > 2 ? r - 2 : 0, fill, z);

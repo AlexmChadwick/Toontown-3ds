@@ -77,6 +77,13 @@ void paper(float x, float y, float w, float h, float r = 6.0f, u32 fill = kPaper
 // Cartoon button: a darker lip under a rounded face. `down` sinks the face onto the lip.
 void button(float x, float y, float w, float h, u32 face, u32 lip, bool down = false, float r = 6.0f,
             float z = 0.5f);
+// Toontown's standard GUI button (phase_3/models/gui/quit_button: QuitBtn_UP / QuitBtn_RLVR):
+// a glossy pill with a dark outline. Yellow is the resting face, cyan the rollover (used for the
+// selected / highlighted choice), plus a red one for destructive actions and grey for disabled.
+enum class Pill : u8 { Yellow, Cyan, Red, Grey };
+void pill(float x, float y, float w, float h, Pill style, bool down = false, float z = 0.5f);
+// The ink that reads on a pill face.
+u32 pillInk(Pill style);
 // Blend from a toward b (0..1), per channel including alpha.
 u32 mix(u32 a, u32 b, float t);
 // A darker shade of `c` (for lips and outlines), scale 0..1.

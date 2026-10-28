@@ -188,11 +188,11 @@ void FrontEnd::button(const Button& b, const char* label, bool selected, bool en
     if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed); // the D-Pad cursor
     // Deleting a toon is the one destructive action here: red, like a close button.
     const bool danger = enabled && !strcmp(label, "Delete");
-    const u32 face = !enabled ? th::kGrey : danger ? th::kRed : selected ? th::kYellow : th::kBlue;
-    const u32 lip = !enabled ? th::kGreyDark : danger ? th::kRedDark : selected ? th::kYellowDark : th::kBlueDark;
-    th::button(b.x, b.y, b.w, b.h, face, lip, false, 7.0f);
-    textCentered(Button{b.x, b.y, b.w, b.h - 3}, 0.55f, selected && !danger ? th::kInk : enabled ? th::kWhite : th::kInkSoft,
-                 label);
+    // Toontown's quit_button pill: yellow at rest, the cyan rollover face for the current choice.
+    const th::Pill style = !enabled ? th::Pill::Grey : danger ? th::Pill::Red : selected ? th::Pill::Cyan : th::Pill::Yellow;
+    th::pill(b.x, b.y, b.w, b.h, style);
+    const float end = b.h * 0.3f; // keep the label off the round ends
+    textCentered(Button{b.x + end, b.y + 1, b.w - 2 * end, b.h}, 0.55f, th::pillInk(style), label);
 }
 
 // A check box at the left end of a toggle button (draw pass only): white box, red tick when on.
