@@ -29,6 +29,10 @@ public:
     bool active() const { return active_; }
     // Whether the tab bar shows the Setup/Debug tabs (tab taps land on the live layout).
     void setDebugTabs(bool on) { debugTabs_ = on; }
+    // "chat every <seconds>": the latency probe says SpeedChat kLatencyProbeSc on that period
+    // for the whole run, script finished or not (tools/dev/latency_check.py). 0 = off.
+    static constexpr uint16_t kLatencyProbeSc = 100; // "Hi!"
+    uint32_t chatEveryMs() const { return chatEveryMs_; }
     // Started from autotest_fe: drives the front end instead of the world.
     bool frontEndScript() const { return frontEnd_; }
     // "tutorial" in autotest_fe selects Play it and continues with the Toontorial driver.
@@ -56,6 +60,7 @@ private:
     bool trolleyWaiting_ = false;
     bool shotsEnabled_ = true;
     bool debugTabs_ = false;
+    uint32_t chatEveryMs_ = 0;
     bool active_ = false;
     bool frontEnd_ = false;
     bool tutorial_ = false;

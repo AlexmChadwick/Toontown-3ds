@@ -1,5 +1,6 @@
 #include "core/autotest.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <cstdio>
 
@@ -326,6 +327,7 @@ bool Runner::begin() {
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
         else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
+        else if (!strncmp(line, "chat every ", 11)) chatEveryMs_ = uint32_t(atof(line + 11) * 1000.0);
     }
     fclose(f);
     active_ = true;

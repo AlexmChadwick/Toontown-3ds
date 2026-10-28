@@ -2,7 +2,7 @@
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"]
-#   [SERVER=host:port] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
+#   [SERVER=host:port [TOKEN=account]] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
 # Every run starts from a private copy of the app (so rebuilding the tree mid-run is safe) and
 # leaves log.txt, the emulator log and decoded shot PNGs in out-dir.
@@ -43,6 +43,21 @@ else
     AZ_DATA="$XDG_DATA_HOME/azahar-emu"
     SD="$AZ_DATA/sdmc/3ds/toontown3ds"
     mkdir -p "$(dirname "$CFG")" "$SD"
+    # Launch the emulator through a per-run symlink: its command line then names only this run's
+    # dirs, so another tree's older copy of this script (pkill -f squashfs-root/AppRun.wrapped)
+    # cannot kill it. The AppRun hook's library setup is replayed here.
+    EMU_DIR=$(dirname "$(readlink -f "$AZ")")
+    if [ -x "$EMU_DIR/AppRun.wrapped" ]; then
+        ln -s "$EMU_DIR" "$RUN/emu"
+        cat > "$RUN/emu-run.sh" <<EOF
+#!/usr/bin/env bash
+APPDIR="$EMU_DIR"
+for h in "$EMU_DIR"/apprun-hooks/*.sh; do [ -f "\$h" ] && source "\$h"; done
+exec "$RUN/emu/AppRun.wrapped" "\$@"
+EOF
+        chmod +x "$RUN/emu-run.sh"
+        AZ="$RUN/emu-run.sh"
+    fi
     # nand/sysdata are small (system settings, keys); copy so the run cannot change the user's.
     for d in nand sysdata; do
         [ -d "$USER_DATA/$d" ] && cp -R "$USER_DATA/$d" "$AZ_DATA/$d"
@@ -100,7 +115,9 @@ restore() {
 }
 trap restore EXIT INT TERM HUP
 
-if [ -n "${SERVER:-}" ]; then echo "$SERVER" > "$SD/server.txt"
+if [ -n "${SERVER:-}" ]; then # host:port (+ TOKEN) -> source/core/config.h key=value lines
+    printf 'host=%s\nport=%s\n' "${SERVER%:*}" "${SERVER##*:}" > "$SD/server.txt"
+    if [ -n "${TOKEN:-}" ]; then echo "token=$TOKEN" >> "$SD/server.txt"; fi
 elif [ "$SD" != "$USER_SD" ] && [ -f "$USER_SD/server.txt" ]; then cp "$USER_SD/server.txt" "$SD/server.txt"; fi
 
 SEDI=(sed -i); [ "$(uname)" = Darwin ] && SEDI=(sed -i '')

@@ -216,7 +216,18 @@ Key decisions:
    - Color (DNA `armColor`, `legColor`, `headColor`) is a per-draw uniform. Clothes come
      from an atlas.
    - LOD 250 or 500 is used for remote toons, and 1000 only for the local toon on New 3DS.
-6. **Threads.**
+6. **Threads and frame pacing.**
+   - The main loop waits for its 30 Hz frame slot at the *top* of each iteration
+     (`render/frame_pace.h`), then reads input, pumps the network, simulates and draws. Whoever
+     begins the GPU frame passes `frameBeginFlags()` (never a bare `C3D_FRAME_SYNCDRAW` in a
+     per-frame path, which would wait a second vblank pair and halve the frame rate).
+     `C3D_FrameBegin(0)` still fences the previous GPU frame.
+   - Receive latency is logged: `net: rx chat ... queued N ms` (socket arrival on the net thread
+     to handled), `net: tx chat`, 1 Hz `net: rx pos` / `net: tx pos`, and a 10 s
+     `net: rx latency` summary. `tools/dev/latency_check.py` pairs PC-bot sends
+     (`smoke_test.py --chat`) with them.
+   - Remote toons are drawn at a dead-reckoned pose (last sample + velocity x age, capped at
+     0.25 s, `world/remote_toons.cpp`), never behind an interpolation delay.
    - The main thread runs simulation and rendering at prio 0x30.
    - The net thread is a blocking socket with a ring buffer, prio 0x31, on core 0.
      Never core 1 unless New 3DS is checked and the code is guarded.
@@ -241,16 +252,22 @@ Key decisions:
 HUD (laff meter, a toast for incoming chat).
 
 **Bottom screen (320×240, touch).** It is never blank and never a mirror of the top
-screen. Tabs along the bottom edge:
+screen. It is a Shtiker Book page (cream paper, the book's maroon cover as the tab bar, gold
+active tab, Toontown's yellow buttons; palette and layout in `ui/tab_layout.h`). Tabs along the
+bottom edge:
 
 | Tab | Contents |
 |---|---|
-| Map | minimap: top-down baked image of the zone, our arrow, other toons as dots |
-| Chat | SpeedChat-style tree menu (touch); typed chat comes later |
-| Toon | name, laff, jellybeans, DNA preview |
-| Gags | later phase; a placeholder in Phase 1-2 |
-| Settings | stereo on/off, LOD bias, server address, debug overlay |
-| Debug | memory, frame time, net RTT/bandwidth (default on during development) |
+| Map | (default) minimap: baked image of the zone named by place ("Silly Street, Toontown Central"), our arrow, other toons as dots, Home + playground teleports |
+| Chat | SpeedChat tree menu in upstream's `SCColorScheme` defaults (touch or D-Pad) |
+| Toon | laff, jellybeans, Doodle, ToonTasks, a Shtiker Book button |
+| Gags | the inventory by track: icons, counts, track-coloured experience bars |
+| Book | a button in the bottom-right corner (upstream's book corner): opens the Shtiker Book |
+| Setup | developer only: stereo toggle, stress toons |
+| Debug | developer only: memory, frame time, net, per-section CPU |
+
+Setup and Debug are hidden until SELECT (or Options > Debug HUD) turns the debug tabs on; the
+player-facing build never opens on a console panel.
 
 **Controls:**
 
@@ -263,7 +280,7 @@ screen. Tabs along the bottom edge:
 | X | toggle the chat tab |
 | Y | toggle the map tab |
 | D-Pad | UI navigation on the bottom screen (for players who don't use touch) |
-| START | menu; SELECT: debug overlay |
+| START | Shtiker Book; SELECT: show/hide the Setup and Debug tabs |
 | C-Stick / ZL / ZR (New 3DS, optional) | free camera orbit / zoom |
 
 The game must be fully playable without the New 3DS extras.
@@ -323,10 +340,16 @@ Lessons recorded for agents:
 - **Verify without a human.** Touch `sdmc:/3ds/toontown3ds/autotest` to run the
   scripted pass. Render-target dumps and `tools/dev/decode_shot.py` give screenshots
   that don't depend on the host screen.
-- **One Azahar run at a time.** `tools/dev/azahar_test.sh` takes a lock and restores the user's
-  Azahar config on exit (including INT/TERM).
+- **Azahar runs are isolated (Linux).** `tools/dev/azahar_test.sh` gives every run its own XDG
+  config/data dirs (qt-config, nand, sysdata, sdmc, log), its own Xvfb display and a private
+  copy of the app, and kills only the emulator running that copy, so agents on one box can run
+  in parallel. `SERVER=host:port TOKEN=...` writes the run's `server.txt`. Never `pkill -f` a
+  generic pattern such as `AppRun.wrapped`: other agents' command lines contain it. macOS keeps
+  the old single-run lock and config restore (one fixed Azahar data dir there).
   - Overlapping runs once killed each other's emulator (it looked like app crashes) and left
     the user's config in test mode.
+  - A private server beside others: `SERVER_PORT=37198 SERVER_RUN=/tmp/my-srv tools/server/start.sh`
+    (stop with the same `SERVER_RUN`).
   - `make` does not repack RomFS when only a data file changes; delete the `.3dsx`.
   - Never rebuild while Azahar runs the tree's `.3dsx`: the emulator reads RomFS from that
     file on demand, so a relink mid-run feeds the test shifted data. Copy it first

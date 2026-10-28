@@ -1,7 +1,7 @@
 #!/bin/bash
 # Stop the processes started by tools/server/start.sh (AI, UberDOG, astrond).
 HERE="$(cd "$(dirname "$0")" && pwd)"
-PIDS="$HERE/run/pids"
+PIDS="${SERVER_RUN:-$HERE/run}/pids" # SERVER_RUN: a private instance (start.sh)
 [ -f "$PIDS" ] || { echo "Not running (no run/pids)"; exit 0; }
 # Reverse order: AI, UD, then astrond (tail -r is BSD-only; tac is GNU-only).
 if command -v tac >/dev/null; then REV=(tac); else REV=(tail -r); fi

@@ -260,6 +260,13 @@ def main():
     ap.add_argument("-v", "--verbose", action="store_true", help="dump every field")
     ap.add_argument("--whisper", type=int, metavar="MSG",
                     help="every 5 s, SpeedChat-whisper phrase MSG to every other toon in view")
+    ap.add_argument("--chat", type=int, metavar="MSG",
+                    help="every --chat-every s, say SpeedChat phrase MSG (setSC) and print its wall-clock send "
+                         "time (tools/dev/latency_check.py pairs these with the 3DS 'net: rx chat' lines)")
+    ap.add_argument("--chat-every", type=float, default=2.0)
+    ap.add_argument("--echo", type=int, nargs=2, metavar=("HEARD", "REPLY"),
+                    help="when another toon says SpeedChat HEARD, at once say REPLY and print both wall-clock "
+                         "times (the 3DS 'chat every' probe says 100; latency_check.py measures the round trip)")
     a = ap.parse_args()
 
     dc = DC()
@@ -324,7 +331,12 @@ def main():
     t0 = time.time()
     next_move = 0
     next_whisper = time.time() + 5.0
+    next_chat = time.time() + 3.0
     while time.time() < end:
+        if a.chat is not None and time.time() >= next_chat:
+            c.set_field(av_id, "DistributedToon", "setSC", a.chat)
+            print("chat tx sc %d at %.3f" % (a.chat, time.time()), flush=True)
+            next_chat = time.time() + a.chat_every
         if a.whisper is not None and time.time() >= next_whisper:
             # DistributedToon.setWhisperSCFrom(fromId, msgIndex), sent to the other toon's doId.
             for d, o in list(c.objects.items()):
@@ -344,7 +356,14 @@ def main():
                         math.degrees(ang) + 180, 0, 0, ts)
             next_move = time.time() + 0.2
         try:
-            c.log(c.handle(*c.recv(0.2)))
+            ev = c.handle(*c.recv(0.2))
+            if (a.echo and ev and ev[0] == "set_field" and ev[2] == "setSC" and ev[1] != av_id
+                    and ev[3][0] == a.echo[0]):
+                heard = time.time()
+                c.set_field(av_id, "DistributedToon", "setSC", a.echo[1])
+                print("echo rx sc %d from %d at %.3f tx sc %d at %.3f" % (a.echo[0], ev[1], heard, a.echo[1],
+                                                                        time.time()), flush=True)
+            c.log(ev)
         except socket.timeout:
             pass
 

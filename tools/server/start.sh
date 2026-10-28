@@ -8,6 +8,11 @@
 # Usage:  tools/server/start.sh          (run setup.sh / setup_linux.sh once first)
 #         tools/server/stop.sh
 #         tools/server/start.sh --reset  (wipe accounts/toons database first)
+#         SERVER_PORT=37198 SERVER_RUN=/tmp/my-srv tools/server/start.sh
+#                                        (a private instance beside others on a shared box: client
+#                                         agent on SERVER_PORT, message director +1, event logger
+#                                         +2, database/logs/pids under SERVER_RUN; stop it with
+#                                         the same SERVER_RUN tools/server/stop.sh)
 #
 # Nothing is written inside ref/: runtime state lives in tools/server/run/
 # (database, accounts.json, pycache) and logs in tools/server/logs/.
@@ -18,8 +23,10 @@ OTT="$ROOT/ref/open-toontown"
 RES="$ROOT/ref/resources"
 [ -f "$RES/phase_4/dna/storage.dna" ] || RES="$ROOT/ref/ref/resources"
 [ -d "$OTT/toontown" ] || OTT="$ROOT/ref/ref/open-toontown"
-RUN="$HERE/run"
-LOGS="$HERE/logs"
+CA_PORT="${SERVER_PORT:-7198}"
+if [ "$CA_PORT" = 7198 ]; then MD_PORT=7199; EL_PORT=7197; else MD_PORT=$((CA_PORT + 1)); EL_PORT=$((CA_PORT + 2)); fi
+RUN="${SERVER_RUN:-$HERE/run}"
+LOGS="$HERE/logs"; [ -n "${SERVER_RUN:-}" ] && LOGS="$RUN/logs"
 PY="$HERE/.venv/bin/python"
 OS="$(uname -s)"
 SETUP="$HERE/setup.sh"; [ "$OS" = Linux ] && SETUP="$HERE/setup_linux.sh"
@@ -49,7 +56,7 @@ listening() {  # listening <port>: is something listening on TCP <port>?
             /proc/net/tcp /proc/net/tcp6 2>/dev/null
     fi
 }
-for port in 7198 7199; do
+for port in $CA_PORT $MD_PORT; do
     if listening $port; then
         echo "Port $port already in use"
         if [ "$OS" = Darwin ]; then lsof -nP -iTCP:$port -sTCP:LISTEN; elif command -v ss >/dev/null; then ss -tlnp "sport = :$port"; fi
@@ -70,6 +77,8 @@ ln -sfn "$RES" "$RUN/resources"
 sed -e "s#\.\./\.\./etc/#$OTT/etc/#g" \
     -e "s#directory: \.\./databases/astrondb#directory: $RUN/astrondb#" \
     -e "s#output: \.\./logs/#output: $LOGS/#" \
+    -e "s#0\.0\.0\.0:7198#0.0.0.0:$CA_PORT#" -e "s#127\.0\.0\.1:7199#127.0.0.1:$MD_PORT#" \
+    -e "s#127\.0\.0\.1:7197#127.0.0.1:$EL_PORT#g" \
     "$OTT/astron/config/astrond.yml" > "$RUN/astrond.yml"
 # ASTRON_HEARTBEAT_TIMEOUT_MS: test rigs only. The client heartbeats every 10 s of *emulated*
 # time; an emulator running below 1/6 speed (Azahar with software GL in heavy scenes) misses
@@ -105,7 +114,7 @@ else
 fi
 APID=$!; echo "astrond $APID" >> "$RUN/pids"
 ln -sfn "astrond-$STAMP.log" "$LOGS/astrond.log"
-i=0; until listening 7199 && listening 7198; do
+i=0; until listening $MD_PORT && listening $CA_PORT; do
     kill -0 $APID 2>/dev/null || { echo "astrond died:"; cat "$LOGS/astrond-$STAMP.log"; "$HERE/stop.sh"; exit 1; }
     i=$((i+1)); [ $i -gt 100 ] && { echo "astrond not listening"; "$HERE/stop.sh"; exit 1; }
     sleep 0.2
@@ -119,7 +128,7 @@ export PYTHONUNBUFFERED=1
 
 # 2. UberDOG (same args as ref/open-toontown/darwin/start-uberdog-server.sh)
 "$PY" -I "$HERE/run_module.py" toontown.uberdog.UDStart --base-channel 1000000 --max-channels 999999 \
-    --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
+    --stateserver 4002 --messagedirector-ip 127.0.0.1:$MD_PORT --eventlogger-ip 127.0.0.1:$EL_PORT \
     > "$LOGS/uberdog-$STAMP.log" 2>&1 < /dev/null &
 UPID=$!; echo "uberdog $UPID" >> "$RUN/pids"
 ln -sfn "uberdog-$STAMP.log" "$LOGS/uberdog.log"
@@ -140,11 +149,11 @@ AI_ENTRY=("$HERE/run_module.py" toontown.ai.AIStart)
 # AI_DEV=1: relax entry checks and top up toons for testing (tools/server/ai_dev.py).
 if [ -n "${AI_DEV:-}" ]; then AI_ENTRY=("$HERE/run_module.py" --dev-ai); echo "ai: dev test mode (ai_dev.py)"; fi
 "$PY" -I "${AI_ENTRY[@]}" --base-channel 401000000 --max-channels 999999 \
-    --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
+    --stateserver 4002 --messagedirector-ip 127.0.0.1:$MD_PORT --eventlogger-ip 127.0.0.1:$EL_PORT \
     --district-name "$DISTRICT" "${AI_PRC[@]}" \
     > "$LOGS/ai-$STAMP.log" 2>&1 < /dev/null &
 AIPID=$!; echo "ai $AIPID" >> "$RUN/pids"
 ln -sfn "ai-$STAMP.log" "$LOGS/ai.log"
 wait_for "$LOGS/ai-$STAMP.log" "ToontownAIRepository: Done\." 180 AI $AIPID
 echo "ai up (pid $AIPID), district \"$DISTRICT\""
-echo "Client agent: 0.0.0.0:7198   logs: $LOGS/{astrond,uberdog,ai}.log"
+echo "Client agent: 0.0.0.0:$CA_PORT   logs: $LOGS/{astrond,uberdog,ai}.log"
