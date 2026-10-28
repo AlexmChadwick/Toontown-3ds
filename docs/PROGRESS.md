@@ -377,3 +377,24 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Next
 - Measure web->3DS rx latency in Azahar with `nettrace`; if the median is over 45 ms, drain the ring a second time
   late in the frame, and consider a shorter smoothing constant for walking remote toons.
+
+## 2026-10-28 — perf round 6: latency regression gate
+
+### Done
+- `tools/server/smoke_test.py --sc IDX [--sc-interval S] [--sc-count N] --stamp FILE`: the bot broadcasts `setSC` and
+  records the host epoch ms of each send.
+- `tools/dev/net_latency.py STAMPS LOG`: matches each send to the 3DS `net: chat rx <doId> sc <IDX>` line (log time is
+  `osGetTime`, the host clock in Azahar), prints min/median/p90/max and exits 1 if the median is over 45 ms (or fewer than
+  5 samples matched).
+
+### Verified
+- The analyzer was checked on synthetic stamp/log files (pass at 35 ms median, fail at a 20 ms limit); `smoke_test.py` byte-compiles.
+  The bot flow and the real web->3DS median were **not** run in Azahar this round, so no latency number is claimed.
+
+### Known issues
+- On-screen latency is still above the logged rx time: the once-per-frame drain (<=33 ms) plus the 0.1 s remote smoothing
+  constant (`kSmoothTau`). Left unchanged because it cannot be judged without a visual/hardware test.
+- Full-battle linear peak and a hardware run are still pending.
+
+### Next
+- Run `smoke_test.py --sc 5 --stamp /tmp/st` against a private server while Azahar runs the 3DS client, then `net_latency.py`.
