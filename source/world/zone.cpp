@@ -221,11 +221,12 @@ struct Zone::Impl {
             // Chunk table totals count shared pages more than once.  Enforce the real
             // unique allocation total here, at the only point that can grow it. Reserve
             // before dropping the lock so even concurrent callers cannot over-admit.
-            if (key.dataSize>Zone::kTextureBudget ||
-                bytes_+pendingBytes_>Zone::kTextureBudget-key.dataSize) {
+            const uint32_t cost=allocationBytes(key);
+            if (cost>Zone::kTextureBudget ||
+                bytes_+pendingBytes_>Zone::kTextureBudget-cost) {
                 LightLock_Unlock(&lock_); return false;
             }
-            pendingBytes_+=key.dataSize;
+            pendingBytes_+=cost;
             LightLock_Unlock(&lock_);
 
             // SD reads and linear allocation can take milliseconds.  They must not hold
@@ -235,7 +236,7 @@ struct Zone::Impl {
             const bool loadedOk=render::loadTexture(f,key,&loaded);
 
             LightLock_Lock(&lock_);
-            pendingBytes_-=key.dataSize;
+            pendingBytes_-=cost;
             if (!loadedOk) { LightLock_Unlock(&lock_); return false; }
             // The zone currently has one loader, but keep this correct if that changes.
             for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
@@ -256,7 +257,7 @@ struct Zone::Impl {
             }
             Entry& e=entries_[count_];
             memset(&e,0,sizeof(e)); e.key=key; e.tex=loaded; e.refs=1; *out=e.tex;
-            bytes_+=key.dataSize; ++count_;
+            bytes_+=cost; ++count_;
             LightLock_Unlock(&lock_);
             return true;
         }
@@ -272,7 +273,7 @@ struct Zone::Impl {
                         mem::LinearGuard guard;
                         C3D_TexDelete(&entries_[i].tex);
                     }
-                    bytes_-=entries_[i].key.dataSize;
+                    bytes_-=allocationBytes(entries_[i].key);
                     entries_[i]=entries_[--count_];
                 }
                 break;
@@ -294,6 +295,9 @@ struct Zone::Impl {
             return a.dataOffset==b.dataOffset && a.dataSize==b.dataSize && a.width==b.width &&
                    a.height==b.height && a.format==b.format && a.mipLevels==b.mipLevels &&
                    a.wrapS==b.wrapS && a.wrapT==b.wrapT;
+        }
+        static uint32_t allocationBytes(const render::TexEntry& e) {
+            return (e.dataSize+0x7fu)&~0x7fu;
         }
         mutable LightLock lock_{};
         Entry* entries_=nullptr;
