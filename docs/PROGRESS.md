@@ -480,3 +480,23 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Visual check in Azahar with a bot walking in circles; then the latency gate on a quiet machine.
+
+## 2026-10-28 — perf round 11: re-verification, toolchain note (no code changes)
+
+### Done
+- Re-checked the budget guards on the current tree. No source or asset changes.
+- Toolchain location on this box (the shell has no DEVKITARM by default): `/tmp/rootfs/opt/devkitpro`
+  (`export DEVKITPRO=/tmp/rootfs/opt/devkitpro DEVKITARM=$DEVKITPRO/devkitARM PATH=$PATH:$DEVKITARM/bin:$DEVKITPRO/tools/bin`).
+
+### Verified (host)
+- `make` is up to date. `static_size.sh`: 3,145,932 B (3.00 MiB of 4.00), headroom 1,048,372 B.
+- `zone_resident.py` and `sd_budget.py`: within budget (largest SD zone file 5100.tz at 5.13 MB in the listing tail; totals unchanged).
+
+### Known issues
+- Not attempted: the live Azahar latency run. Other agents' Azahar and Codex processes were using the CPU (the
+  emulator was not running at full speed), so any number would be unreliable and was not taken.
+- Full-battle linear peak beyond the Azahar measurement of 2.1 MB (round 3), whether the 0.06 s `kSmoothTau` looks stepped at
+  5 Hz, and any hardware run remain unmeasured.
+
+### Next
+- On a quiet machine: bot `--sc 5 --stamp S --rxstamp R`, then `net_latency.py S log --calibrate R`; then the first hardware run.
