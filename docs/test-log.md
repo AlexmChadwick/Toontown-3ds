@@ -1202,3 +1202,30 @@ Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8
   in office 61049 (one: boarding ≈ 20:07, Astron 345 at 20:20:07, ~5 s of emulated time between).
   Boss assets loaded (388 KB linear, 28.6 KB collision heap; 0.34 s load hitch at office entry).
   No boss round was reached; VP/CFO/CJ/CEO stay unverified in an emulator.
+
+## 2026-10-28 (round 6) — VP and CFO rounds reached (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8`), heartbeat
+timeout 300 s then 3600 s. A `date` loop every 30 s ran beside the later runs to catch VM pauses.
+
+- **VP run 1** (build `0a96434` + zero-timeout poll, 16 Cog slots): `boss: board` → 11100 →
+  office 61050 → Elevator → Introduction → BattleOne for ~10 min (sound/throw/squirt movies,
+  six ReservesJoining waves). 20 "no room for cog" at the generate; 16 "Unknown by suit"
+  attack movies from those Cogs. The toon went sad and returned to 5000. Bottom screen:
+  shattered polygons (no `C2D_Prepare`). 26.9-27.3 fps, <= 79 draws / 16.2k tris, heap
+  3.3-3.5 MB, linear free 14-18.7 MB, VRAM free 4.2 MB.
+- **VP run 2** (48 slots, `C2D_Prepare`): no dropped Cogs, battle panel correct on the bottom
+  screen. The emulated clock then stopped for ~55 min (VM pause); Astron ejected (345) at
+  22:19, and the client reconnected and re-boarded at 23:07.
+- **Pause probe**: `sleep 30` took 189 s (23:17:04 → 23:20:13). Azahar CPU +19 s in that window
+  against +23 s per normal 30 s. The poll change was reverted.
+- **CFO run 1** (48 slots + HUD): 12100 → elevator (first request refused while waitEmpty,
+  retried at `opening`) → 61000 → Introduction → BattleOne. 71 Cogs generated, 23 dropped:
+  the battle's Cogs were invisible while laff fell 137 → 11. Laff meter on top during the boss.
+  A 34 min VM pause; the harness then killed the job.
+- **CFO run 2** (80 slots): 0 dropped, Cashbots and skelecogs visible in the movies.
+  26.9 fps, 91 draws / 10.5k tris in the lobby. Killed at ~00:19 by another session's
+  Azahar run on the same rig.
+- Host: nettest PASS (one flaky run under load first), boss_test PASS, zone_test PASS (after
+  the degenerate-floor fix). `make`: zero warnings in `source/`.
+

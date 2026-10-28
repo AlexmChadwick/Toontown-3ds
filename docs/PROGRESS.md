@@ -3,6 +3,65 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 (round 6) — the rig "stall" explained, boss rounds reached, boss UI fixes
+
+### Done
+- **The Azahar "emulated-clock stall" of rounds 3-5 is the rig's VM being paused**, not the
+  client. A `date`/`sleep 30` probe beside the runs showed a 30 s sleep taking 189 s (Azahar got
+  19 s of CPU in that window), and later a 34-minute gap. When the VM resumes, Astron's
+  wall-clock heartbeat timer ejects the client (345). I first blamed Azahar's timed
+  `poll()` (HLE `RunAsync`) and changed the client to zero-timeout polls; the stall came back
+  in the next run, so that change is reverted (`eead0ce`). The server now runs with
+  `ASTRON_HEARTBEAT_TIMEOUT_MS=3600000` and the lesson is in AGENTS.md.
+- **Cog pool too small for boss rounds.** Boss rounds generate every Cog at once: the VP
+  ~36, the CFO 71 (37 + 34). With 16 client slots, 20 VP Cogs were dropped. Reserves that
+  joined had no DNA, gave 16 "Unknown by suit" attack movies, and every CFO battle Cog was
+  invisible while it hit the toon. Now 80 client slots and 96 actors (static data 3.0 MB).
+- **Boss/Cogdo bottom screen was broken polygons.** The VP/CFO, CJ, CEO and Cogdo frame owners
+  drew the citro2d UI without `C2D_Prepare()` after the world shaders (an AGENTS.md rule).
+  The battle panel and info panel now draw correctly.
+- **No laff meter during bosses and Cogdo.** Those frame owners never drew the HUD. They now
+  draw the same laff meter/toast as the main loop (one shared `baseHudValues` helper), and a
+  toast ages out while they own the frame.
+- Facility floor and zone loads read their record tables in blocks. Each floor triangle
+  (up to ~850 a floor), TTM texture/batch record and TZ chunk record used to cost its own
+  seek + read, an SD round trip on the main thread.
+- Host tools: `zone_test` skips degenerate floors (zone 17000 has a zero-area one; the test
+  failed on every full run). `decode_shot.py` creates `--out-dir`; it printed "wrote" into a
+  missing directory.
+
+### Verified (Azahar 2126.2, Old 3DS mode, Linux/Xvfb, live server, `AI_DEV_STRONG`, weak Cogs)
+- **Sellbot VP, first time on any rig**: lobby → elevator → Introduction → BattleOne, two runs;
+  gag movies, reserves joining, 26-27 fps, <= 79 draws / 16.2k tris, heap 3.3-3.5 MB, linear
+  free >= 14 MB. Run 1 (16 slots) showed the dropped Cogs; run 2 showed the bottom screen fix.
+  The solo test toon went sad in BattleOne (run 1). Run 2 was cut by a VM pause. BattleTwo and
+  the pie phase were not reached.
+- **Cashbot CFO, first time on any rig**: lobby (12100) → elevator → Introduction → BattleOne.
+  The laff meter shows on top and the battle panel on the bottom. With 80 slots: no dropped
+  Cogs, Cashbots and skelecogs visible in the movies. One run was cut by a VM pause, the next by
+  another session's emulator run (shared rig).
+- Host: nettest (all groups; one flaky failure under load, then PASS), boss_test,
+  zone_test (all zones incl. 17000). `make`: zero warnings in `source/`.
+
+### Asset size decisions
+- None this round.
+
+### Known issues
+- Boss rounds past BattleOne (VP BattleTwo/pies, CFO cranes, CJ, CEO) are still unverified in
+  an emulator. VM pauses and the solo test toon's attrition end the runs first.
+- In boss battles the reserves-joining stretch shows the empty arena from a held camera.
+  Upstream films the reserves arriving; not yet compared.
+- A facility's first floor entry still spends ~0.45 s in `Level::activate` (props, 15 sfx)
+  behind the entrance loading panel. Street loads now measure 0.2-0.27 s (the 1.0-1.3 s of
+  earlier entries is stale).
+- The tailor keeps the clerk camera (the counter is baked into the interior mesh).
+- No real-hardware run yet; all frame numbers are emulator numbers.
+
+### Next
+- With the server's 1 h heartbeat timeout and an active session, run CFO, CJ and CEO rounds
+  in chunks. Give the test toon a teammate (the PC bot) so the VP/CFO Cog rounds can be won.
+- First real-hardware run.
+
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
 ### Done
