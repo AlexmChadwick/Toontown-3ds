@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/fishing_panel.h"
 
 #include <cstdio>
@@ -42,7 +43,7 @@ void FishingPanel::reparse(const FishingView& v) {
     C2D_TextBufClear(buf_);
     char tmp[80];
     auto put = [&](int slot, const char* s) {
-        C2D_TextParse(&lines_[slot], buf_, s);
+        tt::render::textParse(&lines_[slot], buf_, s);
         C2D_TextOptimize(&lines_[slot]);
     };
     put(kLTitle, "Fishing");

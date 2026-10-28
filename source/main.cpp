@@ -17,6 +17,7 @@
 #include "core/profile.h"
 #include "core/screenshot.h"
 #include "game/front_end.h"
+#include "render/ui_font.h"
 #include "net/client.h"
 #include "net/connection.h"
 #include "net/net_platform.h"
@@ -296,6 +297,7 @@ int main() {
     C3D_FrameRate(30.0f); // AGENTS.md: locked 30 fps on Old 3DS
     C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
     C2D_Prepare();
+    tt::render::loadUiFont(); // before any panel parses text
     C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
     tt::render::Renderer renderer;

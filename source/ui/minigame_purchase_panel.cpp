@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/minigame_purchase_panel.h"
 
 #include <cstdio>
@@ -46,15 +47,15 @@ bool MinigamePurchasePanel::init() {
     infoBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !gridBuf_ || !infoBuf_) return false;
     for (int t = 0; t < gags::kTracks; t++) {
-        C2D_TextParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
+        tt::render::textParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
     static const char* const kBtn[4] = {"-", "+", "Done", "Cancel"};
     for (int i = 0; i < 4; i++) {
-        C2D_TextParse(&btnText_[i], staticBuf_, kBtn[i]);
+        tt::render::textParse(&btnText_[i], staticBuf_, kBtn[i]);
         C2D_TextOptimize(&btnText_[i]);
     }
-    C2D_TextParse(&dashText_, staticBuf_, "-");
+    tt::render::textParse(&dashText_, staticBuf_, "-");
     C2D_TextOptimize(&dashText_);
     return true;
 }
@@ -252,7 +253,7 @@ void MinigamePurchasePanel::rebuildGrid() {
                 continue;
             }
             snprintf(buf, sizeof(buf), "%u/%d", unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
-            C2D_TextParse(&cellText_[t][l], gridBuf_, buf);
+            tt::render::textParse(&cellText_[t][l], gridBuf_, buf);
             C2D_TextOptimize(&cellText_[t][l]);
         }
     }
@@ -261,16 +262,16 @@ void MinigamePurchasePanel::rebuildGrid() {
 void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
-    C2D_TextParse(&titleText_, infoBuf_, "Gag Purchase");
+    tt::render::textParse(&titleText_, infoBuf_, "Gag Purchase");
     snprintf(buf, sizeof(buf), "Beans: %d (+%u won)", cart_.money, unsigned(beansWon_));
-    C2D_TextParse(&beansText_, infoBuf_, buf);
+    tt::render::textParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
-    C2D_TextParse(&carryText_, infoBuf_, buf);
+    tt::render::textParse(&carryText_, infoBuf_, buf);
     const int sec = deadlineMs_ > nowMs ? int((deadlineMs_ - nowMs) / 1000) : 0;
     snprintf(buf, sizeof(buf), "%02d:%02d", sec / 60, sec % 60);
-    C2D_TextParse(&timerText_, infoBuf_, buf);
+    tt::render::textParse(&timerText_, infoBuf_, buf);
     const char* msg = note_[0] ? note_ : gags::kGagNames[selTrack_][selLevel_];
-    C2D_TextParse(&infoText_, infoBuf_, msg);
+    tt::render::textParse(&infoText_, infoBuf_, msg);
 
     C2D_TextOptimize(&titleText_);
     C2D_TextOptimize(&beansText_);

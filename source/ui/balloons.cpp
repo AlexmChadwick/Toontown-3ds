@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/balloons.h"
 
 #include <cmath>
@@ -167,7 +168,7 @@ int Balloons::resolve(const char* s, bool wrap) {
     e.str[kMaxStr - 1] = '\0';
     e.wrapped = wrap;
     e.used = 1;
-    C2D_TextParse(&e.text, buf_, tmp);
+    tt::render::textParse(&e.text, buf_, tmp);
     C2D_TextOptimize(&e.text);
     const float sc = wrap ? kTextScale : kNameScale;
     C2D_TextGetDimensions(&e.text, sc, sc, &e.w, &e.h);

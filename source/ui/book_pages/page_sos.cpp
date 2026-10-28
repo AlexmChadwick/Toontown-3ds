@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_sos.h"
 #include "ui/pad_tables.h"
 #include "ui/sos_tables.h"
@@ -60,21 +61,21 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
     // Header
     snprintf(buf, sizeof(buf), "SOS ToonFriends  %d / 16", totalCards);
     C2D_Text hdrTxt;
-    C2D_TextParse(&hdrTxt, textBuf_, buf);
+    tt::render::textParse(&hdrTxt, textBuf_, buf);
     C2D_TextOptimize(&hdrTxt);
     C2D_DrawText(&hdrTxt, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.42f, 0.42f, kInk);
 
     if (totalCards > 8) {
         snprintf(buf, sizeof(buf), "[Page %d/2]", viewPage_ + 1);
         C2D_Text pgTxt;
-        C2D_TextParse(&pgTxt, textBuf_, buf);
+        tt::render::textParse(&pgTxt, textBuf_, buf);
         C2D_TextOptimize(&pgTxt);
         C2D_DrawText(&pgTxt, C2D_WithColor, x + w - 70.0f, y + 2.0f, 0.5f, 0.35f, 0.35f, C2D_Color32(0x00, 0x40, 0x90, 0xFF));
     }
 
     if (totalCards == 0) {
         C2D_Text emptyTxt;
-        C2D_TextParse(&emptyTxt, textBuf_, "You have no SOS ToonFriends!\n\nDefeat the VP in Sellbot HQ\nto rescue Toons and earn SOS cards.");
+        tt::render::textParse(&emptyTxt, textBuf_, "You have no SOS ToonFriends!\n\nDefeat the VP in Sellbot HQ\nto rescue Toons and earn SOS cards.");
         C2D_TextOptimize(&emptyTxt);
         C2D_DrawText(&emptyTxt, C2D_WithColor, x + 16.0f, y + 45.0f, 0.5f, 0.38f, 0.38f,
                      C2D_Color32(0x60, 0x58, 0x50, 0xFF));
@@ -108,7 +109,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         // Track header banner
         const char* trackName = def ? sosTrackName(def->track, def->level) : "SOS CARD";
         C2D_Text tTxt;
-        C2D_TextParse(&tTxt, textBuf_, trackName);
+        tt::render::textParse(&tTxt, textBuf_, trackName);
         C2D_TextOptimize(&tTxt);
         C2D_DrawText(&tTxt, C2D_WithColor, cx + 4.0f, cy + 3.0f, 0.6f, 0.26f, 0.26f, kTrackBlue);
 
@@ -121,7 +122,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         // Toon Name
         const char* name = def ? def->name : "Toon Friend";
         C2D_Text nTxt;
-        C2D_TextParse(&nTxt, textBuf_, name);
+        tt::render::textParse(&nTxt, textBuf_, name);
         C2D_TextOptimize(&nTxt);
         C2D_DrawText(&nTxt, C2D_WithColor, cx + 4.0f, cy + 26.0f, 0.6f, 0.30f, 0.30f, kInk);
 
@@ -129,7 +130,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         if (def && def->hp > 0) {
             snprintf(buf, sizeof(buf), "%d pts", def->hp);
             C2D_Text hpTxt;
-            C2D_TextParse(&hpTxt, textBuf_, buf);
+            tt::render::textParse(&hpTxt, textBuf_, buf);
             C2D_TextOptimize(&hpTxt);
             C2D_DrawText(&hpTxt, C2D_WithColor, cx + 4.0f, cy + 42.0f, 0.6f, 0.28f, 0.28f, C2D_Color32(0x50, 0x48, 0x40, 0xFF));
         }
@@ -137,7 +138,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         // Calls remaining
         snprintf(buf, sizeof(buf), "Calls: %d", entry.count);
         C2D_Text cTxt;
-        C2D_TextParse(&cTxt, textBuf_, buf);
+        tt::render::textParse(&cTxt, textBuf_, buf);
         C2D_TextOptimize(&cTxt);
         C2D_DrawText(&cTxt, C2D_WithColor, cx + 4.0f, cy + 56.0f, 0.6f, 0.28f, 0.28f,
                      C2D_Color32(0x20, 0x60, 0x20, 0xFF));

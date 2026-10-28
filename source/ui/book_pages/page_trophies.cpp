@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_trophies.h"
 #include <cstdio>
 
@@ -66,19 +67,19 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
 
     // Header
     C2D_Text kHdr;
-    C2D_TextParse(&kHdr, textBuf_, "Go-Karting");
+    tt::render::textParse(&kHdr, textBuf_, "Go-Karting");
     C2D_TextOptimize(&kHdr);
     C2D_DrawText(&kHdr, C2D_WithColor, leftColX + 8.0f, topY + 4.0f, 0.6f, 0.40f, 0.40f, C2D_Color32(0xC0, 0x30, 0x20, 0xFF));
 
     snprintf(buf, sizeof(buf), "Trophies:  %d / 33", kartWon);
     C2D_Text ktTxt;
-    C2D_TextParse(&ktTxt, textBuf_, buf);
+    tt::render::textParse(&ktTxt, textBuf_, buf);
     C2D_TextOptimize(&ktTxt);
     C2D_DrawText(&ktTxt, C2D_WithColor, leftColX + 8.0f, topY + 20.0f, 0.6f, 0.32f, 0.32f, kInk);
 
     snprintf(buf, sizeof(buf), "Tickets:  %u", unsigned(tickets));
     C2D_Text tkTxt;
-    C2D_TextParse(&tkTxt, textBuf_, buf);
+    tt::render::textParse(&tkTxt, textBuf_, buf);
     C2D_TextOptimize(&tkTxt);
     C2D_DrawText(&tkTxt, C2D_WithColor, leftColX + 8.0f, topY + 32.0f, 0.6f, 0.32f, 0.32f, kInk);
 
@@ -105,19 +106,19 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
 
     snprintf(buf, sizeof(buf), "Races Won:  %u", kh ? kh[0] : 0);
     C2D_Text rwTxt;
-    C2D_TextParse(&rwTxt, textBuf_, buf);
+    tt::render::textParse(&rwTxt, textBuf_, buf);
     C2D_TextOptimize(&rwTxt);
     C2D_DrawText(&rwTxt, C2D_WithColor, leftColX + 8.0f, kStatY, 0.6f, 0.30f, 0.30f, kSubInk);
 
     snprintf(buf, sizeof(buf), "Qualifying Wins:  %u", kh ? kh[1] : 0);
     C2D_Text qwTxt;
-    C2D_TextParse(&qwTxt, textBuf_, buf);
+    tt::render::textParse(&qwTxt, textBuf_, buf);
     C2D_TextOptimize(&qwTxt);
     C2D_DrawText(&qwTxt, C2D_WithColor, leftColX + 8.0f, kStatY + 12.0f, 0.6f, 0.30f, 0.30f, kSubInk);
 
     snprintf(buf, sizeof(buf), "Total Laps:  %u", kh ? kh[2] : 0);
     C2D_Text tlTxt;
-    C2D_TextParse(&tlTxt, textBuf_, buf);
+    tt::render::textParse(&tlTxt, textBuf_, buf);
     C2D_TextOptimize(&tlTxt);
     C2D_DrawText(&tlTxt, C2D_WithColor, leftColX + 8.0f, kStatY + 24.0f, 0.6f, 0.30f, 0.30f, kSubInk);
 
@@ -127,13 +128,13 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
 
     // Header
     C2D_Text gHdr;
-    C2D_TextParse(&gHdr, textBuf_, "Mini-Golf");
+    tt::render::textParse(&gHdr, textBuf_, "Mini-Golf");
     C2D_TextOptimize(&gHdr);
     C2D_DrawText(&gHdr, C2D_WithColor, rightColX + 8.0f, topY + 4.0f, 0.6f, 0.40f, 0.40f, C2D_Color32(0x20, 0x80, 0x30, 0xFF));
 
     snprintf(buf, sizeof(buf), "Trophies:  %d / 30   Cups:  %d / 3", golfWon, cupsWon);
     C2D_Text gtTxt;
-    C2D_TextParse(&gtTxt, textBuf_, buf);
+    tt::render::textParse(&gtTxt, textBuf_, buf);
     C2D_TextOptimize(&gtTxt);
     C2D_DrawText(&gtTxt, C2D_WithColor, rightColX + 8.0f, topY + 20.0f, 0.6f, 0.32f, 0.32f, kInk);
 
@@ -158,7 +159,7 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
     const float cupY = gbStartY + 3 * (gbSize + gbGap) + 6.0f;
     snprintf(buf, sizeof(buf), "Championship Cups:");
     C2D_Text cupHdr;
-    C2D_TextParse(&cupHdr, textBuf_, buf);
+    tt::render::textParse(&cupHdr, textBuf_, buf);
     C2D_TextOptimize(&cupHdr);
     C2D_DrawText(&cupHdr, C2D_WithColor, rightColX + 8.0f, cupY, 0.6f, 0.30f, 0.30f, kInk);
 
@@ -172,7 +173,7 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
 
         snprintf(buf, sizeof(buf), "%d", c + 1);
         C2D_Text cupNum;
-        C2D_TextParse(&cupNum, textBuf_, buf);
+        tt::render::textParse(&cupNum, textBuf_, buf);
         C2D_TextOptimize(&cupNum);
         C2D_DrawText(&cupNum, C2D_WithColor, cx + 5.0f, cy + 1.0f, 0.7f, 0.30f, 0.30f, kInk);
     }
@@ -183,19 +184,19 @@ void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContex
 
     snprintf(buf, sizeof(buf), "Courses Done:  %u", gh ? gh[0] : 0);
     C2D_Text cdTxt;
-    C2D_TextParse(&cdTxt, textBuf_, buf);
+    tt::render::textParse(&cdTxt, textBuf_, buf);
     C2D_TextOptimize(&cdTxt);
     C2D_DrawText(&cdTxt, C2D_WithColor, rightColX + 8.0f, gStatY, 0.6f, 0.28f, 0.28f, kSubInk);
 
     snprintf(buf, sizeof(buf), "Under Par:  %u", gh ? gh[1] : 0);
     C2D_Text upTxt;
-    C2D_TextParse(&upTxt, textBuf_, buf);
+    tt::render::textParse(&upTxt, textBuf_, buf);
     C2D_TextOptimize(&upTxt);
     C2D_DrawText(&upTxt, C2D_WithColor, rightColX + 8.0f, gStatY + 11.0f, 0.6f, 0.28f, 0.28f, kSubInk);
 
     snprintf(buf, sizeof(buf), "Holes-in-One:  %u", gh ? gh[2] : 0);
     C2D_Text hioTxt;
-    C2D_TextParse(&hioTxt, textBuf_, buf);
+    tt::render::textParse(&hioTxt, textBuf_, buf);
     C2D_TextOptimize(&hioTxt);
     C2D_DrawText(&hioTxt, C2D_WithColor, rightColX + 8.0f, gStatY + 22.0f, 0.6f, 0.28f, 0.28f, kSubInk);
 }

@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_options.h"
 #include "ui/pad_tables.h"
 #include "audio/audio.h"
@@ -128,7 +129,7 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         vsnprintf(buf, sizeof(buf), fmt, args);
         va_end(args);
         C2D_Text c2d;
-        C2D_TextParse(&c2d, textBuf_, buf);
+        tt::render::textParse(&c2d, textBuf_, buf);
         C2D_DrawText(&c2d, C2D_WithColor, tx, ty, 0.6f, scale, scale, col);
     };
 

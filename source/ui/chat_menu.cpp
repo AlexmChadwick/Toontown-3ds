@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/chat_menu.h"
 
 #include <cstdio>
@@ -37,9 +38,9 @@ bool ChatMenu::init() {
     menuBuf_ = C2D_TextBufNew(sc::kMaxMenuGlyphs + 96);
     staticBuf_ = C2D_TextBufNew(96);
     if (!menuBuf_ || !staticBuf_) return false;
-    C2D_TextParse(&back_, staticBuf_, "< Back");
-    C2D_TextParse(&arrow_, staticBuf_, ">");
-    C2D_TextParse(&hint_, staticBuf_, "Up/Down + A");
+    tt::render::textParse(&back_, staticBuf_, "< Back");
+    tt::render::textParse(&arrow_, staticBuf_, ">");
+    tt::render::textParse(&hint_, staticBuf_, "Up/Down + A");
     C2D_TextOptimize(&back_);
     C2D_TextOptimize(&arrow_);
     C2D_TextOptimize(&hint_);
@@ -65,7 +66,7 @@ void ChatMenu::enter(int menu, int focusItem) {
     } else {
         snprintf(crumb, sizeof(crumb), "%s > %s", sc::kMenus[m.parent].title, m.title);
     }
-    C2D_TextParse(&title_, menuBuf_, crumb);
+    tt::render::textParse(&title_, menuBuf_, crumb);
     C2D_TextOptimize(&title_);
     float tw, th;
     C2D_TextGetDimensions(&title_, 0.5f, 0.5f, &tw, &th);
@@ -74,7 +75,7 @@ void ChatMenu::enter(int menu, int focusItem) {
 
     for (int i = 0; i < m.numItems; i++) {
         const sc::Item& it = sc::kItems[m.firstItem + i];
-        C2D_TextParse(&labels_[i], menuBuf_, it.label);
+        tt::render::textParse(&labels_[i], menuBuf_, it.label);
         C2D_TextOptimize(&labels_[i]);
         float w, h;
         C2D_TextGetDimensions(&labels_[i], kLabelScale, kLabelScale, &w, &h);

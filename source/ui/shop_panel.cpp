@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/shop_panel.h"
 
 #include <cstdio>
@@ -50,15 +51,15 @@ bool ShopPanel::init() {
     infoBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !gridBuf_ || !infoBuf_) return false;
     for (int t = 0; t < gags::kTracks; t++) {
-        C2D_TextParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
+        tt::render::textParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
     static const char* const kBtn[4] = {"-", "+", "Done", "Cancel"};
     for (int i = 0; i < 4; i++) {
-        C2D_TextParse(&btnText_[i], staticBuf_, kBtn[i]);
+        tt::render::textParse(&btnText_[i], staticBuf_, kBtn[i]);
         C2D_TextOptimize(&btnText_[i]);
     }
-    C2D_TextParse(&dashText_, staticBuf_, "-");
+    tt::render::textParse(&dashText_, staticBuf_, "-");
     C2D_TextOptimize(&dashText_);
     return true;
 }
@@ -284,7 +285,7 @@ void ShopPanel::rebuildGrid() {
                 continue;
             }
             snprintf(buf, sizeof(buf), "%u/%d", unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
-            C2D_TextParse(&cellText_[t][l], gridBuf_, buf);
+            tt::render::textParse(&cellText_[t][l], gridBuf_, buf);
             C2D_TextOptimize(&cellText_[t][l]);
         }
     }
@@ -293,15 +294,15 @@ void ShopPanel::rebuildGrid() {
 void ShopPanel::rebuildInfo(uint32_t nowMs) {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
-    C2D_TextParse(&titleText_, infoBuf_, "Gag Shop");
+    tt::render::textParse(&titleText_, infoBuf_, "Gag Shop");
     snprintf(buf, sizeof(buf), "Beans: %d", cart_.money);
-    C2D_TextParse(&beansText_, infoBuf_, buf);
+    tt::render::textParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
-    C2D_TextParse(&carryText_, infoBuf_, buf);
+    tt::render::textParse(&carryText_, infoBuf_, buf);
     const int32_t remain = int32_t(deadlineMs_ - nowMs);
     const int sec = remain > 0 ? remain / 1000 : 0;
     snprintf(buf, sizeof(buf), "%d:%02d", sec / 60, sec % 60);
-    C2D_TextParse(&timerText_, infoBuf_, buf);
+    tt::render::textParse(&timerText_, infoBuf_, buf);
     if (note_[0]) {
         snprintf(buf, sizeof(buf), "%s", note_);
     } else {
@@ -317,7 +318,7 @@ void ShopPanel::rebuildInfo(uint32_t nowMs) {
                      unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
         }
     }
-    C2D_TextParse(&infoText_, infoBuf_, buf);
+    tt::render::textParse(&infoText_, infoBuf_, buf);
     C2D_Text* all[] = {&titleText_, &beansText_, &carryText_, &timerText_, &infoText_};
     for (C2D_Text* x : all) C2D_TextOptimize(x);
 }

@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/panel_geometry.h" // qafix: bounded map content
 #include "core/nearest.h"
 #include "render/ui.h"
@@ -90,7 +91,7 @@ bool Ui::init() {
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
     for (int i = 0; i < kTabCount; i++) {
-        C2D_TextParse(&tabText_[i], staticBuf_, kTabNames[i]);
+        tt::render::textParse(&tabText_[i], staticBuf_, kTabNames[i]);
         C2D_TextOptimize(&tabText_[i]);
     }
     return true;
@@ -123,7 +124,7 @@ void Ui::debugLine(float x, float y, float scale, u32 color, const char* fmt, ..
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
     CachedLine& l = debugLines_[numDebugLines_++];
-    C2D_TextParse(&l.text, debugBuf_, buf);
+    tt::render::textParse(&l.text, debugBuf_, buf);
     C2D_TextOptimize(&l.text);
     l.x = x;
     l.y = y;

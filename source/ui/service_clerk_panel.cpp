@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/service_clerk_panel.h"
 #include "core/log.h"
 #include "ui/clerk_tables.h"
@@ -417,7 +418,7 @@ void ServiceClerkPanel::rebuild() {
     C2D_TextBufClear(buffer_);
     count_ = 10;
     for (int index = 0; index < count_; ++index) {
-        C2D_TextParse(&texts_[index], buffer_, strings_[index]);
+        tt::render::textParse(&texts_[index], buffer_, strings_[index]);
         C2D_TextOptimize(&texts_[index]);
     }
     dirty_ = false;

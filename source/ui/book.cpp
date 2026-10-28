@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book.h"
 #include <cstdio>
 
@@ -23,12 +24,12 @@ bool Book::init() {
     dynamicBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !dynamicBuf_) return false;
 
-    C2D_TextParse(&prevText_, staticBuf_, "< Prev");
-    C2D_TextParse(&nextText_, staticBuf_, "Next >");
-    C2D_TextParse(&closeText_, staticBuf_, "[X]");
+    tt::render::textParse(&prevText_, staticBuf_, "< Prev");
+    tt::render::textParse(&nextText_, staticBuf_, "Next >");
+    tt::render::textParse(&closeText_, staticBuf_, "[X]");
 
     for (int i = 0; i < kPageCount; i++) {
-        C2D_TextParse(&tabTexts_[i], staticBuf_, pages_[i]->tabName());
+        tt::render::textParse(&tabTexts_[i], staticBuf_, pages_[i]->tabName());
         pages_[i]->init();
     }
 
@@ -172,7 +173,7 @@ void Book::draw(const BookDrawContext& bdc) {
         char titleBuf[64];
         snprintf(titleBuf, sizeof(titleBuf), "%s (%d/%d)", pages_[curPage_]->title(), curPage_ + 1, kPageCount);
         C2D_Text titleText;
-        C2D_TextParse(&titleText, dynamicBuf_, titleBuf);
+        tt::render::textParse(&titleText, dynamicBuf_, titleBuf);
         C2D_DrawText(&titleText, C2D_WithColor, 70, 5, 0.5f, 0.42f, 0.42f, kWhite);
     }
 

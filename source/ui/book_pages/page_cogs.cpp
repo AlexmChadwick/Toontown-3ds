@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_cogs.h"
 #include "ui/pad_tables.h"
 #include "ui/suit_heads_atlas.h"
@@ -101,7 +102,7 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
                          active ? C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF) : C2D_Color32(0xE8, 0xE0, 0xD8, 0xFF));
 
         C2D_Text dTxt;
-        C2D_TextParse(&dTxt, textBuf_, kDeptNames[d]);
+        tt::render::textParse(&dTxt, textBuf_, kDeptNames[d]);
         C2D_TextOptimize(&dTxt);
         C2D_DrawText(&dTxt, C2D_WithColor, tx + 6.0f, tabY + 2.0f, 0.6f, 0.32f, 0.32f,
                      active ? kDeptColors[d] : C2D_Color32(0x60, 0x58, 0x50, 0xFF));
@@ -134,13 +135,13 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
         if (status == net::kCogUnseen) {
             // Unseen / Mystery
             C2D_Text qTxt;
-            C2D_TextParse(&qTxt, textBuf_, "?");
+            tt::render::textParse(&qTxt, textBuf_, "?");
             C2D_TextOptimize(&qTxt);
             C2D_DrawText(&qTxt, C2D_WithColor, cx + 28.0f, cy + 10.0f, 0.6f, 0.70f, 0.70f,
                          C2D_Color32(0xAA, 0xA0, 0x98, 0xFF));
 
             C2D_Text mystTxt;
-            C2D_TextParse(&mystTxt, textBuf_, "???");
+            tt::render::textParse(&mystTxt, textBuf_, "???");
             C2D_TextOptimize(&mystTxt);
             C2D_DrawText(&mystTxt, C2D_WithColor, cx + 25.0f, cy + 46.0f, 0.6f, 0.30f, 0.30f,
                          C2D_Color32(0x88, 0x80, 0x78, 0xFF));
@@ -150,7 +151,7 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
 
             // Cog Name
             C2D_Text nameTxt;
-            C2D_TextParse(&nameTxt, textBuf_, kCogNames[activeDept_][i]);
+            tt::render::textParse(&nameTxt, textBuf_, kCogNames[activeDept_][i]);
             C2D_TextOptimize(&nameTxt);
             C2D_DrawText(&nameTxt, C2D_WithColor, cx + 4.0f, cy + 33.0f, 0.6f, 0.28f, 0.28f, kInk);
 
@@ -159,7 +160,7 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
             const int quota = kCogQuotas[quotaTier][i];
             snprintf(buf, sizeof(buf), "%u / %d", unsigned(count), quota);
             C2D_Text quotaTxt;
-            C2D_TextParse(&quotaTxt, textBuf_, buf);
+            tt::render::textParse(&quotaTxt, textBuf_, buf);
             C2D_TextOptimize(&quotaTxt);
             C2D_DrawText(&quotaTxt, C2D_WithColor, cx + 4.0f, cy + 46.0f, 0.6f, 0.26f, 0.26f,
                          complete ? C2D_Color32(0x80, 0x50, 0x10, 0xFF) : C2D_Color32(0x50, 0x48, 0x40, 0xFF));
@@ -176,7 +177,7 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
              bldgRadar > 0 ? "ACTIVE" : "INACTIVE",
              int(bldgRadar));
     C2D_Text radarTxt;
-    C2D_TextParse(&radarTxt, textBuf_, buf);
+    tt::render::textParse(&radarTxt, textBuf_, buf);
     C2D_TextOptimize(&radarTxt);
     C2D_DrawText(&radarTxt, C2D_WithColor, x + 10.0f, footerY, 0.5f, 0.32f, 0.32f,
                  C2D_Color32(0x40, 0x38, 0x30, 0xFF));

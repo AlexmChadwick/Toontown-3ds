@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/closet_panel.h"
 #include "ui/pad_tables.h"
 namespace tt::ui {
@@ -12,10 +13,10 @@ void ClosetPanel::open(const net::Client& client, uint32_t) {
     if (!c) return;
     closet_ = c->doId; active_ = true; pending_ = 0;
     C2D_TextBufClear(textBuf_);
-    C2D_TextParse(&title_, textBuf_, "Closet");
-    C2D_TextParse(&body_, textBuf_, "Save keeps your current owned clothes.\nD-Pad picks a button, A presses it. B cancels.");
-    C2D_TextParse(&done_, textBuf_, "Save");
-    C2D_TextParse(&cancel_, textBuf_, "Cancel");
+    tt::render::textParse(&title_, textBuf_, "Closet");
+    tt::render::textParse(&body_, textBuf_, "Save keeps your current owned clothes.\nD-Pad picks a button, A presses it. B cancels.");
+    tt::render::textParse(&done_, textBuf_, "Save");
+    tt::render::textParse(&cancel_, textBuf_, "Cancel");
     C2D_TextOptimize(&title_); C2D_TextOptimize(&body_);
     C2D_TextOptimize(&done_); C2D_TextOptimize(&cancel_);
     // ---- padnav: Save is focused, so A saves as it always did ----

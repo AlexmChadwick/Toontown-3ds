@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/quest_panel.h"
 
 #include <cstdio>
@@ -36,7 +37,7 @@ void QuestPanel::shutdown() {
 
 void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth, const char* s) {
     C2D_Text t;
-    C2D_TextParse(&t, buf_, s);
+    tt::render::textParse(&t, buf_, s);
     if (wrapWidth > 0) {
         C2D_DrawText(&t, C2D_WithColor | C2D_WordWrap, x, y, 0.6f, scale, scale, color, wrapWidth);
     } else {

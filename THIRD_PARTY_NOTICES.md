@@ -10,6 +10,9 @@ does **not** cover:
   `ref/resources` submodule. They were extracted from Disney's
   Toontown Online (sv1.0.47.38) and remain the property of The Walt Disney Company.
   They are included as-is, with no license granted by this project.
+  This includes `romfs/baked/fonts/impress.bcfnt`, a conversion of the game's
+  `phase_3/models/fonts/ImpressBT.ttf` (Bitstream's Impress typeface as shipped with
+  Toontown); no font license is granted by this project either.
 - **The `ref/open-toontown` submodule.** It is Open Toontown, BSD 3-Clause; see its
   own `LICENSE`.
 

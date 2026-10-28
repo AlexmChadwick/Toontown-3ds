@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_fish.h"
 #include "ui/pad_tables.h"
 #include "world/fish_tables.h"
@@ -98,7 +99,7 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     // Header: Total Species and Trophies
     snprintf(buf, sizeof(buf), "Fish Album:  %d / 70 Species   Trophies: %d / 7", caughtTotal, trophiesWon);
     C2D_Text hdrTxt;
-    C2D_TextParse(&hdrTxt, textBuf_, buf);
+    tt::render::textParse(&hdrTxt, textBuf_, buf);
     C2D_TextOptimize(&hdrTxt);
     C2D_DrawText(&hdrTxt, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.40f, 0.40f, kInk);
 
@@ -130,21 +131,21 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     // Left arrow
     C2D_DrawRectSolid(x + 10.0f, navY + 2.0f, 0.5f, 16.0f, 14.0f, C2D_Color32(0xC0, 0xB0, 0x98, 0xFF));
     C2D_Text leftArrow;
-    C2D_TextParse(&leftArrow, textBuf_, "<");
+    tt::render::textParse(&leftArrow, textBuf_, "<");
     C2D_TextOptimize(&leftArrow);
     C2D_DrawText(&leftArrow, C2D_WithColor, x + 15.0f, navY + 2.0f, 0.6f, 0.35f, 0.35f, kInk);
 
     // Right arrow
     C2D_DrawRectSolid(x + navW - 22.0f, navY + 2.0f, 0.5f, 16.0f, 14.0f, C2D_Color32(0xC0, 0xB0, 0x98, 0xFF));
     C2D_Text rightArrow;
-    C2D_TextParse(&rightArrow, textBuf_, ">");
+    tt::render::textParse(&rightArrow, textBuf_, ">");
     C2D_TextOptimize(&rightArrow);
     C2D_DrawText(&rightArrow, C2D_WithColor, x + navW - 17.0f, navY + 2.0f, 0.6f, 0.35f, 0.35f, kInk);
 
     // Genus label
     snprintf(buf, sizeof(buf), "%s  (%d / %d caught)", genusName, genusCaughtCount, genusSpeciesCount);
     C2D_Text gTxt;
-    C2D_TextParse(&gTxt, textBuf_, buf);
+    tt::render::textParse(&gTxt, textBuf_, buf);
     C2D_TextOptimize(&gTxt);
     C2D_DrawText(&gTxt, C2D_WithColor, x + 34.0f, navY + 3.0f, 0.6f, 0.36f, 0.36f, kInk);
 
@@ -174,14 +175,14 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
 
         // Name
         C2D_Text nameTxt;
-        C2D_TextParse(&nameTxt, textBuf_, spec.name);
+        tt::render::textParse(&nameTxt, textBuf_, spec.name);
         C2D_TextOptimize(&nameTxt);
         C2D_DrawText(&nameTxt, C2D_WithColor, x + 12.0f, iy + 4.0f, 0.6f, 0.34f, 0.34f, caught ? kCaughtInk : kInk);
 
         // Weight range & rarity
         snprintf(buf, sizeof(buf), "Rarity: %d   Range: %d-%d lb", spec.rarity, spec.minLb, spec.maxLb);
         C2D_Text rarTxt;
-        C2D_TextParse(&rarTxt, textBuf_, buf);
+        tt::render::textParse(&rarTxt, textBuf_, buf);
         C2D_TextOptimize(&rarTxt);
         C2D_DrawText(&rarTxt, C2D_WithColor, x + 120.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, C2D_Color32(0x60, 0x58, 0x50, 0xFF));
 
@@ -191,12 +192,12 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
             const int oz = recordWeight % 16;
             snprintf(buf, sizeof(buf), "Record: %d lb %d oz", lb, oz);
             C2D_Text recTxt;
-            C2D_TextParse(&recTxt, textBuf_, buf);
+            tt::render::textParse(&recTxt, textBuf_, buf);
             C2D_TextOptimize(&recTxt);
             C2D_DrawText(&recTxt, C2D_WithColor, x + navW - 86.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, kCaughtInk);
         } else {
             C2D_Text recTxt;
-            C2D_TextParse(&recTxt, textBuf_, "Not caught");
+            tt::render::textParse(&recTxt, textBuf_, "Not caught");
             C2D_TextOptimize(&recTxt);
             C2D_DrawText(&recTxt, C2D_WithColor, x + navW - 65.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, C2D_Color32(0x99, 0x90, 0x88, 0xFF));
         }
@@ -207,7 +208,7 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     // Bottom: 7 Fishing Trophy Cups
     const float trophyBarY = y + 160.0f;
     C2D_Text tHdr;
-    C2D_TextParse(&tHdr, textBuf_, "Trophies (1 every 10 species):");
+    tt::render::textParse(&tHdr, textBuf_, "Trophies (1 every 10 species):");
     C2D_TextOptimize(&tHdr);
     C2D_DrawText(&tHdr, C2D_WithColor, x + 8.0f, trophyBarY, 0.5f, 0.32f, 0.32f, kInk);
 
@@ -226,7 +227,7 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
 
         snprintf(buf, sizeof(buf), "%d", (t + 1) * 10);
         C2D_Text cntTxt;
-        C2D_TextParse(&cntTxt, textBuf_, buf);
+        tt::render::textParse(&cntTxt, textBuf_, buf);
         C2D_TextOptimize(&cntTxt);
         C2D_DrawText(&cntTxt, C2D_WithColor, tx + 1.0f, ty + 2.0f, 0.6f, 0.28f, 0.28f,
                      earned ? C2D_Color32(0x50, 0x30, 0x00, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));

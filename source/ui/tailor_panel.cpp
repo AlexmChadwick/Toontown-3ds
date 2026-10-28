@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/tailor_panel.h"
 
 #include <cstdio>
@@ -218,22 +219,22 @@ u32 TailorPanel::handleInput(u32 down, const touchPosition& touch) {
 void TailorPanel::rebuildText() {
     C2D_TextBufClear(textBuf_);
     char buf[96];
-    C2D_TextParse(&titleText_, textBuf_, "Clothing Store");
+    tt::render::textParse(&titleText_, textBuf_, "Clothing Store");
     const world::MatShirtChoice shirt = world::matShirt(working_.gender, static_cast<uint8_t>(topChoice_));
     snprintf(buf, sizeof(buf), "Shirt  style %u  colour %u/%u", unsigned(shirt.topTex), unsigned(shirt.topTexColor),
              unsigned(shirt.sleeveTexColor));
-    C2D_TextParse(&topText_, textBuf_, buf);
+    tt::render::textParse(&topText_, textBuf_, buf);
     const world::MatBottomChoice bottom = world::matBottom(working_.gender, static_cast<uint8_t>(bottomChoice_));
     snprintf(buf, sizeof(buf), "%s  style %u  colour %u", working_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
              unsigned(bottom.botTex), unsigned(bottom.botTexColor));
-    C2D_TextParse(&bottomText_, textBuf_, buf);
-    C2D_TextParse(&hintText_, textBuf_, "Left/Right changes the selected style and colour");
+    tt::render::textParse(&bottomText_, textBuf_, buf);
+    tt::render::textParse(&hintText_, textBuf_, "Left/Right changes the selected style and colour");
     const int32_t remain = int32_t(deadlineMs_ - nowMs_);
     snprintf(buf, sizeof(buf), "Time %d:%02d", remain > 0 ? int(remain / 60000) : 0,
              remain > 0 ? int((remain / 1000) % 60) : 0);
-    C2D_TextParse(&timerText_, textBuf_, buf);
-    C2D_TextParse(&doneText_, textBuf_, "Done");
-    C2D_TextParse(&cancelText_, textBuf_, "Cancel");
+    tt::render::textParse(&timerText_, textBuf_, buf);
+    tt::render::textParse(&doneText_, textBuf_, "Done");
+    tt::render::textParse(&cancelText_, textBuf_, "Cancel");
     C2D_Text* all[] = {&titleText_, &topText_, &bottomText_, &hintText_, &timerText_, &doneText_, &cancelText_};
     for (C2D_Text* t : all) C2D_TextOptimize(t);
 }

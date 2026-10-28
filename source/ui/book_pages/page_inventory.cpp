@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_inventory.h"
 #include "world/battle_fx.h"
 #include <cstdio>
@@ -82,14 +83,14 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
     C2D_Text titleText;
     char buf[128];
     snprintf(buf, sizeof(buf), "Gags  %d / %d", totalGags, maxCarry);
-    C2D_TextParse(&titleText, textBuf_, buf);
+    tt::render::textParse(&titleText, textBuf_, buf);
     C2D_TextOptimize(&titleText);
     C2D_DrawText(&titleText, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.45f, 0.45f, kInk);
     // InventoryPage.moneyDisplay: the jellybean jar's count, on the same page.
     if (bdc.stats) {
         snprintf(buf, sizeof(buf), "Jellybeans  %d / %d", bdc.stats->money, bdc.stats->maxMoney);
         C2D_Text moneyText;
-        C2D_TextParse(&moneyText, textBuf_, buf);
+        tt::render::textParse(&moneyText, textBuf_, buf);
         C2D_TextOptimize(&moneyText);
         C2D_DrawText(&moneyText, C2D_WithColor, x + 150.0f, y + 2.0f, 0.5f, 0.45f, 0.45f,
                      C2D_Color32(0x80, 0x50, 0x00, 0xFF));
@@ -116,7 +117,7 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
 
         // Track name
         C2D_Text nameTxt;
-        C2D_TextParse(&nameTxt, textBuf_, kTrackNames[t]);
+        tt::render::textParse(&nameTxt, textBuf_, kTrackNames[t]);
         C2D_TextOptimize(&nameTxt);
         C2D_DrawText(&nameTxt, C2D_WithColor, x + 12.0f, ry + 3.0f, 0.5f, 0.36f, 0.36f,
                      unlocked ? kInk : C2D_Color32(0x88, 0x88, 0x88, 0xFF));
@@ -125,12 +126,12 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
             if (trainingTrack == t) {
                 // Training indicator
                 C2D_Text trText;
-                C2D_TextParse(&trText, textBuf_, "TRAINING");
+                tt::render::textParse(&trText, textBuf_, "TRAINING");
                 C2D_TextOptimize(&trText);
                 C2D_DrawText(&trText, C2D_WithColor, x + 60.0f, ry + 3.0f, 0.5f, 0.34f, 0.34f, kTrackColors[t]);
             } else {
                 C2D_Text lkText;
-                C2D_TextParse(&lkText, textBuf_, "Locked");
+                tt::render::textParse(&lkText, textBuf_, "Locked");
                 C2D_TextOptimize(&lkText);
                 C2D_DrawText(&lkText, C2D_WithColor, x + 60.0f, ry + 3.0f, 0.5f, 0.34f, 0.34f,
                              C2D_Color32(0x99, 0x90, 0x88, 0xFF));
@@ -154,7 +155,7 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                     if (count > 0) {
                         snprintf(buf, sizeof(buf), "%d", count);
                         C2D_Text cntTxt;
-                        C2D_TextParse(&cntTxt, textBuf_, buf);
+                        tt::render::textParse(&cntTxt, textBuf_, buf);
                         C2D_TextOptimize(&cntTxt);
                         C2D_DrawText(&cntTxt, C2D_WithColor, gx + 9.0f, ry + 8.0f, 0.6f, 0.32f, 0.32f,
                                      C2D_Color32(0x00, 0x00, 0x00, 0xFF));
@@ -200,7 +201,7 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                 snprintf(buf, sizeof(buf), "%d / %d", exp, nextThresh); // TTLocalizer.InventoryTrackExp
             }
             C2D_Text expTxt;
-            C2D_TextParse(&expTxt, textBuf_, buf);
+            tt::render::textParse(&expTxt, textBuf_, buf);
             C2D_TextOptimize(&expTxt);
             float tw = 0.0f;
             C2D_TextGetDimensions(&expTxt, 0.32f, 0.32f, &tw, nullptr);
@@ -214,7 +215,7 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
     if (trainingTrack >= 0 && trainingTrack < 7) {
         snprintf(buf, sizeof(buf), "Training %s track:", kTrackNames[trainingTrack]);
         C2D_Text trLabel;
-        C2D_TextParse(&trLabel, textBuf_, buf);
+        tt::render::textParse(&trLabel, textBuf_, buf);
         C2D_TextOptimize(&trLabel);
         C2D_DrawText(&trLabel, C2D_WithColor, x + 6.0f, filmY, 0.5f, 0.35f, 0.35f, kTrackColors[trainingTrack]);
 
@@ -239,7 +240,7 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
             } else {
                 snprintf(buf, sizeof(buf), "?");
             }
-            C2D_TextParse(&fTxt, textBuf_, buf);
+            tt::render::textParse(&fTxt, textBuf_, buf);
             C2D_TextOptimize(&fTxt);
             C2D_DrawText(&fTxt, C2D_WithColor, fx + (trained ? 3.0f : 4.0f), frameY + 2.0f, 0.6f, 0.30f, 0.30f,
                          trained ? C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF) : C2D_Color32(0x66, 0x66, 0x66, 0xFF));

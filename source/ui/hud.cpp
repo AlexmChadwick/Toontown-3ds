@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/hud.h"
 
 #include <cstdio>
@@ -78,7 +79,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (v.toast) {
         if (v.toast != lastToast_) {
             C2D_TextBufClear(toastBuf_);
-            C2D_TextParse(&toastText_, toastBuf_, v.toast);
+            tt::render::textParse(&toastText_, toastBuf_, v.toast);
             C2D_TextOptimize(&toastText_);
             lastToast_ = v.toast;
         }
@@ -103,10 +104,10 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C2D_TextBufClear(buf_); // hp, max and money live in buf_ (the race line in raceBuf_)
         char s[32];
         snprintf(s, sizeof(s), "%d", v.hp > 0 ? v.hp : 0); // LaffMeter never shows a negative laff
-        C2D_TextParse(&hpText_, buf_, s);
+        tt::render::textParse(&hpText_, buf_, s);
         C2D_TextOptimize(&hpText_);
         snprintf(s, sizeof(s), "%d", v.maxHp);
-        C2D_TextParse(&maxText_, buf_, s);
+        tt::render::textParse(&maxText_, buf_, s);
         C2D_TextOptimize(&maxText_);
         lastHp_ = v.hp;
         lastMaxHp_ = v.maxHp;
@@ -117,7 +118,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C2D_TextBufClear(raceBuf_);
         char race[96];
         snprintf(race, sizeof(race), "SPEED %d   LAP %d/%d   PLACE %d", v.raceSpeed, v.raceLap, v.raceLaps, v.racePlace);
-        C2D_TextParse(&raceText_, raceBuf_, race);
+        tt::render::textParse(&raceText_, raceBuf_, race);
         C2D_TextOptimize(&raceText_);
         C2D_DrawText(&raceText_, C2D_WithColor, 42, 16, 0.5f, 0.65f, 0.65f, C2D_Color32(0xFF, 0xF0, 0x70, 0xFF));
     }

@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_quests.h"
 #include "net/quest_net.h"
 #include "quest/quest_text.h"
@@ -42,13 +43,13 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
     char line[256];
     snprintf(line, sizeof(line), "ToonTasks  %d / %d", count, carryLimit);
     C2D_Text hdrText;
-    C2D_TextParse(&hdrText, textBuf_, line);
+    tt::render::textParse(&hdrText, textBuf_, line);
     C2D_TextOptimize(&hdrText);
     C2D_DrawText(&hdrText, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.45f, 0.45f, kInk);
 
     if (count == 0) {
         C2D_Text emptyText;
-        C2D_TextParse(&emptyText, textBuf_, "You have no ToonTasks!\n\nVisit a Toon HQ Officer on any street\nor playground to take on a task.");
+        tt::render::textParse(&emptyText, textBuf_, "You have no ToonTasks!\n\nVisit a Toon HQ Officer on any street\nor playground to take on a task.");
         C2D_TextOptimize(&emptyText);
         C2D_DrawText(&emptyText, C2D_WithColor, x + 16.0f, y + 40.0f, 0.5f, 0.38f, 0.38f,
                      C2D_Color32(0x60, 0x58, 0x50, 0xFF));
@@ -77,7 +78,7 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
         if (!def) {
             snprintf(line, sizeof(line), "ToonTask %u", unsigned(qe.questId));
             C2D_Text t;
-            C2D_TextParse(&t, textBuf_, line);
+            tt::render::textParse(&t, textBuf_, line);
             C2D_TextOptimize(&t);
             C2D_DrawText(&t, C2D_WithColor, x + 12.0f, cy + 4.0f, 0.5f, 0.38f, 0.38f, kInk);
             continue;
@@ -86,7 +87,7 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
         // Headline
         quest::headline(*def, complete, scratch, sizeof(scratch));
         C2D_Text headTxt;
-        C2D_TextParse(&headTxt, textBuf_, scratch);
+        tt::render::textParse(&headTxt, textBuf_, scratch);
         C2D_TextOptimize(&headTxt);
         C2D_DrawText(&headTxt, C2D_WithColor, x + 12.0f, cy + 3.0f, 0.5f, 0.36f, 0.36f,
                      complete ? kCompleteText : kInk);
@@ -98,14 +99,14 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
             quest::objective(*def, scratch, sizeof(scratch));
         }
         C2D_Text objTxt;
-        C2D_TextParse(&objTxt, textBuf_, scratch);
+        tt::render::textParse(&objTxt, textBuf_, scratch);
         C2D_TextOptimize(&objTxt);
         C2D_DrawText(&objTxt, C2D_WithColor, x + 12.0f, cy + 14.0f, 0.5f, 0.32f, 0.32f, kInk);
 
         // Progress counter (if not complete)
         if (!complete && quest::progressString(*def, qe.progress, scratch, sizeof(scratch))) {
             C2D_Text progTxt;
-            C2D_TextParse(&progTxt, textBuf_, scratch);
+            tt::render::textParse(&progTxt, textBuf_, scratch);
             C2D_TextOptimize(&progTxt);
             C2D_DrawText(&progTxt, C2D_WithColor, x + cardW - 80.0f, cy + 3.0f, 0.5f, 0.32f, 0.32f,
                          C2D_Color32(0x50, 0x40, 0x20, 0xFF));
@@ -117,7 +118,7 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
             if (quest::rewardText(static_cast<uint16_t>(qe.reward), true, scratch, sizeof(scratch)) && scratch[0]) {
                 snprintf(line, sizeof(line), "Reward: %s", scratch);
                 C2D_Text rwdTxt;
-                C2D_TextParse(&rwdTxt, textBuf_, line);
+                tt::render::textParse(&rwdTxt, textBuf_, line);
                 C2D_TextOptimize(&rwdTxt);
                 C2D_DrawText(&rwdTxt, C2D_WithColor, x + 12.0f, cy + cardH - 12.0f, 0.5f, 0.30f, 0.30f, kRewardText);
             }

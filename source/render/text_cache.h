@@ -1,4 +1,5 @@
 #pragma once
+#include "render/ui_font.h"
 #include "core/text_keys.h"
 #include <citro2d.h>
 namespace tt::render {
@@ -19,7 +20,7 @@ public:
             C2D_TextBufClear(buffer);
             keys_.clear();
         }
-        C2D_TextParse(output, buffer, text);
+        tt::render::textParse(output, buffer, text);
         C2D_TextOptimize(output);
         entry = keys_.add(text);
         if (entry >= 0)

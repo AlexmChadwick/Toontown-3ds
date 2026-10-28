@@ -1,3 +1,4 @@
+#include "render/ui_font.h"
 #include "ui/book_pages/page_disguise.h"
 #include "ui/pad_tables.h"
 #include "ui/disguise_tables.h"
@@ -102,7 +103,7 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
                          active ? C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF) : C2D_Color32(0xE8, 0xE0, 0xD8, 0xFF));
 
         C2D_Text dTxt;
-        C2D_TextParse(&dTxt, textBuf_, kDeptNames[d]);
+        tt::render::textParse(&dTxt, textBuf_, kDeptNames[d]);
         C2D_TextOptimize(&dTxt);
         C2D_DrawText(&dTxt, C2D_WithColor, tx + 6.0f, tabY + 2.0f, 0.6f, 0.32f, 0.32f,
                      active ? kDeptColors[d] : C2D_Color32(0x60, 0x58, 0x50, 0xFF));
@@ -134,13 +135,13 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
 
     snprintf(buf, sizeof(buf), "%s", kSuitNames[activeDept_][type]);
     C2D_Text nameTxt;
-    C2D_TextParse(&nameTxt, textBuf_, buf);
+    tt::render::textParse(&nameTxt, textBuf_, buf);
     C2D_TextOptimize(&nameTxt);
     C2D_DrawText(&nameTxt, C2D_WithColor, leftBoxX + 50.0f, leftBoxY + 4.0f, 0.6f, 0.45f, 0.45f, kInk);
 
     snprintf(buf, sizeof(buf), "Level %d", int(level) + 1);
     C2D_Text lvlTxt;
-    C2D_TextParse(&lvlTxt, textBuf_, buf);
+    tt::render::textParse(&lvlTxt, textBuf_, buf);
     C2D_TextOptimize(&lvlTxt);
     C2D_DrawText(&lvlTxt, C2D_WithColor, leftBoxX + 50.0f, leftBoxY + 22.0f, 0.6f, 0.38f, 0.38f,
                  C2D_Color32(0x50, 0x48, 0x40, 0xFF));
@@ -150,7 +151,7 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
     snprintf(buf, sizeof(buf), "Suit Parts:  %d / %d %s", totalParts, neededParts,
              suitComplete ? "(COMPLETE)" : "");
     C2D_Text partsTxt;
-    C2D_TextParse(&partsTxt, textBuf_, buf);
+    tt::render::textParse(&partsTxt, textBuf_, buf);
     C2D_TextOptimize(&partsTxt);
     C2D_DrawText(&partsTxt, C2D_WithColor, leftBoxX, partsY, 0.6f, 0.36f, 0.36f,
                  suitComplete ? C2D_Color32(0x20, 0x80, 0x20, 0xFF) : kInk);
@@ -177,7 +178,7 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
 
     snprintf(buf, sizeof(buf), "%s Progress:", kMeritNames[activeDept_]);
     C2D_Text mTxt;
-    C2D_TextParse(&mTxt, textBuf_, buf);
+    tt::render::textParse(&mTxt, textBuf_, buf);
     C2D_TextOptimize(&mTxt);
     C2D_DrawText(&mTxt, C2D_WithColor, leftBoxX, meritsY, 0.6f, 0.36f, 0.36f, kInk);
 
@@ -200,14 +201,14 @@ void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContex
 
     snprintf(buf, sizeof(buf), "%u / %u", unsigned(merits), unsigned(neededMerits));
     C2D_Text numTxt;
-    C2D_TextParse(&numTxt, textBuf_, buf);
+    tt::render::textParse(&numTxt, textBuf_, buf);
     C2D_TextOptimize(&numTxt);
     C2D_DrawText(&numTxt, C2D_WithColor, barX + 8.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
                  readyForPromotion ? C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF) : kInk);
 
     if (readyForPromotion) {
         C2D_Text promoTxt;
-        C2D_TextParse(&promoTxt, textBuf_, "READY FOR PROMOTION!");
+        tt::render::textParse(&promoTxt, textBuf_, "READY FOR PROMOTION!");
         C2D_TextOptimize(&promoTxt);
         C2D_DrawText(&promoTxt, C2D_WithColor, barX + barW - 130.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
