@@ -320,6 +320,19 @@ void copyBytes(char* dst, uint32_t cap, Bytes b) {
     dst[n] = 0;
 }
 
+// Keep untrusted typed chat on one parseable log line.  The UI retains the original
+// UTF-8 bytes; only control bytes that could forge or split diagnostics are replaced.
+void chatForLog(const char* src, char* dst, uint32_t cap) {
+    if (!cap) return;
+    uint32_t i = 0;
+    while (i + 1 < cap && src[i]) {
+        const uint8_t c = static_cast<uint8_t>(src[i]);
+        dst[i] = c < 0x20 || c == 0x7f ? ' ' : src[i];
+        ++i;
+    }
+    dst[i] = 0;
+}
+
 // Finds "key" in a JSON blob and parses the integer after the colon.
 bool jsonInt(Bytes json, const char* key, long* out) {
     uint32_t klen = uint32_t(strlen(key));
@@ -2731,8 +2744,10 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        char logText[kChatLen];
+        chatForLog(t.chat, logText, sizeof(logText));
         TT_LOG("net: chat rx %lu toon %lu talk %s", (unsigned long)now_,
-               (unsigned long)t.doId, t.chat);
+               (unsigned long)t.doId, logText);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
