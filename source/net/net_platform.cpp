@@ -172,15 +172,7 @@ int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char**
     }
     if (rc != 0) {
         pollfd p{fd, POLLOUT, 0};
-#ifdef __3DS__
-        // Zero-timeout polls only (see tcpWait).
-        int ready = 0;
-        for (uint32_t waited = 0; (ready = poll(&p, 1, 0)) == 0 && waited < timeoutMs; waited += 10)
-            sleepMs(10);
-#else
-        const int ready = poll(&p, 1, int(timeoutMs));
-#endif
-        if (ready <= 0) { close(fd); *err = "connect timed out"; return -1; }
+        if (poll(&p, 1, int(timeoutMs)) <= 0) { close(fd); *err = "connect timed out"; return -1; }
         int soErr = 0;
         socklen_t len = sizeof(soErr);
         if ((p.revents & (POLLERR | POLLHUP)) ||
@@ -196,17 +188,7 @@ int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char**
 
 int tcpWait(int fd, bool wantWrite, int timeoutMs) {
     pollfd p{fd, short(POLLIN | (wantWrite ? POLLOUT : 0)), 0};
-#ifdef __3DS__
-    // Never hand soc:U a poll timeout: Azahar runs a timed poll on a fresh host thread
-    // (HLE RunAsync) and wakes the guest from there, and on the Linux rig its emulated clock
-    // froze for minutes until Astron closed the socket. A zero-timeout poll is serviced
-    // inline; the wait is a guest sleep instead (one SOC call per call either way).
-    const int n = poll(&p, 1, 0);
-    if (n == 0 && timeoutMs > 0) sleepMs(uint32_t(timeoutMs));
-    if (n <= 0) return 0;
-#else
     if (poll(&p, 1, timeoutMs) <= 0) return 0;
-#endif
     return ((p.revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL)) ? kTcpReadable : 0) |
            ((p.revents & POLLOUT) ? kTcpWritable : 0);
 }
