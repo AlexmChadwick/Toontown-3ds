@@ -1202,3 +1202,14 @@ Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8
   in office 61049 (one: boarding ≈ 20:07, Astron 345 at 20:20:07, ~5 s of emulated time between).
   Boss assets loaded (388 KB linear, 28.6 KB collision heap; 0.34 s load hitch at office entry).
   No boss round was reached; VP/CFO/CJ/CEO stay unverified in an emulator.
+
+## 2026-10-28 — perf round 3: in-battle linear peak (Azahar 2126.2, Old 3DS, Linux/Xvfb, private server)
+- Build: `toontown3ds.3dsx` of `627cb3e`; private server on :27410 (`TT_SERVER_PORT_BASE`,
+  `TT_SERVER_RUN=/tmp/perf_srv`); isolated run, `shots off`, autotest `from "move: tunnel"` to `battle: lure`.
+- Needed `bake_suit_paths.py` first: without the `.tsp` graphs every Cog sat at 0,0,0 and `fight cog` never found one.
+- Street battle (4 Cogs, 1 toon, FaceOff → WaitForInput → PlayMovie, Trap track + BounceCheck attack):
+  linear free 16,800 KB before `battle: joined` → 14,672 KB at the lowest sample = **2.1 MB** resident for the battle
+  (suit LOD parts, lose/attack clips, heads, props), against the 3.94 MB static estimate. Heap +33 KB (3,595 → 3,628 K).
+  VRAM free 4,194 KB unchanged. 29.9 fps, 37-38 draws, 1.8k tris, cmdbuf 8-9%.
+- Limits: emulated time ran ~1/10 of wall time (loaded VM), so only the Trap round was reached; Lure/Sound/Drop/Heal
+  rounds and the reward/sad paths are not measured. Emulator numbers, not hardware.

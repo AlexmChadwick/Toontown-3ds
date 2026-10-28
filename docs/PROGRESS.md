@@ -317,3 +317,22 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Next
 - Make `tools/server/start.sh` take a port base so perf runs can use a private server, then measure the
   battle linear peak against the 3.94 MB estimate.
+
+## 2026-10-28 — perf round 3: battle linear peak measured in the emulator
+
+### Done
+- Ran a street battle in Azahar (Old 3DS) against a private server on its own port (`start.sh` port base from round 2).
+- Found that a fresh SD set needs `bake_suit_paths.py` (`.tsp`) before any Cog walks; baked it (2 s, 17 streets).
+
+### Verified (emulator; not hardware)
+- Battle resident linear memory **2.1 MB** (16.8 → 14.7 MB free) through FaceOff, WaitForInput and the Trap movie plus a
+  Cog attack; the 4 MiB estimate (3.94 MB, 256 KB headroom) is therefore conservative, at least for this round.
+  30 fps held, heap +33 KB, VRAM unchanged. Details in `docs/test-log.md`.
+
+### Known issues
+- Only the first movie round was reached (emulated clock ran at ~1/10 real time on this loaded VM); the other
+  gag tracks, the reward panel and the sad path are not measured, so the peak may still rise.
+- The scripted fight actually landed in a Cog-interior place (zone 2670) rather than on the street.
+
+### Next
+- Re-run to `fight: rounds` on a quieter machine for the full-battle peak; then a real-hardware run.
