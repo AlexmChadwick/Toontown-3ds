@@ -7,9 +7,31 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "net/net_platform.h"
 #include "net/msg_types.h"
 #include "game/name_tables.h"
 #include "world/toon_dna.h"
+
+namespace {
+
+// Per-message `net: rx` / `net: tx` lines (timestamped by the log) for latency measurement: the
+// cross-play test pairs a sender's `tx` with the receiver's `rx`. Pose traffic is 5 Hz per toon,
+// so it is logged only when sdmc:/3ds/toontown3ds/nettrace exists; chat is always logged.
+bool netTraceOn() {
+    static int on = -1;
+#ifdef __3DS__
+    if (on < 0) {
+        FILE* f = fopen("sdmc:/3ds/toontown3ds/nettrace", "r");
+        on = f != nullptr;
+        if (f) fclose(f);
+    }
+#else
+    on = 0;
+#endif
+    return on == 1;
+}
+
+} // namespace
 
 namespace tt::net {
 
@@ -720,6 +742,7 @@ void Client::handleMessage(DatagramReader& r) {
         uint32_t doId = r.u32();
         uint16_t fieldId = r.u16();
         const uint32_t start = r.pos();
+        if (netTraceOn()) TT_LOG("net: rx field %u of %u", unsigned(fieldId), unsigned(doId));
         if (r.ok()) handleSetField(r, doId, fieldId);
         checkParsed(r, start, true, fieldId);
         break;
@@ -2705,6 +2728,7 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         t.chat[0] = '\0';
         t.scIndex = index;
         t.chatMs = now_;
+        TT_LOG("net: chat rx %u sc %u", unsigned(t.doId), unsigned(index));
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2729,6 +2753,7 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        TT_LOG("net: chat rx %u \"%s\"", unsigned(t.doId), t.chat);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2835,6 +2860,7 @@ uint32_t Client::networkToLocal(int16_t ts, uint32_t nowMs) const {
     return uint32_t(int64_t(nowMs) + int64_t(diff) * 10);
 }
 
+
 // ============================================================== outgoing
 DatagramWriter Client::beginMessage(uint16_t type) {
     DatagramWriter w(tx_, sizeof(tx_));
@@ -2849,6 +2875,9 @@ void Client::beginUpdate(DatagramWriter& w, uint32_t doId, uint16_t fieldId) {
 
 bool Client::finish(DatagramWriter& w) {
     if (!w.ok() || !transport_->sendMessage(w.data(), w.size())) return false;
+    if (netTraceOn() && w.size() >= 8 && w.data()[0] == uint8_t(msg::CLIENT_OBJECT_SET_FIELD)) {
+        TT_LOG("net: tx field %u (%u B)", unsigned(w.data()[6] | (w.data()[7] << 8)), unsigned(w.size()));
+    }
     bytesOut_ += w.size();
     ++msgsOut_;
     return true;
@@ -3177,6 +3206,7 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
+    TT_LOG("net: chat tx sc %u", unsigned(msgIndex));
     return finish(w);
 }
 

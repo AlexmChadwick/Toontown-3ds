@@ -74,6 +74,8 @@ public:
     static constexpr uint32_t kSendRingSize = 16 * 1024;
     static constexpr uint32_t kHeartbeatMs = 10000;
     static constexpr uint32_t kConnectTimeoutMs = 5000;
+    // Idle wait between socket polls; bounds the added receive latency (was 10 ms).
+    static constexpr int kIdlePollMs = 4;
     static constexpr int kThreadPrio = 0x31;
     static constexpr int kThreadCore = 0;
     static constexpr uint32_t kThreadStack = 16 * 1024;

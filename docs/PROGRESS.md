@@ -353,3 +353,27 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Re-run the battle to `fight: rounds` on a quieter machine; first hardware run.
+
+## 2026-10-28 — perf round 5: net latency instrumentation
+
+### Done
+- Chat is always logged with the log's ms timestamp: `net: chat rx <doId> sc <index>` / `net: chat rx <doId> "<text>"` /
+  `net: chat tx sc <index>`, so cross-play tests can assert and time it.
+- `net: tx field <id> (<n> B)` and `net: rx field <id> of <doId>` for every `CLIENT_OBJECT_SET_FIELD` (pose, anim state,
+  chat), enabled by touching `sdmc:/3ds/toontown3ds/nettrace` (off by default: 5 Hz per toon would flood the SD log).
+- The net thread's idle poll wait went from 10 ms to 4 ms (`Connection::kIdlePollMs`): it bounds the extra receive and
+  send latency on top of the once-per-frame drain (up to 33 ms at 30 fps).
+
+### Verified
+- `make` is clean (no source warnings); static footprint 3.00 MiB, unchanged in practice (+576 B).
+- Not run in Azahar, so the web->3DS median is not re-measured; the 4 ms poll cost on hardware (more soc:U calls while idle,
+  ~250/s) is unmeasured. No host C++ compiler on this box, so `tools/nettest` could not run.
+
+### Known issues
+- The main thread still drains the receive ring once per frame, and remote toons ease toward each sample with a 0.1 s
+  time constant (`remote_toons.cpp` `kSmoothTau`), so on-screen latency is above the logged rx time.
+- Full-battle linear peak and a hardware run are still pending (rounds 3-4).
+
+### Next
+- Measure web->3DS rx latency in Azahar with `nettrace`; if the median is over 45 ms, drain the ring a second time
+  late in the frame, and consider a shorter smoothing constant for walking remote toons.
