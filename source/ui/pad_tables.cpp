@@ -103,8 +103,7 @@ void buildSetupTab(FocusGroup& group) {
     using namespace setup;
     group.rebuild();
     group.addItem(kIdStereo, kBtnX, kStereoY, kBtnW, kBtnH);
-    group.addItem(kIdStressMinus, kBtnX, kStressY, kStressW, kBtnH);
-    group.addItem(kIdStressPlus, kBtnX + kStressPlusDx, kStressY, kStressW, kBtnH);
+    group.addItem(kIdBook, kBtnX, kBookY, kBtnW, kBtnH);
 }
 
 void buildBookOptions(FocusGroup& group) {

@@ -53,8 +53,8 @@ const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
 constexpr float kSwX = 8, kSwY = 44, kSwSize = 30, kSwGap = 4;
 constexpr int kSwCols = 9;
 // Settings buttons
-constexpr float kBtnX = 12, kBtnW = 140, kBtnH = 36;
-constexpr float kStereoY = 30, kStressY = 90;
+constexpr float kBtnX = 12, kBtnW = 296, kBtnH = 36;
+constexpr float kStereoY = 30, kBookY = 82;
 
 // ---- padnav: the focus tables (ui/pad_tables.h) must match this layout ----
 static_assert(pad::hoods::kCount == kNumTeleportHoods && pad::hoods::kRowY == kHoodRowY &&
@@ -64,7 +64,7 @@ static_assert(pad::toon::kNumColors == kNumToonColors && pad::toon::kSwCols == k
                   pad::toon::kSwY == kSwY && pad::toon::kSwSize == kSwSize && pad::toon::kSwGap == kSwGap,
               "Toon tab focus table");
 static_assert(pad::setup::kBtnX == kBtnX && pad::setup::kBtnW == kBtnW && pad::setup::kBtnH == kBtnH &&
-                  pad::setup::kStereoY == kStereoY && pad::setup::kStressY == kStressY,
+                  pad::setup::kStereoY == kStereoY && pad::setup::kBookY == kBookY,
               "Setup tab focus table");
 // ---- end padnav ----
 
@@ -304,8 +304,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         break;
     case kTabSettings:
         if (inRect(t, kBtnX, kStereoY, kBtnW, kBtnH)) s.stereo = !s.stereo;
-        if (inRect(t, kBtnX, kStressY, 60, kBtnH) && s.stressToons > 0) s.stressToons -= s.stressToons > 8 ? 8 : 1;
-        if (inRect(t, kBtnX + 80, kStressY, 60, kBtnH) && s.stressToons < 64) s.stressToons += s.stressToons >= 8 ? 8 : 1;
+        if (inRect(t, kBtnX, kBookY, kBtnW, kBtnH)) book_.open();
         break;
     default:
         break;
@@ -470,10 +469,8 @@ void Ui::activateTabControl(int id, State& s) {
     } else if (s.tab == kTabSettings) {
         if (id == pad::setup::kIdStereo) {
             s.stereo = !s.stereo;
-        } else if (id == pad::setup::kIdStressMinus && s.stressToons > 0) {
-            s.stressToons -= s.stressToons > 8 ? 8 : 1;
-        } else if (id == pad::setup::kIdStressPlus && s.stressToons < 64) {
-            s.stressToons += s.stressToons >= 8 ? 8 : 1;
+        } else if (id == pad::setup::kIdBook) {
+            book_.open();
         }
     }
 }
@@ -670,15 +667,13 @@ void Ui::drawSettings(const State& s) {
     text(12, 8, 0.5f, kWhite, "Settings");
     C2D_DrawRectSolid(kBtnX, kStereoY, 0.5f, kBtnW, kBtnH, s.stereo ? kAccent : kPanel);
     text(kBtnX + 8, kStereoY + 10, 0.5f, s.stereo ? kBg : kWhite, "Stereo 3D: %s", s.stereo ? "On" : "Off");
-    text(kBtnX + kBtnW + 12, kStereoY + 10, 0.45f, kDim, "uses the 3D slider");
+    text(186, kStereoY + 11, 0.4f, s.stereo ? kBg : kDim, "3D slider controls depth");
 
-    C2D_DrawRectSolid(kBtnX, kStressY, 0.5f, 60, kBtnH, kPanel);
-    C2D_DrawRectSolid(kBtnX + 80, kStressY, 0.5f, 60, kBtnH, kPanel);
-    text(kBtnX + 24, kStressY + 8, 0.7f, kWhite, "-");
-    text(kBtnX + 102, kStressY + 8, 0.7f, kWhite, "+");
-    text(kBtnX + kBtnW + 12, kStressY + 10, 0.5f, kWhite, "Stress toons: %d", s.stressToons);
-    text(12, 140, 0.45f, kDim, "Stress toons are extra copies of the toon,");
-    text(12, 156, 0.45f, kDim, "used to measure the Old 3DS draw budget.");
+    C2D_DrawRectSolid(kBtnX, kBookY, 0.5f, kBtnW, kBtnH, kAccent);
+    text(kBtnX + 46, kBookY + 9, 0.52f, kBg, "Open Shticker Book");
+    text(12, 134, 0.45f, kDim, "Music, sound, graphics and game options");
+    text(12, 151, 0.45f, kDim, "are tucked inside your Shticker Book.");
+    text(12, 184, 0.4f, kDim, "SELECT opens the hidden performance view.");
 }
 
 void Ui::drawInfo(const Context &c) {

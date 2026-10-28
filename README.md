@@ -201,7 +201,9 @@ see [docs/test-log.md](docs/test-log.md). Record results there.
 | D-Pad left/right or touch | switch bottom-screen tab |
 | X | Chat tab |
 | Y | Map tab |
-| START | quit |
+| START | open the Shticker Book |
+| SELECT | toggle the hidden performance/debug view |
+| START + SELECT | quit |
 
 ## Layout
 

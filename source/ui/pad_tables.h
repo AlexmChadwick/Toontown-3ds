@@ -100,11 +100,9 @@ void buildToonTab(FocusGroup& group, bool online);
 
 // ---- Setup tab (render/ui.cpp) ----
 namespace setup {
-constexpr float kBtnX = 12, kBtnW = 140, kBtnH = 36, kStereoY = 30, kStressY = 90;
-constexpr float kStressW = 60, kStressPlusDx = 80;
+constexpr float kBtnX = 12, kBtnW = 296, kBtnH = 36, kStereoY = 30, kBookY = 82;
 constexpr int kIdStereo = 0;
-constexpr int kIdStressMinus = 1;
-constexpr int kIdStressPlus = 2;
+constexpr int kIdBook = 1;
 } // namespace setup
 void buildSetupTab(FocusGroup& group);
 

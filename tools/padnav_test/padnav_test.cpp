@@ -295,11 +295,10 @@ void testToonAndSetupTabs() {
     setup.move(0, 1);
     CHECK(setup.focusedId() == s::kIdStereo);
     setup.move(0, 1);
-    CHECK(setup.focusedId() == s::kIdStressMinus);
-    setup.move(1, 0);
-    CHECK(setup.focusedId() == s::kIdStressPlus);
+    CHECK(setup.focusedId() == s::kIdBook);
     setup.move(0, -1);
     CHECK(setup.focusedId() == s::kIdStereo);
+    CHECK(tap(setup, int(s::kBtnX + 1), int(s::kBookY + 1)) == s::kIdBook);
 }
 
 void testBookTables() {
