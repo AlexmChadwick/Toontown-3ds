@@ -153,7 +153,10 @@ void dialogue() {
     for (int frames = 0; flow.active() && !flow.waitingEvent(); ++frames) {
         assert(frames < 30000);
         flow.update(1.0f / 30.0f);
-        if (flow.text()[0]) flow.advance();
+        // LOCAL_CHAT_PERSIST deliberately leaves its instruction visible while WAIT_EVENT
+        // owns A.  Re-check the block after update so the harness does not mistake that
+        // persistent text for a confirm page and acknowledge the event in the same frame.
+        if (!flow.waitingEvent() && flow.text()[0]) flow.advance();
     }
     const char* event = flow.waitingEvent();
     assert(event && !strcmp(event, "enterStickerBook"));

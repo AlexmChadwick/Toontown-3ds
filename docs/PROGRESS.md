@@ -1,5 +1,40 @@
 # Progress
 
+## 2026-10-27 — Toontorial compiled host verification
+
+Done:
+
+- Provisioned the missing GNU C++ frontend and standard-library headers in a temporary local
+  directory without changing the host system, making the previously unavailable compiled
+  Toontorial checks runnable.
+- Fixed the host flow harness so it distinguishes a `LOCAL_CHAT_PERSIST` instruction from a
+  confirm page after the same update reaches `WAIT_EVENT`. The old loop acknowledged that event
+  immediately and falsely reported that the script had skipped `enterStickerBook`.
+
+Verified:
+
+- `tools/tutorial_test/run.sh` passes under GCC 14 with AddressSanitizer and
+  UndefinedBehaviorSanitizer: generated QuestScripts, five outgoing sender contracts, all five
+  scripts, both Toon genders, timing, event gates, dialogue paging, and dynamic-zone mapping.
+- `git diff --check` passes.
+- A native 3DS build remains unavailable because `DEVKITARM` is unset. No emulator,
+  live-server, or hardware result is claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial still needs its first Old 3DS Azahar play-through against the
+  stock server, including visual review at 400x240/320x240 and protocol confirmation through the
+  trolley purchase and final TTC transition.
+- The compact presentation intentionally omits some desktop decorative props, animated arrows,
+  and camera choreography. Real Old 3DS frame time and memory high-water marks remain unmeasured.
+
+Next:
+
+- Build with devkitARM on a provisioned host, package the canonical tutorial assets, and run the
+  complete route in Old 3DS Azahar mode.
+- Record screenshots, ordered protocol logs, frame timing, and memory peaks in
+  `docs/test-log.md`; fix any visual or interaction defect before calling the Toontorial complete.
+
 ## 2026-10-27 — Toontorial quest-dialogue speaker fix
 
 Done:
