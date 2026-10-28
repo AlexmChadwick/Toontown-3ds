@@ -305,7 +305,7 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Verified
 - Static footprint of the ELF: text 1.96 MB + data 0.12 MB + bss 1.07 MB = 3.1 MB, under the 4 MB
   budget (0.9 MB headroom; biggest bss: `main::level` 360 KB, `main::net` 179 KB, `main::minigame` 116 KB).
-- Offline Azahar pass (Old 3DS, Linux/Xvfb, isolated run, `shots off`): 29.9 fps, heap 3.5 MB, linear free
+- Offline Azahar pass (Old 3DS, Linux/Xvfb, isolated run, `shots off`): 28.1 fps minimum (29.9 typical), heap up to 3.5 MB, linear free
   15.6 MB, VRAM free 4.2 MB; zero network lines; the temp run dir is removed on exit.
 - Host: `zone_resident.py` and `sd_budget.py` pass (see the earlier entry).
 
