@@ -3,7 +3,10 @@
 #   astrond  ->  UberDOG  ->  AI district
 # macOS: the x86_64 prebuilt astrond in ref/ (Rosetta); Linux: the astrond
 # built by setup_linux.sh into tools/server/.deps/astron/.
-# Client agent listens on 0.0.0.0:7198 (MD on 127.0.0.1:7199).
+# Client agent listens on 0.0.0.0:7198 (MD on 127.0.0.1:7199, event logger 7197).
+# Private instance for parallel agents / perf runs: TT_SERVER_PORT_BASE=N (client N, MD N+1,
+# event logger N+2) and TT_SERVER_RUN=dir (its own database, pids, logs; use the same
+# variables with stop.sh). Defaults are the stock ports and tools/server/run.
 #
 # Usage:  tools/server/start.sh          (run setup.sh / setup_linux.sh once first)
 #         tools/server/stop.sh
@@ -18,16 +21,23 @@ OTT="$ROOT/ref/open-toontown"
 RES="$ROOT/ref/resources"
 [ -f "$RES/phase_4/dna/storage.dna" ] || RES="$ROOT/ref/ref/resources"
 [ -d "$OTT/toontown" ] || OTT="$ROOT/ref/ref/open-toontown"
-RUN="$HERE/run"
-LOGS="$HERE/logs"
-PY="$HERE/.venv/bin/python"
+RUN="${TT_SERVER_RUN:-$HERE/run}"
+LOGS="${TT_SERVER_RUN:+$RUN/logs}"; LOGS="${LOGS:-$HERE/logs}"
+if [ -n "${TT_SERVER_PORT_BASE:-}" ]; then
+    CPORT=$TT_SERVER_PORT_BASE; MDPORT=$((CPORT + 1)); ELPORT=$((CPORT + 2))
+else
+    CPORT=7198; MDPORT=7199; ELPORT=7197
+fi
+# TT_SERVER_TOOLS=<other checkout>/tools/server reuses its built .venv/.deps (skips setup here).
+BUILT="${TT_SERVER_TOOLS:-$HERE}"
+PY="$BUILT/.venv/bin/python"
 OS="$(uname -s)"
 SETUP="$HERE/setup.sh"; [ "$OS" = Linux ] && SETUP="$HERE/setup_linux.sh"
 
 [ -x "$PY" ] || { echo "Run $SETUP first"; exit 1; }
 "$PY" -I -c "import panda3d.toontown" 2>/dev/null || { echo "Panda3D fork missing; run $SETUP"; exit 1; }
 if [ "$OS" = Linux ]; then
-    ASTROND="$HERE/.deps/astron/bin/astrond"
+    ASTROND="$BUILT/.deps/astron/bin/astrond"
     [ -x "$ASTROND" ] || { echo "astrond missing; run $SETUP"; exit 1; }
 fi
 [ -d "$RES/phase_3" ] || { echo "Missing $RES (ref/resources submodule)"; exit 1; }
@@ -49,7 +59,7 @@ listening() {  # listening <port>: is something listening on TCP <port>?
             /proc/net/tcp /proc/net/tcp6 2>/dev/null
     fi
 }
-for port in 7198 7199; do
+for port in $CPORT $MDPORT $ELPORT; do
     if listening $port; then
         echo "Port $port already in use"
         if [ "$OS" = Darwin ]; then lsof -nP -iTCP:$port -sTCP:LISTEN; elif command -v ss >/dev/null; then ss -tlnp "sport = :$port"; fi
@@ -70,6 +80,9 @@ ln -sfn "$RES" "$RUN/resources"
 sed -e "s#\.\./\.\./etc/#$OTT/etc/#g" \
     -e "s#directory: \.\./databases/astrondb#directory: $RUN/astrondb#" \
     -e "s#output: \.\./logs/#output: $LOGS/#" \
+    -e "s#127\.0\.0\.1:7197#127.0.0.1:$ELPORT#" \
+    -e "s#127\.0\.0\.1:7199#127.0.0.1:$MDPORT#" \
+    -e "s#0\.0\.0\.0:7198#0.0.0.0:$CPORT#" \
     "$OTT/astron/config/astrond.yml" > "$RUN/astrond.yml"
 # ASTRON_HEARTBEAT_TIMEOUT_MS: test rigs only. The client heartbeats every 10 s of *emulated*
 # time; an emulator running below 1/6 speed (Azahar with software GL in heavy scenes) misses
@@ -105,7 +118,7 @@ else
 fi
 APID=$!; echo "astrond $APID" >> "$RUN/pids"
 ln -sfn "astrond-$STAMP.log" "$LOGS/astrond.log"
-i=0; until listening 7199 && listening 7198; do
+i=0; until listening $MDPORT && listening $CPORT; do
     kill -0 $APID 2>/dev/null || { echo "astrond died:"; cat "$LOGS/astrond-$STAMP.log"; "$HERE/stop.sh"; exit 1; }
     i=$((i+1)); [ $i -gt 100 ] && { echo "astrond not listening"; "$HERE/stop.sh"; exit 1; }
     sleep 0.2
@@ -119,7 +132,7 @@ export PYTHONUNBUFFERED=1
 
 # 2. UberDOG (same args as ref/open-toontown/darwin/start-uberdog-server.sh)
 "$PY" -I "$HERE/run_module.py" toontown.uberdog.UDStart --base-channel 1000000 --max-channels 999999 \
-    --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
+    --stateserver 4002 --messagedirector-ip 127.0.0.1:$MDPORT --eventlogger-ip 127.0.0.1:$ELPORT \
     > "$LOGS/uberdog-$STAMP.log" 2>&1 < /dev/null &
 UPID=$!; echo "uberdog $UPID" >> "$RUN/pids"
 ln -sfn "uberdog-$STAMP.log" "$LOGS/uberdog.log"
@@ -140,11 +153,11 @@ AI_ENTRY=("$HERE/run_module.py" toontown.ai.AIStart)
 # AI_DEV=1: relax entry checks and top up toons for testing (tools/server/ai_dev.py).
 if [ -n "${AI_DEV:-}" ]; then AI_ENTRY=("$HERE/run_module.py" --dev-ai); echo "ai: dev test mode (ai_dev.py)"; fi
 "$PY" -I "${AI_ENTRY[@]}" --base-channel 401000000 --max-channels 999999 \
-    --stateserver 4002 --messagedirector-ip 127.0.0.1:7199 --eventlogger-ip 127.0.0.1:7197 \
+    --stateserver 4002 --messagedirector-ip 127.0.0.1:$MDPORT --eventlogger-ip 127.0.0.1:$ELPORT \
     --district-name "$DISTRICT" "${AI_PRC[@]}" \
     > "$LOGS/ai-$STAMP.log" 2>&1 < /dev/null &
 AIPID=$!; echo "ai $AIPID" >> "$RUN/pids"
 ln -sfn "ai-$STAMP.log" "$LOGS/ai.log"
 wait_for "$LOGS/ai-$STAMP.log" "ToontownAIRepository: Done\." 180 AI $AIPID
 echo "ai up (pid $AIPID), district \"$DISTRICT\""
-echo "Client agent: 0.0.0.0:7198   logs: $LOGS/{astrond,uberdog,ai}.log"
+echo "Client agent: 0.0.0.0:$CPORT   logs: $LOGS/{astrond,uberdog,ai}.log"
