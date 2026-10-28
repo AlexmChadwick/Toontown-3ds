@@ -1,8 +1,7 @@
-#include "render/ui_font.h"
 #include "ui/book_pages/page_cogs.h"
 #include "ui/pad_tables.h"
 #include "ui/suit_heads_atlas.h"
-#include <cstdio>
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -33,154 +32,101 @@ constexpr int kCogQuotas[2][8] = {
     { 45, 40, 35, 30, 25, 20, 15, 10 }
 };
 
-constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-constexpr u32 kCardBg = C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF);
-constexpr u32 kCompleteBg = C2D_Color32(0xFF, 0xF0, 0xC0, 0xFF);
+// SuitPage.PANEL_COLORS, PANEL_COLORS_COMPLETE1 / 2 (one per department).
+constexpr u32 kPanel[3][4] = {
+    {theme::rgb(204, 199, 196), theme::rgb(191, 199, 204), theme::rgb(191, 209, 201), theme::rgb(210, 194, 196)},
+    {theme::rgb(179, 185, 139), theme::rgb(159, 185, 166), theme::rgb(153, 191, 134), theme::rgb(172, 172, 140)},
+    {theme::rgb(230, 185, 82), theme::rgb(210, 185, 115), theme::rgb(204, 191, 83), theme::rgb(223, 172, 89)},
+};
+
+bool inRect(const touchPosition& t, float x, float y, float w, float h) {
+    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
+}
 
 } // namespace
 
 void PageCogs::init() {
-    textBuf_ = C2D_TextBufNew(4096);
+    text_.init(1536);
     pad::buildBookDepartments(focus_); // padnav
     SuitHeadAtlas::instance().init();
 }
 
-void PageCogs::shutdown() {
-    if (textBuf_) {
-        C2D_TextBufDelete(textBuf_);
-        textBuf_ = nullptr;
-    }
-}
+void PageCogs::shutdown() { text_.shutdown(); }
 
 u32 PageCogs::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
+    using namespace pad::book;
     // ---- padnav: D-Left / D-Right step through the department tabs (L / R turn pages) ----
     if (keysDown & (KEY_DLEFT | KEY_DRIGHT)) {
-        const int step = (keysDown & KEY_DLEFT) ? pad::book::kDepts - 1 : 1;
-        activeDept_ = (activeDept_ + step) % pad::book::kDepts;
+        const int step = (keysDown & KEY_DLEFT) ? kDepts - 1 : 1;
+        activeDept_ = (activeDept_ + step) % kDepts;
         focus_.setFocusById(activeDept_);
         focus_.logActivate(activeDept_);
         return keysDown & (KEY_DLEFT | KEY_DRIGHT);
     }
     // ---- end padnav ----
     if (keysDown & KEY_TOUCH) {
-        // Check 4 department tabs at top: y = 20 .. 38
-        if (touch.py >= 20 && touch.py <= 38) {
-            for (int d = 0; d < 4; d++) {
-                const float tx = 14.0f + d * 70.0f;
-                if (touch.px >= tx && touch.px <= tx + 66.0f) {
-                    activeDept_ = d;
-                    focus_.setFocusById(d); // padnav
-                    return KEY_TOUCH;
-                }
+        for (int d = 0; d < kDepts; d++) {
+            if (inRect(touch, kDeptX + d * kDeptStep, kDeptY, kDeptW, kDeptH)) {
+                activeDept_ = d;
+                focus_.setFocusById(d); // padnav
+                return KEY_TOUCH;
             }
         }
     }
     return 0;
 }
 
+// SuitPage, one department at a time: a panel per Cog in the department's colour, the head
+// and name once battled, "count of quota" once defeated, gold once the quota is complete.
 void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
-    (void)w; (void)h;
-    if (!textBuf_) return;
-
-    C2D_TextBufClear(textBuf_);
-
+    using namespace pad::book;
+    (void)y;
+    (void)h;
     SuitHeadAtlas& atlas = SuitHeadAtlas::instance();
-    atlas.init();
-
-    // 4 Department tabs
-    const float tabY = y + 2.0f;
-    const float tabH = 16.0f;
-    const float tabW = 66.0f;
-
-    for (int d = 0; d < 4; d++) {
-        const float tx = x + 6.0f + d * 70.0f;
-        const bool active = (d == activeDept_);
-
-        C2D_DrawRectSolid(tx, tabY, 0.5f, tabW, tabH, active ? kDeptColors[d] : C2D_Color32(0xD0, 0xC8, 0xC0, 0xFF));
-        C2D_DrawRectSolid(tx + 1.0f, tabY + 1.0f, 0.5f, tabW - 2.0f, tabH - 2.0f,
-                         active ? C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF) : C2D_Color32(0xE8, 0xE0, 0xD8, 0xFF));
-
-        C2D_Text dTxt;
-        tt::render::textParse(&dTxt, textBuf_, kDeptNames[d]);
-        C2D_TextOptimize(&dTxt);
-        C2D_DrawText(&dTxt, C2D_WithColor, tx + 6.0f, tabY + 2.0f, 0.6f, 0.32f, 0.32f,
-                     active ? kDeptColors[d] : C2D_Color32(0x60, 0x58, 0x50, 0xFF));
+    for (int d = 0; d < kDepts; d++) {
+        const bool on = d == activeDept_;
+        const float tx = kDeptX + d * kDeptStep;
+        theme::button(tx, on ? kDeptY : kDeptY + 2, kDeptW, kDeptH + (on ? 2 : 0), on ? kPanel[2][d] : kPanel[0][d],
+                      theme::shade(on ? kPanel[2][d] : kPanel[0][d], 0.6f), false, 5.0f);
+        text_.centered(tx + kDeptW * 0.5f, (on ? kDeptY : kDeptY + 2) + 1, theme::kTextSmall,
+                       on ? theme::kInk : theme::kInkSoft, kDeptW - 6, "%s", kDeptNames[d]);
     }
 
-    // Grid of 8 cogs (2 rows x 4 columns)
-    const float gridStartY = y + 24.0f;
-    const float cellW = 68.0f;
-    const float cellH = 64.0f;
-    const float cellGapX = 4.0f;
-    const float cellGapY = 4.0f;
-
-    char buf[128];
-
+    constexpr float kGap = 3.0f;
+    const float gridY = kDeptY + kDeptH + 6;
+    const float cellW = (w - 12 - 3 * kGap) / 4, cellH = 70.0f;
     for (int i = 0; i < 8; i++) {
-        const int row = i / 4;
-        const int col = i % 4;
-        const float cx = x + 6.0f + col * (cellW + cellGapX);
-        const float cy = gridStartY + row * (cellH + cellGapY);
-
+        const float cx = x + 6 + (i % 4) * (cellW + kGap), cy = gridY + (i / 4) * (cellH + kGap);
         const int idx = activeDept_ * 8 + i;
-        const uint32_t status = bdc.book ? bdc.book->cogStatus[idx] : net::kCogUnseen;
-        const uint32_t count = bdc.book ? bdc.book->cogCount[idx] : 0;
-        const bool complete = (status >= net::kCogComplete1);
-
-        // Card box
-        C2D_DrawRectSolid(cx, cy, 0.5f, cellW, cellH, complete ? C2D_Color32(0xC0, 0x90, 0x20, 0xFF) : C2D_Color32(0xB0, 0xA8, 0x98, 0xFF));
-        C2D_DrawRectSolid(cx + 1.0f, cy + 1.0f, 0.5f, cellW - 2.0f, cellH - 2.0f, complete ? kCompleteBg : kCardBg);
-
-        if (status == net::kCogUnseen) {
-            // Unseen / Mystery
-            C2D_Text qTxt;
-            tt::render::textParse(&qTxt, textBuf_, "?");
-            C2D_TextOptimize(&qTxt);
-            C2D_DrawText(&qTxt, C2D_WithColor, cx + 28.0f, cy + 10.0f, 0.6f, 0.70f, 0.70f,
-                         C2D_Color32(0xAA, 0xA0, 0x98, 0xFF));
-
-            C2D_Text mystTxt;
-            tt::render::textParse(&mystTxt, textBuf_, "???");
-            C2D_TextOptimize(&mystTxt);
-            C2D_DrawText(&mystTxt, C2D_WithColor, cx + 25.0f, cy + 46.0f, 0.6f, 0.30f, 0.30f,
-                         C2D_Color32(0x88, 0x80, 0x78, 0xFF));
-        } else {
-            // Draw head portrait
-            atlas.drawHead(activeDept_, i, cx + (cellW - 28.0f) * 0.5f, cy + 3.0f, 28.0f, 0.6f);
-
-            // Cog Name
-            C2D_Text nameTxt;
-            tt::render::textParse(&nameTxt, textBuf_, kCogNames[activeDept_][i]);
-            C2D_TextOptimize(&nameTxt);
-            C2D_DrawText(&nameTxt, C2D_WithColor, cx + 4.0f, cy + 33.0f, 0.6f, 0.28f, 0.28f, kInk);
-
-            // Quota
-            const int quotaTier = (status >= net::kCogComplete1) ? 1 : 0;
-            const int quota = kCogQuotas[quotaTier][i];
-            snprintf(buf, sizeof(buf), "%u / %d", unsigned(count), quota);
-            C2D_Text quotaTxt;
-            tt::render::textParse(&quotaTxt, textBuf_, buf);
-            C2D_TextOptimize(&quotaTxt);
-            C2D_DrawText(&quotaTxt, C2D_WithColor, cx + 4.0f, cy + 46.0f, 0.6f, 0.26f, 0.26f,
-                         complete ? C2D_Color32(0x80, 0x50, 0x10, 0xFF) : C2D_Color32(0x50, 0x48, 0x40, 0xFF));
+        const uint32_t status = bdc.book ? bdc.book->cogStatus[idx] : uint32_t(net::kCogUnseen);
+        const unsigned count = bdc.book ? bdc.book->cogCount[idx] : 0;
+        const int tier = status >= net::kCogComplete2 ? 2 : status >= net::kCogComplete1 ? 1 : 0;
+        const u32 face = kPanel[tier][activeDept_];
+        theme::roundRect(cx, cy, cellW, cellH, 6, theme::shade(face, 0.6f));
+        theme::roundRect(cx + 1, cy + 1, cellW - 2, cellH - 2, 5, face);
+        if (status <= net::kCogUnseen) {
+            text_.centered(cx + cellW * 0.5f, cy + 10, 0.9f, theme::shade(face, 0.72f), 0, "?");
+            text_.centered(cx + cellW * 0.5f, cy + cellH - 18, theme::kTextSmall, theme::kInkSoft, 0, "???");
+            continue;
         }
+        theme::roundRect(cx + (cellW - 38) * 0.5f, cy + 3, 38, 36, 6, theme::mix(face, theme::kWhite, 0.45f));
+        atlas.drawHead(activeDept_, i, cx + (cellW - 34) * 0.5f, cy + 4, 34.0f, 0.6f);
+        text_.centered(cx + cellW * 0.5f, cy + 41, theme::kTextTiny, theme::kInk, cellW - 6, "%s",
+                       kCogNames[activeDept_][i]);
+        if (status >= net::kCogDefeated)
+            text_.centered(cx + cellW * 0.5f, cy + 54, theme::kTextTiny, tier ? theme::kRedDark : theme::kInkSoft,
+                           cellW - 6, "%u of %d", count, kCogQuotas[tier ? 1 : 0][i]);
     }
 
-    // Bottom info: Radars for current department
-    const float footerY = gridStartY + 2 * (cellH + cellGapY) + 4.0f;
-    const bool cogRadar = bdc.book ? (bdc.book->cogRadar[activeDept_] != 0) : false;
-    const uint8_t bldgRadar = bdc.book ? bdc.book->buildingRadar[activeDept_] : 0;
-
-    snprintf(buf, sizeof(buf), "Cog Radar: %s   Building Radar: %s (%d)",
-             cogRadar ? "ACTIVE" : "INACTIVE",
-             bldgRadar > 0 ? "ACTIVE" : "INACTIVE",
-             int(bldgRadar));
-    C2D_Text radarTxt;
-    tt::render::textParse(&radarTxt, textBuf_, buf);
-    C2D_TextOptimize(&radarTxt);
-    C2D_DrawText(&radarTxt, C2D_WithColor, x + 10.0f, footerY, 0.5f, 0.32f, 0.32f,
-                 C2D_Color32(0x40, 0x38, 0x30, 0xFF));
+    // The radars (SuitPage.CogRadar / BuildingRadar), once earned from the Cog Suit quotas.
+    const float fy = gridY + 2 * (cellH + kGap) + 2;
+    const bool cogRadar = bdc.book && bdc.book->cogRadar[activeDept_];
+    const unsigned bldgRadar = bdc.book ? bdc.book->buildingRadar[activeDept_] : 0;
+    text_.draw(x + 10, fy, theme::kTextTiny, cogRadar ? theme::kGreenDark : theme::kInkSoft, "Cog Radar: %s",
+               cogRadar ? "on" : "not yet earned");
+    text_.right(x + w - 10, fy, theme::kTextTiny, bldgRadar ? theme::kGreenDark : theme::kInkSoft, 0,
+                "Building Radar: %s", bldgRadar ? "on" : "not yet earned");
     focus_.drawHighlight(); // padnav
 }
 

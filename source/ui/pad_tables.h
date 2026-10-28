@@ -120,9 +120,9 @@ constexpr int kIdStressPlus = 9;
 constexpr int kIdQuit = 10;
 // Cogs / Disguise department tabs as drawn (ids 0..3 = Bossbot, Lawbot, Cashbot, Sellbot).
 constexpr int kDepts = 4;
-constexpr float kDeptX = 8, kDeptY = 26, kDeptStep = 70, kDeptW = 66, kDeptH = 16;
+constexpr float kDeptX = 8, kDeptY = 27, kDeptStep = 77, kDeptW = 73, kDeptH = 19;
 // Fish page genus arrows as drawn.
-constexpr float kGenusY = 44, kGenusW = 16, kGenusH = 14, kGenusPrevX = 12, kGenusNextX = 284;
+constexpr float kGenusY = 46, kGenusW = 28, kGenusH = 22, kGenusPrevX = 8, kGenusNextX = 284;
 constexpr int kIdGenusPrev = 0;
 constexpr int kIdGenusNext = 1;
 // SOS page "[Page n/2]" label as drawn.

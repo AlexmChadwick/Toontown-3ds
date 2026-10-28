@@ -58,6 +58,13 @@ constexpr u32 kTrackColors[7] = {rgb(211, 148, 255), rgb(249, 255, 93), rgb(79, 
 // Track names as the Shtiker Book's Gags page prints them (gags::kTrackNames is lower case).
 inline constexpr const char* kTrackTitles[7] = {"Toon-Up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"};
 
+// Text scale ladder for the bottom screen (ImpressBT, ~30 px line at 1.0). Nothing a player
+// must read goes below kTextTiny (~11 px): smaller glyphs blur on the 3DS's 320x240 panel.
+constexpr float kTextTitle = 0.52f;
+constexpr float kTextBody = 0.44f;
+constexpr float kTextSmall = 0.40f;
+constexpr float kTextTiny = 0.36f;
+
 // Whole-screen sky gradient (one quad).
 void sky(float w = 320.0f, float h = 240.0f);
 // The band y0..y1 of a sky(w, h) gradient, to cover content scrolled under a header.

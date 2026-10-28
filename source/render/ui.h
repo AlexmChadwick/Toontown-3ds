@@ -1,6 +1,7 @@
 #include "ui/racing_view.h" // ---- racing2 ----
 #include "ui/panel_owner.h" // qafix
 #include "render/text_cache.h"
+#include "ui/page_text.h"
 // Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Book panels, and the Debug
 // panel (SELECT or the book's Options page; docs/design/ui_theme.md).
 #pragma once
@@ -192,6 +193,7 @@ private:
     unsigned mapW_ = 0, mapH_ = 0;
 
     render::TextCache textCache_;
+    PageText gagText_; // the Gags tab's table (cached per string)
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames

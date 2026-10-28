@@ -1,204 +1,91 @@
-#include "render/ui_font.h"
 #include "ui/book_pages/page_trophies.h"
-#include <cstdio>
+
+#include "ui/theme.h"
 
 namespace tt::ui {
 
 namespace {
 
-constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-constexpr u32 kSubInk = C2D_Color32(0x50, 0x48, 0x40, 0xFF);
-constexpr u32 kColBorder = C2D_Color32(0xB0, 0xA4, 0x90, 0xFF);
-constexpr u32 kColBg = C2D_Color32(0xFF, 0xFA, 0xEC, 0xFF);
-constexpr u32 kGoldTrophy = C2D_Color32(0xF5, 0xC0, 0x20, 0xFF);
-constexpr u32 kSilverCup = C2D_Color32(0xD0, 0xD8, 0xE0, 0xFF);
-constexpr u32 kEmptyBadge = C2D_Color32(0xD8, 0xD0, 0xC8, 0xFF);
+constexpr u32 kGold = theme::rgb(0xF2, 0xC0, 0x1E), kGoldDark = theme::rgb(0xA8, 0x78, 0x10);
+constexpr u32 kSilver = theme::rgb(0xD8, 0xE0, 0xE8), kSilverDark = theme::rgb(0x88, 0x92, 0x9C);
+
+// A loving cup `s` px wide: bowl, handles, stem and foot; grey until won.
+void cup(float x, float y, float s, bool won, u32 face = kGold, u32 dark = kGoldDark) {
+    const u32 c = won ? face : theme::kGrey, d = won ? dark : theme::kGreyDark;
+    const float hw = s * 0.18f;
+    theme::roundRect(x, y + s * 0.08f, hw + 1, s * 0.4f, hw * 0.5f, d);
+    theme::roundRect(x + s - hw - 1, y + s * 0.08f, hw + 1, s * 0.4f, hw * 0.5f, d);
+    theme::roundRect(x + hw * 0.6f, y, s - hw * 1.2f, s * 0.6f, s * 0.22f, c);
+    C2D_DrawRectSolid(x + s * 0.42f, y + s * 0.58f, 0.5f, s * 0.16f, s * 0.2f, d);
+    theme::roundRect(x + s * 0.24f, y + s * 0.76f, s * 0.52f, s * 0.2f, 1, d);
+}
+
+void column(float x, float y, float w, float h, u32 accent) {
+    theme::roundRect(x, y, w, h, 7, theme::shade(accent, 0.7f));
+    theme::roundRect(x + 2, y + 2, w - 4, h - 4, 6, theme::kPaper);
+    theme::roundRect(x + 2, y + 2, w - 4, 20, 6, theme::mix(accent, theme::kWhite, 0.65f));
+}
 
 } // namespace
 
-void PageTrophies::init() {
-    textBuf_ = C2D_TextBufNew(4096);
-}
+void PageTrophies::init() { text_.init(1024); }
 
-void PageTrophies::shutdown() {
-    if (textBuf_) {
-        C2D_TextBufDelete(textBuf_);
-        textBuf_ = nullptr;
-    }
-}
+void PageTrophies::shutdown() { text_.shutdown(); }
 
+// TrophyPage (Go-Karting: KartingTrophies, tickets, RaceGlobals history) and the golf
+// trophies and cups (GolfGlobals.calcTrophyListFromHistory / calcCupListFromHistory).
 void PageTrophies::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
-    (void)h;
-    if (!textBuf_) return;
+    const net::OwnBookStats* b = bdc.book;
+    const float colW = (w - 15) * 0.5f, colH = h - 6, top = y + 3;
+    const float kx = x + 5, gx = kx + colW + 5;
+    const u32 kartRed = theme::rgb(0xD0, 0x40, 0x30), golfGreen = theme::rgb(0x3C, 0x9C, 0x3C);
 
-    C2D_TextBufClear(textBuf_);
-
-    char buf[128];
-
-    // Count kart trophies
+    // ---- Go-Karting ----
+    column(kx, top, colW, colH, kartRed);
     int kartWon = 0;
-    if (bdc.book) {
-        for (int i = 0; i < net::kKartingTrophies; i++) {
-            if (bdc.book->kartingTrophies[i] != 0) kartWon++;
-        }
-    }
-    const uint32_t tickets = bdc.book ? bdc.book->tickets : 0;
+    for (int i = 0; b && i < net::kKartingTrophies; i++) kartWon += b->kartingTrophies[i] != 0;
+    text_.draw(kx + 8, top + 4, theme::kTextBody, theme::kRedDark, "Go-Karting");
+    text_.right(kx + colW - 8, top + 5, theme::kTextSmall, theme::kInk, 0, "%d / %d", kartWon, net::kKartingTrophies);
+    constexpr int kKartCols = 11;
+    const float ks = (colW - 14) / kKartCols;
+    for (int i = 0; i < net::kKartingTrophies; i++)
+        cup(kx + 7 + (i % kKartCols) * ks, top + 27 + (i / kKartCols) * (ks + 2), ks - 2, b && b->kartingTrophies[i]);
+    float ly = top + 27 + 3 * (ks + 2) + 4;
+    const uint8_t* kh = b ? b->kartingHistory : nullptr;
+    // RaceGlobals history slots: 0-2 qualifications, 3-5 wins per track type, 6 Grand Prix wins.
+    const unsigned quals = kh ? kh[0] + kh[1] + kh[2] : 0, wins = kh ? kh[3] + kh[4] + kh[5] : 0;
+    text_.draw(kx + 8, ly, theme::kTextSmall, theme::kInk, "Tickets  %u", b ? unsigned(b->tickets) : 0u);
+    ly += 15;
+    text_.draw(kx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Races won  %u", wins);
+    ly += 13;
+    text_.draw(kx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Qualified  %u", quals);
+    ly += 13;
+    text_.draw(kx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Grand Prix wins  %u", kh ? unsigned(kh[6]) : 0u);
 
-    // Calculate golf trophies & cups
-    bool golfTrophies[net::kGolfTrophies] = {};
-    bool golfCups[net::kGolfCups] = {};
-    int golfWon = 0;
-    int cupsWon = 0;
-    if (bdc.book) {
-        golfWon = net::calcGolfTrophies(bdc.book->golfHistory, golfTrophies);
-        cupsWon = net::calcGolfCups(bdc.book->golfHistory, golfCups);
-    }
-
-    // Two Columns: Left = Go-Karting (width 140), Right = Mini-Golf (width 140)
-    const float colW = (w - 18.0f) * 0.5f;
-    const float colH = 175.0f;
-    const float leftColX = x + 6.0f;
-    const float rightColX = leftColX + colW + 6.0f;
-    const float topY = y + 4.0f;
-
-    // ================= Left Column: Go-Karting =================
-    C2D_DrawRectSolid(leftColX, topY, 0.5f, colW, colH, kColBorder);
-    C2D_DrawRectSolid(leftColX + 1.0f, topY + 1.0f, 0.5f, colW - 2.0f, colH - 2.0f, kColBg);
-
-    // Header
-    C2D_Text kHdr;
-    tt::render::textParse(&kHdr, textBuf_, "Go-Karting");
-    C2D_TextOptimize(&kHdr);
-    C2D_DrawText(&kHdr, C2D_WithColor, leftColX + 8.0f, topY + 4.0f, 0.6f, 0.40f, 0.40f, C2D_Color32(0xC0, 0x30, 0x20, 0xFF));
-
-    snprintf(buf, sizeof(buf), "Trophies:  %d / 33", kartWon);
-    C2D_Text ktTxt;
-    tt::render::textParse(&ktTxt, textBuf_, buf);
-    C2D_TextOptimize(&ktTxt);
-    C2D_DrawText(&ktTxt, C2D_WithColor, leftColX + 8.0f, topY + 20.0f, 0.6f, 0.32f, 0.32f, kInk);
-
-    snprintf(buf, sizeof(buf), "Tickets:  %u", unsigned(tickets));
-    C2D_Text tkTxt;
-    tt::render::textParse(&tkTxt, textBuf_, buf);
-    C2D_TextOptimize(&tkTxt);
-    C2D_DrawText(&tkTxt, C2D_WithColor, leftColX + 8.0f, topY + 32.0f, 0.6f, 0.32f, 0.32f, kInk);
-
-    // 33 Trophy Badges grid (11 cols x 3 rows)
-    const float bStartX = leftColX + 6.0f;
-    const float bStartY = topY + 46.0f;
-    const float bSize = 8.5f;
-    const float bGap = 3.0f;
-
-    for (int i = 0; i < net::kKartingTrophies; i++) {
-        const int col = i % 11;
-        const int row = i / 11;
-        const float bx = bStartX + col * (bSize + bGap);
-        const float by = bStartY + row * (bSize + bGap);
-        const bool got = bdc.book ? (bdc.book->kartingTrophies[i] != 0) : false;
-
-        C2D_DrawRectSolid(bx, by, 0.5f, bSize, bSize, got ? C2D_Color32(0x80, 0x60, 0x10, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));
-        C2D_DrawRectSolid(bx + 0.5f, by + 0.5f, 0.5f, bSize - 1.0f, bSize - 1.0f, got ? kGoldTrophy : kEmptyBadge);
-    }
-
-    // Karting history stats
-    const float kStatY = bStartY + 3 * (bSize + bGap) + 8.0f;
-    const uint8_t* kh = bdc.book ? bdc.book->kartingHistory : nullptr;
-
-    snprintf(buf, sizeof(buf), "Races Won:  %u", kh ? kh[0] : 0);
-    C2D_Text rwTxt;
-    tt::render::textParse(&rwTxt, textBuf_, buf);
-    C2D_TextOptimize(&rwTxt);
-    C2D_DrawText(&rwTxt, C2D_WithColor, leftColX + 8.0f, kStatY, 0.6f, 0.30f, 0.30f, kSubInk);
-
-    snprintf(buf, sizeof(buf), "Qualifying Wins:  %u", kh ? kh[1] : 0);
-    C2D_Text qwTxt;
-    tt::render::textParse(&qwTxt, textBuf_, buf);
-    C2D_TextOptimize(&qwTxt);
-    C2D_DrawText(&qwTxt, C2D_WithColor, leftColX + 8.0f, kStatY + 12.0f, 0.6f, 0.30f, 0.30f, kSubInk);
-
-    snprintf(buf, sizeof(buf), "Total Laps:  %u", kh ? kh[2] : 0);
-    C2D_Text tlTxt;
-    tt::render::textParse(&tlTxt, textBuf_, buf);
-    C2D_TextOptimize(&tlTxt);
-    C2D_DrawText(&tlTxt, C2D_WithColor, leftColX + 8.0f, kStatY + 24.0f, 0.6f, 0.30f, 0.30f, kSubInk);
-
-    // ================= Right Column: Mini-Golf =================
-    C2D_DrawRectSolid(rightColX, topY, 0.5f, colW, colH, kColBorder);
-    C2D_DrawRectSolid(rightColX + 1.0f, topY + 1.0f, 0.5f, colW - 2.0f, colH - 2.0f, kColBg);
-
-    // Header
-    C2D_Text gHdr;
-    tt::render::textParse(&gHdr, textBuf_, "Mini-Golf");
-    C2D_TextOptimize(&gHdr);
-    C2D_DrawText(&gHdr, C2D_WithColor, rightColX + 8.0f, topY + 4.0f, 0.6f, 0.40f, 0.40f, C2D_Color32(0x20, 0x80, 0x30, 0xFF));
-
-    snprintf(buf, sizeof(buf), "Trophies:  %d / 30   Cups:  %d / 3", golfWon, cupsWon);
-    C2D_Text gtTxt;
-    tt::render::textParse(&gtTxt, textBuf_, buf);
-    C2D_TextOptimize(&gtTxt);
-    C2D_DrawText(&gtTxt, C2D_WithColor, rightColX + 8.0f, topY + 20.0f, 0.6f, 0.32f, 0.32f, kInk);
-
-    // 30 Golf Trophy badges (10 cols x 3 rows)
-    const float gbStartX = rightColX + 6.0f;
-    const float gbStartY = topY + 36.0f;
-    const float gbSize = 9.5f;
-    const float gbGap = 3.5f;
-
-    for (int i = 0; i < net::kGolfTrophies; i++) {
-        const int col = i % 10;
-        const int row = i / 10;
-        const float bx = gbStartX + col * (gbSize + gbGap);
-        const float by = gbStartY + row * (gbSize + gbGap);
-        const bool got = golfTrophies[i];
-
-        C2D_DrawRectSolid(bx, by, 0.5f, gbSize, gbSize, got ? C2D_Color32(0x80, 0x60, 0x10, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));
-        C2D_DrawRectSolid(bx + 0.5f, by + 0.5f, 0.5f, gbSize - 1.0f, gbSize - 1.0f, got ? kGoldTrophy : kEmptyBadge);
-    }
-
-    // 3 Cup Badges row
-    const float cupY = gbStartY + 3 * (gbSize + gbGap) + 6.0f;
-    snprintf(buf, sizeof(buf), "Championship Cups:");
-    C2D_Text cupHdr;
-    tt::render::textParse(&cupHdr, textBuf_, buf);
-    C2D_TextOptimize(&cupHdr);
-    C2D_DrawText(&cupHdr, C2D_WithColor, rightColX + 8.0f, cupY, 0.6f, 0.30f, 0.30f, kInk);
-
-    for (int c = 0; c < net::kGolfCups; c++) {
-        const float cx = rightColX + 10.0f + c * 26.0f;
-        const float cy = cupY + 12.0f;
-        const bool got = golfCups[c];
-
-        C2D_DrawRectSolid(cx, cy, 0.5f, 18.0f, 14.0f, got ? C2D_Color32(0x70, 0x60, 0x20, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));
-        C2D_DrawRectSolid(cx + 1.0f, cy + 1.0f, 0.5f, 16.0f, 12.0f, got ? kSilverCup : kEmptyBadge);
-
-        snprintf(buf, sizeof(buf), "%d", c + 1);
-        C2D_Text cupNum;
-        tt::render::textParse(&cupNum, textBuf_, buf);
-        C2D_TextOptimize(&cupNum);
-        C2D_DrawText(&cupNum, C2D_WithColor, cx + 5.0f, cy + 1.0f, 0.7f, 0.30f, 0.30f, kInk);
-    }
-
-    // Golf history stats
-    const float gStatY = cupY + 32.0f;
-    const uint16_t* gh = bdc.book ? bdc.book->golfHistory : nullptr;
-
-    snprintf(buf, sizeof(buf), "Courses Done:  %u", gh ? gh[0] : 0);
-    C2D_Text cdTxt;
-    tt::render::textParse(&cdTxt, textBuf_, buf);
-    C2D_TextOptimize(&cdTxt);
-    C2D_DrawText(&cdTxt, C2D_WithColor, rightColX + 8.0f, gStatY, 0.6f, 0.28f, 0.28f, kSubInk);
-
-    snprintf(buf, sizeof(buf), "Under Par:  %u", gh ? gh[1] : 0);
-    C2D_Text upTxt;
-    tt::render::textParse(&upTxt, textBuf_, buf);
-    C2D_TextOptimize(&upTxt);
-    C2D_DrawText(&upTxt, C2D_WithColor, rightColX + 8.0f, gStatY + 11.0f, 0.6f, 0.28f, 0.28f, kSubInk);
-
-    snprintf(buf, sizeof(buf), "Holes-in-One:  %u", gh ? gh[2] : 0);
-    C2D_Text hioTxt;
-    tt::render::textParse(&hioTxt, textBuf_, buf);
-    C2D_TextOptimize(&hioTxt);
-    C2D_DrawText(&hioTxt, C2D_WithColor, rightColX + 8.0f, gStatY + 22.0f, 0.6f, 0.28f, 0.28f, kSubInk);
+    // ---- Mini-Golf ----
+    column(gx, top, colW, colH, golfGreen);
+    bool trophies[net::kGolfTrophies] = {};
+    bool cups[net::kGolfCups] = {};
+    const int golfWon = b ? net::calcGolfTrophies(b->golfHistory, trophies) : 0;
+    if (b) net::calcGolfCups(b->golfHistory, cups);
+    text_.draw(gx + 8, top + 4, theme::kTextBody, theme::kGreenDark, "Mini-Golf");
+    text_.right(gx + colW - 8, top + 5, theme::kTextSmall, theme::kInk, 0, "%d / %d", golfWon, net::kGolfTrophies);
+    constexpr int kGolfCols = 10;
+    const float gs = (colW - 14) / kGolfCols;
+    for (int i = 0; i < net::kGolfTrophies; i++)
+        cup(gx + 7 + (i % kGolfCols) * gs, top + 27 + (i / kGolfCols) * (gs + 2), gs - 2, trophies[i]);
+    ly = top + 27 + 3 * (gs + 2) + 2;
+    // The three championship cups, larger and silver.
+    for (int c = 0; c < net::kGolfCups; c++)
+        cup(gx + 14 + c * ((colW - 28) / 3), ly, 22, cups[c], kSilver, kSilverDark);
+    text_.right(gx + colW - 8, ly + 6, theme::kTextTiny, theme::kInkSoft, 0, "Cups");
+    ly += 27;
+    const uint16_t* gh = b ? b->golfHistory : nullptr;
+    text_.draw(gx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Courses played  %u", gh ? unsigned(gh[0]) : 0u);
+    ly += 13;
+    text_.draw(gx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Under par  %u", gh ? unsigned(gh[1]) : 0u);
+    ly += 13;
+    text_.draw(gx + 8, ly, theme::kTextTiny, theme::kInkSoft, "Holes in one  %u", gh ? unsigned(gh[2]) : 0u);
 }
 
 } // namespace tt::ui

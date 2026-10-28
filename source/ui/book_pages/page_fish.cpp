@@ -1,236 +1,146 @@
-#include "render/ui_font.h"
 #include "ui/book_pages/page_fish.h"
+
 #include "ui/pad_tables.h"
+#include "ui/theme.h"
 #include "world/fish_tables.h"
-#include <cstdio>
-#include <vector>
 
 namespace tt::ui {
 
 namespace {
 
-constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-constexpr u32 kCardBg = C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF);
-constexpr u32 kCardBorder = C2D_Color32(0xB0, 0xA8, 0x98, 0xFF);
-constexpr u32 kCaughtBg = C2D_Color32(0xE8, 0xF8, 0xE8, 0xFF);
-constexpr u32 kCaughtBorder = C2D_Color32(0x30, 0x90, 0x30, 0xFF);
-constexpr u32 kCaughtInk = C2D_Color32(0x10, 0x60, 0x10, 0xFF);
+constexpr int kNumGenera = 14;
+// The 14 genus ids in FishGlobals order.
+constexpr uint8_t kDistinctGenera[kNumGenera] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26};
+// FishGlobals.TrophyDict: one fishing trophy per 10 species.
+constexpr int kTrophies = 7;
 
-// Find record weight caught for (genus, species)
-uint16_t findRecordWeight(const net::OwnBookStats* book, uint8_t g, uint8_t sp) {
+// The record weight (oz) caught for (genus, species), 0 if never caught.
+uint16_t recordWeight(const net::OwnBookStats* book, uint8_t g, uint8_t sp) {
     if (!book) return 0;
     for (int i = 0; i < book->numFishCollected; i++) {
-        if (book->fishCollection[i].genus == g && book->fishCollection[i].species == sp) {
+        if (book->fishCollection[i].genus == g && book->fishCollection[i].species == sp)
             return book->fishCollection[i].maxWeight;
-        }
     }
     return 0;
 }
 
-// Total caught count
-int totalCaughtCount(const net::OwnBookStats* book) {
-    if (!book) return 0;
-    return book->numFishCollected;
+bool inRect(const touchPosition& t, float x, float y, float w, float h) {
+    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
 }
 
-// 14 distinct genera indices in kSpecies
-constexpr uint8_t kDistinctGenera[14] = {
-    0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26
-};
+// A round arrow button like SpeedChat's: lavender face, blue triangle.
+void arrowButton(float x, float y, float w, float h, bool left) {
+    theme::button(x, y, w, h, theme::kScFrame, theme::kScFrameEdge, false, 6.0f, 0.55f);
+    const float cx = x + w * 0.5f, cy = y + (h - 3) * 0.5f, s = 5.0f;
+    const float tip = left ? cx - s : cx + s, base = left ? cx + s * 0.6f : cx - s * 0.6f;
+    C2D_DrawTriangle(tip, cy, theme::kBlueDark, base, cy - s, theme::kBlueDark, base, cy + s, theme::kBlueDark, 0.56f);
+}
+
+// A small gold (or grey, unearned) loving cup.
+void trophyCup(float cx, float y, bool earned) {
+    const u32 c = earned ? theme::rgb(0xF2, 0xC0, 0x1E) : theme::kGrey;
+    const u32 d = earned ? theme::rgb(0xB0, 0x80, 0x10) : theme::kGreyDark;
+    theme::roundRect(cx - 9, y + 1, 4, 7, 2, d);  // handles
+    theme::roundRect(cx + 5, y + 1, 4, 7, 2, d);
+    theme::roundRect(cx - 7, y, 14, 11, 4, c);    // bowl
+    C2D_DrawRectSolid(cx - 1.5f, y + 10, 0.5f, 3, 3, d);
+    theme::roundRect(cx - 5, y + 13, 10, 3, 1, d); // foot
+}
 
 } // namespace
 
 void PageFish::init() {
-    textBuf_ = C2D_TextBufNew(4096);
+    text_.init(1536);
     pad::buildBookFishArrows(focus_); // padnav
 }
 
-void PageFish::shutdown() {
-    if (textBuf_) {
-        C2D_TextBufDelete(textBuf_);
-        textBuf_ = nullptr;
-    }
+void PageFish::shutdown() { text_.shutdown(); }
+
+void PageFish::step(int dir) {
+    activeGenusIdx_ = (activeGenusIdx_ + dir + kNumGenera) % kNumGenera;
 }
 
 u32 PageFish::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
+    using namespace pad::book;
     if (keysDown & KEY_TOUCH) {
-        // Prev genus button: x = 16..46, y = 24..42
-        if (touch.px >= 16 && touch.px <= 46 && touch.py >= 24 && touch.py <= 42) {
-            if (activeGenusIdx_ > 0) activeGenusIdx_--;
-            else activeGenusIdx_ = 13;
+        if (inRect(touch, kGenusPrevX, kGenusY, kGenusW, kGenusH)) {
+            step(-1);
             return KEY_TOUCH;
         }
-        // Next genus button: x = 274..304, y = 24..42
-        if (touch.px >= 274 && touch.px <= 304 && touch.py >= 24 && touch.py <= 42) {
-            if (activeGenusIdx_ < 13) activeGenusIdx_++;
-            else activeGenusIdx_ = 0;
+        if (inRect(touch, kGenusNextX, kGenusY, kGenusW, kGenusH)) {
+            step(1);
             return KEY_TOUCH;
         }
     }
     // D-Left / D-Right press the < / > arrows (padnav: highlighted and logged).
-    if (keysDown & KEY_DLEFT) {
-        if (activeGenusIdx_ > 0) activeGenusIdx_--;
-        else activeGenusIdx_ = 13;
-        focus_.setFocusById(pad::book::kIdGenusPrev);
-        focus_.logActivate(pad::book::kIdGenusPrev);
-        return KEY_DLEFT;
-    }
-    if (keysDown & KEY_DRIGHT) {
-        if (activeGenusIdx_ < 13) activeGenusIdx_++;
-        else activeGenusIdx_ = 0;
-        focus_.setFocusById(pad::book::kIdGenusNext);
-        focus_.logActivate(pad::book::kIdGenusNext);
-        return KEY_DRIGHT;
+    if (keysDown & (KEY_DLEFT | KEY_DRIGHT)) {
+        const bool left = keysDown & KEY_DLEFT;
+        step(left ? -1 : 1);
+        const int id = left ? kIdGenusPrev : kIdGenusNext;
+        focus_.setFocusById(id);
+        focus_.logActivate(id);
+        return left ? KEY_DLEFT : KEY_DRIGHT;
     }
     return 0;
 }
 
+// FishPage: the album one genus at a time, the species total and the fishing trophies.
 void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
-    (void)w; (void)h;
-    if (!textBuf_) return;
+    using namespace pad::book;
+    const int caught = bdc.book ? bdc.book->numFishCollected : 0;
+    const int trophies = caught / 10 < kTrophies ? caught / 10 : kTrophies;
+    text_.draw(x + 8, y + 3, theme::kTextBody, theme::kInk, "Species caught  %d / %d", caught, world::fish::kNumSpecies);
+    text_.right(x + w - 8, y + 3, theme::kTextBody, theme::kInk, 0, "Trophies  %d / %d", trophies, kTrophies);
 
-    C2D_TextBufClear(textBuf_);
-
-    char buf[128];
-    const int caughtTotal = totalCaughtCount(bdc.book);
-    const int trophiesWon = caughtTotal / 10; // 1 trophy per 10 species up to 7
-
-    // Header: Total Species and Trophies
-    snprintf(buf, sizeof(buf), "Fish Album:  %d / 70 Species   Trophies: %d / 7", caughtTotal, trophiesWon);
-    C2D_Text hdrTxt;
-    tt::render::textParse(&hdrTxt, textBuf_, buf);
-    C2D_TextOptimize(&hdrTxt);
-    C2D_DrawText(&hdrTxt, C2D_WithColor, x + 6.0f, y + 2.0f, 0.5f, 0.40f, 0.40f, kInk);
-
-    // Genus navigation bar: < [Genus Name (caught/total)] >
-    const uint8_t targetGenus = kDistinctGenera[activeGenusIdx_];
-    const char* genusName = (targetGenus <= world::fish::kMaxGenus && world::fish::kGenusNames[targetGenus])
-                                ? world::fish::kGenusNames[targetGenus]
-                                : "Fish";
-
-    // Count species in this genus
-    int genusSpeciesCount = 0;
-    int genusCaughtCount = 0;
+    // Genus selector: < Balloon Fish  2 / 5 >
+    const uint8_t genus = kDistinctGenera[activeGenusIdx_];
+    const char* genusName = genus <= world::fish::kMaxGenus && world::fish::kGenusNames[genus]
+                                ? world::fish::kGenusNames[genus] : "Fish";
+    int total = 0, got = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {
-        if (world::fish::kSpecies[i].genus == targetGenus) {
-            genusSpeciesCount++;
-            if (findRecordWeight(bdc.book, targetGenus, world::fish::kSpecies[i].species) > 0) {
-                genusCaughtCount++;
-            }
-        }
+        const auto& sp = world::fish::kSpecies[i];
+        if (sp.genus != genus) continue;
+        total++;
+        got += recordWeight(bdc.book, sp.genus, sp.species) > 0;
     }
+    theme::paper(kGenusPrevX + kGenusW + 3, kGenusY, kGenusNextX - kGenusPrevX - kGenusW - 6, kGenusH - 2, 6.0f,
+                 theme::kPaperShade);
+    arrowButton(kGenusPrevX, kGenusY, kGenusW, kGenusH, true);
+    arrowButton(kGenusNextX, kGenusY, kGenusW, kGenusH, false);
+    const float midX = (kGenusPrevX + kGenusNextX + kGenusW) * 0.5f;
+    text_.centered(midX, kGenusY + 3, theme::kTextBody, theme::kRedDark, 200, "%s   %d / %d", genusName, got, total);
 
-    const float navY = y + 18.0f;
-    const float navW = w - 12.0f;
-
-    // Genus bar background
-    C2D_DrawRectSolid(x + 6.0f, navY, 0.5f, navW, 20.0f, C2D_Color32(0xD0, 0xC4, 0xB0, 0xFF));
-    C2D_DrawRectSolid(x + 7.0f, navY + 1.0f, 0.5f, navW - 2.0f, 18.0f, C2D_Color32(0xF5, 0xEE, 0xDC, 0xFF));
-
-    // Left arrow
-    C2D_DrawRectSolid(x + 10.0f, navY + 2.0f, 0.5f, 16.0f, 14.0f, C2D_Color32(0xC0, 0xB0, 0x98, 0xFF));
-    C2D_Text leftArrow;
-    tt::render::textParse(&leftArrow, textBuf_, "<");
-    C2D_TextOptimize(&leftArrow);
-    C2D_DrawText(&leftArrow, C2D_WithColor, x + 15.0f, navY + 2.0f, 0.6f, 0.35f, 0.35f, kInk);
-
-    // Right arrow
-    C2D_DrawRectSolid(x + navW - 22.0f, navY + 2.0f, 0.5f, 16.0f, 14.0f, C2D_Color32(0xC0, 0xB0, 0x98, 0xFF));
-    C2D_Text rightArrow;
-    tt::render::textParse(&rightArrow, textBuf_, ">");
-    C2D_TextOptimize(&rightArrow);
-    C2D_DrawText(&rightArrow, C2D_WithColor, x + navW - 17.0f, navY + 2.0f, 0.6f, 0.35f, 0.35f, kInk);
-
-    // Genus label
-    snprintf(buf, sizeof(buf), "%s  (%d / %d caught)", genusName, genusCaughtCount, genusSpeciesCount);
-    C2D_Text gTxt;
-    tt::render::textParse(&gTxt, textBuf_, buf);
-    C2D_TextOptimize(&gTxt);
-    C2D_DrawText(&gTxt, C2D_WithColor, x + 34.0f, navY + 3.0f, 0.6f, 0.36f, 0.36f, kInk);
-
-    // List species in this genus
-    const float listY = navY + 24.0f;
-    // Rows shrink with the genus size so the list always ends above the trophy bar.
-    const float trophyBarTop = y + 160.0f;
-    int genusSize = 0;
-    for (int i = 0; i < world::fish::kNumSpecies; i++) genusSize += world::fish::kSpecies[i].genus == targetGenus;
-    float itemH = 24.0f;
-    if (genusSize > 0) {
-        const float fit = (trophyBarTop - 4.0f - listY) / genusSize - 3.0f;
-        if (fit < itemH) itemH = fit;
-    }
-
+    // One card per species of the genus; rows shrink so the largest genus (8) still fits.
+    const float listY = kGenusY + kGenusH + 3;
+    const float trophyY = y + h - 24;
+    float rowH = total ? (trophyY - 3 - listY) / total : 20.0f;
+    if (rowH > 22.0f) rowH = 22.0f;
+    const float tScale = rowH >= 18.0f ? theme::kTextSmall : theme::kTextTiny;
+    const float ty = (rowH - 1 - (rowH >= 18.0f ? 15.0f : 13.0f)) * 0.5f;
     int slot = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {
-        const auto& spec = world::fish::kSpecies[i];
-        if (spec.genus != targetGenus) continue;
-
-        const float iy = listY + slot * (itemH + 3.0f);
-        const uint16_t recordWeight = findRecordWeight(bdc.book, spec.genus, spec.species);
-        const bool caught = (recordWeight > 0);
-
-        C2D_DrawRectSolid(x + 6.0f, iy, 0.5f, navW, itemH, caught ? kCaughtBorder : kCardBorder);
-        C2D_DrawRectSolid(x + 7.0f, iy + 1.0f, 0.5f, navW - 2.0f, itemH - 2.0f, caught ? kCaughtBg : kCardBg);
-
-        // Name
-        C2D_Text nameTxt;
-        tt::render::textParse(&nameTxt, textBuf_, spec.name);
-        C2D_TextOptimize(&nameTxt);
-        C2D_DrawText(&nameTxt, C2D_WithColor, x + 12.0f, iy + 4.0f, 0.6f, 0.34f, 0.34f, caught ? kCaughtInk : kInk);
-
-        // Weight range & rarity
-        snprintf(buf, sizeof(buf), "Rarity: %d   Range: %d-%d lb", spec.rarity, spec.minLb, spec.maxLb);
-        C2D_Text rarTxt;
-        tt::render::textParse(&rarTxt, textBuf_, buf);
-        C2D_TextOptimize(&rarTxt);
-        C2D_DrawText(&rarTxt, C2D_WithColor, x + 120.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, C2D_Color32(0x60, 0x58, 0x50, 0xFF));
-
-        // Catch record
-        if (caught) {
-            const int lb = recordWeight / 16;
-            const int oz = recordWeight % 16;
-            snprintf(buf, sizeof(buf), "Record: %d lb %d oz", lb, oz);
-            C2D_Text recTxt;
-            tt::render::textParse(&recTxt, textBuf_, buf);
-            C2D_TextOptimize(&recTxt);
-            C2D_DrawText(&recTxt, C2D_WithColor, x + navW - 86.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, kCaughtInk);
+        const auto& sp = world::fish::kSpecies[i];
+        if (sp.genus != genus) continue;
+        const float ry = listY + slot++ * rowH;
+        const uint16_t rec = recordWeight(bdc.book, sp.genus, sp.species);
+        theme::roundRect(x + 6, ry, w - 12, rowH - 1, 4, rec ? theme::kGreenDark : theme::kPaperShade);
+        theme::roundRect(x + 7, ry + 1, w - 14, rowH - 3, 3, rec ? theme::rgb(0xE6, 0xF8, 0xE0) : theme::kPaper);
+        text_.fit(x + 12, ry + ty, tScale, rec ? theme::kGreenDark : theme::kInk, 128, "%s", sp.name);
+        text_.draw(x + 146, ry + ty, theme::kTextTiny, theme::kInkSoft, "%d-%d lb", sp.minLb, sp.maxLb);
+        if (rec) {
+            text_.right(x + w - 12, ry + ty, tScale, theme::kGreenDark, 100, "%d lb %d oz", rec / 16, rec % 16);
         } else {
-            C2D_Text recTxt;
-            tt::render::textParse(&recTxt, textBuf_, "Not caught");
-            C2D_TextOptimize(&recTxt);
-            C2D_DrawText(&recTxt, C2D_WithColor, x + navW - 65.0f, iy + 4.0f, 0.6f, 0.30f, 0.30f, C2D_Color32(0x99, 0x90, 0x88, 0xFF));
+            text_.right(x + w - 12, ry + ty, theme::kTextTiny, theme::kGreyDark, 100, "Rarity %d", sp.rarity);
         }
-
-        slot++;
     }
 
-    // Bottom: 7 Fishing Trophy Cups
-    const float trophyBarY = y + 160.0f;
-    C2D_Text tHdr;
-    tt::render::textParse(&tHdr, textBuf_, "Trophies (1 every 10 species):");
-    C2D_TextOptimize(&tHdr);
-    C2D_DrawText(&tHdr, C2D_WithColor, x + 8.0f, trophyBarY, 0.5f, 0.32f, 0.32f, kInk);
-
-    const float tStartX = x + 12.0f;
-    const float tSize = 14.0f;
-    const float tGap = 24.0f;
-
-    for (int t = 0; t < 7; t++) {
-        const float tx = tStartX + t * (tSize + tGap);
-        const float ty = trophyBarY + 12.0f;
-        const bool earned = (caughtTotal >= (t + 1) * 10);
-
-        C2D_DrawRectSolid(tx, ty, 0.5f, tSize, tSize, C2D_Color32(0x60, 0x50, 0x40, 0xFF));
-        C2D_DrawRectSolid(tx + 1.0f, ty + 1.0f, 0.5f, tSize - 2.0f, tSize - 2.0f,
-                         earned ? C2D_Color32(0xF0, 0xC0, 0x20, 0xFF) : C2D_Color32(0xD0, 0xC8, 0xC0, 0xFF));
-
-        snprintf(buf, sizeof(buf), "%d", (t + 1) * 10);
-        C2D_Text cntTxt;
-        tt::render::textParse(&cntTxt, textBuf_, buf);
-        C2D_TextOptimize(&cntTxt);
-        C2D_DrawText(&cntTxt, C2D_WithColor, tx + 1.0f, ty + 2.0f, 0.6f, 0.28f, 0.28f,
-                     earned ? C2D_Color32(0x50, 0x30, 0x00, 0xFF) : C2D_Color32(0x80, 0x78, 0x70, 0xFF));
+    // The fishing trophies (one per 10 species), as gold cups.
+    for (int t = 0; t < kTrophies; t++) {
+        const float cx = x + 22 + t * ((w - 44) / (kTrophies - 1));
+        trophyCup(cx - 12, trophyY + 3, caught >= (t + 1) * 10);
+        text_.draw(cx - 1, trophyY + 4, theme::kTextTiny, caught >= (t + 1) * 10 ? theme::kInk : theme::kInkSoft,
+                   "%d", (t + 1) * 10);
     }
     focus_.drawHighlight(); // padnav
 }

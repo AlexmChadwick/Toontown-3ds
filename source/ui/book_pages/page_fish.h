@@ -2,6 +2,7 @@
 
 #include "ui/book_pages/book_page.h"
 #include "ui/focus.h"
+#include "ui/page_text.h"
 
 namespace tt::ui {
 
@@ -16,8 +17,10 @@ public:
     void draw(float x, float y, float w, float h, const BookDrawContext& bdc) override;
 
 private:
+    void step(int dir);
+
     int activeGenusIdx_ = 0; // index into distinct genera (0..13)
-    C2D_TextBuf textBuf_ = nullptr;
+    PageText text_;
     FocusGroup focus_{"book_fish"}; // padnav
 };
 

@@ -1,10 +1,8 @@
-#include "render/ui_font.h"
 #include "ui/book_pages/page_disguise.h"
 #include "ui/pad_tables.h"
 #include "ui/disguise_tables.h"
 #include "ui/suit_heads_atlas.h"
-#include <cstdio>
-#include <algorithm>
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -27,192 +25,128 @@ const char* const kSuitNames[4][8] = {
       "Mover & Shaker", "Two-Face", "The Mingler", "Mr. Hollywood" },
 };
 
-constexpr u32 kDeptColors[4] = {
-    C2D_Color32(0x9E, 0x88, 0x88, 0xFF), // Bossbot brown/gray
-    C2D_Color32(0x80, 0x90, 0xA8, 0xFF), // Lawbot blue
-    C2D_Color32(0x78, 0xA8, 0x90, 0xFF), // Cashbot green
-    C2D_Color32(0xB0, 0x88, 0x98, 0xFF), // Sellbot purple
-};
+// Where each department's suit parts come from (CogHQ facilities).
+const char* const kPartSource[4] = {"the Country Club", "the DA Offices", "the Cashbot Mint", "the Sellbot Factory"};
 
-constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-constexpr u32 kCardBg = C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF);
-constexpr u32 kCardBorder = C2D_Color32(0xB0, 0xA8, 0x98, 0xFF);
+// SuitPage.PANEL_COLORS / PANEL_COLORS_COMPLETE2 (department tabs and accents, as the gallery).
+constexpr u32 kPanel[4] = {theme::rgb(204, 199, 196), theme::rgb(191, 199, 204), theme::rgb(191, 209, 201),
+                           theme::rgb(210, 194, 196)};
+constexpr u32 kPanelGold[4] = {theme::rgb(230, 185, 82), theme::rgb(210, 185, 115), theme::rgb(204, 191, 83),
+                               theme::rgb(223, 172, 89)};
+// The department's own colour for the meter fill (Bossbot brown, Lawbot blue, Cashbot green, Sellbot red).
+constexpr u32 kDeptInk[4] = {theme::rgb(0x8A, 0x5A, 0x34), theme::rgb(0x3A, 0x5C, 0xA8), theme::rgb(0x2E, 0x8A, 0x4A),
+                             theme::rgb(0xA8, 0x30, 0x40)};
+
+bool inRect(const touchPosition& t, float x, float y, float w, float h) {
+    return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
+}
 
 } // namespace
 
 void PageDisguise::init() {
-    textBuf_ = C2D_TextBufNew(4096);
+    text_.init(1024);
     pad::buildBookDepartments(focus_); // padnav
     SuitHeadAtlas::instance().init();
 }
 
-void PageDisguise::shutdown() {
-    if (textBuf_) {
-        C2D_TextBufDelete(textBuf_);
-        textBuf_ = nullptr;
-    }
-}
+void PageDisguise::shutdown() { text_.shutdown(); }
 
 u32 PageDisguise::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     (void)bdc;
+    using namespace pad::book;
     // ---- padnav: D-Left / D-Right step through the department tabs (L / R turn pages) ----
     if (keysDown & (KEY_DLEFT | KEY_DRIGHT)) {
-        const int step = (keysDown & KEY_DLEFT) ? pad::book::kDepts - 1 : 1;
-        activeDept_ = (activeDept_ + step) % pad::book::kDepts;
+        const int step = (keysDown & KEY_DLEFT) ? kDepts - 1 : 1;
+        activeDept_ = (activeDept_ + step) % kDepts;
         focus_.setFocusById(activeDept_);
         focus_.logActivate(activeDept_);
         return keysDown & (KEY_DLEFT | KEY_DRIGHT);
     }
     // ---- end padnav ----
     if (keysDown & KEY_TOUCH) {
-        // Check 4 department tabs at top: y = 20 .. 38
-        if (touch.py >= 20 && touch.py <= 38) {
-            for (int d = 0; d < 4; d++) {
-                const float tx = 14.0f + d * 70.0f;
-                if (touch.px >= tx && touch.px <= tx + 66.0f) {
-                    activeDept_ = d;
-                    focus_.setFocusById(d); // padnav
-                    return KEY_TOUCH;
-                }
+        for (int d = 0; d < kDepts; d++) {
+            if (inRect(touch, kDeptX + d * kDeptStep, kDeptY, kDeptW, kDeptH)) {
+                activeDept_ = d;
+                focus_.setFocusById(d); // padnav
+                return KEY_TOUCH;
             }
         }
     }
     return 0;
 }
 
+// DisguisePage: the department's Cog suit (name and level), the parts collected toward it and
+// the merit meter toward the next promotion.
 void PageDisguise::draw(float x, float y, float w, float h, const BookDrawContext& bdc) {
-    (void)w; (void)h;
-    if (!textBuf_) return;
+    using namespace pad::book;
+    (void)y;
+    (void)h;
+    for (int d = 0; d < kDepts; d++) {
+        const bool on = d == activeDept_;
+        const float tx = kDeptX + d * kDeptStep;
+        const u32 face = on ? kPanelGold[d] : kPanel[d];
+        theme::button(tx, on ? kDeptY : kDeptY + 2, kDeptW, kDeptH + (on ? 2 : 0), face, theme::shade(face, 0.6f),
+                      false, 5.0f);
+        text_.centered(tx + kDeptW * 0.5f, (on ? kDeptY : kDeptY + 2) + 1, theme::kTextSmall,
+                       on ? theme::kInk : theme::kInkSoft, kDeptW - 6, "%s", kDeptNames[d]);
+    }
+    const int dept = activeDept_;
+    const uint8_t type = bdc.book ? (bdc.book->cogTypes[dept] & 7) : 0;
+    const uint8_t level = bdc.book ? bdc.book->cogLevels[dept] : 0;
+    const uint32_t parts = bdc.book ? bdc.book->cogParts[dept] : 0;
+    const uint16_t merits = bdc.book ? bdc.book->cogMerits[dept] : 0;
+    const int needed = kPartsPerSuit[dept];
+    const int have = __builtin_popcount(parts & ((1u << needed) - 1));
+    const bool suit = have >= needed;
 
-    C2D_TextBufClear(textBuf_);
+    const float py = kDeptY + kDeptH + 5, pw = w - 12, ph = 156;
+    theme::roundRect(x + 6, py, pw, ph, 8, theme::shade(kPanel[dept], 0.6f));
+    theme::roundRect(x + 8, py + 2, pw - 4, ph - 4, 7, theme::kPaper);
 
-    SuitHeadAtlas& atlas = SuitHeadAtlas::instance();
-    atlas.init();
-
-    // 4 Department tabs
-    const float tabY = y + 2.0f;
-    const float tabH = 16.0f;
-    const float tabW = 66.0f;
-
-    for (int d = 0; d < 4; d++) {
-        const float tx = x + 6.0f + d * 70.0f;
-        const bool active = (d == activeDept_);
-
-        C2D_DrawRectSolid(tx, tabY, 0.5f, tabW, tabH, active ? kDeptColors[d] : C2D_Color32(0xD0, 0xC8, 0xC0, 0xFF));
-        C2D_DrawRectSolid(tx + 1.0f, tabY + 1.0f, 0.5f, tabW - 2.0f, tabH - 2.0f,
-                         active ? C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF) : C2D_Color32(0xE8, 0xE0, 0xD8, 0xFF));
-
-        C2D_Text dTxt;
-        tt::render::textParse(&dTxt, textBuf_, kDeptNames[d]);
-        C2D_TextOptimize(&dTxt);
-        C2D_DrawText(&dTxt, C2D_WithColor, tx + 6.0f, tabY + 2.0f, 0.6f, 0.32f, 0.32f,
-                     active ? kDeptColors[d] : C2D_Color32(0x60, 0x58, 0x50, 0xFF));
+    // The suit's head and identity.
+    theme::roundRect(x + 14, py + 7, 50, 48, 8, kPanel[dept]);
+    SuitHeadAtlas::instance().drawHead(dept, type, x + 17, py + 9, 44.0f, 0.6f);
+    text_.fit(x + 72, py + 9, theme::kTextTitle, suit ? theme::kInk : theme::kInkSoft, pw - 76, "%s",
+              kSuitNames[dept][type]);
+    if (suit) {
+        text_.draw(x + 72, py + 30, theme::kTextBody, theme::kInkSoft, "Level %d", int(level) + 1);
+    } else {
+        text_.fit(x + 72, py + 30, theme::kTextSmall, theme::kInkSoft, pw - 76, "No Cog suit yet");
     }
 
-    const uint8_t type = bdc.book ? (bdc.book->cogTypes[activeDept_] & 7) : 0;
-    const uint8_t level = bdc.book ? bdc.book->cogLevels[activeDept_] : 0;
-    const uint32_t parts = bdc.book ? bdc.book->cogParts[activeDept_] : 0;
-    const uint16_t merits = bdc.book ? bdc.book->cogMerits[activeDept_] : 0;
-    const uint8_t neededParts = kPartsPerSuit[activeDept_];
-    const int totalParts = __builtin_popcount(parts & ((1u << neededParts) - 1));
-    const bool suitComplete = (totalParts >= neededParts);
-
-    const float panelY = y + 24.0f;
-    const float panelW = w - 12.0f;
-    const float panelH = 150.0f;
-
-    // Outer card
-    C2D_DrawRectSolid(x + 6.0f, panelY, 0.5f, panelW, panelH, kDeptColors[activeDept_]);
-    C2D_DrawRectSolid(x + 8.0f, panelY + 2.0f, 0.5f, panelW - 4.0f, panelH - 4.0f, kCardBg);
-
-    char buf[128];
-
-    // Left box: Suit head portrait & Identity
-    const float leftBoxX = x + 14.0f;
-    const float leftBoxY = panelY + 8.0f;
-
-    atlas.drawHead(activeDept_, type, leftBoxX, leftBoxY, 44.0f, 0.6f);
-
-    snprintf(buf, sizeof(buf), "%s", kSuitNames[activeDept_][type]);
-    C2D_Text nameTxt;
-    tt::render::textParse(&nameTxt, textBuf_, buf);
-    C2D_TextOptimize(&nameTxt);
-    C2D_DrawText(&nameTxt, C2D_WithColor, leftBoxX + 50.0f, leftBoxY + 4.0f, 0.6f, 0.45f, 0.45f, kInk);
-
-    snprintf(buf, sizeof(buf), "Level %d", int(level) + 1);
-    C2D_Text lvlTxt;
-    tt::render::textParse(&lvlTxt, textBuf_, buf);
-    C2D_TextOptimize(&lvlTxt);
-    C2D_DrawText(&lvlTxt, C2D_WithColor, leftBoxX + 50.0f, leftBoxY + 22.0f, 0.6f, 0.38f, 0.38f,
-                 C2D_Color32(0x50, 0x48, 0x40, 0xFF));
-
-    // Suit Parts section
-    const float partsY = panelY + 58.0f;
-    snprintf(buf, sizeof(buf), "Suit Parts:  %d / %d %s", totalParts, neededParts,
-             suitComplete ? "(COMPLETE)" : "");
-    C2D_Text partsTxt;
-    tt::render::textParse(&partsTxt, textBuf_, buf);
-    C2D_TextOptimize(&partsTxt);
-    C2D_DrawText(&partsTxt, C2D_WithColor, leftBoxX, partsY, 0.6f, 0.36f, 0.36f,
-                 suitComplete ? C2D_Color32(0x20, 0x80, 0x20, 0xFF) : kInk);
-
-    // Draw part segment boxes
-    const float segW = 12.0f;
-    const float segH = 10.0f;
-    const float segGap = 3.0f;
-    const float segY = partsY + 14.0f;
-
-    for (int p = 0; p < neededParts; p++) {
-        const float sx = leftBoxX + p * (segW + segGap);
-        const bool hasPart = (parts & (1u << p)) != 0;
-
-        C2D_DrawRectSolid(sx, segY, 0.5f, segW, segH, kCardBorder);
-        C2D_DrawRectSolid(sx + 1.0f, segY + 1.0f, 0.5f, segW - 2.0f, segH - 2.0f,
-                         hasPart ? kDeptColors[activeDept_] : C2D_Color32(0xE0, 0xD8, 0xD0, 0xFF));
+    // Suit parts: one pip per part (CogDisguiseGlobals.PartsPerSuit).
+    float ly = py + 60;
+    text_.draw(x + 14, ly, theme::kTextSmall, suit ? theme::kGreenDark : theme::kInk, "Suit parts  %d / %d%s", have,
+               needed, suit ? "  Complete!" : "");
+    ly += 16;
+    const float pipW = (pw - 16) / needed;
+    for (int p = 0; p < needed; p++) {
+        const bool got = parts & (1u << p);
+        theme::roundRect(x + 14 + p * pipW, ly, pipW - 2, 12, 3, got ? theme::shade(kDeptInk[dept], 0.7f) : theme::kGrey);
+        theme::roundRect(x + 15 + p * pipW, ly + 1, pipW - 4, 10, 2, got ? kDeptInk[dept] : theme::kPaperShade);
+    }
+    ly += 18;
+    if (!suit) {
+        text_.fit(x + 14, ly, theme::kTextSmall, theme::kInkSoft, pw - 20, "Win parts in %s.", kPartSource[dept]);
+        focus_.drawHighlight(); // padnav
+        return;
     }
 
-    // Merits / Promotion section
-    const float meritsY = segY + segH + 12.0f;
-    const uint16_t neededMerits = getNeededMerits(activeDept_, type, level);
-    const bool readyForPromotion = suitComplete && (neededMerits > 0 && merits >= neededMerits);
-
-    snprintf(buf, sizeof(buf), "%s Progress:", kMeritNames[activeDept_]);
-    C2D_Text mTxt;
-    tt::render::textParse(&mTxt, textBuf_, buf);
-    C2D_TextOptimize(&mTxt);
-    C2D_DrawText(&mTxt, C2D_WithColor, leftBoxX, meritsY, 0.6f, 0.36f, 0.36f, kInk);
-
-    // Merits progress bar
-    const float barX = leftBoxX;
-    const float barY = meritsY + 14.0f;
-    const float barW = panelW - 28.0f;
-    const float barH = 14.0f;
-
-    C2D_DrawRectSolid(barX, barY, 0.5f, barW, barH, C2D_Color32(0x60, 0x58, 0x50, 0xFF));
-    C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, barW - 2.0f, barH - 2.0f, C2D_Color32(0xE8, 0xE0, 0xD8, 0xFF));
-
-    float frac = (neededMerits > 0) ? (float(merits) / float(neededMerits)) : 1.0f;
-    frac = std::clamp(frac, 0.0f, 1.0f);
-
-    if (frac > 0.0f) {
-        C2D_DrawRectSolid(barX + 1.0f, barY + 1.0f, 0.5f, (barW - 2.0f) * frac, barH - 2.0f,
-                         readyForPromotion ? C2D_Color32(0x40, 0xB0, 0x40, 0xFF) : kDeptColors[activeDept_]);
-    }
-
-    snprintf(buf, sizeof(buf), "%u / %u", unsigned(merits), unsigned(neededMerits));
-    C2D_Text numTxt;
-    tt::render::textParse(&numTxt, textBuf_, buf);
-    C2D_TextOptimize(&numTxt);
-    C2D_DrawText(&numTxt, C2D_WithColor, barX + 8.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
-                 readyForPromotion ? C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF) : kInk);
-
-    if (readyForPromotion) {
-        C2D_Text promoTxt;
-        tt::render::textParse(&promoTxt, textBuf_, "READY FOR PROMOTION!");
-        C2D_TextOptimize(&promoTxt);
-        C2D_DrawText(&promoTxt, C2D_WithColor, barX + barW - 130.0f, barY + 1.0f, 0.7f, 0.32f, 0.32f,
-                     C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
-    }
+    // The merit meter toward the next promotion.
+    const uint16_t need = getNeededMerits(dept, type, level);
+    const bool ready = need > 0 && merits >= need;
+    text_.draw(x + 14, ly, theme::kTextSmall, theme::kInk, "%s", kMeritNames[dept]);
+    ly += 15;
+    const float bw = pw - 20;
+    float frac = need ? float(merits) / float(need) : 1.0f;
+    frac = frac < 0 ? 0 : frac > 1 ? 1 : frac;
+    theme::roundRect(x + 14, ly, bw, 16, 6, theme::kGreyDark);
+    theme::roundRect(x + 15, ly + 1, bw - 2, 14, 5, theme::kPaperShade);
+    if (frac > 0) theme::roundRect(x + 15, ly + 1, (bw - 2) * frac, 14, 5, ready ? theme::kGreen : kDeptInk[dept]);
+    text_.centered(x + 14 + bw * 0.5f, ly + 1, theme::kTextSmall, ready ? theme::kWhite : theme::kInk, bw - 8,
+                   need ? "%u of %u" : "%u", unsigned(merits), unsigned(need));
+    ly += 20;
+    if (ready) text_.fit(x + 14, ly, theme::kTextSmall, theme::kGreenDark, pw - 20, "Ready for a promotion!");
     focus_.drawHighlight(); // padnav
 }
 

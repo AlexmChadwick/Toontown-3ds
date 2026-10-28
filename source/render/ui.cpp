@@ -4,6 +4,7 @@
 #include "render/ui.h"
 
 #include "ui/gag_data.h"
+#include "ui/gag_table.h"
 #include "ui/laff_meter.h"
 #include "ui/theme.h"
 #include "ui/map_view.h"
@@ -96,6 +97,7 @@ bool Ui::init() {
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
     laffBuf_ = C2D_TextBufNew(16);
+    if (!gagText_.init(768)) return false;
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !laffBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
@@ -118,6 +120,7 @@ void Ui::shutdown() {
     quest_.shutdown();
     fishingPanel_.shutdown();
     book_.shutdown();
+    gagText_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_, &laffBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -720,65 +723,33 @@ void Ui::drawInfo(const Context &c) {
 }
 
 void Ui::drawGags(const Context &c) {
-    // Like the Shtiker Book's Gags page: one row per track in its battle colour, the gag icons
-    // with counts, and the experience toward the next gag.
+    // The Shtiker Book's Gags page on the sky: the gag table, the carry count and jellybeans.
     theme::paper(4, 4, kW - 8, kTabY - 8, 8.0f);
-    constexpr float kRowY0 = 28.0f, kRowH = 25.0f, kIconX = 82.0f, kIconStep = 24.0f;
-    if (c.gagCount) {
-        for (int t = 0; t < gags::kTracks; t++) {
-            const float y = kRowY0 + t * kRowH;
-            const bool have = c.trackAccess[t];
-            theme::roundRect(9, y, 68, kRowH - 3, 5, have ? theme::kTrackColors[t] : theme::kGrey);
-        }
+    if (!c.gagCount) {
+        gagText_.centered(kW * 0.5f, 84, theme::kTextBody, theme::kInk, kW - 32, "Your gags appear here");
+        gagText_.centered(kW * 0.5f, 104, theme::kTextBody, theme::kInk, kW - 32, "once you are online.");
+        return;
     }
-    // Text is re-parsed every kDebugRefreshFrames (shares the debug line cache).
-    if (numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
-        C2D_TextBufClear(debugBuf_);
-        numDebugLines_ = 0;
-        if (!c.gagCount) {
-            debugLine(14, 12, 0.5f, theme::kInkSoft, "Your gags appear here once you are online.");
-        } else {
-            int total = 0;
-            for (int t = 0; t < gags::kTracks; t++)
-                for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
-            debugLine(12, 6, 0.5f, theme::kInk, "Gags  %d / %d", total, c.maxCarry);
-            for (int t = 0; t < gags::kTracks; t++) {
-                const bool have = c.trackAccess[t];
-                const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
-                const float y = kRowY0 + t * kRowH + 3;
-                debugLine(14, y, 0.44f, have ? theme::kInk : theme::kInkSoft, "%s", theme::kTrackTitles[t]);
-                if (!have) {
-                    debugLine(kIconX + 4, y, 0.42f, theme::kInkSoft, "Not trained yet");
-                    continue;
-                }
-                for (int l = 0; l < levels; l++) {
-                    debugLine(kIconX + l * kIconStep + 14, y + 4, 0.36f,
-                              c.gagCount[t][l] ? theme::kInk : theme::kInkSoft, "%u", unsigned(c.gagCount[t][l]));
-                }
-                const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
-                if (next) {
-                    debugLine(252, y + 1, 0.38f, theme::kInkSoft, "%u/%u", unsigned(c.gagExp[t]), unsigned(next));
-                } else {
-                    debugLine(252, y + 1, 0.38f, theme::kInkSoft, "%u max", unsigned(c.gagExp[t]));
-                }
-            }
-        }
+    int total = 0;
+    for (int t = 0; t < gags::kTracks; t++)
+        for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
+    gagText_.draw(12, 8, theme::kTextBody, theme::kInk, "Gags  %d / %d", total, c.maxCarry);
+    if (c.stats) {
+        static constexpr u32 kBeans[3] = {theme::rgb(0xE8, 0x3A, 0x6A), theme::rgb(0x6C, 0xC6, 0x3C),
+                                          theme::rgb(0xF6, 0xB0, 0x22)};
+        const float bw = gagText_.right(kW - 12, 8, theme::kTextBody, theme::rgb(0x80, 0x50, 0x00), 0, "%d",
+                                        c.stats->money);
+        for (int i = 0; i < 3; i++) theme::roundRect(kW - 46 - bw + i * 7, 12 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
     }
-    if (c.gagCount) {
-        for (int t = 0; t < gags::kTracks; t++) {
-            if (!c.trackAccess[t]) continue;
-            const int levels = gags::levelsUnlocked(t, c.gagExp[t]);
-            const float y = kRowY0 + t * kRowH;
-            for (int l = 0; l < levels; l++) {
-                world::GagAtlas::instance().drawIcon(t, l, kIconX + l * kIconStep, y + 1, 18.0f, 0.52f,
-                                                     c.gagCount[t][l] ? 1.0f : 0.35f);
-            }
-        }
+    GagTableData d;
+    d.count = c.gagCount;
+    d.exp = c.gagExp;
+    d.access = c.trackAccess;
+    if (c.book) {
+        d.trainingTrack = c.book->trackProgressId;
+        d.trainingBits = c.book->trackProgress;
     }
-    for (int i = 0; i < numDebugLines_; i++) {
-        const CachedLine& l = debugLines_[i];
-        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.53f, l.scale, l.scale, l.color);
-    }
+    drawGagTable(gagText_, d, 9, 29, kW - 18, 24.0f);
 }
 
 void Ui::drawDebug(const Context& c) {
