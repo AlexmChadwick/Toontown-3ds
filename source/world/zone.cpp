@@ -234,7 +234,17 @@ struct Zone::Impl {
         void release(const render::TexEntry& key) override {
             LightLock_Lock(&lock_);
             for (uint32_t i=0;i<count_;++i) if (same(entries_[i].key,key)) {
-                if (entries_[i].refs) --entries_[i].refs;
+                if (entries_[i].refs && --entries_[i].refs==0) {
+                    // The caller fences any texture that has been drawn before unloading
+                    // its model.  Loader-job textures have never reached the GPU.  Reclaim
+                    // the page now so moving through PVS cells cannot retain the whole
+                    // zone pool and silently grow past the 8 MiB residency budget.
+                    {
+                        mem::LinearGuard guard;
+                        C3D_TexDelete(&entries_[i].tex);
+                    }
+                    entries_[i]=entries_[--count_];
+                }
                 break;
             }
             LightLock_Unlock(&lock_);
