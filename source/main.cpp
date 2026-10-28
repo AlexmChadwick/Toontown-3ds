@@ -26,6 +26,7 @@
 #include "render/ui.h"
 #include "ui/balloons.h"
 #include "ui/hud.h"
+#include "ui/map_view.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
 #include "world/asset_loader.h"
@@ -409,25 +410,10 @@ int main() {
         stressToons[i].update(i * 0.37f); // desynchronize
     }
 
-    // Map markers: positions from phase_4/dna/toontown_central_sz.dna.
-    const u32 kBuilding = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF), kTunnel = C2D_Color32(0xE0, 0x60, 0x20, 0xFF),
-              kLandmark = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), kWater = C2D_Color32(0x40, 0x90, 0xE0, 0xFF);
-    const tt::ui::MapMarker markers[] = {
-        {24.6f, 24.9f, kBuilding},   // Toon HQ
-        {-86.7f, -90.6f, kBuilding}, // Gag shop
-        {-124.4f, 74.4f, kBuilding}, // Pet shop
-        {106.3f, 160.8f, kBuilding}, // Clothing shop
-        {57.2f, 38.7f, kBuilding},   // Bank
-        {116.7f, 24.3f, kBuilding},  // Toon Hall
-        {91.4f, -44.9f, kBuilding},  // Library
-        {129.9f, -138.4f, kBuilding}, // School house
-        {-60.9f, -8.8f, kLandmark},  // Gazebo
-        {93.2f, -106.5f, kLandmark}, // Fountain
-        {-68.0f, -2.0f, kWater},     // Fishing pond
-        {-239.7f, 64.1f, kTunnel},   // Tunnels to the streets
-        {-68.4f, -202.6f, kTunnel},
-        {27.6f, 176.5f, kTunnel},
-    };
+    // Map markers: built from each zone's baked anchors when the zone changes (ui/map_view.h).
+    tt::ui::MapMarker placeMarkerList[kMaxMapMarkers];
+    int numPlaceMarkers = 0;
+    u32 placeMarkersZone = 0;
 
     tt::world::Player player;
     fishing.init(&player, &net);
@@ -1783,6 +1769,7 @@ int main() {
         } else if (uiState.teleportRequest && transition.idle()) {
             // Map tab teleport to a playground (upstream: Shticker Book map page).
             if (tt::world::Place::available(uiState.teleportRequest)) {
+                if (uiState.teleportFromMap && netStarted) net.sendCheckTeleportAccess(uiState.teleportRequest);
                 transition.startTeleportOut(uiState.teleportRequest, player, netStarted ? &net : nullptr);
             }
             uiState.teleportRequest = 0;
@@ -1824,6 +1811,7 @@ int main() {
             uiState.homeRequest = false;
         }
         uiState.teleportRequest = 0;
+        uiState.teleportFromMap = false;
 
         transition.update(dt, player, place, netStarted ? &net : nullptr);
         const char* doorReject = nullptr;
@@ -2801,13 +2789,33 @@ int main() {
         // Static landmarks plus other players (blue).
         tt::ui::MapMarker mapMarkers[kMaxMapMarkers];
         int numMapMarkers = 0;
-        if (place.zoneId() == kStartZone) {
-            for (const tt::ui::MapMarker& mk : markers) mapMarkers[numMapMarkers++] = mk;
+        if (place.zoneId() != placeMarkersZone) {
+            placeMarkersZone = place.zoneId();
+            numPlaceMarkers = 0;
+            if (place.kind() != tt::world::PlaceKind::Interior) {
+                static const char* names[tt::world::Place::kMaxPoints];
+                static float xy[2 * tt::world::Place::kMaxPoints];
+                const int n = place.numPoints();
+                for (int i = 0; i < n; i++) {
+                    names[i] = place.pointAt(i).name;
+                    xy[2 * i] = place.pointAt(i).x;
+                    xy[2 * i + 1] = place.pointAt(i).y;
+                }
+                numPlaceMarkers = tt::ui::placeMarkers(place.kind() == tt::world::PlaceKind::Playground, names, xy, n,
+                                                       placeMarkerList, kMaxMapMarkers / 2);
+                // Older TTC anchor sets (romfs) predate trolley_station: use the trolley's own.
+                bool trolleyShown = false;
+                for (int i = 0; i < numPlaceMarkers; i++) trolleyShown |= placeMarkerList[i].color == tt::ui::kMarkTrolley;
+                if (!trolleyShown && trolley.hasStation() && trolley.hood() == place.zoneId() &&
+                    numPlaceMarkers < kMaxMapMarkers / 2)
+                    placeMarkerList[numPlaceMarkers++] = {trolley.stationX(), trolley.stationY(), tt::ui::kMarkTrolley};
+            }
         }
+        for (int i = 0; i < numPlaceMarkers; i++) mapMarkers[numMapMarkers++] = placeMarkerList[i];
         float remoteXY[2 * kMaxMapMarkers];
         const int numRemote = remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
         for (int i = 0; i < numRemote; i++) {
-            mapMarkers[numMapMarkers++] = {remoteXY[2 * i], remoteXY[2 * i + 1], C2D_Color32(0x40, 0xF0, 0xFF, 0xFF)};
+            mapMarkers[numMapMarkers++] = {remoteXY[2 * i], remoteXY[2 * i + 1], tt::ui::kMarkToon};
         }
         ctx.markers = mapMarkers;
         ctx.numMarkers = numMapMarkers;
@@ -2842,6 +2850,22 @@ int main() {
             }
             // ---- end clerks ----
             ctx.stats = &net.ownStats();
+            // MapPage: teleportAccess and hoodsVisited. The world script's teleport steps run with
+            // fresh test toons, so scripted runs keep every hood open (main logs it once).
+            static bool loggedScriptHoods = false;
+            if (autotest.active() && !loggedScriptHoods) {
+                TT_LOG("map: autotest keeps every hood teleportable (players need teleportAccess)");
+                loggedScriptHoods = true;
+            }
+            if (net.ownStats().hasTeleportAccess && !autotest.active()) {
+                ctx.hoodsTeleport = ctx.hoodsVisited = 0;
+                for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
+                    const unsigned bit = 1u << (tt::ui::kTeleportHoods[i] / 1000);
+                    if (net.ownStats().teleportAccess & bit) ctx.hoodsTeleport |= 1u << i;
+                    if (net.ownStats().hoodsVisited & bit) ctx.hoodsVisited |= 1u << i;
+                }
+            }
+            ctx.homeAvailable = net.hasEstateManager();
             ctx.toonName = net.avatarName();
             for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
             {

@@ -482,6 +482,8 @@ TABLE_CLASSES.append('FriendManager')
 # ---- transitions (source/world/transition.*, docs/design/transitions.md) ----
 WANTED['DistributedToon'] += ['setTunnelIn', 'setTunnelOut']
 # ---- end transitions ----
+# Map page teleports (MapPage.__buttonCallback)
+WANTED['DistributedToon'] += ['setTeleportAccess', 'checkTeleportAccess']
 
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,

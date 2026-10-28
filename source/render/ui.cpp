@@ -288,12 +288,12 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     switch (s.tab) {
     case kTabMap:
         if (inRect(t, kHomeX, kHomeY, kHomeW, kHomeH)) {
-            s.homeRequest = true;
+            pressHoodControl(pad::hoods::kIdHome, s);
             break;
         }
         if (t.py >= kHoodRowY && t.py < kHoodRowY + kHoodRowH) {
             const int i = static_cast<int>(t.px / kHoodW);
-            if (i >= 0 && i < kNumTeleportHoods) s.teleportRequest = kTeleportHoods[i];
+            if (i >= 0 && i < kNumTeleportHoods) pressHoodControl(i, s);
         }
         break;
     case kTabToon:
@@ -478,11 +478,7 @@ u32 Ui::handleTabPad(u32 down, const touchPosition& t, State& s) {
 void Ui::activateTabControl(int id, State& s) {
     if (id < 0) return;
     if (s.tab == kTabMap) {
-        if (id == pad::hoods::kIdHome) {
-            s.homeRequest = true;
-        } else if (id < kNumTeleportHoods) {
-            s.teleportRequest = kTeleportHoods[id];
-        }
+        pressHoodControl(id, s);
     } else if (s.tab == kTabToon) {
         if (id == pad::toon::kIdBook) {
             book_.open();

@@ -54,6 +54,8 @@ public:
     }
     u32 hood() const { return hood_; }
     bool hasStation() const { return has_; }
+    float stationX() const { return px_; }
+    float stationY() const { return py_; }
     // Test helper: a point on the station platform inside the trolley sphere.
     void boardingPoint(float* x, float* y, float* z) const { toWorld(16.19f, sphereY_ - 6.0f, 0.6f, x, y, z); }
 

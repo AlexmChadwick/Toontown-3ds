@@ -1663,6 +1663,23 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
         if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
         pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setTeleportAccess ||
+               fieldId == dc::DistributedToon::k_setHoodsVisited) {
+        uint32_t bits = 0;
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 4 && r.ok(); i++) {
+            const uint32_t hood = r.u32();
+            if (hood % 1000 == 0 && hood / 1000 < 32) bits |= 1u << (hood / 1000);
+        }
+        r.skip(bytes & 3); // malformed length: stay aligned with the next field
+        if (!r.ok()) return false;
+        if (fieldId == dc::DistributedToon::k_setTeleportAccess) {
+            ownStats_.teleportAccess = bits;
+            ownStats_.hasTeleportAccess = true;
+        } else {
+            ownStats_.hoodsVisited = bits;
+        }
+        pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setDefaultZone) {
         ownStats_.defaultZone = r.u32(); // where a sad toon goes (DistributedToon.died)
         if (!r.ok()) return false;
@@ -3089,6 +3106,14 @@ void Client::sendRequestServerTime() {
     TT_NET_UPDATE(w, timeManagerId_, TimeManager, requestServerTime);
     w.u8(++timeContext_);
     timeRequestMs_ = now_;
+    finish(w);
+}
+
+void Client::sendCheckTeleportAccess(uint32_t hoodId) {
+    if (state_ != State::InZone || !avatarId_) return;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, checkTeleportAccess);
+    w.u16(static_cast<uint16_t>(hoodId));
     finish(w);
 }
 

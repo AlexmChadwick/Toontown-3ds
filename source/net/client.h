@@ -1038,6 +1038,11 @@ struct OwnStats {
     uint8_t emoteAccess[25] = {};
     bool hasEmotes = false;
     bool hasGags = false; // setInventory received
+    // setTeleportAccess / setHoodsVisited, one bit per hood id / 1000 (2000 TTC = bit 2, the Cog
+    // HQs 10000-13000 = bits 10-13). The Map page teleports only to hoods in teleportAccess.
+    uint32_t teleportAccess = 0;
+    uint32_t hoodsVisited = 1u << 2; // toon.dc default [2000]
+    bool hasTeleportAccess = false;  // setTeleportAccess received (offline: no gating)
 };
 
 // ===================== friends / whispers (docs/design/friends.md) =====================
@@ -1296,6 +1301,7 @@ public:
     // DistributedNode.setParent on our avatar: kParentRender or kParentDonaldsBoat. The pose sent
     // afterwards must be in that parent's frame (DistributedSmoothNode).
     void sendSetParent(uint32_t token);
+    void sendCheckTeleportAccess(uint32_t hoodId); // MapPage.__buttonCallback, before a teleport
     // Our world position for chat targeting when the pose we send is parent-local.
     void setOwnWorldPos(float x, float y, float z) { ownX_ = x, ownY_ = y, ownZ_ = z; }
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
@@ -1453,6 +1459,7 @@ public:
     uint32_t suitPlannerZone(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
+    bool hasEstateManager() const { return estateManagerDoId_ != 0; }
     const OwnBookStats& ownBook() const { return ownBook_; }
     const District* districts() const { return districts_; }
     int numDistricts() const { return kMaxDistricts; }

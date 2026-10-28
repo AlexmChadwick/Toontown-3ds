@@ -38,6 +38,7 @@ struct State {
     int bottomColor = 18;
     // Map tab teleport: hood zone id the player tapped (main clears it), 0 = none.
     unsigned teleportRequest = 0;
+    bool teleportFromMap = false; // the request came from the Map: send checkTeleportAccess first
     bool homeRequest = false;
     // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
     unsigned whisperTo = 0;
@@ -61,6 +62,10 @@ struct Context {
     int numMarkers;
     // Teleport row on the Map tab: which hoods are installed (bit i = kTeleportHoods[i]).
     unsigned hoodsAvailable = 0;
+    // setTeleportAccess / setHoodsVisited in the same bit order (offline: every hood).
+    unsigned hoodsTeleport = ~0u;
+    unsigned hoodsVisited = ~0u;
+    bool homeAvailable = false; // the server has an EstateManager
     unsigned currentHood = 0;
     unsigned currentZone = 0;
     // Debug

@@ -29,15 +29,11 @@ void PageMap::shutdown() {
 u32 PageMap::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
     if (!bdc.state) return 0;
     // ---- padnav: Home and the hood row (pad::buildHoodRow): the old touch areas, now also
-    // reached with the D-Pad and pressed with A. Unavailable hoods stay pressable, as by touch;
-    // main.cpp refuses a teleport to a hood that is not installed.
+    // reached with the D-Pad and pressed with A. Hoods without teleport access stay
+    // focusable; pressHoodControl explains why they don't teleport.
     int activated = -1;
     const u32 used = focus_.handleInput(keysDown, touch, &activated);
-    if (activated == pad::hoods::kIdHome) {
-        bdc.state->homeRequest = true;
-    } else if (activated >= 0 && activated < kNumTeleportHoods) {
-        bdc.state->teleportRequest = kTeleportHoods[activated];
-    }
+    if (activated >= 0) pressHoodControl(activated, *bdc.state);
     // The page keeps the whole D-Pad (L / R turn pages), even where a row has one control.
     return used | (keysDown & kDpadKeys);
     // ---- end padnav ----
