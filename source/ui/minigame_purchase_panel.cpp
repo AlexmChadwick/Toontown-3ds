@@ -7,6 +7,7 @@
 
 #include "core/log.h"
 #include "ui/pad_tables.h"
+#include "world/battle_fx.h"
 
 namespace tt::ui {
 
@@ -263,8 +264,24 @@ void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
     const int sec = deadlineMs_ > nowMs ? int((deadlineMs_ - nowMs) / 1000) : 0;
     snprintf(buf, sizeof(buf), "%02d:%02d", sec / 60, sec % 60);
     tt::render::textParse(&timerText_, infoBuf_, buf);
-    const char* msg = note_[0] ? note_ : gags::kGagNames[selTrack_][selLevel_];
-    tt::render::textParse(&infoText_, infoBuf_, msg);
+    // The Gag Shop's info line (ui/shop_panel.cpp), plus why a gag can't be added.
+    const int t = selTrack_, l = selLevel_;
+    const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
+    if (note_[0]) {
+        snprintf(buf, sizeof(buf), "%s", note_);
+    } else if (!open) {
+        snprintf(buf, sizeof(buf), "%s: not unlocked yet", gags::kGagNames[t][l]);
+    } else if (cart_.bought(t, l) > 0) {
+        snprintf(buf, sizeof(buf), "%s: have %u, +%d now. 1 bean each", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]), cart_.bought(t, l));
+    } else if (shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::TooManyProps) {
+        snprintf(buf, sizeof(buf), "%s: have %u. Your gag bag is full!", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]));
+    } else {
+        snprintf(buf, sizeof(buf), "%s: have %u of %d. 1 bean each", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
+    }
+    tt::render::textParse(&infoText_, infoBuf_, buf);
 
     C2D_TextOptimize(&titleText_);
     C2D_TextOptimize(&beansText_);
@@ -310,15 +327,18 @@ void MinigamePurchasePanel::draw() {
         for (int l = 0; l < kCols; l++) {
             const float x = kGridX + l * kCellW;
             const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
+            const bool canBuy = open && shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::Ok;
             const bool sel = t == selTrack_ && l == selLevel_;
             const bool hasBought = cart_.bought(t, l) > 0;
+            // The Gag Shop's cells (ui/shop_panel.cpp): the gag's icon, then have/max.
             const u32 bg = !open ? theme::kGrey : hasBought ? theme::kYellow
-                                                : theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f);
+                         : canBuy ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f) : theme::kPaperShade;
             theme::roundRect(x, y, kCellW - 2, kCellH - 2, 4, sel ? theme::kRed : theme::kPaperEdge, 0.2f);
             const float in = sel ? 2.0f : 1.0f;
             theme::roundRect(x + in, y + in, kCellW - 2 - 2 * in, kCellH - 2 - 2 * in, 3, bg, 0.25f);
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + 4, y + 4, 0.5f, 0.40f, 0.40f,
-                         open ? theme::kInk : theme::kInkSoft);
+            if (open) world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.3f, canBuy ? 1.0f : 0.45f);
+            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.5f, 0.40f, 0.40f,
+                         !open ? theme::kInkSoft : canBuy || hasBought ? theme::kInk : theme::kInkSoft);
         }
     }
 

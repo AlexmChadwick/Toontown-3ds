@@ -372,14 +372,14 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
         if (TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true)) {
             if (createToon(net::Client::TutorialChoice::Play)) go(Screen::Entering);
             else {
-                snprintf(error_, sizeof(error_), "That toon could not be created. Try different choices.");
+                snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
                 go(Screen::Error);
             }
         }
         if (TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true) || back) {
             if (createToon(net::Client::TutorialChoice::Skip)) go(Screen::Entering);
             else {
-                snprintf(error_, sizeof(error_), "That toon could not be created. Try different choices.");
+                snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
                 go(Screen::Error);
             }
         }
@@ -622,7 +622,7 @@ void FrontEnd::makeStepInput(u32 down) {
             } else {
                 SwkbdState swkbd;
                 swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 2, sizeof(inputBuf) - 1);
-                swkbdSetHintText(&swkbd, "Enter your toon's name");
+                swkbdSetHintText(&swkbd, "Enter your Toon's name");
                 SwkbdButton btn = swkbdInputText(&swkbd, inputBuf, sizeof(inputBuf));
                 if (btn == SWKBD_BUTTON_RIGHT) gotInput = true;
             }

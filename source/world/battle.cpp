@@ -240,7 +240,7 @@ void Battle::handleEvent(const net::Event& ev, net::Client& client, uint32_t now
         if (phase_ == BattlePhase::Requested && !joining_) {
             phase_ = BattlePhase::Idle;
             cooldownUntilMs_ = nowMs + kRequestCooldownMs;
-            message_ = "That cog is too busy to fight right now.";
+            message_ = "That Cog is too busy to fight right now.";
         }
         break;
     case EventType::BattleJoinDenied:
@@ -1189,12 +1189,12 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     const net::Battle* nb = battleId_ ? client.findBattle(battleId_) : nullptr;
     switch (phase_) {
     case BattlePhase::Requested: v->status = "Getting ready to fight..."; break;
-    case BattlePhase::FaceOff: v->status = "The cog wants a fight!"; break;
+    case BattlePhase::FaceOff: v->status = "The Cog wants a fight!"; break;
     case BattlePhase::Waiting: v->status = running_ ? "Running away!" : "Waiting for the next round..."; break;
     case BattlePhase::Input: v->status = "Choose a gag!"; break;
-    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for the other toons..."; break;
+    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for other players..."; break;
     case BattlePhase::Movie: v->status = "The round is playing out..."; break;
-    case BattlePhase::Reward: v->status = "You beat the cogs!"; break;
+    case BattlePhase::Reward: v->status = "You beat the Cogs!"; break;
     default: break;
     }
     // ---- tutorial ----

@@ -306,6 +306,9 @@ void ShopPanel::rebuildInfo(uint32_t nowMs) {
         } else if (cart_.bought(t, l) > 0) {
             snprintf(buf, sizeof(buf), "%s: have %u, +%d now. 1 bean each", gags::kGagNames[t][l],
                      unsigned(cart_.inv[t][l]), cart_.bought(t, l));
+        } else if (shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::TooManyProps) {
+            snprintf(buf, sizeof(buf), "%s: have %u. Your gag bag is full!", gags::kGagNames[t][l],
+                     unsigned(cart_.inv[t][l]));
         } else {
             snprintf(buf, sizeof(buf), "%s: have %u of %d. 1 bean each", gags::kGagNames[t][l],
                      unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
