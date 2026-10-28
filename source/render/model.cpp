@@ -235,7 +235,10 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool, TextureCa
         absoluteIndices_ = ok;
     }
     if (ok) {
-        linearBytes_ = numVertices_ * kVertexSize + numIndices_ * sizeof(u16);
+        // linearAlloc rounds independent allocations to the GPU's 0x80-byte alignment.
+        // Keep residency accounting conservative at that same granularity.
+        const auto linearCost = [](u32 bytes) { return (bytes + 0x7fu) & ~0x7fu; };
+        linearBytes_ = linearCost(numVertices_ * kVertexSize) + linearCost(numIndices_ * sizeof(u16));
         GSPGPU_FlushDataCache(vertices_, numVertices_ * kVertexSize);
         GSPGPU_FlushDataCache(indices_, numIndices_ * sizeof(u16));
     }
@@ -252,7 +255,7 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool, TextureCa
         // TTM entry.  Model::linearBytes() feeds the hard Toon and boss-scene admission
         // limits, so using tex.size here silently admitted more linear memory than those
         // Old 3DS budgets allow whenever a model had mipmaps.
-        if (ok) linearBytes_ += texEntries[i].dataSize;
+        if (ok) linearBytes_ += (texEntries[i].dataSize + 0x7fu) & ~0x7fu;
     }
 
     free(texEntries);
