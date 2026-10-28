@@ -174,7 +174,9 @@ Key decisions:
      `interiors/textures.ttp` (pooled TTM v2, `tools/pipeline/ttm_pool.py`). Never let a
      baker copy the same atlas page into every chunk file again: that doubled the SD set.
      On 3DS, a zone-local ref-counted residency cache also uploads each TZ v3 pool entry
-     only once; near/far and PVS chunks borrow that allocation until the zone unloads.
+     only once; near/far and PVS chunks borrow that allocation. Zero-reference pages are
+     freed immediately after the GPU fence instead of accumulating until zone unload, and
+     the cache refuses any new unique page that would exceed the 8 MiB zone-texture cap.
 3. **Baked mesh data.**
    - Positions are quantized to `int16`; UVs use `int16` or `u8`.
    - Vertex color is `u8×4`.

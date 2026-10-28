@@ -129,11 +129,15 @@ caps. Consequently the bound does not depend on sampling particular camera angle
 
 The selected plan is reconsidered on cell changes or after four units of movement,
 limiting SD churn. Stable updates and selection use fixed arrays and no allocation.
-All outgoing/changed-LOD models are freed before any incoming model is allocated.
-GPU completion is awaited before eviction. Model/Anim's existing shared allocator
-lock is never held around a Model::loadFrom call. A failed load clears partial
-residency, reports Zone::error(), and allows retry. Initial no-floor arrivals still
-use the integrated nearest-cell fallback; later misses preserve the current set.
+An old LOD normally stays visible until its replacement is ready. If temporary double
+residency would exceed a hard geometry or conservative texture cap, it is GPU-fenced and
+retired before the replacement is queued, avoiding a loader wait that can never resolve.
+TZ v3 shared pages are reference counted, freed as soon as the last model releases them,
+and admitted against the exact unique full-mip-chain byte total; walking through PVS cells
+therefore cannot accumulate the entire zone texture pool. Model/Anim's existing shared
+allocator lock is never held around a Model::loadFrom call. A failed load clears partial
+residency, reports Zone::error(), and allows retry. Initial no-floor arrivals still use
+the integrated nearest-cell fallback; later misses preserve the current set.
 
 These limits cover world meshes. Toons, NPCs and other actors still add work; an
 application targeting 15k for the complete frame should reserve an actor allowance

@@ -3,6 +3,51 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Bounded shared-texture lifetime and streaming progress
+
+### Done
+- Fixed TZ v3 shared texture residency retaining zero-reference pages until the whole zone
+  unloaded. Crossing PVS cells now releases a pooled atlas page immediately after its last
+  borrowing model is GPU-fenced, so texture residency follows the current visible set instead
+  of growing monotonically toward the complete zone pool.
+- Enforced the 8 MiB zone-texture limit at the cache allocation point using full mip-chain
+  payload bytes. This is the exact unique allocation total for shared pages and prevents a
+  future planner/accounting error from silently overrunning the Old 3DS linear-memory budget.
+- Fixed an existing LOD replacement deadlock: when retaining the old and replacement models
+  simultaneously would exceed a hard geometry or conservative texture cap, the old LOD is
+  now fenced and retired before the new load is queued. Normal transitions still keep the old
+  LOD visible until publication.
+
+### Verified
+- `git diff --check` passes, and the lifetime/lock ordering was reviewed across successful,
+  partial-failure, unwanted-job, LOD-swap and zone-unload paths.
+- The cache uses the texture table's validated `dataSize`, which is the complete mip chain;
+  `C3D_Tex::size` is only the base level and is deliberately not used for budget telemetry.
+- This checkout has neither a host C++ compiler nor devkitARM, and its Python environment lacks
+  Panda3D, so the zone host suite, 3DS build and Azahar memory walk could not run here.
+
+### Asset size decisions
+- None. Original texture resolutions, formats and on-disk payloads are unchanged; this round
+  only bounds their runtime lifetime and allocation.
+
+### Known issues
+- The streaming planner still uses conservative per-chunk texture totals when choosing near
+  LODs, so it can decline an upgrade that would fit after TZ v3 sharing. Runtime allocation is
+  now exact and bounded, but exact planning needs compact per-model pool-reference metadata to
+  avoid restoring scattered synchronous SD reads at zone entry.
+- The fixes need an Old 3DS Azahar PVS walk and real-hardware run. Watch `zone texture`/linear
+  telemetry across repeated cell and near/far crossings; it should fall after evictions and
+  remain at or below 8 MiB without loader stalls.
+- Facility collision/layout staging, four boss battles and the first real-hardware performance
+  pass remain open.
+
+### Next
+- Add compact TZ pool-reference metadata (or a bounded loader-produced equivalent) so near-LOD
+  planning can count unique shared pages without main-thread table reads.
+- Measure repeated multi-cell street transitions on the equipped rig, including forced
+  budget-pressure LOD replacements and linear-memory recovery.
+- Move facility room collision and layout preparation off the main thread.
+
 ## 2026-10-28 — Shared TZ v3 texture residency
 
 ### Done
