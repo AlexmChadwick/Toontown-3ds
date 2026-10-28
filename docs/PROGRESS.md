@@ -3,6 +3,24 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 (perf) — SD size ceilings
+
+### Done
+- Re-audited the two size known issues from the 2026-10-27 Linux-rig entry: both were
+  already fixed (see strike-throughs there). Re-baked all street/playground zones on a fresh
+  Linux box (Python 3.11 + panda3d 1.10.15): the largest `.tz` is 5.9 MB.
+- New `tools/pipeline/sd_budget.py` (run by a full `bake_sd_all.sh`): per-directory ceilings
+  for zones/level/interiors, a 650 MB total and a per-file ceiling (8 MB per `.tz`/`.tlf`/`.ttp`),
+  so a baker that copies atlas pages per chunk again fails the bake.
+
+### Verified
+- sd_budget on the partial bake (zones 75 MB so far). No toolchain on this box, so no 3DS
+  build, Azahar or hardware run this round; the budget tool itself is host-only.
+
+### Next
+- Run a full `bake_sd_all.sh` here and tune the ceilings to the measured numbers.
+- Floor/street loads off the main thread; first hardware run.
+
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
 ### Done
@@ -222,10 +240,9 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   256×128 RGBA8 (RGBA4 banded the soft outline). No other asset was downscaled this round.
 
 ### Known issues
-- The SD data set bakes to 992 MB, about twice the 480 MB the README states; `zones/`
-  alone is 389 MB (37 `.tz`, some over 11 MB). Needs a size review before shipping SD packs.
-- `battle_validate` fails its 4 MiB battle-scene budget when the full `clothes.ttx`
-  (about 1 MB) is installed instead of the Make-A-Toon subset.
+- ~~SD set 992 MB / `.tz` over 11 MB~~ and ~~`battle_validate` over 4 MiB with the full
+  `clothes.ttx`~~: both fixed later the same day (TZ v3 pooling, 603 MB; battle_validate counts
+  resident clothing). Zones re-baked 2026-10-28: largest `.tz` 5.9 MB (2100).
 - Golf is not merged (`golf2` branch); `golf_test` cannot run without its data.
 - No real-hardware run yet; all frame numbers are emulator numbers.
 - Azahar on Linux runs here without audio (no DSP firmware, no sound device).

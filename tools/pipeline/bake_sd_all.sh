@@ -26,7 +26,7 @@
 #   misc      bake_audio (SD soundscape) -> bake_char -> char_paths_bin -> bake_fishing ->
 #             bake_minigame -> bake_golf -> bake_golf_physics -> bake_cogbldg -> bake_estate ->
 #             bake_clerk_karts
-#   verify    (after all lanes) battle_validate.py, non-fatal; size report
+#   verify    (after all lanes) battle_validate.py, non-fatal; sd_budget.py size ceilings (fails a full bake)
 #
 # Deliberately not run here:
 #   bake_cogdo.py, bake_racing*.py   data/cogdo and data/racing are committed kits; never rebake.
@@ -243,6 +243,10 @@ sleep 1  # let the tee/sed of the last lane flush
 
 if [[ " ${selected[*]} " == *" toon "* || " ${selected[*]} " == *" battle "* ]] && [[ -d $DATA/toon && -d $DATA/suit ]]; then
     step battle-validate py tools/pipeline/battle_validate.py || echo "battle_validate failed (non-fatal)"
+fi
+
+if [[ ${#selected[@]} -eq ${#LANES[@]} ]]; then
+    step sd-budget py tools/pipeline/sd_budget.py || failed+=("sd-budget")
 fi
 
 echo
