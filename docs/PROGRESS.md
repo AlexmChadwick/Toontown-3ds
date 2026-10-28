@@ -606,3 +606,19 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Azahar battle inside a facility, grep the log for `over the audio budget`; latency gate and `kSmoothTau` check on a quiet machine.
+
+## 2026-10-28 — perf round 19: validator run on the round 17/18 caps
+
+### Verified (host)
+- `.venv/bin/python -I tools/pipeline/battle_validate.py` runs here (round 18 could not): 239 models, 2338 clips, 113 audio,
+  resident 3,918,068 B, headroom 276,236 B under the 4 MiB battle cap, using the enforced SFX byte caps.
+- `make` up to date; `budget_check.sh` exits 0 (static 3.00 MiB of 4.00; zones and SD set in budget). Needs the toolchain exports
+  from round 11 (`/tmp/rootfs/opt/devkitpro`) and `.venv` for panda3d.
+- No code changes: no per-frame STL containers found in `source/`.
+
+### Known issues
+- Still unmeasured: live web->3DS latency gate, full-battle linear peak beyond the 2.1 MB Azahar reading, the `over the audio budget`
+  log in a long facility battle, `kSmoothTau` visual check, any hardware run. VM load was ~17, so no emulator numbers were taken.
+
+### Next
+- Quiet machine: latency gate, battle-in-facility Azahar run, kSmoothTau check; then hardware.
