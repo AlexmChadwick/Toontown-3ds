@@ -1,5 +1,46 @@
 # Progress
 
+## 2026-10-27 — Toontorial quest-movie integration
+
+Done:
+
+- Matched stock `DistributedNPCToon` for the two tutorial assignment movies: quest 101 and
+  quest 110 now run their generated QuestScripts instead of falling back to ordinary ToonTask
+  balloons, and `FINISH_QUEST_MOVIE` sends `setMovieDone` to the owning NPC exactly once.
+- Selected Mickey/Minnie dialogue from the validated local Toon DNA. Female toons no longer
+  receive the hard-coded male classic-character branch.
+- Made stock Shticker Book and SpeedChat `WAIT_EVENT` gates reachable by a player: A confirms the
+  highlighted action on the persistent 3DS bottom screen, while exact named UI/autotest events
+  remain supported. NPC collision cannot start another conversation while a script owns the UI.
+- Added source-contract checks and a host regression case for the 3DS event acknowledgement.
+
+Verified:
+
+- `git diff --check`, the isolated QuestScript generator check, `sh -n` on the tutorial runner,
+  and the new quest-dispatch/gender/event source contracts pass.
+- The sanitizer-backed C++ flow executable could not be built: this image has no C++ compiler,
+  and installing `g++` is blocked by the unprivileged package-manager lock. The native 3DS build
+  remains unavailable because `DEVKITARM` is unset. No emulator, server, or hardware result is
+  claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial still needs its first Old 3DS Azahar play-through against the
+  stock server. Verify quest 101/110 presentation and acknowledgements, both dynamic-street
+  returns, the Flunky battle, HQ/book prompts, blocker SpeedChat prompts, and the TTC tunnel.
+- `gag_intro` is generated and host-tested as a script, but the later NewbiePurchaseManager path
+  does not yet dispatch it through `TutorialFlow`.
+- The compact 3DS presentation retains stock dialogue and ordering but does not yet render the
+  decorative tutorial GUI props/camera choreography represented by no-op QuestScript commands.
+- Real Old 3DS performance and memory high-water marks remain unmeasured.
+
+Next:
+
+- On a provisioned host, run `tools/tutorial_test/run.sh`, build with zero warnings, package the
+  canonical tutorial assets, and execute the full route in Old 3DS Azahar mode.
+- Integrate `gag_intro` with NewbiePurchaseManager and review every scripted prompt at 320x240
+  before claiming the Toontorial complete.
+
 ## 2026-10-27 — Codex continuation
 
 Done:
