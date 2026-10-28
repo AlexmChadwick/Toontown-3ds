@@ -1,4 +1,5 @@
 #include "render/ui_font.h"
+#include "ui/theme.h"
 #include "ui/shop_panel.h"
 
 #include <cstdio>
@@ -51,7 +52,7 @@ bool ShopPanel::init() {
     infoBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !gridBuf_ || !infoBuf_) return false;
     for (int t = 0; t < gags::kTracks; t++) {
-        tt::render::textParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
+        tt::render::textParse(&trackText_[t], staticBuf_, theme::kTrackTitles[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
     static const char* const kBtn[4] = {"-", "+", "Done", "Cancel"};

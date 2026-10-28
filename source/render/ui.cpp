@@ -708,7 +708,7 @@ void Ui::drawInfo(const Context &c) {
     }
     // ---- end racing2 ----
     C2D_Text title;
-    textCache_.parse(&title, textBuf_, c.infoTitle ? c.infoTitle : "", 1024);
+    textCache_.parse(&title, textBuf_, c.infoTitle && c.infoTitle[0] ? c.infoTitle : "Just a moment...", 1024);
     theme::textCentered(title, kW * 0.5f, 14, 0.72f, theme::kRedDark, kW - 28);
     C2D_DrawRectSolid(24, 44, 0.5f, kW - 48, 2, theme::kPaperShade);
     for (int i = 0; i < 3; i++) {
@@ -746,7 +746,7 @@ void Ui::drawGags(const Context &c) {
                 const bool have = c.trackAccess[t];
                 const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
                 const float y = kRowY0 + t * kRowH + 3;
-                debugLine(14, y, 0.44f, have ? theme::kInk : theme::kInkSoft, "%s", gags::kTrackNames[t]);
+                debugLine(14, y, 0.44f, have ? theme::kInk : theme::kInkSoft, "%s", theme::kTrackTitles[t]);
                 if (!have) {
                     debugLine(kIconX + 4, y, 0.42f, theme::kInkSoft, "Not trained yet");
                     continue;

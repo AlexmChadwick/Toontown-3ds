@@ -8,6 +8,7 @@
 #include "ui/pad_tables.h"
 #include "core/log.h"
 #include "world/battle_fx.h"
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -22,19 +23,17 @@ constexpr float kBtnY = pad::battle::kBtnY, kBtnH = pad::battle::kBtnH;
 static_assert(pad::battle::kTracks == gags::kTracks && pad::battle::kLevels == gags::kLevels,
               "the battle focus table assumes the 7 x 7 gag grid");
 
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
-const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kHp = C2D_Color32(0x5C, 0xD0, 0x5C, 0xFF);
-const u32 kHpLow = C2D_Color32(0xE0, 0x50, 0x40, 0xFF);
-// Track colours, roughly the Shticker Book's gag pages.
-const u32 kTrackColor[gags::kTracks] = {
-    C2D_Color32(0xD8, 0x6A, 0xC8, 0xFF), C2D_Color32(0xD8, 0xC8, 0x40, 0xFF), C2D_Color32(0x40, 0xB0, 0x40, 0xFF),
-    C2D_Color32(0x40, 0x70, 0xD8, 0xFF), C2D_Color32(0xE0, 0x80, 0x30, 0xFF), C2D_Color32(0xE0, 0x50, 0xA0, 0xFF),
-    C2D_Color32(0x40, 0xB8, 0xD8, 0xFF),
-};
+const u32 kInk = theme::kInk;
+const u32 kInkSoft = theme::kInkSoft;
+// Suit.healthColors by Suit.updateHealthBar's conditions (green > 95%, yellow > 70%, orange
+// > 30%, red > 5%, else the blinking red / grey).
+u32 healthColor(float f) {
+    if (f > 0.95f) return theme::rgb(0x20, 0xE0, 0x20);
+    if (f > 0.7f) return theme::rgb(0xF0, 0xE0, 0x10);
+    if (f > 0.3f) return theme::rgb(0xFF, 0x80, 0x00);
+    if (f > 0.0f) return theme::rgb(0xF0, 0x10, 0x10);
+    return theme::rgb(0x4C, 0x4C, 0x4C);
+}
 
 } // namespace
 
@@ -168,28 +167,34 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
 }
 
 void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
-    // Persistent glyph cache: unchanged strings require no layout work.
-    C2D_DrawRectSolid(0, 0, 0.5f, kW, 240, kBg);
-    text(4, 2, 0.45f, kWhite, "%s", v.status ? v.status : "");
-    if (v.secondsLeft >= 0) text(286, 2, 0.5f, v.secondsLeft <= 5 ? kHpLow : kAccent, "%d", v.secondsLeft);
+    // Upstream's TownBattle: the cream gag panel with a row per track in its colour, Cog panels
+    // with the suit's health light colours, and round Pass / Run buttons.
+    theme::sky();
+    theme::paper(1, 0, kW - 2, 17, 5.0f);
+    text(6, 0, 0.45f, kInk, "%s", v.status ? v.status : "");
+    if (v.secondsLeft >= 0) {
+        theme::roundRect(282, 0, 36, 17, 6, v.secondsLeft <= 5 ? theme::kRed : theme::kYellow);
+        text(292, 0, 0.5f, v.secondsLeft <= 5 ? theme::kWhite : kInk, "%d", v.secondsLeft);
+    }
 
-    // Cogs: name, level, HP bar. The target has a gold frame.
+    // Cogs: name, level, health. The target wears a red frame.
     for (int i = 0; i < v.numCogs && i < 4; i++) {
         const world::BattleCogView& c = v.cogs[i];
         const float x = 2 + i * (kCogW + 1);
-        if (i == target_ && v.phase == world::BattlePhase::Input) {
-            C2D_DrawRectSolid(x - 1, kCogY - 1, 0.5f, kCogW + 2, kCogH + 2, kAccent);
-        }
-        C2D_DrawRectSolid(x, kCogY, 0.5f, kCogW, kCogH, c.active ? kPanel : kBg);
-        text(x + 3, kCogY + 2, 0.38f, c.active ? kWhite : kDim, "%s", c.name);
-        text(x + 3, kCogY + 15, 0.38f, kDim, "Level %d%s", c.level, c.lured ? " lured" : "");
+        const bool target = i == target_ && v.phase == world::BattlePhase::Input;
+        theme::paper(x, kCogY, kCogW, kCogH, 5.0f, c.active ? theme::kPaper : theme::kGrey,
+                     target ? theme::kRed : theme::kGreyDark);
+        if (target) theme::roundRect(x + 1, kCogY + 1, kCogW - 2, 3, 1, theme::kRed);
+        text(x + 5, kCogY + 3, 0.38f, c.active ? kInk : kInkSoft, "%s", c.name);
+        text(x + 5, kCogY + 16, 0.36f, kInkSoft, "Level %d%s", c.level, c.lured ? "  Lured" : "");
         const float f = hpFraction(c.hp, c.maxHp);
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.55f, kCogW - 6, 7, kDim);
-        C2D_DrawRectSolid(x + 3, kCogY + 32, 0.56f, (kCogW - 6) * f, 7, f > 0.35f ? kHp : kHpLow);
+        theme::roundRect(x + 5, kCogY + 32, kCogW - 10, 7, 3, theme::kGreyDark, 0.55f);
+        if (f > 0.0f) theme::roundRect(x + 5, kCogY + 32, (kCogW - 10) * f, 7, 3, healthColor(f), 0.56f);
     }
 
     if (v.phase == world::BattlePhase::Reward && !v.floorReward) {
-        text(8, kGridY, 0.5f, kWhite, "Cogs defeated: %d", v.cogsDefeated);
+        theme::paper(2, kGridY - 2, kW - 4, kBtnY - kGridY - 2, 6.0f);
+        text(10, kGridY, 0.5f, theme::kRedDark, "Cogs defeated: %d", v.cogsDefeated);
         // RewardPanel: per track, the experience toward the next gag level and what this
         // battle added.
         for (int i = 0; i < v.numRewardRows; i++) {
@@ -206,40 +211,48 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                 prev = gags::kLevelExp[r.track][l];
             }
             const float f = next < 0 ? 1.0f : float(total - prev) / float(next - prev);
-            text(8, y, 0.42f, kWhite, "%s", gags::kTrackNames[r.track]);
-            C2D_DrawRectSolid(80, y + 3, 0.5f, 120, 9, kPanel);
-            C2D_DrawRectSolid(80, y + 3, 0.55f, 120 * (f < 0 ? 0 : f > 1 ? 1 : f), 9, kTrackColor[r.track]);
-            if (next < 0) text(206, y, 0.38f, kDim, "Max");
-            else text(206, y, 0.38f, kDim, "%d/%d", total, next);
-            if (r.earned > 0) text(272, y, 0.42f, kAccent, "+%d", r.earned);
+            text(10, y, 0.42f, kInk, "%s", theme::kTrackTitles[r.track]);
+            theme::roundRect(80, y + 3, 120, 10, 4, theme::kGrey);
+            theme::roundRect(80, y + 3, 120 * (f < 0 ? 0 : f > 1 ? 1 : f), 10, 4, theme::kTrackColors[r.track], 0.55f);
+            if (next < 0) text(206, y, 0.38f, kInkSoft, "Max");
+            else text(206, y, 0.38f, kInkSoft, "%d/%d", total, next);
+            if (r.earned > 0) text(272, y, 0.44f, theme::kGreenDark, "+%d", r.earned);
         }
-        C2D_DrawRectSolid(218, kBtnY, 0.5f, 100, kBtnH, v.rewardSent ? kPanel : kAccent);
-        text(236, kBtnY + 6, 0.5f, v.rewardSent ? kDim : kBg, "Continue");
+        theme::button(pad::battle::kContinueX, kBtnY, pad::battle::kBtnW, kBtnH, v.rewardSent ? theme::kGrey : theme::kGreen,
+                      v.rewardSent ? theme::kGreyDark : theme::kGreenDark);
+        text(pad::battle::kContinueX + 22, kBtnY + 4, 0.5f, v.rewardSent ? kInkSoft : theme::kWhite, "Continue");
         focus_.drawHighlight();
         return;
     }
 
     // Gag grid: one row per track, a cell per level with our count.
     const bool choosing = v.phase == world::BattlePhase::Input;
+    theme::paper(1, kGridY - 3, kW - 2, gags::kTracks * kRowH + 4, 5.0f);
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kRowH;
         const bool have = g.access && g.access[t];
-        text(4, y + 2, 0.38f, have ? kWhite : kDim, "%s", gags::kTrackNames[t]);
+        theme::roundRect(4, y, kGridX - 6, kRowH - 2, 4, have ? theme::kTrackColors[t] : theme::kGrey);
+        text(8, y + 1, 0.38f, have ? kInk : kInkSoft, "%s", theme::kTrackTitles[t]);
         if (!have || !g.count) continue;
         const int levels = gags::levelsUnlocked(t, g.exp[t]);
         for (int l = 0; l < levels; l++) {
             const float x = kGridX + l * (kCellW + 2);
             const bool ok = choosing && usable(v, g, t, l);
-            C2D_DrawRectSolid(x, y, 0.5f, kCellW, kRowH - 2, ok ? kTrackColor[t] : kPanel);
-            world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, ok ? 1.0f : 0.45f);
-            text(x + 19, y + 2, 0.38f, ok ? kBg : kDim, "%u", unsigned(g.count[t][l]));
+            const u32 face = ok ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.55f) : theme::kPaperShade;
+            theme::roundRect(x, y, kCellW, kRowH - 2, 4, ok ? theme::shade(theme::kTrackColors[t], 0.7f) : theme::kGrey);
+            theme::roundRect(x + 1, y + 1, kCellW - 2, kRowH - 4, 3, face);
+            world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, ok ? 1.0f : 0.4f);
+            text(x + 20, y + 2, 0.38f, ok ? kInk : kInkSoft, "%u", unsigned(g.count[t][l]));
         }
     }
 
-    C2D_DrawRectSolid(2, kBtnY, 0.5f, 100, kBtnH, choosing ? kPanel : kBg);
-    text(36, kBtnY + 6, 0.5f, choosing ? kWhite : kDim, "Pass");
-    C2D_DrawRectSolid(110, kBtnY, 0.5f, 100, kBtnH, choosing && v.canRun ? kPanel : kBg);
-    text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kWhite : kDim, "Run");
+    theme::button(pad::battle::kPassX, kBtnY, pad::battle::kBtnW, kBtnH, choosing ? theme::kBlue : theme::kGrey,
+                  choosing ? theme::kBlueDark : theme::kGreyDark);
+    text(pad::battle::kPassX + 36, kBtnY + 4, 0.5f, choosing ? theme::kWhite : kInkSoft, "Pass");
+    const bool canRun = choosing && v.canRun;
+    theme::button(pad::battle::kRunX, kBtnY, pad::battle::kBtnW, kBtnH, canRun ? theme::kRed : theme::kGrey,
+                  canRun ? theme::kRedDark : theme::kGreyDark);
+    text(pad::battle::kRunX + 38, kBtnY + 4, 0.5f, canRun ? theme::kWhite : kInkSoft, "Run");
     if (choosing) focus_.drawHighlight();
 }
 

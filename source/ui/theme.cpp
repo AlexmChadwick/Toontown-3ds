@@ -80,6 +80,8 @@ void button(float x, float y, float w, float h, u32 face, u32 lip, bool down, fl
     roundRect(x, down ? y + kLip : y, w, h - kLip, r, face, z);
 }
 
+u32 mix(u32 a, u32 b, float t) { return lerpColor(a, b, t); }
+
 u32 shade(u32 c, float s) {
     const u32 r = u32((c & 0xFF) * s), g = u32(((c >> 8) & 0xFF) * s), b = u32(((c >> 16) & 0xFF) * s);
     return r | g << 8 | b << 16 | (c & 0xFF000000u);

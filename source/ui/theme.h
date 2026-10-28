@@ -55,6 +55,9 @@ constexpr u32 kScArrow = rgb(0x80, 0x80, 0xFF);
 constexpr u32 kTrackColors[7] = {rgb(211, 148, 255), rgb(249, 255, 93), rgb(79, 190, 76),  rgb(93, 108, 239),
                                  rgb(255, 145, 66),  rgb(255, 65, 199), rgb(67, 243, 255)};
 
+// Track names as the Shtiker Book's Gags page prints them (gags::kTrackNames is lower case).
+inline constexpr const char* kTrackTitles[7] = {"Toon-Up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"};
+
 // Whole-screen sky gradient (one quad).
 void sky(float w = 320.0f, float h = 240.0f);
 // The band y0..y1 of a sky(w, h) gradient, to cover content scrolled under a header.
@@ -67,6 +70,8 @@ void paper(float x, float y, float w, float h, float r = 6.0f, u32 fill = kPaper
 // Cartoon button: a darker lip under a rounded face. `down` sinks the face onto the lip.
 void button(float x, float y, float w, float h, u32 face, u32 lip, bool down = false, float r = 6.0f,
             float z = 0.5f);
+// Blend from a toward b (0..1), per channel including alpha.
+u32 mix(u32 a, u32 b, float t);
 // A darker shade of `c` (for lips and outlines), scale 0..1.
 u32 shade(u32 c, float scale);
 

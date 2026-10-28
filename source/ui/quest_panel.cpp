@@ -139,7 +139,7 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
             const int t = talk.track(i);
             const u32 face = t >= 0 && t < gags::kTracks ? theme::kTrackColors[t] : theme::kGrey;
             theme::button(x, y, 154, 36, face, theme::shade(face, 0.6f));
-            text(x + 10, y + 7, 0.52f, kInk, 0, t >= 0 && t < gags::kTracks ? gags::kTrackNames[t] : "?");
+            text(x + 10, y + 7, 0.52f, kInk, 0, t >= 0 && t < gags::kTracks ? theme::kTrackTitles[t] : "?");
         }
         theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kGrey,
                       theme::kGreyDark);
