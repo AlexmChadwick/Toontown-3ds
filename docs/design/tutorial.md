@@ -58,7 +58,10 @@ bottom-screen UI. This is the deliberate visual simplification, not fabricated s
 Like stock `DistributedNPCToon`, the network movie dispatcher replaces the ordinary assignment
 balloon for tutorial quests 101 and 110 with `quest_assign_101` and `quest_assign_110`, then sends
 `setMovieDone` only when `FINISH_QUEST_MOVIE` runs. Classic-character lines select Mickey or
-Minnie from byte 4 of the validated local Toon DNA.
+Minnie from byte 4 of the validated local Toon DNA. While either generated assignment movie
+owns the exchange, its dialogue balloon remains anchored to the distributed NPC that sent
+`setMovie`; this is separate from Tutorial Tom's special interior object and keeps the HQ
+assignment visible after the ordinary talk panel is released.
 
 Stock book and SpeedChat `WAIT_EVENT` prompts are mouse-driven. On 3DS those controls are already
 on the persistent bottom screen, so a compact Toontorial panel names the stock action and A

@@ -51,6 +51,8 @@ assert 'visZones_[i] = tutorialZones_.toNetwork(visZones[i])' in client
 assert 'movie.values[0] == 101' in main
 assert 'movie.values[0] == 110' in main
 assert 'net.sendNpcMovieDone(tutorialMovieNpc)' in main
+assert 'talker = tutorialMovieNpc' in main
+assert 'said = tutorial.text()' in main[main.index('talker = tutorialMovieNpc'):]
 assert 'dna.gender == tt::world::Gender::Female' in main
 assert 'TutorialMickey, false' not in main
 # NewbiePurchaseManager creates local NPC 2011 and runs gag_intro only for its involved
@@ -75,9 +77,16 @@ for prompt in ('A: continue', 'A: open your Shticker Book', 'A: visit the Gags p
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 
+if command -v "${CXX:-c++}" >/dev/null 2>&1; then
+    cxx=${CXX:-c++}
+else
+    echo "tutorial_test: C++ flow checks UNAVAILABLE (${CXX:-c++} is missing)"
+    exit 0
+fi
+
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/toontown-tutorial.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
-${CXX:-c++} -std=c++17 -Wall -Wextra -Werror -g \
+"$cxx" -std=c++17 -Wall -Wextra -Werror -g \
     -fsanitize=address,undefined -fno-omit-frame-pointer -Isource \
     source/quest/quest_scripts.cpp source/quest/script_player.cpp source/world/tutorial.cpp \
     tools/tutorial_test/flow.cpp -o "$tmp/flow"
@@ -100,6 +109,6 @@ int main() {
     assert(!TutorialZones::valid(61000, 61000, 61002, 61003));
 }
 CPP
-${CXX:-c++} -std=c++17 -Isource "$tmp/zones.cpp" -o "$tmp/zones"
+"$cxx" -std=c++17 -Isource "$tmp/zones.cpp" -o "$tmp/zones"
 "$tmp/zones"
 echo "tutorial_test: dynamic-zone map: PASS"

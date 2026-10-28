@@ -2639,6 +2639,14 @@ int main() {
                     if (net.tutorialInterior().active) {
                         talker = net.tutorialInterior().npcDoId;
                         said = tutorial.text();
+                    } else if (tutorialMovieNpc) {
+                        // Quest 101/110 assignment movies replace Talk's ordinary pages, but
+                        // their owner is still the distributed NPC that sent setMovie.  Keep the
+                        // generated QuestScript dialogue anchored to that actor in both the shop
+                        // and HQ instead of dropping it when this is not Tutorial Tom's special
+                        // DistributedTutorialInterior.
+                        talker = tutorialMovieNpc;
+                        said = tutorial.text();
                     } else if (tutorial.playerId() == tt::quest::ScriptId::GagIntro) {
                         // Stock creates local NPC 2011 solely for this movie.  It has no Astron
                         // object or world actor, so give its dialogue a stable top-screen balloon.

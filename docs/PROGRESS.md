@@ -1,5 +1,42 @@
 # Progress
 
+## 2026-10-27 — Toontorial quest-dialogue speaker fix
+
+Done:
+
+- Fixed the generated quest 101/110 assignment dialogue after the ordinary NPC talk panel is
+  released. Both movies now keep their stock text anchored to the distributed NPC that sent
+  `setMovie`, including the HQ assignment outside Tutorial Tom's special interior object.
+- Extended the tutorial source-contract check to require that speaker hand-off.
+- Made the tutorial harness report its C++ executable checks as unavailable when `CXX`/`c++` is
+  absent, after still running the generated-script and packet-contract checks. It no longer ends
+  with a misleading command-not-found failure on a compiler-less host.
+
+Verified:
+
+- `tools/tutorial_test/run.sh` passes the generated QuestScript and all five sender/UI source
+  contracts, then cleanly reports the C++ flow checks unavailable because this image has no C++
+  compiler.
+- `git diff --check` passes.
+- A native 3DS build remains unavailable because `DEVKITARM` is unset. An attempt to provision a
+  temporary host compiler from Debian packages was blocked by the environment's package proxy;
+  no emulator, live-server, or hardware result is claimed.
+
+Known issues:
+
+- The complete opt-in Toontorial still needs its first Old 3DS Azahar play-through. Visually
+  confirm that Tutorial Tom's quest 101 and the HQ officer's quest 110 balloons stay attached to
+  the correct NPC through every page, then confirm each `setMovieDone` advances the stock server.
+- The compact 3DS presentation still omits the desktop client's decorative arrows, GUI props, and
+  camera choreography. Real Old 3DS performance and memory high-water marks remain unmeasured.
+
+Next:
+
+- On a provisioned host, run the sanitizer-backed tutorial flow executable and native build,
+  package the canonical tutorial assets, and play the full route in Old 3DS Azahar mode.
+- Record the live visual/protocol result and resource measurements in `docs/test-log.md` before
+  calling the Toontorial complete.
+
 ## 2026-10-27 — Toontorial control-cue polish
 
 Done:
