@@ -1197,3 +1197,8 @@ Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8
   linear free 17.3 MB. No PARSE/EJECT lines.
 - Host: racing_test (all parts, now with wall-contact vectors and the disconnect reset),
   nettest (all 5 groups) pass.
+- **Sellbot VP** (builds `183e02b`, `9252e56`; three attempts, the last with the Null audio
+  sink): boarding works (`requestBoard` → `riding to zone 61049` → `boss: phase Elevator`,
+  arena + ramps 388 KB linear, collision 28.6 KB heap, a 0.3 s asset-load hitch inside the
+  elevator phase, then 30 fps). Every attempt was ejected (345) by the rig's emulated-clock
+  freeze before the first Cog round, so no boss phase past `Elevator` was observed.
