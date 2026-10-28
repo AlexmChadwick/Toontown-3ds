@@ -247,7 +247,12 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool, TextureCa
         ok = cache ? cache->acquire(texFile, texEntries[i], &textures_[i])
                    : loadTexture(texFile, texEntries[i], &textures_[i]);
         if (ok && cache) cachedEntries_[i] = texEntries[i];
-        if (ok) linearBytes_ += textures_[i].size;
+        // C3D_Tex::size describes the base level only.  The loader allocates and reads
+        // the complete pre-baked mip chain, whose exact byte count is carried by the
+        // TTM entry.  Model::linearBytes() feeds the hard Toon and boss-scene admission
+        // limits, so using tex.size here silently admitted more linear memory than those
+        // Old 3DS budgets allow whenever a model had mipmaps.
+        if (ok) linearBytes_ += texEntries[i].dataSize;
     }
 
     free(texEntries);
