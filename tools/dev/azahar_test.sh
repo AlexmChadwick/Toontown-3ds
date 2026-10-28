@@ -103,6 +103,8 @@ fi
 
 restore() {
     kill_emulator
+    # Interrupted runs keep their log (the run dir is deleted below).
+    [ -f "$OUT/log.txt" ] || cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || true
     if [ "$(uname)" = Darwin ]; then
         cp "$OUT/qt-config.ini.backup" "$CFG"
         if [ -f "$OUT/server.txt.backup" ]; then cp "$OUT/server.txt.backup" "$SD/server.txt"; fi

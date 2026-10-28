@@ -24,4 +24,5 @@ enum : u32 {
     KEY_R = 1u << 9,
     KEY_X = 1u << 10,
     KEY_Y = 1u << 11,
+    KEY_SELECT = 1u << 12,
 };

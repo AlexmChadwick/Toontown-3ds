@@ -2124,7 +2124,27 @@ int main() {
                     net.sendSetParent(player.onPlatform() ? tt::net::kParentDonaldsBoat : tt::net::kParentRender);
                     netOnBoat = player.onPlatform();
                 }
-                if (movingNow && nowMs - lastPosSendMs >= kPosSendIntervalMs) {
+                // A pose that changed without walking (teleport arrival, a placed toon, a new zone
+                // while standing) must reach the others now: the stationary toon would otherwise
+                // stay where they last saw it. Upstream's startPosHprBroadcast sends everything on
+                // every place entry, and a jump of more than a few units in one frame is a placement.
+                // Held while a transition movie or a battle owns the toon; walking sends it anyway.
+                static float lastNetPose[3] = {};
+                static u32 lastNetZone = 0;
+                static bool placedPending = false;
+                const float jx = nx - lastNetPose[0], jy = ny - lastNetPose[1], jz = nz - lastNetPose[2];
+                placedPending |= net.zoneId() != lastNetZone || jx * jx + jy * jy + jz * jz > 4.0f * 4.0f;
+                lastNetPose[0] = nx, lastNetPose[1] = ny, lastNetPose[2] = nz;
+                lastNetZone = net.zoneId();
+                if (movingNow || reparent || inMinigame) placedPending = false;
+                if (placedPending && transition.idle() && !battle.active()) {
+                    placedPending = false;
+                    TT_LOG("net: tx pos placed at (%.1f, %.1f, %.1f) zone %lu", double(nx), double(ny), double(nz),
+                           static_cast<unsigned long>(net.zoneId()));
+                    net.sendPosHpr(nx, ny, nz, nh, 0.0f, 0.0f);
+                    net.sendStop();
+                    lastPosSendMs = nowMs;
+                } else if (movingNow && nowMs - lastPosSendMs >= kPosSendIntervalMs) {
                     net.sendPosHpr(nx, ny, nz, nh, 0.0f, 0.0f);
                     lastPosSendMs = nowMs;
                 } else if ((!movingNow && wasMovingNet) || (reparent && !movingNow)) {
