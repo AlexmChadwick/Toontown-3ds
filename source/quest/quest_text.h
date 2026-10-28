@@ -65,6 +65,15 @@ int rewardText(uint16_t rewardId, bool poster, char* out, int cap); // Reward.ge
 // or the quest's cog location. Empty when there is nothing to say.
 int posterInfo(const QuestDef& q, uint16_t toNpc, bool complete, char* out, int cap);
 
+// ---- SpeedChat ToonTask phrases (TTSCToontaskMenu / setSCToontask) ----
+constexpr int kMaxScStrings = 8; // TrackChoice: 3 + four visit lines
+constexpr int kScLen = 128;
+// Quest.getSCStrings(toNpcId, progress): the phrases a toon can say about this task, in msgIndex
+// order. Returns the count (0 for QuestType::Other, which the 3DS does not render).
+int scStrings(const QuestDef& q, uint16_t toNpc, uint32_t progress, char (*out)[kScLen], int max);
+// TTSCToontaskTerminal.decodeTTSCToontaskMsg: one received phrase; false when unknown.
+bool decodeScToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, int msgIndex, char* out, int cap);
+
 // ---- NPC dialog ----
 // chooseQuestDialog(questId, status): the quest's own line for `status`, else the default.
 // `pick` selects among alternatives (upstream: random.choice). Not yet name-filled.

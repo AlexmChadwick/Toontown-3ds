@@ -36,7 +36,9 @@ float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScro
 bool ChatMenu::init() {
     setEmoteAccess(nullptr);
     // Breadcrumb + every label of the largest menu, plus slack for wrapping.
-    menuBuf_ = C2D_TextBufNew(sc::kMaxMenuGlyphs + 96);
+    // (MY TASKS: up to kMaxTaskPhrases sentences of about 60 glyphs.)
+    constexpr int kTaskGlyphs = kMaxTaskPhrases * 64;
+    menuBuf_ = C2D_TextBufNew((sc::kMaxMenuGlyphs > kTaskGlyphs ? sc::kMaxMenuGlyphs : kTaskGlyphs) + 96);
     staticBuf_ = C2D_TextBufNew(96);
     if (!menuBuf_ || !staticBuf_) return false;
     tt::render::textParse(&back_, staticBuf_, "< Back");
@@ -45,6 +47,10 @@ bool ChatMenu::init() {
     C2D_TextOptimize(&back_);
     C2D_TextOptimize(&arrow_);
     C2D_TextOptimize(&hint_);
+    for (int m = 0; m < sc::kNumMenus; m++) {
+        if (!strcmp(sc::kMenus[m].title, "TOONTASKS")) toontasksMenu_ = m;
+    }
+    setTasks(nullptr);
     enter(0, -1);
     return true;
 }
@@ -55,17 +61,85 @@ void ChatMenu::shutdown() {
     menuBuf_ = staticBuf_ = nullptr;
 }
 
+int ChatMenu::numRows(int menu) const {
+    if (menu == kMyTasksMenu) return numTasks_;
+    return sc::kMenus[menu].numItems + (menu == toontasksMenu_ ? 1 : 0);
+}
+
+ChatMenu::Row ChatMenu::row(int menu, int i) const {
+    if (menu == kMyTasksMenu) {
+        const TaskPhrase& t = tasks_[i];
+        return {t.text, t.staticNeedTask ? 1299 : -1, -1, false, i};
+    }
+    if (menu == toontasksMenu_) {
+        if (i == 0) return {"MY TASKS", kMyTasksMenu, -1, true, -1}; // OTPLocalizer.SCMenuToontasksMyTasks
+        i--;
+    }
+    const sc::Item& it = sc::kItems[sc::kMenus[menu].firstItem + i];
+    return {it.label, it.value, it.emote, it.isMenu != 0, -1};
+}
+
+int ChatMenu::parentOf(int menu) const { return menu == kMyTasksMenu ? toontasksMenu_ : sc::kMenus[menu].parent; }
+
+const char* ChatMenu::titleOf(int menu) const { return menu == kMyTasksMenu ? "MY TASKS" : sc::kMenus[menu].title; }
+
+// TTSCToontaskMenu.__tasksChanged: every phrase of every task we carry (duplicates dropped), then
+// "I need to get a ToonTask." while we carry fewer than our limit.
+void ChatMenu::setTasks(const net::OwnQuests* quests) {
+    if (quests && tasksKnown_ && quests->version == tasksVersion_) return;
+    if (!quests && tasksKnown_ == false && numTasks_ > 0) return;
+    tasksKnown_ = quests != nullptr;
+    tasksVersion_ = quests ? quests->version : 0;
+    numTasks_ = 0;
+    auto add = [&](const char* text) -> TaskPhrase* {
+        for (int i = 0; i < numTasks_; i++) {
+            if (!strcmp(tasks_[i].text, text)) return nullptr;
+        }
+        if (numTasks_ >= kMaxTaskPhrases) return nullptr;
+        TaskPhrase& t = tasks_[numTasks_++];
+        t = TaskPhrase{};
+        snprintf(t.text, sizeof t.text, "%s", text);
+        return &t;
+    };
+    for (int i = 0; quests && i < quests->count; i++) {
+        const net::QuestEntry& e = quests->quests[i];
+        const quest::QuestDef* q = e.questId <= 0xFFFF ? quest::findQuest(uint16_t(e.questId)) : nullptr;
+        if (!q) continue;
+        char msgs[quest::kMaxScStrings][quest::kScLen];
+        const int n = quest::scStrings(*q, uint16_t(e.toNpc), e.progress, msgs, quest::kMaxScStrings);
+        for (int m = 0; m < n; m++) {
+            if (TaskPhrase* t = add(msgs[m])) {
+                t->taskId = e.questId;
+                t->toNpc = e.toNpc;
+                t->progress = e.progress;
+                t->msgIndex = uint8_t(m);
+            }
+        }
+    }
+    if (!quests || quests->count != quests->carryLimit) {
+        if (const char* need = sc::phraseText(1299)) {
+            if (TaskPhrase* t = add(need)) t->staticNeedTask = true;
+        }
+    }
+    if (menu_ == kMyTasksMenu && menuBuf_) enter(kMyTasksMenu, focus_ >= numTasks_ ? numTasks_ - 1 : focus_);
+}
+
+const ChatMenu::TaskPhrase* ChatMenu::taskPhrase(int code) const {
+    const int slot = code - kTaskCode;
+    return slot >= 0 && slot < kQueueLen ? &queuedTasks_[slot] : nullptr;
+}
+
 void ChatMenu::enter(int menu, int focusItem) {
     menu_ = menu;
-    const sc::Menu& m = sc::kMenus[menu];
     C2D_TextBufClear(menuBuf_);
 
     // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat).
     char crumb[96];
-    if (m.parent < 0 || sc::kMenus[m.parent].parent < 0) {
-        snprintf(crumb, sizeof(crumb), "%s", m.title);
+    const int parent = parentOf(menu);
+    if (parent < 0 || parentOf(parent) < 0) {
+        snprintf(crumb, sizeof(crumb), "%s", titleOf(menu));
     } else {
-        snprintf(crumb, sizeof(crumb), "%s > %s", sc::kMenus[m.parent].title, m.title);
+        snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), titleOf(menu));
     }
     tt::render::textParse(&title_, menuBuf_, crumb);
     C2D_TextOptimize(&title_);
@@ -74,8 +148,9 @@ void ChatMenu::enter(int menu, int focusItem) {
     const float titleAvail = kW - kBackW - 2 * kMarginX - 8.0f;
     titleScale_ = tw > titleAvail ? 0.5f * titleAvail / tw : 0.5f;
 
-    for (int i = 0; i < m.numItems; i++) {
-        const sc::Item& it = sc::kItems[m.firstItem + i];
+    const int n = numRows(menu);
+    for (int i = 0; i < n && i < kMaxRows; i++) {
+        const Row it = row(menu, i);
         tt::render::textParse(&labels_[i], menuBuf_, it.label);
         C2D_TextOptimize(&labels_[i]);
         float w, h;
@@ -102,7 +177,7 @@ void ChatMenu::blur() {
 }
 
 float ChatMenu::maxScroll(float listH) const {
-    const float content = sc::kMenus[menu_].numItems * kRowH;
+    const float content = numRows(menu_) * kRowH;
     return content > listH ? content - listH : 0.0f;
 }
 
@@ -115,22 +190,29 @@ void ChatMenu::ensureVisible(int item, float listH) {
 int ChatMenu::rowAt(float y, float listH) const {
     if (y < kHeaderH || y >= kHeaderH + listH) return -1;
     const int row = static_cast<int>((y - kHeaderH + scroll_) / kRowH);
-    return row < sc::kMenus[menu_].numItems ? row : -1;
+    return row < numRows(menu_) ? row : -1;
 }
 
 void ChatMenu::activate(int item) {
-    const sc::Menu& m = sc::kMenus[menu_];
-    if (item < 0 || item >= m.numItems) return;
-    const sc::Item& it = sc::kItems[m.firstItem + item];
+    if (item < 0 || item >= numRows(menu_)) return;
+    const Row it = row(menu_, item);
     if (it.isMenu) {
         enter(it.value, focus_ >= 0 ? 0 : -1);
         return;
     }
     if (qCount_ < kQueueLen) {
+        const int slot = (qHead_ + qCount_) % kQueueLen;
+        if (it.task >= 0 && !tasks_[it.task].staticNeedTask) {
+            queuedTasks_[slot] = tasks_[it.task];
+            queue_[slot] = kTaskCode + slot;
+            qCount_++;
+            enter(0, -1);
+            return;
+        }
         if (it.value==65535) {
             if (it.emote<0 || it.emote>=25 || !emoteAccess_[it.emote]) return;
-            queue_[(qHead_ + qCount_) % kQueueLen]=-1-it.emote;
-        } else queue_[(qHead_ + qCount_) % kQueueLen] = it.value;
+            queue_[slot]=-1-it.emote;
+        } else queue_[slot] = it.value;
         qCount_++;
         if (it.value!=65535 && it.emote>=0 && it.emote<25 && emoteAccess_[it.emote] && qCount_<kQueueLen) {
             queue_[(qHead_+qCount_)%kQueueLen]=-1-it.emote; ++qCount_;
@@ -140,16 +222,15 @@ void ChatMenu::activate(int item) {
 }
 
 void ChatMenu::goBack(float listH) {
-    const int parent = sc::kMenus[menu_].parent;
+    const int parent = parentOf(menu_);
     if (parent < 0) {
         focus_ = -1;
         return;
     }
     // Re-highlight the sub-menu we came from (only in D-pad mode).
     int from = -1;
-    const sc::Menu& pm = sc::kMenus[parent];
-    for (int i = 0; i < pm.numItems; i++) {
-        const sc::Item& it = sc::kItems[pm.firstItem + i];
+    for (int i = 0; i < numRows(parent); i++) {
+        const Row it = row(parent, i);
         if (it.isMenu && it.value == menu_) from = i;
     }
     const bool dpad = focus_ >= 0;
@@ -167,7 +248,7 @@ bool ChatMenu::popSpeech(int& msgIndex) {
 
 u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float panelBottom) {
     const float listH = panelBottom - kHeaderH;
-    const int n = sc::kMenus[menu_].numItems;
+    const int n = numRows(menu_);
     u32 consumed = 0;
 
     // Buttons.
@@ -175,6 +256,8 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
         if (focus_ < 0) {
             focus_ = rowAt(kHeaderH + 1.0f, listH); // top visible row
             if (focus_ < 0) focus_ = 0;
+        } else if (n <= 0) {
+            focus_ = -1;
         } else if (down & KEY_DUP) {
             focus_ = focus_ > 0 ? focus_ - 1 : n - 1;
         } else {
@@ -201,7 +284,7 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
         touchStartX_ = t.px;
         touchStartY_ = t.py;
         scrollStart_ = scroll_;
-        pressedBack_ = sc::kMenus[menu_].parent >= 0 && t.py < kHeaderH && t.px < kBackW + kMarginX;
+        pressedBack_ = parentOf(menu_) >= 0 && t.py < kHeaderH && t.px < kBackW + kMarginX;
         pressedRow_ = rowAt(t.py, listH);
     } else if (touching_ && touchHeld) {
         const float dy = t.py - touchStartY_, dx = t.px - touchStartX_;
@@ -236,15 +319,15 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
 
 void ChatMenu::draw(float panelBottom) {
     const float listH = panelBottom - kHeaderH;
-    const sc::Menu& m = sc::kMenus[menu_];
+    const int numItems = numRows(menu_);
 
     // Rows (drawn first; the header is drawn over rows scrolled above it, the tab bar
     // over rows below).
     const int firstRow = static_cast<int>(scroll_ / kRowH);
     const int lastRow = static_cast<int>((scroll_ + listH) / kRowH);
     const float rowX = kMarginX, rowW = kW - 2 * kMarginX - kScrollBarW - 4.0f;
-    for (int i = firstRow; i <= lastRow && i < m.numItems; i++) {
-        const sc::Item& it = sc::kItems[m.firstItem + i];
+    for (int i = firstRow; i <= lastRow && i < numItems && i < kMaxRows; i++) {
+        const Row it = row(menu_, i);
         const float y = kHeaderH + i * kRowH - scroll_;
         const bool focused = i == focus_;
         const bool pressed = i == pressedRow_;
@@ -270,7 +353,7 @@ void ChatMenu::draw(float panelBottom) {
     // Scroll indicator.
     const float ms = maxScroll(listH);
     if (ms > 0.0f) {
-        const float content = m.numItems * kRowH;
+        const float content = numItems * kRowH;
         const float barH = listH * listH / content;
         const float barY = kHeaderH + (listH - barH) * (scroll_ / ms);
         theme::roundRect(kW - kMarginX - kScrollBarW, kHeaderH, kScrollBarW, listH, 2, kRow, kZ);
@@ -280,7 +363,7 @@ void ChatMenu::draw(float panelBottom) {
     // Header.
     theme::skyBand(0, kHeaderH, kW, panelBottom, kZ);
     float titleX = kMarginX + 2.0f;
-    if (m.parent >= 0) {
+    if (parentOf(menu_) >= 0) {
         theme::button(kMarginX, 1, kBackW, kHeaderH - 2, pressedBack_ ? kPressed : kRow, kRowEdge, pressedBack_, 6.0f,
                       kZ);
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, pressedBack_ ? 7.0f : 4.0f, kZ, 0.5f, 0.5f, kText);

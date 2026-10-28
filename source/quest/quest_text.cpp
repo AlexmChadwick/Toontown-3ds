@@ -672,4 +672,213 @@ int fillInNames(const char* text, const char* avName, uint16_t fromNpc, uint16_t
     return o.len;
 }
 
+// ============================================================ SpeedChat ToonTask phrases
+namespace {
+
+struct ScList {
+    char (*out)[kScLen];
+    int max;
+    int n = 0;
+    char* next() { return n < max ? out[n++] : nullptr; }
+    void add(const char* s) {
+        if (char* o = next()) snprintf(o, kScLen, "%s", s);
+    }
+    void add(const char* tmpl, const Arg* a, int na) {
+        if (char* o = next()) format(o, kScLen, tmpl, a, na);
+    }
+};
+
+// Quests.getVisitSCStrings
+void visitScStrings(uint16_t npcId, ScList& l) {
+    if (npcId == kToonHQ) {
+        l.add(str(kS_QuestsRecoverItemQuestSeeHQSCString));
+        l.add(str(kS_QuestsRecoverItemQuestGoToHQSCString));
+        return;
+    }
+    if (npcId == kToonTailor) {
+        l.add(str(kS_QuestsTailorQuestSCString));
+        return;
+    }
+    NpcInfo info;
+    if (!npcId || !npcInfo(npcId, &info)) return;
+    const Arg see[] = {{nullptr, info.name, 0}};
+    l.add(str(kS_QuestsVisitQuestSeeSCString), see, 1);
+    if (info.inPlayground) {
+        const Arg a[] = {{nullptr, info.hood, 0}};
+        l.add(str(kS_QuestsRecoverItemQuestGoToPlaygroundSCString), a, 1);
+    } else {
+        const Arg a[] = {argS("to", info.toStreet), argS("street", info.streetName), argS("hood", info.hood)};
+        l.add(str(kS_QuestsRecoverItemQuestGoToStreetSCString), a, 3);
+    }
+    const Arg b[] = {{nullptr, info.buildingArticle, 0}, {nullptr, info.buildingName, 0}};
+    l.add(str(kS_QuestsRecoverItemQuestVisitBuildingSCString), b, 2);
+    l.add(str(kS_QuestsRecoverItemQuestWhereIsBuildingSCString), b, 2);
+}
+
+// Quests.getFinishToonTaskSCStrings
+void finishScStrings(uint16_t npcId, ScList& l) {
+    l.add(str(kS_QuestsGenericFinishSCString));
+    visitScStrings(npcId, l);
+}
+
+// RecoverItemQuest's item name: "a Thing" or "3 Things".
+void recoverItemName(const QuestDef& q, char* out, int cap) {
+    const ItemDef* it = findItem(q.p[2]);
+    if (!it) {
+        out[0] = 0;
+    } else if (q.p[1] == 1) {
+        snprintf(out, size_t(cap), "%s%s", str(it->article), str(it->name));
+    } else {
+        const Arg a[] = {argN("num", q.p[1]), argS("name", str(it->plural))};
+        format(out, cap, str(kS_QuestsItemNameAndNum), a, 2);
+    }
+}
+
+} // namespace
+
+int scStrings(const QuestDef& q, uint16_t toNpc, uint32_t progress, char (*out)[kScLen], int max) {
+    ScList l{out, max};
+    char loc[kTmp / 2], obj[kTmp / 2];
+    locationName(q, loc, sizeof(loc));
+    switch (q.type) {
+    case QuestType::Cog:
+    case QuestType::CogNewbie: {
+        if (progress >= uint32_t(q.p[1])) break;
+        const Arg a[] = {argS("cogName", cogName(q, false)), argS("cogLoc", loc)};
+        l.add(str(q.p[1] == 1 ? kS_QuestsCogQuestSCStringS : kS_QuestsCogQuestSCStringP), a, 2);
+        return l.n;
+    }
+    case QuestType::CogTrack: {
+        if (progress >= uint32_t(q.p[1])) break;
+        const bool one = q.p[1] == 1;
+        const Arg a[] = {argS("cogText", trackOf(one ? kA_CogTrackS : kA_CogTrackP, q.p[2])), argS("cogLoc", loc)};
+        l.add(str(one ? kS_QuestsCogTrackQuestSCStringS : kS_QuestsCogTrackQuestSCStringP), a, 2);
+        return l.n;
+    }
+    case QuestType::CogLevel: {
+        if (progress >= uint32_t(q.p[1])) break;
+        const Arg o[] = {argN("level", q.p[2]), argS("name", cogName(q, true))};
+        format(obj, sizeof(obj), str(q.p[1] == 1 ? kS_QuestsCogLevelQuestDesc : kS_QuestsCogLevelQuestDescI), o, 2);
+        const Arg a[] = {argS("objective", obj), argS("location", loc)};
+        l.add(str(kS_QuestsCogLevelQuestSCString), a, 2);
+        return l.n;
+    }
+    case QuestType::Building:
+    case QuestType::BuildingNewbie: {
+        if (progress >= uint32_t(q.p[1])) break;
+        const int floorIdx = q.p[3] - 1;
+        const char* floors = floorIdx >= 0 && floorIdx < 5 ? str(kA_BuildingFloors[floorIdx]) : "";
+        const char* type = q.p[2] < 0 ? str(kS_Cog) : trackOf(kA_CogTrackName, q.p[2]);
+        const bool noFloors = floors[0] == 0;
+        const uint16_t t = q.p[1] == 1 ? (noFloors ? kS_QuestsBuildingQuestDesc : kS_QuestsBuildingQuestDescF)
+                                       : (noFloors ? kS_QuestsBuildingQuestDescI : kS_QuestsBuildingQuestDescIF);
+        const Arg o[] = {argS("floors", floors), argS("type", type)};
+        format(obj, sizeof(obj), str(t), o, 2);
+        const Arg a[] = {argS("objective", obj), argS("location", loc)};
+        l.add(str(kS_QuestsBuildingQuestSCString), a, 2);
+        return l.n;
+    }
+    case QuestType::Visit:
+        visitScStrings(toNpc, l);
+        return l.n;
+    case QuestType::DeliverItem: {
+        const ItemDef* it = findItem(q.p[0]);
+        const Arg a[] = {argS("article", it ? str(it->article) : ""), argS("itemName", it ? str(it->name) : "")};
+        l.add(str(kS_QuestsDeliverItemQuestSCString), a, 2);
+        visitScStrings(toNpc, l);
+        return l.n;
+    }
+    case QuestType::RecoverItem: {
+        char item[kTmp / 4];
+        recoverItemName(q, item, sizeof(item));
+        if ((progress & 0xFFFFu) >= uint32_t(q.p[1])) {
+            if (toNpc == kToonHQ) {
+                const Arg a[] = {{nullptr, item, 0}};
+                l.add(str(kS_QuestsRecoverItemQuestReturnToHQSCString), a, 1);
+                l.add(str(kS_QuestsRecoverItemQuestGoToHQSCString));
+            } else if (toNpc) {
+                NpcInfo info;
+                if (!npcInfo(toNpc, &info)) return 0;
+                const Arg a[] = {argS("item", item), argS("npcName", info.name)};
+                l.add(str(kS_QuestsRecoverItemQuestReturnToSCString), a, 2);
+                visitScStrings(toNpc, l);
+                // getVisitSCStrings' "I need to see <npc>" is not part of this list upstream.
+                for (int i = 2; i < l.n; i++) memcpy(l.out[i - 1], l.out[i], kScLen);
+                l.n--;
+            }
+            return l.n;
+        }
+        char holder[kTmp / 4];
+        switch (q.p[4]) {
+        case 0: snprintf(holder, sizeof(holder), "%s", str(kS_TheCogs)); break;
+        case 1: snprintf(holder, sizeof(holder), "%s", str(kS_TheFish)); break;
+        case 2:
+            snprintf(holder, sizeof(holder), "%s",
+                     q.p[5] >= 0 && q.p[5] < int(kNumCogs) ? str(kCogs[q.p[5]].plural) : "");
+            break;
+        case 3: {
+            const Arg a[] = {argS("level", str(kS_Level)), argN("holder", q.p[5]), argS("cogs", str(kS_Cogs))};
+            format(holder, sizeof(holder), str(kS_QuestsRecoverItemQuestHolderString), a, 3);
+            break;
+        }
+        default: snprintf(holder, sizeof(holder), "%s", trackOf(kA_CogTrackP, q.p[5])); break;
+        }
+        const Arg a[] = {argS("item", item), argS("holder", holder), argS("loc", loc)};
+        l.add(str(kS_QuestsRecoverItemQuestRecoverFromSCString), a, 3);
+        return l.n;
+    }
+    case QuestType::DeliverGag: {
+        const int num = q.p[0], track = q.p[1], level = q.p[2];
+        if (progress >= uint32_t(num)) break;
+        if (track < 0 || track >= 7 || level < 0 || level >= 7) return 0;
+        const GagName& g = kGags[track * 7 + level];
+        const Arg a[] = {argS("gagName", str(num == 1 ? g.singular : g.plural))};
+        l.add(str(num == 1 ? kS_QuestsDeliverGagQuestToSCStringS : kS_QuestsDeliverGagQuestToSCStringP), a, 1);
+        l.add(str(kS_QuestsDeliverGagQuestSCString));
+        visitScStrings(toNpc, l);
+        return l.n;
+    }
+    case QuestType::TrackChoice: {
+        const char* a0 = q.p[0] >= 0 && q.p[0] < 7 ? str(kA_TrackNameCap[q.p[0]]) : "";
+        const char* b0 = q.p[1] >= 0 && q.p[1] < 7 ? str(kA_TrackNameCap[q.p[1]]) : "";
+        const Arg a[] = {argS("trackA", a0), argS("trackB", b0)};
+        l.add(str(kS_QuestsTrackChoiceQuestSCString), a, 2);
+        const Arg ma[] = {{nullptr, a0, 0}}, mb[] = {{nullptr, b0, 0}};
+        l.add(str(kS_QuestsTrackChoiceQuestMaybeSCString), ma, 1);
+        l.add(str(kS_QuestsTrackChoiceQuestMaybeSCString), mb, 1);
+        visitScStrings(toNpc, l);
+        return l.n;
+    }
+    case QuestType::Friend:
+    case QuestType::Trolley:
+    case QuestType::Phone:
+    case QuestType::Mailbox: {
+        if (progress) break;
+        const uint16_t s = q.type == QuestType::Friend    ? kS_QuestsFriendQuestSCString
+                           : q.type == QuestType::Trolley ? kS_QuestsTrolleyQuestSCString
+                           : q.type == QuestType::Phone   ? kS_QuestsPhoneQuestSCString
+                                                          : kS_QuestsMailboxQuestSCString;
+        l.add(str(s));
+        return l.n;
+    }
+    case QuestType::Other:
+        return 0;
+    }
+    finishScStrings(toNpc, l); // the task is done: say so and where it goes back to
+    return l.n;
+}
+
+bool decodeScToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, int msgIndex, char* out, int cap) {
+    if (taskId > 0xFFFF || toNpc > 0xFFFF || msgIndex < 0) return false;
+    const QuestDef* q = findQuest(uint16_t(taskId));
+    // decodeTTSCToontaskMsg returns nothing for an NPC NPCToons does not know (HQ = 1000 and the
+    // tailor are in NPCToonDict upstream).
+    if (!q || (toNpc != kToonHQ && toNpc != kToonTailor && !findNpc(uint16_t(toNpc)))) return false;
+    char msgs[kMaxScStrings][kScLen];
+    const int n = scStrings(*q, uint16_t(toNpc), progress, msgs, kMaxScStrings);
+    if (msgIndex >= n) return false;
+    snprintf(out, size_t(cap), "%s", msgs[msgIndex]);
+    return true;
+}
+
 } // namespace tt::quest
