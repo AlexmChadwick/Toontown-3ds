@@ -47,6 +47,27 @@ private:
     Mutex& m_;
 };
 
+// Sticky one-shot wake used to interrupt the network thread's idle sleep when the
+// main thread queues output.  No allocation or socket call occurs in signal().
+class Event {
+public:
+    Event();
+    ~Event();
+    void signal();
+    void wait(uint32_t timeoutMs);
+    Event(const Event&) = delete;
+    Event& operator=(const Event&) = delete;
+
+private:
+#ifdef __3DS__
+    LightEvent event_;
+#else
+    pthread_mutex_t lock_;
+    pthread_cond_t cond_;
+    bool signaled_ = false;
+#endif
+};
+
 class Thread {
 public:
     using Fn = void (*)(void*);

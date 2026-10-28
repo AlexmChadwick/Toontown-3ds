@@ -59,6 +59,40 @@ void Mutex::lock() { pthread_mutex_lock(&lock_); }
 void Mutex::unlock() { pthread_mutex_unlock(&lock_); }
 #endif
 
+// ---------------------------------------------------------------- event
+#ifdef __3DS__
+Event::Event() { LightEvent_Init(&event_, RESET_ONESHOT); }
+Event::~Event() {}
+void Event::signal() { LightEvent_Signal(&event_); }
+void Event::wait(uint32_t timeoutMs) { LightEvent_WaitTimeout(&event_, int64_t(timeoutMs) * 1000000LL); }
+#else
+Event::Event() {
+    pthread_mutex_init(&lock_, nullptr);
+    pthread_cond_init(&cond_, nullptr);
+}
+Event::~Event() {
+    pthread_cond_destroy(&cond_);
+    pthread_mutex_destroy(&lock_);
+}
+void Event::signal() {
+    pthread_mutex_lock(&lock_);
+    signaled_ = true;
+    pthread_cond_signal(&cond_);
+    pthread_mutex_unlock(&lock_);
+}
+void Event::wait(uint32_t timeoutMs) {
+    timespec until;
+    clock_gettime(CLOCK_REALTIME, &until);
+    until.tv_sec += timeoutMs / 1000;
+    until.tv_nsec += long(timeoutMs % 1000) * 1000000L;
+    if (until.tv_nsec >= 1000000000L) { ++until.tv_sec; until.tv_nsec -= 1000000000L; }
+    pthread_mutex_lock(&lock_);
+    while (!signaled_ && pthread_cond_timedwait(&cond_, &lock_, &until) == 0) {}
+    signaled_ = false;
+    pthread_mutex_unlock(&lock_);
+}
+#endif
+
 // ---------------------------------------------------------------- thread
 #ifdef __3DS__
 bool Thread::start(Fn fn, void* arg, int prio, int core, size_t stackSize) {

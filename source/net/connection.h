@@ -110,6 +110,7 @@ private:
     plat::Mutex sendLock_;
     plat::Mutex recvLock_;
     plat::Mutex cmdLock_;
+    plat::Event wake_;
     ByteRing send_;
     ByteRing recv_;
     uint8_t* storage_ = nullptr;

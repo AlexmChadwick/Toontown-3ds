@@ -74,6 +74,7 @@ bool Connection::init() {
 void Connection::shutdown() {
     if (!storage_) return;
     quit_ = true;
+    wake_.signal();
     thread_.join();
     plat::tcpClose(fd_);
     fd_ = -1;
@@ -91,12 +92,14 @@ void Connection::connect(const char* host, uint16_t port) {
     wantConnect_ = true;
     wantDisconnect_ = false;
     status_ = Status::Connecting;
+    wake_.signal();
 }
 
 void Connection::disconnect() {
     plat::LockGuard g(cmdLock_);
     wantDisconnect_ = true;
     wantConnect_ = false;
+    wake_.signal();
 }
 
 bool Connection::sendMessage(const uint8_t* body, uint32_t len) {
@@ -106,6 +109,7 @@ bool Connection::sendMessage(const uint8_t* body, uint32_t len) {
     if (status_ != Status::Connected || send_.space() < len + 2) return false;
     send_.push(hdr, 2);
     send_.push(body, len);
+    wake_.signal();
     return true;
 }
 
@@ -239,7 +243,7 @@ void Connection::run() {
             continue;
         }
         if (fd_ < 0) {
-            plat::sleepMs(20);
+            wake_.wait(20);
             continue;
         }
 
@@ -258,7 +262,11 @@ void Connection::run() {
         }
         // recv only when poll reports data (or a hang-up): on hardware every recv is a SOC
         // service call, and an idle loop runs ~100 times a second.
-        const int ready = plat::tcpWait(fd_, pending > 0, pending > 0 ? 2 : 10);
+        int ready = plat::tcpWait(fd_, pending > 0, 0);
+        if (!ready) {
+            wake_.wait(pending > 0 ? 2 : 10);
+            ready = plat::tcpWait(fd_, pending > 0, 0);
+        }
         if ((ready & plat::kTcpReadable) && !pumpRecv()) { closeSocket("connection closed by server"); continue; }
         uint32_t freeSpace;
         {
