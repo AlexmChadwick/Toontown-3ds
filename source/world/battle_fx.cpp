@@ -438,37 +438,55 @@ JntTrack* BattleFx::getJnt(const char* path) {
 }
 
 void BattleFx::playCue(const char* name, float volume) {
-    int best = -1;
     for (int i = 0; i < kMaxSfxSlots; ++i) {
         if (sfxSlots_[i].id != audio::kInvalidSfx && !strcmp(sfxSlots_[i].name, name)) {
             sfxSlots_[i].lastUsed = nowMs_;
             sfxSlots_[i].voice = audio::playSfx(sfxSlots_[i].id, volume);
             return;
         }
-        if (best == -1) {
-            best = i;
-        } else if (sfxSlots_[i].id == audio::kInvalidSfx && sfxSlots_[best].id != audio::kInvalidSfx) {
-            best = i;
-        } else if (!audio::voicePlaying(sfxSlots_[i].voice) && audio::voicePlaying(sfxSlots_[best].voice)) {
-            best = i;
-        } else if (sfxSlots_[i].lastUsed < sfxSlots_[best].lastUsed) {
-            best = i;
-        }
     }
 
-    if (best >= 0) {
-        if (sfxSlots_[best].id != audio::kInvalidSfx) {
-            audio::freeSfx(sfxSlots_[best].id);
-            sfxSlots_[best].id = audio::kInvalidSfx;
+    char path[80];
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", name);
+    const uint32_t need = audio::sfxFileBytes(path);
+    if (need == 0 || need > kSfxCacheBytes) return;
+
+    // The cache is bounded by bytes (battle_validate.py budgets kSfxCacheBytes), not just by
+    // slot count: evict idle, least recently used cues until the new one fits.
+    int slot = -1;
+    for (;;) {
+        uint32_t used = 0;
+        slot = -1;
+        for (int i = 0; i < kMaxSfxSlots; ++i) {
+            if (sfxSlots_[i].id == audio::kInvalidSfx) {
+                if (slot < 0) slot = i;
+            } else {
+                used += audio::sfxBytes(sfxSlots_[i].id);
+            }
         }
-        char path[80];
-        snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", name);
-        sfxSlots_[best].id = audio::loadSfx(path);
-        if (sfxSlots_[best].id != audio::kInvalidSfx) {
-            strncpy(sfxSlots_[best].name, name, sizeof(sfxSlots_[best].name) - 1);
-            sfxSlots_[best].lastUsed = nowMs_;
-            sfxSlots_[best].voice = audio::playSfx(sfxSlots_[best].id, volume);
+        if (slot >= 0 && used + need <= kSfxCacheBytes) break;
+        int victim = -1;
+        for (int i = 0; i < kMaxSfxSlots; ++i) {
+            if (sfxSlots_[i].id == audio::kInvalidSfx) continue;
+            if (victim < 0) {
+                victim = i;
+                continue;
+            }
+            const bool playing = audio::voicePlaying(sfxSlots_[i].voice);
+            const bool victimPlaying = audio::voicePlaying(sfxSlots_[victim].voice);
+            if (playing != victimPlaying ? !playing : sfxSlots_[i].lastUsed < sfxSlots_[victim].lastUsed)
+                victim = i;
         }
+        if (victim < 0) return;
+        audio::freeSfx(sfxSlots_[victim].id);
+        sfxSlots_[victim].id = audio::kInvalidSfx;
+    }
+
+    sfxSlots_[slot].id = audio::loadSfx(path);
+    if (sfxSlots_[slot].id != audio::kInvalidSfx) {
+        strncpy(sfxSlots_[slot].name, name, sizeof(sfxSlots_[slot].name) - 1);
+        sfxSlots_[slot].lastUsed = nowMs_;
+        sfxSlots_[slot].voice = audio::playSfx(sfxSlots_[slot].id, volume);
     }
 }
 

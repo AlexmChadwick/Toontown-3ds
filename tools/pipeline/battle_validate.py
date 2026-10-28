@@ -64,6 +64,24 @@ def clothes_resident(path,toons):
     per_toon=largest[0]+largest[1]+max(largest[2],largest[3])
     return 2*sum(counts)+48*ntex+toons*per_toon
 
+def header_cache(name):
+    import re
+    m=re.search(r'kSfxCacheBytes\s*=\s*(\d+)\s*\*\s*1024',(ROOT/'source/world'/name).read_text())
+    return int(m.group(1))*1024
+
+
+# The runtime constants themselves, so the budget cannot drift from the code.
+BATTLE_FX_SFX_CACHE=header_cache('battle_fx.h')
+COG_ATTACK_SFX_CACHE=header_cache('cog_attacks.h')
+SFX_CACHE_BYTES=BATTLE_FX_SFX_CACHE+COG_ATTACK_SFX_CACHE
+
+
+def cog_cues(root):
+    import re
+    text=(root/'source/world/cog_attack_tables.h').read_text()
+    return set(re.findall(r'"([A-Za-z0-9_]+)\.ogg"',text))
+
+
 def main():
     counts=dict(models=0,clips=0,joint_tracks=0,audio=0,texture_packs=0)
     mesh_info={};clip_info={}
@@ -139,6 +157,7 @@ def main():
     prop_pairs=sum(max([clip_info['props/'+c['file']]['pair_bytes'] for c in e['clips'].values()] or [0]) for e in props['props'].values())
     audio=json.loads((DATA/'audio/battle_audio_manifest.json').read_text())
     sfx=sorted((e['linear_bytes'] for e in audio['assets'].values() if e['kind']=='sfx'),reverse=True)
+    max_cog_cue=max(e['linear_bytes'] for k,e in audio['assets'].items() if k in cog_cues(ROOT))
     allocation={
         'four_cogs_models_and_two_frames':4*max(cog_resident),
         'four_toons_models_and_two_frames':4*toon_pair,
@@ -148,10 +167,14 @@ def main():
         'four_toons_clothing':clothes_resident(DATA/'toon/clothes.ttx',4),
         'gag_icon_atlas':mesh_info['props/inventory_atlas.ttm']['resident_bytes'],
         'music_ring':audio['music_ring_bytes'],
-        'four_sfx_slots_largest_cue':4*max(sfx)+4*128,
+        # Runtime caches are bounded by bytes: BattleFx::kSfxCacheBytes (gag cues, 1 MiB) plus
+        # CogAttacks::kSfxCacheBytes (Cog attack cues, 512 KiB), each cue +128 B allocator slack,
+        # up to 6 + 8 slots. Each cap must admit that set's largest cue.
+        'sfx_caches':SFX_CACHE_BYTES+(6+8)*128,
         'allocation_and_transition_reserve':256*1024}
     total=sum(allocation.values());assert total<=4*1024*1024,allocation
-    assert allocation['music_ring']+allocation['four_sfx_slots_largest_cue']<=2*1024*1024
+    assert max(sfx)<=BATTLE_FX_SFX_CACHE and max_cog_cue<=COG_ATTACK_SFX_CACHE,(max(sfx),max_cog_cue)
+    assert allocation['music_ring']+allocation['sfx_caches']<=2*1024*1024
     report=dict(version=1,counts=counts,legacy_hashes_unchanged=len(legacy),actors=rows,
         resident_allocation=allocation,resident_total_bytes=total,limit_bytes=4*1024*1024,
         remaining_bytes=4*1024*1024-total,all_sfx_payload_bytes=sum(sfx),

@@ -92,8 +92,10 @@ private:
         char name[32] = {};
         audio::SfxId id = audio::kInvalidSfx;
         audio::VoiceHandle voice = audio::kNoVoice;
+        uint32_t lastUsed = 0;
     };
     static constexpr int kMaxSfx = 8;
+    static constexpr uint32_t kSfxCacheBytes = 512 * 1024; // linear bytes for Cog attack cues
     SfxSlot sfx_[kMaxSfx] = {};
     void playSound(const char* soundFile);
 };

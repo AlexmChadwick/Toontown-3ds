@@ -66,6 +66,10 @@ void setMusicVolume(float v); // 0..1, default 0.8 (upstream base.playMusic volu
 // SFX. Loads the whole sound into linear memory. Returns kInvalidSfx on error.
 SfxId loadSfx(const char* path);
 void freeSfx(SfxId id); // stops any voice playing it
+// Linear bytes a loaded SFX holds (0 for an invalid id), and the bytes loadSfx(path) would
+// take, read from the header alone (0 if unreadable). Byte-bounded caches evict before loading.
+uint32_t sfxBytes(SfxId id);
+uint32_t sfxFileBytes(const char* path);
 // volume 0..1, pan -1 (left) .. +1 (right). loop=true repeats until stopVoice()
 // (used for the upstream footstep loops). With all voices busy the oldest
 // non-looping voice is stolen (or the oldest voice if all loop).

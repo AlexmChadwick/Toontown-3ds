@@ -334,32 +334,45 @@ void CogAttacks::playSound(const char* soundFile) {
     // Check if loaded in sfx cache
     for (int i = 0; i < kMaxSfx; ++i) {
         if (sfx_[i].id != audio::kInvalidSfx && !strcmp(sfx_[i].name, baseName)) {
+            sfx_[i].lastUsed = nowMs_;
             audio::playSfx(sfx_[i].id);
             return;
         }
     }
 
-    // Find free slot
-    int freeIdx = -1;
-    for (int i = 0; i < kMaxSfx; ++i) {
-        if (sfx_[i].id == audio::kInvalidSfx) {
-            freeIdx = i;
-            break;
-        }
-    }
-    if (freeIdx < 0) freeIdx = 0; // replace oldest
-
-    if (sfx_[freeIdx].id != audio::kInvalidSfx) {
-        audio::freeSfx(sfx_[freeIdx].id);
-        sfx_[freeIdx].id = audio::kInvalidSfx;
-    }
-
     char tsndPath[96];
     snprintf(tsndPath, sizeof(tsndPath), "sdmc:/3ds/toontown3ds/data/audio/%s.tsnd", baseName);
+    const uint32_t need = audio::sfxFileBytes(tsndPath);
+    if (need == 0 || need > kSfxCacheBytes) return;
+
+    // Bounded by bytes as well as slots (battle_validate.py budgets kSfxCacheBytes): evict the
+    // least recently used cues until the new one fits.
+    int freeIdx = -1;
+    for (;;) {
+        uint32_t used = 0;
+        freeIdx = -1;
+        for (int i = 0; i < kMaxSfx; ++i) {
+            if (sfx_[i].id == audio::kInvalidSfx) {
+                if (freeIdx < 0) freeIdx = i;
+            } else {
+                used += audio::sfxBytes(sfx_[i].id);
+            }
+        }
+        if (freeIdx >= 0 && used + need <= kSfxCacheBytes) break;
+        int victim = -1;
+        for (int i = 0; i < kMaxSfx; ++i)
+            if (sfx_[i].id != audio::kInvalidSfx && (victim < 0 || sfx_[i].lastUsed < sfx_[victim].lastUsed))
+                victim = i;
+        if (victim < 0) return;
+        audio::freeSfx(sfx_[victim].id);
+        sfx_[victim].id = audio::kInvalidSfx;
+    }
+
     const audio::SfxId id = audio::loadSfx(tsndPath);
     if (id != audio::kInvalidSfx) {
         snprintf(sfx_[freeIdx].name, sizeof(sfx_[freeIdx].name), "%s", baseName);
         sfx_[freeIdx].id = id;
+        sfx_[freeIdx].lastUsed = nowMs_;
         audio::playSfx(id);
     }
 }

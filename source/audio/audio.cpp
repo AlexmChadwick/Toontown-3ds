@@ -575,6 +575,22 @@ SfxId loadSfx(const char* path) {
     return id;
 }
 
+uint32_t sfxBytes(SfxId id) {
+    return (id < 0 || id >= kMaxSfx || !gSfx[id].data) ? 0 : gSfx[id].bytes;
+}
+
+uint32_t sfxFileBytes(const char* path) {
+    if (!gOk) return 0;
+    FILE* f = fopen(path, "rb");
+    if (!f) return 0;
+    setvbuf(f, nullptr, _IONBF, 0);
+    TsndHeader h;
+    TsndChannel ch[2];
+    const bool ok = readHeader(f, path, h, ch) && h.channels == 1 && h.numBlocks == 1;
+    fclose(f);
+    return ok ? h.blockBytes : 0;
+}
+
 void freeSfx(SfxId id) {
     if (id < 0 || id >= kMaxSfx || !gSfx[id].data) return;
     for (int v = 0; v < kNumSfxVoices; ++v)

@@ -274,6 +274,7 @@ private:
         uint32_t lastUsed = 0;
     };
     static constexpr int kMaxSfxSlots = 6;
+    static constexpr uint32_t kSfxCacheBytes = 1024 * 1024; // linear bytes for gag cues
     SfxSlot sfxSlots_[kMaxSfxSlots] = {};
 
     uint32_t nowMs_ = 0;

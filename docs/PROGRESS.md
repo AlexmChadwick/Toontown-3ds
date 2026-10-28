@@ -570,3 +570,24 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Needs a quiet machine (or hardware): latency gate, kSmoothTau visual check, then dead-reckoning if stepped.
+
+## 2026-10-28 — perf round 17: battle SFX caches bounded by bytes (real budget gap)
+
+### Found
+- `battle_validate.py` budgeted battle SFX as 4 x the largest cue (1.59 MB), but the runtime kept up to 6 gag cues
+  (`BattleFx`) plus 8 Cog attack cues (`CogAttacks`). Worst case from the actual cue tables: 1.94 MB + 1.40 MB = 3.35 MB.
+  That would have broken both the 4 MiB battle cap and the 2 MiB audio sub-budget. `CogAttacks` also always evicted slot 0.
+
+### Done
+- `audio::sfxBytes` / `audio::sfxFileBytes` (header-only size peek). `BattleFx::playCue` and `CogAttacks::playSound` now evict
+  (idle, then least recently used) until the new cue fits a byte cap: `BattleFx::kSfxCacheBytes` 1 MiB, `CogAttacks::kSfxCacheBytes`
+  512 KiB. The validator parses those constants from the headers and fails if a cap cannot hold its set's largest cue.
+- Behaviour change: a gag cue that must evict while a long cue still plays can cut that cue off (idle cues go first).
+
+### Verified (host only)
+- `battle_validate.py`: resident 3,918,068 B (was 3,938,292), headroom 276,236 B, and the number now matches enforced runtime
+  limits. `make`: no source warnings. `budget_check.sh` exits 0.
+- Not run in Azahar: cue eviction audio behaviour in a long battle (load ~9, emulator not at real speed).
+
+### Next
+- Azahar battle with several gag tracks to confirm no audible cut-offs; latency gate and `kSmoothTau` visual check on a quiet machine.
