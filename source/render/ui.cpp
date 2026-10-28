@@ -40,7 +40,7 @@ constexpr float kHomeY = 148.0f, kHomeH = 24.0f;
 const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
-constexpr float kTabW = kW / kTabCount;
+constexpr float kTabW = kW / kVisibleTabCount;
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Setup", "Debug"};
 
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
@@ -217,6 +217,21 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
     if (owner == PanelOwner::Fishing) return down & ~(KEY_A | KEY_B);
     // ---- end qafix ----
+    // Debug is a developer view, not a sixth player-facing tab. Keep it reachable
+    // without letting it become the first thing a player sees on the bottom screen.
+    if (down & KEY_SELECT) {
+        if (s.tab == kTabDebug) {
+            s.tab = s.debugReturnTab >= 0 && s.debugReturnTab < kVisibleTabCount ? s.debugReturnTab : kTabMap;
+        } else {
+            if (s.tab >= 0 && s.tab < kVisibleTabCount) s.debugReturnTab = s.tab;
+            s.tab = kTabDebug;
+        }
+        chat_.blur();
+        tabFocus_.blur();
+        lastTab_ = s.tab;
+        TT_LOG("ui: debug %s", s.tab == kTabDebug ? "open" : "close");
+        return KEY_SELECT;
+    }
     // ---- padnav: D-Pad / A / B on a focused Map, Toon or Setup tab ----
     if (const u32 padUsed = handleTabPad(down, t, s)) return padUsed;
     // ---- end padnav ----
@@ -224,13 +239,15 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         book_.open();
         return KEY_START;
     }
-    if (down & KEY_DLEFT) s.tab = (s.tab + kTabCount - 1) % kTabCount;
-    if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % kTabCount;
+    if (down & KEY_DLEFT)
+        s.tab = s.tab == kTabDebug ? kTabSettings : (s.tab + kVisibleTabCount - 1) % kVisibleTabCount;
+    if (down & KEY_DRIGHT)
+        s.tab = s.tab == kTabDebug ? kTabMap : (s.tab + 1) % kVisibleTabCount;
     if (down & KEY_X) s.tab = kTabChat;
     if (down & KEY_Y) s.tab = kTabMap;
     if ((down & KEY_TOUCH) && t.py >= kTabY) {
         s.tab = static_cast<int>(t.px / kTabW);
-        if (s.tab >= kTabCount) s.tab = kTabCount - 1;
+        if (s.tab >= kVisibleTabCount) s.tab = kVisibleTabCount - 1;
     }
     if (s.tab != lastTab_) {
         chat_.blur(); // the highlight (and A/B capture) never survives a tab change
@@ -473,11 +490,12 @@ void Ui::cycleWhisper(State& s) {
 
 void Ui::drawTabs(const State& s) {
     C2D_DrawRectSolid(0, kTabY, 0.5f, kW, kTabH, kPanel);
-    for (int i = 0; i < kTabCount; i++) {
+    for (int i = 0; i < kVisibleTabCount; i++) {
         if (i == s.tab) C2D_DrawRectSolid(i * kTabW + 2, kTabY + 2, 0.5f, kTabW - 4, kTabH - 4, kAccent);
         C2D_DrawText(&tabText_[i], C2D_WithColor, i * kTabW + 10, kTabY + 8, 0.5f, 0.5f, 0.5f,
                      i == s.tab ? kBg : kWhite);
     }
+    if (s.tab == kTabDebug) text(240, kTabY + 9, 0.38f, kDim, "SELECT: back");
 }
 
 void Ui::unloadMap() {

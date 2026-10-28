@@ -22,10 +22,14 @@
 namespace tt::ui {
 
 enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabSettings, kTabDebug, kTabCount };
+constexpr int kVisibleTabCount = kTabDebug;
 
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
-    int tab = kTabDebug;
+    int tab = kTabMap;
+    // Debug is deliberately absent from the touch tab bar. SELECT toggles it and
+    // returns to the player-facing tab that was open before it.
+    int debugReturnTab = kTabMap;
     bool stereo = false; // opt-in; AGENTS.md display rules
     int stressToons = 0; // extra toon instances for the M1.6 stress test
     int colorTarget = 0; // 0 body, 1 shirt, 2 shorts
