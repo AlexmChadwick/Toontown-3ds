@@ -1,5 +1,6 @@
 // Toontown 3DS - Phase 1 client: TTC playground scene, controllable toon, bottom-screen UI.
 #include <3ds.h>
+#include "render/frame_pace.h"
 #include <citro2d.h>
 #include <citro3d.h>
 #include <malloc.h>
@@ -541,6 +542,8 @@ int main() {
     while (aptMainLoop()) {
         tt::prof::frameBegin();
         tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
+        tt::render::frameSyncTop(); // before input and the net pump: see render/frame_pace.h
+        tt::prof::lap(tt::prof::kWait);
         const u64 now = svcGetSystemTick();
         float dt = static_cast<float>(now - lastTick) / SYSCLOCK_ARM11;
         lastTick = now;
@@ -599,7 +602,7 @@ int main() {
             }
             if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
             tt::prof::lap(tt::prof::kFrontUpdate);
-            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            C3D_FrameBegin(tt::render::frameBeginFlags());
             tt::prof::lap(tt::prof::kWait);
             renderer.resetStats();
             toonCache.pump(); // previous GPU frame is complete: publish streamed poses
@@ -2141,6 +2144,12 @@ int main() {
                     net.sendAnimState(netState, 1.0f);
                     sentState = netState;
                 }
+                // Latency probe (autotest "chat every <s>"): a SpeedChat the PC bot echoes back.
+                static u32 probeChatMs = 0;
+                if (autotest.chatEveryMs() && nowMs - probeChatMs >= autotest.chatEveryMs()) {
+                    probeChatMs = nowMs;
+                    net.sendSpeedChat(tt::autotest::Runner::kLatencyProbeSc);
+                }
                 if (pendingSpeech >= 0) {
                     // A whisper goes only to that toon (DistributedToon.setWhisperSCFrom), said aloud otherwise.
                     if (uiState.whisperTo) net.sendWhisperSC(uiState.whisperTo, static_cast<uint16_t>(pendingSpeech));
@@ -2511,7 +2520,7 @@ int main() {
         }
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
-        C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+        C3D_FrameBegin(tt::render::frameBeginFlags());
         tt::prof::lap(tt::prof::kWait);
         // ---- clerks: publish preview resources only after the GPU fence ----
         int8_t clerkKartDna[9];

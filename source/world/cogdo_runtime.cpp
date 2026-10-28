@@ -1,4 +1,5 @@
 #include "world/cogdo_runtime.h"
+#include "render/frame_pace.h"
 #include "audio/audio.h"
 #include "core/log.h"
 #include "core/nearest.h"
@@ -834,7 +835,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
     }
     simulate(frame, *interior, game, now);
     prof::lap(prof::kCogdoUpdate);
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    C3D_FrameBegin(tt::render::frameBeginFlags());
     prof::lap(prof::kWait);
     frame.cache.pump();
     frame.suits.pumpAssets();

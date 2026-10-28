@@ -1,4 +1,5 @@
 #include "world/cj_battle.h"
+#include "render/frame_pace.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
 
@@ -788,7 +789,7 @@ bool CjBattle::frame(BossFrame& frame) {
         }
     }
     prof::lap(prof::kBossUpdate);
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    C3D_FrameBegin(tt::render::frameBeginFlags());
     prof::lap(prof::kWait);
     frame.cache.pump();
     frame.suits.pumpAssets();
