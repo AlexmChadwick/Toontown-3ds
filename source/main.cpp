@@ -619,6 +619,13 @@ int main() {
             TT_LOG("autotest: dropping the connection at '%s'", autotest.label());
             net.forceReconnect("autotest drop");
         }
+        // Drain the socket thread's receive ring at the start of the world frame.  This
+        // updates remote poses and protocol state before simulation/loading work can consume
+        // much of the 33 ms frame, instead of adding that work to network latency.  Events are
+        // still dispatched below, at their established point in the gameplay update.
+        const u32 netFrameMs = tt::net::plat::nowMs();
+        if (netStarted) net.update(netFrameMs);
+        tt::prof::lap(tt::prof::kNet);
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
@@ -1896,8 +1903,7 @@ int main() {
         }
         // ---- end tutorial ----
         if (netStarted) {
-            const u32 nowMs = tt::net::plat::nowMs();
-            net.update(nowMs);
+            const u32 nowMs = netFrameMs;
             tt::net::Event ev;
             while (net.pollEvent(ev)) {
                 // ---- tutorial ----
