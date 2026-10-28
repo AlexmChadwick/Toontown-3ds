@@ -515,3 +515,20 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 
 ### Next
 - Run the latency gate and a visual check of the 0.06 s `kSmoothTau` on a quiet machine, then the first hardware run.
+
+## 2026-10-28 — perf round 13: single budget gate script
+
+### Done
+- `tools/dev/budget_check.sh` runs `static_size.sh`, `zone_resident.py` and `sd_budget.py` in one go and fails if any guard
+  fails (pipefail, so the `tail` used to trim output cannot hide a failure). Needs `arm-none-eabi-size` on PATH.
+
+### Verified (host)
+- `make` up to date; script exits 0: static 3,145,932 B (3.00 MiB of 4.00), all zones and the SD set inside budget.
+  Without the toolchain on PATH it exits 1 with a clear message (checked).
+
+### Known issues
+- Unchanged: live web->3DS latency gate, full-battle linear peak beyond the 2.1 MB Azahar reading, the visual check of the
+  0.06 s `kSmoothTau`, and any hardware run are unmeasured. VM load was ~3.5 so no emulator numbers were taken.
+
+### Next
+- Quiet-machine latency gate and kSmoothTau visual check; first hardware run.
