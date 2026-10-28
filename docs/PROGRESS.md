@@ -260,3 +260,33 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   mint, DA office, club, bosses, estate, golf, racing) on this rig.
 - Review the zone `.tz` sizes against the SD budget.
 - First real-hardware run.
+
+## 2026-10-28 — perf round 1: budget verification (Linux host, no emulator)
+
+### Done
+- Rebuilt the `.venv` target (`/tmp/venv311`: Python 3.11 + panda3d 1.10.15 + numpy via uv; the
+  tracked `.venv` symlink dangles on a fresh box) and baked the toon + battle lanes
+  (`bake_sd_all.sh toon battle`, 70 min on a loaded 8-core box; `all lanes OK`).
+- New `tools/pipeline/zone_resident.py`: validates every `.tz` with the strict reader and
+  reports/fails the worst far-baseline PVS residency against the section 3 caps.
+
+### Verified (host only; nothing here is an emulator or hardware number)
+- **Battle scene 4 MiB check**: `battle_validate.py` passes with the full SD set —
+  resident 3,938,292 B of 4,194,304, headroom 256,012 B (6%). Thin: any new battle asset
+  (more clips, larger heads atlas, extra audio) must be paid for elsewhere.
+- **Zones**: all 26 `.tz` validate. Worst far-baseline PVS is 2100 (607 KiB geometry +
+  2,112 KiB textures, 82 draws, 11.5k tris) against 6 MiB / 8 MiB / 150 / 15k, so zone
+  linear residency has >2x headroom; near upgrades are capped by the same runtime checks.
+  Largest file 9200.tz 7.7 MB.
+- **SD size** (toon, suit, props, audio, zones, cogdo, racing present): 292.8 MB, within
+  the 650 MB ceiling; suit 91.5 MB and toon 60.5 MB are the biggest non-zone sets.
+- No asset was downscaled or re-encoded this round.
+
+### Known issues
+- No devkitARM on this box, so no C++ was built or changed; native timings are unmeasured.
+- Battle headroom is 256 KB; suit (91.5 MB, 2338 clips) is the best candidate if the card
+  set must shrink.
+
+### Next
+- Install the devkitARM layers (see 2026-10-27 entry) and re-run `make` plus Azahar passes.
+- Measure the in-battle linear high-water mark on the emulator against the 3.94 MB estimate.
