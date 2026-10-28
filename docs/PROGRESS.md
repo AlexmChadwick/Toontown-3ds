@@ -3,6 +3,44 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-28 — Player-facing bottom screen and hidden diagnostics
+
+### Done
+- The bottom screen now starts on the Map instead of the performance Debug panel.
+- Removed Debug from the touch tab bar. The five player tabs (Map, Chat, Toon, Gags and
+  Setup) use the full width; SELECT opens the hidden performance view and returns to the
+  exact player tab that was previously open. D-left/right also leave Debug safely.
+- Replaced the visible Setup tab's developer-only stress-Toon controls with a large
+  Shticker Book button. Stereo 3D remains available there; detailed music, sound, graphics
+  and development controls remain in the book's Options page.
+- Updated the Setup focus table and its host regression expectations so touch and D-pad
+  activation share the same full-width button rectangles.
+- Fixed a shared text-cache ownership bug: changing quickly between Gags and Debug could
+  show the other panel's cached rows for up to ten frames. Each panel now invalidates the
+  cache when it becomes the owner.
+- Updated the README controls for START, SELECT and START+SELECT.
+
+### Verified
+- `git diff --check` passes after each commit.
+- Cross-reference audit finds no stale Setup-tab stress-control identifiers; the remaining
+  stress controls intentionally belong to the Shticker Book Options page and autotest.
+- The host pad-navigation test was updated for the new Setup layout, but could not execute:
+  this workspace has no `clang++`, `g++`/`cc1plus`, or devkitARM toolchain.
+
+### Asset size decisions
+- None. This round changes UI state, layout and input only.
+
+### Known issues
+- The new five-tab layout, hidden Debug transition and Setup copy still need a native-size
+  visual pass in Azahar or on hardware.
+- The existing emulator/hardware and gameplay issues below remain open.
+
+### Next
+- Build with devkitARM and run the bottom-screen scripted pass in Old 3DS mode, checking the
+  five 64 px tabs, SELECT round-trip, Setup focus ring and Gags/Debug rapid switching.
+- Continue the real-hardware readability and touch-target pass across every Shticker Book
+  page.
+
 ## 2026-10-28 — Shticker Book touch and button-input repair
 
 ### Done
