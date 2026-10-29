@@ -194,7 +194,7 @@ const Step kScript[] = {
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go bossbot hq", "hq_boss"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "toon hq: talk", "hq_talk"},
     // ---- padnav: the quest choice with buttons (A pages through the dialog) ----
-    {16.0f, 0, 0, 0, 0, -1, -1, 0, "pad: quest pages"},
+    {16.0f, 0, 0, 0, 0, -1, -1, 0, "pad: quest pages", "pad_quest_pages*"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: quest focus"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: quest next"},
     {1.0f, 0, 0, 0, KEY_DUP, -1, -1, 0, "pad: quest back up", "pad_quest"},

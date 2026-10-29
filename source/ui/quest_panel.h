@@ -24,9 +24,14 @@ public:
 
 private:
     void text(float x, float y, float scale, u32 color, float wrapWidth, const char* s);
+    // How many lines `s` takes word-wrapped at wrapWidth (C2D_WordWrap's greedy rule).
+    int wrappedLines(const char* s, float scale, float wrapWidth);
 
     C2D_TextBuf buf_ = nullptr;
     char scratch_[quest::kMaxText] = {};
+    // The balloon fits the page: its line count, measured once per page.
+    const char* measuredText_ = nullptr;
+    int measuredPage_ = -1, measuredLines_ = 1;
     FocusGroup focus_{"quest"};
 };
 

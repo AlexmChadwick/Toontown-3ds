@@ -69,6 +69,47 @@ void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth,
     }
 }
 
+int QuestPanel::wrappedLines(const char* s, float scale, float wrapWidth) {
+    C2D_TextBuf tmp = C2D_TextBufNew(256);
+    if (!tmp) return 1;
+    char line[256];
+    int lines = 1;
+    size_t len = 0;
+    for (const char* p = s; *p;) {
+        if (*p == '\n') {
+            lines++, len = 0, p++;
+            continue;
+        }
+        const char* end = p; // the next word, with its leading spaces
+        while (*end == ' ') end++;
+        while (*end && *end != ' ' && *end != '\n') end++;
+        const size_t wl = size_t(end - p);
+        if (len + wl < sizeof line) {
+            memcpy(line + len, p, wl);
+            line[len + wl] = 0;
+            C2D_Text t;
+            C2D_TextBufClear(tmp);
+            render::textParse(&t, tmp, line);
+            float w = 0, h = 0;
+            C2D_TextGetDimensions(&t, scale, scale, &w, &h);
+            if (w > wrapWidth && len > 0) {
+                lines++;
+                while (*p == ' ') p++; // the word starts the new line
+                len = size_t(end - p);
+                memcpy(line, p, len);
+                line[len] = 0;
+            } else {
+                len += wl;
+            }
+        } else {
+            lines++, len = 0;
+        }
+        p = end;
+    }
+    C2D_TextBufDelete(tmp);
+    return lines;
+}
+
 u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Talk& talk) {
     // ---- padnav: focus tables (ui/pad_tables.h); the rectangles are the old touch areas ----
     int activated = -1;
@@ -124,7 +165,17 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         text(16, 34, 0.5f, kInkSoft, 0, "...");
         break;
     case quest::Talk::Phase::Pages: {
-        theme::paper(4, 26, kW - 8, 176, 12.0f, theme::kWhite, theme::kInk);
+        // A chat balloon sized to the page, as upstream's balloons grow with their text.
+        if (talk.pageText() != measuredText_ || talk.page() != measuredPage_) {
+            measuredText_ = talk.pageText();
+            measuredPage_ = talk.page();
+            measuredLines_ = wrappedLines(talk.pageText(), 0.5f, kW - 28);
+        }
+        constexpr float kLineH = 15.0f; // the UI font's line at scale 0.5
+        float h = 18.0f + measuredLines_ * kLineH;
+        if (h < 44.0f) h = 44.0f;
+        if (h > 176.0f) h = 176.0f;
+        theme::paper(4, 26, kW - 8, h, 12.0f, theme::kWhite, theme::kInk);
         // The balloon's tail, pointing up at the speaker's name.
         C2D_DrawTriangle(28, 27, theme::kInk, 52, 27, theme::kInk, 30, 16, theme::kInk, 0.5f);
         C2D_DrawTriangle(31, 29, theme::kWhite, 49, 29, theme::kWhite, 32, 20, theme::kWhite, 0.5f);
