@@ -3,6 +3,72 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 (UI round 15) — Pick-A-Toon and Make-A-Toon in upstream art, purchase sign and bean jar, Toon tab posters
+
+### Done
+- **Pick-A-Toon is AvatarChooser** (`bake_pick_a_toon.py`). The bottom screen is
+  `tt_t_gui_pat_background` (the blue starburst) with the six coloured `tt_t_gui_pat_square`
+  panels at `AvatarChooser.POSITIONS`, composited at rest into the exact 320 x 240 screen (aspect2d
+  is 4:3 like the bottom screen, 120 px per unit), instead of six identical yellow "+ Make a Toon"
+  pills. Each square carries AvatarChoice's parts: the Toon's laff-meter species head in its head
+  colour, its name in white with a shadow, statusText (Under Review / Name Approved! / Name
+  Rejected), "Play This Toon" on our pick, the Name Your Toon! pill and the trashcan (closed, open
+  on our pick); empty squares say "Make A Toon" in text_fg (0, 1, 0.8) and make one at once. The top
+  screen's title is AvatarChooserPickAToon, Logout sits top right, and the delete dialog uses
+  AvatarChoiceDeleteConfirm. A Toon's first tap picks it (the top screen shows the whole Toon), the
+  second plays it. Pad: the D-Pad moves the gold ring, A plays / makes, Y deletes, X names, B logs
+  out (`padnav: pick ...`).
+- **Make-A-Toon uses tt_m_gui_mat_mainGui** (`bake_mat_gui.py`): the round glossy Next / Back (the
+  next image mirrored, as MakeAToon's guiLastButton) / OK buttons beside their captions, GenderShop's
+  boy / girl buttons (the other one dimmed), ClothesGUI's Shirt / Shorts shuffle frames with the gold
+  shuffle arrows at their ends, NameShop's shuffle bar and gold arrows on the name columns, and each
+  species pill with that species' laff-meter head in the chosen body colour.
+- **Gag Shop and trolley purchase** (`bake_purchase_gui.py`): titled with the `Goofys_Sign` plank
+  ("Goofy's Gag Shop" in the sign brown), our beans on PurchaseBase's `Jar` (yellow count, black
+  shadow) between [+] and Done, and the orange `PurchScrn_BTN` buttons with blue ink: DONE SHOPPING
+  (ClerkPurchase) / EXIT BACK TO PLAYGROUND (Purchase), [-] / [+] dimmed when they cannot act,
+  Cancel in red. The trolley panel shows "+N won" beside the carry count.
+- **Jellybean jar icon** (InventoryPage.moneyDisplay) before the counts on the Toon tab, the Gags tab
+  and the book's Gags page, instead of three coloured ovals.
+- **Toon tab ToonTasks** are the book's QuestPoster cards (shared `drawQuestPosters`: green when
+  complete, Return to, where, the reward), with "Tasks done"; the old fixed-height rows left empty
+  paper under one task and differed from the book.
+- `theme::textCentered` centres every line of a multi-line label; `theme::purchaseButton`.
+- `tools/pipeline/ui_atlas.py`: the shared offscreen renderer for these small UI atlases
+  (`bake_purchase_gui.py` moved onto it with byte-identical output).
+- **Front-end art is freed in the world**: the pick / MAT atlases are released at the fence of the
+  first world frame and reload on demand (they stayed resident all session before).
+- Screenshots: `/workspace/shots/3ds-ui-round15/` (13 frames).
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server on 7198, fresh tokens)
+- Front end (`AUTOTEST_FE=1`), fresh account and an account with a Toon: Pick-A-Toon, Y delete,
+  dialog, Delete, tap an empty square, all five Make-A-Toon steps, create, skip the Toontorial,
+  TTC. No PARSE / EJECT / crash. FE 29.9 fps; TTC after entry: heap 3.3 MB, linear free 15.4 MB.
+- Trolley -> Catching game -> purchase (plank, jar, buttons), Gag Shop door -> clerk -> shop panel by
+  pad; Toon tab, Gags tab and book Gags page jar icons.
+- Host: padnav_test 154 checks. `make`: zero warnings in source/. All three bakes re-run to identical
+  bytes.
+
+### Asset size decisions
+- `pick_a_toon.ttm` (288 KB RomFS, front end only): the 512 x 512 upstream background with the
+  squares composited at the exact 320 x 240 screen size into a 512 x 256 RGB565 texture (the screen
+  is shown 1:1, so no detail is lost to resizing); trashcan closed / open 128 x 64 RGBA8. The
+  trashcan is drawn 1.3x upstream's size for a fingertip.
+- `mat_gui.ttm` (256 KB, front end only): 14 buttons in 256 x 256 RGBA8; RGBA4 bands their gloss.
+- `purchase_gui.ttm` (128 KB): the plank and the jar in 256 x 128 RGBA8.
+
+### Known issues
+- Names on the pick squares are not rotated by NAME_ROTATIONS (citro2d text cannot rotate).
+- The pick screen's heads are the 2D laff-meter heads, not AvatarChoice's animated 3D ToonHead.
+- A Toon with an Approved / Rejected name was not on screen this round (the dev server approves
+  nothing); its status and the tap-to-acknowledge path are unchanged from before.
+- The earlier known issues stand (no real-hardware run; SOS / Fire never sent live; Azahar clock
+  stalls on this rig).
+
+### Next
+- Make-A-Toon's colour step: ColorShop's All / parts toggles (allUp / partsUp) and shuffle frames.
+- The title screen in upstream's login art.
+
 ## 2026-10-29 (UI round 14) — SpeedChat panel, Shtiker Book icons, ToontownTimer everywhere, Hop off
 
 ### Done

@@ -1279,3 +1279,21 @@ bake. Not hardware. Shots on (about 100 ms each), so fps dips on shot frames.
 - Street battle: clock top-right, SOS / Fire demo panels, round played out.
 - Gag Shop: clock top-right (116 s), shop panel header without the timer label.
 - Front end: all screens. Host padnav_test 154 checks.
+
+## 2026-10-29 (UI round 15) — Linux rig: Pick-A-Toon / Make-A-Toon art, purchase sign and jar
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/rootfs/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198, fresh tokens. SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots on.
+
+- Front end, fresh account: title, Pick-A-Toon (six empty squares), tap square 1 -> Make-A-Toon,
+  species / body / colour / clothes (shuffle arrow) / name shop / typed name, create, Toontorial
+  skip, TTC. 29.9 fps in the front end (27.0 on shot frames), heap 3.3 MB, linear free 19.1 MB in
+  the front end, 15.4 MB in TTC after entry (14.7 MB before the art was freed).
+- Front end, account with a Toon: head, name, Name Your Toon!, trashcan; Y -> delete dialog ->
+  Delete (`padnav: pick activate delete 0`); then the empty-square path.
+- Trolley -> Catching game -> purchase panel; Gag Shop -> clerk -> shop panel by pad: plank, jar,
+  PurchScrn buttons. Toon / Gags tab and book Gags page jar icons. No PARSE / EJECT / crash.
+- Host padnav_test 154 checks (GCC 12).
+
