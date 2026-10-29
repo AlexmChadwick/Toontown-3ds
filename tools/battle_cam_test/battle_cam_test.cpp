@@ -284,13 +284,19 @@ void testSamplingAndFraming() {
     cam.startWaitForInput();
     float eyeX = 0, eyeY = 0, eyeZ = 0, tgtX = 0, tgtY = 0, tgtZ = 0;
     cam.sample(1000, battle, &eyeX, &eyeY, &eyeZ, &tgtX, &tgtY, &tgtZ);
-    // Overhead camera: eye should be behind/above, target near battle center
-    assert(eyeZ > 5.0f);
+    // Behind the toons (they stand near y=-6) and only moderately above the ring,
+    // looking at chest height in the middle. The old (0, -9.5, 17) / pitch -61 pose
+    // put the eye close and high; bodies foreshortened into blobs on the 55 deg lens.
+    assert(eyeY < -14.0f);
+    assert(eyeZ > 6.0f && eyeZ < 12.0f);
     assert(approx(tgtX, 0.0f));
-    assert(std::fabs(tgtY) < 3.0f);
+    assert(std::fabs(tgtY) < 1.0f);
+    assert(tgtZ > 1.0f && tgtZ < 4.0f);
     assert(tgtZ < eyeZ);
+    const float horiz = std::sqrt(eyeX * eyeX + eyeY * eyeY);
+    assert(horiz > 1.0f && (eyeZ - tgtZ) / horiz < 0.7f);
     float dist = distance3d(eyeX, eyeY, eyeZ, tgtX, tgtY, tgtZ);
-    assert(dist > 5.0f && dist < 50.0f);
+    assert(dist > 12.0f && dist < 30.0f);
 
     // 2. FaceOff Taunt sampling
     cam.startFaceOff(200, 1000, 3500);

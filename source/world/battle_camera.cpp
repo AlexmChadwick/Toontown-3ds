@@ -881,18 +881,22 @@ void BattleCamera::sample(uint32_t nowMs, const Battle& battle,
         }
     }
 
-    // 3. Default WaitForInput camera (BattleCamDefaultPos = (0, -8.6, 16.5), BattleCamDefaultHpr = (0, -61, 0))
-    // Pulled back slightly (0, -9.5, 17.0) to frame 4 toons and 4 Cogs on 55 deg vertical FOV
+    // 3. Wait for input. Upstream BattleCamDefaultPos (0, -8.6, 16.5) at pitch -61 is
+    // framed for Panda's ~40 deg vertical FOV. This screen is 55 deg vertical and about
+    // 84 deg horizontal, so that pose sits just behind the toons and looks steeply down
+    // and they foreshorten into blobs. Further back and lower, aimed at the middle of
+    // the ring (toons near local y=-7, cogs near y=+5) at chest height.
     const float rad = bh * kDegToRad;
     constexpr float defX = 0.0f;
-    constexpr float defY = -9.5f;
-    constexpr float defZ = 17.0f;
-    constexpr float defP = -61.0f;
+    constexpr float defY = -18.0f;
+    constexpr float defZ = 8.5f;
 
     *eyeX = bx + (defX * std::cos(rad) - defY * std::sin(rad));
     *eyeY = by + (defX * std::sin(rad) + defY * std::cos(rad));
     *eyeZ = bz + defZ;
-    hprToTarget(*eyeX, *eyeY, *eyeZ, bh, defP, 16.0f, tgtX, tgtY, tgtZ);
+    *tgtX = bx;
+    *tgtY = by;
+    *tgtZ = bz + 2.2f;
 }
 
 } // namespace tt::world
