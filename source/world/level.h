@@ -50,6 +50,7 @@ public:
     void shutdown();
 
     void pumpAssets() {
+        if (!active_ && client_) tryBeginFloor(*client_);
         assetBatch_.pump();
         games_.pumpAssets();
         if (entryLoading_ && spawned_ && !assetBatch_.loading() && !games_.loadingAssets()) {
@@ -212,7 +213,8 @@ private:
         bool zonesSent = false;
     };
     bool loadRoom(int room, const char* name, const float placement[12]);
-    bool loadFloor(const net::Facility& f);
+    bool loadFloor(const net::Facility& f, const LoadedBlob& blob);
+    void requestFloor(const net::Facility& f);
     void tryBeginFloor(net::Client& client);
     void activate(net::Client& client);
     void loadSpinModels();
@@ -390,6 +392,8 @@ private:
     // A floor (floor_): the facility, its pieces (rooms and hallways), door frames and the
     // floor collision of the .tlf, and the piece the toon is in.
     bool floor_ = false;
+    LoadTicket floorLoadTicket_ = kNoTicket;
+    char floorLoadPath_[112] = {};
     uint32_t facilityDoId_ = 0, facilityZoneId_ = 0;
     static constexpr int kMaxPieces = 2 * kMaxRooms;
     struct Piece {

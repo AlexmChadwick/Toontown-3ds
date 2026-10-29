@@ -1539,10 +1539,6 @@ const char* floorKindName(net::FacilityKind k) {
     return k == net::FacilityKind::Mint ? "mint" : k == net::FacilityKind::Stage ? "stage" : "club";
 }
 
-bool readAt(FILE* f, long offset, void* out, size_t size) {
-    return std::fseek(f, offset, SEEK_SET) == 0 && std::fread(out, 1, size, f) == size;
-}
-
 } // namespace
 
 bool Level::loadRoom(int room, const char* name, const float placement[12]) {
@@ -1569,19 +1565,29 @@ bool Level::loadRoom(int room, const char* name, const float placement[12]) {
 
 // DistributedMint/Stage/CountryClub.gotAllRooms: the rooms placed along the floor layout with
 // their hallways and door frames (all baked into the floor's .tlf).
-bool Level::loadFloor(const net::Facility& fac) {
+bool Level::loadFloor(const net::Facility& fac, const LoadedBlob& source) {
     const u64 loadStart = svcGetSystemTick();
     char file[112], path[112];
     snprintf(file, sizeof(file), "%sfloors/%s_%u_%u_%u.tlf", kDir, floorKindName(fac.kind), unsigned(fac.facilityId),
              unsigned(fac.kind == net::FacilityKind::Mint ? 0 : fac.layoutIndex), unsigned(fac.floorNum));
-    FILE* f = fopen(file, "rb");
-    if (!f) {
-        TT_LOG("level: missing %s", file);
-        return false;
-    }
-    FloorHeader h;
-    bool ok = readAt(f, 0, &h, sizeof(h)) && !memcmp(h.magic, "TLF1", 4) && h.version == 1 &&
-              h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms;
+    const auto* bytes = static_cast<const uint8_t*>(source.data);
+    auto read = [&](uint32_t offset, void* out, size_t size) {
+        if (!bytes || uint64_t(offset) + size > source.size) return false;
+        memcpy(out, bytes + offset, size);
+        return true;
+    };
+    auto range = [&](uint32_t offset, uint64_t size) {
+        return offset >= sizeof(FloorHeader) && uint64_t(offset) + size <= source.size;
+    };
+    FloorHeader h{};
+    bool ok = read(0, &h, sizeof(h)) && !memcmp(h.magic, "TLF1", 4) && h.version == 1 &&
+              h.fileSize == source.size &&
+              h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms &&
+              h.numDoorFrames <= kMaxDoorFrames &&
+              range(h.piecesOffset, uint64_t(h.numPieces) * sizeof(FloorPiece)) &&
+              range(h.doorFramesOffset, uint64_t(h.numDoorFrames) * sizeof(FloorDoor)) &&
+              range(h.floorTrisOffset, uint64_t(h.numFloorTris) * sizeof(FloorTriRecord)) &&
+              range(h.collisionOffset, h.collisionSize);
     if (!ok) TT_LOG("level: %s: bad file, or %u pieces for %u rooms", file, unsigned(h.numPieces), unsigned(fac.numRooms));
     numPieces_ = 0;
     // These tables are small and bounded (31 pieces / 32 door frames today). Reading each
@@ -1589,7 +1595,7 @@ bool Level::loadFloor(const net::Facility& fac) {
     // the elevator fade. Keep the raw records on the stack and preserve the processing order.
     FloorPiece floorPieces[kMaxPieces];
     if (ok && h.numPieces)
-        ok = readAt(f, long(h.piecesOffset), floorPieces, h.numPieces * sizeof(FloorPiece));
+        ok = read(h.piecesOffset, floorPieces, h.numPieces * sizeof(FloorPiece));
     for (int i = 0; ok && i < h.numPieces; ++i) {
         FloorPiece& fp = floorPieces[i];
         fp.name[47] = 0;
@@ -1619,9 +1625,8 @@ bool Level::loadFloor(const net::Facility& fac) {
     }
     numDoorFrames_ = 0;
     FloorDoor floorDoors[kMaxDoorFrames];
-    if (ok && h.numDoorFrames > kMaxDoorFrames) ok = false;
     if (ok && h.numDoorFrames)
-        ok = readAt(f, long(h.doorFramesOffset), floorDoors, h.numDoorFrames * sizeof(FloorDoor));
+        ok = read(h.doorFramesOffset, floorDoors, h.numDoorFrames * sizeof(FloorDoor));
     for (int i = 0; ok && i < h.numDoorFrames && numDoorFrames_ < kMaxDoorFrames; ++i) {
         const FloorDoor& d = floorDoors[i];
         DoorFrame& df = doorFrames_[numDoorFrames_++];
@@ -1635,7 +1640,7 @@ bool Level::loadFloor(const net::Facility& fac) {
         FloorTriRecord block[64];
         for (uint32_t i = 0; ok && i < h.numFloorTris;) {
             const uint32_t n = std::min<uint32_t>(64, h.numFloorTris - i);
-            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(FloorTriRecord)), block, n * sizeof(FloorTriRecord));
+            ok = read(h.floorTrisOffset + i * sizeof(FloorTriRecord), block, n * sizeof(FloorTriRecord));
             for (uint32_t k = 0; ok && k < n; ++k, ++i) {
                 floorTris_[i].piece = block[k].roomNum;
                 memcpy(floorTris_[i].v, block[k].v, sizeof(block[k].v));
@@ -1643,8 +1648,8 @@ bool Level::loadFloor(const net::Facility& fac) {
             }
         }
     }
-    if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);
-    fclose(f);
+    if (ok)
+        ok = floorCollision_.loadMemory(bytes + h.collisionOffset, h.collisionSize, file);
     if (!ok) return false;
     const unsigned long loadMs = static_cast<unsigned long>((svcGetSystemTick() - loadStart) /
                                                             (SYSCLOCK_ARM11 / 1000));
@@ -1654,6 +1659,24 @@ bool Level::loadFloor(const net::Facility& fac) {
     if (numDoorFrames_ && !doorFrameModel_.loaded())
         assetBatch_.load(doorFrameModel_, path);
     return true;
+}
+
+void Level::requestFloor(const net::Facility& fac) {
+    if (!fac.numRooms) return;
+    char file[112];
+    snprintf(file, sizeof(file), "%sfloors/%s_%u_%u_%u.tlf", kDir, floorKindName(fac.kind),
+             unsigned(fac.facilityId), unsigned(fac.kind == net::FacilityKind::Mint ? 0 : fac.layoutIndex),
+             unsigned(fac.floorNum));
+    if (!strcmp(floorLoadPath_, file)) return;
+    if (floorLoadTicket_) AssetLoader::cancel(floorLoadTicket_);
+    floorLoadTicket_ = kNoTicket;
+    floorLoadPath_[0] = 0;
+    // Current files are far below this. Keep corrupt/network-selected metadata from
+    // consuming an unbounded share of the Old 3DS regular heap.
+    floorLoadTicket_ = AssetLoader::requestBlob(file, 2 * 1024 * 1024);
+    if (floorLoadTicket_) {
+        snprintf(floorLoadPath_, sizeof(floorLoadPath_), "%s", file);
+    }
 }
 
 void Level::loadSpinModels() {
@@ -1709,9 +1732,24 @@ void Level::begin(Room& room, const net::LevelObj& l) {
 void Level::tryBeginFloor(net::Client& client) {
     const net::Facility* fac = client.facility();
     if (active_ || !fac || fac->numRooms == 0) return;
+    requestFloor(*fac);
+    if (!floorLoadTicket_) return;
+    const LoadStatus floorStatus = AssetLoader::poll(floorLoadTicket_);
+    if (floorStatus == LoadStatus::Pending) return;
+    if (floorStatus != LoadStatus::Ready) {
+        TT_LOG("level: floor container load failed");
+        AssetLoader::cancel(floorLoadTicket_);
+        floorLoadTicket_ = kNoTicket;
+        return;
+    }
     for (int i = 0; i < fac->numRooms; ++i)
         if (!client.levelObj(fac->roomDoIds[i])) return;
-    if (!loadFloor(*fac)) {
+    LoadedBlob blob;
+    if (!AssetLoader::takeBlob(floorLoadTicket_, blob)) return;
+    floorLoadTicket_ = kNoTicket;
+    const bool floorOk = loadFloor(*fac, blob);
+    free(blob.data);
+    if (!floorOk) {
         shutdown();
         return;
     }
@@ -1775,6 +1813,7 @@ void Level::handleEvent(const net::Event& ev, net::Client& client) {
             TT_LOG("level: %u defeated -> zone %u", unsigned(winHood_), unsigned(winDestination_));
         }
     } else if (ev.type == EventType::FacilityUp) {
+        if (const net::Facility* fac = client.facility()) requestFloor(*fac);
         tryBeginFloor(client);
     } else if (ev.type == EventType::FacilityNextFloor) {
         // setStageZone / setCountryClubZone: the elevator left with us; on to the next floor.
@@ -1789,6 +1828,9 @@ void Level::handleEvent(const net::Event& ev, net::Client& client) {
 
 void Level::shutdown() {
     entryLoading_ = false;
+    if (floorLoadTicket_) AssetLoader::cancel(floorLoadTicket_);
+    floorLoadTicket_ = kNoTicket;
+    floorLoadPath_[0] = 0;
     assetBatch_.clear();
     if (client_) client_->setLevelBattlePlacer(nullptr, nullptr);
     doorClient_ = nullptr;
