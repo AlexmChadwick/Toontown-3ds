@@ -120,7 +120,6 @@ bool FrontEnd::init(world::ToonCache* cache) {
     textCache_.clear();
     textBuf_ = C2D_TextBufNew(4096);
     if (!logo_.loaded() && !logo_.load("romfs:/baked/title_logo.ttm")) TT_LOG("frontend: no title_logo.ttm");
-    if (!pickArt_.loaded() && !pickArt_.load("romfs:/baked/pick_a_toon.ttm")) TT_LOG("frontend: no pick_a_toon.ttm");
     setPreviewDna(world::defaultToonDna());
     preview_.play(world::kAnimWave, 1.0f);
     reset();
@@ -138,6 +137,12 @@ void FrontEnd::shutdown() {
     textBuf_ = nullptr;
     logo_.unload();
     pickArt_.unload();
+    ui::releaseMatArt();
+}
+
+void FrontEnd::releaseArt() {
+    pickArt_.unload();
+    pickArtTried_ = false;
     ui::releaseMatArt();
 }
 
@@ -954,6 +959,10 @@ void FrontEnd::shadowText(float cx, float y, float scale, u32 color, float maxW,
 // "Make A Toon" (AvatarChoiceMakeAToon, text_fg 0, 1, 0.8) when the slot is empty.
 void FrontEnd::drawPickBottom() {
     namespace th = ui::theme;
+    if (!pickArt_.loaded() && !pickArtTried_) {
+        pickArtTried_ = true; // one attempt per visit; a missing file logs once
+        if (!pickArt_.load("romfs:/baked/pick_a_toon.ttm")) TT_LOG("frontend: no pick_a_toon.ttm");
+    }
     C3D_Tex* bg = pickArt_.loaded() ? pickArt_.texture(0) : nullptr;
     C3D_Tex* trash = pickArt_.loaded() ? pickArt_.texture(1) : nullptr;
     if (bg) {

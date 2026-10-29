@@ -501,6 +501,7 @@ int main() {
     frontEnd.init(&toonCache);
     frontEnd.setServer(settings.host, settings.port, settings.online);
     bool inFrontEnd = !autotest.active() || autotest.frontEndScript();
+    bool releaseFrontEndArt = false; // FrontEnd::releaseArt at the next frame fence
     if (!inFrontEnd && settings.online) startNet(false);
 
     u64 lastTick = svcGetSystemTick();
@@ -571,6 +572,7 @@ int main() {
             } else if (action == tt::game::Action::StartOffline || action == tt::game::Action::EnterWorld) {
                 if (action == tt::game::Action::StartOffline && netStarted) net.disconnect();
                 inFrontEnd = false;
+                releaseFrontEndArt = true; // after this frame's C3D_FrameBegin fence
                 localLookFromServer = false;
                 player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
                 tt::audio::playSfx(sfxClick);
@@ -581,6 +583,10 @@ int main() {
             tt::prof::lap(tt::prof::kWait);
             renderer.resetStats();
             toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+            if (releaseFrontEndArt) { // the last front-end frame is complete too
+                frontEnd.releaseArt();
+                releaseFrontEndArt = false;
+            }
             tt::prof::lap(tt::prof::kLoads);
             if (shotName) {
                 char path[96];

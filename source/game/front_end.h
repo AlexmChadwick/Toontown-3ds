@@ -38,6 +38,10 @@ public:
     void setServer(const char* host, int port, bool online);
     // Back to the title (e.g. after a fatal disconnect in the world).
     void reset();
+    // Frees the Pick-A-Toon and Make-A-Toon art (about 0.55 MB of linear memory) once we are in
+    // the world; call after C3D_FrameBegin (the last front-end frame is then complete). It
+    // reloads on demand when the front end comes back.
+    void releaseArt();
 
     // Test hook for autotest: sets the typed name to use instead of opening swkbd.
     static void setTestTypedName(const char* name);
@@ -125,6 +129,7 @@ private:
     C2D_TextBuf textBuf_ = nullptr;
     render::Model logo_; // the Toontown Online logo (title screen)
     render::Model pickArt_; // AvatarChooser's background + squares and the trashcan (pick_a_toon.ttm)
+    bool pickArtTried_ = false;
     char serverLine_[96] = "";
 };
 
