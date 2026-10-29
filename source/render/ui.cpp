@@ -398,7 +398,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
         }
         if (numNearby_ > 0) {
-            C2D_DrawRectSolid(kW - 100, 2, 0.5f, 96, 24, s.whisperTo ? kAccent : kLeatherLight);
+            shape::roundFrame(kW - 100, 2, 0.45f, 96, 24, 7, 1, kLeather,
+                              s.whisperTo ? kAccent : kLeatherLight);
             text(kW - 96, 7, 0.4f, s.whisperTo ? kInk : kWhite, "To: %.12s", target);
         }
         break;
@@ -500,8 +501,9 @@ void Ui::drawTabs(const State& s) {
     for (int i = 0; i < kVisibleTabCount; i++) {
         const float x = i * kTabW;
         // The selected bookmark rises out of the leather strip, like the full book tabs.
-        C2D_DrawRectSolid(x + 2, kTabY + (i == s.tab ? 1 : 5), 0.51f, kTabW - 4,
-                          i == s.tab ? kTabH - 1 : kTabH - 5, i == s.tab ? kAccent : kLeatherLight);
+        shape::roundFrame(x + 2, kTabY + (i == s.tab ? 1 : 5), 0.51f, kTabW - 4,
+                          i == s.tab ? kTabH - 1 : kTabH - 5, 7, 1, kLeather,
+                          i == s.tab ? kAccent : kLeatherLight);
         float tw = 0.0f;
         C2D_TextGetDimensions(&tabText_[i], 0.5f, 0.5f, &tw, nullptr);
         C2D_DrawText(&tabText_[i], C2D_WithColor, x + (kTabW - tw) * 0.5f, kTabY + 9, 0.52f, 0.5f, 0.5f,
@@ -625,19 +627,19 @@ void Ui::drawMap(const Context& c) {
     // ---- end qafix ----
     // A small paper label remains legible over every baked map without exposing
     // implementation zone IDs or coordinates to players.
-    C2D_DrawRectSolid(5, 5, 0.61f, 100, 20, kPanelAlt);
+    shape::roundFrame(5, 5, 0.45f, 100, 20, 6, 1, kLeather, kPanelAlt);
     if (!hasMap_ && world::placeKind(c.currentZone) == world::PlaceKind::Interior)
         text(8, 8, 0.45f, kInk, "You are indoors");
     else
         text(8, 8, 0.45f, kInk, "You are here");
-    C2D_DrawRectSolid(kHomeX, kHomeY, 0.5f, kHomeW, kHomeH, kAccent);
+    shape::roundFrame(kHomeX, kHomeY, 0.45f, kHomeW, kHomeH, 8, 2, kLeather, kAccent);
     text(kHomeX + 14, kHomeY + 6, 0.42f, kInk, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
         const float x = i * kHoodW + 1;
-        C2D_DrawRectSolid(x, kHoodRowY, 0.5f, kHoodW - 2, kHoodRowH,
+        shape::roundFrame(x, kHoodRowY, 0.45f, kHoodW - 2, kHoodRowH, 6, 1, kLeather,
                           here ? kAccent : have ? kLeatherLight : kPanel);
         text(x + 6, kHoodRowY + 6, 0.42f, here ? kInk : have ? kWhite : kDim, "%s", kHoodShort[i]);
     }
@@ -661,13 +663,14 @@ void Ui::drawToon(const State& s, const Context& c) {
         }
         quest_.drawTasks(*c.quests, top + 6, 170);
         // ---- end clerks ----
-        C2D_DrawRectSolid(60, 175, 0.5f, 200, 24, kAccent);
+        shape::roundFrame(60, 175, 0.45f, 200, 24, 8, 2, kLeather, kAccent);
         text(72, 180, 0.42f, kInk, "Open Shticker Book (START)");
         return;
     }
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};
     for (int i = 0; i < 3; i++) {
-        C2D_DrawRectSolid(8 + i * 102, 8, 0.5f, 98, 28, i == s.colorTarget ? kAccent : kPanel);
+        shape::roundFrame(8 + i * 102, 8, 0.45f, 98, 28, 8, 1, kLeather,
+                          i == s.colorTarget ? kAccent : kPanel);
         text(16 + i * 102, 14, 0.5f, i == s.colorTarget ? kInk : kInk, "%s", kTargets[i]);
     }
     const int sel = s.colorTarget == 0 ? s.bodyColor : s.colorTarget == 1 ? s.shirtColor : s.bottomColor;
@@ -683,11 +686,12 @@ void Ui::drawToon(const State& s, const Context& c) {
 
 void Ui::drawSettings(const State& s) {
     text(12, 8, 0.5f, kInk, "Settings");
-    C2D_DrawRectSolid(kBtnX, kStereoY, 0.5f, kBtnW, kBtnH, s.stereo ? kAccent : kPanel);
+    shape::roundFrame(kBtnX, kStereoY, 0.45f, kBtnW, kBtnH, 10, 2, kLeather,
+                      s.stereo ? kAccent : kPanel);
     text(kBtnX + 8, kStereoY + 10, 0.5f, kInk, "Stereo 3D: %s", s.stereo ? "On" : "Off");
     text(186, kStereoY + 11, 0.4f, kDim, "3D slider controls depth");
 
-    C2D_DrawRectSolid(kBtnX, kBookY, 0.5f, kBtnW, kBtnH, kAccent);
+    shape::roundFrame(kBtnX, kBookY, 0.45f, kBtnW, kBtnH, 10, 2, kLeather, kAccent);
     text(kBtnX + 46, kBookY + 9, 0.52f, kInk, "Open Shticker Book");
     text(12, 134, 0.45f, kDim, "Music, sound, graphics and game options");
     text(12, 151, 0.45f, kDim, "are tucked inside your Shticker Book.");
