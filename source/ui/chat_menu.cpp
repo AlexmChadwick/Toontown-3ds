@@ -4,6 +4,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/draw_shapes.h"
 
 namespace tt::ui {
 
@@ -27,6 +28,7 @@ const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
 const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
 const u32 kDim = C2D_Color32(0x78, 0x68, 0x58, 0xFF);
 const u32 kMenuText = C2D_Color32(0xFF, 0xE0, 0x8A, 0xFF);
+const u32 kOutline = C2D_Color32(0x55, 0x3D, 0x2A, 0xFF);
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
 
@@ -247,7 +249,11 @@ void ChatMenu::draw(float panelBottom) {
         const float y = kHeaderH + i * kRowH - scroll_;
         const bool focused = i == focus_;
         const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? kPanelMenu : kPanel));
-        C2D_DrawRectSolid(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap, bg);
+        // Stock SpeedChat is a stack of opaque speech cards.  The dark outline keeps
+        // white phrase cards readable over a bright map while category cards retain
+        // the red Shticker Book leather colour.
+        shape::roundFrame(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap,
+                          6.0f, 1.0f, focused ? kAccent : kOutline, bg);
         const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
         const u32 fg = locked ? kDim : focused ? kInk : (it.isMenu ? kMenuText : kInk);
         const float s = labelScale_[i];
@@ -277,7 +283,8 @@ void ChatMenu::draw(float panelBottom) {
     C2D_DrawRectSolid(0, 0, kZ, kW, kHeaderH, kBg);
     float titleX = kMarginX + 2.0f;
     if (m.parent >= 0) {
-        C2D_DrawRectSolid(kMarginX, 2, kZ, kBackW, kHeaderH - 4, pressedBack_ ? kPressed : kPanelMenu);
+        shape::roundFrame(kMarginX, 2, kZ, kBackW, kHeaderH - 4, 6.0f, 1.0f,
+                          kAccent, pressedBack_ ? kPressed : kPanelMenu);
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ, 0.5f, 0.5f, kWhite);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {

@@ -2691,6 +2691,8 @@ int main() {
 
         // citro2d state must be re-bound after our custom shader.
         C2D_Prepare();
+        // Shared by the top-world HUD and the bottom Map HUD later in this frame.
+        tt::ui::HudValues hv;
         {
             // Nametag + speech balloon over the head (toon height + 0.5, Avatar.py).
             C3D_Mtx proj, view;
@@ -2740,7 +2742,6 @@ int main() {
             interiorLife.draw2D(proj, view);
             // [end interior life]
             tt::prof::lap(tt::prof::kBalloons);
-            tt::ui::HudValues hv;
             hv.online = netStarted && net.inZone();
             if (hv.online) {
                 const tt::net::OwnStats& st = net.ownStats();

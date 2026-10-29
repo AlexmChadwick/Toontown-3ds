@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "ui/gag_data.h"
+#include "ui/draw_shapes.h"
 #include "ui/pad_tables.h"
 #include "core/log.h"
 #include "world/battle_fx.h"
@@ -26,12 +27,16 @@ const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
 const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
+const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
 const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
 const u32 kHp = C2D_Color32(0x5C, 0xD0, 0x5C, 0xFF);
 const u32 kHpMid = C2D_Color32(0xF1, 0xC4, 0x32, 0xFF);
 const u32 kHpLow = C2D_Color32(0xE0, 0x50, 0x40, 0xFF);
 const u32 kMeterFrame = C2D_Color32(0x45, 0x2B, 0x18, 0xFF);
 const u32 kMeterEmpty = C2D_Color32(0x73, 0x69, 0x62, 0xFF);
+const u32 kSlotFrame = C2D_Color32(0x70, 0x59, 0x42, 0xFF);
+const u32 kSlotPaper = C2D_Color32(0xF4, 0xED, 0xDC, 0xFF);
+const u32 kLocked = C2D_Color32(0x58, 0x61, 0x72, 0xFF);
 // Track colours, roughly the Shticker Book's gag pages.
 const u32 kTrackColor[gags::kTracks] = {
     C2D_Color32(0xD8, 0x6A, 0xC8, 0xFF), C2D_Color32(0xD8, 0xC8, 0x40, 0xFF), C2D_Color32(0x40, 0xB0, 0x40, 0xFF),
@@ -192,8 +197,12 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
 void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_DrawRectSolid(0, 0, 0.5f, kW, 240, kBg);
-    text(4, 2, 0.45f, kWhite, "%s", v.status ? v.status : "");
-    if (v.secondsLeft >= 0) text(286, 2, 0.5f, v.secondsLeft <= 5 ? kHpLow : kAccent, "%d", v.secondsLeft);
+    shape::roundRect(2, 1, 0.51f, 316, 15, 6, kPanel);
+    text(7, 2, 0.42f, kWhite, "%s", v.status ? v.status : "");
+    if (v.secondsLeft >= 0) {
+        shape::roundRect(282, 2, 0.53f, 33, 13, 6, v.secondsLeft <= 5 ? kHpLow : kAccent);
+        text(v.secondsLeft < 10 ? 295 : 291, 2, 0.45f, kBg, "%d", v.secondsLeft);
+    }
 
     // Cogs: name, level, HP bar. The target has a gold frame.
     for (int i = 0; i < v.numCogs && i < 4; i++) {
@@ -202,7 +211,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         if (i == target_ && v.phase == world::BattlePhase::Input) {
             C2D_DrawRectSolid(x - 1, kCogY - 1, 0.5f, kCogW + 2, kCogH + 2, kAccent);
         }
-        C2D_DrawRectSolid(x, kCogY, 0.5f, kCogW, kCogH, c.active ? kPanel : kBg);
+        shape::roundRect(x, kCogY, 0.51f, kCogW, kCogH, 4, c.active ? kPanel : kBg);
         text(x + 3, kCogY + 2, 0.38f, c.active ? kWhite : kDim, "%s", c.name);
         text(x + 3, kCogY + 15, 0.38f, kDim, "Level %d%s", c.level, c.lured ? " lured" : "");
         drawCogHealth(x + 3, kCogY + 31, kCogW - 6, c.hp, c.maxHp);
@@ -239,27 +248,38 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         return;
     }
 
-    // Gag grid: one row per track, a cell per level with our count.
+    // Gag grid: every track and level keeps its place, even while locked.  Stable
+    // silhouettes are much easier to scan than the old debug-table gaps.
     const bool choosing = v.phase == world::BattlePhase::Input;
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kRowH;
         const bool have = g.access && g.access[t];
         text(4, y + 2, 0.38f, have ? kWhite : kDim, "%s", gags::kTrackNames[t]);
-        if (!have || !g.count) continue;
-        const int levels = gags::levelsUnlocked(t, g.exp[t]);
-        for (int l = 0; l < levels; l++) {
+        const int levels = have && g.exp ? gags::levelsUnlocked(t, g.exp[t]) : 0;
+        for (int l = 0; l < gags::kLevels; l++) {
             const float x = kGridX + l * (kCellW + 2);
-            const bool ok = choosing && usable(v, g, t, l);
-            C2D_DrawRectSolid(x, y, 0.5f, kCellW, kRowH - 2, ok ? kTrackColor[t] : kPanel);
-            world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, ok ? 1.0f : 0.45f);
-            text(x + 19, y + 2, 0.38f, ok ? kBg : kDim, "%u", unsigned(g.count[t][l]));
+            const bool learned = have && g.count && l < levels;
+            const bool ok = learned && choosing && usable(v, g, t, l);
+            shape::roundFrame(x, y, 0.51f, kCellW, kRowH - 2, 4, 1,
+                              ok ? kAccent : kSlotFrame, learned ? kSlotPaper : kLocked);
+            if (learned) {
+                world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f,
+                                                     g.count[t][l] ? 1.0f : 0.35f);
+                shape::roundRect(x + 20, y + 3, 0.57f, 12, 12, 5,
+                                 g.count[t][l] ? kTrackColor[t] : kPanel);
+                text(x + (g.count[t][l] >= 10 ? 21 : 24), y + 3, 0.30f,
+                     g.count[t][l] ? kBg : kDim, "%u", unsigned(g.count[t][l]));
+            } else {
+                text(x + 14, y + 2, 0.34f, kDim, "?");
+            }
         }
     }
 
-    C2D_DrawRectSolid(2, kBtnY, 0.5f, 100, kBtnH, choosing ? kPanel : kBg);
-    text(36, kBtnY + 6, 0.5f, choosing ? kWhite : kDim, "Pass");
-    C2D_DrawRectSolid(110, kBtnY, 0.5f, 100, kBtnH, choosing && v.canRun ? kPanel : kBg);
-    text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kWhite : kDim, "Run");
+    shape::roundFrame(2, kBtnY, 0.51f, 100, kBtnH, 9, 2, kSlotFrame, choosing ? kSlotPaper : kBg);
+    text(36, kBtnY + 6, 0.5f, choosing ? kInk : kDim, "Pass");
+    shape::roundFrame(110, kBtnY, 0.51f, 100, kBtnH, 9, 2, kSlotFrame,
+                      choosing && v.canRun ? kSlotPaper : kBg);
+    text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kInk : kDim, "Run");
     if (choosing) focus_.drawHighlight();
 }
 
