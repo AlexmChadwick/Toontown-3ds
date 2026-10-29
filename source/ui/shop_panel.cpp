@@ -110,7 +110,6 @@ void ShopPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         }
         active_ = true;
         dirty_ = true;
-        lastSecond_ = -1;
         TT_LOG("shop: open with clerk %u, %d beans, %d/%d gags", unsigned(clerk_), int(st.money),
                shop::countProps(st.inventory), int(st.maxCarry));
         break;
@@ -180,11 +179,6 @@ void ShopPanel::update(net::Client& client, uint32_t nowMs) {
     }
     if (note_[0] && int32_t(nowMs - noteUntilMs_) >= 0) {
         note_[0] = 0;
-        dirty_ = true;
-    }
-    const int sec = remain > 0 ? remain / 1000 : 0;
-    if (sec != lastSecond_) {
-        lastSecond_ = sec;
         dirty_ = true;
     }
 }
@@ -284,7 +278,7 @@ void ShopPanel::rebuildGrid() {
     }
 }
 
-void ShopPanel::rebuildInfo(uint32_t nowMs) {
+void ShopPanel::rebuildInfo() {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
     tt::render::textParse(&titleText_, infoBuf_, "Gag Shop");
@@ -292,10 +286,6 @@ void ShopPanel::rebuildInfo(uint32_t nowMs) {
     tt::render::textParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
     tt::render::textParse(&carryText_, infoBuf_, buf);
-    const int32_t remain = int32_t(deadlineMs_ - nowMs);
-    const int sec = remain > 0 ? remain / 1000 : 0;
-    snprintf(buf, sizeof(buf), "%d:%02d", sec / 60, sec % 60);
-    tt::render::textParse(&timerText_, infoBuf_, buf);
     if (note_[0]) {
         snprintf(buf, sizeof(buf), "%s", note_);
     } else {
@@ -315,7 +305,7 @@ void ShopPanel::rebuildInfo(uint32_t nowMs) {
         }
     }
     tt::render::textParse(&infoText_, infoBuf_, buf);
-    C2D_Text* all[] = {&titleText_, &beansText_, &carryText_, &timerText_, &infoText_};
+    C2D_Text* all[] = {&titleText_, &beansText_, &carryText_, &infoText_};
     for (C2D_Text* x : all) C2D_TextOptimize(x);
 }
 
@@ -323,7 +313,7 @@ void ShopPanel::draw() {
     if (!active_) return;
     if (dirty_) {
         rebuildGrid();
-        rebuildInfo(nowMs_);
+        rebuildInfo();
         dirty_ = false;
     }
     // Upstream's purchase screen: cream gag panel, track-coloured row labels, gags bought this
@@ -333,7 +323,7 @@ void ShopPanel::draw() {
     C2D_DrawText(&titleText_, C2D_WithColor, 7, 2, 0.5f, 0.5f, 0.5f, theme::kRedDark);
     C2D_DrawText(&beansText_, C2D_WithColor, 96, 4, 0.5f, 0.45f, 0.45f, cart_.money > 0 ? kInk : theme::kRed);
     C2D_DrawText(&carryText_, C2D_WithColor, 186, 4, 0.5f, 0.45f, 0.45f, kInk);
-    C2D_DrawText(&timerText_, C2D_WithColor, 280, 4, 0.5f, 0.45f, 0.45f, theme::kInkSoft);
+    // The countdown is ClerkPurchase's ToontownTimer in the top screen's corner (ui/hud).
     theme::paper(1, kGridY - 3, 318, gags::kTracks * kCellH + 5, 6.0f);
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
