@@ -414,6 +414,11 @@ int main() {
     // Map markers: built from each zone's baked anchors when the zone changes (ui/map_view.h).
     tt::ui::MapMarker placeMarkerList[kMaxMapMarkers];
     int numPlaceMarkers = 0;
+    // The last playground / street the Map showed (its minimap file, markers and where we stood).
+    u32 mapOutsideFile = 0;
+    float mapOutsideX = 0, mapOutsideY = 0, mapOutsideH = 0, mapOutsideMin[2] = {}, mapOutsideMax[2] = {};
+    tt::ui::MapMarker mapOutsideMarkers[kMaxMapMarkers];
+    int mapOutsideCount = 0;
     u32 placeMarkersZone = 0;
 
     tt::world::Player player;
@@ -2885,8 +2890,26 @@ int main() {
             }
         }
         for (int i = 0; i < numPlaceMarkers; i++) mapMarkers[numMapMarkers++] = placeMarkerList[i];
+        // The place outside, as we last saw it: indoors the Map keeps showing it, with the arrow
+        // where we went in (an interior is zone - zone % 100 + 500 + block of its street / playground).
+        const u32 hereZone = place.zoneId();
+        if (place.kind() == tt::world::PlaceKind::Playground || place.kind() == tt::world::PlaceKind::Street) {
+            mapOutsideFile = place.kind() == tt::world::PlaceKind::Street ? hereZone - hereZone % 100 : hereZone;
+            mapOutsideX = player.x(), mapOutsideY = player.y(), mapOutsideH = player.headingDeg();
+            for (int k = 0; k < 2; k++) mapOutsideMin[k] = place.boundsMin()[k], mapOutsideMax[k] = place.boundsMax()[k];
+            mapOutsideCount = numPlaceMarkers;
+            for (int i = 0; i < numPlaceMarkers; i++) mapOutsideMarkers[i] = placeMarkerList[i];
+        } else if (place.kind() == tt::world::PlaceKind::Interior && hereZone % 1000 >= 500 && mapOutsideFile &&
+                   hereZone - hereZone % 100 - 500 == mapOutsideFile) {
+            ctx.mapOutside = true;
+            ctx.playerX = mapOutsideX, ctx.playerY = mapOutsideY, ctx.playerHeadingDeg = mapOutsideH;
+            ctx.zoneMinX = mapOutsideMin[0], ctx.zoneMinY = mapOutsideMin[1];
+            ctx.zoneMaxX = mapOutsideMax[0], ctx.zoneMaxY = mapOutsideMax[1];
+            numMapMarkers = 0;
+            for (int i = 0; i < mapOutsideCount; i++) mapMarkers[numMapMarkers++] = mapOutsideMarkers[i];
+        }
         float remoteXY[2 * kMaxMapMarkers];
-        const int numRemote = remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
+        const int numRemote = ctx.mapOutside ? 0 : remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
         for (int i = 0; i < numRemote; i++) {
             mapMarkers[numMapMarkers++] = {remoteXY[2 * i], remoteXY[2 * i + 1], tt::ui::kMarkToon};
         }
@@ -2962,7 +2985,7 @@ int main() {
             // Baked minimap per exterior zone file: playgrounds by id, street cells by branch.
             const u32 z = place.zoneId();
             const tt::world::PlaceKind kind = tt::world::placeKind(z);
-            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? 0
+            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? (ctx.mapOutside ? mapOutsideFile : 0)
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();

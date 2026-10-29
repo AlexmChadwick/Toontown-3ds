@@ -62,6 +62,8 @@ struct Context {
     float zoneMinX, zoneMinY, zoneMaxX, zoneMaxY;
     const MapMarker* markers;
     int numMarkers;
+    // Indoors the map shows the place outside (its markers, the arrow at the building's door).
+    bool mapOutside = false;
     // Teleport row on the Map tab: which hoods are installed (bit i = kTeleportHoods[i]).
     unsigned hoodsAvailable = 0;
     // setTeleportAccess / setHoodsVisited in the same bit order (offline: every hood).

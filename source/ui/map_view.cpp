@@ -74,8 +74,8 @@ void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, 
     const float scale = hasMap ? fminf(areaW / map.w, areaH / map.h) * map.w / zw : fminf(areaW / zw, areaH / zh);
     // A legend in the margin the (usually square) map leaves on the right, when it fits.
     constexpr float kLegendW = 66.0f;
-    const bool legend = areaW - zw * scale >= kLegendW + 4.0f && !(world::placeKind(c.currentZone) ==
-                                                                    world::PlaceKind::Interior);
+    const bool legend = areaW - zw * scale >= kLegendW + 4.0f &&
+                        (c.mapOutside || world::placeKind(c.currentZone) != world::PlaceKind::Interior);
     const float ox = legend ? areaX + (areaW - kLegendW - zw * scale) * 0.5f : areaX + (areaW - zw * scale) * 0.5f;
     const float oy = areaY + (areaH - zh * scale) * 0.5f;
     auto mx = [&](float x) { return ox + (x - minX) * scale; };
