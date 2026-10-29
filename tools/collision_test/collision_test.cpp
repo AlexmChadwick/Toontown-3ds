@@ -149,6 +149,24 @@ int main(int argc, char** argv) {
     CollisionWorld w;
     check(w.load(argv[1]), "load .ttc");
     if (!w.loaded()) return 1;
+    FILE* bf = fopen(argv[1], "rb");
+    long blobSize = -1;
+    if (bf && fseek(bf, 0, SEEK_END) == 0) blobSize = ftell(bf);
+    if (bf) rewind(bf);
+    std::vector<unsigned char> blob(blobSize > 0 ? static_cast<size_t>(blobSize) : 0);
+    const bool blobRead = bf && blobSize > 0 && fread(blob.data(), 1, blob.size(), bf) == blob.size();
+    if (bf) fclose(bf);
+    CollisionWorld memory;
+    check(blobRead && memory.loadMemory(blob.data(), static_cast<uint32_t>(blob.size()), "memory fixture"),
+          "load prefetched .ttc memory");
+    check(memory.numTris() == w.numTris() && memory.numCaps() == w.numCaps() &&
+              memory.numTriggers() == w.numTriggers() && memory.heapBytes() == w.heapBytes(),
+          "prefetched collision metadata matches file load");
+    std::vector<unsigned char> corrupt = blob;
+    corrupt[0] ^= 0xff;
+    CollisionWorld rejected;
+    check(!rejected.loadMemory(corrupt.data(), static_cast<uint32_t>(corrupt.size()), "corrupt memory fixture"),
+          "prefetched collision rejects corrupt header");
     printf("tris %u caps %u triggers %d heap %u bytes\n", (unsigned)w.numTris(), (unsigned)w.numCaps(),
            w.numTriggers(), (unsigned)w.heapBytes());
 
