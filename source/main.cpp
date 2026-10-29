@@ -2893,6 +2893,7 @@ int main() {
         // The place outside, as we last saw it: indoors the Map keeps showing it, with the arrow
         // where we went in (an interior is zone - zone % 100 + 500 + block of its street / playground).
         const u32 hereZone = place.zoneId();
+        u32 mapIndoorsFile = 0; // the minimap file shown inside a building
         if (place.kind() == tt::world::PlaceKind::Playground || place.kind() == tt::world::PlaceKind::Street) {
             mapOutsideFile = place.kind() == tt::world::PlaceKind::Street ? hereZone - hereZone % 100 : hereZone;
             mapOutsideX = player.x(), mapOutsideY = player.y(), mapOutsideH = player.headingDeg();
@@ -2902,11 +2903,17 @@ int main() {
         } else if (place.kind() == tt::world::PlaceKind::Interior && hereZone % 1000 >= 500 && mapOutsideFile &&
                    hereZone - hereZone % 100 - 500 == mapOutsideFile) {
             ctx.mapOutside = true;
+            mapIndoorsFile = mapOutsideFile;
             ctx.playerX = mapOutsideX, ctx.playerY = mapOutsideY, ctx.playerHeadingDeg = mapOutsideH;
             ctx.zoneMinX = mapOutsideMin[0], ctx.zoneMinY = mapOutsideMin[1];
             ctx.zoneMaxX = mapOutsideMax[0], ctx.zoneMaxY = mapOutsideMax[1];
             numMapMarkers = 0;
             for (int i = 0; i < mapOutsideCount; i++) mapMarkers[numMapMarkers++] = mapOutsideMarkers[i];
+        } else if (place.kind() == tt::world::PlaceKind::Interior && hereZone % 1000 >= 500) {
+            // Arrived indoors without walking in (teleport, reconnect): the outside map alone.
+            ctx.mapOutside = ctx.mapNoArrow = true;
+            mapIndoorsFile = hereZone - hereZone % 100 - 500;
+            numMapMarkers = 0;
         }
         float remoteXY[2 * kMaxMapMarkers];
         const int numRemote = ctx.mapOutside ? 0 : remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
@@ -2985,7 +2992,7 @@ int main() {
             // Baked minimap per exterior zone file: playgrounds by id, street cells by branch.
             const u32 z = place.zoneId();
             const tt::world::PlaceKind kind = tt::world::placeKind(z);
-            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? (ctx.mapOutside ? mapOutsideFile : 0)
+            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? mapIndoorsFile
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();

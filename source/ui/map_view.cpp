@@ -74,7 +74,7 @@ void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, 
     const float scale = hasMap ? fminf(areaW / map.w, areaH / map.h) * map.w / zw : fminf(areaW / zw, areaH / zh);
     // A legend in the margin the (usually square) map leaves on the right, when it fits.
     constexpr float kLegendW = 66.0f;
-    const bool legend = areaW - zw * scale >= kLegendW + 4.0f &&
+    const bool legend = areaW - zw * scale >= kLegendW + 4.0f && !(c.mapNoArrow && c.numMarkers == 0) &&
                         (c.mapOutside || world::placeKind(c.currentZone) != world::PlaceKind::Interior);
     const float ox = legend ? areaX + (areaW - kLegendW - zw * scale) * 0.5f : areaX + (areaW - zw * scale) * 0.5f;
     const float oy = areaY + (areaH - zh * scale) * 0.5f;
@@ -107,13 +107,13 @@ void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, 
     // ink so it reads on grass, water and paths alike.
     const float h = c.playerHeadingDeg * 3.14159265f / 180.0f;
     float px = mx(c.playerX), py = my(c.playerY);
-    if (rect.marker(&px, &py, 13)) drawArrow(px, py, h, 13.0f);
+    if (!c.mapNoArrow && rect.marker(&px, &py, 13)) drawArrow(px, py, h, 13.0f);
     if (legend) {
         initText();
         const float lx = areaX + areaW - kLegendW + 2;
         float ly = areaY + 2;
         for (int r = 0; r < kLegendRows; r++) {
-            bool present = r == 0;
+            bool present = r == 0 && !c.mapNoArrow;
             for (int i = 0; i < c.numMarkers && !present; i++) present = c.markers[i].color == kLegend[r].color;
             if (!present) continue;
             if (r == 0) {
