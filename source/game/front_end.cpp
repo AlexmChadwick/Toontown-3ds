@@ -8,6 +8,7 @@
 #include "core/log.h"
 #include "game/name_check.h"
 #include "game/name_tables.h"
+#include "ui/draw_shapes.h"
 
 namespace tt::game {
 
@@ -17,13 +18,18 @@ static char sTestTypedName[64] = {};
 static bool sHasTestTypedName = false;
 
 constexpr float kW = 320.0f;
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
+// Make-a-Toon and Pick-a-Toon use the same warm paper, red leather and gold
+// language as the Shticker Book.  The old navy rectangles read like developer UI
+// and made the front end feel unrelated to the game.
+const u32 kBg = C2D_Color32(0x72, 0xB9, 0xDE, 0xFF);
+const u32 kPanel = C2D_Color32(0xF7, 0xF0, 0xDD, 0xFF);
+const u32 kPanelEdge = C2D_Color32(0x6E, 0x12, 0x12, 0xFF);
 const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kDisabled = C2D_Color32(0x40, 0x48, 0x5C, 0xFF);
-const u32 kRed = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
+const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
+const u32 kDim = C2D_Color32(0x69, 0x5B, 0x50, 0xFF);
+const u32 kDisabled = C2D_Color32(0xC8, 0xC0, 0xB2, 0xFF);
+const u32 kRed = C2D_Color32(0x9E, 0x20, 0x20, 0xFF);
 
 const char* const kSpeciesLabel[9] = {"Dog", "Cat", "Horse", "Mouse", "Rabbit", "Duck", "Monkey", "Bear", "Pig"};
 const char* const kSizeLabel[3] = {"Short", "Medium", "Tall"};
@@ -179,9 +185,19 @@ void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char*
 
 void FrontEnd::button(const Button& b, const char* label, bool selected, bool enabled) {
     const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
-    if (focused) C2D_DrawRectSolid(b.x - 2, b.y - 2, 0.5f, b.w + 4, b.h + 4, kWhite);
-    C2D_DrawRectSolid(b.x, b.y, 0.5f, b.w, b.h, !enabled ? kDisabled : selected ? kAccent : kPanel);
-    textCentered(b, 0.55f, selected ? kBg : enabled ? kWhite : kDim, label);
+    const u32 edge = focused ? kWhite : selected ? kPanelEdge : C2D_Color32(0x78, 0x59, 0x3D, 0xFF);
+    const u32 fill = !enabled ? kDisabled : selected ? kAccent : kPanel;
+    tt::ui::shape::roundFrame(b.x - (focused ? 2.0f : 0.0f), b.y - (focused ? 2.0f : 0.0f), 0.50f,
+                              b.w + (focused ? 4.0f : 0.0f), b.h + (focused ? 4.0f : 0.0f),
+                              10.0f, focused ? 2.0f : 1.5f, edge, fill);
+    // Primary choices get a small speech-bubble tail.  It is deliberately inside
+    // the button's hit rectangle, so the visual never promises an untappable area.
+    if (selected && enabled && b.h >= 34.0f) {
+        const float tx = b.x + 18.0f;
+        C2D_DrawTriangle(tx, b.y + b.h - 7.0f, fill, tx + 11.0f, b.y + b.h - 7.0f, fill,
+                         tx + 4.0f, b.y + b.h - 1.0f, fill, 0.52f);
+    }
+    textCentered(b, 0.55f, enabled ? kInk : kDim, label);
 }
 
 // One button: draws in the draw pass, reports a press (tap or A on the cursor) otherwise.
@@ -791,7 +807,7 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
             const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
             C2D_DrawRectSolid(18, 43, 0.5f, 284, 154, kAccent);
             C2D_DrawRectSolid(20, 45, 0.5f, 280, 150, kPanel);
-            textCentered(Button{20, 55, 280, 20}, 0.65f, kWhite, "Delete this Toon?");
+            textCentered(Button{20, 55, 280, 20}, 0.65f, kInk, "Delete this Toon?");
             textCentered(Button{20, 80, 280, 20}, 0.55f, kAccent, sel ? sel->name : "");
             textCentered(Button{20, 105, 280, 16}, 0.45f, kRed, "This cannot be undone!");
             TT_BUTTON((Button{35, 140, 110, 34}), "Cancel", false, true);

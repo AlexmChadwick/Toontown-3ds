@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_inventory.h"
+#include "ui/draw_shapes.h"
 #include "world/battle_fx.h"
 #include <cstdio>
 #include <algorithm>
@@ -160,9 +161,11 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                                      C2D_Color32(0x00, 0x00, 0x00, 0xFF));
                     }
                 } else {
-                    // Gray question / locked dot
-                    C2D_DrawCircleSolid(gx + gagSize * 0.5f, ry + 2.0f + gagSize * 0.5f, 0.5f, 2.5f,
-                                       C2D_Color32(0xBB, 0xB0, 0xA8, 0xFF));
+                    // Procedural circles lose their proctex state after the world
+                    // shader on some PICA/Azahar paths.  A tiny rounded slot remains
+                    // visible and matches the locked silhouettes in the battle picker.
+                    shape::roundRect(gx + 5.0f, ry + 7.0f, 0.5f, 5.0f, 5.0f, 2.0f,
+                                     C2D_Color32(0xBB, 0xB0, 0xA8, 0xFF));
                 }
             }
         }

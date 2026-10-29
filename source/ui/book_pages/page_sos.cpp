@@ -1,4 +1,5 @@
 #include "ui/book_pages/page_sos.h"
+#include "ui/draw_shapes.h"
 #include "ui/pad_tables.h"
 #include "ui/sos_tables.h"
 #include <cstdio>
@@ -111,7 +112,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         // Star rating
         const int stars = def ? def->stars : 1;
         for (int s = 0; s < stars; s++) {
-            C2D_DrawCircleSolid(cx + 6.0f + s * 9.0f, cy + 16.0f, 0.6f, 3.0f, kStarGold);
+            shape::roundRect(cx + 3.0f + s * 9.0f, cy + 13.0f, 0.6f, 6.0f, 6.0f, 2.0f, kStarGold);
         }
 
         // Toon Name
