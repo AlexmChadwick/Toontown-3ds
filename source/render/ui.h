@@ -238,7 +238,7 @@ private:
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
     C2D_Text tabText_[kTabCount];
     C2D_Text bookText_[9]; // Book tab page buttons
-    C2D_Text bookTitle_, bookHint_;
+    C2D_Text bookTitle_, bookHint_, bookOpen_;
     LaffDisplay laff_; // the tab bar's laff pocket
     ToontownTimer timer_; // minigame countdowns on the info card
     CachedLine debugLines_[kMaxDebugLines];

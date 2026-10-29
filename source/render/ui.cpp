@@ -109,6 +109,7 @@ bool Ui::init() {
     for (int i = 0; i < pad::booktab::kCount; i++) parseStatic(&bookText_[i], staticBuf_, kBookPageNames[i]);
     parseStatic(&bookTitle_, staticBuf_, "Shticker Book");
     parseStatic(&bookHint_, staticBuf_, "Tap a page, or press START anywhere.");
+    parseStatic(&bookOpen_, staticBuf_, "Open Shticker Book  (START)");
     return true;
 }
 
@@ -665,8 +666,9 @@ void Ui::drawMap(const Context& c) {
 }
 
 void Ui::drawToon(const State& s, const Context& c) {
-    theme::paper(4, 4, kW - 8, kTabY - 8, 8.0f);
-    if (c.quests) { // online: the server's DNA wins, so the tab shows our ToonTasks instead
+    if (c.quests) {
+        theme::sky();
+        theme::paper(4, 4, kW - 8, kPocketTop - 6, 8.0f); // above the laff pocket and the book pill // online: the server's DNA wins, so the tab shows our ToonTasks instead
         // Our name, laff and jellybeans (the laff meter itself is in the tab bar's pocket).
         C2D_Text name;
         textCache_.parse(&name, textBuf_, c.toonName && c.toonName[0] ? c.toonName : "Toon", 1024);
@@ -689,13 +691,14 @@ void Ui::drawToon(const State& s, const Context& c) {
             top += 16;
         }
         C2D_DrawRectSolid(12, top + 2, 0.5f, kW - 24, 1, theme::kPaperShade);
-        quest_.drawTasks(*c.quests, top + 6, 172);
+        quest_.drawTasks(*c.quests, top + 6, kPocketTop - 8);
         // ---- end clerks ----
-        theme::button(pad::toon::kBookX, pad::toon::kBookY, pad::toon::kBookW, pad::toon::kBookH + 2,
-                      theme::kOrange, theme::shade(theme::kOrange, 0.65f));
-        text(pad::toon::kBookX + 18, pad::toon::kBookY + 3, 0.48f, theme::kWhite, "Open Shticker Book (START)");
+        theme::pill(pad::toon::kBookX, pad::toon::kBookY, pad::toon::kBookW, pad::toon::kBookH, theme::Pill::Yellow);
+        theme::textCentered(bookOpen_, pad::toon::kBookX + pad::toon::kBookW * 0.5f, pad::toon::kBookY + 4, 0.48f,
+                            theme::pillInk(theme::Pill::Yellow), pad::toon::kBookW - 16);
         return;
     }
+    theme::paper(4, 4, kW - 8, kTabY - 8, 8.0f);
     static const char* const kTargets[3] = {"Body", "Shirt", "Shorts"};
     for (int i = 0; i < 3; i++) {
         const bool on = i == s.colorTarget;
@@ -726,7 +729,7 @@ void Ui::drawBookTab(const State&) {
         theme::button(x, y, kBtnW, kBtnH, theme::kPaper, theme::kPaperEdge);
         theme::textCentered(bookText_[i], x + kBtnW * 0.5f, y + 8, 0.52f, theme::kInk, kBtnW - 10);
     }
-    theme::textCentered(bookHint_, kW * 0.5f, 178, 0.44f, theme::kPaperShade, kW - 24);
+    theme::textCentered(bookHint_, (kPocketW + kW) * 0.5f, 180, 0.44f, theme::kPaperShade, kW - kPocketW - 20);
 }
 
 void Ui::drawInfo(const Context &c) {

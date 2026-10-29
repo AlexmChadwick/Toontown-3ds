@@ -122,7 +122,7 @@ constexpr int kNumColors = 27; // render/ui.h kNumToonColors
 constexpr int kSwCols = 9;
 constexpr float kSwX = 8, kSwY = 44, kSwSize = 30, kSwGap = 4;
 constexpr float kTargetX = 8, kTargetY = 8, kTargetStep = 102, kTargetW = 98, kTargetH = 28;
-constexpr float kBookX = 60, kBookY = 175, kBookW = 200, kBookH = 24;
+constexpr float kBookX = kLaffPocketW + 6, kBookY = kLaffPocketTop + 4, kBookW = 320 - kLaffPocketW - 12, kBookH = 24;
 constexpr int kIdTarget0 = 300; // + 0 body, 1 shirt, 2 shorts; swatches are 0..26
 constexpr int kIdBook = 200;
 } // namespace toon
