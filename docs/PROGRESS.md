@@ -33,6 +33,8 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - **Rounded pad focus**: `FocusItem::radius` + `theme::roundRing`; the gold focus frame follows a
   pill's outline (Map hoods / Home, Toon tab book button, quest dialog, Options steppers / Quit)
   instead of a square box around it. Tap areas are unchanged (padnav_test).
+- **Toon tab**: our seven gag tracks beside the name, each track's best gag icon on its battle
+  colour, faded until the track is learned.
 - **Options page**: the Music / Sound steppers are round quit_button pills, Quit Toontown a red
   pill.
 - Screenshots of this round: `/workspace/shots/3ds-ui-round14/` (13 frames).
@@ -61,7 +63,7 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   stalls on this rig).
 
 ### Next
-- The Toon tab: a DNA preview or the toon's track summary in the free space.
+- The Toon tab: a DNA preview (a 3D render on the bottom screen) in the remaining space.
 - Gag Shop / purchase Done, Cancel and +/- in upstream's own button art.
 
 ## 2026-10-29 (UI round 13) — battle Fire/SOS, ToontownTimer, indoor Map, fitted NPC balloons
