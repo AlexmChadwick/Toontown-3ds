@@ -126,11 +126,24 @@ def encode(pixels, fmt):
 
 
 def mip_chain(pixels, min_size=8):
+    """Box-filter mips. RGB is weighted by alpha so a transparent texel (stored
+    black) does not paint a dark fringe into the next level. That fringe is what
+    turned thin sign strokes into a black slash once the GPU picked a lower mip.
+    """
     levels = [pixels]
     while min(levels[-1].shape[:2]) > min_size:
-        p = levels[-1].astype(np.uint16)
-        p = (p[0::2, 0::2] + p[1::2, 0::2] + p[0::2, 1::2] + p[1::2, 1::2] + 2) // 4
-        levels.append(p.astype(np.uint8))
+        p = levels[-1].astype(np.float32)
+        alpha = p[:, :, 3:4]
+        rgb = p[:, :, :3] * (alpha / 255.0)
+        def down(c):
+            return c[0::2, 0::2] + c[1::2, 0::2] + c[0::2, 1::2] + c[1::2, 1::2]
+        acc_a = down(alpha)
+        acc_rgb = down(rgb)
+        out_a = acc_a / 4.0
+        out_rgb = np.where(acc_a > 0.0, acc_rgb / np.maximum(acc_a, 1e-6) * 255.0, 0.0)
+        out = np.concatenate((np.clip(np.rint(out_rgb), 0, 255), np.clip(np.rint(out_a), 0, 255)),
+                             axis=2).astype(np.uint8)
+        levels.append(out)
     return levels
 
 

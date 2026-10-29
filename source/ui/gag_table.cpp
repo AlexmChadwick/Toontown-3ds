@@ -7,11 +7,15 @@
 namespace tt::ui {
 
 void drawGagTable(PageText& text, const GagTableData& d, float x, float y, float w, float rowH) {
-    constexpr float kPillW = 62.0f, kExpW = 56.0f, kGap = 3.0f;
+    // The track name only needs a short pill. The experience column is wide enough for
+    // "10000/10000" and "500 to Go!" once the scale shrinks to it, and the gag slots take
+    // the rest. The icon fills the slot instead of stopping at 18 px.
+    constexpr float kPillW = 50.0f, kExpW = 68.0f, kGap = 3.0f;
     const float cellsX = x + kPillW + kGap;
     const float cellW = (w - kPillW - kExpW - 2 * kGap) / gags::kLevels;
     const float cellH = rowH - 2.0f;
-    const float icon = cellH - 4.0f < 18.0f ? cellH - 4.0f : 18.0f;
+    float icon = cellH - 2.0f;
+    if (icon > cellW - 2.0f) icon = cellW - 2.0f;
     for (int t = 0; t < gags::kTracks; t++) {
         const float ry = y + t * rowH;
         const bool have = d.access && d.access[t];
@@ -54,31 +58,31 @@ void drawGagTable(PageText& text, const GagTableData& d, float x, float y, float
             theme::roundRect(cx + 1, ry + 1, cellW - 3, cellH - 2, 3,
                              n ? theme::mix(col, theme::kWhite, 0.55f) : theme::kPaperShade);
             world::GagAtlas::instance().drawIcon(t, l, cx + 1, ry + 1, icon, 0.55f, n ? 1.0f : 0.35f);
-            // The count on a paper badge in the cell's lower right, over the icon.
-            const float bw = n >= 10 ? 13.0f : 8.0f;
-            theme::roundRect(cx + cellW - bw - 2, ry + cellH - 11, bw, 10, 3, theme::kPaper, 0.58f);
-            text.right(cx + cellW - 2.5f, ry + cellH - 13.5f, theme::kTextTiny, n ? theme::kInk : theme::kInkSoft, 0,
-                       "%u", n);
+            // The count in a disc on the slot's lower right. One to three digits stay
+            // centred inside it, and the disc stays inside the slot.
+            text.countDisc(cx, ry, cellW - 1, cellH, n);
         }
-        // Experience: InventoryNew's "exp / next" (or "N to Go!" toward the uber gag), with a bar.
+        // Experience sits above its bar, shrunk to the column, so "10000/10000" is not cut
+        // by the slot edge or covered by the bar.
         const float ex = x + w - kExpW;
         const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
         float frac = 1.0f;
+        const float labelY = ry + 1.0f;
         if (exp >= gags::kMaxSkill) {
-            text.centered(ex + kExpW * 0.5f, ry, theme::kTextTiny, theme::kGreenDark, kExpW, "Maxed");
+            text.centered(ex + kExpW * 0.5f, labelY, theme::kTextSmall, theme::kGreenDark, kExpW - 4, "Maxed");
         } else if (!next) {
-            text.centered(ex + kExpW * 0.5f, ry, theme::kTextTiny, theme::kInk, kExpW, "%d to Go!",
+            text.centered(ex + kExpW * 0.5f, labelY, theme::kTextSmall, theme::kInk, kExpW - 4, "%d to Go!",
                           gags::kMaxSkill - exp);
             frac = float(exp - gags::kLevelExp[t][gags::kLevels - 1]) /
                    float(gags::kMaxSkill - gags::kLevelExp[t][gags::kLevels - 1]);
         } else {
-            text.centered(ex + kExpW * 0.5f, ry, theme::kTextTiny, theme::kInk, kExpW, "%u/%u", unsigned(exp),
-                          unsigned(next));
+            text.centered(ex + kExpW * 0.5f, labelY, theme::kTextSmall, theme::kInk, kExpW - 4, "%u/%u",
+                          unsigned(exp), unsigned(next));
             frac = float(exp) / float(next);
         }
-        const float by = ry + cellH - 6.0f;
-        theme::roundRect(ex + 2, by, kExpW - 4, 5, 2, theme::kGreyDark);
-        if (frac > 0.0f) theme::roundRect(ex + 2, by, (kExpW - 4) * (frac > 1 ? 1 : frac), 5, 2, col);
+        const float by = ry + cellH - 5.0f;
+        theme::roundRect(ex + 2, by, kExpW - 4, 4, 2, theme::kGreyDark);
+        if (frac > 0.0f) theme::roundRect(ex + 2, by, (kExpW - 4) * (frac > 1 ? 1 : frac), 4, 2, col);
     }
 }
 

@@ -245,7 +245,7 @@ void TailorPanel::draw() {
     th::paper(4, 3, 312, kTopY - 8, 7.0f);
     C2D_DrawText(&titleText_, C2D_WithColor, 12, 7, 0.5f, 0.58f, 0.58f, th::kRedDark);
     th::roundRect(232, 7, 80, 20, 7, th::kYellow);
-    C2D_DrawText(&timerText_, C2D_WithColor, 240, 9, 0.5f, 0.42f, 0.42f, th::kInk);
+    th::textCentered(timerText_, 272, 9, 0.42f, th::kInk, 72, 0.55f);
     for (int sec = 0; sec < 2; ++sec) {
         const float y = sec == 0 ? kTopY : kBottomY;
         const bool on = section_ == sec;

@@ -156,4 +156,43 @@ void textFit(const C2D_Text& t, float x, float y, float scale, u32 color, float 
     C2D_DrawText(&t, C2D_WithColor, x, y, z, scale, scale, color);
 }
 
+void countDisc(const C2D_Text& text, float tileX, float tileY, float tileW, float tileH, float z) {
+    if (tileW < 8.0f || tileH < 8.0f) return;
+    float scale = 0.42f;
+    float tw = 0.0f, th = 0.0f;
+    // Leave the gag icon visible; the badge only takes the lower-right of the slot.
+    const float maxW = tileW - 2.0f;
+    const float maxH = tileH * 0.72f;
+    if (maxW < 6.0f || maxH < 6.0f) return;
+    constexpr float kPad = 2.0f;
+    // One digit is a circle (width grows to the height). Two or three digits become a
+    // pill. Shrink until that shape fits the corner, then the glyph is centred in it.
+    float bw = 0.0f, bh = 0.0f;
+    for (int pass = 0; pass < 3; pass++) {
+        C2D_TextGetDimensions(&text, scale, scale, &tw, &th);
+        if (tw < 1.0f) tw = 1.0f;
+        if (th < 1.0f) th = 1.0f;
+        bw = tw + kPad * 2.0f;
+        bh = th + kPad * 2.0f;
+        if (bw < bh) bw = bh;
+        if (bw <= maxW && bh <= maxH) break;
+        float fit = 1.0f;
+        if (bw > maxW) fit = maxW / bw;
+        if (bh > maxH && maxH / bh < fit) fit = maxH / bh;
+        scale *= fit;
+    }
+    if (bw > maxW) bw = maxW;
+    if (bh > maxH) bh = maxH;
+    float x = tileX + tileW - bw - 1.0f;
+    float y = tileY + tileH - bh - 1.0f;
+    if (x < tileX + 1.0f) x = tileX + 1.0f;
+    if (y < tileY + 1.0f) y = tileY + 1.0f;
+    if (x + bw > tileX + tileW - 1.0f) bw = tileX + tileW - 1.0f - x;
+    if (y + bh > tileY + tileH - 1.0f) bh = tileY + tileH - 1.0f - y;
+    roundRect(x, y, bw, bh, bh * 0.5f, kInk, z);
+    C2D_TextGetDimensions(&text, scale, scale, &tw, &th);
+    C2D_DrawText(&text, C2D_WithColor, x + (bw - tw) * 0.5f, y + (bh - th) * 0.5f, z + 0.01f, scale, scale,
+                 kWhite);
+}
+
 } // namespace tt::ui::theme

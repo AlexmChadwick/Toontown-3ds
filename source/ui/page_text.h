@@ -28,6 +28,8 @@ public:
         __attribute__((format(printf, 7, 8)));
     float right(float rx, float y, float scale, u32 color, float maxW, const char* fmt, ...)
         __attribute__((format(printf, 7, 8)));
+    // Count disc in the tile's lower-right (theme::countDisc). Digits stay inside it.
+    void countDisc(float tileX, float tileY, float tileW, float tileH, unsigned n);
     // Word-wrapped left-aligned text in at most maxLines lines of lineH px; the last line shrinks
     // to fit whatever is left. Newlines in str are treated as spaces. Returns the lines used.
     int wrap(float x, float y, float scale, u32 color, float maxW, float lineH, int maxLines, const char* str);
