@@ -1,5 +1,6 @@
 #include "render/ui_font.h"
 #include "ui/book.h"
+#include "ui/book_tab_icons.h"
 #include "ui/theme.h"
 #include <cstdio>
 
@@ -189,7 +190,9 @@ void Book::draw(const BookDrawContext& bdc) {
     // Draw active page
     pages_[curPage_]->draw(2, 24, 316, 188, bdc);
 
-    // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold.
+    // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold, each with its
+    // page's icon as upstream's page tabs (the page's name is in the header). Text if the icon
+    // atlas is missing.
     C2D_DrawRectSolid(0, 212, 0.40f, 320, 28, kCoverBottom);
     const float tabW = 320.0f / kPageCount;
     for (int i = 0; i < kPageCount; i++) {
@@ -197,8 +200,10 @@ void Book::draw(const BookDrawContext& bdc) {
         const bool active = (i == curPage_);
         const float ty = active ? 211.0f : 214.0f;
         theme::roundRect(tx + 1, ty, tabW - 2, 240 - ty + 6, 5, active ? kTabActive : kTabInactive, 0.42f);
-        theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 218.0f : 220.0f, 0.4f, active ? kInk : kWhite,
-                            tabW - 4, 0.5f);
+        if (!drawBookTabIcon(i, tx + tabW * 0.5f, active ? 225.0f : 227.0f, active ? 24.0f : 21.0f, 0.5f)) {
+            theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 218.0f : 220.0f, 0.4f, active ? kInk : kWhite,
+                                tabW - 4, 0.5f);
+        }
     }
 }
 

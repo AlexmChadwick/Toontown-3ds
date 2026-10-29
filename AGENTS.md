@@ -596,7 +596,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
-| `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py` | ToontownTimer's alarm clock and fishingGui's cast interface → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
+| `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py` | ToontownTimer's alarm clock, fishingGui's cast interface and the Shtiker Book page tab icons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
 | `tools/pipeline/bake_golf_physics.py` | golf BAM collision nodes → versioned `.gph` meshes (grass, slick, cup, hard) |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
 | `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |

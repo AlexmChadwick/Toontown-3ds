@@ -6,6 +6,7 @@
 #include "ui/gag_data.h"
 #include "ui/gag_table.h"
 #include "ui/laff_meter.h"
+#include "ui/book_tab_icons.h"
 #include "ui/theme.h"
 #include "ui/map_view.h"
 #include "quest/quest_text.h"
@@ -51,6 +52,8 @@ constexpr float kTabY = 240.0f - kTabH;
 // bottom left; the tabs share the rest of the bar. Panels keep the pocket's corner clear.
 constexpr float kPocketW = pad::kLaffPocketW, kPocketTop = pad::kLaffPocketTop;
 constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~75% of it)
+// The info panel's button (Context::infoButton), centred near the card's foot.
+constexpr float kInfoBtnW = 160.0f, kInfoBtnH = 32.0f, kInfoBtnX = (kW - kInfoBtnW) * 0.5f, kInfoBtnY = 190.0f;
 constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
@@ -238,6 +241,11 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Closet) return closet_.handleInput(down, t);
     if (owner == PanelOwner::Battle) return battle_.handleInput(down, t, *battleView_, battleGags_);
     if (owner == PanelOwner::Talk) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Info && drawnInfoButton_ &&
+        ((down & KEY_A) || ((down & KEY_TOUCH) && inRect(t, kInfoBtnX, kInfoBtnY, kInfoBtnW, kInfoBtnH)))) {
+        s.infoButtonPressed = true;
+        TT_LOG("padnav: info activate button");
+    }
     if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
     if (owner == PanelOwner::Fishing) { // the Cast / Exit touch buttons; A / B still reach the spot
         const u32 used = fishingPanel_.handleInput(down, held, t);
@@ -346,6 +354,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     C2D_TargetClear(target, kBg);
     C2D_SceneBegin(target);
     drawnInfo_ = c.infoTitle != nullptr;
+    drawnInfoButton_ = drawnInfo_ && c.infoButton != nullptr;
     const PanelOwner owner = resolveOwner(c.fishing != nullptr, contextInfo_ || drawnInfo_); // qafix
     if (owner == PanelOwner::Clerk) { // clerks
         serviceClerks_.draw();
@@ -726,7 +735,10 @@ void Ui::drawBookTab(const State&) {
     for (int i = 0; i < kCount; i++) {
         const float x = kX0 + (i % kCols) * kStepX, y = kY0 + (i / kCols) * kStepY;
         theme::button(x, y, kBtnW, kBtnH, theme::kPaper, theme::kPaperEdge);
-        theme::textCentered(bookText_[i], x + kBtnW * 0.5f, y + 8, 0.52f, theme::kInk, kBtnW - 10);
+        // The page's tab icon (ShtikerBook.addPageTab), then its name.
+        const bool icon = drawBookTabIcon(i, x + 17, y + 16, 26);
+        const float tx = icon ? x + 32 : x + 5;
+        theme::textCentered(bookText_[i], tx + (x + kBtnW - 4 - tx) * 0.5f, y + 8, 0.48f, theme::kInk, x + kBtnW - 4 - tx);
     }
     theme::textCentered(bookHint_, (kPocketW + kW) * 0.5f, 180, 0.44f, theme::kPaperShade, kW - kPocketW - 20);
 }
@@ -772,6 +784,14 @@ void Ui::drawInfo(const Context &c) {
         C2D_Text line;
         textCache_.parse(&line, textBuf_, shown, 1024);
         theme::textCentered(line, kW * 0.5f, 62 + i * 30, 0.54f, theme::kInk, kW - 28);
+    }
+    if (c.infoButton) { // the clock (smaller) above a Toontown pill
+        if (secondsLeft >= 0) timer_.draw(secondsLeft, kW * 0.5f, 146, 64);
+        theme::pill(kInfoBtnX, kInfoBtnY, kInfoBtnW, kInfoBtnH, theme::Pill::Yellow);
+        C2D_Text label;
+        textCache_.parse(&label, textBuf_, c.infoButton, 1024);
+        theme::textCentered(label, kW * 0.5f, kInfoBtnY + 6, 0.56f, theme::pillInk(theme::Pill::Yellow), kInfoBtnW - 20);
+        return;
     }
     if (secondsLeft >= 0) timer_.draw(secondsLeft, kW * 0.5f, 186, 88);
 }
