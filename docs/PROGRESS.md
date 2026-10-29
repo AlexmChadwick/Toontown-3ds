@@ -30,6 +30,12 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   Prev / Next / OK / Cancel.
 - **Laff pocket clearances**: the Toon and Gags tab cards end above the laff pocket instead of
   running behind it (their bottom-left corner was hidden).
+- **Rounded pad focus**: `FocusItem::radius` + `theme::roundRing`; the gold focus frame follows a
+  pill's outline (Map hoods / Home, Toon tab book button, quest dialog, Options steppers / Quit)
+  instead of a square box around it. Tap areas are unchanged (padnav_test).
+- **Options page**: the Music / Sound steppers are round quit_button pills, Quit Toontown a red
+  pill.
+- Screenshots of this round: `/workspace/shots/3ds-ui-round14/` (13 frames).
 
 ### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server on 7198, fresh tokens)
 - Playground script steps 0..56 (tabs, SpeedChat by pad incl. MY TASKS, book by pad), the book
@@ -48,14 +54,15 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 ### Known issues
 - QuestChoiceGui's clock was built but not captured: the HQ autotest's choice step was past by the
   time its shot was taken.
-- The pad focus frame is still a square gold box, also around the rounded pills.
+- The Cog elevator's "Leave elevator" pill was not run live (no Cog building in this round's
+  passes); it shares the trolley's verified path (the button acts as B).
 - The Toon tab's task box is a fixed height, so one task leaves empty paper under it.
 - The earlier known issues stand (no real-hardware run; SOS / Fire never sent live; Azahar clock
   stalls on this rig).
 
 ### Next
-- A rounded focus frame that follows the pill shape.
 - The Toon tab: a DNA preview or the toon's track summary in the free space.
+- Gag Shop / purchase Done, Cancel and +/- in upstream's own button art.
 
 ## 2026-10-29 (UI round 13) — battle Fire/SOS, ToontownTimer, indoor Map, fitted NPC balloons
 
