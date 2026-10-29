@@ -87,7 +87,7 @@ bool gGuiTried = false;
 // the width), boards on the bottom edge. The Cast button is drawn larger for a fingertip, and the
 // arrow at 1.4x the gui scale so a full-power tail ends near the boards.
 constexpr float kUnit = 80.0f, kBoardsBottomZ = -1.5368f;
-constexpr float kBtnCx = 160.0f, kBtnCy = 118.0f, kBtnSize = 56.0f;
+constexpr float kBtnCx = 160.0f, kBtnCy = 122.0f, kBtnSize = 56.0f;
 constexpr float kArrowUnit = kUnit * 1.4f;
 // FishingSpot.localAdjustingCastTask: a drag of 0.5 units (a quarter of the screen height) is full power.
 constexpr float kFullDrag = 60.0f;

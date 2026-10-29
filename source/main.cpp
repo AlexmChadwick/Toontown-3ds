@@ -649,7 +649,7 @@ int main() {
                 in.held |= KEY_TOUCH;
                 if (dragT == 0.0f) in.down |= KEY_TOUCH;
                 touch.px = u16(160 - 30.0f * dragT / 0.8f);
-                touch.py = u16(118 + 50.0f * dragT / 0.8f);
+                touch.py = u16(122 + 50.0f * dragT / 0.8f);
             }
         }
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
