@@ -168,10 +168,10 @@ void drawHoodControls(const Context& c, float homeX) {
     // else Go Home, greyed when the server runs no estates.
     const bool back = !gRow.inPlayground && c.currentHood;
     const bool homeOn = back || c.homeAvailable;
-    theme::button(homeX, kHomeY, kHomeW, kHomeH, homeOn ? theme::kGreen : theme::kGrey,
-                  homeOn ? theme::kGreenDark : theme::kGreyDark);
-    theme::textCentered(!back ? gHome : c.currentHood >= 10000 ? gCogHq : gPlayground, homeX + kHomeW * 0.5f, kHomeY + 3, 0.5f,
-                        homeOn ? theme::kWhite : theme::kInkSoft, kHomeW - 8);
+    const theme::Pill homePill = homeOn ? theme::Pill::Yellow : theme::Pill::Grey;
+    theme::pill(homeX, kHomeY, kHomeW, kHomeH - 3, homePill);
+    theme::textCentered(!back ? gHome : c.currentHood >= 10000 ? gCogHq : gPlayground, homeX + kHomeW * 0.5f, kHomeY + 2, 0.5f,
+                        theme::pillInk(homePill), kHomeW - 12);
     // Where we are (the hood / street / building title upstream shows on arrival), or for a
     // moment why a press did nothing.
     const float labelX = homeX + kHomeW + 6, labelW = pad::kScreenW - 4 - labelX;
@@ -184,19 +184,18 @@ void drawHoodControls(const Context& c, float homeX) {
     gCache.parse(&label, gDynamic, noting ? gNote : where, 256);
     theme::textCentered(label, labelX + labelW * 0.5f, noting ? kHomeY + 4 : kHomeY + 2,
                         noting ? 0.42f : 0.5f, noting ? theme::kRedDark : theme::kInk, labelW - 12);
-    // Teleport row (MapPage): yellow = here, blue = Go To (teleport access), paper = visited
-    // but walk there, grey = not visited yet or not installed.
+    // Teleport row (MapPage), Toontown's quit_button pills: the rollover cyan = here, yellow = Go To
+    // (teleport access), grey = walk there (visited, dark ink) or not visited yet / not installed.
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
         const bool go = have && (c.hoodsTeleport & (1u << i));
         const bool seen = have && (c.hoodsVisited & (1u << i));
         const float x = i * kHoodW + 2;
-        const u32 face = here ? theme::kYellow : go ? theme::kBlue : seen ? theme::kPaper : theme::kGrey;
-        const u32 lip = here ? theme::kYellowDark : go ? theme::kBlueDark : seen ? theme::kPaperEdge : theme::kGreyDark;
-        theme::button(x, kRowY, kHoodW - 4, kRowH, face, lip);
-        theme::textCentered(gHoods[i], x + (kHoodW - 4) * 0.5f, kRowY + 4, 0.48f,
-                            here || (seen && !go) ? theme::kInk : go ? theme::kWhite : theme::kInkSoft, kHoodW - 8);
+        const theme::Pill style = here ? theme::Pill::Cyan : go ? theme::Pill::Yellow : theme::Pill::Grey;
+        theme::pill(x, kRowY, kHoodW - 4, kRowH - 2, style);
+        theme::textCentered(gHoods[i], x + (kHoodW - 4) * 0.5f, kRowY + 3, 0.48f,
+                            here || go || seen ? theme::kInk : theme::kInkSoft, kHoodW - 10);
     }
 }
 
