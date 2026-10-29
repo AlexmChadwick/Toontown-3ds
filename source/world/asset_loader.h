@@ -25,6 +25,11 @@ constexpr LoadTicket kNoTicket = 0;
 
 enum class LoadStatus : u8 { Invalid, Pending, Ready, Failed };
 
+struct LoadedBlob {
+    void* data = nullptr;
+    u32 size = 0;
+};
+
 class AssetLoader {
 public:
     static constexpr int kSlots = 24; // fixed queue: one cchar spawn needs 5
@@ -37,6 +42,9 @@ public:
     // Queue a file; kNoTicket when every slot is busy (try again next frame).
     static LoadTicket requestModel(const char* path);
     static LoadTicket requestAnim(const char* path);
+    // Regular-heap file read for bounded metadata containers. `maxBytes` is an
+    // admission limit, not merely a hint; oversized files fail before allocation.
+    static LoadTicket requestBlob(const char* path, u32 maxBytes);
 
     static LoadStatus poll(LoadTicket t);
     // Ready -> moves the staged data into `dst` and frees the ticket. `dst` must be empty:
@@ -44,6 +52,8 @@ public:
     // next load). Failed tickets are freed by cancel().
     static bool takeModel(LoadTicket t, render::Model& dst);
     static bool takeAnim(LoadTicket t, render::Anim& dst);
+    // Transfers malloc ownership to the caller, which must free blob.data.
+    static bool takeBlob(LoadTicket t, LoadedBlob& blob);
     // Frees the ticket; a load in flight is discarded by the loader thread.
     static void cancel(LoadTicket t);
 

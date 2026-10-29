@@ -1,6 +1,7 @@
 #include "world/asset_loader.h"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "core/log.h"
@@ -10,7 +11,7 @@ namespace tt::world {
 namespace {
 
 enum class SlotState : u8 { Free, Queued, Loading, Ready, Failed, Cancelled };
-enum class Kind : u8 { Model, Anim };
+enum class Kind : u8 { Model, Anim, Blob };
 
 struct Slot {
     SlotState state = SlotState::Free;
@@ -20,6 +21,8 @@ struct Slot {
     char path[112] = {};
     render::Model model;
     render::Anim anim;
+    LoadedBlob blob;
+    u32 maxBytes = 0;
 };
 
 Slot gSlots[AssetLoader::kSlots];
@@ -56,13 +59,33 @@ bool step() {
     LightLock_Unlock(&gLock);
     if (!job) return false;
 
-    const bool ok = job->kind == Kind::Model ? job->model.load(job->path) : job->anim.load(job->path);
+    bool ok = false;
+    if (job->kind == Kind::Model) ok = job->model.load(job->path);
+    else if (job->kind == Kind::Anim) ok = job->anim.load(job->path);
+    else {
+        FILE* f = std::fopen(job->path, "rb");
+        long size = -1;
+        if (f && std::fseek(f, 0, SEEK_END) == 0) size = std::ftell(f);
+        if (size > 0 && static_cast<unsigned long>(size) <= job->maxBytes && std::fseek(f, 0, SEEK_SET) == 0) {
+            job->blob.data = std::malloc(static_cast<size_t>(size));
+            if (job->blob.data && std::fread(job->blob.data, 1, static_cast<size_t>(size), f) == static_cast<size_t>(size)) {
+                job->blob.size = static_cast<u32>(size);
+                ok = true;
+            } else {
+                std::free(job->blob.data);
+                job->blob = {};
+            }
+        }
+        if (f) std::fclose(f);
+    }
 
     LightLock_Lock(&gLock);
     if (job->state == SlotState::Cancelled) { // nobody wants it any more
         LightLock_Unlock(&gLock);
         job->model.unload(); // takes the linear guard itself
         job->anim.unload();
+        std::free(job->blob.data);
+        job->blob = {};
         LightLock_Lock(&gLock);
         freeSlot(*job);
     } else {
@@ -78,7 +101,7 @@ void loaderMain(void*) {
     }
 }
 
-LoadTicket request(Kind kind, const char* path) {
+LoadTicket request(Kind kind, const char* path, u32 maxBytes = 0) {
     if (!gInit) AssetLoader::init();
     LoadTicket t = kNoTicket;
     LightLock_Lock(&gLock);
@@ -86,6 +109,7 @@ LoadTicket request(Kind kind, const char* path) {
         Slot& s = gSlots[i];
         if (s.state != SlotState::Free) continue;
         s.kind = kind;
+        s.maxBytes = maxBytes;
         snprintf(s.path, sizeof(s.path), "%s", path);
         s.seq = ++gSeq;
         s.state = SlotState::Queued;
@@ -122,6 +146,8 @@ void AssetLoader::shutdown() {
     for (Slot& s : gSlots) {
         s.model.unload();
         s.anim.unload();
+        std::free(s.blob.data);
+        s.blob = {};
         s.state = SlotState::Free;
     }
     gInit = false;
@@ -129,6 +155,10 @@ void AssetLoader::shutdown() {
 
 LoadTicket AssetLoader::requestModel(const char* path) { return request(Kind::Model, path); }
 LoadTicket AssetLoader::requestAnim(const char* path) { return request(Kind::Anim, path); }
+
+LoadTicket AssetLoader::requestBlob(const char* path, u32 maxBytes) {
+    return request(Kind::Blob, path, maxBytes);
+}
 
 LoadStatus AssetLoader::poll(LoadTicket t) {
     LightLock_Lock(&gLock);
@@ -167,6 +197,19 @@ bool AssetLoader::takeAnim(LoadTicket t, render::Anim& dst) {
     return ok;
 }
 
+bool AssetLoader::takeBlob(LoadTicket t, LoadedBlob& blob) {
+    LightLock_Lock(&gLock);
+    Slot* s = slotFor(t);
+    const bool ok = s && s->kind == Kind::Blob && s->state == SlotState::Ready;
+    if (ok) {
+        blob = s->blob;
+        s->blob = {};
+        freeSlot(*s);
+    }
+    LightLock_Unlock(&gLock);
+    return ok;
+}
+
 void AssetLoader::cancel(LoadTicket t) {
     LightLock_Lock(&gLock);
     Slot* s = slotFor(t);
@@ -179,6 +222,8 @@ void AssetLoader::cancel(LoadTicket t) {
             LightLock_Unlock(&gLock);
             s->model.unload(); // staging only: never drawn, safe to free now
             s->anim.unload();
+            std::free(s->blob.data);
+            s->blob = {};
             LightLock_Lock(&gLock);
             freeSlot(*s);
         }

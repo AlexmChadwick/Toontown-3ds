@@ -247,11 +247,27 @@ bool CollisionWorld::loadFrom(FILE* f, uint32_t base, uint32_t sizeBytes, const 
         return false;
     }
 
+    return adoptBlob(blob, static_cast<uint32_t>(size), path);
+}
+
+bool CollisionWorld::loadMemory(const void* data, uint32_t size, const char* label) {
+    unload();
+    if (!data || size < kHeaderSize) {
+        TT_LOG("collision: %s too small", label ? label : "(memory)");
+        return false;
+    }
+    uint8_t* blob = static_cast<uint8_t*>(malloc(size));
+    if (!blob) return false;
+    memcpy(blob, data, size);
+    return adoptBlob(blob, size, label ? label : "(memory)");
+}
+
+bool CollisionWorld::adoptBlob(uint8_t* blob, uint32_t sizeBytes, const char* path) {
     Header h;
     memcpy(&h, blob, sizeof(h));
     uint32_t magic;
     memcpy(&magic, h.magic, 4);
-    const uint32_t usize = static_cast<uint32_t>(size);
+    const uint32_t usize = sizeBytes;
     auto sectionOk = [usize](uint32_t off, uint64_t bytes) {
         return (off & 3) == 0 && off >= kHeaderSize && off + bytes <= usize;
     };

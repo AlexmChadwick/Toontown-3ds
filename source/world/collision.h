@@ -74,6 +74,9 @@ public:
     bool load(const char* path);
     // A TTC1 blob embedded at `base` of an open file (e.g. inside a .tz). File stays open.
     bool loadFrom(FILE* f, uint32_t base, uint32_t size, const char* label = nullptr);
+    // Copies and validates an already-prefetched TTC1 blob. This avoids reopening
+    // an enclosing container on the main thread.
+    bool loadMemory(const void* data, uint32_t size, const char* label = nullptr);
     void unload();
     bool loaded() const { return blob_ != nullptr; }
 
@@ -109,6 +112,7 @@ public:
     const CollCap* caps() const { return caps_; }
 
 private:
+    bool adoptBlob(uint8_t* blob, uint32_t size, const char* label);
     struct CellLists { // pointers into cell data for one cell
         const uint16_t* counts; // floorT, floorC, wallT, wallC, camT, camC
         const uint16_t* idx;
