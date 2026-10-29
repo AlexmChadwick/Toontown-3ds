@@ -121,7 +121,7 @@ def main(repo, outdir):
     build(ROOT_TITLE, -1, structure)
     # Public body emotes use setEmoteState, not phrase IDs or private setSCEmote.
     emotes = len(menus)
-    menus.append(['Emotes',0,[]])
+    menus.append([loc.SCMenuEmotions,0,[]])  # SCEmoteMenu's title, EMOTIONS
     for i,label in enumerate(loc.EmoteList):
         if i==16: continue  # legacy Laugh is doNothing; the dictionary's Laugh resolves to 24
         menus[emotes][2].append(('emote',i,label))

@@ -28,11 +28,11 @@ const Menu kMenus[kNumMenus] = {
     {"TAUNTS", 218, 11, 19}, // 21
     {"STRATEGY", 229, 12, 19}, // 22
     {"GAG SHOP", 241, 7, 0}, // 23
-    {"Emotes", 248, 24, 0}, // 24
+    {"EMOTIONS", 248, 24, 0}, // 24
 };
 
 const Item kItems[kNumItems] = {
-    {"Emotes", 24, -1, 1},
+    {"EMOTIONS", 24, -1, 1},
     {"HELLO", 1, -1, 1},
     {"GOODBYE", 2, -1, 1},
     {"HAPPY", 3, -1, 1},
