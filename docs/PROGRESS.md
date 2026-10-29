@@ -3,6 +3,59 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 — Background facility-floor container reads
+
+### Done
+- Extended the existing single Old-3DS-safe asset-loader thread with bounded regular-heap blob
+  jobs. Blob admission has an explicit caller cap, cancellation frees in-flight/ready buffers,
+  and publication transfers ownership without another copy.
+- Facility floors now request their `.tlf` container as soon as the network facility object has
+  enough identity fields. Entry waits without blocking frames while that read is pending, then
+  parses the prefetched layout, floor triangles and embedded collision after all room objects
+  arrive. Queue saturation retries on later pumps; missing/corrupt files fail once without a
+  per-frame request storm.
+- Added complete TLF section-range validation before any count-controlled allocation. Floor files
+  have a 2 MiB regular-heap admission ceiling, protecting the 24 MiB Old 3DS heap from corrupt or
+  server-selected metadata.
+- Refactored `CollisionWorld` so file and prefetched-memory loads share the same structural and
+  index validation. Added host regression checks for equivalent metadata and corrupt-memory
+  rejection.
+
+### Verified
+- The available conda C++ toolchain compiles `source/world/collision.cpp` plus the expanded host
+  collision test cleanly with `-Wall -Wextra -Werror`; the asset-loader translation unit passes
+  the same syntax/warning check using the repository's 3DS/citro stubs.
+- The host perf cases through AssetBatch pass, including sanitizer-backed profiler, text cache and
+  loader cancellation/failure/full/reuse checks. Projection (405 points) and the real autotest
+  parser also pass.
+- `git diff --check` and Python bytecode checks for the TZ pipeline pass.
+- The complete perf runner stops at its factory fixture setup because this checkout has no
+  `.venv`; consequently the generated factory TLV/facility timing case did not run. devkitARM,
+  full facility assets and Azahar are also absent, so no 3DS binary or entry-hitch measurement is
+  claimed.
+
+### Asset size decisions
+- No original model, texture, audio or animation payload changed. This adds no SD data. The TLF is
+  temporarily resident in regular heap while its owned collision copy is created; the hard 2 MiB
+  container ceiling keeps that transition bounded on Old 3DS.
+
+### Known issues
+- Room `.tlv` parsing and each room zone's container/header validation still run on the main thread
+  after TLF publication. They are now the next facility-entry hitch candidates and need measured
+  attribution before further threading.
+- Run a mint, DA office and country-club entry on Old 3DS Azahar and hardware, checking `level:
+  floor ... ms`, profiler hitch records and regular-heap high-water marks. Exercise cancellation by
+  leaving during the elevator transition and corrupt/oversized TLF rejection on a disposable SD.
+- The v4 zone bake/device validation, four boss-battle device passes and first real-hardware
+  performance pass remain open.
+
+### Next
+- Add a generated TLF host fixture that tests bounded asynchronous blob admission and every invalid
+  section/count combination without Panda3D.
+- Measure the remaining room-spec/zone work and move only the observed blocking portions into a
+  prepared floor bundle, retaining main-thread publication and gameplay mutation.
+- Run the full deterministic TZ v4 bake and Old 3DS PVS/LOD pressure walk.
+
 ## 2026-10-29 — Exact shared-texture planning (TZ v4)
 
 ### Done

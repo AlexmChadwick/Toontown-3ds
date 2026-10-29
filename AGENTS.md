@@ -450,7 +450,8 @@ server.
       sounds (built, not yet run in Azahar); remaining: animated piers
     - Character and boat models now load on the shared background loader
       (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
-      main thread; never hold `LinearGuard` around `Model::load`)
+      main thread; bounded regular-heap metadata blobs use the same queue; never hold `LinearGuard`
+      around file I/O or `Model::load`)
 - ✅ **Facility levels** (`world/level.*`, `net/client_level.cpp`, `docs/design/levels.md`).
   - The Sellbot factory runs end to end.
   - Every mint / DA office / country-club floor is baked by the stock upstream layout

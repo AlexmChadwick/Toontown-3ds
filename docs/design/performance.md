@@ -99,7 +99,10 @@ buffer exhaustion/generation and TLV lookup misses/hash collisions/append/reload
   LOD or visual glitch is claimed fixed.
 
 Remaining synchronous work includes boot-only models, already-faded InteriorLife
-entry props, metadata/spec/collision/SFX reads and joint metadata. These paths
+entry props, room spec/zone validation, SFX reads and joint metadata. Facility TLF
+container I/O (layout tables, floor triangles and embedded collision) now starts on
+the shared loader as soon as the facility object appears; parsing and collision
+validation consume that bounded prefetched buffer once every room object is ready. These paths
 need native hitch measurements; there is no blanket claim that all possible
 interactive >100 ms frames have been eliminated. Animation sampling/collision
 broadphase/network logging were not approximated or rewritten without evidence.
