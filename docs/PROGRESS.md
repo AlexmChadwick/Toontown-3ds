@@ -3,6 +3,60 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 (UI round 14) — SpeedChat panel, Shtiker Book icons, ToontownTimer everywhere, Hop off
+
+### Done
+- **SpeedChat looks like SCMenu.** One ChatPanel-style frame per menu (frameColor F2F2FF with a
+  dark outline), flat rows on it and only the rollover green filling the focused row, instead of
+  a stack of separately boxed lavender pills. Rows scrolled past the frame are clipped to it with
+  the GPU scissor (new `theme::clip` / `unclip`; the bottom framebuffer is rotated). The emote
+  menu is upstream's **EMOTIONS** (`OTPLocalizer.SCMenuEmotions`), not "Emotes".
+- **Shtiker Book page tab icons** (`bake_book_tabs.py`, from ShtikerBook.addPageTab): the cream
+  pie, quest card, Cog gear, disguise, fish, kart wheel, playing card with the Toontown logo,
+  switch and teleport hole. The open book's page tabs are icon tabs as upstream (the page name is
+  in its header); the Book tab's cover buttons show icon + name.
+- **ToontownTimer in the corner like upstream**: TownBattle's round timer, Purchase's (trolley gag
+  purchase) and ClerkPurchase's (Gag Shop) now draw the alarm clock in the top screen's top-right
+  corner (`posInTopRightCorner` geometry: 48 px, ~19 px in). The yellow "20" pill and the "1:55" /
+  "01:57" labels are gone; the shop panels no longer rebuild their text every second for them.
+  QuestChoiceGui's countdown is a ToontownTimer beside Cancel instead of a "N s" pill.
+- **Trolley Hop off button** (Trolley's exitButton): the seated panel shows the countdown clock
+  and a Hop off pill (tap or A, same as B). The Cog elevator panel gets "Leave elevator" the same
+  way. Autotest boards, taps Hop off, checks we are off (`autotest: trolley hop off -> seated 0
+  (ok)`), then boards for the ride.
+- **quit_button pills in game**: the Map's hood row (cyan = here, yellow = Go To, grey = walk /
+  not visited) and Go Home / Playground, the Toon tab's Shtiker Book button, the NPC dialog's
+  Next / Done, QuestChoice Cancel / Later, and the pet / kart / fisherman / party clerks'
+  Prev / Next / OK / Cancel.
+- **Laff pocket clearances**: the Toon and Gags tab cards end above the laff pocket instead of
+  running behind it (their bottom-left corner was hidden).
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server on 7198, fresh tokens)
+- Playground script steps 0..56 (tabs, SpeedChat by pad incl. MY TASKS, book by pad), the book
+  pages, emotes, treasure, Mickey, fishing, trolley + Catching game + purchase, Gag Shop door and
+  clerk, pet / kart / fisherman / party clerks: no PARSE / EJECT / crash lines. 29.9 fps in TTC,
+  draws 123, heap 3.2 MB, linear free 15.3-15.6 MB, VRAM free 4.2 MB.
+- Street battle (`see cog`, `pad: battle`): clock top-right counting down, SOS / Fire panels.
+- Trolley Hop off by touch, re-board, game, purchase clock (118 s) on the top screen.
+- Front end (`AUTOTEST_FE=1`): all screens unchanged.
+- Host: padnav_test 154 checks (conda GCC). `make`: zero warnings in source/.
+
+### Asset size decisions
+- `book_tabs.ttm`: the nine original icons at 48 x 48 in a 256 x 128 RGBA8 atlas (128 KB RomFS,
+  loaded on first use). They are drawn at 21-26 px; RGBA8 keeps the card logo and fish edges clean.
+
+### Known issues
+- QuestChoiceGui's clock was built but not captured: the HQ autotest's choice step was past by the
+  time its shot was taken.
+- The pad focus frame is still a square gold box, also around the rounded pills.
+- The Toon tab's task box is a fixed height, so one task leaves empty paper under it.
+- The earlier known issues stand (no real-hardware run; SOS / Fire never sent live; Azahar clock
+  stalls on this rig).
+
+### Next
+- A rounded focus frame that follows the pill shape.
+- The Toon tab: a DNA preview or the toon's track summary in the free space.
+
 ## 2026-10-29 (UI round 13) — battle Fire/SOS, ToontownTimer, indoor Map, fitted NPC balloons
 
 Round 12 (`2b6b93a`, no entry of its own) moved the laff meter to a pocket at the left of the

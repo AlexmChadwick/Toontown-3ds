@@ -1262,3 +1262,20 @@ below are with shots on.
 - Host: padnav_test 154 checks, battle_cam_test (GCC 12).
 - Fishing (TTC practice spot): fishingGui dock / jar / bucket / Cast / Exit; pad cast (hold A) and
   a touch drag cast (`fish: touch cast`, power 0.73, angle 32, landed in the pond, fish caught).
+
+## 2026-10-29 (UI round 14) — Linux rig: SpeedChat frame, book icons, corner timers, Hop off
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/rootfs/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198. SD data: the claude/Toontown-3ds full
+bake. Not hardware. Shots on (about 100 ms each), so fps dips on shot frames.
+
+- TTC tabs / SpeedChat / book by pad: 29.8-30.0 fps, cpu 3.6-5.6 ms, draws 123, tris 12.7k,
+  heap 3.2 MB, linear free 15.6 MB, VRAM free 4.2 MB.
+- Book pages, emotes, treasure, Mickey, fishing, trolley, Catching game, purchase, Gag Shop door,
+  shop, clerks (one 420 s run): no PARSE / EJECT / crash.
+- Trolley: `padnav: info activate button` → `trolley: requestExit` → `trolley: off`; re-board OK.
+  Purchase: 28.2 fps, draws 32, clock on the top screen.
+- Street battle: clock top-right, SOS / Fire demo panels, round played out.
+- Gag Shop: clock top-right (116 s), shop panel header without the timer label.
+- Front end: all screens. Host padnav_test 154 checks.
