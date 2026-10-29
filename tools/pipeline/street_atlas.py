@@ -69,10 +69,43 @@ def tile_ranges(tri, tex):
     return out
 
 
+def _max_tile_span(idx, sources, chunks):
+    """Widest repeat count of one triangle. 1 means the texture is a single unwrap."""
+    tex = sources[idx]
+    span = 1
+    for batches in chunks:
+        for b in batches:
+            if b.texture != idx:
+                continue
+            for tri in b.verts[b.indices.reshape(-1, 3)]:
+                xr, yr = tile_ranges(tri, tex)
+                span = max(span, len(xr), len(yr))
+                if span > 1:
+                    return span
+    return span
+
+
+def _signish(tex):
+    if sign_text.is_font_texture(tex):
+        return True
+    return 'sign' in (tex.getName() or '').lower()
+
+
 def build(sources, chunks):
     """Return textures and transformed chunk batches, with shared atlas indices."""
     # Keep pathological UV tiling separate, bounded in both memory and bake time.
-    standalone = {i for i,t in enumerate(sources) if sign_text.is_font_texture(t)}
+    standalone = {i for i, t in enumerate(sources) if sign_text.is_font_texture(t)}
+    # A shop roof or sign is one copy of a large texture (UV span about 1). The 32px
+    # atlas slot stretched that copy across the whole face, and ETC1 turned the thin
+    # sign strokes into a black smear. Those stay standalone, capped at 128 (256 for
+    # a sign font) so a visible set still fits the 8 MB texture budget. Repeating
+    # trim stays in the atlas.
+    for i, tex in enumerate(sources):
+        if i in standalone:
+            continue
+        src = max(tex.getXSize(), tex.getYSize())
+        if _signish(tex) or (src > 48 and _max_tile_span(i, sources, chunks) <= 1):
+            standalone.add(i)
     for batches in chunks:
         for b in batches:
             if b.texture is None:
@@ -99,18 +132,30 @@ def build(sources, chunks):
         fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
         textures.append(ttm.Texture(f'street_atlas_{page}', px, fmt, 0, 0, mipmaps=False))
     for idx in sorted(standalone):
-        image, nc, pf = texture_pixels(sources[idx], 256 if sign_text.is_font_texture(sources[idx]) else 128)
+        tex = sources[idx]
+        sign = _signish(tex)
+        # Sign lettering needs the extra pixels; a facade or roof is sharp at 128.
+        image, nc, pf = texture_pixels(tex, 256 if sign else 128)
         mapping[idx] = (len(textures), None, None)
-        textures.append(ttm.Texture(sources[idx].getName(), image,
-                                    extract.choose_format(image, nc, pf),
-                                    extract._WRAP.get(sources[idx].getWrapU(), 2),
-                                    extract._WRAP.get(sources[idx].getWrapV(), 2)))
+        # Sign art with alpha stays 16 bpp (RGBA5551 or RGBA4). ETC1A4's 4x4 blocks
+        # turn a thin stroke into a black slash. Opaque faces stay ETC1. No mips on
+        # anything with a real alpha channel; a lower mip is where the dark fringe lived.
+        opaque = bool(np.all(image[:, :, 3] == 255))
+        fmt = extract.choose_format(image, nc, pf, etc1=not (sign and not opaque),
+                                    binary_alpha_5551=sign and not opaque)
+        textures.append(ttm.Texture(tex.getName(), image, fmt,
+                                    extract._WRAP.get(tex.getWrapU(), 2),
+                                    extract._WRAP.get(tex.getWrapV(), 2),
+                                    mipmaps=opaque))
     result = []
     for batches in chunks:
         groups = {}
         for b in batches:
             page, x, y = mapping[b.texture] if b.texture is not None else (None, None, None)
-            key = (page, b.blend, b.two_sided, b.tint, b.layer)
+            # Sign quads are often wound for one side only. A culled half reads as a
+            # black diagonal across the board; draw them from both sides.
+            two = b.two_sided or (b.texture is not None and _signish(sources[b.texture]))
+            key = (page, b.blend, two, b.tint, b.layer)
             parts = groups.setdefault(key, [])
             if x is None:
                 parts.append(b.verts[b.indices].copy())

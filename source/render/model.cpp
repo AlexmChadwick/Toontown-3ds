@@ -73,8 +73,11 @@ bool loadTexture(FILE* f, const TexEntry& e, C3D_Tex* tex) {
         return false;
     }
     C3D_TexFlush(tex);
+    // Magnify bilinear, but pick one mip instead of blending two. Trilinear was
+    // pulling the blurry lower mip into surfaces you are standing next to (shop
+    // roofs and signs). Minification stays linear within the chosen level.
     C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
-    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
+    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_NEAREST);
     C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS), static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
     return true;
 }
