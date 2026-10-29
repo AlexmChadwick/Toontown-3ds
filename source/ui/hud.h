@@ -3,6 +3,7 @@
 
 #include "render/model.h"
 #include "ui/laff_meter.h"
+#include "ui/toontown_timer.h"
 
 #include <3ds.h>
 #include <citro2d.h>
@@ -20,6 +21,7 @@ struct HudValues {
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
     bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
+    int battleSeconds = -1;       // TownBattle's round timer (top-right ToontownTimer), -1 = hidden
 };
 
 class Hud {
@@ -33,6 +35,7 @@ private:
     C2D_Text toastText_{};
     C2D_Text raceText_{};
     LaffDisplay laff_;
+    ToontownTimer battleTimer_;
     const char* lastToast_ = nullptr;
     C2D_TextBuf toastBuf_ = nullptr;
 };

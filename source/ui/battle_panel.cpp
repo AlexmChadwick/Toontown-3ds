@@ -357,10 +357,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         status = v.numSosCards > 0 ? "Call which friend?" : "No friends to call!";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Fire) status = "Fire which Cog?";
     text(6, 0, 0.45f, kInk, "%s", status);
-    if (v.secondsLeft >= 0) {
-        theme::roundRect(282, 0, 36, 17, 6, v.secondsLeft <= 5 ? theme::kRed : theme::kYellow);
-        text(292, 0, 0.5f, v.secondsLeft <= 5 ? theme::kWhite : kInk, "%d", v.secondsLeft);
-    }
+    // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
 
     // Cogs: name, head, level and the chest light's health. The target wears a red frame.
     SuitHeadAtlas::instance().init(); // once; the Cog Gallery shares it

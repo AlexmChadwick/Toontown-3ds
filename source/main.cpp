@@ -2845,6 +2845,7 @@ int main() {
             }
             hv.laffOnBottom = ui.laffShown();
             hv.toast = toast;
+            if (battle.active() && netStarted) hv.battleSeconds = battleView.secondsLeft;
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;

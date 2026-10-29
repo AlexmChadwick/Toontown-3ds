@@ -15,17 +15,21 @@ namespace {
 // unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
 constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
 constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
+// TownBattle's timer: ToontownTimer at (1.182, 0.842) and scale 0.4 in aspect2d, i.e. a 48 px clock
+// about 19 px in from the top-right corner (1 aspect2d unit = 120 px of the 240 px screen).
+constexpr float kBattleTimerSize = 48.0f, kBattleTimerX = 400.0f - 22.0f, kBattleTimerY = 22.0f;
 
 } // namespace
 
 bool Hud::init() {
     raceBuf_ = C2D_TextBufNew(96);
     toastBuf_ = C2D_TextBufNew(160);
-    return laff_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr;
+    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
     laff_.shutdown();
+    battleTimer_.shutdown();
     if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
     raceBuf_ = toastBuf_ = nullptr;
@@ -105,6 +109,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         face.species = v.species;
         laff_.draw(face, kLaffX, kLaffY, kLaffSize);
     }
+    if (v.battleSeconds >= 0) battleTimer_.draw(v.battleSeconds, kBattleTimerX, kBattleTimerY, kBattleTimerSize);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
 }
 
