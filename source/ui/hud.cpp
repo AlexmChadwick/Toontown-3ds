@@ -124,9 +124,9 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
 void Hud::drawBottom(C3D_RenderTarget* bottom, const HudValues& v) {
     if (!v.online) return;
     C2D_SceneBegin(bottom);
-    // Keep the baked map useful: the meter occupies the otherwise unlabeled top-right
-    // corner and remains clear of Home, hood teleport buttons and the tab bar.
-    drawLaffMeter(v, 242.0f, 6.0f, 72.0f);
+    // Upstream anchors the Laff meter at the lower-left. On the touch screen it sits
+    // just above the playground row; Map moves Home beside it to preserve both targets.
+    drawLaffMeter(v, 4.0f, 104.0f, 72.0f);
 }
 
 // LaffMeter: the species head in the toon's head colour; at 0 laff the frown on deathColor, at

@@ -35,6 +35,8 @@ const char* const kTrackNames[7] = {
 constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
 constexpr u32 kBarBg = C2D_Color32(0xDD, 0xD8, 0xD0, 0xFF);
 constexpr u32 kBarBorder = C2D_Color32(0x88, 0x80, 0x78, 0xFF);
+constexpr u32 kSlotPaper = C2D_Color32(0xFA, 0xF6, 0xEE, 0xFF);
+constexpr u32 kSlotEdge = C2D_Color32(0xA0, 0x91, 0x7D, 0xFF);
 
 void nextExpThreshold(int track, uint16_t exp, uint16_t& curThresh, uint16_t& nextThresh) {
     if (track < 0 || track >= 7) { curThresh = 0; nextThresh = 10000; return; }
@@ -100,8 +102,9 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
     const uint32_t trainingBits = bdc.book ? bdc.book->trackProgress : 0;
 
     // Table of 7 tracks
-    // Row height ~ 22px
-    const float rowH = 20.0f;
+    // Seven 21 px rows fill the page while leaving room for track training.  The
+    // previous 15 px loose icons were hard to identify at native 3DS size.
+    const float rowH = 21.0f;
     const float startY = y + 18.0f;
 
     tt::world::GagAtlas& atlas = tt::world::GagAtlas::instance();
@@ -138,11 +141,11 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
             }
         }
 
-        // Draw 7 gag slots (or experience progress bar)
-        // Gag slots from x + 60 to x + 60 + 7 * 19 = 193
+        // Seven stable paper slots: learned gags keep their original art and
+        // unavailable levels retain a clear silhouette instead of leaving gaps.
         const float gagStartX = x + 60.0f;
-        const float gagSize = 15.0f;
-        const float gagSpacing = 18.0f;
+        const float gagSize = 18.0f;
+        const float gagSpacing = 19.0f;
 
         for (int l = 0; l < 7; l++) {
             const float gx = gagStartX + l * gagSpacing;
@@ -151,29 +154,33 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                 const bool hasExp = exp >= kLevels[t][l];
 
                 if (hasExp) {
-                    atlas.drawIcon(t, l, gx, ry + 2.0f, gagSize, 0.5f, count > 0 ? 1.0f : 0.35f);
-                    if (count > 0) {
-                        snprintf(buf, sizeof(buf), "%d", count);
-                        C2D_Text cntTxt;
-                        C2D_TextParse(&cntTxt, textBuf_, buf);
-                        C2D_TextOptimize(&cntTxt);
-                        C2D_DrawText(&cntTxt, C2D_WithColor, gx + 9.0f, ry + 8.0f, 0.6f, 0.32f, 0.32f,
-                                     C2D_Color32(0x00, 0x00, 0x00, 0xFF));
-                    }
+                    shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
+                                      kSlotEdge, kSlotPaper);
+                    atlas.drawIcon(t, l, gx + 1.0f, ry + 2.0f, gagSize - 2.0f, 0.52f,
+                                   count > 0 ? 1.0f : 0.35f);
+                    snprintf(buf, sizeof(buf), "%d", count);
+                    C2D_Text cntTxt;
+                    C2D_TextParse(&cntTxt, textBuf_, buf);
+                    C2D_TextOptimize(&cntTxt);
+                    // Opaque badge: the number never disappears into detailed gag art.
+                    shape::roundRect(gx + 9.0f, ry + 11.0f, 0.58f, 9.0f, 8.0f, 3.0f,
+                                     count ? kTrackColors[t] : kBarBorder);
+                    C2D_DrawText(&cntTxt, C2D_WithColor, gx + (count >= 10 ? 9.5f : 11.5f), ry + 10.5f,
+                                 0.60f, 0.27f, 0.27f, kInk);
                 } else {
                     // Procedural circles lose their proctex state after the world
                     // shader on some PICA/Azahar paths.  A tiny rounded slot remains
                     // visible and matches the locked silhouettes in the battle picker.
-                    shape::roundRect(gx + 5.0f, ry + 7.0f, 0.5f, 5.0f, 5.0f, 2.0f,
+                    shape::roundRect(gx + 6.0f, ry + 7.0f, 0.5f, 6.0f, 6.0f, 2.0f,
                                      C2D_Color32(0xBB, 0xB0, 0xA8, 0xFF));
                 }
             }
         }
 
         // Experience bar on the right side: x + 192 .. x + 288 (width 96)
-        const float barX = x + 190.0f;
+        const float barX = x + 195.0f;
         const float barY = ry + 4.0f;
-        const float barW = 92.0f;
+        const float barW = 87.0f;
         const float barH = 10.0f;
 
         // InventoryNew.showTrack: a DirectWaitBar with range nextExp and value curExp (so the

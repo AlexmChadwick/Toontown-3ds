@@ -36,7 +36,7 @@ namespace {
 constexpr float kW = 320.0f;
 // Map tab teleport row (just above the tab bar).
 constexpr float kHoodRowY = 178.0f, kHoodRowH = 26.0f, kHoodW = 320.0f / kNumTeleportHoods;
-constexpr float kHomeY = 148.0f, kHomeH = 24.0f;
+constexpr float kHomeX = 82.0f, kHomeY = 148.0f, kHomeW = 76.0f, kHomeH = 24.0f;
 const char* const kHoodShort[kNumTeleportHoods] = {"TTC", "DD", "DG", "MM", "BR", "DL", "AA", "GS"};
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
@@ -65,7 +65,9 @@ constexpr float kStereoY = 30, kBookY = 82;
 
 // ---- padnav: the focus tables (ui/pad_tables.h) must match this layout ----
 static_assert(pad::hoods::kCount == kNumTeleportHoods && pad::hoods::kRowY == kHoodRowY &&
-                  pad::hoods::kRowH == kHoodRowH && pad::hoods::kHomeY == kHomeY && pad::hoods::kHomeH == kHomeH,
+                  pad::hoods::kRowH == kHoodRowH && pad::hoods::kHomeX == kHomeX &&
+                  pad::hoods::kHomeY == kHomeY && pad::hoods::kHomeW == kHomeW &&
+                  pad::hoods::kHomeH == kHomeH,
               "Map tab focus table");
 static_assert(pad::toon::kNumColors == kNumToonColors && pad::toon::kSwCols == kSwCols && pad::toon::kSwX == kSwX &&
                   pad::toon::kSwY == kSwY && pad::toon::kSwSize == kSwSize && pad::toon::kSwGap == kSwGap,
@@ -284,7 +286,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
     switch (s.tab) {
     case kTabMap:
-        if (inRect(t, 4, kHomeY, 76, kHomeH)) {
+        if (inRect(t, kHomeX, kHomeY, kHomeW, kHomeH)) {
             s.homeRequest = true;
             break;
         }
@@ -627,8 +629,8 @@ void Ui::drawMap(const Context& c) {
         text(8, 8, 0.45f, kInk, "You are indoors");
     else
         text(8, 8, 0.45f, kInk, "You are here");
-    C2D_DrawRectSolid(4, kHomeY, 0.5f, 76, kHomeH, kAccent);
-    text(18, kHomeY + 6, 0.42f, kInk, "Home");
+    C2D_DrawRectSolid(kHomeX, kHomeY, 0.5f, kHomeW, kHomeH, kAccent);
+    text(kHomeX + 14, kHomeY + 6, 0.42f, kInk, "Home");
     // Teleport row: tap a playground to go there (installed ones only).
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);

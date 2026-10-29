@@ -251,7 +251,7 @@ void testHoodRow() {
     group.move(0, 1);
     CHECK(group.focusedId() == h::kIdHome);
     group.move(0, 1);
-    CHECK(group.focusedId() >= 0 && group.focusedId() < 2); // the hood under Home
+    CHECK(group.focusedId() == 2); // nearest playground column under the shifted Home button
     group.setFocusById(h::kCount - 1);
     group.move(1, 0);
     CHECK(group.focusedId() == 0);

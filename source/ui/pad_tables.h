@@ -78,7 +78,9 @@ void buildCounterButtons(FocusGroup& group);
 // ---- Map tab (render/ui.cpp) and the book's Map page: Home and the teleport row ----
 namespace hoods {
 constexpr int kCount = 8; // render/ui.h kNumTeleportHoods
-constexpr float kHomeX = 4, kHomeY = 148, kHomeW = 76, kHomeH = 24;
+// Leave the lower-left map corner to the Laff meter. Home remains directly
+// above the playground row and keeps its original 76 x 24 touch target.
+constexpr float kHomeX = 82, kHomeY = 148, kHomeW = 76, kHomeH = 24;
 constexpr float kRowY = 178, kRowH = 26, kHoodW = kScreenW / kCount;
 constexpr int kIdHome = 100; // hoods are 0..kCount-1
 } // namespace hoods
