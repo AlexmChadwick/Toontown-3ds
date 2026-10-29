@@ -48,6 +48,7 @@ struct FocusItem {
     float w = 0.0f;
     float h = 0.0f;
     bool enabled = true;
+    float radius = 0.0f; // > 0: the control is rounded (a pill), and so is its highlight
 };
 
 class FocusGroup {
@@ -68,6 +69,8 @@ public:
     void rebuild();
     // Returns the item index, or -1 when the group is full.
     int addItem(int id, float x, float y, float w, float h, bool enabled = true);
+    // A rounded control's corner radius (h / 2 for a pill); `index` is addItem's return value.
+    void setRadius(int index, float radius);
     void setItemEnabled(int index, bool enabled);
     void setItemRect(int index, float x, float y, float w, float h);
 

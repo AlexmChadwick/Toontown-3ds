@@ -71,6 +71,8 @@ void sky(float w = 320.0f, float h = 240.0f);
 void skyBand(float y0, float y1, float w = 320.0f, float h = 240.0f, float z = 0.5f);
 // Filled rounded rectangle (r is clamped to half the smaller side).
 void roundRect(float x, float y, float w, float h, float r, u32 color, float z = 0.5f);
+// Rounded outline of thickness t (nothing drawn inside it).
+void roundRing(float x, float y, float w, float h, float r, float t, u32 color, float z = 0.5f);
 // Paper card: edge-coloured rounded rect with a paper inset.
 void paper(float x, float y, float w, float h, float r = 6.0f, u32 fill = kPaper, u32 edge = kPaperEdge,
            float z = 0.5f);

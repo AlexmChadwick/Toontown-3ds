@@ -69,6 +69,39 @@ void roundRect(float x, float y, float w, float h, float r, u32 c, float z) {
     corner(x + w - r, y + h - r, r, 1, 1, c, z);
 }
 
+void roundRing(float x, float y, float w, float h, float r, float t, u32 c, float z) {
+    if (w <= 0 || h <= 0 || t <= 0) return;
+    const float maxR = (w < h ? w : h) * 0.5f;
+    if (r > maxR) r = maxR;
+    if (r < t) r = t;
+    // The four straight edges between the corners...
+    C2D_DrawRectSolid(x + r, y, z, w - 2 * r, t, c);
+    C2D_DrawRectSolid(x + r, y + h - t, z, w - 2 * r, t, c);
+    C2D_DrawRectSolid(x, y + r, z, t, h - 2 * r, c);
+    C2D_DrawRectSolid(x + w - t, y + r, z, t, h - 2 * r, c);
+    // ...and each corner as an annulus quarter (two triangles per segment; 8 segments, so a
+    // pill-sized radius stays round).
+    constexpr int kSeg = 8;
+    float co[kSeg + 1], si[kSeg + 1];
+    for (int i = 0; i <= kSeg; i++) {
+        co[i] = cosf(1.5707963f * i / kSeg);
+        si[i] = sinf(1.5707963f * i / kSeg);
+    }
+    const float ri = r - t;
+    const float cx[4] = {x + r, x + w - r, x + r, x + w - r}, cy[4] = {y + r, y + r, y + h - r, y + h - r};
+    const float sx[4] = {-1, 1, -1, 1}, sy[4] = {-1, -1, 1, 1};
+    for (int k = 0; k < 4; k++) {
+        for (int i = 0; i < kSeg; i++) {
+            const float ox0 = cx[k] + sx[k] * co[i] * r, oy0 = cy[k] + sy[k] * si[i] * r;
+            const float ox1 = cx[k] + sx[k] * co[i + 1] * r, oy1 = cy[k] + sy[k] * si[i + 1] * r;
+            const float ix0 = cx[k] + sx[k] * co[i] * ri, iy0 = cy[k] + sy[k] * si[i] * ri;
+            const float ix1 = cx[k] + sx[k] * co[i + 1] * ri, iy1 = cy[k] + sy[k] * si[i + 1] * ri;
+            C2D_DrawTriangle(ox0, oy0, c, ox1, oy1, c, ix0, iy0, c, z);
+            C2D_DrawTriangle(ix0, iy0, c, ox1, oy1, c, ix1, iy1, c, z);
+        }
+    }
+}
+
 namespace {
 // A pill (fully rounded ends) as horizontal strips, so the ends stay round at any size and the
 // face can carry a vertical gradient: top -> mid over the upper `knee` of the height, then mid ->

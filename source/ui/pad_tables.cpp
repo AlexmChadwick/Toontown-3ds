@@ -50,7 +50,7 @@ void buildBattleReward(FocusGroup& group) {
 void buildQuestPages(FocusGroup& group) {
     using namespace quest;
     group.rebuild();
-    group.addItem(kIdNext, kCancelX, kCancelY, kCancelW, kCancelH);
+    group.setRadius(group.addItem(kIdNext, kCancelX, kCancelY, kCancelW, kCancelH), kCancelH * 0.5f); // pill
 }
 
 void buildQuestChoices(FocusGroup& group, int numChoices) {
@@ -59,7 +59,7 @@ void buildQuestChoices(FocusGroup& group, int numChoices) {
     for (int i = 0; i < numChoices; i++) {
         group.addItem(i, kCardX, kCardY + i * (kCardH + kCardGap), kScreenW - 2 * kCardX, kCardH);
     }
-    group.addItem(kIdCancel, kCancelX, kCancelY, kCancelW, kCancelH);
+    group.setRadius(group.addItem(kIdCancel, kCancelX, kCancelY, kCancelW, kCancelH), kCancelH * 0.5f);
 }
 
 void buildTrackChoices(FocusGroup& group, int numTracks) {
@@ -68,7 +68,7 @@ void buildTrackChoices(FocusGroup& group, int numTracks) {
     for (int i = 0; i < numTracks; i++) {
         group.addItem(i, kTrackX + (i % 2) * kTrackColW, kCardY + (i / 2) * kTrackRowH, kTrackW, kTrackH);
     }
-    group.addItem(kIdCancel, kCancelX, kCancelY, kCancelW, kCancelH);
+    group.setRadius(group.addItem(kIdCancel, kCancelX, kCancelY, kCancelW, kCancelH), kCancelH * 0.5f);
 }
 
 void buildCloset(FocusGroup& group) {
@@ -101,9 +101,9 @@ void buildHoodRow(FocusGroup& group, float homeX) {
     group.rebuild();
     // The row first: the first D-Down lands on a hood (Home is the row below).
     for (int i = 0; i < kCount; i++) {
-        group.addItem(i, i * kHoodW, kRowY, kHoodW, kRowH);
+        group.setRadius(group.addItem(i, i * kHoodW, kRowY, kHoodW, kRowH), kRowH * 0.5f); // pills (taps cover the cell)
     }
-    group.addItem(kIdHome, homeX, kHomeY, kHomeW, kHomeH);
+    group.setRadius(group.addItem(kIdHome, homeX, kHomeY, kHomeW, kHomeH), kHomeH * 0.5f);
 }
 
 void buildToonTab(FocusGroup& group, bool online) {
@@ -120,7 +120,7 @@ void buildToonTab(FocusGroup& group, bool online) {
         }
         return;
     }
-    group.addItem(kIdBook, kBookX, kBookY, kBookW, kBookH);
+    group.setRadius(group.addItem(kIdBook, kBookX, kBookY, kBookW, kBookH), kBookH * 0.5f); // pill
 }
 
 void buildBookTab(FocusGroup& group) {
