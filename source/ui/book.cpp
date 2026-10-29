@@ -160,45 +160,47 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
 void Book::draw(const BookDrawContext& bdc) {
     if (!isOpen_) return;
 
-    // Binder cover header: Prev / Next as paper tabs, a red close button (touch areas in
-    // handleInput: x < 55, 220..275, >= 280).
-    C2D_DrawRectSolid(0, 0, 0.40f, 320, 24, kCoverHeader);
-    theme::roundRect(3, 3, 50, 18, 5, kTabInactive, 0.41f);
-    theme::roundRect(222, 3, 52, 18, 5, kTabInactive, 0.41f);
-    theme::roundRect(284, 2, 32, 20, 6, theme::kRedDark, 0.41f);
-    theme::roundRect(285, 2, 30, 18, 5, theme::kRed, 0.41f);
-    theme::textCentered(prevText_, 28, 4, 0.42f, kGoldText, 46, 0.5f);
-    theme::textCentered(nextText_, 248, 4, 0.42f, kGoldText, 48, 0.5f);
-    theme::textCentered(closeText_, 300, 3, 0.5f, kWhite, 26, 0.5f);
+    // Cover, then a spine down the left and a cream page. Hit targets stay where they were:
+    // Prev x < 55, Next 220..275, close >= 280, page tabs along y >= 214.
+    C2D_DrawRectSolid(0, 0, 0.30f, 320, 240, kCoverBottom);
+    C2D_DrawRectSolid(0, 0, 0.31f, 14, 240, kCoverHeader);
+    C2D_DrawRectSolid(11, 0, 0.32f, 2, 240, C2D_Color32(0xC4, 0x8A, 0x3A, 0xFF));
+    theme::roundRect(16, 20, 298, 194, 5, kPaperBorder, 0.33f);
+    theme::roundRect(18, 22, 294, 190, 4, kPaperBg, 0.34f);
 
-    // Title & page number in center
+    theme::roundRect(3, 3, 50, 16, 4, kTabInactive, 0.41f);
+    theme::roundRect(222, 3, 52, 16, 4, kTabInactive, 0.41f);
+    theme::roundRect(284, 2, 32, 18, 4, theme::kRedDark, 0.41f);
+    theme::roundRect(285, 3, 30, 16, 4, theme::kRed, 0.42f);
+    theme::textCentered(prevText_, 28, 4, 0.40f, kGoldText, 46, 0.5f);
+    theme::textCentered(nextText_, 248, 4, 0.40f, kGoldText, 48, 0.5f);
+    theme::textCentered(closeText_, 300, 3, 0.48f, kWhite, 26, 0.5f);
+
     if (dynamicBuf_) {
         C2D_TextBufClear(dynamicBuf_);
         char titleBuf[64];
-        snprintf(titleBuf, sizeof(titleBuf), "%s (%d/%d)", pages_[curPage_]->title(), curPage_ + 1, kPageCount);
+        snprintf(titleBuf, sizeof(titleBuf), "%s  %d/%d", pages_[curPage_]->title(), curPage_ + 1, kPageCount);
         C2D_Text titleText;
         tt::render::textParse(&titleText, dynamicBuf_, titleBuf);
-        theme::textCentered(titleText, 137, 4, 0.46f, kWhite, 160, 0.5f);
+        theme::textCentered(titleText, 148, 3, 0.44f, kGoldText, 150, 0.5f);
     }
 
-    // Main page parchment paper
-    C2D_DrawRectSolid(2, 24, 0.35f, 316, 188, kPaperBg);
-    C2D_DrawRectSolid(2, 24, 0.36f, 316, 1, kPaperBorder);
-    C2D_DrawRectSolid(2, 211, 0.36f, 316, 1, kPaperBorder);
-
-    // Draw active page
     pages_[curPage_]->draw(2, 24, 316, 188, bdc);
 
-    // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold.
-    C2D_DrawRectSolid(0, 212, 0.40f, 320, 28, kCoverBottom);
+    // Page tabs hanging off the bottom of the sheet. The open tab is the same cream as the
+    // page and meets it; the others stay on the cover, shorter, so this is a book and not a
+    // row of buttons. Touch columns are unchanged (width 320/9, y >= 214).
     const float tabW = 320.0f / kPageCount;
     for (int i = 0; i < kPageCount; i++) {
         const float tx = i * tabW;
         const bool active = (i == curPage_);
-        const float ty = active ? 211.0f : 214.0f;
-        theme::roundRect(tx + 1, ty, tabW - 2, 240 - ty + 6, 5, active ? kTabActive : kTabInactive, 0.42f);
-        theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 218.0f : 220.0f, 0.4f, active ? kInk : kWhite,
-                            tabW - 4, 0.5f);
+        const float ty = active ? 208.0f : 218.0f;
+        const float th = 240.0f - ty + 8.0f;
+        theme::roundRect(tx + 2, ty, tabW - 4, th, 5, active ? kPaperBorder : kCoverHeader, 0.43f);
+        theme::roundRect(tx + 3, ty + (active ? 0.0f : 1.0f), tabW - 6, th - 2, 4,
+                         active ? kPaperBg : kTabInactive, 0.44f);
+        theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 214.0f : 221.0f, active ? 0.38f : 0.34f,
+                            active ? kInk : kGoldText, tabW - 8, 0.5f);
     }
 }
 
