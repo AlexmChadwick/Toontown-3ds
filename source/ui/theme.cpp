@@ -132,6 +132,20 @@ void button(float x, float y, float w, float h, u32 face, u32 lip, bool down, fl
     roundRect(x, down ? y + kLip : y, w, h - kLip, r, face, z);
 }
 
+void clip(float x, float y, float w, float h) {
+    C2D_Flush();
+    // The bottom framebuffer is 240 x 320 and rotated: screen x runs down it from the far end,
+    // screen y across it from the far side.
+    auto px = [](float v, float hi) { return u32(v < 0 ? 0 : v > hi ? hi : v); };
+    C3D_SetScissor(GPU_SCISSOR_NORMAL, px(240.0f - (y + h), 240), px(320.0f - (x + w), 320), px(240.0f - y, 240),
+                   px(320.0f - x, 320));
+}
+
+void unclip() {
+    C2D_Flush();
+    C3D_SetScissor(GPU_SCISSOR_DISABLE, 0, 0, 0, 0);
+}
+
 u32 mix(u32 a, u32 b, float t) { return lerpColor(a, b, t); }
 
 u32 shade(u32 c, float s) {

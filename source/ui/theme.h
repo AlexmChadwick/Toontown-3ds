@@ -89,6 +89,11 @@ u32 mix(u32 a, u32 b, float t);
 // A darker shade of `c` (for lips and outlines), scale 0..1.
 u32 shade(u32 c, float scale);
 
+// Bottom-screen scissor: citro2d draws after clip() land only inside (x, y, w, h) until unclip().
+// Both flush the pending citro2d batch first (the scissor is GPU state).
+void clip(float x, float y, float w, float h);
+void unclip();
+
 // Text helpers for one parsed C2D_Text: draw centred / right-aligned, shrinking to maxW.
 void textCentered(const C2D_Text& t, float cx, float y, float scale, u32 color, float maxW = 0.0f,
                   float z = 0.5f);

@@ -13,7 +13,6 @@ namespace {
 
 constexpr float kZ = 0.5f;
 constexpr float kMarginX = 6.0f;
-constexpr float kRowGap = 2.0f;
 constexpr float kArrowW = 18.0f;
 constexpr float kScrollBarW = 4.0f;
 constexpr float kBackW = 64.0f;
@@ -22,7 +21,10 @@ constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 // SpeedChat's own look (SCColorScheme defaults, ui/theme.h): pale frames, black text, a green
 // rollover and blue submenu arrows.
 const u32 kRow = theme::kScFrame;
-const u32 kRowEdge = theme::kScFrameEdge;
+// ChatPanel's outline (near black under the frame tint), its corner radius and the inset that
+// keeps rows off the outline.
+const u32 kFrameEdge = C2D_Color32(0x2A, 0x2A, 0x3C, 0xFF);
+constexpr float kFrameR = 7.0f, kFramePad = 4.0f;
 const u32 kFocus = theme::kScRollover;
 const u32 kPressed = theme::kScPressed;
 const u32 kText = theme::kScText;
@@ -177,19 +179,19 @@ void ChatMenu::blur() {
 }
 
 float ChatMenu::maxScroll(float listH) const {
-    const float content = numRows(menu_) * kRowH;
+    const float content = numRows(menu_) * kRowH + kFramePad; // the frame's inset under the last row
     return content > listH ? content - listH : 0.0f;
 }
 
 void ChatMenu::ensureVisible(int item, float listH) {
-    const float top = item * kRowH, bottom = top + kRowH;
+    const float top = item * kRowH, bottom = top + kRowH + kFramePad;
     if (top < scroll_) scroll_ = top;
     if (bottom > scroll_ + listH) scroll_ = bottom - listH;
 }
 
 int ChatMenu::rowAt(float y, float listH) const {
     if (y < kHeaderH || y >= kHeaderH + listH) return -1;
-    const int row = static_cast<int>((y - kHeaderH + scroll_) / kRowH);
+    const int row = static_cast<int>((y - kHeaderH - kFramePad * 0.5f + scroll_) / kRowH);
     return row < numRows(menu_) ? row : -1;
 }
 
@@ -321,34 +323,42 @@ void ChatMenu::draw(float panelBottom) {
     const float listH = panelBottom - kHeaderH;
     const int numItems = numRows(menu_);
 
-    // Rows (drawn first; the header is drawn over rows scrolled above it, the tab bar
-    // over rows below).
+    // SCMenu: one ChatPanel frame per menu (the white 9-slice panel with its dark outline, tinted
+    // by the scheme's frameColor), its elements flat on it; only the rollover fills a row.
+    const float rowX = kMarginX, rowW = kW - 2 * kMarginX - kScrollBarW - 4.0f;
+    const float content = numItems * kRowH + kFramePad - scroll_;
+    const float frameTop = kHeaderH, frameBot = kHeaderH + (content < listH ? content : listH);
+    theme::roundRect(rowX, frameTop, rowW, frameBot - frameTop, kFrameR, kFrameEdge, kZ);
+    theme::roundRect(rowX + 1.5f, frameTop + 1.5f, rowW - 3.0f, frameBot - frameTop - 3.0f, kFrameR - 1.5f, kRow, kZ);
+
+    // Rows scrolled out of the frame are clipped to its inside.
+    theme::clip(rowX + 2.0f, frameTop + 2.0f, rowW - 4.0f, frameBot - frameTop - 4.0f);
     const int firstRow = static_cast<int>(scroll_ / kRowH);
     const int lastRow = static_cast<int>((scroll_ + listH) / kRowH);
-    const float rowX = kMarginX, rowW = kW - 2 * kMarginX - kScrollBarW - 4.0f;
     for (int i = firstRow; i <= lastRow && i < numItems && i < kMaxRows; i++) {
         const Row it = row(menu_, i);
-        const float y = kHeaderH + i * kRowH - scroll_;
+        const float y = kHeaderH + kFramePad * 0.5f + i * kRowH - scroll_;
         const bool focused = i == focus_;
         const bool pressed = i == pressedRow_;
-        theme::roundRect(rowX, y + kRowGap * 0.5f, rowW, kRowH - kRowGap, 5, kRowEdge, kZ);
-        theme::roundRect(rowX + 1, y + kRowGap * 0.5f + 1, rowW - 2, kRowH - kRowGap - 2, 4,
-                         focused ? kFocus : pressed ? kPressed : kRow, kZ);
+        if (focused || pressed) {
+            theme::roundRect(rowX + 4.0f, y + 1.0f, rowW - 8.0f, kRowH - 2.0f, 4, pressed ? kPressed : kFocus, kZ);
+        }
         const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
         const u32 fg = locked ? kTextLocked : kText;
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {
-            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 8.0f, ty, kZ, s, s, fg,
+            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 10.0f, ty, kZ, s, s, fg,
                          rowTextW(it.isMenu));
         } else {
-            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 8.0f, ty, kZ, s, s, fg);
+            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 10.0f, ty, kZ, s, s, fg);
         }
         if (it.isMenu) { // SCMenuHolder's arrow: a solid triangle pointing at the submenu
-            const float ax = rowX + rowW - kArrowW + 4.0f, ay = y + kRowH * 0.5f;
+            const float ax = rowX + rowW - kArrowW + 2.0f, ay = y + kRowH * 0.5f;
             C2D_DrawTriangle(ax, ay - 6, theme::kScArrow, ax, ay + 6, theme::kScArrow, ax + 9, ay, theme::kScArrow, kZ);
         }
     }
+    theme::unclip();
 
     // Scroll indicator.
     const float ms = maxScroll(listH);
@@ -363,10 +373,10 @@ void ChatMenu::draw(float panelBottom) {
     // Header.
     theme::skyBand(0, kHeaderH, kW, panelBottom, kZ);
     float titleX = kMarginX + 2.0f;
-    if (parentOf(menu_) >= 0) {
-        theme::button(kMarginX, 1, kBackW, kHeaderH - 2, pressedBack_ ? kPressed : kRow, kRowEdge, pressedBack_, 6.0f,
-                      kZ);
-        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, pressedBack_ ? 7.0f : 4.0f, kZ, 0.5f, 0.5f, kText);
+    if (parentOf(menu_) >= 0) { // a small panel of the menu's own frame, rollover green while pressed
+        theme::roundRect(kMarginX, 2, kBackW, kHeaderH - 5, kFrameR, kFrameEdge, kZ);
+        theme::roundRect(kMarginX + 1.5f, 3.5f, kBackW - 3, kHeaderH - 8, kFrameR - 1.5f, pressedBack_ ? kPressed : kRow, kZ);
+        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {
         C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 7.0f, kZ, 0.42f, 0.42f, kTitle);
