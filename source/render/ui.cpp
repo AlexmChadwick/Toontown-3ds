@@ -678,9 +678,31 @@ void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) {
         theme::paper(4, 4, kW - 8, kPocketTop - 6, 8.0f); // above the laff pocket and the book pill // online: the server's DNA wins, so the tab shows our ToonTasks instead
         // Our name, laff and jellybeans (the laff meter itself is in the tab bar's pocket).
+        // Our gag tracks at a glance, right of the name: each track's best gag on its battle
+        // colour (faded until the track is learned), as the Gags page's rows.
+        float nameW = kW - 28;
+        if (c.trackAccess && c.gagExp) {
+            static bool atlasTried = false;
+            if (!atlasTried) {
+                atlasTried = true;
+                world::GagAtlas::instance().init();
+            }
+            constexpr float kChip = 22.0f, kChipStep = 24.0f;
+            const float x0 = kW - 12 - gags::kTracks * kChipStep + 2;
+            for (int t = 0; t < gags::kTracks; t++) {
+                const int levels = c.trackAccess[t] ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
+                const float x = x0 + t * kChipStep;
+                const u32 face = levels ? theme::kTrackColors[t] : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.65f);
+                theme::roundRect(x, 8, kChip, kChip, 5, levels ? theme::shade(face, 0.6f) : theme::kPaperShade);
+                theme::roundRect(x + 1, 9, kChip - 2, kChip - 2, 4, face);
+                if (levels && world::GagAtlas::instance().loaded())
+                    world::GagAtlas::instance().drawIcon(t, levels - 1, x + 2, 10, kChip - 4, 0.55f);
+            }
+            nameW = x0 - 14 - 8;
+        }
         C2D_Text name;
         textCache_.parse(&name, textBuf_, c.toonName && c.toonName[0] ? c.toonName : "Toon", 1024);
-        theme::textFit(name, 14, 9, 0.72f, theme::kInk, kW - 28);
+        theme::textFit(name, 14, 9, 0.72f, theme::kInk, nameW);
         float top = 38;
         if (c.stats) {
             // A few jellybeans in upstream's bean colours, then the count.
