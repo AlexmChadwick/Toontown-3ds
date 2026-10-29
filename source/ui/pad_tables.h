@@ -75,7 +75,7 @@ void buildCloset(FocusGroup& group);
 
 // ---- Tailor (ui/tailor_panel.cpp): shirt row, shorts row, Done / Cancel ----
 namespace tailor {
-constexpr float kTopY = 38, kBottomY = 94, kRowX = 4, kRowW = 312, kRowH = 48;
+constexpr float kTopY = 38, kBottomY = 104, kRowX = 4, kRowW = 312, kRowH = 62; // ClothesGUI shuffle rows
 constexpr float kBtnY = 196, kBtnH = 36, kBtnW = 76, kDoneX = 160, kCancelX = 240;
 constexpr int kIdShirt = 0;
 constexpr int kIdShorts = 1;

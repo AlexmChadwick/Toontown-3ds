@@ -2,6 +2,7 @@
 #include "ui/service_clerk_panel.h"
 #include "core/log.h"
 #include "ui/clerk_tables.h"
+#include "ui/purchase_art.h"
 #include "ui/theme.h"
 #include <algorithm>
 #include <cstdio>
@@ -452,7 +453,8 @@ void ServiceClerkPanel::draw() {
         theme::roundRect(268, 9, 40, 20, 7, low ? theme::kRed : theme::kYellow);
         theme::textCentered(texts_[2], 288, 10, theme::kTextBody, low ? theme::kWhite : theme::kInk, 36);
     }
-    line(1, 14, 33, theme::kTextSmall, theme::kInkSoft);
+    drawJarIcon(13, 29, 18); // our jellybeans (InventoryPage.moneyDisplay's jar)
+    line(1, 32, 33, theme::kTextSmall, theme::kInkSoft);
     C2D_DrawRectSolid(12, 52, 0.5f, 296, 2, theme::kPaperShade);
     const int rows = page_ != Page::Menu ? 0 : kind_ == net::ClerkKind::Pet ? 4 : kind_ == net::ClerkKind::Kart ? 3 : 0;
     for (int index = 3; index <= 8; ++index) {
@@ -475,6 +477,8 @@ void ServiceClerkPanel::draw() {
                          {239, 77, theme::Pill::Red, &btnText_[2]}};
     for (int i = 0; i < 4; ++i) {
         if (i == 3 && page_ == Page::Result) continue; // a result only needs OK
+        // Prev / Next only where they page or move: not on a result, nor on a one-choice menu.
+        if (i < 2 && (page_ == Page::Result || (page_ == Page::Menu && rows <= 1))) continue;
         const Btn& b = btns[i];
         theme::pill(b.x, 206, b.w, 30, b.style);
         theme::textCentered(*b.label, b.x + b.w * 0.5f, 212, theme::kTextBody, theme::pillInk(b.style), b.w - 14);

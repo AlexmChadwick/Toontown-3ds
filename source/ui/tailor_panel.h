@@ -59,7 +59,8 @@ private:
     bool dirty_ = true;
 
     C2D_TextBuf textBuf_ = nullptr;
-    C2D_Text titleText_, topText_, bottomText_, hintText_, timerText_, doneText_, cancelText_;
+    int32_t shownSecond_ = -1; // the last-30-seconds countdown shown
+    C2D_Text titleText_, topText_, bottomText_, topCount_, bottomCount_, hintText_, timerText_, doneText_, cancelText_;
 };
 
 } // namespace tt::ui

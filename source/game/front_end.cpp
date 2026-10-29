@@ -1059,7 +1059,7 @@ void FrontEnd::drawMakeBottom() {
         // arrows at its ends; which one of how many sits under it.
         char count[24];
         snprintf(count, sizeof count, "%u of %u", unsigned(choice_.shirt + 1), unsigned(world::matShirtCount(choice_.gender)));
-        shuffleFrame(kShirtY, "Shirt", count); // TTLocalizer.ClothesShopShirt
+        shuffleFrame(kShirtY, "Shirts", count); // TTLocalizer.ClothesShopShirt
         snprintf(count, sizeof count, "%u of %u", unsigned(choice_.bottom + 1),
                  unsigned(world::matBottomCount(choice_.gender)));
         shuffleFrame(kBottomY, choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms", count);
