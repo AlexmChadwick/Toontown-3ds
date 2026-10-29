@@ -103,11 +103,12 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
     // - value + steppers.
     auto stepper = [&](float ty, const char* label, int value, const char* fmt, bool enabled) {
         text_.draw(16, ty + 2, theme::kTextSmall, enabled ? theme::kInk : theme::kGreyDark, "%s", label);
-        const u32 face = enabled ? theme::kBlue : theme::kGrey, lip = enabled ? theme::kBlueDark : theme::kGreyDark;
-        theme::button(kMinusX, ty, kStepW - 2, kRowH + 2, face, lip, false, 6.0f);
-        theme::button(kPlusX, ty, kStepW - 2, kRowH + 2, face, lip, false, 6.0f);
-        text_.centered(kMinusX + (kStepW - 2) * 0.5f, ty, theme::kTextTitle, theme::kWhite, 0, "-");
-        text_.centered(kPlusX + (kStepW - 2) * 0.5f, ty, theme::kTextTitle, theme::kWhite, 0, "+");
+        // OptionsPage's quit_button pills.
+        const theme::Pill style = enabled ? theme::Pill::Yellow : theme::Pill::Grey;
+        theme::pill(kMinusX, ty, kStepW - 2, kRowH, style);
+        theme::pill(kPlusX, ty, kStepW - 2, kRowH, style);
+        text_.centered(kMinusX + (kStepW - 2) * 0.5f, ty - 1, theme::kTextTitle, theme::pillInk(style), 0, "-");
+        text_.centered(kPlusX + (kStepW - 2) * 0.5f, ty - 1, theme::kTextTitle, theme::pillInk(style), 0, "+");
         text_.centered((kMinusX + kStepW + kPlusX) * 0.5f - 1, ty + 3, theme::kTextTiny,
                        enabled ? theme::kInk : theme::kGreyDark, kPlusX - kMinusX - kStepW + 2, fmt, value);
     };
@@ -118,8 +119,8 @@ void PageOptions::draw(float x, float y, float w, float h, const BookDrawContext
         stepper(150, "Test toons", stress, "%d", true);
     }
 
-    theme::button(kToggleX, 176, kToggleW, kRowH + 2, theme::kRed, theme::kRedDark, false, 6.0f);
-    text_.centered(kToggleX + kToggleW * 0.5f, 178, theme::kTextBody, theme::kWhite, 0, "Quit Toontown");
+    theme::pill(kToggleX, 176, kToggleW, kRowH + 2, theme::Pill::Red);
+    text_.centered(kToggleX + kToggleW * 0.5f, 178, theme::kTextBody, theme::pillInk(theme::Pill::Red), 0, "Quit Toontown");
 
     // Districts: name, and whether it takes more Toons.
     text_.draw(172, 31, theme::kTextBody, theme::kRedDark, "Districts");
