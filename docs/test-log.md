@@ -1260,4 +1260,5 @@ below are with shots on.
 - Toon HQ: quest dialog pages, fitted balloons; HQ choice; Toon tab task card.
 - Front end (`AUTOTEST_FE=1`): all screens. No PARSE / EJECT / crash lines in any run.
 - Host: padnav_test 154 checks, battle_cam_test (GCC 12).
-
+- Fishing (TTC practice spot): fishingGui dock / jar / bucket / Cast / Exit; pad cast (hold A) and
+  a touch drag cast (`fish: touch cast`, power 0.73, angle 32, landed in the pond, fish caught).

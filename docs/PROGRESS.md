@@ -40,6 +40,14 @@ screen shows ours.
   some other way shows that map without the arrow. Entering a playground shop reloads nothing.
 - **NPC dialog balloons fit their text** (word-wrapped once per page with the UI font) instead of
   a fixed 176 px box around "Goodbye!".
+- **Fishing uses DistributedFishingSpot's own cast interface** (`bake_fishing_gui.py`: fishingGui's
+  dock boards, jellybean jar, fish bucket, cast button, cast arrow and exit button; 256 x 256
+  RGBA8, 256 KB RomFS) instead of grey Power / Aim bars. The jar and bucket show the beans and the
+  tank on their displays; the Cast button is red, green while adjusting, pink when it cannot cast.
+  **Touch casts the upstream way**: press Cast and drag down (the drag length is the power, its
+  direction the angle, as localAdjustingCastTask), let go to cast; Exit leaves. Hold A and the pad
+  still work. Seen in Azahar: a touch drag cast (power 0.73, angle 32) landed in the pond and
+  caught a fish.
 - **Locked gag tracks keep their faded track colour** in the battle picker, book Gags page, Gag
   Shop and trolley purchase (upstream tints every row and only hides the buttons).
 - Autotest: SOS by touch and back; `pad: battle demo` steps show sample Rescued Toons and pink
@@ -59,7 +67,10 @@ screen shows ours.
 
 ### Asset size decisions
 - `timer_clock.ttm`: the original clock rendered at 128 x 128 RGBA8 (64 KB) so it stays sharp at
-  88 px on the bottom screen; no other new assets.
+  88 px on the bottom screen.
+- `fishing_gui.ttm`: the original fishingGui parts at about their on-screen size, 256 x 256 RGBA8
+  (256 KB; RGBA4 would band the jar glass). The Cast button is drawn ~3x upstream's relative size
+  for a fingertip; the jar and bucket 1.25x.
 
 ### Known issues
 - **SOS cards and Fire were never sent to the live server**: this stock server gives a fresh toon
