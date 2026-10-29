@@ -20,7 +20,7 @@ constexpr int tabX(int i) { return int((tt::ui::pad::tabX(i, 5) + tt::ui::pad::t
 constexpr int kHoodTapY = int(tt::ui::pad::hoods::kRowY + tt::ui::pad::hoods::kRowH * 0.5f);
 
 const Step kScript[] = {
-    {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
+    {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle", "hud"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "run forward", "run"},
     {2.0f, 120, 150, 0, 0, -1, -1, -1, "run + turn right"},
     {1.0f, 0, 150, 0, KEY_A, -1, -1, -1, "running jump"},

@@ -40,8 +40,12 @@ public:
     void shutdown();
     // Centred on (cx, cy); size is the atlas cell at rest.
     void draw(const LaffFace& face, float cx, float cy, float size, float z = 0.5f);
+    // Bottom-left pinned at (x, bottom). A heal/damage pulse grows up and to the right,
+    // so a meter sat on the screen corner never slides off it.
+    void drawBottomLeft(const LaffFace& face, float x, float bottom, float size, float z = 0.5f);
 
 private:
+    void refresh(const LaffFace& face);
     C2D_TextBuf buf_ = nullptr;
     C2D_Text hp_{}, max_{};
     int hpShown_ = -1, maxShown_ = -1;

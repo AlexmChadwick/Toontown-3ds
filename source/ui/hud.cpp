@@ -11,10 +11,12 @@ namespace tt::ui {
 
 namespace {
 
-// The meter is larger than upstream's share of the screen: at 64 px the numbers in the eyes were
-// unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
-constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
-constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
+// Bottom-left of the 400x240 top screen, the way LocalToon parks LaffMeter. 128 px puts
+// "137" in each eye at about 8 px per digit (the eye centres are 0.20 of the cell apart)
+// and still clears a 1.33x heal pulse, which grows up and right from this corner.
+constexpr float kLaffSize = 128.0f;
+constexpr float kLaffX = 4.0f;
+constexpr float kLaffBottom = 236.0f;
 
 } // namespace
 
@@ -94,16 +96,16 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C2D_DrawText(&raceText_, C2D_WithColor, 42, 16, 0.5f, 0.65f, 0.65f, C2D_Color32(0xFF, 0xF0, 0x70, 0xFF));
     }
 
-    // Upstream's HUD is the laff meter alone; jellybeans show on the book's Gags page and the
-    // Toon tab (InventoryPage.moneyDisplay), not over the world. While the bottom screen shows
-    // our laff (its tab bar pocket, the battle panel's Toon cards) the world stays clear.
-    if (!v.laffOnBottom) {
+    // Upstream's HUD is the laff meter alone, bottom-left of the main view, including during
+    // battle. Jellybeans stay on the book's Gags page and the Toon tab. The bottom screen's
+    // pocket is a second, smaller copy; it does not replace this one.
+    {
         LaffFace face;
         face.hp = v.hp;
         face.maxHp = v.maxHp;
         for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
-        face.species = v.species;
-        laff_.draw(face, kLaffX, kLaffY, kLaffSize);
+        face.species = v.species; // world::Species, same order as the laff atlas heads
+        laff_.drawBottomLeft(face, kLaffX, kLaffBottom, kLaffSize);
     }
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
 }

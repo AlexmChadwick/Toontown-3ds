@@ -15,7 +15,7 @@ struct HudValues {
     float headRgb[3] = {0.7f, 0.7f, 0.8f}; // laff meter face colour (toon head colour)
     int species = 0;                         // world::Species: which laff meter head
     bool online = false;
-    bool laffOnBottom = false; // the bottom screen shows the meter: leave it off the world
+    bool laffOnBottom = false; // the bottom pocket is showing our meter; the world HUD stays up too
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;

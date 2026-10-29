@@ -50,7 +50,7 @@ constexpr float kTabY = 240.0f - kTabH;
 // Our Laff meter sits in a pocket at the binder's left end, as upstream's sits at the screen's
 // bottom left; the tabs share the rest of the bar. Panels keep the pocket's corner clear.
 constexpr float kPocketW = pad::kLaffPocketW, kPocketTop = pad::kLaffPocketTop;
-constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~75% of it)
+constexpr float kPocketLaff = 48.0f; // fits the 62 px pocket; the world HUD carries the big meter
 constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
