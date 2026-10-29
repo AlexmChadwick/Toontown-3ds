@@ -328,7 +328,7 @@ const Step kFrontEndScript[] = {
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> colour"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 191, 76, -1, "fe: colour 6", "fe_color"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> clothes"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 280, 70, -1, "fe: next shirt", "fe_clothes"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 256, 70, -1, "fe: next shirt", "fe_clothes"}, // the Shirt frame's > arrow
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> name", "fe_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},

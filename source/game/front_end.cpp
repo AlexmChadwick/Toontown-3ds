@@ -9,6 +9,7 @@
 #include "game/name_check.h"
 #include "game/name_tables.h"
 #include "ui/laff_meter.h"
+#include "ui/mat_art.h"
 #include "ui/pick_a_toon_atlas.h"
 #include "ui/theme.h"
 
@@ -34,6 +35,9 @@ const u32 kBHi = ui::theme::kBlueDark;
 
 const char* const kSpeciesLabel[9] = {"Dog", "Cat", "Horse", "Mouse", "Rabbit", "Duck", "Monkey", "Bear", "Pig"};
 const char* const kSizeLabel[3] = {"Short", "Medium", "Tall"};
+// Make-A-Toon's Clothes step: two shuffle frames (centre rows) with their arrows' hit boxes.
+constexpr float kShirtY = 70, kBottomY = 148, kShuffleLX = 34, kShuffleRX = 226;
+constexpr float kShuffleW = 136; // the frame, aspect kept
 
 // Immediate-mode layout: each screen function is called once to handle input and
 // once to draw; buttons are numbered in call order for D-pad navigation.
@@ -134,6 +138,7 @@ void FrontEnd::shutdown() {
     textBuf_ = nullptr;
     logo_.unload();
     pickArt_.unload();
+    ui::releaseMatArt();
 }
 
 void FrontEnd::reset() {
@@ -186,9 +191,81 @@ void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char*
     C2D_DrawText(&t, C2D_WithColor, b.x + (b.w - w) * 0.5f, b.y + (b.h - h) * 0.5f, 0.5f, scale, scale, color);
 }
 
+// Make-A-Toon's own buttons (tt_m_gui_mat_mainGui, ui/mat_art): MakeAToon's round next / back
+// (the next image mirrored) and OK buttons beside their caption, GenderShop's boy / girl buttons
+// and the shuffle frames' gold arrows. Returns false for labels drawn as ordinary pills.
+bool FrontEnd::matButton(const Button& b, const char* label, bool selected, bool enabled, bool focused) {
+    namespace th = ui::theme;
+    using ui::MatArt;
+    const bool left = !strcmp(label, "<"), right = !strcmp(label, ">");
+    if (left || right) { // ShuffleButton arrows: gold, darker pressed, grey when there is no choice
+        const float h = b.h < 48 ? b.h : 48, w = h * ui::matArtAspect(MatArt::ArrowUp);
+        const float x = b.x + (b.w - w) * 0.5f, y = b.y + (b.h - h) * 0.5f;
+        if (focused) th::roundRing(x - 4, y - 3, w + 8, h + 6, 6, 2, th::kRed, 0.5f);
+        const MatArt art = !enabled ? MatArt::ArrowDisabled : touching_ && inside(b) ? MatArt::ArrowDown : MatArt::ArrowUp;
+        return ui::drawMatArt(art, x, y, w, h, 0.52f, right); // the art points left; > is mirrored
+    }
+    const bool next = !strcmp(label, "Next"), ok = !strcmp(label, "Create!") || !strcmp(label, "Done");
+    const bool back = !strcmp(label, "Back");
+    if (next || ok || back) { // a round button at the outer end, the caption inboard of it
+        const float d = b.h + 6, y = b.y - 3;
+        const float x = back ? b.x : b.x + b.w - d;
+        const bool down = touching_ && inside(b);
+        const MatArt art = ok ? (down ? MatArt::OkDown : MatArt::OkUp) : (down ? MatArt::NextDown : MatArt::NextUp);
+        if (focused) th::roundRing(b.x - 3, b.y - 5, b.w + 6, b.h + 10, 12, 2, th::kRed, 0.5f);
+        if (!ui::drawMatArt(art, x, y, d, d, 0.52f, back)) return false;
+        const Button cap{back ? b.x + d + 2 : b.x, b.y, b.w - d - 2, b.h};
+        textCentered(cap, 0.6f, th::kInk, label);
+        return true;
+    }
+    if (!strcmp(label, "Shuffle")) { // NameShop's shuffle bar (tt_t_gui_mat_shuffleUp / Down)
+        const float h = b.w / ui::matArtAspect(MatArt::ShuffleUp) < b.h ? b.w / ui::matArtAspect(MatArt::ShuffleUp) : b.h;
+        const float w = h * ui::matArtAspect(MatArt::ShuffleUp), x = b.x + (b.w - w) * 0.5f, y = b.y + (b.h - h) * 0.5f;
+        if (focused) th::roundRing(x - 3, y - 3, w + 6, h + 6, 8, 2, th::kRed, 0.5f);
+        // z 0.5: the caption (drawn at 0.5 after it) must pass the depth test over the bar.
+        if (!ui::drawMatArt(touching_ && inside(b) ? MatArt::ShuffleDown : MatArt::ShuffleUp, x, y, w, h, 0.5f)) return false;
+        textCentered(Button{x, y, w, h}, 0.56f, kWhite, label);
+        return true;
+    }
+    if (step_ == MakeStep::Species) { // the species' laff-meter head in our body colour on its pill
+        int species = -1;
+        for (int i = 0; i < 9; i++)
+            if (!strcmp(label, kSpeciesLabel[i])) species = i;
+        if (species < 0) return false;
+        if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed);
+        const th::Pill style = selected ? th::Pill::Cyan : th::Pill::Yellow;
+        th::pill(b.x, b.y, b.w, b.h, style);
+        ui::LaffFace face;
+        face.hp = face.maxHp = 1;
+        face.species = species;
+        const float* c = world::bodyColor(makeDna_.headColor);
+        for (int k = 0; k < 3; k++) face.rgb[k] = c[k];
+        const float d = b.h - 6;
+        ui::drawLaffMeter(face, b.x + 9, b.y + 2, d, nullptr, nullptr, 0.52f);
+        textCentered(Button{b.x + 9 + d, b.y + 1, b.w - d - 16, b.h}, 0.52f, th::pillInk(style), label);
+        return true;
+    }
+    const bool boy = !strcmp(label, "Boy"), girl = !strcmp(label, "Girl");
+    if (boy || girl) { // GenderShop: the chosen one bright, the other dimmed
+        const float d = b.h + 6, y = b.y - 3;
+        const MatArt art = boy ? (selected ? MatArt::BoyUp : MatArt::BoyDown) : (selected ? MatArt::GirlUp : MatArt::GirlDown);
+        if (selected) th::roundRect(b.x - 2, b.y - 4, b.w + 4, b.h + 8, 12, th::kYellow, 0.5f);
+        if (focused) th::roundRing(b.x - 3, b.y - 5, b.w + 6, b.h + 10, 12, 2, th::kRed, 0.51f);
+        if (!ui::drawMatArt(art, b.x, y, d, d, 0.52f)) return false;
+        textCentered(Button{b.x + d, b.y, b.w - d, b.h}, 0.58f, th::kInk, label);
+        return true;
+    }
+    return false;
+}
+
+bool FrontEnd::inside(const Button& b) const {
+    return lastTouch_.px >= b.x && lastTouch_.px < b.x + b.w && lastTouch_.py >= b.y && lastTouch_.py < b.y + b.h;
+}
+
 void FrontEnd::button(const Button& b, const char* label, bool selected, bool enabled) {
     const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
     namespace th = ui::theme;
+    if (screen_ == Screen::Make && matButton(b, label, selected, enabled, focused)) return;
     if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed); // the D-Pad cursor
     // Deleting a toon is the one destructive action here: red, like a close button.
     const bool danger = enabled && !strcmp(label, "Delete");
@@ -520,19 +597,19 @@ void FrontEnd::makeStepInput(u32 down) {
     case MakeStep::Clothes: {
         const u8 shirts = world::matShirtCount(choice_.gender);
         const u8 bottoms = world::matBottomCount(choice_.gender);
-        if (TT_BUTTON((Button{10, 50, 60, 40}), "<", false, shirts > 1)) {
+        if (TT_BUTTON((Button{kShuffleLX, kShirtY - 24, 60, 48}), "<", false, shirts > 1)) {
             choice_.shirt = static_cast<u8>((choice_.shirt + shirts - 1) % shirts);
             rebuildMakeDna();
         }
-        if (TT_BUTTON((Button{250, 50, 60, 40}), ">", false, shirts > 1)) {
+        if (TT_BUTTON((Button{kShuffleRX, kShirtY - 24, 60, 48}), ">", false, shirts > 1)) {
             choice_.shirt = static_cast<u8>((choice_.shirt + 1) % shirts);
             rebuildMakeDna();
         }
-        if (TT_BUTTON((Button{10, 120, 60, 40}), "<", false, bottoms > 1)) {
+        if (TT_BUTTON((Button{kShuffleLX, kBottomY - 24, 60, 48}), "<", false, bottoms > 1)) {
             choice_.bottom = static_cast<u8>((choice_.bottom + bottoms - 1) % bottoms);
             rebuildMakeDna();
         }
-        if (TT_BUTTON((Button{250, 120, 60, 40}), ">", false, bottoms > 1)) {
+        if (TT_BUTTON((Button{kShuffleRX, kBottomY - 24, 60, 48}), ">", false, bottoms > 1)) {
             choice_.bottom = static_cast<u8>((choice_.bottom + 1) % bottoms);
             rebuildMakeDna();
         }
@@ -943,6 +1020,15 @@ void FrontEnd::drawPickBottom() {
     }
 }
 
+void FrontEnd::shuffleFrame(float cy, const char* name, const char* count) {
+    if (!gGui.drawing) return;
+    const float h = kShuffleW / ui::matArtAspect(ui::MatArt::ShuffleFrame);
+    const float x = (kW - kShuffleW) * 0.5f, y = cy - h * 0.5f;
+    if (!ui::drawMatArt(ui::MatArt::ShuffleFrame, x, y, kShuffleW, h, 0.5f)) ui::theme::paper(x, y, kShuffleW, h, 8.0f);
+    textCentered(Button{x + 24, y + 1, kShuffleW - 48, h}, 0.62f, kWhite, name);
+    textCentered(Button{x, y + h - 2, kShuffleW, 18}, 0.45f, kBSoft, count);
+}
+
 void FrontEnd::drawMakeBottom() {
     static const char* const kStepNames[] = {"Species", "Body", "Color", "Clothes", "Name Shop"};
     if (renameAvId_) {
@@ -959,12 +1045,17 @@ void FrontEnd::drawMakeBottom() {
         text(10, 121, 0.5f, kBInk, "Legs");
         text(10, 163, 0.5f, kBInk, "Gender");
         break;
-    case MakeStep::Clothes:
-        text(90, 60, 0.55f, kBInk, "Shirt %u of %u", unsigned(choice_.shirt + 1),
-             unsigned(world::matShirtCount(choice_.gender)));
-        text(90, 130, 0.55f, kBInk, "%s %u of %u", choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
-             unsigned(choice_.bottom + 1), unsigned(world::matBottomCount(choice_.gender)));
+    case MakeStep::Clothes: {
+        // ClothesGUI's topFrame / bottomFrame: the shuffle frame with its name in white, the gold
+        // arrows at its ends; which one of how many sits under it.
+        char count[24];
+        snprintf(count, sizeof count, "%u of %u", unsigned(choice_.shirt + 1), unsigned(world::matShirtCount(choice_.gender)));
+        shuffleFrame(kShirtY, "Shirt", count); // TTLocalizer.ClothesShopShirt
+        snprintf(count, sizeof count, "%u of %u", unsigned(choice_.bottom + 1),
+                 unsigned(world::matBottomCount(choice_.gender)));
+        shuffleFrame(kBottomY, choice_.gender == world::Gender::Male ? "Shorts" : "Bottoms", count);
         break;
+    }
     case MakeStep::Name: {
         const bool male = choice_.gender == world::Gender::Male;
         textCentered(Button{10, 24, 300, 22}, 0.65f, nameIsTyped_ ? kBHi : kBInk, currentName_);
