@@ -88,7 +88,7 @@ void FishingPanel::draw(const FishingView& v, float contentHeight) {
     text(kLTitle, 12, 6, 0.6f, theme::kBlueDark);
     if (v.practice) {
         theme::roundRect(196, 6, 112, 18, 6, theme::kYellow);
-        text(kLPractice, 204, 7, 0.45f, kWhiteCol);
+        theme::textFit(lines_[kLPractice], 202, 7, 0.42f, kWhiteCol, 100, 0.55f);
     }
     text(kLBeans, 12, 28, 0.45f, kDimCol);
     text(kLTank, 190, 28, 0.45f, kDimCol);

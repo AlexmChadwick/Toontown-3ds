@@ -5,6 +5,8 @@
 #include <cstring>
 #include <new>
 
+#include "ui/theme.h"
+
 namespace tt::ui {
 
 bool PageText::init(size_t glyphs) {
@@ -63,6 +65,15 @@ float PageText::centered(float cx, float y, float scale, u32 color, float maxW, 
 float PageText::right(float rx, float y, float scale, u32 color, float maxW, const char* fmt, ...) {
     TT_PAGE_TEXT_FORMAT(fmt);
     return emit(Align::Right, rx, y, scale, color, maxW, line);
+}
+
+void PageText::countDisc(float tileX, float tileY, float tileW, float tileH, unsigned n) {
+    if (!buf_ || !cache_) return;
+    char line[8];
+    snprintf(line, sizeof line, "%u", n);
+    C2D_Text t;
+    cache_->parse(&t, buf_, line, cap_);
+    theme::countDisc(t, tileX, tileY, tileW, tileH, z_);
 }
 
 #undef TT_PAGE_TEXT_FORMAT

@@ -337,8 +337,9 @@ void MinigamePurchasePanel::draw() {
             const float in = sel ? 2.0f : 1.0f;
             theme::roundRect(x + in, y + in, kCellW - 2 - 2 * in, kCellH - 2 - 2 * in, 3, bg, 0.25f);
             if (open) world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.3f, canBuy ? 1.0f : 0.45f);
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.5f, 0.40f, 0.40f,
-                         !open ? theme::kInkSoft : canBuy || hasBought ? theme::kInk : theme::kInkSoft);
+            theme::textFit(cellText_[t][l], x + (open ? 18.0f : 4.0f), y + 3.0f, 0.38f,
+                           !open ? theme::kInkSoft : canBuy || hasBought ? theme::kInk : theme::kInkSoft,
+                           kCellW - (open ? 22.0f : 8.0f), 0.55f);
         }
     }
 

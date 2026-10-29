@@ -355,8 +355,10 @@ void ShopPanel::draw() {
             if (open) {
                 world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.54f, canBuy ? 1.0f : 0.45f);
             }
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.55f, 0.4f, 0.4f,
-                         !open ? theme::kInkSoft : canBuy || bought ? kInk : theme::kInkSoft);
+            // "have/max" stays inside the slot; a 16 px icon leaves the rest of the cell.
+            theme::textFit(cellText_[t][l], x + (open ? 18.0f : 4.0f), y + 3.0f, 0.38f,
+                           !open ? theme::kInkSoft : canBuy || bought ? kInk : theme::kInkSoft,
+                           kCellW - (open ? 22.0f : 8.0f), 0.55f);
         }
     }
     theme::paper(1, kInfoY - 3, 318, 18, 5.0f);

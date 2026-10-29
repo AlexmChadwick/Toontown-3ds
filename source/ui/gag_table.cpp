@@ -58,11 +58,9 @@ void drawGagTable(PageText& text, const GagTableData& d, float x, float y, float
             theme::roundRect(cx + 1, ry + 1, cellW - 3, cellH - 2, 3,
                              n ? theme::mix(col, theme::kWhite, 0.55f) : theme::kPaperShade);
             world::GagAtlas::instance().drawIcon(t, l, cx + 1, ry + 1, icon, 0.55f, n ? 1.0f : 0.35f);
-            // The count on a paper badge in the cell's lower right, over the icon.
-            const float bw = n >= 10 ? 13.0f : 8.0f;
-            theme::roundRect(cx + cellW - bw - 2, ry + cellH - 11, bw, 10, 3, theme::kPaper, 0.58f);
-            text.right(cx + cellW - 2.5f, ry + cellH - 13.5f, theme::kTextTiny, n ? theme::kInk : theme::kInkSoft, 0,
-                       "%u", n);
+            // The count in a disc on the slot's lower right. One to three digits stay
+            // centred inside it, and the disc stays inside the slot.
+            text.countDisc(cx, ry, cellW - 1, cellH, n);
         }
         // Experience sits above its bar, shrunk to the column, so "10000/10000" is not cut
         // by the slot edge or covered by the bar.

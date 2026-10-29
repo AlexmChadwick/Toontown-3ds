@@ -93,5 +93,9 @@ u32 shade(u32 c, float scale);
 void textCentered(const C2D_Text& t, float cx, float y, float scale, u32 color, float maxW = 0.0f,
                   float z = 0.5f);
 void textFit(const C2D_Text& t, float x, float y, float scale, u32 color, float maxW, float z = 0.5f);
+// Count badge in the tile's lower-right: a disc for one digit, a pill for two or three.
+// The glyph is centred and scaled so it stays inside the badge, and the badge stays
+// inside the tile. Face is dark, digit is white, so it reads on a track-coloured slot.
+void countDisc(const C2D_Text& text, float tileX, float tileY, float tileW, float tileH, float z = 0.6f);
 
 } // namespace tt::ui::theme

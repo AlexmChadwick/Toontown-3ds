@@ -219,7 +219,11 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     text(6, 0, 0.45f, kInk, "%s", v.status ? v.status : "");
     if (v.secondsLeft >= 0) {
         theme::roundRect(282, 0, 36, 17, 6, v.secondsLeft <= 5 ? theme::kRed : theme::kYellow);
-        text(292, 0, 0.5f, v.secondsLeft <= 5 ? theme::kWhite : kInk, "%d", v.secondsLeft);
+        char sec[8];
+        snprintf(sec, sizeof sec, "%d", v.secondsLeft);
+        C2D_Text secText;
+        textCache_.parse(&secText, buf_, sec, 1024);
+        theme::textCentered(secText, 300, 1, 0.46f, v.secondsLeft <= 5 ? theme::kWhite : kInk, 32, 0.6f);
     }
 
     // Cogs: name, head, level and the chest light's health. The target wears a red frame.
@@ -243,7 +247,9 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
         if (c.lured) {
             theme::roundRect(rx - 1, kCogY + 16, 30, 12, 5, theme::kGreen, 0.57f);
-            text(rx + 3, kCogY + 16, 0.34f, theme::kWhite, "Lured");
+            C2D_Text lure;
+            textCache_.parse(&lure, buf_, "Lured", 1024);
+            theme::textFit(lure, rx + 1, kCogY + 16, 0.32f, theme::kWhite, 28, 0.6f);
         } else if (c.level > 0) {
             text(rx, kCogY + 16, 0.36f, kInkSoft, "Level %d", c.level);
         }
@@ -323,7 +329,11 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             theme::roundRect(x, y, kCellW, kRowH - 2, 4, ok ? theme::shade(theme::kTrackColors[t], 0.7f) : theme::kGrey);
             theme::roundRect(x + 1, y + 1, kCellW - 2, kRowH - 4, 3, face);
             world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, ok ? 1.0f : 0.4f);
-            text(x + 20, y + 2, 0.38f, ok ? kInk : kInkSoft, "%u", unsigned(g.count[t][l]));
+            char num[8];
+            snprintf(num, sizeof num, "%u", unsigned(g.count[t][l]));
+            C2D_Text count;
+            textCache_.parse(&count, buf_, num, 1024);
+            theme::countDisc(count, x, y, kCellW, kRowH - 2, 0.6f);
         }
     }
 
