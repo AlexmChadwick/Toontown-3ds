@@ -32,6 +32,30 @@ const u32 kOutline = C2D_Color32(0x55, 0x3D, 0x2A, 0xFF);
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
 
+// DirectGui gives the stock SpeedChat branches their own button colours.  Preserve
+// that visual grouping without another texture: descendants inherit the colour of
+// their root category, while the root menu gives each category its own card.  The
+// palette is deliberately dark enough for the original cream label colour.
+u32 categoryColor(int menu) {
+    static const u32 palette[] = {
+        C2D_Color32(0x9A, 0x2D, 0x28, 0xFF), // red leather
+        C2D_Color32(0x3B, 0x72, 0xA5, 0xFF), // playground blue
+        C2D_Color32(0x4D, 0x83, 0x43, 0xFF), // gag green
+        C2D_Color32(0x8A, 0x55, 0x98, 0xFF), // toon purple
+        C2D_Color32(0xA0, 0x63, 0x2D, 0xFF), // warm orange
+        C2D_Color32(0x3D, 0x83, 0x82, 0xFF), // teal
+    };
+    int branch = menu;
+    while (branch > 0 && sc::kMenus[branch].parent > 0) branch = sc::kMenus[branch].parent;
+    if (branch <= 0) return kPanelMenu;
+    const sc::Menu& root = sc::kMenus[0];
+    for (int i = 0; i < root.numItems; i++) {
+        const sc::Item& item = sc::kItems[root.firstItem + i];
+        if (item.isMenu && item.value == branch) return palette[i % (sizeof(palette) / sizeof(palette[0]))];
+    }
+    return kPanelMenu;
+}
+
 } // namespace
 
 bool ChatMenu::init() {
@@ -248,7 +272,8 @@ void ChatMenu::draw(float panelBottom) {
         const sc::Item& it = sc::kItems[m.firstItem + i];
         const float y = kHeaderH + i * kRowH - scroll_;
         const bool focused = i == focus_;
-        const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? kPanelMenu : kPanel));
+        const u32 menuBg = categoryColor(menu_ == 0 && it.isMenu ? it.value : menu_);
+        const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? menuBg : kPanel));
         // Stock SpeedChat is a stack of opaque speech cards.  The dark outline keeps
         // white phrase cards readable over a bright map while category cards retain
         // the red Shticker Book leather colour.
@@ -284,7 +309,7 @@ void ChatMenu::draw(float panelBottom) {
     float titleX = kMarginX + 2.0f;
     if (m.parent >= 0) {
         shape::roundFrame(kMarginX, 2, kZ, kBackW, kHeaderH - 4, 6.0f, 1.0f,
-                          kAccent, pressedBack_ ? kPressed : kPanelMenu);
+                          kAccent, pressedBack_ ? kPressed : categoryColor(menu_));
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ, 0.5f, 0.5f, kWhite);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {

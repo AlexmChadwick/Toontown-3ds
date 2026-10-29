@@ -101,7 +101,7 @@ uint32_t BattlePanel::targetFor(const world::BattleView& v, int track) const {
 }
 
 bool BattlePanel::usable(const world::BattleView& v, const BattleGags& g, int track, int level) const {
-    if (!g.count || !g.access[track] || g.count[track][level] == 0) return false;
+    if (!g.count || !g.access || !g.exp || !g.access[track] || g.count[track][level] == 0) return false;
     if (level >= gags::levelsUnlocked(track, g.exp[track])) return false;
     // TownBattle.checkHealTrapLure: no Toon-Up alone, no Trap once every Cog is trapped or lured,
     // no Lure (or Trap) once every Cog is lured.
