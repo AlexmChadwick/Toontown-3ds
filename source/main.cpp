@@ -799,9 +799,34 @@ int main() {
                     continue;
                 }
                 const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;
-                if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
-                    player.reset(cx, cy, t.min[2], player.headingDeg());
-                    TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
+                if (strcmp(autotest.label(), "move: door") != 0) {
+                    if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
+                        player.reset(cx, cy, t.min[2], player.headingDeg());
+                        TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
+                    }
+                    break;
+                }
+                if (!transition.idle()) {
+                    // A transition (the minigame return) still owns the toon: wait beside the door.
+                    break;
+                }
+                // Exits are found at the toon's probe (just ahead of it), and flush door triggers
+                // push a toon standing still back out, so run into the trigger like a player:
+                // from 4 units on the place's side (toward its middle), facing it.
+                const u32 target = place.exitAt(cx, cy, t.min[2]).targetZone;
+                const tt::world::Exit probe = place.exitAt(player.probeX(), player.probeY(), player.z());
+                const float dx = cx - player.x(), dy = cy - player.y(), d2 = dx * dx + dy * dy;
+                const float c = sqrtf(cx * cx + cy * cy), ux = c > 1.0f ? cx / c : 0.0f, uy = c > 1.0f ? cy / c : 1.0f;
+                if (probe.kind != tt::world::Exit::None && probe.targetZone == target && lastExitZone != target) {
+                    // The exit code takes it from here this frame.
+                } else if (d2 > 36.0f || lastExitZone == target) {
+                    // Far away, or the no-bounce guard holds this door: start over from outside.
+                    player.reset(cx - ux * 4.0f, cy - uy * 4.0f, t.min[2], atan2f(-ux, uy) / kDegToRad);
+                    TT_LOG("autotest: moved to %s / %s", t.name, t.owner);
+                } else {
+                    player.reset(player.x(), player.y(), player.z(), atan2f(-dx, dy) / kDegToRad);
+                    in.pad.dx = 0;
+                    in.pad.dy = 150;
                 }
                 break;
             }
