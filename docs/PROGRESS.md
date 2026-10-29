@@ -3,6 +3,52 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 — Exact shared-texture planning (TZ v4)
+
+### Done
+- Added TZ v4 while retaining runtime and host-reader compatibility with v1-v3. V4 keeps
+  the lossless shared payload pool and adds fixed 256-bit near/far texture-identity sets per
+  chunk plus a compact table of 0x80-aligned allocation costs.
+- Changed near/far selection to budget the exact union of selected shared GPU pages instead
+  of summing duplicated per-chunk texture totals. Queue admission likewise unions resident,
+  in-flight and incoming identity sets, so a shared page no longer forces an unnecessary far
+  LOD, old-LOD retirement, or stalled upgrade. The cache remains the final 8 MiB hard gate.
+- Kept planning allocation-free and bounded: each union is 32 bytes, at most 256 identities,
+  and malformed out-of-range bits or costs fail zone validation. New bakes/repacking default
+  to v4; old files retain their previous conservative behavior.
+- Made `tools/perf_test/run.sh` honor `CXX` (default `c++`) and fail with an actionable error,
+  instead of hard-coding Clang on every compile command.
+
+### Verified
+- Synthetic containers built from the committed title-logo TTM and TTC collision round-trip
+  through `tz.write`/`tz.validate` in versions 1, 2, 3 and 4. `tz.model_bytes` reconstructs
+  the original TTM byte-for-byte. Sizes were 245120, 376704, 245632 and 245888 bytes,
+  respectively, so v4 added 256 bytes over v3 in this one-model fixture.
+- `python3 -m py_compile tools/pipeline/tz.py tools/zone_test/run.py`, `bash -n` on the perf
+  runner, its explicit missing-compiler diagnostic, and `git diff --check` pass.
+- This checkout has no C++ compiler, devkitARM, Panda3D environment, full zone bake, or
+  emulator. The real C++ zone suite, 3DS build and Azahar memory/PVS walk could not run here.
+
+### Asset size decisions
+- No texture was changed, downscaled or recompressed. V4 adds 64 bytes per chunk plus a
+  small allocation-cost directory; texture payloads remain byte-identical to v3.
+
+### Known issues
+- Rebuild the full SD zone/level set before deployment because the runtime deliberately
+  uses exact planning metadata only for new v4 files. Existing v1-v3 files still load.
+- V4 needs an equipped Old 3DS Azahar and hardware walk under repeated PVS/near-far churn.
+  Confirm planner choices, cache telemetry, linear high-water marks and corrupt-directory
+  rejection with the real C++ suite.
+- Facility collision/layout staging, four boss battles and the first real-hardware
+  performance pass remain open.
+
+### Next
+- Run the full deterministic SD bake, compare v3/v4 package sizes, and execute
+  `tools/zone_test/run.py` across every exterior and facility zone.
+- Exercise near/far boundaries under forced texture pressure in Old 3DS mode, checking that
+  exact planning admits quality upgrades without exceeding 8 MiB.
+- Move facility room collision and layout preparation off the main thread.
+
 ## 2026-10-28 — Exact linear-memory accounting for model textures
 
 ### Done
