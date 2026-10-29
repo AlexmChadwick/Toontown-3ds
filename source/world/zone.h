@@ -1,4 +1,4 @@
-// TZ01 v1/v2 streaming container. See tools/pipeline/tz.py and docs/design/streets.md.
+// TZ01 v1-v4 streaming container. See tools/pipeline/tz.py and docs/design/streets.md.
 #pragma once
 #include <cstdint>
 #include "world/collision.h"

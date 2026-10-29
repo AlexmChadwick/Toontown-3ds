@@ -37,7 +37,7 @@ int main(int argc,char** argv) {
         assert(zone.update(p,changed,&events));
         assert(zone.currentZone()==expected);
         assert(zone.numVisible()>0);
-        if (zone.version()==2) assert(zone.triangles()<=15000 && zone.drawCalls()<=150);
+        if (zone.version()>=2) assert(zone.triangles()<=15000 && zone.drawCalls()<=150);
         assert(zone.geometryBytes()<=zone.kGeometryBudget && zone.textureBytes()<=zone.kTextureBudget);
         uint16_t ids[257];
         assert(zone.visibleZones(ids,257)>0);
@@ -86,7 +86,7 @@ int main(int argc,char** argv) {
     assert(zone.load(argv[1]));
     assert(zone.update({1e6f,1e6f,1e6f}));
     assert(zone.currentCell()>=0);
-    if (zone.version()==2) assert(zone.triangles()<=15000 && zone.drawCalls()<=150);
+    if (zone.version()>=2) assert(zone.triangles()<=15000 && zone.drawCalls()<=150);
     zone.unload();
     // Every trailing path is a deliberately corrupt fixture.
     for (int i=3;i<argc;++i) {

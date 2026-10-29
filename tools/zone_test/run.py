@@ -161,7 +161,7 @@ def run_real(out, zones=None):
             if zone['version']>=2:
                 d=bytearray(data); struct.pack_into('<I',d,co+80,len(data)+128); bad('low-offset',d)
                 d=bytearray(data); struct.pack_into('<I',d,co+100,15001); bad('tri-budget',d)
-            if zone['version']==3:
+            if zone['version']>=3:
                 # A pooled texture offset past the pool, and a pool running past the file.
                 m=next(m for m in zone['chunks'] if m['size'] and struct.unpack_from('<H',data,m['offset']+8)[0])
                 d=bytearray(data); tt=struct.unpack_from('<I',data,m['offset']+44)[0]

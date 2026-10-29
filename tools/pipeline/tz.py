@@ -38,6 +38,12 @@ and each entry's dataOffset (still relative to its own blob, as Model::loadFrom 
 it) points forward into the pool. Atlas pages shared by many chunks are therefore stored
 once on SD; residency budgets are unchanged (each loaded chunk still holds its copy).
 model_bytes() rebuilds the standalone TTM1 for host tools.
+
+Version 4 adds exact texture-planning metadata. Chunk entries are 168 bytes: the v2
+entry followed by one 256-bit texture-identity set for each LOD. The pool starts with
+a TPR1 header and one aligned allocation cost per identity. This lets the runtime OR
+the selected models' sets and budget the unique GPU allocations without reading TTM
+tables on the main thread. Texture payloads and their offsets otherwise match v3.
 """
 import math
 import struct
@@ -47,6 +53,8 @@ HEADER = struct.Struct('<4sHH14I')
 CHUNK = struct.Struct('<9I6f2I12s')
 LOW = struct.Struct('<6I')
 CHUNK_V2_SIZE = 104
+CHUNK_V4_SIZE = 168
+POOL_REFS = struct.Struct('<4sHHII')
 FLOOR = struct.Struct('<9fHH')
 TRIGGER = struct.Struct('<6fI64s64s')
 GEOM_BUDGET, TEX_BUDGET, DRAW_BUDGET = 6*1024*1024, 8*1024*1024, 150
@@ -111,13 +119,13 @@ def model_bytes(data, off, size):
     return bytes(blob)
 
 
-def write(path, branch, chunks, floors, triggers, collision, version=3):
-    if version not in (1,2,3):
+def write(path, branch, chunks, floors, triggers, collision, version=4):
+    if version not in (1,2,3,4):
         raise ValueError("unsupported TZ version")
-    stride=80 if version==1 else CHUNK_V2_SIZE
+    stride=80 if version==1 else (CHUNK_V4_SIZE if version==4 else CHUNK_V2_SIZE)
     models = [c['model'] for c in chunks]
     lows = [c['low_model'] for c in chunks] if version>=2 else []
-    if version==3:
+    if version>=3:
         stripped, pool = _pool_models([m for pair in zip(models, lows) for m in pair])
         models, lows = [m for m, _ in stripped[0::2]], [m for m, _ in stripped[1::2]]
         refs = [r for _, r in stripped]
@@ -136,8 +144,28 @@ def write(path, branch, chunks, floors, triggers, collision, version=3):
             lows_at.append(cursor if lows[i] else 0)
             cursor = align(cursor + len(lows[i]))
     pool_off = pool_size = 0
-    if version==3 and pool:
+    masks = [bytes(32) for _ in refs] if version==4 else []
+    costs = []
+    if version==4:
+        identities = {}
+        mutable = [bytearray(32) for _ in refs]
+        for model_index, ((blob, rr), mask) in enumerate(zip(stripped, mutable)):
+            for entry, pool_index in rr:
+                e = TTM_TEX.unpack_from(blob, entry)
+                key = (pool_index, *e[:6], e[7])
+                identity = identities.get(key)
+                if identity is None:
+                    identity = len(identities)
+                    if identity >= 256:
+                        raise ValueError('TZ v4 has more than 256 texture identities')
+                    identities[key] = identity
+                    costs.append(align(e[7]))
+                mask[identity >> 3] |= 1 << (identity & 7)
+        masks = [bytes(m) for m in mutable]
+    if version>=3 and pool:
         pool_off, pool_at = cursor, []
+        if version==4:
+            cursor = align(cursor + POOL_REFS.size + 4*len(costs))
         for payload in pool:
             pool_at.append(cursor)
             cursor = align(cursor + len(payload))
@@ -145,7 +173,11 @@ def write(path, branch, chunks, floors, triggers, collision, version=3):
     out = bytearray(cursor)
     HEADER.pack_into(out, 0, b'TZ01', version, 0, branch, len(chunks), len(vis), len(floors), len(triggers),
                      co, vo, fo, to, clo, len(collision), len(out), pool_off, pool_size)
-    if version==3:
+    if version>=3:
+        if version==4 and pool:
+            POOL_REFS.pack_into(out, pool_off, b'TPR1', 1, len(costs), POOL_REFS.size+4*len(costs), 0)
+            if costs:
+                struct.pack_into(f'<{len(costs)}I', out, pool_off+POOL_REFS.size, *costs)
         for payload, at in zip(pool, pool_at if pool else []):
             out[at:at+len(payload)] = payload
         blob_at = [a for pair in zip(offsets, lows_at) for a in pair]
@@ -169,8 +201,11 @@ def write(path, branch, chunks, floors, triggers, collision, version=3):
             LOW.pack_into(out,co+i*stride+80,lows_at[i],len(lows[i]),ls['geometry_bytes'],ls['texture_bytes'],ls['batches'],ls['triangles'])
             if version==2:
                 out[lows_at[i]:lows_at[i]+len(lows[i])]=lows[i]
+            if version==4:
+                out[co+i*stride+104:co+i*stride+136] = masks[2*i]
+                out[co+i*stride+136:co+i*stride+168] = masks[2*i+1]
         first += len(c['vis'])
-        if version!=3:
+        if version<3:
             out[offsets[i]:offsets[i]+len(models[i])] = models[i]
     if vis:
         struct.pack_into(f'<{len(vis)}H', out, vo, *vis)
@@ -204,20 +239,27 @@ def validate(data):
             raise ValueError(msg)
     check(len(data) >= 64, 'short TZ header')
     h = HEADER.unpack_from(data)
-    check(h[0]==b'TZ01' and h[1] in (1,2,3) and h[2]==0, 'bad magic/version/flags')
+    check(h[0]==b'TZ01' and h[1] in (1,2,3,4) and h[2]==0, 'bad magic/version/flags')
     version=h[1]
-    stride=80 if version==1 else CHUNK_V2_SIZE
+    stride=80 if version==1 else (CHUNK_V4_SIZE if version==4 else CHUNK_V2_SIZE)
     branch, nc, nv, nf, nt, co, vo, fo, to, clo, cls, size, r0, r1 = h[3:]
-    check(size == len(data) and (version==3 or not (r0 or r1)) and 0 < nc <= 256 and 0 < branch <= 65535, 'bad size/count')
+    check(size == len(data) and (version>=3 or not (r0 or r1)) and 0 < nc <= 256 and 0 < branch <= 65535, 'bad size/count')
     def section(off, length):
         check(off >= 64 and off % 128 == 0 and off <= size and length <= size-off, 'invalid section')
     for off, n in ((co,nc*stride),(vo,nv*2),(fo,nf*40),(to,nt*156),(clo,cls)):
         section(off,n)
     if r1:
         section(r0,r1)
+    identity_costs = []
+    if version==4 and r1:
+        magic, pv, identities, directory_bytes, reserved = POOL_REFS.unpack_from(data, r0)
+        check(magic==b'TPR1' and pv==1 and reserved==0 and identities<=256 and
+              directory_bytes==POOL_REFS.size+4*identities and directory_bytes<=r1, 'bad texture planning directory')
+        identity_costs = list(struct.unpack_from(f'<{identities}I', data, r0+POOL_REFS.size))
+        check(all(c and c%128==0 for c in identity_costs), 'bad texture planning cost')
     intervals = [(co,co+nc*stride),(vo,vo+nv*2),(fo,fo+nf*40),(to,to+nt*156),(clo,clo+cls),(r0,r0+r1)]
     def blob(off,length,*stats):
-        if version==3:  # pooled payloads must lie inside the pool (or the blob itself)
+        if version>=3:  # pooled payloads must lie inside the pool (or the blob itself)
             th=TTM_HEADER.unpack_from(data,off)
             for k in range(th[3]):
                 e=TTM_TEX.unpack_from(data,off+th[13]+k*48)
@@ -251,6 +293,10 @@ def validate(data):
                 blob(low[0],low[1],*low[2:])
             else:
                 check(not any(low), 'invalid empty low model')
+        if version==4:
+            for mask in (data[co+i*stride+104:co+i*stride+136], data[co+i*stride+136:co+i*stride+168]):
+                check(all(not (byte & (1<<bit)) or byte_index*8+bit < len(identity_costs)
+                          for byte_index,byte in enumerate(mask) for bit in range(8)), 'texture identity out of range')
         chunks.append({'zone':zone,'vis':ids,'name':c[17].split(b'\0')[0].decode(),
                        'offset':off,'size':length,'low_offset':low[0],'low_size':low[1],
                        'low_stats':dict(zip(('geometry_bytes','texture_bytes','batches','triangles'),low[2:])), 'bounds':(c[9:12],c[12:15]),
@@ -355,7 +401,7 @@ def validate_collision(data):
         check(kind<=1 and first<=(nt if kind else nc) and count<=(nt if kind else nc)-first)
 
 
-def repack(path, version=3):
+def repack(path, version=4):
     """Rewrite an existing .tz in another version (same chunks, floors, triggers, collision)."""
     data = Path(path).read_bytes()
     zone = validate(data)
@@ -373,9 +419,9 @@ def repack(path, version=3):
 
 if __name__ == '__main__':
     import argparse
-    ap = argparse.ArgumentParser(description='Repack baked .tz files (default: to v3, shared textures).')
+    ap = argparse.ArgumentParser(description='Repack baked .tz files (default: v4 shared textures + exact planning).')
     ap.add_argument('files', nargs='+')
-    ap.add_argument('--version', type=int, default=3, choices=(1, 2, 3))
+    ap.add_argument('--version', type=int, default=4, choices=(1, 2, 3, 4))
     args = ap.parse_args()
     for f in args.files:
         before, after = repack(f, args.version)

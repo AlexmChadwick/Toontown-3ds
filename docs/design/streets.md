@@ -75,7 +75,7 @@ it through the actual C++ code, in addition to testing every v2 output.
 
 Every chunk TTM used to carry its own copy of each atlas page it touched, so a page shared
 by 30 chunks was stored 30 times (near and far). Across all `.tz` files that was 271 MB of
-texture copies for about 12 MB of distinct payloads. TZ v3 (the `tz.write` default) keeps
+texture copies for about 12 MB of distinct payloads. TZ v3 introduced a layout that keeps
 the v2 layout and stores each distinct payload once in a pool after the last blob; the
 header's two former reserved words are the pool offset and size. Embedded TTMs keep their
 full texture tables but end after their index data, and each entry's blob-relative
@@ -83,9 +83,9 @@ full texture tables but end after their index data, and each entry's blob-relati
 (`tz.validate`, `zone.cpp`) require every pooled payload to lie inside the pool.
 `tz.model_bytes()` rebuilds a standalone TTM for host tools.
 
-Residency is unchanged: each loaded chunk still uploads its own copy of a texture, and the
-budgets count those copies. Existing files convert without a rebake (lossless; v3 -> v2
-gives back the original bytes):
+The original v3 implementation uploaded a copy per chunk; the runtime residency cache now
+shares those uploads too. Existing files convert without a rebake (lossless; v3 -> v2 gives
+back the original bytes):
 
 ```sh
 .venv/bin/python -I tools/pipeline/tz.py sdmc-out/3ds/toontown3ds/data/{zones,estate,level}/*.tz
@@ -93,6 +93,16 @@ gives back the original bytes):
 ```
 
 Sizes on SD: zones 389 -> 131 MB (2100.tz 22.0 -> 6.2 MB), level 68 -> 58 MB.
+
+## Format v4: exact shared-texture planning (2026-10-29)
+
+V4 keeps the v3 payload pool and adds two 256-bit texture-identity sets to each chunk,
+one per LOD. A small `TPR1` directory at the start of the pool records each identity's
+0x80-aligned linear-allocation cost. The runtime ORs the selected models' fixed-size sets
+and sums each unique cost once. Near/far selection therefore uses the same shared-page
+semantics as residency without probing scattered TTM texture tables during zone entry.
+The cache remains the final hard 8 MiB admission gate. V1-v3 files remain readable;
+new bakes and `tz.py` repacks default to v4.
 
 ## Geometry reduction and runtime selection
 
@@ -132,7 +142,7 @@ limiting SD churn. Stable updates and selection use fixed arrays and no allocati
 An old LOD normally stays visible until its replacement is ready. If temporary double
 residency would exceed a hard geometry or conservative texture cap, it is GPU-fenced and
 retired before the replacement is queued, avoiding a loader wait that can never resolve.
-TZ v3 shared pages are reference counted, freed as soon as the last model releases them,
+TZ v3/v4 shared pages are reference counted, freed as soon as the last model releases them,
 and admitted against the exact unique full-mip-chain byte total; walking through PVS cells
 therefore cannot accumulate the entire zone texture pool. Model/Anim's existing shared
 allocator lock is never held around a Model::loadFrom call. A failed load clears partial

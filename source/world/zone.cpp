@@ -25,9 +25,10 @@ struct Chunk {
     uint32_t firstFloor, numFloors;
     char name[12];
     uint32_t lowOffset, lowSize, lowGeom, lowTex, lowDraws, lowTris;
+    uint8_t textureSet[2][32]; // v4: exact near/far shared-texture identity sets
 };
 struct Floor { float p[9]; uint16_t cell, zone; };
-static_assert(sizeof(Header) == 64 && sizeof(Chunk) == 104 && sizeof(Floor) == 40, "TZ layout");
+static_assert(sizeof(Header) == 64 && sizeof(Chunk) == 168 && sizeof(Floor) == 40, "TZ layout");
 static_assert(sizeof(Zone::Trigger) == 156, "TZ trigger layout");
 bool span(uint32_t off, uint32_t count, uint32_t stride, uint32_t size) {
     return off >= 64 && off <= size && count <= (size - off) / stride;
@@ -184,6 +185,8 @@ struct Zone::Impl {
     Floor* floors = nullptr;
     FloorGrid grid;
     Trigger* triggers = nullptr;
+    uint32_t textureCosts[256] = {}; // v4, allocation-aligned bytes per identity
+    uint16_t textureIdentities = 0;
     bool resident[kMaxChunks] = {};
     uint8_t lod[kMaxChunks] = {};
     // The current plan: which chunks should be resident, at which LOD, nearest first.
@@ -338,7 +341,7 @@ void loaderMain(void* arg) {
         // Model owns the shared LinearGuard; never lock around this call.  Validation
         // happens first, before malformed counts or offsets can reach GPU allocation.
         const bool ok = validation == 1 && job->model.loadFrom(
-            z.file, d.offset, "tz chunk", nullptr, z.h.version == 3 ? &z.textureCache : nullptr);
+            z.file, d.offset, "tz chunk", nullptr, z.h.version >= 3 ? &z.textureCache : nullptr);
         LightLock_Lock(&z.lock);
         job->state = ok ? Zone::Impl::Done : Zone::Impl::Failed;
         LightLock_Unlock(&z.lock);
@@ -424,17 +427,28 @@ bool Zone::load(const char* path) {
     z.file=fopen(path,"rb");
     bool ok=z.file && readAt(z.file,0,&z.h,sizeof(z.h));
     Header& h=z.h;
-    ok=ok && !memcmp(h.magic,"TZ01",4) && h.version>=1 && h.version<=3 && !h.flags &&
-       (h.version==3 || (!h.poolOff && !h.poolSize)) &&
+    ok=ok && !memcmp(h.magic,"TZ01",4) && h.version>=1 && h.version<=4 && !h.flags &&
+       (h.version>=3 || (!h.poolOff && !h.poolSize)) &&
        h.branch>0 && h.branch<=65535 && h.chunks>0 && h.chunks<=kMaxChunks &&
        h.vis<=kMaxChunks*kMaxChunks && h.floors<=100000 && h.triggers<=4096 && h.size<=128u*1024*1024;
-    const uint32_t stride=h.version>=2 ? 104 : 80;
+    const uint32_t stride=h.version==1 ? 80 : (h.version==4 ? 168 : 104);
     if (ok) {
         ok=fseek(z.file,0,SEEK_END)==0 && ftell(z.file)==static_cast<long>(h.size) &&
            section(h.chunkOff,h.chunks,stride,h.size) && section(h.visOff,h.vis,2,h.size) &&
            section(h.floorOff,h.floors,40,h.size) && section(h.triggerOff,h.triggers,156,h.size) &&
            h.collisionSize>=96 && h.collisionSize<=8u*1024*1024 && section(h.collisionOff,h.collisionSize,1,h.size) &&
            (!h.poolSize || section(h.poolOff,h.poolSize,1,h.size));
+    }
+    if (ok && h.version==4 && h.poolSize) {
+        struct PoolRefs { char magic[4]; uint16_t version, identities; uint32_t bytes, reserved; } p;
+        ok=readAt(z.file,h.poolOff,&p,sizeof(p)) && !memcmp(p.magic,"TPR1",4) && p.version==1 &&
+           p.identities<=256 && p.bytes==sizeof(p)+4u*p.identities && !p.reserved && p.bytes<=h.poolSize;
+        if (ok) {
+            z.textureIdentities=p.identities;
+            ok=readAt(z.file,h.poolOff+sizeof(p),z.textureCosts,4u*p.identities);
+            for (uint32_t i=0;ok && i<p.identities;++i)
+                ok=z.textureCosts[i] && !(z.textureCosts[i]&127u);
+        }
     }
     if (ok) {
         z.chunks=static_cast<Chunk*>(calloc(h.chunks,sizeof(Chunk)));
@@ -445,7 +459,7 @@ bool Zone::load(const char* path) {
            readAt(z.file,h.visOff,z.vis,h.vis*2) &&
            readAt(z.file,h.floorOff,z.floors,h.floors*40) && readAt(z.file,h.triggerOff,z.triggers,h.triggers*156);
     }
-    if (ok && stride==sizeof(Chunk)) ok=readAt(z.file,h.chunkOff,z.chunks,h.chunks*stride); // v2+: one read
+    if (ok && stride==sizeof(Chunk)) ok=readAt(z.file,h.chunkOff,z.chunks,h.chunks*stride); // v4: one read
     else for (uint32_t i=0;ok && i<h.chunks;++i) {
         ok=readAt(z.file,h.chunkOff+i*stride,&z.chunks[i],stride);
     }
@@ -484,6 +498,9 @@ bool Zone::load(const char* path) {
             }
             else ok=ok && !(low.offset || low.geom || low.tex || low.draws || low.tris);
         }
+        if (h.version==4) for (int lod=0;ok && lod<2;++lod)
+            for (uint32_t bit=z.textureIdentities;bit<256;++bit)
+                if (c.textureSet[lod][bit>>3]&(1u<<(bit&7))) { ok=false; break; }
     }
     // Sections must be disjoint, including blobs (prevents aliasing metadata).
     uint32_t starts[kMaxChunks*2+6], ends[kMaxChunks*2+6];
@@ -513,10 +530,17 @@ bool Zone::load(const char* path) {
     }
     for (uint32_t i=0;ok && i<h.chunks;++i) {
         uint64_t geom=0,tex=0,draws=0,tris=0;
+        uint8_t textureSet[32] = {};
         const Chunk& c=z.chunks[i];
         for (uint32_t j=0;j<c.numVis;++j) {
             const Chunk v=modelInfo(z.chunks[z.vis[c.firstVis+j]],h.version>=2 ? 1 : 0);
             geom+=v.geom; tex+=v.tex; draws+=v.draws; tris+=v.tris;
+            if (h.version==4) for (int b=0;b<32;++b) textureSet[b]|=z.chunks[z.vis[c.firstVis+j]].textureSet[1][b];
+        }
+        if (h.version==4) {
+            tex=0;
+            for (uint32_t bit=0;bit<z.textureIdentities;++bit)
+                if (textureSet[bit>>3]&(1u<<(bit&7))) tex+=z.textureCosts[bit];
         }
         ok=geom<=kGeometryBudget && tex<=kTextureBudget && draws<=150 && (h.version==1 || tris<=kTriangleBudget);
     }
@@ -613,6 +637,19 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         for (uint32_t i=0;i<z.h.chunks;++i) if (z.extra[i]) want(static_cast<uint16_t>(i));
         z.extraDirty=false;
         z.numOrder=count;
+        auto exactTextureBytes=[&]() -> uint64_t {
+            uint8_t set[32] = {};
+            for (uint32_t k=0;k<count;++k) {
+                const uint16_t id=z.order[k];
+                const uint8_t* modelSet=z.chunks[id].textureSet[z.choice[id]];
+                for (int b=0;b<32;++b) set[b]|=modelSet[b];
+            }
+            uint64_t bytes=0;
+            for (uint32_t bit=0;bit<z.textureIdentities;++bit)
+                if (set[bit>>3]&(1u<<(bit&7))) bytes+=z.textureCosts[bit];
+            return bytes;
+        };
+        if (z.h.version==4) tex=exactTextureBytes();
         // Stable nearest-first insertion sort; fixed storage, no per-frame allocation.
         for (uint32_t j=1;j<count;++j) {
             const uint16_t id=z.order[j];
@@ -632,8 +669,14 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const float reach=z.resident[id] && z.lod[id]==0 ? 75.0f : 65.0f;
                 if (distance2(feet,high)>reach*reach) continue;
                 const Chunk low=modelInfo(high,1);
-                const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
+                const uint64_t g=geom-low.geom+high.geom;
+                uint64_t t=tex-low.tex+high.tex;
                 const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
+                if (z.h.version==4) {
+                    z.choice[id]=0;
+                    t=exactTextureBytes();
+                    z.choice[id]=1;
+                }
                 if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=150) {
                     z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
                 }
@@ -692,6 +735,19 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             inflightGeom+=d.geom; inflightTex+=d.tex;
         }
     }
+    auto exactQueuedTextureBytes=[&](uint16_t incoming,uint8_t incomingLod) -> uint64_t {
+        uint8_t set[32] = {};
+        auto include=[&](uint16_t chunk,uint8_t lod) {
+            for (int b=0;b<32;++b) set[b]|=z.chunks[chunk].textureSet[lod][b];
+        };
+        for (uint32_t k=0;k<z.h.chunks;++k) if (z.resident[k]) include(k,z.lod[k]);
+        for (const auto& job:z.jobs) if (job.state!=Impl::Free) include(job.chunk,job.lod);
+        include(incoming,incomingLod);
+        uint64_t bytes=0;
+        for (uint32_t bit=0;bit<z.textureIdentities;++bit)
+            if (set[bit>>3]&(1u<<(bit&7))) bytes+=z.textureCosts[bit];
+        return bytes;
+    };
 #endif
     // 2. Evict chunks the plan no longer wants. A chunk changing LOD stays drawn until
     // its replacement arrives.
@@ -726,11 +782,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         // ready.  If that temporary double residency would exceed either hard budget,
         // retire the old LOD first; otherwise this job can never be queued and loading()
         // remains true forever.  For v3, residentBytes() is the exact cache allocation
-        // total instead of the duplicated per-chunk sum.  Add conservative maxima for
-        // outstanding jobs and the incoming model because their tables may not have been
-        // read yet (a job that has started may be counted twice briefly, which is safe).
+        // total instead of the duplicated per-chunk sum. V4 can also union the fixed
+        // identity sets for resident, outstanding and incoming models exactly; v3 adds
+        // conservative maxima because its tables may not have been read yet.
         // The cache remains the final exact admission check as each page is acquired.
-        const uint64_t texturePressure=z.h.version==3
+        const uint64_t texturePressure=z.h.version==4
+            ? exactQueuedTextureBytes(i,z.choice[i])
+            : z.h.version==3
             ? z.textureCache.residentBytes()+inflightTex+static_cast<uint64_t>(d.tex)
             : z.tex+inflightTex+d.tex;
         if (z.resident[i] && (z.geom+inflightGeom+d.geom>kGeometryBudget ||
@@ -740,7 +798,9 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             account(i,-1);
             z.resident[i]=false;
         }
-        const uint64_t textureAfterRetire=z.h.version==3
+        const uint64_t textureAfterRetire=z.h.version==4
+            ? exactQueuedTextureBytes(i,z.choice[i])
+            : z.h.version==3
             ? z.textureCache.residentBytes()+inflightTex+static_cast<uint64_t>(d.tex)
             : z.tex+inflightTex+d.tex;
         if (z.geom+inflightGeom+d.geom>kGeometryBudget || textureAfterRetire>kTextureBudget) {
@@ -855,7 +915,7 @@ uint32_t Zone::geometryBytes() const { return impl_ ? impl_->geom : 0; }
 uint32_t Zone::textureBytes() const {
     if (!impl_) return 0;
 #ifdef __3DS__
-    if (impl_->h.version==3) return impl_->textureCache.residentBytes();
+    if (impl_->h.version>=3) return impl_->textureCache.residentBytes();
 #endif
     return impl_->tex;
 }
