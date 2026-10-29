@@ -2865,7 +2865,9 @@ int main() {
             }
             hv.laffOnBottom = ui.laffShown();
             hv.toast = toast;
-            if (battle.active() && netStarted) hv.battleSeconds = battleView.secondsLeft;
+            if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
+            if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())
+                hv.timerSeconds = buy->secondsLeft(tt::net::plat::nowMs());
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;

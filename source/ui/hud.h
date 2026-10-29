@@ -21,7 +21,7 @@ struct HudValues {
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
     bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
-    int battleSeconds = -1;       // TownBattle's round timer (top-right ToontownTimer), -1 = hidden
+    int timerSeconds = -1;       // TownBattle's and Purchase's ToontownTimer, top right, -1 = hidden
 };
 
 class Hud {

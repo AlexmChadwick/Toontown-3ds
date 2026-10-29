@@ -97,7 +97,6 @@ void MinigamePurchasePanel::open(const net::Client& client, uint32_t beansWon, u
     selLevel_ = 0;
     pad::buildCounterButtons(buttons_); // padnav: the grid has the focus
     dirty_ = true;
-    lastSecond_ = -1;
     active_ = true;
     activeInstance_ = this;
     TT_LOG("minigame purchase: opened with %u won, %d total money", unsigned(beansWon), cart_.money);
@@ -149,11 +148,6 @@ void MinigamePurchasePanel::update(net::Client& client, uint32_t nowMs) {
     }
     if (note_[0] && int32_t(nowMs - noteUntilMs_) >= 0) {
         note_[0] = 0;
-        dirty_ = true;
-    }
-    const int sec = remain > 0 ? remain / 1000 : 0;
-    if (sec != lastSecond_) {
-        lastSecond_ = sec;
         dirty_ = true;
     }
 }
@@ -253,7 +247,7 @@ void MinigamePurchasePanel::rebuildGrid() {
     }
 }
 
-void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
+void MinigamePurchasePanel::rebuildInfo() {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
     tt::render::textParse(&titleText_, infoBuf_, "Gag Purchase");
@@ -261,9 +255,6 @@ void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
     tt::render::textParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
     tt::render::textParse(&carryText_, infoBuf_, buf);
-    const int sec = deadlineMs_ > nowMs ? int((deadlineMs_ - nowMs) / 1000) : 0;
-    snprintf(buf, sizeof(buf), "%02d:%02d", sec / 60, sec % 60);
-    tt::render::textParse(&timerText_, infoBuf_, buf);
     // The Gag Shop's info line (ui/shop_panel.cpp), plus why a gag can't be added.
     const int t = selTrack_, l = selLevel_;
     const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
@@ -286,7 +277,6 @@ void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
     C2D_TextOptimize(&titleText_);
     C2D_TextOptimize(&beansText_);
     C2D_TextOptimize(&carryText_);
-    C2D_TextOptimize(&timerText_);
     C2D_TextOptimize(&infoText_);
 }
 
@@ -294,7 +284,7 @@ void MinigamePurchasePanel::draw() {
     if (!active_) return;
     if (dirty_) {
         rebuildGrid();
-        rebuildInfo(nowMs_);
+        rebuildInfo();
         dirty_ = false;
     }
     // The same cream gag panel on the sky as the Gag Shop (ui/shop_panel.cpp).
@@ -302,17 +292,14 @@ void MinigamePurchasePanel::draw() {
     theme::paper(1, 0, 318, 22, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
     theme::paper(1, kGridY - 3, 318, gags::kTracks * kCellH + 4, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
     theme::paper(1, kInfoY - 3, 318, 18, 5.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
-    // Title on the left; timer, carry and beans right-aligned from the edge, measured so they
-    // never run into each other.
+    // Title on the left; carry and beans right-aligned from the edge, measured so they never run
+    // into each other. The countdown is Purchase's ToontownTimer in the top screen's corner (ui/hud).
     constexpr float kHeadScale = 0.42f;
     constexpr float kHeadGap = 8.0f;
     float w = 0.0f;
     C2D_DrawText(&titleText_, C2D_WithColor, 7, 4, 0.5f, 0.45f, 0.45f, theme::kRedDark);
-    C2D_TextGetDimensions(&timerText_, kHeadScale, kHeadScale, &w, nullptr);
-    float right = 316.0f - w;
-    C2D_DrawText(&timerText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, theme::kInkSoft);
     C2D_TextGetDimensions(&carryText_, kHeadScale, kHeadScale, &w, nullptr);
-    right -= kHeadGap + w;
+    float right = 316.0f - w;
     C2D_DrawText(&carryText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, theme::kInk);
     C2D_TextGetDimensions(&beansText_, kHeadScale, kHeadScale, &w, nullptr);
     right -= kHeadGap + w;

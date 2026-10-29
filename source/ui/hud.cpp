@@ -109,7 +109,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         face.species = v.species;
         laff_.draw(face, kLaffX, kLaffY, kLaffSize);
     }
-    if (v.battleSeconds >= 0) battleTimer_.draw(v.battleSeconds, kBattleTimerX, kBattleTimerY, kBattleTimerSize);
+    if (v.timerSeconds >= 0) battleTimer_.draw(v.timerSeconds, kBattleTimerX, kBattleTimerY, kBattleTimerSize);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
 }
 
