@@ -11,6 +11,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/draw_shapes.h"
 #include "ui/pad_tables.h" // padnav
 #include "core/memory.h"
 #include "core/profile.h"
@@ -735,6 +736,10 @@ void Ui::drawGags(const Context &c) {
     constexpr float rowY = 25.0f, rowH = 25.0f;
     constexpr float iconX = 67.0f, iconStep = 21.0f, iconSize = 18.0f;
     constexpr float xpX = 220.0f, xpW = 94.0f, xpH = 9.0f;
+    const u32 slotEdge = C2D_Color32(0xA0, 0x91, 0x7D, 0xFF);
+    const u32 slotPaper = C2D_Color32(0xFA, 0xF6, 0xEE, 0xFF);
+    const u32 slotLocked = C2D_Color32(0xC4, 0xBB, 0xAE, 0xFF);
+    const u32 emptyBadge = C2D_Color32(0x88, 0x80, 0x78, 0xFF);
     if (cachedLinesTab_ != kTabGags || numDebugLines_ == 0 || frame_ % kDebugRefreshFrames == 0) {
         C2D_TextBufClear(debugBuf_);
         numDebugLines_ = 0;
@@ -753,10 +758,10 @@ void Ui::drawGags(const Context &c) {
                 debugLine(9, y + 5, 0.38f, have ? kInk : kDim, "%s", gags::kTrackNames[t]);
                 for (int l = 0; l < gags::kLevels; l++) {
                     if (l < levels) {
-                        // A compact white carry badge sits below the icon instead of
-                        // obscuring its face (the old layout printed through the art).
-                        debugLine(iconX + l * iconStep + 12, y + 13, 0.30f,
-                                  c.gagCount[t][l] ? kInk : kDim, "%u",
+                        // Counts sit on an opaque badge drawn below, never directly
+                        // over the detailed original gag art.
+                        debugLine(iconX + l * iconStep + (c.gagCount[t][l] >= 10 ? 10 : 13),
+                                  y + 13, 0.27f, kInk, "%u",
                                   unsigned(c.gagCount[t][l]));
                     }
                 }
@@ -778,21 +783,39 @@ void Ui::drawGags(const Context &c) {
             const int levels = have ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
             C2D_DrawRectSolid(4, y, 0.46f, 312, rowH - 2, (t & 1) ? kPanelAlt : kPanel);
             C2D_DrawRectSolid(4, y, 0.48f, 4, rowH - 2, trackColor[t]);
+            for (int l = 0; l < gags::kLevels; l++) {
+                const float x = iconX + l * iconStep;
+                const bool learned = have && l < levels;
+                shape::roundFrame(x, y + 1, 0.49f, iconSize, iconSize, 3, 1,
+                                  slotEdge, learned ? slotPaper : slotLocked);
+                if (learned) {
+                    shape::roundRect(x + 10, y + 12, 0.57f, 9, 8, 3,
+                                     c.gagCount[t][l] ? trackColor[t] : emptyBadge);
+                } else {
+                    // A small inset reads as a locked gag silhouette without relying
+                    // on proctex circles, which are unreliable after the world pass.
+                    shape::roundRect(x + 6, y + 7, 0.51f, 6, 6, 2, kDim);
+                }
+            }
             if (have) {
                 const uint16_t next = levels < gags::kLevels ? gags::kLevelExp[t][levels] : 0;
                 const uint16_t prev = levels > 0 ? gags::kLevelExp[t][levels - 1] : 0;
                 const float frac = next > prev ? std::clamp(float(c.gagExp[t] - prev) / float(next - prev), 0.0f, 1.0f)
                                                : 1.0f;
-                C2D_DrawRectSolid(xpX, y + 3, 0.49f, xpW, xpH, C2D_Color32(0x88, 0x80, 0x78, 0xFF));
-                C2D_DrawRectSolid(xpX + 1, y + 4, 0.50f, xpW - 2, xpH - 2, C2D_Color32(0xDD, 0xD8, 0xD0, 0xFF));
+                shape::roundFrame(xpX, y + 3, 0.49f, xpW, xpH, 3, 1,
+                                  C2D_Color32(0x88, 0x80, 0x78, 0xFF),
+                                  C2D_Color32(0xDD, 0xD8, 0xD0, 0xFF));
                 if (frac > 0.0f)
-                    C2D_DrawRectSolid(xpX + 1, y + 4, 0.51f, (xpW - 2) * frac, xpH - 2, trackColor[t]);
+                    shape::roundRect(xpX + 1, y + 4, 0.51f, (xpW - 2) * frac,
+                                     xpH - 2, 2, trackColor[t]);
             }
         }
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
-        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.5f, l.scale, l.scale, l.color);
+        // Keep cached labels above gag icons, count badges and meter fills.  The
+        // cache is shared with Debug, whose background remains at z=0.44.
+        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.6f, l.scale, l.scale, l.color);
     }
     if (c.gagCount) {
         for (int t = 0; t < gags::kTracks; t++) {
@@ -859,7 +882,7 @@ void Ui::drawDebug(const Context& c) {
     }
     for (int i = 0; i < numDebugLines_; i++) {
         const CachedLine& l = debugLines_[i];
-        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.5f, l.scale, l.scale, l.color);
+        C2D_DrawText(&l.text, C2D_WithColor, l.x, l.y, 0.6f, l.scale, l.scale, l.color);
     }
 }
 
