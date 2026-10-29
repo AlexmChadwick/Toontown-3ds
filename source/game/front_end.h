@@ -48,13 +48,14 @@ public:
     void drawTop(render::Renderer& renderer);
     void drawBottom(C3D_RenderTarget* bottom);
 
+    struct Button { // a screen rectangle (bottom-screen pixels)
+        float x, y, w, h;
+    };
+
 private:
     enum class Screen : u8 { Title, Connecting, Pick, Make, TutorialChoice, Entering, Error };
     enum class MakeStep : u8 { Species, Body, Color, Clothes, Name, Count };
 
-    struct Button {
-        float x, y, w, h;
-    };
     bool tapped(const Button& b) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void textCentered(const Button& b, float scale, u32 color, const char* s);
@@ -71,6 +72,10 @@ private:
     bool createToon(net::Client::TutorialChoice tutorial);
     void drawMakeBottom();
     void drawPickBottom();
+    // Pick-A-Toon (AvatarChooser): the six coloured squares; returns true when it left the screen.
+    bool pickInput(u32 down, bool back);
+    void startMakeAToon();
+    void shadowText(float cx, float y, float scale, u32 color, float maxW, const char* s);
 
     world::ToonCache* cache_ = nullptr;
     net::Client* net_ = nullptr;
@@ -116,6 +121,7 @@ private:
     render::TextCache textCache_;
     C2D_TextBuf textBuf_ = nullptr;
     render::Model logo_; // the Toontown Online logo (title screen)
+    render::Model pickArt_; // AvatarChooser's background + squares and the trashcan (pick_a_toon.ttm)
     char serverLine_[96] = "";
 };
 

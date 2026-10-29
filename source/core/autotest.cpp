@@ -313,11 +313,15 @@ constexpr int kFeNextX = 255, kFeNextY = 217;
 const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "fe: title", "fe_title"},
     {6.0f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_pick"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: pick slot 1"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 132, 217, -1, "fe: delete toon", "fe_delete_prompt"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 230, 157, -1, "fe: confirm delete", "fe_deleted"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: select empty slot 1"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: make a toon"},
+    // Pick-A-Toon's squares (ui/pick_a_toon_atlas.h): slot 1 is picked on arrival; Y is its
+    // trashcan; a tap on an empty square makes a Toon there.
+    {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: pick slot 1"},
+    {2.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "fe: delete toon", "fe_delete_prompt"},
+    // Inside the dialog's Delete button and between the Pink and Yellow squares, so a run with no
+    // Toon to delete (no dialog) taps nothing.
+    {2.0f, 0, 0, 0, KEY_TOUCH, 212, 157, -1, "fe: confirm delete", "fe_deleted"},
+    {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: select empty slot 1", "fe_pick_empty"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 59, 77, -1, "fe: make a toon"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 160, 51, -1, "fe: species cat", "fe_species"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> body"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 255, 171, -1, "fe: girl", "fe_body"},

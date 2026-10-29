@@ -84,6 +84,7 @@ a touch player's A still jumps.
 | Trolley / minigame info panel | display only | — | — |
 | Boss battles (`world/boss_battle.cpp`, `cj_battle.cpp`) | pie throw / evidence fire | B (hold / release) and a touch shortcut | unchanged: B already does it; their Cog rounds use the battle panel above |
 | CEO, CFO, Cogdo (`world/ceo_battle.cpp`, `cfo_*`, `cogdo_runtime.cpp`) | no bottom-screen touch input besides the battle panel | buttons | unchanged |
+| Pick-A-Toon (`game/front_end.cpp`) | six slot squares, trashcan, Name Your Toon!, Logout | touch, D-Pad cursor over pills | D-Pad moves the gold ring between squares (`padnav: pick focus <n>`, previews the Toon up top); A plays (or makes a Toon in an empty square); Y deletes, X names an open-named Toon, B logs out (`padnav: pick activate ...`) |
 | Golf, racing, minigames (`game/*`) | out of scope (other agents own these files) | — | — |
 
 Book page rectangles that differ from their touch areas (the touch areas are kept as they were):

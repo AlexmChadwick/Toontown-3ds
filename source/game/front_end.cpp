@@ -8,6 +8,8 @@
 #include "core/log.h"
 #include "game/name_check.h"
 #include "game/name_tables.h"
+#include "ui/laff_meter.h"
+#include "ui/pick_a_toon_atlas.h"
 #include "ui/theme.h"
 
 namespace tt::game {
@@ -114,6 +116,7 @@ bool FrontEnd::init(world::ToonCache* cache) {
     textCache_.clear();
     textBuf_ = C2D_TextBufNew(4096);
     if (!logo_.loaded() && !logo_.load("romfs:/baked/title_logo.ttm")) TT_LOG("frontend: no title_logo.ttm");
+    if (!pickArt_.loaded() && !pickArt_.load("romfs:/baked/pick_a_toon.ttm")) TT_LOG("frontend: no pick_a_toon.ttm");
     setPreviewDna(world::defaultToonDna());
     preview_.play(world::kAnimWave, 1.0f);
     reset();
@@ -130,6 +133,7 @@ void FrontEnd::shutdown() {
     if (textBuf_) C2D_TextBufDelete(textBuf_);
     textBuf_ = nullptr;
     logo_.unload();
+    pickArt_.unload();
 }
 
 void FrontEnd::reset() {
@@ -249,7 +253,8 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
     if (held & KEY_TOUCH) lastTouch_ = touch;
     touching_ = held & KEY_TOUCH;
 
-    if (down & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT)) {
+    const bool pickOwnsPad = screen_ == Screen::Pick && !confirmDelete_;
+    if (!pickOwnsPad && (down & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT))) {
         if (!gGui.cursorShown) {
             gGui.cursorShown = true;
         } else if (gGui.count > 0) {
@@ -312,68 +317,7 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
             }
             break;
         }
-        for (int s = 0; s < net::kMaxAvatars; s++) {
-            const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(s));
-            const Button b{10.0f + (s % 2) * 155.0f, 28.0f + (s / 2) * 54.0f, 145.0f, 48.0f};
-            if (TT_BUTTON(b, pa ? pa->name : "+ Make a Toon", s == pickSlot_, true)) {
-                pickSlot_ = s;
-                updatePickPreview();
-            }
-        }
-        const net::PotentialAvatar* sel = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
-        if (sel) {
-            if (TT_BUTTON((Button{10, 200, 80, 34}), "Back", false, true) || back) {
-                net_->disconnect();
-                go(Screen::Title);
-                break;
-            }
-            const bool nameOpen = sel->nameState == static_cast<uint8_t>(net::NameState::Open);
-            if (TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true)) {
-                confirmDelete_ = true;
-                break;
-            }
-            if (nameOpen && TT_BUTTON((Button{175, 200, 66, 34}), "Name", false, true)) {
-                world::ToonDna dna;
-                choice_ = world::MakeAToonChoice{};
-                if (sel->hasDna && world::parseNetString(sel->dna, net::kDnaSize, &dna)) {
-                    choice_.gender = dna.gender;
-                    makeDna_ = dna;
-                }
-                renameAvId_ = sel->id;
-                nameError_[0] = 0;
-                randomizePatternName();
-                step_ = MakeStep::Name;
-                go(Screen::Make);
-                break;
-            }
-            if (nameOpen) {
-                if (TT_BUTTON((Button{245, 200, 65, 34}), "Play", true, true)) {
-                    if (net_->chooseAvatar(sel->id)) go(Screen::Entering);
-                }
-            } else if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
-                sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                if (TT_BUTTON((Button{175, 200, 135, 34}), "OK", true, true)) {
-                    net_->sendAcknowledgeAvatarName(sel->id);
-                }
-            } else {
-                if (TT_BUTTON((Button{175, 200, 135, 34}), "Play", true, true)) {
-                    if (net_->chooseAvatar(sel->id)) go(Screen::Entering);
-                }
-            }
-        } else {
-            if (TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true) || back) {
-                net_->disconnect();
-                go(Screen::Title);
-                break;
-            }
-            if (TT_BUTTON((Button{200, 200, 110, 34}), "Make", true, true)) {
-                choice_ = world::MakeAToonChoice{};
-                step_ = MakeStep::Species;
-                rebuildMakeDna();
-                randomizePatternName();
-                go(Screen::Make);
-            }
-        }
+        pickInput(down, back);
         break;
     }
 
@@ -743,7 +687,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     switch (screen_) {
     case Screen::Title: title = logo ? nullptr : "TOONTOWN 3DS"; break;
     case Screen::Connecting: title = "Connecting..."; break;
-    case Screen::Pick: title = "Pick a Toon"; break;
+    case Screen::Pick: title = "Pick A Toon To Play"; break; // AvatarChooserPickAToon
     case Screen::Make: title = renameAvId_ ? "Name Your Toon" : "Make a Toon"; break;
     case Screen::TutorialChoice: title = "The Toontorial"; break;
     case Screen::Entering: title = "Heading to Toontown Central"; break;
@@ -774,17 +718,20 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             const char* statusStr = nullptr;
             u32 statusCol = kDim;
             if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
-                statusStr = "Name your Toon! Tap Name below.";
+                statusStr = "Tap Name Your Toon! (or press X) to name it.";
                 statusCol = kAccent;
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
                 statusStr = "Name pending approval";
                 statusCol = kDim;
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
-                statusStr = "Name approved! Tap OK.";
+                statusStr = "Name approved! Tap your Toon again to OK it.";
                 statusCol = C2D_Color32(0x80, 0xFF, 0x80, 0xFF);
             } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                statusStr = "Name rejected. Tap OK, then pick another.";
+                statusStr = "Name rejected. Tap your Toon to pick another.";
                 statusCol = kRed;
+            } else {
+                statusStr = "Tap again or press A to play. Y deletes.";
+                statusCol = kDim;
             }
             if (statusStr) {
                 C2D_Text st;
@@ -801,8 +748,199 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     }
 }
 
+namespace {
+
+// AvatarChoice's parts on the bottom screen (geometry from bake_pick_a_toon.py). The trashcan is
+// drawn 1.3x upstream's size (hit box 4 px larger again) so a fingertip can hit it.
+constexpr float kSquareHit = 92.0f;
+constexpr float kTrashW = ui::pat::kTrash[0].pxW * 1.3f, kTrashH = ui::pat::kTrash[0].pxH * 1.3f;
+constexpr float kLogoutX = 254, kLogoutY = 3, kLogoutW = 62, kLogoutH = 22;
+
+FrontEnd::Button squareRect(int i) {
+    return {ui::pat::kSlots[i].cx - kSquareHit * 0.5f, ui::pat::kSlots[i].cy - kSquareHit * 0.5f, kSquareHit, kSquareHit};
+}
+FrontEnd::Button trashRect(int i) {
+    return {ui::pat::kSlots[i].delX - kTrashW * 0.5f - 2, ui::pat::kSlots[i].delY - kTrashH * 0.5f - 2, kTrashW + 4, kTrashH + 4};
+}
+// nameYourToonButton at (-0.2, -0.3) in the panel.
+FrontEnd::Button namePillRect(int i) { return {ui::pat::kSlots[i].cx - 49, ui::pat::kSlots[i].cy + 22, 64, 22}; }
+
+} // namespace
+
+void FrontEnd::startMakeAToon() {
+    choice_ = world::MakeAToonChoice{};
+    step_ = MakeStep::Species;
+    rebuildMakeDna();
+    randomizePatternName();
+    go(Screen::Make);
+}
+
+// AvatarChoice: a tap on an empty square makes a Toon there (MODE_CREATE); a tap on a Toon picks
+// it for the top screen's preview and a second tap plays it (upstream plays on the first click;
+// the 3DS shows the whole Toon up top first). The trashcan deletes, "Name Your Toon!" names an
+// open-named Toon, Logout (or B) goes back to the title. Pad: the D-Pad moves between squares,
+// A plays / makes, Y deletes, X names.
+bool FrontEnd::pickInput(u32 down, bool back) {
+    if (TT_BUTTON((Button{kLogoutX, kLogoutY, kLogoutW, kLogoutH}), "Logout", false, true) || back) {
+        net_->disconnect();
+        go(Screen::Title);
+        return true;
+    }
+    if (down & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT)) {
+        int col = pickSlot_ % 3, row = pickSlot_ / 3;
+        if (down & KEY_DLEFT) col = (col + 2) % 3;
+        if (down & KEY_DRIGHT) col = (col + 1) % 3;
+        if (down & (KEY_DUP | KEY_DDOWN)) row ^= 1;
+        pickSlot_ = row * 3 + col;
+        updatePickPreview();
+        TT_LOG("padnav: pick focus %d", pickSlot_);
+    }
+    int tappedSlot = -1;
+    bool trash = false, name = false;
+    for (int i = 0; i < net::kMaxAvatars; i++) {
+        const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(i));
+        if (pa && tapped(trashRect(i))) {
+            tappedSlot = i;
+            trash = true;
+            break;
+        }
+        if (pa && pa->nameState == static_cast<uint8_t>(net::NameState::Open) && tapped(namePillRect(i))) {
+            tappedSlot = i;
+            name = true;
+            break;
+        }
+        if (tapped(squareRect(i))) {
+            tappedSlot = i;
+            break;
+        }
+    }
+    bool activate = (down & KEY_A) != 0;
+    if (tappedSlot >= 0) {
+        const bool second = tappedSlot == pickSlot_;
+        if (!second) {
+            pickSlot_ = tappedSlot;
+            updatePickPreview();
+        }
+        // A Toon's first tap only picks it; an empty square, a trashcan or a name pill acts at once.
+        activate = !trash && !name && (second || !net_->avatarInSlot(static_cast<uint8_t>(tappedSlot)));
+    }
+    const net::PotentialAvatar* sel = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
+    if (sel && (trash || (down & KEY_Y))) {
+        TT_LOG("padnav: pick activate delete %d", pickSlot_);
+        confirmDelete_ = true;
+        return false;
+    }
+    const bool nameOpen = sel && sel->nameState == static_cast<uint8_t>(net::NameState::Open);
+    if (nameOpen && (name || (down & KEY_X))) {
+        TT_LOG("padnav: pick activate name %d", pickSlot_);
+        world::ToonDna dna;
+        choice_ = world::MakeAToonChoice{};
+        if (sel->hasDna && world::parseNetString(sel->dna, net::kDnaSize, &dna)) {
+            choice_.gender = dna.gender;
+            makeDna_ = dna;
+        }
+        renameAvId_ = sel->id;
+        nameError_[0] = 0;
+        randomizePatternName();
+        step_ = MakeStep::Name;
+        go(Screen::Make);
+        return true;
+    }
+    if (!activate) return false;
+    TT_LOG("padnav: pick activate slot %d", pickSlot_);
+    if (!sel) {
+        startMakeAToon();
+        return true;
+    }
+    if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
+        sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
+        net_->sendAcknowledgeAvatarName(sel->id);
+        return false;
+    }
+    if (net_->chooseAvatar(sel->id)) {
+        go(Screen::Entering);
+        return true;
+    }
+    return false;
+}
+
+void FrontEnd::shadowText(float cx, float y, float scale, u32 color, float maxW, const char* str) {
+    C2D_Text t;
+    textCache_.parse(&t, textBuf_, str, 4096);
+    ui::theme::textCentered(t, cx + 1.2f, y + 1.2f, scale, C2D_Color32(0, 0, 0, 0xFF), maxW, 0.55f);
+    ui::theme::textCentered(t, cx, y, scale, color, maxW, 0.56f);
+}
+
+// AvatarChooser on the bottom screen: tt_t_gui_pat_background with the six coloured squares
+// (composited at rest by bake_pick_a_toon.py), and in each square the Toon's laff-meter head and
+// name (AvatarChoice's ToonHead and nameText), its status, trashcan and Name Your Toon! pill, or
+// "Make A Toon" (AvatarChoiceMakeAToon, text_fg 0, 1, 0.8) when the slot is empty.
 void FrontEnd::drawPickBottom() {
-    text(10, 6, 0.5f, kBSoft, "%s", net_ ? net_->districtName() : "");
+    namespace th = ui::theme;
+    C3D_Tex* bg = pickArt_.loaded() ? pickArt_.texture(0) : nullptr;
+    C3D_Tex* trash = pickArt_.loaded() ? pickArt_.texture(1) : nullptr;
+    if (bg) {
+        Tex3DS_SubTexture sub{ui::pat::kScreenW, ui::pat::kScreenH, 0.0f, 1.0f, float(ui::pat::kScreenW) / ui::pat::kTexW,
+                              1.0f - float(ui::pat::kScreenH) / ui::pat::kTexH};
+        C2D_DrawImageAt(C2D_Image{bg, &sub}, 0, 0, 0.3f);
+    } else {
+        th::sky();
+    }
+    if (net_) {
+        C2D_Text d;
+        textCache_.parse(&d, textBuf_, net_->districtName(), 4096);
+        th::textFit(d, 9, 7, 0.45f, C2D_Color32(0, 0, 0, 0xFF), 200, 0.55f);
+        th::textFit(d, 8, 6, 0.45f, kWhite, 200, 0.56f);
+    }
+    const u32 kMake = C2D_Color32(0x00, 0xFF, 0xCC, 0xFF), kPlay = C2D_Color32(0xFF, 0xE6, 0x1A, 0xFF);
+    if (confirmDelete_) return; // the dialog covers the chooser
+    for (int i = 0; i < net::kMaxAvatars; i++) {
+        const ui::pat::Slot& sl = ui::pat::kSlots[i];
+        const bool selected = i == pickSlot_;
+        if (selected) { // our pick: a gold ring around the square
+            th::roundRing(sl.cx - ui::pat::kSquareHalf - 3, sl.cy - ui::pat::kSquareHalf - 3, ui::pat::kSquareHalf * 2 + 6,
+                          ui::pat::kSquareHalf * 2 + 6, 14, 3, th::kYellow, 0.5f);
+        }
+        const net::PotentialAvatar* pa = net_ ? net_->avatarInSlot(static_cast<uint8_t>(i)) : nullptr;
+        if (!pa) {
+            shadowText(sl.cx, sl.cy - 17, 0.62f, kMake, 84, "Make A\nToon");
+            continue;
+        }
+        world::ToonDna dna;
+        ui::LaffFace face;
+        face.hp = face.maxHp = 1; // the full-laff smile
+        if (pa->hasDna && world::parseNetString(pa->dna, net::kDnaSize, &dna)) {
+            const float* c = world::bodyColor(dna.headColor);
+            for (int k = 0; k < 3; k++) face.rgb[k] = c[k];
+            face.species = static_cast<int>(world::species(dna));
+        }
+        ui::drawLaffMeter(face, sl.cx - 22, sl.cy - 27, 44, nullptr, nullptr, 0.45f);
+        shadowText(sl.nameX, sl.nameY - 8, 0.5f, kWhite, 88, pa->name);
+        const char* status = nullptr;
+        // statusText (0, -0.24): two short lines left of the trashcan, as TTLocalizer words them.
+        if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) status = "Under\nReview";
+        else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) status = "Name\nApproved!";
+        else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) status = "Name\nRejected";
+        if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
+            const Button nb = namePillRect(i);
+            th::pill(nb.x, nb.y, nb.w, nb.h, th::Pill::Yellow, false, 0.55f);
+            C2D_Text nt;
+            textCache_.parse(&nt, textBuf_, "Name Your Toon!", 4096);
+            th::textCentered(nt, nb.x + nb.w * 0.5f, nb.y + 4, 0.4f, th::kInk, nb.w - 10, 0.57f);
+        } else if (status) {
+            shadowText(sl.cx - 12, sl.cy + 18, 0.4f, kWhite, 48, status);
+        } else if (selected) {
+            shadowText(sl.cx - 12, sl.cy + 18, 0.4f, kPlay, 48, "Play\nThis Toon"); // AvatarChoicePlayThisToon
+        }
+        if (trash) { // DELETE_POSITIONS: TrashCan_CLSD, TrashCan_OPEN on our pick
+            const ui::pat::TrashRect& r = ui::pat::kTrash[selected ? 1 : 0];
+            Tex3DS_SubTexture sub{uint16_t(r.w + 0.5f), uint16_t(r.h + 0.5f), r.x / ui::pat::kTrashAtlasW,
+                                  1.0f - r.y / ui::pat::kTrashAtlasH, (r.x + r.w) / ui::pat::kTrashAtlasW,
+                                  1.0f - (r.y + r.h) / ui::pat::kTrashAtlasH};
+            C2D_DrawImageAt(C2D_Image{trash, &sub}, sl.delX - kTrashW * 0.5f, sl.delY - kTrashH * 0.5f, 0.58f,
+                            nullptr, kTrashW / r.w, kTrashH / r.h);
+        }
+    }
 }
 
 void FrontEnd::drawMakeBottom() {
@@ -851,8 +989,10 @@ void FrontEnd::drawMakeBottom() {
 void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
     C2D_TargetClear(bottom, kBg);
     C2D_SceneBegin(bottom);
-    ui::theme::sky();
-    ui::theme::paper(3, 3, kW - 6, 194, 8.0f); // the screen's content card; buttons sit below it
+    if (screen_ != Screen::Pick) { // Pick-A-Toon has its own full-screen background
+        ui::theme::sky();
+        ui::theme::paper(3, 3, kW - 6, 194, 8.0f); // the screen's content card; buttons sit below it
+    }
     gGui.drawing = true;
     gGui.index = 0;
     gGui.activate = false;
@@ -871,57 +1011,19 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         break;
     case Screen::Pick: {
         drawPickBottom();
+        // Button order matches update(): Logout with the chooser, Cancel / Delete in the dialog.
+        if (!confirmDelete_) TT_BUTTON((Button{kLogoutX, kLogoutY, kLogoutW, kLogoutH}), "Logout", false, true);
         if (confirmDelete_) {
+            // AvatarChoice.__handleDelete's TTGlobalDialog over the chooser.
             const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
+            char msg[96];
+            snprintf(msg, sizeof msg, "This will delete %s forever.", sel ? sel->name : "this Toon"); // AvatarChoiceDeleteConfirm
             ui::theme::paper(18, 43, 284, 154, 8.0f, ui::theme::kPaper, ui::theme::kRed);
-            textCentered(Button{20, 55, 280, 20}, 0.65f, kBInk, "Delete this Toon?");
-            textCentered(Button{20, 80, 280, 20}, 0.55f, kBHi, sel ? sel->name : "");
+            textCentered(Button{20, 55, 280, 20}, 0.65f, kBInk, "Delete Toon?"); // AvatarChoiceDeletePasswordTitle
+            textCentered(Button{24, 82, 272, 20}, 0.5f, kBHi, msg);
             textCentered(Button{20, 105, 280, 16}, 0.45f, kBErr, "This cannot be undone!");
             TT_BUTTON((Button{35, 140, 110, 34}), "Cancel", false, true);
             TT_BUTTON((Button{175, 140, 110, 34}), "Delete", true, true);
-            break;
-        }
-        for (int s = 0; s < net::kMaxAvatars; s++) {
-            const net::PotentialAvatar* pa = net_ ? net_->avatarInSlot(static_cast<uint8_t>(s)) : nullptr;
-            const Button b{10.0f + (s % 2) * 155.0f, 28.0f + (s / 2) * 54.0f, 145.0f, 48.0f};
-            TT_BUTTON(b, pa ? pa->name : "+ Make a Toon", s == pickSlot_, true);
-            if (pa) {
-                const char* badge = nullptr;
-                u32 col = kBSoft;
-                if (pa->nameState == static_cast<uint8_t>(net::NameState::Open)) {
-                    badge = "Needs a name";
-                    col = kBHi;
-                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Pending)) {
-                    badge = "Name pending";
-                    col = kBSoft;
-                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Approved)) {
-                    badge = "Name approved!";
-                    col = ui::theme::kGreenDark;
-                } else if (pa->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                    badge = "Name rejected";
-                    col = kBErr;
-                }
-                if (badge) {
-                    text(b.x + 6, b.y + 32, 0.38f, col, "%s", badge);
-                }
-            }
-        }
-        const net::PotentialAvatar* sel = net_ ? net_->avatarInSlot(static_cast<uint8_t>(pickSlot_)) : nullptr;
-        if (sel) {
-            TT_BUTTON((Button{10, 200, 80, 34}), "Back", false, true);
-            TT_BUTTON((Button{95, 200, 75, 34}), "Delete", false, true);
-            if (sel->nameState == static_cast<uint8_t>(net::NameState::Open)) {
-                TT_BUTTON((Button{175, 200, 66, 34}), "Name", false, true);
-                TT_BUTTON((Button{245, 200, 65, 34}), "Play", true, true);
-            } else if (sel->nameState == static_cast<uint8_t>(net::NameState::Approved) ||
-                sel->nameState == static_cast<uint8_t>(net::NameState::Rejected)) {
-                TT_BUTTON((Button{175, 200, 135, 34}), "OK", true, true);
-            } else {
-                TT_BUTTON((Button{175, 200, 135, 34}), "Play", true, true);
-            }
-        } else {
-            TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
-            TT_BUTTON((Button{200, 200, 110, 34}), "Make", true, true);
         }
         break;
     }
