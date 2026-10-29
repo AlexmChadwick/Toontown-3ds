@@ -5,6 +5,7 @@
 
 #include "ui/gag_data.h"
 #include "ui/gag_table.h"
+#include "ui/purchase_art.h"
 #include "ui/laff_meter.h"
 #include "ui/book_tab_icons.h"
 #include "ui/theme.h"
@@ -104,7 +105,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!gagText_.init(768) || !chatLogText_.init(512) || !laff_.init() || !timer_.init()) return false;
+    if (!gagText_.init(768) || !chatLogText_.init(512) || !toonText_.init(1024) || !laff_.init() || !timer_.init()) return false;
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
@@ -130,6 +131,7 @@ void Ui::shutdown() {
     book_.shutdown();
     gagText_.shutdown();
     chatLogText_.shutdown();
+    toonText_.shutdown();
     laff_.shutdown();
     timer_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
@@ -705,10 +707,7 @@ void Ui::drawToon(const State& s, const Context& c) {
         theme::textFit(name, 14, 9, 0.72f, theme::kInk, nameW);
         float top = 38;
         if (c.stats) {
-            // A few jellybeans in upstream's bean colours, then the count.
-            static constexpr u32 kBeans[3] = {theme::rgb(0xE8, 0x3A, 0x6A), theme::rgb(0x6C, 0xC6, 0x3C),
-                                              theme::rgb(0xF6, 0xB0, 0x22)};
-            for (int i = 0; i < 3; i++) theme::roundRect(14 + i * 7, top + 4 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
+            drawJarIcon(16, top - 2, 18); // the jellybean jar, then the count
             text(40, top, .48f, theme::kInk, "Jellybeans  %d / %d", c.stats->money, c.stats->maxMoney);
             text(196, top, .48f, theme::kInk, "Laff  %d / %d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
             top += 18;
@@ -721,7 +720,21 @@ void Ui::drawToon(const State& s, const Context& c) {
             top += 16;
         }
         C2D_DrawRectSolid(12, top + 2, 0.5f, kW - 24, 1, theme::kPaperShade);
-        quest_.drawTasks(*c.quests, top + 6, kPocketTop - 8);
+        // The ToonTasks we carry as the book's QuestPoster cards, in the space down to the pocket.
+        const net::OwnQuests& q = *c.quests;
+        toonText_.draw(12, top + 6, theme::kTextBody, theme::kRedDark, "ToonTasks  %d / %u", q.count,
+                       unsigned(q.carryLimit));
+        toonText_.right(kW - 14, top + 7, theme::kTextSmall, theme::kInkSoft, 0, "Tasks done: %u",
+                        unsigned(q.historyCount));
+        const float postersY = top + 24, postersH = kPocketTop - 6 - postersY;
+        if (q.count == 0) {
+            toonText_.centered(kW * 0.5f, postersY + 14, theme::kTextSmall, theme::kInkSoft, kW - 32,
+                               "No ToonTasks yet! Visit an HQ Officer in any Toon HQ.");
+        } else {
+            const int shown = drawQuestPosters(toonText_, q, 6, postersY, kW - 12, postersH, 4);
+            if (q.count > shown)
+                toonText_.right(kW - 14, kPocketTop - 18, theme::kTextTiny, theme::kInkSoft, 0, "+%d more", q.count - shown);
+        }
         // ---- end clerks ----
         theme::pill(pad::toon::kBookX, pad::toon::kBookY, pad::toon::kBookW, pad::toon::kBookH, theme::Pill::Yellow);
         theme::textCentered(bookOpen_, pad::toon::kBookX + pad::toon::kBookW * 0.5f, pad::toon::kBookY + 4, 0.48f,
@@ -832,11 +845,9 @@ void Ui::drawGags(const Context &c) {
         for (int l = 0; l < gags::kLevels; l++) total += c.gagCount[t][l];
     gagText_.draw(12, 8, theme::kTextBody, theme::kInk, "Gags  %d / %d", total, c.maxCarry);
     if (c.stats) {
-        static constexpr u32 kBeans[3] = {theme::rgb(0xE8, 0x3A, 0x6A), theme::rgb(0x6C, 0xC6, 0x3C),
-                                          theme::rgb(0xF6, 0xB0, 0x22)};
         const float bw = gagText_.right(kW - 12, 8, theme::kTextBody, theme::rgb(0x80, 0x50, 0x00), 0, "%d",
                                         c.stats->money);
-        for (int i = 0; i < 3; i++) theme::roundRect(kW - 46 - bw + i * 7, 12 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
+        drawJarIcon(kW - 34 - bw, 5, 19);
     }
     GagTableData d;
     d.count = c.gagCount;

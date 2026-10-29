@@ -34,32 +34,6 @@ void QuestPanel::shutdown() {
     focus_.clear();
 }
 
-namespace {
-
-// "Building\nStreet\nHood" as one line ("Building, Street, Hood") into out.
-void flatten(const char* in, char* out, size_t cap) {
-    size_t n = 0;
-    for (const char* c = in; *c && n + 3 < cap; ++c) {
-        if (*c != '\n') {
-            out[n++] = *c;
-        } else if (n > 0 && c[1]) {
-            out[n++] = ',';
-            out[n++] = ' ';
-        }
-    }
-    out[n] = 0;
-}
-
-// QuestPoster's toNpcName (Toon HQ and the tailor have generic names).
-const char* returnToName(uint32_t npc) {
-    if (npc == quest::kToonHQ) return "HQ Officer";
-    if (npc == quest::kToonTailor) return "Tailor";
-    const char* n = quest::npcName(static_cast<uint16_t>(npc));
-    return n ? n : "a Toon";
-}
-
-} // namespace
-
 void QuestPanel::text(float x, float y, float scale, u32 color, float wrapWidth, const char* s) {
     C2D_Text t;
     tt::render::textParse(&t, buf_, s);
@@ -224,55 +198,6 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         break;
     }
     if (talk.phase() != quest::Talk::Phase::Waiting) focus_.drawHighlight();
-}
-
-void QuestPanel::drawTasks(const net::OwnQuests& q, float y0, float y1) {
-    C2D_TextBufClear(buf_);
-    char line[160];
-    snprintf(line, sizeof(line), "ToonTasks  %d / %u", q.count, unsigned(q.carryLimit));
-    text(12, y0, 0.5f, theme::kRedDark, 0, line);
-    if (q.count == 0) {
-        text(12, y0 + 22, 0.44f, kInkSoft, kW - 24, "No ToonTasks. Visit a Toon HQ to get one!");
-        return;
-    }
-    // Cards share the space between the tasks we carry (up to 64 px each), so a task's text
-    // stays on its card.
-    float rowH = (y1 - y0 - 20) / q.count;
-    if (rowH > 64.0f) rowH = 64.0f;
-    for (int i = 0; i < q.count; i++) {
-        const net::QuestEntry& e = q.quests[i];
-        const float y = y0 + 20 + i * rowH;
-        theme::paper(10, y, kW - 20, rowH - 3, 4.0f, theme::kWhite, theme::kPaperShade);
-        const quest::QuestDef* def = quest::findQuest(static_cast<uint16_t>(e.questId));
-        if (!def) {
-            snprintf(line, sizeof(line), "ToonTask %lu", static_cast<unsigned long>(e.questId));
-            text(16, y + 2, 0.42f, kInk, 0, line);
-            continue;
-        }
-        const bool done = quest::isComplete(*def, e.progress);
-        // Like the book's ToonTasks card: the task on top, then (once complete) who to return to
-        // and where, or the progress so far. Location lines ("Toon HQ\nAny Street\n...") read as
-        // one line here.
-        quest::objective(*def, scratch_, sizeof(scratch_));
-        if (done) {
-            snprintf(line, sizeof(line), "COMPLETE!  %.120s", scratch_);
-            text(16, y + 2, 0.4f, C2D_Color32(0x20, 0x80, 0x20, 0xFF), 0, line);
-            snprintf(line, sizeof(line), "Return to: %s", returnToName(e.toNpc));
-            text(16, y + 14, 0.38f, theme::kRedDark, 0, line);
-            if (rowH >= 38.0f && quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), true, scratch_, sizeof(scratch_)) > 0) {
-                char flat[sizeof(scratch_)];
-                flatten(scratch_, flat, sizeof flat);
-                text(16, y + 26, 0.36f, kInkSoft, kW - 36, flat);
-            }
-        } else {
-            quest::headline(*def, false, line, sizeof(line));
-            text(16, y + 2, 0.4f, kInk, 0, line);
-            text(16, y + 14, 0.38f, kInk, kW - 100, scratch_);
-            if (quest::progressString(*def, e.progress, line, sizeof(line))) {
-                text(kW - 82, y + 14, 0.38f, theme::kBlueDark, 0, line);
-            }
-        }
-    }
 }
 
 } // namespace tt::ui

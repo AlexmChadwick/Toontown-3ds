@@ -3,6 +3,7 @@
 #include "net/client.h"
 #include "ui/gag_data.h"
 #include "ui/gag_table.h"
+#include "ui/purchase_art.h"
 #include "ui/theme.h"
 
 namespace tt::ui {
@@ -23,13 +24,10 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
     }
     text_.draw(x + 8, y + 3, theme::kTextBody, theme::kInk, "Gags  %d / %d", total, st ? st->maxCarry : 20);
     if (st) {
-        // A few jellybeans in upstream's bean colours, then the count (InventoryPage.moneyDisplay).
-        static constexpr u32 kBeans[3] = {theme::rgb(0xE8, 0x3A, 0x6A), theme::rgb(0x6C, 0xC6, 0x3C),
-                                          theme::rgb(0xF6, 0xB0, 0x22)};
+        // The jellybean jar, then the count (InventoryPage.moneyDisplay).
         const float bw = text_.right(x + w - 8, y + 3, theme::kTextBody, theme::rgb(0x80, 0x50, 0x00), 0,
                                      "Jellybeans  %d / %d", st->money, st->maxMoney);
-        for (int i = 0; i < 3; i++)
-            theme::roundRect(x + w - 34 - bw + i * 7, y + 7 + (i & 1) * 3, 9, 6, 3, kBeans[i]);
+        drawJarIcon(x + w - 30 - bw, y, 19);
     }
     GagTableData d;
     if (st) {

@@ -41,6 +41,56 @@ const char* returnToName(uint32_t npc) {
 
 } // namespace
 
+// QuestPoster cards for the ToonTasks we carry, stacked in (x, y, w, h); shared by the book's
+// ToonTasks page and the Toon tab.
+int drawQuestPosters(PageText& text, const net::OwnQuests& q, float x, float y, float w, float h, int maxShown) {
+    const int shown = q.count < maxShown ? q.count : maxShown;
+    if (shown <= 0) return 0;
+    const float gap = 4.0f;
+    float cardH = (h - (shown - 1) * gap) / shown;
+    if (cardH > 82.0f) cardH = 82.0f;
+    char line[quest::kMaxText];
+    for (int i = 0; i < shown; i++) {
+        const net::QuestEntry& e = q.quests[i];
+        const float cy = y + i * (cardH + gap), cx = x + 6, cw = w - 12;
+        const quest::QuestDef* def = quest::findQuest(static_cast<uint16_t>(e.questId));
+        const bool done = def && quest::isComplete(*def, e.progress);
+        theme::roundRect(cx, cy, cw, cardH, 6, done ? kDoneEdge : theme::kPaperEdge);
+        theme::roundRect(cx + 2, cy + 2, cw - 4, cardH - 4, 5, done ? kDoneFace : theme::kPaper);
+        if (!def) {
+            text.draw(cx + 8, cy + 5, theme::kTextBody, theme::kInk, "ToonTask %u", unsigned(e.questId));
+            continue;
+        }
+        float ly = cy + 4;
+        const float bottom = cy + cardH - 3;
+        quest::headline(*def, done, line, sizeof line);
+        text.fit(cx + 8, ly, theme::kTextBody, done ? kDoneInk : theme::kRedDark, cw - 96, "%s", line);
+        if (!done && quest::progressString(*def, e.progress, line, sizeof line) > 0)
+            text.right(cx + cw - 8, ly + 1, theme::kTextSmall, theme::kBlueDark, 90, "%s", line);
+        ly += 15;
+        // The objective, then "Return to: <NPC>" once complete (QuestPosterAuxReturnTo).
+        const int room = int((bottom - ly) / 12.5f);
+        quest::objective(*def, line, sizeof line);
+        const int objLines = room >= 4 ? 2 : 1;
+        ly += 12.5f * text.wrap(cx + 8, ly, theme::kTextSmall, theme::kInk, cw - 16, 12.5f, objLines, line);
+        if (done && ly + 12 <= bottom) {
+            text.fit(cx + 8, ly, theme::kTextSmall, kDoneInk, cw - 16, "Return to: %s", returnToName(e.toNpc));
+            ly += 12.5f;
+        }
+        if (ly + 12 <= bottom && quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), done, line, sizeof line) > 0) {
+            char flat[160];
+            flatten(line, flat, sizeof flat);
+            text.fit(cx + 8, ly, theme::kTextTiny, theme::kInkSoft, cw - 16, "%s", flat);
+            ly += 12.5f;
+        }
+        if (ly + 12 <= bottom && quest::rewardText(static_cast<uint16_t>(e.reward), true, line, sizeof line) > 0 &&
+            line[0]) {
+            text.fit(cx + 8, ly, theme::kTextTiny, kRewardRed, cw - 16, "Reward: %s", line);
+        }
+    }
+    return shown;
+}
+
 void PageQuests::init() { text_.init(2048); }
 
 void PageQuests::shutdown() { text_.shutdown(); }
@@ -63,52 +113,11 @@ void PageQuests::draw(float x, float y, float w, float h, const BookDrawContext&
         text_.centered(x + w * 0.5f, y + 96, theme::kTextSmall, theme::kInk, w - 56, "to take on a ToonTask.");
         return;
     }
-    const int shown = count < 4 ? count : 4;
-    const float top = y + 22, gap = 4.0f;
-    float cardH = (h - 24 - (shown - 1) * gap) / shown;
-    if (cardH > 82.0f) cardH = 82.0f;
-    char line[quest::kMaxText];
-    for (int i = 0; i < shown; i++) {
-        const net::QuestEntry& e = bdc.quests->quests[i];
-        const float cy = top + i * (cardH + gap), cx = x + 6, cw = w - 12;
-        const quest::QuestDef* def = quest::findQuest(static_cast<uint16_t>(e.questId));
-        const bool done = def && quest::isComplete(*def, e.progress);
-        theme::roundRect(cx, cy, cw, cardH, 6, done ? kDoneEdge : theme::kPaperEdge);
-        theme::roundRect(cx + 2, cy + 2, cw - 4, cardH - 4, 5, done ? kDoneFace : theme::kPaper);
-        if (!def) {
-            text_.draw(cx + 8, cy + 5, theme::kTextBody, theme::kInk, "ToonTask %u", unsigned(e.questId));
-            continue;
-        }
-        float ly = cy + 4;
-        const float bottom = cy + cardH - 3;
-        quest::headline(*def, done, line, sizeof line);
-        text_.fit(cx + 8, ly, theme::kTextBody, done ? kDoneInk : theme::kRedDark, cw - 96, "%s", line);
-        if (!done && quest::progressString(*def, e.progress, line, sizeof line) > 0)
-            text_.right(cx + cw - 8, ly + 1, theme::kTextSmall, theme::kBlueDark, 90, "%s", line);
-        ly += 15;
-        // The objective, then "Return to: <NPC>" once complete (QuestPosterAuxReturnTo).
-        const int room = int((bottom - ly) / 12.5f);
-        quest::objective(*def, line, sizeof line);
-        const int objLines = room >= 4 ? 2 : 1;
-        ly += 12.5f * text_.wrap(cx + 8, ly, theme::kTextSmall, theme::kInk, cw - 16, 12.5f, objLines, line);
-        if (done && ly + 12 <= bottom) {
-            text_.fit(cx + 8, ly, theme::kTextSmall, kDoneInk, cw - 16, "Return to: %s", returnToName(e.toNpc));
-            ly += 12.5f;
-        }
-        if (ly + 12 <= bottom && quest::posterInfo(*def, static_cast<uint16_t>(e.toNpc), done, line, sizeof line) > 0) {
-            char flat[160];
-            flatten(line, flat, sizeof flat);
-            text_.fit(cx + 8, ly, theme::kTextTiny, theme::kInkSoft, cw - 16, "%s", flat);
-            ly += 12.5f;
-        }
-        if (ly + 12 <= bottom && quest::rewardText(static_cast<uint16_t>(e.reward), true, line, sizeof line) > 0 &&
-            line[0]) {
-            text_.fit(cx + 8, ly, theme::kTextTiny, kRewardRed, cw - 16, "Reward: %s", line);
-        }
-    }
+    const int shown = drawQuestPosters(text_, *bdc.quests, x, y + 22, w, h - 24, 4);
     if (count > shown) {
         text_.right(x + w - 8, y + h - 12, theme::kTextTiny, theme::kInkSoft, 0, "+%d more", count - shown);
     }
 }
+
 
 } // namespace tt::ui

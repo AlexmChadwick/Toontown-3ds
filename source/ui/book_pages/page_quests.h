@@ -5,6 +5,10 @@
 
 namespace tt::ui {
 
+// QuestPoster cards for up to maxShown carried ToonTasks, stacked in (x, y, w, h) (each at most
+// 82 px tall). Returns how many were drawn. Shared by the book's ToonTasks page and the Toon tab.
+int drawQuestPosters(PageText& text, const net::OwnQuests& q, float x, float y, float w, float h, int maxShown);
+
 class PageQuests : public BookPage {
 public:
     const char* title() const override { return "ToonTasks"; }

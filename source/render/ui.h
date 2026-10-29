@@ -225,6 +225,7 @@ private:
     render::TextCache textCache_;
     PageText gagText_; // the Gags tab's table (cached per string)
     PageText chatLogText_;
+    PageText toonText_; // the Toon tab's header and task posters
     struct ChatLine {
         char name[24];
         char text[96];

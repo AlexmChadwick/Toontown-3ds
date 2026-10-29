@@ -20,8 +20,6 @@ public:
     // Conversation; returns the buttons consumed (all while talking).
     u32 handleInput(u32 keysDown, const touchPosition& touch, quest::Talk& talk);
     void drawTalk(const quest::Talk& talk);
-    // The task list in the area (0, y0) .. (320, y1).
-    void drawTasks(const net::OwnQuests& q, float y0, float y1);
 
 private:
     void text(float x, float y, float scale, u32 color, float wrapWidth, const char* s);
