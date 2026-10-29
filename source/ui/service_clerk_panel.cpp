@@ -467,16 +467,17 @@ void ServiceClerkPanel::draw() {
         }
     }
     // Bottom buttons in the touch columns (x < 75 Prev, < 150 Next, < 235 A, else B).
-    struct Btn { float x, w; u32 face, lip; const C2D_Text* label; };
-    const Btn btns[4] = {{4, 68, theme::kBlue, theme::kBlueDark, &btnText_[0]},
-                         {79, 68, theme::kBlue, theme::kBlueDark, &btnText_[1]},
-                         {154, 78, theme::kGreen, theme::kGreenDark, &texts_[9]},
-                         {239, 77, theme::kRed, theme::kRedDark, &btnText_[2]}};
+    // Toontown's quit_button pills: the page arrows yellow, the main action cyan, cancel red.
+    struct Btn { float x, w; theme::Pill style; const C2D_Text* label; };
+    const Btn btns[4] = {{4, 68, theme::Pill::Yellow, &btnText_[0]},
+                         {79, 68, theme::Pill::Yellow, &btnText_[1]},
+                         {154, 78, theme::Pill::Cyan, &texts_[9]},
+                         {239, 77, theme::Pill::Red, &btnText_[2]}};
     for (int i = 0; i < 4; ++i) {
         if (i == 3 && page_ == Page::Result) continue; // a result only needs OK
         const Btn& b = btns[i];
-        theme::button(b.x, 204, b.w, 32, b.face, b.lip, false, 7.0f);
-        theme::textCentered(*b.label, b.x + b.w * 0.5f, 210, theme::kTextBody, theme::kWhite, b.w - 8);
+        theme::pill(b.x, 206, b.w, 30, b.style);
+        theme::textCentered(*b.label, b.x + b.w * 0.5f, 212, theme::kTextBody, theme::pillInk(b.style), b.w - 14);
     }
 }
 } // namespace tt::ui

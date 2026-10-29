@@ -24,12 +24,13 @@ constexpr float kCardY = pad::quest::kCardY, kCardH = pad::quest::kCardH, kCance
 
 bool QuestPanel::init() {
     buf_ = C2D_TextBufNew(4096);
-    return buf_ != nullptr;
+    return buf_ != nullptr && timer_.init();
 }
 
 void QuestPanel::shutdown() {
     if (buf_) C2D_TextBufDelete(buf_);
     buf_ = nullptr;
+    timer_.shutdown();
     focus_.clear();
 }
 
@@ -182,12 +183,11 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         text(14, 34, 0.5f, kInk, kW - 28, talk.pageText());
         char nav[32];
         snprintf(nav, sizeof(nav), "%s  (%d/%d)", talk.onLastPage() ? "Done" : "Next", talk.page() + 1, talk.numPages());
-        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kOrange,
-                      theme::shade(theme::kOrange, 0.65f));
+        theme::pill(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH, theme::Pill::Cyan);
         C2D_Text navText;
         tt::render::textParse(&navText, buf_, nav);
         theme::textCentered(navText, pad::quest::kCancelX + pad::quest::kCancelW * 0.5f, kCancelY + 4, 0.46f,
-                            theme::kWhite, pad::quest::kCancelW - 8, 0.6f);
+                            theme::pillInk(theme::Pill::Cyan), pad::quest::kCancelW - 14, 0.6f);
         break;
     }
     case quest::Talk::Phase::QuestChoice:
@@ -203,12 +203,11 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
                 text(10, y + kCardH - 16, 0.38f, kReward, kW - 20, scratch_);
             }
         }
-        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kGrey,
-                      theme::kGreyDark);
+        // QuestChoiceGui: a quit_button Cancel and its ToontownTimer beside it.
+        theme::pill(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH, theme::Pill::Yellow);
         text(pad::quest::kCancelX + 28, kCancelY + 4, 0.46f, kInk, 0, "Cancel");
-        snprintf(scratch_, sizeof(scratch_), "%d s", static_cast<int>(talk.choiceTimeLeft()));
-        theme::roundRect(268, 2, 48, 20, 6, theme::kYellow);
-        text(276, 3, 0.46f, kInk, 0, scratch_);
+        timer_.draw(static_cast<int>(talk.choiceTimeLeft() + 0.999f), pad::quest::kCancelX + pad::quest::kCancelW + 40,
+                    kCancelY + pad::quest::kCancelH * 0.5f, 40);
         break;
     case quest::Talk::Phase::TrackChoice:
         for (int i = 0; i < talk.numTracks(); i++) {
@@ -218,8 +217,7 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
             theme::button(x, y, 154, 36, face, theme::shade(face, 0.6f));
             text(x + 10, y + 7, 0.52f, kInk, 0, t >= 0 && t < gags::kTracks ? theme::kTrackTitles[t] : "?");
         }
-        theme::button(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH + 2, theme::kGrey,
-                      theme::kGreyDark);
+        theme::pill(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH, theme::Pill::Yellow);
         text(pad::quest::kCancelX + 32, kCancelY + 4, 0.46f, kInk, 0, "Later");
         break;
     default:

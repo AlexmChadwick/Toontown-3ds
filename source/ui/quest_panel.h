@@ -9,6 +9,7 @@
 #include "net/quest_net.h"
 #include "quest/quest_talk.h"
 #include "ui/focus.h"
+#include "ui/toontown_timer.h"
 
 namespace tt::ui {
 
@@ -28,6 +29,7 @@ private:
     int wrappedLines(const char* s, float scale, float wrapWidth);
 
     C2D_TextBuf buf_ = nullptr;
+    ToontownTimer timer_; // QuestChoiceGui's countdown
     char scratch_[quest::kMaxText] = {};
     // The balloon fits the page: its line count, measured once per page.
     const char* measuredText_ = nullptr;
