@@ -53,6 +53,7 @@ constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAt
 // ToontownBattleGlobals track ids and BattleBase special values.
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
 constexpr int kAttackPass = 98;  // BattleBase.PASS
+constexpr int kAttackSos = 99, kAttackNpcSos = 97, kAttackPetSos = 96, kAttackFire = 100; // SOS, NPCSOS, PETSOS, FIRE
 constexpr int kAttackNone = -1;  // NO_ATTACK
 
 // BattleBase.attackAffectsGroup(track, level) (AvPropTargetCat[AvPropTarget[track]][level]).
@@ -76,7 +77,7 @@ struct BattlePopup {
     float x, y, z;
     float age;          // seconds
     float rise;         // screen pixels per second to float up (0 = stay put)
-    char text[24];
+    char text[40];      // a damage number, or a line said in a movie ("Hi Peach! Glad to help!")
     uint32_t color;     // ABGR, as ui::Balloons takes it
 };
 
@@ -141,11 +142,31 @@ struct BattleView {
     // throw and squirt buttons under "Click a gag to attack" (TTLocalizer.InventoryClickToAttack).
     bool tutorialArrows = false;
     // ---- end tutorial ----
+    // InventoryNew's battle buttons: Fire needs a pink slip (setPinkSlips); SOS lists our
+    // Rescued Toons (setNPCFriendsDict: NPC id, calls left). The tutorial hides both.
+    int pinkSlips = 0;
+    bool canSos = false, canFire = false;
+    int numSosCards = 0;
+    struct SosCard {
+        uint16_t npcId;
+        uint8_t count;
+    } sosCards[16] = {};
+};
+
+// One step of the round's movie in the order Movie.py plays it, as Battle::buildMovie timed it
+// (ms after the movie starts), so the battle camera frames exactly what is on screen.
+struct BattleMovieStep {
+    enum Kind : uint8_t { kToonGag, kSpecial, kSuit } kind;
+    uint32_t startMs, durMs;
+    uint32_t who, target;  // doIds (target 0 = none / group)
+    int8_t track, level;   // kToonGag: the gag played (an SOS Toon's own gag too); kSuit: level = attack
+    bool group;            // kSuit: every toon is a target
 };
 
 // What the panel asks for.
 struct BattleAction {
-    enum Kind : uint8_t { None, Attack, Pass, Run, Continue } kind = None;
+    // NpcSos: call Rescued Toon `target` (an NPC id). Fire: pink-slip the cog `target`.
+    enum Kind : uint8_t { None, Attack, Pass, Run, Continue, NpcSos, Fire } kind = None;
     int track = 0, level = 0;
     uint32_t target = 0; // cog doId (toon doId for single target heals); 0 for group attacks
 };
@@ -188,6 +209,15 @@ public:
     void setAutoPlay(bool on, int forcedTrack = -1) { autoPlay_ = on; forcedTrack_ = forcedTrack; }
     void setForcedTrack(int track) { forcedTrack_ = track; }
     int forcedTrack() const { return forcedTrack_; }
+
+    int numMovieSteps() const { return numSteps_; }
+    // buildMovie records each step here (public for the camera host test).
+    void addStep(BattleMovieStep::Kind kind, uint32_t start, uint32_t dur, uint32_t who, uint32_t target, int track,
+                 int level, bool group = false) {
+        if (numSteps_ < kMaxSteps)
+            steps_[numSteps_++] = BattleMovieStep{kind, start, dur, who, target, int8_t(track), int8_t(level), group};
+    }
+    const BattleMovieStep& movieStep(int i) const { return steps_[i]; }
 
     BattleCamera& camera() { return camera_; }
     const BattleCamera& camera() const { return camera_; }
@@ -266,7 +296,9 @@ private:
         uint32_t faceUntil = 0;
         float faceH = 0;
     };
-    enum FxKind : uint8_t { kFxAttack, kFxHit, kFxMiss, kFxHeal, kFxDie };
+    // kFxSay: `value` indexes says_ (a line over `who`); kFxGesture: the throw clip toward `other`
+    // with no gag prop (MovieFire's pink slip).
+    enum FxKind : uint8_t { kFxAttack, kFxHit, kFxMiss, kFxHeal, kFxDie, kFxSay, kFxGesture };
     struct Fx {
         uint32_t at;     // ms after the movie started
         uint8_t kind;
@@ -287,7 +319,7 @@ private:
     void goTo(Actor& a, float tx, float ty, float th, float speed, uint32_t startMs, float durOverride);
     void onState(net::Client& client, const net::Battle& nb, uint32_t nowMs);
     void startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs);
-    void buildMovie(const net::BattleMovie& m);
+    void buildMovie(const net::Client& client, const net::BattleMovie& m);
     void runFx(uint32_t nowMs);
     void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track = -1, int level = 0);
     void addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs = 1600,
@@ -338,6 +370,12 @@ private:
     bool tauntShown_ = false;
 
     // movie
+    static constexpr int kMaxSteps = 8, kMaxSays = 8;
+    BattleMovieStep steps_[kMaxSteps] = {};
+    int numSteps_ = 0;
+    char says_[kMaxSays][40] = {};
+    int numSays_ = 0;
+    int addSay(const char* text);
     Fx fx_[kMaxFx];
     int numFx_ = 0, fxCursor_ = 0;
     uint32_t movieStartMs_ = 0, movieEndMs_ = 0;

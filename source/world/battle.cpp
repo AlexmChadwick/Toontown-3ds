@@ -6,6 +6,8 @@
 
 #include "core/log.h"
 #include "ui/gag_data.h"
+#include "ui/sos_tables.h"
+#include "ui/theme.h"
 #include "world/battle_fx.h"
 #include "world/suit_tables.h"
 #include "world/toon_dna.h"
@@ -58,6 +60,7 @@ constexpr uint32_t kColorDamage = 0xFF2020E0; // ABGR, as ui::Balloons takes it
 constexpr uint32_t kColorHeal = 0xFF20A020;
 constexpr uint32_t kColorMiss = 0xFF707070;
 constexpr uint32_t kColorTaunt = 0xFF2030A0;
+constexpr uint32_t kColorSay = 0xFF202020; // chat balloon ink
 
 int popcount8(unsigned m) {
     int n = 0;
@@ -600,7 +603,7 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
         movieEndMs_ = nowMs + 400;
         return;
     }
-    buildMovie(nb.movie);
+    buildMovie(client, nb.movie);
     camera_.buildMovie(battleId_, ++round_, *this, nb.movie, movieStartMs_);
     moviePlaying_ = true;
 }
@@ -616,60 +619,162 @@ void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int 
     fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value), int8_t(track), int8_t(level)};
 }
 
-// Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
-// the cogs).
-void Battle::buildMovie(const net::BattleMovie& m) {
-    uint32_t t = 300;
-    int order[4];
+int Battle::addSay(const char* text) {
+    if (numSays_ >= kMaxSays) return -1;
+    snprintf(says_[numSays_], sizeof(says_[0]), "%.*s", int(sizeof(says_[0])) - 1, text);
+    return numSays_++;
+}
+
+namespace {
+
+// Movie.__doToonAttacks: FIRE, then SOS, NPCSOS specials and PETSOS, then the gag tracks
+// (HEAL..DROP) in track order, levels ascending. An NPC SOS Toon with a gag ability plays in its
+// gag's place (Movie.__genToonAttackDicts turns it into that track and level).
+struct ResolvedAttack {
+    int index;      // into BattleMovie::toonAttacks
+    int rank;       // sort key: -4 fire, -3 sos, -2 npc special, -1 pet, 0..6 gag track
+    int track, level;
+    const ui::SosCardDef* npc; // NPCSOS: the Rescued Toon
+};
+
+int resolveToonAttacks(const net::BattleMovie& m, ResolvedAttack* out) {
     int n = 0;
     for (int i = 0; i < 4; ++i) {
         const net::BattleToonAttack& a = m.toonAttacks[i];
-        if (a.track < 0 || a.track > 6 || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        if (a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        ResolvedAttack r{i, a.track, a.track, a.level, nullptr};
+        if (a.track == kAttackFire) {
+            r.rank = -4;
+        } else if (a.track == kAttackSos) {
+            r.rank = -3;
+        } else if (a.track == kAttackNpcSos) {
+            r.npc = a.target > 0 && a.target < 0x10000 ? ui::findSosCard(uint16_t(a.target)) : nullptr;
+            if (r.npc && r.npc->track <= kTrackDrop) {
+                r.rank = r.track = r.npc->track;
+                r.level = r.npc->level;
+            } else {
+                r.rank = -2;
+            }
+        } else if (a.track == kAttackPetSos) {
+            r.rank = -1;
+        } else if (a.track < 0 || a.track > kTrackDrop) {
+            continue; // PASS, NO_ATTACK, UN_ATTACK
+        }
         int pos = n++;
         while (pos > 0) {
-            const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
-            if (p.track < a.track || (p.track == a.track && p.level <= a.level)) break;
-            order[pos] = order[pos - 1];
+            const ResolvedAttack& p = out[pos - 1];
+            if (p.rank < r.rank || (p.rank == r.rank && p.level <= r.level)) break;
+            out[pos] = out[pos - 1];
             --pos;
         }
-        order[pos] = i;
+        out[pos] = r;
     }
+    return n;
+}
+
+} // namespace
+
+// Plays the round in the order Movie.py does (see resolveToonAttacks, then the cogs).
+void Battle::buildMovie(const net::Client& client, const net::BattleMovie& m) {
+    numSteps_ = 0;
+    numSays_ = 0;
+    uint32_t t = 300;
+    ResolvedAttack order[4];
+    const int n = resolveToonAttacks(m, order);
     for (int k = 0; k < n; ++k) {
-        const net::BattleToonAttack& a = m.toonAttacks[order[k]];
+        const ResolvedAttack& r = order[k];
+        const net::BattleToonAttack& a = m.toonAttacks[r.index];
         const uint32_t who = m.toons[a.toonIdx];
+        const char* whoName = client.avatarName(who);
+        if (!whoName || !whoName[0]) whoName = "Toon";
+        char line[48];
+
+        if (r.rank == -4) {
+            // MovieFire: the toon throws a pink slip at the cog, who is fired (flies off).
+            const uint32_t suit = a.target >= 0 && a.target < m.numSuits ? m.suits[a.target] : 0;
+            addFx(t, kFxGesture, who, suit, 2600);
+            if (suit) addFx(t + 1600, kFxSay, suit, 0, addSay("Fired!"));
+            uint32_t dur = 2600;
+            for (int j = 0; j < m.numSuits; ++j) {
+                if ((a.died >> j) & 1) {
+                    addFx(t + 1900, kFxDie, m.suits[j], 0, 0);
+                    dur = 1900 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
+                }
+            }
+            addStep(BattleMovieStep::kSpecial, t, dur, who, suit, a.track, -1);
+            t += dur;
+            continue;
+        }
+        if (r.rank == -3 || r.rank == -1) {
+            // MovieSOS: the caller (or an observer) calls out; MoviePetSOS: a doodle trick heals.
+            if (r.rank == -3) {
+                const uint32_t friendId = uint32_t(a.target);
+                const char* friendName = friendId ? client.avatarName(friendId) : nullptr;
+                if (friendName && friendName[0]) snprintf(line, sizeof line, "%s HELP!", friendName); // MovieSOSCallHelp
+                else snprintf(line, sizeof line, "HELP!");                                          // MovieSOSObserverHelp
+                addFx(t + 500, kFxSay, who, 0, addSay(line));
+            } else {
+                for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
+                    if (a.hp[j] > 0) addFx(t + 1500, kFxHeal, m.toons[j], who, a.hp[j]);
+                }
+            }
+            addStep(BattleMovieStep::kSpecial, t, 2500, who, 0, a.track, -1);
+            t += 2500;
+            continue;
+        }
+        if (r.npc || a.track == kAttackNpcSos) {
+            // MovieNPCSOS.teleportIn: "Hi <caller>! Glad to help!" (MovieNPCSOSGreeting).
+            snprintf(line, sizeof line, "%s: Hi %s!", r.npc ? r.npc->name : "SOS Toon", whoName);
+            addFx(t, kFxSay, who, 0, addSay(line));
+        }
+        if (r.rank == -2) {
+            // NPC_TOONS_HIT / NPC_COGS_MISS / NPC_RESTOCK_GAGS: the Toon's announcement.
+            const int track = r.npc ? r.npc->track : -1;
+            if (track == 8) snprintf(line, sizeof line, "Toons Always Hit!");
+            else if (track == 9) snprintf(line, sizeof line, "Cogs Always Miss!");
+            else if (track == 7 && r.npc->level >= 0 && r.npc->level <= kTrackDrop)
+                snprintf(line, sizeof line, "Restocking %s gags!", ui::theme::kTrackTitles[r.npc->level]);
+            else snprintf(line, sizeof line, "Restocking All gags!");
+            addFx(t + 1200, kFxSay, who, 0, addSay(line));
+            addStep(BattleMovieStep::kSpecial, t, 3200, who, 0, a.track, -1);
+            t += 3200;
+            continue;
+        }
+        if (r.npc) t += 1200; // the greeting before the Toon's gag
+
         uint32_t target = 0;
-        if (a.target >= 0) {
-            if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
-            else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
+        if (a.target >= 0 && !r.npc) {
+            if (r.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
+            else if (r.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
 
         uint32_t attackDur = 2200;
         uint32_t hitAt = t + 1500;
-        if (a.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
-        else if (a.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
-        else if (a.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
-        else if (a.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
-        else if (a.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
+        if (r.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
+        else if (r.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
+        else if (r.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
+        else if (r.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
+        else if (r.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
+        else if (r.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
+        else if (r.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
 
-        addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
+        addFx(t, kFxAttack, who, target, attackDur, r.track, r.level);
         bool any = false;
-        if (a.track == kTrackHeal) {
+        if (r.track == kTrackHeal) {
             for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], r.track, r.level);
                     any = true;
                 }
             }
         } else {
             for (int j = 0; j < a.numHp && j < m.numSuits; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], r.track, r.level);
                     any = true;
                 }
             }
-            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, a.track, a.level);
+            if (!any && target) addFx(hitAt, kFxMiss, target, who, 0, r.track, r.level);
         }
         uint32_t dur = attackDur;
         for (int j = 0; j < m.numSuits; ++j) {
@@ -678,6 +783,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
                 dur = (hitAt - t) + 500 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
             }
         }
+        addStep(BattleMovieStep::kToonGag, t, dur, who, target, r.track, r.level);
         t += dur;
     }
     for (int i = 0; i < 4; ++i) {
@@ -711,10 +817,11 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             }
         }
         if (!any && s.target >= 0 && s.target < m.numToons) addFx(missAt, kFxMiss, m.toons[s.target], who, 0, -1, s.attack);
+        addStep(BattleMovieStep::kSuit, t, attackDur, who, target, -1, s.attack, s.target < 0);
         t += attackDur;
     }
     movieEndMs_ = movieStartMs_ + t + 300;
-    TT_LOG("battle: movie: %d effects, %u ms", numFx_, unsigned(t + 300));
+    TT_LOG("battle: movie: %d effects, %d steps, %u ms", numFx_, numSteps_, unsigned(t + 300));
 }
 
 void Battle::addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs, float rise) {
@@ -827,6 +934,19 @@ void Battle::runFx(uint32_t nowMs) {
             a->clipStartMs = nowMs;
             if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true, this);
             break;
+        case kFxSay: // a line from the movie in a speech balloon over the speaker
+            if (f.value >= 0 && f.value < numSays_) addPopup(*a, says_[f.value], kColorSay, nowMs, 2400, 0.0f);
+            break;
+        case kFxGesture: // the throw clip toward the target, no gag prop (MovieFire's pink slip)
+            a->attackStart = nowMs;
+            a->attackEnd = nowMs + uint32_t(f.value);
+            a->attackTrack = kTrackThrow;
+            a->clipStartMs = nowMs;
+            if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
+                a->faceH = headingTo(a->x, a->y, t->x, t->y);
+                a->faceUntil = a->attackEnd + 300;
+            }
+            break;
         case kFxDie:
             a->dying = true;
             a->dieStart = nowMs;
@@ -919,6 +1039,15 @@ void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs)
     case BattleAction::Pass:
         if (phase_ != BattlePhase::Input || chose_) return;
         if (client.sendBattleRequestAttack(id, int8_t(kAttackPass), -1, -1)) {
+            chose_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+        break;
+    case BattleAction::NpcSos: // DistributedBattleBase.__handleInventoryResponse 'NPCSOS'
+    case BattleAction::Fire:   // ... 'Fire': the cog's doId
+        if (phase_ != BattlePhase::Input || chose_ || a.target == 0) return;
+        if (client.sendBattleRequestAttack(id, int8_t(a.kind == BattleAction::Fire ? kAttackFire : kAttackNpcSos), -1,
+                                           int32_t(a.target))) {
             chose_ = true;
             phase_ = BattlePhase::Chosen;
         }
@@ -1212,6 +1341,14 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     }
     v->canRun = phase_ == BattlePhase::Input;
     v->rewardSent = rewardSent_;
+    // InventoryNew.battleActivate: Fire is live with a pink slip; the tutorial shows neither.
+    v->pinkSlips = client.bossPinkSlips();
+    v->canSos = phase_ == BattlePhase::Input && !tutorial_;
+    v->canFire = v->canSos && v->pinkSlips > 0;
+    const net::OwnBookStats& book = client.ownBook();
+    for (int i = 0; i < book.numSosCards && v->numSosCards < 16; ++i) {
+        v->sosCards[v->numSosCards++] = BattleView::SosCard{book.sosCards[i].npcId, book.sosCards[i].count};
+    }
     if (!nb) return;
     v->floorReward = nb->levelDoId != 0 && !strcmp(nb->stateName, "Reward");
     if (phase_ == BattlePhase::Reward && v->floorReward) v->status = "Cogs cleared! Onward...";

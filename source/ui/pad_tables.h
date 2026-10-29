@@ -10,27 +10,47 @@ namespace tt::ui::pad {
 
 constexpr float kScreenW = 320.0f;
 
-// ---- Street battle (ui/battle_panel.cpp): cogs, the gag grid, Pass / Run, Continue ----
+// ---- Street battle (ui/battle_panel.cpp): cogs, the gag grid, Fire / Pass / Run / SOS, Continue ----
 namespace battle {
 constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
-constexpr float kCogX = 2, kCogY = 18, kCogH = 44, kCogW = 78, kCogGap = 1;
-constexpr float kGridX = 60, kGridY = 66, kRowH = 20, kCellW = 35, kCellGap = 2;
-constexpr float kBtnY = 210, kBtnH = 28, kBtnW = 62, kContinueW = 100;
-constexpr float kPassX = 2, kRunX = 66, kContinueX = 218;
-// TownBattleToonPanel: a laff card per toon right of Pass / Run (left of Continue in the reward).
-constexpr float kToonsX = 130, kToonsRewardX = 2, kToonsW = 188;
+constexpr float kCogX = 2, kCogY = 18, kCogH = 40, kCogW = 78, kCogGap = 1;
+constexpr float kGridY = 62, kRowH = 19, kGridX = 60, kCellW = 35, kCellGap = 2;
+// The bottom strip. InventoryNew's battle buttons sit in a 2 x 2 block, as upstream: Fire and
+// Pass above Run and SOS. In the SOS and Fire panels the block holds Back (and the SOS page).
+constexpr float kBtnY = 198, kBtnH = 40;
+constexpr float kSmallW = 54, kSmallH = 19, kSmallGap = 2;
+constexpr float kFireX = 2, kPassX = kFireX + kSmallW + kSmallGap, kRunX = kFireX, kSosX = kPassX;
+constexpr float kRow2Y = kBtnY + kSmallH + kSmallGap;
+constexpr float kBackX = 2, kBackW = 2 * kSmallW + kSmallGap;
+constexpr float kContinueX = 218, kContinueW = 100, kContinueY = kBtnY + 6, kContinueH = 30;
+// TownBattleToonPanel: a laff card per toon right of the buttons (left of Continue in the reward).
+constexpr float kToonsX = 116, kToonsRewardX = 2, kToonsW = 202, kToonsRewardW = 212;
+// TownBattleSOSPanel's Rescued Toons: four cards a row, two rows a view, over the gag grid.
+constexpr int kSosPerView = 8;
+constexpr float kCardX = 2, kCardY = 62, kCardW = 76, kCardH = 64, kCardGap = 4;
 // Gag ids are track * 10 + level (0..66); the rest sit above them.
 constexpr int kIdCog0 = 100; // + cog index
 constexpr int kIdPass = 200;
 constexpr int kIdRun = 201;
 constexpr int kIdContinue = 202;
+constexpr int kIdFire = 203;
+constexpr int kIdSos = 204;
+constexpr int kIdBack = 205;
+constexpr int kIdSosPage = 206;
+constexpr int kIdSosCard0 = 300; // + card index within the view
 constexpr int gagId(int track, int level) { return track * 10 + level; }
 constexpr bool isGagId(int id) { return id >= 0 && id < kIdCog0; }
 } // namespace battle
 // usable[track * kLevels + level]: the gag can be chosen now.
-void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun);
+void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
+                      bool canFire = false, bool canSos = false);
+// The SOS panel: `numCards` cards in this view (callable[i]: has calls left), Back and a page
+// button when the Rescued Toons fill more than one view.
+void buildBattleSos(FocusGroup& group, int numCards, const bool* callable, bool paged);
+// The Fire panel (FireCogPanel): a Cog card per cog that can be fired, and Back.
+void buildBattleFire(FocusGroup& group, int numCogs, const bool* fireable);
 void buildBattleReward(FocusGroup& group);
 
 // ---- NPC quest dialog (ui/quest_panel.cpp): quest cards, track cards, Cancel ----

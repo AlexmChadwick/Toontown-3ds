@@ -39,12 +39,24 @@ private:
     bool usable(const world::BattleView& v, const BattleGags& g, int track, int level) const;
     uint32_t targetFor(const world::BattleView& v, int track) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
-    void drawToons(const world::BattleView& v, float x0);
+    void drawToons(const world::BattleView& v, float x0, float w);
+    // InventoryNew's battle buttons (Fire / Pass / Run / SOS) in its own blue.
+    void drawButtons(const world::BattleView& v);
+    void drawSos(const world::BattleView& v);
+    void drawFire(const world::BattleView& v);
+    void smallButton(float x, float y, float w, bool enabled, const char* label);
+    bool sosCallable(const world::BattleView& v, int card) const;
+    bool fireable(const world::BattleView& v, int cog) const;
     void centered(float cx, float y, float scale, u32 color, float maxW, const char* str);
 
     render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;
     int target_ = 0; // index into BattleView::cogs
+    // TownBattle's sub-panels while choosing: the attack panel, TownBattleSOSPanel, FireCogPanel.
+    enum class Mode : uint8_t { Attack, Sos, Fire } mode_ = Mode::Attack;
+    int sosView_ = 0; // which eight Rescued Toons the SOS panel shows
+    int returnFocus_ = -1; // the attack panel's focus when SOS / Fire opened
+    int wantFocus_ = -1;   // focus to set once the next table is built
     // Last health logged per card ("battle: cog <id> hp a/b"), so tests can follow the meter.
     uint32_t loggedCog_[4] = {};
     int loggedHp_[4] = {}, loggedMax_[4] = {};

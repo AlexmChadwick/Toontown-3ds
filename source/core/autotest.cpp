@@ -19,6 +19,9 @@ constexpr int tabX(int i) { return int((tt::ui::pad::tabX(i, 5) + tt::ui::pad::t
 // The Map tab's teleport row (pad::hoods): the middle of hood i.
 constexpr int kHoodTapY = int(tt::ui::pad::hoods::kRowY + tt::ui::pad::hoods::kRowH * 0.5f);
 
+constexpr int kBattleSosX = int(tt::ui::pad::battle::kSosX + 10), kBattleSosY = int(tt::ui::pad::battle::kRow2Y + 8);
+constexpr int kBattleFireX = int(tt::ui::pad::battle::kFireX + 10), kBattleFireY = int(tt::ui::pad::battle::kBtnY + 8);
+
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "run forward", "run"},
@@ -165,6 +168,16 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DUP, -1, -1, 0, "pad: battle cogs"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: battle gags"},
     {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: battle target", "pad_battle"},
+    // TownBattleSOSPanel by touch, then B back to the gag that was focused (Fire stays grey
+    // without pink slips; the stock server gives a fresh toon none).
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleSosX, kBattleSosY, 0, "pad: battle sos", "pad_battle_sos"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle sos back", "pad_battle_sos_back"},
+    // The same panels with sample cards and slips (main.cpp fills them in for these steps only).
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleSosX, kBattleSosY, 0, "pad: battle demo sos", "pad_battle_demo_sos"},
+    {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: battle demo sos page", "pad_battle_demo_sos2"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle demo sos back"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleFireX, kBattleFireY, 0, "pad: battle demo fire", "pad_battle_demo_fire"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle demo fire back", "pad_battle_demo_back"},
     {2.0f, 0, 0, 0, KEY_A, -1, -1, 0, "pad: battle fire"},
     {30.0f, 0, 0, 0, 0, -1, -1, 0, "pad: battle rounds", "pad_battle_end*"},
     // ---- end padnav ----

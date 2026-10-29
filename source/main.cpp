@@ -26,6 +26,7 @@
 #include "render/ui.h"
 #include "ui/balloons.h"
 #include "ui/hud.h"
+#include "ui/sos_tables.h"
 #include "ui/map_view.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
@@ -1411,6 +1412,18 @@ int main() {
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
+            // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
+            // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
+            if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
+                battleView.phase == tt::world::BattlePhase::Input) {
+                battleView.numSosCards = 10;
+                for (int i = 0; i < 10; i++) {
+                    battleView.sosCards[i] = tt::world::BattleView::SosCard{tt::ui::kSosCards[i * 4].npcId, uint8_t(i == 2 ? 0 : 1 + i % 3)};
+                }
+                battleView.pinkSlips = 3;
+                battleView.canFire = battleView.canSos;
+            }
+            // ---- end padnav ----
             const tt::net::OwnStats& st = net.ownStats();
             ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
         } else {
@@ -1427,7 +1440,12 @@ int main() {
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         tt::world::BattleAction battleAction;
-        while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
+        while (ui.battle().popAction(battleAction)) {
+            if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
+                (battleAction.kind == tt::world::BattleAction::NpcSos || battleAction.kind == tt::world::BattleAction::Fire))
+                continue; // the demo's sample cards and slips are not ours (padnav)
+            battle.perform(net, battleAction, tt::net::plat::nowMs());
+        }
         if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
         ambientTimer -= dt;
         if (ambientTimer <= 0.0f) {

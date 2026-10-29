@@ -2,7 +2,8 @@
 
 namespace tt::ui::pad {
 
-void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun) {
+void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
+                      bool canFire, bool canSos) {
     using namespace battle;
     group.rebuild();
     for (int i = 0; i < numCogs && i < kMaxCogs; i++) {
@@ -14,14 +15,36 @@ void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, con
                           usable[t * kLevels + l]);
         }
     }
-    group.addItem(kIdPass, kPassX, kBtnY, kBtnW, kBtnH);
-    group.addItem(kIdRun, kRunX, kBtnY, kBtnW, kBtnH, canRun);
+    group.addItem(kIdFire, kFireX, kBtnY, kSmallW, kSmallH, canFire);
+    group.addItem(kIdPass, kPassX, kBtnY, kSmallW, kSmallH);
+    group.addItem(kIdRun, kRunX, kRow2Y, kSmallW, kSmallH, canRun);
+    group.addItem(kIdSos, kSosX, kRow2Y, kSmallW, kSmallH, canSos);
+}
+
+void buildBattleSos(FocusGroup& group, int numCards, const bool* callable, bool paged) {
+    using namespace battle;
+    group.rebuild();
+    for (int i = 0; i < numCards && i < kSosPerView; i++) {
+        group.addItem(kIdSosCard0 + i, kCardX + (i % 4) * (kCardW + kCardGap), kCardY + (i / 4) * (kCardH + kCardGap), kCardW,
+                      kCardH, callable[i]);
+    }
+    group.addItem(kIdBack, kBackX, kBtnY, kBackW, kSmallH);
+    if (paged) group.addItem(kIdSosPage, kBackX, kRow2Y, kBackW, kSmallH);
+}
+
+void buildBattleFire(FocusGroup& group, int numCogs, const bool* fireable) {
+    using namespace battle;
+    group.rebuild();
+    for (int i = 0; i < numCogs && i < kMaxCogs; i++) {
+        group.addItem(kIdCog0 + i, kCogX + i * (kCogW + kCogGap), kCogY, kCogW, kCogH, fireable[i]);
+    }
+    group.addItem(kIdBack, kBackX, kBtnY, kBackW, kSmallH);
 }
 
 void buildBattleReward(FocusGroup& group) {
     using namespace battle;
     group.rebuild();
-    group.addItem(kIdContinue, kContinueX, kBtnY, kContinueW, kBtnH);
+    group.addItem(kIdContinue, kContinueX, kContinueY, kContinueW, kContinueH);
 }
 
 void buildQuestPages(FocusGroup& group) {
