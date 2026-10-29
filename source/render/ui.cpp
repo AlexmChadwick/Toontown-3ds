@@ -238,7 +238,10 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Battle) return battle_.handleInput(down, t, *battleView_, battleGags_);
     if (owner == PanelOwner::Talk) return quest_.handleInput(down, t, *talk_);
     if (owner == PanelOwner::Purchase || owner == PanelOwner::Info) return down & ~KEY_B;
-    if (owner == PanelOwner::Fishing) return down & ~(KEY_A | KEY_B);
+    if (owner == PanelOwner::Fishing) { // the Cast / Exit touch buttons; A / B still reach the spot
+        const u32 used = fishingPanel_.handleInput(down, held, t);
+        return (down & ~(KEY_A | KEY_B)) | used;
+    }
     // ---- end qafix ----
     // The Debug tab leaves the bar when the book's Options page turns debug off.
     if (s.tab < 0 || s.tab >= numTabs(s)) s.tab = kTabMap;

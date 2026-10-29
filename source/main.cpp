@@ -640,6 +640,18 @@ int main() {
                                     minigame.completedPurchase() && !minigame.active()});
         // ---- end qafix ----
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
+        if (autotest.active() && !strcmp(autotest.label(), "fish: touch cast")) {
+            // Test-only: press the touch Cast button and drag down-left over 0.8 s, then let go
+            // (fishing_panel.cpp: power from the drag length, a cast to the right).
+            static float dragT = 0.0f;
+            dragT = autotest.stepTime() < dt ? 0.0f : dragT + dt;
+            if (dragT < 0.8f) {
+                in.held |= KEY_TOUCH;
+                if (dragT == 0.0f) in.down |= KEY_TOUCH;
+                touch.px = u16(160 - 30.0f * dragT / 0.8f);
+                touch.py = u16(118 + 50.0f * dragT / 0.8f);
+            }
+        }
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         // ---- tutorial ----
         // The Toontorial pass uses the same UI acknowledgements as a player.  QuestParser's
@@ -1584,6 +1596,8 @@ int main() {
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
+        fishing.setTouch(ui.fishingPanel().touch()); // the touch Cast button (gesture events once)
+        ui.fishingPanel().clearTouchEvents();
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle() && !exclusivePanel &&
                             !shop.active() && !tailor.active() && !serviceClerks.active() && !talk.locked());
         tt::prof::lap(tt::prof::kNet);

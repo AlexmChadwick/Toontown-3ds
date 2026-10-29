@@ -176,6 +176,10 @@ public:
 private:
     // ---- qafix ----
     PanelOwner resolveOwner(bool fishing, bool info);
+public:
+    // The fishing panel's touch gesture this frame (consumed by world::Fishing).
+    FishingPanel& fishingPanel() { return fishingPanel_; }
+private:
     PanelOwner lastOwner_ = PanelOwner::Tabs;
     bool drawnInfo_ = false; // the last drawn frame showed an info panel (ctx.infoTitle)
     unsigned contextZone_ = 0;

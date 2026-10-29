@@ -122,6 +122,8 @@ const Step kScript[] = {
     {2.0f, 0, 0, KEY_DLEFT, 0, -1, -1, 0, "pad: fish aim", "pad_fish_aim"}, // padnav: D-Pad aims
     {1.0f, 0, 0, KEY_A, KEY_A, -1, -1, 0, "fish: charge"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "fish: wait", "fish_cast"},
+    {0.6f, 0, 0, 0, 0, -1, -1, 0, "fish: touch cast", "fish_touch_drag"}, // shot mid-drag
+    {6.0f, 0, 0, 0, 0, -1, -1, 0, "fish: touch wait", "fish_touch_cast"},
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
     {7.0f, 0, 0, 0, 0, -1, -1, 0, "board trolley", "trolley"},
     {9.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: ride", "trolley_ride"},
