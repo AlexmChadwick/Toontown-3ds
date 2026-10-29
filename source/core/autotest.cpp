@@ -125,6 +125,9 @@ const Step kScript[] = {
     {0.6f, 0, 0, 0, 0, -1, -1, 0, "fish: touch cast", "fish_touch_drag"}, // shot mid-drag
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "fish: touch wait", "fish_touch_cast"},
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
+    // Board, then the panel's Hop off button by touch (Trolley's exitButton); then board for real.
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "trolley hop: board", "trolley_hop_wait"},
+    {3.0f, 0, 0, 0, KEY_TOUCH, 160, 206, 0, "trolley hop: tap hop off", "trolley_hop"},
     {7.0f, 0, 0, 0, 0, -1, -1, 0, "board trolley", "trolley"},
     {9.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: ride", "trolley_ride"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: game", "trolley_game*"},

@@ -359,6 +359,7 @@ int main() {
     const char* toast = nullptr;
     float toastAge = 99.0f;
     char toastBuf[96];
+    char infoTimeBuf[24]; // the info panel's "Time: N" line (trolley, Cog elevator)
     const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
     u32 grabRequested = 0;
     u32 lastTouchedTreasure = 0;
@@ -861,6 +862,21 @@ int main() {
             // Test-only: walk onto the nearest fishing spot.
             float sx, sy, sz, sh;
             if (fishing.nearestSpot(player.x(), player.y(), &sx, &sy, &sz, &sh)) player.reset(sx, sy, sz + 0.5f, sh);
+        }
+        static bool autotestHopBoarded = false;
+        if (autotest.active() && !strcmp(autotest.label(), "trolley hop: board") && !trolley.seated() &&
+            !autotestHopBoarded) { // Test-only: the same walk-in, to try the Hop off button
+            float bx, by, bz;
+            trolley.boardingPoint(&bx, &by, &bz);
+            if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
+            autotestHopBoarded = true;
+        }
+        static bool autotestHopLogged = false;
+        if (autotest.active() && !strcmp(autotest.label(), "trolley hop: tap hop off") && autotest.stepTime() > 2.5f &&
+            !autotestHopLogged) {
+            autotestHopLogged = true;
+            TT_LOG("autotest: trolley hop off -> seated %d (%s)", trolley.seated() ? 1 : 0,
+                   trolley.seated() ? "FAIL: still seated" : "ok");
         }
         if (autotest.active() && !strcmp(autotest.label(), "board trolley") && !trolley.seated() &&
             !minigame.active() && !autotestBoardedTrolley) {
@@ -1481,6 +1497,10 @@ int main() {
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
+        if (uiState.infoButtonPressed) { // the info panel's Hop off / Leave button is B
+            uiState.infoButtonPressed = false;
+            in.down |= KEY_B;
+        }
         tt::world::BattleAction battleAction;
         while (ui.battle().popAction(battleAction)) {
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
@@ -3022,17 +3042,25 @@ int main() {
         }
         // ---- qafix: trolley owns its panel before the minigame hand-off ----
         if (trolley.seated()) {
+            // Trolley.enterTrolleyBoarded: the countdown and the Hop off button (TTLocalizer.TrolleyHopOff).
+            const int left = trolley.countdown(net, tt::net::plat::nowMs());
             ctx.infoTitle = "Trolley";
             ctx.infoLines[0] = "Waiting for the trolley to leave...";
-            ctx.infoLines[1] = "B: hop off before departure";
+            if (left >= 0) {
+                snprintf(infoTimeBuf, sizeof(infoTimeBuf), "Time: %d", left);
+                ctx.infoLines[1] = infoTimeBuf;
+                ctx.infoButton = "Hop off";
+            }
         }
         // ---- end qafix ----
         if (cogInterior.seated()) {
             const int left = cogInterior.elevatorCountdown(net, tt::net::plat::nowMs());
             ctx.infoTitle = "Cog elevator";
             ctx.infoLines[0] = left >= 0 ? "Leaving in a few seconds..." : "Riding to the next floor...";
-            ctx.infoLines[1] = "B: leave elevator";
             if (left >= 0) {
+                snprintf(infoTimeBuf, sizeof(infoTimeBuf), "Time: %d", left);
+                ctx.infoLines[1] = infoTimeBuf;
+                ctx.infoButton = "Leave elevator"; // B as before
                 snprintf(toastBuf, sizeof(toastBuf), "Cog elevator leaves in %d...  (B: leave)", left);
                 toast = toastBuf;
                 toastAge = 0.0f;

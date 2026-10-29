@@ -49,6 +49,7 @@ struct State {
     int musicVol = 80;
     int sfxVol = 100;
     bool quitRequested = false;
+    bool infoButtonPressed = false; // the info panel's button (Context::infoButton) was pressed
 };
 
 struct MapMarker {
@@ -97,6 +98,9 @@ struct Context {
     const RacingView* racing = nullptr; // ---- racing2 ----
     const char* infoTitle = nullptr;
     const char* infoLines[3] = {};
+    // A button on the info panel (the trolley's Hop off, the Cog elevator's exit); A or a tap
+    // presses it, and it acts as B (State::infoButtonPressed). null = none.
+    const char* infoButton = nullptr;
     // Gags tab (owner view of our toon); null = offline.
     const uint16_t* gagExp = nullptr;            // [7]
     const uint8_t (*gagCount)[7] = nullptr;      // [7][7]
@@ -182,6 +186,7 @@ public:
 private:
     PanelOwner lastOwner_ = PanelOwner::Tabs;
     bool drawnInfo_ = false; // the last drawn frame showed an info panel (ctx.infoTitle)
+    bool drawnInfoButton_ = false; // ...with its button (ctx.infoButton)
     unsigned contextZone_ = 0;
     bool contextFishing_ = false, contextInfo_ = false;
     bool contextRacing_ = false; // ---- racing2 ----
