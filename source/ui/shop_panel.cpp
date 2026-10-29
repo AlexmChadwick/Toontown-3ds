@@ -338,7 +338,8 @@ void ShopPanel::draw() {
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
         theme::roundRect(kNameX, y + 1, kGridX - kNameX - 3, kCellH - 3, 4,
-                         profile_.trackAccess[t] ? theme::kTrackColors[t] : theme::kGrey);
+                         profile_.trackAccess[t] ? theme::kTrackColors[t]
+                                                 : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.55f));
         C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 4, y + 4, 0.5f, 0.4f, 0.4f,
                      profile_.trackAccess[t] ? kInk : theme::kInkSoft);
         for (int l = 0; l < kCols; l++) {
@@ -347,7 +348,7 @@ void ShopPanel::draw() {
             const bool canBuy = open && shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::Ok;
             const bool sel = t == selTrack_ && l == selLevel_;
             const bool bought = cart_.bought(t, l) > 0;
-            const u32 face = !open ? theme::kGrey : bought ? theme::kYellow
+            const u32 face = !open ? theme::mix(theme::kTrackColors[t], theme::kPaper, 0.82f) : bought ? theme::kYellow
                            : canBuy ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f) : theme::kPaperShade;
             theme::roundRect(x, y, kCellW - 1, kCellH - 1, 4, sel ? theme::kRed : theme::kPaperEdge, 0.5f);
             const float in = sel ? 2.0f : 1.0f;

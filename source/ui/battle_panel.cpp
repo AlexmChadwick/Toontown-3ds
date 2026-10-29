@@ -462,9 +462,16 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         for (int t = 0; t < gags::kTracks; t++) {
             const float y = kGridY + t * kRowH;
             const bool have = g.access && g.access[t];
-            theme::roundRect(4, y, kGridX - 6, kRowH - 2, 4, have ? theme::kTrackColors[t] : theme::kGrey);
+            // InventoryNew tints every track row; a track still to earn just has no gag buttons.
+            const u32 col = theme::kTrackColors[t];
+            theme::roundRect(4, y, kGridX - 6, kRowH - 2, 4, have ? col : theme::mix(col, theme::kPaper, 0.55f));
             text(8, y + 1, 0.38f, have ? kInk : kInkSoft, "%s", theme::kTrackTitles[t]);
-            if (!have || !g.count) continue;
+            if (!have) {
+                theme::roundRect(kGridX, y, gags::kLevels * (kCellW + 2) - 2, kRowH - 2, 4,
+                                 theme::mix(col, theme::kPaper, 0.82f));
+                continue;
+            }
+            if (!g.count) continue;
             const int levels = gags::levelsUnlocked(t, g.exp[t]);
             for (int l = 0; l < levels; l++) {
                 const float x = kGridX + l * (kCellW + 2);

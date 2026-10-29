@@ -321,7 +321,8 @@ void MinigamePurchasePanel::draw() {
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
         theme::roundRect(kNameX, y + 1, kGridX - kNameX - 3, kCellH - 3, 4,
-                         profile_.trackAccess[t] ? theme::kTrackColors[t] : theme::kGrey, 0.2f);
+                         profile_.trackAccess[t] ? theme::kTrackColors[t]
+                                                 : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.55f), 0.2f);
         C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 4, y + 4, 0.5f, 0.4f, 0.4f,
                      profile_.trackAccess[t] ? theme::kInk : theme::kInkSoft);
         for (int l = 0; l < kCols; l++) {
@@ -331,7 +332,7 @@ void MinigamePurchasePanel::draw() {
             const bool sel = t == selTrack_ && l == selLevel_;
             const bool hasBought = cart_.bought(t, l) > 0;
             // The Gag Shop's cells (ui/shop_panel.cpp): the gag's icon, then have/max.
-            const u32 bg = !open ? theme::kGrey : hasBought ? theme::kYellow
+            const u32 bg = !open ? theme::mix(theme::kTrackColors[t], theme::kPaper, 0.82f) : hasBought ? theme::kYellow
                          : canBuy ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f) : theme::kPaperShade;
             theme::roundRect(x, y, kCellW - 2, kCellH - 2, 4, sel ? theme::kRed : theme::kPaperEdge, 0.2f);
             const float in = sel ? 2.0f : 1.0f;

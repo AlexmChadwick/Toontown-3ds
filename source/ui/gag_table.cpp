@@ -16,13 +16,16 @@ void drawGagTable(PageText& text, const GagTableData& d, float x, float y, float
         const float ry = y + t * rowH;
         const bool have = d.access && d.access[t];
         const u32 col = theme::kTrackColors[t];
-        // The track label: InventoryNew's coloured track button.
-        theme::roundRect(x, ry, kPillW, cellH, 5, have ? theme::shade(col, 0.72f) : theme::kGreyDark);
-        theme::roundRect(x + 1, ry + 1, kPillW - 2, cellH - 3, 4, have ? col : theme::kGrey);
+        // The track label: InventoryNew's coloured track row. A track still to earn keeps its
+        // colour (upstream tints every row; only the gag buttons are hidden), faded.
+        const u32 face = have ? col : theme::mix(col, theme::kPaper, 0.55f);
+        theme::roundRect(x, ry, kPillW, cellH, 5, theme::shade(face, 0.72f));
+        theme::roundRect(x + 1, ry + 1, kPillW - 2, cellH - 3, 4, face);
         text.fit(x + 6, ry + (cellH - 15.0f) * 0.5f, theme::kTextSmall, have ? theme::kInk : theme::kInkSoft,
                  kPillW - 10, "%s", theme::kTrackTitles[t]);
         const uint16_t exp = d.exp ? d.exp[t] : 0;
         if (!have) {
+            theme::roundRect(cellsX, ry, cellW * gags::kLevels - 1, cellH, 4, theme::mix(col, theme::kPaper, 0.82f));
             const char* note = t == d.trainingTrack ? "Training" : "Not trained yet";
             if (t == d.trainingTrack) {
                 // TrackPage's filmstrip: 15 frames to earn (getTrackProgressAsArray) and the
