@@ -667,7 +667,6 @@ void Ui::drawMap(const Context& c) {
 
 void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) {
-        theme::sky();
         theme::paper(4, 4, kW - 8, kPocketTop - 6, 8.0f); // above the laff pocket and the book pill // online: the server's DNA wins, so the tab shows our ToonTasks instead
         // Our name, laff and jellybeans (the laff meter itself is in the tab bar's pocket).
         C2D_Text name;
@@ -778,8 +777,9 @@ void Ui::drawInfo(const Context &c) {
 }
 
 void Ui::drawGags(const Context &c) {
-    // The Shtiker Book's Gags page on the sky: the gag table, the carry count and jellybeans.
-    theme::paper(4, 4, kW - 8, kTabY - 8, 8.0f);
+    // The Shtiker Book's Gags page on the sky: the gag table, the carry count and jellybeans. The
+    // card ends above the laff pocket, so its corners stay whole.
+    theme::paper(4, 4, kW - 8, kPocketTop - 2, 8.0f);
     if (!c.gagCount) {
         gagText_.centered(kW * 0.5f, 84, theme::kTextBody, theme::kInk, kW - 32, "Your gags appear here");
         gagText_.centered(kW * 0.5f, 104, theme::kTextBody, theme::kInk, kW - 32, "once you are online.");
