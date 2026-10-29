@@ -29,6 +29,7 @@ constexpr u32 kBinder = rgb(0x7A, 0x1E, 0x18);
 constexpr u32 kBinderDark = rgb(0x52, 0x10, 0x0C);
 // Text.
 constexpr u32 kInk = rgb(0x2A, 0x1A, 0x0C);
+constexpr u32 kPurchaseInk = rgb(0x00, 0x1A, 0xB3), kPurchaseInkOff = rgb(0x00, 0x00, 0x66);
 constexpr u32 kInkSoft = rgb(0x7A, 0x66, 0x50);
 constexpr u32 kWhite = rgb(0xFF, 0xFF, 0xFF);
 // Candy accents.
@@ -84,6 +85,11 @@ void button(float x, float y, float w, float h, u32 face, u32 lip, bool down = f
 // selected / highlighted choice), plus a red one for destructive actions and grey for disabled.
 enum class Pill : u8 { Yellow, Cyan, Red, Grey };
 void pill(float x, float y, float w, float h, Pill style, bool down = false, float z = 0.5f);
+// The purchase screens' button (PurchScrn_BTN): an orange rounded bar; label it in
+// kPurchaseInk (text_fg 0, 0.1, 0.7), or kPurchaseInkOff when disabled (text3_fg 0, 0, 0.4).
+// red: the same bar in quit_button red (Cancel, white ink).
+void purchaseButton(float x, float y, float w, float h, bool enabled = true, bool down = false, float z = 0.5f,
+                    bool red = false);
 // The ink that reads on a pill face.
 u32 pillInk(Pill style);
 // Blend from a toward b (0..1), per channel including alpha.

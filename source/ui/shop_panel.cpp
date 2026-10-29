@@ -2,6 +2,8 @@
 #include "ui/theme.h"
 #include "ui/shop_panel.h"
 
+#include "ui/purchase_art.h"
+
 #include <cstdio>
 #include <cstring>
 
@@ -16,6 +18,8 @@ namespace {
 // Layout (bottom screen 320x240).
 constexpr float kNameX = 4, kGridX = 64, kGridY = 26, kCellW = 42, kCellH = 22;
 constexpr float kInfoY = 184;
+constexpr float kSignW = 170;                          // the title plank
+constexpr float kJarH = 40, kJarX = 136 - kJarH * 0.41f; // the bean jar, centred between [+] and Done
 // The button row is shared with its focus table (ui/pad_tables.h).
 constexpr float kBtnY = pad::counter::kBtnY, kBtnH = pad::counter::kBtnH;
 constexpr float kMinusX = pad::counter::kMinusX, kPlusX = pad::counter::kPlusX;
@@ -47,7 +51,7 @@ bool ShopPanel::init() {
         tt::render::textParse(&trackText_[t], staticBuf_, theme::kTrackTitles[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
-    static const char* const kBtn[4] = {"-", "+", "Done", "Cancel"};
+    static const char* const kBtn[4] = {"-", "+", "DONE\nSHOPPING", "Cancel"}; // GagShopDoneShopping
     for (int i = 0; i < 4; i++) {
         tt::render::textParse(&btnText_[i], staticBuf_, kBtn[i]);
         C2D_TextOptimize(&btnText_[i]);
@@ -281,8 +285,8 @@ void ShopPanel::rebuildGrid() {
 void ShopPanel::rebuildInfo() {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
-    tt::render::textParse(&titleText_, infoBuf_, "Gag Shop");
-    snprintf(buf, sizeof(buf), "Beans: %d", cart_.money);
+    tt::render::textParse(&titleText_, infoBuf_, "Goofy's Gag Shop"); // TTLocalizer.GagShopName
+    snprintf(buf, sizeof(buf), "%d", cart_.money); // on the jar
     tt::render::textParse(&beansText_, infoBuf_, buf);
     snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
     tt::render::textParse(&carryText_, infoBuf_, buf);
@@ -319,10 +323,10 @@ void ShopPanel::draw() {
     // Upstream's purchase screen: cream gag panel, track-coloured row labels, gags bought this
     // visit in gold, Done green and Cancel red.
     theme::sky();
-    theme::paper(1, 0, 318, 22, 6.0f);
-    C2D_DrawText(&titleText_, C2D_WithColor, 7, 2, 0.5f, 0.5f, 0.5f, theme::kRedDark);
-    C2D_DrawText(&beansText_, C2D_WithColor, 96, 4, 0.5f, 0.45f, 0.45f, cart_.money > 0 ? kInk : theme::kRed);
-    C2D_DrawText(&carryText_, C2D_WithColor, 186, 4, 0.5f, 0.45f, 0.45f, kInk);
+    // ClerkPurchase's title: the Goofys_Sign plank; the carry count on a paper tag beside it.
+    drawGagShopSign(titleText_, 4, 0, kSignW, 24);
+    theme::paper(kSignW + 10, 2, 318 - kSignW - 11, 20, 6.0f);
+    theme::textCentered(carryText_, (kSignW + 10 + 318) * 0.5f, 5, 0.45f, kInk, 318 - kSignW - 20);
     // The countdown is ClerkPurchase's ToontownTimer in the top screen's corner (ui/hud).
     theme::paper(1, kGridY - 3, 318, gags::kTracks * kCellH + 5, 6.0f);
     for (int t = 0; t < gags::kTracks; t++) {
@@ -355,18 +359,19 @@ void ShopPanel::draw() {
                  note_[0] ? theme::kRed : theme::kGreenDark);
     const bool canSell = cart_.bought(selTrack_, selLevel_) > 0;
     const bool canAdd = shop::canBuy(profile_, cart_.inv, cart_.money, selTrack_, selLevel_) == shop::Buy::Ok;
-    theme::button(kMinusX, kBtnY, kBtnSmallW, kBtnH, canSell ? theme::kBlue : theme::kGrey,
-                  canSell ? theme::kBlueDark : theme::kGreyDark);
-    theme::button(kPlusX, kBtnY, kBtnSmallW, kBtnH, canAdd ? theme::kBlue : theme::kGrey,
-                  canAdd ? theme::kBlueDark : theme::kGreyDark);
-    theme::button(kDoneX, kBtnY, kDoneW, kBtnH, theme::kGreen, theme::kGreenDark);
-    theme::button(kCancelX, kBtnY, kCancelW, kBtnH, theme::kRed, theme::kRedDark);
+    // PurchaseBase.pointDisplay: our jellybeans on the Jar, between [+] and Done.
+    drawBeanJar(beansText_, kJarX, kBtnY - 4, kJarH);
+    // ClerkPurchase's PurchScrn_BTN buttons (orange, blue ink; dimmed when they cannot act).
+    theme::purchaseButton(kMinusX, kBtnY, kBtnSmallW, kBtnH, canSell);
+    theme::purchaseButton(kPlusX, kBtnY, kBtnSmallW, kBtnH, canAdd);
+    theme::purchaseButton(kDoneX, kBtnY, kDoneW, kBtnH);
+    theme::purchaseButton(kCancelX, kBtnY, kCancelW, kBtnH, true, false, 0.5f, true);
     theme::textCentered(btnText_[0], kMinusX + kBtnSmallW * 0.5f, kBtnY + 2, 0.8f,
-                        canSell ? theme::kWhite : theme::kInkSoft, 0, 0.55f);
+                        canSell ? theme::kPurchaseInk : theme::kPurchaseInkOff, 0, 0.55f);
     theme::textCentered(btnText_[1], kPlusX + kBtnSmallW * 0.5f, kBtnY + 2, 0.8f,
-                        canAdd ? theme::kWhite : theme::kInkSoft, 0, 0.55f);
-    theme::textCentered(btnText_[2], kDoneX + kDoneW * 0.5f, kBtnY + 7, 0.55f, theme::kWhite, kDoneW - 6, 0.55f);
-    theme::textCentered(btnText_[3], kCancelX + kCancelW * 0.5f, kBtnY + 7, 0.52f, theme::kWhite, kCancelW - 6, 0.55f);
+                        canAdd ? theme::kPurchaseInk : theme::kPurchaseInkOff, 0, 0.55f);
+    theme::textCentered(btnText_[2], kDoneX + kDoneW * 0.5f, kBtnY + 4, 0.42f, theme::kPurchaseInk, kDoneW - 6, 0.55f);
+    theme::textCentered(btnText_[3], kCancelX + kCancelW * 0.5f, kBtnY + 9, 0.5f, theme::kWhite, kCancelW - 6, 0.55f);
     buttons_.drawHighlight(); // padnav
 }
 

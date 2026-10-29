@@ -110,9 +110,11 @@ u32 gradientAt(u32 top, u32 mid, u32 bottom, float knee, float t) {
     return t < knee ? lerpColor(top, mid, t / knee) : lerpColor(mid, bottom, (t - knee) / (1.0f - knee));
 }
 
-void stripPill(float x, float y, float w, float h, u32 top, u32 mid, u32 bottom, float knee, float z) {
+// Rounded-rectangle strips with corner radius r (r = half the short side gives a pill).
+void stripRound(float x, float y, float w, float h, float r, u32 top, u32 mid, u32 bottom, float knee, float z) {
     if (w <= 0 || h <= 0) return;
-    const float r = (w < h ? w : h) * 0.5f;
+    const float rmax = (w < h ? w : h) * 0.5f;
+    if (r > rmax) r = rmax;
     const int n = int(h / 1.5f) + 1;
     for (int i = 0; i < n; i++) {
         const float y0 = y + h * i / n, y1 = y + h * (i + 1) / n;
@@ -125,6 +127,10 @@ void stripPill(float x, float y, float w, float h, u32 top, u32 mid, u32 bottom,
         const u32 c1 = gradientAt(top, mid, bottom, knee, (y1 - y) / h);
         C2D_DrawRectangle(x + inset, y0, z, w - 2 * inset, y1 - y0, c0, c0, c1, c1);
     }
+}
+
+void stripPill(float x, float y, float w, float h, u32 top, u32 mid, u32 bottom, float knee, float z) {
+    stripRound(x, y, w, h, (w < h ? w : h) * 0.5f, top, mid, bottom, knee, z);
 }
 
 struct PillColors {
@@ -148,6 +154,23 @@ void pill(float x, float y, float w, float h, Pill style, bool down, float z) {
     const float gh = (h - 3) * 0.3f;
     const u32 g0 = lerpColor(top, kWhite, 0.45f), g1 = lerpColor(c.mid, kWhite, 0.08f);
     stripPill(x + h * 0.3f, y + 2.5f, w - h * 0.6f, gh, g0, lerpColor(g0, g1, 0.5f), g1, 0.5f, z);
+}
+
+// PurchScrn_BTN_UP / _DN (phase_4 gag_shop_purchase_gui), sampled: an orange bar with rounded
+// corners, a light band under its top edge and a darker lower lip. Disabled is a faded tan (upstream
+// dims it with image3_color 0.6, which reads as mud at 3DS size).
+void purchaseButton(float x, float y, float w, float h, bool enabled, bool down, float z, bool red) {
+    constexpr PillColors kOrange = {rgb(0xA8, 0x65, 0x0C), rgb(0xFF, 0xBF, 0x6C), rgb(0xFE, 0xA6, 0x3A),
+                                    rgb(0xF0, 0x8C, 0x17)};
+    constexpr PillColors kOff = {rgb(0x7E, 0x60, 0x3A), rgb(0xCC, 0xA8, 0x80), rgb(0xC2, 0x98, 0x6A),
+                                 rgb(0xB0, 0x84, 0x58)};
+    // Red: our Cancel beside it (no upstream counterpart), the same shading in quit_button's red.
+    constexpr PillColors kRedBtn = {rgb(0x6A, 0x10, 0x0C), rgb(0xF6, 0x80, 0x6C), rgb(0xE8, 0x48, 0x38),
+                                    rgb(0xC0, 0x2C, 0x20)};
+    const PillColors& c = !enabled ? kOff : red ? kRedBtn : kOrange;
+    const float r = h * 0.24f;
+    stripRound(x, y, w, h, r, c.outline, c.outline, c.outline, 0.5f, z);
+    stripRound(x + 1.5f, y + 1.5f, w - 3, h - 3, r - 1.0f, down ? c.mid : c.top, c.mid, c.bottom, 0.25f, z);
 }
 
 u32 pillInk(Pill style) {
@@ -191,9 +214,9 @@ void textCentered(const C2D_Text& t, float cx, float y, float scale, u32 color, 
     C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
     if (maxW > 0.0f && w > maxW) {
         scale *= maxW / w;
-        w = maxW;
     }
-    C2D_DrawText(&t, C2D_WithColor, cx - w * 0.5f, y, z, scale, scale, color);
+    // Each line centred on cx (multi-line labels such as "DONE\nSHOPPING").
+    C2D_DrawText(&t, C2D_WithColor | C2D_AlignCenter, cx, y, z, scale, scale, color);
 }
 
 void textFit(const C2D_Text& t, float x, float y, float scale, u32 color, float maxW, float z) {
