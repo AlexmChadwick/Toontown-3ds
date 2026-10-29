@@ -3,6 +3,62 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 — Toontown UI art direction pass
+
+### Done
+- Moved the real species- and head-colour-aware Laff meter from the top-screen world view to
+  the bottom-screen Map. It now follows the original lower-left placement; Home moved beside
+  it while retaining its 76 x 24 touch target and the playground teleport row remains full
+  width. Healing/damage pulse, teeth, eyes and both Laff numbers are preserved.
+- Reworked the live battle picker from sparse debug rows into a stable 7 x 7 gag grid with
+  original gag icons, paper slots, opaque count badges, visible locked slots, a strong focus
+  frame and rounded Cog cards. Cog health is now a five-lamp green/amber/red chest-style meter
+  instead of a flat grey progress slab. The round timer and Pass/Run controls have framed,
+  readable states.
+- SpeedChat phrase and category rows are now opaque rounded cards with category colouring,
+  outlines and an explicit focus state. This prevents the menu from reading as loose text over
+  the map and keeps touch/D-pad behaviour unchanged.
+- Replaced the front end's generic navy square buttons with a shared rounded speech-card
+  primitive. Title, Pick-a-Toon, Make-a-Toon, name shop, Toontorial choice and error screens
+  now use sky, parchment, red-leather and gold colours with dark readable labels. Button
+  geometry and hitboxes did not change.
+- Enlarged the Shticker Book Gags page from loose 15 px icons to framed 18 px slots. Every
+  learned gag has an opaque track-coloured count badge, including zero counts, so numbers no
+  longer disappear into the icon art. XP bars were narrowed slightly without clipping labels.
+- Removed the last player-facing `C2D_DrawCircleSolid` calls (locked Gag slots and SOS rating
+  marks). Those procedural circles are known to lose PICA proctex state after the world shader;
+  both pages now use the triangle-based rounded primitive shared by SpeedChat and battle UI.
+
+### Verified
+- `git diff --check` passes after both new commits.
+- Source audit finds no remaining `C2D_DrawCircleSolid` calls in `source/ui`; the one renderer
+  reference is the existing explanatory comment for map markers.
+- Layout constants for the shifted Home control are shared by drawing, touch handling and the
+  focus table, with compile-time assertions covering x/y/width/height. The host pad-navigation
+  expectation was updated for its new nearest playground column.
+
+### Asset size decisions
+- None. This pass reuses the existing original gag and Laff-meter atlases and adds no runtime
+  assets. The rounded shapes are small immediate-mode triangles.
+
+### Known issues
+- This workspace has no host C++ compiler, devkitARM/libctru, Azahar or hardware connection.
+  The `.3dsx`, host suites and requested live battle/SpeedChat screenshots could not be run
+  here; this pass is source- and layout-verified only.
+- Fire and SOS choices are not wired into the battle protocol yet; the current live picker
+  exposes the seven normal gag tracks, Pass and Run.
+- Real-hardware readability, touch comfort and the cost of the additional rounded-card
+  triangles still need measurement on an Old 3DS.
+- The existing emulator/gameplay issues in older entries remain open.
+
+### Next
+- Build and run `AUTOTEST_FROM="see cog" AUTOTEST_ONLY="see cog,pad: battle"` with autoplay
+  off, then capture the selectable gag picker and SpeedChat at native 3DS resolution.
+- Add stock-compatible Fire and SOS selection after confirming their exact Open Toontown DC
+  request layouts and inventory semantics; do not expose decorative buttons before they work.
+- Run the front-end flow and every Shticker Book page in Old 3DS mode, checking contrast,
+  count badges, focus rings, pulse clipping and touch edges.
+
 ## 2026-10-28 — Player-facing bottom screen and hidden diagnostics
 
 ### Done
