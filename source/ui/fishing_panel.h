@@ -1,7 +1,8 @@
 // Bottom-screen fishing panel (citro2d): replaces the tab content while the toon is fishing.
 // Upstream shows this on the 3D screen as the fishingGui overlay (cast button, power arrow,
 // bucket/jar counters, "You caught:" frame); here it uses the touch screen
-// (docs/design/fishing.md section 8). source/world/fishing.* fills a FishingView each frame.
+// with fishingGui art (bake_fishing_gui.py) and the drag-to-cast gesture. source/world/fishing.* fills a
+// FishingView each frame.
 #pragma once
 
 #include <3ds.h>
