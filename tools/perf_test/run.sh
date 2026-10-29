@@ -17,6 +17,8 @@ for NAME in hot_paths text nearest; do
     "$CXX" "${FLAGS[@]}" tools/perf_test/$NAME.cpp -o "$OUT/$NAME"
     "$OUT/$NAME"
 done
+"$CXX" "${FLAGS[@]}" "${SANITIZERS[@]}" tools/perf_test/floor_format.cpp source/world/floor_format.cpp -o "$OUT/floor_format"
+"$OUT/floor_format"
 "$CXX" -Itools/perf_test/stubs "${FLAGS[@]}" "${SANITIZERS[@]}" tools/perf_test/text_cache.cpp -o "$OUT/text_cache"
 "$OUT/text_cache"
 "$CXX" -Itools/perf_test/stubs "${FLAGS[@]}" "${SANITIZERS[@]}" tools/perf_test/asset_batch.cpp tools/nettest/log_host.cpp -o "$OUT/asset_batch"

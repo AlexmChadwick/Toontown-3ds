@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "world/floor_format.h"
 #include "world/py_random.h"
 #include "world/suits.h"
 
@@ -1504,34 +1505,10 @@ void Level::drawDoors(render::Renderer& renderer) const {
 namespace {
 
 // bake_facility_floors.py TLF1 (one facility floor).
-struct FloorHeader {
-    char magic[4];
-    uint16_t version, kind;
-    uint32_t facilityId;
-    uint16_t layoutIndex, floor, numPieces, numDoorFrames;
-    uint32_t numFloorTris, piecesOffset, doorFramesOffset, floorTrisOffset, collisionOffset, collisionSize,
-        fileSize;
-};
-static_assert(sizeof(FloorHeader) == 48, "must match bake_facility_floors.py HEADER");
-struct FloorPiece {
-    char name[48];
-    uint16_t roomNum;
-    uint8_t isHallway, pad;
-    int16_t roomId;
-    uint16_t pad2;
-    float mat[12], lo[3], hi[3];
-};
-static_assert(sizeof(FloorPiece) == 128, "must match bake_facility_floors.py PIECE");
-struct FloorDoor {
-    uint16_t roomNum, style;
-    float mat[12];
-};
-static_assert(sizeof(FloorDoor) == 52, "must match bake_facility_floors.py DOOR");
-struct FloorTriRecord {
-    uint16_t roomNum, pad;
-    float v[9];
-};
-static_assert(sizeof(FloorTriRecord) == 40, "must match bake_facility_floors.py FLOOR_TRI");
+using FloorHeader = floorfmt::Header;
+using FloorPiece = floorfmt::Piece;
+using FloorDoor = floorfmt::Door;
+using FloorTriRecord = floorfmt::FloorTri;
 
 constexpr uint32_t kUberZone = 2; // OTPGlobals.UberZone (DistributedMint.gotAllRooms' zoneList)
 
@@ -1576,19 +1553,14 @@ bool Level::loadFloor(const net::Facility& fac, const LoadedBlob& source) {
         memcpy(out, bytes + offset, size);
         return true;
     };
-    auto range = [&](uint32_t offset, uint64_t size) {
-        return offset >= sizeof(FloorHeader) && uint64_t(offset) + size <= source.size;
-    };
     FloorHeader h{};
-    bool ok = read(0, &h, sizeof(h)) && !memcmp(h.magic, "TLF1", 4) && h.version == 1 &&
-              h.fileSize == source.size &&
-              h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms &&
-              h.numDoorFrames <= kMaxDoorFrames &&
-              range(h.piecesOffset, uint64_t(h.numPieces) * sizeof(FloorPiece)) &&
-              range(h.doorFramesOffset, uint64_t(h.numDoorFrames) * sizeof(FloorDoor)) &&
-              range(h.floorTrisOffset, uint64_t(h.numFloorTris) * sizeof(FloorTriRecord)) &&
-              range(h.collisionOffset, h.collisionSize);
-    if (!ok) TT_LOG("level: %s: bad file, or %u pieces for %u rooms", file, unsigned(h.numPieces), unsigned(fac.numRooms));
+    read(0, &h, sizeof(h));
+    const floorfmt::Expected expected{uint16_t(fac.kind), fac.facilityId,
+                                     uint16_t(fac.kind == net::FacilityKind::Mint ? 0 : fac.layoutIndex),
+                                     fac.floorNum, fac.numRooms};
+    const char* validationError = floorfmt::validate(source.data, source.size, expected);
+    bool ok = validationError == nullptr;
+    if (!ok) TT_LOG("level: %s: %s", file, validationError);
     numPieces_ = 0;
     // These tables are small and bounded (31 pieces / 32 door frames today). Reading each
     // record with readAt used to turn them into dozens of seeks and SD transactions during
