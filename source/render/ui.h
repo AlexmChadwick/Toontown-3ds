@@ -21,6 +21,7 @@
 #include "ui/minigame_purchase_panel.h"
 #include "ui/book.h"
 #include "ui/laff_meter.h"
+#include "ui/toontown_timer.h"
 
 namespace tt::ui {
 
@@ -232,6 +233,7 @@ private:
     C2D_Text bookText_[9]; // Book tab page buttons
     C2D_Text bookTitle_, bookHint_;
     LaffDisplay laff_; // the tab bar's laff pocket
+    ToontownTimer timer_; // minigame countdowns on the info card
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;

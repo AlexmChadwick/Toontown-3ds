@@ -101,7 +101,7 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
-    if (!gagText_.init(768) || !chatLogText_.init(512) || !laff_.init()) return false;
+    if (!gagText_.init(768) || !chatLogText_.init(512) || !laff_.init() || !timer_.init()) return false;
     if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
@@ -127,6 +127,7 @@ void Ui::shutdown() {
     gagText_.shutdown();
     chatLogText_.shutdown();
     laff_.shutdown();
+    timer_.shutdown();
     C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
@@ -755,12 +756,19 @@ void Ui::drawInfo(const Context &c) {
     textCache_.parse(&title, textBuf_, c.infoTitle && c.infoTitle[0] ? c.infoTitle : "Just a moment...", 1024);
     theme::textCentered(title, kW * 0.5f, 14, 0.72f, theme::kRedDark, kW - 28);
     C2D_DrawRectSolid(24, 44, 0.5f, kW - 48, 2, theme::kPaperShade);
+    // A countdown in the lines ("Time: 54") shows as the ToontownTimer clock under them.
+    int secondsLeft = -1;
     for (int i = 0; i < 3; i++) {
         if (!c.infoLines[i] || !c.infoLines[i][0]) continue;
+        char shown[96];
+        const int secs = splitTimeLeft(c.infoLines[i], shown, sizeof shown);
+        if (secs >= 0) secondsLeft = secs;
+        if (!shown[0]) continue;
         C2D_Text line;
-        textCache_.parse(&line, textBuf_, c.infoLines[i], 1024);
+        textCache_.parse(&line, textBuf_, shown, 1024);
         theme::textCentered(line, kW * 0.5f, 62 + i * 30, 0.54f, theme::kInk, kW - 28);
     }
+    if (secondsLeft >= 0) timer_.draw(secondsLeft, kW * 0.5f, 186, 88);
 }
 
 void Ui::drawGags(const Context &c) {
