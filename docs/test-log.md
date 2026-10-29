@@ -1242,3 +1242,22 @@ full bake. Not hardware.
 - Silly Street battle: 18-22 fps while shooting every 0.25 s (about 109 ms per shot); draws
   61-68, tris 8.7-9.4k, cmdbuf 12%. Reward panel and Cog cards seen.
 - Front end (fresh account): all screens. No PARSE/EJECT/crash lines in any run.
+
+## 2026-10-29 (UI round 13) — Linux rig: battle Fire/SOS panels, ToontownTimer, indoor Map
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, software GL. Server: the
+shared stock Open Toontown on 7198 (`AI_DEV_WEAK_COGS`, every toon strong). SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots every second cost ~109 ms each, so the fps
+below are with shots on.
+
+- Street battle (`AUTOTEST_FROM="see cog" AUTOTEST_ONLY="see cog,pad: battle"`): Fire/Pass/Run/SOS
+  block, SOS panel (empty and with demo cards, page 2), Fire panel, B back, pad attack sent.
+  27 fps, 55 draws, 7.5k tris, cmdbuf 5-12%, heap 3.4 MB, linear free 15.6 MB, VRAM free 4.2 MB.
+- Trolley / Catching game: ToontownTimer clock 54 → 0 (red under 6). 27 fps, heap 3.2 MB, linear
+  free 15.6 MB. Purchase, return, Gag Shop door entered, shop opened and cancelled.
+- Gag Shop interior: Map tab shows the TTC map, legend and the arrow at the shop door.
+- Toon HQ: quest dialog pages, fitted balloons; HQ choice; Toon tab task card.
+- Front end (`AUTOTEST_FE=1`): all screens. No PARSE / EJECT / crash lines in any run.
+- Host: padnav_test 154 checks, battle_cam_test (GCC 12).
+

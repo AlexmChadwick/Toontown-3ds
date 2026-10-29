@@ -3,6 +3,83 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 (UI round 13) — battle Fire/SOS, ToontownTimer, indoor Map, fitted NPC balloons
+
+Round 12 (`2b6b93a`, no entry of its own) moved the laff meter to a pocket at the left of the
+bottom tab bar, added per-toon laff cards to the battle panel (species head in the head colour,
+laff, this round's pick from `setChosenToonAttacks`) and hid the top-screen meter while the bottom
+screen shows ours.
+
+### Done
+- **Battle picker: InventoryNew's Fire / Pass / Run / SOS block.** The four buttons sit in
+  upstream's 2 x 2 arrangement (Fire | Pass over Run | SOS) in its image_color (0, 0.6, 1); Fire is
+  grey without pink slips. Cog cards and gag rows are a few pixels shorter, which lets the Toon
+  laff cards grow to 40 px.
+  - **SOS** opens TownBattleSOSPanel's Rescued Toons: track-coloured cards with name, stars and
+    "N Remaining", eight a view with a page button (or L / R), cards greyed when out of calls or
+    when a Lure / Trap card cannot help (checkHealTrapLure). A card sends
+    `requestAttack(NPCSOS, -1, npcId)`. With no cards: "No friends to call!" (TTLocalizer).
+  - **Fire** opens FireCogPanel on the Cog cards ("Fire which Cog?", "PINK SLIPS LEFT: n") and
+    sends `requestAttack(FIRE, -1, suitId)`.
+  - B / BACK returns to the attack panel with the focus held before (padnav), and the status bar
+    shows each panel's title.
+- **SOS and Fire rounds play.** The movie used to skip every track outside 0..6, so a cross-play
+  partner's (or our) Fire / SOS / NPCSOS / PETSOS round showed nothing. Rounds now follow
+  Movie.__doToonAttacks: Fire (throw, "Fired!", the Cog's defeat), SOS ("<friend> HELP!"),
+  NPC SOS Toons (MovieNPCSOS's greeting, then their gag as that track and level in its track's
+  place; Toons Always Hit / Cogs Always Miss / Restocking announcements), pet tricks (heals).
+- **Battle camera keeps the battle's own timing.** `Battle::buildMovie` records each step and
+  BattleCamera frames those steps; the camera used its own durations and drifted after every Cog
+  defeat (and would have drifted on every special).
+- **Minigame countdowns use ToontownTimer's alarm clock** (`bake_timer_clock.py`: phase_3.5
+  `clock_gui` / `alarm_clock`, 128 x 128 RGBA8, 64 KB RomFS) with OTPTimer's per-digit label
+  geometry, black digits, red for the last five seconds. The info card splits "Time: N" out of
+  every game's status lines (all 15 formats), so no game needed changing.
+- **Map indoors** shows the playground or street outside, its markers and legend, with our arrow
+  at the door we came in by (an interior is `zone - zone % 100 + 500 + block`); arriving indoors
+  some other way shows that map without the arrow. Entering a playground shop reloads nothing.
+- **NPC dialog balloons fit their text** (word-wrapped once per page with the UI font) instead of
+  a fixed 176 px box around "Goodbye!".
+- **Locked gag tracks keep their faded track colour** in the battle picker, book Gags page, Gag
+  Shop and trolley purchase (upstream tints every row and only hides the buttons).
+- Autotest: SOS by touch and back; `pad: battle demo` steps show sample Rescued Toons and pink
+  slips for the panels (display only; those actions are dropped); a quest-page shot series; the
+  `move: door` step runs into the Gag Shop door like a player (after the trolley return it stood
+  on the flush trigger forever, so the shop steps never ran from that point).
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server, fresh tokens)
+- Street battle, `AUTOTEST_ONLY="see cog,pad: battle"`: SOS opened by touch and closed with B
+  (focus restored), demo SOS cards on two pages, the Fire panel, then a gag chosen with the pad;
+  `requestAttack` lines as expected, no PARSE / EJECT. 27 fps while shooting every second
+  (shot I/O ~109 ms), heap 3.4 MB, linear free 15.6 MB, VRAM free 4.2 MB.
+- Trolley → Catching game with the clock counting down (red at 5..0), gag purchase, back to TTC,
+  Gag Shop door → shop opens; Map in the shop shows TTC with the arrow at its door.
+- Toon HQ talk: short pages in short balloons. Front end (`AUTOTEST_FE=1`) re-checked.
+- Host: padnav_test 154 checks, battle_cam_test passes (GCC 12); `make`: zero warnings in source/.
+
+### Asset size decisions
+- `timer_clock.ttm`: the original clock rendered at 128 x 128 RGBA8 (64 KB) so it stays sharp at
+  88 px on the bottom screen; no other new assets.
+
+### Known issues
+- **SOS cards and Fire were never sent to the live server**: this stock server gives a fresh toon
+  no Rescued Toons (VP only) and no pink slips (CEO only), and the rig cannot reach those bosses.
+  The panels were shown with sample data; the request layout matches DistributedBattleBase.
+- SOS / Fire movies are simplified: the SOS Toon does not teleport in (the calling toon performs
+  its gag, with the NPC's greeting over it) and a fired Cog plays its normal defeat instead of
+  flying off. Friend SOS cannot be offered (no FriendManager on the stock server, so no friends),
+  and `battleSOS` is not sent.
+- Long NPC dialog pages were not on screen this round (the test toon's tasks only gave short
+  pages); the balloon sizing uses the UI font's 30 px line, the same as the old wrap.
+- Locked gag tracks were not seen live: this dev server gives every test toon every track.
+- The battle round timer is still the yellow number pill (a 30 px ToontownTimer would cover the
+  fourth Cog card's name).
+- The earlier known issues stand (no real-hardware run; Azahar clock stalls on this rig).
+
+### Next
+- A VP rescue and a CEO win on a faster rig, to send a real NPC SOS and Fire.
+- MovieNPCSOS teleport-in with the NPC's own toon model; MovieFire's propeller exit.
+
 ## 2026-10-28 (round 8) — SpeedChat ToonTask phrases on the wire, Cog health light, RewardPanel, Toontown buttons
 
 ### Done
