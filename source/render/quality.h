@@ -27,6 +27,8 @@ struct Quality {
 // range and the cutoff farther. When a camera is set, Zone spends the 15k-triangle
 // and 130-draw caps (Zone::kDrawBudget) on chunks that frame will submit, and
 // still refuses an upgrade past 6 MiB geometry or 8 MiB textures for the whole set.
+// Chunks that leave that plan keep their near mesh until the retain budget evicts
+// it. A resident near mesh is not replaced by the far blob.
 inline Quality qualityFor(bool new3ds) {
     if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 64.0f, 180.0f, 680.0f, true};
     return {520.0f, 440.0f, 160.0f, 185.0f, 48.0f, 110.0f, 400.0f, false};

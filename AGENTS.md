@@ -452,6 +452,17 @@ server.
   Every visible set fits 117 draws / 15,000 tris / 810 KB geometry; the per-zone table
   is in `docs/design/streets.md`. Street cell changes come from floor zone ids
   (`Client::changeStreetCell`).
+  Chunks that leave the camera cone keep a resident near mesh until the retain
+  budget evicts them. That mesh is not replaced by the far blob, and it is not
+  submitted. `Zone::draw` submits the cone nearest first and stops at 15,000
+  triangles and 130 draws (`Zone::kDrawBudget`). With no camera the same caps cover
+  the cell. LRU runs when the retain budget is full: Old 3DS 6 MiB geometry / 8 MiB
+  textures, New 3DS 8 / 12 MiB. A zone change shows the Toontown loading card on
+  both screens. The loader thread reads a chunk's vertex, index and inline-texture
+  span in one shot (`ModelStaging::read`); the main thread uploads about 10 ms of
+  that per `Zone::update` (`ModelStaging::pump`). Street and playground arrival does
+  not call `finishLoading`. Textures are already tiled at bake time, and new bakes
+  store absolute indices (TTM header flags bit 0) when the model fits in 16-bit indices.
 - ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - ✅ **Classic characters** (`world/cchar.*`, `docs/design/chars.md`). Mickey, Minnie,

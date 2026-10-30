@@ -1419,3 +1419,44 @@ letters until the next full bake.
 
 CPU: no separate 0.5 ms trim. The extra time on `ef52035` is the nearer meshes.
 This change stops submitting chunks outside the cone (50 draws on ttc_mid).
+## 2026-10-30 — fast streaming: retain cache, one-shot loads, loading screen
+
+Build: `cursor/fast-streaming-0b72` off `cursor/render-quality-2097`. Host `g++ -std=c++17
+-Wall -Wextra -Werror -fsanitize=address,undefined` compiled `source/world/zone.cpp` and
+`source/world/collision.cpp` with `tools/zone_test/retain_test.cpp`. **No Azahar run and no
+hardware run.** This image has no devkitARM, so `make` of the `.3dsx` was not run, and
+Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Do not read the host timings as 3DS frame times.
+There are no before/after screenshots.
+
+- Retain test (`retain: hidden chunks stay resident...`): two visgroups 600 units apart.
+  Walking from one to the other kept both resident (54 + 54 geometry bytes) and
+  `detailReloads` did not increase on the way back. `triangles()` stayed 1 (the hidden
+  chunk is not submitted). With the retain budget cut to one chunk (54 bytes), the older
+  chunk was evicted and the return trip did reload (`detailReloads` 2 → 3). A v2 chunk
+  with an empty far mesh: standing at the origin kept LOD 0; stepping to 200 units
+  (past `lodKeep` 185, inside the 440 draw distance) kept LOD 0. The far mesh was
+  not loaded over it (`highParked` stayed false, `loadsQueued` unchanged,
+  `triangles()` stayed 1). Stepping back did not reload. `warmAround` of the neighbour then loaded it on the
+  next `update` without counting it in `triangles()`.
+- Host I/O profile of the rewritten `romfs/baked/ttc_sz.ttm` (`python3 -I tools/dev/profile_load.py`),
+  page cache warm, 30 repeats, after the 130-draw hill-card rebake:
+
+  | Path | Reads | Bytes | Time |
+  |---|---|---|---|
+  | Per texture (header, batches, tex table, verts, indices, 114 textures) | 119 | 2,219,726 | 182 µs |
+  | One GPU span | 1 | 2,219,008 | 194 µs |
+
+  On a warm page cache the microseconds are noise (about 1×). The SD-relevant result
+  is 119 reads collapsing to one.
+
+  The file is 2,228,352 bytes, 157 batches, 14,609 triangles, 37,297 vertices,
+  684,406 geometry bytes, 1,526,016 texture bytes, flags 0 (batch-relative indices;
+  this RomFS mesh is not rewritten). Warm cache hides seek latency. On an SD card
+  the 119 reads are the stall; the loader now issues one read of that span. Textures
+  in the file are already Morton-tiled. `ttm.write` now sets header flags bit 0 and
+  stores absolute indices when the model has ≤ 65,535 vertices (checked on a
+  one-triangle bake: flags 1, indices 0,1,2).
+- On device, `Model::loadFrom` and `Zone::load` add to `tt::loadprof` and the zone
+  transition writes `sdmc:/3ds/toontown3ds/load_profile.txt` plus a `load: zone ...
+  stream N ms, playable N ms` line. Those numbers are not available from this host.
+

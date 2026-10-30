@@ -21,6 +21,7 @@ def load_model(data, cache):
     from panda3d.core import (Texture,NodePath,Geom,GeomNode,GeomVertexData,GeomVertexFormat,
                               GeomTriangles,AlphaTestAttrib,RenderAttrib,TransparencyAttrib)
     h=struct.unpack_from('<4sHHHHII6f5I',data)
+    absolute=bool(h[2] & 1)
     nt,nb,nv,ni=h[3:7]
     sx,sy,sz,ox,oy,oz=h[7:13]
     tt,bt,vb,ib=h[13:17]
@@ -52,7 +53,10 @@ def load_model(data, cache):
         tex,blend,flags,tint,layer,slot,pad,fv,nverts,fi,nidx=struct.unpack_from('<H6B4I',data,bt+i*24)
         primitive=GeomTriangles(Geom.UHStatic)
         primitive.setIndexType(Geom.NTUint32)
-        primitive.modifyVertices().modifyHandle().setData((indices[fi:fi+nidx].astype('<u4')+fv).tobytes())
+        raw=indices[fi:fi+nidx].astype('<u4')
+        if not absolute:
+            raw=raw+fv
+        primitive.modifyVertices().modifyHandle().setData(raw.tobytes())
         geom=Geom(vd)
         geom.addPrimitive(primitive)
         node=GeomNode('batch')

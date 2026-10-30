@@ -108,14 +108,45 @@ void Place::setCamera(const C3D_FVec& eye, const C3D_FVec& target) {
     zone_.setCamera(Vec3{eye.x, eye.y, eye.z}, Vec3{target.x, target.y, target.z});
 }
 
+namespace {
+void applyRetain(Zone& zone) {
+    if (!zone.loaded()) return;
+    if (tt::render::activeQuality().new3ds)
+        zone.setRetainBudget(8u * 1024u * 1024u, 12u * 1024u * 1024u);
+    else
+        zone.setRetainBudget(Zone::kGeometryBudget, Zone::kTextureBudget);
+}
+} // namespace
+
 void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) {
     if (!zone_.loaded()) return;
+    applyRetain(zone_);
     if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
+}
+
+void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user) {
+    if (!zone_.loaded()) return;
+    applyRetain(zone_);
+    const Vec3 feet{x, y, z};
+    if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
+    zone_.warmAround(feet, tt::render::activeQuality().drawDistance * 1.35f);
+    if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
+}
+
+bool Place::streamReady() const {
+    return !zone_.loaded() || (!zone_.loading() && !zone_.warming());
+}
+
+float Place::streamProgress() const {
+    if (!zone_.loaded() || streamReady()) return 1.0f;
+    if (!zone_.loading()) return 0.85f;
+    return 0.45f;
 }
 
 void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user) {
     if (!zone_.loaded()) return;
     const u64 t0 = osGetTime();
+    beginStreaming(x, y, z, cb, user);
     zone_.finishLoading(Vec3{x, y, z}, cb, user);
     TT_LOG("place: %lu chunks resident in %lu ms", (unsigned long)zone_.numVisible(),
            (unsigned long)(osGetTime() - t0));

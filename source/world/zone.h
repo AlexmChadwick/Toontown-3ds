@@ -47,7 +47,20 @@ public:
     // reach: how far below the feet a floor still names the cell (facility levels look far
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
-    bool loading() const; // chunks of the current plan are still in flight
+    bool loading() const; // chunks of the current draw plan are still in flight
+    // Chunks that leave the view keep a resident near mesh until the retain budget
+    // evicts it. That mesh is not replaced by the far blob. Draw submission is the
+    // camera cone, nearest first, and stops at 15k tris / 130 draws. No camera keeps
+    // the whole-cell counters (host tests). Old 3DS retain is 6/8 MiB; New 3DS is larger.
+    void setRetainBudget(uint32_t geomBytes, uint32_t texBytes);
+    // Queue chunks inside `radius` that the draw plan did not take, nearest first, up to
+    // the retain budget. Loaded on the existing loader thread. `warming()` stays true
+    // until that set is resident or could not fit.
+    void warmAround(const Vec3& feet, float radius);
+    bool warming() const;
+    bool highParked(int index) const; // full-detail mesh held while the far mesh is shown
+    uint32_t loadsQueued() const;
+    uint32_t detailReloads() const; // full-detail reads from disk (a parked restore does not count)
     // Server zones to show (and report in visibleZones) on top of the current cell's PVS,
     // e.g. the rooms behind an open facility door (otp/level/VisibilityExtender). The next
     // update() replans and calls back when the set changes.
