@@ -2,6 +2,7 @@
 // TTLocalizerEnglish. Do not edit.
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 namespace tt::gags {
@@ -19,6 +20,22 @@ extern const uint16_t kLevelExp[kTracks][kLevels];
 extern const uint8_t kCarry[kTracks][kCarryRows][kLevels];
 // AvPropDamage[track][level] = (min, max) damage (or heal) at min/max skill.
 extern const uint16_t kDamage[kTracks][kLevels][2];
+// AvPropDamage[track][level][1]: the (min, max) experience the damage range spans.
+extern const uint16_t kDamageExp[kTracks][kLevels][2];
+// isGroup(track, level): the gag hits every Cog (heals every Toon).
+extern const bool kGroup[kTracks][kLevels];
+// BattleGlobalAvTrackAccStrings: InventoryNew's "Accuracy:" per track.
+extern const char* const kAccuracy[kTracks];
+
+// getAvPropDamage(track, level, exp) without gag bonuses.
+inline int propDamage(int track, int level, int exp) {
+    const int minD = kDamage[track][level][0], maxD = kDamage[track][level][1];
+    const int minE = kDamageExp[track][level][0], maxE = kDamageExp[track][level][1];
+    const int e = exp < maxE ? exp : maxE;
+    const double expPerHp = double(maxE - minE + 1) / double(maxD - minD + 1);
+    const int damage = int(std::floor(double(e - minE) / expPerHp)) + minD;
+    return damage <= 0 ? minD : damage;
+}
 
 // Number of levels of `track` unlocked by `exp` experience (0 if the track is locked).
 inline int levelsUnlocked(int track, uint16_t exp) {

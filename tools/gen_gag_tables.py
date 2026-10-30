@@ -43,15 +43,22 @@ def main():
     ref, out = sys.argv[1], sys.argv[2]
     bg = os.path.join(ref, 'toontown/toonbase/ToontownBattleGlobals.py')
     loc = os.path.join(ref, 'toontown/toonbase/TTLocalizerEnglish.py')
-    a = assignments(bg, {'Levels', 'CarryLimits', 'AvPropDamage', 'MaxSkill', 'UberSkill', 'regMaxSkill'})
+    a = assignments(bg, {'Levels', 'CarryLimits', 'AvPropDamage', 'MaxSkill', 'UberSkill', 'regMaxSkill',
+                         'ATK_SINGLE_TARGET', 'ATK_GROUP_TARGET', 'AvPropTargetCat', 'AvPropTarget'})
     env = {}
-    for name in ('UberSkill', 'regMaxSkill', 'Levels'):
+    for name in ('UberSkill', 'regMaxSkill', 'Levels', 'ATK_SINGLE_TARGET', 'ATK_GROUP_TARGET'):
         env[name] = literal(a[name], env)
     env['MaxSkill'] = literal(a['MaxSkill'], env)
     carry = literal(a['CarryLimits'], env)
     damage = literal(a['AvPropDamage'], env)
     max_skill = literal(a['MaxSkill'], env)
-    l = assignments(loc, {'BattleGlobalTracks', 'BattleGlobalAvPropStrings'})
+    target_cat = literal(a['AvPropTargetCat'], env)
+    target = literal(a['AvPropTarget'], env)
+    group = [[bool(target_cat[target[t]][lv]) for lv in range(7)] for t in range(7)]
+    assert env['ATK_GROUP_TARGET'] == 1 and env['ATK_SINGLE_TARGET'] == 0
+    l = assignments(loc, {'BattleGlobalTracks', 'BattleGlobalAvPropStrings', 'BattleGlobalAvTrackAccStrings'})
+    acc = literal(l['BattleGlobalAvTrackAccStrings'], env)
+    assert len(acc) == 7
     tracks = literal(l['BattleGlobalTracks'], env)
     props = literal(l['BattleGlobalAvPropStrings'], env)
     levels = env['Levels']
@@ -64,6 +71,7 @@ def main():
 // TTLocalizerEnglish. Do not edit.
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 
 namespace tt::gags {{
@@ -81,6 +89,22 @@ extern const uint16_t kLevelExp[kTracks][kLevels];
 extern const uint8_t kCarry[kTracks][kCarryRows][kLevels];
 // AvPropDamage[track][level] = (min, max) damage (or heal) at min/max skill.
 extern const uint16_t kDamage[kTracks][kLevels][2];
+// AvPropDamage[track][level][1]: the (min, max) experience the damage range spans.
+extern const uint16_t kDamageExp[kTracks][kLevels][2];
+// isGroup(track, level): the gag hits every Cog (heals every Toon).
+extern const bool kGroup[kTracks][kLevels];
+// BattleGlobalAvTrackAccStrings: InventoryNew's "Accuracy:" per track.
+extern const char* const kAccuracy[kTracks];
+
+// getAvPropDamage(track, level, exp) without gag bonuses.
+inline int propDamage(int track, int level, int exp) {{
+    const int minD = kDamage[track][level][0], maxD = kDamage[track][level][1];
+    const int minE = kDamageExp[track][level][0], maxE = kDamageExp[track][level][1];
+    const int e = exp < maxE ? exp : maxE;
+    const double expPerHp = double(maxE - minE + 1) / double(maxD - minD + 1);
+    const int damage = int(std::floor(double(e - minE) / expPerHp)) + minD;
+    return damage <= 0 ? minD : damage;
+}}
 
 // Number of levels of `track` unlocked by `exp` experience (0 if the track is locked).
 inline int levelsUnlocked(int track, uint16_t exp) {{
@@ -111,6 +135,15 @@ inline int levelsUnlocked(int track, uint16_t exp) {{
     for t in damage:
         c.append('    {' + ', '.join('{%d, %d}' % (lv[0][0], lv[0][1]) for lv in t) + '},')
     c.append('};')
+    c.append('const uint16_t kDamageExp[kTracks][kLevels][2] = {')
+    for t in damage:
+        c.append('    {' + ', '.join('{%d, %d}' % (lv[1][0], lv[1][1]) for lv in t) + '},')
+    c.append('};')
+    c.append('const bool kGroup[kTracks][kLevels] = {')
+    for t in group:
+        c.append('    {' + ', '.join('true' if g else 'false' for g in t) + '},')
+    c.append('};')
+    c.append('const char* const kAccuracy[kTracks] = {' + ', '.join(cstr(x) for x in acc) + '};')
     c += ['', '} // namespace tt::gags', '']
     open(os.path.join(out, 'gag_data.h'), 'w').write(h)
     open(os.path.join(out, 'gag_data.cpp'), 'w').write('\n'.join(c))

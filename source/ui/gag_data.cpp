@@ -40,5 +40,24 @@ const uint16_t kDamage[kTracks][kLevels][2] = {
     {{3, 4}, {6, 8}, {10, 12}, {18, 21}, {27, 30}, {36, 80}, {105, 105}},
     {{10, 10}, {18, 18}, {30, 30}, {45, 45}, {60, 60}, {85, 170}, {180, 180}},
 };
+const uint16_t kDamageExp[kTracks][kLevels][2] = {
+    {{0, 20}, {20, 200}, {200, 800}, {800, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 20}, {20, 100}, {100, 800}, {800, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+    {{0, 40}, {40, 200}, {200, 1000}, {1000, 2500}, {2500, 7500}, {7500, 10000}, {10000, 10500}},
+    {{0, 10}, {10, 50}, {50, 400}, {400, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 10}, {10, 50}, {50, 400}, {400, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 20}, {20, 100}, {100, 500}, {500, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+};
+const bool kGroup[kTracks][kLevels] = {
+    {false, true, false, true, false, true, true},
+    {false, false, false, false, false, false, true},
+    {false, true, false, true, false, true, true},
+    {true, true, true, true, true, true, true},
+    {false, false, false, false, false, false, true},
+    {false, false, false, false, false, false, true},
+    {false, false, false, false, false, false, true},
+};
+const char* const kAccuracy[kTracks] = {"Medium", "Perfect", "Low", "High", "Medium", "High", "Low"};
 
 } // namespace tt::gags

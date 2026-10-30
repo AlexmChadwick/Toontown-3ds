@@ -58,6 +58,8 @@ constexpr u32 kTrackColors[7] = {rgb(211, 148, 255), rgb(249, 255, 93), rgb(79, 
 
 // Track names as the Shtiker Book's Gags page prints them (gags::kTrackNames is lower case).
 inline constexpr const char* kTrackTitles[7] = {"Toon-Up", "Trap", "Lure", "Sound", "Throw", "Squirt", "Drop"};
+// InventoryNew's row labels: TextEncoder.upper(Tracks[track]).
+inline constexpr const char* kTrackCaps[7] = {"TOON-UP", "TRAP", "LURE", "SOUND", "THROW", "SQUIRT", "DROP"};
 
 // Text scale ladder for the bottom screen (ImpressBT, ~30 px line at 1.0). Nothing a player
 // must read goes below kTextTiny (~11 px): smaller glyphs blur on the 3DS's 320x240 panel.

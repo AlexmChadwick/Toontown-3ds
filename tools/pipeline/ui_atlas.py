@@ -23,8 +23,11 @@ class Part:
         self.cell = cell      # (x, y, w, h) in the atlas, pixels
 
 
-def bake(res, parts, atlas_w, atlas_h, out, tag, png=None):
-    """tag: the texture name. Returns the header rows (name, x, y, w, h)."""
+def bake(res, parts, atlas_w, atlas_h, out, tag, png=None, fmt=ttm.GPU_RGBA8):
+    """tag: the texture name. Returns the header rows (name, x, y, w, h).
+
+    fmt GPU_LA8 is for greyscale art that is tinted at draw time (the red channel is the
+    luminance); the bake fails if any opaque pixel has colour in it."""
     base = ShowBase()
     base.setBackgroundColor(0, 0, 0, 0)
     lens = OrthographicLens()
@@ -76,7 +79,12 @@ def bake(res, parts, atlas_w, atlas_h, out, tag, png=None):
         for x in range(atlas_w):
             c = sheet.getXelA(x, y)
             px[y, x] = [round(c[0] * 255), round(c[1] * 255), round(c[2] * 255), round(c[3] * 255)]
-    texture = ttm.Texture(tag, px, ttm.GPU_RGBA8, ttm.GPU_CLAMP_TO_EDGE, ttm.GPU_CLAMP_TO_EDGE, mipmaps=False)
+    if fmt == ttm.GPU_LA8:
+        opaque = px[..., 3] > 32
+        spread = np.abs(px[..., 0].astype(int) - px[..., 1]) + np.abs(px[..., 0].astype(int) - px[..., 2])
+        if opaque.any() and spread[opaque].max() > 12:
+            raise SystemExit(f'{tag}: not greyscale (rgb spread {spread[opaque].max()}), cannot store as LA8')
+    texture = ttm.Texture(tag, px, fmt, ttm.GPU_CLAMP_TO_EDGE, ttm.GPU_CLAMP_TO_EDGE, mipmaps=False)
     quad = np.array([[-1, 0, -1, 0, 0, 1, 1, 1, 1], [1, 0, -1, 1, 0, 1, 1, 1, 1],
                      [1, 0, 1, 1, 1, 1, 1, 1, 1], [-1, 0, 1, 0, 1, 1, 1, 1, 1]], dtype=float)
     batch = ttm.Batch(0, ttm.BLEND_ALPHA, True, 0, 0, quad, np.array([0, 1, 2, 0, 2, 3]))
