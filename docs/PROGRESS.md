@@ -3,6 +3,54 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 — Fire movie playback and cross-play chat diagnostics
+
+### Done
+- Fixed the battle movie scheduler silently discarding stock Fire attacks (track 100). A Pink
+  Slip accepted by the server now produces an 8.5-second dismissal sequence, drives the Toon's
+  button animation, applies the server-provided Cog hit/death events, and plays the original
+  baked `SA_pink_slip` sound.
+- Kept special tracks out of the seven-track gag tables and held-prop pool. Fire previously
+  would have occupied a scarce effect slot with no drawable model; normal gag props retain all
+  available slots.
+- Added named constants for all stock special battle tracks and regression assertions covering
+  Fire movie admission and timing. NPC SOS remains deliberately excluded until its NPC lookup,
+  teleport, and resulting gag/heal movie can be implemented faithfully.
+- Added allocation-free, monotonic timestamped chat diagnostics: incoming/outgoing SpeedChat and
+  incoming typed chat now produce stable `net: chat rx/tx ...` lines for cross-play assertions.
+
+### Verified
+- `git diff --check` passes for both implementation commits and this progress entry.
+- Source audit confirms `TCP_NODELAY`, nonblocking sockets, and the dedicated receive/send thread
+  were already present; chat logging adds no work to the per-frame idle path.
+- The battle host regression was extended, but could not execute because this Linux workspace has
+  no `clang++`, `g++`, devkitARM, or Azahar. No runtime result is claimed.
+- The pinned reference checkout was attempted as requested. The 668 MB resources submodule could
+  not fit in the 215 MB free workspace volume; the failed empty checkout metadata was removed and
+  no upstream reference file was modified.
+
+### Asset size decisions
+- No new assets. Fire streams the original `SA_pink_slip.tsnd` already emitted by
+  `bake_audio.py`; the change adds no resident texture, model, or audio allocation.
+
+### Known issues
+- Fire does not yet stage the stock cannon, smoke, and launch geometry; it now presents the
+  accepted attack instead of skipping it, with correct sound and server-owned defeat outcome,
+  but still needs that visual-fidelity pass.
+- NPC SOS attacks are still skipped by the movie scheduler. The picker and protocol request work,
+  but a faithful movie needs the NPC-id table, temporary Toon actor, teleport, and the card's
+  resolved gag/heal effect.
+- Fire/SOS inventory decrement and presentation need a live-server Azahar capture. Old 3DS timing,
+  readability, and memory remain unmeasured in this workspace.
+
+### Next
+- Bake the original Fire cannon/control/smoke assets, reproduce `MovieFire` staging within the
+  battle effect budget, and capture the dismissal at native 400 x 240.
+- Resolve an NPC SOS card id through the stock NPC table and play its teleport plus resolved
+  seven-track effect, then assert the owner inventory decrement.
+- Run a two-client chat/teleport/treasure regression and compute web-to-3DS median latency from the
+  new `net: chat` timestamps; keep the emulator target under 45 ms.
+
 ## 2026-10-29 — Stock-compatible Fire and SOS battle choices
 
 ### Done
