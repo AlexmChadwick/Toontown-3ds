@@ -2133,7 +2133,7 @@ int main() {
                     TT_LOG("load: could not write load_profile.txt");
                 // The card was on the previous frame. FrameBegin is what waits for that GPU
                 // work, and we return before it, so sync before freeing the card's textures.
-                C3D_FrameSync();
+                ::tt::gpu::frameSync();
                 zoneLoad.release();
                 zonePhase = ZonePhase::Idle;
             };
@@ -2173,7 +2173,7 @@ int main() {
                 } else {
                     place.load(zoneFrom);
                     transition.reset();
-                    C3D_FrameSync();
+                    ::tt::gpu::frameSync();
                     zoneLoad.release();
                     zonePhase = ZonePhase::Idle;
                 }
@@ -2187,7 +2187,7 @@ int main() {
             }
         } else if (zonePhase != ZonePhase::Idle) {
             // The transition was abandoned (disconnect, relocation). Don't leave the load screen up.
-            C3D_FrameSync();
+            ::tt::gpu::frameSync();
             zoneLoad.release();
             zonePhase = ZonePhase::Idle;
         }
