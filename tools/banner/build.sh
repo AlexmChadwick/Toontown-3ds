@@ -64,9 +64,14 @@ run_gl() {
   fi
 }
 
-"$PYTHON" "$ROOT/tools/banner/make_banner_scene.py" --resources "$RESOURCES" --out-dir "$BUILD"
+TOON_PORTRAIT="$BUILD/toon_portrait.npy"
+if [ ! -f "$TOON_PORTRAIT" ]; then
+  "$PYTHON" "$ROOT/tools/banner/bake_toon_portrait.py" --resources "$RESOURCES" --out "$TOON_PORTRAIT"
+fi
 
-run_gl "$PYTHON" "$ROOT/tools/banner/render_preview.py" --resources "$RESOURCES" --out-dir "$BUILD"
+"$PYTHON" "$ROOT/tools/banner/make_banner_scene.py" --resources "$RESOURCES" --out-dir "$BUILD" --toon-npy "$TOON_PORTRAIT"
+
+run_gl "$PYTHON" "$ROOT/tools/banner/render_preview.py" --resources "$RESOURCES" --out-dir "$BUILD" --toon-npy "$TOON_PORTRAIT"
 
 THEME="$RESOURCES/phase_3/audio/bgm/tt_theme.ogg"
 WAV="$BUILD/banner_jingle.wav"

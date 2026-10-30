@@ -9,14 +9,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from panda3d.core import (
-    AmbientLight,
-    DirectionalLight,
-    PNMImage,
-    ShaderAttrib,
-    WindowProperties,
-    loadPrcFileData,
-)
+from panda3d.core import PNMImage, ShaderAttrib, WindowProperties, loadPrcFileData
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
@@ -27,10 +20,9 @@ from scene_common import (  # noqa: E402
     CAMERA_FOV_DEG,
     CAMERA_NEAR,
     CAMERA_POS,
-    attach_full_scene,
+    attach_banner_scene,
     configure_panda,
 )
-
 
 def _setup_display() -> None:
     loadPrcFileData("", "load-display pandagl")
@@ -45,28 +37,15 @@ def _setup_camera(base, eye_offset_x: float = 0.0) -> None:
     lens.setFar(CAMERA_FAR)
     x, y, z = CAMERA_POS
     base.camera.setPos(x + eye_offset_x, y, z)
-    base.camera.lookAt(0, 0, 0)
+    base.camera.lookAt(x + eye_offset_x, y, 0.0)
 
 
-def _setup_lights(render) -> None:
-    amb = AmbientLight("amb")
-    amb.setColor((0.65, 0.65, 0.72, 1))
-    render.setLight(render.attachNewNode(amb))
-    sun = DirectionalLight("sun")
-    sun.setColor((0.95, 0.92, 0.85, 1))
-    sn = render.attachNewNode(sun)
-    sn.setHpr(-35, -55, 0)
-    render.setLight(sn)
-
-
-def _screenshot(base, w: int, h: int) -> PNMImage:
-    for _ in range(12):
+def _screenshot_pil(base, w: int, h: int) -> Image.Image:
+    for _ in range(16):
         base.graphicsEngine.renderFrame()
     shot = PNMImage()
     base.win.getScreenshot(shot)
-    out = PNMImage(w, h)
-    out.gaussianFilterFrom(1.0, shot)
-    return out
+    return _pnm_to_pil(shot).resize((w, h), Image.Resampling.LANCZOS)
 
 
 def _pnm_to_pil(pnm: PNMImage) -> Image.Image:
@@ -84,7 +63,7 @@ def _pnm_to_pil(pnm: PNMImage) -> Image.Image:
     return Image.fromarray(rgba, "RGBA")
 
 
-def render_previews(resources: Path, out_dir: Path) -> None:
+def render_previews(resources: Path, out_dir: Path, toon_rgba: np.ndarray) -> None:
     from direct.showbase.ShowBase import ShowBase
 
     configure_panda(resources)
@@ -94,27 +73,23 @@ def render_previews(resources: Path, out_dir: Path) -> None:
         def __init__(self):
             super().__init__()
             self.win.requestProperties(WindowProperties.size(640, 320))
-            self.setBackgroundColor(0.45, 0.72, 0.98, 1)
-            attach_full_scene(self.render, resources)
-            _setup_lights(self.render)
+            self.setBackgroundColor(0.47, 0.75, 1.0, 1)
+            attach_banner_scene(self.render, resources, toon_rgba=toon_rgba)
 
     base = BannerPreview()
     base.render.setShaderOff(ShaderAttrib.M_off)
-    for gnode in base.render.findAllMatches("**/+GeomNode"):
-        gnode.setLightOff(1)
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
     _setup_camera(base, 0.0)
-    mono = _screenshot(base, 256, 128)
     mono_path = out_dir / "banner_preview.png"
-    mono.write(str(mono_path))
+    _screenshot_pil(base, 256, 128).save(mono_path)
 
     iod = 0.55
     _setup_camera(base, -iod * 0.5)
-    pil_left = _pnm_to_pil(_screenshot(base, 256, 128))
+    pil_left = _screenshot_pil(base, 256, 128)
     _setup_camera(base, iod * 0.5)
-    pil_right = _pnm_to_pil(_screenshot(base, 256, 128))
+    pil_right = _screenshot_pil(base, 256, 128)
 
     stereo_path = out_dir / "banner_preview_stereo.png"
     stereo = Image.new("RGBA", (512, 128))
@@ -141,8 +116,11 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--resources", type=Path, default=ROOT / "ref" / "resources")
     ap.add_argument("--out-dir", type=Path, default=ROOT / "build" / "banner")
+    ap.add_argument("--toon-npy", type=Path, required=True)
     args = ap.parse_args()
-    render_previews(args.resources.resolve(), args.out_dir.resolve())
+    resources = args.resources.resolve()
+    toon = np.load(args.toon_npy)
+    render_previews(resources, args.out_dir.resolve(), toon)
 
 
 if __name__ == "__main__":

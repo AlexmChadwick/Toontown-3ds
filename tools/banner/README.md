@@ -7,14 +7,15 @@ original Toontown art, not a flat PNG card.
 
 | Output | Role |
 |---|---|
-| `banner.cgfx` | 3D scene: sky backdrop plane, `phase_3/maps/toontown-logo` card, dog M-shorts **head mesh** (`tt_a_chr_dgm_shorts_head_250.bam`) |
+| `banner.cgfx` | 3D scene: TTC backdrop plane, `toontown-logo` card, dog M-shorts bust portrait (head + muzzles + eyes) |
 | `banner.bcwav` | ~2.95 s of `phase_3/audio/bgm/tt_theme.ogg` (22050 Hz stereo, short fades) |
 | `banner.bnr` | CBMD + CWAV bundle for `makerom -banner` |
 | `banner_preview.png` | 256×128 mono render of the CGFX scene (Panda3D + Xvfb + llvmpipe) |
 | `banner_preview_stereo.png` | Left/right eye pair (512×128) |
 | `banner_preview_anaglyph.png` | Red/cyan anaglyph for depth check |
 
-The scene is exported to glTF, converted with [pycgfx](https://github.com/skyfloogle/pycgfx)
+The scene is three unlit textured planes at different depths (`scene_common.py`), exported to glTF,
+converted with [pycgfx](https://github.com/skyfloogle/pycgfx)
 (under `third_party/pycgfx`, cloned on first run), then packed with
 [3ds-bannertool](https://github.com/carstene1ns/3ds-bannertool) (`bin/bannertool`, built on first run).
 
@@ -32,6 +33,8 @@ CGFX must stay **≤ 512 KiB**; textures are downscaled in `gltf_export.py`.
 5. **Xvfb** + Mesa llvmpipe (for `render_preview.py`; `build.sh` runs `xvfb-run` with `LIBGL_ALWAYS_SOFTWARE=1`)
 
 Optional: devkitPro `bannertool` on `PATH` — otherwise the script uses `tools/banner/bin/bannertool`.
+
+`bake_toon_portrait.py` renders the dog bust once (cached as `build/banner/toon_portrait.npy`).
 
 ## Regenerate
 
