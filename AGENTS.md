@@ -479,20 +479,28 @@ server.
   A near mesh inside `lodKeep` stays (Toon Hall). Past `lodKeep` it is demoted
   to the far mesh when keeping it would pass 15,000 triangles or 130 draws
   (`Zone::kDrawBudget`). `Zone::draw` does not skip an in-cone chunk to enforce
-  that cap. With no camera the same caps cover the cell. The loading card drops
-  when the cone plan is resident. `warmAround` then fills a ring outside the cone
-  in the background; a finished warm upload is kept, and memory eviction does not
-  drop a warm hold while that preload is in progress. The ring only queues chunks
-  that fit in the retain budget. Retain is 4 MiB geometry / 4 MiB textures on
-  Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks are also evicted
-  while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street keeps that much
-  of the 24 MiB linear heap free. The loader thread reads a chunk's vertex, index
-  and inline-texture span in one shot (`ModelStaging::read`); the main thread
-  uploads about 10 ms of that per `Zone::update` (`ModelStaging::pump`). Street
-  and playground arrival does not call `finishLoading`. `finishLoading` (boss /
-  cogdo) waits for the cone plan, not the warm ring. Textures are already tiled
-  at bake time, and new bakes store absolute indices (TTM header flags bit 0)
-  when the model fits in 16-bit indices.
+  that cap. With no camera the whole cell stays inside 15,000 triangles and 150
+  draws (the file's far-set cap); a chunk that would pass it is not loaded.
+  The loading card drops when every in-cone chunk has its far mesh (`Zone::cardPending`,
+  v1: its only mesh). That is the byte cut: a profiled near chunk is about 500 KB
+  and about 330 ms of SD read, and the card was waiting on those. The far blob is
+  the vertex-coloured mesh already in the v2 file. Near upgrades stream after the
+  card, on the loader thread, in the same upload slices. A chunk with MickeyFont
+  sign letters (texture name `palette_2tmlc`) upgrades to the near mesh out to
+  twice `lodNear` (320 Old / 520 New), ahead of a generic chunk, so Donald's Dock
+  letters do not stay on the faint far mesh. `warmAround` fills a ring outside the
+  cone after that far set is resident; a finished warm upload is kept, and memory
+  eviction does not drop a warm hold while that preload is in progress. The ring
+  only queues chunks that fit in the retain budget. Retain is 4 MiB geometry /
+  4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks
+  are also evicted while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street
+  keeps that much of the 24 MiB linear heap free. The loader thread reads a chunk's
+  vertex, index and inline-texture span in one shot (`ModelStaging::read`); the
+  main thread uploads about 10 ms of that per `Zone::update` (`ModelStaging::pump`).
+  Street and playground arrival does not call `finishLoading`. `finishLoading`
+  (boss / cogdo) waits for the full cone plan, not the card and not the warm ring.
+  Textures are already tiled at bake time, and new bakes store absolute indices
+  (TTM header flags bit 0) when the model fits in 16-bit indices.
 - ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - ✅ **Classic characters** (`world/cchar.*`, `docs/design/chars.md`). Mickey, Minnie,

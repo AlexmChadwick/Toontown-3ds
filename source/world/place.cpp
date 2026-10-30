@@ -139,9 +139,9 @@ void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void
 }
 
 bool Place::streamReady() const {
-    // The card tracks the cone only. warmAround keeps filling the ring after this
-    // returns, from the usual per-frame Place::update.
-    return !zone_.loaded() || !zone_.loading();
+    // The card tracks the cone's far meshes (v1: its only mesh). Near upgrades and
+    // warmAround keep going after this returns, from the usual per-frame Place::update.
+    return !zone_.loaded() || !zone_.cardPending();
 }
 
 float Place::streamProgress() const {

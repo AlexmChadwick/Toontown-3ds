@@ -47,7 +47,11 @@ public:
     // reach: how far below the feet a floor still names the cell (facility levels look far
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
-    bool loading() const; // chunks of the current draw plan are still in flight
+    bool loading() const; // in-cone chunks are not yet at the planned LOD
+    // True while an in-cone chunk has no mesh yet. v2 zones satisfy this with the
+    // far mesh; the near mesh keeps streaming after the card drops. v1 has one mesh,
+    // so this matches loading().
+    bool cardPending() const;
     // Chunks outside the cone keep a resident near mesh until the retain budget
     // evicts it. That mesh is not replaced by the far blob. Inside the cone every
     // chunk is drawn, at least at its far mesh; a near mesh past the keep radius is

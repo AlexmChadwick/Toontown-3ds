@@ -284,6 +284,217 @@ std::vector<uint8_t> buildBudget() {
     return b;
 }
 
+struct MeshInfo {
+    uint32_t size, geom, tex, draws, tris;
+};
+
+MeshInfo meshInfo(const std::vector<uint8_t>& ttm, uint32_t draws, uint32_t tex) {
+    const uint32_t geom = draws * 54u;
+    return {static_cast<uint32_t>(ttm.size()), geom, tex, draws, draws};
+}
+
+// One MickeyFont decal plus untextured batches. validModel flags this as sign letters.
+void writeLetterTtm(std::vector<uint8_t>& b, int batches) {
+    const uint32_t nv = static_cast<uint32_t>(batches) * 3;
+    const uint32_t ni = nv;
+    const uint32_t texOff = 64;
+    const uint32_t batchOff = texOff + 48;
+    const uint32_t vertOff = batchOff + static_cast<uint32_t>(batches) * 24;
+    const uint32_t indexOff = vertOff + nv * 16;
+    const uint32_t dataOff = indexOff + ni * 2;
+    const uint32_t texBytes = 64; // 8x8 L8
+    const size_t base = b.size();
+    b.resize(base + dataOff + texBytes, 0);
+    b[base + 0] = 'T'; b[base + 1] = 'T'; b[base + 2] = 'M'; b[base + 3] = '1';
+    const uint16_t version = 1, flags = 0, ntex = 1;
+    const uint16_t nbatch = static_cast<uint16_t>(batches);
+    std::memcpy(b.data() + base + 4, &version, 2);
+    std::memcpy(b.data() + base + 6, &flags, 2);
+    std::memcpy(b.data() + base + 8, &ntex, 2);
+    std::memcpy(b.data() + base + 10, &nbatch, 2);
+    std::memcpy(b.data() + base + 12, &nv, 4);
+    std::memcpy(b.data() + base + 16, &ni, 4);
+    const float scale[3] = {1, 1, 1};
+    std::memcpy(b.data() + base + 20, scale, 12);
+    std::memcpy(b.data() + base + 44, &texOff, 4);
+    std::memcpy(b.data() + base + 48, &batchOff, 4);
+    std::memcpy(b.data() + base + 52, &vertOff, 4);
+    std::memcpy(b.data() + base + 56, &indexOff, 4);
+    const uint16_t w = 8, h = 8;
+    const uint8_t fmt = 7, mips = 1;
+    std::memcpy(b.data() + base + texOff, &w, 2);
+    std::memcpy(b.data() + base + texOff + 2, &h, 2);
+    b[base + texOff + 4] = fmt;
+    b[base + texOff + 5] = mips;
+    std::memcpy(b.data() + base + texOff + 8, &dataOff, 4);
+    std::memcpy(b.data() + base + texOff + 12, &texBytes, 4);
+    const char* font = "phase_3_palette_2tmlc_1";
+    std::memcpy(b.data() + base + texOff + 16, font, std::strlen(font));
+    for (int i = 0; i < batches; ++i) {
+        const size_t at = base + batchOff + static_cast<uint32_t>(i) * 24;
+        const uint16_t tex = i == 0 ? 0 : 65535;
+        std::memcpy(b.data() + at, &tex, 2);
+        if (i == 0) b[at + 5] = 1; // layer: decal letter
+        const uint32_t fv = static_cast<uint32_t>(i) * 3, numV = 3, fi = fv, numI = 3;
+        std::memcpy(b.data() + at + 8, &fv, 4);
+        std::memcpy(b.data() + at + 12, &numV, 4);
+        std::memcpy(b.data() + at + 16, &fi, 4);
+        std::memcpy(b.data() + at + 20, &numI, 4);
+        const uint16_t idx[3] = {0, 1, 2};
+        std::memcpy(b.data() + base + indexOff + static_cast<uint32_t>(i) * 6, idx, 6);
+    }
+}
+
+void patchNearFar(std::vector<uint8_t>& b, uint32_t chunkBase, const MeshInfo& near, uint32_t nearOff,
+                  const MeshInfo& far, uint32_t farOff) {
+    patch32(b, chunkBase + 12, nearOff);
+    patch32(b, chunkBase + 16, near.size);
+    patch32(b, chunkBase + 20, near.geom);
+    patch32(b, chunkBase + 24, near.tex);
+    patch32(b, chunkBase + 28, near.draws);
+    patch32(b, chunkBase + 32, near.tris);
+    patch32(b, chunkBase + 80, farOff);
+    patch32(b, chunkBase + 84, far.size);
+    patch32(b, chunkBase + 88, far.geom);
+    patch32(b, chunkBase + 92, far.tex);
+    patch32(b, chunkBase + 96, far.draws);
+    patch32(b, chunkBase + 100, far.tris);
+}
+
+void finishHeader(std::vector<uint8_t>& b, uint32_t branch, uint32_t chunks, uint32_t vis, uint32_t floors,
+                  uint32_t chunkOff, uint32_t visOff, uint32_t floorOff, uint32_t collisionOff) {
+    b[0] = 'T'; b[1] = 'Z'; b[2] = '0'; b[3] = '1';
+    const uint16_t version = 2;
+    std::memcpy(b.data() + 4, &version, 2);
+    uint32_t fields[14] = {branch, chunks, vis, floors, 0, chunkOff, visOff, floorOff, collisionOff, collisionOff, 112,
+                           static_cast<uint32_t>(b.size()), 0, 0};
+    std::memcpy(b.data() + 8, fields, sizeof fields);
+}
+
+// Near mesh is several triangles; far mesh is one. The card must publish the far
+// mesh before it queues the near mesh.
+std::vector<uint8_t> buildCard() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 4);
+    writeTtmN(far, 1);
+    const MeshInfo ni = meshInfo(near, 4, 0), fi = meshInfo(far, 1, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 1, 0, ni.size, 0, 0, "card", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 2100);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    const uint32_t nearOff = static_cast<uint32_t>(b.size());
+    append(b, near.data(), near.size());
+    align128(b);
+    const uint32_t farOff = static_cast<uint32_t>(b.size());
+    append(b, far.data(), far.size());
+    patchNearFar(b, chunkOff, ni, nearOff, fi, farOff);
+    finishHeader(b, 2100, 1, 1, 1, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// Ground underfoot, a 120-draw filler inside lodNear, and a sign past lodNear
+// (200 > 160) but inside twice lodNear (320). The sign must take the near slot.
+std::vector<uint8_t> buildSigns() {
+    std::vector<uint8_t> one, filler, letters, far;
+    writeTtmN(one, 1);
+    writeTtmN(filler, 120);
+    writeLetterTtm(letters, 15);
+    writeTtmN(far, 1);
+    const MeshInfo oneI = meshInfo(one, 1, 0);
+    const MeshInfo fillI = meshInfo(filler, 120, 0);
+    const MeshInfo letI = meshInfo(letters, 15, 64);
+    const MeshInfo farI = meshInfo(far, 1, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 1000, 0, 3, 0, oneI.size, 0, 0, "ground", true);
+    writeChunk(b, 1001, 3, 1, 0, fillI.size, 80, 1, "filler", true);
+    writeChunk(b, 1002, 4, 1, 0, letI.size, 200, 2, "sign", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 1); u16(b, 2);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 1000);
+    writeFloor(b, 76, -4, 84, -4, 80, 6, 1, 1001);
+    writeFloor(b, 196, -4, 204, -4, 200, 6, 2, 1002);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    const uint32_t groundNear = static_cast<uint32_t>(b.size());
+    append(b, one.data(), one.size());
+    align128(b);
+    const uint32_t groundFar = static_cast<uint32_t>(b.size());
+    append(b, far.data(), far.size());
+    align128(b);
+    const uint32_t fillerNear = static_cast<uint32_t>(b.size());
+    append(b, filler.data(), filler.size());
+    align128(b);
+    const uint32_t fillerFar = static_cast<uint32_t>(b.size());
+    append(b, far.data(), far.size());
+    align128(b);
+    const uint32_t signNear = static_cast<uint32_t>(b.size());
+    append(b, letters.data(), letters.size());
+    align128(b);
+    const uint32_t signFar = static_cast<uint32_t>(b.size());
+    append(b, far.data(), far.size());
+    patchNearFar(b, chunkOff, oneI, groundNear, farI, groundFar);
+    patchNearFar(b, chunkOff + 104, fillI, fillerNear, farI, fillerFar);
+    patchNearFar(b, chunkOff + 208, letI, signNear, farI, signFar);
+    finishHeader(b, 1000, 3, 5, 3, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// Three chunks whose near-plus-far mix passes 150 draws. No camera must refuse
+// the last far mesh so the cell stays inside the file cap.
+std::vector<uint8_t> buildCellCap() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 80);
+    writeTtmN(far, 40);
+    const MeshInfo ni = meshInfo(near, 80, 0), fi = meshInfo(far, 40, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 3, 0, ni.size, 0, 0, "c0", true);
+    writeChunk(b, 2101, 3, 1, 0, ni.size, 12, 1, "c1", true);
+    writeChunk(b, 2102, 4, 1, 0, ni.size, 24, 2, "c2", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 1); u16(b, 2);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 2100);
+    writeFloor(b, 8, -4, 16, -4, 12, 6, 1, 2101);
+    writeFloor(b, 20, -4, 28, -4, 24, 6, 2, 2102);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    uint32_t offs[6];
+    for (int i = 0; i < 6; ++i) {
+        align128(b);
+        offs[i] = static_cast<uint32_t>(b.size());
+        const std::vector<uint8_t>& src = (i % 2 == 0) ? near : far;
+        append(b, src.data(), src.size());
+    }
+    patchNearFar(b, chunkOff, ni, offs[0], fi, offs[1]);
+    patchNearFar(b, chunkOff + 104, ni, offs[2], fi, offs[3]);
+    patchNearFar(b, chunkOff + 208, ni, offs[4], fi, offs[5]);
+    finishHeader(b, 2100, 3, 5, 3, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
 void settle(tt::world::Zone& zone, tt::world::Vec3 at) {
     for (int i = 0; i < 500; ++i) {
         assert(zone.update(at));
@@ -405,5 +616,45 @@ int main() {
 
     std::printf("retain: hidden chunks stay resident, parked detail returns without a reload\n");
     std::printf("retain: warm uploads publish, in-cone far meshes are not dropped\n");
+
+    const char* cardPath = "/tmp/tt_retain_card.tz";
+    const char* signPath = "/tmp/tt_retain_sign.tz";
+    const char* cellPath = "/tmp/tt_retain_cell.tz";
+    save(cardPath, buildCard());
+    save(signPath, buildSigns());
+    save(cellPath, buildCellCap());
+
+    assert(zone.load(cardPath));
+    zone.setCamera({-20.0f, 0.0f, 8.0f}, {10.0f, 0.0f, 2.0f});
+    const tt::world::Vec3 origin{0, 0, 1};
+    assert(zone.update(origin));
+    assert(zone.cardPending() && zone.loading());
+    assert(zone.chunkLod(0) == -1 && zone.loadsQueued() == 1);
+    assert(zone.completeLoads() == 1);
+    assert(zone.chunkLod(0) == 1 && !zone.cardPending() && zone.loading());
+    const uint32_t afterFar = zone.loadsQueued();
+    assert(zone.update(origin));
+    assert(zone.loadsQueued() == afterFar + 1);
+    assert(zone.completeLoads() == 1);
+    assert(zone.chunkLod(0) == 0 && !zone.loading() && !zone.cardPending());
+    std::printf("card: far mesh drops the card, near streams after\n");
+    zone.unload();
+
+    assert(zone.load(signPath));
+    zone.setCamera({-40.0f, 0.0f, 8.0f}, {250.0f, 0.0f, 4.0f});
+    settle(zone, origin);
+    std::printf("sign: lod ground/filler/letters %d/%d/%d draws %u tris %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.drawCalls(), zone.triangles());
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(2) == 0 && zone.chunkLod(1) == 1);
+    assert(zone.drawCalls() == 17 && zone.triangles() == 17);
+    zone.unload();
+
+    assert(zone.load(cellPath));
+    settle(zone, origin);
+    std::printf("cell: no camera lod %d/%d/%d draws %u tris %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.drawCalls(), zone.triangles());
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1 && zone.chunkLod(2) == -1);
+    assert(zone.triangles() <= 15000 && zone.drawCalls() <= 150);
+    zone.unload();
     return 0;
 }

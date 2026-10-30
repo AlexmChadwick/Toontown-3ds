@@ -519,7 +519,10 @@ black frame stays up while `update` uploads about 10 ms of GPU data per frame.
 
 Sign letters (`sign_text`) are split out before the far mesh is simplified and
 colourised, then appended if that cell still fits `DRAW_CAP` and `LOW_TARGET`.
-Other decals still drop. Zone 1000's far-right building (chunk g6) stays on the
-far mesh under the dd_far camera and keeps its 14 letter triangles on
-`phase_3_palette_2tmlc_1`. The other 36 zones still drop letters until the next
-full bake; the code path is the same.
+Other decals still drop. Zone 1000's far-right building (chunk g6) kept 14 letter
+triangles on `phase_3_palette_2tmlc_1` in that far mesh, which is what Old 3DS
+showed once the 130-draw plan left g6 there. The runtime now treats a chunk whose
+mesh names that palette as a sign: inside the cone, and out to twice `lodNear`
+(320 on Old 3DS), it takes a near-mesh slot ahead of a generic chunk. The 14
+triangles are the card's first frame; the near letters stream once the card drops.
+The other 36 zones still drop letters from the far mesh until the next full bake.

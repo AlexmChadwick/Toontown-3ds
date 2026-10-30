@@ -1653,3 +1653,72 @@ What changed:
   4. Talk to an NPC. The shot should still look at the NPC; the lens pulls in only
      when a camera solid lies between the head and the desired eye.
 
+## 2026-10-30 — card reads the far mesh, dock signs stay near
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6` (`929719b`). Host `g++` and
+devkitARM only. **No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and
+FFmpeg 7. There are no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp`
+was compiled with `g++ -Werror` and not run on 2000/1000/2100. The 3.17 s / 1.8 s
+card times are the user's Azahar numbers for `929719b`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- The profiled cost is the SD read (~330 ms per ~500 KB near chunk). Upload is
+  4–6 ms/frame. Packing cone chunks together would only remove seeks. Another
+  compressor needs a decoder this runtime does not have, and the textures are
+  already ETC1. Splitting textures off the geometry would drop the card onto an
+  untextured frame, and sign letters are a texture. The v2 file already stores a
+  vertex-coloured far mesh. The card (`Place::streamReady` / `Zone::cardPending`)
+  now waits for that far mesh of each in-cone chunk. The loader does not start a
+  near read until those far meshes are resident, so a 500 KB near job cannot
+  occupy a slot the card still needs. Near upgrades, including sign letters,
+  continue on the loader thread after the card, in the same upload slices.
+  `finishLoading` (boss / cogdo) still waits for the full plan. This host cannot
+  say the 2100 card is now ≤2 s or the 1000 card ≤1.5 s; that needs the baked
+  zones and Azahar.
+- Donald's Dock letters. A chunk with a decal on `palette_2tmlc` (MickeyFont) is
+  a sign. On Old 3DS `lodNear` is 160, which left the far-right building on the
+  far mesh (14 faint triangles). A sign inside the cone and inside twice
+  `lodNear` (320 Old / 520 New) now takes a near slot ahead of a generic chunk.
+  It still stops at 130 draws, 15k triangles and the retain cap. The host fixture
+  puts the sign at 200 (past 160) and a 120-draw filler at 80: the sign stays at
+  lod 0, the filler at lod 1, 17 draws. Toon Hall is still both halves near
+  (the earlier cone lines: hall lod 0, 131 draws with the shop).
+- `zone_test.cpp:52` is a real host failure, not a new cone limit. With no camera
+  the points loop counts the whole cell. Near upgrades stop at 130 draws / 15k
+  triangles, then the remaining far meshes were added with no ceiling, so the
+  cell could pass the file's 150-draw / 15k-triangle far-set cap. The device
+  calls `setCamera` before `update`, and that path still draws every in-cone
+  chunk. The no-camera plan now leaves out a chunk whose far mesh would pass
+  15k triangles or 150 draws. The assert is unchanged. The host fixture is three
+  chunks of 80 near / 40 far: resident lods 0, 1, and not loaded, 120 draws and
+  120 triangles.
+
