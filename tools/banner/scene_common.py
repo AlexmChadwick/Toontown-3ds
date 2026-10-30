@@ -34,9 +34,9 @@ Z_TOON = 1.85
 # Logo ~60% of visible width at Z_LOGO; toon bust on the right, forward in Z.
 # ~60% of the banner width at the logo depth (visible width ≈ 45 units).
 LOGO_POS = (-7.6, 0.4, Z_LOGO)
-# Head fills about two thirds of the banner height (visible height ≈ 23).
-TOON_POS = (13.0, 0.9, Z_TOON)
-TOON_PLANE_H = 15.5
+# Waist-up bust on the right, bottom edge just above the hills (visible height ≈ 23).
+TOON_POS = (13.2, 3.1, Z_TOON)
+TOON_PLANE_H = 12.4
 
 ALL_COLORS = (
     (1.0, 1.0, 1.0),
@@ -140,11 +140,14 @@ def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.
         cimg = Image.open(clouds_path).convert("RGB")
         aimg = Image.open(alpha_path).convert("L")
         cimg.putalpha(aimg)
+        # The cloud map's alpha never falls below 108, so each paste is a hard
+        # rectangle. The rightmost one sat behind the toon (about x=170–220 on
+        # the 256-wide preview) and read as a pale card. The others stay, over
+        # the logo side of the sky.
         for scale, ox, oy, op in (
             (0.62, -30, 4, 255),
             (0.52, 90, 12, 230),
             (0.48, 210, 2, 220),
-            (0.35, 340, 20, 200),
         ):
             layer = cimg.resize((int(cimg.width * scale), int(cimg.height * scale)), Image.Resampling.LANCZOS)
             layer = layer.filter(ImageFilter.GaussianBlur(0.6))
@@ -174,11 +177,24 @@ def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.
 
 
 def _make_textured_card(
-    rgba: np.ndarray, w: float, h: float, name: str = "card", *, depth_write: bool = True
+    rgba: np.ndarray,
+    w: float,
+    h: float,
+    name: str = "card",
+    *,
+    depth_write: bool = True,
+    straight_alpha: bool = False,
 ) -> NodePath:
     """XY-plane quad matching gltf_export.make_textured_quad (glTF Y-up, camera looks -Z)."""
     tex = Texture()
     tex.setup2dTexture(rgba.shape[1], rgba.shape[0], Texture.T_unsigned_byte, Texture.F_rgba)
+    if straight_alpha:
+        # No mip chain: a mip of a mostly-transparent portrait averages in the
+        # toon and tints the whole card. Clamp so the border is not repeated.
+        tex.setMinfilter(Texture.FTLinear)
+        tex.setMagfilter(Texture.FTLinear)
+        tex.setWrapU(Texture.WMClamp)
+        tex.setWrapV(Texture.WMClamp)
     # Panda stores ram images BGRA, bottom row first. The numpy arrays are RGBA, top row first.
     ordered = np.flipud(rgba)
     bgra = ordered[..., [2, 1, 0, 3]].copy()
@@ -231,7 +247,9 @@ def attach_banner_scene(parent: NodePath, resources: Path, *, toon_rgba: np.ndar
     # Same top-row-first layout as the logo. An extra flip stood the face on its head.
     aspect = toon_rgba.shape[1] / max(toon_rgba.shape[0], 1)
     tw = TOON_PLANE_H * aspect
-    tcard = _make_textured_card(toon_rgba, tw, TOON_PLANE_H, "toon", depth_write=False)
+    tcard = _make_textured_card(
+        toon_rgba, tw, TOON_PLANE_H, "toon", depth_write=False, straight_alpha=True
+    )
     tcard.setPos(*TOON_POS)
     tcard.reparentTo(parent)
     return logo

@@ -162,22 +162,27 @@ def _bleed_rgb(rgba: np.ndarray, passes: int = 4) -> None:
 
 
 def _bust_crop(rgba: np.ndarray) -> np.ndarray:
-    """Head through the shirt, dropping the legs so the face stays large."""
+    """Head through the waist. Row 0 of this shot is the top of the head.
+
+    White pixels in the lower half are the gloves. Cutting just above them
+    drops the shorts, gloves and feet instead of slicing them on the hills.
+    """
     rgb = rgba[:, :, :3].astype(np.int16)
     alpha = rgba[:, :, 3]
     opaque = alpha > 16
     if not opaque.any():
         raise RuntimeError("toon portrait rendered fully transparent")
-    red = opaque & (rgb[:, :, 0] > 160) & (rgb[:, :, 1] < 120) & (rgb[:, :, 2] < 120)
     ys, xs = np.where(opaque)
-    top = int(ys.min())
-    if red.any():
-        bottom = int(np.where(red)[0].max())
-    else:
-        bottom = int(ys.max())
+    top, bot = int(ys.min()), int(ys.max())
+    mid = (top + bot) // 2
+    white = opaque & (rgb[:, :, 0] > 200) & (rgb[:, :, 1] > 200) & (rgb[:, :, 2] > 200)
+    glove_rows = np.where(white[mid:].any(axis=1))[0]
+    if len(glove_rows):
+        # Top of the gloves, then a few pixels higher so the hem is shirt, not fingers.
+        bot = max(top + 8, mid + int(glove_rows.min()) - 8)
     pad = 8
     y0 = max(0, top - pad)
-    y1 = min(rgba.shape[0] - 1, bottom + pad)
+    y1 = min(rgba.shape[0] - 1, bot)
     band = opaque[y0 : y1 + 1]
     xs = np.where(band.any(axis=0))[0]
     x0 = max(0, int(xs.min()) - pad)
