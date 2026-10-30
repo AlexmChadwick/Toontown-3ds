@@ -35,8 +35,12 @@ def runtime(entry, exp):
 
 
 def main():
-    values = gen_gag_tables.assignments(GLOBALS, {"Levels", "AvPropDamage"})
-    env = {"Levels": gen_gag_tables.literal(values["Levels"], {})}
+    values = gen_gag_tables.assignments(
+        GLOBALS, {"Levels", "AvPropDamage", "UberSkill", "regMaxSkill", "MaxSkill"}
+    )
+    env = {}
+    for name in ("UberSkill", "regMaxSkill", "Levels", "MaxSkill"):
+        env[name] = gen_gag_tables.literal(values[name], env)
     damage = gen_gag_tables.literal(values["AvPropDamage"], env)
     checks = 0
     for track in damage:
