@@ -3,6 +3,53 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Informative SOS cards and server-owned SOS playback
+
+### Done
+- Reworked the live battle SOS chooser so all 16 touch slots identify what the card actually
+  does. Each opaque card now has a gag-track/status colour, NPC name, effect and gag level, plus
+  a high-contrast count badge; players no longer have to memorize 41 NPC names before spending a
+  limited reward.
+- Stopped accepted NPC SOS attacks from disappearing locally after the server spent the card.
+  The movie scheduler resolves the friend id through the generated upstream `NPCToons` table and
+  plays the corresponding heal/trap/lure/sound/throw/squirt/drop path. Damage, healing and deaths
+  still come exclusively from the authoritative `setMovie` arrays.
+- Corrected toon attack ordering to match stock `Movie.py`: Fire, SOS, NPC SOS, Pet SOS, then the
+  seven ordinary gag tracks. The former numeric sort incorrectly put Fire after every gag.
+- Kept unknown and non-gag SOS effects safe: restock, Toons Hit and Cogs Miss retain a bounded
+  generic presentation instead of indexing the seven-track gag tables.
+
+### Verified
+- Regenerated `source/ui/sos_tables.h` from the pinned Open Toontown checkout; it is byte-stable
+  at 41 cards. `python3 -m py_compile` passes for the generator and its boss-bake consumer.
+- `git diff --check` passes. The battle host regression now statically asserts that NPC SOS is a
+  supported movie track, alongside Fire.
+- `tools/battle_fx_test/run_test.sh` was attempted and stopped before compilation because this
+  Linux workspace has no `clang++`. The 3DS build remains unavailable without `DEVKITARM`; no
+  emulator or hardware result is claimed.
+
+### Asset size decisions
+- No assets, allocations or resident textures were added. The chooser reuses immediate geometry
+  and the generated 41-entry table already shipped for the SOS book and boss rewards, so the Old
+  3DS memory and SD budgets are unchanged.
+
+### Known issues
+- NPC SOS now presents its resolved effect and authoritative result, but does not yet instantiate
+  the card NPC as a temporary DNA-driven Toon or play the stock teleport-in/greeting/teleport-out
+  sequence. Restock, Toons Hit and Cogs Miss still use the bounded generic presentation.
+- The denser two-line SOS cards need a native 320 x 240 capture, especially for the longest NPC
+  and restock labels, plus touch and D-pad verification on an Old 3DS.
+- Fire still needs its original cannon, control and smoke staging. The first complete Old 3DS
+  hardware performance and UI pass remains open.
+
+### Next
+- Add a bounded temporary NPC actor using the generated SOS DNA table, then reproduce the stock
+  teleport/greeting/departure around the resolved gag without growing the Toon cache beyond 4 MiB.
+- Capture the SOS chooser, a low-level gag grid and a developed-Toon grid at native resolution;
+  tune only from those frames and verify every card sends the selected friend id.
+- Finish Fire cannon/smoke staging and run the requested two-client chat/teleport/treasure latency
+  regression when a working compiler, Azahar and local server are available.
+
 ## 2026-10-30 — Authoritative teammate Laff in Toon-Up targeting
 
 ### Done
