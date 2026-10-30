@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "render/renderer.h"
+
 namespace tt::world {
 
 namespace {
@@ -22,7 +24,22 @@ constexpr float kCamDistance = 12.0f;
 constexpr float kCamLookHeight = 3.0f;
 constexpr float kCamOrbitSpeed = 120.0f; // deg/s with L/R
 constexpr float kCamRecenterRate = 3.0f; // 1/s, exponential
-constexpr float kCamWallMargin = 0.05f;  // fraction of the head->eye segment kept off walls
+// Stock LocalAvatar uses a CameraBitmask segment (ccLine) plus a sphere pusher
+// (ccSphere) on the lens. One swept sphere does both, and it has to clear the
+// near-plane corners, not just the centre ray:
+//   fov 55 deg, top 400x240, near 1 -> corner is ~1.42 from the eye
+//   full 3D slider shifts the frustum by iod/2 = 1/6 -> corner ~1.53
+// 1.75 leaves a little for the visual mesh sitting proud of the collision hull
+// and for that stereo skew. Both eyes share Renderer::kNear (the skew is not a
+// second near plane). Pull-in is instant: easing inward would render frames with
+// the lens inside the solid, which is the clipper blow-up. Ease-out is the smooth
+// return once the way is clear.
+constexpr float kCamClearance = 1.75f;
+constexpr float kCamEaseOut = 6.0f; // 1/s, boom returning to the ideal distance
+static_assert(kCamClearance > tt::render::Renderer::kNear * 1.53f,
+              "camera sphere must stay outside the stereo near-plane corners");
+static_assert(tt::render::Renderer::kNear >= 1.0f,
+              "a nearer clip plane shatters triangles on the PICA200");
 
 constexpr float kDegToRad = 3.14159265f / 180.0f;
 // otp/otpbase/OTPGlobals.py WalkCutOff / RunCutOff.
@@ -47,6 +64,7 @@ void Player::reset(float x, float y, float z, float headingDeg) {
     speed_ = vz_ = 0;
     onPlat_ = false;
     camYawOffset_ = 0;
+    camDist_ = kCamDistance;
     update(Input{}, 0.0f);
 }
 
@@ -212,45 +230,67 @@ void Player::camera(const Input& in, float dt) {
     camTarget_ = FVec3_New(x_, y_, z_ + kCamLookHeight);
     camEye_ = FVec3_New(x_ + sinf(yaw) * cosf(pitch) * kCamDistance, y_ - cosf(yaw) * cosf(pitch) * kCamDistance,
                         z_ + kCamLookHeight + sinf(pitch) * kCamDistance);
-    avoidCamera(camTarget_);
-    if (onPlat_) {
-        // The boat's walls and rails: the same segment in platform space (a rigid transform
-        // keeps the hit fraction), against the head -> (possibly already shortened) eye.
-        const float r = ph_ * kDegToRad, c = cosf(r), s = sinf(r);
-        auto local = [&](float wx, float wy, float wz) {
-            const float dx = wx - px_, dy = wy - py_;
-            return Vec3{dx * c + dy * s, -dx * s + dy * c, wz - pz_};
-        };
-        const Vec3 head = local(camTarget_.x, camTarget_.y, camTarget_.z);
-        const Vec3 eye = local(camEye_.x, camEye_.y, camEye_.z);
-        float t = 1.0f;
-        if (deck_->cameraRaycast(head, eye, &t)) {
-            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
-            camEye_ = FVec3_New(camTarget_.x + (camEye_.x - camTarget_.x) * t,
-                                camTarget_.y + (camEye_.y - camTarget_.y) * t,
-                                camTarget_.z + (camEye_.z - camTarget_.z) * t);
-        }
-    }
+    avoidCamera(camTarget_, dt);
 }
 
-void Player::avoidCamera(const C3D_FVec& headPosition) {
-    if (collision_ && collision_->loaded()) {
-        // Pull the camera in front of walls between it and the toon's head.
-        const Vec3 head{headPosition.x, headPosition.y, headPosition.z};
-        const Vec3 eye{camEye_.x, camEye_.y, camEye_.z};
-        float t = 1.0f;
-        if (collision_->cameraRaycast(head, eye, &t)) {
-            t = t > kCamWallMargin ? t - kCamWallMargin : 0.0f;
-            camEye_ = FVec3_New(head.x + (eye.x - head.x) * t, head.y + (eye.y - head.y) * t,
-                                head.z + (eye.z - head.z) * t);
-        }
+void Player::avoidCamera(const C3D_FVec& headPosition, float dt) {
+    const Vec3 head{headPosition.x, headPosition.y, headPosition.z};
+    const Vec3 ideal{camEye_.x, camEye_.y, camEye_.z};
+    const float dx = ideal.x - head.x, dy = ideal.y - head.y, dz = ideal.z - head.z;
+    const float len = sqrtf(dx * dx + dy * dy + dz * dz);
+    if (len < 1e-4f) {
+        // Eye on the head: look along the toon's facing so LookAt stays valid.
+        const float h = heading_ * kDegToRad;
+        camEye_ = headPosition;
+        camTarget_ = FVec3_New(head.x - sinf(h), head.y + cosf(h), head.z);
+        camDist_ = 0.0f;
+        return;
+    }
+    float t = 1.0f;
+    auto tighten = [&](const CollisionWorld* world, const Vec3& a, const Vec3& b) {
+        if (!world || !world->loaded()) return;
+        float ht = 1.0f;
+        if (world->cameraSphereCast(a, b, kCamClearance, &ht) && ht < t) t = ht;
+    };
+    tighten(collision_, head, ideal);
+    if (onPlat_ && deck_) {
+        // Deck walls and rails, in platform space. A rigid transform keeps the hit
+        // fraction, so this t is on the same head->ideal segment as the zone cast.
+        const float r = ph_ * kDegToRad, c = cosf(r), s = sinf(r);
+        auto local = [&](float wx, float wy, float wz) {
+            const float lx = wx - px_, ly = wy - py_;
+            return Vec3{lx * c + ly * s, -lx * s + ly * c, wz - pz_};
+        };
+        tighten(deck_, local(head.x, head.y, head.z), local(ideal.x, ideal.y, ideal.z));
+    }
+    const float desired = t * len;
+    // Snap in (and on dt == 0, which is a teleport or a one-shot talk camera).
+    // Ease only outward, and never past `desired`, so the eye stays on the clear
+    // prefix of this frame's segment.
+    if (!(dt > 0.0f) || desired < camDist_) camDist_ = desired;
+    else camDist_ += (desired - camDist_) * (1.0f - expf(-kCamEaseOut * dt));
+    if (camDist_ > len) camDist_ = len;
+    if (camDist_ < 0.0f) camDist_ = 0.0f;
+
+    if (camDist_ < 0.02f) {
+        // The clearance sphere contains the head (toon pressed into a corner).
+        // Look back along the boom so the blocking solid is behind the lens.
+        const float inv = 1.0f / len;
+        camEye_ = headPosition;
+        camTarget_ = FVec3_New(head.x - dx * inv * 0.25f, head.y - dy * inv * 0.25f, head.z - dz * inv * 0.25f);
+    } else {
+        const float s = camDist_ / len;
+        camEye_ = FVec3_New(head.x + dx * s, head.y + dy * s, head.z + dz * s);
+        // camera() already aims the follow shot at the head. A caller that set its
+        // own look-at (NPC talk) keeps it; only the lens moves along this segment.
     }
 }
 
 void Player::overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target) {
     overrideCamera(eye, target);
     // NPC talk uses the same head-to-eye collision pull-in as the follow camera.
-    avoidCamera(FVec3_New(x_, y_, z_ + kCamLookHeight));
+    // dt 0 snaps, so the talk shot does not ease through the wall on the way in.
+    avoidCamera(FVec3_New(x_, y_, z_ + kCamLookHeight), 0.0f);
 }
 
 float Player::cameraDistance() const {
