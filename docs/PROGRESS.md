@@ -3,6 +3,48 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Readable locked-gag ladders and battle actions
+
+### Done
+- Replaced the live battle picker's anonymous dark `?` pills with full parchment cards. Every
+  locked level now retains its position, track-colour ribbon and level number, so a new Toon can
+  understand the seven-level progression without confusing an unavailable gag for an empty slot.
+- Applied the same card treatment to the Shticker Book Gags page. Unearned levels no longer
+  collapse into six-pixel dots beside the original gag art; the book and battle picker now use
+  the same visual language at native bottom-screen scale.
+- Gave Fire, SOS, Pass and Run distinct muted parchment colours when available. Disabled actions
+  remain dark and readable, and drawing still uses the existing rounded triangle primitive that
+  survives the post-world PICA state.
+- Preserved every existing touch rectangle and focus id, so this polish does not alter battle or
+  book input semantics.
+
+### Verified
+- `git diff --check` passes for both UI commits and this progress entry.
+- Source/layout audit confirms all seven gag columns still fit before the XP bar, and the battle
+  grid and four action controls still draw inside their shared `pad_tables.h` focus rectangles.
+- A full `make -j2` was attempted and stopped at the Makefile's environment guard because this
+  Linux workspace has no `DEVKITARM`. No emulator or hardware result is claimed.
+
+### Asset size decisions
+- No new assets or allocations. The pass reuses the original gag atlas and draws small solid
+  cards, ribbons and numerals; it does not increase the SD set, texture residency or load time.
+
+### Known issues
+- The new locked-card contrast and special-action colours still need a native 320 x 240 capture
+  in Old 3DS mode and a real-hardware readability/touch pass.
+- Fire still lacks the stock cannon/smoke/launch geometry, and NPC SOS still lacks its faithful
+  temporary-Toon arrival and resolved gag/heal movie.
+- The broader existing visual and gameplay issues in older entries remain open, including the
+  first complete real-hardware run.
+
+### Next
+- Run `AUTOTEST_FROM="see cog" AUTOTEST_ONLY="see cog,pad: battle"` with autoplay disabled and
+  capture both a low-level Toon (many locked cards) and a developed Toon at native resolution.
+- Capture the Shticker Book Gags page from the same profiles, checking two-digit badges, XP text,
+  focus contrast and the boundary between the seventh card and XP bar.
+- Complete the original-asset Fire and SOS movie fidelity pass, then measure the picker cost and
+  memory on Old 3DS hardware.
+
 ## 2026-10-29 — Fire movie playback and cross-play chat diagnostics
 
 ### Done
