@@ -12,6 +12,7 @@ OUT=${1:-$PWD/toontown3ds-one-scan.cia}
 DATA=${DATA:?set DATA to the baked data dir (tools/pipeline output)}
 STAGE=$PWD/build/romfs-cia
 RSF=${RSF:-$PWD/tools/release/one_scan.rsf}
+META=${META:-tools/release/meta}
 
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
@@ -21,13 +22,19 @@ DATA=$(readlink -f "$DATA")
 cp -al "$DATA" "$STAGE/data" 2>/dev/null || cp -a "$DATA" "$STAGE/data"
 echo "romfs: $(du -sh "$STAGE" | cut -f1) in $(find "$STAGE" -type f | wc -l) files"
 
-# HOME Menu art: META/icon.png (48x48), and META/banner.bnr if present (a prebuilt banner,
-# e.g. a 3D CGFX one), else META/banner.png + META/banner.wav (flat banner + jingle).
-# banner.wav: first 2.95 s of phase_3/audio/bgm/tt_theme.ogg, fade in 0.03 s, fade out from 2.15 s,
-# 22050 Hz stereo (ffmpeg afade + alimiter).
-META=${META:-tools/release/meta}
-if [ -f "$META/banner.bnr" ]; then cp "$META/banner.bnr" build/banner.bnr
-else bannertool makebanner -i "$META/banner.png" -a "${BANNER_WAV:-$META/banner.wav}" -o build/banner.bnr >/dev/null; fi
+# 3D HOME Menu banner (CBMD + BCWAV). Regenerate with tools/banner/build.sh (needs ref/resources).
+if [ "${SKIP_BANNER_BUILD:-0}" != 1 ]; then
+  RESOURCES="${RESOURCES:-$PWD/ref/resources}" OUT_DIR="$PWD/$META" "$PWD/tools/banner/build.sh"
+fi
+export PATH="$PWD/tools/banner/bin:${PATH:-}"
+
+if [ -f "$META/banner.bnr" ]; then
+  cp "$META/banner.bnr" build/banner.bnr
+else
+  echo "error: missing $META/banner.bnr (run tools/banner/build.sh)" >&2
+  exit 1
+fi
+
 bannertool makesmdh -s "Toontown 3DS" -l "Unofficial Open Toontown client" -p "toontown-3ds contributors" \
     -i "$META/icon.png" -o build/icon.icn >/dev/null
 ( cd build && makerom -f cia -o "$OUT" -elf ../toontown3ds.elf -rsf "$RSF" \
