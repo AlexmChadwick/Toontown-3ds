@@ -215,7 +215,8 @@ see [docs/test-log.md](docs/test-log.md). Record results there.
 | `tools/pipeline` | offline bam/DNA → 3DS asset baker (Python) |
 | `tools/dev` | dev helpers (render-target dump decoder) |
 | `tools/toolchain` | from-source devkitARM bootstrap |
-| `meta` | icon, banner, CIA `app.rsf` |
+| `meta` | icon, 3D HOME banner (`banner.bnr` / `banner.cgfx`), CIA `app.rsf` |
+| `tools/banner` | Regenerate HOME Menu CBMD + BCWAV from `ref/resources` (see `tools/banner/README.md`) |
 | `ref` | upstream submodules: open-toontown (code) and resources (assets) |
 
 ## License
