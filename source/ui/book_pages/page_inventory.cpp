@@ -157,18 +157,19 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                              0.60f, 0.27f, 0.27f, kInk);
             } else {
                 // Preserve the seven-card ladder even before this level is
-                // earned.  A full dimmed card is much easier to scan than the
-                // old six-pixel dot and mirrors the live battle picker.
+                // earned. Keep the real gag silhouette so this compact page has
+                // the same spatial vocabulary as the live battle picker.
                 shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
                                   kSlotEdge, kLockedPaper);
-                C2D_DrawRectSolid(gx + 2.0f, ry + 3.0f, 0.54f, 2.0f, gagSize - 4.0f,
-                                  kTrackColors[t]);
+                atlas.drawIcon(t, l, gx + 1.0f, ry + 2.0f, gagSize - 2.0f, 0.52f, 0.22f);
                 snprintf(buf, sizeof(buf), "%d", l + 1);
                 C2D_Text levelTxt;
                 C2D_TextParse(&levelTxt, textBuf_, buf);
                 C2D_TextOptimize(&levelTxt);
-                C2D_DrawText(&levelTxt, C2D_WithColor, gx + 8.0f, ry + 3.0f, 0.56f,
-                             0.28f, 0.28f, kLockedInk);
+                shape::roundRect(gx + 10.0f, ry + 11.0f, 0.58f, 8.0f, 8.0f, 3.0f,
+                                 kLockedInk);
+                C2D_DrawText(&levelTxt, C2D_WithColor, gx + 12.0f, ry + 10.5f, 0.60f,
+                             0.25f, 0.25f, kSlotPaper);
             }
         }
 

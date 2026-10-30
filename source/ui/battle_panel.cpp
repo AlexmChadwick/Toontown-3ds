@@ -481,12 +481,13 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                 text(x + (g.count[t][l] >= 10 ? 21 : 24), y + 3, 0.30f,
                      g.count[t][l] ? kBg : kDim, "%u", unsigned(g.count[t][l]));
             } else {
-                // Keep the complete seven-level ladder readable before a gag is
-                // earned.  Stock presents locked gags as dimmed cards; a coloured
-                // track ribbon and level number communicate the same thing at 3DS
-                // resolution without pretending the gag is selectable.
-                C2D_DrawRectSolid(x + 2, y + 2, 0.55f, 3, kRowH - 6, kTrackColor[t]);
-                text(x + 13, y + 2, 0.34f, kLockedInk, "%d", l + 1);
+                // Keep the original gag silhouette visible even before it is
+                // earned. The 49-icon grid is learned spatially; replacing locked
+                // gags with anonymous numbers made new-Toon rows needlessly hard
+                // to scan. A dark L-level badge still makes the lock state explicit.
+                world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f, 0.22f);
+                shape::roundRect(x + 19, y + 3, 0.57f, 14, 12, 4, kLockedInk);
+                text(x + 21, y + 3, 0.28f, kSlotPaper, "L%d", l + 1);
             }
         }
     }
