@@ -37,7 +37,12 @@ const u32 kMeterFrame = C2D_Color32(0x45, 0x2B, 0x18, 0xFF);
 const u32 kMeterEmpty = C2D_Color32(0x73, 0x69, 0x62, 0xFF);
 const u32 kSlotFrame = C2D_Color32(0x70, 0x59, 0x42, 0xFF);
 const u32 kSlotPaper = C2D_Color32(0xF4, 0xED, 0xDC, 0xFF);
-const u32 kLocked = C2D_Color32(0x58, 0x61, 0x72, 0xFF);
+const u32 kLockedPaper = C2D_Color32(0xC9, 0xC1, 0xB2, 0xFF);
+const u32 kLockedInk = C2D_Color32(0x75, 0x6D, 0x62, 0xFF);
+const u32 kFirePaper = C2D_Color32(0xF4, 0xC7, 0xAE, 0xFF);
+const u32 kSosPaper = C2D_Color32(0xC4, 0xE3, 0xF3, 0xFF);
+const u32 kPassPaper = C2D_Color32(0xF6, 0xE3, 0xA8, 0xFF);
+const u32 kRunPaper = C2D_Color32(0xE8, 0xD0, 0xC5, 0xFF);
 // Track colours, roughly the Shticker Book's gag pages.
 const u32 kTrackColor[gags::kTracks] = {
     C2D_Color32(0xD8, 0x6A, 0xC8, 0xFF), C2D_Color32(0xD8, 0xC8, 0x40, 0xFF), C2D_Color32(0x40, 0xB0, 0x40, 0xFF),
@@ -327,7 +332,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             const bool learned = have && g.count && l < levels;
             const bool ok = learned && choosing && usable(v, g, t, l);
             shape::roundFrame(x, y, 0.51f, kCellW, kRowH - 2, 4, 1,
-                              ok ? kAccent : kSlotFrame, learned ? kSlotPaper : kLocked);
+                              ok ? kAccent : kSlotFrame, learned ? kSlotPaper : kLockedPaper);
             if (learned) {
                 world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 16.0f, 0.55f,
                                                      g.count[t][l] ? 1.0f : 0.35f);
@@ -336,7 +341,12 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                 text(x + (g.count[t][l] >= 10 ? 21 : 24), y + 3, 0.30f,
                      g.count[t][l] ? kBg : kDim, "%u", unsigned(g.count[t][l]));
             } else {
-                text(x + 14, y + 2, 0.34f, kDim, "?");
+                // Keep the complete seven-level ladder readable before a gag is
+                // earned.  Stock presents locked gags as dimmed cards; a coloured
+                // track ribbon and level number communicate the same thing at 3DS
+                // resolution without pretending the gag is selectable.
+                C2D_DrawRectSolid(x + 2, y + 2, 0.55f, 3, kRowH - 6, kTrackColor[t]);
+                text(x + 13, y + 2, 0.34f, kLockedInk, "%d", l + 1);
             }
         }
     }
@@ -344,16 +354,16 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     int sosCount = 0;
     if (g.book) for (int i = 0; i < g.book->numSosCards; ++i) sosCount += g.book->sosCards[i].count > 0;
     shape::roundFrame(pad::battle::kFireX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
-                      choosing && g.pinkSlips ? kSlotPaper : kBg);
+                      choosing && g.pinkSlips ? kFirePaper : kBg);
     text(17, kBtnY + 6, 0.43f, choosing && g.pinkSlips ? kInk : kDim, "Fire x%u", unsigned(g.pinkSlips));
     shape::roundFrame(pad::battle::kSosX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
-                      choosing && sosCount ? kSlotPaper : kBg);
+                      choosing && sosCount ? kSosPaper : kBg);
     text(102, kBtnY + 6, 0.45f, choosing && sosCount ? kInk : kDim, "SOS");
     shape::roundFrame(pad::battle::kPassX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
-                      choosing ? kSlotPaper : kBg);
+                      choosing ? kPassPaper : kBg);
     text(181, kBtnY + 6, 0.45f, choosing ? kInk : kDim, "Pass");
     shape::roundFrame(pad::battle::kRunX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
-                      choosing && v.canRun ? kSlotPaper : kBg);
+                      choosing && v.canRun ? kRunPaper : kBg);
     text(265, kBtnY + 6, 0.45f, choosing && v.canRun ? kInk : kDim, "Run");
     if (choosing) focus_.drawHighlight();
 }
