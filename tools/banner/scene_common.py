@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -31,9 +32,11 @@ Z_BACKDROP = -4.8
 Z_LOGO = -0.35
 Z_TOON = 1.85
 
-# Logo ~60% of visible width at Z_LOGO; toon bust on the right, forward in Z.
-# ~60% of the banner width at the logo depth (visible width ≈ 45 units).
-LOGO_POS = (-7.6, 0.4, Z_LOGO)
+# Home Menu top screen is 400×240 and banner-camera.gltf uses the same 5:3
+# aspect, so the banner's pixels are square. The 256×128 preview uses a 2:1
+# camera on a 2:1 image, so its pixels are square too. The preview is just a
+# wider field. Fit the logo inside the narrower 5:3 view.
+BANNER_ASPECT = 400.0 / 240.0
 # Waist-up bust on the right, bottom edge just above the hills (visible height ≈ 23).
 TOON_POS = (13.2, 3.1, Z_TOON)
 TOON_PLANE_H = 12.4
@@ -74,6 +77,7 @@ class LogoPlane:
     rgba: np.ndarray
     width_units: float
     height_units: float
+    pos: tuple[float, float, float]
 
 
 def configure_panda(resources: Path) -> None:
@@ -103,23 +107,66 @@ def _load_logo_raw(maps_dir: Path) -> np.ndarray:
     return np.flipud(rgba)
 
 
-def fit_logo_texture(maps_dir: Path, *, tex_w: int = 512) -> LogoPlane:
+def _visible_half_extents(z: float, aspect: float) -> tuple[float, float]:
+    """Half-width and half-height of the perspective view at world z.
+
+    The camera sits on +Z and looks down -Z. Vertical FOV matches
+    banner-camera.gltf (30°). ``aspect`` is width/height of that view.
+    """
+    distance = CAMERA_POS[2] - z
+    half_h = distance * math.tan(math.radians(CAMERA_FOV_DEG) * 0.5)
+    return half_h * aspect, half_h
+
+
+def fit_logo_texture(maps_dir: Path, *, tex_long: int = 256) -> LogoPlane:
+    """Logo card at the source texture's content aspect, fitted in the frame.
+
+    ``toontown-logo.jpg`` is 256×256 with square pixels (JFIF density 1:1), not
+    a wide image padded out to a power of two. The opaque texels fill that
+    square, so the card is square. pycgfx scales each texture axis down to 256
+    on its own, which would squash a non-square image, so the long side stays
+    at most 256 and is never resampled to a different aspect.
+
+    The previous 28×28 card was square too, but taller than the 30° view, so
+    the top (Disney's) and the bottom (ONLINE) were clipped.
+    """
     rgba = _load_logo_raw(maps_dir)
     mask = rgba[:, :, 3] > 20
     ys, xs = np.where(mask)
-    pad = 8
-    y0, y1 = max(0, ys.min() - pad), min(rgba.shape[0] - 1, ys.max() + pad + 10)
-    x0, x1 = max(0, xs.min() - pad), min(rgba.shape[1] - 1, xs.max() + pad)
+    y0, y1 = int(ys.min()), int(ys.max())
+    x0, x1 = int(xs.min()), int(xs.max())
     crop = rgba[y0 : y1 + 1, x0 : x1 + 1].copy()
-    aspect = crop.shape[1] / crop.shape[0]
-    width_units = 28.0
-    height_units = width_units / aspect
-    th = tex_w // 2 if aspect >= 2 else int(tex_w / aspect)
-    tw = tex_w if aspect >= 2 else int(tex_w * aspect)
-    img = Image.fromarray(crop, "RGBA").resize((tw, th), Image.Resampling.LANCZOS)
-    # Quad texcoord v=0 sits on +Y and Panda/glTF sample this crop upright
-    # without an extra flip (measured: Disney script above the yellow wordmark).
-    return LogoPlane(np.asarray(img), width_units, height_units)
+    content_h, content_w = crop.shape[0], crop.shape[1]
+    aspect = content_w / content_h
+    scale = tex_long / max(content_w, content_h)
+    tw = max(1, int(round(content_w * scale)))
+    th = max(1, int(round(content_h * scale)))
+    if (tw, th) == (content_w, content_h):
+        tex = crop
+    else:
+        tex = np.asarray(
+            Image.fromarray(crop, "RGBA").resize((tw, th), Image.Resampling.LANCZOS)
+        )
+    # Quad texcoord v=0 sits on +Y. This crop is already upright
+    # (Disney's above the yellow wordmark).
+
+    half_w, half_h = _visible_half_extents(Z_LOGO, BANNER_ASPECT)
+    # About 6px on the 128-tall preview, on every side of the 5:3 frame.
+    margin = 0.05 * (2.0 * half_h)
+    avail_h = 2.0 * half_h - 2.0 * margin
+    avail_w = 2.0 * half_w - 2.0 * margin
+    height_units = avail_h
+    width_units = height_units * aspect
+    if width_units > avail_w:
+        width_units = avail_w
+        height_units = width_units / aspect
+    # Left edge of the 5:3 view, vertically centered on the camera.
+    pos = (
+        -half_w + margin + width_units * 0.5,
+        CAMERA_POS[1],
+        Z_LOGO,
+    )
+    return LogoPlane(tex, width_units, height_units, pos)
 
 
 def _feathered_cloud(rgb: Image.Image, alpha: Image.Image) -> Image.Image:
@@ -268,7 +315,7 @@ def attach_banner_scene(parent: NodePath, resources: Path, *, toon_rgba: np.ndar
 
     logo = fit_logo_texture(resources / "phase_3/maps")
     lcard = _make_textured_card(logo.rgba, logo.width_units, logo.height_units, "logo")
-    lcard.setPos(*LOGO_POS)
+    lcard.setPos(*logo.pos)
     lcard.reparentTo(parent)
 
     # Same top-row-first layout as the logo. An extra flip stood the face on its head.

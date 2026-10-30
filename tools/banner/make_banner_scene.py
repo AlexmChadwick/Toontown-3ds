@@ -13,12 +13,9 @@ sys.path.insert(0, str(HERE))
 
 from gltf_export import SceneObject, make_textured_quad, write_glb  # noqa: E402
 from scene_common import (  # noqa: E402
-    LOGO_POS,
     TOON_PLANE_H,
     TOON_POS,
     Z_BACKDROP,
-    Z_LOGO,
-    Z_TOON,
     compose_backdrop_rgba,
     fit_logo_texture,
 )
@@ -36,7 +33,7 @@ def build_scene(resources: Path, toon_rgba) -> list[SceneObject]:
         ),
         SceneObject(
             mesh=make_textured_quad("logo", logo.width_units, logo.height_units, logo.rgba),
-            translation=LOGO_POS,
+            translation=logo.pos,
         ),
         SceneObject(
             mesh=make_textured_quad("toon", toon_w, TOON_PLANE_H, toon_rgba),
