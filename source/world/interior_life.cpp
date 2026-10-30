@@ -180,7 +180,8 @@ void InteriorLife::loadKnockSpheres(uint32_t zoneId) {
 void InteriorLife::updateLeaderboardText(const net::Client::HQLeaderboardState& hq) {
     if (!textBuf_) return;
     C2D_TextBufClear(textBuf_);
-    tt::render::textParse(&titleText_, textBuf_, "Toon Platoon"); // TTLocalizer.LeaderboardTitle
+    // SignFont is MickeyFont. The string stays mixed case; the font draws a-z as A-Z.
+    tt::render::textParseSign(&titleText_, textBuf_, "Toon Platoon"); // TTLocalizer.LeaderboardTitle
     C2D_TextOptimize(&titleText_);
     for (int i = 0; i < kNumLeaders; ++i) {
         RowText& row = rows_[i];

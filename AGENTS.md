@@ -244,6 +244,9 @@ Key decisions:
      building and the opposite ray is open.
    - Battle music is `encntr_general_bg` while a battle is active. `movieDone` is
      resent until PlayMovie ends. Squirt plays its spray when the water leaves.
+   - The HQ desk title is the string `Toon Platoon` in MickeyFont
+     (`romfs/baked/fonts/mickey.bcfnt`). That sign font has no lowercase, and
+     TextNode draws a-z with the A-Z glyphs, so the title reads as capitals.
 6. **Threads.**
    - The main thread runs simulation and rendering at prio 0x30.
    - The net thread is a blocking socket with a ring buffer, prio 0x31, on core 0.

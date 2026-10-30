@@ -1517,3 +1517,57 @@ Checked against the pinned Open Toontown sources (commit `2b366a23`, fetched rea
 - LOD: remote toons inside 120 units stay at LOD 500. The local DNA look is pinned
   and is not released when `inZone()` goes false.
 
+## 2026-10-30 — rebase onto the view budget, MickeyFont in RomFS
+
+Build: `cursor/fast-streaming-0b72` rebased onto `a6f33b0` (`cursor/view-budget-2097`).
+Parent of the streaming commit is that view-budget commit. Draw cap stays 130.
+**No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Host
+microseconds are not 3DS frame times. There are no baked `.tz` files in this tree,
+so `tools/zone_test/zone_test.cpp` was compiled with `g++ -Werror` but not run on
+2000/1000/2100.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+The retain test printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+A v2 chunk that already has its near mesh stays at LOD 0 past `lodKeep`; the far
+mesh is not loaded over it. `make -j4` and `make cia` succeeded. `toontown3ds.3dsx`
+is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB. Zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+How the two branches meet:
+
+- A chunk that already has its near mesh keeps that mesh when it leaves the cone.
+  `Zone::draw` submits the cone, nearest first, and stops at 130 draws and 15k
+  triangles. Culled near meshes count toward the retain budget (Old 3DS 6/8 MiB)
+  and are evicted only when that budget is full; the far mesh is then allowed to
+  load. They are not swapped in while the near mesh is still resident.
+- The loader thread calls `ModelStaging::read` (one span of vertices, indices and
+  inline textures). The main thread `pump`s about 10 ms of GPU upload per
+  `Zone::update`. Zone jobs do not call `Model::loadFrom`, so a chunk is not
+  uploaded twice. Street and playground arrival keeps the loading card and does
+  not call `finishLoading`. Boss and cogdo still call `finishLoading`; each
+  `update` inside it only uploads a slice.
+- The gameplay fixes from `ce06773` are still in the tree (squirt `movieDone`
+  retry, battle music hook, LOD pin, B walk speeds, tunnel latch, HQ heading
+  flip, door swing).
+
+MickeyFont: `tools/pipeline/bake_mickey_font.py` rasterized
+`phase_3/models/fonts/MickeyFont.bam` (resources `d00df01`) through the palette
+`phase_3_palette_2tmlc_1.rgb` into `romfs/baked/fonts/mickey.bcfnt` (33,276 bytes,
+49 glyphs, 256×256 A4, cell 31×31, baseline 23). The bam has no lowercase.
+`a-z` map onto `A-Z`, which is what Panda's TextNode does with this StaticTextFont,
+so the desk string `Toon Platoon` is drawn in the sign letters. The sheet is A4,
+so the fill and the dark outline are one silhouette tinted by the title colour
+`(0.5, 0.75, 0.7)`. The stock two-tone stroke is the texture luminance and is
+not a separate pass. The HQ title uses this font; other UI text stays ImpressBT.
+`ref/resources` is an empty gitlink here, so the bake was run from a temporary
+copy of those two files. The earlier desk note in this log (ImpressBT only) is
+superseded by this entry.
+
