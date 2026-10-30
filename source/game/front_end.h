@@ -140,6 +140,15 @@ private:
     render::TextCache textCache_;
     C2D_TextBuf textBuf_ = nullptr;
     render::Model logo_; // the Toontown Online logo (title screen)
+    // ToontownLoadingScreen (bake_loading_screen.py): progress-background's radial `bg`, drawn as a
+    // far quad behind the Toon on every top screen but Make-A-Toon's room, and toon_council's
+    // scroll for the TOON TIP on the connecting / heading-to screens (loaded on demand).
+    void drawLoadingBg(render::Renderer& renderer, const C3D_FVec& eye, const C3D_FVec& at);
+    void drawLoadingScroll(const char* label);
+    render::Model loadingBg_;
+    render::Model loadingGui_;
+    bool loadingGuiTried_ = false;
+    int tip_ = 0; // kLoadingTips index, picked each time a loading screen opens
     render::Model pickArt_; // AvatarChooser's background + squares and the trashcan (pick_a_toon.ttm)
     bool pickArtTried_ = false;
     char serverLine_[96] = "";

@@ -312,7 +312,9 @@ constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
 constexpr int kFeNextX = 255, kFeNextY = 217;
 const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "fe: title", "fe_title"},
-    {6.0f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_pick"},
+    // The loading screen (ToontownLoadingScreen: logo, TOON TIP scroll, label) while it connects.
+    {0.3f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_connecting"},
+    {5.7f, 0, 0, 0, 0, -1, -1, -1, "fe: avatar list", "fe_pick"},
     // Pick-A-Toon's squares (ui/pick_a_toon_atlas.h): slot 1 is picked on arrival; Y is its
     // trashcan; a tap on an empty square makes a Toon there.
     {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: pick slot 1"},
@@ -335,7 +337,8 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_tutorial_choice"},
     // The stock/front-end regression keeps the historical skip path.  A dedicated manual
     // Toontorial pass chooses the left "Play it" button at (85, 150).
-    {10.0f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_world"},
+    {0.4f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_entering"},
+    {9.6f, 0, 0, 0, 0, -1, -1, -1, "fe: entering", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
 constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[0]);

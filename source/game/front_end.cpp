@@ -7,8 +7,10 @@
 
 #include "core/log.h"
 #include "game/name_check.h"
+#include "game/loading_tips.h"
 #include "game/name_tables.h"
 #include "ui/laff_meter.h"
+#include "ui/loading_atlas.h"
 #include "ui/mat_art.h"
 #include "ui/pick_a_toon_atlas.h"
 #include "ui/theme.h"
@@ -120,6 +122,7 @@ bool FrontEnd::init(world::ToonCache* cache) {
     textCache_.clear();
     textBuf_ = C2D_TextBufNew(4096);
     if (!logo_.loaded() && !logo_.load("romfs:/baked/title_logo.ttm")) TT_LOG("frontend: no title_logo.ttm");
+    if (!loadingBg_.loaded() && !loadingBg_.load("romfs:/baked/loading_bg.ttm")) TT_LOG("frontend: no loading_bg.ttm");
     setPreviewDna(world::defaultToonDna());
     preview_.play(world::kAnimWave, 1.0f);
     reset();
@@ -136,6 +139,8 @@ void FrontEnd::shutdown() {
     if (textBuf_) C2D_TextBufDelete(textBuf_);
     textBuf_ = nullptr;
     logo_.unload();
+    loadingBg_.unload();
+    loadingGui_.unload();
     room_.unload();
     roomShop_ = -1;
     pickArt_.unload();
@@ -145,6 +150,8 @@ void FrontEnd::shutdown() {
 void FrontEnd::releaseArt() {
     room_.unload();
     roomShop_ = -1;
+    loadingGui_.unload();
+    loadingGuiTried_ = false;
     pickArt_.unload();
     pickArtTried_ = false;
     ui::releaseMatArt();
@@ -160,6 +167,9 @@ void FrontEnd::reset() {
 }
 
 void FrontEnd::go(Screen s) {
+    if ((s == Screen::Connecting || s == Screen::Entering) && s != screen_)
+        // ToontownLoadingScreen.getTip: random.choice, but never the tip the last screen showed.
+        tip_ = int((u64(tip_) + 1 + osGetTime() % u64(kLoadingTipCount - 1)) % u64(kLoadingTipCount));
     screen_ = s;
     cursor_ = 0;
     gGui.cursor = 0;
@@ -825,6 +835,56 @@ void FrontEnd::drawRoom(render::Renderer& renderer) {
     renderer.setFovY(0.0f);
 }
 
+// progress-background's `bg` card (2.67 x 2 units, facing -Y) stood up 40 units down the view
+// direction and scaled to overfill the frustum, so the radial blue fills the screen behind the Toon.
+void FrontEnd::drawLoadingBg(render::Renderer& renderer, const C3D_FVec& eye, const C3D_FVec& at) {
+    if (!loadingBg_.loaded()) return;
+    constexpr float kDist = 40.0f, kPi = 3.14159265f;
+    const float fx = at.x - eye.x, fy = at.y - eye.y, fz = at.z - eye.z;
+    const float len = sqrtf(fx * fx + fy * fy + fz * fz);
+    if (len <= 0.0f) return;
+    const float halfH = tanf(render::Renderer::kFovYDeg * 0.5f * kPi / 180.0f) * kDist * 1.08f;
+    const float halfW = halfH * (400.0f / 240.0f);
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, eye.x + fx / len * kDist, eye.y + fy / len * kDist, eye.z + fz / len * kDist, true);
+    Mtx_RotateZ(&m, atan2f(-fx, fy), true);                  // face the camera's heading
+    Mtx_RotateX(&m, atan2f(fz, sqrtf(fx * fx + fy * fy)), true); // and its pitch
+    Mtx_Scale(&m, halfW / 1.33333f, 1.0f, halfH);
+    renderer.drawModel(loadingBg_, m);
+}
+
+// ToontownLoadingScreen's banner (toon_council's scroll at 0.4) with the TOON TIP in its brown
+// (0.4, 0.3, 0.2) and the title label in navy (0, 0, 0.5) at (-1.06, -0.77). The scroll is drawn
+// 1.31x upstream's size (its baked 181 x 125 px cell, 1:1) so the tip is readable at 400 x 240.
+void FrontEnd::drawLoadingScroll(const char* label) {
+    if (!loadingGui_.loaded() && !loadingGuiTried_) {
+        loadingGuiTried_ = true;
+        if (!loadingGui_.load("romfs:/baked/loading_gui.ttm")) TT_LOG("frontend: no loading_gui.ttm");
+    }
+    const ui::LoadingArtRect& r = ui::kLoadingArtRects[int(ui::LoadingArt::Scroll)];
+    const float x = 200.0f - r.w * 0.5f, y = 80.0f;
+    if (C3D_Tex* tex = loadingGui_.loaded() ? loadingGui_.texture(0) : nullptr) {
+        const float u0 = r.x / ui::kLoadingAtlasW, u1 = (r.x + r.w) / ui::kLoadingAtlasW;
+        const float v0 = 1.0f - r.y / ui::kLoadingAtlasH, v1 = 1.0f - (r.y + r.h) / ui::kLoadingAtlasH;
+        Tex3DS_SubTexture sub{uint16_t(r.w + 0.5f), uint16_t(r.h + 0.5f), u0, v0, u1, v1};
+        C2D_DrawImageAt(C2D_Image{tex, &sub}, x, y, 0.5f, nullptr, 1.0f, 1.0f);
+    } else {
+        ui::theme::paper(x + 6, y + 6, r.w - 12, r.h - 12, 6.0f);
+    }
+    const u32 brown = C2D_Color32(0x66, 0x4D, 0x33, 0xFF);
+    char tip[192];
+    snprintf(tip, sizeof tip, "%s\n%s", kTipTitle, kLoadingTips[tip_ % kLoadingTipCount]);
+    C2D_Text t;
+    textCache_.parse(&t, textBuf_, tip, 4096);
+    C2D_DrawText(&t, C2D_WithColor | C2D_WordWrap, x + 22, y + 22, 0.5f, 0.44f, 0.44f, brown, r.w - 40);
+    if (label) {
+        C2D_Text l;
+        textCache_.parse(&l, textBuf_, label, 4096);
+        C2D_DrawText(&l, C2D_WithColor, 73, 212, 0.5f, 0.55f, 0.55f, C2D_Color32(0, 0, 0x80, 0xFF));
+    }
+}
+
 void FrontEnd::drawTop(render::Renderer& renderer) {
     const bool room = screen_ == Screen::Make && ensureRoom();
     if (!room && room_.loaded()) { // left Make-A-Toon: the previous frame is complete
@@ -832,19 +892,24 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
         roomShop_ = -1;
     }
     // The title logo covers the top third: aim higher there so the toon stands below it.
-    const bool logo = screen_ == Screen::Title && logo_.loaded() && logo_.texture(0);
+    const bool loading = screen_ == Screen::Connecting || screen_ == Screen::Entering;
+    const bool logo = (screen_ == Screen::Title || loading) && logo_.loaded() && logo_.texture(0);
     if (room) {
         drawRoom(renderer);
     } else {
-        // 3D preview: the toon on its own, slowly turning.
+        // 3D preview: the toon on its own, slowly turning, in front of the loading screen's card.
+        // The connecting / heading-to screens are ToontownLoadingScreen itself: no Toon, a tip.
         const float h = previewLook_.valid() ? previewLook_.nametagHeight : 4.0f;
         const float aimZ = logo ? h * 0.66f : h * 0.5f;
-        renderer.beginWorld(renderer.topLeft(), FVec3_New(0.0f, -h * 2.0f, aimZ + h * 0.1f), FVec3_New(0.0f, 0.0f, aimZ),
-                            0.0f, 0);
-        C3D_Mtx m;
-        Mtx_Identity(&m);
-        Mtx_RotateZ(&m, (previewSpin_ + 200.0f) * 3.14159265f / 180.0f, true);
-        preview_.draw(renderer, m);
+        const C3D_FVec eye = FVec3_New(0.0f, -h * 2.0f, aimZ + h * 0.1f), at = FVec3_New(0.0f, 0.0f, aimZ);
+        renderer.beginWorld(renderer.topLeft(), eye, at, 0.0f, 0);
+        drawLoadingBg(renderer, eye, at);
+        if (!loading) {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_RotateZ(&m, (previewSpin_ + 200.0f) * 3.14159265f / 180.0f, true);
+            preview_.draw(renderer, m);
+        }
         renderer.endWorld();
     }
 
@@ -856,7 +921,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
     u32 titleColor = kAccent;
     switch (screen_) {
     case Screen::Title: title = logo ? nullptr : "TOONTOWN 3DS"; break;
-    case Screen::Connecting: title = "Connecting..."; break;
+    case Screen::Connecting: title = "Connecting..."; break; // CRConnecting
     case Screen::Pick: title = "Pick A Toon To Play"; break; // AvatarChooserPickAToon
     case Screen::Make: // MakeAToon's guiTopBar: each shop's title in its text_fg
         if (renameAvId_) {
@@ -873,10 +938,11 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
         }
         break;
     case Screen::TutorialChoice: title = "The Toontorial"; break;
-    case Screen::Entering: title = "Heading to Toontown Central"; break;
+    case Screen::Entering: title = "Heading to Toontown Central..."; break; // HeadingToHood
     case Screen::Error: title = "Uh-oh!"; break;
     }
     float tw, th;
+    if (loading) drawLoadingScroll(title);
     if (logo) {
         // progress-background's logo card: 1.708 x 0.6 units, 0.05 below the top edge (2 units tall).
         Tex3DS_SubTexture sub{256, 128, 0.0f, 1.0f, 1.0f, 0.0f};
