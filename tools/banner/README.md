@@ -13,6 +13,7 @@ original Toontown art, not a flat PNG card.
 | `banner_preview.png` | 400×240 mono render with the HOME Menu camera (5:3, 30° vertical FOV) |
 | `banner_preview_stereo.png` | Left/right eye pair (800×240) |
 | `banner_preview_anaglyph.png` | Red/cyan anaglyph for depth check (400×240) |
+| `banner.png` | 256×128 letterbox of that same 5:3 frame. `make cia` uses it only when `banner.bnr` is missing. It is not a second camera and it is not a texture dump. |
 
 The scene is three unlit textured planes (`scene_common.py`). The logo texture stays
 256×256 — that file is the wide wordmark squeezed into a square — and the card is
@@ -65,7 +66,9 @@ Environment:
 
 `build.sh` renders the **same scene** as the CGFX export via `render_preview.py`. The camera
 matches `banner-camera.gltf`: position (0, 1, 44.786), 30° vertical FOV, aspect 5:3,
-near 26.5. The mono preview is 400×240. A 256×128 image would squash that view, so it is
-not written. Outputs mono, stereo pair, and anaglyph PNGs under `OUT_DIR`.
+near 26.5. The mono preview is 400×240. Scaling that view to 256×128 would squash the
+logo, so `banner_preview.png` is never that size. `banner.png` letterboxes the same
+frame (sky-colored side bars) for the Makefile's 2D fallback. The CBMD is packed from
+`banner.cgfx` and does not use either PNG. Outputs go under `OUT_DIR`.
 
-There is no flat composited fallback and no debug text overlay.
+There is no debug text overlay and no texture-strip preview.

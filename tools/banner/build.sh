@@ -112,11 +112,14 @@ fi
 mkdir -p "$OUT_DIR"
 cp "$BUILD/banner.bnr" "$BUILD/banner.cgfx" "$BUILD/banner.bcwav" "$OUT_DIR/"
 cp "$BUILD/banner_preview.png" "$BUILD/banner_preview_stereo.png" "$BUILD/banner_preview_anaglyph.png" "$OUT_DIR/"
+# 256×128 letterbox of the 5:3 preview. Makefile uses it only if banner.bnr is missing.
+cp "$BUILD/banner.png" "$OUT_DIR/"
 
 # Makefile still reads meta/ for dev .cia builds.
 if [ "$OUT_DIR" != "$ROOT/meta" ]; then
   cp "$BUILD/banner.bnr" "$BUILD/banner.cgfx" "$BUILD/banner.bcwav" \
     "$BUILD/banner_preview.png" "$BUILD/banner_preview_stereo.png" "$BUILD/banner_preview_anaglyph.png" \
+    "$BUILD/banner.png" \
     "$ROOT/meta/"
 fi
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageDraw
 from panda3d.core import (
     Geom,
     GeomNode,
@@ -151,12 +151,18 @@ def _logo_ndc() -> tuple[float, float, float, float]:
 
 
 def _toon_ndc(pixel_aspect: float) -> tuple[float, float, float, float]:
-    """Lower-right card, above the hint strip and to the right of the logo."""
-    sy = 1.02
+    """Lower-right bust: whole head and ears, shirt down to the waist.
+
+    The card stays inside the frame (about 40 px of right margin on the
+    400-wide view) and above the bottom hint strip. The previous card ran
+    to the right edge and sat on that strip, so the ear and the hem read
+    as cropped.
+    """
+    sy = 0.96
     sx = _ndc_size(pixel_aspect, sy)
-    x1 = 1.0 - 2.0 * SIDE_MARGIN
-    y0 = -1.0 + 2.0 * BOTTOM_BAND
-    return (x1 - sx, y0, x1, y0 + sy)
+    x1 = 0.80
+    y1 = 0.50
+    return (x1 - sx, y1 - sy, x1, y1)
 
 
 def _separated(a: tuple[float, float, float, float], b: tuple[float, float, float, float]) -> bool:
@@ -234,67 +240,47 @@ def place_toon(rgba: np.ndarray) -> ToonPlane:
     return ToonPlane(tex, width, height, pos)
 
 
-def _feathered_cloud(rgb: Image.Image, alpha: Image.Image) -> Image.Image:
-    """Cloud RGBA whose border is transparent.
+def _white_cloud_alpha(w: int, h: int) -> np.ndarray:
+    """Soft cumulus coverage in 0..1. No photo RGB and no rectangular mask.
 
-    ``mg_slingshot_clouds_alpha`` tracks luminance and never falls below 108,
-    so pasting it raw leaves a hard rectangle. Remap that floor to 0, then
-    multiply by a circular falloff so the paste has no straight side.
+    ``mg_slingshot_clouds`` is a full-frame gray-blue photo whose alpha never
+    falls below 108. Pasting it, even remapped, composites a gray smudge.
+    These puffs are white only: each one is a smooth ellipse that hits 0
+    before its edge, so the sky shows through with no gray fringe and no box.
     """
-    raw = np.asarray(alpha.convert("L"), dtype=np.float32)
-    coverage = np.clip((raw - 108.0) / (255.0 - 108.0), 0.0, 1.0)
-    height, width = coverage.shape
-    yy = np.linspace(-1.0, 1.0, height, dtype=np.float32)[:, None]
-    xx = np.linspace(-1.0, 1.0, width, dtype=np.float32)[None, :]
-    # Circular falloff. A rectangular (L-infinity) fade still leaves straight
-    # sides; distance from the center does not.
-    radius = np.sqrt(xx * xx + yy * yy)
-    t = np.clip((radius - 0.42) / (1.05 - 0.42), 0.0, 1.0)
-    edge = 1.0 - (t * t * (3.0 - 2.0 * t))
-    out = np.asarray(rgb.convert("RGB")).copy()
-    rgba = np.dstack([out, (coverage * edge * 255.0).astype(np.uint8)])
-    return Image.fromarray(rgba, "RGBA")
+    acc = np.zeros((h, w), dtype=np.float32)
+    yy = np.arange(h, dtype=np.float32)[:, None]
+    xx = np.arange(w, dtype=np.float32)[None, :]
+    # cx, cy, rx, ry, weight. Upper sky only; the hills start near y = 0.64 h.
+    for cx, cy, rx, ry, weight in (
+        (78, 38, 86, 28, 1.00),
+        (128, 52, 48, 18, 0.72),
+        (36, 58, 34, 14, 0.48),
+        (220, 30, 96, 32, 0.95),
+        (278, 54, 44, 16, 0.62),
+        (352, 36, 74, 24, 0.88),
+        (408, 56, 38, 14, 0.50),
+        (468, 32, 70, 22, 0.80),
+    ):
+        n = ((xx - cx) / rx) ** 2 + ((yy - cy) / ry) ** 2
+        blob = np.clip(1.0 - n, 0.0, 1.0)
+        blob = blob * blob * (3.0 - 2.0 * blob)
+        acc += weight * blob
+    return np.clip(acc, 0.0, 1.0)
 
 
 def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.ndarray:
-    """Single TTC-style plate: sky, soft clouds, green hills (no 3D props)."""
-    sky = Image.new("RGB", (w, h), (120, 190, 255))
+    """Single TTC-style plate: sky, soft white clouds, green hills (no 3D props)."""
+    del resources  # sky, clouds and hills are painted; the logo and dog load their own files
+    sky = np.empty((h, w, 3), dtype=np.float32)
     for y in range(h):
         t = y / max(h - 1, 1)
-        r = int(120 + (70 - 120) * t)
-        g = int(190 + (150 - 190) * t)
-        b = int(255 + (220 - 255) * t)
-        for x in range(w):
-            sky.putpixel((x, y), (r, g, b))
-
-    base = sky.convert("RGBA")
-    clouds_path = resources / "phase_4/maps/mg_slingshot_clouds.jpg"
-    alpha_path = resources / "phase_4/maps/mg_slingshot_clouds_alpha.jpg"
-    if clouds_path.is_file() and alpha_path.is_file():
-        cloud = _feathered_cloud(Image.open(clouds_path), Image.open(alpha_path))
-        for scale, ox, oy, op in (
-            (0.62, -30, 4, 255),
-            (0.52, 90, 12, 230),
-            (0.48, 210, 2, 220),
-            (0.35, 340, 20, 200),
-        ):
-            layer = cloud.resize(
-                (max(1, int(cloud.width * scale)), max(1, int(cloud.height * scale))),
-                Image.Resampling.LANCZOS,
-            )
-            layer = layer.filter(ImageFilter.GaussianBlur(0.6))
-            arr = np.asarray(layer).copy()
-            # Lanczos ringing can put a hair of alpha back on the bitmap edge.
-            arr[0, :, 3] = 0
-            arr[-1, :, 3] = 0
-            arr[:, 0, 3] = 0
-            arr[:, -1, 3] = 0
-            if op < 255:
-                arr[:, :, 3] = (arr[:, :, 3].astype(np.uint16) * op // 255).astype(np.uint8)
-            layer = Image.fromarray(arr, "RGBA")
-            tmp = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-            tmp.paste(layer, (ox, oy), layer)
-            base = Image.alpha_composite(base, tmp)
+        sky[y, :, 0] = 120 + (70 - 120) * t
+        sky[y, :, 1] = 190 + (150 - 190) * t
+        sky[y, :, 2] = 255 + (220 - 255) * t
+    cover = _white_cloud_alpha(w, h) * 0.92
+    sky = sky * (1.0 - cover[..., None]) + 255.0 * cover[..., None]
+    base = Image.fromarray(np.clip(sky, 0, 255).astype(np.uint8), "RGB").convert("RGBA")
 
     hills = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     draw = ImageDraw.Draw(hills)

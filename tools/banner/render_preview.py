@@ -78,6 +78,23 @@ def _pnm_to_pil(pnm: PNMImage) -> Image.Image:
     return Image.fromarray(rgba, "RGBA")
 
 
+def _letterbox_2to1(rgb: Image.Image) -> Image.Image:
+    """Fit the 5:3 frame in 256×128 without stretching it.
+
+    ``make cia`` uses this PNG only when ``banner.bnr`` is absent. Side bars
+    are the sky color. The picture keeps the HOME camera aspect.
+    """
+    canvas = Image.new("RGB", (256, 128), (120, 190, 255))
+    scale = min(256 / rgb.width, 128 / rgb.height)
+    tw = max(1, int(round(rgb.width * scale)))
+    th = max(1, int(round(rgb.height * scale)))
+    fitted = rgb.resize((tw, th), Image.Resampling.LANCZOS)
+    if abs(tw / th - BANNER_ASPECT) > 0.02:
+        raise SystemExit(f"letterbox {tw}x{th} does not keep the 5:3 frame")
+    canvas.paste(fitted, ((256 - tw) // 2, (128 - th) // 2))
+    return canvas
+
+
 def render_previews(resources: Path, out_dir: Path, toon_rgba: np.ndarray) -> None:
     from direct.showbase.ShowBase import ShowBase
 
@@ -123,9 +140,19 @@ def render_previews(resources: Path, out_dir: Path, toon_rgba: np.ndarray) -> No
     anaglyph_path = out_dir / "banner_preview_anaglyph.png"
     Image.fromarray(ag, "RGB").save(anaglyph_path)
 
+    # 2:1 fallback for `make cia` when banner.bnr is absent. Letterbox the
+    # 5:3 frame. Do not write a second preview at 256×128: scaling the view
+    # to that size squashes the logo, and a texture dump is not the scene.
+    mono = Image.open(mono_path)
+    if mono.size != (PREVIEW_W, PREVIEW_H):
+        raise SystemExit(f"{mono_path.name} is {mono.size}, expected {PREVIEW_W}x{PREVIEW_H}")
+    fallback_path = out_dir / "banner.png"
+    _letterbox_2to1(mono.convert("RGB")).save(fallback_path)
+
     print(f"wrote {mono_path}")
     print(f"wrote {stereo_path}")
     print(f"wrote {anaglyph_path}")
+    print(f"wrote {fallback_path}")
 
 
 def main() -> None:
