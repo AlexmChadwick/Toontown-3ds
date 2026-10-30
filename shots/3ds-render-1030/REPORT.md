@@ -1,5 +1,10 @@
 # Render overhaul — 2026-10-30
 
+> **Update (render/overhaul-1030 `a4e64a9`):** this PR's build was later run in Azahar (Old and New 3DS,
+> 8 view spots, online stereo and offline soaks); the after shots, compare sheets, soak logs and the
+> near-chunk LOD fix are in `/workspace/shots/3ds-render-1030/REPORT.md` and `docs/test-log.md`.
+> The "After shots were not captured" section below describes this PR's own run only.
+
 Branch `cursor/render-quality-2097`, based on `render/overhaul-1030` at `5db9143`.
 Not merged. No force-push.
 
