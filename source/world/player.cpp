@@ -11,7 +11,12 @@ namespace {
 constexpr float kForwardSpeed = 16.0f * 1.25f;
 constexpr float kReverseSpeed = 8.0f * 1.25f;
 constexpr float kRotateSpeed = 80.0f * 1.25f;
-constexpr float kWalkFraction = 0.4f; // B held: walk
+// OTPGlobals.ToonForwardSlowSpeed / ToonReverseSlowSpeed / ToonRotateSlowSpeed.
+// These are NOT scaled by ToonSpeedFactor. 0.4 * forward (8.0) sits on RunCutOff, so B used
+// to play the run cycle. Slow forward 6 stays under RunCutOff and plays walk.
+constexpr float kForwardSlow = 6.0f;
+constexpr float kReverseSlow = 2.5f;
+constexpr float kRotateSlow = 33.0f;
 constexpr float kJumpVelocity = 24.0f;
 constexpr float kStepDown = 1.5f; // largest drop followed without falling (stairs, kerbs)
 constexpr float kGravity = 64.348f; // direct/controls/GravityWalker.py
@@ -124,13 +129,14 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
     const float fwd = axis(in.pad.dy);
     const float turn = axis(in.pad.dx);
 
-    turnRate_ = -turn * kRotateSpeed;
+    const bool slow = (in.held & KEY_B) != 0;
+    turnRate_ = -turn * (slow ? kRotateSlow : kRotateSpeed);
     heading_ += turnRate_ * dt;
     if (heading_ > 180.0f) heading_ -= 360.0f;
     if (heading_ < -180.0f) heading_ += 360.0f;
 
-    float maxSpeed = fwd >= 0 ? kForwardSpeed : kReverseSpeed;
-    if (in.held & KEY_B) maxSpeed *= kWalkFraction;
+    const float maxSpeed = fwd >= 0 ? (slow ? kForwardSlow : kForwardSpeed)
+                                    : (slow ? kReverseSlow : kReverseSpeed);
     speed_ = fwd * maxSpeed;
 
     const float h = heading_ * kDegToRad;

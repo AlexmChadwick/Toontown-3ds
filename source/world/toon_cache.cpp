@@ -271,6 +271,19 @@ ToonClothing* ToonCache::bookClothing(u8 table, u8 index) {
     return slot;
 }
 
+void ToonCache::pin(const ToonLook* look) {
+    Lock l(lock_);
+    for (ToonPart& p : parts_) p.pinned = false;
+    for (ToonClothing& c : clothes_) c.pinned = false;
+    if (!look) return;
+    for (ToonPart* p : {look->legs, look->torso, look->head, look->lashes}) {
+        if (p) p->pinned = true;
+    }
+    for (ToonClothing* c : look->clothes) {
+        if (c) c->pinned = true;
+    }
+}
+
 void ToonCache::release(ToonLook* look) {
     Lock l(lock_);
     for (ToonPart* p : {look->legs, look->torso, look->head, look->lashes}) {
@@ -363,10 +376,10 @@ bool ToonCache::admit(u32 bytes) {
         ToonClothing* cloth = nullptr;
         {
             Lock lock(lock_);
-            for (auto& p : parts_) if (p.state==SlotState::Ready && !p.refs && p.retiredFrame<frame_ &&
+            for (auto& p : parts_) if (p.state==SlotState::Ready && !p.refs && !p.pinned && p.retiredFrame<frame_ &&
                 (!victim || p.lastUsed<victim->lastUsed)) victim=&p;
             if (victim) { victim->state=SlotState::Free; victim->key[0]=0; }
-            else for (auto& c : clothes_) if (c.state==SlotState::Ready && !c.refs && c.retiredFrame<frame_ &&
+            else for (auto& c : clothes_) if (c.state==SlotState::Ready && !c.refs && !c.pinned && c.retiredFrame<frame_ &&
                 (!cloth || c.lastUsed<cloth->lastUsed)) cloth=&c;
             if (cloth) cloth->state=SlotState::Free;
         }

@@ -40,6 +40,7 @@ struct ToonPart {
     int refs = 0;
     u32 lastUsed = 0;
     bool animated = false;
+    bool pinned = false; // the local toon: admit() will not evict this slot
     volatile SlotState state = SlotState::Free;
     u32 bytes = 0; // conservative allocated bytes, including mips/alignment
     u32 retiredFrame = 0;
@@ -51,6 +52,7 @@ struct ToonClothing {
     int refs = 0;
     u32 lastUsed = 0;
     u32 retiredFrame = 0, bytes = 0;
+    bool pinned = false;
     volatile SlotState state = SlotState::Free;
 };
 
@@ -95,6 +97,9 @@ public:
     // Returns false (out left empty) when a part is known missing or tables are full.
     bool acquire(const ToonDna& dna, ToonLod lod, ToonLook* out);
     void release(ToonLook* look);
+    // Keep this look's parts and clothes resident even if their refcount drops.
+    // Clears any previous pin, then pins `look` (the local toon).
+    void pin(const ToonLook* look);
 
     // Main thread only, right after C3D_FrameBegin(C3D_FRAME_SYNCDRAW) and before any toon is
     // drawn: FrameBegin has waited for the previous frame's GPU queue, so this is the fence for

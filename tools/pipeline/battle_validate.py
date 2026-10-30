@@ -14,8 +14,8 @@ import audio_tsnd
 
 def mesh(path):
     data=path.read_bytes();h=struct.unpack_from('<4sHHHHII3f3fIIIII',data)
-    magic,version,flags,nt,nb,nv,ni,*rest=h
-    assert magic==b'TTM1' and version==1
+    magic,version,hdr_flags,nt,nb,nv,ni,*rest=h
+    assert magic==b'TTM1' and version==1 and hdr_flags in (0, 1)
     texoff,batchoff,voff,ioff,_=rest[6:]
     assert voff%128==ioff%128==0 and len(data)%128==0
     vertices=indices=0;textures=0
@@ -23,7 +23,10 @@ def mesh(path):
         tex,blend,flags,tint,layer,slot,_,fv,cnt,fi,icnt=struct.unpack_from('<HBBBBBBIIII',data,batchoff+i*24)
         assert fv==vertices and fi==indices and icnt%3==0 and (tex==65535 or tex<nt)
         idx=np.frombuffer(data,dtype='<u2',count=icnt,offset=ioff+fi*2)
-        assert int(idx.max())<cnt
+        if hdr_flags & 1:
+            assert int(idx.min())>=fv and int(idx.max())<fv+cnt
+        else:
+            assert int(idx.max())<cnt
         vertices+=cnt;indices+=icnt
     assert (vertices,indices)==(nv,ni)
     for i in range(nt):

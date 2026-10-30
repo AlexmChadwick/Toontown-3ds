@@ -5,6 +5,7 @@
 #include <cstring>
 #include <utility>
 
+#include "core/load_profile.h"
 #include "core/log.h"
 #include "core/memory.h"
 
@@ -169,7 +170,7 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     Header h;
     TexEntry* texEntries = nullptr;
     bool ok = readAt(f, base, &h, sizeof(h)) && memcmp(h.magic, "TTM1", 4) == 0 &&
-              (h.version == kVersion || (h.version == kPooledVersion && pool));
+              (h.version == kVersion || (h.version == kPooledVersion && pool)) && (h.flags & ~u16{1}) == 0;
     if (!ok) {
         TT_LOG("model: bad header in %s", path);
         return false;
@@ -199,36 +200,121 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     ok = ok && readAt(f, base + h.texTableOffset, texEntries, sizeof(TexEntry) * numTextures_);
     FILE* texFile = h.version == kPooledVersion ? pool : f;
     for (u16 i = 0; ok && texFile == f && i < numTextures_; i++) texEntries[i].dataOffset += base; // file-relative
-    ok = ok && readAt(f, base + h.vertexOffset, vertices_, numVertices_ * kVertexSize);
-    ok = ok && readAt(f, base + h.indexOffset, indices_, numIndices_ * sizeof(u16));
-    if (ok && numVertices_ <= 0x10000) {
-        // Rebase batch-relative indices to absolute so the renderer binds one vertex
-        // buffer per model instead of one per batch (keeps the GPU command buffer small).
-        // Also validates every index against its batch (cheap here, in memory).
-        for (u16 b = 0; ok && b < numBatches_; b++) {
-            const Batch& bt = batches_[b];
-            ok = bt.firstVertex <= numVertices_ && bt.numVertices <= numVertices_ - bt.firstVertex &&
-                 bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
-            if (!ok) break;
-            u16* idx = indices_ + bt.firstIndex;
-            const u32 base = bt.firstVertex;
-            for (u32 i = 0; i < bt.numIndices; i++) {
-                if (idx[i] >= bt.numVertices) ok = false;
-                idx[i] = static_cast<u16>(idx[i] + base);
-            }
+    // One read of the vertex, index and inline-texture span. Textures are already
+    // Morton-tiled at bake time; this copies them into the C3D_Tex. Header flags
+    // bit0 means indices were stored absolute, so the rebase is skipped.
+    const u32 vertBytes = numVertices_ * kVertexSize;
+    const u32 indexBytes = numIndices_ * sizeof(u16);
+    u32 spanLo = base + h.vertexOffset;
+    u32 spanHi = spanLo + vertBytes;
+    const u32 indexAt = base + h.indexOffset;
+    if (indexAt < spanLo) spanLo = indexAt;
+    if (indexAt + indexBytes > spanHi) spanHi = indexAt + indexBytes;
+    if (ok && h.version != kPooledVersion) {
+        for (u16 i = 0; i < numTextures_; i++) {
+            const u32 at = texEntries[i].dataOffset;
+            if (at < spanLo) spanLo = at;
+            if (at + texEntries[i].dataSize > spanHi) spanHi = at + texEntries[i].dataSize;
         }
-        absoluteIndices_ = ok;
+    }
+    uint8_t* blob = nullptr;
+    const u32 spanBytes = spanHi > spanLo ? spanHi - spanLo : 0;
+    constexpr u32 kOneReadCap = 6u * 1024u * 1024u;
+    if (ok && spanBytes > 0 && spanBytes <= kOneReadCap) {
+        blob = static_cast<uint8_t*>(malloc(spanBytes));
+        const u64 t0 = loadprof::nowUs();
+        ok = blob && readAt(f, spanLo, blob, spanBytes);
+        loadprof::addRead(spanBytes, static_cast<u32>(loadprof::nowUs() - t0));
+    }
+    auto fromBlob = [&](u32 fileOff, u32 bytes) -> const uint8_t* {
+        if (!blob || fileOff < spanLo || fileOff + bytes > spanHi) return nullptr;
+        return blob + (fileOff - spanLo);
+    };
+    {
+        const u64 t0 = loadprof::nowUs();
+        if (const uint8_t* src = ok ? fromBlob(base + h.vertexOffset, vertBytes) : nullptr)
+            memcpy(vertices_, src, vertBytes);
+        else if (ok) {
+            ok = readAt(f, base + h.vertexOffset, vertices_, vertBytes);
+            loadprof::addRead(vertBytes, 0);
+        }
+        if (const uint8_t* src = ok ? fromBlob(base + h.indexOffset, indexBytes) : nullptr)
+            memcpy(indices_, src, indexBytes);
+        else if (ok) {
+            ok = readAt(f, base + h.indexOffset, indices_, indexBytes);
+            loadprof::addRead(indexBytes, 0);
+        }
+        const bool absolute = ok && (h.flags & 1);
+        if (ok && numVertices_ <= 0x10000) {
+            for (u16 b = 0; ok && b < numBatches_; b++) {
+                const Batch& bt = batches_[b];
+                ok = bt.firstVertex <= numVertices_ && bt.numVertices <= numVertices_ - bt.firstVertex &&
+                     bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                if (!ok) break;
+                u16* idx = indices_ + bt.firstIndex;
+                const u32 baseV = bt.firstVertex;
+                for (u32 i = 0; i < bt.numIndices; i++) {
+                    if (absolute) {
+                        if (idx[i] < baseV || idx[i] >= baseV + bt.numVertices) ok = false;
+                    } else {
+                        if (idx[i] >= bt.numVertices) ok = false;
+                        idx[i] = static_cast<u16>(idx[i] + baseV);
+                    }
+                }
+            }
+            absoluteIndices_ = ok;
+        }
+        loadprof::addParse(static_cast<u32>(loadprof::nowUs() - t0));
     }
     if (ok) {
-        linearBytes_ = numVertices_ * kVertexSize + numIndices_ * sizeof(u16);
-        GSPGPU_FlushDataCache(vertices_, numVertices_ * kVertexSize);
-        GSPGPU_FlushDataCache(indices_, numIndices_ * sizeof(u16));
+        linearBytes_ = vertBytes + indexBytes;
+        GSPGPU_FlushDataCache(vertices_, vertBytes);
+        GSPGPU_FlushDataCache(indices_, indexBytes);
     }
 
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        ok = loadTexture(texFile, texEntries[i], &textures_[i]);
+        const u64 t0 = loadprof::nowUs();
+        const uint8_t* src = fromBlob(texEntries[i].dataOffset, texEntries[i].dataSize);
+        if (src) {
+            // loadTexture reads from the file; copy into a tiny memfile only when the
+            // span missed. The span hit is a memcpy into the linear texture below.
+            C3D_TexInitParams p{};
+            p.width = texEntries[i].width;
+            p.height = texEntries[i].height;
+            p.maxLevel = texEntries[i].mipLevels ? texEntries[i].mipLevels - 1 : 0;
+            p.format = static_cast<GPU_TEXCOLOR>(texEntries[i].format);
+            p.type = GPU_TEX_2D;
+            p.onVram = false;
+            bool inited;
+            {
+                mem::LinearGuard g;
+                inited = C3D_TexInitWithParams(&textures_[i], nullptr, p);
+            }
+            const u32 total = inited ? C3D_TexCalcTotalSize(textures_[i].size, textures_[i].maxLevel) : 0;
+            if (!inited || total != texEntries[i].dataSize) {
+                if (inited) {
+                    mem::LinearGuard g;
+                    C3D_TexDelete(&textures_[i]);
+                }
+                textures_[i] = C3D_Tex{};
+                ok = false;
+            } else {
+                memcpy(textures_[i].data, src, total);
+                C3D_TexFlush(&textures_[i]);
+                C3D_TexSetFilter(&textures_[i], GPU_LINEAR, GPU_LINEAR);
+                if (textures_[i].maxLevel > 0) C3D_TexSetFilterMipmap(&textures_[i], GPU_LINEAR);
+                C3D_TexSetWrap(&textures_[i], static_cast<GPU_TEXTURE_WRAP_PARAM>(texEntries[i].wrapS),
+                               static_cast<GPU_TEXTURE_WRAP_PARAM>(texEntries[i].wrapT));
+            }
+        } else {
+            const u64 tr = loadprof::nowUs();
+            ok = loadTexture(texFile, texEntries[i], &textures_[i]);
+            loadprof::addRead(texEntries[i].dataSize, static_cast<u32>(loadprof::nowUs() - tr));
+        }
+        loadprof::addTexUpload(static_cast<u32>(loadprof::nowUs() - t0));
         if (ok) linearBytes_ += textures_[i].size;
     }
+    free(blob);
 
     free(texEntries);
     if (!ok) {
@@ -301,6 +387,7 @@ void ModelStaging::reset() {
     vertBytes_ = indexBytes_ = copiedV_ = copiedI_ = flushedV_ = flushedI_ = 0;
     rebased_ = texDone_ = 0;
     rebaseOk_ = true;
+    absolute_ = false;
 }
 
 ModelStaging::~ModelStaging() { reset(); }
@@ -310,7 +397,7 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     Header h;
     if (!readAt(f, base, &h, sizeof(h)) || memcmp(h.magic, "TTM1", 4) ||
         (h.version != kVersion && h.version != kPooledVersion) ||
-        (h.version == kPooledVersion && !pool)) {
+        (h.version == kPooledVersion && !pool) || (h.flags & ~u16{1}) != 0) {
         return false;
     }
     version_ = h.version;
@@ -318,6 +405,7 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     numBatches_ = h.numBatches;
     numVertices_ = h.numVertices;
     numIndices_ = h.numIndices;
+    absolute_ = (h.flags & 1) != 0;
     memcpy(posScale_, h.posScale, sizeof(posScale_));
     memcpy(posOffset_, h.posOffset, sizeof(posOffset_));
     vertBytes_ = numVertices_ * kVertexSize;
@@ -329,9 +417,7 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     texOff_ = static_cast<u32*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(u32)));
     if (!batches_ || !tex_ || !verts_ || !indices_ || !texOff_ ||
         !readAt(f, base + h.batchTableOffset, batches_, sizeof(Batch) * numBatches_) ||
-        !readAt(f, base + h.texTableOffset, tex_, sizeof(TexEntry) * numTextures_) ||
-        !readAt(f, base + h.vertexOffset, verts_, vertBytes_) ||
-        !readAt(f, base + h.indexOffset, indices_, indexBytes_)) {
+        !readAt(f, base + h.texTableOffset, tex_, sizeof(TexEntry) * numTextures_)) {
         reset();
         return false;
     }
@@ -347,11 +433,51 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
         reset();
         return false;
     }
-    for (u16 i = 0; i < numTextures_; i++) {
-        if (!readAt(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize)) {
-            reset();
-            return false;
+    // One read of the vertex, index and inline-texture span. GPU upload stays in pump().
+    // A pooled model keeps its textures in another file, so those stay separate reads.
+    u32 spanLo = base + h.vertexOffset;
+    u32 spanHi = spanLo + vertBytes_;
+    const u32 indexAt = base + h.indexOffset;
+    if (indexAt < spanLo) spanLo = indexAt;
+    if (indexAt + indexBytes_ > spanHi) spanHi = indexAt + indexBytes_;
+    if (texFile == f) {
+        for (u16 i = 0; i < numTextures_; i++) {
+            const u32 at = tex_[i].dataOffset;
+            if (at < spanLo) spanLo = at;
+            if (at + tex_[i].dataSize > spanHi) spanHi = at + tex_[i].dataSize;
         }
+    }
+    constexpr u32 kOneReadCap = 6u * 1024u * 1024u;
+    const u32 spanBytes = spanHi > spanLo ? spanHi - spanLo : 0;
+    uint8_t* blob = nullptr;
+    bool spanned = false;
+    if (spanBytes > 0 && spanBytes <= kOneReadCap) {
+        blob = static_cast<uint8_t*>(malloc(spanBytes));
+        const u64 t0 = loadprof::nowUs();
+        spanned = blob && readAt(f, spanLo, blob, spanBytes);
+        loadprof::addRead(spanBytes, static_cast<u32>(loadprof::nowUs() - t0));
+    }
+    auto fromBlob = [&](u32 fileOff, u32 n) -> const uint8_t* {
+        if (!spanned || fileOff < spanLo || fileOff + n > spanHi) return nullptr;
+        return blob + (fileOff - spanLo);
+    };
+    bool ok = true;
+    if (const uint8_t* src = fromBlob(base + h.vertexOffset, vertBytes_)) memcpy(verts_, src, vertBytes_);
+    else ok = readAt(f, base + h.vertexOffset, verts_, vertBytes_);
+    if (ok) {
+        if (const uint8_t* src = fromBlob(base + h.indexOffset, indexBytes_)) memcpy(indices_, src, indexBytes_);
+        else ok = readAt(f, base + h.indexOffset, indices_, indexBytes_);
+    }
+    for (u16 i = 0; ok && i < numTextures_; i++) {
+        if (const uint8_t* src = fromBlob(tex_[i].dataOffset, tex_[i].dataSize))
+            memcpy(texBytes_ + texOff_[i], src, tex_[i].dataSize);
+        else
+            ok = readAt(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize);
+    }
+    free(blob);
+    if (!ok) {
+        reset();
+        return false;
     }
     stage_ = Stage::Copy;
     return true;
@@ -418,8 +544,13 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
                 if (rebaseOk_) {
                     u16* idx = dst.indices_ + bt.firstIndex;
                     for (u32 i = 0; i < bt.numIndices; i++) {
-                        if (idx[i] >= bt.numVertices) rebaseOk_ = false;
-                        idx[i] = static_cast<u16>(idx[i] + bt.firstVertex);
+                        if (absolute_) {
+                            if (idx[i] < bt.firstVertex || idx[i] >= bt.firstVertex + bt.numVertices)
+                                rebaseOk_ = false;
+                        } else {
+                            if (idx[i] >= bt.numVertices) rebaseOk_ = false;
+                            idx[i] = static_cast<u16>(idx[i] + bt.firstVertex);
+                        }
                     }
                 }
                 rebased_++;

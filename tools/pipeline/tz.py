@@ -280,7 +280,8 @@ def validate_ttm(data, geom, tex, draws, tris):
             raise ValueError('invalid embedded TTM')
     check(len(data)>=64)
     h = struct.unpack_from('<4sHHHHII6f5I',data)
-    check(h[0:3] == (b'TTM1',1,0))
+    check(h[0] == b'TTM1' and h[1] == 1 and h[2] in (0, 1))
+    absolute = h[2] == 1
     nt, nb, nv, ni = h[3:7]
     tt, bt, vb, ib = h[13:17]
     check(nb==draws and ni//3==tris and ni%3==0 and nv*16+ni*2==geom)
@@ -309,7 +310,10 @@ def validate_ttm(data, geom, tex, draws, tris):
         check((tid==65535 or tid<nt) and blend<=2 and flags<=1 and tint==0 and layer<=4 and slot==0 and pad==0)
         check(fv<=nv and nverts<=nv-fv and fi<=ni and nidx<=ni-fi and nidx%3==0)
         ids=struct.unpack_from(f'<{nidx}H',data,ib+fi*2)
-        check(all(v<nverts for v in ids))
+        if absolute:
+            check(all(fv <= v < fv + nverts for v in ids))
+        else:
+            check(all(v < nverts for v in ids))
 
 
 def cell_at(zone,x,y,z,reach=4):

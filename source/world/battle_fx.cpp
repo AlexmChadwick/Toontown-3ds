@@ -557,12 +557,8 @@ void BattleFx::onHit(uint32_t targetId, uint32_t attackerId, int track, int leve
         } else {
             playCue("throw_slice_hit");
         }
-    } else if (track == 5) { // Squirt
-        if (miss) {
-            playCue(level == 0 ? "squirt_flower_miss" : "squirt_gun_miss");
-        } else {
-            playCue(level == 0 ? "squirt_flower_hit" : "squirt_gun_hit");
-        }
+    } else if (track == 5) { // Squirt: the spray already played at release; a miss has its own cue
+        if (miss) playCue(level <= 0 ? "squirt_flower_miss" : level == 1 ? "squirt_glass_miss" : "squirt_gun_miss");
     } else if (track < 0) { // Cog attack hit toon
         if (!miss) playCue("toon_hit");
     }
@@ -644,6 +640,10 @@ void BattleFx::update(float dt, uint32_t nowMs, const Battle* battle, const Toon
             if (!p.soundPlayed && nowMs >= p.arc.startMs) {
                 p.soundPlayed = true;
                 if (p.track == 4) playCue("pie_throw");
+                else if (p.track == 5) {
+                    // MovieSquirt plays the spray as the water leaves, not only on the hit frame.
+                    playCue(p.level <= 0 ? "squirt_flower_hit" : p.level == 1 ? "squirt_glass_hit" : "squirt_gun_hit");
+                }
             }
 
             if (p.arc.done(nowMs)) {

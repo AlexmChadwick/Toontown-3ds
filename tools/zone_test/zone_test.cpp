@@ -30,13 +30,23 @@ int main(int argc,char** argv) {
     int tested=0;
     float x,y,z;
     unsigned expected;
+    // Host loads publish from completeLoads(), the same gap the device has between
+    // queueing a chunk and the loader finishing it.
+    auto finishLoads=[&](const tt::world::Vec3& p, tt::world::Zone::CellChanged cb, void* user) {
+        for (int i=0;i<4000;++i) {
+            assert(zone.update(p, cb, user));
+            const int n=zone.completeLoads();
+            if (!zone.loading() && !zone.warming() && n==0) return;
+        }
+        assert(false);
+    };
     while (fscanf(points,"%f %f %f %u",&x,&y,&z,&expected)==4) {
         const tt::world::Vec3 p{x,y,z};
         assert(zone.zoneAt(p)==expected);
         bool ground=false;
         const float height=zone.collision().groundHeight(p.x,p.y,p.z,&ground);
         assert(ground && height<=p.z+tt::world::kFloorReach);
-        assert(zone.update(p,changed,&events));
+        finishLoads(p, changed, &events);
         assert(zone.currentZone()==expected);
         assert(zone.numVisible()>0);
         if (zone.version()>=2) assert(zone.triangles()<=15000 && zone.drawCalls()<=150);
@@ -115,7 +125,7 @@ int main(int argc,char** argv) {
         for (int profile=0; profile<2; ++profile) {
             tt::render::setActiveQuality(profile==1);
             zone.setCamera({68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f});
-            assert(zone.update({75.7f, 1.0f, 5.0f}));
+            finishLoads({75.7f, 1.0f, 5.0f}, nullptr, nullptr);
             hallNear();
             std::printf("ttc_mid %s resident %u draws %u tris, both hall halves near\n",
                         profile ? "new" : "old", zone.drawCalls(), zone.triangles());
@@ -128,7 +138,7 @@ int main(int argc,char** argv) {
             for (int profile=0; profile<2; ++profile) {
                 tt::render::setActiveQuality(profile==1);
                 zone.setCamera(eye, at);
-                assert(zone.update(feet));
+                finishLoads(feet, nullptr, nullptr);
                 assert(zone.triangles()<=15000 && zone.drawCalls()<=150 &&
                        zone.geometryBytes()<=zone.kGeometryBudget &&
                        zone.textureBytes()<=zone.kTextureBudget);

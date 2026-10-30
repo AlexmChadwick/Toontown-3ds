@@ -47,7 +47,28 @@ public:
     // reach: how far below the feet a floor still names the cell (facility levels look far
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
-    bool loading() const; // chunks of the current plan are still in flight
+    bool loading() const; // chunks of the current draw plan are still in flight
+    // Chunks outside the cone keep a resident near mesh until the retain budget
+    // evicts it. That mesh is not replaced by the far blob. Inside the cone every
+    // chunk is drawn, at least at its far mesh; a near mesh past the keep radius is
+    // demoted when it no longer fits in 15k tris / 130 draws. No camera keeps the
+    // whole-cell counters (host tests). Place sets retain to 4/4 MiB on Old 3DS and
+    // 5/5 MiB on New 3DS, and non-cone chunks are dropped so linear free stays at
+    // or above 12 MiB on Old 3DS.
+    void setRetainBudget(uint32_t geomBytes, uint32_t texBytes);
+    // Queue chunks inside `radius` that the draw plan did not take, nearest first,
+    // only while they fit in the retain budget and the 12 MiB headroom. Loaded on
+    // the existing loader thread. `warming()` stays true until that set is resident
+    // or could not fit. A finished warm upload is kept; it is not a cone chunk.
+    void warmAround(const Vec3& feet, float radius);
+    bool warming() const;
+    bool highParked(int index) const; // full-detail mesh held while the far mesh is shown
+    uint32_t loadsQueued() const;
+    uint32_t detailReloads() const; // full-detail reads from disk (a parked restore does not count)
+    // Host builds queue chunk reads and publish them here, so a test can observe a
+    // warm upload before it becomes resident. The device publishes inside update()
+    // and this returns 0.
+    int completeLoads();
     // Server zones to show (and report in visibleZones) on top of the current cell's PVS,
     // e.g. the rooms behind an open facility door (otp/level/VisibilityExtender). The next
     // update() replans and calls back when the set changes.
