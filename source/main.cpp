@@ -1823,6 +1823,42 @@ int main() {
             battle.cameraTarget(&tx, &ty, &tz);
             player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
         }
+        // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
+        if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
+            // Test-only: teleport to the view's zone, stand the toon at a fixed pose, and pin the
+            // camera to a fixed eye/target so every build shoots exactly the same frame.
+            struct View { const char* name; u32 zone; float eye[3], target[3], toon[4]; };
+            static const View kViews[] = {
+                {"ttc_near", 2000, {-79.2f, -78.1f, 5.5f}, {-82.8f, -91.6f, 5.0f}, {-81.5f, -86.8f, 1.0f, 165.0f}},
+                {"ttc_mid", 2000, {68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f}, {75.7f, 1.0f, 5.0f, -90.0f}},
+                {"ttc_far", 2000, {112.0f, -135.0f, 30.0f}, {0.0f, 130.0f, 0.0f}, {101.0f, -117.0f, 5.0f, 19.0f}},
+                {"ttc_tree", 2000, {-30.0f, 30.0f, 6.0f}, {-80.0f, 40.0f, 3.0f}, {-38.0f, 31.6f, 1.0f, 100.0f}},
+                {"street_near", 2100, {-123.0f, -115.0f, 5.0f}, {-137.0f, -115.0f, 6.0f}, {-130.0f, -115.0f, 0.5f, 90.0f}},
+                {"street_far", 2100, {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f, 180.0f}},
+                {"dd_near", 1000, {-108.0f, -28.0f, 11.0f}, {-122.0f, -28.0f, 10.0f}, {-115.0f, -28.0f, 6.0f, 90.0f}},
+                {"dd_far", 1000, {-110.0f, -40.0f, 14.0f}, {20.0f, 110.0f, 5.0f}, {-112.0f, -33.0f, 6.0f, -40.0f}},
+            };
+            // Placed once per (step, zone): a teleport's arrival puts the toon at the drop point.
+            static const char* placedLabel = nullptr;
+            static u32 placedZone = 0;
+            for (const View& v : kViews) {
+                if (strcmp(autotest.label() + 6, v.name)) continue;
+                if (place.zoneId() / 100 != v.zone / 100) {
+                    if (!uiState.teleportRequest) uiState.teleportRequest = v.zone;
+                    break;
+                }
+                if (placedLabel != autotest.label() || placedZone != place.zoneId()) {
+                    player.reset(v.toon[0], v.toon[1], v.toon[2], v.toon[3]);
+                    placedLabel = autotest.label();
+                    placedZone = place.zoneId();
+                    TT_LOG("view: %s in zone %u", v.name, static_cast<unsigned>(place.zoneId()));
+                }
+                player.overrideCamera(FVec3_New(v.eye[0], v.eye[1], v.eye[2]),
+                                      FVec3_New(v.target[0], v.target[1], v.target[2]));
+                break;
+            }
+        }
+        // ---- end render views ----
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);

@@ -328,6 +328,17 @@ const Step kScript[] = {
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "interior: door leaves", "door_leaves*"},
     {22.0f, 0, 0, 0, 0, -1, -1, 0, "street: knock knock", "knock_knock*"},
     // [end interior life]
+    // ---- render: fixed camera views for before/after render comparisons (main.cpp kViews). Run
+    // with AUTOTEST_ONLY="view:". The first view of each zone waits longer for the teleport. ----
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_near", "view_ttc_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_mid", "view_ttc_mid"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_far", "view_ttc_far"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_tree", "view_ttc_tree"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "view: street_near", "view_street_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: street_far", "view_street_far"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_near", "view_dd_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_far", "view_dd_far"},
+    // ---- end render views ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
