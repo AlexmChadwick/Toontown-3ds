@@ -105,9 +105,8 @@ void PageCogs::draw(float x, float y, float w, float h, const BookDrawContext& b
         const u32 face = kPanel[tier][activeDept_];
         theme::roundRect(cx, cy, cellW, cellH, 6, theme::shade(face, 0.6f));
         theme::roundRect(cx + 1, cy + 1, cellW - 2, cellH - 2, 5, face);
-        if (status <= net::kCogUnseen) {
-            text_.centered(cx + cellW * 0.5f, cy + 10, 0.9f, theme::shade(face, 0.72f), 0, "?");
-            text_.centered(cx + cellW * 0.5f, cy + cellH - 18, theme::kTextSmall, theme::kInkSoft, 0, "???");
+        if (status <= net::kCogUnseen) { // SuitPageMystery in black at text_pos (0, 0.185): the card's top
+            text_.centered(cx + cellW * 0.5f, cy + 8, theme::kTextSmall, theme::kInk, 0, "???");
             continue;
         }
         theme::roundRect(cx + (cellW - 38) * 0.5f, cy + 3, 38, 36, 6, theme::mix(face, theme::kWhite, 0.45f));

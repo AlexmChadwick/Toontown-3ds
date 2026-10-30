@@ -220,6 +220,14 @@ void FrontEnd::textCentered(const Button& b, float scale, u32 color, const char*
     C2D_DrawText(&t, C2D_WithColor, b.x + (b.w - w) * 0.5f, b.y + (b.h - h) * 0.5f, 0.5f, scale, scale, color);
 }
 
+// A centred, word-wrapped line inside the waiting / error dialog (drawBottom).
+void FrontEnd::dialogText(float y, float scale, u32 color, const char* s) {
+    if (!s || !s[0]) return;
+    C2D_Text t;
+    textCache_.parse(&t, textBuf_, s, 4096);
+    C2D_DrawText(&t, C2D_WithColor | C2D_AlignCenter | C2D_WordWrap, kW * 0.5f, y, 0.5f, scale, scale, color, kW - 72.0f);
+}
+
 // Make-A-Toon's own buttons (tt_m_gui_mat_mainGui, ui/mat_art): MakeAToon's round next / back
 // (the next image mirrored) and OK buttons beside their caption, GenderShop's boy / girl buttons
 // and the shuffle frames' gold arrows. Returns false for labels drawn as ordinary pills.
@@ -398,7 +406,7 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
         break;
 
     case Screen::Connecting:
-        if (TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true) || back) {
+        if (TT_BUTTON((Button{105, 196, 110, 34}), "Back", false, true) || back) {
             if (net_) net_->disconnect();
             go(Screen::Title);
             break;
@@ -1326,9 +1334,17 @@ void FrontEnd::drawMakeBottom() {
 void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
     C2D_TargetClear(bottom, kBg);
     C2D_SceneBegin(bottom);
+    // Waiting / error screens are a dialog in the middle of the sky (like TTDialog over the loading
+    // screen), not a page-sized card with one line in its corner.
+    const bool dialog = screen_ == Screen::Connecting || screen_ == Screen::Entering || screen_ == Screen::Error;
     if (screen_ != Screen::Pick) { // Pick-A-Toon has its own full-screen background
         ui::theme::sky();
-        ui::theme::paper(3, 3, kW - 6, 194, 8.0f); // the screen's content card; buttons sit below it
+        if (dialog) {
+            ui::theme::paper(24, 44, kW - 48, 132, 10.0f, ui::theme::kPaper,
+                             screen_ == Screen::Error ? ui::theme::kRed : ui::theme::kPaperEdge);
+        } else {
+            ui::theme::paper(3, 3, kW - 6, 194, 8.0f); // the screen's content card; buttons sit below it
+        }
     }
     gGui.drawing = true;
     gGui.index = 0;
@@ -1340,12 +1356,18 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         TT_BUTTON((Button{40, 130, 240, 40}), "Play offline", false, true);
         text(12, 176, 0.42f, kBSoft, "%s", serverLine_[0] ? serverLine_ : "Server: sdmc:/3ds/toontown3ds/server.txt");
         break;
-    case Screen::Connecting:
-        text(16, 40, 0.6f, kBInk, "%s", net_ ? net_->progressText() : "Starting...");
-        if (net_ && net_->lastError()[0]) text(16, 90, 0.5f, kBErr, "%s", net_->lastError());
-        if (net_ && net_->retryInMs()) text(16, 150, 0.5f, kBSoft, "Retrying in %lu s", (unsigned long)(net_->retryInMs() / 1000 + 1));
-        TT_BUTTON((Button{10, 200, 110, 34}), "Back", false, true);
+    case Screen::Connecting: {
+        const bool more = net_ && (net_->lastError()[0] || net_->retryInMs()); // else the status sits mid-dialog
+        dialogText(more ? 66 : 100, 0.62f, kBInk, net_ ? net_->progressText() : "Starting...");
+        if (net_ && net_->lastError()[0]) dialogText(100, 0.46f, kBErr, net_->lastError());
+        if (net_ && net_->retryInMs()) {
+            char retry[40];
+            snprintf(retry, sizeof retry, "Retrying in %lu s", (unsigned long)(net_->retryInMs() / 1000 + 1));
+            dialogText(150, 0.46f, kBSoft, retry);
+        }
+        TT_BUTTON((Button{105, 196, 110, 34}), "Back", false, true);
         break;
+    }
     case Screen::Pick: {
         drawPickBottom();
         // Button order matches update(): Logout with the chooser, Cancel / Delete in the dialog.
@@ -1380,11 +1402,11 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         textCentered(Button{18, 176, 284, 16}, 0.4f, kBSoft, "B also skips the Toontorial.");
         break;
     case Screen::Entering:
-        text(16, 60, 0.6f, kBInk, "%s", net_ ? net_->progressText() : "");
-        if (net_ && net_->lastError()[0]) text(16, 110, 0.5f, kBErr, "%s", net_->lastError());
+        dialogText(net_ && net_->lastError()[0] ? 80 : 100, 0.62f, kBInk, net_ ? net_->progressText() : "");
+        if (net_ && net_->lastError()[0]) dialogText(116, 0.46f, kBErr, net_->lastError());
         break;
     case Screen::Error:
-        text(16, 40, 0.55f, kBErr, "%s", error_[0] ? error_ : "Something went wrong.");
+        dialogText(62, 0.52f, kBErr, error_[0] ? error_ : "Something went wrong.");
         TT_BUTTON((Button{100, 190, 120, 38}), "OK", true, true);
         break;
     }
