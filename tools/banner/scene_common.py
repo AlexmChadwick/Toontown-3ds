@@ -34,8 +34,9 @@ Z_TOON = 1.85
 # Logo ~60% of visible width at Z_LOGO; toon bust on the right, forward in Z.
 # ~60% of the banner width at the logo depth (visible width ≈ 45 units).
 LOGO_POS = (-7.6, 0.4, Z_LOGO)
-TOON_POS = (11.5, -0.4, Z_TOON)
-TOON_PLANE_H = 12.0
+# Head fills about two thirds of the banner height (visible height ≈ 23).
+TOON_POS = (13.0, 0.9, Z_TOON)
+TOON_PLANE_H = 15.5
 
 ALL_COLORS = (
     (1.0, 1.0, 1.0),
@@ -172,7 +173,9 @@ def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.
     return np.flipud(np.asarray(out))
 
 
-def _make_textured_card(rgba: np.ndarray, w: float, h: float, name: str = "card") -> NodePath:
+def _make_textured_card(
+    rgba: np.ndarray, w: float, h: float, name: str = "card", *, depth_write: bool = True
+) -> NodePath:
     """XY-plane quad matching gltf_export.make_textured_quad (glTF Y-up, camera looks -Z)."""
     tex = Texture()
     tex.setup2dTexture(rgba.shape[1], rgba.shape[0], Texture.T_unsigned_byte, Texture.F_rgba)
@@ -210,7 +213,7 @@ def _make_textured_card(rgba: np.ndarray, w: float, h: float, name: str = "card"
     card.setTwoSided(True)
     card.setLightOff(1)
     card.setColor(1, 1, 1, 1)
-    card.setDepthWrite(True)
+    card.setDepthWrite(depth_write)
     return card
 
 
@@ -225,10 +228,10 @@ def attach_banner_scene(parent: NodePath, resources: Path, *, toon_rgba: np.ndar
     lcard.setPos(*LOGO_POS)
     lcard.reparentTo(parent)
 
-    portrait = np.flipud(toon_rgba)
-    aspect = portrait.shape[1] / portrait.shape[0]
+    # Same top-row-first layout as the logo. An extra flip stood the face on its head.
+    aspect = toon_rgba.shape[1] / max(toon_rgba.shape[0], 1)
     tw = TOON_PLANE_H * aspect
-    tcard = _make_textured_card(portrait, tw, TOON_PLANE_H, "toon")
+    tcard = _make_textured_card(toon_rgba, tw, TOON_PLANE_H, "toon", depth_write=False)
     tcard.setPos(*TOON_POS)
     tcard.reparentTo(parent)
     return logo

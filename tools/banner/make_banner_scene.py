@@ -59,7 +59,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     import numpy as np
 
-    toon_rgba = np.flipud(np.load(args.toon_npy))
+    toon_rgba = np.load(args.toon_npy)
     objects = build_scene(resources, toon_rgba)
     glb_path = out_dir / "banner_scene.glb"
     write_glb(objects, glb_path)
