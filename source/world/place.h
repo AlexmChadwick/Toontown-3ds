@@ -53,6 +53,8 @@ public:
     const float* boundsMax() const { return zone_.loaded() ? zone_.boundsMax() : model_.boundsMax(); }
     // Streams chunks for the toon's cell; cb fires when the server cell (street visgroup)
     // changes, with [branch] + vis zones for the interest. Call once per frame.
+    // setCamera before update: the draw/triangle cap follows that view.
+    void setCamera(const C3D_FVec& eye, const C3D_FVec& target);
     void update(float x, float y, float z, Zone::CellChanged cb, void* user);
     // Blocks until the chunks around (x, y, z) are resident (arrival; no pop-in).
     void finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user);

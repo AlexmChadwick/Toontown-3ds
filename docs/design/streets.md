@@ -99,7 +99,9 @@ Sizes on SD: zones 389 -> 131 MB (2100.tz 22.0 -> 6.2 MB), level 68 -> 58 MB.
 Near geometry is preserved, apart from the pre-existing quantization/atlasing and
 UV clipping. Far LOD does two things:
 
-- Removes overlaid decal layers, including window details and sign letters.
+- Removes overlaid decal layers, including window details. Sign letters are
+  pulled out first and put back on the far mesh when that cell still fits the
+  draw cap (see the 2026-10-30 follow-up).
 - Snaps world positions to a common voxel lattice, then removes collapsed and
   duplicate triangles. UVs/vertex colours remain per corner, preserving material
   seams. Adjacent chunks use the same lattice. Full-precision collision and tagged
@@ -113,19 +115,25 @@ and an additional eight units for possible far-mesh displacement. Streets retain
 the exact authored DNA PVS lists.
 
 For v2, Zone::update starts with all far models in the PVS. It considers chunks in
-stable nearest-first order and upgrades those within 65 units only if the complete
-selected set remains within all four caps:
+stable nearest-first order and upgrades those within the profile near radius only if
+the selected set remains within all four caps. `Zone::setCamera` changes the draw
+and triangle caps: they then count chunks the frame will submit (the cell underfoot,
+then the view cone, nearer first), and a chunk behind the camera stays at the far
+mesh. Geometry and texture caps still cover the whole cell. With no camera the
+draw cap still covers the cell, which is what the host tests check:
 
 - 15,000 world triangles
-- 150 world draws
+- 130 world draws while upgrading (`Zone::kDrawBudget`); a cell's all-far set may still load at 150
 - 6 MiB geometry
 - 8 MiB textures, including every resident copy and mip
 
-This is a bound on the **entire selected PVS before frustum/distance culling**. No
-PVS cell is discarded to fake a passing triangle count. Collision and network
-interests always describe the complete authored visible set. Far baseline validity
-is checked for every cell by both writer and runtime; each upgrade rechecks all
-caps. Consequently the bound does not depend on sampling particular camera angles.
+No PVS cell is discarded to fake a passing triangle count. Collision and network
+interests always describe the complete authored visible set. The all-far baseline
+is checked for every cell by both writer and runtime, and that check does not
+depend on a camera angle. With a camera, the draw and triangle upgrade caps do:
+they follow the submitted view, so chunks behind the toon stay on the far mesh
+and do not spend the budget. Each upgrade still rechecks geometry and texture
+for the whole cell.
 
 The selected plan is reconsidered on cell changes or after four units of movement,
 limiting SD churn. Stable updates and selection use fixed arrays and no allocation.
@@ -400,8 +408,9 @@ drops its page. Alpha-cut backdrop cards are the exception: they keep a 256px
 page, because a corner sample of those is a flat green quad. Dropping the other
 pages is what lets a playground PVS cover the New 3DS draw distance (baker
 `--distance` 760, plus 78 for the camera orbit and the coarsest snap) inside
-8 MiB. Old 3DS loads that file out to 440. Decals, including sign
-letters, still drop out of the far mesh. Collision is not simplified and is not
+8 MiB. Old 3DS loads that file out to 440. Window decals still drop out of
+the far mesh. Sign letters are kept, textured, when the far cell still fits
+the draw cap (the follow-up below). Collision is not simplified and is not
 split.
 
 Ground triangles whose normal Z is at least 0.5 and whose longest edge is over
@@ -411,10 +420,10 @@ clipper fix (sky through huge TTC ground triangles). Walls are left alone.
 that mesh at 128px.
 
 Host bakes with panda3d 1.10.15, three ETC1 workers. The all-near sum is over
-the caps, which is expected: the runtime upgrades nearest-first and stops at
-the caps. Planned rows sample both the Old 160 and New 260 near radii. The
-first three-zone bake filled a 150-draw plan; the table in the next section is
-the rebake under the 130-draw cap.
+the caps, which is expected: the runtime upgrades the submitted view, nearer
+first, and stops at the caps. Planned rows sample both the Old 160 and New 260
+near radii. The first three-zone bake filled a 150-draw plan; the table in the
+next section is the rebake under the 130-draw cap.
 
 ## Far hill cards and the 130-draw cap — 2026-10-30
 
@@ -426,9 +435,9 @@ cards stay textured (256px, alpha test). A host preview of zone 2000's far mesh
 shows the painted hill silhouette behind the gag shop and past the speedway
 tunnel. Everything else is still vertex coloured.
 
-`street_lod.DRAW_CAP` is 130. `Zone::update` stops near upgrades there
-(`kDrawBudget`); the load check stays at 150 so an older facility bake whose far
-set is between the two still opens. Playgrounds and Cog HQs treat `--grid-size`
+`street_lod.DRAW_CAP` is 130. With a camera, `Zone::update` spends that cap
+(`kDrawBudget`) on chunks the frame will submit; the load check stays at 150
+so an older facility bake whose far set is between the two still opens. Playgrounds and Cog HQs treat `--grid-size`
 as a floor and rebin coarser (`grid_ladder`) until the far view fits. Zone 17000
 at grid 128 was one draw per cell (197) and `choose_far` cannot merge across
 cells; the ladder stops at 192, where the far view is 116 draws. A fit that
@@ -441,25 +450,21 @@ single mesh is under 15k triangles. `ttc_sz.ttm` is 14,609 triangles at edge 30.
 
 Across all 37 zone bakes the busiest far mesh is zone 6000 (126 draws, 11,379
 triangles) and zone 11200 (11,964 far triangles). The busiest planned view is
-130 draws and 15,000 triangles. Donald's Dock's planned view is 130 draws and
-12,872 triangles (far mesh 42 draws). Every far and planned view is within
-130 draws, 15,000 triangles, 6 MiB geometry and 8 MiB textures.
+130 draws and 15,000 triangles. Donald's Dock was rebaked after that so its far
+mesh could keep sign letters: far worst 50 draws and 11,443 triangles, planned
+view 129 draws and 12,968 triangles. The other rows are the earlier bake.
+Every far and planned view is within 130 draws, 15,000 triangles, 6 MiB
+geometry and 8 MiB textures.
 
-**Near chunks first (2026-10-30).** The 130-draw cap counts every resident chunk,
-behind the camera too, and the upgrade pass skipped a refused chunk and went on.
-In TTC at the `ttc_mid` view the chunk the toon stood in (34 high batches) was
-refused while chunks 114+ units away went high, so Toon Hall drew half sharp and
-half as the bloated vertex-coloured far mesh 10 units away. Zone::update now
-upgrades chunks within `Quality::lodMust` (48 Old / 64 New, +16 hysteresis) first,
-against 150 draws (`kNearDrawBudget`, the frame envelope), then the rest of the
-near radius against 130 as before. Memory and 15k-triangle caps are unchanged.
-Host simulation over the eight view spots: the nearest far-LOD chunk moved from
-14-42 units to 64-105 units (ttc_tree stays at 29: two heavy chunks fill the cap),
-with 111-149 resident draws.
+**Near chunks first (2026-10-30), then replaced.** The 130-draw cap counted every
+resident chunk, behind the camera too. Promoting chunks within `Quality::lodMust`
+against a 150-draw envelope fixed the half of Toon Hall under the toon and then
+submitted 147–149 draws in Donald's Dock. That envelope is gone. The section
+below spends the 130-draw cap on the submitted view instead.
 
 | Zone | Grid | Far draws | Far tris | Planned draws | Planned tris |
 |---|---:|---:|---:|---:|---:|
-| 1000 | 128 | 42 | 11,175 | 130 | 12,872 |
+| 1000 | 128 | 50 | 11,443 | 129 | 12,968 |
 | 1100 | vis | 53 | 9,891 | 130 | 14,467 |
 | 1200 | vis | 59 | 11,958 | 130 | 14,846 |
 | 1300 | vis | 56 | 10,914 | 130 | 14,984 |
@@ -496,3 +501,25 @@ with 111-149 resident draws.
 | 13200 | 96 | 46 | 7,730 | 99 | 9,354 |
 | 17000 | 192 | 116 | 7,831 | 130 | 14,985 |
 | 20000 | vis | 6 | 3,504 | 29 | 4,641 |
+
+## View budget, upload slices, sign letters — 2026-10-30
+
+`Zone::setCamera` is called once a frame, before `update`. The upgrade order is
+the cell underfoot, then chunks inside a cone a few degrees wider than the
+55° top-screen frustum. Inside that cone, chunks within `Quality::lodMust` of
+the toon (48 Old / 64 New) come before anything farther. Chunks outside the
+cone stay on the far mesh. They still load, and they still count toward the 6 MiB / 8 MiB caps, but
+they do not spend the 130-draw or 15k-triangle caps. `Zone::draw` applies the
+same cone again and stops submitting once the running total would pass those
+caps, so a one-frame LOD overlap (the old high mesh still resident while a new
+high mesh swaps in) cannot push the frame past 130 draws. Downgrade swaps are
+published before upgrade swaps. `finishLoading` is unchanged and still blocks;
+boss and cogdo arrivals use it. A playground or street arrival does not: the
+black frame stays up while `update` uploads about 10 ms of GPU data per frame.
+
+Sign letters (`sign_text`) are split out before the far mesh is simplified and
+colourised, then appended if that cell still fits `DRAW_CAP` and `LOW_TARGET`.
+Other decals still drop. Zone 1000's far-right building (chunk g6) stays on the
+far mesh under the dd_far camera and keeps its 14 letter triangles on
+`phase_3_palette_2tmlc_1`. The other 36 zones still drop letters until the next
+full bake; the code path is the same.

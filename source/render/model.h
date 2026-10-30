@@ -118,6 +118,55 @@ private:
     u16* indices_ = nullptr;
     u32 linearBytes_ = 0;
     bool absoluteIndices_ = false;
+
+    friend class ModelStaging;
+};
+
+// File bytes for one embedded TTM. A worker thread may read(); only the main thread
+// calls pump(), which uploads GPU resources in time slices. Model::loadFrom stays the
+// one-shot path (same signature callers already use).
+class ModelStaging {
+public:
+    enum class Result : u8 { Pending, Complete, Error };
+
+    ModelStaging() = default;
+    ~ModelStaging();
+    ModelStaging(const ModelStaging&) = delete;
+    ModelStaging& operator=(const ModelStaging&) = delete;
+
+    void reset();
+    // Heap only: no linearAlloc and no C3D. `pool` is the textures.ttp a v2 model reads.
+    bool read(FILE* f, u32 base, FILE* pool = nullptr);
+    bool pending() const { return stage_ != Stage::Empty && stage_ != Stage::Done; }
+    // Uploads into `dst` until `budgetUs` microseconds have been spent or the model is
+    // finished. One step may run past the budget; the next call stops first if it is used up.
+    Result pump(Model& dst, u32 budgetUs);
+
+private:
+    enum class Stage : u8 { Empty, Copy, Rebase, Flush, Textures, Done };
+    Stage stage_ = Stage::Empty;
+    u16 version_ = 0;
+    u16 numTextures_ = 0;
+    u16 numBatches_ = 0;
+    u32 numVertices_ = 0;
+    u32 numIndices_ = 0;
+    float posScale_[3] = {};
+    float posOffset_[3] = {};
+    Batch* batches_ = nullptr;
+    TexEntry* tex_ = nullptr;
+    u8* verts_ = nullptr;
+    u16* indices_ = nullptr;
+    u8* texBytes_ = nullptr;
+    u32* texOff_ = nullptr; // byte offset of each texture in texBytes_
+    u32 vertBytes_ = 0;
+    u32 indexBytes_ = 0;
+    u32 copiedV_ = 0;
+    u32 copiedI_ = 0;
+    u32 flushedV_ = 0;
+    u32 flushedI_ = 0;
+    u16 rebased_ = 0;
+    u16 texDone_ = 0;
+    bool rebaseOk_ = true;
 };
 
 } // namespace tt::render

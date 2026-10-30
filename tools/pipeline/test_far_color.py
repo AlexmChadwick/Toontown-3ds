@@ -55,6 +55,23 @@ class FarColorTest(unittest.TestCase):
         self.assertTrue(flat)
         self.assertTrue(np.all(flat[0].verts[:, 3:5] == 0))
 
+    def test_sign_letters_stay_textured_when_the_far_mesh_is_coloured(self):
+        letters = np.array([
+            [0, 0, 4, 0.0, 0.0, 1, 1, 1, 1],
+            [1, 0, 4, 0.2, 0.0, 1, 1, 1, 1],
+            [0, 0, 5, 0.0, 0.4, 1, 1, 1, 1],
+        ], dtype=np.float64)
+        sign = ttm.Batch(1, ttm.BLEND_ALPHA, False, 0, 1, letters, np.arange(3), sign=True)
+        low, textures, report = bake_street.choose_far(
+            None, [[card(), prop(), sign]], [{'vis': [0]}], images={0: hill_image()})
+        self.assertEqual(textures, [])
+        self.assertEqual(report['sign_triangles'], 1)
+        kept = [b for b in low[0] if getattr(b, 'sign', False)]
+        self.assertEqual(len(kept), 1)
+        self.assertEqual(kept[0].texture, 1)
+        self.assertGreater(float(np.ptp(kept[0].verts[:, 3:5])), 0.1)
+        self.assertLessEqual(report['low_worst_draws'], street_lod.DRAW_CAP)
+
     def test_grid_ladder_starts_at_the_requested_floor(self):
         self.assertEqual(bake_street.grid_ladder(128)[0], 128)
         self.assertIn(192, bake_street.grid_ladder(128))

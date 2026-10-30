@@ -199,16 +199,20 @@ struct Zone::Impl {
     bool extra[kMaxChunks] = {}; // setExtraVisible: chunks shown beyond the cell's PVS
     bool extraDirty = false;
     Vec3 lastPlan{};
+    bool haveCamera = false;
+    bool plannedCam = false;
+    Vec3 camEye{}, camTarget{}, planEye{}, planFwd{};
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
     float min[3] = {}, max[3] = {};
 #ifdef __3DS__
-    enum JobState : uint8_t { Free, Queued, Loading, Done, Failed };
+    enum JobState : uint8_t { Free, Queued, Reading, Uploading, Done, Failed };
     struct Job {
         volatile JobState state = Free;
         uint16_t chunk = 0;
         uint8_t lod = 0;
         render::Model model;
+        render::ModelStaging staging; // loader fills the bytes; the main thread uploads
     };
     static constexpr int kJobs = 3;
     render::Model* models = nullptr;
@@ -229,14 +233,14 @@ void loaderMain(void* arg) {
         Zone::Impl::Job* job = nullptr;
         LightLock_Lock(&z.lock);
         for (auto& j : z.jobs)
-            if (j.state == Zone::Impl::Queued) { job = &j; j.state = Zone::Impl::Loading; break; }
+            if (j.state == Zone::Impl::Queued) { job = &j; j.state = Zone::Impl::Reading; break; }
         LightLock_Unlock(&z.lock);
         if (!job) { LightEvent_Wait(&z.wake); continue; }
         const Chunk d = modelInfo(z.chunks[job->chunk], job->lod);
-        // Model owns the shared LinearGuard; never lock around this call.
-        const bool ok = job->model.loadFrom(z.file, d.offset, "tz chunk");
+        // Bytes only. GPU upload is sliced on the main thread so one chunk cannot stall a frame.
+        const bool ok = job->staging.read(z.file, d.offset);
         LightLock_Lock(&z.lock);
-        job->state = ok ? Zone::Impl::Done : Zone::Impl::Failed;
+        job->state = ok ? Zone::Impl::Uploading : Zone::Impl::Failed;
         LightLock_Unlock(&z.lock);
     }
 }
@@ -454,6 +458,53 @@ uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
     const int cell=cellAt(p,reach);
     return cell<0 ? 0 : static_cast<uint16_t>(impl_->chunks[cell].zone);
 }
+// Top-screen vertical FOV is 55 degrees (Renderer::kFovYDeg) at 400x240.
+constexpr float kHalfFovV = 55.0f * 0.5f * 3.14159265f / 180.0f;
+constexpr float kConeMargin = 4.0f * 3.14159265f / 180.0f;
+constexpr float kCamMove2 = 64.0f;          // replan after the eye moves 8 units
+constexpr float kCamTurnDot = 0.984807753f; // cos(10 deg)
+#ifdef __3DS__
+// Main-thread GPU upload per update. One slice stays well under a 33 ms frame.
+constexpr uint32_t kUploadBudgetUs = 10000;
+#endif
+
+void cameraBasis(const Vec3& eye, const Vec3& target, Vec3& fwd, Vec3& right, Vec3& up) {
+    fwd = Vec3{target.x - eye.x, target.y - eye.y, target.z - eye.z};
+    const float len = sqrtf(fwd.x * fwd.x + fwd.y * fwd.y + fwd.z * fwd.z);
+    if (len < 1e-4f) fwd = Vec3{1, 0, 0};
+    else { fwd.x /= len; fwd.y /= len; fwd.z /= len; }
+    // right = normalize(cross(worldUp, forward)), worldUp = +Z.
+    right = Vec3{-fwd.y, fwd.x, 0};
+    const float rl = sqrtf(right.x * right.x + right.y * right.y);
+    if (rl < 1e-4f) right = Vec3{1, 0, 0};
+    else { right.x /= rl; right.y /= rl; }
+    up = Vec3{fwd.y * right.z - fwd.z * right.y,
+              fwd.z * right.x - fwd.x * right.z,
+              fwd.x * right.y - fwd.y * right.x};
+}
+
+// True when the chunk's bounding sphere can meet the view cone. The cone is a few
+// degrees wider than the frustum, so a chunk this accepts is the one draw() may submit.
+bool inView(const Chunk& c, const Vec3& eye, const Vec3& fwd, const Vec3& right, const Vec3& up, float drawDist) {
+    if (distance2(eye, c) > drawDist * drawDist) return false;
+    const float cx = (c.min[0] + c.max[0]) * 0.5f;
+    const float cy = (c.min[1] + c.max[1]) * 0.5f;
+    const float cz = (c.min[2] + c.max[2]) * 0.5f;
+    const float dx = c.max[0] - c.min[0], dy = c.max[1] - c.min[1], dz = c.max[2] - c.min[2];
+    const float rad = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
+    const float vx = cx - eye.x, vy = cy - eye.y, vz = cz - eye.z;
+    const float dist = sqrtf(vx * vx + vy * vy + vz * vz);
+    if (dist <= rad + 0.5f) return true;
+    const float along = vx * fwd.x + vy * fwd.y + vz * fwd.z;
+    if (along < -rad) return false;
+    const float halfH = atanf(tanf(kHalfFovV) * (400.0f / 240.0f));
+    const float extra = asinf(rad / dist > 1.0f ? 1.0f : rad / dist);
+    const float denom = along > 1e-3f ? along : 1e-3f;
+    const float angH = atan2f(fabsf(vx * right.x + vy * right.y + vz * right.z), denom);
+    const float angV = atan2f(fabsf(vx * up.x + vy * up.y + vz * up.z), denom);
+    return angH <= halfH + extra + kConeMargin && angV <= kHalfFovV + extra + kConeMargin;
+}
+
 bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) {
     if (!impl_) return fail("zone: update before load");
     Impl& z=*impl_;
@@ -476,6 +527,14 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     if (next>=0 && !replan && z.h.version>=2) {
         const float dx=feet.x-z.lastPlan.x,dy=feet.y-z.lastPlan.y,dz=feet.z-z.lastPlan.z;
         replan=dx*dx+dy*dy+dz*dz>=16.0f; // avoid churn for tiny movements
+    }
+    Vec3 fwd{}, right{}, up{};
+    if (z.haveCamera) cameraBasis(z.camEye, z.camTarget, fwd, right, up);
+    if (next>=0 && !replan && z.haveCamera && !z.plannedCam) replan=true;
+    if (next>=0 && !replan && z.haveCamera && z.plannedCam) {
+        const float dx=z.camEye.x-z.planEye.x, dy=z.camEye.y-z.planEye.y, dz=z.camEye.z-z.planEye.z;
+        const float facing=fwd.x*z.planFwd.x+fwd.y*z.planFwd.y+fwd.z*z.planFwd.z;
+        replan=dx*dx+dy*dy+dz*dz>=kCamMove2 || facing<kCamTurnDot;
     }
     if (replan) {
         const Chunk& c=z.chunks[next];
@@ -501,41 +560,90 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         for (uint32_t i=0;i<z.h.chunks;++i) if (z.extra[i]) want(static_cast<uint16_t>(i));
         z.extraDirty=false;
         z.numOrder=count;
-        // Stable nearest-first insertion sort; fixed storage, no per-frame allocation.
+        // No camera: nearest the feet, and the draw cap covers the whole cell (host tests).
+        // With a camera: the cell underfoot, then in view, then closer, then more central.
+        // The draw and triangle caps count only chunks this frame will submit.
+        // Memory caps still cover the cell.
+        const bool viewCap = z.haveCamera && z.h.version>=2;
+        uint8_t seenView[kMaxChunks] = {};
+        float rankDot[kMaxChunks] = {};
+        float rankDist[kMaxChunks] = {};
+        if (viewCap) {
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                const Chunk& chunk=z.chunks[id];
+                const float cx=(chunk.min[0]+chunk.max[0])*0.5f;
+                const float cy=(chunk.min[1]+chunk.max[1])*0.5f;
+                const float cz=(chunk.min[2]+chunk.max[2])*0.5f;
+                const float vx=cx-z.camEye.x, vy=cy-z.camEye.y, vz=cz-z.camEye.z;
+                const float dist=sqrtf(vx*vx+vy*vy+vz*vz)+1e-3f;
+                rankDot[id]=(vx*fwd.x+vy*fwd.y+vz*fwd.z)/dist;
+                rankDist[id]=distance2(z.camEye, chunk);
+                seenView[id]= id==static_cast<uint16_t>(next) || inView(chunk, z.camEye, fwd, right, up, quality.drawDistance);
+            }
+        }
+        const float must2 = quality.lodMust * quality.lodMust;
         for (uint32_t j=1;j<count;++j) {
             const uint16_t id=z.order[j];
-            const float dist=distance2(feet,z.chunks[id]);
             uint32_t at=j;
-            while (at>0 && distance2(feet,z.chunks[z.order[at-1]])>dist) {
+            const uint16_t cellId = static_cast<uint16_t>(next);
+            auto before=[&](uint16_t a, uint16_t b) {
+                // The cell underfoot is drawn first, so a one-frame cap never drops the ground.
+                if (a==cellId || b==cellId) return a==cellId && b!=cellId;
+                if (!viewCap) return distance2(feet, z.chunks[a]) < distance2(feet, z.chunks[b]);
+                if (seenView[a]!=seenView[b]) return seenView[a]>seenView[b];
+                // lodMust (near the toon) before anything farther, then closer to the eye.
+                const bool am = distance2(feet, z.chunks[a]) <= must2;
+                const bool bm = distance2(feet, z.chunks[b]) <= must2;
+                if (am!=bm) return am;
+                if (rankDist[a]!=rankDist[b]) return rankDist[a]<rankDist[b];
+                if (rankDot[a]!=rankDot[b]) return rankDot[a]>rankDot[b];
+                return a<b;
+            };
+            while (at>0 && before(id, z.order[at-1])) {
                 z.order[at]=z.order[at-1]; --at;
             }
             z.order[at]=id;
         }
         if (z.h.version>=2) {
-            // Pass 0: the chunks around the toon, against the frame envelope (kNearDrawBudget).
-            // Pass 1: everything else in the near radius, nearest first, against kDrawBudget.
-            for (int pass=0;pass<2;++pass) {
+            // One pass, nearer and in view first. The 150-draw near envelope counted the
+            // whole cell and reached 147-149 draws in Donald's Dock. Draw and triangle
+            // totals here are only what this frame submits.
+            uint64_t viewDraws=0, viewTris=0;
+            if (viewCap) {
                 for (uint32_t j=0;j<count;++j) {
                     const uint16_t id=z.order[j];
-                    if (z.choice[id]==0) continue;
-                    const Chunk& high=z.chunks[id];
-                    // Hysteresis: a chunk already at full detail keeps it a little past the near
-                    // radius, so a toon standing on the boundary doesn't reload it from SD.
-                    const bool wasHigh = z.resident[id] && z.lod[id]==0;
-                    const float reach = pass==0 ? quality.lodMust + (wasHigh ? 16.0f : 0.0f)
-                                                : wasHigh ? quality.lodKeep : quality.lodNear;
-                    if (distance2(feet,high)>reach*reach) continue;
-                    const Chunk low=modelInfo(high,1);
-                    const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
-                    const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
-                    const uint64_t drawCap = pass==0 ? kNearDrawBudget : kDrawBudget;
-                    if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=drawCap) {
-                        z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
-                    }
+                    if (!seenView[id]) continue;
+                    const Chunk low=modelInfo(z.chunks[id], 1);
+                    viewDraws+=low.draws; viewTris+=low.tris;
+                }
+            }
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                const Chunk& high=z.chunks[id];
+                // Hysteresis: a chunk already at full detail keeps it a little past the near
+                // radius, so a toon standing on the boundary doesn't reload it from SD.
+                const float keep = z.resident[id] && z.lod[id]==0 ? quality.lodKeep : quality.lodNear;
+                if (distance2(feet,high)>keep*keep) continue;
+                if (viewCap && !seenView[id]) continue;
+                const Chunk low=modelInfo(high,1);
+                const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
+                uint64_t tr, dr;
+                if (viewCap) {
+                    tr=viewTris-low.tris+high.tris; dr=viewDraws-low.draws+high.draws;
+                } else {
+                    tr=tris-low.tris+high.tris; dr=draws-low.draws+high.draws;
+                }
+                if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=kDrawBudget) {
+                    z.choice[id]=0; geom=g; tex=t;
+                    if (viewCap) { viewTris=tr; viewDraws=dr; }
+                    else { tris=tr; draws=dr; }
                 }
             }
         }
         z.lastPlan=feet;
+        z.plannedCam=z.haveCamera;
+        if (z.haveCamera) { z.planEye=z.camEye; z.planFwd=fwd; }
         z.planned=true;
         error_[0]=0;
         const uint16_t previous=currentZone();
@@ -561,29 +669,51 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     };
     (void)sync;
 #ifdef __3DS__
-    // 1. Swap in finished loads (still wanted) and drop the rest.
+    // Upload a slice before swapping, so a finished chunk can draw this frame.
+    {
+        uint32_t budget=kUploadBudgetUs;
+        for (auto& j:z.jobs) {
+            if (j.state!=Impl::Uploading || !budget) continue;
+            const uint64_t t0=svcGetSystemTick();
+            const auto result=j.staging.pump(j.model, budget);
+            const uint32_t used=static_cast<uint32_t>((svcGetSystemTick()-t0)/(SYSCLOCK_ARM11/1000000));
+            budget=used>=budget ? 0 : budget-used;
+            if (result==render::ModelStaging::Result::Complete) j.state=Impl::Done;
+            else if (result==render::ModelStaging::Result::Error) j.state=Impl::Failed;
+        }
+    }
     uint64_t inflightGeom=0,inflightTex=0;
-    for (auto& j:z.jobs) {
+    auto takeJob=[&](Impl::Job& j, bool downgradeOnly) {
         LightLock_Lock(&z.lock);
         const Impl::JobState st=j.state;
         LightLock_Unlock(&z.lock);
-        if (st==Impl::Done || st==Impl::Failed) {
-            const bool wanted=z.desired[j.chunk] && z.choice[j.chunk]==j.lod;
-            if (st==Impl::Done && wanted) {
-                if (z.resident[j.chunk]) { sync(); account(j.chunk,-1); } // only an old model needs the GPU idle
-                z.models[j.chunk].swap(j.model);
-                z.resident[j.chunk]=true; z.lod[j.chunk]=j.lod;
-                account(j.chunk,+1);
-            } else if (st==Impl::Failed && wanted) {
-                z.failed[j.chunk]=true;
-                z.retryCountdown=30; // about a second: transient SD/linear failures heal
-                fail("zone: chunk load failed; retried on the next plan");
-            }
-            j.model.unload(); // the old LOD, or an unwanted load: never drawn by the GPU
-            LightLock_Lock(&z.lock);
-            j.state=Impl::Free;
-            LightLock_Unlock(&z.lock);
-        } else if (st!=Impl::Free) {
+        if (st!=Impl::Done && st!=Impl::Failed) return false;
+        const bool wanted=z.desired[j.chunk] && z.choice[j.chunk]==j.lod;
+        const bool downgrade=st==Impl::Done && wanted && z.resident[j.chunk] && z.lod[j.chunk]==0 && j.lod==1;
+        if (downgradeOnly != downgrade) return false;
+        if (st==Impl::Done && wanted) {
+            if (z.resident[j.chunk]) { sync(); account(j.chunk,-1); }
+            z.models[j.chunk].swap(j.model);
+            z.resident[j.chunk]=true; z.lod[j.chunk]=j.lod;
+            account(j.chunk,+1);
+        } else if (st==Impl::Failed && wanted) {
+            z.failed[j.chunk]=true;
+            z.retryCountdown=30; // about a second: transient SD/linear failures heal
+            fail("zone: chunk load failed; retried on the next plan");
+        }
+        j.model.unload();
+        j.staging.reset();
+        LightLock_Lock(&z.lock);
+        j.state=Impl::Free;
+        LightLock_Unlock(&z.lock);
+        return true;
+    };
+    // A far mesh replaces its high mesh before any new high mesh is published, so the
+    // one frame where both are resident cannot add their draws together.
+    for (auto& j:z.jobs) takeJob(j, true);
+    for (auto& j:z.jobs) {
+        if (takeJob(j, false)) continue;
+        if (j.state!=Impl::Free) {
             const Chunk d=modelInfo(z.chunks[j.chunk],j.lod);
             inflightGeom+=d.geom; inflightTex+=d.tex;
         }
@@ -644,6 +774,14 @@ bool Zone::loading() const {
     }
     return false;
 }
+void Zone::setCamera(const Vec3& eye, const Vec3& target) {
+    if (!impl_) return;
+    if (!std::isfinite(eye.x) || !std::isfinite(eye.y) || !std::isfinite(eye.z) ||
+        !std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z)) return;
+    impl_->camEye=eye;
+    impl_->camTarget=target;
+    impl_->haveCamera=true;
+}
 void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
     for (int guard=0; guard<3000 && impl_; ++guard) {
         update(feet,callback,user);
@@ -667,22 +805,36 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
 #else
     (void)placement;
 #endif
-    for (uint32_t i=0;i<impl_->h.chunks;++i) {
-        if (!impl_->resident[i] || !modelInfo(impl_->chunks[i],impl_->lod[i]).size) continue;
-        const Chunk& c=impl_->chunks[i];
-        const float p[3]={eye.x,eye.y,eye.z};
-        float d2=0;
-        for (int a=0;a<3;++a) {
-            const float d=std::max(std::max(c.min[a]-p[a],p[a]-c.max[a]),0.0f);
-            d2+=d*d;
+    Impl& z=*impl_;
+    Vec3 fwd{}, right{}, up{};
+    const bool cap=z.haveCamera;
+    if (cap) cameraBasis(eye, z.camTarget, fwd, right, up);
+    uint32_t usedDraws=0, usedTris=0;
+    bool seen[kMaxChunks]={};
+    auto submit=[&](uint32_t i) {
+        if (i>=z.h.chunks || seen[i]) return;
+        seen[i]=true;
+        if (!z.resident[i]) return;
+        const Chunk mesh=modelInfo(z.chunks[i], z.lod[i]);
+        if (!mesh.size || distance2(eye, z.chunks[i])>distance*distance) return;
+        // Count and submit only the cone. A chunk behind the toon used to spend the
+        // budget, and a one-frame LOD overlap (old high plus new high) reached 133 draws.
+        if (cap) {
+            const bool viewed=static_cast<int>(i)==z.cell || inView(z.chunks[i], eye, fwd, right, up, distance);
+            if (!viewed) return;
+            if (usedDraws && (usedDraws+mesh.draws>kDrawBudget || usedTris+mesh.tris>kTriangleBudget)) return;
+            usedDraws+=mesh.draws;
+            usedTris+=mesh.tris;
         }
-        if (d2>distance*distance) continue;
 #ifdef __3DS__
-        renderer.drawModel(impl_->models[i],identity);
+        renderer.drawModel(z.models[i], identity);
 #else
         (void)renderer;
+        (void)mesh;
 #endif
-    }
+    };
+    for (uint32_t j=0;j<z.numOrder;++j) submit(z.order[j]);
+    for (uint32_t i=0;i<z.h.chunks;++i) submit(i);
 }
 int Zone::visibleZones(uint16_t* out,int capacity) const {
     if (!impl_ || impl_->cell<0) return 0;

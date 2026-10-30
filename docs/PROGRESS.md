@@ -9,8 +9,9 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - PR#4 (near 64 px atlas tiles + per-tile mips, 256 px ground, vertex-coloured far LOD, Old/New
   quality profile with fog, ground split ≤ 20 units, far hill cards) fast-forwarded here and run
   in Azahar for the first time; all 37 zones rebaked with it.
-- Near chunks first (`Quality::lodMust`, `Zone::kNearDrawBudget` 150): no far-LOD chunk under the
-  toon any more (Toon Hall half far mesh at `ttc_mid`).
+- Near chunks first (`Quality::lodMust`) against a 150-draw envelope reached 147–149
+  draws in Donald's Dock. The follow-up spends 130 draws on what the frame submits,
+  in view and nearer first, and slices GPU uploads.
 - `azahar_test.sh NEW3DS=1 STEREO=1`, `view_stats.py`, `compare_views.py`; trolley autotest
   re-enters the sphere until seated.
 
