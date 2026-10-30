@@ -5,6 +5,7 @@
 #include <cstdlib>
 
 #include "world/battle_fx.h"
+#include "world/battle.h"
 
 namespace {
 

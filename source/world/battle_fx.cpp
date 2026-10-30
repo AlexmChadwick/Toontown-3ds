@@ -4,10 +4,10 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include "world/battle.h"
 
 #ifdef __3DS__
 #include "core/log.h"
-#include "world/battle.h"
 #endif
 
 namespace tt::world {
