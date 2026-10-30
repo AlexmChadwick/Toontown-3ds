@@ -102,7 +102,10 @@ sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
 cp "$SD/log.txt" "$OUT/log.txt" 2>/dev/null || echo "no log.txt written"
 if ls "$SD"/shot_*.bin >/dev/null 2>&1; then
-    .venv/bin/python -I tools/dev/decode_shot.py "$SD"/shot_*.bin --out-dir "$OUT" >/dev/null
+    cp "$SD"/shot_*.bin "$OUT"/
+    if [ -x .venv/bin/python ]; then SHOT_PYTHON=.venv/bin/python; else SHOT_PYTHON=python3; fi
+    "$SHOT_PYTHON" -I tools/dev/decode_shot.py "$SD"/shot_*.bin --out-dir "$OUT" >/dev/null 2>&1 || \
+        echo "shot decode skipped (install panda3d, raw .bin files kept in $OUT)"
 fi
 grep -c -E "PANIC|Unreachable" "$AZ_DATA/log/azahar_log.txt" \
     | sed 's/^/emulator panics: /' || true

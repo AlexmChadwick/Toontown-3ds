@@ -11,6 +11,7 @@ namespace tt::ui {
 namespace {
 
 constexpr float kZ = 0.5f;
+constexpr float kTextZ = 0.51f;
 constexpr float kMarginX = 6.0f;
 constexpr float kRowGap = 2.0f;
 constexpr float kArrowW = 18.0f;
@@ -283,13 +284,13 @@ void ChatMenu::draw(float panelBottom) {
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {
-            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 6.0f, ty, kZ, s, s, fg,
+            C2D_DrawText(&labels_[i], C2D_WithColor | C2D_WordWrap, rowX + 6.0f, ty, kTextZ, s, s, fg,
                          rowTextW(it.isMenu));
         } else {
-            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 6.0f, ty, kZ, s, s, fg);
+            C2D_DrawText(&labels_[i], C2D_WithColor, rowX + 6.0f, ty, kTextZ, s, s, fg);
         }
         if (it.isMenu) {
-            C2D_DrawText(&arrow_, C2D_WithColor, rowX + rowW - kArrowW + 4.0f, y + 6.0f, kZ, 0.55f, 0.55f, fg);
+            C2D_DrawText(&arrow_, C2D_WithColor, rowX + rowW - kArrowW + 4.0f, y + 6.0f, kTextZ, 0.55f, 0.55f, fg);
         }
     }
 
@@ -311,12 +312,12 @@ void ChatMenu::draw(float panelBottom) {
     if (m.parent >= 0) {
         drawRoundedPanel(kMarginX, 2, kZ + 0.002f, kBackW, kHeaderH - 4, 6.0f, kWhite,
                          pressedBack_ ? kPressed : categoryColor(menu_));
-        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ + 0.004f, 0.5f, 0.5f, kWhite);
+        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kTextZ, 0.5f, 0.5f, kWhite);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {
-        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 8.0f, kZ, 0.42f, 0.42f, kWhite);
+        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 8.0f, kTextZ, 0.42f, 0.42f, kWhite);
     }
-    C2D_DrawText(&title_, C2D_WithColor, titleX, 6.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
+    C2D_DrawText(&title_, C2D_WithColor, titleX, 6.0f + (0.5f - titleScale_) * 14.0f, kTextZ, titleScale_, titleScale_,
                  kWhite);
 }
 

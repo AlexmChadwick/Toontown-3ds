@@ -33,7 +33,7 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map hoods"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: map next hood", "pad_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: map release"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab chat"},
+    {1.0f, 0, 0, 0, KEY_X, -1, -1, -1, "pad: tab chat", "speedchat"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat focus", "pad_chat"},
     {1.0f, 0, 0, 0, KEY_X, -1, -1, -1, "pad: chat whisper"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat back"},
