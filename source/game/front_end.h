@@ -38,7 +38,8 @@ public:
     void setServer(const char* host, int port, bool online);
     // Back to the title (e.g. after a fatal disconnect in the world).
     void reset();
-    // Frees the Pick-A-Toon and Make-A-Toon art (about 0.55 MB of linear memory) once we are in
+    // Frees the Pick-A-Toon and Make-A-Toon art (about 0.55 MB of linear memory, plus the
+    // Make-A-Toon room when one is resident) once we are in
     // the world; call after C3D_FrameBegin (the last front-end frame is then complete). It
     // reloads on demand when the front end comes back.
     void releaseArt();
@@ -120,6 +121,17 @@ private:
     touchPosition lastTouch_{};
     bool touchReleased_ = false;
     bool touching_ = false;
+
+    // Make-A-Toon's room (bake_mat_room.py): the current shop's walls + props, floor and
+    // background, swapped on the first top-screen draw of a step (after C3D_FrameBegin, so the
+    // previous frame no longer reads the old shop).
+    bool ensureRoom();
+    void drawRoom(render::Renderer& renderer);
+    render::Model room_;
+    int roomShop_ = -1;         // which shop room_ holds (-1 none)
+    u8 roomFailed_ = 0;         // shops whose file failed to load (bit per shop; logged once)
+    float makeTurn_ = 0.0f;     // L / R: MakeAToon's rotate buttons, degrees added to the shop's heading
+    MakeStep turnStep_ = MakeStep::Count; // the step makeTurn_ belongs to (reset on a new step)
 
     world::ToonLook previewLook_;
     world::ToonAvatar preview_;

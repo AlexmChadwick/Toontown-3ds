@@ -72,6 +72,9 @@ public:
     // Takes effect from the next beginWorld.
     void setFarPlane(float far) { farPlane_ = far > 0.0f ? far : kFar; }
     float farPlane() const { return farPlane_; }
+    // Vertical field of view of the world pass in degrees (Panda base.camLens.setFov, e.g.
+    // MakeAToonCameraFov). Zero restores kFovYDeg. Takes effect from the next beginWorld.
+    void setFovY(float degrees) { fovYDeg_ = degrees > 0.0f ? degrees : kFovYDeg; }
 
 private:
     enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
@@ -97,6 +100,7 @@ private:
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
     float fogStart_ = 0.0f, fogEnd_ = 0.0f, fogFar_ = 0.0f;
     float farPlane_ = kFar;
+    float fovYDeg_ = kFovYDeg;
     C3D_FogLut fogLut_{};
     Program programs_[kModeCount];
     int mode_ = kModeNone;

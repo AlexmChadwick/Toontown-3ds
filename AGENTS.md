@@ -597,6 +597,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py`, `bake_purchase_gui.py`, `bake_pick_a_toon.py`, `bake_mat_gui.py` (shared `ui_atlas.py`) | ToontownTimer's alarm clock, fishingGui's cast interface, the Shtiker Book page tab icons, the purchase screens' sign plank and bean jar, AvatarChooser's background, squares and trashcan, and Make-A-Toon's round, gender and shuffle buttons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
+| `tools/pipeline/bake_mat_room.py` | Make-A-Toon's room (`tt_m_ara_mat_room`): floor, background, spotlight and one shop's walls + props per step → pooled `romfs/baked/mat_room/` (TTM v2 + `textures.ttp`), drawn behind the Toon with MakeAToon's camera |
 | `tools/pipeline/bake_golf_physics.py` | golf BAM collision nodes → versioned `.gph` meshes (grass, slick, cup, hard) |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
 | `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |

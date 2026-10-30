@@ -4,11 +4,11 @@
 namespace tt::ui {
 
 constexpr int kMatGuiAtlasW = 256, kMatGuiAtlasH = 256;
-enum class MatArt : int { NextUp, NextDown, OkUp, OkDown, BoyUp, GirlUp, ArrowUp, ArrowDown, ArrowDisabled, ShuffleFrame, ShuffleUp, BoyDown, GirlDown, ShuffleDown, Count };
+enum class MatArt : int { NextUp, NextDown, OkUp, OkDown, BoyUp, GirlUp, ArrowUp, ArrowDown, ArrowDisabled, ShuffleFrame, ShuffleUp, BoyDown, GirlDown, ShuffleDown, RotateUp, Count };
 struct MatArtRect {
     float x, y, w, h; // the part in the atlas (pixels, top-left origin)
 };
-constexpr MatArtRect kMatArtRects[14] = {
+constexpr MatArtRect kMatArtRects[15] = {
     {0.63f, 0.63f, 62.75f, 62.75f}, // NextUp
     {64.63f, 0.63f, 62.75f, 62.75f}, // NextDown
     {128.63f, 0.63f, 62.75f, 62.75f}, // OkUp
@@ -23,6 +23,7 @@ constexpr MatArtRect kMatArtRects[14] = {
     {0.63f, 192.63f, 62.75f, 62.75f}, // BoyDown
     {64.63f, 192.63f, 62.75f, 62.75f}, // GirlDown
     {129.25f, 197.33f, 125.49f, 53.33f}, // ShuffleDown
+    {224.31f, 80.31f, 31.37f, 31.37f}, // RotateUp
 };
 
 } // namespace tt::ui

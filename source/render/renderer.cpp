@@ -111,7 +111,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     C3D_CullFace(GPU_CULL_BACK_CCW);
     C3D_DepthMap(true, -1.0f, 0.0f);
 
-    const float fovy = C3D_AngleFromDegrees(kFovYDeg);
+    const float fovy = C3D_AngleFromDegrees(fovYDeg_);
     if (eyeSign == 0) {
         Mtx_PerspTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, farPlane_, false);
     } else {

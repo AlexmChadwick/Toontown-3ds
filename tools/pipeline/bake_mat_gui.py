@@ -4,7 +4,8 @@
 MakeAToon's round glossy buttons (guiNextButton / guiLastButton: tt_t_gui_mat_nextUp, the back
 button is the same image mirrored; guiOkButton: okUp), GenderShop's boy / girl buttons and the
 BodyShop / ClothesGUI shuffle frames (tt_t_gui_mat_shuffleFrame) with their gold shuffle arrows
-(shuffleArrowUp / Down / Disabled), plus NameShop's shuffle bar (shuffleUp). Rendered offscreen
+(shuffleArrowUp / Down / Disabled), NameShop's shuffle bar (shuffleUp) and the toon rotate arrow
+(arrowRotateUp). Rendered offscreen
 with ui_atlas.py, aspect preserved and centred in each cell.
 
     romfs/baked/mat_gui.ttm       one 256x256 RGBA8 texture, a placeholder quad
@@ -47,6 +48,8 @@ PARTS = [
     Part('BoyDown', M, ['tt_t_gui_mat_boyDown'], (0, 192, 64, 64)),
     Part('GirlDown', M, ['tt_t_gui_mat_girlDown'], (64, 192, 64, 64)),
     Part('ShuffleDown', M, ['tt_t_gui_mat_shuffleDown'], (128, 192, 128, 64)),
+    # MakeAToon's rotateLeftButton / rotateRightButton (the left one is this image mirrored).
+    Part('RotateUp', M, ['tt_t_gui_mat_arrowRotateUp'], (224, 64, 32, 64)),
 ]
 
 

@@ -136,11 +136,15 @@ void FrontEnd::shutdown() {
     if (textBuf_) C2D_TextBufDelete(textBuf_);
     textBuf_ = nullptr;
     logo_.unload();
+    room_.unload();
+    roomShop_ = -1;
     pickArt_.unload();
     ui::releaseMatArt();
 }
 
 void FrontEnd::releaseArt() {
+    room_.unload();
+    roomShop_ = -1;
     pickArt_.unload();
     pickArtTried_ = false;
     ui::releaseMatArt();
@@ -330,6 +334,18 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
     time_ += dt;
     previewSpin_ += dt * 25.0f;
     preview_.update(dt);
+    // MakeAToon's rotate buttons (rotateToonLeft / Right: hprDelta 1 degree a frame at 60 Hz) on L / R;
+    // each shop starts the Toon at that shop's heading.
+    if (screen_ == Screen::Make) {
+        if (turnStep_ != step_) {
+            turnStep_ = step_;
+            makeTurn_ = 0.0f;
+        }
+        if (held & KEY_L) makeTurn_ -= 60.0f * dt;
+        if (held & KEY_R) makeTurn_ += 60.0f * dt;
+    } else {
+        turnStep_ = MakeStep::Count;
+    }
     // A tap fires when the stylus lifts, at the last touched point.
     touchReleased_ = touching_ && !(held & KEY_TOUCH);
     if (held & KEY_TOUCH) lastTouch_ = touch;
@@ -747,30 +763,115 @@ void FrontEnd::makeStepInput(u32 down) {
     }
 }
 
-void FrontEnd::drawTop(render::Renderer& renderer) {
-    // 3D preview: the toon on its own, slowly turning.
-    const float h = previewLook_.valid() ? previewLook_.nametagHeight : 4.0f;
-    // The title logo covers the top third: aim higher there so the toon stands below it.
-    const bool logo = screen_ == Screen::Title && logo_.loaded() && logo_.texture(0);
-    const float aimZ = logo ? h * 0.66f : h * 0.5f;
-    renderer.beginWorld(renderer.topLeft(), FVec3_New(0.0f, -h * 2.0f, aimZ + h * 0.1f), FVec3_New(0.0f, 0.0f, aimZ),
-                        0.0f, 0);
+namespace {
+
+// Make-A-Toon's shops in bake_mat_room.py's order, and the room each of our steps stands in: the
+// Species step is upstream's BodyShop (Choose Your Type), the boy / girl step its GenderShop.
+constexpr const char* kRoomFiles[] = {"romfs:/baked/mat_room/mat_room_gender.ttm", "romfs:/baked/mat_room/mat_room_body.ttm",
+                                      "romfs:/baked/mat_room/mat_room_color.ttm", "romfs:/baked/mat_room/mat_room_clothes.ttm",
+                                      "romfs:/baked/mat_room/mat_room_name.ttm"};
+constexpr int kRoomGender = 0, kRoomBody = 1, kRoomColor = 2, kRoomClothes = 3, kRoomName = 4;
+
+} // namespace
+
+bool FrontEnd::ensureRoom() {
+    int shop = kRoomName;
+    if (!renameAvId_) {
+        switch (step_) {
+        case MakeStep::Species: shop = kRoomBody; break;
+        case MakeStep::Body: shop = kRoomGender; break;
+        case MakeStep::Color: shop = kRoomColor; break;
+        case MakeStep::Clothes: shop = kRoomClothes; break;
+        default: shop = kRoomName; break;
+        }
+    }
+    if (roomShop_ == shop) return true;
+    room_.unload(); // the previous frame is complete (we draw after C3D_FrameBegin)
+    roomShop_ = -1;
+    if (roomFailed_ & (1u << shop)) return false;
+    const u64 t0 = osGetTime();
+    if (!room_.load(kRoomFiles[shop])) {
+        roomFailed_ |= u8(1u << shop);
+        TT_LOG("frontend: no %s; Make-A-Toon falls back to the plain preview", kRoomFiles[shop]);
+        return false;
+    }
+    roomShop_ = shop;
+    TT_LOG("frontend: mat room %d loaded (%lu linear bytes, %u tris, %u ms)", shop, (unsigned long)room_.linearBytes(),
+           unsigned(room_.numTriangles()), unsigned(osGetTime() - t0));
+    return true;
+}
+
+// MakeAToon.enter: camera.setPosHpr(-5.7, -12.3501, 2.15, -24.8499, 2.73, 0) with
+// MakeAToonCameraFov (52 degrees across a 4:3 window, so 40.2 degrees vertically; the wider top
+// screen shows a little more of the room at the sides). The Toon stands at toonPosition
+// (-1.62, -3.49, 0) facing H 180, or at (1.5, -4, 0) facing H 120 in the Name shop.
+void FrontEnd::drawRoom(render::Renderer& renderer) {
+    constexpr float kPi = 3.14159265f;
+    constexpr float kH = -24.8499f * kPi / 180.0f, kP = 2.73f * kPi / 180.0f;
+    const C3D_FVec eye = FVec3_New(-5.7f, -12.3501f, 2.15f);
+    const C3D_FVec at = FVec3_New(eye.x - sinf(kH) * cosf(kP) * 10.0f, eye.y + cosf(kH) * cosf(kP) * 10.0f,
+                                  eye.z + sinf(kP) * 10.0f);
+    renderer.setFovY(40.2f);
+    renderer.beginWorld(renderer.topLeft(), eye, at, 0.0f, 0);
     C3D_Mtx m;
     Mtx_Identity(&m);
-    Mtx_RotateZ(&m, (previewSpin_ + 200.0f) * 3.14159265f / 180.0f, true);
+    renderer.drawModel(room_, m);
+    const bool name = roomShop_ == kRoomName;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, name ? 1.5f : -1.62f, name ? -4.0f : -3.49f, 0.0f, true);
+    Mtx_RotateZ(&m, ((name ? 120.0f : 180.0f) + makeTurn_) * kPi / 180.0f, true);
     preview_.draw(renderer, m);
     renderer.endWorld();
+    renderer.setFovY(0.0f);
+}
+
+void FrontEnd::drawTop(render::Renderer& renderer) {
+    const bool room = screen_ == Screen::Make && ensureRoom();
+    if (!room && room_.loaded()) { // left Make-A-Toon: the previous frame is complete
+        room_.unload();
+        roomShop_ = -1;
+    }
+    // The title logo covers the top third: aim higher there so the toon stands below it.
+    const bool logo = screen_ == Screen::Title && logo_.loaded() && logo_.texture(0);
+    if (room) {
+        drawRoom(renderer);
+    } else {
+        // 3D preview: the toon on its own, slowly turning.
+        const float h = previewLook_.valid() ? previewLook_.nametagHeight : 4.0f;
+        const float aimZ = logo ? h * 0.66f : h * 0.5f;
+        renderer.beginWorld(renderer.topLeft(), FVec3_New(0.0f, -h * 2.0f, aimZ + h * 0.1f), FVec3_New(0.0f, 0.0f, aimZ),
+                            0.0f, 0);
+        C3D_Mtx m;
+        Mtx_Identity(&m);
+        Mtx_RotateZ(&m, (previewSpin_ + 200.0f) * 3.14159265f / 180.0f, true);
+        preview_.draw(renderer, m);
+        renderer.endWorld();
+    }
 
     C2D_Prepare();
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_SceneBegin(renderer.topLeft());
     const u32 kShadow = C2D_Color32(0x10, 0x20, 0x50, 0xA0);
     const char* title = nullptr;
+    u32 titleColor = kAccent;
     switch (screen_) {
     case Screen::Title: title = logo ? nullptr : "TOONTOWN 3DS"; break;
     case Screen::Connecting: title = "Connecting..."; break;
     case Screen::Pick: title = "Pick A Toon To Play"; break; // AvatarChooserPickAToon
-    case Screen::Make: title = renameAvId_ ? "Name Your Toon" : "Make a Toon"; break;
+    case Screen::Make: // MakeAToon's guiTopBar: each shop's title in its text_fg
+        if (renameAvId_) {
+            title = "Choose Your Name"; // NameToonTitle
+            titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF);
+            break;
+        }
+        switch (step_) {
+        case MakeStep::Species: title = "Choose Your Type"; titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF); break;
+        case MakeStep::Body: title = "Choose Boy or Girl"; titleColor = C2D_Color32(0xFF, 0xEA, 0x33, 0xFF); break;
+        case MakeStep::Color: title = "Choose Your Color"; titleColor = C2D_Color32(0x00, 0xFF, 0xFF, 0xFF); break;
+        case MakeStep::Clothes: title = "Choose Your Clothes"; titleColor = C2D_Color32(0xFF, 0xEA, 0x33, 0xFF); break;
+        default: title = "Choose Your Name"; titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF); break;
+        }
+        break;
     case Screen::TutorialChoice: title = "The Toontorial"; break;
     case Screen::Entering: title = "Heading to Toontown Central"; break;
     case Screen::Error: title = "Uh-oh!"; break;
@@ -786,8 +887,10 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
         C2D_Text t;
         textCache_.parse(&t, textBuf_, title, 4096);
         C2D_TextGetDimensions(&t, 0.9f, 0.9f, &tw, &th);
-        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f + 2, 10, 0.5f, 0.9f, 0.9f, kShadow);
-        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f, 8, 0.5f, 0.9f, 0.9f, kAccent);
+        // Over the Make-A-Toon room the title needs a darker, tighter shadow to read on the walls.
+        const u32 shadow = room ? C2D_Color32(0, 0, 0, 0xE0) : kShadow;
+        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f + 2, 10, 0.5f, 0.9f, 0.9f, shadow);
+        C2D_DrawText(&t, C2D_WithColor, (400.0f - tw) * 0.5f, 8, 0.5f, 0.9f, 0.9f, titleColor);
     }
     if (screen_ == Screen::Pick && net_) {
         const net::PotentialAvatar* pa = net_->avatarInSlot(static_cast<uint8_t>(pickSlot_));
@@ -823,10 +926,20 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             }
         }
     } else if (screen_ == Screen::Make) {
-        C2D_Text n;
-        textCache_.parse(&n, textBuf_, currentName_, 4096);
-        C2D_TextGetDimensions(&n, 0.7f, 0.7f, &tw, &th);
-        C2D_DrawText(&n, C2D_WithColor, (400.0f - tw) * 0.5f, 210, 0.5f, 0.7f, 0.7f, kWhite);
+        shadowText(200, 212, 0.7f, kWhite, 300, currentName_);
+        if (room) {
+            // MakeAToon's rotateLeftButton / rotateRightButton (tt_t_gui_mat_arrowRotateUp, the left
+            // one mirrored) beside the Toon's feet; the top screen is not touchable, so they name L / R.
+            constexpr float kD = 30.0f, kY = 172.0f;
+            const float cx = roomShop_ == kRoomName ? 290.0f : 200.0f; // the Toon's feet on screen
+            for (int side = 0; side < 2; ++side) {
+                const float x = side ? cx + 46 : cx - 46 - kD;
+                const bool held = side ? (hidKeysHeld() & KEY_R) : (hidKeysHeld() & KEY_L);
+                const float grow = held ? 3.0f : 0.0f;
+                ui::drawMatArt(ui::MatArt::RotateUp, x - grow, kY - grow, kD + grow * 2, kD + grow * 2, 0.5f, side == 0);
+                shadowText(x + kD * 0.5f, kY + kD + 1, 0.42f, kWhite, 30, side ? "R" : "L");
+            }
+        }
     }
 }
 
