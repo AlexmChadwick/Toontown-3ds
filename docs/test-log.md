@@ -1312,3 +1312,18 @@ claude/Toontown-3ds full bake. Not hardware. Shots on.
 - World: clerks + tailor by pad (`clerk:`, `tailor visit`, `pad: tailor`), steps 0-69 UI tour,
   `see cog` + `pad: battle` picker, `grab treasure` .. `trolley: purchase`. No PARSE / EJECT / crash.
 
+
+## 2026-10-30 (UI round 26) — Linux rig: BATTLE_Menu picker, InventoryNew grids, Toon tab head
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/dkp/root/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198, fresh tokens. SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots on.
+
+- Street battle by pad: WaitForInput picker, focus moves, SOS / Fire demo panels, rounds, reward,
+  left. No PARSE / EJECT / crash.
+- UI tour to `tab: book`: Toon tab with the 3D head, 29.9 fps, cpu 3.8 ms, 115 draws, 11.9k tris,
+  heap 3.3 MB, linear free 15.5 MB, VRAM free 4.1 MB. Gags tab 29.6 fps.
+- Trolley + Catching game + purchase; Gag Shop clerk and shop panel by pad.
+- Front end (`AUTOTEST_FE=1`): all screens through TTC.
+- Host padnav_test 154 checks (conda GCC 12).

@@ -3,6 +3,61 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 (UI round 26) — TownBattle's BATTLE_Menu, InventoryNew rows and buttons everywhere, ToonAvatarPanel head
+
+### Done
+- **Battle gag picker is InventoryNew in battle mode** on TownBattle's red `BATTLE_Menu` frame
+  (`battle_gui`): each track is an `InventoryRow` tinted its TrackColor with the upper-case name and
+  its experience bar (exp / next, as `trackBars`) in the label; every level reached is an
+  `InventoryButton` on its slot — PressableImageColor blue (0, 0.6, 1), the flat
+  UnpressableImageColor grey when it cannot be used now, the rollover face under the D-Pad focus —
+  with the gag icon and a white count. Unlearned tracks keep their empty slots (hideTrack) instead of
+  a blank pill. Fire / Pass / Run / SOS are the same blue buttons (Fire grey (0.4) without pink
+  slips). The top strip shows the focused gag's `detailFrame`: name, have / max, Damage or Toon-up
+  (`getAvPropDamage` at our experience) and One / All Cogs.
+- **Book Gags page and Gags tab** (InventoryPage, book mode): the same rows, every level reached a
+  flat blue button whatever its count (makeBookUnpressable); the trained track keeps TrackPage's
+  filmstrip over its slots; the experience column stays right of the row (readable at 3DS size).
+- **Gag Shop and trolley purchase** (purchase mode): the rows, blue when the gag can be bought,
+  flat grey when not, yellow when bought this visit, the red selection ring.
+- **Toon tab: ToonAvatarPanel's 3D head** beside the name. Our live head is drawn by the world
+  renderer into a 128 x 128 VRAM texture target (`Renderer::beginOffscreen`, `render/toon_portrait.*`)
+  and shown with citro2d, only while the tab is open.
+- New `bake_inventory_gui.py` (InventoryRow + Up / Down / Rollover / Flat faces, LA8, tinted at draw
+  time; `ui_atlas.py` gains an LA8 path that fails on coloured art), `ui/inventory_art.*` (three-slice
+  buttons so the rounded ends keep their shape), `gen_gag_tables.py` adds AvPropDamage experience
+  ranges, isGroup and the accuracy strings (`gags::propDamage`).
+- Screenshots: `/workspace/shots/3ds-ui-round26/` (0 = the old picker, 1-9 this round).
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server on 7198, fresh tokens)
+- Street battle by pad (`see cog`, `pad: battle*`): picker with the focused gag's detail, SOS and
+  Fire panels over the red menu, Back, rounds played out, reward. No PARSE / EJECT / crash.
+- Playground UI tour to `grab treasure` (tabs, SpeedChat, book pages), Toon tab head (29.9 fps,
+  115 draws, heap 3.3 MB, linear free 15.5 MB, VRAM free 4.1 MB: the head target costs 96 KB VRAM).
+- Trolley -> Catching game -> purchase, Gag Shop door -> clerk -> shop panel by pad.
+- Front end (`AUTOTEST_FE=1`) end to end after the renderer change: all 22 shots, TTC.
+- Host: padnav_test 154 checks (conda GCC). `make`: zero warnings in source/.
+  `bake_inventory_gui.py` re-run gives identical bytes.
+
+### Asset size decisions
+- `inventory_gui.ttm` (128 KB RomFS, loaded on first use): the grey row and four button faces at
+  512 x 128 LA8 (half of RGBA8; the art is greyscale and upstream tints it with image_color anyway).
+  The row keeps 512 px because it is drawn ~312 px wide.
+
+### Known issues
+- BATTLE_Menu is drawn as rounded rects in its colours, not the textured model: its yellow detail
+  panel and button pockets do not fit the 320 px screen beside seven rows, so the detail is the top
+  strip. Upstream's NoncreditPressable teal (gags above the building's credit level) and prop-bonus
+  orange are not shown (the client does not track the credit level or interactive props).
+- The gag detail appears for the D-Pad focus only; a tap chooses at once (no hover on touch).
+- The Toon tab head is static (neutral clip); ToonHead's blink and look-around are not played.
+- The earlier known issues stand (no real-hardware run; SOS / Fire never sent live; Azahar clock
+  stalls on this rig).
+
+### Next
+- The same head in Pick-A-Toon's squares (AvatarChoice's 3D ToonHead) instead of the 2D laff heads.
+- Blink / look-around on the portrait head.
+
 ## 2026-10-29 (UI round 21) — Make-A-Toon's room, ToontownLoadingScreen, BodyShop / ColorShop frames
 
 ### Done
