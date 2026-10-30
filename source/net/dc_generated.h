@@ -4149,6 +4149,19 @@ constexpr const char* sig_inviteeFriendQuery = "i32,string,blob,i32";
 constexpr const char* sig_inviteeCancelFriendQuery = "i32";
 } // namespace FriendManager
 
+namespace TTPlatformManager {
+constexpr uint16_t kClassId = 398;
+constexpr uint16_t k_setMyPlatform = 2270;
+constexpr uint16_t k_requestPlatforms = 2271;
+constexpr uint16_t k_setPlatforms = 2272;
+constexpr uint16_t kw_setMyPlatform = 0x010;
+constexpr uint16_t kw_requestPlatforms = 0x010;
+constexpr uint16_t kw_setPlatforms = 0x000;
+constexpr const char* sig_setMyPlatform = "u8";
+constexpr const char* sig_requestPlatforms = "u32[]";
+constexpr const char* sig_setPlatforms = "u32[],u8[]";
+} // namespace TTPlatformManager
+
 namespace ToontownDistrictStats {
 constexpr uint16_t kClassId = 62;
 } // namespace ToontownDistrictStats

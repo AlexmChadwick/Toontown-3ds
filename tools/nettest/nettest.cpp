@@ -10,6 +10,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <strings.h>
 #include <vector>
 
 #include "core/log.h"
@@ -177,6 +178,8 @@ struct Options {
     bool expectZone = false;
     bool expectReconnect = false;
     bool dynamicHop = false; // after entering, move into dynamic zone 61000 (a facility floor)
+    const char* platform = nullptr; // platform badges: platform we report (default N3DS)
+    const char* expectBadge = nullptr; // "<name>=<platform>": fail unless that toon gets that badge
 };
 
 int runClient(const Options& o) {
@@ -190,7 +193,10 @@ int runClient(const Options& o) {
     cfg.host = o.host;
     cfg.port = uint16_t(o.port);
     cfg.playToken = o.token;
+    if (o.platform) client.setOwnPlatform(platformFromName(o.platform));
     client.start(conn, cfg);
+    uint32_t badgeOf[64] = {}, badgeSeen[64] = {}; // doId -> last logged badge (platform badges)
+    bool badgeOk = false;
 
     uint32_t start = plat::nowMs();
     uint32_t lastSend = 0;
@@ -281,6 +287,27 @@ int runClient(const Options& o) {
             }
         }
 
+        // Platform badges: log every change of a toon's badge.
+        for (int i = 0; i < kMaxRemoteToons; i++) {
+            const RemoteToon* t = &client.remoteToonSlot(i);
+            if (!t->active) continue;
+            const uint8_t b = client.badgePlatformFor(t->doId);
+            int slot = -1;
+            for (int k = 0; k < 64 && slot < 0; k++)
+                if (badgeSeen[k] == t->doId || badgeSeen[k] == 0) slot = k;
+            if (slot < 0 || (badgeSeen[slot] == t->doId && badgeOf[slot] == b)) continue;
+            if (badgeSeen[slot] == 0 && b == 0) continue;
+            badgeSeen[slot] = t->doId;
+            badgeOf[slot] = b;
+            TT_LOG("test: BADGE %u \"%s\" %s (we are %s)", unsigned(t->doId), t->name, platformName(b),
+                   platformName(client.ownPlatform()));
+            if (o.expectBadge) {
+                char want[64];
+                snprintf(want, sizeof(want), "%s=%s", t->name, platformName(b));
+                if (!strcasecmp(want, o.expectBadge)) badgeOk = true;
+            }
+        }
+
         // Our toon walks a small circle at 5 Hz.
         if (client.inZone()) {
             if (!sentAnim) sentAnim = client.sendAnimState("run", 1.0f);
@@ -319,6 +346,10 @@ int runClient(const Options& o) {
                unsigned(relocatedTo));
         rc = 1;
     }
+    if (o.expectBadge && !badgeOk) {
+        printf("FAIL: expected badge %s\n", o.expectBadge);
+        rc = 1;
+    }
     if (o.expectReconnect && (zoneEntries < 2 || leftZone < 1)) {
         printf("FAIL: expected a drop and a successful re-entry\n");
         rc = 1;
@@ -347,6 +378,8 @@ int main(int argc, char** argv) {
             else if (!strcmp(argv[i], "--expect-zone")) o.expectZone = true;
             else if (!strcmp(argv[i], "--expect-reconnect")) o.expectReconnect = true;
             else if (!strcmp(argv[i], "--dynamic-hop")) o.dynamicHop = true;
+            else if (!strcmp(argv[i], "--platform") && i + 1 < argc) o.platform = argv[++i];
+            else if (!strcmp(argv[i], "--expect-badge") && i + 1 < argc) o.expectBadge = argv[++i];
         }
         int rc = runClient(o);
         printf("client test: %s\n", rc ? "FAIL" : "PASS");

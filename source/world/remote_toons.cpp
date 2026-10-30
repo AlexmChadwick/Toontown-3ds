@@ -440,12 +440,14 @@ int RemoteToons::shadowPositions(float* xyzs, int maxOut) const {
     return n;
 }
 
-void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
+void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view,
+                              const net::Client& net) const {
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;
         float sx, sy, depth;
         if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + r.look.nametagHeight, &sx, &sy, &depth)) {
-            balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth);
+            balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth, ui::Balloons::kNameColorToon,
+                                net.badgePlatformFor(r.doId));
         }
     }
 }

@@ -19,7 +19,40 @@ char* trim(char* s) {
 
 } // namespace
 
+namespace {
+
+Settings loadServer(const char* path);
+
+// Platform-badge debug override: platform.txt beside server.txt (first word wins).
+void loadPlatformOverride(const char* serverPath, Settings& s) {
+    char path[128];
+    snprintf(path, sizeof(path), "%s", serverPath);
+    char* slash = strrchr(path, '/');
+    if (!slash) return;
+    snprintf(slash + 1, sizeof(path) - size_t(slash + 1 - path), "platform.txt");
+    FILE* f = fopen(path, "r");
+    if (!f) return;
+    char line[32];
+    if (fgets(line, sizeof(line), f)) {
+        if (char* hash = strchr(line, '#')) *hash = '\0';
+        const char* v = trim(line);
+        if (*v) snprintf(s.platform, sizeof(s.platform), "%s", v);
+    }
+    fclose(f);
+    TT_LOG("config: platform override '%s' (%s)", s.platform, path);
+}
+
+} // namespace
+
 Settings load(const char* path) {
+    Settings s = loadServer(path);
+    loadPlatformOverride(path, s);
+    return s;
+}
+
+namespace {
+
+Settings loadServer(const char* path) {
     Settings s;
     FILE* f = fopen(path, "r");
     if (!f) {
@@ -42,11 +75,15 @@ Settings load(const char* path) {
             snprintf(s.token, sizeof(s.token), "%s", value);
         } else if (!strcmp(key, "online")) {
             s.online = atoi(value) != 0;
+        } else if (!strcmp(key, "platform")) {
+            snprintf(s.platform, sizeof(s.platform), "%s", value);
         }
     }
     fclose(f);
     TT_LOG("config: server %s:%d token '%s'%s", s.host, s.port, s.token, s.online ? "" : " (offline)");
     return s;
 }
+
+} // namespace
 
 } // namespace tt::config

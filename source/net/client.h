@@ -39,6 +39,7 @@ namespace tt::golf { struct Movie; }
 // ---- end clerks ----
 #include "net/connection.h"
 #include "net/datagram.h"
+#include "net/platform_badge.h"
 #include "net/quest_net.h"
 #include "net/book_net.h"
 #include "net/boss_state.h"
@@ -1753,6 +1754,16 @@ public:
     bool pollFriendEvent(FriendEvent& out);
     // ===================== end friends API =====================
 
+    // ===================== platform badges (client_platform.cpp) =====================
+    // Our own platform (N3DS unless platform.txt overrides it); a change while in a zone is
+    // re-sent. badgePlatformFor() is the platform whose badge goes on that toon's nametag, or
+    // kPlatformUnknown for none (same platform, unknown, our own toon, or no manager).
+    void setOwnPlatform(uint8_t p);
+    uint8_t ownPlatform() const { return platform_.own; }
+    uint8_t badgePlatformFor(uint32_t avId) const;
+    bool platformSupported() const { return !platform_.unsupported; }
+    // ===================== end platform badges API =====================
+
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
     uint32_t networkToLocal(int16_t networkTime, uint32_t nowMs) const;
@@ -2080,6 +2091,26 @@ private:
     RemoteToon toons_[kMaxRemoteToons];
     int numToons_ = 0;
     uint32_t toonOverflow_ = 0;
+
+    // ===================== platform badges (client_platform.cpp) =====================
+    struct PlatformState {
+        PlatformBook book;
+        uint8_t own = kPlatformN3ds;
+        bool announced = false;       // setMyPlatform sent this session
+        bool sentThisSession = false; // any send to the manager since the last reset
+        bool unsupported = false;     // the server ejected us for using it (kept across sessions)
+        uint32_t lastFlushMs = 0;
+        uint32_t answers = 0;         // setPlatforms received this session
+    };
+    PlatformState platform_;
+    // Handles queued messages; false once one ended the session (eject, fatal error).
+    bool pumpMessages();
+    void platformReset();
+    void platformUpdate();
+    void platformNoteToon(uint32_t avId);
+    bool platformHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    void platformHandleEject(uint16_t code, const char* reason);
+    // ===================== end platform badges (private) =====================
 
     // ===================== friends (client_friends.cpp) =====================
     FriendsState friends_;

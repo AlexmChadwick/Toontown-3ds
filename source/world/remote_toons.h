@@ -35,7 +35,8 @@ public:
     // Draws the nearest kMax toons to (cx, cy).
     void draw(render::Renderer& renderer, float cx, float cy);
     // Adds nametags/balloons for toons in front of the camera.
-    void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const;
+    // net supplies each toon's platform badge (net::Client::badgePlatformFor).
+    void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view, const net::Client& net) const;
     int count() const { return count_; }
     const ToonAvatar* avatar(u32 doId) const; // nullptr if not visible
     // Appends up to maxOut map markers (x, y) for active toons; returns how many were written.

@@ -585,6 +585,7 @@ void Client::resetWorld() {
     districtsDone_ = uberDone_ = zoneDone_ = false;
     zoneReadyMs_ = 0;
     friendsReset(); // friends hook (client_friends.cpp)
+    platformReset(); // platform badges (client_platform.cpp)
 }
 
 void Client::onSessionStart() {
@@ -625,10 +626,26 @@ void Client::update(uint32_t nowMs) {
     }
 
     if (transport_->status() != Transport::Status::Connected || transport_->session() != session_) {
+        // Astron sends CLIENT_EJECT and closes at once: the eject (its code and reason) is still
+        // queued from this session, so handle what arrived before failing on the close.
+        if (transport_->session() == session_ && !pumpMessages()) return;
         fail(transport_->lastError()[0] ? transport_->lastError() : "connection lost", true);
         return;
     }
 
+    if (!pumpMessages()) return;
+
+    friendsUpdate(); // friends hook (client_friends.cpp)
+    maybeFinishEnterZone();
+    platformUpdate(); // platform badges (client_platform.cpp)
+    if (state_ == State::InZone && cfg_.zoneId < kDynamicZonesBegin) lastStaticZone_ = cfg_.zoneId;
+    // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
+    if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
+        fail("server did not answer (timeout)", true);
+    }
+}
+
+bool Client::pumpMessages() {
     for (int i = 0; i < kMaxMessagesPerUpdate; ++i) {
         int n = transport_->recvMessage(rx_, kRxBufferSize);
         if (n == 0) break;
@@ -638,16 +655,9 @@ void Client::update(uint32_t nowMs) {
         noteRxLatency(plat::nowMs());
         DatagramReader r(rx_, uint32_t(n));
         handleMessage(r);
-        if (state_ == State::Backoff || state_ == State::Failed || state_ == State::Idle) return;
+        if (state_ == State::Backoff || state_ == State::Failed || state_ == State::Idle) return false;
     }
-
-    friendsUpdate(); // friends hook (client_friends.cpp)
-    maybeFinishEnterZone();
-    if (state_ == State::InZone && cfg_.zoneId < kDynamicZonesBegin) lastStaticZone_ = cfg_.zoneId;
-    // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
-    if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
-        fail("server did not answer (timeout)", true);
-    }
+    return true;
 }
 
 void Client::noteRxLatency(uint32_t nowMs) {
@@ -710,6 +720,7 @@ void Client::handleMessage(DatagramReader& r) {
         char reason[96];
         r.string(reason, sizeof(reason));
         TT_LOG("net: ejected (%u): %s", unsigned(code), reason);
+        platformHandleEject(code, reason); // platform badges: a server without the manager
         // Retrying cannot fix these; everything else (e.g. 122 from the login
         // manager for a taken slot or bad DNA) reconnects and starts over.
         if (code == kEjectLoggedInElsewhere || code == kEjectBadDcHash || code == kEjectBadVersion) fatal_ = true;
@@ -875,6 +886,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
             TT_LOG("net: toon %u \"%s\" entered (%d here)", unsigned(doId), t->name, numToons_);
             pushEvent(EventType::Spawn, doId);
         }
+        platformNoteToon(doId); // platform badges: requested once per session
         return;
     }
 
@@ -1110,6 +1122,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
     if (handleCogdoField(r, doId, fieldId)) return; // cogdo
     if (handleBossField(r, doId, fieldId)) return; // bosses
     if (friendsHandleSetField(r, doId, fieldId)) return; // friends hook (client_friends.cpp)
+    if (platformHandleSetField(r, doId, fieldId)) return; // platform badges (client_platform.cpp)
     if (doId == kLoginManagerId) {
         handleLoginManagerField(r, fieldId);
         return;

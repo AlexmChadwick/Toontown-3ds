@@ -781,7 +781,8 @@ void Racing::addBalloons(ui::Balloons &balloons, const C3D_Mtx &proj, const C3D_
         const auto *toon = client.findToon(racer.avatar);
         float x, y, depth;
         if (toon && ui::projectToScreen(proj, view, racer.x, racer.y, racer.z + 6, &x, &y, &depth))
-            balloons.addSpeaker(x, y, toon->name, nullptr, 99, depth);
+            balloons.addSpeaker(x, y, toon->name, nullptr, 99, depth, ui::Balloons::kNameColorToon,
+                                client.badgePlatformFor(racer.avatar));
     }
 }
 void Racing::shutdown() {

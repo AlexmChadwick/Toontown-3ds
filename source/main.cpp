@@ -402,6 +402,12 @@ int main() {
     const tt::config::Settings settings = tt::config::load();
     static tt::net::Connection netConn;
     static tt::net::Client net;
+    // Platform badges: we report N3DS unless platform.txt / platform= overrides it (debug).
+    if (settings.platform[0]) {
+        const uint8_t p = tt::net::platformFromName(settings.platform);
+        TT_LOG("platform: override '%s' -> %s", settings.platform, tt::net::platformName(p));
+        net.setOwnPlatform(p);
+    }
     bool netStarted = false;
     bool netConnReady = false;
     // Starts the client; manual = the front end picks/creates the toon.
@@ -2764,7 +2770,7 @@ int main() {
             if (racing.active())
                 racing.addBalloons(balloons, proj, view, net);
             else
-                remoteToons.addBalloons(balloons, proj, view);
+                remoteToons.addBalloons(balloons, proj, view, net);
             // ---- end racing2 ----
             {
                 u32 talker = 0;

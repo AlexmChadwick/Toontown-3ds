@@ -54,6 +54,11 @@ for _n in ('otp.dc', 'toon.dc'):
     if not dc.read(os.path.join(ETC, _n)):
         sys.exit(f'cannot read {_n}')
 DC_HASH = dc.getHash()
+# ---- platform badges: third dc file, read after the hash is taken (manual_dc_hash) ----
+PLATFORM_MANAGER = 4721
+if not dc.read(os.path.join(HERE, '..', 'server', 'platform', 'platform.dc')):
+    sys.exit('cannot read platform.dc')
+# ---- end platform badges ----
 CLS = {dc.getClass(i).getName(): dc.getClass(i) for i in range(dc.getNumClasses())}
 T0 = time.monotonic()
 
@@ -164,6 +169,8 @@ class World:
         self.walker.parent, self.walker.zone = DISTRICT_ID, TTC
         self.stander = Avatar(STANDER_ID, 'Stander', STANDER_DNA)
         self.stander.parent, self.stander.zone = DISTRICT_ID, TTC
+        self.platforms = {}  # avId -> platform (TTPlatformManagerUD, minimal)
+        self.platform_watchers = {}  # avId -> set of ClientConn
 
     def watchers(self, parent, zone, exclude=None):
         return [c for c in self.clients if c is not exclude and c.has_interest(parent, zone)]
@@ -298,6 +305,10 @@ class ClientConn:
             cls = TOON
         elif doId == TIME_MANAGER_ID and self.avatar:
             cls = CLS['TimeManager']
+        elif doId == PLATFORM_MANAGER:
+            if self.args.no_platform:  # stock astrond.yml: not an uberdog (Astron's own message)
+                return await self.eject(117, f'Client tried to send update to nonexistent object {doId}')
+            cls = CLS['TTPlatformManager']
         else:
             return await self.eject(113, f'update to unknown/unowned object {doId}')
         f = cls.getFieldByIndex(fnum)
@@ -311,6 +322,9 @@ class ClientConn:
         if self.token is None and doId != LOGIN_MANAGER:
             return await self.eject(113, 'sandboxed client may only talk to the login manager')
         name = f.getName()
+        if cls.getName() == 'TTPlatformManager':
+            self.on_platform_field(name, data)
+            return
         if cls is TOON:
             self.on_own_field(f, data)
             return
@@ -403,6 +417,39 @@ class ClientConn:
             payload += other_blob(TOON, [('setAnimState', '("neutral", 1.0, 0)'),
                                          ('setEmoteAccess', '([' + ','.join(['1']*25) + '])')])
             self.send(msg(CLIENT_ENTER_OBJECT_REQUIRED_OTHER_OWNER, payload))
+
+    # ---- platform badges (tools/server/platform/README.md, minimal UD) ----
+    def send_platforms(self, pairs):
+        ids = b''.join(struct.pack('<I', a) for a, _ in pairs)
+        ps = bytes(p for _, p in pairs)
+        body = struct.pack('<IH', PLATFORM_MANAGER, CLS['TTPlatformManager'].getFieldByName('setPlatforms').getNumber())
+        self.send(msg(CLIENT_OBJECT_SET_FIELD, body + struct.pack('<H', len(ids)) + ids + struct.pack('<H', len(ps)) + ps))
+
+    def on_platform_field(self, name, data):
+        if not self.avatar:
+            return
+        me = self.avatar.doId
+        if name == 'setMyPlatform':
+            p = data[0] if data[0] <= 8 else 0
+            self.stats['platform'] = p
+            log(f'{self.peer} PLATFORM set {me} = {p}')
+            world.platforms[me] = p
+            for c in list(world.platform_watchers.get(me, ())):
+                if c in world.clients:
+                    c.send_platforms([(me, p)])
+        elif name == 'requestPlatforms':
+            (n,) = struct.unpack_from('<H', data)
+            ids = list(struct.unpack_from(f'<{n // 4}I', data, 2))
+            log(f'{self.peer} PLATFORM request {ids}')
+            known = []
+            for a in ids:
+                if a and a != me:
+                    world.platform_watchers.setdefault(a, set()).add(self)
+                    if a in world.platforms:
+                        known.append((a, world.platforms[a]))
+            if known:
+                self.send_platforms(known)
+    # ---- end platform badges ----
 
     def on_own_field(self, f, data):
         name = f.getName()
@@ -553,6 +600,8 @@ async def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--port', type=int, default=7298)
     ap.add_argument('--clerks', choices=('stock', 'offers'), default='', help='opt-in service-clerk fixtures')
+    ap.add_argument('--no-platform', action='store_true',
+                    help='no TTPlatformManager uberdog (stock astrond.yml): sending to 4721 ejects 117')
     ap.add_argument('--drop-after', type=float, default=0,
                     help='close the first in-zone connection after this many seconds (reconnect test)')
     args = ap.parse_args()

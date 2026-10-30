@@ -4,6 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 
+#include "core/memory.h"
+#include "ui/platform_badges_atlas.h"
+
 namespace tt::ui {
 
 namespace {
@@ -16,6 +19,7 @@ constexpr float kBubblePadX = 7.0f, kBubblePadY = 5.0f, kBubbleRadius = 7.0f;
 constexpr float kTailH = 9.0f, kTailHalfW = 5.0f;
 constexpr float kScreenPad = 2.0f;
 constexpr int kMaxLines = 6;
+constexpr float kBadgeGap = 2.0f; // badge to name
 
 // Quarter-circle offsets (cos, sin) for rounded corners, 3 segments.
 constexpr int kArcSegs = 3;
@@ -57,10 +61,26 @@ bool Balloons::init() {
     fontScale_ = g && g->cellHeight ? 30.0f / g->cellHeight : 1.0f;
     buf_ = C2D_TextBufNew(kGlyphCapacity);
     cache_ = static_cast<Entry*>(calloc(kCacheSlots, sizeof(Entry)));
+    // Platform badges: 4 KiB of linear memory, once. Without it nametags just have no badge.
+    {
+        mem::LinearGuard g;
+        badgeReady_ = C3D_TexInit(&badgeTex_, kBadgeTexW, kBadgeTexH, GPU_RGBA4);
+    }
+    if (badgeReady_) {
+        memcpy(badgeTex_.data, kBadgeTexels, sizeof(kBadgeTexels));
+        C3D_TexFlush(&badgeTex_);
+        C3D_TexSetFilter(&badgeTex_, GPU_NEAREST, GPU_NEAREST); // drawn 1:1 at whole pixels
+        C3D_TexSetWrap(&badgeTex_, GPU_CLAMP_TO_EDGE, GPU_CLAMP_TO_EDGE);
+    }
     return buf_ && cache_;
 }
 
 void Balloons::shutdown() {
+    if (badgeReady_) {
+        mem::LinearGuard g;
+        C3D_TexDelete(&badgeTex_);
+    }
+    badgeReady_ = false;
     if (buf_) C2D_TextBufDelete(buf_);
     buf_ = nullptr;
     free(cache_);
@@ -70,7 +90,7 @@ void Balloons::shutdown() {
 void Balloons::begin() { numSpeakers_ = 0; }
 
 void Balloons::addSpeaker(float sx, float sy, const char* name, const char* phrase, float ageSec, float depth,
-                          u32 nameColor) {
+                          u32 nameColor, u8 badge) {
     if (numSpeakers_ >= kMaxSpeakers) return;
     Speaker& s = speakers_[numSpeakers_++];
     s.sx = sx;
@@ -81,6 +101,19 @@ void Balloons::addSpeaker(float sx, float sy, const char* name, const char* phra
     s.phrase = phrase && phrase[0] && ageSec < kHoldSec + kFadeSec ? phrase : nullptr;
     s.nameColor = nameColor;
     s.nameEntry = s.phraseEntry = -1;
+    s.badge = badge >= 1 && badge <= kBadgeCount ? badge : 0;
+}
+
+void Balloons::drawBadge(u8 platform, float x, float y) const {
+    Tex3DS_SubTexture sub;
+    sub.width = kBadgeCell;
+    sub.height = kBadgeCell;
+    sub.left = float((platform - 1) * kBadgeCell) / kBadgeTexW;
+    sub.right = float(platform * kBadgeCell) / kBadgeTexW;
+    sub.top = 1.0f; // first texel row = image top (tex3ds orientation)
+    sub.bottom = 0.0f;
+    C2D_Image img{const_cast<C3D_Tex*>(&badgeTex_), &sub};
+    C2D_DrawImageAt(img, floorf(x + 0.5f), floorf(y + 0.5f), kZ);
 }
 
 void Balloons::flush() {
@@ -236,12 +269,18 @@ void Balloons::draw(C3D_RenderTarget* top, float parallaxPx) {
                          withAlpha(kInk, a));
         } else if (s.nameEntry >= 0) {
             const Entry& e = cache_[s.nameEntry];
-            const float bw = e.w + 2 * kNamePad, bh = e.h + kNamePad;
+            // Platform badge left of the name, inside the tag (1:1, about the name's cap height).
+            const bool badge = s.badge && badgeReady_;
+            const float badgeW = badge ? kBadgeCell + kBadgeGap : 0.0f;
+            const float textH = e.h + kNamePad;
+            const float bw = e.w + badgeW + 2 * kNamePad;
+            const float bh = badge && kBadgeCell + 2.0f > textH ? kBadgeCell + 2.0f : textH;
             const float bx = clampf(headX - bw * 0.5f, kScreenPad, kTopW - kScreenPad - bw);
             const float by = clampf(s.sy - bh, kScreenPad, kTopH - kScreenPad - bh);
             roundRect(bx, by, bw, bh, kNameRadius, kWhiteA);
-            C2D_DrawText(&e.text, C2D_WithColor, bx + kNamePad, by + kNamePad * 0.5f, kZ, kNameScale, kNameScale,
-                         s.nameColor);
+            if (badge) drawBadge(s.badge, bx + kNamePad, by + (bh - kBadgeCell) * 0.5f);
+            C2D_DrawText(&e.text, C2D_WithColor, bx + kNamePad + badgeW, by + (bh - textH) * 0.5f + kNamePad * 0.5f,
+                         kZ, kNameScale, kNameScale, s.nameColor);
         }
     }
 

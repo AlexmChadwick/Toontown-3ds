@@ -8,11 +8,12 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-PY="$ROOT/.venv/bin/python"
+PY="${PY:-$ROOT/.venv/bin/python}"
+[ -x "$PY" ] || PY="$ROOT/tools/server/.venv/bin/python"
 OUT="$HERE/out"
 PORT="${PORT:-7298}"
 # The main checkout has ref/open-toontown; agent worktrees link the main checkout's ref/ as ref/ref.
-TT_ETC="$ROOT/ref/open-toontown/etc"
+TT_ETC="${TT_ETC:-$ROOT/ref/open-toontown/etc}"
 [ -f "$TT_ETC/otp.dc" ] || TT_ETC="$ROOT/ref/ref/open-toontown/etc"
 export TT_ETC
 mkdir -p "$OUT"
@@ -68,6 +69,39 @@ start_server --drop-after 4
 "$OUT/nettest" client --port "$PORT" --token erin --seconds 12 --dynamic-hop --expect-reconnect > "$OUT/client4.log" 2>&1 || fail=1
 stop_server
 grep -E "changing zone|dynamic|RELOCATED|ENTERED ZONE|client test" "$OUT/client4.log"
+
+step "platform badges (two clients, MAC and N3DS)"
+start_server
+"$OUT/nettest" client --port "$PORT" --token frank --seconds 12 --platform mac --expect-badge "Toon=N3DS" > "$OUT/client5a.log" 2>&1 &
+A=$!
+sleep 3
+"$OUT/nettest" client --port "$PORT" --token gina --seconds 6 --expect-badge "Toon=MAC" > "$OUT/client5b.log" 2>&1 || fail=1
+wait $A || fail=1
+stop_server
+grep -E "BADGE|platform:|client test" "$OUT/client5a.log" "$OUT/client5b.log"
+grep -q "PLATFORM set .* = 2" "$OUT/server.log" || { echo "FAIL: MAC client did not send setMyPlatform(2)"; fail=1; }
+grep -q "PLATFORM set .* = 7" "$OUT/server.log" || { echo "FAIL: 3DS client did not send setMyPlatform(7)"; fail=1; }
+grep -q "BADGE .*\"Walker\"\|BADGE .*\"Stander\"" "$OUT/client5a.log" "$OUT/client5b.log" && { echo "FAIL: badge on a toon with no platform"; fail=1; }
+grep -q "EJECT" "$OUT/server.log" && { echo "FAIL: client was ejected"; fail=1; }
+
+step "platform badges: same platform shows no badge"
+start_server
+"$OUT/nettest" client --port "$PORT" --token hal --seconds 10 > "$OUT/client6a.log" 2>&1 &
+A=$!
+sleep 3
+"$OUT/nettest" client --port "$PORT" --token ida --seconds 6 > "$OUT/client6b.log" 2>&1 || fail=1
+wait $A || fail=1
+stop_server
+grep -q "BADGE" "$OUT/client6a.log" "$OUT/client6b.log" && { echo "FAIL: N3DS toon got a badge on N3DS"; fail=1; }
+grep -c "PLATFORM request" "$OUT/server.log" | sed 's/^/requests: /'
+
+step "platform badges: server without the manager (stock astrond.yml)"
+start_server --no-platform
+"$OUT/nettest" client --port "$PORT" --token jo --seconds 14 --expect-zone --expect-reconnect > "$OUT/client7.log" 2>&1 || fail=1
+stop_server
+grep -E "ejected|badges off|ENTERED ZONE|client test" "$OUT/client7.log"
+[ "$(grep -c "EJECT 117" "$OUT/server.log")" = 1 ] || { echo "FAIL: expected exactly one 117 eject"; fail=1; }
+grep -q "badges off for this run" "$OUT/client7.log" || { echo "FAIL: client did not turn badges off"; fail=1; }
 
 if [ $fail -eq 0 ]; then echo "ALL NET TESTS PASSED"; else echo "NET TESTS FAILED"; fi
 exit $fail

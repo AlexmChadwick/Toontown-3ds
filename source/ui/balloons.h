@@ -36,9 +36,10 @@ public:
     // units). phrase may be null/empty for "nametag only". ageSec is the time since the
     // phrase was said; past kHoldSec + kFadeSec the nametag is shown instead. depth (eye
     // distance, from projectToScreen) orders drawing far-to-near. Extra speakers beyond
-    // kMaxSpeakers are dropped (callers should add nearest first).
+    // kMaxSpeakers are dropped (callers should add nearest first). badge: platform enum
+    // (net/platform_badge.h) drawn left of the name, 0 = none; never on the speech balloon.
     void addSpeaker(float sx, float sy, const char* name, const char* phrase, float ageSec, float depth = 0.0f,
-                    u32 nameColor = kNameColorToon);
+                    u32 nameColor = kNameColorToon, u8 badge = 0);
     // Draws on the top target. Must be inside C3D_FrameBegin/End, after Renderer::endWorld()
     // and C2D_Prepare(). parallaxPx shifts everything horizontally (stereo: +/- per eye).
     void draw(C3D_RenderTarget* top, float parallaxPx = 0.0f);
@@ -61,12 +62,17 @@ private:
         const char* phrase;
         u32 nameColor;
         int nameEntry, phraseEntry;
+        u8 badge;
     };
 
     int resolve(const char* s, bool wrap); // -1 if the cache must be flushed first
     void flush();
     void wrapInto(const char* src, char* dst, int cap) const;
 
+    void drawBadge(u8 platform, float x, float y) const;
+
+    C3D_Tex badgeTex_{}; // platform badges (ui/platform_badges_atlas.h), 128x16 RGBA4
+    bool badgeReady_ = false;
     C2D_TextBuf buf_ = nullptr;
     Entry* cache_ = nullptr; // kCacheSlots, heap (keeps the object small)
     Speaker speakers_[kMaxSpeakers];
