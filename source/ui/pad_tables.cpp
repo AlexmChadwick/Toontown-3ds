@@ -11,7 +11,7 @@ void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, con
     }
     for (int t = 0; t < kTracks; t++) {
         for (int l = 0; l < kLevels; l++) {
-            group.addItem(gagId(t, l), kGridX + l * (kCellW + kCellGap), kGridY + t * kRowH, kCellW, kRowH - 2,
+            group.addItem(gagId(t, l), kGridX + l * kCellPitch, kGridY + t * kRowH, kCellW, kRowH - 1,
                           usable[t * kLevels + l]);
         }
     }

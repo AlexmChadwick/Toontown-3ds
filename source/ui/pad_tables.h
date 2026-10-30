@@ -16,7 +16,11 @@ constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 18, kCogH = 40, kCogW = 78, kCogGap = 1;
-constexpr float kGridY = 62, kRowH = 19, kGridX = 60, kCellW = 35, kCellGap = 2;
+// The gag grid: InventoryNew's track rows (InventoryRow, kRowX..kRowX + kRowW) with a gag button
+// on each of the row's seven slots (ui/inventory_art.h: slot 0 at 0.2115, pitch 0.1111 of the row).
+constexpr float kGridY = 62, kRowH = 19, kRowX = 4, kRowW = 312;
+constexpr float kCellPitch = kRowW * 0.1111f, kCellGap = 1;
+constexpr float kGridX = kRowX + kRowW * (0.2115f + 0.0520f) - kCellPitch * 0.5f, kCellW = kCellPitch - kCellGap;
 // The bottom strip. InventoryNew's battle buttons sit in a 2 x 2 block, as upstream: Fire and
 // Pass above Run and SOS. In the SOS and Fire panels the block holds Back (and the SOS page).
 constexpr float kBtnY = 198, kBtnH = 40;

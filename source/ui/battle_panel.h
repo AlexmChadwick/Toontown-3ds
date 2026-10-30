@@ -44,7 +44,8 @@ private:
     void drawButtons(const world::BattleView& v);
     void drawSos(const world::BattleView& v);
     void drawFire(const world::BattleView& v);
-    void smallButton(float x, float y, float w, bool enabled, const char* label);
+    void smallButton(float x, float y, float w, bool enabled, const char* label, bool hover = false);
+    void rightText(float right, float y, float scale, u32 color, const char* str);
     bool sosCallable(const world::BattleView& v, int card) const;
     bool fireable(const world::BattleView& v, int cog) const;
     void centered(float cx, float y, float scale, u32 color, float maxW, const char* str);

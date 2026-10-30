@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "ui/gag_data.h"
+#include "ui/inventory_art.h"
 #include "ui/pad_tables.h"
 #include "ui/sos_tables.h"
 #include "core/log.h"
@@ -29,7 +30,13 @@ static_assert(pad::battle::kTracks == gags::kTracks && pad::battle::kLevels == g
 
 const u32 kInk = theme::kInk;
 const u32 kInkSoft = theme::kInkSoft;
-constexpr u32 kInvBlue = theme::rgb(0x00, 0x99, 0xFF); // InventoryNew battle buttons: image_color (0, 0.6, 1)
+// TownBattle's BATTLE_Menu (phase_3.5/models/gui/battle_gui): a red frame with a darker recess
+// behind the track rows, the buttons and toon panels on its rim.
+constexpr u32 kMenuRed = theme::rgb(0xE0, 0x1E, 0x16), kMenuEdge = theme::rgb(0x4A, 0x0C, 0x08);
+constexpr u32 kMenuRecess = theme::rgb(0x9C, 0x2A, 0x20), kMenuRecessEdge = theme::rgb(0x56, 0x14, 0x0F);
+constexpr u32 kTrackInk = theme::rgb(0x33, 0x33, 0x33); // trackNameLabels text_fg (0.2, 0.2, 0.2)
+static_assert(pad::battle::kRowW * inventory::kSlotPitch == pad::battle::kCellPitch,
+              "the focus table's gag cells sit on the InventoryRow slots");
 constexpr u32 kSlipPink = theme::rgb(0xFF, 0xC4, 0xD4);
 constexpr u32 kStar = theme::rgb(0xF6, 0xC0, 0x10), kStarDark = theme::rgb(0xA8, 0x70, 0x00);
 
@@ -356,7 +363,27 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Sos)
         status = v.numSosCards > 0 ? "Call which friend?" : "No friends to call!";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Fire) status = "Fire which Cog?";
-    text(6, 0, 0.45f, kInk, "%s", status);
+    // InventoryNew's detailFrame for the focused gag (upstream shows it on rollover): name,
+    // "have / max", Damage (Toon-up) and whom it affects, in the detail labels' navy.
+    const int hover = focus_.hasFocus() ? focus_.focusedId() : -1;
+    if (v.phase == world::BattlePhase::Input && mode_ == Mode::Attack && pad::battle::isGagId(hover) && g.count &&
+        g.exp) {
+        constexpr u32 kDetailInk = theme::rgb(0x0D, 0x24, 0x66); // (0.05, 0.14, 0.4)
+        const int t = hover / 10, l = hover % 10;
+        const int levels = gags::levelsUnlocked(t, g.exp[t]);
+        const int maxItems = levels > 0 ? gags::kCarry[t][levels - 1][l] : 0;
+        char stats[64];
+        snprintf(stats, sizeof stats, "%u / %d   %s: %d   %s %s", unsigned(g.count[t][l]), maxItems,
+                 t == 0 ? "Toon-up" : "Damage", gags::propDamage(t, l, g.exp[t]),
+                 gags::kGroup[t][l] ? "All" : "One", t == 0 ? (gags::kGroup[t][l] ? "Toons" : "Toon")
+                                                             : (gags::kGroup[t][l] ? "Cogs" : "Cog"));
+        C2D_Text name;
+        textCache_.parse(&name, buf_, gags::kGagNames[t][l], 1024);
+        theme::textFit(name, 6, 1, 0.45f, kDetailInk, 128, 0.6f);
+        rightText(kW - 7, 2.5f, 0.38f, kDetailInk, stats);
+    } else {
+        text(6, 0, 0.45f, kInk, "%s", status);
+    }
     // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
 
     // Cogs: name, head, level and the chest light's health. The target wears a red frame.
@@ -449,36 +476,50 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     }
 
     const bool choosing = v.phase == world::BattlePhase::Input;
+    // BATTLE_Menu under the grid, the buttons and the toon panels.
+    {
+        const float top = kGridY - 5;
+        theme::roundRect(0, top, kW, 240 - top + 8, 9, kMenuEdge, 0.5f);
+        theme::roundRect(1, top + 1, kW - 2, 240 - top + 8, 8, kMenuRed, 0.5f);
+        theme::roundRect(2, kGridY - 3, kW - 4, gags::kTracks * kRowH + 4, 6, kMenuRecessEdge, 0.5f);
+        theme::roundRect(3, kGridY - 2, kW - 6, gags::kTracks * kRowH + 2, 5, kMenuRecess, 0.5f);
+    }
     if (choosing && mode_ == Mode::Sos) {
         drawSos(v);
     } else if (choosing && mode_ == Mode::Fire) {
         drawFire(v);
     } else {
-        // Gag grid: one row per track, a cell per level with our count.
-        theme::paper(1, kGridY - 3, kW - 2, gags::kTracks * kRowH + 4, 5.0f);
+        // InventoryNew's battle grid: a track row per track in its colour, the name and the
+        // experience bar in the row's label, a gag button on each slot the track has reached.
+        const int focused = focus_.hasFocus() ? focus_.focusedId() : -1;
         for (int t = 0; t < gags::kTracks; t++) {
-            const float y = kGridY + t * kRowH;
+            const float y = kGridY + t * kRowH, rh = kRowH - 1;
             const bool have = g.access && g.access[t];
-            // InventoryNew tints every track row; a track still to earn just has no gag buttons.
             const u32 col = theme::kTrackColors[t];
-            theme::roundRect(4, y, kGridX - 6, kRowH - 2, 4, have ? col : theme::mix(col, theme::kPaper, 0.55f));
-            text(8, y + 1, 0.38f, have ? kInk : kInkSoft, "%s", theme::kTrackTitles[t]);
-            if (!have) {
-                theme::roundRect(kGridX, y, gags::kLevels * (kCellW + 2) - 2, kRowH - 2, 4,
-                                 theme::mix(col, theme::kPaper, 0.82f));
-                continue;
-            }
-            if (!g.count) continue;
-            const int levels = gags::levelsUnlocked(t, g.exp[t]);
+            inventory::drawRow(pad::battle::kRowX, y, pad::battle::kRowW, rh, col, 0.52f);
+            const float labelW = pad::battle::kRowW * inventory::kSlot0 - 15;
+            text(pad::battle::kRowX + 10, y - 0.5f, 0.36f, kTrackInk, "%s", theme::kTrackCaps[t]);
+            if (!have || !g.count) continue; // hideTrack: the name over empty slots
+            // trackBars: curExp / nextExp in the track colour x 0.9 on x 0.6, under the name.
+            const uint16_t exp = g.exp ? g.exp[t] : 0;
+            const int levels = gags::levelsUnlocked(t, exp);
+            // getCurAndNextExpValues: range = the next level's experience, or UberSkill past regMaxSkill.
+            constexpr int kRegMaxSkill = 10000, kUberSkill = 500;
+            float frac = exp >= kRegMaxSkill ? float(exp - kRegMaxSkill) / kUberSkill : 1.0f;
+            if (exp < kRegMaxSkill && levels < gags::kLevels) frac = float(exp) / gags::kLevelExp[t][levels];
+            const float bx = pad::battle::kRowX + 10, by = y + rh - 5.5f;
+            theme::roundRect(bx, by, labelW, 4, 2, theme::shade(col, 0.6f), 0.53f);
+            if (frac > 0.0f) theme::roundRect(bx, by, labelW * (frac > 1 ? 1 : frac), 4, 2, theme::shade(col, 0.9f), 0.54f);
             for (int l = 0; l < levels; l++) {
-                const float x = kGridX + l * (kCellW + 2);
                 const bool ok = choosing && usable(v, g, t, l);
-                const u32 face = ok ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.55f) : theme::kPaperShade;
-                theme::roundRect(x, y, kCellW, kRowH - 2, 4,
-                                 ok ? theme::shade(theme::kTrackColors[t], 0.7f) : theme::kGrey);
-                theme::roundRect(x + 1, y + 1, kCellW - 2, kRowH - 4, 3, face);
-                world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 15.0f, 0.55f, ok ? 1.0f : 0.4f);
-                text(x + 20, y + 1.5f, 0.38f, ok ? kInk : kInkSoft, "%u", unsigned(g.count[t][l]));
+                const bool hover = ok && focused == pad::battle::gagId(t, l);
+                float r[4];
+                inventory::drawGagButton(!ok ? InventoryArt::Flat : hover ? InventoryArt::Rollover : InventoryArt::Up,
+                                         ok ? inventory::kPressable : inventory::kUnpressable, t, l,
+                                         pad::battle::kRowX, y, pad::battle::kRowW, rh, ok ? 1.0f : 0.3f, r, 0.55f);
+                char num[8];
+                snprintf(num, sizeof num, "%u", unsigned(g.count[t][l]));
+                rightText(r[0] + r[2] - 5, r[1] + r[3] - 12.0f, 0.32f, theme::kWhite, num);
             }
         }
         drawButtons(v);
@@ -489,18 +530,29 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
 
 // InventoryNew's battle button: the rounded InventoryButton face in image_color (0, 0.6, 1)
 // with white text; a disabled one (Fire without pink slips) in (0.4, 0.4, 0.4).
-void BattlePanel::smallButton(float x, float y, float w, bool enabled, const char* label) {
-    const u32 face = enabled ? kInvBlue : theme::rgb(0x8A, 0x8A, 0x8A);
-    theme::button(x, y, w, pad::battle::kSmallH, face, theme::shade(face, 0.62f), false, 5.0f);
-    centered(x + w * 0.5f, y + 2, 0.42f, enabled ? theme::kWhite : theme::rgb(0xD8, 0xD8, 0xD8), w - 6, label);
+void BattlePanel::smallButton(float x, float y, float w, bool enabled, const char* label, bool hover) {
+    inventory::drawButton(hover && enabled ? InventoryArt::Rollover : InventoryArt::Up, x, y, w, pad::battle::kSmallH,
+                          enabled ? inventory::kPressable : inventory::kDisabled, 0.55f);
+    centered(x + w * 0.5f, y + 2, 0.42f, enabled ? theme::kWhite : theme::rgb(0xC8, 0xC8, 0xC8), w - 10, label);
+}
+
+void BattlePanel::rightText(float right, float y, float scale, u32 color, const char* str) {
+    C2D_Text t;
+    textCache_.parse(&t, buf_, str, 1024);
+    float w = 0.0f;
+    C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
+    C2D_DrawText(&t, C2D_WithColor, right - w, y, 0.6f, scale, scale, color);
 }
 
 void BattlePanel::drawButtons(const world::BattleView& v) {
     const bool choosing = v.phase == world::BattlePhase::Input;
-    smallButton(pad::battle::kFireX, kBtnY, pad::battle::kSmallW, choosing && v.canFire, "FIRE");
-    smallButton(pad::battle::kPassX, kBtnY, pad::battle::kSmallW, choosing, "PASS");
-    smallButton(pad::battle::kRunX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canRun, "RUN");
-    smallButton(pad::battle::kSosX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canSos, "SOS");
+    const int f = choosing && focus_.hasFocus() ? focus_.focusedId() : -1;
+    smallButton(pad::battle::kFireX, kBtnY, pad::battle::kSmallW, choosing && v.canFire, "FIRE", f == pad::battle::kIdFire);
+    smallButton(pad::battle::kPassX, kBtnY, pad::battle::kSmallW, choosing, "PASS", f == pad::battle::kIdPass);
+    smallButton(pad::battle::kRunX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canRun, "RUN",
+                f == pad::battle::kIdRun);
+    smallButton(pad::battle::kSosX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canSos, "SOS",
+                f == pad::battle::kIdSos);
 }
 
 // TownBattleSOSPanel: "Call which friend?" over the Rescued Toons (NPCFriendPanel's cards: the
@@ -567,7 +619,7 @@ void BattlePanel::drawFire(const world::BattleView& v) {
 void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str) {
     C2D_Text t;
     textCache_.parse(&t, buf_, str, 1024);
-    theme::textCentered(t, cx, y, scale, color, maxW);
+    theme::textCentered(t, cx, y, scale, color, maxW, 0.6f);
 }
 
 // TownBattleToonPanel: every toon in the battle with its laff meter (the species head in its
