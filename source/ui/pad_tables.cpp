@@ -27,6 +27,16 @@ void buildBattleReward(FocusGroup& group) {
     group.addItem(kIdContinue, kContinueX, kBtnY, kBtnW, kBtnH);
 }
 
+void buildBattleToonTargets(FocusGroup& group, int numTargets) {
+    using namespace battle;
+    group.rebuild();
+    if (numTargets > kMaxToonTargets) numTargets = kMaxToonTargets;
+    for (int i = 0; i < numTargets; ++i) {
+        group.addItem(kIdToon0 + i, kTargetX, kTargetY + i * (kTargetH + kTargetGap), kTargetW, kTargetH);
+    }
+    group.addItem(kIdTargetBack, kTargetBackX, kTargetBackY, kTargetBackW, kTargetBackH);
+}
+
 void buildQuestPages(FocusGroup& group) {
     using namespace quest;
     group.rebuild();

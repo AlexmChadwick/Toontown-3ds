@@ -182,6 +182,17 @@ void testBattleTable() {
     CHECK(tap(group, int(b::kSosX) + 5, int(b::kBtnY) + 5) == b::kIdSos);
     pad::buildBattleReward(group);
     CHECK(group.count() == 1 && group.item(0).id == b::kIdContinue);
+
+    pad::buildBattleToonTargets(group, 3);
+    CHECK(group.count() == 4);
+    CHECK(tap(group, int(b::kTargetX + 5), int(b::kTargetY + b::kTargetH + b::kTargetGap + 5)) ==
+          b::kIdToon0 + 1);
+    group.setFocusById(b::kIdToon0);
+    group.move(0, 1);
+    CHECK(group.focusedId() == b::kIdToon0 + 1);
+    group.move(0, -1);
+    CHECK(group.focusedId() == b::kIdToon0);
+    CHECK(tap(group, int(b::kTargetBackX + 5), int(b::kTargetBackY + 5)) == b::kIdTargetBack);
 }
 
 void testQuestTables() {

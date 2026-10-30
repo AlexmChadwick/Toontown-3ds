@@ -48,6 +48,8 @@ private:
     world::BattleAction pending_{};
     FocusGroup focus_{"battle"};
     bool choosingSos_ = false;
+    bool choosingToon_ = false;
+    int pendingHealLevel_ = -1;
 };
 
 } // namespace tt::ui

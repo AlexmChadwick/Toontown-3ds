@@ -142,6 +142,8 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     }
     if (v.phase != world::BattlePhase::Input) {
         choosingSos_ = false;
+        choosingToon_ = false;
+        pendingHealLevel_ = -1;
         focus_.clear(); // the next round starts on the first usable gag again
         return kAllButtons;
     }
@@ -190,6 +192,32 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         return kAllButtons;
     }
 
+    if (choosingToon_) {
+        int toonSlots[pad::battle::kMaxToonTargets] = {};
+        int toonCount = 0;
+        for (int i = 0; i < v.numToons && toonCount < pad::battle::kMaxToonTargets; ++i) {
+            if (v.toons[i].active && !v.toons[i].local) toonSlots[toonCount++] = i;
+        }
+        pad::buildBattleToonTargets(focus_, toonCount);
+        if (!focus_.hasFocus()) focus_.setFocusById(toonCount ? pad::battle::kIdToon0
+                                                              : pad::battle::kIdTargetBack);
+        int activated = -1;
+        focus_.handleInput(keysDown, touch, &activated);
+        if ((keysDown & KEY_B) || activated == pad::battle::kIdTargetBack || toonCount == 0) {
+            choosingToon_ = false;
+            pendingHealLevel_ = -1;
+            focus_.clear();
+        } else if (activated >= pad::battle::kIdToon0 && activated < pad::battle::kIdToon0 + toonCount) {
+            pending_.kind = world::BattleAction::Attack;
+            pending_.track = world::kTrackHeal;
+            pending_.level = pendingHealLevel_;
+            pending_.target = v.toons[toonSlots[activated - pad::battle::kIdToon0]].doId;
+            choosingToon_ = false;
+            pendingHealLevel_ = -1;
+        }
+        return kAllButtons;
+    }
+
     pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, g.pinkSlips > 0, sosCount > 0);
     if (!focus_.hasFocus()) {
         // Like TownBattle's attack panel: start on the first gag we can use, else Pass.
@@ -224,10 +252,21 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         const int t = activated / 10;
         const int l = activated % 10;
         if (usable(v, g, t, l)) {
-            pending_.kind = world::BattleAction::Attack;
-            pending_.track = t;
-            pending_.level = l;
-            pending_.target = world::attackAffectsGroup(t, l) ? 0 : targetFor(v, t);
+            int healTargets = 0;
+            if (t == world::kTrackHeal && !world::attackAffectsGroup(t, l)) {
+                for (int i = 0; i < v.numToons; ++i)
+                    healTargets += v.toons[i].active && !v.toons[i].local;
+            }
+            if (healTargets > 1) {
+                choosingToon_ = true;
+                pendingHealLevel_ = l;
+                focus_.clear();
+            } else {
+                pending_.kind = world::BattleAction::Attack;
+                pending_.track = t;
+                pending_.level = l;
+                pending_.target = world::attackAffectsGroup(t, l) ? 0 : targetFor(v, t);
+            }
         }
     } else if (activated == pad::battle::kIdPass) {
         pending_.kind = world::BattleAction::Pass;
@@ -315,6 +354,28 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
         shape::roundFrame(110, 210, 0.54f, 100, 28, 9, 2, kSlotFrame, kSlotPaper);
         text(143, 216, 0.5f, kInk, "Back");
+        focus_.drawHighlight();
+        return;
+    }
+
+    if (choosingToon_ && v.phase == world::BattlePhase::Input) {
+        shape::roundRect(2, 18, 0.52f, 316, 188, 8, kSlotPaper);
+        text(10, 24, 0.52f, kInk, "Who needs Toon-Up?");
+        int shown = 0;
+        for (int i = 0; i < v.numToons && shown < pad::battle::kMaxToonTargets; ++i) {
+            if (!v.toons[i].active || v.toons[i].local) continue;
+            const float y = pad::battle::kTargetY + shown * (pad::battle::kTargetH + pad::battle::kTargetGap);
+            shape::roundFrame(pad::battle::kTargetX, y, 0.54f, pad::battle::kTargetW,
+                              pad::battle::kTargetH, 10, 2, kSlotFrame, kWhite);
+            C2D_DrawRectSolid(pad::battle::kTargetX + 5, y + 5, 0.57f, 6,
+                              pad::battle::kTargetH - 10, kTrackColor[world::kTrackHeal]);
+            text(pad::battle::kTargetX + 20, y + 9, 0.52f, kInk, "%s", v.toons[i].name);
+            ++shown;
+        }
+        shape::roundFrame(pad::battle::kTargetBackX, pad::battle::kTargetBackY, 0.54f,
+                          pad::battle::kTargetBackW, pad::battle::kTargetBackH, 9, 2,
+                          kSlotFrame, kSlotPaper);
+        text(143, pad::battle::kTargetBackY + 6, 0.5f, kInk, "Back");
         focus_.drawHighlight();
         return;
     }

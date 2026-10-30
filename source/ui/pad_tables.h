@@ -26,6 +26,13 @@ constexpr int kIdRun = 201;
 constexpr int kIdContinue = 202;
 constexpr int kIdFire = 203;
 constexpr int kIdSos = 204;
+// Toon-Up target chooser. Battle ids are doIds at runtime, so the focus table
+// uses stable slot ids and BattlePanel resolves the selected slot.
+constexpr int kMaxToonTargets = 3;
+constexpr int kIdToon0 = 400;
+constexpr int kIdTargetBack = 499;
+constexpr float kTargetX = 12, kTargetY = 52, kTargetW = 296, kTargetH = 38, kTargetGap = 8;
+constexpr float kTargetBackX = 110, kTargetBackY = 210, kTargetBackW = 100, kTargetBackH = 28;
 constexpr int gagId(int track, int level) { return track * 10 + level; }
 constexpr bool isGagId(int id) { return id >= 0 && id < kIdCog0; }
 } // namespace battle
@@ -33,6 +40,7 @@ constexpr bool isGagId(int id) { return id >= 0 && id < kIdCog0; }
 void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
                       bool canFire = false, bool canSos = false);
 void buildBattleReward(FocusGroup& group);
+void buildBattleToonTargets(FocusGroup& group, int numTargets);
 
 // ---- NPC quest dialog (ui/quest_panel.cpp): quest cards, track cards, Cancel ----
 namespace quest {
