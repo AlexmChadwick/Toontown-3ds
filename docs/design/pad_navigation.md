@@ -63,7 +63,7 @@ a touch player's A still jumps.
 | Battle | target cog (up to 4) | touch only | L / R cycle the target; or D-Up to the cog row and A |
 | Battle | Pass, Run | touch only | D-Down below the grid, A presses (Run is skipped when not allowed) |
 | Battle | reward Continue | touch only | A or START (Battle ignores a second rewardDone) |
-| Battle | Fire / SOS | not in this client's battle panel | — |
+| Battle | Fire / SOS | bottom action row; SOS opens a two-column card picker | D-Pad/A or touch; B closes SOS |
 | Shtiker Book (`ui/book.cpp`) | page turn, page tabs, close | touch; L / R and D-Left / D-Right turn pages; START closes | L / R turn pages; B or START closes; D-Left / D-Right turn pages unless the page uses them |
 | Book: Map page | Home, 8 hood buttons | touch only | D-Pad focus, A presses |
 | Book: Options page | Stereo, graphics quality, Music −/+, SFX −/+, Quit | touch only | D-Pad focus, A presses |

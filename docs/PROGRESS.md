@@ -3,6 +3,46 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 — Stock-compatible Fire and SOS battle choices
+
+### Done
+- Completed the live battle picker's requested Fire / SOS / Pass / Run action row. Fire is
+  enabled only when the owner-view `setPinkSlips` count is nonzero, displays that count, targets
+  the selected active Cog, and sends stock `requestAttack(100, -1, cogDoId)`.
+- Added a real SOS ToonFriend chooser backed by the owner's `setNPCFriendsDict`: up to 16 owned
+  cards appear as opaque rounded cards in two columns with original NPC names and counts. Touch
+  and D-pad/A select a card, B or Back returns without spending one, and selection sends stock
+  `requestAttack(97, -1, npcId)`.
+- Passed the already-authoritative Pink Slip and SOS inventories into street, facility, and boss
+  battle panels. Disabled actions remain visible so the bottom row is stable and understandable.
+- Extended the shared battle focus table and host regression source for the new touch rectangles.
+  SOS focus starts on the first owned card, including when earlier inventory slots are empty.
+
+### Verified
+- `git diff --check` passes.
+- Source audit confirms the special tracks and targets match `docs/design/combat.md` and the
+  existing generated `requestAttack(i8,i8,i32)` field.
+- A full build was attempted, but this workspace has neither `DEVKITARM` nor a host C++ standard
+  library. The host runner and 3DS build therefore could not execute here; no test result is
+  claimed from the failed environment checks.
+
+### Asset size decisions
+- None. The chooser reuses generated SOS names and immediate-mode rounded UI geometry; it adds no
+  textures, models, audio, or runtime allocation.
+
+### Known issues
+- Fire and SOS selection need a live-server Azahar pass to confirm inventory decrements and movie
+  presentation after the server accepts each request.
+- The existing battle movie has generic SOS presentation and no dedicated pink-slip firing
+  animation; protocol selection is now correct, but those cinematic fidelity gaps remain.
+- Real-hardware readability and touch comfort still need measurement on an Old 3DS.
+
+### Next
+- Give a test toon Pink Slips and at least two SOS cards, capture both picker states at 320 x 240,
+  and assert `net: battle ... requestAttack track 100/97` plus the server-owned count decrement.
+- Add the stock Fire dismissal and SOS arrival/effect movies, preserving the existing Old 3DS
+  animation and memory budgets.
+
 ## 2026-10-29 — Toontown UI art direction pass
 
 ### Done
