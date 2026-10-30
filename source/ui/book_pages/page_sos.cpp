@@ -12,7 +12,24 @@ constexpr u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
 constexpr u32 kCardBg = C2D_Color32(0xFF, 0xFA, 0xEA, 0xFF);
 constexpr u32 kCardBorder = C2D_Color32(0xC0, 0xB0, 0x98, 0xFF);
 constexpr u32 kStarGold = C2D_Color32(0xF0, 0xB0, 0x10, 0xFF);
-constexpr u32 kTrackBlue = C2D_Color32(0x20, 0x50, 0xA0, 0xFF);
+constexpr u32 kMutedInk = C2D_Color32(0x60, 0x58, 0x50, 0xFF);
+constexpr u32 kCountGreen = C2D_Color32(0x3D, 0x8A, 0x48, 0xFF);
+
+// Match the seven gag-track colours used by the book and live battle picker.
+// Status and restock cards need distinct colours too: a player should be able
+// to scan unlike SOS effects without reading eight tiny headings.
+constexpr u32 kTrackColors[] = {
+    C2D_Color32(0xD8, 0x6A, 0xC8, 0xFF), C2D_Color32(0xD8, 0xC8, 0x40, 0xFF),
+    C2D_Color32(0x40, 0xB0, 0x40, 0xFF), C2D_Color32(0x40, 0x70, 0xD8, 0xFF),
+    C2D_Color32(0xE0, 0x80, 0x30, 0xFF), C2D_Color32(0xE0, 0x50, 0xA0, 0xFF),
+    C2D_Color32(0x40, 0xB8, 0xD8, 0xFF), C2D_Color32(0x57, 0x99, 0xB8, 0xFF),
+    C2D_Color32(0x42, 0x9E, 0x70, 0xFF), C2D_Color32(0x78, 0x63, 0xB0, 0xFF),
+};
+
+u32 cardColor(const SosCardDef* def) {
+    return def && def->track < sizeof(kTrackColors) / sizeof(kTrackColors[0])
+        ? kTrackColors[def->track] : kCardBorder;
+}
 
 } // namespace
 
@@ -98,21 +115,28 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
 
         const SosCardDef* def = findSosCard(entry.npcId);
 
-        // Card box
-        C2D_DrawRectSolid(cx, cy, 0.5f, cardW, cardH, kCardBorder);
-        C2D_DrawRectSolid(cx + 1.0f, cy + 1.0f, 0.5f, cardW - 2.0f, cardH - 2.0f, kCardBg);
+        const u32 accent = cardColor(def);
+
+        // Rounded parchment cards read as part of the Shticker Book rather
+        // than a debug table.  The coloured spine remains visible behind all
+        // text and gives every effect category a stable visual identity.
+        shape::roundFrame(cx, cy, 0.5f, cardW, cardH, 6.0f, 1.5f, kCardBorder, kCardBg);
+        shape::roundRect(cx + 3.0f, cy + 4.0f, 0.53f, 5.0f, cardH - 8.0f, 2.0f, accent);
 
         // Track header banner
         const char* trackName = def ? sosTrackName(def->track, def->level) : "SOS CARD";
         C2D_Text tTxt;
         C2D_TextParse(&tTxt, textBuf_, trackName);
         C2D_TextOptimize(&tTxt);
-        C2D_DrawText(&tTxt, C2D_WithColor, cx + 4.0f, cy + 3.0f, 0.6f, 0.26f, 0.26f, kTrackBlue);
+        C2D_DrawText(&tTxt, C2D_WithColor, cx + 11.0f, cy + 3.0f, 0.6f, 0.23f, 0.23f, accent);
 
         // Star rating
-        const int stars = def ? def->stars : 1;
+        // Upstream stores rarity as 0..5.  Display it as a player-facing
+        // one-to-six pip rating so common Field Office cards never render an
+        // accidental blank rating.
+        const int stars = def ? int(def->stars) + 1 : 1;
         for (int s = 0; s < stars; s++) {
-            shape::roundRect(cx + 3.0f + s * 9.0f, cy + 13.0f, 0.6f, 6.0f, 6.0f, 2.0f, kStarGold);
+            shape::roundRect(cx + 11.0f + s * 7.5f, cy + 13.0f, 0.6f, 5.0f, 5.0f, 2.0f, kStarGold);
         }
 
         // Toon Name
@@ -120,7 +144,7 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
         C2D_Text nTxt;
         C2D_TextParse(&nTxt, textBuf_, name);
         C2D_TextOptimize(&nTxt);
-        C2D_DrawText(&nTxt, C2D_WithColor, cx + 4.0f, cy + 26.0f, 0.6f, 0.30f, 0.30f, kInk);
+        C2D_DrawText(&nTxt, C2D_WithColor, cx + 11.0f, cy + 23.0f, 0.6f, 0.27f, 0.27f, kInk);
 
         // Ability / HP / Info
         if (def && def->hp > 0) {
@@ -128,16 +152,17 @@ void PageSos::draw(float x, float y, float w, float h, const BookDrawContext& bd
             C2D_Text hpTxt;
             C2D_TextParse(&hpTxt, textBuf_, buf);
             C2D_TextOptimize(&hpTxt);
-            C2D_DrawText(&hpTxt, C2D_WithColor, cx + 4.0f, cy + 42.0f, 0.6f, 0.28f, 0.28f, C2D_Color32(0x50, 0x48, 0x40, 0xFF));
+            C2D_DrawText(&hpTxt, C2D_WithColor, cx + 11.0f, cy + 39.0f, 0.6f, 0.27f, 0.27f, kMutedInk);
         }
 
-        // Calls remaining
-        snprintf(buf, sizeof(buf), "Calls: %d", entry.count);
+        // A high-contrast count badge stays legible on every category colour.
+        snprintf(buf, sizeof(buf), "x%d", entry.count);
         C2D_Text cTxt;
         C2D_TextParse(&cTxt, textBuf_, buf);
         C2D_TextOptimize(&cTxt);
-        C2D_DrawText(&cTxt, C2D_WithColor, cx + 4.0f, cy + 56.0f, 0.6f, 0.28f, 0.28f,
-                     C2D_Color32(0x20, 0x60, 0x20, 0xFF));
+        shape::roundRect(cx + 39.0f, cy + 52.0f, 0.55f, 24.0f, 15.0f, 5.0f, kCountGreen);
+        C2D_DrawText(&cTxt, C2D_WithColor, cx + 44.0f, cy + 54.0f, 0.6f, 0.31f, 0.31f,
+                     C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
     }
     if (totalCards > kCardsPerView) focus_.drawHighlight(); // padnav
 }

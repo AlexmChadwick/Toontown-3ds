@@ -60,7 +60,7 @@ def main():
         "    uint8_t track;      // 0..6 gag tracks, 7 restock, 8 toons hit, 9 cogs miss",
         "    int8_t level;       // gag level or restock track (-1 all)",
         "    uint16_t hp;        // heal/damage/value",
-        "    uint8_t stars;      // 1..5 stars",
+        "    uint8_t stars;      // upstream rarity 0..5; UI displays one to six pips",
         "    const char* name;",
         "};",
         "",
