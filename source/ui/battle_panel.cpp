@@ -69,6 +69,21 @@ void drawCogHealth(float x, float y, float width, int hp, int maxHp) {
     }
 }
 
+void drawToonLaff(float x, float y, float width, int hp, int maxHp) {
+    constexpr int lamps = 8;
+    constexpr float gap = 1.0f;
+    const float lampW = (width - gap * (lamps - 1)) / lamps;
+    const float f = hpFraction(hp, maxHp);
+    const int lit = hp > 0 ? static_cast<int>(f * lamps + 0.999f) : 0;
+    const u32 color = f > 0.5f ? C2D_Color32(0x53, 0xB8, 0x55, 0xFF)
+                    : f > 0.25f ? C2D_Color32(0xF0, 0xC4, 0x3C, 0xFF)
+                                : C2D_Color32(0xD8, 0x54, 0x47, 0xFF);
+    for (int i = 0; i < lamps; ++i) {
+        shape::roundRect(x + i * (lampW + gap), y, 0.58f, lampW, 5, 2,
+                         i < lit ? color : C2D_Color32(0x91, 0x89, 0x7B, 0xFF));
+    }
+}
+
 } // namespace
 
 bool BattlePanel::init() {
@@ -384,7 +399,15 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                               pad::battle::kTargetH, 10, 2, kSlotFrame, kWhite);
             C2D_DrawRectSolid(pad::battle::kTargetX + 5, y + 5, 0.57f, 6,
                               pad::battle::kTargetH - 10, kTrackColor[world::kTrackHeal]);
-            text(pad::battle::kTargetX + 20, y + 9, 0.52f, kInk, "%s", v.toons[i].name);
+            text(pad::battle::kTargetX + 20, y + 5, 0.46f, kInk, "%s", v.toons[i].name);
+            if (v.toons[i].maxHp > 0) {
+                drawToonLaff(pad::battle::kTargetX + 20, y + 22, 116,
+                             v.toons[i].hp, v.toons[i].maxHp);
+                text(pad::battle::kTargetX + 146, y + 15, 0.36f, kInk, "%d/%d Laff",
+                     v.toons[i].hp > 0 ? v.toons[i].hp : 0, v.toons[i].maxHp);
+            } else {
+                text(pad::battle::kTargetX + 20, y + 20, 0.34f, kDim, "Laff unavailable");
+            }
             ++shown;
         }
         shape::roundFrame(pad::battle::kTargetBackX, pad::battle::kTargetBackY, 0.54f,

@@ -1252,6 +1252,13 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         t.local = t.doId == localId_;
         const char* name = client.avatarName(t.doId);
         snprintf(t.name, sizeof(t.name), "%s", name && name[0] ? name : "Toon");
+        if (t.local) {
+            t.hp = client.ownStats().hp;
+            t.maxHp = client.ownStats().maxHp;
+        } else if (const net::RemoteToon* remote = client.findToon(t.doId)) {
+            t.hp = remote->hp;
+            t.maxHp = remote->maxHp;
+        }
     }
     // Experience earned this battle (setBattleExperience block for our toon).
     // RewardPanel shows a bar for every track the toon has, gained experience or not.

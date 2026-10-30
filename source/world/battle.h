@@ -112,6 +112,7 @@ struct BattleCogView {
 struct BattleToonView {
     uint32_t doId;
     char name[24];
+    int hp, maxHp; // owner values for us; broadcast DistributedToon values for teammates
     bool active, running, local;
 };
 struct BattleRewardRow {
