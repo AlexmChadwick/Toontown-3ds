@@ -10,6 +10,7 @@
 #include <citro2d.h>
 
 #include "render/model.h"
+#include "render/toon_portrait.h"
 #include "ui/chat_menu.h"
 #include "ui/battle_panel.h"
 #include "ui/quest_panel.h"
@@ -94,6 +95,8 @@ struct Context {
     int species = 0;
     // Our ToonTasks (Toon tab task list); null = offline.
     const net::OwnQuests* quests = nullptr;
+    // ToonAvatarPanel's head for the Toon tab (rendered by main before the bottom pass), or null.
+    const render::ToonPortrait* portrait = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
     const RacingView* racing = nullptr; // ---- racing2 ----
     const char* infoTitle = nullptr;
@@ -140,6 +143,8 @@ public:
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
     // SpeedChat TOONTASKS > MY TASKS: rebuilt when our quests change (null = offline).
     void setChatTasks(const net::OwnQuests* quests) { chat_.setTasks(quests); }
+    // The last frame showed the Toon tab's header, so main should render Context::portrait.
+    bool wantsToonPortrait() const { return drewToonTab_; }
     // A popSpeech value >= ChatMenu::kTaskCode is a ToonTask phrase.
     const ChatMenu::TaskPhrase* chatTaskPhrase(int code) const { return chat_.taskPhrase(code); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
@@ -250,6 +255,7 @@ private:
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;
+    bool drewToonTab_ = false; // the last draw() showed the online Toon tab (it wants the head)
     int lastTab_ = -1;
     ChatMenu chat_;
     ServiceClerkPanel serviceClerks_; // clerks

@@ -117,6 +117,26 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     } else {
         Mtx_PerspStereoTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, farPlane_, eyeSign * iod, 2.0f, false);
     }
+    beginPass(eye, lookAt);
+}
+
+void Renderer::beginOffscreen(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float fovDeg,
+                              float aspect, u32 clearRgba8) {
+    batchState_ = BatchState{};
+    eye_ = eye;
+    C3D_RenderTargetClear(target, C3D_CLEAR_ALL, clearRgba8, 0);
+    C3D_FrameDrawOn(target);
+    C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
+    C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+                   GPU_ONE_MINUS_SRC_ALPHA);
+    C3D_CullFace(GPU_CULL_BACK_CCW);
+    C3D_DepthMap(true, -1.0f, 0.0f);
+    Mtx_Persp(&projection_, C3D_AngleFromDegrees(fovDeg), aspect, kNear * 0.25f, 50.0f, false);
+    beginPass(eye, lookAt);
+}
+
+void Renderer::beginPass(const C3D_FVec& eye, const C3D_FVec& lookAt) {
     // citro2d rebinds its own shader/attributes/texenv every frame, so rebind ours.
     mode_ = kModeNone;
     bindMode(kModeStatic);

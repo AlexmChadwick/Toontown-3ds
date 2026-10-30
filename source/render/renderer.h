@@ -34,6 +34,10 @@ public:
     // -1/+1 = left/right eye with interocular distance `iod` (stereo is opt-in).
     void beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float iod,
                     int eyeSign);
+    // An offscreen world pass into a texture target (no screen tilt): perspective of vertical
+    // fovDeg and the given aspect, cleared to clearRgba8 (alpha 0 for a cut-out). No fog.
+    void beginOffscreen(C3D_RenderTarget* target, const C3D_FVec& eye, const C3D_FVec& lookAt, float fovDeg,
+                        float aspect, u32 clearRgba8);
     const C3D_FVec& eye() const { return eye_; } // camera position of the current world pass (billboards)
     // slotTex (optional, kTexSlotCount entries): per-draw textures for batches whose
     // texSlot is non-zero (toon clothing). A null entry keeps the batch's own texture.
@@ -77,6 +81,8 @@ public:
     void setFovY(float degrees) { fovYDeg_ = degrees > 0.0f ? degrees : kFovYDeg; }
 
 private:
+    // The pass state shared by beginWorld and beginOffscreen once projection_ is set.
+    void beginPass(const C3D_FVec& eye, const C3D_FVec& lookAt);
     enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
     struct Program {
         DVLB_s* dvlb = nullptr;

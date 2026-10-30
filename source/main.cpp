@@ -23,6 +23,7 @@
 #include "net/net_platform.h"
 #include "render/model.h"
 #include "render/renderer.h"
+#include "render/toon_portrait.h"
 #include "render/ui.h"
 #include "ui/balloons.h"
 #include "ui/hud.h"
@@ -3119,6 +3120,25 @@ int main() {
         if (suits.loadingAssets() && !ctx.infoTitle && !battle.inBattle()) {
             ctx.infoTitle = "Streaming Cog actors";
             ctx.infoLines[0] = "Reading models and clips...";
+        }
+        // ToonAvatarPanel's head on the Toon tab: our head drawn into its texture (on the card's
+        // paper colour) while the tab shows it. The target stays allocated once made (VRAM).
+        {
+            static tt::render::ToonPortrait portrait;
+            static tt::world::ToonAvatar portraitToon;
+            static bool portraitInit = false;
+            if (ui.wantsToonPortrait()) {
+                if (!portraitInit) {
+                    portraitInit = true;
+                    portraitToon.setLook(&localLook, &toonCache.fallback());
+                    portraitToon.setHeadOnly(true);
+                    portraitToon.play(tt::world::kAnimNeutral, 1.0f);
+                }
+                portraitToon.update(dt);
+                C2D_Flush();
+                if (portrait.render(renderer, portraitToon, localLook, 0xFFF8E4FFu)) C2D_Prepare();
+                ctx.portrait = &portrait;
+            }
         }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);

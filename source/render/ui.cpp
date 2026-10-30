@@ -351,6 +351,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
 
 void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     frame_++;
+    drewToonTab_ = false;
     chatNowMs_ = osGetTime();
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_TargetClear(target, kBg);
@@ -679,17 +680,23 @@ void Ui::drawMap(const Context& c) {
 void Ui::drawToon(const State& s, const Context& c) {
     if (c.quests) {
         theme::paper(4, 4, kW - 8, kPocketTop - 6, 8.0f); // above the laff pocket and the book pill // online: the server's DNA wins, so the tab shows our ToonTasks instead
+        // ToonAvatarPanel: the Toon's own 3D head beside its name (rendered by main into a
+        // texture on the paper colour, so it sits on the card without a box).
+        drewToonTab_ = true;
+        constexpr float kHead = 50.0f;
+        const bool head = c.portrait && c.portrait->draw(7, 5, kHead, 0.52f);
+        const float nameX = head ? 7 + kHead + 4 : 14;
         // Our name, laff and jellybeans (the laff meter itself is in the tab bar's pocket).
         // Our gag tracks at a glance, right of the name: each track's best gag on its battle
         // colour (faded until the track is learned), as the Gags page's rows.
-        float nameW = kW - 28;
+        float nameW = kW - 14 - nameX;
         if (c.trackAccess && c.gagExp) {
             static bool atlasTried = false;
             if (!atlasTried) {
                 atlasTried = true;
                 world::GagAtlas::instance().init();
             }
-            constexpr float kChip = 22.0f, kChipStep = 24.0f;
+            constexpr float kChip = 20.0f, kChipStep = 21.0f;
             const float x0 = kW - 12 - gags::kTracks * kChipStep + 2;
             for (int t = 0; t < gags::kTracks; t++) {
                 const int levels = c.trackAccess[t] ? gags::levelsUnlocked(t, c.gagExp[t]) : 0;
@@ -700,23 +707,23 @@ void Ui::drawToon(const State& s, const Context& c) {
                 if (levels && world::GagAtlas::instance().loaded())
                     world::GagAtlas::instance().drawIcon(t, levels - 1, x + 2, 10, kChip - 4, 0.55f);
             }
-            nameW = x0 - 14 - 8;
+            nameW = x0 - nameX - 8;
         }
         C2D_Text name;
         textCache_.parse(&name, textBuf_, c.toonName && c.toonName[0] ? c.toonName : "Toon", 1024);
-        theme::textFit(name, 14, 9, 0.72f, theme::kInk, nameW);
+        theme::textFit(name, nameX, 9, 0.72f, theme::kInk, nameW);
         float top = 38;
         if (c.stats) {
-            drawJarIcon(16, top - 2, 18); // the jellybean jar, then the count
-            text(40, top, .48f, theme::kInk, "Jellybeans  %d / %d", c.stats->money, c.stats->maxMoney);
-            text(196, top, .48f, theme::kInk, "Laff  %d / %d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
+            drawJarIcon(nameX + 2, top - 2, 18); // the jellybean jar, then the count
+            text(nameX + 26, top, .48f, theme::kInk, "Jellybeans  %d / %d", c.stats->money, c.stats->maxMoney);
+            text(206, top, .48f, theme::kInk, "Laff  %d / %d", c.stats->hp > 0 ? c.stats->hp : 0, c.stats->maxHp);
             top += 18;
         }
         // ---- clerks: show only the AI's current pet association ----
         if (c.clerkProfile) {
             const char* petName = c.clerkProfile->petId
                 ? (c.petName ? c.petName : "Owned (at estate)") : "None";
-            text(14, top, .42f, theme::kInkSoft, "Doodle: %s", petName);
+            text(nameX, top, .42f, theme::kInkSoft, "Doodle: %s", petName);
             top += 16;
         }
         C2D_DrawRectSolid(12, top + 2, 0.5f, kW - 24, 1, theme::kPaperShade);
