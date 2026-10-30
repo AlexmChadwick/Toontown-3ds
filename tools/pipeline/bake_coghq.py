@@ -122,7 +122,7 @@ def bake(zone_id, args, base):
     import street_lod
     import ttm
     import tz
-    from bake_street import (FAR_BODY, NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
+    from bake_street import (FAR_BODY, LOD_MUST, NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
                              choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid)
     cfg = coghq_catalog.CATALOG[zone_id]
     root, info = build_scene(zone_id, cfg, base.loader, args.resources)
@@ -194,7 +194,7 @@ def bake(zone_id, args, base):
             points = [np.mean(c['stats']['bounds'], axis=0)]
         for p in points[::max(1, len(points) // 8)]:
             for near in (OLD_LOD_NEAR, NEW_LOD_NEAR):
-                _, metrics = street_lod.plan(chunks, i, p, near=near)
+                _, metrics = street_lod.plan(chunks, i, p, near=near, must=LOD_MUST[near])
                 samples.append(metrics)
     planned = {k: max(row[k] for row in samples) for k in ('batches', 'triangles', 'geometry_bytes', 'texture_bytes')}
     triggers = []

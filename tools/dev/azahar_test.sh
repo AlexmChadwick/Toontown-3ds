@@ -2,7 +2,7 @@
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
 #   [TT_OFFLINE=1 | [TT_HOST=addr] TT_PORT=n TT_TOKEN=name] [TT_DATA=dir] (Linux, isolated per run)
-#   [NEW3DS=1] New 3DS mode instead of Old 3DS
+#   [NEW3DS=1] New 3DS mode instead of Old 3DS  [STEREO=1] 3D slider at max (shots add *_right)
 #   [SHOTS_DECODE=bottom|top] decode one screen only (raw dumps are always kept in out-dir/bin)
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
@@ -91,6 +91,11 @@ SEDI=(sed -i); [ "$(uname)" = Darwin ] && SEDI=(sed -i '')
 # NEW3DS=1: New 3DS mode instead (the default is Old 3DS, the baseline).
 if [ -n "${NEW3DS:-}" ]; then
     "${SEDI[@]}" -e 's/^is_new_3ds=false/is_new_3ds=true/' -e 's/^is_new_3ds\\default=false/is_new_3ds\\default=true/' "$CFG"
+fi
+# STEREO=1: 3D slider at max, side-by-side output (shots then include *_right eye dumps).
+if [ -n "${STEREO:-}" ]; then
+    "${SEDI[@]}" -e 's/^factor_3d=.*/factor_3d=100/' -e 's/^factor_3d\\default=.*/factor_3d\\default=false/' \
+        -e 's/^render_3d=.*/render_3d=1/' -e 's/^render_3d\\default=.*/render_3d\\default=false/' "$CFG"
 fi
 # No sound device (headless Linux): Auto fails to open cubeb, so pick the Null sink outright.
 if [ "$(uname)" != Darwin ] && [ ! -e /dev/snd ]; then

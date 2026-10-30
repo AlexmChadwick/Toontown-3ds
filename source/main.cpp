@@ -967,11 +967,21 @@ int main() {
                    trolley.seated() ? "FAIL: still seated" : "ok");
         }
         if (autotest.active() && !strcmp(autotest.label(), "board trolley") && !trolley.seated() &&
-            !minigame.active() && !autotestBoardedTrolley) {
-            // Test-only: walk into the TTC trolley station (trolley_sphere centre).
+            !minigame.active()) {
+            // Test-only: walk into the TTC trolley station (trolley_sphere centre). Boarding fires on
+            // entering the sphere while the trolley waits; on a shared server it may be away on a
+            // ride, so step out and back in every 4 s until seated.
+            static float nextTry = 0.0f;
+            static bool stepOut = false;
             float bx, by, bz;
             trolley.boardingPoint(&bx, &by, &bz);
-            if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
+            if (!autotestBoardedTrolley) { nextTry = 0.0f; stepOut = false; }
+            if (trolley.hasStation() && (stepOut || autotest.stepTime() >= nextTry)) {
+                // One frame outside the sphere, then back in: a fresh entry for TrolleyRide::update.
+                stepOut = !stepOut && autotestBoardedTrolley;
+                player.reset(bx + (stepOut ? 12.0f : 0.0f), by, bz + 1.0f, player.headingDeg());
+                if (!stepOut) nextTry = autotest.stepTime() + 4.0f;
+            }
             autotestBoardedTrolley = true;
         }
         if (autotest.active() && !strncmp(autotest.label(), "toon hq", 7)) {

@@ -32,6 +32,8 @@ ROOT = HERE.parent.parent
 NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
+# render/quality.h lodMust (Old, New): upgraded first against street_lod.NEAR_DRAW_CAP.
+LOD_MUST = {OLD_LOD_NEAR: 48.0, NEW_LOD_NEAR: 64.0}
 
 
 # Sizes the baker may raise a playground or Cog HQ to. --grid-size is the floor:
@@ -443,7 +445,7 @@ def bake(zone_id, args, base):
         # Floor centroids span each cell; every plan is hard capped independently.
         for p in points[::max(1,len(points)//8)]:
             for near in (OLD_LOD_NEAR, NEW_LOD_NEAR):
-                _,metrics=street_lod.plan(chunks,i,p,near=near)
+                _,metrics=street_lod.plan(chunks,i,p,near=near,must=LOD_MUST[near])
                 samples.append(metrics)
     planned={k:max(row[k] for row in samples) for k in ('batches','triangles','geometry_bytes','texture_bytes')}
     triggers=[]

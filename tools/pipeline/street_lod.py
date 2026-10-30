@@ -12,6 +12,9 @@ TRI_BUDGET = 15000
 # World meshes stop here. The frame still has a 150-draw ceiling; the remainder
 # is toons, the boat and other actors. A view that fills 150 has no headroom.
 DRAW_CAP = 130
+# Chunks within `must` of the toon upgrade first against the whole frame ceiling
+# (Quality::lodMust / Zone::kNearDrawBudget): the far mesh is bloated up close.
+NEAR_DRAW_CAP = 150
 LOW_TARGET = 12000
 
 
@@ -59,8 +62,11 @@ def distance2(point,bounds):
     return float(d@d)
 
 
-def plan(chunks,cell,point,near=65):
-    """Low baseline, then nearest-first near upgrades, never removing a PVS cell."""
+def plan(chunks,cell,point,near=65,must=0):
+    """Low baseline, then nearest-first near upgrades, never removing a PVS cell.
+
+    Mirrors Zone::update: chunks within `must` first (NEAR_DRAW_CAP), then the
+    rest within `near` (DRAW_CAP)."""
     ids=chunks[cell]['vis']
     choice={i:1 for i in ids}
     keys=('triangles','batches','geometry_bytes','texture_bytes')
@@ -68,12 +74,19 @@ def plan(chunks,cell,point,near=65):
     total=[sum(chunks[i]['low_stats'][k] for i in ids) for k in keys]
     if any(x>limit for x,limit in zip(total,limits)):
         raise ValueError('far baseline exceeds runtime budget')
-    for i in sorted(ids,key=lambda j:(distance2(point,(chunks[j].get('bounds') or chunks[j]['stats']['bounds'])),j)):
-        c=chunks[i]
-        if distance2(point,(c.get('bounds') or c['stats']['bounds']))>near*near:
+    def d2(c):
+        return distance2(point,(c.get('bounds') or c['stats']['bounds']))
+    order=sorted(ids,key=lambda j:(d2(chunks[j]),j))
+    for radius,cap in ((must,NEAR_DRAW_CAP),(near,DRAW_CAP)):
+        if radius<=0:
             continue
-        trial=[value+c['stats'][k]-c['low_stats'][k] for value,k in zip(total,keys)]
-        if all(x<=limit for x,limit in zip(trial,limits)):
-            total=trial
-            choice[i]=0
+        caps=(TRI_BUDGET,cap)+limits[2:]
+        for i in order:
+            c=chunks[i]
+            if choice[i]==0 or d2(c)>radius*radius:
+                continue
+            trial=[value+c['stats'][k]-c['low_stats'][k] for value,k in zip(total,keys)]
+            if all(x<=limit for x,limit in zip(trial,caps)):
+                total=trial
+                choice[i]=0
     return choice,dict(zip(keys,total))
