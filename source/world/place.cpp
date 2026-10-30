@@ -391,6 +391,11 @@ void Place::arrival(u32 fromZone, float* x, float* y, float* z, float* h) const 
             *x = (boundsMin()[0] + boundsMax()[0]) * 0.5f;
             *y = (boundsMin()[1] + boundsMax()[1]) * 0.5f;
             *z = boundsMax()[2];
+            // Land on the floor the fall would reach, so the loading card streams the
+            // cone the toon will stand in, not one 50 units up.
+            bool found = false;
+            const float g = cw.groundHeight(*x, *y, *z, &found);
+            if (found) *z = g;
         }
         return;
     }
