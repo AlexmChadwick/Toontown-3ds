@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- WINDOWS: cartoon four-pane window, panes puffed like Toontown buttons. Hand-written. -->
+  <defs>
+    <linearGradient id="r" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#ff9a78"/><stop offset="1" stop-color="#e0391f"/></linearGradient>
+    <linearGradient id="g" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#c6f07a"/><stop offset="1" stop-color="#4fa526"/></linearGradient>
+    <linearGradient id="b" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#9fe0ff"/><stop offset="1" stop-color="#2a7fe0"/></linearGradient>
+    <linearGradient id="y" x1="0" y1="0" x2="0.3" y2="1"><stop offset="0" stop-color="#fff09a"/><stop offset="1" stop-color="#f5a90f"/></linearGradient>
+    <path id="frame" d="M8 12 Q8 7 13 7 C24 9 40 9 51 7 Q56 7 56 12 L56 52 Q56 57 51 57 C40 55 24 55 13 57 Q8 57 8 52 Z"/>
+  </defs>
+  <use href="#frame" transform="translate(1.5 2)" fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round" opacity="0.28"/>
+  <use href="#frame" fill="#241509" stroke="#241509" stroke-width="9" stroke-linejoin="round"/>
+  <!-- four panes with a little wave, separated by the ink frame -->
+  <path d="M10.5 12 Q10.5 9.5 13 9.6 C19 10.7 24.5 11.2 30 11.4 L30 30 L10.5 30 Z" fill="url(#r)"/>
+  <path d="M34 11.4 C39.5 11.2 45 10.7 51 9.6 Q53.5 9.5 53.5 12 L53.5 30 L34 30 Z" fill="url(#g)"/>
+  <path d="M10.5 34 L30 34 L30 52.6 C24.5 52.8 19 53.3 13 54.4 Q10.5 54.5 10.5 52 Z" fill="url(#b)"/>
+  <path d="M34 34 L53.5 34 L53.5 52 Q53.5 54.5 51 54.4 C45 53.3 39.5 52.8 34 52.6 Z" fill="url(#y)"/>
+  <g fill="#fff" opacity="0.7">
+    <ellipse cx="17" cy="16.5" rx="4.5" ry="2.4" transform="rotate(-15 17 16.5)"/>
+    <ellipse cx="40.5" cy="16" rx="4.5" ry="2.4" transform="rotate(-15 40.5 16)"/>
+    <ellipse cx="17" cy="39.5" rx="4.5" ry="2.4" transform="rotate(-15 17 39.5)"/>
+    <ellipse cx="40.5" cy="39.5" rx="4.5" ry="2.4" transform="rotate(-15 40.5 39.5)"/>
+  </g>
+</svg>

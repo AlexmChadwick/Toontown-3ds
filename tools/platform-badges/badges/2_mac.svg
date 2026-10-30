@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- MAC: cartoon apple with a leaf and a bite. Hand-written. -->
+  <defs>
+    <linearGradient id="skin" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0" stop-color="#ff8a7a"/>
+      <stop offset="0.45" stop-color="#ee3b2e"/>
+      <stop offset="1" stop-color="#a51616"/>
+    </linearGradient>
+    <linearGradient id="leaf" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b6ec62"/>
+      <stop offset="1" stop-color="#3f9a24"/>
+    </linearGradient>
+    <path id="body" d="M32 21 C27 15 12 15 10.5 31 C9 45 18 58 26 57.5 C29 57.2 30.5 55.8 32 55.8 C33.5 55.8 35 57.2 38 57.5 C44.5 58 50.5 50 52.8 42.5 A9.5 9.5 0 0 1 51.6 24.6 C47 16.5 37 15.5 32 21 Z"/>
+    <path id="leafp" d="M35 15 C36 7 43 3 51 4 C50 12 43 16 35 15 Z"/>
+    <path id="stem" d="M31 22 C31 16 32 12 35 9"/>
+  </defs>
+  <g transform="translate(1.5 2)" opacity="0.28">
+    <use href="#body" fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round"/>
+    <use href="#leafp" fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+  <use href="#stem" fill="none" stroke="#241509" stroke-width="9" stroke-linecap="round"/>
+  <use href="#leafp" fill="#241509" stroke="#241509" stroke-width="8" stroke-linejoin="round"/>
+  <use href="#body" fill="#241509" stroke="#241509" stroke-width="9" stroke-linejoin="round"/>
+  <use href="#stem" fill="none" stroke="#7a4a1e" stroke-width="3.6" stroke-linecap="round"/>
+  <use href="#leafp" fill="url(#leaf)"/>
+  <path d="M38 13.5 C42 10 46 8 49 6.5" fill="none" stroke="#2f7a18" stroke-width="1.6" stroke-linecap="round"/>
+  <use href="#body" fill="url(#skin)"/>
+  <!-- bevel shadow along the bottom, glossy shine top-left -->
+  <path d="M12.5 38 C14 50 21 56 26 55.5 C29 55.2 30.5 53.8 32 53.8 C33.5 53.8 35 55.2 38 55.5 C43 56 48 50 50.5 44 C47 52 42 55 38 54 C34 53 30 53 27 54 C20 55 14 47 12.5 38 Z" fill="#6e0a0a" opacity="0.45"/>
+  <ellipse cx="19" cy="28" rx="4.2" ry="7.5" transform="rotate(22 19 28)" fill="#fff" opacity="0.75"/>
+  <circle cx="24" cy="21.5" r="2" fill="#fff" opacity="0.7"/>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- N3DS: cartoon clamshell handheld, open, two screens. Hand-written. -->
+  <defs>
+    <linearGradient id="shell" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#ffb08a"/>
+      <stop offset="0.5" stop-color="#f2643a"/>
+      <stop offset="1" stop-color="#b83a1a"/>
+    </linearGradient>
+    <linearGradient id="lcd" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#e6fbff"/>
+      <stop offset="1" stop-color="#7fd0f5"/>
+    </linearGradient>
+    <rect id="lid" x="8" y="5" width="48" height="26" rx="6"/>
+    <rect id="base" x="8" y="33" width="48" height="26" rx="6"/>
+  </defs>
+  <g transform="translate(1.5 2)" opacity="0.28">
+    <use href="#lid" fill="#000" stroke="#000" stroke-width="8"/>
+    <use href="#base" fill="#000" stroke="#000" stroke-width="8"/>
+  </g>
+  <use href="#lid" fill="#241509" stroke="#241509" stroke-width="8"/>
+  <use href="#base" fill="#241509" stroke="#241509" stroke-width="8"/>
+  <use href="#lid" fill="url(#shell)"/>
+  <use href="#base" fill="url(#shell)"/>
+  <!-- wide top screen, smaller touch screen -->
+  <rect x="14" y="9.5" width="36" height="17" rx="2.5" fill="url(#lcd)" stroke="#241509" stroke-width="2.6"/>
+  <rect x="21" y="37.5" width="22" height="16" rx="2" fill="url(#lcd)" stroke="#241509" stroke-width="2.6"/>
+  <!-- d-pad and buttons -->
+  <path d="M14.5 41 L14.5 44 L11.5 44 L11.5 47 L14.5 47 L14.5 50 L17.5 50 L17.5 47 L18.5 47 L18.5 44 L17.5 44 L17.5 41 Z" fill="#241509"/>
+  <circle cx="50" cy="42.5" r="2.1" fill="#241509"/>
+  <circle cx="50" cy="49.5" r="2.1" fill="#241509"/>
+  <circle cx="46.8" cy="46" r="2.1" fill="#241509"/>
+  <circle cx="53.2" cy="46" r="2.1" fill="#241509"/>
+  <path d="M17 12 L24 12 L17 20 Z" fill="#fff" opacity="0.7"/>
+  <rect x="10.5" y="7.3" width="12" height="1.8" rx="0.9" fill="#fff" opacity="0.6"/>
+</svg>

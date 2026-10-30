@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- VR: cartoon infinity loop (Meta-style) sitting on a little headset. Hand-written. -->
+  <defs>
+    <linearGradient id="loop" x1="0" y1="0" x2="1" y2="0.4">
+      <stop offset="0" stop-color="#7fd6ff"/>
+      <stop offset="0.5" stop-color="#3a8cf5"/>
+      <stop offset="1" stop-color="#6a4ee8"/>
+    </linearGradient>
+    <linearGradient id="visor" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f4f6fb"/>
+      <stop offset="1" stop-color="#a9b3c6"/>
+    </linearGradient>
+    <path id="inf" d="M32 24 C39 10 58 9 58 23 C58 37 40 36 32 24 C24 12 6 9 6 23 C6 37 25 36 32 24 Z"/>
+    <path id="set" d="M12 46 Q12 42 16 42 L48 42 Q52 42 52 46 L52 53 Q52 58 47 58 L39 58 Q36 58 34.5 55 Q32 52 29.5 55 Q28 58 25 58 L17 58 Q12 58 12 53 Z"/>
+  </defs>
+  <g transform="translate(1.5 2)" opacity="0.28">
+    <use href="#set" fill="#000" stroke="#000" stroke-width="8" stroke-linejoin="round"/>
+    <use href="#inf" fill="none" stroke="#000" stroke-width="14" stroke-linejoin="round"/>
+  </g>
+  <!-- headset -->
+  <use href="#set" fill="#241509" stroke="#241509" stroke-width="8" stroke-linejoin="round"/>
+  <use href="#set" fill="url(#visor)"/>
+  <path d="M16 45 L48 45" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+  <!-- the loop -->
+  <use href="#inf" fill="none" stroke="#241509" stroke-width="14" stroke-linejoin="round"/>
+  <use href="#inf" fill="none" stroke="url(#loop)" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M11 18 C13 14 19 14 22 16" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+  <path d="M42 16 C45 14 51 14 53 18" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" opacity="0.8"/>
+</svg>

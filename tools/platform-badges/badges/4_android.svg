@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- ANDROID: cartoon robot head with antennae. Hand-written. -->
+  <defs>
+    <linearGradient id="bot" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#c8f27a"/>
+      <stop offset="0.5" stop-color="#86cf3c"/>
+      <stop offset="1" stop-color="#4c9a1e"/>
+    </linearGradient>
+    <path id="head" d="M6 50 C6 32 18 19 32 19 C46 19 58 32 58 50 Q58 53 55 53 L9 53 Q6 53 6 50 Z"/>
+    <path id="ant" d="M21 25 L14 11 M43 25 L50 11"/>
+  </defs>
+  <g transform="translate(1.5 2)" opacity="0.28">
+    <use href="#ant" stroke="#000" stroke-width="10" stroke-linecap="round"/>
+    <use href="#head" fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round"/>
+  </g>
+  <use href="#ant" stroke="#241509" stroke-width="10" stroke-linecap="round"/>
+  <use href="#head" fill="#241509" stroke="#241509" stroke-width="9" stroke-linejoin="round"/>
+  <use href="#ant" stroke="#86cf3c" stroke-width="3.6" stroke-linecap="round"/>
+  <use href="#head" fill="url(#bot)"/>
+  <!-- eyes -->
+  <circle cx="21" cy="38" r="5" fill="#fff" stroke="#241509" stroke-width="2.6"/>
+  <circle cx="43" cy="38" r="5" fill="#fff" stroke="#241509" stroke-width="2.6"/>
+  <circle cx="22" cy="39" r="2.2" fill="#241509"/>
+  <circle cx="44" cy="39" r="2.2" fill="#241509"/>
+  <path d="M9 49 C12 50 52 50 55 49 L55 51 L9 51 Z" fill="#2c6a10" opacity="0.5"/>
+  <ellipse cx="22" cy="26.5" rx="8" ry="3.6" transform="rotate(-20 22 26.5)" fill="#fff" opacity="0.7"/>
+</svg>

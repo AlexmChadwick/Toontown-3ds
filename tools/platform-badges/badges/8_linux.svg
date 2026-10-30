@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- LINUX: cartoon PC monitor with a terminal prompt (no penguin). Hand-written. -->
+  <defs>
+    <linearGradient id="bezel" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#fff6cf"/>
+      <stop offset="0.55" stop-color="#f2d77a"/>
+      <stop offset="1" stop-color="#c79a2e"/>
+    </linearGradient>
+    <linearGradient id="crt" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#3b4f8c"/>
+      <stop offset="1" stop-color="#18224a"/>
+    </linearGradient>
+    <path id="mon" d="M5 12 Q5 6 11 6 L53 6 Q59 6 59 12 L59 40 Q59 46 53 46 L38 46 L39 51 L47 51 Q51 51 51 55 Q51 58 47 58 L17 58 Q13 58 13 55 Q13 51 17 51 L25 51 L26 46 L11 46 Q5 46 5 40 Z"/>
+  </defs>
+  <use href="#mon" transform="translate(1.5 2)" fill="#000" stroke="#000" stroke-width="9" stroke-linejoin="round" opacity="0.28"/>
+  <use href="#mon" fill="#241509" stroke="#241509" stroke-width="9" stroke-linejoin="round"/>
+  <use href="#mon" fill="url(#bezel)"/>
+  <rect x="11" y="11.5" width="42" height="28.5" rx="3.5" fill="url(#crt)" stroke="#241509" stroke-width="2.6"/>
+  <!-- the prompt: >_ in Toontown yellow -->
+  <path d="M18 19 L25 25 L18 31" fill="none" stroke="#ffd23f" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M29 32 L38 32" stroke="#ffd23f" stroke-width="4" stroke-linecap="round"/>
+  <path d="M14 14 L26 14 L14 24 Z" fill="#fff" opacity="0.25"/>
+  <rect x="8" y="8.5" width="14" height="1.8" rx="0.9" fill="#fff" opacity="0.8"/>
+  <circle cx="51.5" cy="43" r="1.4" fill="#4fd04a"/>
+</svg>
