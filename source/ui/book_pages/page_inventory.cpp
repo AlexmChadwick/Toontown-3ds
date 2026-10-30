@@ -37,6 +37,8 @@ constexpr u32 kBarBg = C2D_Color32(0xDD, 0xD8, 0xD0, 0xFF);
 constexpr u32 kBarBorder = C2D_Color32(0x88, 0x80, 0x78, 0xFF);
 constexpr u32 kSlotPaper = C2D_Color32(0xFA, 0xF6, 0xEE, 0xFF);
 constexpr u32 kSlotEdge = C2D_Color32(0xA0, 0x91, 0x7D, 0xFF);
+constexpr u32 kLockedPaper = C2D_Color32(0xD8, 0xD1, 0xC6, 0xFF);
+constexpr u32 kLockedInk = C2D_Color32(0x76, 0x6E, 0x64, 0xFF);
 
 void nextExpThreshold(int track, uint16_t exp, uint16_t& curThresh, uint16_t& nextThresh) {
     if (track < 0 || track >= 7) { curThresh = 0; nextThresh = 10000; return; }
@@ -168,11 +170,19 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
                     C2D_DrawText(&cntTxt, C2D_WithColor, gx + (count >= 10 ? 9.5f : 11.5f), ry + 10.5f,
                                  0.60f, 0.27f, 0.27f, kInk);
                 } else {
-                    // Procedural circles lose their proctex state after the world
-                    // shader on some PICA/Azahar paths.  A tiny rounded slot remains
-                    // visible and matches the locked silhouettes in the battle picker.
-                    shape::roundRect(gx + 6.0f, ry + 7.0f, 0.5f, 6.0f, 6.0f, 2.0f,
-                                     C2D_Color32(0xBB, 0xB0, 0xA8, 0xFF));
+                    // Preserve the seven-card ladder even before this level is
+                    // earned.  A full dimmed card is much easier to scan than the
+                    // old six-pixel dot and mirrors the live battle picker.
+                    shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
+                                      kSlotEdge, kLockedPaper);
+                    C2D_DrawRectSolid(gx + 2.0f, ry + 3.0f, 0.54f, 2.0f, gagSize - 4.0f,
+                                      kTrackColors[t]);
+                    snprintf(buf, sizeof(buf), "%d", l + 1);
+                    C2D_Text levelTxt;
+                    C2D_TextParse(&levelTxt, textBuf_, buf);
+                    C2D_TextOptimize(&levelTxt);
+                    C2D_DrawText(&levelTxt, C2D_WithColor, gx + 8.0f, ry + 3.0f, 0.56f,
+                                 0.28f, 0.28f, kLockedInk);
                 }
             }
         }
