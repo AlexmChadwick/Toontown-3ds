@@ -45,11 +45,15 @@ LOGO_ASPECT = 1.83 * 4.0 / 3.0
 TOP_BAND = 0.16
 BOTTOM_BAND = 0.14
 SIDE_MARGIN = 0.045
-# Letterbox for the dog. Both sides are multiples of 8 (8×8 swizzle tiles).
-# 128×160 RGBA8 is about 80 KiB, which fits beside a 256×256 RGBA8 logo
-# under the 512 KiB decompressed CGFX cap.
+# Letterbox for the dog card: the portrait is fitted uniformly into 128×160
+# and the card keeps that 4:5 aspect. PICA200 textures must be power-of-two
+# on both sides, so the 128×160 letterbox is then squeezed into a 128×128
+# RGBA8 texture (64 KiB) and the card un-squeezes it, the same trick as the
+# logo. A 128×160 texture is invalid on hardware.
 TOON_TEX_W = 128
 TOON_TEX_H = 160
+TOON_GPU_W = 128
+TOON_GPU_H = 128
 
 ALL_COLORS = (
     (1.0, 1.0, 1.0),
@@ -218,7 +222,10 @@ def fit_logo_texture(maps_dir: Path) -> LogoPlane:
 
 
 def fit_toon_texture(rgba: np.ndarray) -> np.ndarray:
-    """Uniform letterbox into 128×160. Does not stretch the portrait."""
+    """Uniform letterbox into 128×160, stored as a 128×128 texture.
+
+    The card is 4:5, so the portrait is not stretched on screen.
+    """
     src_h, src_w = rgba.shape[0], rgba.shape[1]
     scale = min(TOON_TEX_W / src_w, TOON_TEX_H / src_h)
     tw = max(1, int(round(src_w * scale)))
@@ -226,6 +233,7 @@ def fit_toon_texture(rgba: np.ndarray) -> np.ndarray:
     fitted = Image.fromarray(rgba, "RGBA").resize((tw, th), Image.Resampling.LANCZOS)
     canvas = Image.new("RGBA", (TOON_TEX_W, TOON_TEX_H), (0, 0, 0, 0))
     canvas.paste(fitted, ((TOON_TEX_W - tw) // 2, (TOON_TEX_H - th) // 2))
+    canvas = canvas.resize((TOON_GPU_W, TOON_GPU_H), Image.Resampling.LANCZOS)
     return np.asarray(canvas)
 
 
@@ -234,7 +242,7 @@ def place_toon(rgba: np.ndarray) -> ToonPlane:
     tex = fit_toon_texture(rgba)
     # The quad matches the texture, including its transparent padding, so the
     # portrait texels are not stretched. Padding is a pixel or two.
-    aspect = tex.shape[1] / tex.shape[0]
+    aspect = TOON_TEX_W / TOON_TEX_H
     assert_layout(aspect)
     width, height, pos = _world_card(Z_TOON, _toon_ndc(aspect))
     return ToonPlane(tex, width, height, pos)

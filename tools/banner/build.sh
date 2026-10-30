@@ -4,7 +4,7 @@
 # Outputs (default OUT_DIR=tools/release/meta):
 #   banner.bnr       CBMD + BCWAV for makerom/bannertool
 #   banner.cgfx      3D model (from game assets via glTF → pycgfx)
-#   banner.bcwav     ~3 s tt_theme jingle
+#   banner.bcwav     ~2.75 s tt_theme jingle (opening phrase + final cadence)
 #   banner_preview.png  flat render for docs / PR
 #
 # Requires:
@@ -75,11 +75,12 @@ run_gl "$PYTHON" "$ROOT/tools/banner/render_preview.py" --resources "$RESOURCES"
 
 THEME="$RESOURCES/phase_3/audio/bgm/tt_theme.ogg"
 WAV="$BUILD/banner_jingle.wav"
-# 32000 Hz, 16-bit stereo, at most 2.9 s. bannertool does not resample.
-# atrim drops samples at 2.9 s; the fade finishes on that cut so it does not click.
-ffmpeg -y -nostdin -loglevel error -i "$THEME" \
-  -af "atrim=end=2.9,afade=t=in:st=0:d=0.03,afade=t=out:st=2.62:d=0.28,alimiter=limit=0.95" \
-  -ar 32000 -ac 2 -sample_fmt s16 -c:a pcm_s16le "$WAV"
+# 32000 Hz, 16-bit stereo, at most 2.9 s; bannertool does not resample. The jingle is the
+# theme's opening phrase spliced on a beat into its final V/V-V-I cadence, ending on the
+# tonic with the track's own ring-out (see make_jingle.py for the cut points).
+ffmpeg -y -nostdin -loglevel error -i "$THEME" -ar 32000 -ac 2 -sample_fmt s16 -c:a pcm_s16le \
+  "$BUILD/tt_theme_32k.wav"
+"$PYTHON" "$ROOT/tools/banner/make_jingle.py" "$BUILD/tt_theme_32k.wav" "$WAV"
 "$PYTHON" - "$WAV" <<'PY'
 import array, sys, wave
 path = sys.argv[1]

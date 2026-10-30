@@ -6,7 +6,8 @@ and are applied in memory:
 
 - RGBA8 for the logo and the dog (tex3ds byte order A,B,G,R). The backdrop
   stays RGBA4. pycgfx's swizzle had no RGBA8 case.
-- Textures are refused if a side is over 256 or not a multiple of 8. pycgfx
+- Textures are refused unless both sides are a power of two, 8..256 (PICA200
+  rule; a 128x160 dog texture is invalid on hardware). pycgfx
   otherwise resizes each axis on its own and stretches the image.
 - Specular is forced to black. Roughness 1 still leaves a 0.1 specular add.
 - The logo bone (``name``) is Y-axial billboard, with its transform already
@@ -55,10 +56,14 @@ def _install_patches() -> object:
     orig_to_txob = swizzler.to_txob
 
     def to_txob(im, format=texture_format.RGBA4, mipmaps=1):
-        if im.width > 256 or im.height > 256 or im.width % 8 or im.height % 8:
+        def pot(n: int) -> bool:
+            return 8 <= n <= 256 and n & (n - 1) == 0
+
+        if not (pot(im.width) and pot(im.height)):
             raise SystemExit(
-                f"refusing {im.width}x{im.height} texture; "
-                "pycgfx would clamp each side to 256 on its own"
+                f"refusing {im.width}x{im.height} texture; PICA200 needs "
+                "power-of-two sides (8..256 here), and pycgfx would clamp "
+                "each side to 256 on its own"
             )
         if mipmaps != 1:
             raise SystemExit("extra mip levels do not fit in 512 KiB")
