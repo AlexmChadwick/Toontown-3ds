@@ -2,6 +2,7 @@
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
 #   [TT_OFFLINE=1 | [TT_HOST=addr] TT_PORT=n TT_TOKEN=name] [TT_DATA=dir] (Linux, isolated per run)
+#   [NEW3DS=1] New 3DS mode instead of Old 3DS
 #   [SHOTS_DECODE=bottom|top] decode one screen only (raw dumps are always kept in out-dir/bin)
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
@@ -87,6 +88,10 @@ SEDI=(sed -i); [ "$(uname)" = Darwin ] && SEDI=(sed -i '')
     -e 's/^resolution_factor=[0-9]*/resolution_factor=1/' -e 's/^layout_option=[0-9]*/layout_option=0/' \
     -e 's/^check_for_update_on_start=true/check_for_update_on_start=false/' \
     -e 's/^volume=.*/volume=0/' -e 's/^volume\\default=true/volume\\default=false/' "$CFG" # muted (the user's volume comes back with the config restore)
+# NEW3DS=1: New 3DS mode instead (the default is Old 3DS, the baseline).
+if [ -n "${NEW3DS:-}" ]; then
+    "${SEDI[@]}" -e 's/^is_new_3ds=false/is_new_3ds=true/' -e 's/^is_new_3ds\\default=false/is_new_3ds\\default=true/' "$CFG"
+fi
 # No sound device (headless Linux): Auto fails to open cubeb, so pick the Null sink outright.
 if [ "$(uname)" != Darwin ] && [ ! -e /dev/snd ]; then
     "${SEDI[@]}" -e 's/^output_type=[0-9]*/output_type=1/' -e 's/^output_type\\default=true/output_type\\default=false/' "$CFG"
