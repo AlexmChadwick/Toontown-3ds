@@ -3,6 +3,54 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Cross-play Toon-Up target picker
+
+### Done
+- Fixed single-target Toon-Up silently healing the first remote Toon. In battles with two or
+  three eligible teammates, choosing a single-target Toon-Up gag now opens a dedicated parchment
+  target panel with large named cards; touch or D-pad/A chooses the exact Toon and B/Back cancels.
+  One eligible teammate remains immediate, and group Toon-Up gags retain their stock no-target
+  behavior.
+- Kept the target panel allocation-free and within the existing bottom-screen battle owner. Its
+  drawing and focus table share the same geometry, and the host navigation suite now covers every
+  card, directional movement, Back, and touch hitboxes.
+- Fixed the Cog target frame becoming stranded on a defeated Cog between rounds. The panel now
+  selects the first remaining active Cog before drawing or accepting the next attack, keeping the
+  highlighted card and Astron request target consistent.
+- Restored both pinned shallow reference submodules after finding empty worktrees: Open Toontown
+  code at `2b366a2` and resources at `d00df01`. Neither reference checkout was edited.
+
+### Verified
+- Compared Toon-Up request semantics against pinned upstream
+  `DistributedBattleBase.__handleLocalToonBattleEvent`: single-target HEAL resolves the selected
+  active-Toon slot to its doId, while group HEAL carries no individual target.
+- `git diff --check` passes, and both reference submodules report their pinned clean revisions.
+- `make -j2` reaches the repository's toolchain guard and stops because `DEVKITARM` is unavailable.
+  The host has GCC but no C++ frontend; downloading temporary Debian C++ packages was also blocked
+  by the environment's package proxy (HTTP 500), so the extended host suite and `.3dsx` could not
+  run here. No emulator or hardware result is claimed.
+
+### Asset size decisions
+- No new assets, heap allocations, or resident textures. The target cards use the existing
+  immediate-mode parchment shapes and cached font; the change is negligible for the Old 3DS
+  memory budget.
+
+### Known issues
+- The target chooser needs a live four-Toon battle capture at 320 x 240 and a server assertion
+  that each of the three cards produces the chosen teammate's doId.
+- Battle participant views do not currently expose remote Laff values, so the cards can identify
+  teammates by name but cannot yet show their health. Add the owner-visible health field only if
+  the stock protocol supplies it; do not estimate it client-side.
+- The broader existing issues remain open: Fire/SOS cinematic fidelity, native battle-picker
+  readability/performance, and the first complete Old 3DS hardware run.
+
+### Next
+- Run a four-client battle with a single-target Toon-Up gag, capture all three cards, cancel once,
+  then heal each teammate and assert the outgoing target doIds in the timestamped network log.
+- Capture the low-level and developed-Toon gag grids requested by the visual review, then tune
+  native-size typography and focus contrast from actual 320 x 240 frames.
+- Finish Fire cannon/smoke staging and NPC SOS arrival/effect playback using original assets.
+
 ## 2026-10-30 — Readable locked-gag ladders and battle actions
 
 ### Done

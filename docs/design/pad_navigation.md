@@ -64,6 +64,7 @@ a touch player's A still jumps.
 | Battle | Pass, Run | touch only | D-Down below the grid, A presses (Run is skipped when not allowed) |
 | Battle | reward Continue | touch only | A or START (Battle ignores a second rewardDone) |
 | Battle | Fire / SOS | bottom action row; SOS opens a two-column card picker | D-Pad/A or touch; B closes SOS |
+| Battle | single-target Toon-Up | first teammate was chosen silently | one teammate is immediate; 2–3 teammates open large named target cards; D-Pad/A or touch chooses and B cancels |
 | Shtiker Book (`ui/book.cpp`) | page turn, page tabs, close | touch; L / R and D-Left / D-Right turn pages; START closes | L / R turn pages; B or START closes; D-Left / D-Right turn pages unless the page uses them |
 | Book: Map page | Home, 8 hood buttons | touch only | D-Pad focus, A presses |
 | Book: Options page | Stereo, graphics quality, Music −/+, SFX −/+, Quit | touch only | D-Pad focus, A presses |
