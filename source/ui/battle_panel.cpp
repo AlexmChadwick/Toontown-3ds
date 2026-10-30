@@ -84,6 +84,14 @@ void drawToonLaff(float x, float y, float width, int hp, int maxHp) {
     }
 }
 
+u32 sosCardColor(const SosCardDef* def) {
+    if (!def) return kSlotFrame;
+    if (def->track < gags::kTracks) return kTrackColor[def->track];
+    if (def->track == 7) return C2D_Color32(0x57, 0x99, 0xB8, 0xFF); // restock
+    if (def->track == 8) return C2D_Color32(0xD8, 0x67, 0x58, 0xFF); // Toons hit
+    return C2D_Color32(0x8B, 0x75, 0xA8, 0xFF);                    // Cogs miss
+}
+
 } // namespace
 
 bool BattlePanel::init() {
@@ -379,8 +387,22 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             const float x = 4 + col * 158, y = 28 + row * 21;
             shape::roundFrame(x, y, 0.54f, 154, 19, 5, 1, kSlotFrame,
                               card.count ? kWhite : C2D_Color32(0xC8, 0xC2, 0xB5, 0xFF));
-            text(x + 4, y + 2, 0.31f, card.count ? kInk : kDim, "%s", def ? def->name : "SOS Toon");
-            text(x + 136, y + 2, 0.31f, card.count ? kInk : kDim, "x%u", unsigned(card.count));
+            C2D_DrawRectSolid(x + 3, y + 3, 0.56f, 5, 13,
+                              card.count ? sosCardColor(def) : kLockedInk);
+            // The old chooser exposed only the NPC name.  At touch-screen size a
+            // compact second line is enough to make unlike cards distinguishable
+            // without opening another panel or hiding any of the 16 inventory slots.
+            text(x + 11, y + 1, 0.29f, card.count ? kInk : kDim,
+                 "%s", def ? def->name : "SOS Toon");
+            if (def && def->track < gags::kTracks)
+                text(x + 11, y + 9, 0.24f, card.count ? kInk : kDim,
+                     "%s L%d", sosTrackName(def->track, def->level), int(def->level) + 1);
+            else
+                text(x + 11, y + 9, 0.24f, card.count ? kInk : kDim,
+                     "%s", def ? sosTrackName(def->track, def->level) : "SOS CARD");
+            shape::roundRect(x + 132, y + 3, 0.58f, 19, 13, 4,
+                             card.count ? sosCardColor(def) : kLockedInk);
+            text(x + 135, y + 5, 0.27f, kWhite, "x%u", unsigned(card.count));
         }
         shape::roundFrame(110, 210, 0.54f, 100, 28, 9, 2, kSlotFrame, kSlotPaper);
         text(143, 216, 0.5f, kInk, "Back");
