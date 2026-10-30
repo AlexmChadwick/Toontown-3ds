@@ -217,11 +217,18 @@ The runtime sees ordinary TTM meshes/textures; no text/font library is added to 
 JSON. The completed set includes 13,709 letters across 1,258 baselines. Distant
 letters intentionally disappear with the other decal details in far LOD.
 
-Atlases otherwise retain the existing 256px ETC pages, 32px prop tiles, four-pixel
+Atlases otherwise use 256px ETC pages, 48px prop/building tiles, four-pixel
 gutters and no cross-tile mips. Repeated UVs are clipped at texture boundaries.
 Burrrgh terrain additionally needs clipping into <=16-repeat UV pieces before
 int16 packing; subtracting whole repeats preserves its tiling, unlike clamping.
 The UV regression test checks geometric area and packed coordinate range.
+
+The original 32px tiles visibly blurred shop roofs, walls and prop details at the
+top screen's normal camera distance. 48px retains 2.25x as many source texels while
+keeping the same draw calls and 256px PICA texture format. Based on the measured
+2.83 MiB worst exterior view above, the conservative proportional high-detail
+residency is about 6.4 MiB, below the hard 8 MiB zone-texture budget. Full rebakes
+still run the per-cell planner and fail rather than emit a view over that limit.
 
 ## Visual checks and preview paths
 

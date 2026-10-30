@@ -132,7 +132,7 @@ def bake(zone_id, args, base):
                         if np.linalg.norm(np.cross(tri[1]-tri[0],tri[2]-tri[0]))>1e-6:
                             floors.append((tri,i,zone_id))
         floors.sort(key=lambda f:f[1])
-    textures, batches=street_atlas.build(ex.sources,raw)
+    textures, batches=street_atlas.build(ex.sources,raw,args.atlas_tile)
     batches=[[street_atlas.rebase_large_uvs(b,textures) for b in bs] for bs in batches]
     out=Path(args.out)
     out.mkdir(parents=True,exist_ok=True)
@@ -227,6 +227,8 @@ def main():
     ap.add_argument('--out',default=str(ROOT/'sdmc-out/3ds/toontown3ds/data/zones'))
     ap.add_argument('--grid-size',type=float,default=128)
     ap.add_argument('--distance',type=float,default=120)
+    ap.add_argument('--atlas-tile',type=int,choices=(32,48),default=48,
+                    help='exterior atlas tile size; 32 is retained only for matched A/B captures')
     ap.add_argument('--preview',action='store_true')
     ap.add_argument('--points-only',action='store_true',help='only rewrite the .pts anchor sidecars')
     ap.add_argument('--separate-boat',action='store_true',
@@ -241,7 +243,7 @@ def main():
         for z in requested:
             command=[sys.executable,'-I',str(Path(__file__).resolve()),'--zone',str(z),
                      '--resources',args.resources,'--out',args.out,'--grid-size',str(args.grid_size),
-                     '--distance',str(args.distance)]
+                     '--distance',str(args.distance),'--atlas-tile',str(args.atlas_tile)]
             if args.preview:
                 command.append('--preview')
             if args.separate_boat:

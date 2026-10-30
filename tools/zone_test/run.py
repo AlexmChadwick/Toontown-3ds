@@ -48,11 +48,32 @@ class FormatTests(unittest.TestCase):
             self.assertAlmostEqual(float(areas.sum()),2,places=6)
             self.assertTrue(np.all(areas>=-1e-10))
             uv=tri[:,:,3:5]
-            self.assertTrue(np.all(uv[:,:,0]>=4/256-1e-9))
-            self.assertTrue(np.all(uv[:,:,0]<=36/256+1e-9))
-            self.assertTrue(np.all(uv[:,:,1]>=220/256-1e-9))
-            self.assertTrue(np.all(uv[:,:,1]<=252/256+1e-9))
+            lo = street_atlas.GUTTER / street_atlas.ATLAS_SIZE
+            hi = (street_atlas.GUTTER + street_atlas.TILE_SIZE) / street_atlas.ATLAS_SIZE
+            self.assertTrue(np.all(uv[:,:,0]>=lo-1e-9))
+            self.assertTrue(np.all(uv[:,:,0]<=hi+1e-9))
+            self.assertTrue(np.all(uv[:,:,1]>=1-hi-1e-9))
+            self.assertTrue(np.all(uv[:,:,1]<=1-lo+1e-9))
             self.assertEqual(textures[0].mips,1)
+
+    def test_atlas_preserves_48px_detail(self):
+        tex=Texture('building_detail')
+        image=PNMImage(128,128,4)
+        image.fill(1,0,0); image.alphaFill(1)
+        tex.load(image)
+        vs=np.array([[0,0,0,0,0,1,1,1,1],[2,0,0,1,0,1,1,1,1],
+                     [0,2,0,0,1,1,1,1,1]],dtype=float)
+        b=ttm.Batch(0,0,False,0,0,vs,np.arange(3))
+        textures,chunks=street_atlas.build([tex],[[b]])
+        self.assertEqual(street_atlas.TILE_SIZE,48)
+        self.assertEqual((textures[0].w,textures[0].h),(256,256))
+        uv=chunks[0][0].verts[:,3:5]
+        span=uv.max(axis=0)-uv.min(axis=0)
+        np.testing.assert_allclose(span,48/256,rtol=0,atol=1e-9)
+        _,legacy=street_atlas.build([tex],[[b]],32)
+        legacy_uv=legacy[0][0].verts[:,3:5]
+        legacy_span=legacy_uv.max(axis=0)-legacy_uv.min(axis=0)
+        np.testing.assert_allclose(legacy_span,32/256,rtol=0,atol=1e-9)
 
     def test_sign_layout(self):
         node=dna.parse('baseline [scale [2 1 2] kern [.2] stumble [.1] stomp [.2] wiggle [5]]').children[0]
