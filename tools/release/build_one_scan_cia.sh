@@ -36,6 +36,7 @@ else
 fi
 
 bannertool makesmdh -s "Toontown 3DS" -l "Unofficial Open Toontown client" -p "toontown-3ds contributors" \
+    -f visible,allow3d,recordusage,extendedbanner \
     -i "$META/icon.png" -o build/icon.icn >/dev/null
 ( cd build && makerom -f cia -o "$OUT" -elf ../toontown3ds.elf -rsf "$RSF" \
     -icon icon.icn -banner banner.bnr -exefslogo -target t \

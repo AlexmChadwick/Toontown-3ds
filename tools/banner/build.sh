@@ -75,10 +75,31 @@ run_gl "$PYTHON" "$ROOT/tools/banner/render_preview.py" --resources "$RESOURCES"
 
 THEME="$RESOURCES/phase_3/audio/bgm/tt_theme.ogg"
 WAV="$BUILD/banner_jingle.wav"
-ffmpeg -y -nostdin -loglevel error -i "$THEME" -t 2.95 -af "afade=t=in:st=0:d=0.03,afade=t=out:st=2.15:d=0.8,alimiter=limit=0.95" \
-  -ar 22050 -ac 2 "$WAV"
+# 32000 Hz, 16-bit stereo, at most 2.9 s. bannertool does not resample.
+# atrim drops samples at 2.9 s; the fade finishes on that cut so it does not click.
+ffmpeg -y -nostdin -loglevel error -i "$THEME" \
+  -af "atrim=end=2.9,afade=t=in:st=0:d=0.03,afade=t=out:st=2.62:d=0.28,alimiter=limit=0.95" \
+  -ar 32000 -ac 2 -sample_fmt s16 -c:a pcm_s16le "$WAV"
+"$PYTHON" - "$WAV" <<'PY'
+import array, sys, wave
+path = sys.argv[1]
+wav = wave.open(path)
+channels, rate, width = wav.getnchannels(), wav.getframerate(), wav.getsampwidth()
+frames = wav.getnframes()
+duration = frames / rate
+if (channels, rate, width) != (2, 32000, 2) or duration > 2.9 + 1e-4:
+    raise SystemExit(
+        f"bad banner wav: {channels} ch, {rate} Hz, {width * 8}-bit, {duration:.4f}s"
+    )
+samples = array.array("h")
+samples.frombytes(wav.readframes(frames))
+peak = max(abs(sample) for sample in samples)
+if peak >= 32767:
+    raise SystemExit(f"banner wav clips (peak {peak})")
+print(f"audio: {channels} ch, {rate} Hz, {width * 8}-bit PCM, {duration:.4f}s, peak {peak}")
+PY
 
-"$PYTHON" "$PYCGFX_DIR/main.py" "$BUILD/banner_scene.glb" "$BUILD/banner.cgfx"
+"$PYTHON" "$ROOT/tools/banner/cgfx_convert.py" "$BUILD/banner_scene.glb" "$BUILD/banner.cgfx"
 CGFX_SIZE=$(stat -c%s "$BUILD/banner.cgfx")
 if [ "$CGFX_SIZE" -gt 524288 ]; then
   echo "error: banner.cgfx is ${CGFX_SIZE} bytes (>512 KiB HOME Menu limit)" >&2

@@ -9,13 +9,14 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
-from panda3d.core import PNMImage, ShaderAttrib, WindowProperties, loadPrcFileData
+from panda3d.core import PNMImage, ShaderAttrib, loadPrcFileData
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE))
 
 from scene_common import (  # noqa: E402
+    BANNER_ASPECT,
     CAMERA_FAR,
     CAMERA_FOV_DEG,
     CAMERA_NEAR,
@@ -24,18 +25,24 @@ from scene_common import (  # noqa: E402
     configure_panda,
 )
 
+# HOME Menu top screen. Scaling this 5:3 view into 256x128 would squash it.
+PREVIEW_W = 400
+PREVIEW_H = 240
+
 def _setup_display() -> None:
     loadPrcFileData("", "load-display pandagl")
     loadPrcFileData("", "show-frame-rate-meter 0")
     loadPrcFileData("", "sync-video 0")
+    # Set before ShowBase. requestProperties after init does not apply in time.
+    loadPrcFileData("", "win-size 800 480")
 
 
 def _setup_camera(base, eye_offset_x: float = 0.0) -> None:
     import math
 
     lens = base.cam.node().getLens()
-    # Match pycgfx banner-camera.gltf: vertical FOV 30°, aspect 2:1 for the 256×128 preview.
-    aspect = 2.0
+    # pycgfx banner-camera.gltf: vertical FOV 30 degrees, aspect 400/240.
+    aspect = BANNER_ASPECT
     vfov = CAMERA_FOV_DEG
     hfov = math.degrees(2.0 * math.atan(math.tan(math.radians(vfov) * 0.5) * aspect))
     lens.setFov(hfov, vfov)
@@ -80,35 +87,36 @@ def render_previews(resources: Path, out_dir: Path, toon_rgba: np.ndarray) -> No
     class BannerPreview(ShowBase):
         def __init__(self):
             super().__init__()
-            self.win.requestProperties(WindowProperties.size(640, 320))
             self.setBackgroundColor(0.47, 0.75, 1.0, 1)
             attach_banner_scene(self.render, resources, toon_rgba=toon_rgba)
 
     base = BannerPreview()
+    win_w, win_h = base.win.getXSize(), base.win.getYSize()
+    if abs(win_w / win_h - BANNER_ASPECT) > 0.02:
+        raise SystemExit(f"preview window {win_w}x{win_h} is not 5:3")
     base.render.setShaderOff(ShaderAttrib.M_off)
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
     _setup_camera(base, 0.0)
     mono_path = out_dir / "banner_preview.png"
-    _screenshot_pil(base, 256, 128).save(mono_path)
+    _screenshot_pil(base, PREVIEW_W, PREVIEW_H).save(mono_path)
 
     iod = 0.55
     _setup_camera(base, -iod * 0.5)
-    pil_left = _screenshot_pil(base, 256, 128)
+    pil_left = _screenshot_pil(base, PREVIEW_W, PREVIEW_H)
     _setup_camera(base, iod * 0.5)
-    pil_right = _screenshot_pil(base, 256, 128)
+    pil_right = _screenshot_pil(base, PREVIEW_W, PREVIEW_H)
 
     stereo_path = out_dir / "banner_preview_stereo.png"
-    stereo = Image.new("RGBA", (512, 128))
+    stereo = Image.new("RGBA", (PREVIEW_W * 2, PREVIEW_H))
     stereo.paste(pil_left, (0, 0))
-    stereo.paste(pil_right, (256, 0))
+    stereo.paste(pil_right, (PREVIEW_W, 0))
     stereo.save(stereo_path)
 
-    anaglyph = Image.new("RGB", (256, 128))
     lr = np.array(pil_left.convert("RGB"), dtype=np.float32)
     rr = np.array(pil_right.convert("RGB"), dtype=np.float32)
-    ag = np.zeros((128, 256, 3), dtype=np.uint8)
+    ag = np.zeros((PREVIEW_H, PREVIEW_W, 3), dtype=np.uint8)
     ag[:, :, 0] = lr[:, :, 0].astype(np.uint8)
     ag[:, :, 1] = rr[:, :, 1].astype(np.uint8)
     ag[:, :, 2] = rr[:, :, 2].astype(np.uint8)

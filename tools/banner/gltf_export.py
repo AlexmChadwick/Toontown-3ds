@@ -145,10 +145,18 @@ def make_textured_quad(
     rgba: np.ndarray,
     *,
     double_sided: bool = True,
+    origin: tuple[float, float, float] = (0.0, 0.0, 0.0),
 ) -> MeshPart:
     hw, hh = width * 0.5, height * 0.5
+    ox, oy, oz = origin
     positions = np.array(
-        [[-hw, -hh, 0.0], [hw, -hh, 0.0], [hw, hh, 0.0], [-hw, hh, 0.0]], dtype=np.float32
+        [
+            [-hw + ox, -hh + oy, oz],
+            [hw + ox, -hh + oy, oz],
+            [hw + ox, hh + oy, oz],
+            [-hw + ox, hh + oy, oz],
+        ],
+        dtype=np.float32,
     )
     normals = np.tile(np.array([[0.0, 0.0, 1.0]], dtype=np.float32), (4, 1))
     uvs = np.array([[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]], dtype=np.float32)
@@ -256,16 +264,23 @@ def write_glb(objects: list[SceneObject], out_path: Path) -> None:
         img.save(png, format="PNG")
         png_bytes = png.getvalue()
         img_off = append_data(png_bytes)
-        images_json.append({"bufferView": len(buffer_views) - 1, "mimeType": "image/png"})
+        images_json.append(
+            {
+                "name": mesh.name,
+                "bufferView": len(buffer_views) - 1,
+                "mimeType": "image/png",
+            }
+        )
         textures_json.append({"source": len(images_json) - 1})
         mat_idx = len(materials_json)
+        # roughness 1 keeps the specular term small. cgfx_convert then zeros it.
         materials_json.append(
             {
                 "name": mesh.name,
                 "pbrMetallicRoughness": {
                     "baseColorTexture": {"index": len(textures_json) - 1},
                     "metallicFactor": 0.0,
-                    "roughnessFactor": 0.65,
+                    "roughnessFactor": 1.0,
                 },
                 "alphaMode": "BLEND" if mesh.base_color[:, :, 3].min() < 255 else "OPAQUE",
                 "doubleSided": mesh.double_sided,
@@ -296,6 +311,52 @@ def write_glb(objects: list[SceneObject], out_path: Path) -> None:
             }
         )
 
+    # Rigid hold, no skinning. 1.2 s is 36 frames at 30 fps. pycgfx stores
+    # CANM times at 60 fps, so the keys are frame 0 and frame 72. The first
+    # and last poses match, so the loop is seamless and the end frame is set.
+    anim_end = np.float32(72.0 / 60.0)
+    times = np.array([0.0, anim_end], dtype=np.float32)
+    append_data(times.tobytes())
+    time_acc = len(accessors)
+    accessors.append(
+        {
+            "bufferView": len(buffer_views) - 1,
+            "componentType": 5126,
+            "count": 2,
+            "type": "SCALAR",
+            "min": [0.0],
+            "max": [float(anim_end)],
+        }
+    )
+    samplers = []
+    channels = []
+    for node_index, obj in enumerate(objects):
+        tracks = {
+            "translation": np.array([obj.translation, obj.translation], dtype=np.float32),
+            "rotation": np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], dtype=np.float32),
+            "scale": np.array([[1.0, 1.0, 1.0], [1.0, 1.0, 1.0]], dtype=np.float32),
+        }
+        types = {"translation": "VEC3", "rotation": "VEC4", "scale": "VEC3"}
+        for path, values in tracks.items():
+            append_data(values.tobytes())
+            acc = len(accessors)
+            accessors.append(
+                {
+                    "bufferView": len(buffer_views) - 1,
+                    "componentType": 5126,
+                    "count": 2,
+                    "type": types[path],
+                }
+            )
+            sampler = len(samplers)
+            samplers.append(
+                {"input": time_acc, "output": acc, "interpolation": "STEP"}
+            )
+            channels.append(
+                {"sampler": sampler, "target": {"node": node_index, "path": path}}
+            )
+    animations = [{"name": "COMMON", "samplers": samplers, "channels": channels}]
+
     bin_blob = b"".join(buffer_parts)
     json_obj = {
         "asset": {"version": "2.0", "generator": "toontown3ds-banner"},
@@ -308,6 +369,7 @@ def write_glb(objects: list[SceneObject], out_path: Path) -> None:
         "materials": materials_json,
         "textures": textures_json,
         "images": images_json,
+        "animations": animations,
         "buffers": [{"byteLength": len(bin_blob)}],
     }
     json_bytes = json.dumps(json_obj, separators=(",", ":")).encode("utf-8")
