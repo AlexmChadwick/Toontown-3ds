@@ -264,6 +264,9 @@ const Step kScript[] = {
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "interior: door leaves", "door_leaves*"},
     {22.0f, 0, 0, 0, 0, -1, -1, 0, "street: knock knock", "knock_knock*"},
     // [end interior life]
+    // Platform badges: stand still while bots (smoke_test.py --platform --follow) line up in
+    // front of us; one shot a second ("only platform badges").
+    {30.0f, 0, 0, 0, 0, -1, -1, 0, "platform badges", "badges*"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);

@@ -1248,3 +1248,25 @@ Private live server (`SERVER_PORT=37198`, heartbeat timeout 3600 s), isolated Az
   TTC -> Daisy Gardens (`transition: teleport in complete in zone 5000`).
 - Host: padnav_test 118/0, nettest all groups, book_test, perf_test pass. `make`: no warnings in
   `source/`.
+
+## 2026-10-30 — platform badges, 3DS client (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Build `feature/platform-badges` (after f64ef4c), zero warnings in `source/`. Private server on
+CA 7298 started with `PLATFORM=1` (TTPlatformManager 4721, platform.dc, `manual_dc_hash 547155168`,
+`ASTRON_HEARTBEAT_TIMEOUT_MS=300000`). The 3DS client reports N3DS (no override). Bots:
+`smoke_test.py --platform N --follow any` (stock 2-file DC clients that send `setMyPlatform` raw
+and stand in front of the 3DS toon). `AUTOTEST_ONLY="run forward,platform badges"`.
+
+- **Run 1** (MAC bot left, N3DS bot right): `platform: own N3DS (7) sent`, one
+  `requestPlatforms` of 2 ids, then `toon 100000001 is MAC (badge)`, `toon 100000003 is N3DS`.
+  The top screen shows the apple badge left of the MAC toon's name, no badge on the N3DS toon's
+  tag, and none on our own toon. Shots: `/workspace/shots/platform-badges-1030/Toontown-3ds-B-*`.
+- **Run 2** (MAC / N3DS / WINDOWS): MAC and WINDOWS badges drawn; N3DS none. The centre tag sits
+  behind its neighbours (nametags overlap at that spacing, as upstream).
+- fps 27.0 in the hold step (Linux software GL, one 108 ms screenshot a second), cpu 7.5 ms,
+  125 draws, 13.2k tris, heap 3482K, linear free 15738K, VRAM free 4194K. Badge texture: 4 KiB
+  linear, no per-frame allocation. No ejects, 0 emulator panics; the 30 s clock loop showed no gap.
+- Host: `tools/platform_test/run.sh` (149 checks + DC numbering) and
+  `tools/nettest/run_tests.sh` all pass, including the new platform steps (MAC/N3DS pair, same
+  platform without badge, stock-server fallback: one 117 eject naming 4721, badges off, rejoined).
+- Not tested: real hardware; the VPS (phase C); the 3DS against another port's live client.

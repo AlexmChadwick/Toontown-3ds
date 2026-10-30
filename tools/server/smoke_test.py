@@ -63,6 +63,12 @@ VERSION = "sv1.0.47.38"
 TEST_DNA = b"t" + bytes([0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 5, 0, 5, 5])
 
 
+# Platform badges (tools/server/platform/README.md): global TTPlatformManager and its
+# setMyPlatform field number (platform.dc, read after toon.dc). Sent raw so this stays a
+# stock 2-file DC client otherwise.
+PLATFORM_MANAGER_ID, SET_MY_PLATFORM = 4721, 2270
+
+
 class DC:
     def __init__(self):
         self.f = DCFile()
@@ -169,6 +175,8 @@ class Conn:
         """Decode one message; returns a tuple describing it."""
         if mtype == CLIENT_OBJECT_SET_FIELD:
             do_id, fid = struct.unpack_from("<IH", d)
+            if do_id == PLATFORM_MANAGER_ID:  # platform.dc is not in our 2-file DC
+                return ("platforms", fid, d[6:].hex())
             fld = self.dc.f.getFieldByIndex(fid)
             val, _ = self.dc.unpack_one(fld, d, 6)
             obj = self.objects.get(do_id)
@@ -257,6 +265,14 @@ def main():
     ap.add_argument("--radius", type=float, default=40.0, help="circle radius for --move")
     ap.add_argument("--speed", type=float, default=0.5, help="angular speed (rad/s) for --move")
     ap.add_argument("--z", type=float, default=4.0, help="height for --move")
+    ap.add_argument("--platform", type=int, metavar="ID",
+                    help="send TTPlatformManager.setMyPlatform(ID) after entering (needs PLATFORM=1 server)")
+    ap.add_argument("--follow", metavar="NAME",
+                    help="stand still in front of the toon with this name (or 'any'), facing it")
+    ap.add_argument("--bot-dir", default="/tmp/smoke-bots",
+                    help="--follow any: bots write their avIds here and never follow each other")
+    ap.add_argument("--follow-dist", type=float, default=9.0, help="distance in front of the followed toon")
+    ap.add_argument("--follow-side", type=float, default=0.0, help="sideways offset (+ = its right)")
     ap.add_argument("-v", "--verbose", action="store_true", help="dump every field")
     ap.add_argument("--whisper", type=int, metavar="MSG",
                     help="every 5 s, SpeedChat-whisper phrase MSG to every other toon in view")
@@ -325,8 +341,17 @@ def main():
     ctx = c.add_interest(shard, a.zone, 3)
     c.pump_until(lambda e: e[0] == "done_interest" and e[1] == ctx, 30, "zone %d interest" % a.zone)
 
+    if a.follow:
+        os.makedirs(a.bot_dir, exist_ok=True)
+        with open(os.path.join(a.bot_dir, str(av_id)), "w") as fp:
+            fp.write(a.token)
+    if a.platform is not None:
+        c.send(struct.pack("<HIHB", CLIENT_OBJECT_SET_FIELD, PLATFORM_MANAGER_ID, SET_MY_PLATFORM, a.platform))
+        print("platform: setMyPlatform(%d) sent" % a.platform, flush=True)
+
     # 7. linger
     print("in zone %d; lingering %.1fs" % (a.zone, a.linger))
+    follow_pose = None
     end = time.time() + a.linger
     t0 = time.time()
     next_move = 0
@@ -344,6 +369,34 @@ def main():
                     c.set_field(d, "DistributedToon", "setWhisperSCFrom", av_id, a.whisper)
                     print("whispered %d to %d" % (a.whisper, d))
             next_whisper = time.time() + 5.0
+        if a.follow and time.time() >= next_move:
+            import math
+            next_move = time.time() + 0.5
+            target = None
+            for d, o in c.objects.items():
+                if o["cls"] != "DistributedToon" or d == av_id or "setSmPosHpr" not in o["fields"]:
+                    continue
+                if os.path.exists(os.path.join(a.bot_dir, str(d))):
+                    continue  # another bot
+                if a.follow == "any" or o["fields"].get("setName", [""])[0] == a.follow:
+                    target = o["fields"]["setSmPosHpr"]
+                    break
+            if target is not None:
+                tx, ty, tz, th = target[0], target[1], target[2], target[3]
+                fx, fy = -math.sin(math.radians(th)), math.cos(math.radians(th))  # Panda forward
+                rx, ry = fy, -fx                                                     # its right
+                x = tx + fx * a.follow_dist + rx * a.follow_side
+                y = ty + fy * a.follow_dist + ry * a.follow_side
+                pose = (round(x, 1), round(y, 1), round(tz, 1), round((th + 180) % 360, 1))
+                if pose != follow_pose:
+                    ts = ((int(time.time() * 100) & 0xFFFF) ^ 0x8000) - 0x8000
+                    if follow_pose is None:
+                        c.set_field(av_id, "DistributedToon", "setAnimState", "neutral", 1.0, ts)
+                    c.set_field(av_id, "DistributedSmoothNode", "setSmPosHpr", pose[0], pose[1], pose[2],
+                                pose[3], 0, 0, ts)
+                    c.set_field(av_id, "DistributedSmoothNode", "setSmStop", ts)
+                    print("follow: at %r (target %r)" % (pose, target[:4]), flush=True)
+                    follow_pose = pose
         if a.move and time.time() >= next_move:
             import math
             ang = (time.time() - t0) * a.speed

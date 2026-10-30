@@ -2,7 +2,7 @@
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"]
-#   [SERVER=host:port [TOKEN=account]] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
+#   [SERVER=host:port [TOKEN=account]] [TT_PLATFORM=mac] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
 # Every run starts from a private copy of the app (so rebuilding the tree mid-run is safe) and
 # leaves log.txt, the emulator log and decoded shot PNGs in out-dir.
@@ -117,6 +117,9 @@ restore() {
 }
 trap restore EXIT INT TERM HUP
 
+# TT_PLATFORM=mac (name or enum id): platform.txt, the platform-badge platform we report.
+if [ -n "${TT_PLATFORM:-}" ]; then echo "$TT_PLATFORM" > "$SD/platform.txt"
+elif [ "$SD" != "$USER_SD" ]; then rm -f "$SD/platform.txt"; fi
 if [ -n "${SERVER:-}" ]; then # host:port (+ TOKEN) -> source/core/config.h key=value lines
     printf 'host=%s\nport=%s\n' "${SERVER%:*}" "${SERVER##*:}" > "$SD/server.txt"
     if [ -n "${TOKEN:-}" ]; then echo "token=$TOKEN" >> "$SD/server.txt"; fi

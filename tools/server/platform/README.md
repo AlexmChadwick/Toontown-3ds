@@ -159,7 +159,7 @@ Rules: badge only if `should_show(own, other, isLocal)` = `!isLocal && other != 
 |---|---|
 | Python (native, android, iOS with Panda) | vendor `ttplatform/` (`TTPlatformManager.py`, `platforms.py`); add `dc-file platform.dc` **after** toon.dc (check the final read order: the 3-file read must put it last); `cr.platformManager = cr.generateGlobalObject(4721, 'TTPlatformManager')`; override the hello hash to 547155168 (`otp/login/LoginAstronAccount.py` sends `cr.hashVal`: set `cr.hashVal = 547155168` after `readDCFile`); update any self-test to check otp+toon == 547155168 and that platform.dc loads; hook `noteToon` in DistributedToon generate and `shouldShowBadge` in the nametag. |
 | Generated tables (web, VR, 3DS) | run the DC generator over otp.dc, toon.dc, **platform.dc**; keep `DC_HASH = 547155168`; add a test that every existing class/field number is unchanged (class 398 / fields 2270-2273 are the new ones); whitelist only `setMyPlatform` / `requestPlatforms` as outgoing on 4721. |
-| 3DS | `tools/dcgen` takes the third file; 16x16 (or 24x24) RGBA4 sprite from `tools/platform-badges/atlas_16.png` in the existing UI atlas; fixed array cache (no per-frame allocation); badge drawn left of the name in `ui::Balloons`. |
+| 3DS (done, AGENTS.md "phase B") | `tools/dcgen` takes the third file; 16x16 (or 24x24) RGBA4 sprite from `tools/platform-badges/atlas_16.png` in the existing UI atlas; fixed array cache (no per-frame allocation); badge drawn left of the name in `ui::Balloons`. |
 
 Shared pure logic for Python ports: `ttplatform/platforms.py` (`clamp`, `from_name`,
 `should_show`, `detect_native_platform`, `RequestBatcher`). Non-Python ports mirror it and copy
