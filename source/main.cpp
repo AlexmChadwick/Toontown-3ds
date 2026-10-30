@@ -1942,6 +1942,8 @@ int main() {
                 toastAge = 0.0f;
             } else {
                 travelTarget = exitHere.targetZone;
+                TT_LOG("place: exit %s -> zone %lu (%s)", exitHere.name, static_cast<unsigned long>(travelTarget),
+                       netStarted ? "online" : "offline");
             }
         }
         if (uiState.teleportRequest && (minigame.active() || trolley.seated() || battle.active())) {

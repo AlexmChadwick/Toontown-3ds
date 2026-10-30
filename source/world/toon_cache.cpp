@@ -571,6 +571,8 @@ bool ToonCache::streamStep() {
         if (!ok) {
             fallback[p]=true;
             if(!slot->fileFallback[p]) {
+                // Once per clip file: the part shows its neutral pose instead (emotes look frozen).
+                TT_LOG("toon: clip %s %s, using neutral", file, slot->files[p] ? "read failed" : "missing");
                 if(slot->files[p]) fclose(slot->files[p]);
                 snprintf(file,sizeof(file),"%.23s_neutral.tta",keys[p]);
                 slot->files[p]=findFile(file,path,sizeof(path))?fopen(path,"rb"):nullptr;
