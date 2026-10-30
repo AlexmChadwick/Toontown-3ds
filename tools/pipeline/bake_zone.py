@@ -155,7 +155,10 @@ def main():
     # The monolithic playground keeps its 128px textures: the whole zone is one
     # resident mesh, so 256px would blow the 8 MiB texture budget. Streamed zones
     # (bake_street.py) are where the near tiles get larger.
-    batches, ground_stats = extract.subdivide_ground(ex.batches())
+    # The whole playground is one mesh, so the 20-unit split has to loosen until
+    # the file stays under 15k triangles. Streamed zones keep the 20-unit cap.
+    import ground_split
+    batches, ground_stats = ground_split.split_under(ex.batches())
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
     stats = ttm.write(args.out, ex.textures, batches)
     stats['ground_split'] = ground_stats

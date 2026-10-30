@@ -52,6 +52,27 @@ def split_triangle(tri, max_edge=MAX_EDGE):
     return out
 
 
+def split_under(batches, tri_limit=15000, max_edge=MAX_EDGE, ceiling=64.0):
+    """Raise the edge cap until the mesh has at most tri_limit triangles.
+
+    The RomFS playground is one resident mesh, so the whole file has to stay
+    under 15k triangles. Streamed zones keep MAX_EDGE: their budget is the
+    visible set, not the file. stats['max_edge'] is the cap that fit.
+    """
+    edge = float(max_edge)
+    last = None
+    while edge <= ceiling + 1e-6:
+        out, stats = split_batches(batches, max_edge=edge)
+        stats = dict(stats)
+        stats['max_edge'] = edge
+        last = (out, stats)
+        if stats['triangles_out'] <= tri_limit:
+            return out, stats
+        edge += 2.0
+    raise ValueError(
+        f'ground mesh is {last[1]["triangles_out"]} triangles at edge {ceiling:g}, over {tri_limit}')
+
+
 def split_batches(batches, max_edge=MAX_EDGE, min_up=MIN_UP):
     """Return (batches, stats). Only upward-facing triangles with a long edge are split."""
     stats = {'triangles_in': 0, 'triangles_out': 0, 'split': 0}

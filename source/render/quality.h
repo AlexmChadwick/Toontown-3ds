@@ -21,7 +21,7 @@ struct Quality {
 // High LOD stays near the camera; past lodNear the chunk is the coarse far mesh.
 // Fog is already falling there, which hides the swap. New 3DS keeps the sharp
 // range and the cutoff farther. Zone still refuses a high-LOD upgrade that would
-// pass 15k triangles, 150 draws, 6 MiB geometry or 8 MiB textures.
+// pass 15k triangles, 130 draws (Zone::kDrawBudget), 6 MiB geometry or 8 MiB textures.
 inline Quality qualityFor(bool new3ds) {
     if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 180.0f, 680.0f, true};
     return {520.0f, 440.0f, 160.0f, 185.0f, 110.0f, 400.0f, false};

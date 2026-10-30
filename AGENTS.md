@@ -131,7 +131,9 @@ VRAM usage plus frame time. Every Azahar or hardware test logs those numbers in
 - **Target 30 fps locked** on Old 3DS, which is 33.3 ms per frame. Never trade
   stability for 60 fps.
 - **Rough GPU envelope** to validate in Phase 1: ≤ 15k triangles and ≤ 150 draw calls
-  per frame on the top screen.
+per frame on the top screen. World chunks stop upgrading at 130 draws
+(`Zone::kDrawBudget`) so toons and props still fit. The playground and Cog HQ
+baker raises the grid until the far view fits that cap.
 - **CPU per frame:** ≤ 6 ms for animation and skinning, ≤ 3 ms for networking.
 - **Draw distance:** `source/render/quality.h`. Old 3DS draws to 440 and fogs from
   110 to 400, with the far plane at 520 so the sky is fog colour rather than a clip

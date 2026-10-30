@@ -391,14 +391,16 @@ merge was performed.
 `bake_street.py` now takes two atlas profiles. The near mesh uses 64px tiles, an
 8px gutter and three mips downsampled per tile (gutters do not bleed). Upward
 faces with an edge of at least 8 stay on their own 256px texture. `street_atlas.build`
-defaults are unchanged (32px, 4px gutter, one mip) so cog HQ bakes and the atlas
-unit test keep their coordinates.
+defaults are unchanged (32px, 4px gutter, one mip) so the atlas unit test keeps
+its coordinates. Cog HQ exteriors use the same near profile as playgrounds.
 
-The far mesh is no longer a second atlas. After the same voxel simplify, each
-corner samples its texture at 32px into the vertex colour and the chunk stores
-no texture pages. That is what lets a playground PVS cover the New 3DS draw
-distance (baker `--distance` 760, plus 78 for the camera orbit and the coarsest
-snap) inside 8 MiB. Old 3DS loads that file out to 440. Decals, including sign
+The far mesh is no longer a second full atlas. After the same voxel simplify,
+each corner samples its texture at 32px into the vertex colour and that triangle
+drops its page. Alpha-cut backdrop cards are the exception: they keep a 256px
+page, because a corner sample of those is a flat green quad. Dropping the other
+pages is what lets a playground PVS cover the New 3DS draw distance (baker
+`--distance` 760, plus 78 for the camera orbit and the coarsest snap) inside
+8 MiB. Old 3DS loads that file out to 440. Decals, including sign
 letters, still drop out of the far mesh. Collision is not simplified and is not
 split.
 
@@ -410,13 +412,75 @@ that mesh at 128px.
 
 Host bakes with panda3d 1.10.15, three ETC1 workers. The all-near sum is over
 the caps, which is expected: the runtime upgrades nearest-first and stops at
-the caps. Planned rows sample both the Old 160 and New 260 near radii.
+the caps. Planned rows sample both the Old 160 and New 260 near radii. The
+first three-zone bake filled a 150-draw plan; the table in the next section is
+the rebake under the 130-draw cap.
 
-| Zone | Far draws | Far tris | Far geom | Planned draws | Planned tris | Planned geom | Planned tex | Ground in → out (split) | File |
-|---|---:|---:|---:|---:|---:|---:|---:|---|---:|
-| 2000 | 68 | 11,525 | 622,350 | 150 | 14,947 | 807,138 | 4,395,264 | 11,636 → 15,590 (411) | 4,078,976 |
-| 2100 | 84 | 10,049 | 542,646 | 150 | 14,854 | 802,116 | 4,474,080 | 54,632 → 57,778 (1,209) | 6,451,200 |
-| 1000 (`--separate-boat`) | 35 | 11,175 | 603,450 | 150 | 13,018 | 702,972 | 5,018,976 | 9,178 → 11,643 (219) | 3,500,288 |
+## Far hill cards and the 130-draw cap — 2026-10-30
 
-Far voxel spacing was 1.5 (2000), 0.75 (2100) and 0 (1000). Near ground edges in
-zone 2000 measure at most 19.99 units after quantization.
+TTC's backdrop hills (`BG5_1`, `BG5_2`, `BG5_3`) are a handful of ~130-unit
+alpha-tested quads. `_colorize_far` used to sample one texel per corner. The
+bottom corners are bright green and the top of the card is transparent, so the
+alpha test cut a straight edge and the quad drew as a flat green slab. Those
+cards stay textured (256px, alpha test). A host preview of zone 2000's far mesh
+shows the painted hill silhouette behind the gag shop and past the speedway
+tunnel. Everything else is still vertex coloured.
+
+`street_lod.DRAW_CAP` is 130. `Zone::update` stops near upgrades there
+(`kDrawBudget`); the load check stays at 150 so an older facility bake whose far
+set is between the two still opens. Playgrounds and Cog HQs treat `--grid-size`
+as a floor and rebin coarser (`grid_ladder`) until the far view fits. Zone 17000
+at grid 128 was one draw per cell (197) and `choose_far` cannot merge across
+cells; the ladder stops at 192, where the far view is 116 draws. A fit that
+keeps under `FAR_BODY` (4000) far triangles does not stop the search: Bossbot
+HQ at grid 96 survived only by voxel-deleting the mesh (about 700 triangles),
+and grid 128 keeps 9k–12k. Cog HQs use this same near atlas, ground split and
+far path, with vis out to the New 3DS distance. The RomFS playground
+(`bake_zone.py` / `rewrite_ground_ttm.py`) loosens the ground-edge cap until the
+single mesh is under 15k triangles. `ttc_sz.ttm` is 14,609 triangles at edge 30.
+
+Across all 37 zone bakes the busiest far mesh is zone 6000 (126 draws, 11,379
+triangles) and zone 11200 (11,964 far triangles). The busiest planned view is
+130 draws and 15,000 triangles. Donald's Dock's planned view is 130 draws and
+12,872 triangles (far mesh 42 draws). Every far and planned view is within
+130 draws, 15,000 triangles, 6 MiB geometry and 8 MiB textures.
+
+| Zone | Grid | Far draws | Far tris | Planned draws | Planned tris |
+|---|---:|---:|---:|---:|---:|
+| 1000 | 128 | 42 | 11,175 | 130 | 12,872 |
+| 1100 | vis | 53 | 9,891 | 130 | 14,467 |
+| 1200 | vis | 59 | 11,958 | 130 | 14,846 |
+| 1300 | vis | 56 | 10,914 | 130 | 14,984 |
+| 2000 | 128 | 78 | 11,525 | 130 | 14,898 |
+| 2100 | vis | 84 | 10,049 | 130 | 12,374 |
+| 2200 | vis | 60 | 10,522 | 130 | 14,956 |
+| 2300 | vis | 69 | 11,176 | 130 | 14,927 |
+| 3000 | 128 | 49 | 9,228 | 130 | 10,432 |
+| 3100 | vis | 67 | 10,988 | 130 | 14,976 |
+| 3200 | vis | 82 | 11,328 | 130 | 14,974 |
+| 3300 | vis | 65 | 9,484 | 130 | 12,629 |
+| 4000 | 128 | 32 | 10,537 | 129 | 12,384 |
+| 4100 | vis | 58 | 8,937 | 130 | 14,919 |
+| 4200 | vis | 78 | 11,569 | 130 | 14,412 |
+| 4300 | vis | 65 | 11,052 | 130 | 14,970 |
+| 5000 | 128 | 38 | 11,239 | 128 | 14,298 |
+| 5100 | vis | 73 | 10,903 | 130 | 14,193 |
+| 5200 | vis | 92 | 10,502 | 130 | 12,955 |
+| 5300 | vis | 52 | 10,655 | 130 | 14,400 |
+| 6000 | 128 | 126 | 11,379 | 130 | 13,615 |
+| 8000 | 128 | 71 | 11,884 | 128 | 13,667 |
+| 9000 | 128 | 46 | 9,306 | 130 | 10,177 |
+| 9100 | vis | 76 | 11,085 | 130 | 13,362 |
+| 9200 | vis | 61 | 11,410 | 130 | 14,990 |
+| 10000 | 128 | 104 | 9,078 | 130 | 15,000 |
+| 10100 | 128 | 104 | 11,759 | 130 | 15,000 |
+| 11000 | 96 | 60 | 9,108 | 130 | 9,108 |
+| 11100 | 96 | 20 | 3,897 | 50 | 5,499 |
+| 11200 | 96 | 67 | 11,964 | 130 | 12,452 |
+| 12000 | 256 | 102 | 8,140 | 125 | 14,981 |
+| 12100 | 96 | 72 | 5,923 | 121 | 6,239 |
+| 13000 | 128 | 122 | 6,419 | 130 | 11,126 |
+| 13100 | 96 | 79 | 4,549 | 125 | 5,813 |
+| 13200 | 96 | 46 | 7,730 | 99 | 9,354 |
+| 17000 | 192 | 116 | 7,831 | 130 | 14,985 |
+| 20000 | vis | 6 | 3,504 | 29 | 4,641 |

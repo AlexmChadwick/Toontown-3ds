@@ -25,66 +25,168 @@ ROOT = HERE.parent.parent
 
 
 # Near atlas matches source/render/quality.h: sharp ground and props up close.
-# The far LOD is a coarse vertex-coloured mesh (no texture copies), so a long PVS
-# still fits the 8 MiB texture budget. Playground vis (--distance 700) plus the
-# 38-unit margin covers the New 3DS draw distance; Old 3DS loads less of it.
+# The far LOD is a coarse vertex-coloured mesh. Alpha-cut hill cards keep their
+# texture: a corner sample of those is a flat green quad. Playground vis
+# (--distance 760) plus a 78-unit margin covers the New 3DS draw distance.
+# --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
 NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
 
 
+# Sizes the baker may raise a playground or Cog HQ to. --grid-size is the floor:
+# a zone whose far view exceeds the draw cap is rebinned until it fits.
+GRID_LADDER = (96, 128, 160, 192, 256, 320, 384, 512)
+
+
+class FarBudgetError(ValueError):
+    def __init__(self, tris, draws):
+        super().__init__(f'far LOD cannot meet budgets: {tris} triangles, {draws} draws')
+        self.tris = tris
+        self.draws = draws
+
+
+def grid_ladder(start):
+    """Grid sizes to try, beginning at start and then the coarser rungs above it."""
+    start = float(start)
+    sizes = [float(s) for s in GRID_LADDER if s >= start - 1e-3]
+    if not sizes or abs(sizes[0] - start) > 1e-3:
+        sizes = [start] + [float(s) for s in GRID_LADDER if s > start + 1e-3]
+    return sizes
+
+
 def _far_draws(batches):
-    """Draws after far batches that share blend and cull are merged."""
-    return len({(b.blend, b.two_sided) for b in batches})
+    """Draws after far batches that share a texture, blend and cull are merged."""
+    return len({(b.texture, b.blend, b.two_sided) for b in batches})
 
 
-def _colorize_far(sources, chunks):
-    """Sample each far triangle's texture into its vertex colour and drop the page.
+def _silhouette_card(image, verts):
+    """A backdrop hill card: one alpha-cut picture stretched over a huge quad.
 
-    Far chunks then cost geometry only. The sample is the texel at the corner, at
-    32px, which is enough once fog has started. Decals are already gone.
+    Sampling a corner texel paints the whole quad, and the alpha test then cuts
+    a straight edge through it. That is the flat bright-green slab. The real
+    texture has to stay.
     """
     import numpy as np
+    alpha = image[:, :, 3]
+    if int(alpha.min()) > 16:
+        return False
+    uv = verts[:, 3:5]
+    if float(uv.min()) < -0.05 or float(uv.max()) > 1.05:
+        return False
+    if float(np.ptp(uv, axis=0).max()) < 0.5:
+        return False
+    tri = verts.reshape(-1, 3, 9)
+    edges = np.linalg.norm(np.stack((tri[:, 1, :3] - tri[:, 0, :3], tri[:, 2, :3] - tri[:, 1, :3],
+                                     tri[:, 0, :3] - tri[:, 2, :3])), axis=2)
+    return float(edges.max()) >= 32.0
+
+
+def _far_image(sources, cache, index, images):
+    if index in cache:
+        return cache[index]
+    if images is not None and index in images:
+        cache[index] = images[index]
+        return cache[index]
     import street_atlas
+    image, _, _ = street_atlas.texture_pixels(sources[index], 32)
+    cache[index] = image
+    return image
+
+
+def _colorize_far(sources, chunks, images=None):
+    """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
+
+    Everything else samples the texel at the corner (32px) and drops the page.
+    Decals are already gone. `images` injects arrays in tests; keys are texture ids.
+    Kept cards still carry the source texture id. encode_far_pages remaps it.
+    """
+    import numpy as np
     import ttm
     cache = {}
     result = []
+    kept = 0
     for batches in chunks:
         groups = {}
+        cards = {}
         for b in batches:
             if b.indices is None or len(b.indices) < 3:
                 continue
-            verts = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)]
-            verts = verts.reshape(-1, 9).copy()
-            if b.texture is not None:
-                image = cache.get(b.texture)
-                if image is None:
-                    image, _, _ = street_atlas.texture_pixels(sources[b.texture], 32)
-                    cache[b.texture] = image
-                height, width = image.shape[:2]
-                u = np.mod(verts[:, 3], 1.0)
-                v = np.mod(verts[:, 4], 1.0)
-                x = np.clip((u * (width - 1)).astype(np.intp), 0, width - 1)
-                y = np.clip(((1.0 - v) * (height - 1)).astype(np.intp), 0, height - 1)
-                verts[:, 5:9] *= image[y, x].astype(np.float64) / 255.0
-            verts[:, 3:5] = 0.0
-            np.clip(verts[:, 5:9], 0.0, 1.0, out=verts[:, 5:9])
-            groups.setdefault((b.blend, bool(b.two_sided)), []).append(verts)
+            tris = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)]
+            tris = tris.reshape(-1, 3, 9)
+            image = _far_image(sources, cache, b.texture, images) if b.texture is not None else None
+            colored = []
+            for tri in tris:
+                if (image is not None and b.blend == ttm.BLEND_ALPHA_TEST
+                        and _silhouette_card(image, tri.reshape(-1, 9))):
+                    cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    continue
+                verts = tri.reshape(-1, 9).copy()
+                if image is not None:
+                    height, width = image.shape[:2]
+                    u = np.mod(verts[:, 3], 1.0)
+                    v = np.mod(verts[:, 4], 1.0)
+                    x = np.clip((u * (width - 1)).astype(np.intp), 0, width - 1)
+                    y = np.clip(((1.0 - v) * (height - 1)).astype(np.intp), 0, height - 1)
+                    verts[:, 5:9] *= image[y, x].astype(np.float64) / 255.0
+                verts[:, 3:5] = 0.0
+                np.clip(verts[:, 5:9], 0.0, 1.0, out=verts[:, 5:9])
+                colored.append(verts)
+            if colored:
+                groups.setdefault((b.blend, bool(b.two_sided)), []).extend(colored)
         merged = []
         for (blend, two), parts in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
             block = np.concatenate(parts)
             for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
                 vs = block[start:start + ttm.MAX_BATCH_VERTS]
                 merged.append(ttm.Batch(None, blend, two, 0, 0, vs, np.arange(len(vs), dtype=np.int64)))
+        for (tex, two), parts in sorted(cards.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+            block = np.concatenate([p.reshape(-1, 9) for p in parts])
+            kept += len(block) // 3
+            for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
+                vs = block[start:start + ttm.MAX_BATCH_VERTS]
+                merged.append(ttm.Batch(tex, ttm.BLEND_ALPHA_TEST, two, 0, 0, vs,
+                                        np.arange(len(vs), dtype=np.int64)))
         result.append(merged)
-    return result
+    return result, kept
 
 
-def choose_far(sources, raw, chunks):
+def encode_far_pages(sources, chunks):
+    """Encode the hill cards that _colorize_far kept, and remap their texture ids."""
+    import extract
+    import street_atlas
+    import ttm
+    used = []
+    for batches in chunks:
+        for b in batches:
+            if b.texture is not None and b.texture not in used:
+                used.append(b.texture)
+    textures = []
+    mapping = {}
+    for src in used:
+        mapping[src] = len(textures)
+        image, nc, pf = street_atlas.texture_pixels(sources[src], 256)
+        textures.append(ttm.Texture(
+            sources[src].getName(), image, extract.choose_format(image, nc, pf),
+            extract._WRAP.get(sources[src].getWrapU(), ttm.GPU_CLAMP_TO_EDGE),
+            extract._WRAP.get(sources[src].getWrapV(), ttm.GPU_CLAMP_TO_EDGE)))
+    remapped = []
+    for batches in chunks:
+        out = []
+        for b in batches:
+            tex = None if b.texture is None else mapping[b.texture]
+            out.append(ttm.Batch(tex, b.blend, b.two_sided, b.tint, b.layer, b.verts, b.indices))
+        remapped.append(out)
+    return remapped, textures
+
+
+def choose_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
-    Spacing climbs until 48 units so a whole playground still fits. Far objects
-    are allowed to look rough. Textures are not encoded for this LOD.
+    Spacing climbs until 48 units so a whole playground still fits. Hill cards
+    whose alpha cuts the silhouette keep a 256px texture; a corner sample of
+    those is a flat green quad. Draws are counted after that split, and must
+    fit street_lod.DRAW_CAP. `images` is a test injection for _colorize_far.
     """
     import street_lod
     steps = (0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48)
@@ -96,13 +198,19 @@ def choose_far(sources, raw, chunks):
     worst = draws = None
     for step in steps:
         low = [street_lod.simplify(bs, step) for bs in raw]
-        worst, draws = worst_of(low)
-        if worst <= street_lod.LOW_TARGET and draws <= 150:
-            colored = _colorize_far(sources, low)
-            return colored, {'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
-                             'before_worst_triangles': before, 'low_worst_triangles': worst,
-                             'low_worst_draws': draws, 'textured': False}
-    raise ValueError(f'far LOD cannot meet budgets: {worst} triangles, {draws} draws')
+        colored, kept = _colorize_far(sources, low, images)
+        worst, draws = worst_of(colored)
+        if worst <= street_lod.LOW_TARGET and draws <= street_lod.DRAW_CAP:
+            if images is None:
+                colored, textures = encode_far_pages(sources, colored)
+            else:
+                textures = []
+            return colored, textures, {
+                'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
+                'before_worst_triangles': before, 'low_worst_triangles': worst,
+                'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
+                'hill_card_triangles': kept, 'draw_cap': street_lod.DRAW_CAP}
+    raise FarBudgetError(worst, draws)
 
 
 def split_grid(batches, size):
@@ -117,6 +225,83 @@ def split_grid(batches, size):
             groups.setdefault(key,[]).append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,
                                                      verts,np.arange(len(verts))))
     return groups
+
+
+# A fit under this kept almost no far shape: voxel spacing emptied the cells to
+# buy draws. Coarser grids are tried until the far mesh has some body.
+FAR_BODY = 4000
+
+
+def lower_draw_bound(raw, chunks):
+    """One draw per non-empty chunk in the busiest vis. The real count is at least this."""
+    return max((sum(1 for j in c['vis'] if raw[j]) for c in chunks), default=0)
+
+
+def prefer_far(report, best):
+    """True when report keeps more of the far mesh than the current best."""
+    if best is None:
+        return True
+    return report['low_worst_triangles'] > best['low_worst_triangles']
+
+
+def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
+    """Bin render and floor triangles into grid cells and build a distance vis.
+
+    floor_tris are (3, 3) world triangles. An empty cell's bounds are its grid
+    square, so a floor sliver still joins the vis. Returns raw, chunks, floors.
+    """
+    import numpy as np
+    import street_atlas
+    groups = split_grid(batches, size)
+
+    def cells_of(p):
+        return [(cx, cy)
+                for cy in range(math.floor(float(p[:, 1].min()) / size), math.floor(float(p[:, 1].max()) / size) + 1)
+                for cx in range(math.floor(float(p[:, 0].min()) / size), math.floor(float(p[:, 0].max()) / size) + 1)]
+
+    def clip_cell(p, cx, cy):
+        poly = list(np.pad(p, ((0, 0), (0, 6))))
+        for axis, key in ((0, cx), (1, cy)):
+            poly = street_atlas.clip(
+                street_atlas.clip(poly, axis, key * size, True), axis, (key + 1) * size, False) if poly else []
+        return poly
+
+    for p in floor_tris:
+        for cx, cy in cells_of(p):
+            if len(clip_cell(p, cx, cy)) >= 3:
+                groups.setdefault((cx, cy), [])
+    keys = sorted(groups)
+    raw, chunks, floors, bounds = [], [], [], []
+    for i, key in enumerate(keys):
+        bs = groups[key]
+        raw.append(bs)
+        chunks.append({'name': f'g{i}', 'zone': zone_id, 'vis': [], 'grid': key})
+        pts = [b.verts[:, :3] for b in bs if len(b.verts)]
+        if pts:
+            stacked = np.concatenate(pts)
+            bounds.append((stacked.min(0), stacked.max(0)))
+        else:
+            lo = np.array([key[0], key[1], 0.0], dtype=np.float64) * size
+            bounds.append((lo, lo + np.array([size, size, 0.0])))
+    for p in floor_tris:
+        for i, (cx, cy) in enumerate(keys):
+            poly = clip_cell(p, cx, cy)
+            for j in range(1, len(poly) - 1):
+                tri = np.array([poly[k][:3] for k in (0, j, j + 1)])
+                if np.linalg.norm(np.cross(tri[1] - tri[0], tri[2] - tri[0])) > 1e-6:
+                    floors.append((tri, i, zone_id))
+    floors.sort(key=lambda f: f[1])
+    reach = distance + margin
+    for i, c in enumerate(chunks):
+        lo = np.array(c['grid'], dtype=np.float64) * size
+        hi = lo + size
+        vis = []
+        for j, (bmin, bmax) in enumerate(bounds):
+            delta = np.maximum(np.maximum(bmin[:2] - hi, lo - bmax[:2]), 0)
+            if i == j or float(np.linalg.norm(delta)) <= reach:
+                vis.append(j)
+        c['vis'] = vis
+    return raw, chunks, floors
 
 
 def bake(zone_id, args, base):
@@ -156,6 +341,7 @@ def bake(zone_id, args, base):
     ex = street_atlas.Extractor()
     chunks, raw, floors = [],[],[]
     ground_stats = {'triangles_in': 0, 'triangles_out': 0, 'split': 0}
+    low, far_textures, lod_report, grid_used = None, [], None, None
     whole_collision = collide.extract(root)
     collision, collision_stats = whole_collision.pack()
     if not playground:
@@ -193,34 +379,30 @@ def bake(zone_id, args, base):
         split_src, part = extract.subdivide_ground(ex.batches())
         for key in ground_stats:
             ground_stats[key] += part[key]
-        groups=split_grid(split_src,args.grid_size)
-        # Include grid cells crossed by floor triangles even when they own no render triangles.
-        for a,b,c,normal,flags in whole_collision.tris:
-            if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2]>=0.707:
-                p=np.array([a,b,c])
-                for cy in range(math.floor(p[:,1].min()/args.grid_size),math.floor(p[:,1].max()/args.grid_size)+1):
-                    for cx in range(math.floor(p[:,0].min()/args.grid_size),math.floor(p[:,0].max()/args.grid_size)+1):
-                        poly=list(np.pad(p,((0,0),(0,6))))
-                        for axis,key in ((0,cx),(1,cy)):
-                            poly=street_atlas.clip(street_atlas.clip(poly,axis,key*args.grid_size,True),axis,(key+1)*args.grid_size,False) if poly else []
-                        if len(poly)<3:
-                            continue
-                        groups.setdefault((cx,cy),[])
-        keys=sorted(groups)
-        for i,key in enumerate(keys):
-            raw.append(groups[key])
-            chunks.append({'name':f'g{i}','zone':zone_id,'vis':[], 'grid':key})
-        for a,b,c,normal,flags in whole_collision.tris:
-            if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2]>=0.707:
-                for i,(cx,cy) in enumerate(keys):
-                    poly=list(np.pad(np.array([a,b,c]),((0,0),(0,6))))
-                    for axis,key in ((0,cx),(1,cy)):
-                        poly=street_atlas.clip(street_atlas.clip(poly,axis,key*args.grid_size,True),axis,(key+1)*args.grid_size,False) if poly else []
-                    for j in range(1,len(poly)-1):
-                        tri=np.array([poly[k][:3] for k in (0,j,j+1)])
-                        if np.linalg.norm(np.cross(tri[1]-tri[0],tri[2]-tri[0]))>1e-6:
-                            floors.append((tri,i,zone_id))
-        floors.sort(key=lambda f:f[1])
+        floor_tris = [np.array([a, b, c]) for a, b, c, normal, flags in whole_collision.tris
+                      if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2] >= 0.707]
+        # --grid-size is the floor. A playground whose far view is one draw per cell
+        # (17000 at 128 was 197) is rebinned coarser until the draw cap fits. A fit
+        # that only survives by deleting the mesh keeps the search going.
+        for size in grid_ladder(args.grid_size):
+            trial_raw, trial_chunks, trial_floors = split_zone_grid(
+                split_src, floor_tris, zone_id, size, args.distance)
+            if len(trial_chunks) > 256 or lower_draw_bound(trial_raw, trial_chunks) > street_lod.DRAW_CAP:
+                continue
+            try:
+                trial_low, trial_tex, trial_lod = choose_far(ex.sources, trial_raw, trial_chunks)
+            except FarBudgetError:
+                continue
+            if not prefer_far(trial_lod, lod_report):
+                continue
+            grid_used = size
+            raw, chunks, floors = trial_raw, trial_chunks, trial_floors
+            low, far_textures, lod_report = trial_low, trial_tex, trial_lod
+            if trial_lod['low_worst_triangles'] >= FAR_BODY:
+                break
+        if low is None:
+            raise ValueError(
+                f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
     textures, batches=street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
     batches=[[street_atlas.rebase_large_uvs(b,textures) for b in bs] for bs in batches]
     out=Path(args.out)
@@ -240,24 +422,13 @@ def bake(zone_id, args, base):
     with tempfile.TemporaryDirectory() as tmp:
         for chunk,bs in zip(chunks,batches):
             chunk['model'],chunk['stats']=pack(bs,tmp,textures)
-    if playground:
-        for i,c in enumerate(chunks):
-            cx,cy=c['grid']
-            lo=np.array([cx,cy])*args.grid_size
-            hi=lo+args.grid_size
-            for j,d in enumerate(chunks):
-                bmin,bmax=map(np.array,d['stats']['bounds'])
-                # Any camera within this grid cell, plus 30-unit camera orbit and 8-unit maximum LOD displacement margin.
-                dist=np.maximum(np.maximum(bmin[:2]-hi,lo-bmax[:2]),0)
-                # 30-unit camera orbit plus up to 48 units of far-mesh snap.
-                if i==j or np.linalg.norm(dist)<=args.distance+78:
-                    c['vis'].append(j)
-    low, lod_report = choose_far(ex.sources, raw, chunks)
+    if low is None:
+        # Streets: the DNA vis is already on each chunk. Same far path as playgrounds.
+        low, far_textures, lod_report = choose_far(ex.sources, raw, chunks)
     with tempfile.TemporaryDirectory() as tmp:
         for chunk,bs in zip(chunks,low):
-            # No texture table: the far mesh is vertex coloured. pack() still
-            # accepts a texture list for the near chunks above.
-            chunk['low_model'],chunk['low_stats']=pack(bs,tmp,[])
+            # Hill cards keep their page. Everything else is vertex coloured.
+            chunk['low_model'],chunk['low_stats']=pack(bs,tmp,far_textures)
             if chunk['low_model']:
                 chunk['stats']['bounds']=[np.minimum(chunk['stats']['bounds'][0],chunk['low_stats']['bounds'][0]).tolist(),
                                           np.maximum(chunk['stats']['bounds'][1],chunk['low_stats']['bounds'][1]).tolist()]
@@ -307,7 +478,8 @@ def bake(zone_id, args, base):
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
                    'warnings':warnings,'collision':collision_stats,'atlas_pages':len(textures),
-                   'near_atlas':NEAR_ATLAS,'ground_split':ground_stats})
+                   'near_atlas':NEAR_ATLAS,'ground_split':ground_stats,
+                   'grid_size':grid_used,'draw_cap':street_lod.DRAW_CAP})
     (out/f'{zone_id}.json').write_text(json.dumps(report,indent=2)+'\n')
     print(json.dumps({k:v for k,v in report.items() if k not in ('visible_sets','collision','sign_views')},indent=2),flush=True)
     root.removeNode()

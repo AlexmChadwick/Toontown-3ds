@@ -522,7 +522,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const Chunk low=modelInfo(high,1);
                 const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
                 const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
-                if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=150) {
+                if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=kDrawBudget) {
                     z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
                 }
             }

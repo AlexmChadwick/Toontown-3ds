@@ -7,8 +7,10 @@
 Each zone is one scene model (see coghq_catalog.py), not DNA. The baker applies the same node
 renames the upstream CogHQLoader subclasses apply at load time, extracts collision, tunnel and
 door triggers with collide.py, then chunks the visible geometry into a uniform XY grid exactly
-like the playgrounds of bake_street.py (PVS = cells within --distance, far LOD from
-street_lod.py, atlases from street_atlas.py) and writes TZ v3 (shared texture pool) with tz.py.
+like the playgrounds of bake_street.py (near atlas, ground split, vertex-coloured far
+LOD with hill cards kept textured, PVS out to the New 3DS draw distance) and writes
+TZ v3 with tz.py. --grid-size is a floor: the baker raises it until the far view
+fits the draw cap.
 
 Outputs per zone: <zone>.tz, <zone>.pts (tunnel/door anchors) and <zone>.json (budget report).
 --audio also bakes the HQ music to <out>/../audio/<hood>.tsnd for the four HQ hoods.
@@ -16,7 +18,6 @@ At most 3 ETC1 encoder threads; no source asset is modified.
 """
 import argparse
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
@@ -117,62 +118,51 @@ def bake(zone_id, args, base):
     import collide
     import coghq_catalog
     import street_atlas
+    import extract
     import street_lod
     import ttm
     import tz
-    from bake_street import split_grid
+    from bake_street import (FAR_BODY, NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
+                             choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid)
     cfg = coghq_catalog.CATALOG[zone_id]
     root, info = build_scene(zone_id, cfg, base.loader, args.resources)
     ex = street_atlas.Extractor()
     whole = collide.extract(root, fallback_floor=False)
     collision, collision_stats = whole.pack()
     ex.add(root)
-    raw_batches = ex.batches()
-    groups = split_grid(raw_batches, args.grid_size)
-    size = args.grid_size
-    floor_tris = [(np.array([a, b, c]), normal) for a, b, c, normal, flags in whole.tris
+    raw_batches, ground_stats = extract.subdivide_ground(ex.batches())
+    floor_tris = [np.array([a, b, c]) for a, b, c, normal, flags in whole.tris
                   if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2] >= 0.707]
     if not floor_tris:
         raise ValueError(f'{zone_id}: no floor collision')
-
-    def cells_of(p):
-        return [(cx, cy)
-                for cy in range(math.floor(p[:, 1].min() / size), math.floor(p[:, 1].max() / size) + 1)
-                for cx in range(math.floor(p[:, 0].min() / size), math.floor(p[:, 0].max() / size) + 1)]
-
-    def clip_cell(p, cx, cy):
-        poly = list(np.pad(p, ((0, 0), (0, 6))))
-        for axis, key in ((0, cx), (1, cy)):
-            poly = street_atlas.clip(street_atlas.clip(poly, axis, key * size, True), axis, (key + 1) * size, False) if poly else []
-        return poly
-    # Grid cells crossed by floor triangles exist even when they own no render triangles.
-    for p, _ in floor_tris:
-        for cx, cy in cells_of(p):
-            if len(clip_cell(p, cx, cy)) >= 3:
-                groups.setdefault((cx, cy), [])
-    keys = sorted(groups)
-    index_of = {k: i for i, k in enumerate(keys)}
-    if len(keys) > 256:
-        raise ValueError(f'{zone_id}: {len(keys)} grid cells exceed the TZ limit of 256; raise --grid-size')
-    raw, chunks, floors = [], [], []
-    for i, key in enumerate(keys):
-        raw.append(groups[key])
-        chunks.append({'name': f'g{i}', 'zone': zone_id, 'vis': [], 'grid': key})
-    for p, _ in floor_tris:
-        for cx, cy in cells_of(p):
-            poly = clip_cell(p, cx, cy)
-            i = index_of[(cx, cy)]
-            for j in range(1, len(poly) - 1):
-                tri = np.array([poly[k][:3] for k in (0, j, j + 1)])
-                if np.linalg.norm(np.cross(tri[1] - tri[0], tri[2] - tri[0])) > 1e-6:
-                    floors.append((tri, i, zone_id))
-    floors.sort(key=lambda f: f[1])
-    textures, batches = street_atlas.build(ex.sources, raw)
+    # Same far path as playgrounds. --grid-size is the floor. Coarser rungs are
+    # tried until the far view fits the draw cap, and a fit that voxel-deleted
+    # the mesh (under FAR_BODY triangles) does not stop the search. The vis
+    # reaches the New 3DS draw distance (distance plus the 78-unit margin).
+    chosen = None
+    for size in grid_ladder(args.grid_size):
+        trial_raw, trial_chunks, trial_floors = split_zone_grid(
+            raw_batches, floor_tris, zone_id, size, args.distance)
+        if len(trial_chunks) > 256 or lower_draw_bound(trial_raw, trial_chunks) > street_lod.DRAW_CAP:
+            continue
+        try:
+            trial_low, trial_tex, trial_lod = choose_far(ex.sources, trial_raw, trial_chunks)
+        except FarBudgetError:
+            continue
+        if chosen is not None and not prefer_far(trial_lod, chosen[6]):
+            continue
+        chosen = (size, trial_raw, trial_chunks, trial_floors, trial_low, trial_tex, trial_lod)
+        if trial_lod['low_worst_triangles'] >= FAR_BODY:
+            break
+    if chosen is None:
+        raise ValueError(f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
+    size, raw, chunks, floors, low, far_textures, lod_report = chosen
+    textures, batches = street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
     batches = [[street_atlas.rebase_large_uvs(b, textures) for b in bs] for bs in batches]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    def pack(bs, tmp):
+    def pack(bs, tmp, tex_list):
         if not bs:
             return b'', {'batches': 0, 'triangles': 0, 'geometry_bytes': 0, 'texture_bytes': 0,
                          'bounds': [[0, 0, 0], [0, 0, 0]]}
@@ -181,29 +171,16 @@ def bake(zone_id, args, base):
         copies = [ttm.Batch(mapping[b.texture] if b.texture is not None else None,
                             b.blend, b.two_sided, b.tint, b.layer, b.verts, b.indices) for b in bs]
         path = Path(tmp) / 'chunk.ttm'
-        stats = ttm.write(path, [textures[j] for j in used], copies)
+        stats = ttm.write(path, [tex_list[j] for j in used], copies)
         if stats['uv_clamped']:
             raise ValueError('UV overflow')
         return path.read_bytes(), stats
     with tempfile.TemporaryDirectory() as tmp:
         for chunk, bs in zip(chunks, batches):
-            chunk['model'], chunk['stats'] = pack(bs, tmp)
-    # Triangle ownership uses centroids, not clipping. A long triangle can cross
-    # the camera's cell while belonging several cells away. A fixed 3x3 PVS
-    # discarded such geometry, leaving exposed stair edges and missing surfaces.
-    # Match playground PVS: full chunk bounds against the cell plus camera reach.
-    for i, c in enumerate(chunks):
-        lo = np.array(c['grid']) * args.grid_size
-        hi = lo + args.grid_size
-        for j, d in enumerate(chunks):
-            bmin,bmax = map(np.array,d['stats']['bounds'])
-            delta = np.maximum(np.maximum(bmin[:2]-hi,lo-bmax[:2]),0)
-            if i==j or np.linalg.norm(delta)<=args.distance+38:
-                c['vis'].append(j)
-    low, lod_report = street_lod.make_low(chunks, batches)
+            chunk['model'], chunk['stats'] = pack(bs, tmp, textures)
     with tempfile.TemporaryDirectory() as tmp:
         for chunk, bs in zip(chunks, low):
-            chunk['low_model'], chunk['low_stats'] = pack(bs, tmp)
+            chunk['low_model'], chunk['low_stats'] = pack(bs, tmp, far_textures)
             if chunk['low_model']:
                 chunk['stats']['bounds'] = [
                     np.minimum(chunk['stats']['bounds'][0], chunk['low_stats']['bounds'][0]).tolist(),
@@ -216,8 +193,9 @@ def bake(zone_id, args, base):
         if not points:
             points = [np.mean(c['stats']['bounds'], axis=0)]
         for p in points[::max(1, len(points) // 8)]:
-            _, metrics = street_lod.plan(chunks, i, p)
-            samples.append(metrics)
+            for near in (OLD_LOD_NEAR, NEW_LOD_NEAR):
+                _, metrics = street_lod.plan(chunks, i, p, near=near)
+                samples.append(metrics)
     planned = {k: max(row[k] for row in samples) for k in ('batches', 'triangles', 'geometry_bytes', 'texture_bytes')}
     triggers = []
     for t in whole.triggers:
@@ -236,7 +214,8 @@ def bake(zone_id, args, base):
         'points': num_points, 'floor_triangles': len(floors), 'triggers': len(triggers),
         'trigger_list': [{k: t[k] for k in ('kind', 'name', 'owner')} for t in triggers],
         'file_bytes': (out / f'{zone_id}.tz').stat().st_size, 'atlas_pages': len(textures),
-        'grid_size': size, 'distance': args.distance, 'collision': collision_stats, **info,
+        'grid_size': size, 'distance': args.distance, 'draw_cap': street_lod.DRAW_CAP,
+        'near_atlas': NEAR_ATLAS, 'ground_split': ground_stats, 'collision': collision_stats, **info,
         'source_triangles': sum(len(b.indices) // 3 for b in raw_batches),
         'source_batches': len(raw_batches)})
     (out / f'{zone_id}.json').write_text(json.dumps(report, indent=2) + '\n')
@@ -270,8 +249,10 @@ def main():
     ap.add_argument('--resources', default=default_resources())
     ap.add_argument('--out', default=str(ROOT / 'sdmc-out/3ds/toontown3ds/data/zones'))
     ap.add_argument('--grid-size', type=float, default=None,
-                    help='cell size (Cashbot 12000: 192; other HQ zones: 96)')
-    ap.add_argument('--distance', type=float, default=120)
+                    help='minimum cell size; the baker raises it until the far draw cap fits '
+                         '(Cashbot 12000 starts at 192, other HQ zones at 96)')
+    ap.add_argument('--distance', type=float, default=760,
+                    help='cell vis radius; plus 78 covers the New 3DS draw distance')
     ap.add_argument('--preview', action='store_true')
     ap.add_argument('--audio', action='store_true', help='also bake the four HQ music tracks')
     args = ap.parse_args()

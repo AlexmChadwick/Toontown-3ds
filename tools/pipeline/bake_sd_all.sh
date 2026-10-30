@@ -18,6 +18,8 @@
 #             (scratch) -> battle_toon_extras (rigid-head battle clips, torso hand .jnt tracks)
 #   world     bake_hoods (playground music + fallback .ttm/.ttc) -> [bake_street per zone,
 #             1000 with --separate-boat, + the Toontorial street 20000] || [bake_coghq --audio]
+#             Street/HQ --grid-size is a floor. The baker raises it until the far
+#             view fits the 130-draw cap, so no per-zone override table is required.
 #             -> bake_boat -> bake_suit_paths -> bake_minimap (reads every .tz)
 #   interiors bake_interior --all, --tutorial -> bake_interior_props -> ttm_pool (interiors)
 #   level     bake_level --level all -> bake_level_props -> bake_facility_floors (needs the room

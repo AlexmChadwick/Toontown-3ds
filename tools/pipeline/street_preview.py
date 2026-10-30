@@ -139,7 +139,7 @@ def main():
     models={}
     cache={}
     for i,c in enumerate(zone['chunks']):
-        for lod in (0,1) if zone['version']==2 else (0,):
+        for lod in (0,1) if zone['version']>=2 else (0,):
             offset=c['low_offset'] if lod else c['offset']
             size=c['low_size'] if lod else c['size']
             if not size:
@@ -179,11 +179,11 @@ def main():
     out.mkdir(parents=True,exist_ok=True)
     for name,pos,look,floor in views:
         choices=None
-        if args.lod=='planned' and floor is not None and zone['version']==2:
+        if args.lod=='planned' and floor is not None and zone['version']>=2:
             feet=np.array(floor[:9]).reshape(3,3).mean(axis=0)
             choices,_=street_lod.plan(zone['chunks'],floor[9],feet)
         for (i,lod),model in models.items():
-            want=(choices.get(i,-1) if choices is not None else (1 if args.lod=='low' and zone['version']==2 else 0))
+            want=(choices.get(i,-1) if choices is not None else (1 if args.lod=='low' and zone['version']>=2 else 0))
             model.show() if lod==want else model.hide()
         base.camera.setPos(*map(float,pos))
         base.camera.lookAt(*map(float,look))

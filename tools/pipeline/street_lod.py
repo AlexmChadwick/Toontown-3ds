@@ -9,6 +9,9 @@ import numpy as np
 import ttm
 
 TRI_BUDGET = 15000
+# World meshes stop here. The frame still has a 150-draw ceiling; the remainder
+# is toons, the boat and other actors. A view that fills 150 has no headroom.
+DRAW_CAP = 130
 LOW_TARGET = 12000
 
 
@@ -61,7 +64,7 @@ def plan(chunks,cell,point,near=65):
     ids=chunks[cell]['vis']
     choice={i:1 for i in ids}
     keys=('triangles','batches','geometry_bytes','texture_bytes')
-    limits=(15000,150,6*1024*1024,8*1024*1024)
+    limits=(TRI_BUDGET, DRAW_CAP, 6*1024*1024, 8*1024*1024)
     total=[sum(chunks[i]['low_stats'][k] for i in ids) for k in keys]
     if any(x>limit for x,limit in zip(total,limits)):
         raise ValueError('far baseline exceeds runtime budget')

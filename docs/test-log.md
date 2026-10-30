@@ -1336,3 +1336,23 @@ Do not read the bake numbers below as frame times.
   queries passed. `c++` on this image is clang without libc++ headers, so the stock
   `tools/zone_test/run.py` driver did not compile; the same sources were built with g++.
 
+## 2026-10-30 — far hill cards, 130-draw cap, Cog HQ rebake
+
+Build: `cursor/render-quality-2097`. Host only. No Azahar and no hardware. The
+earlier Azahar soak (29.9 fps, 12 minutes, stereo) was on the parent of this
+follow-up. `python -m unittest tools/pipeline/test_far_color.py
+tools/pipeline/test_ground_split.py`: 8 tests OK.
+
+- TTC far hills: `BG5_*` cards stay textured. A Panda preview of `2000.tz` `--lod low`
+  shows painted hill silhouettes behind the gag shop and past the speedway tunnel.
+  Zone 2000 far mesh is 78 draws / 11,525 tris (26 hill-card tris); planned view
+  130 draws / 14,898 tris.
+- All 37 street, playground, tutorial and Cog HQ zones rebaked. Maxima: far mesh
+  126 draws (zone 6000) and 11,964 tris (zone 11200); planned view 130 draws and
+  15,000 tris (zones 10000 and 10100). Donald's Dock planned view is 130 draws /
+  12,872 tris. Zone 17000 landed on grid 192 (116 far draws; it was 197 at grid 128).
+  None exceed 130 draws, 15,000 tris, 6 MiB geometry or 8 MiB textures. Figures are
+  in `docs/design/streets.md`. Output stays under gitignored `sdmc-out/`.
+- RomFS `ttc_sz.ttm` rewritten from the pre-split blob: 14,609 triangles, longest
+  ground edge cap 30, 37,297 verts, 157 batches. The streamed edge cap is still 20.
+

@@ -13,6 +13,9 @@ public:
     static constexpr uint32_t kTextureBudget = 8u * 1024 * 1024;
     static constexpr int kMaxChunks = 256;
     static constexpr uint32_t kTriangleBudget = 15000;
+    // Upgrades stop here so a view is not glued to the 150-draw frame cap.
+    // The far set itself may still load up to that cap (older facility bakes).
+    static constexpr uint32_t kDrawBudget = 130;
     struct Trigger {
         float min[3], max[3];
         uint32_t kind; // 0 other, 1 door, 2 tunnel (approach volume)

@@ -30,7 +30,23 @@ def _quantize(world, scale, offset):
     return np.clip(q, -32767, 32767).astype(np.int16)
 
 
-def rewrite(path, out_path=None):
+def rewrite(path, out_path=None, max_edge=None, tri_limit=15000):
+    """Split long ground edges. With tri_limit set and no explicit max_edge, raise
+    the cap from 20 until the file has at most tri_limit triangles. The search
+    always rereads `path`, so it can loosen a split; it cannot merge one.
+    """
+    if tri_limit is not None and max_edge is None:
+        edge = ground_split.MAX_EDGE
+        while True:
+            report = rewrite(path, out_path, max_edge=edge, tri_limit=None)
+            if report['triangles'] <= tri_limit:
+                return report
+            edge += 2.0
+            if edge > 64.0:
+                raise ValueError(
+                    f'{path}: {report["triangles"]} triangles at edge {edge - 2:g}, over {tri_limit}')
+    if max_edge is None:
+        max_edge = ground_split.MAX_EDGE
     data = Path(path).read_bytes()
     h = HEADER.unpack_from(data)
     if h[0] != ttm.MAGIC or h[1] != ttm.VERSION:
@@ -66,8 +82,8 @@ def rewrite(path, out_path=None):
             longest = float(np.max(ground_split._edges(tri)))
             if ground_split._up(tri) >= ground_split.MIN_UP:
                 max_ground = max(max_ground, longest)
-            if ground_split._up(tri) >= ground_split.MIN_UP and longest > ground_split.MAX_EDGE:
-                parts = ground_split.split_triangle(tri)
+            if ground_split._up(tri) >= ground_split.MIN_UP and longest > max_edge:
+                parts = ground_split.split_triangle(tri, max_edge)
                 stats['split'] += 1
                 split_any = True
             else:
@@ -149,7 +165,8 @@ def rewrite(path, out_path=None):
     report = {
         'file_bytes': len(out), 'vertices': len(out_verts), 'triangles': len(out_idx) // 3,
         'batches': len(new_batches), 'textures': ntex,
-        'ground_split': stats, 'max_ground_edge_before': max_ground, 'max_ground_edge_after': after,
+        'ground_split': stats, 'max_edge': max_edge,
+        'max_ground_edge_before': max_ground, 'max_ground_edge_after': after,
         'textures_unchanged': same_tex,
     }
     return report
