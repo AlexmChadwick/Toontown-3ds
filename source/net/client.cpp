@@ -2705,6 +2705,8 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         t.chat[0] = '\0';
         t.scIndex = index;
         t.chatMs = now_;
+        TT_LOG("net: chat rx %u toon %u speedchat %u", unsigned(now_), unsigned(t.doId),
+               unsigned(index));
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2729,6 +2731,10 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        // t.chat is the same bounded, NUL-terminated copy used by the bubble;
+        // logging it makes cross-play assertions deterministic without ever
+        // reading beyond the received net string.
+        TT_LOG("net: chat rx %u toon %u text %s", unsigned(now_), unsigned(t.doId), t.chat);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -3177,7 +3183,10 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
-    return finish(w);
+    const bool sent = finish(w);
+    if (sent) TT_LOG("net: chat tx %u toon %u speedchat %u", unsigned(now_), unsigned(avatarId_),
+                     unsigned(msgIndex));
+    return sent;
 }
 
 // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
