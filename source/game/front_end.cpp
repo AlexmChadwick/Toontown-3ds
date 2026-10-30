@@ -557,6 +557,24 @@ bool FrontEnd::createToon(net::Client::TutorialChoice tutorial) {
     return net_->createAvatar(net15, static_cast<uint8_t>(pickSlot_));
 }
 
+int FrontEnd::shuffleRow(int row, const char* name, bool glow, bool enabled) {
+    const ColorFrame& f = kColorFrames[row];
+    const Button frame{f.cx - f.w * 0.5f, f.cy - f.h * 0.5f, f.w, f.h};
+    int result = 0;
+    if (gGui.drawing) {
+        if (glow) ui::theme::roundRect(frame.x - 4, frame.y - 3, frame.w + 8, frame.h + 6, 12, kFrameGlow);
+        if (!ui::drawMatArtRotated(ui::MatArt::ShuffleFrame, f.cx, f.cy, f.w, f.h, f.tilt))
+            ui::theme::paper(frame.x, frame.y, frame.w, frame.h, 8.0f);
+        textCentered(Button{frame.x + 14, frame.y + 1, frame.w - 28, frame.h}, row == 0 ? 0.56f : 0.5f, kWhite, name);
+    } else if (tapped(frame)) {
+        result = 2;
+    }
+    const float ah = f.h * 0.82f, aw = ah * 0.6f; // the arrows' touch boxes at the frame's ends
+    if (TT_BUTTON((Button{f.cx - f.w * 0.5f - aw * 0.75f, f.cy - ah * 0.5f, aw, ah}), "<", false, enabled)) result = -1;
+    if (TT_BUTTON((Button{f.cx + f.w * 0.5f - aw * 0.25f, f.cy - ah * 0.5f, aw, ah}), ">", false, enabled)) result = 1;
+    return result;
+}
+
 void FrontEnd::makeStepInput(u32 down) {
     (void)down;
     using world::Gender;
@@ -573,26 +591,33 @@ void FrontEnd::makeStepInput(u32 down) {
         }
         break;
     case MakeStep::Body: {
-        const u8 heads = world::headVariantCount(choice_.species);
-        if (TT_BUTTON((Button{10, 28, 70, 34}), "Head", false, heads > 1)) {
-            choice_.headVariant = static_cast<u8>((choice_.headVariant + 1) % heads);
+        // BodyShop: the Species frame (scale 1.3) and the Head / Body / Legs frames (0.9, tilted),
+        // each stepping its choice with the gold arrows; GenderShop's boy / girl buttons beside them.
+        int r = shuffleRow(0, kSpeciesLabel[static_cast<int>(choice_.species)], false, true);
+        if (r == 1 || r == -1) {
+            choice_.species = static_cast<Species>((static_cast<int>(choice_.species) + r + 9) % 9);
+            choice_.headVariant = 0;
             rebuildMakeDna();
         }
-        for (int i = 0; i < 3; i++) {
-            if (TT_BUTTON((Button{90.0f + i * 75.0f, 70, 70, 34}), kSizeLabel[i], choice_.torsoSize == i, true)) {
-                choice_.torsoSize = static_cast<u8>(i);
-                rebuildMakeDna();
-            }
+        const u8 heads = world::headVariantCount(choice_.species);
+        r = shuffleRow(1, "Head", false, heads > 1); // BodyShopHead
+        if ((r == 1 || r == -1) && heads > 1) {
+            choice_.headVariant = static_cast<u8>((choice_.headVariant + r + heads) % heads);
+            rebuildMakeDna();
         }
-        for (int i = 0; i < 3; i++) {
-            if (TT_BUTTON((Button{90.0f + i * 75.0f, 112, 70, 34}), kSizeLabel[i], choice_.legSize == i, true)) {
-                choice_.legSize = static_cast<u8>(i);
-                rebuildMakeDna();
-            }
+        r = shuffleRow(2, "Body", false, true); // BodyShopBody: the torso size
+        if (r == 1 || r == -1) {
+            choice_.torsoSize = static_cast<u8>((choice_.torsoSize + r + 3) % 3);
+            rebuildMakeDna();
+        }
+        r = shuffleRow(3, "Legs", false, true); // BodyShopLegs
+        if (r == 1 || r == -1) {
+            choice_.legSize = static_cast<u8>((choice_.legSize + r + 3) % 3);
+            rebuildMakeDna();
         }
         for (int g = 0; g < 2; g++) {
             const Gender gender = g == 0 ? Gender::Male : Gender::Female;
-            if (TT_BUTTON((Button{90.0f + g * 112.0f, 154, 106, 34}), g == 0 ? "Boy" : "Girl",
+            if (TT_BUTTON((Button{kSwatchX - 2 + g * 72.0f, 34, 68, 34}), g == 0 ? "Boy" : "Girl",
                           choice_.gender == gender, true)) {
                 if (choice_.gender != gender) {
                     choice_.gender = gender;
@@ -628,22 +653,9 @@ void FrontEnd::makeStepInput(u32 down) {
         };
         static const char* const kNames[4] = {"Toon Color", "Head", "Body", "Legs"}; // ColorShopToon / Head / Body / Legs
         for (int t = 0; t < 4; t++) {
-            const ColorFrame& f = kColorFrames[t];
-            const Button frame{f.cx - f.w * 0.5f, f.cy - f.h * 0.5f, f.w, f.h};
-            if (gGui.drawing) {
-                if (colorTarget_ == t) ui::theme::roundRect(frame.x - 4, frame.y - 3, frame.w + 8, frame.h + 6, 12, kFrameGlow);
-                if (!ui::drawMatArtRotated(ui::MatArt::ShuffleFrame, f.cx, f.cy, f.w, f.h, f.tilt))
-                    ui::theme::paper(frame.x, frame.y, frame.w, frame.h, 8.0f);
-                textCentered(Button{frame.x + 14, frame.y + 1, frame.w - 28, frame.h}, t == 0 ? 0.56f : 0.5f, kWhite,
-                             kNames[t]);
-            } else if (tapped(frame)) {
-                colorTarget_ = t;
-            }
-            const float ah = f.h * 0.82f, aw = ah * 0.6f; // the arrows' touch boxes at the frame's ends
-            if (TT_BUTTON((Button{f.cx - f.w * 0.5f - aw * 0.75f, f.cy - ah * 0.5f, aw, ah}), "<", false, n > 1))
-                shuffle(t, -1);
-            if (TT_BUTTON((Button{f.cx + f.w * 0.5f - aw * 0.25f, f.cy - ah * 0.5f, aw, ah}), ">", false, n > 1))
-                shuffle(t, 1);
+            const int r = shuffleRow(t, kNames[t], colorTarget_ == t, n > 1);
+            if (r == 2) colorTarget_ = t;
+            else if (r) shuffle(t, r);
         }
         for (u8 i = 0; i < n; i++) {
             const u8 c = world::matColor(choice_.gender, i);
@@ -1265,13 +1277,15 @@ void FrontEnd::drawMakeBottom() {
              static_cast<int>(MakeStep::Count), kStepNames[static_cast<int>(step_)]);
     }
     switch (step_) {
-    case MakeStep::Body:
-        text(90, 36, 0.5f, kBInk, "%s head %u of %u", kSpeciesLabel[static_cast<int>(choice_.species)],
-             unsigned(choice_.headVariant + 1), unsigned(world::headVariantCount(choice_.species)));
-        text(10, 79, 0.5f, kBInk, "Torso");
-        text(10, 121, 0.5f, kBInk, "Legs");
-        text(10, 163, 0.5f, kBInk, "Gender");
+    case MakeStep::Body: { // what each frame is on now, level with it
+        char head[32];
+        snprintf(head, sizeof head, "%u of %u", unsigned(choice_.headVariant + 1),
+                 unsigned(world::headVariantCount(choice_.species)));
+        const char* values[3] = {head, kSizeLabel[choice_.torsoSize % 3], kSizeLabel[choice_.legSize % 3]};
+        for (int i = 0; i < 3; i++)
+            textCentered(Button{kSwatchX, kColorFrames[i + 1].cy - 9, 138, 18}, 0.52f, kBInk, values[i]);
         break;
+    }
     case MakeStep::Color: {
         static const char* const kFor[4] = {"Tap a color: all", "Tap a color: head", "Tap a color: body", "Tap a color: legs"};
         textCentered(Button{kSwatchX - 2, 24, kSwatchCols * kSwatchStep, 16}, 0.42f, kBSoft, kFor[colorTarget_ & 3]);

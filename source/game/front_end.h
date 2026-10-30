@@ -67,6 +67,9 @@ private:
     void checkBox(const Button& b, bool on);
     void button(const Button& b, const char* label, bool selected = false, bool enabled = true);
     bool matButton(const Button& b, const char* label, bool selected, bool enabled, bool focused);
+    // One of BodyShop's / ColorShop's shuffle frames (row 0 the big one, 1..3 the tilted small ones)
+    // with its gold arrows: -1 / +1 when an arrow is pressed, 2 when the frame itself is tapped.
+    int shuffleRow(int row, const char* name, bool glow, bool enabled);
     bool inside(const Button& b) const; // the stylus is on b
     void shuffleFrame(float cy, const char* name, const char* count); // draw pass only
 
