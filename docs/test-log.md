@@ -1356,3 +1356,32 @@ tools/pipeline/test_ground_split.py`: 8 tests OK.
 - RomFS `ttc_sz.ttm` rewritten from the pre-split blob: 14,609 triangles, longest
   ground edge cap 30, 37,297 verts, 157 batches. The streamed edge cap is still 20.
 
+
+## 2026-10-30 — render overhaul verified in Azahar; near chunks first (`d57dfd4`, `89df721`)
+
+Azahar 2126.2, Linux/Xvfb, Old 3DS (and `NEW3DS=1`), 3DSX + this tree's bake of all 37 zones
+(`bake_street.py` / `bake_coghq.py`, data in `/workspace/toontown/claude-x/render-data`).
+Shots, logs and the full report: `/workspace/shots/3ds-render-1030/` (`REPORT.md`).
+
+- `AUTOTEST_ONLY=view:` (8 fixed spots, offline): 29.9 fps in every view on both models,
+  CPU 3.3–4.1 ms (before 2.7–3.5), 85–149 draws, 4.7–13k tris, linear free ≥ 14,433K
+  (before ≥ 16,201K), VRAM free 4,194K unchanged. Profile logged:
+  `render: Old 3DS profile far 520 draw 440 lod 160/185 must 48 fog 110-400` /
+  `New 3DS ... 900 740 260/290 must 64 180-680`.
+- Found on `ef52035`: at `ttc_mid` the chunk under the toon was refused by the 130-draw upgrade
+  cap (it counts chunks behind the camera) while chunks 114+ units away went high, so Toon Hall
+  drew half as the bloated far mesh. Fixed by `Quality::lodMust` (upgrade first, 150 draws).
+  Host planner over all 37 zones: worst plan 150 draws / 15,000 tris / 5.9 MB textures.
+- Soak, online (2.25.74.62:7198, token alex-3ds, existing toon "Peach Dog"), stereo slider 1.0,
+  shots on, 655 s emulated: tabs, book, trolley → Toon Slingshot → purchase, doors, tunnel,
+  Cog battle, teleport, swim, views. 0 crash / PANIC / EJECT / PARSE, linear free min 9,821K
+  (≈4 MB held after the battle, as in the r4 soak). Its fps is dominated by screenshot dumps.
+- Soak, offline, mono, `shots off`, 463 s emulated (same route minus the trolley): fps ≥ 29.5 in
+  90% of seconds and ≥ 25 in 97%. The dips are zone entries (first chunks now ~1.0–1.1 s,
+  bigger near chunks). Linear free min 13,289K. No crash.
+- A later online mono soak was blocked by the server: login, then districts, timed out on every
+  reconnect.
+- `make`: zero warnings in source/. `test_far_color` + `test_ground_split`: 8 OK. `zone_test` not
+  run (no host C++ compiler on this box).
+- Not done: real hardware (frame time on PICA200, the ground-split fix for missing near ground,
+  stereo fps, SD load time).

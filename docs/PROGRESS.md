@@ -3,6 +3,26 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 (render overhaul) — sharper near zones, farther draw distance, ground split
+
+### Done
+- PR#4 (near 64 px atlas tiles + per-tile mips, 256 px ground, vertex-coloured far LOD, Old/New
+  quality profile with fog, ground split ≤ 20 units, far hill cards) fast-forwarded here and run
+  in Azahar for the first time; all 37 zones rebaked with it.
+- Near chunks first (`Quality::lodMust`, `Zone::kNearDrawBudget` 150): no far-LOD chunk under the
+  toon any more (Toon Hall half far mesh at `ttc_mid`).
+- `azahar_test.sh NEW3DS=1 STEREO=1`, `view_stats.py`, `compare_views.py`; trolley autotest
+  re-enters the sphere until seated.
+
+### Verified
+- See `docs/test-log.md` (2026-10-30 render overhaul) and `/workspace/shots/3ds-render-1030/REPORT.md`.
+
+### Next
+- Real hardware: fps at `ttc_far` / `dd_far` mono and stereo, missing near ground at the TTC west
+  tunnel, zone-entry time from SD.
+- Street walls are still soft point-blank (64 px tiles); a selective wall atlas if hardware shows
+  draw headroom. Stereo LOD bias is not implemented.
+
 ## 2026-10-29 (UI round 21) — Make-A-Toon's room, ToontownLoadingScreen, BodyShop / ColorShop frames
 
 ### Done
