@@ -56,8 +56,9 @@ public:
     // setCamera before update: the draw/triangle cap follows that view.
     void setCamera(const C3D_FVec& eye, const C3D_FVec& target);
     void update(float x, float y, float z, Zone::CellChanged cb, void* user);
-    // Queues the draw plan plus a ring of neighbouring chunks, then returns. The loader
-    // thread does the reads. Call update() until streamReady().
+    // Queues the draw plan, then a ring of neighbouring chunks. The loader thread
+    // does the reads. Call update() until streamReady(). streamReady is the cone
+    // plan; the ring keeps loading in the background after the card drops.
     void beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user);
     bool streamReady() const;
     float streamProgress() const;

@@ -2098,8 +2098,9 @@ int main() {
         }
 
         // finishLoading used to upload every chunk before the next frame. Zone::update
-        // now uploads about 10 ms per frame. The loading card stays up until the plan
-        // is resident; this path does not call finishLoading.
+        // now uploads about 10 ms per frame. The loading card stays up until the cone
+        // plan is resident; the warm ring continues after the card drops. This path
+        // does not call finishLoading.
         if (transition.readyToLoad()) {
             auto finishZoneStream = [&]() {
                 const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);

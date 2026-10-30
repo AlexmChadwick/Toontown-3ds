@@ -111,10 +111,15 @@ void Place::setCamera(const C3D_FVec& eye, const C3D_FVec& target) {
 namespace {
 void applyRetain(Zone& zone) {
     if (!zone.loaded()) return;
+    // Old 3DS linear heap is 24 MB. A street view's command buffer, toon, UI and
+    // audio already sit in it; the old 6/8 and 8/12 MiB retain caps filled the rest
+    // (New street free fell to about 6 MB). 4/4 and 5/5 leave the cone resident and
+    // a small warm ring. Zone::update also drops non-cone chunks while linear free
+    // is under 12 MB, which is the Old 3DS floor.
     if (tt::render::activeQuality().new3ds)
-        zone.setRetainBudget(8u * 1024u * 1024u, 12u * 1024u * 1024u);
+        zone.setRetainBudget(5u * 1024u * 1024u, 5u * 1024u * 1024u);
     else
-        zone.setRetainBudget(Zone::kGeometryBudget, Zone::kTextureBudget);
+        zone.setRetainBudget(4u * 1024u * 1024u, 4u * 1024u * 1024u);
 }
 } // namespace
 
@@ -134,7 +139,9 @@ void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void
 }
 
 bool Place::streamReady() const {
-    return !zone_.loaded() || (!zone_.loading() && !zone_.warming());
+    // The card tracks the cone only. warmAround keeps filling the ring after this
+    // returns, from the usual per-frame Place::update.
+    return !zone_.loaded() || !zone_.loading();
 }
 
 float Place::streamProgress() const {

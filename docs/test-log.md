@@ -1571,3 +1571,63 @@ not a separate pass. The HQ title uses this font; other UI text stays ImpressBT.
 copy of those two files. The earlier desk note in this log (ImpressBT only) is
 superseded by this entry.
 
+## 2026-10-30 — warm ring, in-cone far meshes, 12 MB headroom
+
+Integrated Azahar of #2 + #5 + #7 + #6 at `7e4b6dd` failed on Old and New 3DS
+(street card never finished, distant scenery dropped, card held for the warm
+ring, New street free memory 6.2–6.7 MB). This entry is the host and devkitARM
+check of the fix on top of that commit. **No Azahar and no hardware.** Azahar
+2127 still needs Qt 6.8 and FFmpeg 7. The 8f1ca83 / 2f40267 SHAs are not in this
+clone; the same two rules are implemented here.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+```
+
+The host loader no longer marks a chunk resident inside `queueLoad`. `completeLoads()`
+publishes the queued read, which is what `update()` does on device when a job
+finishes. A warm upload stays resident, `warming()` stays true until that publish,
+and shrinking the retain cap during preload does not evict the warm hold. The next
+update evicts it and does not queue it again. A 130-draw hall plus a one-draw shop
+in the cone submits 131 draws (the shop is not skipped). Walking onto the shop
+demotes the hall to its far mesh (2 draws). There are no baked `.tz` files here, so
+`tools/zone_test/zone_test.cpp` was compiled with `-Werror` and not run on
+2000/1000/2100.
+
+`make -j4` and `make cia` succeeded with zero warnings in `source/`.
+`toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB.
+The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+What changed:
+
+- A finished warm-ring upload is kept. `makeRoom` does not evict a warm hold while
+  preload is in progress, and `warmAround` only queues chunks that fit in the
+  retain budget including bytes already in flight.
+- `Place::streamReady` is the cone plan (`!loading()`). The card drops then. The
+  per-frame `Place::update` keeps warming the ring. `finishLoading` (boss / cogdo)
+  also waits for the cone only.
+- Inside the cone, `Zone::draw` submits every resident chunk. The 130-draw / 15k
+  cap still decides near upgrades. A resident near mesh inside `lodKeep` stays.
+  Past `lodKeep`, it is demoted to the far mesh when it no longer fits, and that
+  far read is allowed to replace it. A near mesh outside the cone is still not
+  replaced by the far blob.
+- Retain is 4 MiB geometry / 4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS.
+  On device, non-cone chunks are evicted while `linearSpaceFree()` is under 12 MB.
+  In-cone chunks are not evicted to make that floor. Not measured on Azahar.
+
