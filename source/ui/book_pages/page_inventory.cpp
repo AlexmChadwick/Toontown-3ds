@@ -127,63 +127,48 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
         C2D_DrawText(&nameTxt, C2D_WithColor, x + 12.0f, ry + 3.0f, 0.5f, 0.36f, 0.36f,
                      unlocked ? kInk : C2D_Color32(0x88, 0x88, 0x88, 0xFF));
 
-        if (!unlocked) {
-            if (trainingTrack == t) {
-                // Training indicator
-                C2D_Text trText;
-                C2D_TextParse(&trText, textBuf_, "TRAINING");
-                C2D_TextOptimize(&trText);
-                C2D_DrawText(&trText, C2D_WithColor, x + 60.0f, ry + 3.0f, 0.5f, 0.34f, 0.34f, kTrackColors[t]);
-            } else {
-                C2D_Text lkText;
-                C2D_TextParse(&lkText, textBuf_, "Locked");
-                C2D_TextOptimize(&lkText);
-                C2D_DrawText(&lkText, C2D_WithColor, x + 60.0f, ry + 3.0f, 0.5f, 0.34f, 0.34f,
-                             C2D_Color32(0x99, 0x90, 0x88, 0xFF));
-            }
-        }
-
         // Seven stable paper slots: learned gags keep their original art and
         // unavailable levels retain a clear silhouette instead of leaving gaps.
+        // Keep this ladder for a wholly locked track too: collapsing those tracks
+        // into one word made the page change shape as the Toon progressed and did
+        // not communicate the seven gag levels.
         const float gagStartX = x + 60.0f;
         const float gagSize = 18.0f;
         const float gagSpacing = 19.0f;
 
         for (int l = 0; l < 7; l++) {
             const float gx = gagStartX + l * gagSpacing;
-            if (unlocked) {
-                const uint8_t count = bdc.stats ? bdc.stats->inventory[t][l] : 0;
-                const bool hasExp = exp >= kLevels[t][l];
+            const uint8_t count = bdc.stats ? bdc.stats->inventory[t][l] : 0;
+            const bool hasExp = unlocked && exp >= kLevels[t][l];
 
-                if (hasExp) {
-                    shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
-                                      kSlotEdge, kSlotPaper);
-                    atlas.drawIcon(t, l, gx + 1.0f, ry + 2.0f, gagSize - 2.0f, 0.52f,
-                                   count > 0 ? 1.0f : 0.35f);
-                    snprintf(buf, sizeof(buf), "%d", count);
-                    C2D_Text cntTxt;
-                    C2D_TextParse(&cntTxt, textBuf_, buf);
-                    C2D_TextOptimize(&cntTxt);
-                    // Opaque badge: the number never disappears into detailed gag art.
-                    shape::roundRect(gx + 9.0f, ry + 11.0f, 0.58f, 9.0f, 8.0f, 3.0f,
-                                     count ? kTrackColors[t] : kBarBorder);
-                    C2D_DrawText(&cntTxt, C2D_WithColor, gx + (count >= 10 ? 9.5f : 11.5f), ry + 10.5f,
-                                 0.60f, 0.27f, 0.27f, kInk);
-                } else {
-                    // Preserve the seven-card ladder even before this level is
-                    // earned.  A full dimmed card is much easier to scan than the
-                    // old six-pixel dot and mirrors the live battle picker.
-                    shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
-                                      kSlotEdge, kLockedPaper);
-                    C2D_DrawRectSolid(gx + 2.0f, ry + 3.0f, 0.54f, 2.0f, gagSize - 4.0f,
-                                      kTrackColors[t]);
-                    snprintf(buf, sizeof(buf), "%d", l + 1);
-                    C2D_Text levelTxt;
-                    C2D_TextParse(&levelTxt, textBuf_, buf);
-                    C2D_TextOptimize(&levelTxt);
-                    C2D_DrawText(&levelTxt, C2D_WithColor, gx + 8.0f, ry + 3.0f, 0.56f,
-                                 0.28f, 0.28f, kLockedInk);
-                }
+            if (hasExp) {
+                shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
+                                  kSlotEdge, kSlotPaper);
+                atlas.drawIcon(t, l, gx + 1.0f, ry + 2.0f, gagSize - 2.0f, 0.52f,
+                               count > 0 ? 1.0f : 0.35f);
+                snprintf(buf, sizeof(buf), "%d", count);
+                C2D_Text cntTxt;
+                C2D_TextParse(&cntTxt, textBuf_, buf);
+                C2D_TextOptimize(&cntTxt);
+                // Opaque badge: the number never disappears into detailed gag art.
+                shape::roundRect(gx + 9.0f, ry + 11.0f, 0.58f, 9.0f, 8.0f, 3.0f,
+                                 count ? kTrackColors[t] : kBarBorder);
+                C2D_DrawText(&cntTxt, C2D_WithColor, gx + (count >= 10 ? 9.5f : 11.5f), ry + 10.5f,
+                             0.60f, 0.27f, 0.27f, kInk);
+            } else {
+                // Preserve the seven-card ladder even before this level is
+                // earned.  A full dimmed card is much easier to scan than the
+                // old six-pixel dot and mirrors the live battle picker.
+                shape::roundFrame(gx, ry + 1.0f, 0.49f, gagSize, gagSize, 3.0f, 1.0f,
+                                  kSlotEdge, kLockedPaper);
+                C2D_DrawRectSolid(gx + 2.0f, ry + 3.0f, 0.54f, 2.0f, gagSize - 4.0f,
+                                  kTrackColors[t]);
+                snprintf(buf, sizeof(buf), "%d", l + 1);
+                C2D_Text levelTxt;
+                C2D_TextParse(&levelTxt, textBuf_, buf);
+                C2D_TextOptimize(&levelTxt);
+                C2D_DrawText(&levelTxt, C2D_WithColor, gx + 8.0f, ry + 3.0f, 0.56f,
+                             0.28f, 0.28f, kLockedInk);
             }
         }
 
@@ -226,6 +211,17 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
             C2D_TextGetDimensions(&expTxt, 0.32f, 0.32f, &tw, nullptr);
             C2D_DrawText(&expTxt, C2D_WithColor, barX + (barW - tw) * 0.5f, barY - 1.5f, 0.6f, 0.32f, 0.32f,
                          C2D_Color32(0x10, 0x10, 0x10, 0xFF));
+        } else {
+            // Put status in the reserved XP bar instead of replacing the gag
+            // ladder. Training keeps the track colour; unavailable tracks stay
+            // deliberately quiet.
+            C2D_Text statusTxt;
+            C2D_TextParse(&statusTxt, textBuf_, trainingTrack == t ? "TRAINING" : "LOCKED");
+            C2D_TextOptimize(&statusTxt);
+            float tw = 0.0f;
+            C2D_TextGetDimensions(&statusTxt, 0.30f, 0.30f, &tw, nullptr);
+            C2D_DrawText(&statusTxt, C2D_WithColor, barX + (barW - tw) * 0.5f, barY - 1.0f,
+                         0.6f, 0.30f, 0.30f, trainingTrack == t ? col : kLockedInk);
         }
     }
 
