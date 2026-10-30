@@ -5,12 +5,14 @@
 #include <cstdio>
 #include <cstring>
 
+#include "audio/audio.h"
 #include "core/log.h"
 #include "game/name_check.h"
 #include "game/loading_tips.h"
 #include "game/name_tables.h"
 #include "ui/laff_meter.h"
 #include "ui/loading_atlas.h"
+#include "ui/mat_room_tracks.h"
 #include "ui/mat_art.h"
 #include "ui/pick_a_toon_atlas.h"
 #include "ui/theme.h"
@@ -151,15 +153,18 @@ void FrontEnd::shutdown() {
     logo_.unload();
     loadingBg_.unload();
     loadingGui_.unload();
-    room_.unload();
-    roomShop_ = -1;
+    releaseRoom();
     pickArt_.unload();
     ui::releaseMatArt();
 }
 
 void FrontEnd::releaseArt() {
-    room_.unload();
-    roomShop_ = -1;
+    releaseRoom();
+    for (int& id : crashSfx_) {
+        if (id >= 0) audio::freeSfx(id);
+        id = -1;
+    }
+    crashTried_ = false;
     loadingGui_.unload();
     loadingGuiTried_ = false;
     pickArt_.unload();
@@ -371,6 +376,8 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
         }
         if (held & KEY_L) makeTurn_ -= 60.0f * dt;
         if (held & KEY_R) makeTurn_ += 60.0f * dt;
+        // A room load stalls the frame it happens in; cap the step so the drop is not skipped.
+        roomAnimT_ += dt < 1.0f / 30.0f ? dt : 1.0f / 30.0f;
     } else {
         turnStep_ = MakeStep::Count;
     }
@@ -836,14 +843,58 @@ namespace {
 
 // Make-A-Toon's shops in bake_mat_room.py's order, and the room each of our steps stands in: the
 // Species step is upstream's BodyShop (Choose Your Type), the boy / girl step its GenderShop.
-constexpr const char* kRoomFiles[] = {"romfs:/baked/mat_room/mat_room_gender.ttm", "romfs:/baked/mat_room/mat_room_body.ttm",
-                                      "romfs:/baked/mat_room/mat_room_color.ttm", "romfs:/baked/mat_room/mat_room_clothes.ttm",
-                                      "romfs:/baked/mat_room/mat_room_name.ttm"};
+constexpr const char* kRoomShops[] = {"gender", "body", "color", "clothes", "name"};
 constexpr int kRoomGender = 0, kRoomBody = 1, kRoomColor = 2, kRoomClothes = 3, kRoomName = 4;
+constexpr float kRoomAnimSecs = ui::kMatRoomFrames / ui::kMatRoomFps; // 21 frames at 24 fps
+constexpr const char* kCrashSfx[5] = {
+    "sdmc:/3ds/toontown3ds/data/audio/mat_crash_boing.tsnd", "sdmc:/3ds/toontown3ds/data/audio/mat_crash_glass_boing.tsnd",
+    "sdmc:/3ds/toontown3ds/data/audio/mat_crash_wood.tsnd", "sdmc:/3ds/toontown3ds/data/audio/mat_crash_wood_boing.tsnd",
+    "sdmc:/3ds/toontown3ds/data/audio/mat_crash_wood_glass.tsnd"};
+
+// A joint track at time t (linear between its 24 fps frames, held at the last one).
+ui::MatRoomKey roomKey(const ui::MatRoomKey* track, float t) {
+    float f = t * ui::kMatRoomFps;
+    if (f <= 0.0f) return track[0];
+    if (f >= ui::kMatRoomFrames - 1) return track[ui::kMatRoomFrames - 1];
+    const int i = int(f);
+    f -= float(i);
+    return ui::MatRoomKey{track[i].z + (track[i + 1].z - track[i].z) * f,
+                          track[i].scaleZ + (track[i + 1].scaleZ - track[i].scaleZ) * f};
+}
+
+void drawRoomPart(render::Renderer& renderer, render::Model& model, const ui::MatRoomKey& key) {
+    if (!model.loaded() || key.scaleZ < 0.01f) return; // squished flat: nothing to draw
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, 0.0f, 0.0f, key.z, true);
+    Mtx_Scale(&m, 1.0f, 1.0f, key.scaleZ);
+    renderer.drawModel(model, m);
+}
 
 } // namespace
 
+void FrontEnd::releaseRoom() {
+    roomCommon_.unload();
+    for (RoomShop& r : roomShops_) {
+        r.walls.unload();
+        r.props.unload();
+        r.shop = -1;
+    }
+    roomAnimT_ = 10.0f;
+}
+
+// MakeAToon.playRandomCrashSound, as each dropRoom starts.
+void FrontEnd::playRoomCrash() {
+    if (!crashTried_) {
+        crashTried_ = true;
+        for (int i = 0; i < 5; i++) crashSfx_[i] = audio::loadSfx(kCrashSfx[i]);
+    }
+    const int id = crashSfx_[osGetTime() % 5];
+    if (id >= 0) audio::playSfx(id);
+}
+
 bool FrontEnd::ensureRoom() {
+    if (roomFailed_) return false;
     int shop = kRoomName;
     if (!renameAvId_) {
         switch (step_) {
@@ -854,19 +905,42 @@ bool FrontEnd::ensureRoom() {
         default: shop = kRoomName; break;
         }
     }
-    if (roomShop_ == shop) return true;
-    room_.unload(); // the previous frame is complete (we draw after C3D_FrameBegin)
-    roomShop_ = -1;
-    if (roomFailed_ & (1u << shop)) return false;
+    RoomShop& cur = roomShops_[roomCur_];
+    RoomShop& other = roomShops_[1 - roomCur_];
+    if (cur.shop == shop && roomCommon_.loaded()) {
+        if (roomAnimT_ >= kRoomAnimSecs && other.shop >= 0) { // the old shop has squished away
+            other.walls.unload();
+            other.props.unload();
+            other.shop = -1;
+        }
+        return true;
+    }
+    // We draw after C3D_FrameBegin: the previous frame no longer reads what is replaced here.
     const u64 t0 = osGetTime();
-    if (!room_.load(kRoomFiles[shop])) {
-        roomFailed_ |= u8(1u << shop);
-        TT_LOG("frontend: no %s; Make-A-Toon falls back to the plain preview", kRoomFiles[shop]);
+    char path[64];
+    bool ok = roomCommon_.loaded() || roomCommon_.load("romfs:/baked/mat_room/mat_room_common.ttm");
+    const bool first = cur.shop < 0; // MakeAToon's first shop is posed in place, not dropped
+    RoomShop& slot = first ? cur : other;
+    slot.walls.unload();
+    slot.props.unload();
+    slot.shop = -1;
+    snprintf(path, sizeof path, "romfs:/baked/mat_room/mat_room_%s_walls.ttm", kRoomShops[shop]);
+    ok = ok && slot.walls.load(path);
+    snprintf(path, sizeof path, "romfs:/baked/mat_room/mat_room_%s_props.ttm", kRoomShops[shop]);
+    ok = ok && slot.props.load(path);
+    if (!ok) {
+        roomFailed_ = true;
+        releaseRoom();
+        TT_LOG("frontend: no Make-A-Toon room (%s); the plain preview instead", path);
         return false;
     }
-    roomShop_ = shop;
-    TT_LOG("frontend: mat room %d loaded (%lu linear bytes, %u tris, %u ms)", shop, (unsigned long)room_.linearBytes(),
-           unsigned(room_.numTriangles()), unsigned(osGetTime() - t0));
+    slot.shop = shop;
+    roomCur_ = first ? roomCur_ : 1 - roomCur_;
+    roomAnimT_ = first ? kRoomAnimSecs : 0.0f;
+    if (!first) playRoomCrash();
+    TT_LOG("frontend: mat room %s %s (%lu linear bytes, %u tris, %u ms)", kRoomShops[shop], first ? "posed" : "drops in",
+           (unsigned long)(slot.walls.linearBytes() + slot.props.linearBytes()),
+           unsigned(slot.walls.numTriangles() + slot.props.numTriangles()), unsigned(osGetTime() - t0));
     return true;
 }
 
@@ -884,8 +958,19 @@ void FrontEnd::drawRoom(render::Renderer& renderer) {
     renderer.beginWorld(renderer.topLeft(), eye, at, 0.0f, 0);
     C3D_Mtx m;
     Mtx_Identity(&m);
-    renderer.drawModel(room_, m);
-    const bool name = roomShop_ == kRoomName;
+    renderer.drawModel(roomCommon_, m);
+    // dropRoom: the new shop's walls and props on droppingJoint; squishRoom / squishProp: the old
+    // shop's on scalingJoint / propJoint, until it is flat.
+    RoomShop& cur = roomShops_[roomCur_];
+    const ui::MatRoomKey drop = roomKey(ui::kMatRoomDrop, roomAnimT_);
+    drawRoomPart(renderer, cur.walls, drop);
+    drawRoomPart(renderer, cur.props, drop);
+    RoomShop& old = roomShops_[1 - roomCur_];
+    if (old.shop >= 0 && roomAnimT_ < kRoomAnimSecs) {
+        drawRoomPart(renderer, old.walls, roomKey(ui::kMatRoomSquish, roomAnimT_));
+        drawRoomPart(renderer, old.props, roomKey(ui::kMatPropSquish, roomAnimT_));
+    }
+    const bool name = cur.shop == kRoomName;
     Mtx_Identity(&m);
     Mtx_Translate(&m, name ? 1.5f : -1.62f, name ? -4.0f : -3.49f, 0.0f, true);
     Mtx_RotateZ(&m, ((name ? 120.0f : 180.0f) + makeTurn_) * kPi / 180.0f, true);
@@ -946,10 +1031,7 @@ void FrontEnd::drawLoadingScroll(const char* label) {
 
 void FrontEnd::drawTop(render::Renderer& renderer) {
     const bool room = screen_ == Screen::Make && ensureRoom();
-    if (!room && room_.loaded()) { // left Make-A-Toon: the previous frame is complete
-        room_.unload();
-        roomShop_ = -1;
-    }
+    if (!room && roomCommon_.loaded()) releaseRoom(); // left Make-A-Toon: the previous frame is complete
     // The title logo covers the top third: aim higher there so the toon stands below it.
     const bool loading = screen_ == Screen::Connecting || screen_ == Screen::Entering;
     const bool logo = (screen_ == Screen::Title || loading) && logo_.loaded() && logo_.texture(0);
@@ -1056,7 +1138,7 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             // MakeAToon's rotateLeftButton / rotateRightButton (tt_t_gui_mat_arrowRotateUp, the left
             // one mirrored) beside the Toon's feet; the top screen is not touchable, so they name L / R.
             constexpr float kD = 30.0f, kY = 172.0f;
-            const float cx = roomShop_ == kRoomName ? 290.0f : 200.0f; // the Toon's feet on screen
+            const float cx = roomShops_[roomCur_].shop == kRoomName ? 290.0f : 200.0f; // the Toon's feet on screen
             for (int side = 0; side < 2; ++side) {
                 const float x = side ? cx + 46 : cx - 46 - kD;
                 const bool held = side ? (hidKeysHeld() & KEY_R) : (hidKeysHeld() & KEY_L);

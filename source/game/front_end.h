@@ -128,14 +128,26 @@ private:
     bool touchReleased_ = false;
     bool touching_ = false;
 
-    // Make-A-Toon's room (bake_mat_room.py): the current shop's walls + props, floor and
-    // background, swapped on the first top-screen draw of a step (after C3D_FrameBegin, so the
-    // previous frame no longer reads the old shop).
+    // Make-A-Toon's room (bake_mat_room.py): the floor / background / spotlight, and the current
+    // shop's walls + props, loaded on the first top-screen draw of a step (after C3D_FrameBegin, so
+    // the previous frame no longer reads what is replaced). A new shop drops in (roomDrop) while the
+    // last one squishes away (roomSquish / propSquish) with one of MakeAToon's crash sounds; the
+    // squished shop is freed once the 0.875 s animation has finished.
+    struct RoomShop {
+        render::Model walls, props;
+        int shop = -1;
+    };
     bool ensureRoom();
     void drawRoom(render::Renderer& renderer);
-    render::Model room_;
-    int roomShop_ = -1;         // which shop room_ holds (-1 none)
-    u8 roomFailed_ = 0;         // shops whose file failed to load (bit per shop; logged once)
+    void releaseRoom();
+    void playRoomCrash();
+    render::Model roomCommon_;
+    RoomShop roomShops_[2];
+    int roomCur_ = 0;          // roomShops_ index of the shop on screen; the other one squishes away
+    float roomAnimT_ = 10.0f;  // seconds since the current shop started dropping in
+    bool roomFailed_ = false;  // a room file is missing: the plain preview instead (logged once)
+    int crashSfx_[5] = {-1, -1, -1, -1, -1}; // tt::audio::SfxId, loaded with the first drop
+    bool crashTried_ = false;
     float makeTurn_ = 0.0f;     // L / R: MakeAToon's rotate buttons, degrees added to the shop's heading
     MakeStep turnStep_ = MakeStep::Count; // the step makeTurn_ belongs to (reset on a new step)
 
