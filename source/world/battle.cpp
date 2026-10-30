@@ -623,7 +623,10 @@ void Battle::buildMovie(const net::BattleMovie& m) {
     int n = 0;
     for (int i = 0; i < 4; ++i) {
         const net::BattleToonAttack& a = m.toonAttacks[i];
-        if (a.track < 0 || a.track > 6 || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        // Fire is track 100 in stock BattleBase.  The old 0..6 guard silently
+        // dropped the server's Fire attack, even though the picker had
+        // correctly spent a Pink Slip.
+        if (!hasBattleMovie(a.track) || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
         int pos = n++;
         while (pos > 0) {
             const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
@@ -651,6 +654,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         else if (a.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
         else if (a.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
         else if (a.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
+        else if (a.track == kAttackFire)  { attackDur = 8500; hitAt = t + 6000; }
 
         addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
         bool any = false;
@@ -768,6 +772,7 @@ void Battle::runFx(uint32_t nowMs) {
                 else if (f.track == kTrackThrow) hitMs = nowMs + 3000;
                 else if (f.track == kTrackSquirt) hitMs = nowMs + 2700;
                 else if (f.track == kTrackDrop) hitMs = nowMs + 3800;
+                else if (f.track == kAttackFire) hitMs = nowMs + 6000;
                 battleFx_->onAttack(f.who, f.other, f.track, f.level, nowMs, f.value, hitMs, this);
             }
             break;

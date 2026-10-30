@@ -26,6 +26,7 @@ inline float lerp(float a, float b, float t) {
 
 static const char* trackName(int track) {
     static const char* const kNames[] = {"heal", "trap", "lure", "sound", "throw", "squirt", "drop"};
+    if (track == kAttackFire) return "fire";
     return (track >= 0 && track < 7) ? kNames[track] : "unknown";
 }
 
@@ -364,6 +365,12 @@ void BattleMovies::onAttack(uint32_t attackerId, uint32_t targetId, int track, i
         spawnDrop(targetId, level, startMs, hitMs, true, 0, battle);
         break;
     }
+    case kAttackFire:
+        // The original dismissal uses the Pink Slip sting while the Toon
+        // operates the cannon.  The sound is already part of the bounded
+        // battle audio bake and streams through the normal SFX cache.
+        fx.playCue("SA_pink_slip", 1.0f);
+        break;
     default:
         break;
     }

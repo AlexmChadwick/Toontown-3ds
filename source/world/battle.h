@@ -54,8 +54,17 @@ constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAt
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
 constexpr int kAttackPass = 98;  // BattleBase.PASS
 constexpr int kAttackNpcSos = 97; // BattleBase.NPCSOS
+constexpr int kAttackPetSos = 96; // BattleBase.PETSOS
+constexpr int kAttackSos = 99;    // BattleBase.SOS (call another online Toon)
 constexpr int kAttackFire = 100;  // BattleBase.FIRE
 constexpr int kAttackNone = -1;  // NO_ATTACK
+
+// Tracks that arrive in setMovie and have a local movie implementation.  Keep
+// this separate from attackAffectsGroup: special attacks deliberately sit
+// outside the seven-gag table and must never index gag arrays.
+constexpr bool hasBattleMovie(int track) {
+    return (track >= kTrackHeal && track <= kTrackDrop) || track == kAttackFire;
+}
 
 // BattleBase.attackAffectsGroup(track, level) (AvPropTargetCat[AvPropTarget[track]][level]).
 bool attackAffectsGroup(int track, int level);

@@ -84,6 +84,12 @@ MovieTiming getMovieTiming(int track, int level) {
         t.releaseMs = 2000;
         t.hitMs = 2800;
         t.durMs = 3200;
+    } else if (track == kAttackFire) {
+        // MovieFire: the Toon presses the cannon control, the Cog panics, then
+        // is dismissed.  The full cannon staging is longer than a normal gag.
+        t.releaseMs = 2500;
+        t.hitMs = 6000;
+        t.durMs = 8500;
     } else { // Suit attack or generic
         t.releaseMs = 1000;
         t.hitMs = 1200;
@@ -484,19 +490,22 @@ void BattleFx::onAttack(uint32_t attackerId, uint32_t targetId, int track, int l
     }
     const MovieTiming timing = getMovieTiming(track, level);
 
-    // Spawn held prop for the attacker
-    for (int i = 0; i < kMaxProps; ++i) {
-        if (!props_[i].active) {
-            props_[i].active = true;
-            props_[i].actorId = attackerId;
-            props_[i].isToon = (track >= 0);
-            props_[i].track = track;
-            props_[i].level = level;
-            props_[i].startMs = startMs;
-            props_[i].releaseMs = startMs + timing.releaseMs;
-            props_[i].endMs = startMs + durMs;
-            props_[i].targetId = targetId;
-            break;
+    // Special attacks do not use the seven-track held-prop table.  Reserving a
+    // slot for Fire used to hide a real gag prop while drawing nothing.
+    if (track >= kTrackHeal && track <= kTrackDrop) {
+        for (int i = 0; i < kMaxProps; ++i) {
+            if (!props_[i].active) {
+                props_[i].active = true;
+                props_[i].actorId = attackerId;
+                props_[i].isToon = true;
+                props_[i].track = track;
+                props_[i].level = level;
+                props_[i].startMs = startMs;
+                props_[i].releaseMs = startMs + timing.releaseMs;
+                props_[i].endMs = startMs + durMs;
+                props_[i].targetId = targetId;
+                break;
+            }
         }
     }
 

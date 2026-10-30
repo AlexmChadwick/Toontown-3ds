@@ -109,6 +109,16 @@ void testMovieTimings() {
     assert(cogTiming.hitMs == 1200);
     assert(cogTiming.durMs == 2200);
 
+    // Fire is a stock special track, not a gag-table index.  It must survive
+    // setMovie filtering and keep its long dismissal timing without reserving
+    // a held-gag prop.
+    static_assert(tt::world::hasBattleMovie(tt::world::kAttackFire));
+    static_assert(!tt::world::hasBattleMovie(tt::world::kAttackNpcSos));
+    const auto fireTiming = tt::world::getMovieTiming(tt::world::kAttackFire, -1);
+    assert(fireTiming.releaseMs == 2500);
+    assert(fireTiming.hitMs == 6000);
+    assert(fireTiming.durMs == 8500);
+
     printf("  Movie timing tests passed.\n");
 }
 
