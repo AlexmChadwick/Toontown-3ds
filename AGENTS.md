@@ -357,6 +357,12 @@ Lessons recorded for agents:
   agent builds run under `nice -n 19`. Compare log time with real time before blaming the client.
   On the Linux/Xvfb rig (software GL) facilities run at ~25-40% speed even alone; start the
   server with `ASTRON_HEARTBEAT_TIMEOUT_MS=300000` for those passes.
+- **3DS sockets differ from Azahar** (`net/net_platform.cpp`). SOC has no POLLERR/POLLHUP: 0x08
+  is POLLWRNORM (the real "writable" bit, which libctru's poll.h calls POLLERR) and 0x10 is
+  POLLWRBAND (libctru's POLLOUT). `getsockopt(SO_ERROR)` returns the raw SOC -26 after a good
+  connect (libctru#412). Connect completion is decided by calling `connect()` again (0 / EISCONN),
+  never by SO_ERROR or POLLERR. Every connect failure names its step, errno and revents on screen
+  and in log.txt.
 - **Every hand-parsed field needs a layout check, and every handled class must be in the
   table.** Golf was dead twice over:
   - `DistributedGolfKart.setState` was read without its i16 timestamp.

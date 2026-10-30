@@ -1,5 +1,7 @@
 #include "net/net_platform.h"
 
+#include "core/log.h"
+
 // <3ds.h> must come before libctru's BSD socket headers: they include parts of it
 // without the extern "C" wrapper, after which <3ds.h>'s guards skip the C linkage.
 #ifdef __3DS__
@@ -150,52 +152,114 @@ bool resolve(const char* host, uint16_t port, sockaddr_in* out) {
     return true;
 }
 
+// Poll event bits. The 3DS SOC has no POLLERR / POLLHUP (3dbrew SOCU:poll): 0x08 is
+// POLLWRNORM, the real "writable" bit, and 0x10 POLLWRBAND, which libctru's poll.h calls
+// POLLOUT. libctru calls 0x08 POLLERR ("probably"), so a writable socket used to read as an
+// error, which is how real hardware got "connection refused" right after the handshake.
+#ifdef __3DS__
+constexpr short kPollWritable = 0x08 | 0x10;
+constexpr short kPollReadable = POLLIN | POLLNVAL;
+#else
+constexpr short kPollWritable = POLLOUT;
+constexpr short kPollReadable = POLLIN | POLLERR | POLLHUP | POLLNVAL;
+#endif
+
+// Detailed text for the last failure (net thread only; the caller copies it).
+char gConnectErr[96];
+char gIoErr[64];
+
+const char* connectFail(int fd, const char* step, int err, int revents) {
+    if (fd >= 0) close(fd);
+    int n = snprintf(gConnectErr, sizeof(gConnectErr), "Couldn't connect: %s errno %d", step, err);
+    if (err < 0 && n > 0 && size_t(n) < sizeof(gConnectErr))
+        n += snprintf(gConnectErr + n, sizeof(gConnectErr) - size_t(n), " (raw SOC)");
+    if (revents >= 0 && n > 0 && size_t(n) < sizeof(gConnectErr))
+        snprintf(gConnectErr + n, sizeof(gConnectErr) - size_t(n), " (revents 0x%02x)", unsigned(revents));
+    return gConnectErr;
+}
+
+bool connectPending(int e) { return e == EINPROGRESS || e == EALREADY || e == EWOULDBLOCK || e == EAGAIN; }
+
 } // namespace
 
 int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err) {
+    const uint32_t t0 = nowMs();
     sockaddr_in addr;
-    if (!resolve(host, port, &addr)) { *err = "cannot resolve host"; return -1; }
+    if (!resolve(host, port, &addr)) {
+        snprintf(gConnectErr, sizeof(gConnectErr), "Couldn't connect: resolve failed for %s", host);
+        *err = gConnectErr;
+        return -1;
+    }
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    if (fd < 0) { *err = "socket() failed"; return -1; }
+    if (fd < 0) { *err = connectFail(-1, "socket", errno, -1); return -1; }
     int one = 1;
-    setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one));
+    // Latency only; a SOC that refuses the option still connects.
+    if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof(one)) != 0)
+        TT_LOG("net: setsockopt TCP_NODELAY failed (errno %d), continuing", errno);
 #ifdef SO_NOSIGPIPE
     setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
 #endif
-    fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
-
-    int rc = connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
-    if (rc != 0 && errno != EINPROGRESS && errno != EWOULDBLOCK && errno != EALREADY) {
-        close(fd);
-        *err = "connection refused";
+    const int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0 || fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+        *err = connectFail(fd, "fcntl", errno, -1);
         return -1;
     }
-    if (rc != 0) {
-        pollfd p{fd, POLLOUT, 0};
+
+    int revents = 0;
+    int rc = connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+    if (rc != 0 && errno != EISCONN) {
+        if (!connectPending(errno)) { *err = connectFail(fd, "connect", errno, -1); return -1; }
+        // Completion is decided by calling connect() again (0 / EISCONN = connected), never by
+        // SO_ERROR: on real hardware getsockopt(SO_ERROR) returns the raw SOC code -26
+        // (EINPROGRESS) after a successful connect (libctru#412), and there is no POLLERR.
+        bool connected = false;
+        for (uint32_t i = 0;; ++i) {
+            pollfd p{fd, short(POLLIN | kPollWritable), 0};
 #ifdef __3DS__
-        // Zero-timeout polls only (see tcpWait).
-        int ready = 0;
-        for (uint32_t waited = 0; (ready = poll(&p, 1, 0)) == 0 && waited < timeoutMs; waited += 10)
-            sleepMs(10);
+            // Zero-timeout polls only (see tcpWait); the wait is a guest sleep.
+            const int ready = poll(&p, 1, 0);
 #else
-        const int ready = poll(&p, 1, int(timeoutMs));
+            const int ready = poll(&p, 1, 10);
 #endif
-        if (ready <= 0) { close(fd); *err = "connect timed out"; return -1; }
-        int soErr = 0;
-        socklen_t len = sizeof(soErr);
-        if ((p.revents & (POLLERR | POLLHUP)) ||
-            (getsockopt(fd, SOL_SOCKET, SO_ERROR, &soErr, &len) == 0 && soErr != 0)) {
+            if (ready < 0) { *err = connectFail(fd, "poll", errno, -1); return -1; }
+            if (ready > 0) revents = p.revents;
+            // Also recheck every ~100 ms without an event, in case the SOC never reports one.
+            if (ready > 0 || i % 10 == 9) {
+                rc = connect(fd, reinterpret_cast<sockaddr*>(&addr), sizeof(addr));
+                if (rc == 0 || errno == EISCONN) { connected = true; break; }
+                if (!connectPending(errno)) {
+                    *err = connectFail(fd, "connect-recheck", errno, ready > 0 ? p.revents : -1);
+                    return -1;
+                }
+            }
+            if (nowMs() - t0 >= timeoutMs) break;
+#ifdef __3DS__
+            sleepMs(10);
+#endif
+        }
+        if (!connected) {
+            snprintf(gConnectErr, sizeof(gConnectErr), "Couldn't connect: timed out after %u ms (revents 0x%02x)",
+                     unsigned(timeoutMs), unsigned(revents));
             close(fd);
-            *err = "connection refused";
+            *err = gConnectErr;
             return -1;
         }
     }
+    sockaddr_in peer;
+    socklen_t peerLen = sizeof(peer);
+    if (getpeername(fd, reinterpret_cast<sockaddr*>(&peer), &peerLen) != 0) {
+        *err = connectFail(fd, "getpeername", errno, revents);
+        return -1;
+    }
+    TT_LOG("net: connected to %s:%u in %u ms, revents 0x%02x", host, unsigned(port), unsigned(nowMs() - t0),
+           unsigned(revents));
+    gIoErr[0] = 0;
     *err = "";
     return fd;
 }
 
 int tcpWait(int fd, bool wantWrite, int timeoutMs) {
-    pollfd p{fd, short(POLLIN | (wantWrite ? POLLOUT : 0)), 0};
+    pollfd p{fd, short(POLLIN | (wantWrite ? kPollWritable : 0)), 0};
 #ifdef __3DS__
     // Never hand soc:U a poll timeout: Azahar runs a timed poll on a fresh host thread
     // (HLE RunAsync) and wakes the guest from there, and on the Linux rig its emulated clock
@@ -207,15 +271,20 @@ int tcpWait(int fd, bool wantWrite, int timeoutMs) {
 #else
     if (poll(&p, 1, timeoutMs) <= 0) return 0;
 #endif
-    return ((p.revents & (POLLIN | POLLERR | POLLHUP | POLLNVAL)) ? kTcpReadable : 0) |
-           ((p.revents & POLLOUT) ? kTcpWritable : 0);
+    return ((p.revents & kPollReadable) ? kTcpReadable : 0) | ((p.revents & kPollWritable) ? kTcpWritable : 0);
 }
 
 int tcpRecv(int fd, void* buf, int len) {
     int n = int(recv(fd, buf, size_t(len), 0));
     if (n > 0) return n;
-    if (n == 0) return -1; // orderly shutdown by peer
-    return (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) ? 0 : -1;
+    if (n == 0) { // orderly shutdown by peer
+        snprintf(gIoErr, sizeof(gIoErr), "recv: peer closed");
+        return -1;
+    }
+    const int e = errno;
+    if (e == EAGAIN || e == EWOULDBLOCK || e == EINTR) return 0;
+    snprintf(gIoErr, sizeof(gIoErr), "recv errno %d", e);
+    return -1;
 }
 
 int tcpSend(int fd, const void* buf, int len) {
@@ -225,8 +294,13 @@ int tcpSend(int fd, const void* buf, int len) {
     int n = int(send(fd, buf, size_t(len), 0));
 #endif
     if (n >= 0) return n;
-    return (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) ? 0 : -1;
+    const int e = errno;
+    if (e == EAGAIN || e == EWOULDBLOCK || e == EINTR) return 0;
+    snprintf(gIoErr, sizeof(gIoErr), "send errno %d", e);
+    return -1;
 }
+
+const char* tcpLastIoError() { return gIoErr; }
 
 void tcpClose(int fd) {
     if (fd >= 0) close(fd);

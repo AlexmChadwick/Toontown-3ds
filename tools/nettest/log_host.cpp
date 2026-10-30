@@ -16,6 +16,8 @@ int gHead = 0;
 
 void init() {}
 void shutdown() {}
+void flush() {}
+void setFlushEveryLine(bool) {}
 
 void write(const char* fmt, ...) {
     char line[256];

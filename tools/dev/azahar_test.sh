@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Unattended Azahar run in Old 3DS mode with the scripted autotest.
 #
-#   [TT_OFFLINE=1 | TT_PORT=n TT_TOKEN=name] [TT_DATA=dir] (Linux, isolated per run)
+#   [TT_OFFLINE=1 | [TT_HOST=addr] TT_PORT=n TT_TOKEN=name] [TT_DATA=dir] (Linux, isolated per run)
 #   [SHOTS_DECODE=bottom|top] decode one screen only (raw dumps are always kept in out-dir/bin)
 #   [AUTOTEST_FROM=label] [AUTOTEST_UNTIL=label] [AUTOTEST_ONLY=prefix,prefix] [AUTOTEST_EXTRA="line;line"] tools/dev/azahar_test.sh [app.3dsx|installed .app] [seconds] [out-dir]
 #
@@ -97,7 +97,7 @@ if [ -n "${PER_RUN:-}" ]; then # the baked data set, read-only through a symlink
     ln -sfn "${TT_DATA:-$PWD/sdmc-out/3ds/toontown3ds/data}" "$SD/data"
     # TT_OFFLINE=1: no network at all (never touches another agent's server). TT_PORT/TT_TOKEN:
     # a private server on its own port and account.
-    {   echo "port=${TT_PORT:-7198}"; echo "token=${TT_TOKEN:-perf-$$}"
+    {   [ -n "${TT_HOST:-}" ] && echo "host=$TT_HOST"; echo "port=${TT_PORT:-7198}"; echo "token=${TT_TOKEN:-perf-$$}"
         [ -n "${TT_OFFLINE:-}" ] && echo "online=0"; } > "$SD/server.txt"
 fi
 : > "$SD/autotest"

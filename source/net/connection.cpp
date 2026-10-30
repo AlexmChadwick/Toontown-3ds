@@ -1,8 +1,13 @@
 #include "net/connection.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
+#include "core/log.h"
+#ifdef __3DS__
+#include "core/crash.h"
+#endif
 #include "net/msg_types.h"
 
 namespace tt::net {
@@ -132,8 +137,16 @@ void Connection::closeSocket(const char* why) {
     plat::tcpClose(fd_);
     fd_ = -1;
     heartbeat_ = false;
+    const char* io = plat::tcpLastIoError();
     plat::LockGuard g(sendLock_);
-    error_ = why;
+    if (io[0]) snprintf(errorBuf_, sizeof(errorBuf_), "%s (%s)", why, io);
+    else snprintf(errorBuf_, sizeof(errorBuf_), "%s", why);
+    if (!loggedDrop_) {
+        TT_LOG("net: socket closed: %s", errorBuf_);
+        tt::log::flush();
+        loggedDrop_ = true;
+    }
+    error_ = errorBuf_;
     status_ = Status::Disconnected;
 }
 
@@ -151,11 +164,15 @@ void Connection::doConnect() {
     const char* err = "";
     int fd = plat::tcpConnect(host, port, kConnectTimeoutMs, &err);
     if (fd < 0) {
+        TT_LOG("net: connect to %s:%u failed: %s", host, unsigned(port), err);
+        tt::log::flush();
         plat::LockGuard g(sendLock_);
-        error_ = err;
+        snprintf(errorBuf_, sizeof(errorBuf_), "%s", err);
+        error_ = errorBuf_;
         status_ = Status::Disconnected;
         return;
     }
+    loggedDrop_ = false;
     fd_ = fd;
     {
         plat::LockGuard r(recvLock_);
@@ -211,6 +228,9 @@ bool Connection::pumpRecv() {
 }
 
 void Connection::run() {
+#ifdef __3DS__
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
+#endif
     while (!quit_) {
         bool connectNow, disconnectNow;
         {
