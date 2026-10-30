@@ -822,3 +822,17 @@ emulator verification; host/build checks do not establish a live tutorial play-t
   payout are pending the main agent's Azahar/hardware pass. Rigid wheels, the
   unavailable-in-the-51-clip-catalog feedPet flourish and presentation/audio gaps
   are listed explicitly in racing.md; do not claim complete visual parity.
+
+### Platform badges, phase A (2026-10-30)
+
+- Nametag badges show the other toon's platform (enum 0-8, UNKNOWN = none, exact compare, never
+  on our own toon). Art: hand-written SVGs in `tools/platform-badges/` (`make_atlas.py` →
+  `atlas_{64,32,16}.png`, `atlas.json`, `preview.png`; cell index = enum id).
+- Server: a third DC file `tools/server/platform/platform.dc` loaded last (class 398, fields
+  2270-2273, global doId 4721). otp.dc/toon.dc are untouched. Astron pins
+  `manual_dc_hash: 547155168` and clients keep sending 547155168. The UD runs
+  `platform/ud_start.py` (upstream untouched); `PLATFORM=1 tools/server/start.sh` enables it.
+  Protocol, rate limits, cleanup and per-port integration are in `tools/server/platform/README.md`.
+- Verified by host tests (`test_platform.py`) and a live private server (`test_e2e.py`: two new
+  clients, a stock old client, anti-cheat eject, disconnect cleanup). The 3DS client side and
+  the VPS deploy (`deploy_vps.sh`, not yet run) are later phases.

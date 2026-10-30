@@ -5,7 +5,7 @@ import runpy
 import sys
 
 root = Path(__file__).resolve().parents[2]
-upstream = root / 'ref/open-toontown'
+upstream = Path(os.environ.get('OTT_DIR') or root / 'ref/open-toontown')
 if not (upstream / 'toontown').is_dir():
     upstream = root / 'ref/ref/open-toontown'
 sys.path.insert(0, str(upstream))

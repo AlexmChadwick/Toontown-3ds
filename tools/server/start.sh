@@ -13,16 +13,23 @@
 #                                         agent on SERVER_PORT, message director +1, event logger
 #                                         +2, database/logs/pids under SERVER_RUN; stop it with
 #                                         the same SERVER_RUN tools/server/stop.sh)
+#         PLATFORM=1 tools/server/start.sh
+#                                        (platform badges: astrond.yml gets platform.dc, the
+#                                         TTPlatformManager uberdog 4721 and manual_dc_hash;
+#                                         the UD runs platform/ud_start.py; see platform/README.md)
+#         OTT_DIR=/path/open-toontown RES_DIR=/path/resources tools/server/start.sh
+#                                        (use another checkout's submodules)
 #
 # Nothing is written inside ref/: runtime state lives in tools/server/run/
 # (database, accounts.json, pycache) and logs in tools/server/logs/.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 ROOT="$(cd "$HERE/../.." && pwd)"
-OTT="$ROOT/ref/open-toontown"
-RES="$ROOT/ref/resources"
+OTT="${OTT_DIR:-$ROOT/ref/open-toontown}"
+RES="${RES_DIR:-$ROOT/ref/resources}"
 [ -f "$RES/phase_4/dna/storage.dna" ] || RES="$ROOT/ref/ref/resources"
 [ -d "$OTT/toontown" ] || OTT="$ROOT/ref/ref/open-toontown"
+export OTT_DIR="$OTT"
 CA_PORT="${SERVER_PORT:-7198}"
 if [ "$CA_PORT" = 7198 ]; then MD_PORT=7199; EL_PORT=7197; else MD_PORT=$((CA_PORT + 1)); EL_PORT=$((CA_PORT + 2)); fi
 RUN="${SERVER_RUN:-$HERE/run}"
@@ -88,6 +95,13 @@ if [ -n "${ASTRON_HEARTBEAT_TIMEOUT_MS:-}" ]; then
     rm -f "$RUN/astrond.yml.bak"
     echo "astron: heartbeat timeout $ASTRON_HEARTBEAT_TIMEOUT_MS ms (test override)"
 fi
+UD_ENTRY=("$HERE/run_module.py" toontown.uberdog.UDStart)
+if [ -n "${PLATFORM:-}" ]; then
+    "$PY" -I "$HERE/platform/patch_astrond.py" "$RUN/astrond.yml" "$RUN/astrond.yml" \
+        --platform-dc "$HERE/platform/platform.dc" || { echo "platform: astrond.yml patch failed"; exit 1; }
+    UD_ENTRY=("$HERE/platform/ud_start.py")
+    echo "platform: TTPlatformManager 4721, platform.dc, manual_dc_hash 547155168"
+fi
 
 STAMP="$(date +%Y%m%d_%H%M%S)"
 : > "$RUN/pids"
@@ -127,7 +141,7 @@ export PYTHONPYCACHEPREFIX="$RUN/pycache"
 export PYTHONUNBUFFERED=1
 
 # 2. UberDOG (same args as ref/open-toontown/darwin/start-uberdog-server.sh)
-"$PY" -I "$HERE/run_module.py" toontown.uberdog.UDStart --base-channel 1000000 --max-channels 999999 \
+"$PY" -I "${UD_ENTRY[@]}" --base-channel 1000000 --max-channels 999999 \
     --stateserver 4002 --messagedirector-ip 127.0.0.1:$MD_PORT --eventlogger-ip 127.0.0.1:$EL_PORT \
     > "$LOGS/uberdog-$STAMP.log" 2>&1 < /dev/null &
 UPID=$!; echo "uberdog $UPID" >> "$RUN/pids"

@@ -1,0 +1,18 @@
+// Platform badges: a THIRD dc file, loaded after otp.dc and toon.dc by Astron and by new
+// clients, so its class and field numbers come after every existing one (no existing id
+// moves). Clients keep sending the 2-file hash 547155168 in CLIENT_HELLO; the client agent
+// pins it with manual_dc_hash. Spec: tools/server/platform/README.md.
+
+from ttplatform import TTPlatformManager/AI/UD
+
+dclass TTPlatformManager : DistributedObject {
+  // client -> UD: our own platform (Platform enum), after the avatar is chosen and again
+  // whenever it changes (VR session enter/leave).
+  setMyPlatform(uint8) clsend;
+  // client -> UD: avIds of toons we see (batched, at most 50 per call).
+  requestPlatforms(uint32 []) clsend;
+  // UD -> one client only: parallel arrays avId[i] -> platform[i].
+  setPlatforms(uint32 [], uint8 []);
+  // server internal (CLIENTAGENT post-remove on disconnect); clients may not send it.
+  clearPlatform(uint32);
+};

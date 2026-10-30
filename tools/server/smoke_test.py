@@ -28,7 +28,7 @@ from panda3d.direct import DCFile, DCPacker
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", ".."))
-ETC = os.path.join(ROOT, "ref", "open-toontown", "etc")
+ETC = os.path.join(os.environ.get("OTT_DIR") or os.path.join(ROOT, "ref", "open-toontown"), "etc")
 
 # Astron client message types (direct/distributed/MsgTypes.py, Astron section)
 CLIENT_HELLO = 1
