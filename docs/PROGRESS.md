@@ -3,6 +3,47 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Authoritative teammate Laff in Toon-Up targeting
+
+### Done
+- Completed the Toon-Up target cards with authoritative teammate health. The battle view now
+  carries the local owner's `setHp` / `setMaxHp` values and each remote Toon's already-decoded
+  broadcast values; no health is inferred from battle movies or cached damage.
+- Added an eight-segment green/amber/red Laff meter and a numeric `current/max Laff` label to each
+  named target card. Before both remote fields arrive, the card says `Laff unavailable` instead of
+  presenting a false zero.
+- Preserved the existing 296 x 38 touch targets, focus ids, Back behavior, and allocation-free
+  rendering. The meter uses the post-world-safe rounded triangle primitive rather than procedural
+  Citro2D circles.
+
+### Verified
+- Traced the values from generated `DistributedToon.setHp` / `setMaxHp` fields through the remote
+  Toon decoder and the local owner stats into `Battle::fillView`; the picker consumes only those
+  server-owned values.
+- `git diff --check` passes. A layout audit confirms the name, 116 px meter, numeric label, and
+  focus frame fit inside every target card without changing input geometry.
+- This Linux workspace still has no host C++ frontend or devkitARM, so the host suite and `.3dsx`
+  could not be built. No emulator or hardware result is claimed.
+
+### Asset size decisions
+- No assets, heap allocations, resident textures, or protocol fields were added. The meter is
+  immediate geometry and has negligible impact on the Old 3DS budget.
+
+### Known issues
+- A live four-Toon battle must confirm that all remote clients receive their HP broadcasts before
+  target selection and that long Toon names remain legible at native 320 x 240 resolution.
+- The target chooser still needs the requested native capture and a server assertion that choosing
+  each card sends that exact teammate's doId.
+- Fire/SOS cinematic fidelity, battle-picker hardware performance, and the first complete Old 3DS
+  hardware pass remain open.
+
+### Next
+- Run the four-client Toon-Up matrix: damage three teammates to different Laff bands, capture all
+  cards, cancel once, heal each target, and assert the outgoing doIds.
+- Capture low-level and developed-Toon gag grids plus SpeedChat at native resolution, then tune
+  typography and focus contrast from the actual frames.
+- Finish the original-asset Fire cannon/smoke sequence and NPC SOS arrival/effect playback.
+
 ## 2026-10-30 — Cross-play Toon-Up target picker
 
 ### Done
