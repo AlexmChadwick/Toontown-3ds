@@ -14,6 +14,8 @@ in room coordinates:
                                      setPos(1.18, -1.27, 0.41), scale 2.6)
     mat_room_<shop>_walls.ttm        one shop's walls       (gender, body, color, clothes, name)
     mat_room_<shop>_props.ttm        one shop's props
+    mat_room_smoke_<1..6>.ttm        tt_m_ara_mat_smoke's frames (the SequenceNode dropRoom shows,
+                                     reversed from findAllMatches order as MakeAToon.load does)
     source/ui/mat_room_tracks.h      the three joint tracks (21 frames at 24 fps: z offset, z scale)
 
 Textures: max 256 (the room fills the whole top screen), ETC1 by the usual rules. All parts draw
@@ -151,6 +153,17 @@ def main():
         for part, node in (('walls', walls), ('props', props)):
             out = out_dir / f'mat_room_{name}_{part}.ttm'
             write(bake_part(room, path, (node,), out), out)
+    smoke_path = res / 'phase_3' / 'models' / 'makeatoon' / 'tt_m_ara_mat_smoke.bam'
+    smoke = base.loader.loadModel(Filename.fromOsSpecific(str(smoke_path)))
+    frames = list(smoke.findAllMatches('**/smoke_*'))
+    frames.reverse()
+    if len(frames) != 6:
+        sys.exit(f'{smoke_path}: expected 6 smoke frames, found {len(frames)}')
+    for i, frame in enumerate(frames):
+        scene = NodePath(f'smoke_{i + 1}')
+        copy = frame.copyTo(scene)
+        copy.setTransform(frame.getTransform(smoke))
+        write(scene, out_dir / f'mat_room_smoke_{i + 1}.ttm')
     write_header(sample_tracks(base, res))
     ttm_pool.run(out_dir)
     total = sum(f.stat().st_size for f in out_dir.iterdir())

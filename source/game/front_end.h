@@ -142,6 +142,7 @@ private:
     void releaseRoom();
     void playRoomCrash();
     render::Model roomCommon_;
+    render::Model roomSmoke_[6]; // tt_m_ara_mat_smoke's frames, loaded with the first drop
     RoomShop roomShops_[2];
     int roomCur_ = 0;          // roomShops_ index of the shop on screen; the other one squishes away
     float roomAnimT_ = 10.0f;  // seconds since the current shop started dropping in

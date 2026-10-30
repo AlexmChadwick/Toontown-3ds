@@ -875,6 +875,7 @@ void drawRoomPart(render::Renderer& renderer, render::Model& model, const ui::Ma
 
 void FrontEnd::releaseRoom() {
     roomCommon_.unload();
+    for (render::Model& m : roomSmoke_) m.unload();
     for (RoomShop& r : roomShops_) {
         r.walls.unload();
         r.props.unload();
@@ -937,7 +938,14 @@ bool FrontEnd::ensureRoom() {
     slot.shop = shop;
     roomCur_ = first ? roomCur_ : 1 - roomCur_;
     roomAnimT_ = first ? kRoomAnimSecs : 0.0f;
-    if (!first) playRoomCrash();
+    if (!first) {
+        playRoomCrash();
+        for (int i = 0; i < 6; i++) { // optional: a missing frame only loses the puff
+            if (roomSmoke_[i].loaded()) continue;
+            snprintf(path, sizeof path, "romfs:/baked/mat_room/mat_room_smoke_%d.ttm", i + 1);
+            roomSmoke_[i].load(path);
+        }
+    }
     TT_LOG("frontend: mat room %s %s (%lu linear bytes, %u tris, %u ms)", kRoomShops[shop], first ? "posed" : "drops in",
            (unsigned long)(slot.walls.linearBytes() + slot.props.linearBytes()),
            unsigned(slot.walls.numTriangles() + slot.props.numTriangles()), unsigned(osGetTime() - t0));
@@ -975,6 +983,19 @@ void FrontEnd::drawRoom(render::Renderer& renderer) {
     Mtx_Translate(&m, name ? 1.5f : -1.62f, name ? -4.0f : -3.49f, 0.0f, true);
     Mtx_RotateZ(&m, ((name ? 120.0f : 180.0f) + makeTurn_) * kPi / 180.0f, true);
     preview_.draw(renderer, m);
+    // dropRoom's smoke: shown 0.25 s in, its SequenceNode played once at 12 fps (scale 1, 1, 0.75)
+    // while LerpColorScaleInterval fades it out over 0.5 s. Translucent, so after the Toon.
+    const float st = roomAnimT_ - 0.25f;
+    if (st >= 0.0f && st < 0.5f) {
+        const int frame = int(st * 12.0f) < 5 ? int(st * 12.0f) : 5;
+        if (roomSmoke_[frame].loaded()) {
+            Mtx_Identity(&m);
+            Mtx_Scale(&m, 1.0f, 1.0f, 0.75f);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f - st / 0.5f);
+            renderer.drawModel(roomSmoke_[frame], m);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+    }
     renderer.endWorld();
     renderer.setFovY(0.0f);
 }
