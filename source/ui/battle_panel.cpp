@@ -148,6 +148,21 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         return kAllButtons;
     }
 
+    // A Cog can leave between input frames. Keep the gold target frame and the
+    // request target on the same live Cog instead of leaving a defeated card
+    // selected until the player presses L/R.
+    if (target_ < 0 || target_ >= v.numCogs || !v.cogs[target_].active) {
+        const int oldTarget = target_;
+        target_ = 0;
+        for (int i = 0; i < v.numCogs; ++i) {
+            if (v.cogs[i].active) {
+                target_ = i;
+                break;
+            }
+        }
+        if (target_ != oldTarget) TT_LOG("padnav: battle target %d", target_);
+    }
+
     // ---- padnav: one focus table for the cogs, the gag grid and Pass / Run ----
     bool cogActive[pad::battle::kMaxCogs] = {};
     for (int i = 0; i < v.numCogs && i < pad::battle::kMaxCogs; i++) cogActive[i] = v.cogs[i].active;
