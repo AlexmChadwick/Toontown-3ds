@@ -3,6 +3,56 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Sharper exterior building and prop textures
+
+### Done
+- Fixed a root cause of the reviewed blurry/indistinct exterior art: the street atlas reduced
+  nearly every original building, roof, wall, sidewalk, tree and prop texture to 32 x 32. The
+  production bake now preserves 48 x 48 tiles, 2.25 times as many source texels, while retaining
+  the existing 256 x 256 ETC1/ETC1A4 PICA pages, four-pixel gutters and UV clipping.
+- Parameterized every atlas placement and UV calculation instead of scattering new dimensions.
+  The baker retains an explicit `--atlas-tile 32` comparison mode, so the old and new packed `.tz`
+  output can be captured from identical generated cameras; 48 is the shipping default and the
+  only default used by single-zone and `all` subprocess bakes.
+- Extended the zone regression to assert both the shipping 48-pixel UV span and legacy 32-pixel
+  A/B span in addition to repeat/clamp geometry area, alpha-only sign masks and oversized UVs.
+  Original DNA sign lettering remains a standalone texture at up to 256 pixels and is not reduced.
+
+### Verified
+- Panda3D 1.10.15 focused zone suite: all six format/atlas/sign tests pass. Python byte-compilation
+  and `git diff --check` pass.
+- Fresh zone 2000 production bake: worst planned view is 150 draws, 14,213 triangles, 750 KiB
+  geometry and 4.27 MiB textures; the hard caps remain 150 / 15,000 / 6 MiB / 8 MiB.
+- Fresh shop-heavy zone 2300 matched A/B bakes and decoded packed-TZ previews: 32-pixel planned
+  residency was 89 draws / 2.80 MiB textures; 48-pixel is 130 draws / 4.18 MiB. The same-camera
+  frames show finer fence grain, tree bark/canopy, sidewalk edges and distant facade detail with
+  unchanged geometry/sign placement. The 48-pixel bake remains below every enforced budget.
+- A full 3DS build still cannot run in this workspace because `DEVKITARM` is absent. No Azahar or
+  hardware performance result is claimed.
+
+### Asset size decisions
+- No original art was replaced or generated. The higher-resolution bake keeps the original game
+  textures and spends available Old 3DS zone-texture headroom on visible detail. Zone 2300's pooled
+  file grows only from 5.45 MiB to 5.65 MiB because TZ v3 stores each distinct page once.
+
+### Known issues
+- All 25 exterior zones need a production rebake before packaging; each bake's per-cell planner
+  must pass rather than assuming the representative TTC and shop-street margins apply everywhere.
+- The matched previews are offline packed-output renders. Native 400 x 240 Azahar captures and an
+  Old 3DS residency/frame-time pass remain required, especially in TTC where the draw plan reaches
+  its exact 150-draw world cap before actors.
+- The reviewed warped shop roof/black-slash case needs its exact zone/block and same-camera native
+  capture to distinguish any remaining mesh/winding defect from the now-fixed texture reduction.
+
+### Next
+- Re-bake all exteriors, run the complete zone loader/corruption suite, and update the measured
+  zone table with the 48-pixel planned budgets.
+- Capture the reported TTC shop plus representative flat buildings, landmark shops, props and the
+  local Toon at 400 x 240; fix any remaining UV, winding, filtering or decal-order defect from those
+  exact frames.
+- Run the requested live low-level/developed battle gag picker and SpeedChat capture, then continue
+  the original-asset Fire and NPC SOS presentation pass.
+
 ## 2026-10-30 — Shticker Book SOS card polish and restored gag regression
 
 ### Done
