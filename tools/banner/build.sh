@@ -55,7 +55,18 @@ if ! "$PYTHON" -c "import panda3d.core" 2>/dev/null; then
   exit 1
 fi
 
+RENDER_ENV='LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe'
+run_gl() {
+  if command -v xvfb-run >/dev/null 2>&1; then
+    xvfb-run -a env $RENDER_ENV "$@"
+  else
+    env $RENDER_ENV "$@"
+  fi
+}
+
 "$PYTHON" "$ROOT/tools/banner/make_banner_scene.py" --resources "$RESOURCES" --out-dir "$BUILD"
+
+run_gl "$PYTHON" "$ROOT/tools/banner/render_preview.py" --resources "$RESOURCES" --out-dir "$BUILD"
 
 THEME="$RESOURCES/phase_3/audio/bgm/tt_theme.ogg"
 WAV="$BUILD/banner_jingle.wav"
@@ -74,14 +85,13 @@ fi
 
 mkdir -p "$OUT_DIR"
 cp "$BUILD/banner.bnr" "$BUILD/banner.cgfx" "$BUILD/banner.bcwav" "$OUT_DIR/"
-if [ ! -f "$BUILD/banner_preview.png" ]; then
-  "$PYTHON" "$ROOT/tools/banner/make_preview_flat.py" "$RESOURCES" "$BUILD/banner_preview.png"
-fi
-cp "$BUILD/banner_preview.png" "$OUT_DIR/"
+cp "$BUILD/banner_preview.png" "$BUILD/banner_preview_stereo.png" "$BUILD/banner_preview_anaglyph.png" "$OUT_DIR/"
 
 # Makefile still reads meta/ for dev .cia builds.
 if [ "$OUT_DIR" != "$ROOT/meta" ]; then
-  cp "$BUILD/banner.bnr" "$BUILD/banner.cgfx" "$BUILD/banner.bcwav" "$BUILD/banner_preview.png" "$ROOT/meta/"
+  cp "$BUILD/banner.bnr" "$BUILD/banner.cgfx" "$BUILD/banner.bcwav" \
+    "$BUILD/banner_preview.png" "$BUILD/banner_preview_stereo.png" "$BUILD/banner_preview_anaglyph.png" \
+    "$ROOT/meta/"
 fi
 
 echo "banner: $OUT_DIR/banner.bnr ($(stat -c%s "$OUT_DIR/banner.bnr") bytes, cgfx ${CGFX_SIZE} bytes)"

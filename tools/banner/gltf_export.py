@@ -117,6 +117,14 @@ def collect_meshes(root: NodePath, name_prefix: str = "mesh") -> list[MeshPart]:
             if len(ind) < 3:
                 continue
             tex = _texture_from_state(state)
+            cs = gnp.getColorScale()
+            if cs != (1, 1, 1, 1):
+                r, g, b, _a = cs
+                tex_arr = tex.copy()
+                tex_arr[:, :, 0] = np.clip(tex_arr[:, :, 0] * r, 0, 255).astype(np.uint8)
+                tex_arr[:, :, 1] = np.clip(tex_arr[:, :, 1] * g, 0, 255).astype(np.uint8)
+                tex_arr[:, :, 2] = np.clip(tex_arr[:, :, 2] * b, 0, 255).astype(np.uint8)
+                tex = tex_arr
             parts.append(
                 MeshPart(
                     name=f"{name_prefix}_{gi}_{idx}",

@@ -10,7 +10,9 @@ original Toontown art, not a flat PNG card.
 | `banner.cgfx` | 3D scene: sky backdrop plane, `phase_3/maps/toontown-logo` card, dog M-shorts **head mesh** (`tt_a_chr_dgm_shorts_head_250.bam`) |
 | `banner.bcwav` | ~2.95 s of `phase_3/audio/bgm/tt_theme.ogg` (22050 Hz stereo, short fades) |
 | `banner.bnr` | CBMD + CWAV bundle for `makerom -banner` |
-| `banner_preview.png` | 256×128 flat mockup for docs (full GL preview when Panda has a display pipe) |
+| `banner_preview.png` | 256×128 mono render of the CGFX scene (Panda3D + Xvfb + llvmpipe) |
+| `banner_preview_stereo.png` | Left/right eye pair (512×128) |
+| `banner_preview_anaglyph.png` | Red/cyan anaglyph for depth check |
 
 The scene is exported to glTF, converted with [pycgfx](https://github.com/skyfloogle/pycgfx)
 (under `third_party/pycgfx`, cloned on first run), then packed with
@@ -27,6 +29,7 @@ CGFX must stay **≤ 512 KiB**; textures are downscaled in `gltf_export.py`.
 2. **Python** with `panda3d==1.10.15`, `pillow`, `numpy` (stock wheel is fine for banner bakes).
 3. **ffmpeg**
 4. **g++** (to compile bannertool once)
+5. **Xvfb** + Mesa llvmpipe (for `render_preview.py`; `build.sh` runs `xvfb-run` with `LIBGL_ALWAYS_SOFTWARE=1`)
 
 Optional: devkitPro `bannertool` on `PATH` — otherwise the script uses `tools/banner/bin/bannertool`.
 
@@ -51,6 +54,7 @@ Environment:
 
 ## Preview
 
-After building, open `tools/release/meta/banner_preview.png`. On a machine with EGL/GL,
-`make_banner_scene.py` writes a Panda offscreen render to the same path instead of the
-flat composite fallback.
+`build.sh` renders the **same scene** as the CGFX export via `render_preview.py` (2:1 frustum,
+banner camera, software GL). Outputs mono, stereo pair, and anaglyph PNGs under `OUT_DIR`.
+
+There is no flat composited fallback and no debug text overlay.
