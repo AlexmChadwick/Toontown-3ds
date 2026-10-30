@@ -1,169 +1,278 @@
-"""Render a Pick-A-Toon style dog bust for the banner toon plane.
+"""Dog bust for the HOME Menu banner, rendered by the upstream toon code.
 
-The head is the stock dog-M model. Expression muzzles live in the separate
-dogMM file (ToonHead.setupMuzzles); the neutral muzzle stays on the head and
-is hidden so only the smile shows. Eyes use eyes.jpg plus eyes_a.rgb. The
-portrait is stored top-row-first with a transparent background, the same
-convention as the logo plane.
+Pick-A-Toon builds the head with ToonHead.setupHead; a full toon (head plus
+torso) is Toon.setDNA on the same ToonDNA. This bakes a stock long dog
+(``dll``, light blue, neutral/happy) in the Make-A-Toon 3/4 pose: the
+Make-A-Toon camera, and the Name-shop heading of 120. The portrait is an
+RGBA image with a transparent background, stored so the last row is the top
+of the head (the same convention as the logo plane).
 """
 
 from __future__ import annotations
 
+import builtins
+import math
+import sys
+import types
 from pathlib import Path
 
 import numpy as np
 from panda3d.core import (
-    NodePath,
-    OrthographicLens,
+    AmbientLight,
+    DirectionalLight,
     PNMImage,
-    TransparencyAttrib,
-    WindowProperties,
+    PandaNode,
+    Vec3,
+    Vec4,
     loadPrcFileData,
 )
-from direct.actor.Actor import Actor
 
-from scene_common import ALL_COLORS, configure_panda
-
-# ToonDNA head color 10: the sunny yellow used all over Pick-A-Toon.
-HEAD_COLOR_IDX = 10
-MUZZLE_COLOR = (0.83, 0.50, 0.30)
-PORTRAIT_SIZE = 384
-
-
-def _hide_named(root: NodePath, pattern: str) -> None:
-    for child in root.findAllMatches(pattern):
-        child.hide()
+# ToonDNA allColorsList index 17, the stock light blue.
+HEAD_COLOR = 17
+# MakeAToon.enter camera, and enterNameShop's 3/4 heading on the stage toon.
+MAT_CAM_POS = (-5.7, -12.3501, 2.15)
+MAT_CAM_HPR = (-24.8499, 2.73, 0.0)
+MAT_CAM_FOV = 52.0
+TOON_POS = (-1.62, -3.49, 0.0)
+TOON_H = 120.0
+PORTRAIT_SIZE = 640
 
 
-def build_dog_bust(loader, resources: Path) -> NodePath:
-    configure_panda(resources)
-    actor = Actor(
-        {"head": "phase_3/models/char/tt_a_chr_dgm_shorts_head_500.bam"},
-        {"head": {"neutral": "phase_3/models/char/tt_a_chr_dgm_shorts_head_neutral.bam"}},
-    )
-    # Frame 0 of neutral is the open-eyed rest pose. Later frames squint.
-    actor.pose("neutral", 0, "head")
-    head = actor.getPart("head")
+def _install_otp_stub() -> None:
+    """Stock panda3d has no panda3d.otp. Avatar only needs the nametag types."""
+    if "panda3d.otp" in sys.modules:
+        return
+    otp = types.ModuleType("panda3d.otp")
 
-    # Smile replaces the neutral muzzle. Parent to def_head so it shares the
-    # head's model space (joint_head is not in this LOD).
-    muzz = loader.loadModel(str(resources / "phase_3/models/char/dogMM_Shorts-headMuzzles-500.bam"))
-    anchor = head.find("**/def_head")
-    muzz.reparentTo(anchor if not anchor.isEmpty() else head)
-    neutral = head.find("**/muzzle")
-    if not neutral.isEmpty() and neutral.getName() == "muzzle":
-        neutral.hide()
-    for expr in ("surprise", "angry", "sad", "laugh"):
-        _hide_named(head, f"**/muzzle*{expr}")
+    class _Any:
+        def __init__(self, *args, **kwargs):
+            pass
 
-    eyes = head.find("**/eyes*")
-    if not eyes.isEmpty():
-        eyes.setColorOff(1)
-        eyes.setTexture(
-            loader.loadTexture(
-                str(resources / "phase_3/maps/eyes.jpg"),
-                str(resources / "phase_3/maps/eyes_a.rgb"),
-            ),
-            1,
-        )
-        eyes.setTransparency(TransparencyAttrib.MBinary)
-        eyes.setDepthOffset(1)
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: None
 
-    rgb = ALL_COLORS[HEAD_COLOR_IDX]
-    for part in head.findAllMatches("**/+GeomNode"):
-        name = part.getName().lower()
-        # The pupil geom on this LOD has an empty name and a pupils texture.
-        if "eye" in name or "pupil" in name or name == "":
-            part.setColorOff(1)
-            part.setDepthOffset(2 if name != "eyes" else 1)
-            continue
-        if "muzzle" in name:
-            part.setColorScale(*MUZZLE_COLOR, 1.0)
-        elif "nose" in name:
-            part.setColorScale(0.12, 0.08, 0.06, 1.0)
-        else:
-            # Head, head-front and ears. Ears keep their vertex colors, so a
-            # scale tints them without turning the mesh into a solid block.
-            part.setColorScale(*rgb, 1.0)
-        part.setLightOff(1)
+    class NametagGroup(_Any):
+        CCNormal = 1
+        CCNoChat = 2
+        CCFreeChat = 3
+        CCSpeedChat = 4
+        CCSuit = 5
 
-    root = NodePath("bust")
-    head.reparentTo(root)
-    # The dog head faces +Y. Turn it toward the camera, which sits on -Y.
-    root.setH(180)
-    return root
+        def getNametag3d(self):
+            return PandaNode("nametag3d")
+
+        def getNameIcon(self):
+            return PandaNode("nameIcon")
+
+    class Nametag(_Any):
+        CName = 1
+        CSpeech = 2
+
+    otp.Nametag = Nametag
+    otp.NametagGroup = NametagGroup
+    otp.WhisperPopup = _Any
+    otp.CMover = _Any
+    for name, value in {
+        "CFSpeech": 1,
+        "CFThought": 2,
+        "CFTimeout": 4,
+        "CFPageButton": 8,
+        "CFNoQuitButton": 16,
+        "CFQuitButton": 32,
+    }.items():
+        setattr(otp, name, value)
+    sys.modules["panda3d.otp"] = otp
+
+
+def _pnm_rgba(img: PNMImage) -> np.ndarray:
+    w, h = img.getXSize(), img.getYSize()
+    rgba = np.empty((h, w, 4), dtype=np.uint8)
+    for y in range(h):
+        row = rgba[y]
+        for x in range(w):
+            c = img.getXelA(x, y)
+            row[x, 0] = round(c[0] * 255)
+            row[x, 1] = round(c[1] * 255)
+            row[x, 2] = round(c[2] * 255)
+            row[x, 3] = round(c[3] * 255)
+    return rgba
+
+
+def _screenshot(win) -> np.ndarray:
+    img = PNMImage()
+    if not win.getScreenshot(img):
+        raise RuntimeError("toon portrait screenshot failed")
+    if not img.hasAlpha():
+        raise RuntimeError("toon portrait framebuffer has no alpha")
+    return _pnm_rgba(img)
+
+
+def _straighten_alpha(black: np.ndarray, white: np.ndarray) -> np.ndarray:
+    """Recover straight color if the GL blend stored premultiplied edges.
+
+    A straight-alpha buffer matches on black and white clears. A premultiplied
+    edge is dark on black and bright on white; divide the black RGB by alpha.
+    """
+    out = black.copy()
+    alpha = black[:, :, 3].astype(np.float32)
+    partial = (alpha > 8.0) & (alpha < 248.0)
+    if not partial.any():
+        return out
+    rgb_b = black[:, :, :3].astype(np.int16)
+    rgb_w = white[:, :, :3].astype(np.int16)
+    darker = (rgb_b + 12 < rgb_w).any(axis=2) & partial
+    if int(darker.sum()) * 2 < int(partial.sum()):
+        return out
+    scale = np.maximum(alpha, 1.0) / 255.0
+    recovered = np.clip(black[:, :, :3].astype(np.float32) / scale[:, :, None], 0, 255)
+    out[:, :, :3] = np.where(partial[:, :, None], recovered, black[:, :, :3]).astype(np.uint8)
+    return out
+
+
+def _bleed_rgb(rgba: np.ndarray, passes: int = 4) -> None:
+    """Copy opaque RGB into neighboring transparent pixels.
+
+    Linear filtering of straight alpha against black RGB fringes a dark halo.
+    The alpha stays 0; only the hidden color changes.
+    """
+    rgb = rgba[:, :, :3]
+    solid = rgba[:, :, 3] > 16
+    for _ in range(passes):
+        acc = np.zeros(rgb.shape, dtype=np.uint16)
+        weight = np.zeros(solid.shape, dtype=np.uint16)
+        for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0)):
+            src_solid = np.roll(np.roll(solid, dy, axis=0), dx, axis=1)
+            src_rgb = np.roll(np.roll(rgb, dy, axis=0), dx, axis=1)
+            if dy == 1:
+                src_solid[0, :] = False
+            elif dy == -1:
+                src_solid[-1, :] = False
+            if dx == 1:
+                src_solid[:, 0] = False
+            elif dx == -1:
+                src_solid[:, -1] = False
+            take = (~solid) & src_solid
+            acc[take] += src_rgb[take]
+            weight[take] += 1
+        fill = weight > 0
+        if not fill.any():
+            break
+        rgb[fill] = (acc[fill] / weight[fill, None]).astype(np.uint8)
+        solid = solid | fill
+
+
+def _bust_crop(rgba: np.ndarray) -> np.ndarray:
+    """Head through the shirt, dropping the legs so the face stays large."""
+    rgb = rgba[:, :, :3].astype(np.int16)
+    alpha = rgba[:, :, 3]
+    opaque = alpha > 16
+    if not opaque.any():
+        raise RuntimeError("toon portrait rendered fully transparent")
+    red = opaque & (rgb[:, :, 0] > 160) & (rgb[:, :, 1] < 120) & (rgb[:, :, 2] < 120)
+    ys, xs = np.where(opaque)
+    top = int(ys.min())
+    if red.any():
+        bottom = int(np.where(red)[0].max())
+    else:
+        bottom = int(ys.max())
+    pad = 8
+    y0 = max(0, top - pad)
+    y1 = min(rgba.shape[0] - 1, bottom + pad)
+    band = opaque[y0 : y1 + 1]
+    xs = np.where(band.any(axis=0))[0]
+    x0 = max(0, int(xs.min()) - pad)
+    x1 = min(rgba.shape[1] - 1, int(xs.max()) + pad)
+    return rgba[y0 : y1 + 1, x0 : x1 + 1].copy()
 
 
 def render_portrait_rgba(resources: Path) -> np.ndarray:
-    from direct.showbase.ShowBase import ShowBase
+    _install_otp_stub()
+    builtins.choice = lambda cond, a, b: a if cond else b
+    ott = Path(__file__).resolve().parents[2] / "ref" / "open-toontown"
+    if not (ott / "toontown" / "toon" / "Toon.py").is_file():
+        raise RuntimeError(f"missing upstream toon source at {ott} (git submodule update --init ref/open-toontown)")
+    if str(ott) not in sys.path:
+        sys.path.insert(0, str(ott))
 
-    configure_panda(resources)
-    # Before ShowBase, or the window is created without an alpha plane and the
-    # clear color comes back opaque.
+    loadPrcFileData("", f"model-path {resources}")
+    loadPrcFileData("", "default-model-extension .bam")
+    loadPrcFileData("", "audio-library-name null")
     loadPrcFileData("", "load-display pandagl")
     loadPrcFileData("", "framebuffer-alpha true")
     loadPrcFileData("", "alpha-bits 8")
     loadPrcFileData("", "color-bits 8 8 8")
+    loadPrcFileData("", "win-size 640 640")
     loadPrcFileData("", "show-frame-rate-meter 0")
+    loadPrcFileData("", "notify-level error")
 
-    shot = PNMImage()
+    from direct.showbase.ShowBase import ShowBase
 
-    class Bake(ShowBase):
-        def __init__(self):
-            super().__init__()
-            self.win.requestProperties(WindowProperties.size(PORTRAIT_SIZE, PORTRAIT_SIZE))
-            self.setBackgroundColor(0, 0, 0, 0)
-            self.win.setClearColorActive(True)
-            self.win.setClearColor((0, 0, 0, 0))
+    base = ShowBase(windowType="offscreen")
+    base.setBackgroundColor(0, 0, 0, 0)
+    base.win.setClearColor((0, 0, 0, 0))
 
-            bust = build_dog_bust(self.loader, resources)
-            bust.reparentTo(self.render)
-            self.render.setLightOff(1)
+    from toontown.toon.Toon import Toon
+    from toontown.toon.ToonDNA import ToonDNA
 
-            bounds = bust.getTightBounds()
-            if not bounds:
-                raise RuntimeError("dog bust has no geometry")
-            lo, hi = bounds
-            center_x = (lo.x + hi.x) * 0.5
-            center_z = (lo.z + hi.z) * 0.5
-            span = max(hi.x - lo.x, hi.z - lo.z) * 1.06
-            lens = OrthographicLens()
-            lens.setFilmSize(span, span)
-            lens.setNear(0.1)
-            lens.setFar(100.0)
-            self.cam.node().setLens(lens)
-            self.camera.setPos(center_x, -20.0, center_z)
-            self.camera.lookAt(center_x, 0.0, center_z)
+    dna = ToonDNA()
+    # Long dog, medium shorts, medium legs, male, light blue, white gloves, shirt 0.
+    dna.newToonFromProperties("dll", "ms", "m", "m", HEAD_COLOR, 0, HEAD_COLOR, HEAD_COLOR, 0, 0, 0, 0, 0, 0)
+    toon = Toon()
+    # NametagGroup.getNametag3d is a client widget. The portrait has no chat.
+    toon.initializeNametag3d = lambda: None
+    toon.setDNA(dna)
+    toon.useLOD(1000)
+    toon.pose("neutral", 0)
+    for pattern in ("**/drop_shadow*", "**/dropShadow*"):
+        shadow = toon.find(pattern)
+        if not shadow.isEmpty():
+            shadow.hide()
+    # generateToonColor paints **/head* and, for other species, **/ear?-*.
+    # The new-anim dog mesh names that geom "ears", so the DNA head color
+    # never reaches it and the ears stay black. Same setColor the head uses.
+    toon.findAllMatches("**/ears*").setColor(dna.getHeadColor())
+    toon.setPosHpr(*TOON_POS, TOON_H, 0, 0)
+    toon.reparentTo(base.render)
 
-            for _ in range(20):
-                self.graphicsEngine.renderFrame()
-            self.win.getScreenshot(shot)
+    ambient = AmbientLight("banner-ambient")
+    ambient.setColor(Vec4(0.95, 0.95, 0.95, 1))
+    base.render.setLight(base.render.attachNewNode(ambient))
+    key = DirectionalLight("banner-key")
+    key.setColor(Vec4(0.45, 0.45, 0.45, 1))
+    key_np = base.render.attachNewNode(key)
+    key_np.setHpr(-30, -35, 0)
+    base.render.setLight(key_np)
 
-    Bake()
-    if not shot.hasAlpha():
-        raise RuntimeError("portrait screenshot has no alpha channel")
-    w, h = shot.getXSize(), shot.getYSize()
-    rgba = np.zeros((h, w, 4), dtype=np.uint8)
-    for y in range(h):
-        for x in range(w):
-            c = shot.getXelA(x, y)
-            rgba[y, x] = [
-                round(c[0] * 255),
-                round(c[1] * 255),
-                round(c[2] * 255),
-                round(c[3] * 255),
-            ]
-    # PNM y=0 is the bottom of the window, and that row is the top of the face
-    # (eyes). Row 0 of this array is what the banner quads put at +Y.
-    mask = rgba[:, :, 3] > 8
-    if not mask.any():
-        raise RuntimeError("portrait rendered fully transparent")
-    ys, xs = np.where(mask)
-    pad = 6
-    y0, y1 = max(0, int(ys.min()) - pad), min(h - 1, int(ys.max()) + pad)
-    x0, x1 = max(0, int(xs.min()) - pad), min(w - 1, int(xs.max()) + pad)
-    cropped = rgba[y0 : y1 + 1, x0 : x1 + 1]
-    # Banner quads show the last row of a top-row-first array at +Y (see the
-    # logo loader). flipud puts the eyes, which sit at the start of this
-    # screenshot, on that top edge.
+    base.camLens.setFov(MAT_CAM_FOV)
+    base.camLens.setNear(0.1)
+    base.camera.setPosHpr(*MAT_CAM_POS, *MAT_CAM_HPR)
+    # Panda's camera looks along +Y. Dolly along that axis; do not retarget.
+    forward = base.camera.getQuat().xform(Vec3(0, 1, 0))
+    forward.normalize()
+    head = toon.find("**/1000/**/__Actor_head")
+    bounds = head.getTightBounds(base.render)
+    if not bounds:
+        raise RuntimeError("dog head has no geometry")
+    lo, hi = bounds
+    target = (lo + hi) * 0.5
+    target.z = lo.z + (hi.z - lo.z) * 0.15
+    head_h = hi.z - lo.z
+    along = (target - base.camera.getPos()).dot(forward)
+    # Head about half the frame, so the shirt still fits under the chin.
+    distance = head_h / (0.50 * 2 * math.tan(math.radians(MAT_CAM_FOV) / 2))
+    base.camera.setPos(base.camera.getPos() + forward * (along - distance))
+
+    for _ in range(6):
+        base.graphicsEngine.renderFrame()
+    black = _screenshot(base.win)
+    base.win.setClearColor((1, 1, 1, 0))
+    for _ in range(3):
+        base.graphicsEngine.renderFrame()
+    white = _screenshot(base.win)
+
+    rgba = _straighten_alpha(black, white)
+    _bleed_rgb(rgba)
+    cropped = _bust_crop(rgba)
+    # Banner quads put the last row on +Y. PNM row 0 is the top of this shot
+    # (the ears), so flip it to match the logo plane.
     return np.flipud(cropped)

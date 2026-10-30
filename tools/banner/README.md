@@ -7,7 +7,7 @@ original Toontown art, not a flat PNG card.
 
 | Output | Role |
 |---|---|
-| `banner.cgfx` | 3D scene: TTC backdrop plane, `toontown-logo` card, dog M-shorts bust portrait (head + muzzles + eyes) |
+| `banner.cgfx` | 3D scene: TTC backdrop plane, `toontown-logo` card, long-dog bust from `Toon.setDNA` |
 | `banner.bcwav` | ~2.95 s of `phase_3/audio/bgm/tt_theme.ogg` (22050 Hz stereo, short fades) |
 | `banner.bnr` | CBMD + CWAV bundle for `makerom -banner` |
 | `banner_preview.png` | 256×128 mono render of the CGFX scene (Panda3D + Xvfb + llvmpipe) |
@@ -34,7 +34,7 @@ CGFX must stay **≤ 512 KiB**; textures are downscaled in `gltf_export.py`.
 
 Optional: devkitPro `bannertool` on `PATH` — otherwise the script uses `tools/banner/bin/bannertool`.
 
-`bake_toon_portrait.py` renders the dog bust once (cached as `build/banner/toon_portrait.npy`).
+`bake_toon_portrait.py` renders a stock long dog (`dll`, light blue, neutral) with the upstream `Toon` / `ToonDNA` code, in the Make-A-Toon 3/4 pose (cached as `build/banner/toon_portrait.npy`). Requires the `ref/open-toontown` submodule.
 
 ## Regenerate
 
