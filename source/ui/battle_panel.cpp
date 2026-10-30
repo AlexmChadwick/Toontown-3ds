@@ -327,7 +327,26 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // Persistent glyph cache: unchanged strings require no layout work.
     C2D_DrawRectSolid(0, 0, 0.5f, kW, 240, kBg);
     shape::roundRect(2, 1, 0.51f, 316, 15, 6, kPanel);
-    text(7, 2, 0.42f, kWhite, "%s", v.status ? v.status : "");
+    // The 49 original icons are necessarily small at 320 x 240.  Stock can
+    // rely on a mouse rollover; on 3DS the D-Pad focus needs an equally clear
+    // readout.  Keep it in the existing status strip so this costs no touch
+    // space and does not move the round timer.
+    const int focused = focus_.focusedId();
+    if (v.phase == world::BattlePhase::Input && pad::battle::isGagId(focused)) {
+        const int track = focused / 10, level = focused % 10;
+        const unsigned count = g.count ? unsigned(g.count[track][level]) : 0;
+        if (track == world::kTrackLure) {
+            text(7, 2, 0.34f, kWhite, "%s  x%u  lure%s", gags::kGagNames[track][level], count,
+                 world::attackAffectsGroup(track, level) ? " all" : "");
+        } else {
+            const unsigned power = unsigned(gags::kDamage[track][level][1]);
+            const char* effect = track == world::kTrackHeal ? "Laff" : "damage";
+            text(7, 2, 0.34f, kWhite, "%s  x%u  %u %s%s", gags::kGagNames[track][level], count,
+                 power, effect, world::attackAffectsGroup(track, level) ? " (all)" : "");
+        }
+    } else {
+        text(7, 2, 0.42f, kWhite, "%s", v.status ? v.status : "");
+    }
     if (v.secondsLeft >= 0) {
         shape::roundRect(282, 2, 0.53f, 33, 13, 6, v.secondsLeft <= 5 ? kHpLow : kAccent);
         text(v.secondsLeft < 10 ? 295 : 291, 2, 0.45f, kBg, "%d", v.secondsLeft);
