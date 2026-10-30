@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "audio/audio.h"
 
 #include "core/crash.h"
@@ -327,7 +328,10 @@ void sendCmd(Cmd c) {
     LightEvent_Clear(&gMusic.ack);
     gMusic.cmd = c;
     LightEvent_Signal(&gMusic.wake);
-    LightEvent_Wait(&gMusic.ack);
+    // Bounded: a stream thread stuck in an SD read must not hang the exit path.
+    if (tt::gpu::vblankLive()) LightEvent_Wait(&gMusic.ack);
+    else if (LightEvent_WaitTimeout(&gMusic.ack, 500LL * 1000 * 1000) != 0) // exiting
+        TT_LOG("audio: stream thread did not ack cmd %d in 500 ms", int(c));
 }
 
 void stopMusicNow() {
@@ -441,8 +445,7 @@ void shutdown() {
     stopMusicNow();
     if (gMusic.thread) {
         sendCmd(Cmd::Quit);
-        threadJoin(gMusic.thread, U64_MAX);
-        threadFree(gMusic.thread);
+        tt::gpu::joinBounded(gMusic.thread, "audio stream");
         gMusic.thread = nullptr;
     }
     for (int v = 0; v < kNumSfxVoices; ++v) stopVoiceIndex(v);

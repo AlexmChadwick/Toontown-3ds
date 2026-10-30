@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "ui/boss_titles.h"
 #include "world/cj_battle.h"
 #include "core/profile.h"
@@ -116,7 +117,7 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     for (JurorFlight& flight : flights_) flight = {};
     for (Evidence& evidence : evidence_) evidence = {};
     for (bool& ack : acknowledged_) ack = false;
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.battle.reset();
     frame.ui.setBattle(nullptr, {});
     frame.remotes.clear();
@@ -128,7 +129,7 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
 }
 
 void CjBattle::leave(BossFrame& frame, bool sad) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossExit();
     // Network deletion can clear a child before this frame observes the exit.
     // Keep the published actor IDs independently so no ghost survives departure.

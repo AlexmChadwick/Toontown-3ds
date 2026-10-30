@@ -9,6 +9,7 @@
 #include <cstring>
 #include <new>
 #ifdef __3DS__
+#include "core/gpu_sync.h"
 #include "render/renderer.h"
 #endif
 
@@ -297,10 +298,12 @@ void Zone::unload() {
     if (impl_->thread) {
         impl_->quit = true;
         LightEvent_Signal(&impl_->wake);
-        threadJoin(impl_->thread, U64_MAX);
-        threadFree(impl_->thread);
+        if (!::tt::gpu::joinBounded(impl_->thread, "zone loader", 2000ULL * 1000 * 1000)) {
+            impl_ = nullptr; // still reading chunks: leak the zone rather than free under it
+            return;
+        }
     }
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     delete[] impl_->models;
 #endif
     collision_.unload();
@@ -555,7 +558,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     bool synced=false;
     auto sync=[&]() {
 #ifdef __3DS__
-        if (!synced) C3D_FrameSync(); // the last frame may still read what we free
+        if (!synced) ::tt::gpu::frameSync(); // the last frame may still read what we free
 #endif
         synced=true;
     };

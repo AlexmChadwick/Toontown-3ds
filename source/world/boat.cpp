@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/boat.h"
 
 #include <cmath>
@@ -201,7 +202,7 @@ void BoatActor::shutdown() {
     stopSounds();
     rider_ = false;
     if (model_.loaded()) {
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         model_.unload();
     }
     deck_.unload();

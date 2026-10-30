@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/cogdo_runtime.h"
 #include "audio/audio.h"
 #include "core/log.h"
@@ -102,7 +103,7 @@ void CogdoRuntime::board(BossFrame &frame) {
     }
 }
 void CogdoRuntime::leave(BossFrame &frame) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.cache.release(&ownerLook_);
     ownerToon_.setLook(nullptr);
     ownerNpc_ = 0;
@@ -795,7 +796,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
                 exitValid_ = true;
             }
         }
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.place.unload();
         frame.battle.reset();
         frame.remotes.clear();
@@ -824,7 +825,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
     }
     const CogdoScene scene = select(*interior, game);
     if (scene != assets_.scene()) {
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.player.setCollision(nullptr);
         assets_.select(scene);
         spawned_ = false;

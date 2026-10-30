@@ -1,4 +1,5 @@
 // Toontown 3DS - Phase 1 client: TTC playground scene, controllable toon, bottom-screen UI.
+#include "core/gpu_sync.h"
 #include <3ds.h>
 #include <citro2d.h>
 #include <citro3d.h>
@@ -132,7 +133,16 @@ void onStreetCell(void*, uint16_t cell, const uint16_t* zones, int count) {
 // console slept, because sockets do not survive sleep on hardware.
 volatile bool gWokeFromSleep = false;
 aptHookCookie gAptCookie;
+// citro3d stops counting VBlanks on SUSPEND and resumes only on RESTORE; HOME -> Close goes
+// SUSPEND -> EXIT with no RESTORE, so every C3D_FrameSync after that would hang (see
+// core/gpu_sync.h). Track it so the exit path skips those waits.
 void onApt(APT_HookType hook, void*) {
+    if (hook == APTHOOK_ONSUSPEND) tt::gpu::setVblankLive(false);
+    if (hook == APTHOOK_ONRESTORE) tt::gpu::setVblankLive(true);
+    if (hook == APTHOOK_ONEXIT) {
+        tt::gpu::setVblankLive(false);
+        TT_LOG("apt: exit requested (HOME Close / power), shutting down");
+    }
     if (hook == APTHOOK_ONSUSPEND || hook == APTHOOK_ONSLEEP || hook == APTHOOK_ONEXIT) tt::log::flush();
     if (hook == APTHOOK_ONWAKEUP) gWokeFromSleep = true;
 }
@@ -1921,7 +1931,7 @@ int main() {
             }
         } else if (battleClips.count) {
             localToon.play(tt::world::kAnimNeutral, 1.0f);
-            C3D_FrameSync(); // the last frame may still be drawing with them
+            ::tt::gpu::frameSync(); // the last frame may still be drawing with them
             battleClips.unload();
         }
         if(!battle.inBattle() && !clipTest) {
@@ -3258,6 +3268,14 @@ int main() {
         tt::prof::lap(tt::prof::kAudio);
     }
 
+    // Exit (HOME -> Close, power menu, START on a fatal screen). Bounded: every wait below
+    // either has a timeout or is skipped once VBlank is gone (tt::gpu::frameSync), and teardown
+    // runs in reverse init order: network (last up) first, audio before citro2d/citro3d.
+    TT_LOG("exit: begin (vblank %s)", tt::gpu::vblankLive() ? "live" : "off");
+    tt::log::setFlushEveryLine(true);
+    if (netStarted) net.stop();
+    if (netConnReady) netConn.shutdown();
+    TT_LOG("exit: network down");
     frontEnd.shutdown();
     hud.shutdown();
     zoneActors.shutdown();
@@ -3277,8 +3295,7 @@ int main() {
     interiorLife.shutdown();
     // [end interior life]
     battleFx.shutdown();
-    if (netStarted) net.stop();
-    if (netConnReady) netConn.shutdown();
+    TT_LOG("exit: world released");
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();
@@ -3288,9 +3305,11 @@ int main() {
     balloons.shutdown();
     ui.shutdown();
     renderer.shutdown();
+    tt::audio::shutdown(); // inited after C3D_Init: stop it first
+    TT_LOG("exit: audio down");
     C2D_Fini();
     C3D_Fini();
-    tt::audio::shutdown();
+    TT_LOG("exit: done");
     aptUnhook(&gAptCookie);
     tt::log::shutdown();
     romfsExit();

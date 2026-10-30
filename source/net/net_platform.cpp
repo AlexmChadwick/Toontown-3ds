@@ -7,6 +7,7 @@
 #ifdef __3DS__
 #include <3ds.h>
 #include <malloc.h>
+#include "core/gpu_sync.h"
 #endif
 
 #include <arpa/inet.h>
@@ -69,12 +70,12 @@ bool Thread::start(Fn fn, void* arg, int prio, int core, size_t stackSize) {
     return started_;
 }
 
-void Thread::join() {
-    if (!started_) return;
-    threadJoin(thread_, U64_MAX);
-    threadFree(thread_);
+bool Thread::join() {
+    if (!started_) return true;
+    const bool joined = ::tt::gpu::joinBounded(thread_, "net");
     thread_ = nullptr;
     started_ = false;
+    return joined;
 }
 #else
 namespace {
@@ -97,10 +98,11 @@ bool Thread::start(Fn fn, void* arg, int, int, size_t) {
     return started_;
 }
 
-void Thread::join() {
-    if (!started_) return;
+bool Thread::join() {
+    if (!started_) return true;
     pthread_join(thread_, nullptr);
     started_ = false;
+    return true;
 }
 #endif
 
@@ -182,7 +184,7 @@ bool connectPending(int e) { return e == EINPROGRESS || e == EALREADY || e == EW
 
 } // namespace
 
-int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err) {
+int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err, const volatile bool* abort) {
     const uint32_t t0 = nowMs();
     sockaddr_in addr;
     if (!resolve(host, port, &addr)) {
@@ -233,6 +235,7 @@ int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char**
                 }
             }
             if (nowMs() - t0 >= timeoutMs) break;
+            if (abort && *abort) break;
 #ifdef __3DS__
             sleepMs(10);
 #endif
@@ -303,7 +306,9 @@ int tcpSend(int fd, const void* buf, int len) {
 const char* tcpLastIoError() { return gIoErr; }
 
 void tcpClose(int fd) {
-    if (fd >= 0) close(fd);
+    if (fd < 0) return;
+    shutdown(fd, SHUT_RDWR); // wake anything still blocked on it before the descriptor goes
+    close(fd);
 }
 
 } // namespace tt::net::plat

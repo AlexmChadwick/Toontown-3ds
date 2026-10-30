@@ -79,7 +79,14 @@ bool Connection::init() {
 void Connection::shutdown() {
     if (!storage_) return;
     quit_ = true;
-    thread_.join();
+    if (!thread_.join()) {
+        // Net thread still running (stuck in a SOC call): shut the socket down under it and
+        // leave its buffers and soc:U alone; the process exit reclaims them.
+        TT_LOG("net: thread stuck at exit; skipping socExit");
+        plat::tcpClose(fd_);
+        fd_ = -1;
+        return;
+    }
     plat::tcpClose(fd_);
     fd_ = -1;
     plat::socketsExit();
@@ -162,7 +169,7 @@ void Connection::doConnect() {
     if (fd_ >= 0) closeSocket("reconnecting");
     status_ = Status::Connecting;
     const char* err = "";
-    int fd = plat::tcpConnect(host, port, kConnectTimeoutMs, &err);
+    int fd = plat::tcpConnect(host, port, kConnectTimeoutMs, &err, &quit_);
     if (fd < 0) {
         TT_LOG("net: connect to %s:%u failed: %s", host, unsigned(port), err);
         tt::log::flush();
