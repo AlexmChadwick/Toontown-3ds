@@ -1,4 +1,5 @@
 #include "render/ui_font.h"
+#include "ui/inventory_art.h"
 #include "ui/theme.h"
 #include "ui/minigame_purchase_panel.h"
 
@@ -17,6 +18,7 @@ MinigamePurchasePanel* MinigamePurchasePanel::activeInstance_ = nullptr;
 
 namespace {
 
+constexpr u32 kTrackInk = theme::rgb(0x33, 0x33, 0x33); // trackNameLabels text_fg (0.2, 0.2, 0.2)
 constexpr float kNameX = 4, kGridX = 64, kGridY = 26, kCellW = 42, kCellH = 22;
 constexpr float kInfoY = 184;
 constexpr float kSignW = 170;                          // the title plank
@@ -45,7 +47,7 @@ bool MinigamePurchasePanel::init() {
     infoBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !gridBuf_ || !infoBuf_) return false;
     for (int t = 0; t < gags::kTracks; t++) {
-        tt::render::textParse(&trackText_[t], staticBuf_, theme::kTrackTitles[t]);
+        tt::render::textParse(&trackText_[t], staticBuf_, theme::kTrackCaps[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
     static const char* const kBtn[4] = {"-", "+", "EXIT BACK TO\nPLAYGROUND", "Cancel"}; // GagShopBackToPlayground
@@ -304,26 +306,20 @@ void MinigamePurchasePanel::draw() {
 
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
-        theme::roundRect(kNameX, y + 1, kGridX - kNameX - 3, kCellH - 3, 4,
-                         profile_.trackAccess[t] ? theme::kTrackColors[t]
-                                                 : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.55f), 0.2f);
-        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 4, y + 4, 0.5f, 0.4f, 0.4f,
-                     profile_.trackAccess[t] ? theme::kInk : theme::kInkSoft);
+        // InventoryNew's track row in its colour, the name in its label (TextEncoder.upper).
+        inventory::drawRow(kNameX, y, 316 - kNameX, kCellH - 1,
+                           profile_.trackAccess[t] ? theme::kTrackColors[t]
+                                                   : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.55f), 0.2f);
+        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 8, y + 4, 0.3f, 0.38f, 0.38f, kTrackInk);
         for (int l = 0; l < kCols; l++) {
             const float x = kGridX + l * kCellW;
             const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
             const bool canBuy = open && shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::Ok;
             const bool sel = t == selTrack_ && l == selLevel_;
-            const bool hasBought = cart_.bought(t, l) > 0;
-            // The Gag Shop's cells (ui/shop_panel.cpp): the gag's icon, then have/max.
-            const u32 bg = !open ? theme::mix(theme::kTrackColors[t], theme::kPaper, 0.82f) : hasBought ? theme::kYellow
-                         : canBuy ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f) : theme::kPaperShade;
-            theme::roundRect(x, y, kCellW - 2, kCellH - 2, 4, sel ? theme::kRed : theme::kPaperEdge, 0.2f);
-            const float in = sel ? 2.0f : 1.0f;
-            theme::roundRect(x + in, y + in, kCellW - 2 - 2 * in, kCellH - 2 - 2 * in, 3, bg, 0.25f);
-            if (open) world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.3f, canBuy ? 1.0f : 0.45f);
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.5f, 0.40f, 0.40f,
-                         !open ? theme::kInkSoft : canBuy || hasBought ? theme::kInk : theme::kInkSoft);
+            const bool bought = cart_.bought(t, l) > 0;
+            const u32 ink = inventory::drawPurchaseCell(t, l, x, y, kCellW - 1, kCellH - 1, open, canBuy, bought, sel,
+                                                        16.0f, 0.25f);
+            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.3f, 0.40f, 0.40f, ink);
         }
     }
 
