@@ -969,6 +969,10 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         const uint16_t i=z.warmOrder[j];
         if (!z.warm[i] || z.failed[i]) continue;
         if (z.resident[i] && (z.lod[i]==z.warmLod[i] || (z.warmLod[i]==1 && z.lod[i]==0))) continue;
+        // The ring only fills free retain space. Evicting for it made a warm chunk and a
+        // culled plan chunk evict each other forever, so loading() never went false.
+        const Chunk wd=modelInfo(z.chunks[i],z.warmLod[i]);
+        if (z.geom+z.inflightGeom+wd.geom>z.retainGeom || z.tex+z.inflightTex+wd.tex>z.retainTex) { z.warm[i]=false; continue; }
         const int q=queueLoad(i,z.warmLod[i],true);
         if (q<0) z.warm[i]=false;
         if (q==0) break;
