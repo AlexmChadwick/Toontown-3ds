@@ -1,9 +1,12 @@
 """Shared 256px atlas pages; repeat UV triangles are clipped at tile boundaries.
 
-32px source tiles have four-pixel gutters. Pages have only a base mip: automatic
-whole-page mips would bleed across unrelated tiles. Large tiled triangles retain
-standalone textures instead of creating unbounded geometry. All batches retain
-blend/cull/decal state. No existing pipeline modules are modified.
+The default (what existing callers and the atlas unit test use) is 32px tiles,
+four-pixel gutters and a base mip only. bake_street passes a near profile:
+64px tiles, an 8px gutter and three mip levels downsampled per tile so the
+gutter still isolates neighbours. Large ground textures are optionally kept as
+standalone pages (256 near, 128 far) instead of the prop atlas. Automatic
+whole-page mips are never used: they would bleed across tiles. Large tiled
+triangles retain standalone textures. All batches retain blend/cull/decal state.
 """
 import math
 import numpy as np
@@ -69,13 +72,83 @@ def tile_ranges(tri, tex):
     return out
 
 
-def build(sources, chunks):
-    """Return textures and transformed chunk batches, with shared atlas indices."""
-    # Keep pathological UV tiling separate, bounded in both memory and bake time.
-    standalone = {i for i,t in enumerate(sources) if sign_text.is_font_texture(t)}
+def _large_ground_ids(chunks, min_edge=8.0, min_up=0.5):
+    """Textures used by an upward face with an edge of at least min_edge.
+
+    After ground splitting those edges are about 20 units, so the ground page is
+    standalone instead of a prop-atlas tile. Small flat props stay in the atlas.
+    """
+    ids = set()
     for batches in chunks:
         for b in batches:
-            if b.texture is None:
+            if b.texture is None or b.texture in ids:
+                continue
+            tris = b.verts[b.indices.reshape(-1, 3)]
+            for tri in tris:
+                n = np.cross(tri[1, :3] - tri[0, :3], tri[2, :3] - tri[0, :3])
+                ln = float(np.linalg.norm(n))
+                if ln < 1e-8 or n[2] / ln < min_up:
+                    continue
+                edges = np.linalg.norm(np.stack((tri[1, :3] - tri[0, :3], tri[2, :3] - tri[1, :3],
+                                                 tri[0, :3] - tri[2, :3])), axis=1)
+                if float(edges.max()) >= min_edge:
+                    ids.add(b.texture)
+                    break
+    return ids
+
+
+def _tile_mips(page, slots, levels):
+    """Box-filter each tile (content plus its edge gutter) into the next mip.
+
+    slots are (x, y, tile, gutter) in this page's pixels. Gutters are a copy of
+    the tile edge, so the filter never reaches the neighbouring tile.
+    """
+    pages = [page]
+    cur = slots
+    for _ in range(levels - 1):
+        prev = pages[-1]
+        nxt = np.zeros((prev.shape[0] // 2, prev.shape[1] // 2, 4), dtype=np.uint8)
+        halved = []
+        for x, y, tile, gutter in cur:
+            if gutter < 1 or tile < 2:
+                raise ValueError('atlas mip would bleed across tiles; use a wider gutter')
+            x0, y0 = x - gutter, y - gutter
+            x1, y1 = x + tile + gutter, y + tile + gutter
+            region = prev[y0:y1, x0:x1]
+            h, w = region.shape[:2]
+            if h % 2 or w % 2:
+                raise ValueError('atlas tile region is not even')
+            acc = region.astype(np.uint16)
+            down = (acc.reshape(h // 2, 2, w // 2, 2, 4).sum(axis=(1, 3)) + 2) // 4
+            nx, ny = x0 // 2, y0 // 2
+            nxt[ny:ny + down.shape[0], nx:nx + down.shape[1]] = down.astype(np.uint8)
+            halved.append((x // 2, y // 2, tile // 2, gutter // 2))
+        pages.append(nxt)
+        cur = halved
+    return pages
+
+
+def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels=1,
+          large_ground=False, encode=True):
+    """Return textures and transformed chunk batches, with shared atlas indices.
+
+    encode=False skips pixel reads and ETC1 so a far-LOD spacing search can count
+    triangles. The default arguments match the historical 32px, single-mip atlas.
+    """
+    if tile < 8 or gutter < 1 or mip_levels < 1:
+        raise ValueError('invalid atlas tile')
+    span = tile + 2 * gutter
+    cols = 256 // span
+    if cols < 1:
+        raise ValueError('tile does not fit a 256 page')
+    per_page = cols * cols
+    # Keep pathological UV tiling separate, bounded in both memory and bake time.
+    standalone = {i for i, t in enumerate(sources) if sign_text.is_font_texture(t)}
+    if large_ground:
+        standalone |= _large_ground_ids(chunks)
+    for batches in chunks:
+        for b in batches:
+            if b.texture is None or b.texture in standalone:
                 continue
             tex = sources[b.texture]
             for tri in b.verts[b.indices.reshape(-1, 3)]:
@@ -86,25 +159,39 @@ def build(sources, chunks):
     textures, mapping = [], {}
     frequency = {i: sum(any(b.texture == i for b in bs) for bs in chunks) for i in range(len(sources))}
     entries = sorted((i for i in range(len(sources)) if i not in standalone), key=lambda i: (-frequency[i], i))
-    for start in range(0, len(entries), 36):
+    for start in range(0, len(entries), per_page):
         px = np.full((256, 256, 4), 255, dtype=np.uint8)
         page = len(textures)
-        for slot, idx in enumerate(entries[start:start + 36]):
-            image, _, _ = texture_pixels(sources[idx], 32)
-            # Upscale small source images to a predictable slot size (nearest).
-            image = image[np.arange(32) * image.shape[0] // 32][:, np.arange(32) * image.shape[1] // 32]
-            x, y = (slot % 6) * 40 + 4, (slot // 6) * 40 + 4
-            px[y-4:y+36, x-4:x+36] = np.pad(image, ((4, 4), (4, 4), (0, 0)), mode='edge')
+        slots = []
+        for slot, idx in enumerate(entries[start:start + per_page]):
+            x, y = (slot % cols) * span + gutter, (slot // cols) * span + gutter
+            if encode:
+                image, _, _ = texture_pixels(sources[idx], tile)
+                # Upscale small source images to a predictable slot size (nearest).
+                image = image[np.arange(tile) * image.shape[0] // tile][:, np.arange(tile) * image.shape[1] // tile]
+                px[y - gutter:y + tile + gutter, x - gutter:x + tile + gutter] = np.pad(
+                    image, ((gutter, gutter), (gutter, gutter), (0, 0)), mode='edge')
+            slots.append((x, y, tile, gutter))
             mapping[idx] = (page, x, y)
-        fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
-        textures.append(ttm.Texture(f'street_atlas_{page}', px, fmt, 0, 0, mipmaps=False))
+        if encode:
+            fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
+            levels = _tile_mips(px, slots, mip_levels) if mip_levels > 1 else None
+            textures.append(ttm.Texture(f'street_atlas_{page}', px, fmt, 0, 0,
+                                        mipmaps=False, levels=levels))
+        else:
+            textures.append(type('AtlasRef', (), {'wrap_s': 0, 'wrap_t': 0, 'mips': mip_levels})())
     for idx in sorted(standalone):
-        image, nc, pf = texture_pixels(sources[idx], 256 if sign_text.is_font_texture(sources[idx]) else 128)
+        size = 256 if sign_text.is_font_texture(sources[idx]) else standalone_size
         mapping[idx] = (len(textures), None, None)
-        textures.append(ttm.Texture(sources[idx].getName(), image,
-                                    extract.choose_format(image, nc, pf),
-                                    extract._WRAP.get(sources[idx].getWrapU(), 2),
-                                    extract._WRAP.get(sources[idx].getWrapV(), 2)))
+        if encode:
+            image, nc, pf = texture_pixels(sources[idx], size)
+            textures.append(ttm.Texture(sources[idx].getName(), image,
+                                        extract.choose_format(image, nc, pf),
+                                        extract._WRAP.get(sources[idx].getWrapU(), 2),
+                                        extract._WRAP.get(sources[idx].getWrapV(), 2)))
+        else:
+            wrap = extract._WRAP.get(sources[idx].getWrapU(), 2)
+            textures.append(type('AtlasRef', (), {'wrap_s': wrap, 'wrap_t': wrap, 'mips': 1})())
     result = []
     for batches in chunks:
         groups = {}
@@ -135,8 +222,8 @@ def build(sources, chunks):
                         uv = p[:, 3:5].copy()
                         for axis, k in enumerate((u, v)):
                             uv[:, axis] = uv[:, axis] - k if repeat[axis] else np.clip(uv[:, axis], 0, 1)
-                        p[:, 3] = (x + uv[:, 0] * 32) / 256
-                        p[:, 4] = (256 - y - 32 + uv[:, 1] * 32) / 256
+                        p[:, 3] = (x + uv[:, 0] * tile) / 256
+                        p[:, 4] = (256 - y - tile + uv[:, 1] * tile) / 256
                         parts.append(np.array([p[j] for k in range(1, len(p)-1) for j in (0, k, k+1)]))
         # Merge mixed cull-state groups by enabling two-sided rendering only where
         # an atlas/state already contains both kinds. This cannot hide any faces.

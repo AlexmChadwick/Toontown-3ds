@@ -1,5 +1,7 @@
 #include "render/renderer.h"
 
+#include "render/quality.h"
+
 #include <cmath>
 
 #include "core/log.h"
@@ -144,8 +146,22 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     frustum_[5] = normalizePlane(FVec4_Add(r3, r2)); // z >= -w
 }
 
+void Renderer::setFarPlane(float far) {
+    const float next = far > 0.0f ? far : activeQuality().farPlane;
+    if (next == farPlane_) return;
+    farPlane_ = next;
+    if (!fogOn_) return;
+    const float r = fogRgb_[0], g = fogRgb_[1], b = fogRgb_[2];
+    const float start = fogStart_, end = fogEnd_;
+    fogOn_ = false; // setFog skips the LUT when the inputs have not changed
+    setFog(r, g, b, start, end);
+}
+
 void Renderer::setFog(float r, float g, float b, float start, float end) {
     const auto byte = [](float v) { return u32((v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v) * 255.0f + 0.5f); };
+    fogRgb_[0] = r;
+    fogRgb_[1] = g;
+    fogRgb_[2] = b;
     fogColor_ = byte(b) << 16 | byte(g) << 8 | byte(r);
     fogClear_ = byte(r) << 24 | byte(g) << 16 | byte(b) << 8 | 0xFF;
     if (fogOn_ && start == fogStart_ && end == fogEnd_ && farPlane_ == fogFar_) return;

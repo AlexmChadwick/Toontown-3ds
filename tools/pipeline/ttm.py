@@ -135,12 +135,18 @@ def mip_chain(pixels, min_size=8):
 
 
 class Texture:
-    def __init__(self, name, pixels, fmt, wrap_s=GPU_REPEAT, wrap_t=GPU_REPEAT, mipmaps=True):
-        h, w = pixels.shape[:2]
+    def __init__(self, name, pixels, fmt, wrap_s=GPU_REPEAT, wrap_t=GPU_REPEAT, mipmaps=True,
+                 levels=None):
+        # `levels` is a prebuilt chain (largest first). Atlas pages pass one so each
+        # mip is downsampled per tile and gutters do not bleed into the neighbour.
+        if levels is None:
+            h, w = pixels.shape[:2]
+            levels = mip_chain(pixels) if mipmaps else [pixels]
+        else:
+            h, w = levels[0].shape[:2]
         assert w >= 8 and h >= 8 and w & (w - 1) == 0 and h & (h - 1) == 0, (name, w, h)
         self.name, self.w, self.h, self.fmt = name, w, h, fmt
         self.wrap_s, self.wrap_t = wrap_s, wrap_t
-        levels = mip_chain(pixels) if mipmaps else [pixels]
         self.mips = len(levels)
         if fmt in ETC_FORMATS:
             # One call for the whole chain (better vectorization); levels are

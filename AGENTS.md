@@ -133,9 +133,13 @@ VRAM usage plus frame time. Every Azahar or hardware test logs those numbers in
 - **Rough GPU envelope** to validate in Phase 1: ≤ 15k triangles and ≤ 150 draw calls
   per frame on the top screen.
 - **CPU per frame:** ≤ 6 ms for animation and skinning, ≤ 3 ms for networking.
-- **Draw distance:** fog, plus the far plane at about 120 units in the playground.
-  Streets use visgroup PVS (only `vis[]` groups of the current cell are drawn and
-  resident).
+- **Draw distance:** `source/render/quality.h`. Old 3DS draws to 440 and fogs from
+  110 to 400, with the far plane at 520 so the sky is fog colour rather than a clip
+  edge. New 3DS (detected with `APT_CheckNew3DS`, no `osSetSpeedupEnable`) draws to
+  740 and fogs from 180 to 680, far plane 900. High LOD is used inside 160 (Old) or
+  260 (New); past that the chunk is the coarse far mesh. Streets still stream by
+  DNA visgroup. A chunk past the profile draw distance is not loaded. Donald's Dock
+  white fog and underwater fog stay owned by `world/water.cpp`.
 
 ## 4. Architecture
 
@@ -181,6 +185,15 @@ Key decisions:
      drives this.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
+   - Streamed zones (`bake_street.py`) pack the near mesh as 64px tiles with an 8px
+     gutter and three per-tile mips. Ground textures (upward faces with an edge of
+     at least 8) stay standalone at 256. The far mesh samples those textures into
+     vertex colour and stores no texture pages, so a long PVS fits the 8 MiB copy
+     budget. The default of `street_atlas.build` is still the 32px single-mip page
+     used by cog HQs. The RomFS playground mesh stays at 128 because the whole
+     playground is one resident model and a 256px set does not fit the 8 MiB
+     texture budget. Runtime filtering is linear,
+     plus a linear mip when the texture has more than one level.
    - Format by use:
      - **ETC1** for opaque textures.
      - **ETC1A4** when there is alpha.

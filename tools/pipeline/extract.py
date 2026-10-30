@@ -8,6 +8,7 @@ import fnmatch
 import os
 
 import numpy as np
+import ground_split
 from panda3d.core import (ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
                           PNMImage, SamplerState, Texture, TextureAttrib, TexMatrixAttrib,
                           Thread, TransparencyAttrib)
@@ -262,3 +263,8 @@ class Extractor:
             out.append(ttm.Batch(tex, blend, two_sided, tint, layer,
                                  np.concatenate(vs), np.concatenate(ids)))
         return out
+
+
+def subdivide_ground(batches, max_edge=ground_split.MAX_EDGE):
+    """Zone baker: split terrain edges the PICA200 clipper would drop. See ground_split.py."""
+    return ground_split.split_batches(batches, max_edge=max_edge)

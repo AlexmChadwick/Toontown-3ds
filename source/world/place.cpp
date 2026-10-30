@@ -1,5 +1,7 @@
 #include "world/place.h"
 
+#include "render/quality.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -117,7 +119,7 @@ void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void*
 
 void Place::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     if (zone_.loaded()) {
-        zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 120.0f);
+        zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, tt::render::activeQuality().drawDistance);
         return;
     }
     C3D_Mtx m;

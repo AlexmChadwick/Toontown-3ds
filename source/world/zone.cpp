@@ -1,6 +1,7 @@
 #include "world/zone.h"
 
 #include "core/crash.h"
+#include "render/quality.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -483,8 +484,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         memset(z.failed,0,sizeof(z.failed));
         uint64_t geom=0,tex=0,tris=0,draws=0;
         uint32_t count=0;
+        const tt::render::Quality& quality = tt::render::activeQuality();
+        const float draw2 = quality.drawDistance * quality.drawDistance;
         auto want=[&](uint16_t id) {
             if (z.desired[id]) return;
+            // The cell underfoot always stays. Chunks past the profile draw distance stay
+            // out of linear memory; fog has already hidden them. New 3DS asks for more.
+            if (id != static_cast<uint16_t>(next) && distance2(feet, z.chunks[id]) > draw2) return;
             z.desired[id]=true;
             z.choice[id]=z.h.version>=2 ? 1 : 0;
             z.order[count++]=id;
@@ -509,9 +515,9 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
-                // Hysteresis: a chunk already at full detail keeps it out to 75 units, so a
-                // toon standing near the 65-unit boundary doesn't reload it from SD repeatedly.
-                const float reach=z.resident[id] && z.lod[id]==0 ? 75.0f : 65.0f;
+                // Hysteresis: a chunk already at full detail keeps it a little past the near
+                // radius, so a toon standing on the boundary doesn't reload it from SD.
+                const float reach = z.resident[id] && z.lod[id]==0 ? quality.lodKeep : quality.lodNear;
                 if (distance2(feet,high)>reach*reach) continue;
                 const Chunk low=modelInfo(high,1);
                 const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;

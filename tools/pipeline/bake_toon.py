@@ -525,8 +525,8 @@ def main():
     ap.add_argument('--legacy-only', action='store_true', help='the original 17 clips only')
     ap.add_argument('--battle-only', action='store_true',
                     help='battle clips plus neutral as the unchanged base-mesh pose')
-    ap.add_argument('--max-tex', type=int, default=128)
-    ap.add_argument('--clothes-max-tex', type=int, default=64,
+    ap.add_argument('--max-tex', type=int, default=256)
+    ap.add_argument('--clothes-max-tex', type=int, default=128,
                     help='clothing textures are up to 128x128 upstream; 64 keeps clothes.ttx ~1/4 the size')
     ap.add_argument('--clothes', choices=('all', 'mat', 'none'), default='all',
                     help='clothes.ttx content: every DNA texture, the Make-A-Toon subset, or none')

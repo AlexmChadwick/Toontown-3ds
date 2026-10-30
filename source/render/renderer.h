@@ -70,10 +70,12 @@ public:
     static constexpr float kFar = 300.0f;
     static constexpr float kFovYDeg = 55.0f;
     // Far plane of the world pass (Panda base.camLens.setFar). Minigames raise it, as upstream
-    // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores kFar.
-    // Takes effect from the next beginWorld.
-    void setFarPlane(float far) { farPlane_ = far > 0.0f ? far : kFar; }
+    // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores the active
+    // quality profile (render/quality.h), which is past the fog so the sky is not a clip edge.
+    // Takes effect from the next beginWorld. Rebuilds the fog LUT when fog is on.
+    void setFarPlane(float far);
     float farPlane() const { return farPlane_; }
+    bool fogEnabled() const { return fogOn_; }
     // Vertical field of view of the world pass in degrees (Panda base.camLens.setFov, e.g.
     // MakeAToonCameraFov). Zero restores kFovYDeg. Takes effect from the next beginWorld.
     void setFovY(float degrees) { fovYDeg_ = degrees > 0.0f ? degrees : kFovYDeg; }
@@ -101,6 +103,7 @@ private:
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
     float fogStart_ = 0.0f, fogEnd_ = 0.0f, fogFar_ = 0.0f;
+    float fogRgb_[3] = {};
     float farPlane_ = kFar;
     float fovYDeg_ = kFovYDeg;
     C3D_FogLut fogLut_{};

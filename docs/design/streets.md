@@ -385,3 +385,38 @@ suite; eight moving meshes were compared to authored geometry and anchor frames.
 An independent repeat bake produced **43 byte-identical files** (seven zone triplets,
 eight TTM/TTC pairs and six moving-prop metadata files). No make, Azahar, push or
 merge was performed.
+
+## Near tiles, far colour meshes, ground split — 2026-10-30
+
+`bake_street.py` now takes two atlas profiles. The near mesh uses 64px tiles, an
+8px gutter and three mips downsampled per tile (gutters do not bleed). Upward
+faces with an edge of at least 8 stay on their own 256px texture. `street_atlas.build`
+defaults are unchanged (32px, 4px gutter, one mip) so cog HQ bakes and the atlas
+unit test keep their coordinates.
+
+The far mesh is no longer a second atlas. After the same voxel simplify, each
+corner samples its texture at 32px into the vertex colour and the chunk stores
+no texture pages. That is what lets a playground PVS cover the New 3DS draw
+distance (baker `--distance` 760, plus 78 for the camera orbit and the coarsest
+snap) inside 8 MiB. Old 3DS loads that file out to 440. Decals, including sign
+letters, still drop out of the far mesh. Collision is not simplified and is not
+split.
+
+Ground triangles whose normal Z is at least 0.5 and whose longest edge is over
+20 are bisected in `ground_split.py` before the atlas. That is the PICA200
+clipper fix (sky through huge TTC ground triangles). Walls are left alone.
+`bake_zone.py` applies the same split to the RomFS playground mesh and leaves
+that mesh at 128px.
+
+Host bakes with panda3d 1.10.15, three ETC1 workers. The all-near sum is over
+the caps, which is expected: the runtime upgrades nearest-first and stops at
+the caps. Planned rows sample both the Old 160 and New 260 near radii.
+
+| Zone | Far draws | Far tris | Far geom | Planned draws | Planned tris | Planned geom | Planned tex | Ground in → out (split) | File |
+|---|---:|---:|---:|---:|---:|---:|---:|---|---:|
+| 2000 | 68 | 11,525 | 622,350 | 150 | 14,947 | 807,138 | 4,395,264 | 11,636 → 15,590 (411) | 4,078,976 |
+| 2100 | 84 | 10,049 | 542,646 | 150 | 14,854 | 802,116 | 4,474,080 | 54,632 → 57,778 (1,209) | 6,451,200 |
+| 1000 (`--separate-boat`) | 35 | 11,175 | 603,450 | 150 | 13,018 | 702,972 | 5,018,976 | 9,178 → 11,643 (219) | 3,500,288 |
+
+Far voxel spacing was 1.5 (2000), 0.75 (2100) and 0 (1000). Near ground edges in
+zone 2000 measure at most 19.99 units after quantization.

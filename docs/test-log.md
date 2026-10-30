@@ -1312,3 +1312,27 @@ claude/Toontown-3ds full bake. Not hardware. Shots on.
 - World: clerks + tailor by pad (`clerk:`, `tailor visit`, `pad: tailor`), steps 0-69 UI tour,
   `see cog` + `pad: battle` picker, `grab treasure` .. `trolley: purchase`. No PARSE / EJECT / crash.
 
+## 2026-10-30 — render quality: near tiles, far colour meshes, ground split
+
+Build: `cursor/render-quality-2097`, devkitARM r68 / gcc 16.1.0, libctru 2.7.0, citro3d 1.7.1.
+`make -j6` produced `toontown3ds.3dsx` with no warnings in `source/`. Host `g++ -Werror`
+compiled `source/world/zone.cpp` (it includes `render/quality.h`). **No Azahar run and no
+hardware run.** Azahar 2127.0-alpha3's AppImage does not start on this Ubuntu 24.04 image:
+it needs Qt 6.8 and FFmpeg 7 (`libavcodec.so.61`); the image has Qt 6.4 and FFmpeg 6.
+Do not read the bake numbers below as frame times.
+
+- Ground split unit test: 80-unit ground cut to edges ≤ 20, vertical wall kept, a 609-unit
+  ground triangle cut under the cap. `rewrite_ground_ttm.py` on `romfs/baked/ttc_sz.ttm`:
+  411 ground triangles split, longest ground edge 608.8 → 19.99, textures byte-identical,
+  `validate_ttm` passed. The fallback mesh is now 16,649 triangles (the whole playground is
+  one model). Streamed zones stay inside the 15k plan.
+- `bake_street.py` for 2000, 2100, and 1000 (`--separate-boat`). Far meshes are vertex
+  coloured (0 texture bytes). Planned resident maxima, sampling Old near 160 and New near
+  260, all sit on the 150-draw cap and under 15k triangles / 6 MiB geometry / 8 MiB
+  textures. Zone 2000 near ground edges after quantization are ≤ 19.99. Figures are in
+  `docs/design/streets.md`. Output is under gitignored `sdmc-out/`.
+- Host `zone_test` (g++ -Werror, the real `zone.cpp`) on those three `.tz` files: every
+  floor sample, PVS transition, geometry/texture budget, trigger and 30,000 `cellAt`
+  queries passed. `c++` on this image is clang without libc++ headers, so the stock
+  `tools/zone_test/run.py` driver did not compile; the same sources were built with g++.
+

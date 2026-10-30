@@ -151,8 +151,14 @@ def main():
 
     ex = extract.Extractor(max_tex=args.max_tex, layer_rules=assemble.LAYER_RULES)
     ex.add(root)
+    # Long ground edges vanish on the PICA200 when they cross the near plane.
+    # The monolithic playground keeps its 128px textures: the whole zone is one
+    # resident mesh, so 256px would blow the 8 MiB texture budget. Streamed zones
+    # (bake_street.py) are where the near tiles get larger.
+    batches, ground_stats = extract.subdivide_ground(ex.batches())
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    stats = ttm.write(args.out, ex.textures, ex.batches())
+    stats = ttm.write(args.out, ex.textures, batches)
+    stats['ground_split'] = ground_stats
     stats['points'] = write_points(root, os.path.splitext(args.out)[0] + '.pts')
     stats['collision_nodes'] = root.findAllMatches('**/+CollisionNode').getNumPaths()
     stats['visgroups'] = [np_.getTag(assemble.VISGROUP_TAG)

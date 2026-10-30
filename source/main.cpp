@@ -23,6 +23,7 @@
 #include "net/connection.h"
 #include "net/net_platform.h"
 #include "render/model.h"
+#include "render/quality.h"
 #include "render/renderer.h"
 #include "render/ui.h"
 #include "ui/balloons.h"
@@ -218,6 +219,13 @@ int main() {
     APT_CheckNew3DS(&isNew3ds);
     // No osSetSpeedupEnable: it needs ptm:sysm, a system service the game does not need. Old 3DS
     // speed is the baseline either way.
+    tt::render::setActiveQuality(isNew3ds);
+    {
+        const tt::render::Quality& q = tt::render::activeQuality();
+        TT_LOG("render: %s profile far %.0f draw %.0f lod %.0f/%.0f fog %.0f-%.0f",
+               q.new3ds ? "New 3DS" : "Old 3DS", double(q.farPlane), double(q.drawDistance), double(q.lodNear),
+               double(q.lodKeep), double(q.fogStart), double(q.fogEnd));
+    }
     TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
 
     if (!C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE)) { // 512 KB; stress tests overflowed 256 KB at ~700 draws
@@ -2759,7 +2767,17 @@ int main() {
             const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
             renderer.setBackground(indoors ? 0x4C4C4CFF : 0x6AB0D9FF);
             if (minigame.active()) minigame.applyWorld(renderer);
-            else minigame.releaseWorld(renderer);
+            else {
+                minigame.releaseWorld(renderer); // far plane 0 restores the quality profile
+                // Outdoor sky fog fades the draw-distance cutoff. Donald's Dock white fog and
+                // underwater fog are already on (world/water.cpp); do not replace them. Indoors
+                // keep the flat grey clear. Stereo uses this same LUT for both eyes.
+                if (indoors) renderer.clearFog();
+                else if (!renderer.fogEnabled()) {
+                    const tt::render::Quality& q = tt::render::activeQuality();
+                    renderer.setFog(0x6A / 255.0f, 0xB0 / 255.0f, 0xD9 / 255.0f, q.fogStart, q.fogEnd);
+                }
+            }
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
 
             if (golf.active()) {
@@ -2927,7 +2945,7 @@ int main() {
             // Nametag + speech balloon over the head (toon height + 0.5, Avatar.py).
             C3D_Mtx proj, view;
             Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(tt::render::Renderer::kFovYDeg), C3D_AspectRatioTop,
-                          tt::render::Renderer::kNear, tt::render::Renderer::kFar, false);
+                          tt::render::Renderer::kNear, renderer.farPlane(), false);
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();
             float sx, sy, depth;
