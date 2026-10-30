@@ -130,6 +130,48 @@ Dated entries: what was done, how it was verified, and what is next. Test number
   control, focus rings, and SOS inventories of 9-16 cards.
 - Continue the first real-hardware pass, especially bottom-screen text readability and touch
   target comfort at native 3DS size.
+## 2026-10-29 — Classic SpeedChat and isolated Linux UI captures
+
+### Done
+- Replaced the bottom screen's dark, square SpeedChat list with opaque cream-white rounded
+  speech cards, category-coloured outlines, a sky-blue header, dark readable text and a gold
+  D-pad focus state. Submenus retain their root category colour. The rounded geometry uses
+  rectangles and triangles rather than Citro2D's procedural circles, which are unreliable
+  after the world pass.
+- Added a reusable `ui/rounded_rect.h` primitive for subsequent front-end, battle and book
+  polish. It adds no textures or runtime allocations.
+- The autotest now captures `shot_speedchat_*` directly, and X opens Chat deterministically
+  even when a focused test starts in isolation.
+- `azahar_test.sh` no longer globally kills Azahar or shares mutable emulator state on Linux.
+  Each run gets its own config, log and SDMC tree, symlinks the large read-only data/NAND
+  inputs, and terminates only its own process group. Raw framebuffer dumps are preserved even
+  when the optional Panda3D decoder environment is unavailable.
+
+### Verified
+- devkitARM/libctru full build: `toontown3ds.3dsx` produced successfully.
+- Azahar 2126.2, Old 3DS mode, Linux/Xvfb: focused `pad: tab chat` capture shows all visible
+  root labels and arrows over opaque rounded cards at 320x240; no clipping and zero emulator
+  panics. The visual pass caught and fixed an initial card/text depth-order regression.
+- The isolated test ran concurrently with an existing Azahar process without stopping it or
+  altering its trigger/config tree. The UI profiler was about 1.1 ms on this software-GL rig.
+
+### Asset size decisions
+- No new bitmap assets. SpeedChat's rounded panels are 2D solid geometry, avoiding both a UI
+  atlas addition and the post-world procedural-circle issue.
+
+### Known issues
+- The focused capture covers the root SpeedChat menu and D-pad highlight path; every nested
+  menu still needs a complete human touch/scroll review on hardware.
+- macOS still uses Azahar's standard config/data locations (but no longer globally `pkill`s
+  emulator processes); per-run macOS profile isolation remains to be implemented and tested.
+- No real-hardware run yet. The larger project issues below (boss coverage, street/facility
+  load hitches, golf branch, and remaining UI/visual review items) remain open.
+
+### Next
+- Apply the rounded speech-card treatment to the front-end buttons and Toontown-style battle
+  controls, then capture the live selectable gag picker.
+- Move the species-correct Laff meter to the bottom-screen layout without covering touch
+  targets, and complete a real Old 3DS performance/readability pass.
 
 ## 2026-10-27 (rounds 4-5) — DA office and country club won, racing speed, reconnect fixes
 
