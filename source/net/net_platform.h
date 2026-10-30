@@ -52,7 +52,7 @@ public:
     using Fn = void (*)(void*);
     // prio/core are only used on 3DS (0x18..0x3F, lower = more urgent).
     bool start(Fn fn, void* arg, int prio, int core, size_t stackSize);
-    void join();
+    bool join(); // 3DS: bounded (500 ms); false = still running, leave its data alone
     bool running() const { return started_; }
 
 private:
@@ -70,7 +70,9 @@ void socketsExit();
 
 // Blocking-with-timeout TCP connect; the returned socket is non-blocking.
 // Returns -1 on failure (err describes why).
-int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err);
+// abort (optional): polled every ~10 ms; set it to give up early (app exit).
+int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err,
+               const volatile bool* abort = nullptr);
 // Waits until the socket is readable (or, if wantWrite, writable). Returns a mask of
 // kTcpReadable / kTcpWritable, 0 on timeout. Errors and hang-ups count as readable, so
 // the next recv reports them.

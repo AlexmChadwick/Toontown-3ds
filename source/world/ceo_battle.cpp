@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "ui/boss_titles.h"
 #include "world/ceo_battle.h"
 #include "core/profile.h"
@@ -201,7 +202,7 @@ void CeoBattle::begin(BossFrame& frame, const net::BossState& state) {
         }
     }
 
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.battle.reset();
     frame.ui.setBattle(nullptr, {});
     frame.remotes.clear();
@@ -213,7 +214,7 @@ void CeoBattle::begin(BossFrame& frame, const net::BossState& state) {
 }
 
 void CeoBattle::leave(BossFrame& frame, bool sad) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossExit();
     for (uint32_t& id : dinerIds_) {
         if (id) {

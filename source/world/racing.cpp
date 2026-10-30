@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/racing.h"
 #include "core/log.h"
 #include "world/racing_tables.h"
@@ -38,7 +39,7 @@ void Racing::loadAssets(uint16_t track) {
 }
 void Racing::unloadAssets() {
     if (track_.loaded())
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     assetBatch_.clear();
     track_.unload();
     gagBox_.unload();
@@ -789,7 +790,7 @@ void Racing::shutdown() {
     for (const auto &racer : racers_)
         resident |= racer.kart.active();
     if (resident)
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     for (auto &racer : racers_) {
         racer.kart.shutdown();
         racer.avatar = racer.vehicle = 0;

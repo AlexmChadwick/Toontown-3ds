@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "render/ui_font.h"
 #include "world/interior_life.h"
 
@@ -116,7 +117,7 @@ void InteriorLife::setHqResident(bool resident) {
     if (resident && !starModel_.loaded()) {
         starModel_.load(kStarModel);
     } else if (!resident && starModel_.loaded()) {
-        C3D_FrameSync(); // the GPU may still read last frame's star
+        ::tt::gpu::frameSync(); // the GPU may still read last frame's star
         starModel_.unload();
     }
 }
@@ -127,7 +128,7 @@ void InteriorLife::setPetshopResident(bool resident) {
         fishAnim_.load(kFishAnim);
         fishTime_ = 0.0f;
     } else if (!resident && fishModel_.loaded()) {
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         fishModel_.unload();
         fishAnim_.unload();
     }

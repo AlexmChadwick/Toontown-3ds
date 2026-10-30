@@ -10,6 +10,7 @@
 #include "ui/cchar_chatter_data.h"
 
 #ifdef __3DS__
+#include "core/gpu_sync.h"
 #include "render/renderer.h"
 #include "ui/projection.h"
 #include "world/asset_loader.h"
@@ -506,7 +507,7 @@ void CCharActors::handleEvent(const net::Event& ev, const net::Client& client, u
             if (a.active && a.doId == ev.doId) {
 #ifdef __3DS__
                 cancelLoads(a);
-                C3D_FrameSync();
+                ::tt::gpu::frameSync();
 #endif
                 a.model.unload();
                 for (auto& c : a.clips) c.unload();
