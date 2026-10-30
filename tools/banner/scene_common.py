@@ -7,7 +7,19 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
-from panda3d.core import CardMaker, Loader, NodePath, PNMImage, Texture, TransparencyAttrib, loadPrcFileData
+from panda3d.core import (
+    Geom,
+    GeomNode,
+    GeomTriangles,
+    GeomVertexData,
+    GeomVertexFormat,
+    GeomVertexWriter,
+    NodePath,
+    PNMImage,
+    Texture,
+    TransparencyAttrib,
+    loadPrcFileData,
+)
 
 # HOME Menu banner camera (pycgfx/banner-camera.gltf).
 CAMERA_POS = (0.0, 1.0, 44.786)
@@ -20,9 +32,10 @@ Z_LOGO = -0.35
 Z_TOON = 1.85
 
 # Logo ~60% of visible width at Z_LOGO; toon bust on the right, forward in Z.
-LOGO_POS = (-7.0, 0.3, Z_LOGO)
-TOON_POS = (6.0, -0.05, Z_TOON)
-TOON_PLANE_H = 11.0
+# ~60% of the banner width at the logo depth (visible width ≈ 45 units).
+LOGO_POS = (-7.6, 0.4, Z_LOGO)
+TOON_POS = (11.5, -0.4, Z_TOON)
+TOON_PLANE_H = 12.0
 
 ALL_COLORS = (
     (1.0, 1.0, 1.0),
@@ -98,11 +111,13 @@ def fit_logo_texture(maps_dir: Path, *, tex_w: int = 512) -> LogoPlane:
     x0, x1 = max(0, xs.min() - pad), min(rgba.shape[1] - 1, xs.max() + pad)
     crop = rgba[y0 : y1 + 1, x0 : x1 + 1].copy()
     aspect = crop.shape[1] / crop.shape[0]
-    width_units = 16.5
+    width_units = 28.0
     height_units = width_units / aspect
     th = tex_w // 2 if aspect >= 2 else int(tex_w / aspect)
     tw = tex_w if aspect >= 2 else int(tex_w * aspect)
     img = Image.fromarray(crop, "RGBA").resize((tw, th), Image.Resampling.LANCZOS)
+    # Quad texcoord v=0 sits on +Y and Panda/glTF sample this crop upright
+    # without an extra flip (measured: Disney script above the yellow wordmark).
     return LogoPlane(np.asarray(img), width_units, height_units)
 
 
@@ -151,29 +166,57 @@ def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.
         fill=(46, 128, 42, 255),
     )
     out = Image.alpha_composite(base, hills)
-    return np.asarray(out)
+    # Row 0 is the sky. The banner camera's +Y is up and samples the high-Y edge
+    # of the quad (texcoord v=0) from the bottom of a top-row-first image, so the
+    # plate is stored bottom-up and both the preview and the glTF see the sky on top.
+    return np.flipud(np.asarray(out))
 
 
 def _make_textured_card(rgba: np.ndarray, w: float, h: float, name: str = "card") -> NodePath:
+    """XY-plane quad matching gltf_export.make_textured_quad (glTF Y-up, camera looks -Z)."""
     tex = Texture()
     tex.setup2dTexture(rgba.shape[1], rgba.shape[0], Texture.T_unsigned_byte, Texture.F_rgba)
-    tex.setRamImage(rgba[::-1].copy().tobytes())
-    cm = CardMaker(name)
-    cm.setFrame(-w * 0.5, w * 0.5, -h * 0.5, h * 0.5)
-    card = NodePath(cm.generate())
+    # Panda stores ram images BGRA, bottom row first. The numpy arrays are RGBA, top row first.
+    ordered = np.flipud(rgba)
+    bgra = ordered[..., [2, 1, 0, 3]].copy()
+    tex.setRamImage(bgra.tobytes())
+    fmt = GeomVertexFormat.getV3n3t2()
+    vdata = GeomVertexData(name, fmt, Geom.UHStatic)
+    vdata.setNumRows(4)
+    vw = GeomVertexWriter(vdata, "vertex")
+    nw = GeomVertexWriter(vdata, "normal")
+    tw = GeomVertexWriter(vdata, "texcoord")
+    hw, hh = w * 0.5, h * 0.5
+    for x, y, u, v in (
+        (-hw, -hh, 0.0, 1.0),
+        (hw, -hh, 1.0, 1.0),
+        (hw, hh, 1.0, 0.0),
+        (-hw, hh, 0.0, 0.0),
+    ):
+        vw.addData3(x, y, 0.0)
+        nw.addData3(0.0, 0.0, 1.0)
+        tw.addData2(u, v)
+    tris = GeomTriangles(Geom.UHStatic)
+    tris.addVertices(0, 1, 2)
+    tris.addVertices(0, 2, 3)
+    tris.closePrimitive()
+    geom = Geom(vdata)
+    geom.addPrimitive(tris)
+    node = GeomNode(name)
+    node.addGeom(geom)
+    card = NodePath(node)
     card.setTexture(tex)
     card.setTransparency(TransparencyAttrib.MAlpha)
     card.setTwoSided(True)
     card.setLightOff(1)
     card.setColor(1, 1, 1, 1)
     card.setDepthWrite(True)
-    card.setScale(-1, 1, 1)
     return card
 
 
 def attach_banner_scene(parent: NodePath, resources: Path, *, toon_rgba: np.ndarray) -> LogoPlane:
     backdrop = compose_backdrop_rgba(resources)
-    back = _make_textured_card(backdrop, 42.0, 24.0, "backdrop")
+    back = _make_textured_card(backdrop, 56.0, 32.0, "backdrop")
     back.setPos(0, 0, Z_BACKDROP)
     back.reparentTo(parent)
 
@@ -182,9 +225,10 @@ def attach_banner_scene(parent: NodePath, resources: Path, *, toon_rgba: np.ndar
     lcard.setPos(*LOGO_POS)
     lcard.reparentTo(parent)
 
-    aspect = toon_rgba.shape[1] / toon_rgba.shape[0]
+    portrait = np.flipud(toon_rgba)
+    aspect = portrait.shape[1] / portrait.shape[0]
     tw = TOON_PLANE_H * aspect
-    tcard = _make_textured_card(toon_rgba, tw, TOON_PLANE_H, "toon")
+    tcard = _make_textured_card(portrait, tw, TOON_PLANE_H, "toon")
     tcard.setPos(*TOON_POS)
     tcard.reparentTo(parent)
     return logo

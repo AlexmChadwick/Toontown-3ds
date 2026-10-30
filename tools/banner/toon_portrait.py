@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from panda3d.core import NodePath, OrthographicLens, PNMImage, WindowProperties, loadPrcFileData
+from panda3d.core import ColorAttrib, NodePath, OrthographicLens, PNMImage, WindowProperties, loadPrcFileData
 from direct.actor.Actor import Actor
 
 from scene_common import ALL_COLORS, configure_panda
@@ -48,6 +48,11 @@ def build_dog_bust(loader, resources: Path) -> NodePath:
         eyes.setTexture(tex, 1)
 
     rgb = ALL_COLORS[HEAD_COLOR_IDX]
+    ears = head.find("**/ears")
+    if not ears.isEmpty():
+        # Ear geom has no texture and black vertex colors; flat tint matches the head.
+        ears.setAttrib(ColorAttrib.makeFlat((*rgb, 1.0)))
+        ears.setLightOff(1)
     for part in head.findAllMatches("**/+GeomNode"):
         name = part.getName().lower()
         if "eye" in name or "pupil" in name or "lash" in name:

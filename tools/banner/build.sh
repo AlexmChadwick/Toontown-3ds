@@ -66,7 +66,7 @@ run_gl() {
 
 TOON_PORTRAIT="$BUILD/toon_portrait.npy"
 if [ ! -f "$TOON_PORTRAIT" ]; then
-  "$PYTHON" "$ROOT/tools/banner/bake_toon_portrait.py" --resources "$RESOURCES" --out "$TOON_PORTRAIT"
+  run_gl "$PYTHON" "$ROOT/tools/banner/bake_toon_portrait.py" --resources "$RESOURCES" --out "$TOON_PORTRAIT"
 fi
 
 "$PYTHON" "$ROOT/tools/banner/make_banner_scene.py" --resources "$RESOURCES" --out-dir "$BUILD" --toon-npy "$TOON_PORTRAIT"

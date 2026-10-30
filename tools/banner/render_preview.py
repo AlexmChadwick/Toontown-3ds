@@ -31,13 +31,21 @@ def _setup_display() -> None:
 
 
 def _setup_camera(base, eye_offset_x: float = 0.0) -> None:
+    import math
+
     lens = base.cam.node().getLens()
-    lens.setFov(CAMERA_FOV_DEG)
+    # Match pycgfx banner-camera.gltf: vertical FOV 30°, aspect 2:1 for the 256×128 preview.
+    aspect = 2.0
+    vfov = CAMERA_FOV_DEG
+    hfov = math.degrees(2.0 * math.atan(math.tan(math.radians(vfov) * 0.5) * aspect))
+    lens.setFov(hfov, vfov)
     lens.setNear(CAMERA_NEAR)
     lens.setFar(CAMERA_FAR)
     x, y, z = CAMERA_POS
     base.camera.setPos(x + eye_offset_x, y, z)
-    base.camera.lookAt(x + eye_offset_x, y, 0.0)
+    # XY cards face +Z. Panda's camera looks down -Y, so pitch -90 aims it along -Z
+    # with +Y toward the top of the frame — the same view as the glTF banner camera.
+    base.camera.setHpr(0, -90, 0)
 
 
 def _screenshot_pil(base, w: int, h: int) -> Image.Image:

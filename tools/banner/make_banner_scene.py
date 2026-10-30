@@ -31,19 +31,16 @@ def build_scene(resources: Path, toon_rgba) -> list[SceneObject]:
     toon_w = TOON_PLANE_H * aspect
     return [
         SceneObject(
-            mesh=make_textured_quad("backdrop", 42.0, 24.0, backdrop),
+            mesh=make_textured_quad("backdrop", 56.0, 32.0, backdrop),
             translation=(0.0, 0.0, Z_BACKDROP),
-            scale=(-1.0, 1.0, 1.0),
         ),
         SceneObject(
             mesh=make_textured_quad("logo", logo.width_units, logo.height_units, logo.rgba),
             translation=LOGO_POS,
-            scale=(-1.0, 1.0, 1.0),
         ),
         SceneObject(
             mesh=make_textured_quad("toon", toon_w, TOON_PLANE_H, toon_rgba),
             translation=TOON_POS,
-            scale=(-1.0, 1.0, 1.0),
         ),
     ]
 
@@ -62,7 +59,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     import numpy as np
 
-    toon_rgba = np.load(args.toon_npy)
+    toon_rgba = np.flipud(np.load(args.toon_npy))
     objects = build_scene(resources, toon_rgba)
     glb_path = out_dir / "banner_scene.glb"
     write_glb(objects, glb_path)
