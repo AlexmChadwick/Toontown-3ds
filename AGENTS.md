@@ -131,12 +131,12 @@ VRAM usage plus frame time. Every Azahar or hardware test logs those numbers in
 - **Target 30 fps locked** on Old 3DS, which is 33.3 ms per frame. Never trade
   stability for 60 fps.
 - **Rough GPU envelope** to validate in Phase 1: ≤ 15k triangles and ≤ 150 draw calls
-per frame on the top screen. World chunks stop upgrading at 130 draws
-(`Zone::kDrawBudget`) so toons and props still fit. The playground and Cog HQ
-baker raises the grid until the far view fits that cap. Chunks within
-`Quality::lodMust` of the toon (48 Old / 64 New) are upgraded first, up to 150
-draws (`Zone::kNearDrawBudget`): the far mesh is bloated up close, and the 130 cap
-counts chunks behind the camera too, so a chunk under the toon could stay far.
+per frame on the top screen. When a camera is set, world chunks spend the
+130-draw and 15k-triangle caps (`Zone::kDrawBudget`) on what that frame submits,
+in view and nearer first (`Quality::lodMust` is that near band: 48 Old / 64 New),
+so a chunk behind the toon cannot take Toon Hall's budget. Memory caps still
+cover the whole cell. With no camera the same caps cover the cell (host tests).
+The playground and Cog HQ baker raises the grid until the far view fits 130 draws.
 - **CPU per frame:** ≤ 6 ms for animation and skinning, ≤ 3 ms for networking.
 - **Draw distance:** `source/render/quality.h`. Old 3DS draws to 440 and fogs from
   110 to 400, with the far plane at 520 so the sky is fog colour rather than a clip

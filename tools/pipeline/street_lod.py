@@ -12,9 +12,10 @@ TRI_BUDGET = 15000
 # World meshes stop here. The frame still has a 150-draw ceiling; the remainder
 # is toons, the boat and other actors. A view that fills 150 has no headroom.
 DRAW_CAP = 130
-# Chunks within `must` of the toon upgrade first against the whole frame ceiling
-# (Quality::lodMust / Zone::kNearDrawBudget): the far mesh is bloated up close.
-NEAR_DRAW_CAP = 150
+# Chunks within `must` of the toon are considered first. They use the same 130-draw
+# cap as the rest of the cell. A 150-draw near envelope counted chunks behind the
+# camera and reached 147-149 draws in Donald's Dock.
+NEAR_DRAW_CAP = DRAW_CAP
 LOW_TARGET = 12000
 
 
@@ -65,8 +66,9 @@ def distance2(point,bounds):
 def plan(chunks,cell,point,near=65,must=0):
     """Low baseline, then nearest-first near upgrades, never removing a PVS cell.
 
-    Mirrors Zone::update: chunks within `must` first (NEAR_DRAW_CAP), then the
-    rest within `near` (DRAW_CAP)."""
+    Mirrors Zone::update with no camera: chunks within `must` first, then the rest
+    within `near`. Both passes stop at DRAW_CAP. A camera at runtime counts only
+    the submitted view, which is a tighter set than this whole-cell plan."""
     ids=chunks[cell]['vis']
     choice={i:1 for i in ids}
     keys=('triangles','batches','geometry_bytes','texture_bytes')

@@ -99,7 +99,7 @@ def split_batches(batches, max_edge=MAX_EDGE, min_up=MIN_UP):
         for start in range(0, len(verts), ttm.MAX_BATCH_VERTS):
             vs = verts[start:start + ttm.MAX_BATCH_VERTS]
             nb = ttm.Batch(b.texture, b.blend, b.two_sided, b.tint, b.layer, vs,
-                           np.arange(len(vs), dtype=np.int64))
+                           np.arange(len(vs), dtype=np.int64), getattr(b, 'sign', False))
             if slot:
                 nb.tex_slot = slot
             out.append(nb)

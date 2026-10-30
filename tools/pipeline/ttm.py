@@ -158,9 +158,10 @@ class Texture:
 
 
 class Batch:
-    def __init__(self, texture, blend, two_sided, tint, layer, verts, indices):
+    def __init__(self, texture, blend, two_sided, tint, layer, verts, indices, sign=False):
         self.texture, self.blend, self.two_sided = texture, blend, two_sided
         self.tint, self.layer = tint, layer
+        self.sign = bool(sign)
         self.verts = verts      # (n, 9) float: x y z u v r g b a (rgba 0..1)
         self.indices = indices  # (m,) int, relative to this batch
 

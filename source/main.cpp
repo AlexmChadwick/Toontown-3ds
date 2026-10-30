@@ -1961,6 +1961,8 @@ int main() {
         tt::prof::lap(tt::prof::kPlayer);
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
+        // The draw cap follows this camera, so chunks behind the toon do not spend it.
+        place.setCamera(player.cameraEye(), player.cameraTarget());
         place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
@@ -2069,44 +2071,65 @@ int main() {
             toastAge = 0.0f;
         }
 
+        // The black frame used to block in finishLoading until every chunk had uploaded.
+        // That was the zone-change hitch. The place loads once; each frame uploads a slice
+        // (Zone::update) and the fade stays up until the plan is resident.
+        static bool arrivalHold = false;
+        static u32 arrivalDest = 0, arrivalFrom = 0;
+        static float arrivalX = 0, arrivalY = 0, arrivalZ = 0;
+        if (!transition.readyToLoad()) arrivalHold = false;
         if (transition.readyToLoad()) {
             const u32 dest = transition.targetZone();
             const u32 fromZone = transition.fromZone();
-            remoteToons.clear();
-            if (place.load(dest)) {
-                // Facilities are entered by elevator, never by a transition, so any arrival means we
-                // left one (won, went sad, teleported): end it even if its gone events never come.
-                if (level.active()) {
-                    TT_LOG("level: left for zone %u", unsigned(dest));
-                    level.shutdown();
+            if (!arrivalHold || arrivalDest != dest) {
+                remoteToons.clear();
+                if (!place.load(dest)) {
+                    place.load(fromZone); // fall back to where we were
+                    transition.reset();
+                    arrivalHold = false;
+                } else {
+                    // Facilities are entered by elevator, never by a transition, so any arrival means we
+                    // left one (won, went sad, teleported): end it even if its gone events never come.
+                    if (level.active()) {
+                        TT_LOG("level: left for zone %u", unsigned(dest));
+                        level.shutdown();
+                    }
+                    zoneActors.loadPoints(place.pointsPath());
+                    cchars.setZone(dest);
+                    fishing.setZone(dest, place.pointsPath());
+                    trolley.setZone(dest);
+                    cogBuildings.setZone(dest);
+                    cogBuildings.syncAnchors(place);
+                    suits.setZone(dest);
+                    float ax, ay, az, ah;
+                    place.arrival(fromZone, &ax, &ay, &az, &ah);
+                    // reset() settles the toon on the ground at once: use the new place's floor, not a
+                    // facility's we just left (a DA office floor put the Lawbot HQ arrival 68 units up).
+                    player.setCollision(&place.collision());
+                    player.reset(ax, ay, az, ah);
+                    if (netStarted) net.changeZone(dest);
+                    arrivalX = ax;
+                    arrivalY = ay;
+                    arrivalZ = az;
+                    arrivalDest = dest;
+                    arrivalFrom = fromZone;
+                    arrivalHold = true;
+                    place.setCamera(player.cameraEye(), player.cameraTarget());
+                    place.update(ax, ay, az, onStreetCell, nullptr);
                 }
-                zoneActors.loadPoints(place.pointsPath());
-                cchars.setZone(dest);
-                fishing.setZone(dest, place.pointsPath());
-                trolley.setZone(dest);
-                cogBuildings.setZone(dest);
-                cogBuildings.syncAnchors(place);
-                suits.setZone(dest);
-                float ax, ay, az, ah;
-                place.arrival(fromZone, &ax, &ay, &az, &ah);
-                // reset() settles the toon on the ground at once: use the new place's floor, not a
-                // facility's we just left (a DA office floor put the Lawbot HQ arrival 68 units up).
-                player.setCollision(&place.collision());
-                player.reset(ax, ay, az, ah);
-                if (netStarted) net.changeZone(dest);
-                place.finishLoading(ax, ay, az, onStreetCell, nullptr);
-                const tt::world::Exit arrivalExit = place.exitAt(ax, ay, az);
-                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : fromZone; // don't bounce straight back
-                if (tt::world::hoodOf(dest) != tt::world::hoodOf(fromZone) ||
-                    tt::world::placeKind(dest) != tt::world::placeKind(fromZone)) {
-                    playPlaceMusic(dest);
+            }
+            if (arrivalHold && !place.zone().loading()) {
+                const tt::world::Exit arrivalExit = place.exitAt(arrivalX, arrivalY, arrivalZ);
+                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : arrivalFrom; // don't bounce straight back
+                if (tt::world::hoodOf(arrivalDest) != tt::world::hoodOf(arrivalFrom) ||
+                    tt::world::placeKind(arrivalDest) != tt::world::placeKind(arrivalFrom)) {
+                    playPlaceMusic(arrivalDest);
                 }
-                loadAmbient(dest);
-                transition.notifyLoaded(dest, place, player, netStarted ? &net : nullptr);
+                loadAmbient(arrivalDest);
+                transition.notifyLoaded(arrivalDest, place, player, netStarted ? &net : nullptr);
+                arrivalHold = false;
                 continue;
             }
-            place.load(fromZone); // fall back to where we were
-            transition.reset();
         }
         if (!transition.active()) {
             lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;

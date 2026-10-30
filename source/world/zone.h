@@ -16,8 +16,6 @@ public:
     // Upgrades stop here so a view is not glued to the 150-draw frame cap.
     // The far set itself may still load up to that cap (older facility bakes).
     static constexpr uint32_t kDrawBudget = 130;
-    // Chunks within Quality::lodMust of the toon may use up to the frame envelope.
-    static constexpr uint32_t kNearDrawBudget = 150;
     struct Trigger {
         float min[3], max[3];
         uint32_t kind; // 0 other, 1 door, 2 tunnel (approach volume)
@@ -38,6 +36,10 @@ public:
     void unload();
     bool loaded() const { return impl_ != nullptr; }
     const char* error() const { return error_; }
+    // Eye and look-at for the frame about to be drawn. The next update() spends the
+    // 130-draw and 15k-triangle caps on chunks that frame will submit, nearest to the
+    // view first. No call keeps the whole-cell budget (host tests).
+    void setCamera(const Vec3& eye, const Vec3& target);
     // Call once before FrameBegin, never per eye.
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
     // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call

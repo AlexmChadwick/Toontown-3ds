@@ -241,4 +241,234 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     return true;
 }
 
+namespace {
+
+u32 elapsedUs(u64 t0) {
+    return static_cast<u32>((svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000000));
+}
+
+bool uploadTexture(const TexEntry& e, const u8* bytes, C3D_Tex* tex) {
+    C3D_TexInitParams p{};
+    p.width = e.width;
+    p.height = e.height;
+    p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
+    p.format = static_cast<GPU_TEXCOLOR>(e.format);
+    p.type = GPU_TEX_2D;
+    p.onVram = false;
+    bool inited;
+    {
+        mem::LinearGuard g;
+        inited = C3D_TexInitWithParams(tex, nullptr, p);
+    }
+    if (!inited) {
+        *tex = C3D_Tex{};
+        return false;
+    }
+    const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
+    if (total != e.dataSize || !bytes) {
+        mem::LinearGuard g;
+        C3D_TexDelete(tex);
+        *tex = C3D_Tex{};
+        return false;
+    }
+    memcpy(tex->data, bytes, total);
+    C3D_TexFlush(tex);
+    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
+    C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
+                   static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
+    return true;
+}
+
+} // namespace
+
+void ModelStaging::reset() {
+    free(batches_);
+    free(tex_);
+    free(verts_);
+    free(indices_);
+    free(texBytes_);
+    free(texOff_);
+    batches_ = nullptr;
+    tex_ = nullptr;
+    verts_ = nullptr;
+    indices_ = nullptr;
+    texBytes_ = nullptr;
+    texOff_ = nullptr;
+    stage_ = Stage::Empty;
+    version_ = numTextures_ = numBatches_ = 0;
+    numVertices_ = numIndices_ = 0;
+    vertBytes_ = indexBytes_ = copiedV_ = copiedI_ = flushedV_ = flushedI_ = 0;
+    rebased_ = texDone_ = 0;
+    rebaseOk_ = true;
+}
+
+ModelStaging::~ModelStaging() { reset(); }
+
+bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
+    reset();
+    Header h;
+    if (!readAt(f, base, &h, sizeof(h)) || memcmp(h.magic, "TTM1", 4) ||
+        (h.version != kVersion && h.version != kPooledVersion) ||
+        (h.version == kPooledVersion && !pool)) {
+        return false;
+    }
+    version_ = h.version;
+    numTextures_ = h.numTextures;
+    numBatches_ = h.numBatches;
+    numVertices_ = h.numVertices;
+    numIndices_ = h.numIndices;
+    memcpy(posScale_, h.posScale, sizeof(posScale_));
+    memcpy(posOffset_, h.posOffset, sizeof(posOffset_));
+    vertBytes_ = numVertices_ * kVertexSize;
+    indexBytes_ = numIndices_ * sizeof(u16);
+    batches_ = static_cast<Batch*>(malloc(sizeof(Batch) * (numBatches_ ? numBatches_ : 1)));
+    tex_ = static_cast<TexEntry*>(malloc(sizeof(TexEntry) * (numTextures_ ? numTextures_ : 1)));
+    verts_ = static_cast<u8*>(malloc(vertBytes_ ? vertBytes_ : 1));
+    indices_ = static_cast<u16*>(malloc(indexBytes_ ? indexBytes_ : 1));
+    texOff_ = static_cast<u32*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(u32)));
+    if (!batches_ || !tex_ || !verts_ || !indices_ || !texOff_ ||
+        !readAt(f, base + h.batchTableOffset, batches_, sizeof(Batch) * numBatches_) ||
+        !readAt(f, base + h.texTableOffset, tex_, sizeof(TexEntry) * numTextures_) ||
+        !readAt(f, base + h.vertexOffset, verts_, vertBytes_) ||
+        !readAt(f, base + h.indexOffset, indices_, indexBytes_)) {
+        reset();
+        return false;
+    }
+    FILE* texFile = h.version == kPooledVersion ? pool : f;
+    u32 bytes = 0;
+    for (u16 i = 0; i < numTextures_; i++) {
+        if (texFile == f) tex_[i].dataOffset += base;
+        texOff_[i] = bytes;
+        bytes += tex_[i].dataSize;
+    }
+    texBytes_ = static_cast<u8*>(malloc(bytes ? bytes : 1));
+    if (!texBytes_) {
+        reset();
+        return false;
+    }
+    for (u16 i = 0; i < numTextures_; i++) {
+        if (!readAt(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize)) {
+            reset();
+            return false;
+        }
+    }
+    stage_ = Stage::Copy;
+    return true;
+}
+
+ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
+    if (stage_ == Stage::Done) return Result::Complete;
+    if (stage_ == Stage::Empty) return Result::Error;
+    const u64 t0 = svcGetSystemTick();
+    auto over = [&]() { return elapsedUs(t0) >= budgetUs; };
+    constexpr u32 kSlice = 64 * 1024;
+
+    if (stage_ == Stage::Copy && !dst.vertices_) {
+        dst.unload();
+        dst.numTextures_ = numTextures_;
+        dst.numBatches_ = numBatches_;
+        dst.numVertices_ = numVertices_;
+        dst.numIndices_ = numIndices_;
+        memcpy(dst.posScale_, posScale_, sizeof(posScale_));
+        memcpy(dst.posOffset_, posOffset_, sizeof(posOffset_));
+        for (int i = 0; i < 3; i++) {
+            dst.boundsMin_[i] = posOffset_[i] - 32767.0f * posScale_[i];
+            dst.boundsMax_[i] = posOffset_[i] + 32767.0f * posScale_[i];
+        }
+        dst.batches_ = static_cast<Batch*>(malloc(sizeof(Batch) * (numBatches_ ? numBatches_ : 1)));
+        dst.textures_ = static_cast<C3D_Tex*>(calloc(numTextures_ ? numTextures_ : 1, sizeof(C3D_Tex)));
+        {
+            mem::LinearGuard g;
+            dst.vertices_ = linearAlloc(vertBytes_ ? vertBytes_ : 1);
+            dst.indices_ = static_cast<u16*>(linearAlloc(indexBytes_ ? indexBytes_ : 1));
+        }
+        if (!dst.batches_ || !dst.textures_ || !dst.vertices_ || !dst.indices_) {
+            dst.unload();
+            reset();
+            return Result::Error;
+        }
+        memcpy(dst.batches_, batches_, sizeof(Batch) * numBatches_);
+        if (over()) return Result::Pending;
+    }
+    if (stage_ == Stage::Copy) {
+        auto* dstV = static_cast<u8*>(dst.vertices_);
+        while (copiedV_ < vertBytes_) {
+            const u32 n = copiedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - copiedV_;
+            memcpy(dstV + copiedV_, verts_ + copiedV_, n);
+            copiedV_ += n;
+            if (over()) return Result::Pending;
+        }
+        auto* dstI = reinterpret_cast<u8*>(dst.indices_);
+        while (copiedI_ < indexBytes_) {
+            const u32 n = copiedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - copiedI_;
+            memcpy(dstI + copiedI_, reinterpret_cast<u8*>(indices_) + copiedI_, n);
+            copiedI_ += n;
+            if (over()) return Result::Pending;
+        }
+        stage_ = Stage::Rebase;
+    }
+    if (stage_ == Stage::Rebase) {
+        if (numVertices_ <= 0x10000) {
+            while (rebased_ < numBatches_) {
+                const Batch& bt = dst.batches_[rebased_];
+                rebaseOk_ = rebaseOk_ && bt.firstVertex <= numVertices_ &&
+                            bt.numVertices <= numVertices_ - bt.firstVertex &&
+                            bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                if (rebaseOk_) {
+                    u16* idx = dst.indices_ + bt.firstIndex;
+                    for (u32 i = 0; i < bt.numIndices; i++) {
+                        if (idx[i] >= bt.numVertices) rebaseOk_ = false;
+                        idx[i] = static_cast<u16>(idx[i] + bt.firstVertex);
+                    }
+                }
+                rebased_++;
+                if (over()) return Result::Pending;
+            }
+            dst.absoluteIndices_ = rebaseOk_;
+        }
+        if (!rebaseOk_) {
+            dst.unload();
+            reset();
+            return Result::Error;
+        }
+        stage_ = Stage::Flush;
+    }
+    if (stage_ == Stage::Flush) {
+        while (flushedV_ < vertBytes_) {
+            const u32 n = flushedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - flushedV_;
+            GSPGPU_FlushDataCache(static_cast<u8*>(dst.vertices_) + flushedV_, n);
+            flushedV_ += n;
+            if (over()) return Result::Pending;
+        }
+        while (flushedI_ < indexBytes_) {
+            const u32 n = flushedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - flushedI_;
+            GSPGPU_FlushDataCache(reinterpret_cast<u8*>(dst.indices_) + flushedI_, n);
+            flushedI_ += n;
+            if (over()) return Result::Pending;
+        }
+        dst.linearBytes_ = vertBytes_ + indexBytes_;
+        stage_ = Stage::Textures;
+    }
+    if (stage_ == Stage::Textures) {
+        while (texDone_ < numTextures_) {
+            if (!uploadTexture(tex_[texDone_], texBytes_ + texOff_[texDone_], &dst.textures_[texDone_])) {
+                dst.unload();
+                reset();
+                return Result::Error;
+            }
+            dst.linearBytes_ += dst.textures_[texDone_].size;
+            texDone_++;
+            if (over()) return Result::Pending;
+        }
+        TT_LOG("model: staged %lu tris, %u batches, %u tex, %lu KB linear",
+               (unsigned long)(numIndices_ / 3), numBatches_, numTextures_,
+               (unsigned long)(dst.linearBytes_ / 1024));
+        reset(); // heap copy is in the model now
+        stage_ = Stage::Done;
+        return Result::Complete;
+    }
+    return Result::Error;
+}
+
 } // namespace tt::render
