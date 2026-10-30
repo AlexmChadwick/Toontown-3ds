@@ -19,6 +19,12 @@ extern const uint16_t kLevelExp[kTracks][kLevels];
 extern const uint8_t kCarry[kTracks][kCarryRows][kLevels];
 // AvPropDamage[track][level] = (min, max) damage (or heal) at min/max skill.
 extern const uint16_t kDamage[kTracks][kLevels][2];
+// Experience interval used by getAvPropDamage for each gag.
+extern const uint16_t kDamageExp[kTracks][kLevels][2];
+
+// Stock getAvPropDamage without organic / prop bonuses.  Those bonuses are
+// server-owned and are not currently exposed to the native client.
+int damageAtExp(int track, int level, uint16_t exp);
 
 // Number of levels of `track` unlocked by `exp` experience (0 if the track is locked).
 inline int levelsUnlocked(int track, uint16_t exp) {

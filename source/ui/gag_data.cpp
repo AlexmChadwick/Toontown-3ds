@@ -40,5 +40,28 @@ const uint16_t kDamage[kTracks][kLevels][2] = {
     {{3, 4}, {6, 8}, {10, 12}, {18, 21}, {27, 30}, {36, 80}, {105, 105}},
     {{10, 10}, {18, 18}, {30, 30}, {45, 45}, {60, 60}, {85, 170}, {180, 180}},
 };
+const uint16_t kDamageExp[kTracks][kLevels][2] = {
+    {{0, 20}, {20, 200}, {200, 800}, {800, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 20}, {20, 100}, {100, 800}, {800, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}},
+    {{0, 40}, {40, 200}, {200, 1000}, {1000, 2500}, {2500, 7500}, {7500, 10000}, {10000, 10500}},
+    {{0, 10}, {10, 50}, {50, 400}, {400, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 10}, {10, 50}, {50, 400}, {400, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+    {{0, 20}, {20, 100}, {100, 500}, {500, 2000}, {2000, 6000}, {6000, 10000}, {10000, 10500}},
+};
+
+int damageAtExp(int track, int level, uint16_t exp) {
+    const int minDamage = kDamage[track][level][0];
+    const int maxDamage = kDamage[track][level][1];
+    const int minExp = kDamageExp[track][level][0];
+    const int maxExp = kDamageExp[track][level][1];
+    const int boundedExp = exp < maxExp ? exp : maxExp;
+    // Equivalent to floor((exp - minExp) / expPerHp) in stock, expressed
+    // with integers so ARM11 and host builds cannot disagree at a boundary.
+    int result = ((boundedExp - minExp) * (maxDamage - minDamage + 1)) /
+                 (maxExp - minExp + 1) + minDamage;
+    if (result <= 0) result = minDamage;
+    return result;
+}
 
 } // namespace tt::gags

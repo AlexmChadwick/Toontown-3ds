@@ -339,7 +339,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             text(7, 2, 0.34f, kWhite, "%s  x%u  lure%s", gags::kGagNames[track][level], count,
                  world::attackAffectsGroup(track, level) ? " all" : "");
         } else {
-            const unsigned power = unsigned(gags::kDamage[track][level][1]);
+            const unsigned power = unsigned(gags::damageAtExp(track, level, g.exp ? g.exp[track] : 0));
             const char* effect = track == world::kTrackHeal ? "Laff" : "damage";
             text(7, 2, 0.34f, kWhite, "%s  x%u  %u %s%s", gags::kGagNames[track][level], count,
                  power, effect, world::attackAffectsGroup(track, level) ? " (all)" : "");

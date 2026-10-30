@@ -81,6 +81,12 @@ extern const uint16_t kLevelExp[kTracks][kLevels];
 extern const uint8_t kCarry[kTracks][kCarryRows][kLevels];
 // AvPropDamage[track][level] = (min, max) damage (or heal) at min/max skill.
 extern const uint16_t kDamage[kTracks][kLevels][2];
+// Experience interval used by getAvPropDamage for each gag.
+extern const uint16_t kDamageExp[kTracks][kLevels][2];
+
+// Stock getAvPropDamage without organic / prop bonuses.  Those bonuses are
+// server-owned and are not currently exposed to the native client.
+int damageAtExp(int track, int level, uint16_t exp);
 
 // Number of levels of `track` unlocked by `exp` experience (0 if the track is locked).
 inline int levelsUnlocked(int track, uint16_t exp) {{
@@ -111,6 +117,23 @@ inline int levelsUnlocked(int track, uint16_t exp) {{
     for t in damage:
         c.append('    {' + ', '.join('{%d, %d}' % (lv[0][0], lv[0][1]) for lv in t) + '},')
     c.append('};')
+    c.append('const uint16_t kDamageExp[kTracks][kLevels][2] = {')
+    for t in damage:
+        c.append('    {' + ', '.join('{%d, %d}' % (lv[1][0], lv[1][1]) for lv in t) + '},')
+    c.append('};')
+    c += ['', '''int damageAtExp(int track, int level, uint16_t exp) {
+    const int minDamage = kDamage[track][level][0];
+    const int maxDamage = kDamage[track][level][1];
+    const int minExp = kDamageExp[track][level][0];
+    const int maxExp = kDamageExp[track][level][1];
+    const int boundedExp = exp < maxExp ? exp : maxExp;
+    // Equivalent to floor((exp - minExp) / expPerHp) in stock, expressed
+    // with integers so ARM11 and host builds cannot disagree at a boundary.
+    int result = ((boundedExp - minExp) * (maxDamage - minDamage + 1)) /
+                 (maxExp - minExp + 1) + minDamage;
+    if (result <= 0) result = minDamage;
+    return result;
+}''']
     c += ['', '} // namespace tt::gags', '']
     open(os.path.join(out, 'gag_data.h'), 'w').write(h)
     open(os.path.join(out, 'gag_data.cpp'), 'w').write('\n'.join(c))
