@@ -1630,4 +1630,26 @@ What changed:
 - Retain is 4 MiB geometry / 4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS.
   On device, non-cone chunks are evicted while `linearSpaceFree()` is under 12 MB.
   In-cone chunks are not evicted to make that floor. Not measured on Azahar.
+## 2026-10-30 — follow-camera sphere cast (host only)
+
+- **Target:** host `g++` (Ubuntu 13.3.0), `tools/collision_test/run_camera_sphere.sh`.
+  Not Azahar and not hardware. This VM has no `DEVKITARM`, so `source/world/player.cpp`
+  was not cross-compiled and no frame, heap, or VRAM numbers exist for this change.
+- **Result:** PASS, 0 failures. A 1.75-radius sphere stops short of a camera wall
+  (`t=0.325` on a 10-unit segment; the centre ray still reports `t=0.5`). A prop beside
+  the ray and a wall in the next 8-unit cell, both misses for the centre ray, are hits
+  (`t=0.40373` and `t=0.21870`). A WALL-flag slab is ignored. An infinite camera plane
+  matches the wall, including a start already inside the solid half (`t=0`). Approach
+  from outside the grid is `t=0.43750`.
+- **Not claimed:** the follow camera on a 3DS or in Azahar. `Renderer::kNear` is still
+  1.0 (comment only). The zone baker and terrain meshes were not touched.
+- **How to verify in Azahar (Old 3DS) or on hardware:**
+  1. `make` with devkitARM. Expect zero warnings in `source/`.
+  2. Stand against a TTC building and an interior wall. Orbit with L/R. The lens should
+     stop short of the surface, then ease back out once the way is clear. A blurry
+     solid should not fill one side of the view.
+  3. Raise the 3D slider. Both eyes share `kNear` through `Mtx_PerspStereoTilt`. The
+     wall should stay outside the frustum corners.
+  4. Talk to an NPC. The shot should still look at the NPC; the lens pulls in only
+     when a camera solid lies between the head and the desired eye.
 

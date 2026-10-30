@@ -344,6 +344,14 @@ hardware. See `docs/test-log.md`.
   - Why `C2D_DrawCircleSolid` (proctex) fails after the 3D pass.
 
 Lessons recorded for agents:
+- **Camera and the near plane.** The follow camera sweeps a 1.75-unit sphere from the
+  toon's head to the ideal eye (`CollisionWorld::cameraSphereCast`) and eases the boom
+  back out only. Pull-in is instant. `Renderer::kNear` stays 1.0: closer, and the PICA200
+  clipper shatters triangles that cross the near plane; the sphere is what keeps walls
+  outside the near-plane corners (about 1.53 at fov 55 with the stereo slider maxed).
+  Do not shrink `kNear`, and do not raise it without raising `kCamClearance` in
+  `world/player.cpp`. Both eyes share that near plane. NPC talk uses the same
+  pull-in and keeps its own look-at.
 - **Command buffer.** The citro3d command buffer overflows into an svcBreak PANIC.
   Keep per-draw state changes minimal: one `BufInfo` per model (indices are rebased to
   absolute at load), and `C3D_GetCmdBufUsage()` guards each model.

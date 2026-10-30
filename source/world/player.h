@@ -40,7 +40,10 @@ public:
     void overrideCamera(const C3D_FVec& eye, const C3D_FVec& target) {
         camEye_ = eye;
         camTarget_ = target;
+        camDist_ = cameraDistance();
     }
+    // Same as overrideCamera, then snap the lens in along head -> eye if a camera
+    // solid is in the way. The look-at stays `target`.
     void overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target);
     // Moving platform (Donald's Dock boat). `deck` is the platform's collision in its own frame;
     // (x, y, z, headingDeg) is the platform's current pose in the world (boat-local -> world is
@@ -81,7 +84,9 @@ public:
     float cameraDistance() const;
 
 private:
-    void avoidCamera(const C3D_FVec& head);
+    // Pull the boom in so a sphere around the lens misses camera solids, then ease it
+    // back out. dt <= 0 snaps (teleport, talk camera) so the lens never rests in a wall.
+    void avoidCamera(const C3D_FVec& head, float dt);
     void locomote(const Input& in, float dt, const CollisionWorld* world);
     void camera(const Input& in, float dt);
     bool tryBoard();
@@ -97,6 +102,7 @@ private:
     float vz_ = 0;
     float camYawOffset_ = 0; // degrees relative to toon heading
     float camPitch_ = 14;    // degrees above horizontal
+    float camDist_ = 12.0f;  // smoothed boom length (kCamDistance until the first avoid)
     C3D_FVec camEye_{};
     C3D_FVec camTarget_{};
     const CollisionWorld* collision_ = nullptr;

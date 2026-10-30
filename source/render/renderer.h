@@ -66,6 +66,12 @@ public:
     const FrameStats& stats() const { return stats_; }
     void resetStats() { stats_ = FrameStats{}; }
 
+    // Closest the near plane may sit. Any closer and triangles that pass the lens
+    // shatter: the PICA200 clipper drops or explodes polygons that cross the near
+    // plane, and w near 0 blows up perspective-correct depth. Do not lower this.
+    // Raising it clips the toon (hidden only inside 2.5 units) unless the follow
+    // camera's clearance grows with it. Both stereo eyes use this same distance
+    // (Mtx_PerspStereoTilt); the eye shift is a projection skew, not a second near.
     static constexpr float kNear = 1.0f;
     static constexpr float kFar = 300.0f;
     static constexpr float kFovYDeg = 55.0f;
