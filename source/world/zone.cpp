@@ -245,6 +245,7 @@ struct Zone::Impl {
         volatile JobState state = Free;
         uint16_t chunk = 0;
         uint8_t lod = 0;
+        uint32_t seq = 0; // queue order: the loader takes the oldest, so a re-queued chunk cannot starve another
         render::Model model;
         render::ModelStaging staging; // loader fills the bytes; the main thread uploads
     };
@@ -252,6 +253,7 @@ struct Zone::Impl {
     render::Model* models = nullptr;
     render::Model* parkedModels = nullptr;
     Job jobs[kJobs];
+    uint32_t jobSeq = 0;
     LightLock lock;
     LightEvent wake;
     Thread thread = nullptr;
@@ -268,7 +270,8 @@ void loaderMain(void* arg) {
         Zone::Impl::Job* job = nullptr;
         LightLock_Lock(&z.lock);
         for (auto& j : z.jobs)
-            if (j.state == Zone::Impl::Queued) { job = &j; j.state = Zone::Impl::Reading; break; }
+            if (j.state == Zone::Impl::Queued && (!job || j.seq - job->seq > 0x80000000u)) job = &j;
+        if (job) job->state = Zone::Impl::Reading;
         LightLock_Unlock(&z.lock);
         if (!job) { LightEvent_Wait(&z.wake); continue; }
         const Chunk d = modelInfo(z.chunks[job->chunk], job->lod);
@@ -844,7 +847,9 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     recompute();
     // Drop the oldest hidden chunk, then a parked high mesh, until `add` fits.
     // `protect` is never evicted. The displayed mesh of a desired chunk is never evicted.
-    auto makeRoom=[&](uint64_t addG,uint64_t addT,uint64_t dropG,uint64_t dropT,int protect,bool forDesired) {
+    // `planEvict` false: a culled or warm read never evicts another desired chunk (rank 1/4),
+    // or two culled plan chunks would evict each other on every upload.
+    auto makeRoom=[&](uint64_t addG,uint64_t addT,uint64_t dropG,uint64_t dropT,int protect,bool forDesired,bool planEvict=true) {
         auto over=[&]() {
             uint64_t g=z.geom+z.inflightGeom+addG, t=z.tex+z.inflightTex+addT;
             if (g>=dropG) g-=dropG; else g=0;
@@ -859,14 +864,14 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const bool warmHold=z.preload && z.warm[i];
                 int r=-1;
                 if (!z.desired[i] && !warmHold && (z.resident[i] || z.parked[i])) r=0;
-                else if (z.h.version>=2 && z.desired[i] && !z.inCone[i] && !warmHold &&
+                else if (planEvict && z.h.version>=2 && z.desired[i] && !z.inCone[i] && !warmHold &&
                          (z.resident[i] || z.parked[i])) r=1;
                 else if (!z.desired[i] && !warmHold && z.parked[i]) r=2;
                 // forDesired used to evict warm holds here, which dropped a chunk the
                 // warm loop then queued again. Rank 0 already covers a hidden chunk
                 // once preload ends and warmHold is false.
                 else if (forDesired && !z.desired[i] && !warmHold && (z.resident[i] || z.parked[i])) r=3;
-                else if (forDesired && z.desired[i] && !z.inCone[i] && !warmHold && z.parked[i]) r=4;
+                else if (planEvict && forDesired && z.desired[i] && !z.inCone[i] && !warmHold && z.parked[i]) r=4;
                 if (r<0) continue;
                 if (r<rank || (r==rank && z.seenAt[i]<seen)) { best=static_cast<int>(i); rank=r; seen=z.seenAt[i]; }
             }
@@ -898,6 +903,11 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         // far mesh). Culled chunks are not demoted, so they never swap in the far blob.
         const bool demote=lod==1 && z.desired[i] && z.inCone[i] && z.choice[i]==1;
         if (((z.resident[i] && z.lod[i]==0) || z.parked[i]) && !demote) return 1;
+#ifdef __3DS__
+        for (auto& job:z.jobs) if (job.state!=Impl::Free && job.chunk==i && job.lod==lod) return 1;
+#else
+        for (auto& job:z.hostJobs) if (job.used && job.chunk==i && job.lod==lod) return 1;
+#endif
         const Chunk d=modelInfo(z.chunks[i],lod);
         if (!d.size) {
             sync();
@@ -916,7 +926,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         // cap. Warm and other non-cone reads only fill what is left, and on device
         // they also stop when linear free would fall under 12 MB.
         const bool essential=z.desired[i] && z.inCone[i];
-        const bool fit=makeRoom(d.geom,d.tex,dropG,dropT,static_cast<int>(i),true);
+        const bool fit=makeRoom(d.geom,d.tex,dropG,dropT,static_cast<int>(i),true,essential);
         if (!essential && !fit) return -1;
 #ifdef __3DS__
         if (!essential) {
@@ -936,7 +946,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         ++z.loadsQueued;
         z.inflightGeom+=d.geom; z.inflightTex+=d.tex;
         LightLock_Lock(&z.lock);
-        slot->chunk=i; slot->lod=lod; slot->state=Impl::Queued;
+        slot->chunk=i; slot->lod=lod; slot->seq=z.jobSeq++; slot->state=Impl::Queued;
         LightLock_Unlock(&z.lock);
         LightEvent_Signal(&z.wake);
 #else
@@ -1026,6 +1036,7 @@ bool Zone::loading() const {
     if (!impl_ || !impl_->planned) return false;
     for (uint32_t j=0;j<impl_->numOrder;++j) {
         const uint16_t i=impl_->order[j];
+        if (!impl_->inCone[i]) continue; // culled plan chunks fill in behind the card (Place::streamReady)
         if (!impl_->failed[i] && !(impl_->resident[i] && impl_->lod[i]==impl_->choice[i])) return true;
     }
     return false;
