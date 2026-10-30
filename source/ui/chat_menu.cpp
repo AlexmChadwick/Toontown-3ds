@@ -4,7 +4,7 @@
 #include <cstring>
 
 #include "core/log.h"
-#include "ui/draw_shapes.h"
+#include "ui/rounded_rect.h"
 
 namespace tt::ui {
 
@@ -18,43 +18,39 @@ constexpr float kScrollBarW = 4.0f;
 constexpr float kBackW = 64.0f;
 constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 
-// SpeedChat is a Shticker Book quick page: parchment phrases and red category cards.
-const u32 kBg = C2D_Color32(0x6E, 0x12, 0x12, 0xFF);
-const u32 kPanel = C2D_Color32(0xF2, 0xEC, 0xDF, 0xFF);
-const u32 kPanelMenu = C2D_Color32(0x91, 0x25, 0x20, 0xFF);
-const u32 kPressed = C2D_Color32(0xD8, 0xC8, 0xAD, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
+// Classic SpeedChat is a stack of opaque white speech-menu cards, not a dark HUD panel.
+// Category colour is retained at every submenu level so navigation remains legible at 240p.
+const u32 kScreen = C2D_Color32(0x79, 0xC9, 0xEB, 0xFF);
+const u32 kHeader = C2D_Color32(0x32, 0x8E, 0xC4, 0xFF);
+const u32 kPaper = C2D_Color32(0xFF, 0xFD, 0xF5, 0xFF);
+const u32 kPressed = C2D_Color32(0xE4, 0xF2, 0xFA, 0xFF);
+const u32 kFocus = C2D_Color32(0xFF, 0xD8, 0x3A, 0xFF);
+const u32 kInk = C2D_Color32(0x18, 0x31, 0x43, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kInk = C2D_Color32(0x20, 0x18, 0x10, 0xFF);
-const u32 kDim = C2D_Color32(0x78, 0x68, 0x58, 0xFF);
-const u32 kMenuText = C2D_Color32(0xFF, 0xE0, 0x8A, 0xFF);
-const u32 kOutline = C2D_Color32(0x55, 0x3D, 0x2A, 0xFF);
+const u32 kDim = C2D_Color32(0x91, 0x99, 0x9C, 0xFF);
+const u32 kShadow = C2D_Color32(0x16, 0x4D, 0x6C, 0x58);
+
+const u32 kCategory[] = {
+    C2D_Color32(0xA8, 0x65, 0xC7, 0xFF), // Emotes
+    C2D_Color32(0x31, 0xA9, 0xD6, 0xFF), // greetings / general phrases
+    C2D_Color32(0xEE, 0x77, 0x9C, 0xFF), // feelings / friendly
+    C2D_Color32(0x65, 0xB8, 0x51, 0xFF), // places
+    C2D_Color32(0xF0, 0x9B, 0x35, 0xFF), // toontasks / battle / gag shop
+};
+
+int rootCategory(int menu) {
+    int root = menu;
+    while (sc::kMenus[root].parent > 0) root = sc::kMenus[root].parent;
+    if (root == 24) return 0;
+    if (root >= 3 && root <= 9) return 2;
+    if (root >= 10 && root <= 15) return 3;
+    if (root >= 16 && root <= 23) return 4;
+    return 1;
+}
+
+u32 categoryColor(int menu) { return kCategory[rootCategory(menu)]; }
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
-
-// DirectGui gives the stock SpeedChat branches their own button colours.  Preserve
-// that visual grouping without another texture: descendants inherit the colour of
-// their root category, while the root menu gives each category its own card.  The
-// palette is deliberately dark enough for the original cream label colour.
-u32 categoryColor(int menu) {
-    static const u32 palette[] = {
-        C2D_Color32(0x9A, 0x2D, 0x28, 0xFF), // red leather
-        C2D_Color32(0x3B, 0x72, 0xA5, 0xFF), // playground blue
-        C2D_Color32(0x4D, 0x83, 0x43, 0xFF), // gag green
-        C2D_Color32(0x8A, 0x55, 0x98, 0xFF), // toon purple
-        C2D_Color32(0xA0, 0x63, 0x2D, 0xFF), // warm orange
-        C2D_Color32(0x3D, 0x83, 0x82, 0xFF), // teal
-    };
-    int branch = menu;
-    while (branch > 0 && sc::kMenus[branch].parent > 0) branch = sc::kMenus[branch].parent;
-    if (branch <= 0) return kPanelMenu;
-    const sc::Menu& root = sc::kMenus[0];
-    for (int i = 0; i < root.numItems; i++) {
-        const sc::Item& item = sc::kItems[root.firstItem + i];
-        if (item.isMenu && item.value == branch) return palette[i % (sizeof(palette) / sizeof(palette[0]))];
-    }
-    return kPanelMenu;
-}
 
 } // namespace
 
@@ -263,6 +259,8 @@ void ChatMenu::draw(float panelBottom) {
     const float listH = panelBottom - kHeaderH;
     const sc::Menu& m = sc::kMenus[menu_];
 
+    C2D_DrawRectSolid(0, 0, kZ - 0.02f, kW, panelBottom, kScreen);
+
     // Rows (drawn first; the header is drawn over rows scrolled above it, the tab bar
     // over rows below).
     const int firstRow = static_cast<int>(scroll_ / kRowH);
@@ -272,15 +270,16 @@ void ChatMenu::draw(float panelBottom) {
         const sc::Item& it = sc::kItems[m.firstItem + i];
         const float y = kHeaderH + i * kRowH - scroll_;
         const bool focused = i == focus_;
-        const u32 menuBg = categoryColor(menu_ == 0 && it.isMenu ? it.value : menu_);
-        const u32 bg = focused ? kAccent : (i == pressedRow_ ? kPressed : (it.isMenu ? menuBg : kPanel));
-        // Stock SpeedChat is a stack of opaque speech cards.  The dark outline keeps
-        // white phrase cards readable over a bright map while category cards retain
-        // the red Shticker Book leather colour.
-        shape::roundFrame(rowX, y + kRowGap * 0.5f, kZ, rowW, kRowH - kRowGap,
-                          6.0f, 1.0f, focused ? kAccent : kOutline, bg);
+        const int childMenu = it.isMenu ? it.value : menu_;
+        const u32 category = categoryColor(childMenu);
+        const u32 bg = focused ? kFocus : (i == pressedRow_ ? kPressed : kPaper);
+        const float cardY = y + kRowGap * 0.5f;
+        drawRoundedRect(rowX + 1.5f, cardY + 1.5f, kZ, rowW, kRowH - kRowGap, 6.0f, kShadow);
+        drawRoundedPanel(rowX, cardY, kZ + 0.002f, rowW, kRowH - kRowGap, 6.0f,
+                         focused ? C2D_Color32(0xB7, 0x79, 0x00, 0xFF) : category, bg,
+                         focused ? 2.0f : 1.25f);
         const bool locked = it.value==65535 && it.emote>=0 && !emoteAccess_[it.emote];
-        const u32 fg = locked ? kDim : focused ? kInk : (it.isMenu ? kMenuText : kInk);
+        const u32 fg = locked ? kDim : kInk;
         const float s = labelScale_[i];
         const float ty = y + (kRowH - labelH_[i]) * 0.5f;
         if (labelWrap_[i]) {
@@ -300,23 +299,25 @@ void ChatMenu::draw(float panelBottom) {
         const float content = m.numItems * kRowH;
         const float barH = listH * listH / content;
         const float barY = kHeaderH + (listH - barH) * (scroll_ / ms);
-        C2D_DrawRectSolid(kW - kMarginX - kScrollBarW, kHeaderH, kZ, kScrollBarW, listH, kPanel);
-        C2D_DrawRectSolid(kW - kMarginX - kScrollBarW, barY, kZ, kScrollBarW, barH, kDim);
+        drawRoundedRect(kW - kMarginX - kScrollBarW, kHeaderH + 2.0f, kZ, kScrollBarW,
+                        listH - 4.0f, 2.0f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xA0));
+        drawRoundedRect(kW - kMarginX - kScrollBarW, barY, kZ + 0.002f, kScrollBarW,
+                        barH, 2.0f, categoryColor(menu_));
     }
 
     // Header.
-    C2D_DrawRectSolid(0, 0, kZ, kW, kHeaderH, kBg);
+    C2D_DrawRectSolid(0, 0, kZ, kW, kHeaderH, kHeader);
     float titleX = kMarginX + 2.0f;
     if (m.parent >= 0) {
-        shape::roundFrame(kMarginX, 2, kZ, kBackW, kHeaderH - 4, 6.0f, 1.0f,
-                          kAccent, pressedBack_ ? kPressed : categoryColor(menu_));
-        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ, 0.5f, 0.5f, kWhite);
+        drawRoundedPanel(kMarginX, 2, kZ + 0.002f, kBackW, kHeaderH - 4, 6.0f, kWhite,
+                         pressedBack_ ? kPressed : categoryColor(menu_));
+        C2D_DrawText(&back_, C2D_WithColor, kMarginX + 8.0f, 6.0f, kZ + 0.004f, 0.5f, 0.5f, kWhite);
         titleX = kMarginX + kBackW + 8.0f;
     } else if (focus_ < 0) {
-        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 8.0f, kZ, 0.42f, 0.42f, kDim);
+        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 8.0f, kZ, 0.42f, 0.42f, kWhite);
     }
     C2D_DrawText(&title_, C2D_WithColor, titleX, 6.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
-                 kAccent);
+                 kWhite);
 }
 
 } // namespace tt::ui
