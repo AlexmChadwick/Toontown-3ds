@@ -49,6 +49,8 @@ public:
     static const char* testTypedName();
 
     Action update(u32 down, u32 held, const touchPosition& touch, float dt);
+    // MakeAToon.music (create_a_toon) while making or naming a Toon; otherwise the title's tt_theme.
+    bool wantsMakeAToonMusic() const { return screen_ == Screen::Make; }
     // Top screen: 3D toon preview, then a citro2d overlay. Call between C3D_FrameBegin/End.
     void drawTop(render::Renderer& renderer);
     void drawBottom(C3D_RenderTarget* bottom);

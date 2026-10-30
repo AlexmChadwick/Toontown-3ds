@@ -225,7 +225,6 @@ int main() {
         tt::audio::stopMusic(300);
         tt::audio::playMusic(path, true, 300);
     };
-    playHoodMusic(2000);
     // Streets play the hood's town music (TownLoader.musicFile), interiors its activity
     // music (activityMusicFile); docs/design/audio.md. Falls back to the playground track.
     auto playPlaceMusic = [&](u32 zone) {
@@ -503,6 +502,20 @@ int main() {
     bool inFrontEnd = !autotest.active() || autotest.frontEndScript();
     bool releaseFrontEndArt = false; // FrontEnd::releaseArt at the next frame fence
     if (!inFrontEnd && settings.online) startNet(false);
+    // Front-end music: ToontownStart's tt_theme (title, connecting, Pick-A-Toon) and MakeAToon.music
+    // (create_a_toon) from the SD set; the playground track if they are missing. 0 none, 1 theme, 2 MAT.
+    int frontEndMusic = 0;
+    auto playFrontEndMusic = [&](int which) {
+        if (frontEndMusic == which) return;
+        frontEndMusic = which;
+        tt::audio::stopMusic(300);
+        if (!tt::audio::playMusic(which == 2 ? "sdmc:/3ds/toontown3ds/data/audio/fe_create.tsnd"
+                                             : "sdmc:/3ds/toontown3ds/data/audio/fe_theme.tsnd",
+                                  true, 300))
+            playHoodMusic(2000);
+    };
+    if (inFrontEnd) playFrontEndMusic(1);
+    else playHoodMusic(2000);
 
     u64 lastTick = svcGetSystemTick();
     u64 fpsTick = lastTick;
@@ -563,6 +576,7 @@ int main() {
             autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
             if (autotest.pendingShot()) shotName = autotest.pendingShot();
             const tt::game::Action action = frontEnd.update(in.down, in.held, touch, dt);
+            playFrontEndMusic(frontEnd.wantsMakeAToonMusic() ? 2 : 1);
             if (action == tt::game::Action::StartOnline) {
                 if (startNet(true)) {
                     frontEnd.setNet(&net);
@@ -572,6 +586,8 @@ int main() {
             } else if (action == tt::game::Action::StartOffline || action == tt::game::Action::EnterWorld) {
                 if (action == tt::game::Action::StartOffline && netStarted) net.disconnect();
                 inFrontEnd = false;
+                frontEndMusic = 0;
+                playPlaceMusic(place.zoneId()); // the place's own track replaces the front end's
                 releaseFrontEndArt = true; // after this frame's C3D_FrameBegin fence
                 localLookFromServer = false;
                 player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
