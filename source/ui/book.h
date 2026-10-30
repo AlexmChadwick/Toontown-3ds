@@ -37,7 +37,7 @@ public:
 
     bool isOpen() const { return isOpen_; }
     void open(int page = -1);
-    void close();
+    void close(const char* why = "code"); // every close is logged with its reason
     void toggle();
 
     void setPage(int page);
@@ -45,13 +45,16 @@ public:
     void prevPage();
     int currentPage() const { return curPage_; }
 
-    u32 handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc);
+    // held: hidKeysHeld this frame. A touch only acts on its touch-down frame, with a point on
+    // the screen, and never while the stylus that was down when the book opened is still down.
+    u32 handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDrawContext& bdc);
     void draw(const BookDrawContext& bdc);
 
 private:
     void rebuildTabs();
 
     bool isOpen_ = false;
+    bool touchBlocked_ = false; // the stylus has not been lifted since the book opened
     int curPage_ = kPageGags;
 
     PageInventory pageGags_;

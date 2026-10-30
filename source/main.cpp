@@ -621,7 +621,8 @@ int main() {
         }
         tt::prof::lap(tt::prof::kInput);
         if (inFrontEnd) {
-            if (in.down & KEY_START) break;
+            // START no longer quits from the front end (a stray press ended the whole game on
+            // hardware); HOME closes the app, and the book's Options page has Quit Toontown.
             if (netStarted) net.update(tt::net::plat::nowMs());
             tt::prof::lap(tt::prof::kNet);
             autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
@@ -869,9 +870,15 @@ int main() {
             else if (!strcmp(page, "trophies")) ui.openBookPage(tt::ui::Book::kPageTrophies);
             else if (!strcmp(page, "sos")) ui.openBookPage(tt::ui::Book::kPageSos);
             else if (!strcmp(page, "options")) ui.openBookPage(tt::ui::Book::kPageOptions);
+        } else if (autotest.active() && !strncmp(autotest.label(), "book touch", 10)) {
+            static const char* bookTouchStep = nullptr;
+            if (autotest.label() != bookTouchStep) {
+                bookTouchStep = autotest.label();
+                TT_LOG("book touch: step '%s' book %s", bookTouchStep, ui.book().isOpen() ? "open" : "closed");
+            }
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
                    strncmp(autotest.label(), "pad: book", 9) != 0) { // padnav: those steps drive the book with buttons
-            ui.book().close();
+            ui.book().close("autotest step");
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
@@ -2164,7 +2171,7 @@ int main() {
             // ---- clerks: ordered replies retain COMPLETE even when CLEAR follows ----
             serviceClerks.update(net, nowMs);
             if (serviceClerks.active())
-                ui.book().close();
+                ui.book().close("service clerk");
             // ---- end clerks ----
             shop.update(net, nowMs);
             tailor.update(net, nowMs);

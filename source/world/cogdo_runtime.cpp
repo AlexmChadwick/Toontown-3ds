@@ -800,7 +800,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
         frame.battle.reset();
         frame.remotes.clear();
         frame.suits.setZone(frame.client.zoneId());
-        frame.ui.book().close();
+        frame.ui.book().close("cogdo_runtime");
         TT_LOG("cogdo: entered interior %u exterior %u", unsigned(interior_), unsigned(exterior_));
     }
     frame.client.update(now);

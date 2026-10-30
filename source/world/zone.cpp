@@ -1,4 +1,6 @@
 #include "world/zone.h"
+
+#include "core/crash.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -220,6 +222,7 @@ struct Zone::Impl {
 #ifdef __3DS__
 namespace {
 void loaderMain(void* arg) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     Zone::Impl& z = *static_cast<Zone::Impl*>(arg);
     while (!z.quit) {
         Zone::Impl::Job* job = nullptr;

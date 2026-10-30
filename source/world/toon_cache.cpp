@@ -1,5 +1,7 @@
 #include "world/toon_cache.h"
 
+#include "core/crash.h"
+
 #include <cstdlib>
 #include <initializer_list>
 #include <cstring>
@@ -321,6 +323,7 @@ bool ToonCache::acquire(const ToonDna& dna, ToonLod lod, ToonLook* out) {
 // ---- loader thread: all linear-memory work ----
 
 void ToonCache::loaderMain(void* arg) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     ToonCache& self = *static_cast<ToonCache*>(arg);
     while (!self.quit_) {
         if (!self.loaderStep()) LightEvent_Wait(&self.wake_);

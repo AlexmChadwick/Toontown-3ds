@@ -11,8 +11,14 @@ namespace {
 
 // threadOnException runs the handler on this stack, with the exception data written to it.
 // Big enough for the console + printf of the on-screen report.
+// One handler stack per thread (two threads faulting together must not share one): the
+// first install (the main thread) gets the large one, the worker threads the small ones.
 constexpr size_t kHandlerStackSize = 0x8000;
+constexpr size_t kWorkerStackSize = 0x4000;
+constexpr int kWorkerStacks = 6; // asset loader, toon cache, zone loader, music stream, net, spare
 alignas(8) u8 gHandlerStack[kHandlerStackSize];
+alignas(8) u8 gWorkerStacks[kWorkerStacks][kWorkerStackSize];
+volatile int gInstalls = 0;
 volatile bool gPanicking = false;
 bool gScreensReady = false;
 
@@ -105,7 +111,10 @@ namespace {
 } // namespace
 
 void installForThisThread() {
-    threadOnException(onException, gHandlerStack + kHandlerStackSize, WRITE_DATA_TO_HANDLER_STACK);
+    const int slot = __atomic_fetch_add(&gInstalls, 1, __ATOMIC_SEQ_CST);
+    u8* top = slot == 0 ? gHandlerStack + kHandlerStackSize
+                        : gWorkerStacks[(slot - 1) % kWorkerStacks] + kWorkerStackSize; // threads that restart reuse slots
+    threadOnException(onException, top, WRITE_DATA_TO_HANDLER_STACK);
 }
 
 } // namespace tt::crash

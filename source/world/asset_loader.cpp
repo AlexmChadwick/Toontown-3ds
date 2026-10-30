@@ -1,5 +1,7 @@
 #include "world/asset_loader.h"
 
+#include "core/crash.h"
+
 #include <cstdio>
 #include <cstring>
 
@@ -73,6 +75,7 @@ bool step() {
 }
 
 void loaderMain(void*) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     while (!gQuit) {
         if (!step()) LightEvent_Wait(&gWake);
     }

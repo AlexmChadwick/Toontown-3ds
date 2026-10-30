@@ -209,7 +209,7 @@ void CeoBattle::begin(BossFrame& frame, const net::BossState& state) {
     frame.place.unload();
     frame.player.setDynamic(nullptr);
     frame.player.reset(-1.40f, 59.78f, 0.0f, 0.0f); // BossbotHQBossBattle.teleportInPosHpr
-    frame.ui.book().close();
+    frame.ui.book().close("ceo_battle");
 }
 
 void CeoBattle::leave(BossFrame& frame, bool sad) {

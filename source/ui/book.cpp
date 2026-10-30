@@ -1,6 +1,7 @@
 #include "render/ui_font.h"
 #include "ui/book.h"
 #include "ui/book_tab_icons.h"
+#include "core/log.h"
 #include "ui/theme.h"
 #include <cstdio>
 
@@ -53,6 +54,9 @@ void Book::shutdown() {
 }
 
 void Book::open(int page) {
+    if (!isOpen_) TT_LOG("book: open on page %d", page >= 0 ? page : curPage_);
+    // The tap (or button) that opened the book must not also act inside it.
+    if (!isOpen_) touchBlocked_ = true;
     isOpen_ = true;
     if (page >= 0 && page < kPageCount) {
         setPage(page);
@@ -61,15 +65,16 @@ void Book::open(int page) {
     }
 }
 
-void Book::close() {
+void Book::close(const char* why) {
     if (isOpen_) {
+        TT_LOG("book: close (%s) on page %d", why, curPage_);
         pages_[curPage_]->exit();
         isOpen_ = false;
     }
 }
 
 void Book::toggle() {
-    if (isOpen_) close();
+    if (isOpen_) close("toggle");
     else open();
 }
 
@@ -91,23 +96,40 @@ void Book::prevPage() {
     setPage((curPage_ + kPageCount - 1) % kPageCount);
 }
 
-u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
+u32 Book::handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDrawContext& bdc) {
     if (!isOpen_) return 0;
+    // The whole bottom screen is the book: no touch reaches the tab bar or the world under it.
+    const u32 touchKeys = keysDown & KEY_TOUCH;
+    if (!(held & KEY_TOUCH) && !touchKeys) touchBlocked_ = false;
+    if (touchKeys) {
+        // Only a fresh touch-down with a real point acts: the opening stylus (still down), and
+        // the (0,0) / off-screen point some hardware reports on a touch's first or last frame,
+        // are dropped.
+        const bool valid = (touch.px != 0 || touch.py != 0) && touch.px < 320 && touch.py < 240;
+        if (touchBlocked_ || !valid) {
+            TT_LOG("book: ignored touch at %u,%u (%s)", unsigned(touch.px), unsigned(touch.py),
+                   touchBlocked_ ? "stylus down since open" : "no point");
+            keysDown &= ~KEY_TOUCH;
+        }
+        touchBlocked_ = false;
+        if (keysDown & KEY_TOUCH)
+            TT_LOG("book: touch %u,%u on page %d", unsigned(touch.px), unsigned(touch.py), curPage_);
+    }
 
     // ---- padnav: B closes the book like START (upstream's book has a close button only) ----
     if (keysDown & (KEY_START | KEY_B)) {
-        close();
-        return keysDown & (KEY_START | KEY_B);
+        close((keysDown & KEY_B) ? "B" : "START");
+        return (keysDown & (KEY_START | KEY_B)) | touchKeys;
     }
 
     if (keysDown & KEY_L) {
         prevPage();
-        return KEY_L;
+        return KEY_L | touchKeys;
     }
 
     if (keysDown & KEY_R) {
         nextPage();
-        return KEY_R;
+        return KEY_R | touchKeys;
     }
     // ---- end padnav ----
 
@@ -123,7 +145,7 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
                 return KEY_TOUCH;
             }
             if (touch.px >= 280) {
-                close();
+                close("close button");
                 return KEY_TOUCH;
             }
         }
@@ -154,7 +176,7 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
         nextPage();
         consumed |= KEY_DRIGHT;
     }
-    return consumed;
+    return consumed | touchKeys;
     // ---- end padnav ----
 }
 

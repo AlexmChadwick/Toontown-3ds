@@ -124,7 +124,7 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     frame.place.unload();
     frame.player.setDynamic(nullptr);
     frame.player.reset(-2.84f, -99.47f, 0, 0); // LawbotHQBossBattle teleportInPosHpr.
-    frame.ui.book().close();
+    frame.ui.book().close("cj_battle");
 }
 
 void CjBattle::leave(BossFrame& frame, bool sad) {

@@ -210,7 +210,7 @@ void Ui::syncContext(net::Client& client, unsigned zone, bool lost, bool exclusi
         closet_.dismiss();
         serviceClerks_.dismiss();
         if (talk_) talk_->reset();
-        book_.close();
+        book_.close(changed ? "zone changed" : lost ? "left the zone" : "exclusive panel");
     }
     if (changed || lost) {
         if (auto* purchase = MinigamePurchasePanel::activeInstance()) purchase->close();
@@ -236,7 +236,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.state = &s;
-        return book_.handleInput(down, t, bdc);
+        return book_.handleInput(down, held, t, bdc);
     }
     if (owner == PanelOwner::Shop) return shop_.handleInput(down, t);
     if (owner == PanelOwner::Tailor) return tailor_.handleInput(down, t);

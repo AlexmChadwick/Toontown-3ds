@@ -910,7 +910,7 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.place.unload(); // The lobby and arena never consume the zone pools together.
         if (cashbot_) frame.player.reset(88, -214, 0, 210);
         else frame.player.reset(-10, -80, 0, 0);
-        frame.ui.book().close();
+        frame.ui.book().close("boss_battle");
     }
     frame.client.update(nowMs);
     net::Event event;

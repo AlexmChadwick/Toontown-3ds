@@ -100,6 +100,32 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, 0, "pad: book map hoods", "pad_book_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: book close map"},
     // ---- end padnav ----
+    // Shtiker Book by touch, held like a real stylus tap (6 frames, see apply): every tap but the
+    // red X / B / START must leave it open. Run with AUTOTEST_FROM / AUTOTEST_ONLY="book touch".
+    {1.0f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: open (START)", "booktouch_open"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 53, 224, 0, "book touch: tab tasks", "booktouch_tab_tasks"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 88, 224, 0, "book touch: tab cogs", "booktouch_tab_cogs"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 159, 224, 0, "book touch: tab fish", "booktouch_tab_fish"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 301, 224, 0, "book touch: tab map", "booktouch_tab_map"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 20, 10, 0, "book touch: prev", "booktouch_prev"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 245, 10, 0, "book touch: next", "booktouch_next"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 140, 10, 0, "book touch: header gap", "booktouch_header"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 265, 224, 0, "book touch: tab options", "booktouch_tab_options"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 40, 0, "book touch: options stereo", "booktouch_opt_stereo"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 40, 0, "book touch: options stereo back"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 64, 0, "book touch: options detail"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 64, 0, "book touch: options detail back"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 136, 88, 0, "book touch: options music +", "booktouch_opt_music"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 90, 112, 0, "book touch: options sound -"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 236, 120, 0, "book touch: options districts", "booktouch_opt_districts"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 17, 224, 0, "book touch: tab gags"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 160, 120, 0, "book touch: gags content", "booktouch_gags_content"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 300, 10, 0, "book touch: close X", "booktouch_closed_x"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: reopen 1"},
+    {0.8f, 0, 0, 0, KEY_B, -1, -1, 0, "book touch: close B", "booktouch_closed_b"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: reopen 2"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: close START", "booktouch_closed_start"},
+    {0.5f, 0, 0, 0, 0, -1, -1, 0, "book touch: done"},
     {3.0f, 0, 0, 0, 0, -1, -1, 8, "stress 8 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 16, "stress 16 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 32, "stress 32 toons"},
@@ -446,6 +472,13 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         }
         if (s.stressToons >= 0) stressToons = s.stressToons;
         stepStarted_ = true;
+    }
+    // "book touch" steps hold the stylus for 6 frames like a real tap: down on the first frame,
+    // then held with the same point (hardware never reports a one-frame touch).
+    if (s.touchX >= 0 && stepFrames_ > 1 && stepFrames_ <= 6 && !strncmp(s.label, "book touch", 10)) {
+        touch.px = static_cast<u16>(s.touchX);
+        touch.py = static_cast<u16>(s.touchY);
+        held |= KEY_TOUCH;
     }
     pad.dx = s.padX;
     pad.dy = s.padY;
