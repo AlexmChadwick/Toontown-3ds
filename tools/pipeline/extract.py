@@ -151,10 +151,19 @@ class Extractor:
             gn = gnp.node()
             decal_depth = self._decal_depth(gnp, root) if self.decals else 0
             own_decal = self.decals and gn.getEffect(DecalEffect.getClassType()) is not None
+            sign = False
+            p = gnp
+            while not p.isEmpty():
+                if p.getTag('sign_text') == '1':
+                    sign = True
+                    break
+                if p == root:
+                    break
+                p = p.getParent()
             for gi in range(gn.getNumGeoms()):
                 geom_layer = max(layer, decal_depth + (1 if own_decal and gi > 0 else 0))
                 self._add_geom(gn.getGeom(gi), net_state.compose(gn.getGeomState(gi)),
-                               mat, tint, geom_layer, animated)
+                               mat, tint, geom_layer, animated, sign)
 
     def _decal_depth(self, node_path, root):
         """How many DecalEffect ancestors (strictly above node_path, below or at root) it has."""
@@ -168,7 +177,7 @@ class Extractor:
             p = p.getParent()
         return depth
 
-    def _add_geom(self, geom, state, mat, tint, layer, animated):
+    def _add_geom(self, geom, state, mat, tint, layer, animated, sign=False):
         vdata = geom.getVertexData()
         if animated:
             vdata = vdata.animateVertices(True, Thread.getCurrentThread())
@@ -242,12 +251,12 @@ class Extractor:
             return
         if mat.getUpper3().determinant() < 0:
             tris = [(a, c, b) for a, b, c in tris]
-        key = (tex_idx, blend, two_sided, tint, layer)
+        key = (tex_idx, blend, two_sided, tint, layer, bool(sign))
         self._groups.setdefault(key, []).append((verts, np.array(tris, dtype=np.int64).reshape(-1)))
 
     def batches(self):
         out = []
-        for (tex, blend, two_sided, tint, layer), parts in sorted(
+        for (tex, blend, two_sided, tint, layer, sign), parts in sorted(
                 self._groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
             # Blend mode first (opaque, alpha test, blended), then decal layer: blended
             # batches that write depth must not hide layered decals drawn after them.
@@ -255,13 +264,13 @@ class Extractor:
             for verts, idx in parts:
                 if base + len(verts) > ttm.MAX_BATCH_VERTS:
                     out.append(ttm.Batch(tex, blend, two_sided, tint, layer,
-                                         np.concatenate(vs), np.concatenate(ids)))
+                                         np.concatenate(vs), np.concatenate(ids), sign))
                     vs, ids, base = [], [], 0
                 vs.append(verts)
                 ids.append(idx + base)
                 base += len(verts)
             out.append(ttm.Batch(tex, blend, two_sided, tint, layer,
-                                 np.concatenate(vs), np.concatenate(ids)))
+                                 np.concatenate(vs), np.concatenate(ids), sign))
         return out
 
 

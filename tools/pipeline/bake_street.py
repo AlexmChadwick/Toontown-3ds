@@ -22,6 +22,7 @@ os.environ['MKL_NUM_THREADS'] = '1'
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 ROOT = HERE.parent.parent
+import sign_text
 
 
 # Near atlas matches source/render/quality.h: sharp ground and props up close.
@@ -32,7 +33,7 @@ ROOT = HERE.parent.parent
 NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
-# render/quality.h lodMust (Old, New): upgraded first against street_lod.NEAR_DRAW_CAP.
+# render/quality.h lodMust (Old, New): upgraded first, still inside DRAW_CAP.
 LOD_MUST = {OLD_LOD_NEAR: 48.0, NEW_LOD_NEAR: 64.0}
 
 
@@ -182,6 +183,28 @@ def encode_far_pages(sources, chunks):
     return remapped, textures
 
 
+def _is_sign(batch, sources):
+    """A DNA sign-letter decal. The far mesh keeps it textured; other decals still drop."""
+    if getattr(batch, 'sign', False):
+        return True
+    if not getattr(batch, 'layer', 0) or batch.texture is None or sources is None:
+        return False
+    if not isinstance(sources, (list, tuple)) or batch.texture >= len(sources):
+        return False
+    tex = sources[batch.texture]
+    return tex is not None and sign_text.is_font_texture(tex)
+
+
+def _split_signs(sources, batches):
+    signs, rest = [], []
+    for batch in batches:
+        if _is_sign(batch, sources):
+            signs.append(batch)
+        else:
+            rest.append(batch)
+    return signs, rest
+
+
 def choose_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
@@ -197,12 +220,25 @@ def choose_far(sources, raw, chunks, images=None):
         draws = max((sum(_far_draws(low[j]) for j in c['vis']) for c in chunks), default=0)
         return tris, draws
     before, _ = worst_of(raw)
+    sign_sets, bodies = [], []
+    for batches in raw:
+        signs, rest = _split_signs(sources, batches)
+        sign_sets.append(signs)
+        bodies.append(rest)
+    sign_tris = sum(street_lod.count(s) for s in sign_sets)
     worst = draws = None
     for step in steps:
-        low = [street_lod.simplify(bs, step) for bs in raw]
+        low = [street_lod.simplify(bs, step) for bs in bodies]
         colored, kept = _colorize_far(sources, low, images)
         worst, draws = worst_of(colored)
+        signed = [list(chunk) + signs for chunk, signs in zip(colored, sign_sets)]
+        signed_worst, signed_draws = worst_of(signed)
+        # Letters stay when they still fit. A view that is already on the cap keeps the
+        # old far mesh rather than failing the bake.
+        use_signs = signed_worst <= street_lod.LOW_TARGET and signed_draws <= street_lod.DRAW_CAP
         if worst <= street_lod.LOW_TARGET and draws <= street_lod.DRAW_CAP:
+            if use_signs:
+                colored, worst, draws = signed, signed_worst, signed_draws
             if images is None:
                 colored, textures = encode_far_pages(sources, colored)
             else:
@@ -211,7 +247,8 @@ def choose_far(sources, raw, chunks, images=None):
                 'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
                 'before_worst_triangles': before, 'low_worst_triangles': worst,
                 'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
-                'hill_card_triangles': kept, 'draw_cap': street_lod.DRAW_CAP}
+                'hill_card_triangles': kept, 'sign_triangles': sign_tris if use_signs else 0,
+                'draw_cap': street_lod.DRAW_CAP}
     raise FarBudgetError(worst, draws)
 
 
@@ -225,7 +262,7 @@ def split_grid(batches, size):
         for key in sorted(set(map(tuple,cells))):
             verts = triangles[np.all(cells==key,axis=1)].reshape(-1,9)
             groups.setdefault(key,[]).append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,
-                                                     verts,np.arange(len(verts))))
+                                                     verts,np.arange(len(verts)), getattr(b, 'sign', False)))
     return groups
 
 

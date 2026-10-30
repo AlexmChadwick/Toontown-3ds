@@ -1356,7 +1356,6 @@ tools/pipeline/test_ground_split.py`: 8 tests OK.
 - RomFS `ttc_sz.ttm` rewritten from the pre-split blob: 14,609 triangles, longest
   ground edge cap 30, 37,297 verts, 157 batches. The streamed edge cap is still 20.
 
-
 ## 2026-10-30 — render overhaul verified in Azahar; near chunks first (`d57dfd4`, `89df721`)
 
 Azahar 2126.2, Linux/Xvfb, Old 3DS (and `NEW3DS=1`), 3DSX + this tree's bake of all 37 zones
@@ -1385,3 +1384,38 @@ Shots, logs and the full report: `/workspace/shots/3ds-render-1030/` (`REPORT.md
   run (no host C++ compiler on this box).
 - Not done: real hardware (frame time on PICA200, the ground-split fix for missing near ground,
   stereo fps, SD load time).
+
+## 2026-10-30 — view budget, upload slices, Donald's Dock sign letters
+
+Build: rebased onto `render/overhaul-1030` (which already had `d57dfd4`'s 150-draw
+near envelope). Host only. No Azahar and no hardware. The numbers below that name
+a frame, a hitch, or an fps are the user's Azahar soak of `ef52035` (the before).
+The 147–149 draw samples are that same soak's reading of the 150-draw envelope.
+The after column is this host's `Zone::update` plan plus a cone the same width as
+`Zone::draw`, a few degrees wider than the real frustum, so an Azahar draw count
+should come out lower. `make -j6` linked `toontown3ds.3dsx` with no warnings in
+`source/` (the pre-existing GNU-stack linker note only). `python -m unittest
+tools/pipeline/test_far_color.py tools/pipeline/test_ground_split.py`: 9 tests OK.
+Host `g++ -Werror` of `tools/zone_test/zone_test.cpp` plus `zone.cpp` on zones
+2000, 1000 and 2100: floor samples, PVS, budgets, triggers and 30,000 `cellAt`
+queries passed, and both Toon Hall halves stay at the near mesh on Old and New.
+
+| View | Before (`ef52035`, Azahar) | After (host plan) |
+|---|---|---|
+| ttc_mid | About 69 draws submitted. Toon Hall split: one half far (no MICKEY TOON sign, no door, untextured columns). 29.9 fps. | Both hall chunks (g10, g11) near, Old and New. Cone submits 90 draws / 7,409 tris. 50 more draws stay resident behind the camera and are not submitted. |
+| dd_near | One sample at 133 draws while loading. Hitch 54 ms (was 38). | Plan submits 126 draws / 9,146 tris, Old and New. `draw` stops at 130 so the overlap sample cannot add the next chunk. |
+| dd_far | Far-right building's sign texture gone. An earlier nearest-first plan reached 147–149 draws. | Plan submits 128 draws / 12,968 tris. g6 stays far and keeps 14 letter triangles on `phase_3_palette_2tmlc_1`. |
+| street_near | Hitch 183 ms (was 137). fps 7.9 Old / 4.8 New during that frame. | Plan submits 95 draws / 6,313 tris. Arrival no longer blocks in `finishLoading`. |
+
+Uploads: the loader thread only reads. The main thread pumps about 10 ms of
+GPU upload per `Zone::update`. Boss and cogdo still call `finishLoading`, which
+still blocks. A street or playground arrival keeps the black frame up and
+presents each slice. `Place::load` (header and collision) is still one frame,
+so this does not claim the arrival frame is under 33 ms until Azahar times it.
+Zone 1000 rebake: far worst 50 draws / 11,443 tris, planned 129 / 12,968,
+`sign_triangles` 268, file 3,537,536 bytes, under the memory caps. Output stays
+gitignored. The other 36 zones were not rebaked; their far meshes still drop
+letters until the next full bake.
+
+CPU: no separate 0.5 ms trim. The extra time on `ef52035` is the nearer meshes.
+This change stops submitting chunks outside the cone (50 draws on ttc_mid).

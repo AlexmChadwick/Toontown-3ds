@@ -104,6 +104,10 @@ bool Place::available(u32 zoneId) {
     return probe.resolve(zoneId, "ttm", path, sizeof(path)) && probe.resolve(zoneId, "ttc", path, sizeof(path));
 }
 
+void Place::setCamera(const C3D_FVec& eye, const C3D_FVec& target) {
+    zone_.setCamera(Vec3{eye.x, eye.y, eye.z}, Vec3{target.x, target.y, target.z});
+}
+
 void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) {
     if (!zone_.loaded()) return;
     if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
