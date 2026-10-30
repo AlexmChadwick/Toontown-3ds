@@ -1460,3 +1460,60 @@ There are no before/after screenshots.
   transition writes `sdmc:/3ds/toontown3ds/load_profile.txt` plus a `load: zone ...
   stream N ms, playable N ms` line. Those numbers are not available from this host.
 
+## 2026-10-30 — hardware-bug fixes, devkitARM compile
+
+Build: `cursor/fast-streaming-0b72` rebased on `ef52035` (`cursor/render-quality-2097`).
+Draw cap stays `Zone::kDrawBudget` 130. **No Azahar and no hardware.** Azahar 2127
+still needs Qt 6.8 and FFmpeg 7 on this Ubuntu image. Do not read the compile as a
+frame-time or a play-through. The streaming entry above said this image had no
+devkitARM; that is superseded here.
+
+Toolchain: devkitARM gcc 16.1.0, libctru 2.7.0, citro3d 1.7.1, citro2d 1.7.0, installed
+under `/opt/devkitpro` (the official CDN returned 403; packages came from the
+Leseratte mirror, and crtls were built from devkitPro commit `1c0c102`). `makerom`
+0.18.4 and `bannertool` 1.2.0 (linux-x86_64) are on `$(DEVKITPRO)/tools/bin`.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+Both succeeded. `toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB,
+`toontown3ds.cia` is 9.8 MB. Zero warnings in `source/`. The linker still prints the
+existing devkitARM `crtn.o` note about a missing `.note.GNU-stack` section. The
+loading screen's `Models` type was a nested class in the header and a different
+type in an anonymous namespace, so `zone_load_screen.cpp` did not compile;
+`ZoneLoadScreen::Models` is now the nested class, and `<new>` supplies `std::nothrow`.
+`uint32_t` is `unsigned long` in this newlib, so the load-profile `printf`s cast to
+`unsigned`. The host retain test was rebuilt with the same `g++ -Werror` line and
+printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+
+Checked against the pinned Open Toontown sources (commit `2b366a23`, fetched read-only;
+`ref/open-toontown` is an empty gitlink here):
+
+- Squirt: `DistributedBattleBaseAI.__makeMovie` sends `setMovie` then
+  `setState('PlayMovie')`. `movieDone` is ignored unless the FSM is already in
+  PlayMovie, and a failed send used to be marked delivered. The client now rebuilds
+  the movie if `setMovie` arrives late and resends `movieDone` once a second until
+  the phase changes. A squirt with no resolved suit still shows a miss. The spray
+  cue (`squirt_flower_hit` / `squirt_glass_hit` / `squirt_gun_hit`) plays when the
+  projectile leaves, and a miss plays the miss cue. Suit attacks announce
+  `CogAttackInfo.name`. `encntr_general_bg` starts with the battle and the place
+  track returns when it ends. Those `.tsnd` files are the SD bake
+  (`bake_audio.py` `BATTLE_ASSETS`); this tree does not contain them.
+- Run: `OTPGlobals.ToonForwardSlowSpeed` is 6, not `0.4 * 20`. B at full stick was
+  exactly `RunCutOff` (8) and `Toon.setSpeed` uses `>=`, so walk played the run cycle.
+- Tunnel: exits use the collided feet. The unpushed probe is used only when it does
+  not cross a camera wall. Ending a battle inside a trigger does not zone-change
+  until the toon has walked clear of it.
+- Toon HQ exit: the walk-out is local -Y. If that camera ray hits within 6 units and
+  +Y is open, the door heading is flipped 180 degrees before the toon is placed.
+- Doors: both baked leaves swing about the origin. The old hinge offsets
+  (3.591, 0, 3.913) and (-3.577, 0, 3.073) are gone.
+- Desk: `TTLocalizer.LeaderboardTitle` is `Toon Platoon` with no question mark
+  (`DistributedHQInterior.buildTitleRow`, SignFont / MickeyFont). The client string
+  was already that. MickeyFont is not in the RomFS font set (only ImpressBT), so the
+  title is still ImpressBT. No extra character was added.
+- LOD: remote toons inside 120 units stay at LOD 500. The local DNA look is pinned
+  and is not released when `inZone()` goes false.
+

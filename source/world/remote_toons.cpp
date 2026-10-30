@@ -19,8 +19,11 @@ constexpr float kSmoothTau = 0.1f;
 // Snap instead of gliding when a toon teleports or we missed many samples.
 constexpr float kSnapDistance = 30.0f;
 constexpr float kSpeedTau = 0.25f; // smoothing for the derived speed (avoids walk/run flicker)
-constexpr float kLowLodDistSq = 45.0f * 45.0f;
-constexpr float kHighLodDistSq = 35.0f * 35.0f;
+// The far plane is about 120. Toons inside it stay on LOD 500 (full detail in this
+// client; there is no LOD 1000 asset). LOD 250 is the pink low-detail body, and it
+// used to switch in at 45 units, which is still "nearby" on a street.
+constexpr float kLowLodDistSq = 120.0f * 120.0f;
+constexpr float kHighLodDistSq = 100.0f * 100.0f;
 constexpr float kMaxBalloonDistSq = 90.0f * 90.0f;
 
 

@@ -77,9 +77,11 @@ inline const char* report(char* out, uint32_t cap) {
                   "zone metadata: %u us\n"
                   "stream until resident: %u ms\n"
                   "first playable: %u ms\n",
-                  c.zone[0] ? c.zone : "(none)", c.readCalls,
-                  static_cast<unsigned long long>(c.readBytes), c.readUs, c.parseUs, c.texCount, c.texUs,
-                  c.metaUs, c.streamMs, c.playableMs);
+                  c.zone[0] ? c.zone : "(none)", static_cast<unsigned>(c.readCalls),
+                  static_cast<unsigned long long>(c.readBytes), static_cast<unsigned>(c.readUs),
+                  static_cast<unsigned>(c.parseUs), static_cast<unsigned>(c.texCount),
+                  static_cast<unsigned>(c.texUs), static_cast<unsigned>(c.metaUs),
+                  static_cast<unsigned>(c.streamMs), static_cast<unsigned>(c.playableMs));
     return out;
 }
 

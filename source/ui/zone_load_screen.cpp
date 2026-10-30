@@ -2,6 +2,7 @@
 
 #include <cstdio>
 #include <cmath>
+#include <new>
 
 #include "core/log.h"
 #include "game/loading_tips.h"
@@ -13,10 +14,9 @@
 #include "world/place.h"
 
 namespace tt::ui {
-namespace {
-constexpr float kPi = 3.14159265f;
 
-struct Models {
+class ZoneLoadScreen::Models {
+public:
     render::Model bg;
     render::Model gui;
     render::Model logo;
@@ -24,6 +24,9 @@ struct Models {
     render::TextCache cache;
     bool guiTried = false;
 };
+
+namespace {
+constexpr float kPi = 3.14159265f;
 
 const char* caption(u32 zoneId) {
     switch (tt::world::placeKind(zoneId)) {

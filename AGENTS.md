@@ -233,7 +233,17 @@ Key decisions:
      4×3 matrices).
    - Color (DNA `armColor`, `legColor`, `headColor`) is a per-draw uniform. Clothes come
      from an atlas.
-   - LOD 250 or 500 is used for remote toons, and 1000 only for the local toon on New 3DS.
+   - The local toon and every toon inside the 120-unit far plane use LOD 500. LOD 250
+     is only past that plane. There is no LOD 1000 asset. The local look is pinned
+     in the 4 MiB cache and is not released on a quiet-zone change.
+   - Holding B uses OTPGlobals slow speeds (forward 6, reverse 2.5, rotate 33), which
+     stay under RunCutOff 8 so the walk cycle plays. Full run stays the run cycle at
+     rate 1, matching Toon.setSpeed.
+   - Door leaves rotate about the baked hinge. An extra hinge translation made them
+     slide. Leaving an interior flips the door heading when the walk-out ray hits the
+     building and the opposite ray is open.
+   - Battle music is `encntr_general_bg` while a battle is active. `movieDone` is
+     resent until PlayMovie ends. Squirt plays its spray when the water leaves.
 6. **Threads.**
    - The main thread runs simulation and rendering at prio 0x30.
    - The net thread is a blocking socket with a ring buffer, prio 0x31, on core 0.

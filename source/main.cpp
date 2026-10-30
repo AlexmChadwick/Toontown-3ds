@@ -1984,7 +1984,28 @@ int main() {
 
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
-        const tt::world::Exit exitHere = place.exitAt(player.probeX(), player.probeY(), player.z());
+        // Test the collided feet first. The unpushed probe can pass through a wall into a
+        // tunnel trigger (a run out of battle, or a walk along a wall) and zone-change.
+        // Use the probe only when the step does not cross a camera wall, so a flush door
+        // still touches its trigger.
+        static bool blockExitUntilClear = false;
+        tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        if (exitHere.kind == tt::world::Exit::None) {
+            const float px = player.probeX(), py = player.probeY();
+            const float dx = px - player.x(), dy = py - player.y();
+            bool crossed = false;
+            if (dx * dx + dy * dy > 1.0e-6f && place.collision().loaded()) {
+                float hitT = 1.0f;
+                const float z = player.z() + tt::world::kToonRadius;
+                crossed = place.collision().cameraRaycast(tt::world::Vec3{player.x(), player.y(), z},
+                                                          tt::world::Vec3{px, py, z}, &hitT) &&
+                          hitT < 0.98f;
+            }
+            if (!crossed) exitHere = place.exitAt(px, py, player.z());
+        }
+        if (battle.active()) blockExitUntilClear = true;
+        else if (blockExitUntilClear && exitHere.kind == tt::world::Exit::None) blockExitUntilClear = false;
+        if (blockExitUntilClear) exitHere = {};
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
             // A transition is running, we are on the trolley / away at a minigame, or in a battle or
@@ -2095,7 +2116,8 @@ int main() {
                 tt::loadprof::noteStream(streamMs);
                 char profile[640];
                 TT_LOG("load: zone %lu stream %u ms, playable %u ms\n%s", static_cast<unsigned long>(zoneDest),
-                       streamMs, playable, tt::loadprof::report(profile, sizeof(profile)));
+                       static_cast<unsigned>(streamMs), static_cast<unsigned>(playable),
+                       tt::loadprof::report(profile, sizeof(profile)));
                 if (!tt::loadprof::dump("sdmc:/3ds/toontown3ds/load_profile.txt"))
                     TT_LOG("load: could not write load_profile.txt");
                 // The card was on the previous frame. FrameBegin is what waits for that GPU
@@ -2355,14 +2377,26 @@ int main() {
                     }
                 }
             }
-            if (net.inZone() && !localLookFromServer) {
-                tt::world::ToonDna dna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
-                    toonCache.acquire(dna, tt::world::ToonLod::High, &localLook);
+            if (net.inZone()) {
+                // Do not drop the look on a quiet zone. Reacquiring on every tunnel released the
+                // local parts and the next frame drew the fallback body (the featureless blob).
+                // Rebook only when the server DNA actually changes, and pin those parts so the
+                // 4 MiB cache cannot evict the toon we are standing in.
+                static uint8_t seenDna[tt::net::kDnaSize];
+                static bool haveDna = false;
+                const uint8_t* dnaBytes = net.avatarDna();
+                if (!haveDna || memcmp(seenDna, dnaBytes, tt::net::kDnaSize) != 0) {
+                    tt::world::ToonDna dna;
+                    if (tt::world::parseNetString(dnaBytes, tt::net::kDnaSize, &dna) &&
+                        toonCache.acquire(dna, tt::world::ToonLod::High, &localLook)) {
+                        memcpy(seenDna, dnaBytes, tt::net::kDnaSize);
+                        haveDna = true;
+                        localLookFromServer = true;
+                        toonCache.pin(&localLook);
+                    }
+                } else {
                     localLookFromServer = true;
                 }
-            } else if (!net.inZone()) {
-                localLookFromServer = false;
             }
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
@@ -2738,6 +2772,29 @@ int main() {
             }
             // ---- end padnav ----
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
+            // BattleBase plays encntr_general_bg for the whole fight and restores the place
+            // track when the battle object is gone. The file is on the SD audio set.
+            {
+                static bool battleMusic = false;
+                static bool battleMusicMissing = false;
+                if (battle.active()) {
+                    if (!battleMusic && !battleMusicMissing) {
+                        const char* path = "sdmc:/3ds/toontown3ds/data/audio/encntr_general_bg.tsnd";
+                        FILE* music = fopen(path, "rb");
+                        if (music) {
+                            fclose(music);
+                            tt::audio::stopMusic(200);
+                            battleMusic = tt::audio::playMusic(path, true, 200);
+                        } else {
+                            battleMusicMissing = true;
+                            TT_LOG("battle: encntr_general_bg.tsnd is not on the SD card");
+                        }
+                    }
+                } else if (battleMusic) {
+                    battleMusic = false;
+                    playPlaceMusic(place.zoneId());
+                }
+            }
             // ---- tutorial ----
             // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
             // RewardPanel timer.  The compact client presents that acknowledgement on A.
