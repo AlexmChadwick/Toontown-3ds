@@ -32,7 +32,7 @@ constexpr int kNumPlayerTabs = kTabDebug;
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
     int tab = kTabMap;
-    bool stereo = false; // opt-in; AGENTS.md display rules
+    bool stereo = true; // follows the 3D slider (one eye at 0); Options page can turn it off
     int stressToons = 0; // extra toon instances for the M1.6 stress test
     int colorTarget = 0; // 0 body, 1 shirt, 2 shorts
     int bodyColor = 17;  // index into kToonColors (ToonDNA.allColorsList)

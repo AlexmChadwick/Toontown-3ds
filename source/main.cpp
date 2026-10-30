@@ -10,6 +10,7 @@
 
 #include "audio/audio.h"
 #include "core/autotest.h"
+#include "core/boot_screen.h"
 #include "core/crash.h"
 #include "core/config.h"
 #include "core/log.h"
@@ -197,19 +198,55 @@ float frameCpuMs() {
 } // namespace
 
 int main() {
+    // Boot order: only what the first frame needs comes before it (gfx, RomFS, log, GPU, the UI
+    // font); everything riskier runs behind the loading screen, one named stage at a time, so a
+    // failure on real hardware is shown on screen and in log.txt instead of a black screen.
     gfxInitDefault();
-    gfxSet3D(false); // stereo is opt-in only
-    romfsInit();
+    gfxSet3D(false); // the loading screen is 2D; the game turns stereo on when it starts drawing
+    tt::crash::screensReady();
+    const Result romfsRc = romfsInit();
     tt::log::init();
-    tt::crash::installForThisThread(); // a CPU fault on the main thread is logged, not silent
+    tt::crash::installForThisThread(); // a CPU fault on the main thread is shown and logged
     tt::mem::linearLockInit();
     aptHook(&gAptCookie, onApt, nullptr);
+    const tt::mem::HeapReport heapRep = tt::mem::heapReport();
+    TT_LOG("boot: heaps %u KB + linear %u KB (commit free at start %u KB, %u retries)",
+           static_cast<unsigned>(heapRep.heap / 1024), static_cast<unsigned>(heapRep.linear / 1024),
+           static_cast<unsigned>(heapRep.remainingAtBoot / 1024), heapRep.allocFailures);
 
     bool isNew3ds = false;
     APT_CheckNew3DS(&isNew3ds);
-    if (isNew3ds) osSetSpeedupEnable(true); // optional extra, never required
-    TT_LOG("boot: %s", isNew3ds ? "New 3DS" : "Old 3DS");
+    // No osSetSpeedupEnable: it needs ptm:sysm, a system service the game does not need. Old 3DS
+    // speed is the baseline either way.
+    TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
 
+    if (!C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE)) { // 512 KB; stress tests overflowed 256 KB at ~700 draws
+        tt::crash::panic("Graphics could not start (C3D_Init)", "Not enough graphics memory.", nullptr);
+    }
+    C3D_FrameRate(30.0f); // AGENTS.md: locked 30 fps on Old 3DS
+    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    C2D_Prepare();
+    tt::render::loadUiFont(); // before any panel parses text
+    tt::boot::begin();
+    tt::boot::stage("Starting up", 0.05f);
+    if (R_FAILED(romfsRc)) {
+        tt::boot::showFatal("The game files are missing.", "The built-in RomFS could not be opened.\nPlease reinstall toontown.cia with FBI.");
+        return 1;
+    }
+    if (heapRep.heap < tt::mem::kMinHeap || heapRep.linear < tt::mem::kMinLinear) {
+        char detail[160];
+        snprintf(detail, sizeof(detail), "Got %u MB + %u MB, needs %u MB + %u MB.\nClose other software (HOME > Close)\nand try again.",
+                 static_cast<unsigned>(heapRep.heap >> 20), static_cast<unsigned>(heapRep.linear >> 20),
+                 static_cast<unsigned>(tt::mem::kMinHeap >> 20), static_cast<unsigned>(tt::mem::kMinLinear >> 20));
+        tt::boot::showFatal("Not enough memory to start.", detail);
+        return 1;
+    }
+
+    tt::boot::stage("Tuning up the sound", 0.12f);
+    if (FILE* t = fopen("sdmc:/3ds/toontown3ds/panic_test", "r")) { // test runs: prove the panic screen
+        fclose(t);
+        svcBreak(USERBREAK_PANIC);
+    }
     // Audio: silent (not fatal) if the DSP is unavailable, e.g. no sdmc:/3ds/dspfirm.cdc on hardware.
     tt::audio::init();
     // Playground music per hood (toontown/safezone/*SafeZoneLoader.py musicFile): TTC is in
@@ -294,25 +331,29 @@ int main() {
     tt::audio::VoiceHandle footsteps = tt::audio::kNoVoice;
     tt::world::ToonAnim footstepAnim = tt::world::kAnimNeutral;
 
-    C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE); // 512 KB; stress tests overflowed 256 KB at ~700 draws
-    C3D_FrameRate(30.0f); // AGENTS.md: locked 30 fps on Old 3DS
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    C2D_Prepare();
-    tt::render::loadUiFont(); // before any panel parses text
     C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
+    tt::boot::stage("Painting the scenery", 0.25f);
     tt::render::Renderer renderer;
     tt::ui::Ui ui;
-    if (!renderer.init() || !ui.init()) TT_LOG("boot: renderer/ui init failed");
+    if (!renderer.init() || !ui.init()) {
+        tt::boot::showFatal("Graphics could not start.", "The 3D renderer failed to set up.\nDetails are in sdmc:/3ds/toontown3ds/log.txt");
+        return 1;
+    }
 
+    tt::boot::stage("Building Toontown Central", 0.4f);
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
     // The zone we're in (starts in the Toontown Central playground).
     static tt::world::Place place;
     place.load(kStartZone);
 
+    tt::boot::stage("Dressing up the toons", 0.6f);
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
-    if (!toonCache.init()) { TT_LOG("boot: Toon stream pool allocation failed"); return 1; }
+    if (!toonCache.init()) {
+        tt::boot::showFatal("Not enough memory for toons.", "The toon cache could not be allocated.");
+        return 1;
+    }
     tt::world::AssetLoader::init(); // background .ttm/.tta loads (classic characters, boat)
     if (!toonCache.initFallback()) TT_LOG("boot: default toon failed to load");
     // Local toon: default dog until the server tells us our real DNA.
@@ -326,6 +367,7 @@ int main() {
     static tt::world::RemoteToons remoteToons;
     remoteToons.init(&toonCache);
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
+    tt::boot::stage("Waking up the neighbors", 0.75f);
     static tt::world::ZoneActors zoneActors;
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
     // Mickey and friends (DistributedCCharBase), walking their playground's graph.
@@ -379,6 +421,7 @@ int main() {
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
+    tt::boot::stage("Almost there!", 0.9f);
 
     // Multiplayer: Open Toontown server from sdmc:/3ds/toontown3ds/server.txt.
     const tt::config::Settings settings = tt::config::load();
@@ -530,7 +573,15 @@ int main() {
            static_cast<unsigned long>(vramSpaceFree() / 1024));
 
     tt::prof::init();
+    tt::boot::stage("Here we go!", 1.0f);
+    tt::boot::end();
+    renderer.linkOutputs(bottom);
+    tt::log::setFlushEveryLine(false); // SD writes can stall for milliseconds: batch them in play
     while (aptMainLoop()) {
+        if (tt::crash::panicking()) { // another thread's report is on screen: stop drawing over it
+            svcSleepThread(100 * 1000 * 1000);
+            continue;
+        }
         tt::prof::frameBegin();
         tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
         const u64 now = svcGetSystemTick();
@@ -2612,6 +2663,7 @@ int main() {
         if (wantStereo != stereoActive) {
             gfxSet3D(wantStereo);
             stereoActive = wantStereo;
+            TT_LOG("stereo: %s (slider %.2f)", wantStereo ? "on" : "off", double(slider));
         }
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
@@ -2642,6 +2694,10 @@ int main() {
             char path[96];
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
             tt::shot::dumpTarget(renderer.topLeft(), path);
+            if (stereoActive) { // right eye too, to check the parallax
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
+                tt::shot::dumpTarget(renderer.topRight(), path);
+            }
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
             tt::shot::dumpTarget(bottom, path);
             shotName = nullptr;

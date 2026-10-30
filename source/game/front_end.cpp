@@ -142,7 +142,7 @@ bool FrontEnd::init(world::ToonCache* cache) {
 }
 
 void FrontEnd::setServer(const char* host, int port, bool online) {
-    if (online) snprintf(serverLine_, sizeof(serverLine_), "Server: %s:%d (server.txt)", host, port);
+    if (online) snprintf(serverLine_, sizeof(serverLine_), "Server: %s:%d", host, port);
     else snprintf(serverLine_, sizeof(serverLine_), "Online play is off in server.txt");
 }
 
@@ -1458,6 +1458,8 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
         TT_BUTTON((Button{40, 70, 240, 48}), "Play online", true, true);
         TT_BUTTON((Button{40, 130, 240, 40}), "Play offline", false, true);
         text(12, 176, 0.42f, kBSoft, "%s", serverLine_[0] ? serverLine_ : "Server: sdmc:/3ds/toontown3ds/server.txt");
+        // Without the console's DSP firmware dump (sdmc:/3ds/dspfirm.cdc) the game runs silent.
+        if (!audio::available()) text(12, 30, 0.42f, kBSoft, "Sound is off on this 3DS (no DSP firmware). Have fun anyway!");
         break;
     case Screen::Connecting: {
         const bool more = net_ && (net_->lastError()[0] || net_->retryInMs()); // else the status sits mid-dialog

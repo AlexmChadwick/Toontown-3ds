@@ -30,6 +30,12 @@ C3D_FVec normalizePlane(C3D_FVec p) {
 
 } // namespace
 
+void Renderer::linkOutputs(C3D_RenderTarget* bottom) {
+    C3D_RenderTargetSetOutput(topLeft_, GFX_TOP, GFX_LEFT, kDisplayTransferFlags);
+    C3D_RenderTargetSetOutput(topRight_, GFX_TOP, GFX_RIGHT, kDisplayTransferFlags);
+    if (bottom) C3D_RenderTargetSetOutput(bottom, GFX_BOTTOM, GFX_LEFT, kDisplayTransferFlags);
+}
+
 bool Renderer::init() {
     topLeft_ = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
     topRight_ = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);

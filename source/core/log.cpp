@@ -15,6 +15,7 @@ FILE* gFile = nullptr;
 LightLock gLock;
 bool gLockReady = false;
 u64 gLastFlushMs = 0;
+bool gFlushEveryLine = true; // boot: every line reaches the SD card before the next step
 char gRing[kRingLines][kLineLength];
 int gHead = 0;
 
@@ -27,6 +28,8 @@ void init() {
     mkdir("sdmc:/3ds/toontown3ds", 0777);
     gFile = fopen("sdmc:/3ds/toontown3ds/log.txt", "w");
 }
+
+void setFlushEveryLine(bool on) { gFlushEveryLine = on; }
 
 void flush() {
     if (gLockReady) LightLock_Lock(&gLock);
@@ -55,7 +58,7 @@ void write(const char* fmt, ...) {
         fprintf(gFile, "[%llu] %s\n", now, line);
         // SD writes can stall for milliseconds on hardware: flush at most once a second
         // (flush() is also called on suspend/sleep and exit).
-        if (now - gLastFlushMs >= 1000) {
+        if (gFlushEveryLine || now - gLastFlushMs >= 1000) {
             fflush(gFile);
             gLastFlushMs = now;
         }

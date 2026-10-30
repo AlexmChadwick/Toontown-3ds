@@ -25,6 +25,8 @@ struct FrameStats {
 class Renderer {
 public:
     bool init();
+    // Point the screens back at the game targets (the loading screen borrows them during boot).
+    void linkOutputs(C3D_RenderTarget* bottom);
     void shutdown();
 
     C3D_RenderTarget* topLeft() const { return topLeft_; }
