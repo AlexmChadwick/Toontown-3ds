@@ -21,29 +21,32 @@ else
     # The emulator binary only: "squashfs-root/AppRun" also matches xvfb-run's command line, and
     # SIGKILLing xvfb-run leaves its Xvfb server running (51 had piled up on one box).
     AZ_PAT="squashfs-root/AppRun.wrapped"
-    CFG="$HOME/.config/azahar-emu/qt-config.ini"
-    AZ_DATA="$HOME/.local/share/azahar-emu"
-    if [ ! -f "$CFG" ]; then # first run: let Azahar write its default config
+    BASE_CFG="$HOME/.config/azahar-emu/qt-config.ini"
+    BASE_DATA="$HOME/.local/share/azahar-emu"
+    if [ ! -f "$BASE_CFG" ]; then # first run: let Azahar write its default config
         timeout -s KILL 15 xvfb-run -a "$AZ" </dev/null >/dev/null 2>&1 || true
-        pkill -9 -f "$AZ_PAT" 2>/dev/null || true
     fi
+    # Each Linux run owns its config, writable SDMC and log directory. Large immutable
+    # NAND/sysdata trees and the baked game data are symlinked, not copied. This lets UI,
+    # network and asset workers run concurrently without changing one another's settings,
+    # triggers or screenshots.
+    RUN_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/toontown3ds-azahar.XXXXXX")
+    RUN_CONFIG="$RUN_ROOT/config"
+    RUN_DATA="$RUN_ROOT/data"
+    CFG="$RUN_CONFIG/azahar-emu/qt-config.ini"
+    AZ_DATA="$RUN_DATA/azahar-emu"
+    mkdir -p "$(dirname "$CFG")" "$AZ_DATA/log" "$AZ_DATA/sdmc/3ds/toontown3ds"
+    cp "$BASE_CFG" "$CFG"
+    for entry in cheats nand shaders sysdata; do
+        [ ! -e "$BASE_DATA/$entry" ] || ln -s "$BASE_DATA/$entry" "$AZ_DATA/$entry"
+    done
+    BASE_SD="$BASE_DATA/sdmc/3ds/toontown3ds"
+    [ ! -e "$BASE_SD/data" ] || ln -s "$(readlink -f "$BASE_SD/data")" "$AZ_DATA/sdmc/3ds/toontown3ds/data"
+    [ ! -f "$BASE_SD/server.txt" ] || cp "$BASE_SD/server.txt" "$AZ_DATA/sdmc/3ds/toontown3ds/server.txt"
 fi
 SD="$AZ_DATA/sdmc/3ds/toontown3ds"
 mkdir -p "$OUT" "$SD"
 
-# One run at a time: a second run would back up the first one's test config as "the user's"
-# and its exit would kill the first run's emulator (which looks exactly like an app crash).
-LOCK="${TMPDIR:-/tmp}/toontown3ds_azahar_test.lock"
-if ! mkdir "$LOCK" 2>/dev/null; then
-    if kill -0 "$(cat "$LOCK/pid" 2>/dev/null)" 2>/dev/null; then
-        echo "another azahar_test.sh run (pid $(cat "$LOCK/pid")) is in progress" >&2
-        exit 1
-    fi
-    rm -rf "$LOCK" && mkdir "$LOCK" # a stale lock from a run that was killed
-fi
-echo $$ > "$LOCK/pid"
-
-pkill -9 -f "$AZ_PAT" 2>/dev/null || true
 cp "$CFG" "$OUT/qt-config.ini.backup"
 # App Nap throttles Azahar while its window is hidden: emulated time then falls behind real time
 # and the server ejects the client for missing heartbeats (345). Disable it for this run only.
@@ -53,14 +56,17 @@ if [ "$(uname)" = Darwin ]; then
     defaults write "$BUNDLE" NSAppSleepDisabled -bool YES
 fi
 restore() {
-    pkill -9 -f "$AZ_PAT" 2>/dev/null || true
-    cp "$OUT/qt-config.ini.backup" "$CFG"
+    if [ -n "${EMU_PID:-}" ]; then
+        if [ "$(uname)" = Darwin ]; then kill "$EMU_PID" 2>/dev/null || true
+        else kill -TERM -- "-$EMU_PID" 2>/dev/null || true; fi
+    fi
+    if [ "$(uname)" = Darwin ]; then cp "$OUT/qt-config.ini.backup" "$CFG"; fi
     if [ "$(uname)" = Darwin ]; then
         if [ "$NAP_BEFORE" = unset ]; then defaults delete "$BUNDLE" NSAppSleepDisabled 2>/dev/null || true
         else defaults write "$BUNDLE" NSAppSleepDisabled -bool "$NAP_BEFORE"; fi
     fi
     rm -f "$SD/autotest" "$SD/autotest_fe"
-    rm -rf "$LOCK"
+    if [ "$(uname)" != Darwin ]; then rm -rf "$RUN_ROOT"; fi
 }
 trap restore EXIT INT TERM HUP
 
@@ -85,9 +91,12 @@ if [ -n "${AUTOTEST_EXTRA:-}" ]; then printf '%s\n' "$AUTOTEST_EXTRA" | tr ';' '
 # reads the same from/until/only lines from its own trigger file.
 if [ -n "${AUTOTEST_FE:-}" ]; then cp "$SD/autotest" "$SD/autotest_fe"; else rm -f "$SD/autotest_fe"; fi
 if [ "$(uname)" = Darwin ]; then
-    ( caffeinate -i "$AZ" "$APP" </dev/null >/dev/null 2>&1 & ) # no idle sleep mid-run
+    caffeinate -i "$AZ" "$APP" </dev/null >/dev/null 2>&1 & # no idle sleep mid-run
+    EMU_PID=$!
 else
-    ( xvfb-run -a -s "-screen 0 1280x800x24" "$AZ" "$APP" </dev/null >/dev/null 2>&1 & )
+    setsid env XDG_CONFIG_HOME="$RUN_CONFIG" XDG_DATA_HOME="$RUN_DATA" \
+        xvfb-run -a -s "-screen 0 1280x800x24" "$AZ" "$APP" </dev/null >/dev/null 2>&1 &
+    EMU_PID=$!
 fi
 sleep "$SECS" & wait $! # interruptible: a TERM runs restore() at once
 
