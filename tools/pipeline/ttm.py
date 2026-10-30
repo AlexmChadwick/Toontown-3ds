@@ -18,7 +18,8 @@ section pointers straight to the GPU after copying into linear memory):
       toon's DNA clothing texture instead, see bake_toon.py); u8 pad
       u32 firstVertex; u32 numVertices; u32 firstIndex; u32 numIndices
     Vertex (16 bytes): s16 pos[3], s16 pad, s16 uv[2] (x/1024), u8 rgba[4]
-    Index: u16, relative to the batch's firstVertex
+    Index: u16. Header flags bit0: indices already address the whole vertex buffer
+    (set when the model has <= 65535 vertices). Otherwise relative to firstVertex.
 
 Must stay in sync with source/render/model.cpp.
 """
@@ -199,7 +200,7 @@ def write(path, textures, batches):
     offset = (lo + hi) / 2
     scale = np.maximum((hi - lo) / 2 / 32767.0, 1e-6)
 
-    vert_chunks, idx_chunks, batch_entries = [], [], []
+    vert_chunks, idx_chunks, batch_entries, bases = [], [], [], []
     first_v = first_i = 0
     uv_clamped = 0
     for b in batches:
@@ -215,6 +216,7 @@ def write(path, textures, batches):
         rec['uv'] = uv
         rec['c'] = rgba
         vert_chunks.append(rec.tobytes())
+        bases.append(first_v)
         idx_chunks.append(b.indices.astype('<u2').tobytes())
         batch_entries.append(struct.pack('<HBBBBBBIIII', 0xFFFF if b.texture is None else b.texture,
                                          b.blend, 1 if b.two_sided else 0, b.tint, b.layer,
@@ -222,6 +224,15 @@ def write(path, textures, batches):
                                          first_v, n, first_i, len(b.indices)))
         first_v += n
         first_i += len(b.indices)
+    # Absolute indices let the loader memcpy the index buffer. u16 cannot name a
+    # vertex at 65536 or above, so those models stay batch-relative (flags 0).
+    absolute = first_v <= 0x10000
+    if absolute:
+        rebuilt = []
+        for base, raw in zip(bases, idx_chunks):
+            arr = np.frombuffer(raw, dtype='<u2').astype(np.uint32) + np.uint32(base)
+            rebuilt.append(arr.astype('<u2').tobytes())
+        idx_chunks = rebuilt
 
     header_size = 64
     tex_table = header_size
@@ -237,7 +248,8 @@ def write(path, textures, batches):
         cursor = _align(cursor + len(t.data))
 
     out = bytearray(cursor)
-    header = struct.pack('<4sHHHHII3f3fIIIII', MAGIC, VERSION, 0, len(textures), len(batches),
+    header = struct.pack('<4sHHHHII3f3fIIIII', MAGIC, VERSION, 1 if absolute else 0,
+                         len(textures), len(batches),
                          first_v, first_i, *scale, *offset,
                          tex_table, batch_table, vertex_off, index_off, 0)
     assert len(header) == header_size

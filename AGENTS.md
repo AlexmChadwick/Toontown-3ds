@@ -233,7 +233,20 @@ Key decisions:
      4×3 matrices).
    - Color (DNA `armColor`, `legColor`, `headColor`) is a per-draw uniform. Clothes come
      from an atlas.
-   - LOD 250 or 500 is used for remote toons, and 1000 only for the local toon on New 3DS.
+   - The local toon and every toon inside the 120-unit far plane use LOD 500. LOD 250
+     is only past that plane. There is no LOD 1000 asset. The local look is pinned
+     in the 4 MiB cache and is not released on a quiet-zone change.
+   - Holding B uses OTPGlobals slow speeds (forward 6, reverse 2.5, rotate 33), which
+     stay under RunCutOff 8 so the walk cycle plays. Full run stays the run cycle at
+     rate 1, matching Toon.setSpeed.
+   - Door leaves rotate about the baked hinge. An extra hinge translation made them
+     slide. Leaving an interior flips the door heading when the walk-out ray hits the
+     building and the opposite ray is open.
+   - Battle music is `encntr_general_bg` while a battle is active. `movieDone` is
+     resent until PlayMovie ends. Squirt plays its spray when the water leaves.
+   - The HQ desk title is the string `Toon Platoon` in MickeyFont
+     (`romfs/baked/fonts/mickey.bcfnt`). That sign font has no lowercase, and
+     TextNode draws a-z with the A-Z glyphs, so the title reads as capitals.
 6. **Threads.**
    - The main thread runs simulation and rendering at prio 0x30.
    - The net thread is a blocking socket with a ring buffer, prio 0x31, on core 0.
@@ -452,6 +465,26 @@ server.
   Every visible set fits 117 draws / 15,000 tris / 810 KB geometry; the per-zone table
   is in `docs/design/streets.md`. Street cell changes come from floor zone ids
   (`Client::changeStreetCell`).
+  Chunks outside the camera cone keep a resident near mesh until the retain
+  budget evicts them. That mesh is not replaced by the far blob, and it is not
+  submitted. Inside the cone every chunk is drawn, at least at its far mesh.
+  A near mesh inside `lodKeep` stays (Toon Hall). Past `lodKeep` it is demoted
+  to the far mesh when keeping it would pass 15,000 triangles or 130 draws
+  (`Zone::kDrawBudget`). `Zone::draw` does not skip an in-cone chunk to enforce
+  that cap. With no camera the same caps cover the cell. The loading card drops
+  when the cone plan is resident. `warmAround` then fills a ring outside the cone
+  in the background; a finished warm upload is kept, and memory eviction does not
+  drop a warm hold while that preload is in progress. The ring only queues chunks
+  that fit in the retain budget. Retain is 4 MiB geometry / 4 MiB textures on
+  Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks are also evicted
+  while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street keeps that much
+  of the 24 MiB linear heap free. The loader thread reads a chunk's vertex, index
+  and inline-texture span in one shot (`ModelStaging::read`); the main thread
+  uploads about 10 ms of that per `Zone::update` (`ModelStaging::pump`). Street
+  and playground arrival does not call `finishLoading`. `finishLoading` (boss /
+  cogdo) waits for the cone plan, not the warm ring. Textures are already tiled
+  at bake time, and new bakes store absolute indices (TTM header flags bit 0)
+  when the model fits in 16-bit indices.
 - ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - ✅ **Classic characters** (`world/cchar.*`, `docs/design/chars.md`). Mickey, Minnie,

@@ -594,7 +594,9 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
 
 void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs) {
     (void)client;
+    seenMovie_ = nb.movieSeq;
     movieSent_ = false;
+    movieRetryMs_ = 0;
     numFx_ = fxCursor_ = 0;
     movieStartMs_ = nowMs;
     if (!nb.movie.active) {
@@ -774,6 +776,9 @@ void Battle::buildMovie(const net::Client& client, const net::BattleMovie& m) {
                     any = true;
                 }
             }
+            // A squirt or throw with no damage and no resolved suit still has to show a miss.
+            // Otherwise the toon plays the gag and the cog never reacts (the round looks empty).
+            if (!any && !target && m.numSuits > 0) target = m.suits[0];
             if (!any && target) addFx(hitAt, kFxMiss, target, who, 0, r.track, r.level);
         }
         uint32_t dur = attackDur;
@@ -808,6 +813,8 @@ void Battle::buildMovie(const net::Client& client, const net::BattleMovie& m) {
             missAt = t + (info->dodgeDelayMs > 0 ? info->dodgeDelayMs : 1000);
         }
 
+        // MovieSuitAttacks announces the attack by name before it plays.
+        if (info && info->name && info->name[0]) addFx(t, kFxSay, who, 0, addSay(info->name));
         addFx(t, kFxAttack, who, target, attackDur, -1, s.attack);
         bool any = false;
         for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
@@ -848,7 +855,15 @@ void Battle::runFx(uint32_t nowMs) {
     while (fxCursor_ < numFx_ && int32_t(nowMs - (movieStartMs_ + fx_[fxCursor_].at)) >= 0) {
         const Fx& f = fx_[fxCursor_++];
         Actor* a = findActor(f.who);
-        if (!a) continue;
+        if (!a) {
+            // The gag still has to make contact even when the suit actor is not in the pose list.
+            if (battleFx_ && (f.kind == kFxHit || f.kind == kFxMiss)) {
+                battleFx_->onHit(f.who, f.other, f.track, f.level, f.kind == kFxHit ? f.value : 0,
+                                 f.kind == kFxMiss, this);
+            }
+            TT_LOG("battle: effect %u has no actor (kind %u)", unsigned(f.who), unsigned(f.kind));
+            continue;
+        }
         char text[16];
         switch (f.kind) {
         case kFxAttack: {
@@ -1120,6 +1135,11 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
         onState(client, *nb, nowMs);
         if (phase_ == BattlePhase::Idle) return; // Resume
     }
+    // setMovie can land after setState('PlayMovie'). Replay it; an empty startMovie
+    // would otherwise send movieDone for a round that has not been shown.
+    if (phase_ == BattlePhase::Movie && nb->movie.active && nb->movieSeq != seenMovie_) {
+        startMovie(client, *nb, nowMs);
+    }
     retarget(*nb, nowMs);
     if (nb->adjustSeq != seenAdjust_) {
         seenAdjust_ = nb->adjustSeq;
@@ -1190,9 +1210,15 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
             }
         }
         runFx(nowMs);
-        if (!movieSent_ && int32_t(nowMs - movieEndMs_) >= 0) {
-            client.sendBattleMovieDone(battleId_);
-            movieSent_ = true;
+        // movieDone is legal any time in PlayMovie. A send that fails, or one the AI drops
+        // because it has not entered PlayMovie yet, used to be recorded as delivered and the
+        // round sat on "playing out" until the server's movie timer.
+        if (int32_t(nowMs - movieEndMs_) >= 0 &&
+            (!movieSent_ || int32_t(nowMs - movieRetryMs_) >= 1000)) {
+            if (client.sendBattleMovieDone(battleId_)) {
+                movieSent_ = true;
+                movieRetryMs_ = nowMs;
+            }
         }
     }
     if (phase_ == BattlePhase::Reward && !rewardSent_ && !tutorial_) { // ---- tutorial: finishTutorialReward

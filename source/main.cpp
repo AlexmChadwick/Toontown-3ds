@@ -13,6 +13,7 @@
 #include "core/boot_screen.h"
 #include "core/crash.h"
 #include "core/config.h"
+#include "core/load_profile.h"
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/profile.h"
@@ -32,6 +33,7 @@
 #include "ui/map_view.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "ui/zone_load_screen.h"
 #include "world/asset_loader.h"
 #include "world/boat.h"
 // ---- cogdo place runtime ----
@@ -540,6 +542,13 @@ int main() {
     tt::autotest::Runner autotest;
     autotest.begin();
     const char* shotName = nullptr;
+    enum class ZonePhase : u8 { Idle, Cover, Streaming };
+    ZonePhase zonePhase = ZonePhase::Idle;
+    u32 zoneDest = 0, zoneFrom = 0;
+    u64 zoneT0 = 0, zoneStreamT0 = 0;
+    float zoneAx = 0, zoneAy = 0, zoneAz = 0, zoneAh = 0;
+    bool zoneShotArmed = false;
+    static tt::ui::ZoneLoadScreen zoneLoad;
     bool autotestGrabbed = false;
     bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false, autotestBought = false;
     unsigned netInBps = 0, netOutBps = 0;
@@ -611,6 +620,12 @@ int main() {
         in.down = hidKeysDown();
         hidCircleRead(&in.pad);
         if (isNew3ds) hidCstickRead(&in.cstick);
+        if (zonePhase != ZonePhase::Idle) {
+            // The loading screen owns this frame. Don't walk into the next tunnel under it.
+            in.held = in.down = 0;
+            in.pad.dx = in.pad.dy = 0;
+            in.cstick.dx = in.cstick.dy = 0;
+        }
         touchPosition touch;
         hidTouchRead(&touch);
         if (autotest.active() && secondElapsed) {
@@ -1969,7 +1984,28 @@ int main() {
 
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
-        const tt::world::Exit exitHere = place.exitAt(player.probeX(), player.probeY(), player.z());
+        // Test the collided feet first. The unpushed probe can pass through a wall into a
+        // tunnel trigger (a run out of battle, or a walk along a wall) and zone-change.
+        // Use the probe only when the step does not cross a camera wall, so a flush door
+        // still touches its trigger.
+        static bool blockExitUntilClear = false;
+        tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        if (exitHere.kind == tt::world::Exit::None) {
+            const float px = player.probeX(), py = player.probeY();
+            const float dx = px - player.x(), dy = py - player.y();
+            bool crossed = false;
+            if (dx * dx + dy * dy > 1.0e-6f && place.collision().loaded()) {
+                float hitT = 1.0f;
+                const float z = player.z() + tt::world::kToonRadius;
+                crossed = place.collision().cameraRaycast(tt::world::Vec3{player.x(), player.y(), z},
+                                                          tt::world::Vec3{px, py, z}, &hitT) &&
+                          hitT < 0.98f;
+            }
+            if (!crossed) exitHere = place.exitAt(px, py, player.z());
+        }
+        if (battle.active()) blockExitUntilClear = true;
+        else if (blockExitUntilClear && exitHere.kind == tt::world::Exit::None) blockExitUntilClear = false;
+        if (blockExitUntilClear) exitHere = {};
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
             // A transition is running, we are on the trolley / away at a minigame, or in a battle or
@@ -2061,65 +2097,89 @@ int main() {
             toastAge = 0.0f;
         }
 
-        // The black frame used to block in finishLoading until every chunk had uploaded.
-        // That was the zone-change hitch. The place loads once; each frame uploads a slice
-        // (Zone::update) and the fade stays up until the plan is resident.
-        static bool arrivalHold = false;
-        static u32 arrivalDest = 0, arrivalFrom = 0;
-        static float arrivalX = 0, arrivalY = 0, arrivalZ = 0;
-        if (!transition.readyToLoad()) arrivalHold = false;
+        // finishLoading used to upload every chunk before the next frame. Zone::update
+        // now uploads about 10 ms per frame. The loading card stays up until the cone
+        // plan is resident; the warm ring continues after the card drops. This path
+        // does not call finishLoading.
         if (transition.readyToLoad()) {
-            const u32 dest = transition.targetZone();
-            const u32 fromZone = transition.fromZone();
-            if (!arrivalHold || arrivalDest != dest) {
+            auto finishZoneStream = [&]() {
+                const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);
+                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : zoneFrom;
+                if (tt::world::hoodOf(zoneDest) != tt::world::hoodOf(zoneFrom) ||
+                    tt::world::placeKind(zoneDest) != tt::world::placeKind(zoneFrom)) {
+                    playPlaceMusic(zoneDest);
+                }
+                loadAmbient(zoneDest);
+                transition.notifyLoaded(zoneDest, place, player, netStarted ? &net : nullptr);
+                const u32 playable = static_cast<u32>(osGetTime() - zoneT0);
+                const u32 streamMs = static_cast<u32>(osGetTime() - zoneStreamT0);
+                tt::loadprof::notePlayable(playable);
+                tt::loadprof::noteStream(streamMs);
+                char profile[640];
+                TT_LOG("load: zone %lu stream %u ms, playable %u ms\n%s", static_cast<unsigned long>(zoneDest),
+                       static_cast<unsigned>(streamMs), static_cast<unsigned>(playable),
+                       tt::loadprof::report(profile, sizeof(profile)));
+                if (!tt::loadprof::dump("sdmc:/3ds/toontown3ds/load_profile.txt"))
+                    TT_LOG("load: could not write load_profile.txt");
+                // The card was on the previous frame. FrameBegin is what waits for that GPU
+                // work, and we return before it, so sync before freeing the card's textures.
+                C3D_FrameSync();
+                zoneLoad.release();
+                zonePhase = ZonePhase::Idle;
+            };
+            if (zonePhase == ZonePhase::Idle) {
+                // One presented frame of the loading screen before the open() stalls.
+                zoneDest = transition.targetZone();
+                zoneFrom = transition.fromZone();
+                zoneT0 = osGetTime();
+                zonePhase = ZonePhase::Cover;
+                TT_LOG("load: cover zone %lu", static_cast<unsigned long>(zoneDest));
+            } else if (zonePhase == ZonePhase::Cover) {
                 remoteToons.clear();
-                if (!place.load(dest)) {
-                    place.load(fromZone); // fall back to where we were
-                    transition.reset();
-                    arrivalHold = false;
-                } else {
-                    // Facilities are entered by elevator, never by a transition, so any arrival means we
-                    // left one (won, went sad, teleported): end it even if its gone events never come.
+                if (place.load(zoneDest)) {
                     if (level.active()) {
-                        TT_LOG("level: left for zone %u", unsigned(dest));
+                        TT_LOG("level: left for zone %u", unsigned(zoneDest));
                         level.shutdown();
                     }
                     zoneActors.loadPoints(place.pointsPath());
-                    cchars.setZone(dest);
-                    fishing.setZone(dest, place.pointsPath());
-                    trolley.setZone(dest);
-                    cogBuildings.setZone(dest);
+                    cchars.setZone(zoneDest);
+                    fishing.setZone(zoneDest, place.pointsPath());
+                    trolley.setZone(zoneDest);
+                    cogBuildings.setZone(zoneDest);
                     cogBuildings.syncAnchors(place);
-                    suits.setZone(dest);
-                    float ax, ay, az, ah;
-                    place.arrival(fromZone, &ax, &ay, &az, &ah);
-                    // reset() settles the toon on the ground at once: use the new place's floor, not a
-                    // facility's we just left (a DA office floor put the Lawbot HQ arrival 68 units up).
+                    suits.setZone(zoneDest);
+                    place.arrival(zoneFrom, &zoneAx, &zoneAy, &zoneAz, &zoneAh);
                     player.setCollision(&place.collision());
-                    player.reset(ax, ay, az, ah);
-                    if (netStarted) net.changeZone(dest);
-                    arrivalX = ax;
-                    arrivalY = ay;
-                    arrivalZ = az;
-                    arrivalDest = dest;
-                    arrivalFrom = fromZone;
-                    arrivalHold = true;
+                    player.reset(zoneAx, zoneAy, zoneAz, zoneAh);
+                    if (netStarted) net.changeZone(zoneDest);
+                    zoneStreamT0 = osGetTime();
                     place.setCamera(player.cameraEye(), player.cameraTarget());
-                    place.update(ax, ay, az, onStreetCell, nullptr);
+                    place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
+                    if (place.streamReady()) {
+                        finishZoneStream();
+                        continue;
+                    }
+                    zonePhase = ZonePhase::Streaming;
+                } else {
+                    place.load(zoneFrom);
+                    transition.reset();
+                    C3D_FrameSync();
+                    zoneLoad.release();
+                    zonePhase = ZonePhase::Idle;
+                }
+            } else if (place.streamReady() || zonePhase == ZonePhase::Streaming) {
+                place.setCamera(player.cameraEye(), player.cameraTarget());
+                place.update(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
+                if (place.streamReady()) {
+                    finishZoneStream();
+                    continue;
                 }
             }
-            if (arrivalHold && !place.zone().loading()) {
-                const tt::world::Exit arrivalExit = place.exitAt(arrivalX, arrivalY, arrivalZ);
-                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : arrivalFrom; // don't bounce straight back
-                if (tt::world::hoodOf(arrivalDest) != tt::world::hoodOf(arrivalFrom) ||
-                    tt::world::placeKind(arrivalDest) != tt::world::placeKind(arrivalFrom)) {
-                    playPlaceMusic(arrivalDest);
-                }
-                loadAmbient(arrivalDest);
-                transition.notifyLoaded(arrivalDest, place, player, netStarted ? &net : nullptr);
-                arrivalHold = false;
-                continue;
-            }
+        } else if (zonePhase != ZonePhase::Idle) {
+            // The transition was abandoned (disconnect, relocation). Don't leave the load screen up.
+            C3D_FrameSync();
+            zoneLoad.release();
+            zonePhase = ZonePhase::Idle;
         }
         if (!transition.active()) {
             lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
@@ -2318,14 +2378,26 @@ int main() {
                     }
                 }
             }
-            if (net.inZone() && !localLookFromServer) {
-                tt::world::ToonDna dna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
-                    toonCache.acquire(dna, tt::world::ToonLod::High, &localLook);
+            if (net.inZone()) {
+                // Do not drop the look on a quiet zone. Reacquiring on every tunnel released the
+                // local parts and the next frame drew the fallback body (the featureless blob).
+                // Rebook only when the server DNA actually changes, and pin those parts so the
+                // 4 MiB cache cannot evict the toon we are standing in.
+                static uint8_t seenDna[tt::net::kDnaSize];
+                static bool haveDna = false;
+                const uint8_t* dnaBytes = net.avatarDna();
+                if (!haveDna || memcmp(seenDna, dnaBytes, tt::net::kDnaSize) != 0) {
+                    tt::world::ToonDna dna;
+                    if (tt::world::parseNetString(dnaBytes, tt::net::kDnaSize, &dna) &&
+                        toonCache.acquire(dna, tt::world::ToonLod::High, &localLook)) {
+                        memcpy(seenDna, dnaBytes, tt::net::kDnaSize);
+                        haveDna = true;
+                        localLookFromServer = true;
+                        toonCache.pin(&localLook);
+                    }
+                } else {
                     localLookFromServer = true;
                 }
-            } else if (!net.inZone()) {
-                localLookFromServer = false;
             }
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
@@ -2701,6 +2773,29 @@ int main() {
             }
             // ---- end padnav ----
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
+            // BattleBase plays encntr_general_bg for the whole fight and restores the place
+            // track when the battle object is gone. The file is on the SD audio set.
+            {
+                static bool battleMusic = false;
+                static bool battleMusicMissing = false;
+                if (battle.active()) {
+                    if (!battleMusic && !battleMusicMissing) {
+                        const char* path = "sdmc:/3ds/toontown3ds/data/audio/encntr_general_bg.tsnd";
+                        FILE* music = fopen(path, "rb");
+                        if (music) {
+                            fclose(music);
+                            tt::audio::stopMusic(200);
+                            battleMusic = tt::audio::playMusic(path, true, 200);
+                        } else {
+                            battleMusicMissing = true;
+                            TT_LOG("battle: encntr_general_bg.tsnd is not on the SD card");
+                        }
+                    }
+                } else if (battleMusic) {
+                    battleMusic = false;
+                    playPlaceMusic(place.zoneId());
+                }
+            }
             // ---- tutorial ----
             // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
             // RewardPanel timer.  The compact client presents that acknowledgement on A.
@@ -2812,6 +2907,10 @@ int main() {
                 }
             }
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
+            if (zonePhase != ZonePhase::Idle) {
+                zoneLoad.drawCard(renderer, player.cameraEye(), player.cameraTarget());
+                continue;
+            }
 
             if (golf.active()) {
                 golf.draw(renderer);
@@ -2969,6 +3068,7 @@ int main() {
             transition.drawWorld(renderer);
         }
         renderer.endWorld();
+        if (zonePhase == ZonePhase::Idle) {
         lastStats = renderer.stats();
         lastCmdBufUsage = C3D_GetCmdBufUsage();
 
@@ -3274,6 +3374,15 @@ int main() {
         }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
+        } else {
+            const float prog = zonePhase == ZonePhase::Cover ? 0.12f : place.streamProgress();
+            C2D_Prepare();
+            zoneLoad.drawUi(renderer, bottom, stereoActive, zoneDest, prog);
+            if (autotest.active() && !zoneShotArmed) {
+                zoneShotArmed = true;
+                if (!shotName) shotName = "zone_load";
+            }
+        }
 
         C3D_FrameEnd(0);
         tt::prof::lap(tt::prof::kFrameEnd);

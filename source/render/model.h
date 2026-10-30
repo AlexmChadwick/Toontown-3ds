@@ -100,7 +100,8 @@ public:
     u32 numVertices() const { return numVertices_; }
 
     u32 linearBytes() const { return linearBytes_; }
-    // True when indices index the whole vertex array (set at load if it fits in u16).
+    // True when indices index the whole vertex array. Bake-time header flags bit0
+    // already stored them that way; otherwise load rebases batch-relative indices.
     bool absoluteIndices() const { return absoluteIndices_; }
 
 private:
@@ -167,6 +168,7 @@ private:
     u16 rebased_ = 0;
     u16 texDone_ = 0;
     bool rebaseOk_ = true;
+    bool absolute_ = false; // header flags bit 0: indices already address the whole vertex array
 };
 
 } // namespace tt::render

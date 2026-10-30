@@ -38,6 +38,28 @@ inline float easeIn(float t) {
     return t * t;
 }
 
+// Arriving walks out along local -Y. If that ray hits the building at once and +Y is open,
+// the baked heading faces into the mesh (the Toon HQ exit dropped the toon into the walls).
+void faceDoorOutside(const CollisionWorld& cw, float* h, float x, float y, float z) {
+    if (!cw.loaded() || !h) return;
+    const float rad = *h * kDegToRad;
+    const float fx = -sinf(rad), fy = cosf(rad); // local +Y in world XY
+    const Vec3 origin{x, y, z + 2.0f};
+    auto along = [&](float dx, float dy) {
+        float t = 1.0f;
+        constexpr float kReach = 6.0f;
+        const bool struck = cw.cameraRaycast(origin, Vec3{x + dx * kReach, y + dy * kReach, origin.z}, &t);
+        return struck ? t : 2.0f;
+    };
+    const float outWay = along(-fx, -fy); // the walk-out direction
+    const float inWay = along(fx, fy);
+    if (outWay < 0.45f && inWay > outWay + 0.25f) {
+        *h += 180.0f;
+        if (*h > 180.0f) *h -= 360.0f;
+        TT_LOG("transition: door heading flipped so the walk-out is outside the building");
+    }
+}
+
 inline float wrapDeg(float d) {
     while (d >= 360.0f) d -= 360.0f;
     while (d < 0.0f) d += 360.0f;
@@ -465,6 +487,9 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
             doorOriginY_ = pt->y;
             doorOriginZ_ = pt->z;
             doorOriginH_ = pt->h;
+            if (leavingInterior) {
+                faceDoorOutside(place.collision(), &doorOriginH_, doorOriginX_, doorOriginY_, doorOriginZ_);
+            }
         } else {
             doorOriginX_ = player.x();
             doorOriginY_ = player.y();
@@ -850,32 +875,23 @@ void Transition::drawWorld(render::Renderer& renderer) {
     }
 
     // [interior life: door leaves]
+    // The baked leaf already has its hinge at the origin (bake_transitions.bake_door_leaf).
+    // An extra hinge translation orbited the leaf around a point beside the frame, so the
+    // door slid sideways instead of swinging. DNADoor.setupDoor scales door_origin by 0.8
+    // and rotates the leaf about that hinge. Both leaves swing, opposite directions.
     if (doorActive_) {
-        // Entering (Departing): right door leaf swings open 0 -> +100 deg
-        if (phase_ == TransitionPhase::Departing && doorModel_.loaded()) {
+        auto drawLeaf = [&](render::Model& leaf, float swing) {
+            if (!leaf.loaded()) return;
             C3D_Mtx m;
             Mtx_Identity(&m);
             Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
             Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
             Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
-            // Right door hinge: (3.591, 0, 3.913)
-            Mtx_Translate(&m, 3.591f, 0.0f, 3.913f, true);
-            Mtx_RotateZ(&m, doorSwing_ * kDegToRad, true);
-            renderer.drawModel(doorModel_, m);
-        }
-        // Exiting (Arriving): left door leaf swings closed -100 -> 0 deg
-        else if (phase_ == TransitionPhase::Arriving && (doorModelLeft_.loaded() || doorModel_.loaded())) {
-            render::Model& leaf = doorModelLeft_.loaded() ? doorModelLeft_ : doorModel_;
-            C3D_Mtx m;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
-            Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
-            Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
-            // Left door hinge: (-3.577, 0, 3.073)
-            Mtx_Translate(&m, -3.577f, 0.0f, 3.073f, true);
-            Mtx_RotateZ(&m, -doorSwing_ * kDegToRad, true);
+            Mtx_RotateZ(&m, swing * kDegToRad, true);
             renderer.drawModel(leaf, m);
-        }
+        };
+        drawLeaf(doorModel_, doorSwing_);
+        drawLeaf(doorModelLeft_, -doorSwing_);
     }
     // [end interior life: door leaves]
 }

@@ -78,7 +78,7 @@ def load(path, tints):
         import ttm_pool
         from pathlib import Path
         buf = ttm_pool.standalone(buf, ttm_pool.read_pool(Path(path).parent))
-    (magic, ver, _, ntex, nbatch, nv, ni, sx, sy, sz, ox, oy, oz,
+    (magic, ver, hdr_flags, ntex, nbatch, nv, ni, sx, sy, sz, ox, oy, oz,
      tex_off, batch_off, v_off, i_off, _) = struct.unpack_from('<4sHHHHII3f3fIIIII', buf, 0)
     assert magic == ttm.MAGIC and ver == ttm.VERSION
     textures = []
@@ -117,7 +117,7 @@ def load(path, tints):
             wt.addData2(v['uv'][0] / ttm.UV_SCALE, v['uv'][1] / ttm.UV_SCALE)
         tris = GeomTriangles(Geom.UHStatic)
         for k in idx[fi:fi + icnt]:
-            tris.addVertex(int(k))
+            tris.addVertex(int(k) - (int(fv) if hdr_flags & 1 else 0))
         g = Geom(vd)
         g.addPrimitive(tris)
         gn = GeomNode(f'batch{b}')

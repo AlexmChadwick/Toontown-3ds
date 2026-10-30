@@ -67,8 +67,9 @@ public:
     // Pose to send over the network: platform-local while aboard (setParent token), else world.
     void netPose(float* x, float* y, float* z, float* headingDeg) const;
     bool airborne() const { return z_ > ground_ + 0.01f || vz_ > 0.0f; }
-    // Clip + play rate for the current motion (Toon.setSpeed rules: run >= 8, walk > 0.5,
-    // reverse = walk at -1, turning in place = walk; airborne = jump-idle).
+    // Clip + play rate for the current motion (Toon.setSpeed: run >= 8, walk > 0.5,
+    // reverse = walk at -1, turning in place = walk; airborne = jump-idle). B uses the
+    // OTP slow speeds, so a full-stick walk stays under RunCutOff and plays walk at rate 1.
     ToonAnim animState(float* rate) const;
 
     // World matrix for the toon model (Panda convention: toon faces +Y at H=0).

@@ -1419,3 +1419,215 @@ letters until the next full bake.
 
 CPU: no separate 0.5 ms trim. The extra time on `ef52035` is the nearer meshes.
 This change stops submitting chunks outside the cone (50 draws on ttc_mid).
+## 2026-10-30 — fast streaming: retain cache, one-shot loads, loading screen
+
+Build: `cursor/fast-streaming-0b72` off `cursor/render-quality-2097`. Host `g++ -std=c++17
+-Wall -Wextra -Werror -fsanitize=address,undefined` compiled `source/world/zone.cpp` and
+`source/world/collision.cpp` with `tools/zone_test/retain_test.cpp`. **No Azahar run and no
+hardware run.** This image has no devkitARM, so `make` of the `.3dsx` was not run, and
+Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Do not read the host timings as 3DS frame times.
+There are no before/after screenshots.
+
+- Retain test (`retain: hidden chunks stay resident...`): two visgroups 600 units apart.
+  Walking from one to the other kept both resident (54 + 54 geometry bytes) and
+  `detailReloads` did not increase on the way back. `triangles()` stayed 1 (the hidden
+  chunk is not submitted). With the retain budget cut to one chunk (54 bytes), the older
+  chunk was evicted and the return trip did reload (`detailReloads` 2 → 3). A v2 chunk
+  with an empty far mesh: standing at the origin kept LOD 0; stepping to 200 units
+  (past `lodKeep` 185, inside the 440 draw distance) kept LOD 0. The far mesh was
+  not loaded over it (`highParked` stayed false, `loadsQueued` unchanged,
+  `triangles()` stayed 1). Stepping back did not reload. `warmAround` of the neighbour then loaded it on the
+  next `update` without counting it in `triangles()`.
+- Host I/O profile of the rewritten `romfs/baked/ttc_sz.ttm` (`python3 -I tools/dev/profile_load.py`),
+  page cache warm, 30 repeats, after the 130-draw hill-card rebake:
+
+  | Path | Reads | Bytes | Time |
+  |---|---|---|---|
+  | Per texture (header, batches, tex table, verts, indices, 114 textures) | 119 | 2,219,726 | 182 µs |
+  | One GPU span | 1 | 2,219,008 | 194 µs |
+
+  On a warm page cache the microseconds are noise (about 1×). The SD-relevant result
+  is 119 reads collapsing to one.
+
+  The file is 2,228,352 bytes, 157 batches, 14,609 triangles, 37,297 vertices,
+  684,406 geometry bytes, 1,526,016 texture bytes, flags 0 (batch-relative indices;
+  this RomFS mesh is not rewritten). Warm cache hides seek latency. On an SD card
+  the 119 reads are the stall; the loader now issues one read of that span. Textures
+  in the file are already Morton-tiled. `ttm.write` now sets header flags bit 0 and
+  stores absolute indices when the model has ≤ 65,535 vertices (checked on a
+  one-triangle bake: flags 1, indices 0,1,2).
+- On device, `Model::loadFrom` and `Zone::load` add to `tt::loadprof` and the zone
+  transition writes `sdmc:/3ds/toontown3ds/load_profile.txt` plus a `load: zone ...
+  stream N ms, playable N ms` line. Those numbers are not available from this host.
+
+## 2026-10-30 — hardware-bug fixes, devkitARM compile
+
+Build: `cursor/fast-streaming-0b72` rebased on `ef52035` (`cursor/render-quality-2097`).
+Draw cap stays `Zone::kDrawBudget` 130. **No Azahar and no hardware.** Azahar 2127
+still needs Qt 6.8 and FFmpeg 7 on this Ubuntu image. Do not read the compile as a
+frame-time or a play-through. The streaming entry above said this image had no
+devkitARM; that is superseded here.
+
+Toolchain: devkitARM gcc 16.1.0, libctru 2.7.0, citro3d 1.7.1, citro2d 1.7.0, installed
+under `/opt/devkitpro` (the official CDN returned 403; packages came from the
+Leseratte mirror, and crtls were built from devkitPro commit `1c0c102`). `makerom`
+0.18.4 and `bannertool` 1.2.0 (linux-x86_64) are on `$(DEVKITPRO)/tools/bin`.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+Both succeeded. `toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB,
+`toontown3ds.cia` is 9.8 MB. Zero warnings in `source/`. The linker still prints the
+existing devkitARM `crtn.o` note about a missing `.note.GNU-stack` section. The
+loading screen's `Models` type was a nested class in the header and a different
+type in an anonymous namespace, so `zone_load_screen.cpp` did not compile;
+`ZoneLoadScreen::Models` is now the nested class, and `<new>` supplies `std::nothrow`.
+`uint32_t` is `unsigned long` in this newlib, so the load-profile `printf`s cast to
+`unsigned`. The host retain test was rebuilt with the same `g++ -Werror` line and
+printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+
+Checked against the pinned Open Toontown sources (commit `2b366a23`, fetched read-only;
+`ref/open-toontown` is an empty gitlink here):
+
+- Squirt: `DistributedBattleBaseAI.__makeMovie` sends `setMovie` then
+  `setState('PlayMovie')`. `movieDone` is ignored unless the FSM is already in
+  PlayMovie, and a failed send used to be marked delivered. The client now rebuilds
+  the movie if `setMovie` arrives late and resends `movieDone` once a second until
+  the phase changes. A squirt with no resolved suit still shows a miss. The spray
+  cue (`squirt_flower_hit` / `squirt_glass_hit` / `squirt_gun_hit`) plays when the
+  projectile leaves, and a miss plays the miss cue. Suit attacks announce
+  `CogAttackInfo.name`. `encntr_general_bg` starts with the battle and the place
+  track returns when it ends. Those `.tsnd` files are the SD bake
+  (`bake_audio.py` `BATTLE_ASSETS`); this tree does not contain them.
+- Run: `OTPGlobals.ToonForwardSlowSpeed` is 6, not `0.4 * 20`. B at full stick was
+  exactly `RunCutOff` (8) and `Toon.setSpeed` uses `>=`, so walk played the run cycle.
+- Tunnel: exits use the collided feet. The unpushed probe is used only when it does
+  not cross a camera wall. Ending a battle inside a trigger does not zone-change
+  until the toon has walked clear of it.
+- Toon HQ exit: the walk-out is local -Y. If that camera ray hits within 6 units and
+  +Y is open, the door heading is flipped 180 degrees before the toon is placed.
+- Doors: both baked leaves swing about the origin. The old hinge offsets
+  (3.591, 0, 3.913) and (-3.577, 0, 3.073) are gone.
+- Desk: `TTLocalizer.LeaderboardTitle` is `Toon Platoon` with no question mark
+  (`DistributedHQInterior.buildTitleRow`, SignFont / MickeyFont). The client string
+  was already that. MickeyFont is not in the RomFS font set (only ImpressBT), so the
+  title is still ImpressBT. No extra character was added.
+- LOD: remote toons inside 120 units stay at LOD 500. The local DNA look is pinned
+  and is not released when `inZone()` goes false.
+
+## 2026-10-30 — rebase onto the view budget, MickeyFont in RomFS
+
+Build: `cursor/fast-streaming-0b72` rebased onto `a6f33b0` (`cursor/view-budget-2097`).
+Parent of the streaming commit is that view-budget commit. Draw cap stays 130.
+**No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Host
+microseconds are not 3DS frame times. There are no baked `.tz` files in this tree,
+so `tools/zone_test/zone_test.cpp` was compiled with `g++ -Werror` but not run on
+2000/1000/2100.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+The retain test printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+A v2 chunk that already has its near mesh stays at LOD 0 past `lodKeep`; the far
+mesh is not loaded over it. `make -j4` and `make cia` succeeded. `toontown3ds.3dsx`
+is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB. Zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+How the two branches meet:
+
+- A chunk that already has its near mesh keeps that mesh when it leaves the cone.
+  `Zone::draw` submits the cone, nearest first, and stops at 130 draws and 15k
+  triangles. Culled near meshes count toward the retain budget (Old 3DS 6/8 MiB)
+  and are evicted only when that budget is full; the far mesh is then allowed to
+  load. They are not swapped in while the near mesh is still resident.
+- The loader thread calls `ModelStaging::read` (one span of vertices, indices and
+  inline textures). The main thread `pump`s about 10 ms of GPU upload per
+  `Zone::update`. Zone jobs do not call `Model::loadFrom`, so a chunk is not
+  uploaded twice. Street and playground arrival keeps the loading card and does
+  not call `finishLoading`. Boss and cogdo still call `finishLoading`; each
+  `update` inside it only uploads a slice.
+- The gameplay fixes from `ce06773` are still in the tree (squirt `movieDone`
+  retry, battle music hook, LOD pin, B walk speeds, tunnel latch, HQ heading
+  flip, door swing).
+
+MickeyFont: `tools/pipeline/bake_mickey_font.py` rasterized
+`phase_3/models/fonts/MickeyFont.bam` (resources `d00df01`) through the palette
+`phase_3_palette_2tmlc_1.rgb` into `romfs/baked/fonts/mickey.bcfnt` (33,276 bytes,
+49 glyphs, 256×256 A4, cell 31×31, baseline 23). The bam has no lowercase.
+`a-z` map onto `A-Z`, which is what Panda's TextNode does with this StaticTextFont,
+so the desk string `Toon Platoon` is drawn in the sign letters. The sheet is A4,
+so the fill and the dark outline are one silhouette tinted by the title colour
+`(0.5, 0.75, 0.7)`. The stock two-tone stroke is the texture luminance and is
+not a separate pass. The HQ title uses this font; other UI text stays ImpressBT.
+`ref/resources` is an empty gitlink here, so the bake was run from a temporary
+copy of those two files. The earlier desk note in this log (ImpressBT only) is
+superseded by this entry.
+
+## 2026-10-30 — warm ring, in-cone far meshes, 12 MB headroom
+
+Integrated Azahar of #2 + #5 + #7 + #6 at `7e4b6dd` failed on Old and New 3DS
+(street card never finished, distant scenery dropped, card held for the warm
+ring, New street free memory 6.2–6.7 MB). This entry is the host and devkitARM
+check of the fix on top of that commit. **No Azahar and no hardware.** Azahar
+2127 still needs Qt 6.8 and FFmpeg 7. The 8f1ca83 / 2f40267 SHAs are not in this
+clone; the same two rules are implemented here.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+```
+
+The host loader no longer marks a chunk resident inside `queueLoad`. `completeLoads()`
+publishes the queued read, which is what `update()` does on device when a job
+finishes. A warm upload stays resident, `warming()` stays true until that publish,
+and shrinking the retain cap during preload does not evict the warm hold. The next
+update evicts it and does not queue it again. A 130-draw hall plus a one-draw shop
+in the cone submits 131 draws (the shop is not skipped). Walking onto the shop
+demotes the hall to its far mesh (2 draws). There are no baked `.tz` files here, so
+`tools/zone_test/zone_test.cpp` was compiled with `-Werror` and not run on
+2000/1000/2100.
+
+`make -j4` and `make cia` succeeded with zero warnings in `source/`.
+`toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB.
+The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+What changed:
+
+- A finished warm-ring upload is kept. `makeRoom` does not evict a warm hold while
+  preload is in progress, and `warmAround` only queues chunks that fit in the
+  retain budget including bytes already in flight.
+- `Place::streamReady` is the cone plan (`!loading()`). The card drops then. The
+  per-frame `Place::update` keeps warming the ring. `finishLoading` (boss / cogdo)
+  also waits for the cone only.
+- Inside the cone, `Zone::draw` submits every resident chunk. The 130-draw / 15k
+  cap still decides near upgrades. A resident near mesh inside `lodKeep` stays.
+  Past `lodKeep`, it is demoted to the far mesh when it no longer fits, and that
+  far read is allowed to replace it. A near mesh outside the cone is still not
+  replaced by the far blob.
+- Retain is 4 MiB geometry / 4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS.
+  On device, non-cone chunks are evicted while `linearSpaceFree()` is under 12 MB.
+  In-cone chunks are not evicted to make that floor. Not measured on Azahar.
+

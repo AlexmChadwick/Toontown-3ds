@@ -379,6 +379,7 @@ private:
     Fx fx_[kMaxFx];
     int numFx_ = 0, fxCursor_ = 0;
     uint32_t movieStartMs_ = 0, movieEndMs_ = 0;
+    uint32_t movieRetryMs_ = 0; // last movieDone attempt; resent while PlayMovie ignores the first
     bool movieSent_ = false;
     bool moviePlaying_ = false;
     BattleFx* battleFx_ = nullptr;
