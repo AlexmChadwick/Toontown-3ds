@@ -16,6 +16,8 @@ public:
     // Upgrades stop here so a view is not glued to the 150-draw frame cap.
     // The far set itself may still load up to that cap (older facility bakes).
     static constexpr uint32_t kDrawBudget = 130;
+    // Chunks within Quality::lodMust of the toon may use up to the frame envelope.
+    static constexpr uint32_t kNearDrawBudget = 150;
     struct Trigger {
         float min[3], max[3];
         uint32_t kind; // 0 other, 1 door, 2 tunnel (approach volume)

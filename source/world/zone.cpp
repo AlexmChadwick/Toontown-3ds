@@ -512,18 +512,26 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             z.order[at]=id;
         }
         if (z.h.version>=2) {
-            for (uint32_t j=0;j<count;++j) {
-                const uint16_t id=z.order[j];
-                const Chunk& high=z.chunks[id];
-                // Hysteresis: a chunk already at full detail keeps it a little past the near
-                // radius, so a toon standing on the boundary doesn't reload it from SD.
-                const float reach = z.resident[id] && z.lod[id]==0 ? quality.lodKeep : quality.lodNear;
-                if (distance2(feet,high)>reach*reach) continue;
-                const Chunk low=modelInfo(high,1);
-                const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
-                const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
-                if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=kDrawBudget) {
-                    z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
+            // Pass 0: the chunks around the toon, against the frame envelope (kNearDrawBudget).
+            // Pass 1: everything else in the near radius, nearest first, against kDrawBudget.
+            for (int pass=0;pass<2;++pass) {
+                for (uint32_t j=0;j<count;++j) {
+                    const uint16_t id=z.order[j];
+                    if (z.choice[id]==0) continue;
+                    const Chunk& high=z.chunks[id];
+                    // Hysteresis: a chunk already at full detail keeps it a little past the near
+                    // radius, so a toon standing on the boundary doesn't reload it from SD.
+                    const bool wasHigh = z.resident[id] && z.lod[id]==0;
+                    const float reach = pass==0 ? quality.lodMust + (wasHigh ? 16.0f : 0.0f)
+                                                : wasHigh ? quality.lodKeep : quality.lodNear;
+                    if (distance2(feet,high)>reach*reach) continue;
+                    const Chunk low=modelInfo(high,1);
+                    const uint64_t g=geom-low.geom+high.geom,t=tex-low.tex+high.tex;
+                    const uint64_t tr=tris-low.tris+high.tris,dr=draws-low.draws+high.draws;
+                    const uint64_t drawCap = pass==0 ? kNearDrawBudget : kDrawBudget;
+                    if (g<=kGeometryBudget && t<=kTextureBudget && tr<=kTriangleBudget && dr<=drawCap) {
+                        z.choice[id]=0; geom=g; tex=t; tris=tr; draws=dr;
+                    }
                 }
             }
         }

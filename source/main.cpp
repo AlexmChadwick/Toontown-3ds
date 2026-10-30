@@ -222,9 +222,9 @@ int main() {
     tt::render::setActiveQuality(isNew3ds);
     {
         const tt::render::Quality& q = tt::render::activeQuality();
-        TT_LOG("render: %s profile far %.0f draw %.0f lod %.0f/%.0f fog %.0f-%.0f",
+        TT_LOG("render: %s profile far %.0f draw %.0f lod %.0f/%.0f must %.0f fog %.0f-%.0f",
                q.new3ds ? "New 3DS" : "Old 3DS", double(q.farPlane), double(q.drawDistance), double(q.lodNear),
-               double(q.lodKeep), double(q.fogStart), double(q.fogEnd));
+               double(q.lodKeep), double(q.lodMust), double(q.fogStart), double(q.fogEnd));
     }
     TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
 

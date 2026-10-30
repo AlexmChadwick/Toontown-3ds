@@ -445,6 +445,18 @@ triangles) and zone 11200 (11,964 far triangles). The busiest planned view is
 12,872 triangles (far mesh 42 draws). Every far and planned view is within
 130 draws, 15,000 triangles, 6 MiB geometry and 8 MiB textures.
 
+**Near chunks first (2026-10-30).** The 130-draw cap counts every resident chunk,
+behind the camera too, and the upgrade pass skipped a refused chunk and went on.
+In TTC at the `ttc_mid` view the chunk the toon stood in (34 high batches) was
+refused while chunks 114+ units away went high, so Toon Hall drew half sharp and
+half as the bloated vertex-coloured far mesh 10 units away. Zone::update now
+upgrades chunks within `Quality::lodMust` (48 Old / 64 New, +16 hysteresis) first,
+against 150 draws (`kNearDrawBudget`, the frame envelope), then the rest of the
+near radius against 130 as before. Memory and 15k-triangle caps are unchanged.
+Host simulation over the eight view spots: the nearest far-LOD chunk moved from
+14-42 units to 64-105 units (ttc_tree stays at 29: two heavy chunks fill the cap),
+with 111-149 resident draws.
+
 | Zone | Grid | Far draws | Far tris | Planned draws | Planned tris |
 |---|---:|---:|---:|---:|---:|
 | 1000 | 128 | 42 | 11,175 | 130 | 12,872 |

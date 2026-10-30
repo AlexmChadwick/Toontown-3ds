@@ -12,6 +12,10 @@ struct Quality {
     float drawDistance;
     float lodNear; // upgrade a chunk to the high mesh inside this distance
     float lodKeep; // hysteresis: a chunk already high stays high out to here
+    // Chunks this close are upgraded first, against the 150-draw frame envelope rather than
+    // Zone::kDrawBudget: the far mesh is vertex-coloured and visibly bloated up close, and a
+    // nearest-first pass alone let a chunk under the toon stay far while distant ones went high.
+    float lodMust;
     float fogStart;
     float fogEnd;
     bool new3ds;
@@ -23,8 +27,8 @@ struct Quality {
 // range and the cutoff farther. Zone still refuses a high-LOD upgrade that would
 // pass 15k triangles, 130 draws (Zone::kDrawBudget), 6 MiB geometry or 8 MiB textures.
 inline Quality qualityFor(bool new3ds) {
-    if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 180.0f, 680.0f, true};
-    return {520.0f, 440.0f, 160.0f, 185.0f, 110.0f, 400.0f, false};
+    if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 64.0f, 180.0f, 680.0f, true};
+    return {520.0f, 440.0f, 160.0f, 185.0f, 48.0f, 110.0f, 400.0f, false};
 }
 
 inline Quality& activeQuality() {
