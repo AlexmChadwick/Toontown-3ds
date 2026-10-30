@@ -9,6 +9,9 @@ namespace tt::ui {
 // Draws `art` stretched into (x, y, w, h), mirrored left-right when flipX (MakeAToon's back
 // button is the next button mirrored). Returns false when the atlas is missing.
 bool drawMatArt(MatArt art, float x, float y, float w, float h, float z = 0.5f, bool flipX = false);
+// Draws `art` scaled to w x h and turned `degrees` clockwise about its centre (cx, cy), as
+// ColorShop's tilted Head / Body / Legs frames. Returns false when the atlas is missing.
+bool drawMatArtRotated(MatArt art, float cx, float cy, float w, float h, float degrees, float z = 0.5f);
 // The part's width / height, for callers that keep its aspect.
 float matArtAspect(MatArt art);
 // Frees the atlas (the front end calls this when it shuts down).

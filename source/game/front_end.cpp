@@ -40,6 +40,16 @@ const char* const kSizeLabel[3] = {"Short", "Medium", "Tall"};
 // Make-A-Toon's Clothes step: two shuffle frames (centre rows) with their arrows' hit boxes.
 constexpr float kShirtY = 70, kBottomY = 148, kShuffleLX = 34, kShuffleRX = 226;
 constexpr float kShuffleW = 136; // the frame, aspect kept
+// ColorShop's frames (centre, size with the shuffle frame's aspect kept, upstream's tilt) down the
+// left half, and the swatch grid for the touched frame's part on the right.
+struct ColorFrame {
+    float cx, cy, w, h, tilt;
+};
+constexpr ColorFrame kColorFrames[4] = {
+    {84, 52, 116, 48.6f, 0.0f}, {84, 96, 86, 36.0f, 2.0f}, {84, 134, 86, 36.0f, -2.0f}, {84, 172, 86, 36.0f, 3.0f}};
+constexpr float kSwatchX = 174, kSwatchY = 44, kSwatchStep = 23.5f;
+constexpr int kSwatchCols = 6;
+const u32 kFrameGlow = C2D_Color32(0xFF, 0xE0, 0x60, 0xFF);
 
 // Immediate-mode layout: each screen function is called once to handle input and
 // once to draw; buttons are numbered in call order for D-pad navigation.
@@ -597,30 +607,59 @@ void FrontEnd::makeStepInput(u32 down) {
         break;
     }
     case MakeStep::Color: {
-        static const char* const kTargets[4] = {"All", "Head", "Arms", "Legs"};
-        for (int i = 0; i < 4; i++) {
-            if (TT_BUTTON((Button{10.0f + i * 76.0f, 26, 70, 28}), kTargets[i], colorTarget_ == i, true)) {
-                colorTarget_ = i;
-            }
-        }
+        // ColorShop: the Toon Color frame (all three parts, scale 1.3) and the Head / Body / Legs
+        // frames (scale 0.9, tilted 2 / -2 / 3 degrees), each a tt_t_gui_mat_shuffleFrame whose gold
+        // arrows step that part through the gender's colours. Touching a frame (or its arrows) also
+        // points the swatch grid at that part, for picking a colour outright.
         const u8 n = world::matColorCount(choice_.gender);
+        auto partColor = [&](int t) { return t == 2 ? choice_.armColor : t == 3 ? choice_.legColor : choice_.headColor; };
+        auto paint = [&](int t, u8 c) {
+            if (t == 0 || t == 1) choice_.headColor = c;
+            if (t == 0 || t == 2) choice_.armColor = c;
+            if (t == 0 || t == 3) choice_.legColor = c;
+            rebuildMakeDna();
+        };
+        auto shuffle = [&](int t, int d) { // ColorShop.__swap*Color: the next / previous list colour
+            int at = 0;
+            for (u8 i = 0; i < n; i++)
+                if (world::matColor(choice_.gender, i) == partColor(t)) at = i;
+            colorTarget_ = t;
+            paint(t, world::matColor(choice_.gender, u8((at + d + n) % n)));
+        };
+        static const char* const kNames[4] = {"Toon Color", "Head", "Body", "Legs"}; // ColorShopToon / Head / Body / Legs
+        for (int t = 0; t < 4; t++) {
+            const ColorFrame& f = kColorFrames[t];
+            const Button frame{f.cx - f.w * 0.5f, f.cy - f.h * 0.5f, f.w, f.h};
+            if (gGui.drawing) {
+                if (colorTarget_ == t) ui::theme::roundRect(frame.x - 4, frame.y - 3, frame.w + 8, frame.h + 6, 12, kFrameGlow);
+                if (!ui::drawMatArtRotated(ui::MatArt::ShuffleFrame, f.cx, f.cy, f.w, f.h, f.tilt))
+                    ui::theme::paper(frame.x, frame.y, frame.w, frame.h, 8.0f);
+                textCentered(Button{frame.x + 14, frame.y + 1, frame.w - 28, frame.h}, t == 0 ? 0.56f : 0.5f, kWhite,
+                             kNames[t]);
+            } else if (tapped(frame)) {
+                colorTarget_ = t;
+            }
+            const float ah = f.h * 0.82f, aw = ah * 0.6f; // the arrows' touch boxes at the frame's ends
+            if (TT_BUTTON((Button{f.cx - f.w * 0.5f - aw * 0.75f, f.cy - ah * 0.5f, aw, ah}), "<", false, n > 1))
+                shuffle(t, -1);
+            if (TT_BUTTON((Button{f.cx + f.w * 0.5f - aw * 0.25f, f.cy - ah * 0.5f, aw, ah}), ">", false, n > 1))
+                shuffle(t, 1);
+        }
         for (u8 i = 0; i < n; i++) {
             const u8 c = world::matColor(choice_.gender, i);
-            const Button b{12.0f + (i % 9) * 33.0f, 62.0f + (i / 9) * 33.0f, 29.0f, 29.0f};
+            const Button b{kSwatchX + (i % kSwatchCols) * kSwatchStep, kSwatchY + (i / kSwatchCols) * kSwatchStep,
+                           kSwatchStep - 3, kSwatchStep - 3};
             gGui.index++;
             if (gGui.drawing) {
                 const float* rgb = world::bodyColor(c);
-                const bool sel = choice_.headColor == c && (colorTarget_ == 0 || colorTarget_ == 1);
+                const bool sel = partColor(colorTarget_) == c;
                 const bool focused = gGui.cursorShown && gGui.index - 1 == gGui.cursor;
                 if (focused || sel)
-                    ui::theme::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 8, focused ? ui::theme::kRed : ui::theme::kInk);
-                ui::theme::roundRect(b.x, b.y, b.w, b.h, 6, ui::theme::kPaperEdge);
-                ui::theme::roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 5, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f));
+                    ui::theme::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 7, focused ? ui::theme::kRed : ui::theme::kInk);
+                ui::theme::roundRect(b.x, b.y, b.w, b.h, 5, ui::theme::kPaperEdge);
+                ui::theme::roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 4, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f));
             } else if (tapped(b) || (gGui.activate && gGui.cursorShown && gGui.index - 1 == gGui.cursor)) {
-                if (colorTarget_ == 0 || colorTarget_ == 1) choice_.headColor = c;
-                if (colorTarget_ == 0 || colorTarget_ == 2) choice_.armColor = c;
-                if (colorTarget_ == 0 || colorTarget_ == 3) choice_.legColor = c;
-                rebuildMakeDna();
+                paint(colorTarget_, c);
             }
         }
         break;
@@ -1233,6 +1272,11 @@ void FrontEnd::drawMakeBottom() {
         text(10, 121, 0.5f, kBInk, "Legs");
         text(10, 163, 0.5f, kBInk, "Gender");
         break;
+    case MakeStep::Color: {
+        static const char* const kFor[4] = {"Tap a color: all", "Tap a color: head", "Tap a color: body", "Tap a color: legs"};
+        textCentered(Button{kSwatchX - 2, 24, kSwatchCols * kSwatchStep, 16}, 0.42f, kBSoft, kFor[colorTarget_ & 3]);
+        break;
+    }
     case MakeStep::Clothes: {
         // ClothesGUI's topFrame / bottomFrame: the shuffle frame with its name in white, the gold
         // arrows at its ends; which one of how many sits under it.
