@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/trolley.h"
 #include "world/toon_avatar.h"
 
@@ -41,7 +42,7 @@ void TrolleyRide::setZone(u32 zoneId) {
         px_ = s.x, py_ = s.y, pz_ = s.z, ph_ = s.h;
         sphereY_ = s.hood == 5000 ? 13.88f : 14.88f;
     }
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     car_.unload();
     if (has_) {
         char path[80];

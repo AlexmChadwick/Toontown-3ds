@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/cog_interior.h"
 
 #include <cstdio>
@@ -349,7 +350,7 @@ void CogInterior::shutdown() {
     assetBatch_.clear();
     loadedFloor_ = -1;
     if (room_.loaded())
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     active_ = false;
     sentElevatorDone_ = false;
     sentReserveDone_ = false;

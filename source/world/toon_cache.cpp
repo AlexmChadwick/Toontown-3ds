@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/toon_cache.h"
 
 #include <cstdlib>
@@ -136,11 +137,11 @@ void ToonCache::shutdown() {
     if (loader_) {
         quit_ = true;
         LightEvent_Signal(&wake_);
-        threadJoin(loader_, U64_MAX);
-        threadFree(loader_);
+        const bool joined = ::tt::gpu::joinBounded(loader_, "toon loader", 2000ULL * 1000 * 1000);
         loader_ = nullptr;
+        if (!joined) return; // still loading a part: leave its memory to the process exit
     }
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     for (auto& stream : streams_) for (int p=0;p<3;p++) {
         if(stream.files[p]) { fclose(stream.files[p]);stream.files[p]=nullptr; }
         stream.active[p].unload(); stream.staging[p].unload();

@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/fishing.h"
 #include "world/toon_avatar.h"
 
@@ -101,7 +102,7 @@ void Fishing::loadAssets(int rod) {
     }
     if (loadedRod_ != rod) {
         if (rod_.loaded()) {
-            C3D_FrameSync();
+            ::tt::gpu::frameSync();
             rod_.unload();
         }
         snprintf(path, sizeof(path), "%srod_%d.ttm", kDataDir, rod);
@@ -118,7 +119,7 @@ void Fishing::loadAssets(int rod) {
 }
 
 void Fishing::unloadAssets() {
-    if (rod_.loaded() || bob_.loaded() || line_.loaded()) C3D_FrameSync();
+    if (rod_.loaded() || bob_.loaded() || line_.loaded()) ::tt::gpu::frameSync();
     rod_.unload();
     bob_.unload();
     line_.unload();

@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "ui/boss_titles.h"
 #include "world/boss_battle.h"
 #include "core/profile.h"
@@ -160,7 +161,7 @@ void BossBattle::release() {
 
 void BossBattle::leave(BossFrame& frame) {
     // All GPU users have completed before resources or the underlying place change.
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossNear(false);
     frame.client.sendBossExit();
     frame.cache.release(&rescuedLook_);
@@ -906,7 +907,7 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.ui.setBattle(nullptr, {});
         frame.remotes.clear();
         frame.suits.setZone(frame.client.zoneId());
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.place.unload(); // The lobby and arena never consume the zone pools together.
         if (cashbot_) frame.player.reset(88, -214, 0, 210);
         else frame.player.reset(-10, -80, 0, 0);

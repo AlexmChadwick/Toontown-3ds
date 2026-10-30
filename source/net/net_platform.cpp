@@ -5,6 +5,7 @@
 #ifdef __3DS__
 #include <3ds.h>
 #include <malloc.h>
+#include "core/gpu_sync.h"
 #endif
 
 #include <arpa/inet.h>
@@ -67,12 +68,12 @@ bool Thread::start(Fn fn, void* arg, int prio, int core, size_t stackSize) {
     return started_;
 }
 
-void Thread::join() {
-    if (!started_) return;
-    threadJoin(thread_, U64_MAX);
-    threadFree(thread_);
+bool Thread::join() {
+    if (!started_) return true;
+    const bool joined = ::tt::gpu::joinBounded(thread_, "net");
     thread_ = nullptr;
     started_ = false;
+    return joined;
 }
 #else
 namespace {
@@ -95,10 +96,11 @@ bool Thread::start(Fn fn, void* arg, int, int, size_t) {
     return started_;
 }
 
-void Thread::join() {
-    if (!started_) return;
+bool Thread::join() {
+    if (!started_) return true;
     pthread_join(thread_, nullptr);
     started_ = false;
+    return true;
 }
 #endif
 
@@ -152,7 +154,8 @@ bool resolve(const char* host, uint16_t port, sockaddr_in* out) {
 
 } // namespace
 
-int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err) {
+int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err,
+               const volatile bool* abort) {
     sockaddr_in addr;
     if (!resolve(host, port, &addr)) { *err = "cannot resolve host"; return -1; }
     int fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
@@ -172,13 +175,19 @@ int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char**
     }
     if (rc != 0) {
         pollfd p{fd, POLLOUT, 0};
-#ifdef __3DS__
-        // Zero-timeout polls only (see tcpWait).
         int ready = 0;
-        for (uint32_t waited = 0; (ready = poll(&p, 1, 0)) == 0 && waited < timeoutMs; waited += 10)
+#ifdef __3DS__
+        // Zero-timeout polls only (see tcpWait). Give up early when the app is exiting.
+        for (uint32_t waited = 0; (ready = poll(&p, 1, 0)) == 0 && waited < timeoutMs; waited += 10) {
+            if (abort && *abort) break;
             sleepMs(10);
+        }
 #else
-        const int ready = poll(&p, 1, int(timeoutMs));
+        for (uint32_t waited = 0; waited < timeoutMs; waited += 10) {
+            if (abort && *abort) break;
+            ready = poll(&p, 1, 10);
+            if (ready != 0) break;
+        }
 #endif
         if (ready <= 0) { close(fd); *err = "connect timed out"; return -1; }
         int soErr = 0;
@@ -229,7 +238,9 @@ int tcpSend(int fd, const void* buf, int len) {
 }
 
 void tcpClose(int fd) {
-    if (fd >= 0) close(fd);
+    if (fd < 0) return;
+    shutdown(fd, SHUT_RDWR); // wake anything still blocked on it before the descriptor goes
+    close(fd);
 }
 
 } // namespace tt::net::plat

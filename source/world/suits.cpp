@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/suits.h"
 
 #include "core/memory.h"
@@ -258,7 +259,7 @@ void SuitActors::shutdown() {
     }
     graph_.unload();
     graphBranch_ = 0;
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     model_.unload();
     for (Body& b : bodies_) {
         b.model.unload();

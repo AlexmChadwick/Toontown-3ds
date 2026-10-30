@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "core/boot_screen.h"
 
 #include <3ds.h>
@@ -141,7 +142,7 @@ void stage(const char* what, float progress) {
 void end() {
     if (!gActive) return;
     gActive = false;
-    C3D_FrameSync(); // the GPU is done with both targets
+    ::tt::gpu::frameSync(); // the GPU is done with both targets
     if (gTop) C3D_RenderTargetDelete(gTop);
     if (gBottom) C3D_RenderTargetDelete(gBottom);
     if (gBuf) C2D_TextBufDelete(gBuf);
