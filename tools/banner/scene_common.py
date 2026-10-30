@@ -122,6 +122,28 @@ def fit_logo_texture(maps_dir: Path, *, tex_w: int = 512) -> LogoPlane:
     return LogoPlane(np.asarray(img), width_units, height_units)
 
 
+def _feathered_cloud(rgb: Image.Image, alpha: Image.Image) -> Image.Image:
+    """Cloud RGBA whose border is transparent.
+
+    ``mg_slingshot_clouds_alpha`` tracks luminance and never falls below 108,
+    so pasting it raw leaves a hard rectangle. Remap that floor to 0, then
+    multiply by a circular falloff so the paste has no straight side.
+    """
+    raw = np.asarray(alpha.convert("L"), dtype=np.float32)
+    coverage = np.clip((raw - 108.0) / (255.0 - 108.0), 0.0, 1.0)
+    height, width = coverage.shape
+    yy = np.linspace(-1.0, 1.0, height, dtype=np.float32)[:, None]
+    xx = np.linspace(-1.0, 1.0, width, dtype=np.float32)[None, :]
+    # Circular falloff. A rectangular (L-infinity) fade still leaves straight
+    # sides; distance from the center does not.
+    radius = np.sqrt(xx * xx + yy * yy)
+    t = np.clip((radius - 0.42) / (1.05 - 0.42), 0.0, 1.0)
+    edge = 1.0 - (t * t * (3.0 - 2.0 * t))
+    out = np.asarray(rgb.convert("RGB")).copy()
+    rgba = np.dstack([out, (coverage * edge * 255.0).astype(np.uint8)])
+    return Image.fromarray(rgba, "RGBA")
+
+
 def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.ndarray:
     """Single TTC-style plate: sky, soft clouds, green hills (no 3D props)."""
     sky = Image.new("RGB", (w, h), (120, 190, 255))
@@ -137,22 +159,27 @@ def compose_backdrop_rgba(resources: Path, *, w: int = 512, h: int = 256) -> np.
     clouds_path = resources / "phase_4/maps/mg_slingshot_clouds.jpg"
     alpha_path = resources / "phase_4/maps/mg_slingshot_clouds_alpha.jpg"
     if clouds_path.is_file() and alpha_path.is_file():
-        cimg = Image.open(clouds_path).convert("RGB")
-        aimg = Image.open(alpha_path).convert("L")
-        cimg.putalpha(aimg)
-        # The cloud map's alpha never falls below 108, so each paste is a hard
-        # rectangle. The rightmost one sat behind the toon (about x=170–220 on
-        # the 256-wide preview) and read as a pale card. The others stay, over
-        # the logo side of the sky.
+        cloud = _feathered_cloud(Image.open(clouds_path), Image.open(alpha_path))
         for scale, ox, oy, op in (
             (0.62, -30, 4, 255),
             (0.52, 90, 12, 230),
             (0.48, 210, 2, 220),
+            (0.35, 340, 20, 200),
         ):
-            layer = cimg.resize((int(cimg.width * scale), int(cimg.height * scale)), Image.Resampling.LANCZOS)
+            layer = cloud.resize(
+                (max(1, int(cloud.width * scale)), max(1, int(cloud.height * scale))),
+                Image.Resampling.LANCZOS,
+            )
             layer = layer.filter(ImageFilter.GaussianBlur(0.6))
+            arr = np.asarray(layer).copy()
+            # Lanczos ringing can put a hair of alpha back on the bitmap edge.
+            arr[0, :, 3] = 0
+            arr[-1, :, 3] = 0
+            arr[:, 0, 3] = 0
+            arr[:, -1, 3] = 0
             if op < 255:
-                layer.putalpha(layer.getchannel("A").point(lambda a: a * op // 255))
+                arr[:, :, 3] = (arr[:, :, 3].astype(np.uint16) * op // 255).astype(np.uint8)
+            layer = Image.fromarray(arr, "RGBA")
             tmp = Image.new("RGBA", (w, h), (0, 0, 0, 0))
             tmp.paste(layer, (ox, oy), layer)
             base = Image.alpha_composite(base, tmp)
