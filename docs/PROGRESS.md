@@ -3,6 +3,49 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-30 — Shticker Book SOS card polish and restored gag regression
+
+### Done
+- Replaced the SOS book's generic square table with rounded parchment cards matching the live
+  battle picker. Each card now has a stable gag-track/status colour spine, compact effect heading,
+  NPC name, strength, and a high-contrast calls badge, so unlike rewards can be scanned at native
+  bottom-screen size.
+- Corrected the player-facing rarity display. Open Toontown stores SOS rarity in six zero-based
+  tiers (0..5); the page now renders one to six pips instead of making tier-zero Field Office
+  rewards look as though their rating failed to draw.
+- Repaired the potency regression introduced with focused-gag descriptions. Its AST environment
+  now evaluates upstream `UberSkill`, `regMaxSkill`, and `MaxSkill`, including the max-level gag
+  entries that previously stopped the test before it checked anything.
+
+### Verified
+- `python3 tools/gag_data_test.py` checks all 514,549 possible stock gag potency inputs against
+  the native integer formula with no mismatch.
+- Regenerated all 41 SOS definitions twice from the pinned Open Toontown checkout and compared
+  byte-for-byte; `python3 -m py_compile` and `git diff --check` pass.
+- `make -j2` reaches the repository toolchain guard and stops because this workspace has no
+  `DEVKITARM`. No emulator or hardware result is claimed.
+
+### Asset size decisions
+- No images, textures, heap allocations, or SD data were added. The page reuses the existing
+  immediate rounded-triangle primitive and generated SOS table, leaving Old 3DS residency and
+  install size unchanged.
+
+### Known issues
+- The eight-card page needs a native 320 x 240 capture with the longest names and all six rarity
+  tiers, plus D-pad page-flip and touch verification on Old 3DS hardware.
+- NPC SOS still lacks the temporary DNA-driven Toon, teleport-in greeting, and teleport-out
+  presentation. Fire still lacks its original cannon and smoke staging.
+- The first complete Old 3DS performance/UI pass and the requested live low-level/developed gag
+  picker captures remain open.
+
+### Next
+- Capture both SOS pages and the live SOS chooser from a full 16-card inventory; tune only from
+  native frames and confirm count badges remain legible at two digits.
+- Add the bounded temporary NPC actor and stock arrival/departure sequence around the already
+  authoritative NPC SOS result.
+- Finish Fire staging and run the two-client chat/teleport/treasure latency regression once the
+  3DS toolchain, Azahar, and local server are available.
+
 ## 2026-10-30 — Informative SOS cards and server-owned SOS playback
 
 ### Done
