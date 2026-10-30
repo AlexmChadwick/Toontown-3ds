@@ -3,6 +3,65 @@
 Dated entries: what was done, how it was verified, and what is next. Test numbers live in
 `docs/test-log.md`; architecture and decisions in `AGENTS.md`.
 
+## 2026-10-29 (UI round 21) — Make-A-Toon's room, ToontownLoadingScreen, BodyShop / ColorShop frames
+
+### Done
+- **Make-A-Toon stands in MakeAToon's room** (`bake_mat_room.py`). The top screen was the Toon on
+  flat blue; it is now `tt_m_ara_mat_room`'s floor, background, spotlight and the current shop's
+  walls + props (body shop: drafting table; boy / girl: piano and sewing machine; colour: easel and
+  paintings; clothes: dress form and rack; name: chalkboard), seen through MakeAToon's camera
+  (`setPosHpr(-5.7, -12.35, 2.15, -24.85, 2.73, 0)`, MakeAToonCameraFov) with the Toon at
+  toonPosition / the Name shop's spot. Each step's title is MakeAToon's guiTopBar text in its colour
+  (Choose Your Type / Boy or Girl / Color / Clothes / Name). L / R turn the Toon (rotate buttons),
+  shown by upstream's `arrowRotateUp` either side of its feet. `Renderer::setFovY` for that pass.
+- **ToontownLoadingScreen** (`bake_loading_screen.py`): Connecting... and Heading to Toontown
+  Central... are the original loading screen — progress-background's radial card, the logo,
+  toon_council's scroll with a TOON TIP (verbatim upstream tips; ones naming PC keys or features
+  this server stubs are left out) and the navy label. The title, Pick-A-Toon and Toontorial screens
+  draw the same radial card behind the Toon instead of a flat clear colour.
+- **BodyShop / ColorShop frames.** The body step's Head pill and Short / Medium / Tall pill rows, and
+  the colour step's All / Head / Arms / Legs pills, are now upstream's tilted
+  `tt_t_gui_mat_shuffleFrame` columns with gold shuffle arrows (Species / Head / Body / Legs;
+  Toon Color / Head / Body / Legs), each value beside its frame; GenderShop's boy / girl buttons sit
+  by the Species frame, and the swatch grid stays beside the colour frames for direct picks (it
+  paints the frame last touched).
+- **Waiting / error bottoms**: Connecting, Entering and Error are a centred dialog (red edge for
+  errors) with the status centred and wrapped, instead of one line in a page-sized card's corner.
+- Cog Gallery: unseen Cogs show SuitPageMystery ("???") at the card top only, as SuitPage.
+- Round 20's tailor (ClothesGUI shuffle frames) and clerk (jar icon, Prev / Next hidden when they
+  cannot act) changes, committed unverified at the pause, were run live this round.
+- Screenshots: `/workspace/shots/3ds-ui-round21/` (13 frames).
+
+### Verified (Azahar 2126.2, Old 3DS, Linux/Xvfb, shared live server on 7198, fresh tokens)
+- Front end (`AUTOTEST_FE=1`) end to end: title, connecting, Pick-A-Toon, delete, all five
+  Make-A-Toon steps in their rooms, create, Toontorial skip, entering, TTC. Each room loads in
+  160-294 ms (emulated) on the step's first frame; colour step 30 fps, 26 draws, 982 tris, linear
+  free 18.2 MB; TTC after entry linear free 15.5 MB (the room is freed with the front-end art).
+- Unreachable server (closed port): the retry dialog with "connection refused" and the countdown.
+- Clerks (pet, adopt, kart, fisherman, party) and the tailor by pad; playground UI tour (tabs,
+  SpeedChat, book pages); street battle picker; treasure / fishing / trolley / Catching game. No
+  PARSE / EJECT / crash lines.
+- `make`: zero warnings in source/. `bake_mat_room.py` re-run gives identical bytes.
+
+### Asset size decisions
+- `romfs/baked/mat_room/` (1.2 MB RomFS, front end only): the 15 makeatoon palettes are shared by
+  all five shops, so the models are pooled (TTM v2 + `textures.ttp`); 256 px max (the room fills the
+  screen), ETC1 / ETC1A4 by the usual rules. Resident: one shop, 0.44-0.81 MB linear.
+- `loading_bg.ttm` (11 KB): the 64 x 64 radial card in RGB565 (ETC1 blocks band a gradient).
+  `loading_gui.ttm` (128 KB): the scroll at 181 x 125 px RGBA8, drawn 1:1 (1.31x upstream's size so
+  the tip is readable at 400 x 240).
+
+### Known issues
+- The room swap happens on the step's first frame (a 0.2-0.3 s hitch in the emulator, unmeasured on
+  hardware); upstream covers it with the room-drop animation, which is not played.
+- MakeAToon's room-drop / squish animations, smoke puff and spotlight shake are not reproduced.
+- The earlier known issues stand (no real-hardware run; SOS / Fire never sent live; Azahar clock
+  stalls on this rig).
+
+### Next
+- Make-A-Toon: the room drop / squish intervals between shops.
+- Use ToontownLoadingScreen for in-world loads (street / facility entry) as well.
+
 ## 2026-10-29 (UI round 15) — Pick-A-Toon and Make-A-Toon in upstream art, purchase sign and bean jar, Toon tab posters
 
 ### Done

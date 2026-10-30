@@ -1297,3 +1297,18 @@ claude/Toontown-3ds full bake. Not hardware. Shots on.
   PurchScrn buttons. Toon / Gags tab and book Gags page jar icons. No PARSE / EJECT / crash.
 - Host padnav_test 154 checks (GCC 12).
 
+## 2026-10-29 (UI round 21) — Linux rig: Make-A-Toon room, loading screen, BodyShop / ColorShop frames
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/dkp/root/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198, fresh tokens. SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots on.
+
+- Front end, fresh account: all 22 FE steps; every Make-A-Toon step in its room (room load 160-294
+  ms emulated, first frame of the step). Colour step: 30 fps, 26 draws, 982 tris, heap 3.3 MB, linear
+  free 18.2 MB. TTC after entry: 29.9 fps, 95 draws, 12.1k tris, heap 3.3 MB, linear free 15.5 MB,
+  VRAM free 4.2 MB.
+- Closed port: retry dialog shows the error and countdown; Back is reachable.
+- World: clerks + tailor by pad (`clerk:`, `tailor visit`, `pad: tailor`), steps 0-69 UI tour,
+  `see cog` + `pad: battle` picker, `grab treasure` .. `trolley: purchase`. No PARSE / EJECT / crash.
+
