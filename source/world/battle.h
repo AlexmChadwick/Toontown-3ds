@@ -53,6 +53,8 @@ constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAt
 // ToontownBattleGlobals track ids and BattleBase special values.
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
 constexpr int kAttackPass = 98;  // BattleBase.PASS
+constexpr int kAttackNpcSos = 97; // BattleBase.NPCSOS
+constexpr int kAttackFire = 100;  // BattleBase.FIRE
 constexpr int kAttackNone = -1;  // NO_ATTACK
 
 // BattleBase.attackAffectsGroup(track, level) (AvPropTargetCat[AvPropTarget[track]][level]).

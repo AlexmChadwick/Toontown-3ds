@@ -516,7 +516,8 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
                                  pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs);
     }
     const net::OwnStats& stats = frame.client.ownStats();
-    const ui::BattleGags gags{stats.inventory, stats.experience, stats.trackAccess};
+    const ui::BattleGags gags{stats.inventory, stats.experience, stats.trackAccess,
+                              &frame.client.ownBook(), frame.client.bossPinkSlips()};
     frame.battle.fillView(frame.client, nowMs, &battleView_);
     frame.ui.setBattle(frame.battle.active() ? &battleView_ : nullptr, gags);
     if (frame.battle.active()) {

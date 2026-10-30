@@ -2,7 +2,8 @@
 
 namespace tt::ui::pad {
 
-void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun) {
+void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
+                      bool canFire, bool canSos) {
     using namespace battle;
     group.rebuild();
     for (int i = 0; i < numCogs && i < kMaxCogs; i++) {
@@ -14,6 +15,8 @@ void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, con
                           usable[t * kLevels + l]);
         }
     }
+    group.addItem(kIdFire, kFireX, kBtnY, kBtnW, kBtnH, canFire);
+    group.addItem(kIdSos, kSosX, kBtnY, kBtnW, kBtnH, canSos);
     group.addItem(kIdPass, kPassX, kBtnY, kBtnW, kBtnH);
     group.addItem(kIdRun, kRunX, kBtnY, kBtnW, kBtnH, canRun);
 }

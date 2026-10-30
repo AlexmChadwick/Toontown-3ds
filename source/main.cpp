@@ -1420,7 +1420,8 @@ int main() {
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
             const tt::net::OwnStats& st = net.ownStats();
-            ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+            ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess,
+                                                         &net.ownBook(), net.bossPinkSlips()});
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }

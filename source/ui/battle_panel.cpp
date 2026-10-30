@@ -5,6 +5,7 @@
 #include <cstdio>
 
 #include "ui/gag_data.h"
+#include "ui/sos_tables.h"
 #include "ui/draw_shapes.h"
 #include "ui/pad_tables.h"
 #include "core/log.h"
@@ -135,6 +136,7 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         return kAllButtons;
     }
     if (v.phase != world::BattlePhase::Input) {
+        choosingSos_ = false;
         focus_.clear(); // the next round starts on the first usable gag again
         return kAllButtons;
     }
@@ -146,7 +148,44 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     for (int t = 0; t < gags::kTracks; t++) {
         for (int l = 0; l < gags::kLevels; l++) usableGag[t * gags::kLevels + l] = usable(v, g, t, l);
     }
-    pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun);
+    int sosCount = 0;
+    if (g.book) for (int i = 0; i < g.book->numSosCards; ++i) sosCount += g.book->sosCards[i].count > 0;
+
+    if (choosingSos_) {
+        focus_.rebuild();
+        for (int i = 0; g.book && i < g.book->numSosCards; ++i) {
+            const int col = i % 2, row = i / 2;
+            focus_.addItem(300 + i, 4 + col * 158, 28 + row * 21, 154, 19, g.book->sosCards[i].count > 0);
+        }
+        focus_.addItem(399, 110, 210, 100, 28);
+        if (!focus_.hasFocus()) {
+            for (int i = 0; g.book && i < g.book->numSosCards; ++i) {
+                if (g.book->sosCards[i].count) {
+                    focus_.setFocusById(300 + i);
+                    break;
+                }
+            }
+            if (!focus_.hasFocus()) focus_.setFocusById(399);
+        }
+        int activated = -1;
+        focus_.handleInput(keysDown, touch, &activated);
+        if ((keysDown & KEY_B) || activated == 399) {
+            choosingSos_ = false;
+            focus_.clear();
+        } else if (activated >= 300 && activated < 300 + net::kMaxSosCards && g.book) {
+            const net::SosEntry& card = g.book->sosCards[activated - 300];
+            if (card.count) {
+                pending_.kind = world::BattleAction::Attack;
+                pending_.track = world::kAttackNpcSos;
+                pending_.level = -1;
+                pending_.target = card.npcId;
+                choosingSos_ = false;
+            }
+        }
+        return kAllButtons;
+    }
+
+    pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, g.pinkSlips > 0, sosCount > 0);
     if (!focus_.hasFocus()) {
         // Like TownBattle's attack panel: start on the first gag we can use, else Pass.
         for (int i = 0; i < focus_.count(); i++) {
@@ -187,6 +226,14 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         }
     } else if (activated == pad::battle::kIdPass) {
         pending_.kind = world::BattleAction::Pass;
+    } else if (activated == pad::battle::kIdFire && g.pinkSlips && targetFor(v, world::kTrackThrow)) {
+        pending_.kind = world::BattleAction::Attack;
+        pending_.track = world::kAttackFire;
+        pending_.level = -1;
+        pending_.target = targetFor(v, world::kTrackThrow);
+    } else if (activated == pad::battle::kIdSos && sosCount) {
+        choosingSos_ = true;
+        focus_.clear();
     } else if (activated == pad::battle::kIdRun && v.canRun) {
         pending_.kind = world::BattleAction::Run;
     }
@@ -248,6 +295,25 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         return;
     }
 
+    if (choosingSos_ && v.phase == world::BattlePhase::Input) {
+        shape::roundRect(2, 18, 0.52f, 316, 188, 8, kSlotPaper);
+        text(10, 20, 0.46f, kInk, "Choose an SOS ToonFriend");
+        for (int i = 0; g.book && i < g.book->numSosCards; ++i) {
+            const net::SosEntry& card = g.book->sosCards[i];
+            const SosCardDef* def = findSosCard(card.npcId);
+            const int col = i % 2, row = i / 2;
+            const float x = 4 + col * 158, y = 28 + row * 21;
+            shape::roundFrame(x, y, 0.54f, 154, 19, 5, 1, kSlotFrame,
+                              card.count ? kWhite : C2D_Color32(0xC8, 0xC2, 0xB5, 0xFF));
+            text(x + 4, y + 2, 0.31f, card.count ? kInk : kDim, "%s", def ? def->name : "SOS Toon");
+            text(x + 136, y + 2, 0.31f, card.count ? kInk : kDim, "x%u", unsigned(card.count));
+        }
+        shape::roundFrame(110, 210, 0.54f, 100, 28, 9, 2, kSlotFrame, kSlotPaper);
+        text(143, 216, 0.5f, kInk, "Back");
+        focus_.drawHighlight();
+        return;
+    }
+
     // Gag grid: every track and level keeps its place, even while locked.  Stable
     // silhouettes are much easier to scan than the old debug-table gaps.
     const bool choosing = v.phase == world::BattlePhase::Input;
@@ -275,11 +341,20 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
     }
 
-    shape::roundFrame(2, kBtnY, 0.51f, 100, kBtnH, 9, 2, kSlotFrame, choosing ? kSlotPaper : kBg);
-    text(36, kBtnY + 6, 0.5f, choosing ? kInk : kDim, "Pass");
-    shape::roundFrame(110, kBtnY, 0.51f, 100, kBtnH, 9, 2, kSlotFrame,
+    int sosCount = 0;
+    if (g.book) for (int i = 0; i < g.book->numSosCards; ++i) sosCount += g.book->sosCards[i].count > 0;
+    shape::roundFrame(pad::battle::kFireX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
+                      choosing && g.pinkSlips ? kSlotPaper : kBg);
+    text(17, kBtnY + 6, 0.43f, choosing && g.pinkSlips ? kInk : kDim, "Fire x%u", unsigned(g.pinkSlips));
+    shape::roundFrame(pad::battle::kSosX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
+                      choosing && sosCount ? kSlotPaper : kBg);
+    text(102, kBtnY + 6, 0.45f, choosing && sosCount ? kInk : kDim, "SOS");
+    shape::roundFrame(pad::battle::kPassX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
+                      choosing ? kSlotPaper : kBg);
+    text(181, kBtnY + 6, 0.45f, choosing ? kInk : kDim, "Pass");
+    shape::roundFrame(pad::battle::kRunX, kBtnY, 0.51f, pad::battle::kBtnW, kBtnH, 9, 2, kSlotFrame,
                       choosing && v.canRun ? kSlotPaper : kBg);
-    text(146, kBtnY + 6, 0.5f, choosing && v.canRun ? kInk : kDim, "Run");
+    text(265, kBtnY + 6, 0.45f, choosing && v.canRun ? kInk : kDim, "Run");
     if (choosing) focus_.drawHighlight();
 }
 

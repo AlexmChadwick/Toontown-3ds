@@ -9,6 +9,7 @@
 #include <citro2d.h>
 
 #include "world/battle.h"
+#include "net/book_net.h"
 
 namespace tt::ui {
 
@@ -17,6 +18,8 @@ struct BattleGags {
     const uint8_t (*count)[7] = nullptr; // [track][level]
     const uint16_t* exp = nullptr;       // [7]
     const uint8_t* access = nullptr;     // [7]
+    const net::OwnBookStats* book = nullptr;
+    uint8_t pinkSlips = 0;
 };
 
 class BattlePanel {
@@ -44,6 +47,7 @@ private:
     int target_ = 0; // index into BattleView::cogs
     world::BattleAction pending_{};
     FocusGroup focus_{"battle"};
+    bool choosingSos_ = false;
 };
 
 } // namespace tt::ui

@@ -152,7 +152,7 @@ void testBattleTable() {
     usable[4 * b::kLevels + 1] = true; // throw 2
     usable[5 * b::kLevels + 0] = true; // squirt 1
     pad::buildBattleInput(group, 4, cogs, usable, false);
-    CHECK(group.count() == 4 + 49 + 2);
+    CHECK(group.count() == 4 + 49 + 4);
     group.setFocusById(b::gagId(4, 0));
     group.move(1, 0);
     CHECK(group.focusedId() == b::gagId(4, 1));
@@ -173,11 +173,13 @@ void testBattleTable() {
     CHECK(tap(group, int(b::kPassX) + 5, int(b::kBtnY) + 5) == b::kIdPass);
     // Every frame rebuilds the table; the focus stays.
     group.setFocusById(b::gagId(5, 0));
-    pad::buildBattleInput(group, 4, cogs, usable, true);
+    pad::buildBattleInput(group, 4, cogs, usable, true, true, true);
     CHECK(group.focusedId() == b::gagId(5, 0));
     group.setFocusById(b::kIdPass);
     group.move(1, 0);
     CHECK(group.focusedId() == b::kIdRun);
+    CHECK(tap(group, int(b::kFireX) + 5, int(b::kBtnY) + 5) == b::kIdFire);
+    CHECK(tap(group, int(b::kSosX) + 5, int(b::kBtnY) + 5) == b::kIdSos);
     pad::buildBattleReward(group);
     CHECK(group.count() == 1 && group.item(0).id == b::kIdContinue);
 }

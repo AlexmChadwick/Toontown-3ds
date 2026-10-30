@@ -17,18 +17,21 @@ constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 18, kCogH = 44, kCogW = 78, kCogGap = 1;
 constexpr float kGridX = 60, kGridY = 66, kRowH = 20, kCellW = 35, kCellGap = 2;
-constexpr float kBtnY = 210, kBtnH = 28, kBtnW = 100;
-constexpr float kPassX = 2, kRunX = 110, kContinueX = 218;
+constexpr float kBtnY = 210, kBtnH = 28, kBtnW = 76;
+constexpr float kFireX = 2, kSosX = 82, kPassX = 162, kRunX = 242, kContinueX = 218;
 // Gag ids are track * 10 + level (0..66); the rest sit above them.
 constexpr int kIdCog0 = 100; // + cog index
 constexpr int kIdPass = 200;
 constexpr int kIdRun = 201;
 constexpr int kIdContinue = 202;
+constexpr int kIdFire = 203;
+constexpr int kIdSos = 204;
 constexpr int gagId(int track, int level) { return track * 10 + level; }
 constexpr bool isGagId(int id) { return id >= 0 && id < kIdCog0; }
 } // namespace battle
 // usable[track * kLevels + level]: the gag can be chosen now.
-void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun);
+void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
+                      bool canFire = false, bool canSos = false);
 void buildBattleReward(FocusGroup& group);
 
 // ---- NPC quest dialog (ui/quest_panel.cpp): quest cards, track cards, Cancel ----
