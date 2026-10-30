@@ -1,5 +1,7 @@
 #include "world/battle.h"
 
+#include "ui/sos_tables.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstring>
@@ -621,6 +623,14 @@ void Battle::buildMovie(const net::BattleMovie& m) {
     uint32_t t = 300;
     int order[4];
     int n = 0;
+    auto orderKey = [](int track) {
+        // Movie.py: FIRE, SOS, NPCSOS, PETSOS, then the seven gag tracks.
+        if (track == kAttackFire) return 0;
+        if (track == kAttackSos) return 1;
+        if (track == kAttackNpcSos) return 2;
+        if (track == kAttackPetSos) return 3;
+        return 4 + track;
+    };
     for (int i = 0; i < 4; ++i) {
         const net::BattleToonAttack& a = m.toonAttacks[i];
         // Fire is track 100 in stock BattleBase.  The old 0..6 guard silently
@@ -630,7 +640,8 @@ void Battle::buildMovie(const net::BattleMovie& m) {
         int pos = n++;
         while (pos > 0) {
             const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
-            if (p.track < a.track || (p.track == a.track && p.level <= a.level)) break;
+            if (orderKey(p.track) < orderKey(a.track) ||
+                (orderKey(p.track) == orderKey(a.track) && p.level <= a.level)) break;
             order[pos] = order[pos - 1];
             --pos;
         }
@@ -639,40 +650,62 @@ void Battle::buildMovie(const net::BattleMovie& m) {
     for (int k = 0; k < n; ++k) {
         const net::BattleToonAttack& a = m.toonAttacks[order[k]];
         const uint32_t who = m.toons[a.toonIdx];
+        int movieTrack = a.track;
+        int movieLevel = a.level;
+        if (a.track == kAttackNpcSos) {
+            // For NPCSOS the target column is the friend id and level is a
+            // protocol placeholder. Resolve the card to its real stock gag so
+            // the accepted attack is no longer visually discarded.
+            const ui::SosCardDef* card = ui::findSosCard(uint16_t(a.target));
+            if (card && card->track <= kTrackDrop) {
+                movieTrack = card->track;
+                movieLevel = card->level;
+            }
+        }
         uint32_t target = 0;
-        if (a.target >= 0) {
-            if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
-            else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
+        if (a.track == kAttackNpcSos) {
+            if (movieTrack == kTrackHeal) {
+                for (int j = 0; j < a.numHp && j < m.numToons; ++j)
+                    if (a.hp[j] > 0) { target = m.toons[j]; break; }
+            } else {
+                for (int j = 0; j < m.numSuits; ++j)
+                    if (j < a.numHp && a.hp[j] > 0) { target = m.suits[j]; break; }
+                if (!target && m.numSuits) target = m.suits[0];
+            }
+        } else if (a.target >= 0) {
+            if (movieTrack == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
+            else if (movieTrack != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
 
         uint32_t attackDur = 2200;
         uint32_t hitAt = t + 1500;
-        if (a.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
-        else if (a.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
-        else if (a.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
-        else if (a.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
-        else if (a.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
+        if (movieTrack == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
+        else if (movieTrack == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
+        else if (movieTrack == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
+        else if (movieTrack == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
+        else if (movieTrack == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
+        else if (movieTrack == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
+        else if (movieTrack == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
         else if (a.track == kAttackFire)  { attackDur = 8500; hitAt = t + 6000; }
 
-        addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
+        addFx(t, kFxAttack, who, target, attackDur, movieTrack, movieLevel);
         bool any = false;
-        if (a.track == kTrackHeal) {
+        if (movieTrack == kTrackHeal) {
             for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], movieTrack, movieLevel);
                     any = true;
                 }
             }
         } else {
             for (int j = 0; j < a.numHp && j < m.numSuits; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], movieTrack, movieLevel);
                     any = true;
                 }
             }
-            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, a.track, a.level);
+            if (!any && a.track != kAttackNpcSos && a.target >= 0 && a.target < m.numSuits)
+                addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, movieTrack, movieLevel);
         }
         uint32_t dur = attackDur;
         for (int j = 0; j < m.numSuits; ++j) {

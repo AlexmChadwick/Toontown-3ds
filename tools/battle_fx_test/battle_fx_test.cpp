@@ -113,7 +113,7 @@ void testMovieTimings() {
     // setMovie filtering and keep its long dismissal timing without reserving
     // a held-gag prop.
     static_assert(tt::world::hasBattleMovie(tt::world::kAttackFire));
-    static_assert(!tt::world::hasBattleMovie(tt::world::kAttackNpcSos));
+    static_assert(tt::world::hasBattleMovie(tt::world::kAttackNpcSos));
     const auto fireTiming = tt::world::getMovieTiming(tt::world::kAttackFire, -1);
     assert(fireTiming.releaseMs == 2500);
     assert(fireTiming.hitMs == 6000);

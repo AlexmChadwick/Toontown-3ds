@@ -63,7 +63,8 @@ constexpr int kAttackNone = -1;  // NO_ATTACK
 // this separate from attackAffectsGroup: special attacks deliberately sit
 // outside the seven-gag table and must never index gag arrays.
 constexpr bool hasBattleMovie(int track) {
-    return (track >= kTrackHeal && track <= kTrackDrop) || track == kAttackFire;
+    return (track >= kTrackHeal && track <= kTrackDrop) ||
+           track == kAttackNpcSos || track == kAttackFire;
 }
 
 // BattleBase.attackAffectsGroup(track, level) (AvPropTargetCat[AvPropTarget[track]][level]).
