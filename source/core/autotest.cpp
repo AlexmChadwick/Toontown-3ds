@@ -520,7 +520,7 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         seriesIndex_ = 0;
         stepStarted_ = false;
         step_++;
-        if (tutorial_ && frontEnd_ && step_ == numSteps_) {
+        if (tutorial_ && frontEnd_ && step_ == numSteps_ && script_ != kTutorialScript) {
             script_ = kTutorialScript;
             numSteps_ = sizeof(kTutorialScript) / sizeof(kTutorialScript[0]);
             step_ = 0;

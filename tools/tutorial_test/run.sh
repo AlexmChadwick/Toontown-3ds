@@ -36,6 +36,19 @@ for cls, field in sent:
 
 for marker in ('TutorialMickey', 'QuestAssign101', 'QuestAssign110', 'TutorialBlocker', 'GagIntro'):
     assert marker in Path('source/quest/quest_scripts.h').read_text(), marker
+# Every script has its upstream trigger wired in the game (docs/design/tutorial.md "Where each
+# script starts"), and real player actions answer the WAIT_EVENTs (not only the autotest).
+main = Path('source/main.cpp').read_text()
+talk = Path('source/quest/quest_talk.cpp').read_text()
+for needle in ('ScriptId::TutorialMickey', 'ScriptId::QuestAssign101', 'ScriptId::QuestAssign110',
+               'ScriptId::TutorialBlocker', 'net.sendBlockerAvatarEnter(', 'talk.takeScript()', 'talk.scriptDone()'):
+    assert needle in main, f'main.cpp does not wire {needle}'
+assert 'questId == 101 || questId == 110' in talk and 'Phase::Script' in talk, 'assign movie does not play the QuestScript'
+scripts = Path('source/quest/quest_scripts.cpp').read_text()
+# gag_intro (inventory-selection) belongs to NewbiePurchaseManager (the first trolley gag purchase), not the Toontorial.
+for event in sorted(set(re.findall(r'ScriptOp::WaitEvent[^"]*"([^"]+)"', scripts)) - {'inventory-selection'}):
+    assert f'!strcmp(ev, "{event}")' in main, f'no player action answers WAIT_EVENT {event}'
+assert 'k_setTutorialAck' in client and 'ownTutorialAck_ == 0' in source, 'tutorialAck 0 must force the Toontorial'
 print('tutorial_test: generated scripts and %d sender contracts: PASS' % len(sent))
 PY
 

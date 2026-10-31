@@ -447,6 +447,7 @@ int main() {
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
     static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
+    static bool tutorialSaidSpeedChat = false;
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
@@ -787,9 +788,35 @@ int main() {
                        static_cast<unsigned long>(net.zoneId()));
             }
             if (tutorial.active()) {
-                in.down |= KEY_A; // confirm every generated CHAT_CONFIRM page
-                const char* event = tutorial.waitingEvent();
-                if (event && tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                // Confirm every generated CHAT_CONFIRM page after a reader's pause (so the shots
+                // show each line with its card).
+                static char shownLine[256] = {};
+                static float shownFor = 0.0f;
+                if (strcmp(shownLine, tutorial.text())) {
+                    snprintf(shownLine, sizeof(shownLine), "%s", tutorial.text());
+                    shownFor = 0.0f;
+                }
+                shownFor += dt;
+                if (shownFor > 1.2f) {
+                    in.down |= KEY_A;
+                    shownFor = 0.0f;
+                }
+                // WAIT_EVENTs are answered as a player would: the book and the SpeedChat tab are
+                // operated here, and the game's own bridge (below) posts the event.
+                if (const char* event = tutorial.waitingEvent()) {
+                    static const char* acted = nullptr;
+                    if (event != acted) {
+                        acted = event;
+                        TT_LOG("tutorial: autotest answers %s", event);
+                        if (!strcmp(event, "enterStickerBook")) ui.openBookPage(tt::ui::Book::kPageMap);
+                        else if (!strcmp(event, "stickerBookPageChange-3")) ui.book().setPage(tt::ui::Book::kPageGags);
+                        else if (!strcmp(event, "stickerBookPageChange-4")) ui.book().setPage(tt::ui::Book::kPageTasks);
+                        else if (!strcmp(event, "exitStickerBook")) ui.book().close("tutorial autotest");
+                        else if (!strcmp(event, "enterSpeedChat")) uiState.tab = tt::ui::kTabChat;
+                        else if (!strcmp(event, "SCChatEvent")) tutorialSaidSpeedChat = true; // the phrase pick
+                        else if (tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                    }
+                }
             }
             if (talk.phase() == tt::quest::Talk::Phase::Pages) talk.advance();
             if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) talk.chooseQuest(0);
@@ -807,8 +834,14 @@ int main() {
             // then the street Flunky, then Harry (TutorialHQBuildingAI); the tunnel ends the Toontorial.
             // Tom's street door is locked (TALK_TO_HQ_TOM) after the Flunky and nothing reopens it.
             if (talk.locked() && zone == tt::world::kTutorialShop) tutorialTomTalked = true;
-            if (talk.locked() && zone == tt::world::kTutorialHq) tutorialHqTalked = true;
-            if (!tutorial.active() && !battle.active() && transition.idle()) {
+            // Harry completes 101 (dialog pages), then assigns 110 (its QuestScript): leave once
+            // 110 is ours, not in the gap between the two movies.
+            if (talk.locked() && zone == tt::world::kTutorialHq) {
+                const tt::net::OwnQuests& own = net.ownQuests();
+                for (int i = 0; i < own.count; ++i)
+                    if (own.quests[i].questId == 110) tutorialHqTalked = true;
+            }
+            if (!tutorial.active() && !battle.active() && !talk.locked() && transition.idle()) {
                 if (zone == tt::world::kTutorialShop) {
                     if (!tutorialTomTalked) {
                         float npc[4];
@@ -1691,6 +1724,7 @@ int main() {
         ui.setChatTasks(netStarted && net.inZone() ? &net.ownQuests() : nullptr);
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
+            tutorialSaidSpeedChat = true; // QuestParser WAIT_EVENT 'SCChatEvent' (Flippy's lesson)
             if(speechMsg<0) {
                 tryEmote(-1-speechMsg);
                 continue;
@@ -2384,6 +2418,20 @@ int main() {
             tt::prof::lap(tt::prof::kEstate);
             pets.update(net);
             // ---- tutorial ----
+            // The player's own actions answer the scripts' WAIT_EVENTs (Harry's Shticker Book lesson,
+            // Flippy's SpeedChat lesson), as the messenger events do upstream.
+            if (const char* ev = tutorial.active() ? tutorial.waitingEvent() : nullptr) {
+                const tt::ui::Book& book = ui.book();
+                bool hit = false;
+                if (!strcmp(ev, "enterStickerBook")) hit = book.isOpen();
+                else if (!strcmp(ev, "stickerBookPageChange-3")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageGags;
+                else if (!strcmp(ev, "stickerBookPageChange-4")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageTasks;
+                else if (!strcmp(ev, "exitStickerBook")) hit = !book.isOpen();
+                else if (!strcmp(ev, "enterSpeedChat")) hit = uiState.tab == tt::ui::kTabChat;
+                else if (!strcmp(ev, "SCChatEvent")) hit = tutorialSaidSpeedChat;
+                if (hit && tutorial.postEvent(ev)) TT_LOG("tutorial: player answered %s", ev);
+            }
+            tutorialSaidSpeedChat = false;
             tutorial.update(dt);
             if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
             if (talk.phase() == tt::quest::Talk::Phase::Script) {

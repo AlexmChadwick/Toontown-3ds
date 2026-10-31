@@ -41,6 +41,9 @@ void TutorialFlow::update(float dt) {
 }
 
 void TutorialFlow::advance() {
+    // The confirm chat's page is dismissed: its balloon goes (LOCAL_CHAT_PERSIST lines stay
+    // up while their WAIT_EVENT blocks).
+    if (player_.block() == quest::ScriptPlayer::Block::Chat) text_[0] = 0;
     player_.chatDone();
 }
 

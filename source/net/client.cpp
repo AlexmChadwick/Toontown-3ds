@@ -575,6 +575,7 @@ void Client::resetWorld() {
     ownBook_.initDefaults();
     movieHead_ = movieTail_ = 0;
     ownerReceived_ = false;
+    ownTutorialAck_ = -1;
     shardId_ = 0;
     timeManagerId_ = 0;
     tutorialManagerId_ = 0;
@@ -1645,6 +1646,9 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
+    } else if (fieldId == dc::DistributedToon::k_setTutorialAck) {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setTutorialAck, "u8"), "setTutorialAck layout changed");
+        ownTutorialAck_ = r.u8();
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
         Bytes b = r.blob();
         if (r.ok()) memcpy(ownDna_, b.data, b.len < kDnaSize ? b.len : kDnaSize);

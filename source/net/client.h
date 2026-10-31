@@ -2082,6 +2082,7 @@ private:
     bool tutorialRequested_ = false;  // requestTutorial sent this session
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent
+    int ownTutorialAck_ = -1;         // DistributedToon.setTutorialAck from the owner view (-1 = not yet)
     world::TutorialZones tutorialZones_{};
     TutorialInterior tutorialInterior_{};
     uint32_t tutorialSuitId_ = 0;
