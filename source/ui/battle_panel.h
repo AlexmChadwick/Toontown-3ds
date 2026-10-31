@@ -60,6 +60,7 @@ private:
     int sosView_ = 0; // which eight Rescued Toons the SOS panel shows
     int returnFocus_ = -1; // the attack panel's focus when SOS / Fire opened
     int wantFocus_ = -1;   // focus to set once the next table is built
+    bool padDetail_ = false; // the D-Pad moved the focus this round: the status shows its gag's detail
     // Last health logged per card ("battle: cog <id> hp a/b"), so tests can follow the meter.
     uint32_t loggedCog_[4] = {};
     int loggedHp_[4] = {}, loggedMax_[4] = {};

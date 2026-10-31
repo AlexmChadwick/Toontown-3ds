@@ -1686,6 +1686,19 @@ int main() {
                        trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
+        // ---- visual: autotest "battle hold" presses D-Down once per input round (~1 s in), so
+        // shots show the focused gag's detail line ----
+        {
+            static int inputFrames = 0;
+            const bool held = autotest.active() && autotest.battleHoldMs() > 0 && battle.active() &&
+                              battle.phase() == tt::world::BattlePhase::Input;
+            inputFrames = held ? inputFrames + 1 : 0;
+            if (inputFrames == 30) {
+                in.down |= KEY_DDOWN;
+                TT_LOG("autotest: battle hold D-Down (gag detail)");
+            }
+        }
+        // ---- end visual ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
         if (uiState.infoButtonPressed) { // the info panel's Hop off / Leave button is B
             uiState.infoButtonPressed = false;

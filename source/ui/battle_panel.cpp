@@ -49,6 +49,30 @@ void star(float cx, float cy, float r, u32 c) {
 }
 // Suit.updateHealthBar's condition: 0 green (> 95%), 1 yellow (> 70%), 2 orange (> 30%),
 // 3 red (> 5%), 4 blinking red (> 0), 5 defeated (fast blink).
+// InventoryNew.showDetail's data for the focused gag, on one line: AvPropStrings, the
+// InventoryDetailAmount count, AvTrackAccStrings and getAvPropDamage at our experience, then
+// getSingleGroupStr. Organic / prop bonuses are not known to the client view, so none is added.
+void gagDetail(char* out, size_t n, int track, int level, uint16_t exp, int count) {
+    static constexpr const char* kAcc[gags::kTracks] = {"Medium", "Perfect", "Low", "High", "Medium", "High", "Low"};
+    // AvPropTargetCat[AvPropTarget[track]][level]: 1 = the whole group.
+    static constexpr uint8_t kGroup[gags::kTracks][gags::kLevels] = {
+        {0, 1, 0, 1, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 1}, {0, 1, 0, 1, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 1},
+        {0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 1}};
+    const int minD = gags::kDamage[track][level][0], maxD = gags::kDamage[track][level][1];
+    const int minE = gags::kLevelExp[track][level];
+    const int maxE = level + 1 < gags::kLevels ? gags::kLevelExp[track][level + 1] : gags::kMaxSkill;
+    const int expVal = exp < maxE ? exp : maxE;
+    const float expPerHp = float(maxE - minE + 1) / float(maxD - minD + 1);
+    int damage = int(std::floor((expVal - minE) / expPerHp)) + minD;
+    if (damage <= 0) damage = minD;
+    const int unlocked = gags::levelsUnlocked(track, exp);
+    const int maxItems = unlocked > 0 ? gags::kCarry[track][unlocked - 1][level] : 0;
+    const bool heal = track == 0;
+    snprintf(out, n, "%s %d/%d  Accuracy: %s  %s: %d  %s", gags::kGagNames[track][level], count,
+             maxItems, kAcc[track], heal ? "Toon-up" : "Damage", damage,
+             kGroup[track][level] ? (heal ? "All Toons" : "All Cogs") : (heal ? "One Toon" : "One Cog"));
+}
+
 int healthCondition(float f) {
     return f > 0.95f ? 0 : f > 0.7f ? 1 : f > 0.3f ? 2 : f > 0.05f ? 3 : f > 0.0f ? 4 : 5;
 }
@@ -177,6 +201,7 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     if (v.phase != world::BattlePhase::Input) {
         focus_.clear(); // the next round starts on the first usable gag again
         mode_ = Mode::Attack;
+        padDetail_ = false;
         return kAllButtons;
     }
     if (mode_ == Mode::Sos && !v.canSos) mode_ = Mode::Attack;
@@ -304,6 +329,7 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     int activated = -1;
     const int before = focus_.focusedId(); // BACK returns here (a touch moves the focus first)
     focus_.handleInput(keysDown, touch, &activated);
+    if (keysDown & (KEY_DUP | KEY_DDOWN | KEY_DLEFT | KEY_DRIGHT)) padDetail_ = true;
     if (activated == pad::battle::kIdSos || activated == pad::battle::kIdFire) returnFocus_ = before >= 0 ? before : activated;
     if (activated >= pad::battle::kIdCog0 && activated < pad::battle::kIdCog0 + pad::battle::kMaxCogs) {
         target_ = activated - pad::battle::kIdCog0;
@@ -362,7 +388,21 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Sos)
         status = v.numSosCards > 0 ? "Call which friend?" : "No friends to call!";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Fire) status = "Fire which Cog?";
-    text(6, -1, 0.44f, kInk, "%s", status);
+    // InventoryNew's detail panel follows the rollover; here it follows the D-Pad focus once the
+    // player has moved it (until then the panel says "Click a gag to attack", as upstream does
+    // before any rollover).
+    const bool detail = padDetail_ && v.phase == world::BattlePhase::Input && mode_ == Mode::Attack;
+    const int focusId = detail ? focus_.focusedId() : -1;
+    if (pad::battle::isGagId(focusId) && g.count && g.exp) {
+        const int t = focusId / 10, l = focusId % 10;
+        char detail[96];
+        gagDetail(detail, sizeof detail, t, l, g.exp[t], g.count[t][l]);
+        C2D_Text d;
+        textCache_.parse(&d, buf_, detail, 1024);
+        theme::textFit(d, 6, -1, 0.44f, kInk, kW - 12, 0.6f);
+    } else {
+        text(6, -1, 0.44f, kInk, "%s", status);
+    }
     // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
 
     // Cogs: name, head, level and the chest light's health. The target wears a red frame.
