@@ -413,7 +413,7 @@ std::vector<uint8_t> buildCard() {
 
 // Ground underfoot, a 120-draw filler inside lodNear, and a sign past lodNear
 // (200 > 160) but inside twice lodNear (320). The sign must take the near slot.
-std::vector<uint8_t> buildSigns() {
+std::vector<uint8_t> buildSigns(float signX = 200) {
     std::vector<uint8_t> one, filler, letters, far;
     writeTtmN(one, 1);
     writeTtmN(filler, 120);
@@ -428,7 +428,7 @@ std::vector<uint8_t> buildSigns() {
     const uint32_t chunkOff = static_cast<uint32_t>(b.size());
     writeChunk(b, 1000, 0, 3, 0, oneI.size, 0, 0, "ground", true);
     writeChunk(b, 1001, 3, 1, 0, fillI.size, 80, 1, "filler", true);
-    writeChunk(b, 1002, 4, 1, 0, letI.size, 200, 2, "sign", true);
+    writeChunk(b, 1002, 4, 1, 0, letI.size, signX, 2, "sign", true);
     align128(b);
     const uint32_t visOff = static_cast<uint32_t>(b.size());
     u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 1); u16(b, 2);
@@ -1226,6 +1226,14 @@ int main() {
     assert(zone.drawCalls() == 17 && zone.triangles() == 17);
     zone.unload();
 
+    const char* distantSignPath = "/tmp/tt_retain_distant_sign.tz";
+    save(distantSignPath, buildSigns(400));
+    assert(zone.load(distantSignPath));
+    zone.setCamera({-30, 0, 8}, {400, 0, 4});
+    settle(zone, origin);
+    assert(zone.chunkLod(2) == 0); // sole far sign takes real near geometry, no LOD bias
+    zone.unload();
+
     assert(zone.load(cellPath));
     settle(zone, origin);
     std::printf("cell: no camera lod %d/%d/%d draws %u tris %u\n",
@@ -1294,8 +1302,11 @@ int main() {
     settle(zone, origin);
     std::printf("cap: old lod %d/%d draws %u tris %u\n",
                 zone.chunkLod(6), zone.chunkLod(7), zone.drawCalls(), zone.triangles());
-    assert(zone.chunkLod(0) == 0 && zone.chunkLod(5) == 0);
-    assert(zone.chunkLod(6) == 1 && zone.chunkLod(7) == -1);
+    assert(zone.chunkLod(0) == 0);
+    // Reserve far coverage before near upgrades: the former expectation that
+    // chunk 7 was absent hid distant scenery to keep an extra near chunk.
+    for (int i=0; i<8; ++i) assert(zone.chunkLod(i) >= 0);
+    assert(zone.chunkLod(6) == 1 && zone.chunkLod(7) == 1);
     assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
     tt::render::setActiveQuality(true);
     zone.setCamera({-22.0f, 0.0f, 8.0f}, {80.0f, 0.0f, 4.0f});
@@ -1312,7 +1323,7 @@ int main() {
                 zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.chunkLod(3),
                 zone.drawCalls());
     assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 0 && zone.chunkLod(3) == 0);
-    assert(zone.chunkLod(2) == 1);
+    assert(zone.chunkLod(2) == 0); // common 260-unit detail band retains this filler too
     assert(zone.drawCalls() <= 130);
     zone.unload();
 

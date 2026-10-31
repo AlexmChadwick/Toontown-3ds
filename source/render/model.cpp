@@ -1,5 +1,7 @@
 #include "render/model.h"
+#include "render/upload_quota.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -170,6 +172,32 @@ void Model::setTextureLodBias(float bias) {
 #else
     (void)bias;
 #endif
+}
+
+u32 Model::moveTexturesToVram(u32 byteLimit) {
+    mem::LinearGuard guard;
+    u32 moved=0;
+    for (u16 i=0; i<numTextures_; ++i) {
+        C3D_Tex& old=textures_[i];
+        const u32 bytes=C3D_TexCalcTotalSize(old.size, old.maxLevel);
+        if (!old.data || bytes>byteLimit-moved || vramSpaceFree()<bytes+1024u*1024u) continue;
+        C3D_Tex replacement{};
+        C3D_TexInitParams p{};
+        p.width=old.width; p.height=old.height; p.maxLevel=old.maxLevel;
+        p.format=old.fmt; p.type=GPU_TEX_2D; p.onVram=true;
+        if (!C3D_TexInitWithParams(&replacement, nullptr, p)) continue;
+        for (int level=0; level<=old.maxLevel; ++level)
+            C3D_TexLoadImage(&replacement, C3D_Tex2DGetImagePtr(&old, level, nullptr), GPU_TEXFACE_2D, level);
+        replacement.param=old.param;
+        replacement.border=old.border;
+        replacement.lodParam=old.lodParam;
+        // Existing linearBytes_ accounting includes a texture's base level.
+        if (linearBytes_>=old.size) linearBytes_-=old.size;
+        C3D_TexDelete(&old);
+        old=replacement;
+        moved+=bytes;
+    }
+    return moved;
 }
 
 bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
@@ -462,12 +490,12 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     return true;
 }
 
-ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
+ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs, u32 byteBudget) {
     if (stage_ == Stage::Done) return Result::Complete;
     if (stage_ == Stage::Empty) return Result::Error;
     const u64 t0 = svcGetSystemTick();
     auto over = [&]() { return elapsedUs(t0) >= budgetUs; };
-    constexpr u32 kSlice = 64 * 1024;
+    const u32 kSlice = std::max<u32>(2, std::min<u32>(64u*1024u, byteBudget) & ~1u);
 
     if (stage_ == Stage::Copy && !dst.vertices_) {
         dst.unload();
@@ -496,28 +524,27 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
         memcpy(dst.batches_, batches_, sizeof(Batch) * numBatches_);
         // The buffers are the whole mesh. Copying vertices in this same call is
         // the post-card hitch: Azahar's tick does not move during memcpy, so a
-        // time check never stops the loop. The next pump copies 64 KB.
+        // time check never stops the loop. The next pump copies a bounded slice.
         return Result::Pending;
     }
     // Bytes copied or rewritten this call. A stuck tick still ends the pump
-    // after one 64 KB slice; a running tick stops only at budgetUs.
-    u32 worked = 0;
+    // after the byte quota; a running tick can stop earlier at budgetUs.
+    UploadQuota quota{kSlice};
     auto sliceDone = [&](u32 bytes) {
-        worked += bytes;
-        if (over()) return true;
-        return elapsedUs(t0) == 0 && worked >= kSlice;
+        const bool exhausted = quota.consume(bytes);
+        return exhausted || over();
     };
     if (stage_ == Stage::Copy) {
         auto* dstV = static_cast<u8*>(dst.vertices_);
         while (copiedV_ < vertBytes_) {
-            const u32 n = copiedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - copiedV_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, vertBytes_-copiedV_);
             memcpy(dstV + copiedV_, verts_ + copiedV_, n);
             copiedV_ += n;
             if (sliceDone(n)) return Result::Pending;
         }
         auto* dstI = reinterpret_cast<u8*>(dst.indices_);
         while (copiedI_ < indexBytes_) {
-            const u32 n = copiedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - copiedI_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, indexBytes_-copiedI_);
             memcpy(dstI + copiedI_, reinterpret_cast<u8*>(indices_) + copiedI_, n);
             copiedI_ += n;
             if (sliceDone(n)) return Result::Pending;
@@ -535,7 +562,7 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
                 }
                 if (rebaseOk_) {
                     u16* idx = dst.indices_ + bt.firstIndex;
-                    constexpr u32 kIndexSlice = kSlice / sizeof(u16);
+                    const u32 kIndexSlice = (kSlice-quota.worked) / sizeof(u16);
                     while (rebasedAt_ < bt.numIndices) {
                         const u32 left = bt.numIndices - rebasedAt_;
                         const u32 n = left > kIndexSlice ? kIndexSlice : left;
@@ -568,13 +595,13 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
     }
     if (stage_ == Stage::Flush) {
         while (flushedV_ < vertBytes_) {
-            const u32 n = flushedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - flushedV_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, vertBytes_-flushedV_);
             GSPGPU_FlushDataCache(static_cast<u8*>(dst.vertices_) + flushedV_, n);
             flushedV_ += n;
             if (sliceDone(n)) return Result::Pending;
         }
         while (flushedI_ < indexBytes_) {
-            const u32 n = flushedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - flushedI_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, indexBytes_-flushedI_);
             GSPGPU_FlushDataCache(reinterpret_cast<u8*>(dst.indices_) + flushedI_, n);
             flushedI_ += n;
             if (sliceDone(n)) return Result::Pending;
@@ -620,11 +647,11 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
                 }
                 texReady_ = true;
                 texFilled_ = 0;
-                if (over() || elapsedUs(t0) == 0) return Result::Pending;
+                return Result::Pending; // allocation never shares a frame with copying
             }
             const u8* src = texBytes_ + texOff_[texDone_];
             while (texFilled_ < e.dataSize) {
-                const u32 n = texFilled_ + kSlice < e.dataSize ? kSlice : e.dataSize - texFilled_;
+                const u32 n = std::min<u32>(kSlice-quota.worked, e.dataSize-texFilled_);
                 memcpy(static_cast<u8*>(tex->data) + texFilled_, src + texFilled_, n);
                 GSPGPU_FlushDataCache(static_cast<u8*>(tex->data) + texFilled_, n);
                 texFilled_ += n;

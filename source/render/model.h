@@ -106,6 +106,9 @@ public:
 
     // Old 3DS sign chunks: bias mipmap selection toward the sharper tier New 3DS gets.
     void setTextureLodBias(float bias);
+    // Boot/fenced main thread only. Move small, always-hot textures including
+    // every mip to VRAM; leave at least 1 MiB free and fall back on allocation failure.
+    u32 moveTexturesToVram(u32 byteLimit);
 
 private:
     u16 numTextures_ = 0;
@@ -144,7 +147,7 @@ public:
     bool pending() const { return stage_ != Stage::Empty && stage_ != Stage::Done; }
     // Uploads into `dst` until `budgetUs` microseconds have been spent or the model is
     // finished. One step may run past the budget; the next call stops first if it is used up.
-    Result pump(Model& dst, u32 budgetUs);
+    Result pump(Model& dst, u32 budgetUs, u32 byteBudget = 64u*1024u);
 
 private:
     enum class Stage : u8 { Empty, Copy, Rebase, Flush, Textures, Done };

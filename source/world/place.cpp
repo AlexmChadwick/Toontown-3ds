@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 
 #include "core/log.h"
+#include "core/memory.h"
 // ---- tutorial ----
 #include "world/tutorial_zones.h"
 // ---- end tutorial ----
@@ -111,22 +112,18 @@ void Place::setCamera(const C3D_FVec& eye, const C3D_FVec& target) {
 namespace {
 void applyRetain(Zone& zone) {
     if (!zone.loaded()) return;
-    // Old 3DS linear heap is 24 MB. A street view's command buffer, toon, UI and
-    // audio already sit in it; the old 6/8 and 8/12 MiB retain caps filled the rest
-    // (New street free fell to about 6 MB). 4/4 and 5/5 leave the cone resident and
-    // a small warm ring. Zone::update also drops non-cone chunks while linear free
-    // is under 12 MB, which is the Old 3DS floor.
-    if (tt::render::activeQuality().new3ds)
-        zone.setRetainBudget(5u * 1024u * 1024u, 5u * 1024u * 1024u);
-    else
-        zone.setRetainBudget(4u * 1024u * 1024u, 4u * 1024u * 1024u);
+    const auto heaps = tt::mem::heapReport();
+    auto profile = tt::mem::memoryProfile(heaps.applicationRegion, tt::render::activeQuality().new3ds);
+    // A commit-limit fallback must not retain as if the requested heap existed.
+    if (heaps.linear < profile.linear) profile = tt::mem::memoryProfile(0, tt::render::activeQuality().new3ds);
+    zone.setRetainBudget(profile.retainGeometry, profile.retainTextures);
 }
 } // namespace
 
-void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) {
+void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user, bool gpuFenced) {
     if (!zone_.loaded()) return;
     applyRetain(zone_);
-    if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
+    if (!zone_.update(Vec3{x, y, z}, cb, user, kFloorReach, gpuFenced)) TT_LOG("place: %s", zone_.error());
 }
 
 void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user) {

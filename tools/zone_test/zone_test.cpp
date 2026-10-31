@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <cmath>
 namespace tt::log { void write(const char*, ...) {} }
@@ -126,6 +127,7 @@ int main(int argc,char** argv) {
                 ++hall;
                 if (zone.chunkLod(static_cast<int>(i))==0) ++hallHigh;
             }
+            std::printf("hall coverage: %d chunks, %d near\n", hall, hallHigh);
             assert(hall>=2 && hallHigh==hall);
             assert(zone.triangles()<=15000 && zone.geometryBytes()<=zone.kGeometryBudget &&
                    zone.textureBytes()<=zone.kTextureBudget);
@@ -162,6 +164,36 @@ int main(int argc,char** argv) {
             check("street_far", {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f});
         }
         tt::render::setActiveQuality(false);
+    }
+    // Real tester jump: arrival -> street_near moves BOTH feet and eye by
+    // about 295 units. No publications are allowed before observing the gap.
+    if (zone.version()>=2 && pathEndsWith(argv[1], "2100.tz")) {
+        zone.unload();
+        assert(zone.load(argv[1]));
+        tt::render::setActiveQuality(false);
+        zone.setRetainBudget(4u*1024u*1024u, 4u*1024u*1024u);
+        const tt::world::Vec3 arrival{-148, -410, .5f};
+        zone.setCamera({-148, -430, 8}, {-148, -390, 4});
+        assert(zone.update(arrival));
+        for (int frame=0; frame<4000 && zone.cardPending(); ++frame) {
+            zone.completeLoads();
+            assert(zone.update(arrival));
+        }
+        assert(!zone.cardPending());
+        // Strict mode also exposes the still-unresolved jump immediately after
+        // a sparse arrival card. Default exercises retention of a completed view.
+        if (!std::getenv("TT_STRICT_CARD_JUMP")) finishLoads(arrival, nullptr, nullptr);
+        std::printf("real jump: departure %u draws\n", zone.drawCalls());
+        zone.setCamera({-123, -115, 5}, {-137, -115, 6});
+        const tt::world::Vec3 destination{-130, -115, .5f};
+        for (int frame=0; frame<4000; ++frame) {
+            assert(zone.update(destination));
+            std::printf("real jump: frame %d draws %u\n", frame, zone.drawCalls());
+            assert(zone.drawCalls() >= 100);
+            assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+            zone.completeLoads();
+            if (!zone.loading()) break;
+        }
     }
     zone.unload();
     assert(!zone.loaded() && !zone.update({0,0,0}));

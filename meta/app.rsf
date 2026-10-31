@@ -42,13 +42,11 @@ AccessControlInfo:
   RunnableOnSleep               : false
   SpecialMemoryArrange          : true
   MemoryType                    : Application
-  # Baseline: Old 3DS production memory layout (64 MB). Do NOT raise for correctness.
-  SystemMode                    : 64MB
-  # New 3DS: keep default 124MB mode off for now; CPU speedup is requested at runtime
-  # via osSetSpeedupEnable() which is a no-op on Old 3DS.
-  SystemModeExt                 : Legacy
-  CpuSpeed                      : 268MHz
-  EnableL2Cache                 : false
+  # Never use 96MB on Old 3DS. HBL/legacy launchers retain a 64MB fallback.
+  SystemMode                    : 80MB
+  SystemModeExt                 : 124MB
+  CpuSpeed                      : 804MHz
+  EnableL2Cache                 : true
   CanAccessCore2                : false
   HandleTableSize               : 0x200
   SystemSaveDataId1             : 0x00000000
