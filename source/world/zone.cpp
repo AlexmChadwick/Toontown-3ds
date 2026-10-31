@@ -642,21 +642,15 @@ void recountZone(Zone::Impl& z) {
     }
     z.tris = z.draws = 0;
     if (!z.haveCamera) {
-        uint32_t nearDraws = 0, nearTris = 0, farDraws = 0, farTris = 0;
-        for (uint32_t i = 0; i < z.h.chunks; ++i) {
-            if (!z.resident[i] || !z.desired[i]) continue;
-            const Chunk d = modelInfo(z.chunks[i], z.lod[i]);
-            if (!d.size) continue;
-            if (z.lod[i] == 0) {
-                uint32_t dr = nearDraws, tr = nearTris;
-                if (admitFrame(dr, tr, d.draws, d.tris)) { nearDraws = dr; nearTris = tr; }
-            } else {
-                uint32_t dr = nearDraws + farDraws, tr = nearTris + farTris;
-                if (admitFrame(dr, tr, d.draws, d.tris)) { farDraws += d.draws; farTris += d.tris; }
+        // Match draw(): all near admissions precede every far admission. Mixing
+        // the passes let a later near mesh ignore fars already in the total.
+        for (uint8_t lod = 0; lod < 2; ++lod) {
+            for (uint32_t i = 0; i < z.h.chunks; ++i) {
+                if (!z.resident[i] || !z.desired[i] || z.lod[i] != lod) continue;
+                const Chunk d = modelInfo(z.chunks[i], z.lod[i]);
+                if (d.size) admitFrame(z.draws, z.tris, d.draws, d.tris);
             }
         }
-        z.draws = nearDraws + farDraws;
-        z.tris = nearTris + farTris;
         return;
     }
     Vec3 fwd{}, right{}, up{};

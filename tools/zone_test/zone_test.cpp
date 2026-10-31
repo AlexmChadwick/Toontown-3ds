@@ -41,7 +41,9 @@ int main(int argc,char** argv) {
     auto finishLoads=[&](const tt::world::Vec3& p, tt::world::Zone::CellChanged cb, void* user) {
         for (int i=0;i<4000;++i) {
             assert(zone.update(p, cb, user));
+            if (zone.version()>=2) assert(zone.drawCalls()<=150 && zone.triangles()<=15000);
             const int n=zone.completeLoads();
+            if (zone.version()>=2) assert(zone.drawCalls()<=150 && zone.triangles()<=15000);
             if (!zone.loading() && !zone.warming() && n==0) return;
         }
         assert(false);

@@ -1996,3 +1996,11 @@ generic far under 150 draws); Old signPick chunks get `setTextureLodBias(-1)`;
 8 ms upload budget and two publishes per update; `run.py` no longer requires
 three floor walk points.
 
+
+### 2026-10-31 — PR #8 Round 12: no-camera budget regression
+
+`recountZone` now admits every near mesh before any far mesh, against a single
+150-draw/15k-triangle total. The host zone suite also asserts the caps after
+every update and publication. All 37 supplied zones pass, including 20000.tz.
+Host/build only; device numbers come from the tester, not from this agent.
+No emulator or live server client was run.
