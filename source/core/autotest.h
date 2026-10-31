@@ -29,7 +29,7 @@ public:
     bool active() const { return active_; }
     // Started from autotest_fe: drives the front end instead of the world.
     bool frontEndScript() const { return frontEnd_; }
-    // "tutorial" in autotest_fe selects Play it and continues with the Toontorial driver.
+    // "tutorial" in autotest_fe continues with the Toontorial driver after Create!; "skip" skips it.
     bool tutorialPath() const { return tutorial_; }
     // Overrides input for this frame. Returns false when the script is finished.
     bool apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons);

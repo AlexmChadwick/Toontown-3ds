@@ -1,8 +1,9 @@
 # The Toontorial
 
-The tutorial is an opt-in, new-avatar path against the stock `TutorialManagerAI`.
-The make-a-toon screen records the player's choice before `createAvatar`; the default is
-Skip, which preserves the old front-end behaviour.  Play holds the normal initial zone
+The tutorial is the default new-avatar path against the stock `TutorialManagerAI`, as in
+the original (NameShop.__isFirstTime): an account's first Toon goes straight in; later Toons
+get the PromptTutorial screen (Enter Toontorial / Skip Toontorial; B goes back, it never
+skips).  The choice is recorded before `createAvatar`.  Play holds the normal initial zone
 entry, opens the management interest, and sends only `TutorialManager.requestTutorial`
 after the owner view has arrived.  `enterTutorial` supplies four dynamic zone ids.
 
@@ -61,7 +62,8 @@ scripts against the upstream parser, verifies every sender is generated `clsend`
 signature guard, and compiles the dynamic-zone mapping vectors.
 
 For an emulator verification (not run by this change), create
-`sdmc:/3ds/toontown3ds/autotest_fe` with `shots off`, choose **Play it** in the new prompt,
+`sdmc:/3ds/toontown3ds/autotest_fe` with `shots off` and `tutorial` (a fresh account's first
+Toon enters the Toontorial on Create!; add `skip` for the old skip path),
 and inspect `sdmc:/3ds/toontown3ds/log.txt` for these lines in order:
 
 ```

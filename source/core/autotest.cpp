@@ -372,9 +372,9 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_tutorial_choice"},
-    // The stock/front-end regression keeps the historical skip path.  A dedicated manual
-    // Toontorial pass chooses the left "Play it" button at (85, 150).
-    {0.4f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_entering"},
+    // An account's first Toon goes straight into the Toontorial (NameShop.__isFirstTime); the
+    // "skip" trigger line makes Create! skip it (the stock regression path).  No tap here.
+    {0.4f, 0, 0, 0, 0, -1, -1, -1, "fe: created", "fe_entering"},
     {9.6f, 0, 0, 0, 0, -1, -1, -1, "fe: entering", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
@@ -404,6 +404,8 @@ bool Runner::begin() {
             shotsEnabled_ = false;
         else if (!strcmp(line, "tutorial"))
             tutorial_ = true;
+        else if (!strcmp(line, "skip"))
+            game::FrontEnd::setTestSkipTutorial(true);  // the old stock path: Create! skips the Toontorial
         else if (!strncmp(line, "from ", 5))
             snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
@@ -474,8 +476,6 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         down |= s.downOnce;
         int touchX = s.touchX;
         int touchY = s.touchY;
-        // FrontEnd::TutorialChoice: Play it is the left button, Skip is the established default.
-        if (!strcmp(s.label, "fe: tutorial skip") && tutorial_) touchX = 85;
         if (touchX >= 0) {
             touch.px = static_cast<u16>(touchX);
             touch.py = static_cast<u16>(touchY);

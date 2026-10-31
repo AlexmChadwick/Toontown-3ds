@@ -67,6 +67,12 @@ Gui gGui;
 
 } // namespace
 
+namespace {
+bool sTestSkipTutorial = false;
+} // namespace
+
+void FrontEnd::setTestSkipTutorial(bool skip) { sTestSkipTutorial = skip; }
+
 void FrontEnd::setTestTypedName(const char* name) {
     if (name) {
         snprintf(sTestTypedName, sizeof(sTestTypedName), "%s", name);
@@ -487,22 +493,44 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
                 }
             }
         } else if (TT_BUTTON((Button{200, 200, 110, 34}), "Create!", true, true)) {
-            // TutorialManager only accepts the choice after the avatar exists, but before we
-            // enter a place.  Keep it on its own screen so the player has the same explicit
-            // choice as ToontownClientRepository.enterTutorialQuestion.
-            go(Screen::TutorialChoice);
+            // NameShop.__isFirstTime: an account's first Toon goes straight to the Toontorial;
+            // later Toons get PromptTutorial (Enter Toontorial / Skip Toontorial).  TutorialManager
+            // only accepts the choice after the avatar exists, before we enter a place.
+            bool others = false;
+            for (int i = 0; net_ && i < net::kMaxAvatars; i++)
+                if (net_->avatarInSlot(static_cast<uint8_t>(i))) others = true;
+            if (others || sTestSkipTutorial) {
+                if (sTestSkipTutorial) {
+                    if (createToon(net::Client::TutorialChoice::Skip)) go(Screen::Entering);
+                    else {
+                        snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
+                        go(Screen::Error);
+                    }
+                } else {
+                    go(Screen::TutorialChoice);
+                }
+            } else if (createToon(net::Client::TutorialChoice::Play)) {
+                go(Screen::Entering);
+            } else {
+                snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
+                go(Screen::Error);
+            }
         }
         break;
 
     case Screen::TutorialChoice:
-        if (TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true)) {
+        if (TT_BUTTON((Button{20, 128, 130, 44}), "Enter Toontorial", true, true)) {
             if (createToon(net::Client::TutorialChoice::Play)) go(Screen::Entering);
             else {
                 snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
                 go(Screen::Error);
             }
         }
-        if (TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true) || back) {
+        if (back) {
+            go(Screen::Make);  // B goes back to the name; skipping is only ever the explicit button
+            break;
+        }
+        if (TT_BUTTON((Button{170, 128, 130, 44}), "Skip Toontorial", false, true)) {
             if (createToon(net::Client::TutorialChoice::Skip)) go(Screen::Entering);
             else {
                 snprintf(error_, sizeof(error_), "That Toon could not be created. Try different choices.");
@@ -1499,12 +1527,13 @@ void FrontEnd::drawBottom(C3D_RenderTarget* bottom) {
                   true);
         break;
     case Screen::TutorialChoice:
-        textCentered(Button{18, 38, 284, 62}, 0.62f, kBInk, "Play the Toontorial?");
-        textCentered(Button{18, 84, 284, 16}, 0.45f, kBSoft, "Learn the basics with Tutorial Tom,");
-        textCentered(Button{18, 100, 284, 16}, 0.45f, kBSoft, "then head to Toontown Central.");
-        TT_BUTTON((Button{20, 128, 130, 44}), "Play it", true, true);
-        TT_BUTTON((Button{170, 128, 130, 44}), "Skip", false, true);
-        textCentered(Button{18, 176, 284, 16}, 0.4f, kBSoft, "B also skips the Toontorial.");
+        // TTLocalizer.PromptTutorial
+        textCentered(Button{18, 30, 284, 30}, 0.62f, kBInk, "Congratulations!!");
+        textCentered(Button{18, 62, 284, 16}, 0.45f, kBSoft, "You are Toontown's newest citizen!");
+        textCentered(Button{18, 84, 284, 16}, 0.45f, kBSoft, "Would you like to continue to the Toontorial");
+        textCentered(Button{18, 100, 284, 16}, 0.45f, kBSoft, "or teleport directly to Toontown Central?");
+        TT_BUTTON((Button{20, 128, 130, 44}), "Enter Toontorial", true, true);
+        TT_BUTTON((Button{170, 128, 130, 44}), "Skip Toontorial", false, true);
         break;
     case Screen::Entering:
         dialogText(net_ && net_->lastError()[0] ? 80 : 100, 0.62f, kBInk, net_ ? net_->progressText() : "");

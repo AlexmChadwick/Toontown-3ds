@@ -2077,7 +2077,8 @@ private:
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
     // ---- tutorial (survives reconnects with the new toon, like skipTutorialSent_) ----
-    TutorialChoice tutorialChoice_ = TutorialChoice::Skip;
+    // NameShop / OTPClientRepository: a new Toon plays the Toontorial unless the player skips it
+    TutorialChoice tutorialChoice_ = TutorialChoice::Play;
     bool tutorialRequested_ = false;  // requestTutorial sent this session
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent

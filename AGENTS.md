@@ -633,7 +633,8 @@ combat/gags, shops, tasks, pets, the full name shop, and stereo polish.
   interaction, shops, the catalog, estates, pets, fishing, gardening, racing, golf,
   minigames, trolley, parties, cog HQs, boss battles, friends lists, whispers, typed
   chat, the name shop (toons keep the server default name).
-- The tutorial. The client skips straight to the playground; the server allows this.
+- The tutorial is the default for a new Toon (docs/design/tutorial.md); `skip` in autotest_fe keeps
+  the old skip path for regressions.
 - Street zones (2100 and others), interiors, doors, tunnels between zones. Only the TTC
   playground (2000) is in scope.
 - Particles (`.ptf`), dynamic shadows (a blob shadow quad is fine), the full lighting
