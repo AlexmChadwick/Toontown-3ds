@@ -163,6 +163,15 @@ void Model::swap(Model& o) {
     std::swap(absoluteIndices_, o.absoluteIndices_);
 }
 
+void Model::setTextureLodBias(float bias) {
+#ifdef __3DS__
+    for (u16 i = 0; i < numTextures_; ++i)
+        if (textures_[i].data) C3D_TexSetLodBias(&textures_[i], bias);
+#else
+    (void)bias;
+#endif
+}
+
 bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     unload();
     const char* path = label ? label : "(embedded)";
