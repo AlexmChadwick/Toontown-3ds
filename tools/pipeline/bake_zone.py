@@ -100,9 +100,11 @@ def write_points(root, path):
                     name = f'{building.getName()}/{parent.getName()}'
                     # Both door_N nodes sit at the model origin. DistributedDoor's EXT_HQ door
                     # path is the landmark's door_origin_N (hqTT: door_origin_0 faces 180,
-                    # door_origin_1 0). Rebuilding it from the leaves (h = leftDoor - 180) faced
-                    # every HQ door inward, so the door movie walked the toon out of the door
-                    # and put the camera inside the building against the closed leaves.
+                    # door_origin_1 0). leftDoor_N has door_origin_N's heading; the old
+                    # h = leftDoor - 180 faced every HQ door inward, so the door movie walked
+                    # the toon out of the door and put the camera inside the building against
+                    # the closed leaves. assemble strips door_origin_N from landmarks the DNA
+                    # does not type "hq" (the Toontorial's), so the leaves stay the fallback.
                     index = parent.getName().rsplit('_', 1)[-1]
                     origin = building.find(f'**/door_origin_{index}')
                     left = parent.find(f'**/leftDoor_{index}')
@@ -111,7 +113,7 @@ def write_points(root, path):
                         p, h = origin.getPos(root), origin.getH(root)
                     elif not left.isEmpty() and not right.isEmpty():
                         p = (left.getPos(root) + right.getPos(root)) * 0.5
-                        h = left.getH(root) - 180.0
+                        h = left.getH(root)
 
         lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
         lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
