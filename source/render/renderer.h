@@ -62,6 +62,8 @@ public:
     void setBackground(u32 rgba8) { background_ = rgba8; }
     void setFog(float r, float g, float b, float start, float end);
     void clearFog() { fogOn_ = false; }
+    // Background pass: no fog or depth test/write. Restores all cached state.
+    void drawSky(Model& model, const C3D_Mtx& world);
 
     const FrameStats& stats() const { return stats_; }
     void resetStats() { stats_ = FrameStats{}; }
@@ -105,6 +107,7 @@ private:
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
+    bool skyPass_ = false;
     bool fogOn_ = false;
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value

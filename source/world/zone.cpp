@@ -67,7 +67,13 @@ float distance2(const Vec3& p, const Chunk& c) {
 // Validate every field trusted by Model::load before permitting GPU allocation. In v3 a
 // texture's data may live in the zone's shared pool instead of the blob: its blob-relative
 // offset then wraps (u32) to the pool, exactly as Model::loadFrom rebases it.
-bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
+// DNA sign letters are decals on MickeyFont's palette. The name is baked into the
+// TTM; the sign bit itself is not. Window decals use other textures.
+bool signFontName(const char* name) {
+    return std::strstr(name, "palette_2tmlc") != nullptr;
+}
+bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize, bool* letters,
+                uint16_t* letterBatches) {
     struct ModelHeader {
         char magic[4]; uint16_t version, flags, textures, batches;
         uint32_t vertices, indices; float scale[3], offset[3];
@@ -85,12 +91,19 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
     uint64_t total=0;
     // Records are read 16 at a time: one seek + read each was an SD round trip per record.
     static_assert(sizeof(Tex) == 48, "TTM texture record");
+    bool fontTex[256]={};
     Tex texBlock[16];
     for (uint32_t i=0;i<h.textures;++i) {
         if (i%16==0 && !readAt(f,c.offset+h.texOff+i*48,texBlock,std::min<uint32_t>(16,h.textures-i)*48)) return false;
         const Tex& t=texBlock[i%16];
-        if (t.w<8 || t.h<8 || t.w>256 || t.h>256 ||
-            (t.w & (t.w-1)) || (t.h & (t.h-1)) || !t.mips || t.mips>6 ||
+        if (i<256) {
+            char name[33];
+            std::memcpy(name, t.name, 32);
+            name[32]=0;
+            fontTex[i]=signFontName(name);
+        }
+        if (t.w<8 || t.h<8 || t.w>512 || t.h>512 ||
+            (t.w & (t.w-1)) || (t.h & (t.h-1)) || !t.mips || t.mips>7 ||
             (t.ws!=0 && t.ws!=2) || (t.wt!=0 && t.wt!=2)) return false;
         const uint32_t at=c.offset+t.off;
         const bool pooled=poolSize && at>=poolOff && t.size<=poolSize && at-poolOff<=poolSize-t.size;
@@ -122,6 +135,10 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize) {
         if ((b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>1 || b.tint ||
             b.layer>4 || b.slot || b.pad || b.fv>h.vertices || b.nv>h.vertices-b.fv ||
             b.fi>h.indices || b.ni>h.indices-b.fi || b.ni%3) return false;
+        if (b.layer && b.texture<256 && fontTex[b.texture]) {
+            if (letters) *letters=true;
+            if (letterBatches && *letterBatches<65535) ++*letterBatches;
+        }
         // Model::loadFrom checks indices in memory; only scan here when it cannot.
         // Header flags bit0: indices are already absolute (baked that way).
         const bool absolute = (h.flags & 1) != 0;
@@ -199,6 +216,9 @@ struct Zone::Impl {
     // The current plan: which chunks should be resident, at which LOD, nearest first.
     bool desired[kMaxChunks] = {};
     bool inCone[kMaxChunks] = {}; // desired and inside the view this plan will submit
+    bool card[kMaxChunks] = {};   // in-cone prefix the loading card waits on
+    bool letters[kMaxChunks] = {}; // near or far mesh has a MickeyFont sign decal
+    uint16_t letterBatches[kMaxChunks] = {}; // letter decals on the richer of the two meshes
     uint8_t choice[kMaxChunks] = {};
     bool failed[kMaxChunks] = {}; // load failed for this plan; retried on the next one
     int retryCountdown = 0;       // updates until failed loads are retried anyway
@@ -210,7 +230,11 @@ struct Zone::Impl {
     Vec3 lastPlan{};
     bool haveCamera = false;
     bool plannedCam = false;
-    Vec3 camEye{}, camTarget{}, planEye{}, planFwd{};
+    Vec3 camEye{}, camTarget{}, planEye{}, planTarget{}, planFwd{};
+    bool submitted[kMaxChunks] = {};
+    bool held[kMaxChunks] = {};
+    bool holdingView = false;
+    Vec3 heldEye{}, heldTarget{};
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
     // Retain budget. Defaults to the draw budget so a zone never holds more than the
@@ -408,13 +432,23 @@ bool Zone::load(const char* path) {
             const Floor& f=z.floors[c.firstFloor+j];
             ok=f.cell==i && f.zone==c.zone;
         }
-        if (c.size) ok=ok && section(c.offset,c.size,1,h.size) && validModel(z.file,c,h.poolOff,h.poolSize);
+        bool letters=false;
+        uint16_t letterBatches=0;
+        auto acceptModel=[&](const Chunk& mesh) {
+            uint16_t batches=0;
+            if (!validModel(z.file, mesh, h.poolOff, h.poolSize, &letters, &batches)) return false;
+            if (batches>letterBatches) letterBatches=batches;
+            return true;
+        };
+        if (c.size) ok=ok && section(c.offset,c.size,1,h.size) && acceptModel(c);
         else ok=ok && !(c.offset || c.geom || c.tex || c.draws || c.tris);
         if (h.version>=2) {
             const Chunk low=modelInfo(c,1);
-            if (low.size) ok=ok && section(low.offset,low.size,1,h.size) && validModel(z.file,low,h.poolOff,h.poolSize);
+            if (low.size) ok=ok && section(low.offset,low.size,1,h.size) && acceptModel(low);
             else ok=ok && !(low.offset || low.geom || low.tex || low.draws || low.tris);
         }
+        z.letters[i]=letters;
+        z.letterBatches[i]=letterBatches;
     }
     // Sections must be disjoint, including blobs (prevents aliasing metadata).
     uint32_t starts[kMaxChunks*2+6], ends[kMaxChunks*2+6];
@@ -512,11 +546,21 @@ constexpr float kHalfFovV = 55.0f * 0.5f * 3.14159265f / 180.0f;
 constexpr float kConeMargin = 4.0f * 3.14159265f / 180.0f;
 constexpr float kCamMove2 = 64.0f;          // replan after the eye moves 8 units
 constexpr float kCamTurnDot = 0.984807753f; // cos(10 deg)
-// Old 3DS linear heap is 24 MB. Non-cone chunks are evicted below this free floor.
-constexpr uint32_t kLinearHeadroom = 12u * 1024u * 1024u;
+// The loading card waits for the in-cone prefix that covers this much of the
+// cone's projected area, not for every far mesh. A chunk at least this fraction
+// of the largest chunk is still waited on, so a second big building is not a
+// blob behind the card.
+constexpr float kCardCoverage = 0.80f;
+constexpr float kCardProminent = 0.20f;
+constexpr int kMaxPublishPerUpdate = 2;
 #ifdef __3DS__
-// Main-thread GPU upload per update. One slice stays well under a 33 ms frame.
-constexpr uint32_t kUploadBudgetUs = 10000;
+// Main-thread upload target plus an independent byte ceiling (device timing pending).
+constexpr uint32_t kUploadBudgetUs = 2000;
+// Spread mesh publishes so place+upload stay near one frame budget.
+// Old 3DS linear heap is 24 MB. Non-cone chunks are evicted below this free floor.
+// Kept in this block: the host build does not link linearSpaceFree, and a
+// file-scope constant there is an unused-const warning under clang.
+constexpr uint32_t kLinearHeadroom = 12u * 1024u * 1024u;
 #endif
 
 void cameraBasis(const Vec3& eye, const Vec3& target, Vec3& fwd, Vec3& right, Vec3& up) {
@@ -556,11 +600,36 @@ bool inView(const Chunk& c, const Vec3& eye, const Vec3& fwd, const Vec3& right,
     return angH <= halfH + extra + kConeMargin && angV <= kHalfFovV + extra + kConeMargin;
 }
 
-// geom/tex are everything resident. tris/draws are what draw() will submit: the cone
-// when a camera is set, otherwise every desired resident chunk. In-cone chunks are
-// all counted. The 130-draw cap is applied when the plan is built, not by skipping
-// a chunk that is already in the cone.
-void recountZone(Zone::Impl& z) {
+// A far read of an in-cone chunk that does not already show its near mesh is the
+// loading card's payload. `choice` may already be the near mesh; dropping this
+// upload would leave the card waiting on that larger read.
+static bool keepCardFar(uint8_t lod, bool desired, bool inCone, bool nearHeld) {
+    return lod==1 && desired && inCone && !nearHeld;
+}
+
+// Projected-area proxy (radius/distance)^2. No separate projection matrix: the
+// sort and the card only need chunks ordered by how much of the screen they cover.
+static float screenRank(const Chunk& c, const Vec3& eye) {
+    const float dx=c.max[0]-c.min[0], dy=c.max[1]-c.min[1], dz=c.max[2]-c.min[2];
+    const float rad=0.5f*sqrtf(dx*dx+dy*dy+dz*dz);
+    float dist=sqrtf(distance2(eye, c));
+    if (dist<1.0f) dist=1.0f;
+    const float q=rad/dist;
+    return q*q;
+}
+
+// Both caps apply to every chunk the frame submits. A chunk that does not fit is
+// left resident (its replacement may still be uploading) but it is not counted.
+constexpr uint32_t kSubmitDrawCap = 150;
+bool admitFrame(uint32_t& draws, uint32_t& tris, uint32_t addD, uint32_t addT) {
+    if (draws + addD > kSubmitDrawCap || tris + addT > Zone::kTriangleBudget) return false;
+    draws += addD;
+    tris += addT;
+    return true;
+}
+
+// When the submitted set is over the cap, near meshes stay and far meshes are skipped first.
+void recountMemory(Zone::Impl& z) {
     z.geom = z.tex = 0;
     for (uint32_t i = 0; i < z.h.chunks; ++i) {
         if (z.resident[i]) {
@@ -573,39 +642,104 @@ void recountZone(Zone::Impl& z) {
             z.tex += z.chunks[i].tex;
         }
     }
+}
+
+void recountZone(Zone::Impl& z) {
+    recountMemory(z);
     z.tris = z.draws = 0;
+    memset(z.submitted, 0, sizeof(z.submitted));
     if (!z.haveCamera) {
-        for (uint32_t i = 0; i < z.h.chunks; ++i) if (z.resident[i] && z.desired[i]) {
-            const Chunk d = modelInfo(z.chunks[i], z.lod[i]);
-            z.tris += d.tris;
-            z.draws += d.draws;
+        // Match draw(): all near admissions precede every far admission. Mixing
+        // the passes let a later near mesh ignore fars already in the total.
+        for (uint8_t lod = 0; lod < 2; ++lod) {
+            for (uint32_t i = 0; i < z.h.chunks; ++i) {
+                if (!z.resident[i] || !z.desired[i] || z.lod[i] != lod) continue;
+                const Chunk d = modelInfo(z.chunks[i], z.lod[i]);
+                if (!d.size) continue;
+                z.submitted[i] = admitFrame(z.draws, z.tris, d.draws, d.tris);
+            }
         }
         return;
     }
     Vec3 fwd{}, right{}, up{};
     cameraBasis(z.camEye, z.camTarget, fwd, right, up);
     const float dist = tt::render::activeQuality().drawDistance;
-    uint32_t usedDraws = 0, usedTris = 0;
+    uint32_t nearDraws = 0, nearTris = 0, farDraws = 0, farTris = 0;
     bool seen[Zone::kMaxChunks] = {};
-    auto consider = [&](uint32_t i) {
-        if (i >= z.h.chunks || seen[i]) return;
-        seen[i] = true;
-        if (!z.resident[i] || z.parked[i]) return;
+    auto viewedChunk=[&](uint32_t i) -> bool {
+        if (i >= z.h.chunks || !z.resident[i] || z.parked[i]) return false;
         const Chunk mesh = modelInfo(z.chunks[i], z.lod[i]);
-        if (!mesh.size || distance2(z.camEye, z.chunks[i]) > dist * dist) return;
+        if (!mesh.size || distance2(z.camEye, z.chunks[i]) > dist * dist) return false;
         const bool viewed = static_cast<int>(i) == z.cell ||
                             inView(z.chunks[i], z.camEye, fwd, right, up, dist);
-        if (!viewed) return;
-        usedDraws += mesh.draws;
-        usedTris += mesh.tris;
+        if (!viewed) return false;
+        if (z.h.version >= 2 && static_cast<int>(i) != z.cell && !z.inCone[i] && z.lod[i] != 1)
+            return false;
+        return true;
     };
-    for (uint32_t j = 0; j < z.numOrder; ++j) consider(z.order[j]);
-    for (uint32_t i = 0; i < z.h.chunks; ++i) consider(i);
-    z.draws = usedDraws;
-    z.tris = usedTris;
+    auto admitMesh=[&](uint32_t i) {
+        if (seen[i] || !viewedChunk(i)) return;
+        seen[i] = true;
+        const Chunk mesh = modelInfo(z.chunks[i], z.lod[i]);
+        if (z.lod[i] == 0) {
+            uint32_t dr = nearDraws, tr = nearTris;
+            if (admitFrame(dr, tr, mesh.draws, mesh.tris)) { nearDraws = dr; nearTris = tr; z.submitted[i] = true; }
+        } else {
+            uint32_t dr = nearDraws + farDraws, tr = nearTris + farTris;
+            if (admitFrame(dr, tr, mesh.draws, mesh.tris)) { farDraws += mesh.draws; farTris += mesh.tris; z.submitted[i] = true; }
+        }
+    };
+    for (uint32_t j = 0; j < z.numOrder; ++j) {
+        const uint16_t id = z.order[j];
+        if (!viewedChunk(id) || z.lod[id] != 0) continue;
+        admitMesh(id);
+    }
+    for (uint32_t i = 0; i < z.h.chunks; ++i) {
+        if (!viewedChunk(i) || z.lod[i] != 0) continue;
+        admitMesh(i);
+    }
+    memset(seen, 0, sizeof(seen));
+    float farRank[Zone::kMaxChunks] = {};
+    for (uint32_t i=0; i<z.h.chunks; ++i)
+        farRank[i]=screenRank(z.chunks[i], z.camEye);
+    auto farPriority=[&](uint16_t a, uint16_t b) {
+        // A stale/warm far has choice==0 after plan reset too. It cannot
+        // outrank a current landmark merely by looking like a near stand-in.
+        if (z.desired[a]!=z.desired[b]) return z.desired[a];
+        const bool standA=z.desired[a] && z.choice[a]==0;
+        const bool standB=z.desired[b] && z.choice[b]==0;
+        if (standA!=standB) return standA;
+        return farRank[a] != farRank[b] ? farRank[a] > farRank[b] : a < b;
+    };
+    uint16_t farIds[Zone::kMaxChunks];
+    uint32_t nfar = 0;
+    for (uint32_t i = 0; i < z.h.chunks; ++i)
+        if (viewedChunk(i) && z.lod[i] == 1) farIds[nfar++] = static_cast<uint16_t>(i);
+    std::sort(farIds, farIds+nfar, farPriority);
+    for (uint32_t j = 0; j < nfar; ++j) admitMesh(farIds[j]);
+    z.draws = nearDraws + farDraws;
+    z.tris = nearTris + farTris;
+    if (z.holdingView) {
+        bool pending = false;
+        for (uint32_t j=0; j<z.numOrder; ++j) {
+            const uint16_t id = z.order[j];
+            if (z.desired[id] && z.inCone[id] && !z.failed[id] &&
+                (!z.resident[id] || z.lod[id] != z.choice[id])) pending = true;
+        }
+        if (z.draws >= 100 || !pending) z.holdingView = false;
+        else {
+            z.draws = z.tris = 0;
+            memset(z.submitted, 0, sizeof(z.submitted));
+            for (uint32_t i=0; i<z.h.chunks; ++i) {
+                if (!z.held[i] || !z.resident[i]) continue;
+                const Chunk mesh = modelInfo(z.chunks[i], z.lod[i]);
+                z.submitted[i] = admitFrame(z.draws, z.tris, mesh.draws, mesh.tris);
+            }
+        }
+    }
 }
 
-bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) {
+bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,bool gpuFenced) {
     if (!impl_) return fail("zone: update before load");
     Impl& z=*impl_;
     int next=cellAt(feet,reach);
@@ -637,10 +771,20 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         replan=dx*dx+dy*dy+dz*dz>=kCamMove2 || facing<kCamTurnDot;
     }
     if (replan) {
+        const float jumpX=feet.x-z.lastPlan.x, jumpY=feet.y-z.lastPlan.y;
+        if (z.plannedCam && !z.holdingView && z.draws >= 100 &&
+            jumpX*jumpX+jumpY*jumpY > 128.0f*128.0f) {
+            // Keep a real, completed view while a discontinuous move streams.
+            // Drawing the old set through the NEW camera would still be empty.
+            memcpy(z.held, z.submitted, sizeof(z.held));
+            z.heldEye=z.planEye; z.heldTarget=z.planTarget;
+            z.holdingView=true;
+        }
         const Chunk& c=z.chunks[next];
         memset(z.desired,0,sizeof(z.desired));
         memset(z.choice,0,sizeof(z.choice));
         memset(z.failed,0,sizeof(z.failed));
+        memset(z.card,0,sizeof(z.card));
         uint64_t geom=0,tex=0;
         uint32_t count=0;
         const tt::render::Quality& quality = tt::render::activeQuality();
@@ -667,7 +811,6 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         const bool viewCap = z.haveCamera && z.h.version>=2;
         uint8_t seenView[kMaxChunks] = {};
         float rankDot[kMaxChunks] = {};
-        float rankDist[kMaxChunks] = {};
         if (viewCap) {
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
@@ -678,11 +821,22 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const float vx=cx-z.camEye.x, vy=cy-z.camEye.y, vz=cz-z.camEye.z;
                 const float dist=sqrtf(vx*vx+vy*vy+vz*vz)+1e-3f;
                 rankDot[id]=(vx*fwd.x+vy*fwd.y+vz*fwd.z)/dist;
-                rankDist[id]=distance2(z.camEye, chunk);
                 seenView[id]= id==static_cast<uint16_t>(next) || inView(chunk, z.camEye, fwd, right, up, quality.drawDistance);
             }
         }
         const float must2 = quality.lodMust * quality.lodMust;
+        // Sign letters stay eligible throughout the visible draw distance. They
+        // still have to fit the retain cap; a later pass demotes a generic near
+        // mesh when that is what is in the way.
+        const float signR2 = quality.drawDistance * quality.drawDistance;
+        auto signFirst=[&](uint16_t id, bool viewed) {
+            return z.letters[id] && viewed && distance2(feet, z.chunks[id]) <= signR2;
+        };
+        // Larger on screen first, then closer. The building the player is looking
+        // at takes a near slot before a small prop that happens to be nearer.
+        float rankSize[kMaxChunks] = {};
+        const Vec3 rankEye = z.haveCamera ? z.camEye : feet;
+        for (uint32_t j=0;j<count;++j) rankSize[z.order[j]]=screenRank(z.chunks[z.order[j]], rankEye);
         for (uint32_t j=1;j<count;++j) {
             const uint16_t id=z.order[j];
             uint32_t at=j;
@@ -690,14 +844,17 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             auto before=[&](uint16_t a, uint16_t b) {
                 // The cell underfoot is drawn first, so a one-frame cap never drops the ground.
                 if (a==cellId || b==cellId) return a==cellId && b!=cellId;
-                if (!viewCap) return distance2(feet, z.chunks[a]) < distance2(feet, z.chunks[b]);
-                if (seenView[a]!=seenView[b]) return seenView[a]>seenView[b];
-                // lodMust (near the toon) before anything farther, then closer to the eye.
+                if (viewCap && seenView[a]!=seenView[b]) return seenView[a]>seenView[b];
+                // lodMust (Toon Hall, the ground under the toon) before a bigger
+                // building farther along the street.
                 const bool am = distance2(feet, z.chunks[a]) <= must2;
                 const bool bm = distance2(feet, z.chunks[b]) <= must2;
                 if (am!=bm) return am;
-                if (rankDist[a]!=rankDist[b]) return rankDist[a]<rankDist[b];
-                if (rankDot[a]!=rankDot[b]) return rankDot[a]>rankDot[b];
+                if (rankSize[a]!=rankSize[b]) return rankSize[a]>rankSize[b];
+                const float da=distance2(rankEye, z.chunks[a]);
+                const float db=distance2(rankEye, z.chunks[b]);
+                if (da!=db) return da<db;
+                if (viewCap && rankDot[a]!=rankDot[b]) return rankDot[a]>rankDot[b];
                 return a<b;
             };
             while (at>0 && before(id, z.order[at-1])) {
@@ -710,46 +867,263 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             const uint16_t id=z.order[j];
             z.inCone[id]= !viewCap || seenView[id];
         }
+        if (viewCap) {
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                if (z.resident[id] && z.lod[id]==1 && z.choice[id]==0 && seenView[id])
+                    z.inCone[id]=true;
+            }
+        }
+        // v1 has one mesh, so the card waits for every in-cone chunk. v2 waits for
+        // the distant prefix that covers most of the screen, walked by projected
+        // area. The cell and lodMust are not part of that prefix: New's larger
+        // lod radius was pulling them in as a distance ring, and they read their
+        // near mesh directly instead of holding the card on a second far read.
+        {
+            const uint16_t cellId=static_cast<uint16_t>(next);
+            auto closeChunk=[&](uint16_t id) {
+                return id==cellId || distance2(feet, z.chunks[id])<=must2;
+            };
+            if (z.h.version<2) {
+                for (uint32_t j=0;j<count;++j) if (z.inCone[z.order[j]]) z.card[z.order[j]]=true;
+            } else {
+                uint16_t ranked[kMaxChunks];
+                uint32_t nrank=0;
+                float total=0, largest=0;
+                for (uint32_t j=0;j<count;++j) {
+                    const uint16_t id=z.order[j];
+                    if (!z.inCone[id] || closeChunk(id)) continue;
+                    ranked[nrank++]=id;
+                    const float c=rankSize[id]>0 ? rankSize[id] : 1e-6f;
+                    total+=c;
+                    if (rankSize[id]>largest) largest=rankSize[id];
+                }
+                for (uint32_t j=1;j<nrank;++j) {
+                    const uint16_t id=ranked[j];
+                    uint32_t at=j;
+                    while (at>0 && rankSize[id]>rankSize[ranked[at-1]]) {
+                        ranked[at]=ranked[at-1]; --at;
+                    }
+                    ranked[at]=id;
+                }
+                const float need=total*kCardCoverage;
+                const float big=largest*kCardProminent;
+                float acc=0;
+                bool met=!(total>0);
+                for (uint32_t j=0;j<nrank;++j) {
+                    const uint16_t id=ranked[j];
+                    const float c=rankSize[id]>0 ? rankSize[id] : 1e-6f;
+                    const bool prominent=big>0 && c>=big;
+                    if (met && !prominent) continue;
+                    z.card[id]=true;
+                    acc+=c;
+                    if (acc>=need) met=true;
+                }
+            }
+        }
         if (z.h.version>=2) {
-            // Nearer and in view first. Choice starts at the far mesh. A chunk inside
-            // the cone is never left without that far mesh: draw() does not skip it.
-            // Upgrades to the near mesh stop at 130 draws and 15k triangles, counting
-            // what this walk has already kept. A resident near mesh inside lodKeep
-            // stays (Toon Hall) even if that runs past the cap. Past lodKeep it stays
-            // only while it still fits; otherwise it is demoted and the far mesh
-            // replaces it. Outside the cone a resident near mesh stays in memory and
-            // is not submitted, and it is not replaced by the far blob.
-            const uint64_t geomCap = z.retainGeom < kGeometryBudget ? z.retainGeom : kGeometryBudget;
-            const uint64_t texCap = z.retainTex < kTextureBudget ? z.retainTex : kTextureBudget;
+            // Choice starts at the far mesh. A chunk inside the cone is never left
+            // without that far mesh: draw() does not skip it. Near upgrades stop
+            // at 130 draws and 15k triangles. The submitted set, far meshes
+            // included, also stops at 150 draws (the file cap zone_test checks).
+            // A resident near mesh inside lodMust stays (Toon Hall) up to that
+            // 150, and only when its triangles fit too. lodKeep used to bypass
+            // 130 for every nearby chunk and the dock view went past both caps.
+            // With no camera the whole cell stays inside 15k tris and 150 draws.
+            // Out-of-cone far textures are not part of this cap. Up to two signs,
+            // ranked by letter-texel screen density, may demote the generic near
+            // mesh that is actually blocking them. A big building with one decal
+            // loses to the far sign whose batches are the letters.
+            const uint64_t geomCap = viewCap ? z.retainGeom : std::min(z.retainGeom, kGeometryBudget);
+            const uint64_t texCap = viewCap ? z.retainTex : std::min(z.retainTex, kTextureBudget);
+            const uint32_t drawCap = viewCap ? kDrawBudget : 150u;
+            int signPick[2] = {-1, -1};
+            float signScore[2] = {-1.0f, -1.0f};
+            auto markNear=[&](uint16_t id) {
+                z.choice[id]=0;
+            };
+            auto textDensity=[&](uint16_t id) {
+                const uint32_t draws=z.chunks[id].draws ? z.chunks[id].draws : 1;
+                const uint32_t letters=z.letterBatches[id] ? z.letterBatches[id] : 1;
+                return rankSize[id] * static_cast<float>(letters) / static_cast<float>(draws);
+            };
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                if (!z.inCone[id] || !signFirst(id, true)) continue;
+                const float score=textDensity(id);
+                if (signPick[0]<0 || score>signScore[0]) {
+                    signPick[1]=signPick[0];
+                    signScore[1]=signScore[0];
+                    signPick[0]=static_cast<int>(id);
+                    signScore[0]=score;
+                } else if (signPick[1]<0 || score>signScore[1]) {
+                    signPick[1]=static_cast<int>(id);
+                    signScore[1]=score;
+                }
+            }
+            // The densest sign may take a near slot in this walk. The second
+            // sign is upgraded afterwards, only if it still fits, so a closer
+            // building with one decal cannot spend the texture cap first.
+            // Reserve the complete visible far set before spending on detail.
+            // A late landmark must not disappear because earlier near upgrades
+            // spent its triangles (even when draw count is well below 130).
+            if (viewCap) {
+                // Hidden far pages are reclaimable. Do not charge them until a
+                // later loop iteration and refuse the visible upgrades first.
+                geom=tex=0;
+                for (uint32_t j=0; j<count; ++j) {
+                    const uint16_t id=z.order[j];
+                    if (!seenView[id]) continue;
+                    const Chunk low=modelInfo(z.chunks[id], 1);
+                    geom+=low.geom; tex+=low.tex;
+                }
+            }
             uint64_t viewDraws=0, viewTris=0;
+            for (uint32_t j=0; j<count; ++j) {
+                const uint16_t id=z.order[j];
+                if (!viewCap || !seenView[id]) continue;
+                const Chunk low=modelInfo(z.chunks[id], 1);
+                viewDraws+=low.draws; viewTris+=low.tris;
+            }
+            // Cost of the mesh that is actually on screen. A near upgrade that
+            // is not resident yet still shows its far mesh. Booking the planned
+            // near cost here cleared those fars and the street dropped to a
+            // handful of draws while the near read was in flight.
+            uint64_t liveDraws=0, liveTris=0;
+            auto subLow=[&](uint64_t& acc, uint64_t low) {
+                if (acc>=low) acc-=low; else acc=0;
+            };
+            auto addLive=[&](const Chunk& mesh) {
+                liveDraws+=mesh.draws;
+                liveTris+=mesh.tris;
+            };
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
                 const bool inThis=!viewCap || seenView[id];
                 const bool nearResident=(z.resident[id] && z.lod[id]==0) || z.parked[id];
+                const Chunk low=modelInfo(high, 1);
                 if (!inThis) {
-                    if (nearResident) z.choice[id]=0;
-                    continue;
+                    if (nearResident) markNear(id);
+                    continue; // makeRoom handles the retained hidden bytes
                 }
                 const float keep=nearResident ? quality.lodKeep : quality.lodNear;
                 const bool within=distance2(feet, high)<=keep*keep;
-                const Chunk low=modelInfo(high, 1);
-                const uint64_t g=geom-low.geom+high.geom, t=tex-low.tex+high.tex;
-                const uint64_t tr=viewTris+high.tris, dr=viewDraws+high.draws;
-                const bool fits=g<=geomCap && t<=texCap && tr<=kTriangleBudget && dr<=kDrawBudget;
-                const bool keepNear=nearResident && within;
-                if (keepNear || (fits && (within || nearResident))) {
-                    z.choice[id]=0;
+                const bool mustNear=distance2(feet, high)<=must2;
+                const bool signNear=signPick[0]>=0 && id==static_cast<uint16_t>(signPick[0]);
+                const uint64_t g=geom>=low.geom ? geom-low.geom+high.geom : high.geom;
+                const uint64_t t=tex>=low.tex ? tex-low.tex+high.tex : high.tex;
+                const uint64_t tr=viewTris-(viewCap ? low.tris : 0)+high.tris,
+                               dr=viewDraws-(viewCap ? low.draws : 0)+high.draws;
+                const bool memOk=g<=geomCap && t<=texCap;
+                const bool countOk=tr<=kTriangleBudget && dr<=drawCap;
+                const bool fits=memOk && tr<=kTriangleBudget &&
+                                dr<=(mustNear ? kSubmitDrawCap : kDrawBudget);
+                // lodMust may stay near only when BOTH the 150-draw file cap and
+                // the 15k triangle cap still have room (Toon Hall). Draws alone
+                // used to keep the near ring and a street settled at 154 draws
+                // or 18k triangles. Everything else, including lodKeep, stops at 130.
+                const bool underSubmit=tr<=kTriangleBudget && dr<=kSubmitDrawCap;
+                const bool keepNear=nearResident && within && memOk && underSubmit &&
+                                    (viewCap ? mustNear : countOk);
+                if (keepNear || (fits && (within || nearResident || signNear))) {
+                    markNear(id);
                     geom=g; tex=t;
                     viewTris=tr; viewDraws=dr;
+                    addLive(nearResident ? high : low);
+                } else if (!viewCap && (viewTris+low.tris>kTriangleBudget || viewDraws+low.draws>kSubmitDrawCap)) {
+                    // The planned total is over the cap. A mesh that is already
+                    // published still fits in the live total: keep it in the cone
+                    // until its replacement is the one on screen. makeRoom drops
+                    // a chunk once inCone is cleared.
+                    const bool onScreen=!viewCap || seenView[id];
+                    const bool haveMesh=z.resident[id] || z.parked[id];
+                    const uint8_t shown=z.resident[id] ? z.lod[id] : uint8_t{0};
+                    const Chunk mesh=modelInfo(high, shown);
+                    const bool shownFits=haveMesh && onScreen &&
+                                         liveTris+mesh.tris<=kTriangleBudget &&
+                                         liveDraws+mesh.draws<=kSubmitDrawCap;
+                    if (shownFits) {
+                        z.desired[id]=true;
+                        z.inCone[id]=true;
+                        if (shown==0) {
+                            markNear(id);
+                            geom=g; tex=t;
+                            viewTris=tr; viewDraws=dr;
+                        } else {
+                            z.choice[id]=1;
+                            viewTris+=low.tris; viewDraws+=low.draws;
+                        }
+                        addLive(mesh);
+                    } else {
+                        z.desired[id]=false;
+                        z.inCone[id]=false;
+                        z.card[id]=false;
+                        subLow(geom, low.geom);
+                        subLow(tex, low.tex);
+                    }
                 } else {
-                    viewTris+=low.tris; viewDraws+=low.draws;
+                    if (!viewCap) { viewTris+=low.tris; viewDraws+=low.draws; }
+                    addLive(low);
                 }
+            }
+            // Up to two on-screen signs may still be past lodNear. Demote only the
+            // generic near meshes that are keeping those signs out of 130 draws
+            // and the retain cap. A third letter chunk does not get this pass.
+            const uint16_t cellId=static_cast<uint16_t>(next);
+            auto moveCost=[&](uint64_t& acc, uint64_t from, uint64_t to) {
+                if (acc>=from) acc=acc-from+to; else acc=to;
+            };
+            auto demoteNear=[&](uint16_t id) {
+                const Chunk& high=z.chunks[id];
+                const Chunk low=modelInfo(high, 1);
+                z.choice[id]=1;
+                moveCost(geom, high.geom, low.geom);
+                moveCost(tex, high.tex, low.tex);
+                moveCost(viewTris, high.tris, low.tris);
+                moveCost(viewDraws, high.draws, low.draws);
+            };
+            for (int s=0;s<2;++s) {
+                if (signPick[s]<0) continue;
+                const uint16_t id=static_cast<uint16_t>(signPick[s]);
+                if (!z.inCone[id] || z.choice[id]==0 || !signFirst(id, true)) continue;
+                const Chunk& high=z.chunks[id];
+                const Chunk low=modelInfo(high, 1);
+                auto signFits=[&]() {
+                    const uint64_t g=geom>=low.geom ? geom-low.geom+high.geom : high.geom;
+                    const uint64_t t=tex>=low.tex ? tex-low.tex+high.tex : high.tex;
+                    const uint64_t tr=viewTris>=low.tris ? viewTris-low.tris+high.tris : high.tris;
+                    const uint64_t dr=viewDraws>=low.draws ? viewDraws-low.draws+high.draws : high.draws;
+                    return g<=geomCap && t<=texCap && tr<=kTriangleBudget && dr<=kDrawBudget;
+                };
+                while (!signFits()) {
+                    int victim=-1;
+                    float worstSize=0, worstDist=-1.0f;
+                    for (uint32_t k=0;k<count;++k) {
+                        const uint16_t other=z.order[k];
+                        if (z.choice[other]!=0 || !z.inCone[other] || other==cellId) continue;
+                        if (signFirst(other, true) && textDensity(other)>=textDensity(id)) continue;
+                        if (distance2(feet, z.chunks[other])<=must2) continue;
+                        const float sz=rankSize[other];
+                        const float dist=distance2(feet, z.chunks[other]);
+                        if (victim<0 || sz<worstSize || (sz==worstSize && dist>worstDist)) {
+                            victim=static_cast<int>(other); worstSize=sz; worstDist=dist;
+                        }
+                    }
+                    if (victim<0) break;
+                    demoteNear(static_cast<uint16_t>(victim));
+                }
+                if (!signFits()) continue;
+                moveCost(geom, low.geom, high.geom);
+                moveCost(tex, low.tex, high.tex);
+                moveCost(viewTris, low.tris, high.tris);
+                moveCost(viewDraws, low.draws, high.draws);
+                markNear(id);
             }
         }
         z.lastPlan=feet;
         z.plannedCam=z.haveCamera;
-        if (z.haveCamera) { z.planEye=z.camEye; z.planFwd=fwd; }
+        if (z.haveCamera) { z.planEye=z.camEye; z.planTarget=z.camTarget; z.planFwd=fwd; }
         z.planned=true;
         error_[0]=0;
         const uint16_t previous=currentZone();
@@ -763,32 +1137,44 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     if (!z.planned) return true;
     if (z.retryCountdown>0 && --z.retryCountdown==0) memset(z.failed,0,sizeof(z.failed));
     ++z.tick;
-    for (uint32_t j=0;j<z.numOrder;++j) z.seenAt[z.order[j]]=z.tick;
+    for (uint32_t i=0;i<z.h.chunks;++i) if (z.submitted[i]) z.seenAt[i]=z.tick;
     for (uint32_t j=0;j<z.numWarm;++j) if (z.warm[z.warmOrder[j]]) z.seenAt[z.warmOrder[j]]=z.tick;
-    bool synced=false;
+    bool synced=gpuFenced;
     auto sync=[&]() {
 #ifdef __3DS__
         if (!synced) ::tt::gpu::frameSync(); // the last frame may still read what we free
 #endif
         synced=true;
     };
-    auto recompute=[&]() { recountZone(z); };
+    auto recompute=[&]() { recountMemory(z); };
     z.inflightGeom=0;
     z.inflightTex=0;
 #ifdef __3DS__
     // One slice of GPU upload. The loader thread already read the file in one span.
     {
         uint32_t budget=kUploadBudgetUs;
+        bool nearDone=false;
         for (auto& j:z.jobs) {
             if (j.state!=Impl::Uploading || !budget) continue;
+            // One near mesh finishes its upload per frame. Far meshes are the
+            // card's payload and are not held back, but a slice still stops
+            // when the clock does not move: Azahar's tick stays put across a
+            // memcpy, and one pump used to upload a whole near mesh.
+            if (j.lod==0 && nearDone) continue;
             const uint64_t t0=svcGetSystemTick();
-            const auto result=j.staging.pump(j.model, budget);
+            const auto result=j.staging.pump(j.model, budget, cardPending() ? 64u*1024u : 16u*1024u);
             const uint32_t used=static_cast<uint32_t>((svcGetSystemTick()-t0)/(SYSCLOCK_ARM11/1000000));
-            budget=used>=budget ? 0 : budget-used;
-            if (result==render::ModelStaging::Result::Complete) j.state=Impl::Done;
-            else if (result==render::ModelStaging::Result::Error) j.state=Impl::Failed;
+            if (used>=budget || (result==render::ModelStaging::Result::Pending && used==0)) budget=0;
+            else budget-=used;
+            if (!cardPending()) budget=0; // one bounded staging operation after the card
+            if (result==render::ModelStaging::Result::Complete) {
+                j.state=Impl::Done;
+                if (j.lod==0) nearDone=true;
+            } else if (result==render::ModelStaging::Result::Error) j.state=Impl::Failed;
         }
     }
+    int nearPub=0;
+    int pubDone=0;
     for (auto& j:z.jobs) {
         LightLock_Lock(&z.lock);
         const Impl::JobState st=j.state;
@@ -801,9 +1187,25 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             // near mesh we are still keeping is thrown away.
             const bool plan=z.desired[id] && z.choice[id]==j.lod;
             const bool warmKeep=!z.desired[id] && z.warm[id] && z.warmLod[id]==j.lod;
-            const bool take=st==Impl::Done && (plan || warmKeep);
             const bool nearHeld=(z.resident[id] && z.lod[id]==0) || z.parked[id];
+            const bool cardKeep=keepCardFar(j.lod, z.desired[id], z.inCone[id], nearHeld);
+            const bool take=st==Impl::Done && (plan || warmKeep || cardKeep);
+            // A second near swap waits until the next frame. Leaving the job
+            // Done keeps its bytes in the budget so the next queue does not
+            // load on top of a mesh we are about to publish.
+            if (take && j.lod==0 && nearPub>0) {
+                const Chunk d=modelInfo(z.chunks[id], j.lod);
+                z.inflightGeom+=d.geom; z.inflightTex+=d.tex;
+                continue;
+            }
+            if (take && j.lod==0) ++nearPub;
+            if (take && pubDone>=kMaxPublishPerUpdate) {
+                const Chunk d=modelInfo(z.chunks[id], j.lod);
+                z.inflightGeom+=d.geom; z.inflightTex+=d.tex;
+                continue;
+            }
             if (take) {
+                ++pubDone;
                 sync();
                 if (z.parked[id] && j.lod==0) { z.parkedModels[id].unload(); z.parked[id]=false; }
                 z.models[id].swap(j.model);
@@ -811,7 +1213,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 if (j.lod==0) z.parked[id]=false;
             } else if (st==Impl::Done && j.lod==1 && nearHeld) {
                 z.keepHigh[id]=false; // the near mesh stays; this far upload is not the plan
-            } else if (st==Impl::Failed && (plan || warmKeep)) {
+            } else if (st==Impl::Failed && (plan || warmKeep || cardKeep)) {
                 z.failed[id]=true; z.keepHigh[id]=false;
                 z.retryCountdown=30;
                 fail("zone: chunk load failed; retried on the next plan");
@@ -845,8 +1247,43 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     for (uint32_t j=0;j<z.numWarm;++j)
         if (z.warm[z.warmOrder[j]] && z.warmLod[z.warmOrder[j]]==0) restoreHigh(z.warmOrder[j]);
     recompute();
+    // A mesh draw() can submit this frame. makeRoom and the headroom loop must
+    // not drop it to free bytes for a read whose replacement is not published yet.
+    const float shownDist=tt::render::activeQuality().drawDistance;
+    auto meshShown=[&](uint32_t i) {
+        if (!(z.resident[i] || z.parked[i])) return false;
+        if (z.holdingView && z.held[i]) return true;
+        if (z.keepHigh[i]) return true; // the replacement is not published yet
+        if (static_cast<int>(i)==z.cell) return true;
+        if (z.inCone[i]) return true; // the plan is still drawing this mesh
+        if (!z.haveCamera) return z.desired[i];
+        return inView(z.chunks[i], z.camEye, fwd, right, up, shownDist);
+    };
+    auto readInFlight=[&](uint16_t i, int* otherLod) {
+        *otherLod=-1;
+#ifdef __3DS__
+        for (auto& job:z.jobs) if (job.state!=Impl::Free && job.chunk==i) {
+            *otherLod=job.lod;
+            return true;
+        }
+#else
+        for (auto& job:z.hostJobs) if (job.used && job.chunk==i) {
+            *otherLod=job.lod;
+            return true;
+        }
+#endif
+        return false;
+    };
+    auto planPinned=[&](uint32_t i) {
+        if (z.h.version<2 || !z.desired[i] || z.choice[i]!=0) return false;
+        if (z.inCone[i]) return true;
+        int inflightLod=-1;
+        if (readInFlight(static_cast<uint16_t>(i), &inflightLod)) return true;
+        return false; // a hidden, idle mesh may yield to visible content immediately
+    };
     // Drop the oldest hidden chunk, then a parked high mesh, until `add` fits.
-    // `protect` is never evicted. The displayed mesh of a desired chunk is never evicted.
+    // `protect` is never evicted. A mesh that is in view is never evicted: its
+    // replacement has to be uploaded and published first (swap in the job loop).
     // `planEvict` false: a culled or warm read never evicts another desired chunk (rank 1/4),
     // or two culled plan chunks would evict each other on every upload.
     auto makeRoom=[&](uint64_t addG,uint64_t addT,uint64_t dropG,uint64_t dropT,int protect,bool forDesired,bool planEvict=true) {
@@ -861,6 +1298,10 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             uint32_t seen=~uint32_t{0};
             for (uint32_t i=0;i<z.h.chunks;++i) {
                 if (static_cast<int>(i)==protect) continue;
+                if (meshShown(i)) continue;
+                if (planPinned(i)) continue;
+                int inflight=-1;
+                if (readInFlight(static_cast<uint16_t>(i), &inflight)) continue;
                 const bool warmHold=z.preload && z.warm[i];
                 int r=-1;
                 if (!z.desired[i] && !warmHold && (z.resident[i] || z.parked[i])) r=0;
@@ -895,14 +1336,19 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         }
         return true;
     };
-    // 1 = resident or queued, 0 = loader busy, -1 = the retain budget refused it.
+    // 1 = resident or queued, 0 = loader busy, 2 = another lod of this chunk is
+    // already in flight (do not start a second read), -1 = retain refused it.
     auto queueLoad=[&](uint16_t i,uint8_t lod,bool detail) -> int {
         if (z.failed[i]) return -1;
+        int inflightLod=-1;
+        if (readInFlight(i, &inflightLod)) return inflightLod==static_cast<int>(lod) ? 1 : 2;
         if (z.resident[i] && z.lod[i]==lod && !z.keepHigh[i]) return 1;
-        // A resident near mesh stays, except an in-cone demotion (choice is the
-        // far mesh). Culled chunks are not demoted, so they never swap in the far blob.
+        // A resident near mesh stays on screen. An in-cone demotion (choice is
+        // the far mesh) may queue the far read, but the shown mesh is not
+        // unloaded until that read is published. Culled chunks are not demoted.
         const bool demote=lod==1 && z.desired[i] && z.inCone[i] && z.choice[i]==1;
         if (((z.resident[i] && z.lod[i]==0) || z.parked[i]) && !demote) return 1;
+        if (meshShown(i) && (z.resident[i] || z.parked[i]) && z.lod[i]!=lod) z.keepHigh[i]=true;
 #ifdef __3DS__
         for (auto& job:z.jobs) if (job.state!=Impl::Free && job.chunk==i && job.lod==lod) return 1;
 #else
@@ -910,6 +1356,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
 #endif
         const Chunk d=modelInfo(z.chunks[i],lod);
         if (!d.size) {
+            // An empty lod is not a mesh we can swap in. Blanking the chunk
+            // here is the hole in the street while near reads are in flight.
+            if (meshShown(i) && z.resident[i]) {
+                z.keepHigh[i]=false;
+                if (z.lod[i]!=lod) z.choice[i]=z.lod[i];
+                return 1;
+            }
             sync();
 #ifdef __3DS__
             if (!z.keepHigh[i]) z.models[i].unload();
@@ -967,25 +1420,82 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         return 1;
     };
     recompute();
-    makeRoom(0,0,0,0,-1,false); // hidden and culled near meshes leave before new reads
-    for (uint32_t j=0;j<z.numOrder;++j) {
-        const uint16_t i=z.order[j];
-        if (z.failed[i] || (z.resident[i] && z.lod[i]==z.choice[i])) continue;
-        const int q=queueLoad(i,z.choice[i],true);
-        if (q<0) { fail("zone: linear budget full; waiting for evictions"); break; }
-        if (q==0) break;
+    makeRoom(0,0,0,0,-1,false); // hidden chunks leave; a mesh in view stays
+    // The card's far reads take loader slots first, so the card is not stuck
+    // behind a 500 KB near mesh. The cell and anything inside lodMust then read
+    // near directly (no far pass). Distant chunks still read far first, and only
+    // one of those near upgrades is started per frame. The warm ring waits
+    // until the card is down and the cone is at its chosen LOD.
+    auto queueOne=[&](uint16_t i, uint8_t lod, bool detail) -> bool {
+        const int q=queueLoad(i, lod, detail);
+        // -1 is a non-cone read that did not fit. The cone keeps streaming.
+        // 2 is a different lod already in flight: leave the slots for other chunks.
+        if (q<0) return false;
+        if (q==2) return true;
+        return q!=0;
+    };
+    const float must2=tt::render::activeQuality().lodMust*tt::render::activeQuality().lodMust;
+    auto directNear=[&](uint16_t i) {
+        // The cell and lodMust read near directly. Every other choice-0 chunk
+        // reads far first and keeps that far on screen until the near publishes.
+        if (z.h.version<2 || z.choice[i]!=0) return false;
+        if (static_cast<int>(i)==z.cell || distance2(feet, z.chunks[i])<=must2) return true;
+        return false;
+    };
+    bool slots=true;
+    bool queuedNear=false;
+    auto consider=[&](uint16_t i, int pass) -> bool {
+        if (!z.desired[i] || !z.inCone[i] || z.failed[i]) return true;
+        const bool direct=directNear(i);
+        if (pass==0) {
+            if (!z.card[i] || direct || z.resident[i]) return true;
+            const uint8_t gate=z.h.version>=2 ? uint8_t{1} : z.choice[i];
+            return queueOne(i, gate, gate==0);
+        }
+        if (pass==1) {
+            if (!direct || (z.resident[i] && z.lod[i]==z.choice[i])) return true;
+            // Already showing the far mesh: the near read replaces it on publish.
+            return queueOne(i, 0, true);
+        }
+        if (direct) return true;
+        if (!z.resident[i]) {
+            const uint8_t gate=z.h.version>=2 ? uint8_t{1} : z.choice[i];
+            if (!queueOne(i, gate, gate==0)) return false;
+        }
+        // An empty far mesh is marked resident inside queueLoad, so this chunk's
+        // near read can start in the same update.
+        if (z.h.version<2 || !z.resident[i] || z.lod[i]==z.choice[i]) return true;
+        if (z.choice[i]==0 && queuedNear) return true;
+        const uint32_t before=z.loadsQueued;
+        if (!queueOne(i, z.choice[i], true)) return false;
+        if (z.choice[i]==0 && z.loadsQueued!=before) queuedNear=true;
+        return true;
+    };
+    for (int pass=0; pass<3 && slots; ++pass) {
+        for (uint32_t j=0; slots && j<z.numOrder; ++j) slots=consider(z.order[j], pass);
     }
-    for (uint32_t j=0;j<z.numWarm && z.preload;++j) {
-        const uint16_t i=z.warmOrder[j];
-        if (!z.warm[i] || z.failed[i]) continue;
-        if (z.resident[i] && (z.lod[i]==z.warmLod[i] || (z.warmLod[i]==1 && z.lod[i]==0))) continue;
-        // The ring only fills free retain space. Evicting for it made a warm chunk and a
-        // culled plan chunk evict each other forever, so loading() never went false.
-        const Chunk wd=modelInfo(z.chunks[i],z.warmLod[i]);
-        if (z.geom+z.inflightGeom+wd.geom>z.retainGeom || z.tex+z.inflightTex+wd.tex>z.retainTex) { z.warm[i]=false; continue; }
-        const int q=queueLoad(i,z.warmLod[i],true);
-        if (q<0) z.warm[i]=false;
-        if (q==0) break;
+    // Culled chunks and the warm ring wait until the cone is at its chosen LOD.
+    // Starting them earlier took loader slots the near meshes still needed.
+    if (slots && !cardPending() && !loading()) {
+        for (uint32_t j=0; slots && j<z.numOrder; ++j) {
+            const uint16_t i=z.order[j];
+            if (!z.desired[i] || z.inCone[i] || z.failed[i] || (z.resident[i] && z.lod[i]==z.choice[i])) continue;
+            const int q=queueLoad(i, z.choice[i], true);
+            if (q<0) continue; // this culled chunk does not fit; a smaller one still might
+            if (q==0) { slots=false; break; }
+        }
+        for (uint32_t j=0; slots && j<z.numWarm && z.preload; ++j) {
+            const uint16_t i=z.warmOrder[j];
+            if (!z.warm[i] || z.failed[i]) continue;
+            if (z.resident[i] && (z.lod[i]==z.warmLod[i] || (z.warmLod[i]==1 && z.lod[i]==0))) continue;
+            // The ring only fills free retain space. Evicting for it made a warm chunk and a
+            // culled plan chunk evict each other forever, so loading() never went false.
+            const Chunk wd=modelInfo(z.chunks[i],z.warmLod[i]);
+            if (z.geom+z.inflightGeom+wd.geom>z.retainGeom || z.tex+z.inflightTex+wd.tex>z.retainTex) { z.warm[i]=false; continue; }
+            const int q=queueLoad(i,z.warmLod[i],true);
+            if (q<0) z.warm[i]=false;
+            if (q==0) break;
+        }
     }
     makeRoom(0,0,0,0,-1,true); // LRU only once the retain budget is actually full
     recompute();
@@ -1007,7 +1517,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         int best=-1;
         uint32_t seen=~uint32_t{0};
         for (uint32_t i=0;i<z.h.chunks;++i) {
-            if (z.desired[i] && z.inCone[i]) continue;
+            if ((z.desired[i] && z.inCone[i]) || meshShown(i) || planPinned(i)) continue;
             if (!dropWarm && z.preload && z.warm[i]) continue;
             if (!(z.resident[i] || z.parked[i])) continue;
             bool busy=false;
@@ -1030,14 +1540,28 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         break;
     }
 #endif
+    recountZone(z);
     return true;
 }
 bool Zone::loading() const {
     if (!impl_ || !impl_->planned) return false;
     for (uint32_t j=0;j<impl_->numOrder;++j) {
         const uint16_t i=impl_->order[j];
-        if (!impl_->inCone[i]) continue; // culled plan chunks fill in behind the card (Place::streamReady)
+        if (!impl_->inCone[i]) continue; // culled plan chunks fill in behind the card
         if (!impl_->failed[i] && !(impl_->resident[i] && impl_->lod[i]==impl_->choice[i])) return true;
+    }
+    return false;
+}
+bool Zone::cardPending() const {
+    // v2 drops the card once the chunks covering most of the screen have a mesh
+    // (the far one, or the near one if it was already resident). The tail of the
+    // cone, and every near upgrade, stays in loading() and streams after
+    // Place::streamReady. v1 has one mesh, so the card set is the whole cone.
+    if (!impl_ || !impl_->planned) return false;
+    for (uint32_t j=0;j<impl_->numOrder;++j) {
+        const uint16_t i=impl_->order[j];
+        if (!impl_->card[i] || !impl_->desired[i] || !impl_->inCone[i] || impl_->failed[i]) continue;
+        if (!impl_->resident[i]) return true;
     }
     return false;
 }
@@ -1048,6 +1572,11 @@ void Zone::setCamera(const Vec3& eye, const Vec3& target) {
     impl_->camEye=eye;
     impl_->camTarget=target;
     impl_->haveCamera=true;
+}
+bool Zone::heldCamera(Vec3* eye, Vec3* target) const {
+    if (!impl_ || !impl_->holdingView) return false;
+    *eye=impl_->heldEye; *target=impl_->heldTarget;
+    return true;
 }
 void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
     for (int guard=0; guard<3000 && impl_; ++guard) {
@@ -1124,13 +1653,21 @@ int Zone::completeLoads() {
     if (!impl_) return 0;
     Impl& z=*impl_;
     int n=0;
+    int nearPub=0;
+    int pubDone=0;
     for (auto& j:z.hostJobs) {
         if (!j.used) continue;
         const uint16_t id=j.chunk;
         const bool plan=z.desired[id] && z.choice[id]==j.lod;
         const bool warmKeep=!z.desired[id] && z.warm[id] && z.warmLod[id]==j.lod;
         const bool nearHeld=(z.resident[id] && z.lod[id]==0) || z.parked[id];
-        if (plan || warmKeep) {
+        const bool cardKeep=keepCardFar(j.lod, z.desired[id], z.inCone[id], nearHeld);
+        const bool take=plan || warmKeep || cardKeep;
+        if (take && j.lod==0 && nearPub>0) continue;
+        if (take && pubDone>=kMaxPublishPerUpdate) continue;
+        if (take && j.lod==0) ++nearPub;
+        if (plan || warmKeep || cardKeep) {
+            if (take) ++pubDone;
             z.resident[id]=true; z.lod[id]=j.lod; z.keepHigh[id]=false;
             if (j.lod==0) z.parked[id]=false;
         } else if (j.lod==1 && nearHeld) {
@@ -1158,32 +1695,15 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
     (void)placement;
 #endif
     Impl& z=*impl_;
-    Vec3 fwd{}, right{}, up{};
-    const bool cap=z.haveCamera;
-    if (cap) cameraBasis(eye, z.camTarget, fwd, right, up);
-    bool seen[kMaxChunks]={};
-    auto submit=[&](uint32_t i) {
-        if (i>=z.h.chunks || seen[i]) return;
-        seen[i]=true;
-        if (!z.resident[i] || z.parked[i]) return;
-        const Chunk mesh=modelInfo(z.chunks[i], z.lod[i]);
-        if (!mesh.size || distance2(eye, z.chunks[i])>distance*distance) return;
-        // Retained chunks stay in memory. Only the cone is submitted. Every in-cone
-        // chunk is drawn, at least at the far mesh the plan left it on. The 130-draw
-        // cap limits near upgrades; it does not drop a farther chunk.
-        if (cap) {
-            const bool viewed=static_cast<int>(i)==z.cell || inView(z.chunks[i], eye, fwd, right, up, distance);
-            if (!viewed) return;
-        }
+    (void)eye;
+    for (uint32_t i=0; i<z.h.chunks; ++i) {
+        if (!z.submitted[i]) continue;
 #ifdef __3DS__
         renderer.drawModel(z.models[i], identity);
 #else
         (void)renderer;
-        (void)mesh;
 #endif
-    };
-    for (uint32_t j=0;j<z.numOrder;++j) submit(z.order[j]);
-    for (uint32_t i=0;i<z.h.chunks;++i) submit(i);
+    }
 }
 int Zone::visibleZones(uint16_t* out,int capacity) const {
     if (!impl_ || impl_->cell<0) return 0;

@@ -1653,3 +1653,451 @@ What changed:
   4. Talk to an NPC. The shot should still look at the NPC; the lens pulls in only
      when a camera solid lies between the head and the desired eye.
 
+## 2026-10-30 — card reads the far mesh, dock signs stay near
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6` (`929719b`). Host `g++` and
+devkitARM only. **No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and
+FFmpeg 7. There are no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp`
+was compiled with `g++ -Werror` and not run on 2000/1000/2100. The 3.17 s / 1.8 s
+card times are the user's Azahar numbers for `929719b`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- The profiled cost is the SD read (~330 ms per ~500 KB near chunk). Upload is
+  4–6 ms/frame. Packing cone chunks together would only remove seeks. Another
+  compressor needs a decoder this runtime does not have, and the textures are
+  already ETC1. Splitting textures off the geometry would drop the card onto an
+  untextured frame, and sign letters are a texture. The v2 file already stores a
+  vertex-coloured far mesh. The card (`Place::streamReady` / `Zone::cardPending`)
+  now waits for that far mesh of each in-cone chunk. The loader does not start a
+  near read until those far meshes are resident, so a 500 KB near job cannot
+  occupy a slot the card still needs. Near upgrades, including sign letters,
+  continue on the loader thread after the card, in the same upload slices.
+  `finishLoading` (boss / cogdo) still waits for the full plan. This host cannot
+  say the 2100 card is now ≤2 s or the 1000 card ≤1.5 s; that needs the baked
+  zones and Azahar.
+- Donald's Dock letters. A chunk with a decal on `palette_2tmlc` (MickeyFont) is
+  a sign. On Old 3DS `lodNear` is 160, which left the far-right building on the
+  far mesh (14 faint triangles). A sign inside the cone and inside twice
+  `lodNear` (320 Old / 520 New) now takes a near slot ahead of a generic chunk.
+  It still stops at 130 draws, 15k triangles and the retain cap. The host fixture
+  puts the sign at 200 (past 160) and a 120-draw filler at 80: the sign stays at
+  lod 0, the filler at lod 1, 17 draws. Toon Hall is still both halves near
+  (the earlier cone lines: hall lod 0, 131 draws with the shop).
+- `zone_test.cpp:52` is a real host failure, not a new cone limit. With no camera
+  the points loop counts the whole cell. Near upgrades stop at 130 draws / 15k
+  triangles, then the remaining far meshes were added with no ceiling, so the
+  cell could pass the file's 150-draw / 15k-triangle far-set cap. The device
+  calls `setCamera` before `update`, and that path still draws every in-cone
+  chunk. The no-camera plan now leaves out a chunk whose far mesh would pass
+  15k triangles or 150 draws. The assert is unchanged. The host fixture is three
+  chunks of 80 near / 40 far: resident lods 0, 1, and not loaded, 120 draws and
+  120 triangles.
+
+## 2026-10-31 — near reads overlap the far card, dock signs fit the cap
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `aa080b2`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The 2.47 s / 1.57 s
+card times and the faint Old 3DS dock sign are the user's Azahar notes for
+`aa080b2`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 0 queued 2 lod 1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- Near reads are no longer gated on every in-cone far mesh. The walk is the cell
+  underfoot, then `lodMust`, then screen-space size, then distance. A chunk that
+  already has its far mesh queues its near read before a smaller chunk's far
+  read. One new near read is started per frame, and one near upload is published
+  per frame, so four far-to-near swaps do not land on the frame the card drops.
+  The card-drop frame also laps the place section before it returns; that tail
+  was what the profiler called `other`. `finishLoading` still waits for the full
+  plan. This host cannot say full detail is back to r6's ~6.1 s, or that the
+  ~133 ms hitch is gone; that needs Azahar.
+- The card waits for the in-cone prefix whose projected area is 80% of the cone,
+  always including the cell and `lodMust`, plus any chunk at least 20% of the
+  largest. That is the byte cut for the 2 s / 1.5 s targets: the tail of small
+  props is not on the critical path. Prefetching the destination during the
+  teleport would read it in the departure zone, and packing far meshes together
+  only removes seeks; the measured cost is sequential SD throughput. The host
+  fixture is a large chunk with an empty far mesh in front of a small one: the
+  large chunk's near read is queued in the same update as the small chunk's far
+  read, and the card does not wait on the small chunk.
+- Donald's Dock letters. Sign priority already skipped `lodNear`; it still had
+  to pass `fits`, and the running texture total included out-of-cone far meshes
+  plus generic near upgrades (Old retain is 4 MiB, the draw cap is 130). Those
+  out-of-cone far textures are no longer charged against the upgrade. If a sign
+  still does not fit, the smallest generic near mesh (not the cell, not
+  `lodMust`, not a sign already taken) is demoted until it does. The host
+  fixture sets retain textures to 5,500 bytes, puts a 5,440-byte texture behind
+  the camera, and a 120-draw filler inside `lodNear`: the sign stays at lod 0,
+  the filler at lod 1, the hidden chunk is not loaded, 17 draws and 64 bytes of
+  texture. Toon Hall is still the cone lines above (hall lod 0, 131 draws).
+- `kLinearHeadroom` (12 MiB) now lives next to the device upload budget, which
+  is the only code that reads it. Host `clang++ -Wunused-const-variable -Werror`
+  compiles `zone.cpp` clean. The 12 MiB floor is unchanged.
+- `zone_test.cpp:52` still cannot be run here (no `1000.tz`). The failure mode
+  after the first sample is a near mesh already resident inside `lodKeep`: the
+  points loop does not unload, and `keepNear` bypassed the 15k / 150 ceiling.
+  With no camera that ceiling now applies to `keepNear` too. The camera path is
+  unchanged, so Toon Hall can still sit past 130 draws. The host fixture walks
+  from a 90-draw near mesh to a chunk 100 units away and lands at lods 1/0,
+  100 draws, 100 triangles. The assert in `zone_test.cpp` is unchanged.
+
+## 2026-10-31 — close chunks read near, in-view meshes stay up
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `22a83f5`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The Round 8 Azahar
+notes for `22a83f5` (Old 2100 card 1969 ms, 1000 cards 1366/1367 ms, crisp Old
+DD sign, and the six failures below) are the user's measurements. This host
+does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/1/1/0 draws 18
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+```
+
+What changed, and why this default:
+
+- An in-view mesh is not evicted and not swapped for an empty lod. `makeRoom`
+  and the 12 MiB loop skip a chunk `draw` can submit. A demotion to the far
+  mesh queues that read and keeps the shown mesh (`keepHigh`) until the upload
+  is published. The Old 2100 drop from 73 draws to 28 was that hole. This host
+  cannot say the street no longer blobs.
+- The cell and any chunk inside `lodMust` whose plan is the near mesh skip the
+  far read. Distant chunks still read far first, and those far reads take
+  loader slots before the close near reads, so the card is not stuck behind a
+  500 KB near mesh. One distant near upgrade is still started per frame.
+- The card prefix is the distant in-cone chunks walked by projected area until
+  80% of that area, plus a chunk at least 20% of the largest. `lodMust` is not
+  forced in. New's larger lod radius was the extra card bytes. This host cannot
+  say the New 2100 card is now ≤2 s.
+- `ModelStaging::pump` copies and flushes each texture in 64 KB slices inside
+  the 10 ms budget. The 133 ms hitch was one 566 KB near upload finishing in a
+  single pump. This host cannot time that on Azahar.
+- Sign demotion runs for the one letter chunk with the largest projected area.
+  The host crowd is ground plus three signs past `lodNear`: only the large one
+  is near (lods 0/1/1/0, 18 draws). Donald's Dock's single on-screen building
+  is still the sign fixture (lods 0/1/0, 17 draws).
+- Near upgrades still stop at 130 draws. The running total, far meshes
+  included, now stops at 150 draws and 15k triangles on the camera path as
+  well. `keepNear` bypasses 130 only for a resident mesh inside `lodMust`, and
+  only up to 150. The host cap fixture is eight chunks of 20 near / 16 far:
+  lods end `…/1/-1`, 136 draws on Old and on New. `zone_test.cpp:144` is
+  unchanged and was not run (no `1000.tz`). Toon Hall is still the cone line
+  above (hall lod 0, 131 draws with the shop far mesh).
+
+## 2026-10-31 — shown meshes stay up, uploads slice, two signs
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `85d5d9d`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100/12000. The Round 9
+Azahar notes for `85d5d9d` (2100 card 1568 ms Old / 1233 ms New, 1000 card
+731 ms, dd_far host draws 67, and the five failures below) are the user's
+measurements. This host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` and `toontown3ds.elf` with zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/0/1/0 draws 32
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+sign: landmark lod 0/1/0 draws 17 tex 64
+once: queued 3
+tri: lod 0/1 draws 11 tris 12001
+```
+
+What changed, and why this default:
+
+- The cap was booking the planned near cost. After the card, walking into
+  `lodNear` cleared published fars from the cone while those nears were still
+  queued, and `draw` / `recount` then submitted only the chunks that remained.
+  The live total is the mesh on screen. A published far stays in the cone, and
+  is not evicted, until its near replacement is published. The host street is
+  eight chunks: 96 draws at the card, still 96 after the walk, with a near read
+  queued and every lod unchanged (`blob:` lines). This host cannot say the
+  Azahar 2100 view stays at 70 draws.
+- `ModelStaging::pump` copies and flushes vertices and indices in 64 KB slices,
+  same as textures, and returns after allocating the buffers so the copy is not
+  in that call. A tick that does not move during memcpy still ends the pump
+  after one 64 KB slice; `Zone::update` then spends no more of the 10 ms budget
+  that frame. The hitch log threshold is 50 ms (`prof: hitch`). This host cannot
+  time the post-card frame on Azahar.
+- Sign rank is letter-batch count times projected area, divided by draws. The
+  denser sign is upgraded first; a second sign is upgraded only if it still
+  fits 130 draws and the retain cap. The host crowd is now lods 0/0/1/0 (32
+  draws): the large sign and the closer small sign, not only the large one.
+  The landmark fixture is a close building with one decal and a farther
+  all-letter sign under an 80-byte texture cap: lods 0/1/0, the far sign near,
+  17 draws, 64 bytes of texture. Donald's Dock was not remeasured.
+- Both caps apply to the submitted set. `keepNear` requires the 15k triangle
+  cap as well as 150 draws. `recount` and `draw` skip a chunk that would pass
+  either cap, and they do not submit a v2 chunk the plan dropped. The host tri
+  fixture is 10 draws / 12,000 tris near: the second chunk stays far (lods
+  0/1, 11 draws, 12,001 tris). `zone_test` matches `2000.tz`, `1000.tz` and
+  `2100.tz` by path suffix, so `12000.tz` no longer takes the hall camera, and
+  the 2100 check includes `street_far`. Those files are not in this tree.
+- A choice-0 chunk outside the card reads its near mesh only. A chunk that
+  already has a read in flight is not queued at the other lod. The host once
+  fixture queues 3 reads (cell near, tail near, card far) and one more after
+  the card far publishes (the card's near). The overlap fixture is unchanged:
+  the distant card chunk still reads far first (`queued 2`).
+
+## 2026-10-31 — Round 11 streaming (host / devkitARM only)
+
+Branch `cursor/cone-card-bytes-0b72`. **No Azahar run** in this pass.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM nice -n 19 make -j4
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+```
+
+`make -j4` linked `toontown3ds.3dsx` with zero warnings in `source/`.
+
+`/tmp/retain_test` (when built on a host with libstdc++):
+
+```
+jump: card draws 128 floor 102
+jump: min draws 128 after replan
+once: queued 3
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+```
+
+Round 11 changes: far stand-ins stay in-cone through replan until near publish;
+choice-0 reads far-first outside cell/`lodMust`; ~2 s eviction pin on planned
+chunks and in-flight reads; recount/draw admit near before far (stand-ins before
+generic far under 150 draws); Old signPick chunks get `setTextureLodBias(-1)`;
+8 ms upload budget and two publishes per update; `run.py` no longer requires
+three floor walk points.
+
+
+### 2026-10-31 — PR #8 Round 12: no-camera budget regression
+
+`recountZone` now admits every near mesh before any far mesh, against a single
+150-draw/15k-triangle total. The host zone suite also asserts the caps after
+every update and publication. All 37 supplied zones pass, including 20000.tz.
+Host/build only; device numbers come from the tester, not from this agent.
+No emulator or live server client was run.
+
+### 2026-10-31 — PR #8 Round 12, after ed9740e (host/build only; partial)
+
+**Device numbers come from the tester, not from this agent.** No Azahar,
+emulator, hardware or live-server client was run. All r11 fps, card/full-detail,
+hitch, linfree and stereo numbers in the brief are tester observations. This
+change does **not** establish the hard visual gate or complete all Round 12 work.
+
+Implemented runtime changes and host evidence:
+
+| Brief item / plan | Change | Verification / limits |
+|---|---|---|
+| 1; A5 | `world/zone.cpp:649`: no-camera admission now runs near then far against one total. `draw()` consumes that exact admitted set. | Required all-zone suite checks the 150-draw/15k caps after updates and publications as well as settled frames. Supplied 20000.tz retained. |
+| P0; A5 | `meta/app.rsf`: 80MB / 124MB, 804MHz, L2. `core/memory_profile.h`, `memory.cpp`, `world/place.cpp:113`: grant-based allocation/retention and commit-limit fallback. Boot logs APPMEMTYPE, grant and actual heaps; overlay uses actual budgets. | `memory_test.cpp` covers 64/80/124 profiles and common quality settings. CIA packs with the changed exheader; mode, HOME and networking still require tester confirmation. |
+| 2; A6; P7 | `world/zone.cpp:740,1577`, main render camera: long jumps from a completed >=100-draw view retain the actual submitted set **and its camera** until destination coverage reaches 100 or finishes. | Real 2100 arrival (-148,-410) -> view (-130,-115), Old legacy 4/4 MiB fixture passes after departure fully settles. **Immediate sparse-card variant still fails: departure 24 draws -> 0.** `TT_STRICT_CARD_JUMP=1` exposes this failure rather than calling the settled case a card fix. |
+| 3; P7 | Normal `Place::update` moved after existing FrameBegin; avoids the extra FrameSync vblank on publication. Card resources retire at the next existing fence, with a final card frame over arrival work. `model.cpp` uses a hard byte quota in addition to time: 16 KiB, 2ms target, one pump per frame post-card; 64 KiB behind card. Frame selection/sorting happens once per update, with cached ranks and std::sort. | Quota host test covers a clock-independent byte limit; build checks real GPU code. **No measured <16ms busy or <50ms frame claim.** Allocation, arrival and device GPU timing still need profiling. |
+| 4; P7 | Desired in-cone near meshes never lose their eviction protection to a two-second timer. Hidden idle meshes yield immediately; LRU uses last submitted tick. Visible planning excludes reclaimable hidden texture bytes before considering upgrades. | Retain suite passes, including repeated-load/hold cases. Tester must check Old DD duplicate stages and full-detail time. |
+| 5 | Same asynchronous card priority retained, with publication work moved to the existing fence. | Card/full-detail timings versus r6 remain unmeasured. No claim of an improved 2100 timing. |
+| 6; A7; P4 | Reserve all in-cone far triangles/draws before near upgrades. Distant far scenery cannot lose its reservation to earlier near detail. | Retain cap fixture now requires all eight chunks resident instead of expecting a missing far chunk. Actual New street_far pink building must still be checked by tester. |
+| 7; A3 | Dense sign picks remain near-eligible across the full cone; a sparse nearer letter decal may yield to a denser sign. Removed the Old-only texture LOD bias. | Existing density/landmark fixtures plus sole-sign-at-400 fixture pass using real near geometry. DD legibility remains a visual check. |
+| P1; A1 | `world/sky.*`, `Renderer::drawSky`, `bake_sky.py`: TT dome/cloud rings, BR sky; camera-relative, depth test/write off, fog off. TT rates +0.25/-0.20 degrees/s from SkyUtil. Small resident textures can move to VRAM, keeping all mips and >=1 MiB VRAM spare. | Four SD sky models baked successfully: TT 3 draws, BR 1. Total texture payload 261,760 bytes; all four models add 15,060 geometry bytes. VRAM movement/fallback and sky stddev require tester verification. No baked binary committed. DD world white/underwater fog unchanged. |
+| P2; A2 | Static extraction caps 256; near street atlas 512 pages, 128 tiles, 16 gutters, four isolated tile mips; standalone ground/native-repeat textures 256, full mip chain. 512/seven-level TZ validation. | 256 texture + full-mip host assertion and atlas tests pass; existing format tests pass. Current supplied zones are **not** silently replaced with higher-resolution probes. Texture-detail thresholds remain unproven. |
+| P3/P4; A3/A7 | `far_atlas.py` samples source UVs into guttered per-face atlas patches, preserving alpha/colours/decals; adaptive 128–512 pages. `far_shell.py` uses border-locked quadrics, per-component survival/bounds checks and UV membership on attribute transfer. No voxel snapping or automatic blob fallback. | Synthetic geometry, UV seam, alpha, component, merging and determinism tests pass. **Integration incomplete:** 2100 latest probe fails at 16,371 tris / 124 draws / 14,230,272 texture bytes. TTC probe bakes at 11,278 tris / 61 draws / 8,313,984 texture bytes, grid 160, but fails the real Toon Hall near-coverage fixture (3 covering chunks, only 2 near). Both probes remain under ignored `data/fidelity-probe/`, not the supplied `data/zones/`. |
+| P5; A4 | Both profiles now use far900/draw740/lod260/keep290/must64/fog180–680. | Profile equality host assertion passes. This is a fidelity choice awaiting tester timing/stereo checks, not a measured GPU budget increase. |
+| P6; A lighting | Source vertex colours and decal/drop-shadow layers preserved by shell tools. | **New AO/lighting bake not implemented.** No claim that lighting matches the real game. |
+| P7 preload | Visible/held resources protected and hidden resources evicted first. | **Cross-zone/tunnel/door prewarming and sparse early-card transition coverage remain unfinished.** |
+| C visual gate | `tools/fidelity/compare_views.py` implements all numeric thresholds; missing images, wrong sizes or absent draw evidence fail closed. Shot log includes `view NAME draws N tris M resident_near K`. | 6 synthetic gate tests pass (identical detail, flat sky/detail, tile removal, pixel difference, draw evidence). No real Old/New captures or by-eye real-game comparison run. |
+
+Host-estimate memory requests (MiB; these are **not measurements**):
+
+| Grant | Before heap/linear | After heap/linear | Before retain G/T | After retain G/T |
+|---|---|---|---|---|
+| 64 Old fallback | 24/24 | 24/24 | 4/4 | 4/4 |
+| 80 Old CIA | 24/24 | 28/36 | 4/4 | 10/10 |
+| 124 New CIA | 24/24 | 40/64 | 5/5 | 16/16 |
+
+64 MiB New fallback keeps 5/5 retention. Actual allocation still shrinks to the
+commit limit; a reduced allocation falls back to legacy retention. The 12 MiB
+linear headroom rule is unchanged. Moving all baked sky textures to VRAM would
+free about 256 KiB linear and consume the same VRAM; boot logs report actual
+movement. Peak scene, staging, heap and VRAM figures remain tester-owned.
+
+Build: `nice -n 19 make -o banner cia -j2` with local devkitARM/libctru passes,
+producing 3DSX and CIA. No source warnings; toolchain crtn.o emits its existing
+GNU-stack linker warning. `-o banner` reuses the unchanged checked-in banner:
+the ordinary banner rebuild fails on this Mac at its GNU-style `sed -i`.
+
+Python host environment: `/tmp/tt-r12-venv` (Python 3.10, Panda3D 1.10.15,
+numpy, Pillow, scipy 1.13.1; stock fast-simplification 0.2.0 for shell probes).
+The default Python 3.14 numpy is an architecture mismatch here. Required normal
+suite: `PATH=/tmp/tt-r12-venv/bin:$PATH python3 tools/zone_test/run.py` (all 37
+supplied zones); retain suite compiled with clang++, ASan/UBSan and warnings as
+errors. Memory/quota/profile, 3 far-atlas, 4 shell/seam, 6 fidelity-gate and 6
+legacy far-colour tests pass. Strict card-jump and new-TTC integration failures
+above remain release blockers; passing the normal suite is not a fidelity pass.
+
+Reproduce/install commands (run from repo root; never commit generated outputs):
+
+```sh
+TT_ETC1_THREADS=2 nice -n 19 /tmp/tt-r12-venv/bin/python -I tools/pipeline/bake_sky.py
+# Probe only: do not install before host/visual QA; current 2100 command fails budgets.
+TT_ETC1_THREADS=2 nice -n 19 /tmp/tt-r12-venv/bin/python -I tools/pipeline/bake_street.py --zone 1000,2000,2100 --separate-boat --out sdmc-out/3ds/toontown3ds/data/fidelity-probe
+# Texture-cap-only level/interior rebakes (not executed in this round):
+TT_ETC1_THREADS=2 nice -n 19 /tmp/tt-r12-venv/bin/python -I tools/pipeline/bake_level.py --level all --out sdmc-out/3ds/toontown3ds/data/level
+TT_ETC1_THREADS=2 nice -n 19 /tmp/tt-r12-venv/bin/python -I tools/pipeline/bake_interior.py --all --max-tex 256 --no-preview --out-dir sdmc-out/3ds/toontown3ds/data/interiors
+# Direct early-card regression (expected FAIL until remaining streaming fix lands):
+TT_STRICT_CARD_JUMP=1 PATH=/tmp/tt-r12-venv/bin:$PATH python3 tools/zone_test/run.py --zone=2100
+/tmp/tt-r12-venv/bin/python tools/fidelity/compare_views.py OLD_SHOTS NEW_SHOTS --old-log OLD_LOG --new-log NEW_LOG
+```
+
+Tester still must verify on **both** models: APPMEMTYPE/grant/actual allocations;
+HOME suspend/resume and networking in 80MB/124MB CIA mode; sky/VRAM fallback;
+30fps and stereo slider 1.00; all frame/card/full-detail/duplicate-load gates;
+all eight numeric visual views and the real-game comparison at 3x. New high-detail
+zone probes are not ready to replace the supplied zone assets yet.
+
+### 2026-10-31 — Round 12 follow-up: stale far admission
+
+`world/zone.cpp` now ranks current desired fars before retained old-PVS fars.
+A reset `choice==0` on an undesired far used to impersonate a near stand-in and
+spend the distant landmark's remaining budget. The added retain fixture moves
+between two PVS sets while a 20-draw old far overlaps the new cone. It requires
+the current 120-draw ground plus 30-draw landmark, inside 150/15k. The fixture
+fails against af25ec7 at its 150-draw assertion and passes with the fix (150
+draws); the prior admission displayed 140. This is host evidence for item 6,
+not a claim about the tester's street_far image. Device numbers come from the
+tester, not from this agent. No emulator/server client run.
+
+### 2026-10-31 — Round 12 follow-up: repeatable cloud phase
+
+TT cloud rings wrap independently; the second no longer jumps 72 degrees when
+the first completes its 24-minute revolution. Game sky time starts at boot;
+the eight fixed autotest views pin cloud phase zero, so separate Old/New runs
+compare the same clouds rather than unrelated wall-clock phases. Host tests
+cover the 24-minute boundary and common two-hour period. Build verified only;
+cloud rendering/sky stddev remain tester checks. Device numbers are from the
+tester, not from this agent.

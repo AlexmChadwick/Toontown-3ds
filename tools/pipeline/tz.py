@@ -293,8 +293,8 @@ def validate_ttm(data, geom, tex, draws, tris):
     total=0
     for i in range(nt):
         w,hh,fmt,mips,ws,wt,off,n,_ = struct.unpack_from('<HHBBBBII32s',data,tt+i*48)
-        check(w>=8 and hh>=8 and w<=256 and hh<=256 and w&(w-1)==0 and hh&(hh-1)==0)
-        check(fmt in (0,2,3,4,5,7,8,9,12,13) and 1<=mips<=6 and ws in (0,2) and wt in (0,2))
+        check(w>=8 and hh>=8 and w<=512 and hh<=512 and w&(w-1)==0 and hh&(hh-1)==0)
+        check(fmt in (0,2,3,4,5,7,8,9,12,13) and 1<=mips<=7 and ws in (0,2) and wt in (0,2))
         bpp={0:32,2:16,3:16,4:16,5:16,7:8,8:8,9:8,12:4,13:8}[fmt]
         expected=0
         for level in range(mips):

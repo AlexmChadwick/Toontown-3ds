@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Far-LOD hill cards and the grid ladder. No Panda and no 3DS toolchain."""
+"""Legacy far-colour format checks and the grid ladder. No Panda and no 3DS toolchain."""
 import os
 import sys
 import unittest
@@ -42,7 +42,7 @@ def prop():
 
 class FarColorTest(unittest.TestCase):
     def test_hill_card_keeps_its_texture_and_a_prop_does_not(self):
-        low, textures, report = bake_street.choose_far(
+        low, textures, report = bake_street.choose_voxel_far(
             None, [[card(), prop()]], [{'vis': [0]}], images={0: hill_image()})
         self.assertEqual(textures, [])
         self.assertGreater(report['hill_card_triangles'], 0)
@@ -62,7 +62,7 @@ class FarColorTest(unittest.TestCase):
             [0, 0, 5, 0.0, 0.4, 1, 1, 1, 1],
         ], dtype=np.float64)
         sign = ttm.Batch(1, ttm.BLEND_ALPHA, False, 0, 1, letters, np.arange(3), sign=True)
-        low, textures, report = bake_street.choose_far(
+        low, textures, report = bake_street.choose_voxel_far(
             None, [[card(), prop(), sign]], [{'vis': [0]}], images={0: hill_image()})
         self.assertEqual(textures, [])
         self.assertEqual(report['sign_triangles'], 1)

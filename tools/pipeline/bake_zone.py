@@ -5,7 +5,7 @@
         ref/resources/phase_4/dna/storage.dna ref/resources/phase_4/dna/storage_TT.dna \
         ref/resources/phase_4/dna/storage_TT_sz.dna \
         --zone ref/resources/phase_4/dna/toontown_central_sz.dna \
-        --out romfs/baked/ttc_sz.ttm [--max-tex 128] [--preview out.png]
+        --out romfs/baked/ttc_sz.ttm [--max-tex 256] [--preview out.png]
 
 Storage paths are given in load order (the game loads storage.dna, then the hood
 file, then the safe-zone file). Prints a stats JSON on stdout including codes
@@ -121,7 +121,7 @@ def main():
     ap.add_argument('storage', nargs='+', help='storage .dna files, in load order')
     ap.add_argument('--zone', required=True, help='zone .dna file')
     ap.add_argument('--out', required=True)
-    ap.add_argument('--max-tex', type=int, default=128)
+    ap.add_argument('--max-tex', type=int, default=256)
     ap.add_argument('--resources', default=DEFAULT_RESOURCES,
                     help='model-path root for DNA model/texture paths (default ref/resources)')
     ap.add_argument('--seed', type=int, default=1, help='window jitter seed (deterministic)')

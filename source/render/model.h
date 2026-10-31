@@ -104,6 +104,12 @@ public:
     // already stored them that way; otherwise load rebases batch-relative indices.
     bool absoluteIndices() const { return absoluteIndices_; }
 
+    // Old 3DS sign chunks: bias mipmap selection toward the sharper tier New 3DS gets.
+    void setTextureLodBias(float bias);
+    // Boot/fenced main thread only. Move small, always-hot textures including
+    // every mip to VRAM; leave at least 1 MiB free and fall back on allocation failure.
+    u32 moveTexturesToVram(u32 byteLimit);
+
 private:
     u16 numTextures_ = 0;
     u16 numBatches_ = 0;
@@ -141,7 +147,7 @@ public:
     bool pending() const { return stage_ != Stage::Empty && stage_ != Stage::Done; }
     // Uploads into `dst` until `budgetUs` microseconds have been spent or the model is
     // finished. One step may run past the budget; the next call stops first if it is used up.
-    Result pump(Model& dst, u32 budgetUs);
+    Result pump(Model& dst, u32 budgetUs, u32 byteBudget = 64u*1024u);
 
 private:
     enum class Stage : u8 { Empty, Copy, Rebase, Flush, Textures, Done };
@@ -166,7 +172,10 @@ private:
     u32 flushedV_ = 0;
     u32 flushedI_ = 0;
     u16 rebased_ = 0;
+    u32 rebasedAt_ = 0; // indices of batches_[rebased_] already rewritten
     u16 texDone_ = 0;
+    u32 texFilled_ = 0; // bytes of the current texture already copied
+    bool texReady_ = false; // C3D_Tex for texDone_ is allocated
     bool rebaseOk_ = true;
     bool absolute_ = false; // header flags bit 0: indices already address the whole vertex array
 };

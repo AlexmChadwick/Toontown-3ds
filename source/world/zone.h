@@ -40,21 +40,32 @@ public:
     // 130-draw and 15k-triangle caps on chunks that frame will submit, nearest to the
     // view first. No call keeps the whole-cell budget (host tests).
     void setCamera(const Vec3& eye, const Vec3& target);
+    // A long jump keeps the last complete view until destination coverage is ready.
+    bool heldCamera(Vec3* eye, Vec3* target) const;
     // Call once before FrameBegin, never per eye.
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
     // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call
     // it every frame. A chunk changing LOD keeps drawing its old LOD until then.
     // reach: how far below the feet a floor still names the cell (facility levels look far
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
-    bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
-    bool loading() const; // chunks of the current draw plan are still in flight
+    bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach, bool gpuFenced = false);
+    bool loading() const; // in-cone chunks are not yet at the planned LOD
+    // True while a distant chunk covering most of the screen has no mesh yet.
+    // v2 zones satisfy this with that chunk's far mesh. The cell underfoot and
+    // chunks inside lodMust are not in the prefix: they read their near mesh
+    // directly and do not hold the card. v1 has one mesh, so this matches loading().
+    bool cardPending() const;
     // Chunks outside the cone keep a resident near mesh until the retain budget
     // evicts it. That mesh is not replaced by the far blob. Inside the cone every
-    // chunk is drawn, at least at its far mesh; a near mesh past the keep radius is
-    // demoted when it no longer fits in 15k tris / 130 draws. No camera keeps the
-    // whole-cell counters (host tests). Place sets retain to 4/4 MiB on Old 3DS and
-    // 5/5 MiB on New 3DS, and non-cone chunks are dropped so linear free stays at
-    // or above 12 MiB on Old 3DS.
+    // chunk that fits is drawn, at least at its far mesh. Near upgrades stop at
+    // 130 draws. The submitted set also stops at 150 draws and 15k triangles.
+    // A mesh that is in view stays until its replacement is published. A resident
+    // near mesh inside lodMust may stay up to the 150-draw cap; lodKeep does not
+    // bypass 130. No camera keeps the whole-cell counters inside 15k / 150.
+    // Place selects retention from the granted application region (64/80/124
+    // MiB); the 12 MiB linear free floor still evicts hidden chunks first.
+    // A planned in-cone near mesh has no eviction-pin expiry. The complete
+    // far baseline reserves its frame cost before optional near upgrades.
     void setRetainBudget(uint32_t geomBytes, uint32_t texBytes);
     // Queue chunks inside `radius` that the draw plan did not take, nearest first,
     // only while they fit in the retain budget and the 12 MiB headroom. Loaded on

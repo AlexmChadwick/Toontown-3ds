@@ -1,5 +1,7 @@
 #include "render/model.h"
+#include "render/upload_quota.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -161,6 +163,41 @@ void Model::swap(Model& o) {
     std::swap(indices_, o.indices_);
     std::swap(linearBytes_, o.linearBytes_);
     std::swap(absoluteIndices_, o.absoluteIndices_);
+}
+
+void Model::setTextureLodBias(float bias) {
+#ifdef __3DS__
+    for (u16 i = 0; i < numTextures_; ++i)
+        if (textures_[i].data) C3D_TexSetLodBias(&textures_[i], bias);
+#else
+    (void)bias;
+#endif
+}
+
+u32 Model::moveTexturesToVram(u32 byteLimit) {
+    mem::LinearGuard guard;
+    u32 moved=0;
+    for (u16 i=0; i<numTextures_; ++i) {
+        C3D_Tex& old=textures_[i];
+        const u32 bytes=C3D_TexCalcTotalSize(old.size, old.maxLevel);
+        if (!old.data || bytes>byteLimit-moved || vramSpaceFree()<bytes+1024u*1024u) continue;
+        C3D_Tex replacement{};
+        C3D_TexInitParams p{};
+        p.width=old.width; p.height=old.height; p.maxLevel=old.maxLevel;
+        p.format=old.fmt; p.type=GPU_TEX_2D; p.onVram=true;
+        if (!C3D_TexInitWithParams(&replacement, nullptr, p)) continue;
+        for (int level=0; level<=old.maxLevel; ++level)
+            C3D_TexLoadImage(&replacement, C3D_Tex2DGetImagePtr(&old, level, nullptr), GPU_TEXFACE_2D, level);
+        replacement.param=old.param;
+        replacement.border=old.border;
+        replacement.lodParam=old.lodParam;
+        // Existing linearBytes_ accounting includes a texture's base level.
+        if (linearBytes_>=old.size) linearBytes_-=old.size;
+        C3D_TexDelete(&old);
+        old=replacement;
+        moved+=bytes;
+    }
+    return moved;
 }
 
 bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
@@ -333,39 +370,6 @@ u32 elapsedUs(u64 t0) {
     return static_cast<u32>((svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000000));
 }
 
-bool uploadTexture(const TexEntry& e, const u8* bytes, C3D_Tex* tex) {
-    C3D_TexInitParams p{};
-    p.width = e.width;
-    p.height = e.height;
-    p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
-    p.format = static_cast<GPU_TEXCOLOR>(e.format);
-    p.type = GPU_TEX_2D;
-    p.onVram = false;
-    bool inited;
-    {
-        mem::LinearGuard g;
-        inited = C3D_TexInitWithParams(tex, nullptr, p);
-    }
-    if (!inited) {
-        *tex = C3D_Tex{};
-        return false;
-    }
-    const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
-    if (total != e.dataSize || !bytes) {
-        mem::LinearGuard g;
-        C3D_TexDelete(tex);
-        *tex = C3D_Tex{};
-        return false;
-    }
-    memcpy(tex->data, bytes, total);
-    C3D_TexFlush(tex);
-    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
-    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
-    C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
-                   static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
-    return true;
-}
-
 } // namespace
 
 void ModelStaging::reset() {
@@ -386,6 +390,9 @@ void ModelStaging::reset() {
     numVertices_ = numIndices_ = 0;
     vertBytes_ = indexBytes_ = copiedV_ = copiedI_ = flushedV_ = flushedI_ = 0;
     rebased_ = texDone_ = 0;
+    rebasedAt_ = 0;
+    texFilled_ = 0;
+    texReady_ = false;
     rebaseOk_ = true;
     absolute_ = false;
 }
@@ -483,12 +490,12 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     return true;
 }
 
-ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
+ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs, u32 byteBudget) {
     if (stage_ == Stage::Done) return Result::Complete;
     if (stage_ == Stage::Empty) return Result::Error;
     const u64 t0 = svcGetSystemTick();
     auto over = [&]() { return elapsedUs(t0) >= budgetUs; };
-    constexpr u32 kSlice = 64 * 1024;
+    const u32 kSlice = std::max<u32>(2, std::min<u32>(64u*1024u, byteBudget) & ~1u);
 
     if (stage_ == Stage::Copy && !dst.vertices_) {
         dst.unload();
@@ -515,22 +522,32 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
             return Result::Error;
         }
         memcpy(dst.batches_, batches_, sizeof(Batch) * numBatches_);
-        if (over()) return Result::Pending;
+        // The buffers are the whole mesh. Copying vertices in this same call is
+        // the post-card hitch: Azahar's tick does not move during memcpy, so a
+        // time check never stops the loop. The next pump copies a bounded slice.
+        return Result::Pending;
     }
+    // Bytes copied or rewritten this call. A stuck tick still ends the pump
+    // after the byte quota; a running tick can stop earlier at budgetUs.
+    UploadQuota quota{kSlice};
+    auto sliceDone = [&](u32 bytes) {
+        const bool exhausted = quota.consume(bytes);
+        return exhausted || over();
+    };
     if (stage_ == Stage::Copy) {
         auto* dstV = static_cast<u8*>(dst.vertices_);
         while (copiedV_ < vertBytes_) {
-            const u32 n = copiedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - copiedV_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, vertBytes_-copiedV_);
             memcpy(dstV + copiedV_, verts_ + copiedV_, n);
             copiedV_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         auto* dstI = reinterpret_cast<u8*>(dst.indices_);
         while (copiedI_ < indexBytes_) {
-            const u32 n = copiedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - copiedI_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, indexBytes_-copiedI_);
             memcpy(dstI + copiedI_, reinterpret_cast<u8*>(indices_) + copiedI_, n);
             copiedI_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         stage_ = Stage::Rebase;
     }
@@ -538,22 +555,33 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
         if (numVertices_ <= 0x10000) {
             while (rebased_ < numBatches_) {
                 const Batch& bt = dst.batches_[rebased_];
-                rebaseOk_ = rebaseOk_ && bt.firstVertex <= numVertices_ &&
-                            bt.numVertices <= numVertices_ - bt.firstVertex &&
-                            bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                if (rebasedAt_ == 0) {
+                    rebaseOk_ = rebaseOk_ && bt.firstVertex <= numVertices_ &&
+                                bt.numVertices <= numVertices_ - bt.firstVertex &&
+                                bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                }
                 if (rebaseOk_) {
                     u16* idx = dst.indices_ + bt.firstIndex;
-                    for (u32 i = 0; i < bt.numIndices; i++) {
-                        if (absolute_) {
-                            if (idx[i] < bt.firstVertex || idx[i] >= bt.firstVertex + bt.numVertices)
-                                rebaseOk_ = false;
-                        } else {
-                            if (idx[i] >= bt.numVertices) rebaseOk_ = false;
-                            idx[i] = static_cast<u16>(idx[i] + bt.firstVertex);
+                    const u32 kIndexSlice = (kSlice-quota.worked) / sizeof(u16);
+                    while (rebasedAt_ < bt.numIndices) {
+                        const u32 left = bt.numIndices - rebasedAt_;
+                        const u32 n = left > kIndexSlice ? kIndexSlice : left;
+                        for (u32 i = 0; i < n; i++) {
+                            const u32 at = rebasedAt_ + i;
+                            if (absolute_) {
+                                if (idx[at] < bt.firstVertex || idx[at] >= bt.firstVertex + bt.numVertices)
+                                    rebaseOk_ = false;
+                            } else {
+                                if (idx[at] >= bt.numVertices) rebaseOk_ = false;
+                                else idx[at] = static_cast<u16>(idx[at] + bt.firstVertex);
+                            }
                         }
+                        rebasedAt_ += n;
+                        if (sliceDone(n * sizeof(u16))) return Result::Pending;
                     }
                 }
                 rebased_++;
+                rebasedAt_ = 0;
                 if (over()) return Result::Pending;
             }
             dst.absoluteIndices_ = rebaseOk_;
@@ -567,29 +595,76 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
     }
     if (stage_ == Stage::Flush) {
         while (flushedV_ < vertBytes_) {
-            const u32 n = flushedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - flushedV_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, vertBytes_-flushedV_);
             GSPGPU_FlushDataCache(static_cast<u8*>(dst.vertices_) + flushedV_, n);
             flushedV_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         while (flushedI_ < indexBytes_) {
-            const u32 n = flushedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - flushedI_;
+            const u32 n = std::min<u32>(kSlice-quota.worked, indexBytes_-flushedI_);
             GSPGPU_FlushDataCache(reinterpret_cast<u8*>(dst.indices_) + flushedI_, n);
             flushedI_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         dst.linearBytes_ = vertBytes_ + indexBytes_;
         stage_ = Stage::Textures;
     }
     if (stage_ == Stage::Textures) {
+        // One texture used to be copied and flushed whole. A 15-texture near
+        // mesh is ~566 KB and that single pump was a 133 ms hitch. Copy and
+        // flush 64 KB at a time; the model is not drawn until Complete.
         while (texDone_ < numTextures_) {
-            if (!uploadTexture(tex_[texDone_], texBytes_ + texOff_[texDone_], &dst.textures_[texDone_])) {
-                dst.unload();
-                reset();
-                return Result::Error;
+            if (over() && !texReady_) return Result::Pending;
+            C3D_Tex* tex = &dst.textures_[texDone_];
+            const TexEntry& e = tex_[texDone_];
+            if (!texReady_) {
+                C3D_TexInitParams p{};
+                p.width = e.width;
+                p.height = e.height;
+                p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
+                p.format = static_cast<GPU_TEXCOLOR>(e.format);
+                p.type = GPU_TEX_2D;
+                p.onVram = false;
+                bool inited;
+                {
+                    mem::LinearGuard g;
+                    inited = C3D_TexInitWithParams(tex, nullptr, p);
+                }
+                if (!inited) {
+                    *tex = C3D_Tex{};
+                    dst.unload();
+                    reset();
+                    return Result::Error;
+                }
+                const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
+                if (total != e.dataSize || !texBytes_) {
+                    mem::LinearGuard g;
+                    C3D_TexDelete(tex);
+                    *tex = C3D_Tex{};
+                    dst.unload();
+                    reset();
+                    return Result::Error;
+                }
+                texReady_ = true;
+                texFilled_ = 0;
+                return Result::Pending; // allocation never shares a frame with copying
             }
-            dst.linearBytes_ += dst.textures_[texDone_].size;
+            const u8* src = texBytes_ + texOff_[texDone_];
+            while (texFilled_ < e.dataSize) {
+                const u32 n = std::min<u32>(kSlice-quota.worked, e.dataSize-texFilled_);
+                memcpy(static_cast<u8*>(tex->data) + texFilled_, src + texFilled_, n);
+                GSPGPU_FlushDataCache(static_cast<u8*>(tex->data) + texFilled_, n);
+                texFilled_ += n;
+                if (sliceDone(n)) return Result::Pending;
+            }
+            C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+            if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
+            C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
+                           static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
+            dst.linearBytes_ += tex->size;
             texDone_++;
+            texReady_ = false;
+            texFilled_ = 0;
             if (over()) return Result::Pending;
         }
         TT_LOG("model: staged %lu tris, %u batches, %u tex, %lu KB linear",

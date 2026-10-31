@@ -3,16 +3,19 @@
 #pragma once
 
 #include <cstddef>
+#include "core/memory_profile.h"
 
 namespace tt::mem {
 
-// Hard caps for Old 3DS (64 MB APPMEMTYPE 0). Keep in sync with AGENTS.md.
+// Legacy 64 MiB fallback defaults. Expanded grants use memory_profile.h.
 constexpr size_t kLinearBudget = 24u * 1024 * 1024; // GPU-visible: VBOs, textures, cmdbufs
 constexpr size_t kHeapBudget = 24u * 1024 * 1024;   // regular heap: game state, net, parse buffers
 
 // What the boot-time heap allocation got (core/memory.cpp fits the budgets to the process's
 // commit limit instead of breaking). Below kMinHeap/kMinLinear the game cannot run.
 struct HeapReport {
+    size_t applicationRegion = 0;
+    unsigned appMemType = 0;
     size_t remainingAtBoot = 0; // bytes the process could still commit before the heaps
     size_t heap = 0;
     size_t linear = 0;

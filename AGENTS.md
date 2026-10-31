@@ -95,29 +95,28 @@ The baseline is **Old 3DS**:
 
 - 268 MHz ARM11, effectively one core.
 - PICA200 GPU.
-- 64 MB app memory (`SystemMode 64MB`, APPMEMTYPE 0).
+- CIA requests 80 MiB app memory (`SystemMode 80MB`); legacy/HBL 64 MiB grants keep the fallback profile. Never request 96MB.
 - 6 MB VRAM.
 
-New 3DS may enable `osSetSpeedupEnable(true)` (804 MHz + L2), more draw distance or LOD
-bias. Nothing may *depend* on it.
+New 3DS CIA requests `SystemModeExt 124MB`, 804 MHz and L2 through the exheader, with no `ptm:sysm` request. Nothing may depend on the speedup.
 
 ### Memory budget (Old 3DS, enforced in `source/core/memory.*`)
 
 | Pool | Budget | Holds |
 |---|---|---|
 | Code + static data | ≤ 4 MB | `.text`/`.data`/`.bss` (watch the `.map` file) |
-| Regular heap (`__ctru_heap_size`) | 24 MB | game state, net buffers, decompression scratch, UI |
-| Linear heap (`__ctru_linear_heap_size`) | 24 MB | vertex/index buffers, textures, cmd buffers, audio buffers |
+| Regular heap (`__ctru_heap_size`) | 28 MiB (24 fallback) | game state, net buffers, decompression scratch, UI |
+| Linear heap (`__ctru_linear_heap_size`) | 36 MiB (24 fallback) | vertex/index buffers, textures, cmd buffers, audio buffers |
 | VRAM | 6 MB | render targets (top RGBA8 + D24S8 ≈ 0.75 MB) + hottest textures |
 | Headroom | ≥ 10 MB | system, HBL, fragmentation |
 
-Sub-budgets inside linear memory (asset streaming enforces them; each is a hard fail in
-debug builds):
+Sub-budgets inside linear memory (the 12 MiB free floor additionally reclaims hidden
+resources; the file/no-camera baseline still validates at 6/8 MiB):
 
 | Sub-budget | Size |
 |---|---|
-| Current zone geometry | 6 MB |
-| Current zone textures | 8 MB |
+| Current zone geometry | granted-region retain cap (4/10/16 MiB) |
+| Current zone textures | granted-region retain cap (4/10/16 MiB) |
 | Toons (local + up to 8 remote, shared parts) | 4 MB |
 | UI + font atlas | 2 MB |
 | Audio | 2 MB (music streamed, never fully resident) |
@@ -138,13 +137,17 @@ so a chunk behind the toon cannot take Toon Hall's budget. Memory caps still
 cover the whole cell. With no camera the same caps cover the cell (host tests).
 The playground and Cog HQ baker raises the grid until the far view fits 130 draws.
 - **CPU per frame:** ≤ 6 ms for animation and skinning, ≤ 3 ms for networking.
-- **Draw distance:** `source/render/quality.h`. Old 3DS draws to 440 and fogs from
-  110 to 400, with the far plane at 520 so the sky is fog colour rather than a clip
-  edge. New 3DS (detected with `APT_CheckNew3DS`, no `osSetSpeedupEnable`) draws to
-  740 and fogs from 180 to 680, far plane 900. High LOD is used inside 160 (Old) or
-  260 (New); past that the chunk is the coarse far mesh. Streets still stream by
-  DNA visgroup. A chunk past the profile draw distance is not loaded. Donald's Dock
-  white fog and underwater fog stay owned by `world/water.cpp`.
+- **Draw distance:** both models use far 900, draw 740, lodNear 260,
+  lodKeep 290, lodMust 64, fog 180–680. Reduced Old distance/fog must not
+  substitute for cheaper visible content. These Round 12 values need tester
+  timing/stereo validation; no device performance is claimed. DD white and
+  underwater fog remain owned by `world/water.cpp`.
+- **Granted memory:** `memory_profile.h` selects heap/linear 24/24, 28/36,
+  or 40/64 MiB for 64/80/124 MiB grants. Startup still fits the actual commit
+  limit and logs APPMEMTYPE, region and actual allocations. Retain requests
+  4/4 MiB (legacy New: 5/5), 10/10 or 16/16 MiB geometry/textures. The
+  12 MiB linear-free floor continues to reclaim hidden resources. Requested
+  sizes are host estimates until the tester confirms the grant and peaks.
 
 ## 4. Architecture
 
@@ -189,16 +192,28 @@ Key decisions:
    - Batches are merged per texture after atlasing. The ≤150 draw calls per frame target
      drives this.
 4. **Textures.**
-   - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
-   - Streamed zones (`bake_street.py`) pack the near mesh as 64px tiles with an 8px
-     gutter and three per-tile mips. Ground textures (upward faces with an edge of
-     at least 8) stay standalone at 256. The far mesh samples those textures into
-     vertex colour and stores no texture pages, so a long PVS fits the 8 MiB copy
-     budget. The default of `street_atlas.build` is still the 32px single-mip page
-     used by cog HQs. The RomFS playground mesh stays at 128 because the whole
-     playground is one resident model and a 256px set does not fit the 8 MiB
-     texture budget. Runtime filtering is linear,
-     plus a linear mip when the texture has more than one level.
+   - Static zone, level and interior extraction caps at 256. Streamed near
+     meshes use 512px shared atlas pages with 128px tiles, 16px gutters and
+     four independently filtered per-tile mip levels; ground and native repeat
+     pages remain 256. Standalone textures keep the full chain to 8px. TTM/TZ
+     validators admit 512px pages and seven mip levels; version is unchanged.
+   - `far_atlas.py` samples original source UVs into shared, guttered triangle
+     patches (128–512px pages). `far_shell.py` uses the stock offline
+     `fast-simplification==0.2.0` wheel, locks UV/colour boundaries, never
+     simplifies decals, and validates each connected component's survival,
+     <=0.75-unit surface error and <=0.5-unit bounds change. Original colours
+     and alpha stay. Budget failure stops the bake; no voxel/blob fallback.
+     The legacy colour baker remains only for historical format tests.
+     **Round 12 status: TTC probe bakes within file budgets but fails the
+     Toon Hall near-coverage host check; 2100 replacement fails budgets.
+     Neither probe replaces the supplied test zones. Do not claim a complete
+     fidelity asset set or visual gate pass.**
+   - Zone skies (`bake_sky.py`) are TT dome + two cloud rings (three draws) or
+     BR dome (one draw). Draw camera-relative before the world, with depth
+     test/write and fog off. TT rings rotate +0.25 and -0.20 degrees/s.
+     Rings wrap independently; fixed autotest views pin cloud phase for fair
+     Old/New image comparisons. Up to 512 KiB of their always-resident textures may move to VRAM with
+     all mips; allocation failure retains linear textures. Log actual movement.
    - Format by use:
      - **ETC1** for opaque textures.
      - **ETC1A4** when there is alpha.
@@ -475,24 +490,42 @@ server.
   (`Client::changeStreetCell`).
   Chunks outside the camera cone keep a resident near mesh until the retain
   budget evicts them. That mesh is not replaced by the far blob, and it is not
-  submitted. Inside the cone every chunk is drawn, at least at its far mesh.
-  A near mesh inside `lodKeep` stays (Toon Hall). Past `lodKeep` it is demoted
-  to the far mesh when keeping it would pass 15,000 triangles or 130 draws
-  (`Zone::kDrawBudget`). `Zone::draw` does not skip an in-cone chunk to enforce
-  that cap. With no camera the same caps cover the cell. The loading card drops
-  when the cone plan is resident. `warmAround` then fills a ring outside the cone
-  in the background; a finished warm upload is kept, and memory eviction does not
-  drop a warm hold while that preload is in progress. The ring only queues chunks
-  that fit in the retain budget. Retain is 4 MiB geometry / 4 MiB textures on
-  Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks are also evicted
-  while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street keeps that much
-  of the 24 MiB linear heap free. The loader thread reads a chunk's vertex, index
-  and inline-texture span in one shot (`ModelStaging::read`); the main thread
-  uploads about 10 ms of that per `Zone::update` (`ModelStaging::pump`). Street
-  and playground arrival does not call `finishLoading`. `finishLoading` (boss /
-  cogdo) waits for the cone plan, not the warm ring. Textures are already tiled
-  at bake time, and new bakes store absolute indices (TTM header flags bit 0)
-  when the model fits in 16-bit indices.
+  submitted. Inside the cone every chunk that fits is drawn, at least at its
+  far mesh. Near upgrades stop at 130 draws (`Zone::kDrawBudget`). The submitted
+  set also stops at 150 draws and 15,000 triangles. A resident near mesh inside
+  `lodMust` may stay up to that 150 (Toon Hall). `lodKeep` does not bypass the
+  cap. `Zone::draw` does not skip an in-cone chunk the plan kept. With no camera
+  the whole cell stays inside 15,000 triangles and 150 draws (the file's far-set
+  cap); a chunk that would pass it is not loaded.
+  The loading card drops when the distant in-cone chunks covering most of the
+  screen have a far mesh (`Zone::cardPending`). Membership is projected area,
+  not a `lodNear` / `lodMust` ring, so New's larger radius does not pull extra
+  chunks into the card. The cell underfoot and chunks inside `lodMust` are not
+  in that prefix: they read their near mesh directly. Distant chunks still read
+  far first. A profiled near chunk is about 500 KB and about 330 ms of SD read.
+  A mesh that is already in view is not evicted or swapped out until its
+  replacement is uploaded and published. The frame cap counts that shown mesh,
+  not the near mesh that is still loading, so a published far stays in the cone
+  while its near read is in flight. Normal place streaming publishes after the
+  existing FrameBegin fence, without an extra FrameSync vblank. Post-card
+  staging has a 2 ms target, a 16 KiB byte ceiling and one pump per frame;
+  behind the card the ceiling is 64 KiB. These are work bounds, not measured
+  device frame times. Card resources retire at the next existing frame fence.
+  Visible fars reserve their costs before near upgrades. Current-PVS fars
+  rank ahead of retained old-PVS fars; reset choice==0 alone is not a stand-in. Drawing uses the
+  exact admitted set counted by the host. A desired in-cone near chunk remains
+  pinned without timer expiry; hidden chunks yield first, ordered by their
+  last submitted tick. Up to two dense sign chunks are eligible throughout
+  drawDistance, using real near geometry rather than a texture LOD bias.
+  A jump over 128 units from a completed >=100-draw view retains its admitted
+  meshes AND camera until destination coverage reaches 100 or finishes. The
+  sparse early-card jump remains unresolved; `TT_STRICT_CARD_JUMP=1` exposes
+  it using real 2100 data and 4/4 MiB caps. Default tests exercise the completed
+  view case. Cross-zone prewarming and new vertex AO remain unfinished.
+  Street and playground arrival does not call `finishLoading`. `finishLoading`
+  (boss / cogdo) waits for the full cone plan, not the card and not the warm ring.
+  Textures are already tiled at bake time, and new bakes store absolute indices
+  (TTM header flags bit 0) when the model fits in 16-bit indices.
 - ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - ✅ **Classic characters** (`world/cchar.*`, `docs/design/chars.md`). Mickey, Minnie,

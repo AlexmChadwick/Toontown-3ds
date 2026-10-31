@@ -61,6 +61,8 @@
 #include "world/fishing.h"
 #include "world/golf.h"
 #include "world/place.h"
+#include "world/sky.h"
+#include "world/stream_card.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
 #include "world/toon_avatar.h"
@@ -223,6 +225,8 @@ int main() {
     tt::mem::linearLockInit();
     aptHook(&gAptCookie, onApt, nullptr);
     const tt::mem::HeapReport heapRep = tt::mem::heapReport();
+    TT_LOG("boot: APPMEMTYPE %u application region %u KB", heapRep.appMemType,
+           static_cast<unsigned>(heapRep.applicationRegion / 1024));
     TT_LOG("boot: heaps %u KB + linear %u KB (commit free at start %u KB, %u retries)",
            static_cast<unsigned>(heapRep.heap / 1024), static_cast<unsigned>(heapRep.linear / 1024),
            static_cast<unsigned>(heapRep.remainingAtBoot / 1024), heapRep.allocFailures);
@@ -360,6 +364,10 @@ int main() {
         tt::boot::showFatal("Graphics could not start.", "The 3D renderer failed to set up.\nDetails are in sdmc:/3ds/toontown3ds/log.txt");
         return 1;
     }
+
+    static tt::world::Sky zoneSky;
+    zoneSky.load();
+    const u64 skyStartMs=osGetTime();
 
     tt::boot::stage("Building Toontown Central", 0.4f);
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
@@ -552,7 +560,7 @@ int main() {
     tt::autotest::Runner autotest;
     autotest.begin();
     const char* shotName = nullptr;
-    enum class ZonePhase : u8 { Idle, Cover, Streaming };
+    using ZonePhase = tt::world::StreamCardPhase;
     ZonePhase zonePhase = ZonePhase::Idle;
     u32 zoneDest = 0, zoneFrom = 0;
     u64 zoneT0 = 0, zoneStreamT0 = 0;
@@ -1978,7 +1986,8 @@ int main() {
         // Streets stream per visgroup; crossing into another server cell changes interest.
         // The draw cap follows this camera, so chunks behind the toon do not spend it.
         place.setCamera(player.cameraEye(), player.cameraTarget());
-        place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
+        // Publish/reclaim after FrameBegin below. An extra FrameSync here
+        // waited a second vblank on each staged mesh and charged it to place.
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
         // its place loads, and the tutorial street is a single cell anyway. ----
@@ -2108,9 +2117,9 @@ int main() {
         }
 
         // finishLoading used to upload every chunk before the next frame. Zone::update
-        // now uploads about 10 ms per frame. The loading card stays up until the cone
-        // plan is resident; the warm ring continues after the card drops. This path
-        // does not call finishLoading.
+        // now uploads about 10 ms per frame. The loading card stays up until the chunks
+        // covering most of the screen have a mesh; near upgrades of those chunks start
+        // while the rest of the cone is still reading. This path does not call finishLoading.
         if (transition.readyToLoad()) {
             auto finishZoneStream = [&]() {
                 const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);
@@ -2131,11 +2140,10 @@ int main() {
                        tt::loadprof::report(profile, sizeof(profile)));
                 if (!tt::loadprof::dump("sdmc:/3ds/toontown3ds/load_profile.txt"))
                     TT_LOG("load: could not write load_profile.txt");
-                // The card was on the previous frame. FrameBegin is what waits for that GPU
-                // work, and we return before it, so sync before freeing the card's textures.
-                ::tt::gpu::frameSync();
-                zoneLoad.release();
-                zonePhase = ZonePhase::Idle;
+                // Keep one last card frame after arrival work. Reclaim it at
+                // the next FrameBegin fence, with no separate vblank wait.
+                zonePhase = ZonePhase::Ready;
+                tt::prof::lap(tt::prof::kPlace);
             };
             if (zonePhase == ZonePhase::Idle) {
                 // One presented frame of the loading screen before the open() stalls.
@@ -2165,11 +2173,8 @@ int main() {
                     zoneStreamT0 = osGetTime();
                     place.setCamera(player.cameraEye(), player.cameraTarget());
                     place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
-                    if (place.streamReady()) {
-                        finishZoneStream();
-                        continue;
-                    }
-                    zonePhase = ZonePhase::Streaming;
+                    if (place.streamReady()) finishZoneStream();
+                    else zonePhase = ZonePhase::Streaming;
                 } else {
                     place.load(zoneFrom);
                     transition.reset();
@@ -2182,10 +2187,9 @@ int main() {
                 place.update(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
                 if (place.streamReady()) {
                     finishZoneStream();
-                    continue;
                 }
             }
-        } else if (zonePhase != ZonePhase::Idle) {
+        } else if (zonePhase != ZonePhase::Idle && zonePhase != ZonePhase::Ready && zonePhase != ZonePhase::Retire) {
             // The transition was abandoned (disconnect, relocation). Don't leave the load screen up.
             ::tt::gpu::frameSync();
             zoneLoad.release();
@@ -2860,6 +2864,12 @@ int main() {
         tt::prof::lap(tt::prof::kActors); // stereo toggle
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         tt::prof::lap(tt::prof::kWait);
+        if (tt::world::retireStreamCard(zonePhase)) zoneLoad.release();
+        if (zonePhase == ZonePhase::Idle) {
+            place.setCamera(player.cameraEye(), player.cameraTarget());
+            place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr, true);
+        }
+        tt::prof::lap(tt::prof::kPlace);
         // ---- clerks: publish preview resources only after the GPU fence ----
         int8_t clerkKartDna[9];
         clerkKartPreview.select(serviceClerks.kartPreview(clerkKartDna) ? clerkKartDna : nullptr);
@@ -2881,6 +2891,14 @@ int main() {
         estate.pumpAssets();
         tt::prof::lap(tt::prof::kLoads);
         if (shotName) {
+            if (!strncmp(shotName, "view_", 5)) {
+                unsigned nearCount=0;
+                for (int i=0; i<place.zone().numChunks(); ++i)
+                    if (place.zone().chunkLod(i)==0) ++nearCount;
+                TT_LOG("view %s draws %lu tris %lu resident_near %u", shotName+5,
+                       static_cast<unsigned long>(lastStats.drawCalls),
+                       static_cast<unsigned long>(lastStats.triangles), nearCount);
+            }
             // Previous frame is complete after FrameBegin; dump it before clearing.
             char path[96];
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
@@ -2896,6 +2914,12 @@ int main() {
         }
         renderer.resetStats();
         C3D_Mtx m;
+        C3D_FVec worldEye=player.cameraEye(), worldTarget=player.cameraTarget();
+        tt::world::Vec3 heldEye{}, heldTarget{};
+        if (place.zone().heldCamera(&heldEye, &heldTarget)) {
+            worldEye=FVec3_New(heldEye.x, heldEye.y, heldEye.z);
+            worldTarget=FVec3_New(heldTarget.x, heldTarget.y, heldTarget.z);
+        }
         const int eyes = stereoActive ? 2 : 1;
         for (int e = 0; e < eyes; e++) {
             C3D_RenderTarget* target = e == 0 ? renderer.topLeft() : renderer.topRight();
@@ -2916,18 +2940,22 @@ int main() {
                     renderer.setFog(0x6A / 255.0f, 0xB0 / 255.0f, 0xD9 / 255.0f, q.fogStart, q.fogEnd);
                 }
             }
-            renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
+            renderer.beginWorld(target, worldEye, worldTarget, slider / 3.0f, eyeSign);
             if (zonePhase != ZonePhase::Idle) {
                 zoneLoad.drawCard(renderer, player.cameraEye(), player.cameraTarget());
                 continue;
             }
 
+            if (!indoors && !minigame.active() && !golf.active())
+                zoneSky.draw(renderer, worldEye, tt::world::hoodOf(place.zoneId()) == 1000,
+                             autotest.active() && !strncmp(autotest.label(), "view: ", 6) ? 0.0f :
+                             static_cast<float>((osGetTime()-skyStartMs)%7200000)/1000.0f);
             if (golf.active()) {
                 golf.draw(renderer);
                 tt::prof::lap(tt::prof::kGolfDraw);
             } else if (minigame.active()) {
                 // ---- qafix: Photo uses the real hood, not a viewfinder model as scenery ----
-                if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
+                if (minigame.photoScene()) place.draw(renderer, worldEye);
                 // ---- end qafix ----
                 minigame.draw(renderer);
                 suits.draw(renderer); // ---- minigame Cogs (MinigameSession::cogs) ----
@@ -2961,7 +2989,7 @@ int main() {
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {
-                place.draw(renderer, player.cameraEye());
+                place.draw(renderer, worldEye);
             }
             // ---- clerks: preview the selected body/equipped accessory components ----
             if (clerkKartPreview.active())
@@ -3252,9 +3280,9 @@ int main() {
         ctx.modelsDrawn = lastStats.modelsDrawn;
         ctx.modelsCulled = lastStats.modelsCulled;
         ctx.heapUsedKB = mi.uordblks / 1024;
-        ctx.heapBudgetKB = tt::mem::kHeapBudget / 1024;
+        ctx.heapBudgetKB = heapRep.heap / 1024;
         ctx.linearFreeKB = linearSpaceFree() / 1024;
-        ctx.linearBudgetKB = tt::mem::kLinearBudget / 1024;
+        ctx.linearBudgetKB = heapRep.linear / 1024;
         ctx.vramFreeKB = vramSpaceFree() / 1024;
         ctx.isNew3ds = isNew3ds;
         ctx.zoneId = place.zoneId();
@@ -3434,6 +3462,7 @@ int main() {
     transition.shutdown();
     dropShadow.unload();
     place.unload();
+    zoneSky.unload();
     balloons.shutdown();
     ui.shutdown();
     renderer.shutdown();
