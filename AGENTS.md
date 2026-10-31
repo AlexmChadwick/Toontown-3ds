@@ -481,16 +481,23 @@ server.
   (`Zone::kDrawBudget`). `Zone::draw` does not skip an in-cone chunk to enforce
   that cap. With no camera the whole cell stays inside 15,000 triangles and 150
   draws (the file's far-set cap); a chunk that would pass it is not loaded.
-  The loading card drops when every in-cone chunk has its far mesh (`Zone::cardPending`,
-  v1: its only mesh). That is the byte cut: a profiled near chunk is about 500 KB
-  and about 330 ms of SD read, and the card was waiting on those. The far blob is
-  the vertex-coloured mesh already in the v2 file. Near upgrades stream after the
-  card, on the loader thread, in the same upload slices. A chunk with MickeyFont
-  sign letters (texture name `palette_2tmlc`) upgrades to the near mesh out to
-  twice `lodNear` (320 Old / 520 New), ahead of a generic chunk, so Donald's Dock
-  letters do not stay on the faint far mesh. `warmAround` fills a ring outside the
-  cone after that far set is resident; a finished warm upload is kept, and memory
-  eviction does not drop a warm hold while that preload is in progress. The ring
+  The loading card drops when the in-cone chunks covering most of the screen
+  have a mesh (`Zone::cardPending`; the cell underfoot and anything large on
+  screen always count; v1: its only mesh). A profiled near chunk is about 500 KB
+  and about 330 ms of SD read. The far blob is the vertex-coloured mesh already
+  in the v2 file, and that is what the card's prefix reads. A chunk that already
+  has its far mesh queues its near read before a smaller chunk's far read, one
+  new near read per frame, so the street is not left on the far blobs after the
+  card and the swaps do not land on one frame. A chunk with MickeyFont sign
+  letters (texture name `palette_2tmlc`) upgrades to the near mesh out to twice
+  `lodNear` (320 Old / 520 New). It still has to fit the retain cap. Out-of-cone
+  far textures do not count against that fit, and a generic near mesh is demoted
+  when it is what keeps the letters out, so Donald's Dock's building is not left
+  on the faint far mesh. With no camera the 15k-triangle / 150-draw ceiling also
+  applies to a near mesh already resident inside `lodKeep`. `warmAround` fills a
+  ring outside the cone after the cone is at its chosen LOD; a finished warm
+  upload is kept, and eviction does not drop a warm hold while that preload is
+  in progress. The ring
   only queues chunks that fit in the retain budget. Retain is 4 MiB geometry /
   4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks
   are also evicted while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street

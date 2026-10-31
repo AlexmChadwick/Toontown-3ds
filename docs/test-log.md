@@ -1722,3 +1722,86 @@ What changed, and why this default:
   chunks of 80 near / 40 far: resident lods 0, 1, and not loaded, 120 draws and
   120 triangles.
 
+## 2026-10-31 — near reads overlap the far card, dock signs fit the cap
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `aa080b2`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The 2.47 s / 1.57 s
+card times and the faint Old 3DS dock sign are the user's Azahar notes for
+`aa080b2`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 0 queued 2 lod 1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- Near reads are no longer gated on every in-cone far mesh. The walk is the cell
+  underfoot, then `lodMust`, then screen-space size, then distance. A chunk that
+  already has its far mesh queues its near read before a smaller chunk's far
+  read. One new near read is started per frame, and one near upload is published
+  per frame, so four far-to-near swaps do not land on the frame the card drops.
+  The card-drop frame also laps the place section before it returns; that tail
+  was what the profiler called `other`. `finishLoading` still waits for the full
+  plan. This host cannot say full detail is back to r6's ~6.1 s, or that the
+  ~133 ms hitch is gone; that needs Azahar.
+- The card waits for the in-cone prefix whose projected area is 80% of the cone,
+  always including the cell and `lodMust`, plus any chunk at least 20% of the
+  largest. That is the byte cut for the 2 s / 1.5 s targets: the tail of small
+  props is not on the critical path. Prefetching the destination during the
+  teleport would read it in the departure zone, and packing far meshes together
+  only removes seeks; the measured cost is sequential SD throughput. The host
+  fixture is a large chunk with an empty far mesh in front of a small one: the
+  large chunk's near read is queued in the same update as the small chunk's far
+  read, and the card does not wait on the small chunk.
+- Donald's Dock letters. Sign priority already skipped `lodNear`; it still had
+  to pass `fits`, and the running texture total included out-of-cone far meshes
+  plus generic near upgrades (Old retain is 4 MiB, the draw cap is 130). Those
+  out-of-cone far textures are no longer charged against the upgrade. If a sign
+  still does not fit, the smallest generic near mesh (not the cell, not
+  `lodMust`, not a sign already taken) is demoted until it does. The host
+  fixture sets retain textures to 5,500 bytes, puts a 5,440-byte texture behind
+  the camera, and a 120-draw filler inside `lodNear`: the sign stays at lod 0,
+  the filler at lod 1, the hidden chunk is not loaded, 17 draws and 64 bytes of
+  texture. Toon Hall is still the cone lines above (hall lod 0, 131 draws).
+- `kLinearHeadroom` (12 MiB) now lives next to the device upload budget, which
+  is the only code that reads it. Host `clang++ -Wunused-const-variable -Werror`
+  compiles `zone.cpp` clean. The 12 MiB floor is unchanged.
+- `zone_test.cpp:52` still cannot be run here (no `1000.tz`). The failure mode
+  after the first sample is a near mesh already resident inside `lodKeep`: the
+  points loop does not unload, and `keepNear` bypassed the 15k / 150 ceiling.
+  With no camera that ceiling now applies to `keepNear` too. The camera path is
+  unchanged, so Toon Hall can still sit past 130 draws. The host fixture walks
+  from a 90-draw near mesh to a chunk 100 units away and lands at lods 1/0,
+  100 draws, 100 triangles. The assert in `zone_test.cpp` is unchanged.
+

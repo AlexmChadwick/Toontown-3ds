@@ -31,11 +31,13 @@ struct Quality {
 // (Zone::kDrawBudget) on chunks that frame will submit, and still refuses an
 // upgrade past the retain ceiling (4/4 MiB Old, 5/5 MiB New, and never above
 // 6/8 MiB). Chunks outside the cone keep their near mesh until the retain budget
-// evicts it, and that mesh is not replaced by the far blob. Inside the cone every
-// chunk draws at least its far mesh. The loading card waits for that far mesh;
-// the near mesh streams after it. A near mesh past lodKeep is demoted when it no
-// longer fits in the 130-draw / 15k-triangle cap. With no camera the whole cell
-// stays inside 15k triangles and 150 draws.
+// evicts it, and that mesh is not replaced by the far blob. Their far textures
+// do not count against a sign's upgrade. Inside the cone every chunk draws at
+// least its far mesh. The loading card waits until the chunks covering most of
+// the screen have a mesh; a near read of a chunk that already has its far mesh
+// starts before a smaller chunk's far read. A near mesh past lodKeep is demoted
+// when it no longer fits. With no camera the whole cell stays inside 15k
+// triangles and 150 draws, and a resident near mesh inside lodKeep does too.
 inline Quality qualityFor(bool new3ds) {
     if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 64.0f, 180.0f, 680.0f, true};
     return {520.0f, 440.0f, 160.0f, 185.0f, 48.0f, 110.0f, 400.0f, false};

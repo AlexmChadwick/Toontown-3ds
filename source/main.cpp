@@ -2108,9 +2108,9 @@ int main() {
         }
 
         // finishLoading used to upload every chunk before the next frame. Zone::update
-        // now uploads about 10 ms per frame. The loading card stays up until the cone's
-        // far meshes are resident; near upgrades and the warm ring continue after it
-        // drops. This path does not call finishLoading.
+        // now uploads about 10 ms per frame. The loading card stays up until the chunks
+        // covering most of the screen have a mesh; near upgrades of those chunks start
+        // while the rest of the cone is still reading. This path does not call finishLoading.
         if (transition.readyToLoad()) {
             auto finishZoneStream = [&]() {
                 const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);
@@ -2136,6 +2136,9 @@ int main() {
                 ::tt::gpu::frameSync();
                 zoneLoad.release();
                 zonePhase = ZonePhase::Idle;
+                // The continue below skips the lap at the bottom of the frame, and the
+                // unlapped tail was logged as a hitch ("other") on the card drop.
+                tt::prof::lap(tt::prof::kPlace);
             };
             if (zonePhase == ZonePhase::Idle) {
                 // One presented frame of the loading screen before the open() stalls.

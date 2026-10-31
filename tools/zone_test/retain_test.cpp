@@ -26,6 +26,11 @@ void align128(std::vector<uint8_t>& b) {
     while (b.size() % 128) b.push_back(0);
 }
 void patch32(std::vector<uint8_t>& b, size_t at, uint32_t v) { std::memcpy(b.data() + at, &v, 4); }
+void patchBounds(std::vector<uint8_t>& b, size_t chunk, float x0, float y0, float z0,
+                 float x1, float y1, float z1) {
+    const float v[6] = {x0, y0, z0, x1, y1, z1};
+    std::memcpy(b.data() + chunk + 36, v, sizeof v);
+}
 
 // One untextured triangle. geom = 3*16 + 3*2 = 54.
 void writeTtmN(std::vector<uint8_t>& b, int batches) {
@@ -495,6 +500,192 @@ std::vector<uint8_t> buildCellCap() {
     return b;
 }
 
+// 64x64 L8 with a full mip chain (5,440 bytes). validModel requires chunk.tex to match.
+void writeSolidTex(std::vector<uint8_t>& b, int side) {
+    uint32_t bytes = 0;
+    int mips = 0;
+    for (int w = side; w >= 8; w >>= 1) {
+        bytes += static_cast<uint32_t>(w) * static_cast<uint32_t>(w);
+        ++mips;
+    }
+    const uint32_t texOff = 64;
+    const uint32_t batchOff = texOff + 48;
+    const uint32_t vertOff = batchOff + 24;
+    const uint32_t indexOff = vertOff + 48;
+    const uint32_t dataOff = indexOff + 6;
+    const size_t base = b.size();
+    b.resize(base + dataOff + bytes, 0);
+    b[base + 0] = 'T'; b[base + 1] = 'T'; b[base + 2] = 'M'; b[base + 3] = '1';
+    const uint16_t version = 1, flags = 0, ntex = 1, nbatch = 1;
+    std::memcpy(b.data() + base + 4, &version, 2);
+    std::memcpy(b.data() + base + 6, &flags, 2);
+    std::memcpy(b.data() + base + 8, &ntex, 2);
+    std::memcpy(b.data() + base + 10, &nbatch, 2);
+    const uint32_t nv = 3, ni = 3;
+    std::memcpy(b.data() + base + 12, &nv, 4);
+    std::memcpy(b.data() + base + 16, &ni, 4);
+    const float scale[3] = {1, 1, 1};
+    std::memcpy(b.data() + base + 20, scale, 12);
+    std::memcpy(b.data() + base + 44, &texOff, 4);
+    std::memcpy(b.data() + base + 48, &batchOff, 4);
+    std::memcpy(b.data() + base + 52, &vertOff, 4);
+    std::memcpy(b.data() + base + 56, &indexOff, 4);
+    const uint16_t w = static_cast<uint16_t>(side), h = w;
+    const uint8_t fmt = 7;
+    std::memcpy(b.data() + base + texOff, &w, 2);
+    std::memcpy(b.data() + base + texOff + 2, &h, 2);
+    b[base + texOff + 4] = fmt;
+    b[base + texOff + 5] = static_cast<uint8_t>(mips);
+    std::memcpy(b.data() + base + texOff + 8, &dataOff, 4);
+    std::memcpy(b.data() + base + texOff + 12, &bytes, 4);
+    const uint16_t none = 65535;
+    std::memcpy(b.data() + base + batchOff, &none, 2);
+    const uint32_t numV = 3, numI = 3;
+    std::memcpy(b.data() + base + batchOff + 12, &numV, 4);
+    std::memcpy(b.data() + base + batchOff + 20, &numI, 4);
+    const uint16_t idx[3] = {0, 1, 2};
+    std::memcpy(b.data() + base + indexOff, idx, 6);
+}
+
+// Big chunk with an empty far mesh in front of a small chunk that still needs
+// its far mesh. The big chunk's near read starts in the same update, and the
+// card does not wait for the small chunk.
+std::vector<uint8_t> buildOverlap() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 4);
+    writeTtmN(far, 1);
+    const MeshInfo ni = meshInfo(near, 4, 0), fi = meshInfo(far, 1, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 2, 0, ni.size, 0, 0, "big", true);
+    writeChunk(b, 2100, 2, 1, 0, ni.size, 70, 1, "small", true);
+    patchBounds(b, chunkOff, 0, 0, 0, 36, 24, 16);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 1);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 2100);
+    writeFloor(b, 66, -4, 74, -4, 70, 6, 1, 2100);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    const uint32_t bigNear = static_cast<uint32_t>(b.size());
+    append(b, near.data(), near.size());
+    align128(b);
+    const uint32_t smallNear = static_cast<uint32_t>(b.size());
+    append(b, near.data(), near.size());
+    align128(b);
+    const uint32_t smallFar = static_cast<uint32_t>(b.size());
+    append(b, far.data(), far.size());
+    // Big chunk: near mesh only. The far fields stay zero, so the read is skipped.
+    patch32(b, chunkOff + 12, bigNear);
+    patch32(b, chunkOff + 16, ni.size);
+    patch32(b, chunkOff + 20, ni.geom);
+    patch32(b, chunkOff + 24, ni.tex);
+    patch32(b, chunkOff + 28, ni.draws);
+    patch32(b, chunkOff + 32, ni.tris);
+    patchNearFar(b, chunkOff + 104, ni, smallNear, fi, smallFar);
+    finishHeader(b, 2100, 2, 3, 2, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// Ground, a 120-draw filler, a sign, and an out-of-cone chunk whose far texture
+// alone is 5,440 bytes. Retain tex is 5,500. The sign fits only if that texture
+// is not charged against the cap, and only if the filler gives up its draws.
+std::vector<uint8_t> buildSignRoom() {
+    std::vector<uint8_t> one, filler, letters, far, solid;
+    writeTtmN(one, 1);
+    writeTtmN(filler, 120);
+    writeLetterTtm(letters, 15);
+    writeTtmN(far, 1);
+    writeSolidTex(solid, 64);
+    const MeshInfo oneI = meshInfo(one, 1, 0);
+    const MeshInfo fillI = meshInfo(filler, 120, 0);
+    const MeshInfo letI = meshInfo(letters, 15, 64);
+    const MeshInfo farI = meshInfo(far, 1, 0);
+    const MeshInfo solI = meshInfo(solid, 1, 5440);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 1000, 0, 4, 0, oneI.size, 0, 0, "ground", true);
+    writeChunk(b, 1001, 4, 1, 0, fillI.size, 80, 1, "filler", true);
+    writeChunk(b, 1002, 5, 1, 0, letI.size, 200, 2, "sign", true);
+    writeChunk(b, 1003, 6, 1, 0, solI.size, -400, 3, "hidden", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 3);
+    u16(b, 1); u16(b, 2); u16(b, 3);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 1000);
+    writeFloor(b, 76, -4, 84, -4, 80, 6, 1, 1001);
+    writeFloor(b, 196, -4, 204, -4, 200, 6, 2, 1002);
+    writeFloor(b, -404, -4, -396, -4, -400, 6, 3, 1003);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    auto add=[&](const std::vector<uint8_t>& src) {
+        align128(b);
+        const uint32_t off = static_cast<uint32_t>(b.size());
+        append(b, src.data(), src.size());
+        return off;
+    };
+    const uint32_t groundNear = add(one);
+    const uint32_t groundFar = add(far);
+    const uint32_t fillerNear = add(filler);
+    const uint32_t fillerFar = add(far);
+    const uint32_t signNear = add(letters);
+    const uint32_t signFar = add(far);
+    const uint32_t hidNear = add(solid);
+    const uint32_t hidFar = add(solid);
+    patchNearFar(b, chunkOff, oneI, groundNear, farI, groundFar);
+    patchNearFar(b, chunkOff + 104, fillI, fillerNear, farI, fillerFar);
+    patchNearFar(b, chunkOff + 208, letI, signNear, farI, signFar);
+    patchNearFar(b, chunkOff + 312, solI, hidNear, solI, hidFar);
+    finishHeader(b, 1000, 4, 7, 4, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// Two chunks of 90 near draws, 100 units apart. Standing on the second keeps the
+// first inside lodKeep. Without a camera that must not push the cell past 150 draws.
+std::vector<uint8_t> buildKeepWalk() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 90);
+    writeTtmN(far, 10);
+    const MeshInfo ni = meshInfo(near, 90, 0), fi = meshInfo(far, 10, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 2, 0, ni.size, 0, 0, "a", true);
+    writeChunk(b, 2101, 2, 2, 0, ni.size, 100, 1, "b", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 0); u16(b, 1);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 2100);
+    writeFloor(b, 96, -4, 104, -4, 100, 6, 1, 2101);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    uint32_t offs[4];
+    for (int i = 0; i < 4; ++i) {
+        align128(b);
+        offs[i] = static_cast<uint32_t>(b.size());
+        const std::vector<uint8_t>& src = (i % 2 == 0) ? near : far;
+        append(b, src.data(), src.size());
+    }
+    patchNearFar(b, chunkOff, ni, offs[0], fi, offs[1]);
+    patchNearFar(b, chunkOff + 104, ni, offs[2], fi, offs[3]);
+    finishHeader(b, 2100, 2, 4, 2, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
 void settle(tt::world::Zone& zone, tt::world::Vec3 at) {
     for (int i = 0; i < 500; ++i) {
         assert(zone.update(at));
@@ -655,6 +846,54 @@ int main() {
                 zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.drawCalls(), zone.triangles());
     assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1 && zone.chunkLod(2) == -1);
     assert(zone.triangles() <= 15000 && zone.drawCalls() <= 150);
+    zone.unload();
+
+    const char* overlapPath = "/tmp/tt_retain_overlap.tz";
+    const char* signRoomPath = "/tmp/tt_retain_signroom.tz";
+    const char* keepPath = "/tmp/tt_retain_keep.tz";
+    save(overlapPath, buildOverlap());
+    save(signRoomPath, buildSignRoom());
+    save(keepPath, buildKeepWalk());
+
+    assert(zone.load(overlapPath));
+    zone.setCamera({-30.0f, 1.0f, 8.0f}, {80.0f, 1.0f, 4.0f});
+    assert(zone.update(origin));
+    std::printf("overlap: card %d queued %u lod %d/%d\n", zone.cardPending() ? 1 : 0,
+                zone.loadsQueued(), zone.chunkLod(0), zone.chunkLod(1));
+    // The big chunk's empty far mesh is resident, so its near read is queued
+    // beside the small chunk's far read. The card does not wait on the small one.
+    assert(!zone.cardPending() && zone.loading());
+    assert(zone.chunkLod(0) == 1 && zone.chunkLod(1) == -1);
+    assert(zone.loadsQueued() == 2);
+    assert(zone.completeLoads() == 2);
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1);
+    const uint32_t overlapNear = zone.loadsQueued();
+    assert(zone.update(origin));
+    assert(zone.loadsQueued() == overlapNear + 1); // one new near read this frame
+    zone.unload();
+
+    assert(zone.load(signRoomPath));
+    zone.setRetainBudget(6u * 1024u * 1024u, 5500u);
+    zone.setCamera({-40.0f, 0.0f, 8.0f}, {250.0f, 0.0f, 4.0f});
+    settle(zone, origin);
+    std::printf("sign: room lod %d/%d/%d/%d draws %u tex %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.chunkLod(3),
+                zone.drawCalls(), zone.textureBytes());
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(2) == 0 && zone.chunkLod(1) == 1);
+    assert(zone.chunkLod(3) == -1);
+    assert(zone.drawCalls() == 17 && zone.textureBytes() <= 5500u);
+    zone.unload();
+
+    assert(zone.load(keepPath));
+    settle(zone, origin);
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1);
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    const tt::world::Vec3 walked{100, 0, 1};
+    settle(zone, walked);
+    std::printf("keep: walked lod %d/%d draws %u tris %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.drawCalls(), zone.triangles());
+    assert(zone.chunkLod(0) == 1 && zone.chunkLod(1) == 0);
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
     zone.unload();
     return 0;
 }

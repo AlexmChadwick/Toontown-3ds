@@ -48,17 +48,21 @@ public:
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach);
     bool loading() const; // in-cone chunks are not yet at the planned LOD
-    // True while an in-cone chunk has no mesh yet. v2 zones satisfy this with the
-    // far mesh; the near mesh keeps streaming after the card drops. v1 has one mesh,
-    // so this matches loading().
+    // True while a chunk covering most of the screen has no mesh yet. v2 zones
+    // satisfy this with the far mesh of that prefix (the cell underfoot and
+    // anything large on screen always count); the rest of the cone and the near
+    // meshes keep streaming after the card drops. v1 has one mesh, so this
+    // matches loading().
     bool cardPending() const;
     // Chunks outside the cone keep a resident near mesh until the retain budget
     // evicts it. That mesh is not replaced by the far blob. Inside the cone every
     // chunk is drawn, at least at its far mesh; a near mesh past the keep radius is
     // demoted when it no longer fits in 15k tris / 130 draws. No camera keeps the
-    // whole-cell counters (host tests). Place sets retain to 4/4 MiB on Old 3DS and
-    // 5/5 MiB on New 3DS, and non-cone chunks are dropped so linear free stays at
-    // or above 12 MiB on Old 3DS.
+    // whole-cell counters (host tests), including a near mesh already resident
+    // inside lodKeep. Place sets retain to 4/4 MiB on Old 3DS and 5/5 MiB on
+    // New 3DS, and non-cone chunks are dropped so linear free stays at or above
+    // 12 MiB on Old 3DS. Sign-letter chunks spend that retain cap ahead of a
+    // generic near mesh; out-of-cone far textures do not count against it.
     void setRetainBudget(uint32_t geomBytes, uint32_t texBytes);
     // Queue chunks inside `radius` that the draw plan did not take, nearest first,
     // only while they fit in the retain budget and the 12 MiB headroom. Loaded on
