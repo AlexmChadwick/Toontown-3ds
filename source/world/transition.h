@@ -16,6 +16,7 @@
 #include "render/renderer.h"
 #include "world/place.h"
 #include "world/player.h"
+#include "world/hq_doors.h"
 #include "world/toon_avatar.h"
 
 namespace tt::world {
@@ -122,6 +123,9 @@ private:
     float doorSwing_ = 0.0f; // degrees (0 .. 100)
     float doorTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     bool doorLeaves_ = true; // draw door_double_round_ur's leaves at this door
+    const HqDoor* hqDoor_ = nullptr;   // this door is a Toon HQ's own (world/hq_doors.h)
+    const HqDoor* hqLoaded_ = nullptr; // whose leaves and holes hqModels_ hold
+    render::Model hqModels_[4];        // right, left, hole_right, hole_left
     bool doorActive_ = false;
     // The door movie waits at the threshold for the AI's setOtherZoneIdAndDoId / rejectEnter.
     bool doorAwaitReply_ = false;

@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
 #include "core/log.h"
@@ -125,6 +126,8 @@ void Transition::shutdown() {
     doorModelLeft_.unload();
     doorHoleRight_.unload();
     doorHoleLeft_.unload();
+    for (render::Model& m : hqModels_) m.unload();
+    hqLoaded_ = nullptr;
     // [end interior life: door leaves]
     reset();
 }
@@ -214,6 +217,39 @@ void Transition::pickDoorTint(const Place& place) {
         }
     }
     doorLeaves_ = found || !any;
+
+    // A Toon HQ door ("<tb|sz><block>:toon_landmark_<hq>_DNARoot/door_<n>" on this origin) swings
+    // its own leaves (bake_hq_doors.py), and only where door_flat_<n> paints the closed doors.
+    hqDoor_ = nullptr;
+    for (int i = 0; i < place.numPoints() && !hqDoor_; i++) {
+        const Place::Point& p = place.pointAt(i);
+        const char* hq = strstr(p.name, ":toon_landmark_");
+        const char* door = strstr(p.name, "_DNARoot/door_");
+        if (!hq || !door || strchr(door + 14, '_')) continue;
+        const float dx = p.x - doorOriginX_, dy = p.y - doorOriginY_;
+        if (dx * dx + dy * dy > 0.25f) continue;
+        hq += 15;
+        const int n = atoi(door + 14);
+        for (const HqDoor& d : kHqDoors) {
+            if (d.n == n && strlen(d.hq) == size_t(door - hq) && !strncmp(hq, d.hq, door - hq)) hqDoor_ = &d;
+        }
+    }
+    if (!hqDoor_) return;
+    doorLeaves_ = false;
+    if (!hqDoor_->flat) {
+        hqDoor_ = nullptr;
+        return;
+    }
+    if (hqLoaded_ != hqDoor_) {
+        static const char* const kParts[4] = {"right", "left", "hole_right", "hole_left"};
+        for (int k = 0; k < 4; k++) {
+            char path[96];
+            snprintf(path, sizeof(path), "romfs:/baked/hq_doors/%s_%d_%s.ttm", hqDoor_->hq, hqDoor_->n, kParts[k]);
+            hqModels_[k].unload();
+            hqModels_[k].load(path);
+        }
+        hqLoaded_ = hqDoor_;
+    }
 }
 
 void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const Player& player) {
@@ -232,7 +268,17 @@ void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const P
             if (plen < sizeof(prefix)) {
                 memcpy(prefix, exit.name, plen);
                 prefix[plen] = '\0';
-                pt = place.pointWithPrefix(prefix);
+                // The block's door nearest the toon: a Toon HQ has two ("<root>/door_0", "/door_1").
+                float best = 1e30f;
+                for (int i = 0; i < place.numPoints(); i++) {
+                    const Place::Point& p = place.pointAt(i);
+                    if (strncmp(p.name, prefix, plen)) continue;
+                    const float dx = p.x - player.x(), dy = p.y - player.y();
+                    if (dx * dx + dy * dy < best) {
+                        best = dx * dx + dy * dy;
+                        pt = &p;
+                    }
+                }
             }
         }
     }
@@ -951,6 +997,24 @@ void Transition::drawWorld(render::Renderer& renderer) {
             renderer.setBaseTint(doorTint_[0], doorTint_[1], doorTint_[2], doorTint_[3]); // leaf.setColor(doorColor)
             renderer.drawModel(leaf, m);
             renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+        }
+    }
+    // A Toon HQ's own leaves on door_origin_<n> (unscaled), the same sides as above.
+    if (doorActive_ && hqDoor_ && doorSwing_ > 0.01f) {
+        const bool out = phase_ == TransitionPhase::Arriving;
+        C3D_Mtx door;
+        Mtx_Identity(&door);
+        Mtx_Translate(&door, doorOriginX_, doorOriginY_, doorOriginZ_, true);
+        Mtx_RotateZ(&door, doorOriginH_ * kDegToRad, true);
+        render::Model& hole = hqModels_[out ? 3 : 2];
+        if (hole.loaded()) renderer.drawModel(hole, door);
+        render::Model& leaf = hqModels_[out ? 1 : 0];
+        if (leaf.loaded()) {
+            const float* hinge = out ? hqDoor_->left : hqDoor_->right;
+            C3D_Mtx m = door;
+            Mtx_Translate(&m, hinge[0], hinge[1], hinge[2], true);
+            Mtx_RotateZ(&m, (out ? -doorSwing_ : doorSwing_) * kDegToRad, true);
+            renderer.drawModel(leaf, m);
         }
     }
     // [end interior life: door leaves]

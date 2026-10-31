@@ -186,6 +186,15 @@ class Assembler:
         o = np_.find('**/*sign_origin')
         if not o.isEmpty():
             o.removeNode()
+        # Toon HQs carry their own doors (door_N: leftDoor_N, rightDoor_N, door_flat_N with the
+        # doorFrameHole decals). Closed, DistributedDoor shows only the flat's painted doors:
+        # hideIfHasFlat hides the leaves and the black holes appear only while a door is open.
+        # Baking them visible gave every Toon HQ two black doorways.
+        for h in np_.findAllMatches('**/doorFrameHole*'):
+            h.hide()
+        for flat in np_.findAllMatches('**/door_flat_*'):
+            for leaf in flat.getParent().findAllMatches('leftDoor_*') + flat.getParent().findAllMatches('rightDoor_*'):
+                leaf.hide()
         return np_
 
     def _t_anim_building(self, d, parent):
