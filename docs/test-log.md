@@ -2079,3 +2079,15 @@ HOME suspend/resume and networking in 80MB/124MB CIA mode; sky/VRAM fallback;
 30fps and stereo slider 1.00; all frame/card/full-detail/duplicate-load gates;
 all eight numeric visual views and the real-game comparison at 3x. New high-detail
 zone probes are not ready to replace the supplied zone assets yet.
+
+### 2026-10-31 — Round 12 follow-up: stale far admission
+
+`world/zone.cpp` now ranks current desired fars before retained old-PVS fars.
+A reset `choice==0` on an undesired far used to impersonate a near stand-in and
+spend the distant landmark's remaining budget. The added retain fixture moves
+between two PVS sets while a 20-draw old far overlaps the new cone. It requires
+the current 120-draw ground plus 30-draw landmark, inside 150/15k. The fixture
+fails against af25ec7 at its 150-draw assertion and passes with the fix (150
+draws); the prior admission displayed 140. This is host evidence for item 6,
+not a claim about the tester's street_far image. Device numbers come from the
+tester, not from this agent. No emulator/server client run.

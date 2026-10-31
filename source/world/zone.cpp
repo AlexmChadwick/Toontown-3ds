@@ -703,7 +703,11 @@ void recountZone(Zone::Impl& z) {
     for (uint32_t i=0; i<z.h.chunks; ++i)
         farRank[i]=screenRank(z.chunks[i], z.camEye);
     auto farPriority=[&](uint16_t a, uint16_t b) {
-        const bool standA=z.choice[a]==0, standB=z.choice[b]==0;
+        // A stale/warm far has choice==0 after plan reset too. It cannot
+        // outrank a current landmark merely by looking like a near stand-in.
+        if (z.desired[a]!=z.desired[b]) return z.desired[a];
+        const bool standA=z.desired[a] && z.choice[a]==0;
+        const bool standB=z.desired[b] && z.choice[b]==0;
         if (standA!=standB) return standA;
         return farRank[a] != farRank[b] ? farRank[a] > farRank[b] : a < b;
     };

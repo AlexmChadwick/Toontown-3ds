@@ -510,7 +510,8 @@ server.
   staging has a 2 ms target, a 16 KiB byte ceiling and one pump per frame;
   behind the card the ceiling is 64 KiB. These are work bounds, not measured
   device frame times. Card resources retire at the next existing frame fence.
-  Visible fars reserve their costs before near upgrades. Drawing uses the
+  Visible fars reserve their costs before near upgrades. Current-PVS fars
+  rank ahead of retained old-PVS fars; reset choice==0 alone is not a stand-in. Drawing uses the
   exact admitted set counted by the host. A desired in-cone near chunk remains
   pinned without timer expiry; hidden chunks yield first, ordered by their
   last submitted tick. Up to two dense sign chunks are eligible throughout

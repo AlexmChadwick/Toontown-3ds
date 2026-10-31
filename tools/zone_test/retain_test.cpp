@@ -1075,6 +1075,50 @@ std::vector<uint8_t> buildTriCap() {
     return b;
 }
 
+// A retained old-PVS far used to look like a near stand-in (choice reset to
+// zero), taking 20 draws ahead of the current 30-draw distant landmark.
+std::vector<uint8_t> buildStaleFar() {
+    std::vector<uint8_t> one, oldHigh, oldLow, ground, landmarkHigh, landmarkLow;
+    writeTtmN(one, 1); writeTtmN(oldHigh, 140); writeTtmN(oldLow, 20);
+    writeTtmN(ground, 120); writeTtmN(landmarkHigh, 200); writeTtmN(landmarkLow, 30);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff=static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 2, 0, 0, 0, 0, "oldcell", true);
+    writeChunk(b, 2101, 0, 2, 0, 0, 100, 1, "stale", true);
+    writeChunk(b, 2102, 2, 2, 0, 0, 300, 2, "cell", true);
+    writeChunk(b, 2103, 2, 2, 0, 0, 600, 3, "landmark", true);
+    patchBounds(b, chunkOff+104, 80, -40, 0, 400, 40, 40);
+    align128(b);
+    const uint32_t visOff=static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 3);
+    align128(b);
+    const uint32_t floorOff=static_cast<uint32_t>(b.size());
+    writeFloor(b, -4,-4,4,-4,0,6,0,2100);
+    writeFloor(b, 96,-4,104,-4,100,6,1,2101);
+    writeFloor(b, 296,-4,304,-4,300,6,2,2102);
+    writeFloor(b, 596,-4,604,-4,600,6,3,2103);
+    align128(b);
+    const uint32_t collisionOff=static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    auto add=[&](const std::vector<uint8_t>& model) {
+        align128(b);
+        const auto at=static_cast<uint32_t>(b.size());
+        append(b, model.data(), model.size());
+        return at;
+    };
+    const std::vector<uint8_t>* highs[]={&one,&oldHigh,&ground,&landmarkHigh};
+    const std::vector<uint8_t>* lows[]={&one,&oldLow,&one,&landmarkLow};
+    const uint32_t highDraws[]={1,140,120,200}, lowDraws[]={1,20,1,30};
+    for (int i=0;i<4;++i) {
+        const auto high=add(*highs[i]), low=add(*lows[i]);
+        patchNearFar(b, chunkOff+i*104, meshInfo(*highs[i],highDraws[i],0), high,
+                     meshInfo(*lows[i],lowDraws[i],0), low);
+    }
+    finishHeader(b,2100,4,4,4,chunkOff,visOff,floorOff,collisionOff);
+    return b;
+}
+
 void settle(tt::world::Zone& zone, tt::world::Vec3 at) {
     for (int i = 0; i < 500; ++i) {
         assert(zone.update(at));
@@ -1435,6 +1479,20 @@ int main() {
     std::printf("jump: min draws %u after replan\n", jumpMin);
     assert(jumpMin >= jumpFloor);
     assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    zone.unload();
+
+    const char* stalePath="/tmp/tt_retain_stale_far.tz";
+    save(stalePath, buildStaleFar());
+    assert(zone.load(stalePath));
+    zone.setCamera({-30,0,8}, {200,0,4});
+    settle(zone, origin);
+    assert(zone.chunkLod(1)==1);
+    zone.setCamera({250,0,8}, {650,0,4});
+    settle(zone, {300,0,1});
+    assert(zone.chunkLod(1)==1 && zone.chunkLod(3)==1);
+    std::printf("stale far: current frame %u draws (ground 120 + landmark 30)\n", zone.drawCalls());
+    assert(zone.drawCalls()==150); // 120 current ground + 30 current landmark
+    assert(zone.triangles()<=15000);
     zone.unload();
 
     assert(zone.load(triPath));
