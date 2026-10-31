@@ -64,6 +64,7 @@ POINT_PATTERNS = ['**/npc_*origin_*', '**/party_person_*', '**/linktunnel_*', '*
 
 
 def write_points(root, path):
+    import door_colors
     lines = []
     for pattern in POINT_PATTERNS:
         for np_ in root.findAllMatches(pattern):
@@ -78,6 +79,7 @@ def write_points(root, path):
         p, h = origin.getPos(root), origin.getH(root)
         lines.append(f'{np_.getName()}_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
     # Building door origins: recorded from door collision triggers so door transitions start at the door
+    doors = []
     for np_ in list(root.findAllMatches('**/door_*_trigger')) + list(root.findAllMatches('**/door_trigger_*')):
         p, h = np_.getPos(root), np_.getH(root)
         parent = np_.getParent()
@@ -107,6 +109,8 @@ def write_points(root, path):
 
         lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
         lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+        doors.append((f'{name}_door_origin', p))
+    lines += door_colors.lines(root, doors)
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     return len(lines)

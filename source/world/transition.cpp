@@ -108,6 +108,8 @@ void Transition::init() {
     doorModel_.load("romfs:/baked/door_right.ttm");
     // [interior life: door leaves]
     doorModelLeft_.load("romfs:/baked/door_left.ttm");
+    doorHoleRight_.load("romfs:/baked/door_hole_right.ttm");
+    doorHoleLeft_.load("romfs:/baked/door_hole_left.ttm");
     // [end interior life: door leaves]
 
     sfxTeleport_ = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
@@ -121,6 +123,8 @@ void Transition::shutdown() {
     doorModel_.unload();
     // [interior life: door leaves]
     doorModelLeft_.unload();
+    doorHoleRight_.unload();
+    doorHoleLeft_.unload();
     // [end interior life: door leaves]
     reset();
 }
@@ -186,6 +190,30 @@ void Transition::computeTunnelOrigin(const Exit& exit, const Place& place, const
         tunnelOriginZ_ = player.z();
         tunnelOriginH_ = player.headingDeg();
     }
+}
+
+void Transition::pickDoorTint(const Place& place) {
+    for (float& c : doorTint_) c = 1.0f;
+    bool any = false, found = false;
+    float best = 2.0f * 2.0f; // the door's own point sits on its origin
+    for (int i = 0; i < place.numPoints(); i++) {
+        const Place::Point& c = place.pointAt(i);
+        if (strncmp(c.name, "color:", 6)) continue;
+        any = true;
+        const Place::Point* door = place.point(c.name + 6);
+        if (!door) continue;
+        const float dx = door->x - doorOriginX_, dy = door->y - doorOriginY_, dz = door->z - doorOriginZ_;
+        const float d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 <= best) {
+            best = d2;
+            found = true;
+            doorTint_[0] = c.x;
+            doorTint_[1] = c.y;
+            doorTint_[2] = c.z;
+            doorTint_[3] = c.h;
+        }
+    }
+    doorLeaves_ = found || !any;
 }
 
 void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const Player& player) {
@@ -323,6 +351,7 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
     doorSwing_ = 0.0f;
 
     computeDoorOrigin(exit, place, player);
+    pickDoorTint(place);
 
     float lz = 0.0f;
     worldToLocal(doorOriginX_, doorOriginY_, doorOriginZ_, doorOriginH_,
@@ -420,6 +449,32 @@ void Transition::startTeleportIn(const Player& player, net::Client* net) {
     }
 }
 
+namespace {
+
+// The tunnel that leads back to fromZone, matched like Place::arrival: its zone, or (a street
+// tunnel into a Cog HQ) the same street branch. Its tunnel_origin ("<tunnel>_origin") first,
+// then its DNA root.
+const Place::Point* tunnelBackTo(const Place& place, u32 fromZone) {
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < place.numPoints(); i++) {
+            const Place::Point& p = place.pointAt(i);
+            if (strncmp(p.name, "linktunnel_", 11)) continue;
+            const size_t len = strlen(p.name);
+            const bool origin = len > 7 && !strcmp(p.name + len - 7, "_origin");
+            const char* zs = strchr(p.name + 11, '_');
+            const u32 target = zs ? static_cast<u32>(strtoul(zs + 1, nullptr, 10)) : 0;
+            if (target && origin == (pass == 0) &&
+                (target == fromZone ||
+                 (placeKind(target) == PlaceKind::Street && target - target % 100 == fromZone - fromZone % 100))) {
+                return &p;
+            }
+        }
+    }
+    return nullptr;
+}
+
+} // namespace
+
 void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net::Client* net) {
     phase_ = TransitionPhase::Arriving;
     age_ = 0.0f;
@@ -428,24 +483,16 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
 
     TT_LOG("transition: loaded zone %lu (arriving)", static_cast<unsigned long>(loadedZone));
 
+    const Place::Point* tunnelBack = type_ == TransitionType::Tunnel ? tunnelBackTo(place, fromZone_) : nullptr;
+    if (type_ == TransitionType::Tunnel && !tunnelBack) {
+        // No tunnel here leads back (the Toontorial's linktunnel_tt_0: HoodMgr.addLinkTunnelHooks
+        // sends it with how='teleportIn'). Teleport in at the drop point Place::arrival chose;
+        // borrowing another tunnel put the camera inside Goofy Speedway's tires.
+        TT_LOG("transition: no tunnel back to zone %lu, teleporting in", static_cast<unsigned long>(fromZone_));
+        type_ = TransitionType::Teleport;
+    }
     if (type_ == TransitionType::Tunnel) {
-        // Look up destination tunnel origin matching fromZone
-        char linkName[32];
-        snprintf(linkName, sizeof(linkName), "%lu", static_cast<unsigned long>(fromZone_));
-        // Prefer that tunnel's tunnel_origin ("<tunnel>_origin"), then its DNA root.
-        const Place::Point* pt = nullptr;
-        for (int pass = 0; pass < 2 && !pt; pass++) {
-            for (int i = 0; i < place.numPoints(); i++) {
-                const Place::Point& p = place.pointAt(i);
-                const size_t len = strlen(p.name);
-                const bool origin = len > 7 && !strcmp(p.name + len - 7, "_origin");
-                if (!strncmp(p.name, "linktunnel_", 11) && strstr(p.name, linkName) && origin == (pass == 0)) {
-                    pt = &p;
-                    break;
-                }
-            }
-        }
-        if (!pt) pt = place.pointWithPrefix("linktunnel_");
+        const Place::Point* pt = tunnelBack;
         if (pt) {
             tunnelOriginX_ = pt->x;
             tunnelOriginY_ = pt->y;
@@ -496,6 +543,7 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
             doorOriginZ_ = player.z();
             doorOriginH_ = player.headingDeg();
         }
+        pickDoorTint(place);
         doorActive_ = true;
         doorSwing_ = 100.0f; // Closes as toon walks out
         tt::audio::playSfx(sfxDoorClose_);
@@ -875,23 +923,35 @@ void Transition::drawWorld(render::Renderer& renderer) {
     }
 
     // [interior life: door leaves]
-    // The baked leaf already has its hinge at the origin (bake_transitions.bake_door_leaf).
-    // An extra hinge translation orbited the leaf around a point beside the frame, so the
-    // door slid sideways instead of swinging. DNADoor.setupDoor scales door_origin by 0.8
-    // and rotates the leaf about that hinge. Both leaves swing, opposite directions.
-    if (doorActive_) {
-        auto drawLeaf = [&](render::Model& leaf, float swing) {
-            if (!leaf.loaded()) return;
-            C3D_Mtx m;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, doorOriginX_, doorOriginY_, doorOriginZ_, true);
-            Mtx_RotateZ(&m, doorOriginH_ * kDegToRad, true);
-            Mtx_Scale(&m, 0.8f, 0.8f, 0.8f);
-            Mtx_RotateZ(&m, swing * kDegToRad, true);
+    // Each baked leaf has its hinge at its own origin (bake_transitions.bake_door_leaf zeroes the
+    // leaf node). In doors_practical that node sits at the hinge, so the leaf is put back there
+    // and then turned about it (LerpHprInterval with other=door origin turns the leaf in place).
+    // Dropping the hinge offset pivoted both leaves on the door's centre, about 3 units under the
+    // floor, where they crossed like folded flaps. DNADoor.setupDoor scales door_origin by 0.8.
+    // DistributedDoor opens only the right leaf for the toon going in (enterOpening, h 100) and
+    // only the left one for the toon coming out (exitDoorEnterOpening, h -100), and shows that
+    // side's black doorFrameHole over the closed leaf the door's flat paints.
+    if (doorActive_ && doorLeaves_ && doorSwing_ > 0.01f) {
+        static constexpr float kHingeRight[3] = {3.59133f, 0.0f, 3.91298f}; // door_double_round_ur_right
+        static constexpr float kHingeLeft[3] = {-3.57716f, 0.0f, 3.07342f}; // door_double_round_ur_left
+        const bool out = phase_ == TransitionPhase::Arriving;
+        C3D_Mtx door;
+        Mtx_Identity(&door);
+        Mtx_Translate(&door, doorOriginX_, doorOriginY_, doorOriginZ_, true);
+        Mtx_RotateZ(&door, doorOriginH_ * kDegToRad, true);
+        Mtx_Scale(&door, 0.8f, 0.8f, 0.8f);
+        render::Model& hole = out ? doorHoleLeft_ : doorHoleRight_;
+        if (hole.loaded()) renderer.drawModel(hole, door);
+        render::Model& leaf = out ? doorModelLeft_ : doorModel_;
+        if (leaf.loaded()) {
+            const float* hinge = out ? kHingeLeft : kHingeRight;
+            C3D_Mtx m = door;
+            Mtx_Translate(&m, hinge[0], hinge[1], hinge[2], true);
+            Mtx_RotateZ(&m, (out ? -doorSwing_ : doorSwing_) * kDegToRad, true);
+            renderer.setBaseTint(doorTint_[0], doorTint_[1], doorTint_[2], doorTint_[3]); // leaf.setColor(doorColor)
             renderer.drawModel(leaf, m);
-        };
-        drawLeaf(doorModel_, doorSwing_);
-        drawLeaf(doorModelLeft_, -doorSwing_);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+        }
     }
     // [end interior life: door leaves]
 }

@@ -76,6 +76,10 @@ public:
 private:
     void computeTunnelOrigin(const Exit& exit, const Place& place, const Player& player);
     void computeDoorOrigin(const Exit& exit, const Place& place, const Player& player);
+    // The leaves' DNA / TI_door colour from the .pts "color:<door point>" lines nearest the door
+    // origin (tools/pipeline/door_colors.py). A place with colour lines but none for this door
+    // (a Toon HQ outside: its own model carries the leaves) draws no generic leaves.
+    void pickDoorTint(const Place& place);
 
     TransitionType type_ = TransitionType::None;
     TransitionPhase phase_ = TransitionPhase::Idle;
@@ -97,6 +101,7 @@ private:
     render::Model doorModel_;
     // [interior life: door leaves]
     render::Model doorModelLeft_;
+    render::Model doorHoleRight_, doorHoleLeft_; // doorFrameHole{Right,Left}, black, door space
     // [end interior life: door leaves]
     tt::audio::SfxId sfxTeleport_ = tt::audio::kInvalidSfx;
     tt::audio::SfxId sfxDoorOpen_ = tt::audio::kInvalidSfx;
@@ -115,6 +120,8 @@ private:
     float doorOriginX_ = 0.0f, doorOriginY_ = 0.0f, doorOriginZ_ = 0.0f, doorOriginH_ = 0.0f;
     float doorStartX_ = 0.0f, doorStartY_ = 0.0f;
     float doorSwing_ = 0.0f; // degrees (0 .. 100)
+    float doorTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    bool doorLeaves_ = true; // draw door_double_round_ur's leaves at this door
     bool doorActive_ = false;
     // The door movie waits at the threshold for the AI's setOtherZoneIdAndDoId / rejectEnter.
     bool doorAwaitReply_ = false;

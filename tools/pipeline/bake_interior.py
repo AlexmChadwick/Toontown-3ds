@@ -192,6 +192,20 @@ def _setup_texture_caching():
     extract.Extractor._cached_texture_installed = True
 
 
+def write_pts(root, pts_path):
+    """The interior's anchors, then each door's leaf colour (door_colors.py). Returns the anchors."""
+    import door_colors
+    import interior_assemble
+    from panda3d.core import LPoint3
+    anchors = interior_assemble.extract_anchors(root)
+    pts_lines = [f'{name} {x:.3f} {y:.3f} {z:.3f} {h:.2f}' for name, x, y, z, h in anchors]
+    doors = [(name, LPoint3(x, y, z)) for name, x, y, z, h in anchors if name.startswith('door_origin')]
+    pts_lines += door_colors.lines(root, doors)
+    with open(pts_path, 'w') as f:
+        f.write('\n'.join(pts_lines) + ('\n' if pts_lines else ''))
+    return anchors
+
+
 def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
              spec=None, max_tex=128, want_preview=False):
     """Assemble and bake one interior to .ttm, .ttc, .pts, and .json."""
@@ -235,10 +249,7 @@ def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
     ttc_stats = mesh.write(ttc_path, cell_size=8.0, max_bytes=1024 * 1024)
 
     # 4. Extract anchors and write .pts
-    anchors = interior_assemble.extract_anchors(root)
-    pts_lines = [f'{name} {x:.3f} {y:.3f} {z:.3f} {h:.2f}' for name, x, y, z, h in anchors]
-    with open(pts_path, 'w') as f:
-        f.write('\n'.join(pts_lines) + ('\n' if pts_lines else ''))
+    anchors = write_pts(root, pts_path)
 
     # 5. Compute spawn & sidecar metadata and write .json
     meta = interior_assemble.compute_spawn_data(root, zone_id, block, spec)
@@ -313,6 +324,7 @@ def main():
     ap.add_argument('--max-tex', type=int, default=128, help='Max texture dimension (default 128)')
     ap.add_argument('--resources', default=DEFAULT_RESOURCES, help='Resources directory path')
     ap.add_argument('--no-preview', action='store_true', help='Skip preview PNG generation')
+    ap.add_argument('--points-only', action='store_true', help='only rewrite the .pts anchor sidecars')
     args = ap.parse_args()
 
     import interior_assemble
@@ -404,6 +416,11 @@ def main():
         if len(targets) > 1 and (i % 25 == 0 or i == len(targets) - 1 or len(targets) <= 10):
             print(f'  [{i + 1}/{len(targets)}] Baking Zone {zone_id} (Block {block_num}: {sp["name"] if sp else "Building"})...', flush=True)
 
+        if args.points_only:  # refresh the .pts anchors without re-encoding the interior
+            root, _, _ = interior_assemble.assemble_interior(zone_id, block_num, base.loader, store, spec=sp)
+            write_pts(root, os.path.join(args.out_dir, f'{zone_id}.pts'))
+            root.removeNode()
+            continue
         res = bake_one(
             zone_id=zone_id,
             block=block_num,
