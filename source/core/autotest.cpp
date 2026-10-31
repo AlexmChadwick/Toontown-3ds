@@ -356,6 +356,11 @@ const Step kFrontEndScript[] = {
     // Pick-A-Toon's squares (ui/pick_a_toon_atlas.h): slot 1 is picked on arrival; Y is its
     // trashcan; a tap on an empty square makes a Toon there.
     {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: pick slot 1"},
+    // "returning:" steps run only when an "only" line names them (a returning Toon: A plays the
+    // picked Toon, which must go straight to its playground when tutorialAck is 1).
+    {2.0f, 0, 0, 0, KEY_A, -1, -1, -1, "returning: play slot 1", "fe_returning_play"},
+    {12.0f, 0, 0, 0, 0, -1, -1, -1, "returning: entering", "fe_returning_world"},
+    {3.0f, 0, 150, 0, 0, -1, -1, -1, "returning: run in world", "fe_returning_run"},
     {2.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "fe: delete toon", "fe_delete_prompt"},
     // Inside the dialog's Delete button and between the Pink and Yellow squares, so a run with no
     // Toon to delete (no dialog) taps nothing.
@@ -462,7 +467,8 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         TT_LOG("autotest: finished");
         return false;
     }
-    while (only_[0] && step_ < numSteps_ && !selected(script_[step_].label)) step_++; // "only" filter
+    while (step_ < numSteps_ && (only_[0] ? !selected(script_[step_].label) : !strncmp(script_[step_].label, "returning:", 10)))
+        step_++; // "only" filter; "returning:" steps need one
     if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");

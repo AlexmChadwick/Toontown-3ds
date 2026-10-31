@@ -69,6 +69,7 @@
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
+#include "world/tutorial_char.h"
 
 namespace {
 // DistributedTutorialSuit.enterWalk: makePathTrack over these points at 4.5 units/s, looped. Each
@@ -446,6 +447,7 @@ int main() {
     static tt::quest::Talk talk;
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
+    static tt::world::TutorialChar tutorialChar; // tutorial_mickey's Mickey / Minnie
     static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
     static bool tutorialSaidSpeedChat = false;
     // ---- end tutorial ----
@@ -1923,6 +1925,24 @@ int main() {
             talkCameraNpc = 0;
         }
         // ---- end qafix ----
+        // ---- tutorial ----
+        // tutorial_mickey: LOCK_LOCALTOON's scripted run in, the camera parented to render
+        // (POSHPRSCALE camera 11 7 3 52 0 0), and the last pose at FREE_LOCALTOON.
+        {
+            const bool release = tutorial.takeToonRelease();
+            if (tutorial.toonPosed() || release) {
+                const tt::quest::ScriptXform& x = tutorial.xform(tt::quest::ScriptVar::LocalToon);
+                player.reset(x.pos[0], x.pos[1], x.pos[2], x.hpr[0]);
+            }
+            if (tutorial.active() && tutorial.cameraStaged()) {
+                const tt::quest::ScriptXform& c = tutorial.xform(tt::quest::ScriptVar::Camera);
+                const float h = c.hpr[0] * 3.14159265f / 180.0f, p = c.hpr[1] * 3.14159265f / 180.0f;
+                const C3D_FVec eye = FVec3_New(c.pos[0], c.pos[1], c.pos[2]);
+                player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f, eye.y + cosf(h) * cosf(p) * 10.0f,
+                                                     eye.z + sinf(p) * 10.0f));
+            }
+        }
+        // ---- end tutorial ----
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
@@ -1986,6 +2006,10 @@ int main() {
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);
+        if (tutorial.toonPosed() && tutorial.toonAnim().name[0]) { // LOOP_ANIM localToon "run" / "neutral"
+            anim = !strcmp(tutorial.toonAnim().name, "run") ? tt::world::kAnimRun : tt::world::kAnimNeutral;
+            animRate = 1.0f;
+        }
         // ---- water: swimming in Donald's Dock / Acorn Acres (world/water.*) ----
         static tt::world::Water water;
         if (place.zoneId() != water.zone()) water.setZone(place.zoneId(), renderer);
@@ -3172,6 +3196,10 @@ int main() {
             // [end interior life]
             boat.draw(renderer);
             cchars.draw(renderer);
+            // ---- tutorial ----
+            if (tutorial.charShown() && tutorialChar.ensure(tutorial.femaleChar())) tutorialChar.draw(renderer, tutorial);
+            else if (!tutorial.active() && tutorialChar.loaded()) tutorialChar.unload(); // UNLOAD_CHAR
+            // ---- end tutorial ----
             if (netStarted && !golf.active()) {
                 trolley.draw(renderer, net, tt::net::plat::nowMs());
                 golf.drawKart(renderer, net);
@@ -3228,6 +3256,16 @@ int main() {
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
+            // ---- tutorial ---- Mickey / Minnie's lines over their own head (CC_CHAT_CONFIRM classicChar)
+            if (tutorial.charShown() && tutorialChar.loaded() && tutorial.speaker() == tt::quest::ScriptVar::ClassicChar &&
+                tutorial.text()[0]) {
+                const tt::quest::ScriptXform& cx = tutorial.xform(tt::quest::ScriptVar::ClassicChar);
+                float csx, csy, cdepth;
+                if (tt::ui::projectToScreen(proj, view, cx.pos[0], cx.pos[1], cx.pos[2] + tt::world::TutorialChar::kHeight + 0.5f,
+                                            &csx, &csy, &cdepth))
+                    balloons.addSpeaker(csx, csy, tutorialChar.name(), tutorial.text(), 0.0f, cdepth);
+            // ---- end tutorial ----
+            }
             // ---- racing2 ----
             if (racing.active())
                 racing.addBalloons(balloons, proj, view, net);
@@ -3238,7 +3276,8 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && tutorial.text()[0] && talk.phase() != tt::quest::Talk::Phase::Script) {
+                if (tutorial.active() && tutorial.text()[0] && talk.phase() != tt::quest::Talk::Phase::Script &&
+                    !(tutorial.speaker() == tt::quest::ScriptVar::ClassicChar && tutorialChar.loaded())) {
                     // Mickey's intro is said over Tom (no classic-char actor in his room); Flippy's
                     // SpeedChat lesson over Flippy.
                     talker = tutorialSpeaker ? tutorialSpeaker : net.tutorialInterior().npcDoId;
