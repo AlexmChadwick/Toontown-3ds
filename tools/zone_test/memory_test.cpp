@@ -4,7 +4,13 @@
 #include "render/upload_quota.h"
 #include "render/quality.h"
 #include "world/stream_card.h"
+#include "world/sky_motion.h"
 int main() {
+    const auto beforeWrap=tt::world::skyHeading(1439.0f);
+    const auto afterWrap=tt::world::skyHeading(1441.0f);
+    assert(fabsf(afterWrap.second-beforeWrap.second) < .5f);
+    const auto fullPeriod=tt::world::skyHeading(7200.0f);
+    assert(fabsf(fullPeriod.first)<.001f && fabsf(fullPeriod.second)<.001f);
     auto phase = tt::world::StreamCardPhase::Ready;
     assert(!tt::world::retireStreamCard(phase)); // arrival frame stays covered
     assert(phase == tt::world::StreamCardPhase::Retire);

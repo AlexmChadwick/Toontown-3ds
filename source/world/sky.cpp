@@ -1,4 +1,5 @@
 #include "world/sky.h"
+#include "world/sky_motion.h"
 #include "core/log.h"
 #include <cmath>
 #include <initializer_list>
@@ -32,9 +33,9 @@ void Sky::draw(render::Renderer& renderer, const C3D_FVec& eye, bool dock, float
     else {
         part(dome_, 0);
         // SkyUtil.cloudSkyTrack: +0.25 degrees/s, second ring at -0.8*h.
-        const float h = fmodf(seconds*.25f, 360.0f);
-        part(cloud1_, h);
-        part(cloud2_, -.8f*h);
+        const SkyHeading h = skyHeading(seconds);
+        part(cloud1_, h.first);
+        part(cloud2_, h.second);
     }
 }
 }

@@ -2091,3 +2091,13 @@ fails against af25ec7 at its 150-draw assertion and passes with the fix (150
 draws); the prior admission displayed 140. This is host evidence for item 6,
 not a claim about the tester's street_far image. Device numbers come from the
 tester, not from this agent. No emulator/server client run.
+
+### 2026-10-31 — Round 12 follow-up: repeatable cloud phase
+
+TT cloud rings wrap independently; the second no longer jumps 72 degrees when
+the first completes its 24-minute revolution. Game sky time starts at boot;
+the eight fixed autotest views pin cloud phase zero, so separate Old/New runs
+compare the same clouds rather than unrelated wall-clock phases. Host tests
+cover the 24-minute boundary and common two-hour period. Build verified only;
+cloud rendering/sky stddev remain tester checks. Device numbers are from the
+tester, not from this agent.

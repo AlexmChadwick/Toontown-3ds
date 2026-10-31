@@ -367,6 +367,7 @@ int main() {
 
     static tt::world::Sky zoneSky;
     zoneSky.load();
+    const u64 skyStartMs=osGetTime();
 
     tt::boot::stage("Building Toontown Central", 0.4f);
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
@@ -2947,7 +2948,8 @@ int main() {
 
             if (!indoors && !minigame.active() && !golf.active())
                 zoneSky.draw(renderer, worldEye, tt::world::hoodOf(place.zoneId()) == 1000,
-                             static_cast<float>(osGetTime()%1440000)/1000.0f);
+                             autotest.active() && !strncmp(autotest.label(), "view: ", 6) ? 0.0f :
+                             static_cast<float>((osGetTime()-skyStartMs)%7200000)/1000.0f);
             if (golf.active()) {
                 golf.draw(renderer);
                 tt::prof::lap(tt::prof::kGolfDraw);

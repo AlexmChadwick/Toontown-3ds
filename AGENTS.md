@@ -211,7 +211,8 @@ Key decisions:
    - Zone skies (`bake_sky.py`) are TT dome + two cloud rings (three draws) or
      BR dome (one draw). Draw camera-relative before the world, with depth
      test/write and fog off. TT rings rotate +0.25 and -0.20 degrees/s.
-     Up to 512 KiB of their always-resident textures may move to VRAM with
+     Rings wrap independently; fixed autotest views pin cloud phase for fair
+     Old/New image comparisons. Up to 512 KiB of their always-resident textures may move to VRAM with
      all mips; allocation failure retains linear textures. Log actual movement.
    - Format by use:
      - **ETC1** for opaque textures.
