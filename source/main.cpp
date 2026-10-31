@@ -808,8 +808,9 @@ int main() {
                     if (event != acted) {
                         acted = event;
                         TT_LOG("tutorial: autotest answers %s", event);
-                        if (!strcmp(event, "enterStickerBook")) ui.openBookPage(tt::ui::Book::kPageMap);
-                        else if (!strcmp(event, "stickerBookPageChange-3")) ui.book().setPage(tt::ui::Book::kPageGags);
+                        if (!strcmp(event, "enterStickerBook")) {
+                            // Harry's talk panel shows the Shticker Book button: the A presses above use it.
+                        } else if (!strcmp(event, "stickerBookPageChange-3")) ui.book().setPage(tt::ui::Book::kPageGags);
                         else if (!strcmp(event, "stickerBookPageChange-4")) ui.book().setPage(tt::ui::Book::kPageTasks);
                         else if (!strcmp(event, "exitStickerBook")) ui.book().close("tutorial autotest");
                         else if (!strcmp(event, "enterSpeedChat")) uiState.tab = tt::ui::kTabChat;
@@ -974,7 +975,8 @@ int main() {
                 TT_LOG("book touch: step '%s' book %s", bookTouchStep, ui.book().isOpen() ? "open" : "closed");
             }
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
-                   strncmp(autotest.label(), "pad: book", 9) != 0) { // padnav: those steps drive the book with buttons
+                   strncmp(autotest.label(), "pad: book", 9) != 0 && // padnav: those steps drive the book with buttons
+                   !autotest.tutorialPath()) { // Harry's lesson: the book stays open until his script closes it
             ui.book().close("autotest step");
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
@@ -2436,6 +2438,7 @@ int main() {
             if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
             if (talk.phase() == tt::quest::Talk::Phase::Script) {
                 talk.setScriptLine(tutorial.text());
+                talk.setScriptWait(tutorial.waitingEvent());
                 using SV = tt::quest::ScriptVar;
                 const SV c = tutorial.card();
                 talk.setScriptCard(c == SV::Cogs ? 0 : c == SV::ToonBuilding ? 1 : c == SV::CogBuilding ? 2

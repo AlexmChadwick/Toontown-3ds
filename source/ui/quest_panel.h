@@ -20,6 +20,12 @@ public:
     // Conversation; returns the buttons consumed (all while talking).
     u32 handleInput(u32 keysDown, const touchPosition& touch, quest::Talk& talk);
     void drawTalk(const quest::Talk& talk);
+    // The Shticker Book button of a QuestScript waiting for "enterStickerBook" was pressed.
+    bool takeOpenBook() {
+        const bool b = openBook_;
+        openBook_ = false;
+        return b;
+    }
 
 private:
     void text(float x, float y, float scale, u32 color, float wrapWidth, const char* s);
@@ -33,6 +39,7 @@ private:
     const char* measuredText_ = nullptr;
     int measuredPage_ = -1, measuredLines_ = 1;
     FocusGroup focus_{"quest"};
+    bool openBook_ = false;
 };
 
 } // namespace tt::ui

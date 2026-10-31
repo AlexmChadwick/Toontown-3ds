@@ -179,7 +179,8 @@ PanelOwner Ui::resolveOwner(bool fishing, bool info) {
     requests.battle = battleView_ != nullptr;
     requests.purchase = purchase && purchase->active();
     requests.info = info;
-    requests.talk = talk_ && talk_->locked();
+    // A QuestScript lesson about the book (Harry's 110) lets the open book have the screen.
+    requests.talk = talk_ && talk_->locked() && !(talk_->phase() == quest::Talk::Phase::Script && book_.isOpen());
     requests.clerk = serviceClerks_.active();
     requests.shop = shop_.active();
     requests.tailor = tailor_.active();
@@ -242,7 +243,11 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Tailor) return tailor_.handleInput(down, t);
     if (owner == PanelOwner::Closet) return closet_.handleInput(down, t);
     if (owner == PanelOwner::Battle) return battle_.handleInput(down, t, *battleView_, battleGags_);
-    if (owner == PanelOwner::Talk) return quest_.handleInput(down, t, *talk_);
+    if (owner == PanelOwner::Talk) {
+        const u32 used = quest_.handleInput(down, t, *talk_);
+        if (quest_.takeOpenBook()) book_.open(Book::kPageMap); // ShtikerBook opens on the map in the Toontorial
+        return used;
+    }
     if (owner == PanelOwner::Info && drawnInfoButton_ &&
         ((down & KEY_A) || ((down & KEY_TOUCH) && inRect(t, kInfoBtnX, kInfoBtnY, kInfoBtnW, kInfoBtnH)))) {
         s.infoButtonPressed = true;
