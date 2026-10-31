@@ -283,7 +283,8 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
 
     for (u16 i = 0; ok && i < numTextures_; i++) {
         const u64 t0 = loadprof::nowUs();
-        const uint8_t* src = fromBlob(texEntries[i].dataOffset, texEntries[i].dataSize);
+        // Pooled (v2) offsets point into textures.ttp, not this file's span.
+        const uint8_t* src = texFile == f ? fromBlob(texEntries[i].dataOffset, texEntries[i].dataSize) : nullptr;
         if (src) {
             // loadTexture reads from the file; copy into a tiny memfile only when the
             // span missed. The span hit is a memcpy into the linear texture below.
@@ -448,7 +449,7 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
         else ok = readAt(f, base + h.indexOffset, indices_, indexBytes_);
     }
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        if (const uint8_t* src = fromBlob(tex_[i].dataOffset, tex_[i].dataSize))
+        if (const uint8_t* src = texFile == f ? fromBlob(tex_[i].dataOffset, tex_[i].dataSize) : nullptr)
             memcpy(texBytes_ + texOff_[i], src, tex_[i].dataSize);
         else
             ok = readAt(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize);
