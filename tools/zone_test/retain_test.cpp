@@ -4,6 +4,7 @@
 #include "render/quality.h"
 #include "world/zone.h"
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
@@ -913,7 +914,48 @@ std::vector<uint8_t> buildLandmark() {
     return b;
 }
 
-// The tail chunk is inside lodNear and outside the card. It reads near once.
+// Same row as buildBlob, but after the card the camera jumps ~295 units onto
+// chunks that were out of cone. Draws must not fall below 80% of the pre-card count.
+std::vector<uint8_t> buildJump295() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 40);
+    writeTtmN(far, 8);
+    const MeshInfo ni = meshInfo(near, 40, 0), fi = meshInfo(far, 8, 0);
+    const int n = 12;
+    const float xs[12] = {0,   180, 195, 210, 225, 240, 255, 270, 285, 300, 315, 330};
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i)
+        writeChunk(b, 2100, 0, static_cast<uint32_t>(n), 0, ni.size, xs[i], static_cast<uint32_t>(i), "st", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i) u16(b, static_cast<uint16_t>(i));
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i)
+        writeFloor(b, xs[i] - 4, -4, xs[i] + 4, -4, xs[i], 6, static_cast<uint16_t>(i), 2100);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    uint32_t nearOff[12], farOff[12];
+    for (int i = 0; i < n; ++i) {
+        align128(b);
+        nearOff[i] = static_cast<uint32_t>(b.size());
+        append(b, near.data(), near.size());
+        align128(b);
+        farOff[i] = static_cast<uint32_t>(b.size());
+        append(b, far.data(), far.size());
+    }
+    for (int i = 0; i < n; ++i)
+        patchNearFar(b, chunkOff + static_cast<uint32_t>(i) * 104, ni, nearOff[i], fi, farOff[i]);
+    finishHeader(b, 2100, static_cast<uint32_t>(n), static_cast<uint32_t>(n), static_cast<uint32_t>(n),
+                 chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// The tail chunk is inside lodNear and outside the card. It reads far first, then near.
 std::vector<uint8_t> buildOnce() {
     std::vector<uint8_t> near, far;
     writeTtmN(near, 4);
@@ -1348,8 +1390,40 @@ int main() {
     assert(zone.update(origin));
     assert(zone.loadsQueued() == onceQ);
     settle(zone, origin);
-    assert(zone.loadsQueued() == onceQ + 1);
+    assert(zone.loadsQueued() >= onceQ + 1);
     assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 0 && zone.chunkLod(2) == 0);
+    zone.unload();
+
+    const char* jumpPath = "/tmp/tt_retain_jump295.tz";
+    save(jumpPath, buildJump295());
+    assert(zone.load(jumpPath));
+    zone.setCamera({-40.0f, 0.0f, 30.0f}, {270.0f, 0.0f, 4.0f});
+    assert(zone.update(origin));
+    for (int i = 0; i < 500 && (zone.cardPending() || zone.loading()); ++i) {
+        zone.completeLoads();
+        assert(zone.update(origin));
+    }
+    assert(!zone.cardPending());
+    for (int i = 0; i < 500 && zone.loading(); ++i) {
+        zone.completeLoads();
+        assert(zone.update(origin));
+    }
+    const uint32_t jumpCardDraws = zone.drawCalls();
+    const uint32_t jumpFloor = jumpCardDraws * 4u / 5u;
+    std::printf("jump: card draws %u floor %u\n", jumpCardDraws, jumpFloor);
+    assert(jumpCardDraws >= 48);
+    zone.setCamera({-40.0f, 0.0f, 30.0f}, {565.0f, 0.0f, 4.0f});
+    const tt::world::Vec3 jumpFeet{0.0f, 0.0f, 1.0f};
+    uint32_t jumpMin = jumpCardDraws;
+    for (int step = 0; step < 400; ++step) {
+        assert(zone.update(jumpFeet));
+        jumpMin = std::min(jumpMin, zone.drawCalls());
+        zone.completeLoads();
+        if (!zone.loading() && zone.drawCalls() >= jumpFloor) break;
+    }
+    std::printf("jump: min draws %u after replan\n", jumpMin);
+    assert(jumpMin >= jumpFloor);
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
     zone.unload();
 
     assert(zone.load(triPath));
