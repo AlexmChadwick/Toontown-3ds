@@ -61,6 +61,9 @@ bool Talk::begin(uint32_t npcDoId) {
 
 void Talk::reset() {
     phase_ = Phase::Idle;
+    scriptPending_ = false;
+    scriptQuest_ = 0;
+    scriptLine_[0] = 0;
     npcDoId_ = 0;
     numPages_ = page_ = 0;
     actionCount_ = 0;
@@ -151,6 +154,13 @@ void Talk::onMovie(const net::NpcMovie& m) {
         if (m.numValues < 3) return;
         const uint16_t questId = m.values[0];
         toNpc = m.values[2];
+        if (questId == 101 || questId == 110) { // QuestParser.questDefined('quest_assign_101' / '110')
+            scriptQuest_ = questId;
+            scriptPending_ = true;
+            scriptLine_[0] = 0;
+            setPhase(Phase::Script, 0.0f);
+            return;
+        }
         chooseDialog(questId, kQuest, pick(), tmp, sizeof(tmp));
         appendPage(text, sizeof(text), tmp);
         if (chooseDialog(questId, kLeaving, pick(), tmp, sizeof(tmp))) appendPage(text, sizeof(text), tmp);
@@ -215,6 +225,27 @@ void Talk::advance() {
     numPages_ = 0;
 }
 
+uint16_t Talk::takeScript() {
+    if (!scriptPending_ || phase_ != Phase::Script) return 0;
+    scriptPending_ = false;
+    return scriptQuest_;
+}
+
+void Talk::setScriptLine(const char* text) {
+    if (!text) text = "";
+    if (!strcmp(text, scriptLine_)) return;
+    snprintf(scriptLine_, sizeof(scriptLine_), "%s", text);
+    scriptSerial_++;
+}
+
+void Talk::scriptDone() {
+    if (phase_ != Phase::Script) return;
+    post(TalkAction::MovieDone, 0); // NPCMoviePlayer end -> DistributedNPCToon.finishMovie: setMovieDone
+    phase_ = Phase::Idle;
+    scriptQuest_ = 0;
+    scriptLine_[0] = 0;
+}
+
 void Talk::chooseQuest(int index) {
     if (phase_ != Phase::QuestChoice) return;
     post(TalkAction::ChooseQuest, index >= 0 && index < numChoices_ ? choices_[index].questId : 0);
@@ -236,6 +267,10 @@ const char* Talk::speech(uint32_t* npcDoIdOut) const {
     if (phase_ == Phase::Pages && page_ < numPages_) {
         *npcDoIdOut = npcDoId_;
         return pages_[page_];
+    }
+    if (phase_ == Phase::Script && scriptLine_[0]) {
+        *npcDoIdOut = npcDoId_;
+        return scriptLine_;
     }
     if (lineAge_ < kSpeechHoldSec && line_[0]) {
         *npcDoIdOut = lineNpc_;

@@ -53,6 +53,21 @@ are retained for the scene owner. Commands whose Panda target has no 3DS equival
 order but intentionally have no extra visual object; inventory/book actions remain on the
 bottom-screen UI. This is the deliberate visual simplification, not fabricated script data.
 
+Where each script starts (as upstream):
+
+| Script | Trigger (upstream) | 3DS |
+| --- | --- | --- |
+| `tutorial_mickey` | DistributedTutorialInterior generate | `TutorialInterior` event; Minnie's lines for a girl Toon |
+| `quest_assign_101` | Tom's `QUEST_MOVIE_ASSIGN` 101 (DistributedNPCToon.setMovie, `questDefined`) | `Talk` enters `Phase::Script`, main starts the script; its end sends `setMovieDone` |
+| `quest_assign_110` | HQ Harry's `QUEST_MOVIE_ASSIGN` 110 | same as 101 |
+| `tutorial_blocker` | Flippy's `BLOCKER_MOVIE_START`, after `avatarEnter` on touching his (4.5, 1, 6) scaled tube | Flippy stands at `NPCToons.BlockerPositions`; contact sends `avatarEnter` once |
+
+While a script runs the toon stands still (the `quest` place state). Its lines show in the
+speaker's balloon and on the bottom-screen talk panel (A or a tap dismisses a line). Tom's
+lesson cards are the real `tutorial_gui` art (`tools/pipeline/bake_tutorial_gui.py` ->
+`romfs/baked/tutorial_gui.ttm`), drawn under his words while the script has a card parented to
+the camera.
+
 ## Packet safety and host verification
 
 Every tutorial sender is a `TT_NET_UPDATE` with a generated `TT_SIG` layout assertion:

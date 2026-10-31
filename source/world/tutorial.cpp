@@ -14,6 +14,12 @@ int varIndex(quest::ScriptVar var) {
     return i >= 0 && i < static_cast<int>(quest::ScriptVar::Count) ? i : 0;
 }
 
+bool isCard(quest::ScriptVar var) {
+    using quest::ScriptVar;
+    return var == ScriptVar::Cogs || var == ScriptVar::ToonBuilding || var == ScriptVar::CogBuilding ||
+           var == ScriptVar::Squirt1 || var == ScriptVar::Squirt2;
+}
+
 } // namespace
 
 void TutorialFlow::start(quest::ScriptId id, bool femaleToon) {
@@ -46,6 +52,7 @@ void TutorialFlow::stop() {
     player_.stop();
     text_[0] = 0;
     arrows_ = false;
+    card_ = quest::ScriptVar::None;
     finished_ = false;
 }
 
@@ -88,6 +95,13 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         break;
     case quest::ScriptOp::FinishQuestMovie:
         text_[0] = 0;
+        card_ = quest::ScriptVar::None;
+        break;
+    case quest::ScriptOp::ReparentTo:
+        if (isCard(cmd.var)) {
+            if (cmd.var2 == quest::ScriptVar::Camera) card_ = cmd.var;
+            else if (card_ == cmd.var) card_ = quest::ScriptVar::None;
+        }
         break;
     default:
         // UI-only commands (book obscuring, inventory highlights and camera tracks) retain

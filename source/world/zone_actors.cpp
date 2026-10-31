@@ -71,6 +71,9 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
             snprintf(anchor, sizeof(anchor), "npc_origin_%u", unsigned(src->posIndex));
         }
         const Point* p = findPoint(anchor);
+        // DistributedNPCBlocker.initToonState: NPCToons.BlockerPositions, not a DNA anchor.
+        static const Point kFlippyBlocker = {"flippy_blocker", 207.4f, 18.81f, -0.475f, 90.0f};
+        if (src->classId == dc::DistributedNPCBlocker::kClassId) p = &kFlippyBlocker;
         if (!p) {
             TT_LOG("zone: NPC %s has no anchor %s (interior NPC?)", src->name, anchor);
             return;
@@ -218,6 +221,14 @@ u32 ZoneActors::touchingNpc(float x, float y, float z, const net::Client& client
         const net::NpcToon* src = client.findNpc(n.doId);
         if (!src || src->classId != classId) continue;
         const float h = n.h * kDegToRad;
+        if (classId == dc::DistributedNPCBlocker::kClassId) {
+            // The blocker's tube is scaled (4.5, 1, 6): a wide wall across the tunnel mouth.
+            const float wx = x - n.x, wy = y - n.y;
+            const float lx = wx * cosf(h) + wy * sinf(h), ly = -wx * sinf(h) + wy * cosf(h) - 1.0f;
+            const float rx = tubeRadius * 4.5f + kToonRadius, ry = tubeRadius + kToonRadius;
+            if (cz < n.z + kTubeLength * 6.0f && (lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) < 1.0f) return n.doId;
+            continue;
+        }
         const float ax = n.x - sinf(h), ay = n.y + cosf(h); // tube axis: local (0, 1) rotated by heading
         const float dz = cz < n.z ? n.z - cz : cz > n.z + kTubeLength ? cz - (n.z + kTubeLength) : 0.0f;
         const float dx = x - ax, dy = y - ay;

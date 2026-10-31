@@ -210,6 +210,14 @@ float frameCpuMs() {
 }
 } // namespace
 
+// ---- tutorial ----
+// QuestParser picks Minnie over Mickey (and the female text variants) for a girl Toon.
+static bool localToonFemale(const tt::net::Client& net) {
+    tt::world::ToonDna dna;
+    return tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna) && dna.gender == tt::world::Gender::Female;
+}
+// ---- end tutorial ----
+
 int main() {
     // Boot order: only what the first frame needs comes before it (gfx, RomFS, log, GPU, the UI
     // font); everything riskier runs behind the loading screen, one named stage at a time, so a
@@ -438,6 +446,7 @@ int main() {
     static tt::quest::Talk talk;
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
+    static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
@@ -809,8 +818,21 @@ int main() {
                                    double(npc[2]));
                         }
                     } else if (const tt::world::Place::Point* p = place.point("door_origin")) {
-                        player.reset(p->x, p->y, p->z, p->h);
-                        TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                        // As at the HQ: step off the trigger if we stand on it (the no-bounce
+                        // guard), then run into the door from just inside it.
+                        static bool runningOutOfShop = false;
+                        const float hr = p->h * 3.14159265f / 180.0f;
+                        if (lastExitZone != 0) {
+                            player.reset(p->x + sinf(hr) * 4.0f, p->y - cosf(hr) * 4.0f, p->z, p->h);
+                        } else {
+                            if (!runningOutOfShop) {
+                                player.reset(p->x + sinf(hr) * 2.0f, p->y - cosf(hr) * 2.0f, p->z, p->h);
+                                runningOutOfShop = true;
+                                TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
+                        }
                     }
                 } else if (zone == tt::world::kTutorialStreet) {
                     float sx, sy, sz, sh;
@@ -822,8 +844,17 @@ int main() {
                         }
                     } else if (!tutorialHqVisited) {
                         if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: enter HQ via %s", p->name);
+                            // As at the tunnel: a toon standing on the door never touches its
+                            // trigger, so start a few units out in the street and run in.
+                            static bool runningToHq = false;
+                            if (!runningToHq) {
+                                const float hr = p->h * 3.14159265f / 180.0f;
+                                player.reset(p->x - sinf(hr) * 4.0f, p->y + cosf(hr) * 4.0f, p->z, p->h + 180.0f);
+                                runningToHq = true;
+                                TT_LOG("tutorial: enter HQ via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
                         }
                     } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
                         // The origin faces out of the tunnel: start a few units out in the street,
@@ -1699,7 +1730,7 @@ int main() {
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
         talk.update(dt);
-        if (talk.locked()) { // talking to an NPC: the dialog panel has the buttons
+        if (talk.locked() || tutorial.active()) { // talking to an NPC / a QuestScript: the dialog panel has the buttons
             in.pad.dx = 0;
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
@@ -2231,12 +2262,15 @@ int main() {
                 if (ev.type == tt::net::EventType::TutorialEnter) {
                     loadTutorialPlace(net.zoneId());
                 } else if (ev.type == tt::net::EventType::TutorialInterior) {
-                    tutorial.start(tt::quest::ScriptId::TutorialMickey, false);
+                    tutorialSpeaker = 0;
+                    tutorial.start(tt::quest::ScriptId::TutorialMickey, localToonFemale(net));
                 } else if (ev.type == tt::net::EventType::BlockerMovie) {
                     tt::net::Client::BlockerMovie movie;
                     while (net.pollBlockerMovie(movie)) {
-                        if (movie.avId == net.avatarId() && movie.mode == 1)
-                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, false);
+                        if (movie.avId == net.avatarId() && movie.mode == 1) {
+                            tutorialSpeaker = movie.npcDoId;
+                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, localToonFemale(net));
+                        }
                     }
                 } else if (ev.type == tt::net::EventType::Quests && autotest.tutorialPath()) {
                     const tt::net::OwnQuests& quests = net.ownQuests();
@@ -2265,6 +2299,14 @@ int main() {
                 if (ev.type == tt::net::EventType::NpcMovie) {
                     tt::net::NpcMovie movie;
                     while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                    // ---- tutorial ----
+                    // Tutorial Tom / HQ Harry: quest_assign_101 / 110 play as QuestScripts.
+                    if (const uint16_t q = talk.takeScript()) {
+                        tutorialSpeaker = talk.npcDoId();
+                        tutorial.start(q == 101 ? tt::quest::ScriptId::QuestAssign101 : tt::quest::ScriptId::QuestAssign110,
+                                       localToonFemale(net));
+                    }
+                    // ---- end tutorial ----
                 } else if (ev.type == tt::net::EventType::NpcFree) {
                     talk.onFree(ev.doId);
                 } else if (ev.type == tt::net::EventType::NpcDespawn) {
@@ -2343,7 +2385,15 @@ int main() {
             pets.update(net);
             // ---- tutorial ----
             tutorial.update(dt);
-            if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
+            if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
+            if (talk.phase() == tt::quest::Talk::Phase::Script) {
+                talk.setScriptLine(tutorial.text());
+                using SV = tt::quest::ScriptVar;
+                const SV c = tutorial.card();
+                talk.setScriptCard(c == SV::Cogs ? 0 : c == SV::ToonBuilding ? 1 : c == SV::CogBuilding ? 2
+                                   : c == SV::Squirt1 ? 3 : c == SV::Squirt2 ? 4 : -1); // ui::TutorialCard
+                if (tutorial.takeFinished() || !tutorial.active()) talk.scriptDone();
+            }
             // ---- end tutorial ----
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
@@ -2518,6 +2568,18 @@ int main() {
                     TT_LOG("quest: talking to NPC %u", unsigned(giver));
                 }
                 if (npcFree || !giver) lastTouchedQuestNpc = giver;
+                // ---- tutorial ----
+                // Flippy at the tunnel: DistributedNPCBlocker.handleCollisionSphereEnter sends
+                // avatarEnter once per contact; the AI answers with BLOCKER_MOVIE_START.
+                if (net.inTutorial()) {
+                    static u32 lastTouchedBlocker = 0;
+                    const u32 blocker = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                               tt::dc::DistributedNPCBlocker::kClassId);
+                    if (blocker && blocker != lastTouchedBlocker && !tutorial.active() && net.sendBlockerAvatarEnter(blocker))
+                        TT_LOG("tutorial: Flippy blocker contact %u", unsigned(blocker));
+                    lastTouchedBlocker = blocker;
+                }
+                // ---- end tutorial ----
                 tt::quest::TalkAction ta;
                 while (talk.popAction(ta)) {
                     switch (ta.kind) {
@@ -3110,8 +3172,10 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && net.tutorialInterior().active && tutorial.text()[0]) {
-                    talker = net.tutorialInterior().npcDoId;
+                if (tutorial.active() && tutorial.text()[0] && talk.phase() != tt::quest::Talk::Phase::Script) {
+                    // Mickey's intro is said over Tom (no classic-char actor in his room); Flippy's
+                    // SpeedChat lesson over Flippy.
+                    talker = tutorialSpeaker ? tutorialSpeaker : net.tutorialInterior().npcDoId;
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
