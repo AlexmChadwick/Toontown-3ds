@@ -15,12 +15,19 @@ namespace battle {
 constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
-constexpr float kCogX = 2, kCogY = 18, kCogH = 40, kCogW = 78, kCogGap = 1;
-constexpr float kGridY = 62, kRowH = 19, kGridX = 60, kCellW = 35, kCellGap = 2;
+constexpr float kCogX = 2, kCogY = 17, kCogH = 32, kCogW = 78, kCogGap = 1;
+// InventoryNew inside battle_gui's red BATTLE_Menu frame: one InventoryRow per track, the label
+// end on the left and the seven gag buttons over the row's slots (InventoryRow's first slot sits
+// 22% in, ui/inventory_art.h). The rows fill [kGridY, kGridY + kGridH).
+constexpr float kFrameX = 1, kFrameY = 51, kFrameW = 318, kFrameH = 150;
+constexpr float kRowX = 5, kRowW = 310, kGridY = 56, kGridH = 140;
+constexpr float kGridX = 73, kCellW = 34, kCellGap = (kRowX + kRowW - kGridX - 7 * kCellW) / 7;
+// A track still to earn keeps its labelled row, thin, so the earned rows get big buttons.
+constexpr float kThinRowH = 11, kMaxRowH = 30, kRowGap = 1;
 // The bottom strip. InventoryNew's battle buttons sit in a 2 x 2 block, as upstream: Fire and
 // Pass above Run and SOS. In the SOS and Fire panels the block holds Back (and the SOS page).
-constexpr float kBtnY = 198, kBtnH = 40;
-constexpr float kSmallW = 54, kSmallH = 19, kSmallGap = 2;
+constexpr float kBtnY = 203, kBtnH = 36;
+constexpr float kSmallW = 54, kSmallH = 17, kSmallGap = 2;
 constexpr float kFireX = 2, kPassX = kFireX + kSmallW + kSmallGap, kRunX = kFireX, kSosX = kPassX;
 constexpr float kRow2Y = kBtnY + kSmallH + kSmallGap;
 constexpr float kBackX = 2, kBackW = 2 * kSmallW + kSmallGap;
@@ -43,9 +50,12 @@ constexpr int kIdSosCard0 = 300; // + card index within the view
 constexpr int gagId(int track, int level) { return track * 10 + level; }
 constexpr bool isGagId(int id) { return id >= 0 && id < kIdCog0; }
 } // namespace battle
-// usable[track * kLevels + level]: the gag can be chosen now.
+// Each track row's top and height: earned tracks (owned[t], all when null) share the grid up to
+// kMaxRowH each, the rest are kThinRowH; the stack is centred in the grid.
+void battleRows(const bool* owned, float* y, float* h);
+// usable[track * kLevels + level]: the gag can be chosen now. owned: the tracks we have (rows).
 void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
-                      bool canFire = false, bool canSos = false);
+                      bool canFire = false, bool canSos = false, const bool* owned = nullptr);
 // The SOS panel: `numCards` cards in this view (callable[i]: has calls left), Back and a page
 // button when the Rescued Toons fill more than one view.
 void buildBattleSos(FocusGroup& group, int numCards, const bool* callable, bool paged);

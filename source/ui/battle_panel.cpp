@@ -7,6 +7,7 @@
 #include <cstring>
 
 #include "ui/gag_data.h"
+#include "ui/inventory_art.h"
 #include "ui/pad_tables.h"
 #include "ui/sos_tables.h"
 #include "core/log.h"
@@ -21,8 +22,8 @@ namespace {
 constexpr float kW = 320.0f;
 // The layout is shared with the focus table (ui/pad_tables.h) so touch, D-Pad and drawing agree.
 constexpr float kCogY = pad::battle::kCogY, kCogH = pad::battle::kCogH, kCogW = pad::battle::kCogW;
-constexpr float kGridY = pad::battle::kGridY, kRowH = pad::battle::kRowH;
-constexpr float kGridX = pad::battle::kGridX, kCellW = pad::battle::kCellW;
+constexpr float kGridY = pad::battle::kGridY, kGridH = pad::battle::kGridH;
+constexpr float kGridX = pad::battle::kGridX, kCellW = pad::battle::kCellW, kCellGap = pad::battle::kCellGap;
 constexpr float kBtnY = pad::battle::kBtnY, kBtnH = pad::battle::kBtnH;
 static_assert(pad::battle::kTracks == gags::kTracks && pad::battle::kLevels == gags::kLevels,
               "the battle focus table assumes the 7 x 7 gag grid");
@@ -90,6 +91,9 @@ void drawHealthMeter(float x, float y, float w, float f) {
                          theme::mix(light, theme::kWhite, 0.6f), 0.59f);
     }
 }
+
+// InventoryNew's track labels: TextEncoder.upper(Tracks[track]).
+constexpr const char* kTrackLabels[7] = {"TOON-UP", "TRAP", "LURE", "SOUND", "THROW", "SQUIRT", "DROP"};
 
 int headIndex(const char* code) {
     if (!code[0]) return -1;
@@ -266,7 +270,9 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     for (int t = 0; t < gags::kTracks; t++) {
         for (int l = 0; l < gags::kLevels; l++) usableGag[t * gags::kLevels + l] = usable(v, g, t, l);
     }
-    pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, v.canFire, v.canSos);
+    bool owned[gags::kTracks];
+    for (int t = 0; t < gags::kTracks; t++) owned[t] = g.access && g.access[t];
+    pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, v.canFire, v.canSos, owned);
     if (wantFocus_ >= 0) {
         focus_.setFocusById(wantFocus_);
         wantFocus_ = -1;
@@ -350,13 +356,13 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // Upstream's TownBattle: the cream gag panel with a row per track in its colour, Cog panels
     // with the suit's health light colours, and round Pass / Run buttons.
     theme::sky();
-    theme::paper(1, 0, kW - 2, 17, 5.0f);
+    theme::paper(1, 0, kW - 2, 15, 5.0f);
     // TownBattleSOSPanel / FireCogPanel titles while those panels are open.
     const char* status = v.status ? v.status : "";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Sos)
         status = v.numSosCards > 0 ? "Call which friend?" : "No friends to call!";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Fire) status = "Fire which Cog?";
-    text(6, 0, 0.45f, kInk, "%s", status);
+    text(6, -1, 0.44f, kInk, "%s", status);
     // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
 
     // Cogs: name, head, level and the chest light's health. The target wears a red frame.
@@ -368,25 +374,26 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         theme::paper(x, kCogY, kCogW, kCogH, 5.0f, c.active ? theme::kPaper : theme::kGrey,
                      target ? theme::kRed : theme::kGreyDark);
         if (target) theme::roundRect(x + 1, kCogY + 1, kCogW - 2, 3, 1, theme::kRed);
-        C2D_Text name;
-        textCache_.parse(&name, buf_, c.name, 1024);
-        theme::textFit(name, x + 4, kCogY + 2, 0.38f, c.active ? kInk : kInkSoft, kCogW - 8, 0.6f);
+        // The head on the left, then the name, the level (or Lured / Fire) and the health light.
         const int head = c.skelecog ? -1 : headIndex(c.code);
         float rx = x + 4;
         if (head >= 0) {
-            theme::roundRect(x + 3, kCogY + 14, 24, 24, 5, theme::kPaperShade, 0.56f);
-            SuitHeadAtlas::instance().drawHead(head / 8, head % 8, x + 3.5f, kCogY + 14.5f, 23.0f, 0.58f);
-            rx = x + 31;
+            theme::roundRect(x + 3, kCogY + 4, 26, 26, 5, theme::kPaperShade, 0.56f);
+            SuitHeadAtlas::instance().drawHead(head / 8, head % 8, x + 3.5f, kCogY + 4.5f, 25.0f, 0.58f);
+            rx = x + 32;
         }
+        C2D_Text name;
+        textCache_.parse(&name, buf_, c.name, 1024);
+        theme::textFit(name, rx, kCogY + 1, 0.36f, c.active ? kInk : kInkSoft, x + kCogW - 3 - rx, 0.6f);
         if (mode_ == Mode::Fire && v.phase == world::BattlePhase::Input && fireable(v, i)) {
             // FireCogPanel's avatar buttons: each Cog card is a pink-slip target.
-            theme::roundRect(rx - 1, kCogY + 14, 26, 12, 5, theme::kRed, 0.57f);
-            text(rx + 3, kCogY + 14, 0.34f, theme::kWhite, "Fire");
+            theme::roundRect(rx - 1, kCogY + 11, 26, 10, 4, theme::kRed, 0.57f);
+            text(rx + 3, kCogY + 10, 0.32f, theme::kWhite, "Fire");
         } else if (c.lured) {
-            theme::roundRect(rx - 1, kCogY + 14, 30, 12, 5, theme::kGreen, 0.57f);
-            text(rx + 3, kCogY + 14, 0.34f, theme::kWhite, "Lured");
+            theme::roundRect(rx - 1, kCogY + 11, 30, 10, 4, theme::kGreen, 0.57f);
+            text(rx + 3, kCogY + 10, 0.32f, theme::kWhite, "Lured");
         } else if (c.level > 0) {
-            text(rx, kCogY + 14, 0.36f, kInkSoft, "Level %d", c.level);
+            text(rx, kCogY + 10, 0.32f, kInkSoft, "Level %d", c.level);
         }
         if (loggedCog_[i] != c.doId || loggedHp_[i] != c.hp || loggedMax_[i] != c.maxHp) {
             loggedCog_[i] = c.doId;
@@ -396,7 +403,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         }
         // A Cog joins at full health; until its max is known draw it full.
         const float f = c.maxHp > 0 ? hpFraction(c.hp, c.maxHp) : 1.0f;
-        drawHealthMeter(rx, kCogY + 26, x + kCogW - 4 - rx, f);
+        drawHealthMeter(rx, kCogY + 20, x + kCogW - 4 - rx, f);
 
     }
 
@@ -454,45 +461,114 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     } else if (choosing && mode_ == Mode::Fire) {
         drawFire(v);
     } else {
-        // Gag grid: one row per track, a cell per level with our count.
-        theme::paper(1, kGridY - 3, kW - 2, gags::kTracks * kRowH + 4, 5.0f);
-        for (int t = 0; t < gags::kTracks; t++) {
-            const float y = kGridY + t * kRowH;
-            const bool have = g.access && g.access[t];
-            // InventoryNew tints every track row; a track still to earn just has no gag buttons.
-            const u32 col = theme::kTrackColors[t];
-            theme::roundRect(4, y, kGridX - 6, kRowH - 2, 4, have ? col : theme::mix(col, theme::kPaper, 0.55f));
-            text(8, y + 1, 0.38f, have ? kInk : kInkSoft, "%s", theme::kTrackTitles[t]);
-            if (!have) {
-                theme::roundRect(kGridX, y, gags::kLevels * (kCellW + 2) - 2, kRowH - 2, 4,
-                                 theme::mix(col, theme::kPaper, 0.82f));
-                continue;
-            }
-            if (!g.count) continue;
-            const int levels = gags::levelsUnlocked(t, g.exp[t]);
-            for (int l = 0; l < levels; l++) {
-                const float x = kGridX + l * (kCellW + 2);
-                const bool ok = choosing && usable(v, g, t, l);
-                const u32 face = ok ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.55f) : theme::kPaperShade;
-                theme::roundRect(x, y, kCellW, kRowH - 2, 4,
-                                 ok ? theme::shade(theme::kTrackColors[t], 0.7f) : theme::kGrey);
-                theme::roundRect(x + 1, y + 1, kCellW - 2, kRowH - 4, 3, face);
-                world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 1, 15.0f, 0.55f, ok ? 1.0f : 0.4f);
-                text(x + 20, y + 1.5f, 0.38f, ok ? kInk : kInkSoft, "%u", unsigned(g.count[t][l]));
-            }
-        }
+        drawGagGrid(v, g);
         drawButtons(v);
     }
     drawToons(v, pad::battle::kToonsX, pad::battle::kToonsW);
     if (choosing) focus_.drawHighlight();
 }
 
-// InventoryNew's battle button: the rounded InventoryButton face in image_color (0, 0.6, 1)
-// with white text; a disabled one (Fire without pink slips) in (0.4, 0.4, 0.4).
+void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
+    const bool choosing = v.phase == world::BattlePhase::Input;
+    const bool art = invArtReady();
+    bool owned[gags::kTracks];
+    for (int t = 0; t < gags::kTracks; t++) owned[t] = g.access && g.access[t];
+    float rowY[gags::kTracks], rowH[gags::kTracks];
+    pad::battleRows(owned, rowY, rowH);
+    int levels[gags::kTracks] = {};
+    bool ok[gags::kTracks][gags::kLevels] = {};
+    for (int t = 0; t < gags::kTracks; t++) {
+        if (!owned[t] || !g.count) continue;
+        levels[t] = gags::levelsUnlocked(t, g.exp[t]);
+        for (int l = 0; l < levels[t]; l++) ok[t][l] = choosing && usable(v, g, t, l);
+    }
+    const int focused = choosing ? focus_.focusedId() : -1;
+    const float cellX0 = kGridX;
+    auto cellX = [&](int l) { return cellX0 + l * (kCellW + kCellGap); };
+
+    // Art pass: the frame, the rows in their track colours and the button faces (one tint batch).
+    if (art) {
+        invTintBegin();
+        drawInvMenu(pad::battle::kFrameX, pad::battle::kFrameY, pad::battle::kFrameW, pad::battle::kFrameH, 0.5f);
+        for (int t = 0; t < gags::kTracks; t++) {
+            drawInvRow(pad::battle::kRowX, rowY[t], pad::battle::kRowW, rowH[t], kGridX, 0.52f, theme::kTrackColors[t]);
+            for (int l = 0; l < levels[t]; l++) {
+                // makePressable: Up (Rollover under the focus) in PressableImageColor; makeUnpressable:
+                // Flat in UnpressableImageColor.
+                const bool f = focused == pad::battle::gagId(t, l);
+                const InvArt face = ok[t][l] ? (f ? InvArt::ButtonRollover : InvArt::ButtonUp) : InvArt::ButtonFlat;
+                drawInvArt(face, cellX(l), rowY[t], kCellW, rowH[t], 0.54f, ok[t][l] ? kInvPressable : kInvUnpressable);
+            }
+        }
+        invTintEnd();
+    } else {
+        theme::paper(1, kGridY - 3, kW - 2, kGridH + 4, 5.0f);
+        for (int t = 0; t < gags::kTracks; t++) {
+            theme::roundRect(pad::battle::kRowX, rowY[t], pad::battle::kRowW, rowH[t], 4, theme::kTrackColors[t], 0.52f);
+            for (int l = 0; l < levels[t]; l++)
+                theme::roundRect(cellX(l), rowY[t], kCellW, rowH[t], 4, ok[t][l] ? kInvPressable : theme::kGrey, 0.54f);
+        }
+    }
+
+    // Labels, icons and counts.
+    for (int t = 0; t < gags::kTracks; t++) {
+        const float y = rowY[t], h = rowH[t];
+        C2D_Text label;
+        textCache_.parse(&label, buf_, kTrackLabels[t], 1024);
+        float lw = 0, lh = 0;
+        float ls = h >= 18 ? 0.46f : 0.34f;
+        C2D_TextGetDimensions(&label, ls, ls, &lw, &lh);
+        const float room = kGridX - pad::battle::kRowX - 8;
+        if (lw > room) {
+            ls *= room / lw;
+            C2D_TextGetDimensions(&label, ls, ls, &lw, &lh);
+        }
+        drawOutlinedText(label, pad::battle::kRowX + 4, y + (h - lh) * 0.5f, 0.56f, ls, theme::rgb(0x33, 0x33, 0x33),
+                         owned[t] ? theme::kWhite : theme::rgb(0xFF, 0xFF, 0xFF, 0x90));
+        for (int l = 0; l < levels[t]; l++) {
+            const float x = cellX(l);
+            // geom_scale 0.7 of the button: the icon fills most of the face, a little left of centre.
+            float icon = h * 0.84f;
+            if (icon > kCellW * 0.78f) icon = kCellW * 0.78f;
+            world::GagAtlas::instance().drawIcon(t, l, x + (kCellW - icon) * 0.5f - 2, y + (h - icon) * 0.5f, icon, 0.58f,
+                                                 ok[t][l] ? 1.0f : 0.3f); // UnpressableGeomColor alpha 0.3
+            char num[8];
+            snprintf(num, sizeof num, "%u", unsigned(g.count[t][l]));
+            C2D_Text n;
+            textCache_.parse(&n, buf_, num, 1024);
+            const float ns = h >= 24 ? 0.42f : h >= 16 ? 0.36f : 0.3f;
+            float nw = 0, nh = 0;
+            C2D_TextGetDimensions(&n, ns, ns, &nw, &nh);
+            // text_pos (0.07, -0.04), right-aligned: the count sits in the bottom-right corner.
+            drawOutlinedText(n, x + kCellW - 3 - nw, y + h - nh + 1, 0.6f, ns,
+                             ok[t][l] ? theme::kWhite : theme::rgb(0xFF, 0xFF, 0xFF, 0x60),
+                             ok[t][l] ? theme::rgb(0x00, 0x2A, 0x55) : theme::rgb(0x20, 0x20, 0x20, 0x60));
+        }
+    }
+    drawButtons(v);
+}
+
+// InventoryNew's battle button: InventoryButtonUp in image_color (0, 0.6, 1) with white text; a
+// disabled one (Fire without pink slips) in (0.4, 0.4, 0.4).
 void BattlePanel::smallButton(float x, float y, float w, bool enabled, const char* label) {
-    const u32 face = enabled ? kInvBlue : theme::rgb(0x8A, 0x8A, 0x8A);
-    theme::button(x, y, w, pad::battle::kSmallH, face, theme::shade(face, 0.62f), false, 5.0f);
-    centered(x + w * 0.5f, y + 2, 0.42f, enabled ? theme::kWhite : theme::rgb(0xD8, 0xD8, 0xD8), w - 6, label);
+    const u32 face = enabled ? kInvPressable : kInvDisabledButton;
+    if (invArtReady()) {
+        invTintBegin();
+        drawInvArt(InvArt::ButtonUp, x, y, w, pad::battle::kSmallH, 0.55f, face);
+        invTintEnd();
+    } else {
+        theme::button(x, y, w, pad::battle::kSmallH, face, theme::shade(face, 0.62f), false, 5.0f);
+    }
+    C2D_Text t;
+    textCache_.parse(&t, buf_, label, 1024);
+    float s = 0.42f, tw = 0, th = 0;
+    C2D_TextGetDimensions(&t, s, s, &tw, &th);
+    if (tw > w - 8) {
+        s *= (w - 8) / tw;
+        C2D_TextGetDimensions(&t, s, s, &tw, &th);
+    }
+    drawOutlinedText(t, x + (w - tw) * 0.5f, y + (pad::battle::kSmallH - th) * 0.5f, 0.6f, s,
+                     enabled ? theme::kWhite : theme::rgb(0xD8, 0xD8, 0xD8), theme::rgb(0x00, 0x2A, 0x55, enabled ? 0xFF : 0x80));
 }
 
 void BattlePanel::drawButtons(const world::BattleView& v) {
@@ -507,7 +583,7 @@ void BattlePanel::drawButtons(const world::BattleView& v) {
 // ability in its track colour, the name, stars and calls left); BACK returns to the gags. The
 // stock server has no FriendManager, so the friends column upstream shows is always empty.
 void BattlePanel::drawSos(const world::BattleView& v) {
-    theme::paper(1, kGridY - 3, kW - 2, gags::kTracks * kRowH + 4, 5.0f);
+    theme::paper(1, kGridY - 3, kW - 2, kGridH + 4, 5.0f);
     if (v.numSosCards == 0) {
         centered(kW * 0.5f, kGridY + 30, 0.6f, theme::kRedDark, kW - 20, "No friends to call!");
         centered(kW * 0.5f, kGridY + 58, 0.42f, kInk, kW - 30, "Rescue Toons from the Sellbot VP");
@@ -547,7 +623,7 @@ void BattlePanel::drawSos(const world::BattleView& v) {
 // FireCogPanel: "PINK SLIPS LEFT: n / FIRE WHICH COG?" (or NOT ENOUGH SLIPS!); the Cog cards
 // above are the buttons.
 void BattlePanel::drawFire(const world::BattleView& v) {
-    theme::paper(1, kGridY - 3, kW - 2, gags::kTracks * kRowH + 4, 5.0f);
+    theme::paper(1, kGridY - 3, kW - 2, kGridH + 4, 5.0f);
     // A pink slip, like the prop the Cogs hand out.
     const float px = 110, py = kGridY + 14, pw = 100, ph = 62;
     theme::roundRect(px + 3, py + 3, pw, ph, 3, theme::rgb(0xC8, 0x9A, 0xA8, 0x80));
@@ -570,24 +646,33 @@ void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW
     theme::textCentered(t, cx, y, scale, color, maxW);
 }
 
-// TownBattleToonPanel: every toon in the battle with its laff meter (the species head in its
-// head colour) and the laff as a number, since eye numbers are unreadable at this size. Ours
-// wears a yellow frame; a toon that ran is greyed. The top screen's meter is hidden meanwhile.
+// TownBattleToonPanel: every toon in the battle on ToonBtl_Status_BG (image_color (0.5, 0.9, 0.5,
+// 0.7)) with its laff meter (the species head in its head colour), "hp/max" under it and the
+// chosen gag in the panel's blue square ("?" until then, or Pass / SOS / Fire). Ours wears a
+// yellow edge; a toon that ran is greyed. The top screen's meter is hidden meanwhile.
 void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
     const int n = v.numToons < world::kBattleToonCards ? v.numToons : world::kBattleToonCards;
     if (n <= 0) return;
-    constexpr float kGap = 2.0f, kMaxCardW = 100.0f;
+    constexpr float kGap = 2.0f, kMaxCardW = 66.0f;
     float cw = (w - (n - 1) * kGap) / n;
     if (cw > kMaxCardW) cw = kMaxCardW;
-    const bool wide = cw >= 80.0f; // room for the name and the laff beside the meter
-    const float meter = wide ? 46.0f : 34.0f; // the atlas cell; the head fills ~3/4 of it
+    const float ch = kBtnH;
+    const bool art = invArtReady();
+    // The blue square in ToonBtl_Status_BG, as fractions of the panel (measured on the art).
+    constexpr float kSqX0 = 0.58f, kSqX1 = 0.89f, kSqY0 = 0.12f, kSqY1 = 0.51f;
     for (int i = 0; i < n; i++) {
         const world::BattleToonView& t = v.toons[i];
         const float x = x0 + i * (cw + kGap);
         const bool gone = t.running || !t.active;
-        theme::paper(x, kBtnY, cw, kBtnH, 5.0f, gone ? theme::kGrey : theme::kPaper,
-                     t.local ? theme::kYellowDark : theme::kPaperEdge);
-        if (t.local) theme::roundRect(x + 2, kBtnY + 2, cw - 4, 2, 1, theme::kYellow, 0.55f);
+        if (art) {
+            invTintBegin();
+            drawInvArt(InvArt::ToonStatus, x, kBtnY, cw, ch, 0.55f,
+                       gone ? theme::rgb(0x90, 0x90, 0x90, 0xC0) : theme::rgb(0x80, 0xE6, 0x80, 0xFF));
+            invTintEnd();
+        } else {
+            theme::paper(x, kBtnY, cw, ch, 5.0f, gone ? theme::kGrey : theme::kPaper, theme::kPaperEdge);
+        }
+        if (t.local) theme::roundRect(x + 4, kBtnY + ch - 3, cw - 8, 2, 1, theme::kYellow, 0.57f);
         if (pulseId_[i] != t.doId) {
             pulseId_[i] = t.doId;
             pulse_[i] = LaffPulse{};
@@ -597,15 +682,19 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         face.maxHp = t.maxHp > 0 ? t.maxHp : (t.hp > 0 ? t.hp : 15);
         for (int k = 0; k < 3; k++) face.rgb[k] = t.rgb[k];
         face.species = t.species;
+        // laffMeter.setPos(-0.06, 0, 0.05) and healthText at (-0.06, -0.075) on a 0.43 x 0.27 panel.
+        const float meter = ch * 0.66f;
         const float s = meter * pulse_[i].update(t.hp);
-        // Meter centre: left of the text on a wide card, top centre on a narrow one.
-        const float mx = wide ? x + meter * 0.45f : x + cw * 0.5f;
-        const float my = wide ? kBtnY + kBtnH * 0.5f : kBtnY + meter * 0.42f;
-        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.56f);
+        const float mx = x + cw * 0.34f, my = kBtnY + ch * 0.38f;
+        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.58f);
         char num[24];
-        snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
+        if (t.maxHp > 0) {
+            snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, t.maxHp);
+        } else {
+            snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
+        }
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
-        const u32 numCol = gone ? kInkSoft : low ? theme::kRedDark : kInk;
+        centered(mx, kBtnY + ch * 0.68f, 0.34f, gone ? kInkSoft : low ? theme::kRedDark : kInk, cw * 0.62f, num);
         // TownBattleToonPanel.setValues while choosing: the chosen gag, Pass, SOS or Fire ("?" until then).
         const bool picking = !gone && (v.phase == world::BattlePhase::Input || v.phase == world::BattlePhase::Chosen);
         const char* pick = nullptr;
@@ -614,33 +703,22 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         if (picking && t.choice == world::BattleToonView::kChoiceSos) pick = "SOS";
         if (picking && t.choice == world::BattleToonView::kChoiceFire) pick = "Fire";
         const bool gag = picking && t.choice == world::BattleToonView::kChoiceGag;
-        if (wide) {
-            const float tx = x + meter * 0.86f, tw = cw - meter * 0.86f - 4;
-            C2D_Text name;
-            textCache_.parse(&name, buf_, t.name, 1024);
-            theme::textFit(name, tx, kBtnY + 4, 0.38f, gone ? kInkSoft : kInk, tw, 0.6f);
-            if (t.maxHp > 0) snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, t.maxHp);
-            const float pickW = gag || pick ? 20.0f : 0.0f;
-            C2D_Text laff;
-            textCache_.parse(&laff, buf_, num, 1024);
-            theme::textFit(laff, tx, kBtnY + 19, 0.46f, numCol, tw - pickW, 0.6f);
-            const float px = x + cw - 20, py = kBtnY + 19;
-            if (gag) {
-                world::GagAtlas::instance().drawIcon(t.chosenTrack, t.chosenLevel, px, py, 16.0f, 0.6f, 1.0f);
-            } else if (pick) {
-                centered(px + 8, py + 1, 0.36f, kInkSoft, 22, pick);
+        const float sx = x + cw * kSqX0, sy = kBtnY + ch * kSqY0, sw = cw * (kSqX1 - kSqX0), sh = ch * (kSqY1 - kSqY0);
+        if (gag) {
+            const float icon = (sw < sh ? sw : sh) * 1.25f;
+            world::GagAtlas::instance().drawIcon(t.chosenTrack, t.chosenLevel, sx + (sw - icon) * 0.5f,
+                                                 sy + (sh - icon) * 0.5f, icon, 0.6f, 1.0f);
+        } else if (pick) {
+            C2D_Text p;
+            textCache_.parse(&p, buf_, pick, 1024);
+            float ps = pick[0] == '?' ? 0.5f : 0.3f, pw = 0, ph = 0;
+            C2D_TextGetDimensions(&p, ps, ps, &pw, &ph);
+            if (pw > sw + 6) {
+                ps *= (sw + 6) / pw;
+                C2D_TextGetDimensions(&p, ps, ps, &pw, &ph);
             }
-        } else {
-            centered(x + cw * 0.5f, kBtnY + 26, 0.40f, numCol, cw - 4, num);
-            // A badge on the card's corner: the gag icon once chosen, else the pick.
-            if (gag) {
-                theme::roundRect(x + cw - 17, kBtnY + 2, 15, 15, 7.5f, theme::kWhite, 0.58f);
-                world::GagAtlas::instance().drawIcon(t.chosenTrack, t.chosenLevel, x + cw - 16, kBtnY + 3, 13.0f, 0.6f,
-                                                     1.0f);
-            } else if (pick && pick[0] != '?') {
-                theme::roundRect(x + cw - 22, kBtnY + 2, 20, 11, 4, theme::kWhite, 0.58f);
-                centered(x + cw - 12, kBtnY + 1, 0.30f, kInkSoft, 19, pick);
-            }
+            drawOutlinedText(p, sx + (sw - pw) * 0.5f, sy + (sh - ph) * 0.5f, 0.6f, ps, theme::kWhite,
+                             theme::rgb(0x10, 0x30, 0x60));
         }
     }
 }

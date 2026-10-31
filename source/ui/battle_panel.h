@@ -40,6 +40,9 @@ private:
     uint32_t targetFor(const world::BattleView& v, int track) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void drawToons(const world::BattleView& v, float x0, float w);
+    // InventoryNew's battle inventory: BATTLE_Menu, a tinted InventoryRow per track and a gag
+    // button (icon, count) per unlocked level.
+    void drawGagGrid(const world::BattleView& v, const BattleGags& g);
     // InventoryNew's battle buttons (Fire / Pass / Run / SOS) in its own blue.
     void drawButtons(const world::BattleView& v);
     void drawSos(const world::BattleView& v);

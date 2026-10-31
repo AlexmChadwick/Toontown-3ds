@@ -132,9 +132,13 @@ public:
     void shutdown();
     bool loaded() const { return model_.loaded(); }
     void drawIcon(int track, int level, float x, float y, float size, float depth = 0.55f, float alpha = 1.0f);
+    // romfs:/baked/inventory_gui.ttm (bake_inventory_gui.py): 34px icons in texture 0 and the
+    // InventoryNew / TownBattle pieces in texture 1. Null with the old SD-only atlas.
+    C3D_Tex* guiTexture() { return hiRes_ && model_.loaded() ? model_.texture(1) : nullptr; }
 
 private:
     render::Model model_;
+    bool hiRes_ = false; // model_ is the RomFS inventory_gui atlas, not the 28px SD one
 };
 
 // ----------------------------------------------------------------------

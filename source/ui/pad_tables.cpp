@@ -2,16 +2,38 @@
 
 namespace tt::ui::pad {
 
+void battleRows(const bool* owned, float* y, float* h) {
+    using namespace battle;
+    int earned = 0;
+    for (int t = 0; t < kTracks; t++) earned += !owned || owned[t];
+    const int thin = kTracks - earned;
+    float rowH = kGridH / kTracks - kRowGap;
+    if (earned > 0) {
+        rowH = (kGridH - thin * (kThinRowH + kRowGap) - earned * kRowGap) / earned;
+        if (rowH > kMaxRowH) rowH = kMaxRowH;
+    }
+    float total = 0;
+    for (int t = 0; t < kTracks; t++) total += (earned == 0 || !owned || owned[t] ? rowH : kThinRowH) + kRowGap;
+    float at = kGridY + (kGridH - total) * 0.5f;
+    for (int t = 0; t < kTracks; t++) {
+        y[t] = at;
+        h[t] = earned == 0 || !owned || owned[t] ? rowH : kThinRowH;
+        at += h[t] + kRowGap;
+    }
+}
+
 void buildBattleInput(FocusGroup& group, int numCogs, const bool* cogActive, const bool* usable, bool canRun,
-                      bool canFire, bool canSos) {
+                      bool canFire, bool canSos, const bool* owned) {
     using namespace battle;
     group.rebuild();
     for (int i = 0; i < numCogs && i < kMaxCogs; i++) {
         group.addItem(kIdCog0 + i, kCogX + i * (kCogW + kCogGap), kCogY, kCogW, kCogH, cogActive[i]);
     }
+    float rowY[kTracks], rowH[kTracks];
+    battleRows(owned, rowY, rowH);
     for (int t = 0; t < kTracks; t++) {
         for (int l = 0; l < kLevels; l++) {
-            group.addItem(gagId(t, l), kGridX + l * (kCellW + kCellGap), kGridY + t * kRowH, kCellW, kRowH - 2,
+            group.addItem(gagId(t, l), kGridX + l * (kCellW + kCellGap), rowY[t], kCellW, rowH[t],
                           usable[t * kLevels + l]);
         }
     }

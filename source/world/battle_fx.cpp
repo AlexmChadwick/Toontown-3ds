@@ -266,6 +266,9 @@ GagAtlas& GagAtlas::instance() {
 
 bool GagAtlas::init() {
     if (model_.loaded()) return true;
+    hiRes_ = model_.load("romfs:/baked/inventory_gui.ttm") && model_.texture(1);
+    if (hiRes_) return true;
+    model_.unload();
     return model_.load("sdmc:/3ds/toontown3ds/data/props/inventory_atlas.ttm");
 }
 
@@ -278,20 +281,28 @@ void GagAtlas::drawIcon(int track, int level, float x, float y, float size, floa
     C3D_Tex* tex = model_.texture(0);
     if (!tex) return;
 
-    const GagSubTex& st = kGagSubTextures[track][level];
     Tex3DS_SubTexture sub;
-    sub.width = st.width;
-    sub.height = st.height;
-    sub.left = st.left;
-    sub.top = st.top;
-    sub.right = st.right;
-    sub.bottom = st.bottom;
+    if (hiRes_) {
+        // ui/inventory_gui_atlas.h: cell (level * 36, track * 36), one clear pixel of border.
+        constexpr float kCell = 36.0f, kTex = 256.0f;
+        const float x0 = level * kCell + 1, y0 = track * kCell + 1, n = kCell - 2;
+        sub = {uint16_t(n), uint16_t(n), x0 / kTex, 1.0f - y0 / kTex, (x0 + n) / kTex, 1.0f - (y0 + n) / kTex};
+    } else {
+        const GagSubTex& st = kGagSubTextures[track][level];
+        sub.width = st.width;
+        sub.height = st.height;
+        sub.left = st.left;
+        sub.top = st.top;
+        sub.right = st.right;
+        sub.bottom = st.bottom;
+    }
+    const uint16_t stWidth = sub.width;
 
     C2D_Image img;
     img.tex = tex;
     img.subtex = &sub;
 
-    const float scale = size / float(st.width);
+    const float scale = size / float(stWidth);
     if (alpha < 0.99f) {
         C2D_ImageTint tint;
         C2D_AlphaImageTint(&tint, alpha);
