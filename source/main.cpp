@@ -824,6 +824,7 @@ int main() {
             if (talk.phase() == tt::quest::Talk::Phase::TrackChoice) talk.chooseTrack(0);
             if (battle.tutorialBattle()) {
                 battle.setAutoPlay(true, -1); // select an available cupcake/flower as InventoryNew permits
+                battle.setAutoDelay(autotest.battleHoldMs());
             }
             if (battle.tutorialRewardPending()) in.down |= KEY_A;
             if (!net.inTutorial() && net.tutorialFinished()) autotest.finishStep();
@@ -2880,6 +2881,7 @@ int main() {
                 // [cog attacks]
                 else if (!strncmp(lbl, "battle: cog attacks", 19)) forced = tt::world::Battle::kAutoPass;
                 battle.setAutoPlay(true, forced);
+                battle.setAutoDelay(autotest.battleHoldMs());
 
                 if (forced >= 0) {
                     static float battleWaitTime = 0.0f;

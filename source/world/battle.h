@@ -207,6 +207,7 @@ public:
     // forcedTrack: a gag track 0..6, -1 for the normal choice, or kAutoPass to pass every round.
     static constexpr int kAutoPass = 7;
     void setAutoPlay(bool on, int forcedTrack = -1) { autoPlay_ = on; forcedTrack_ = forcedTrack; }
+    void setAutoDelay(uint32_t ms) { autoDelayMs_ = ms ? ms : 700; } // test-only: the pick's wait
     void setForcedTrack(int track) { forcedTrack_ = track; }
     int forcedTrack() const { return forcedTrack_; }
 
@@ -365,6 +366,7 @@ private:
     bool running_ = false;
     bool autoPlay_ = false;
     uint32_t autoAtMs_ = 0;
+    uint32_t autoDelayMs_ = 700;
     bool wentSad_ = false;
     const char* message_ = nullptr;
     bool tauntShown_ = false;

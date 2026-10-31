@@ -564,7 +564,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         } else if (localActive) {
             phase_ = BattlePhase::Input;
             inputEndMs_ = nb.stateMs + kInputTimeoutMs;
-            autoAtMs_ = nowMs + 700;
+            autoAtMs_ = nowMs + autoDelayMs_;
         } else {
             phase_ = BattlePhase::Waiting; // pending: joined mid-round, active from the next one
         }
@@ -1123,7 +1123,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
                 phase_ = BattlePhase::Input;
                 chose_ = timeoutSent_ = false;
                 inputEndMs_ = nowMs + kInputTimeoutMs; // startTimer() with no elapsed time
-                autoAtMs_ = nowMs + 700;
+                autoAtMs_ = nowMs + autoDelayMs_;
             } else if (runningNow && phase_ == BattlePhase::Input) {
                 phase_ = BattlePhase::Waiting;
             }

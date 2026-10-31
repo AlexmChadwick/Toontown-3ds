@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 
 #include "core/log.h"
 #include "game/front_end.h"
@@ -411,6 +412,7 @@ bool Runner::begin() {
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
         else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
+        else if (!strncmp(line, "battle hold ", 12)) battleHoldMs_ = static_cast<u32>(atoi(line + 12)) * 1000u;
     }
     fclose(f);
     active_ = true;

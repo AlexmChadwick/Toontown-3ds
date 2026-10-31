@@ -31,6 +31,9 @@ public:
     bool frontEndScript() const { return frontEnd_; }
     // "tutorial" in autotest_fe continues with the Toontorial driver after Create!; "skip" skips it.
     bool tutorialPath() const { return tutorial_; }
+    // "battle hold <s>": the scripted gag pick waits this long into each input round, so shots
+    // can show the open gag menu (0: the usual 0.7 s).
+    u32 battleHoldMs() const { return battleHoldMs_; }
     // Overrides input for this frame. Returns false when the script is finished.
     bool apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons);
     const char* label() const;
@@ -56,6 +59,7 @@ private:
     bool active_ = false;
     bool frontEnd_ = false;
     bool tutorial_ = false;
+    u32 battleHoldMs_ = 0;
     const Step* script_ = nullptr;
     int numSteps_ = 0;
     int step_ = 0;
