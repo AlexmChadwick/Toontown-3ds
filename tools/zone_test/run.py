@@ -29,6 +29,17 @@ from panda3d.core import Texture,PNMImage
 
 
 class FormatTests(unittest.TestCase):
+    def test_texture_resolution(self):
+        import extract
+        tex = Texture('facade_256')
+        image = PNMImage(256, 256, 3)
+        image.fill(.25, .5, .75)
+        tex.load(image)
+        ex = extract.Extractor()
+        index = ex._texture(tex)
+        self.assertEqual((ex.textures[index].w, ex.textures[index].h), (256, 256))
+        self.assertEqual(ex.textures[index].mips, 6)
+
     def test_layout(self):
         self.assertEqual([tz.HEADER.size,tz.CHUNK.size,tz.FLOOR.size,tz.TRIGGER.size],[64,80,40,156])
 
