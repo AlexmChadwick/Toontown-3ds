@@ -1966,3 +1966,33 @@ What changed, and why this default:
   the card far publishes (the card's near). The overlap fixture is unchanged:
   the distant card chunk still reads far first (`queued 2`).
 
+## 2026-10-31 — Round 11 streaming (host / devkitARM only)
+
+Branch `cursor/cone-card-bytes-0b72`. **No Azahar run** in this pass.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM nice -n 19 make -j4
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+```
+
+`make -j4` linked `toontown3ds.3dsx` with zero warnings in `source/`.
+
+`/tmp/retain_test` (when built on a host with libstdc++):
+
+```
+jump: card draws 128 floor 102
+jump: min draws 128 after replan
+once: queued 3
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+```
+
+Round 11 changes: far stand-ins stay in-cone through replan until near publish;
+choice-0 reads far-first outside cell/`lodMust`; ~2 s eviction pin on planned
+chunks and in-flight reads; recount/draw admit near before far (stand-ins before
+generic far under 150 draws); Old signPick chunks get `setTextureLodBias(-1)`;
+8 ms upload budget and two publishes per update; `run.py` no longer requires
+three floor walk points.
+

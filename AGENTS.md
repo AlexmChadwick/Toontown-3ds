@@ -499,12 +499,15 @@ server.
   The denser sign is first. Each still has to fit the retain cap and 130 draws.
   Out-of-cone far textures do not count against that fit, and only the generic
   near mesh blocking that sign is demoted. Other letter chunks stay on the
-  `lodNear` test. A choice-0 chunk that is not in the card reads its near mesh
-  once; a chunk already in flight is not read again at the other lod. Near
-  upgrades stop at 130 draws. The submitted set, far meshes included, also stops
-  at 150 draws and 15k triangles. A resident near mesh inside `lodMust` may stay
-  up to that 150; `lodKeep` does not bypass the cap. `warmAround` fills a
-  ring outside the cone after the cone is at its chosen LOD; a finished warm
+  `lodNear` test. Choice-0 chunks outside the cell and `lodMust` read far first
+  and keep that far on screen until the near mesh publishes, including chunks
+  first planned after the card drops. Near-plan chunks and in-flight reads are
+  pinned against retain eviction for about 2 s. The submitted set admits every
+  near mesh before far meshes; when the 150-draw cap bites, generic far scenery
+  drops before near draws or sign stand-ins. Up to two picked signs on Old 3DS
+  get a negative texture LOD bias so their mips match New. GPU upload stays near
+  8 ms and at most two mesh publishes run per `Place::update`. Near upgrades stop
+  at 130 draws. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring
   only queues chunks that fit in the retain budget. Retain is 4 MiB geometry /
