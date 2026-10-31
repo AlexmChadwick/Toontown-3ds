@@ -98,12 +98,18 @@ def write_points(root, path):
                     building = building.getParent()
                 if not building.isEmpty():
                     name = f'{building.getName()}/{parent.getName()}'
-                    # Both door_N nodes sit at the model origin; each door is the midpoint of its
-                    # leftDoor_N / rightDoor_N leaves, facing away from the leaves' own heading.
+                    # Both door_N nodes sit at the model origin. DistributedDoor's EXT_HQ door
+                    # path is the landmark's door_origin_N (hqTT: door_origin_0 faces 180,
+                    # door_origin_1 0). Rebuilding it from the leaves (h = leftDoor - 180) faced
+                    # every HQ door inward, so the door movie walked the toon out of the door
+                    # and put the camera inside the building against the closed leaves.
                     index = parent.getName().rsplit('_', 1)[-1]
+                    origin = building.find(f'**/door_origin_{index}')
                     left = parent.find(f'**/leftDoor_{index}')
                     right = parent.find(f'**/rightDoor_{index}')
-                    if not left.isEmpty() and not right.isEmpty():
+                    if not origin.isEmpty():
+                        p, h = origin.getPos(root), origin.getH(root)
+                    elif not left.isEmpty() and not right.isEmpty():
                         p = (left.getPos(root) + right.getPos(root)) * 0.5
                         h = left.getH(root) - 180.0
 
