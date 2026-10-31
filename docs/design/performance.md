@@ -19,7 +19,7 @@ Series captures on labels ending in `*`/`**` can therefore contaminate the suppl
 facility timings. Captures now have their own `shot` section. Add `shots off` to
 the autotest config for timing, then remove it for a separate visual comparison.
 The real parser test verifies identical input and step timing over 200 frames
-with capture enabled/disabled. Any completed frame >=100 ms produces an immediate
+with capture enabled/disabled. Any completed frame >=50 ms produces an immediate
 `prof: [label] hitch total ... busy ... largest section ...` record, including
 intervening spikes that the five-second summaries could otherwise miss.
 

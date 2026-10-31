@@ -17,6 +17,12 @@ void changed(void* user,uint16_t zone,const uint16_t* ids,int n) {
     assert(found && n>0 && n<=257);
     for (int i=0;i<n;++i) for (int j=i+1;j<n;++j) assert(ids[i]!=ids[j]);
 }
+// "2000.tz" is a suffix of "12000.tz". strstr made the hall camera run on Cashbot HQ.
+bool pathEndsWith(const char* path, const char* name) {
+    const size_t n = std::strlen(path), m = std::strlen(name);
+    if (n < m || std::memcmp(path + n - m, name, m) != 0) return false;
+    return n == m || path[n - m - 1] == '/' || path[n - m - 1] == '\\';
+}
 }
 int main(int argc,char** argv) {
     assert(argc>=3);
@@ -93,7 +99,7 @@ int main(int argc,char** argv) {
     assert(!zone.triggersAt({NAN,0,0},1,nullptr,0));
     // Camera plans spend the draw cap on the view. ttc_mid must keep both Toon Hall
     // halves (they share the doorway) at the near mesh on Old and New 3DS.
-    if (zone.version()>=2 && std::strstr(argv[1], "2000.tz")) {
+    if (zone.version()>=2 && pathEndsWith(argv[1], "2000.tz")) {
         FILE* tz=std::fopen(argv[1], "rb");
         assert(tz);
         unsigned char head[64];
@@ -133,7 +139,7 @@ int main(int argc,char** argv) {
         tt::render::setActiveQuality(false);
         std::fclose(tz);
     }
-    if (zone.version()>=2 && (std::strstr(argv[1], "1000.tz") || std::strstr(argv[1], "2100.tz"))) {
+    if (zone.version()>=2 && (pathEndsWith(argv[1], "1000.tz") || pathEndsWith(argv[1], "2100.tz"))) {
         auto check=[&](const char* name, tt::world::Vec3 eye, tt::world::Vec3 at, tt::world::Vec3 feet) {
             for (int profile=0; profile<2; ++profile) {
                 tt::render::setActiveQuality(profile==1);
@@ -146,11 +152,12 @@ int main(int argc,char** argv) {
                             zone.drawCalls(), zone.triangles());
             }
         };
-        if (std::strstr(argv[1], "1000.tz")) {
+        if (pathEndsWith(argv[1], "1000.tz")) {
             check("dd_near", {-108.0f, -28.0f, 11.0f}, {-122.0f, -28.0f, 10.0f}, {-115.0f, -28.0f, 6.0f});
             check("dd_far", {-110.0f, -40.0f, 14.0f}, {20.0f, 110.0f, 5.0f}, {-112.0f, -33.0f, 6.0f});
         } else {
             check("street_near", {-123.0f, -115.0f, 5.0f}, {-137.0f, -115.0f, 6.0f}, {-130.0f, -115.0f, 0.5f});
+            check("street_far", {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f});
         }
         tt::render::setActiveQuality(false);
     }

@@ -36,9 +36,12 @@ struct Quality {
 // cone every chunk that fits draws at least its far mesh. A mesh that is in
 // view is not evicted or swapped out until its replacement is published.
 // The loading card waits for the distant chunks that cover most of the screen.
-// The cell and lodMust read their near mesh directly. One on-screen sign may
-// demote the generic near mesh blocking it. With no camera the whole cell stays
-// inside 15k triangles and 150 draws.
+// The cell and lodMust read their near mesh directly. A choice-0 chunk that is
+// not in the card reads near once. Up to two on-screen signs, ranked by
+// letter-texel density, may demote the generic near mesh blocking them. The
+// submitted set counts the mesh on screen (150 draws and 15k triangles), so a
+// published far stays up while its near mesh is still loading. With no camera
+// the whole cell stays inside 15k triangles and 150 draws.
 inline Quality qualityFor(bool new3ds) {
     if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 64.0f, 180.0f, 680.0f, true};
     return {520.0f, 440.0f, 160.0f, 185.0f, 48.0f, 110.0f, 400.0f, false};

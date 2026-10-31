@@ -1880,3 +1880,89 @@ What changed, and why this default:
   unchanged and was not run (no `1000.tz`). Toon Hall is still the cone line
   above (hall lod 0, 131 draws with the shop far mesh).
 
+## 2026-10-31 — shown meshes stay up, uploads slice, two signs
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `85d5d9d`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100/12000. The Round 9
+Azahar notes for `85d5d9d` (2100 card 1568 ms Old / 1233 ms New, 1000 card
+731 ms, dd_far host draws 67, and the five failures below) are the user's
+measurements. This host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` and `toontown3ds.elf` with zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/0/1/0 draws 32
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+sign: landmark lod 0/1/0 draws 17 tex 64
+once: queued 3
+tri: lod 0/1 draws 11 tris 12001
+```
+
+What changed, and why this default:
+
+- The cap was booking the planned near cost. After the card, walking into
+  `lodNear` cleared published fars from the cone while those nears were still
+  queued, and `draw` / `recount` then submitted only the chunks that remained.
+  The live total is the mesh on screen. A published far stays in the cone, and
+  is not evicted, until its near replacement is published. The host street is
+  eight chunks: 96 draws at the card, still 96 after the walk, with a near read
+  queued and every lod unchanged (`blob:` lines). This host cannot say the
+  Azahar 2100 view stays at 70 draws.
+- `ModelStaging::pump` copies and flushes vertices and indices in 64 KB slices,
+  same as textures, and returns after allocating the buffers so the copy is not
+  in that call. A tick that does not move during memcpy still ends the pump
+  after one 64 KB slice; `Zone::update` then spends no more of the 10 ms budget
+  that frame. The hitch log threshold is 50 ms (`prof: hitch`). This host cannot
+  time the post-card frame on Azahar.
+- Sign rank is letter-batch count times projected area, divided by draws. The
+  denser sign is upgraded first; a second sign is upgraded only if it still
+  fits 130 draws and the retain cap. The host crowd is now lods 0/0/1/0 (32
+  draws): the large sign and the closer small sign, not only the large one.
+  The landmark fixture is a close building with one decal and a farther
+  all-letter sign under an 80-byte texture cap: lods 0/1/0, the far sign near,
+  17 draws, 64 bytes of texture. Donald's Dock was not remeasured.
+- Both caps apply to the submitted set. `keepNear` requires the 15k triangle
+  cap as well as 150 draws. `recount` and `draw` skip a chunk that would pass
+  either cap, and they do not submit a v2 chunk the plan dropped. The host tri
+  fixture is 10 draws / 12,000 tris near: the second chunk stays far (lods
+  0/1, 11 draws, 12,001 tris). `zone_test` matches `2000.tz`, `1000.tz` and
+  `2100.tz` by path suffix, so `12000.tz` no longer takes the hall camera, and
+  the 2100 check includes `street_far`. Those files are not in this tree.
+- A choice-0 chunk outside the card reads its near mesh only. A chunk that
+  already has a read in flight is not queued at the other lod. The host once
+  fixture queues 3 reads (cell near, tail near, card far) and one more after
+  the card far publishes (the card's near). The overlap fixture is unchanged:
+  the distant card chunk still reads far first (`queued 2`).
+

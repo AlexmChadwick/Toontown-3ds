@@ -521,14 +521,17 @@ Sign letters (`sign_text`) are split out before the far mesh is simplified and
 colourised, then appended if that cell still fits `DRAW_CAP` and `LOW_TARGET`.
 Other decals still drop. Zone 1000's far-right building (chunk g6) kept 14 letter
 triangles on `phase_3_palette_2tmlc_1` in that far mesh. The runtime treats a
-chunk whose mesh names that palette as a sign. The one with the largest
-projected area, inside the cone and out to twice `lodNear` (320 on Old 3DS),
-may take a near mesh. That upgrade still has to fit the retain cap (4 MiB
-textures on Old 3DS) and 130 draws. Out-of-cone far textures are not charged
-against the fit, and only the generic near mesh blocking that sign is demoted.
-Other letter chunks use `lodNear`. The card drops once the distant chunks
-covering most of the screen have a far mesh. The cell and `lodMust` read near
-directly and do not hold the card. A mesh in view stays until its replacement
-is published. Near upgrades stop at 130 draws; the submitted set also stops at
-150. The other 36 zones still drop letters from the far mesh until the next
+chunk whose mesh names that palette as a sign. Up to two of them, inside the
+cone and out to twice `lodNear` (320 on Old 3DS), may take a near mesh. Rank is
+letter-batch count times projected area, divided by the mesh's draws, so the
+far building's letters beat a closer mesh that only has one decal. Each upgrade
+still has to fit the retain cap (4 MiB textures on Old 3DS) and 130 draws.
+Out-of-cone far textures are not charged against the fit, and only the generic
+near mesh blocking that sign is demoted. Other letter chunks use `lodNear`.
+The card drops once the distant chunks covering most of the screen have a far
+mesh. The cell, `lodMust`, and any near chunk that is not in that prefix read
+near once and do not hold the card. A mesh in view stays until its replacement
+is published; the 150-draw and 15k-triangle caps count that shown mesh, not the
+near mesh still loading. Vertex and index uploads are sliced at 64 KB with the
+textures. The other 36 zones still drop letters from the far mesh until the next
 full bake.

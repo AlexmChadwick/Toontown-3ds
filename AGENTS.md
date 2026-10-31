@@ -489,16 +489,21 @@ server.
   in that prefix: they read their near mesh directly. Distant chunks still read
   far first. A profiled near chunk is about 500 KB and about 330 ms of SD read.
   A mesh that is already in view is not evicted or swapped out until its
-  replacement is uploaded and published. Texture upload is sliced at 64 KB
-  inside the 10 ms pump budget, so one near mesh cannot fill a frame. One
-  on-screen sign (the letter chunk with the largest projected area, texture
-  name `palette_2tmlc`, out to twice `lodNear`) may take a near mesh. It still
-  has to fit the retain cap and 130 draws. Out-of-cone far textures do not
-  count against that fit, and only the generic near mesh blocking that sign is
-  demoted. Other letter chunks stay on the `lodNear` test. Near upgrades stop
-  at 130 draws. The submitted set, far meshes included, also stops at 150 draws
-  and 15k triangles. A resident near mesh inside `lodMust` may stay up to that
-  150; `lodKeep` does not bypass the cap. `warmAround` fills a
+  replacement is uploaded and published. The frame cap counts that shown mesh,
+  not the near mesh that is still loading, so a published far stays in the cone
+  while its near read is in flight. Vertex, index and texture upload are sliced
+  at 64 KB inside the 10 ms pump budget. A clock that does not move during the
+  copy still ends the pump after one slice, and frames at or above 50 ms log a
+  hitch. Up to two on-screen signs (letter decals on `palette_2tmlc`, ranked by
+  letter-batch screen density, out to twice `lodNear`) may take a near mesh.
+  The denser sign is first. Each still has to fit the retain cap and 130 draws.
+  Out-of-cone far textures do not count against that fit, and only the generic
+  near mesh blocking that sign is demoted. Other letter chunks stay on the
+  `lodNear` test. A choice-0 chunk that is not in the card reads its near mesh
+  once; a chunk already in flight is not read again at the other lod. Near
+  upgrades stop at 130 draws. The submitted set, far meshes included, also stops
+  at 150 draws and 15k triangles. A resident near mesh inside `lodMust` may stay
+  up to that 150; `lodKeep` does not bypass the cap. `warmAround` fills a
   ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring

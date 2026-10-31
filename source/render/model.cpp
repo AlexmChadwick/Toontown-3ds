@@ -353,6 +353,7 @@ void ModelStaging::reset() {
     numVertices_ = numIndices_ = 0;
     vertBytes_ = indexBytes_ = copiedV_ = copiedI_ = flushedV_ = flushedI_ = 0;
     rebased_ = texDone_ = 0;
+    rebasedAt_ = 0;
     texFilled_ = 0;
     texReady_ = false;
     rebaseOk_ = true;
@@ -484,22 +485,33 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
             return Result::Error;
         }
         memcpy(dst.batches_, batches_, sizeof(Batch) * numBatches_);
-        if (over()) return Result::Pending;
+        // The buffers are the whole mesh. Copying vertices in this same call is
+        // the post-card hitch: Azahar's tick does not move during memcpy, so a
+        // time check never stops the loop. The next pump copies 64 KB.
+        return Result::Pending;
     }
+    // Bytes copied or rewritten this call. A stuck tick still ends the pump
+    // after one 64 KB slice; a running tick stops only at budgetUs.
+    u32 worked = 0;
+    auto sliceDone = [&](u32 bytes) {
+        worked += bytes;
+        if (over()) return true;
+        return elapsedUs(t0) == 0 && worked >= kSlice;
+    };
     if (stage_ == Stage::Copy) {
         auto* dstV = static_cast<u8*>(dst.vertices_);
         while (copiedV_ < vertBytes_) {
             const u32 n = copiedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - copiedV_;
             memcpy(dstV + copiedV_, verts_ + copiedV_, n);
             copiedV_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         auto* dstI = reinterpret_cast<u8*>(dst.indices_);
         while (copiedI_ < indexBytes_) {
             const u32 n = copiedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - copiedI_;
             memcpy(dstI + copiedI_, reinterpret_cast<u8*>(indices_) + copiedI_, n);
             copiedI_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         stage_ = Stage::Rebase;
     }
@@ -507,22 +519,33 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
         if (numVertices_ <= 0x10000) {
             while (rebased_ < numBatches_) {
                 const Batch& bt = dst.batches_[rebased_];
-                rebaseOk_ = rebaseOk_ && bt.firstVertex <= numVertices_ &&
-                            bt.numVertices <= numVertices_ - bt.firstVertex &&
-                            bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                if (rebasedAt_ == 0) {
+                    rebaseOk_ = rebaseOk_ && bt.firstVertex <= numVertices_ &&
+                                bt.numVertices <= numVertices_ - bt.firstVertex &&
+                                bt.firstIndex <= numIndices_ && bt.numIndices <= numIndices_ - bt.firstIndex;
+                }
                 if (rebaseOk_) {
                     u16* idx = dst.indices_ + bt.firstIndex;
-                    for (u32 i = 0; i < bt.numIndices; i++) {
-                        if (absolute_) {
-                            if (idx[i] < bt.firstVertex || idx[i] >= bt.firstVertex + bt.numVertices)
-                                rebaseOk_ = false;
-                        } else {
-                            if (idx[i] >= bt.numVertices) rebaseOk_ = false;
-                            idx[i] = static_cast<u16>(idx[i] + bt.firstVertex);
+                    constexpr u32 kIndexSlice = kSlice / sizeof(u16);
+                    while (rebasedAt_ < bt.numIndices) {
+                        const u32 left = bt.numIndices - rebasedAt_;
+                        const u32 n = left > kIndexSlice ? kIndexSlice : left;
+                        for (u32 i = 0; i < n; i++) {
+                            const u32 at = rebasedAt_ + i;
+                            if (absolute_) {
+                                if (idx[at] < bt.firstVertex || idx[at] >= bt.firstVertex + bt.numVertices)
+                                    rebaseOk_ = false;
+                            } else {
+                                if (idx[at] >= bt.numVertices) rebaseOk_ = false;
+                                else idx[at] = static_cast<u16>(idx[at] + bt.firstVertex);
+                            }
                         }
+                        rebasedAt_ += n;
+                        if (sliceDone(n * sizeof(u16))) return Result::Pending;
                     }
                 }
                 rebased_++;
+                rebasedAt_ = 0;
                 if (over()) return Result::Pending;
             }
             dst.absoluteIndices_ = rebaseOk_;
@@ -539,13 +562,13 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
             const u32 n = flushedV_ + kSlice < vertBytes_ ? kSlice : vertBytes_ - flushedV_;
             GSPGPU_FlushDataCache(static_cast<u8*>(dst.vertices_) + flushedV_, n);
             flushedV_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         while (flushedI_ < indexBytes_) {
             const u32 n = flushedI_ + kSlice < indexBytes_ ? kSlice : indexBytes_ - flushedI_;
             GSPGPU_FlushDataCache(reinterpret_cast<u8*>(dst.indices_) + flushedI_, n);
             flushedI_ += n;
-            if (over()) return Result::Pending;
+            if (sliceDone(n)) return Result::Pending;
         }
         dst.linearBytes_ = vertBytes_ + indexBytes_;
         stage_ = Stage::Textures;
@@ -588,7 +611,7 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
                 }
                 texReady_ = true;
                 texFilled_ = 0;
-                if (over()) return Result::Pending;
+                if (over() || elapsedUs(t0) == 0) return Result::Pending;
             }
             const u8* src = texBytes_ + texOff_[texDone_];
             while (texFilled_ < e.dataSize) {
@@ -596,7 +619,7 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
                 memcpy(static_cast<u8*>(tex->data) + texFilled_, src + texFilled_, n);
                 GSPGPU_FlushDataCache(static_cast<u8*>(tex->data) + texFilled_, n);
                 texFilled_ += n;
-                if (over()) return Result::Pending;
+                if (sliceDone(n)) return Result::Pending;
             }
             C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
             if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);

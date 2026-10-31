@@ -62,8 +62,10 @@ public:
     // bypass 130. No camera keeps the whole-cell counters inside 15k / 150.
     // Place sets retain to 4/4 MiB on Old 3DS and 5/5 MiB on New 3DS, and
     // non-cone chunks are dropped so linear free stays at or above 12 MiB on
-    // Old 3DS. One on-screen sign may demote the generic near mesh blocking it.
-    // Out-of-cone far textures do not count against that fit.
+    // Old 3DS. Up to two on-screen signs, ranked by letter-texel density, may
+    // demote the generic near mesh blocking them. Out-of-cone far textures do
+    // not count against that fit. The cap counts the mesh on screen, so a
+    // published far stays until its near replacement is published.
     void setRetainBudget(uint32_t geomBytes, uint32_t texBytes);
     // Queue chunks inside `radius` that the draw plan did not take, nearest first,
     // only while they fit in the retain budget and the 12 MiB headroom. Loaded on
