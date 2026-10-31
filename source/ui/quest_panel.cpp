@@ -122,7 +122,15 @@ u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Tal
     case quest::Talk::Phase::Script:
         // The QuestScript's LOCAL_CHAT_CONFIRM pages: A or a tap dismisses the line.
         focus_.clear();
-        if (keysDown & (KEY_A | KEY_TOUCH)) talk.scriptAdvance();
+        if (talk.scriptWait() && !strcmp(talk.scriptWait(), "enterStickerBook")) {
+            // Harry: "Open it, and I'll show you." The pill is the book button (A or a tap on it).
+            if ((keysDown & KEY_A) || ((keysDown & KEY_TOUCH) && touch.px >= pad::quest::kCancelX &&
+                                       touch.px < pad::quest::kCancelX + pad::quest::kCancelW && touch.py >= kCancelY &&
+                                       touch.py < kCancelY + pad::quest::kCancelH))
+                openBook_ = true;
+        } else if (!talk.scriptWait() && (keysDown & (KEY_A | KEY_TOUCH))) {
+            talk.scriptAdvance();
+        }
         break;
     default:
         focus_.clear();
@@ -175,7 +183,10 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         if (script && talk.scriptCard() >= 0 && 26 + h + 6 < kCancelY - 40)
             drawTutorialCard(TutorialCard(talk.scriptCard()), 40, 26 + h + 6, kW - 80, kCancelY - (26 + h + 12));
         char nav[32];
-        if (script) snprintf(nav, sizeof(nav), "Next");
+        const bool bookButton = script && talk.scriptWait() && !strcmp(talk.scriptWait(), "enterStickerBook");
+        if (script && talk.scriptWait() && !bookButton) break; // a lesson step the player does elsewhere
+        if (bookButton) snprintf(nav, sizeof(nav), "Shticker Book");
+        else if (script) snprintf(nav, sizeof(nav), "Next");
         else snprintf(nav, sizeof(nav), "%s  (%d/%d)", talk.onLastPage() ? "Done" : "Next", talk.page() + 1, talk.numPages());
         theme::pill(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH, theme::Pill::Cyan);
         C2D_Text navText;

@@ -73,6 +73,10 @@ public:
         scriptAdvance_ = false;
         return a;
     }
+    // The QuestScript's WAIT_EVENT (nullptr = none): Harry's lesson waits for the player to open
+    // the Shticker Book, which then owns the bottom screen until he says to close it.
+    void setScriptWait(const char* event) { scriptWait_ = event; }
+    const char* scriptWait() const { return phase_ == Phase::Script ? scriptWait_ : nullptr; }
     void setScriptCard(int card) { scriptCard_ = card; } // ui::TutorialCard, -1 = none
     int scriptCard() const { return phase_ == Phase::Script ? scriptCard_ : -1; }
     void scriptDone();
@@ -126,6 +130,7 @@ private:
     char scriptLine_[kPageChars * 2] = {};
     int scriptSerial_ = 0;
     int scriptCard_ = -1;
+    const char* scriptWait_ = nullptr;
     bool scriptAdvance_ = false;
 
     // A one-off line (reject, tier not done) shown without freezing the toon.
