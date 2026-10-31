@@ -688,15 +688,6 @@ int main() {
             }
             if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
             tt::prof::lap(tt::prof::kFrontUpdate);
-            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-            tt::prof::lap(tt::prof::kWait);
-            renderer.resetStats();
-            toonCache.pump(); // previous GPU frame is complete: publish streamed poses
-            if (releaseFrontEndArt) { // the last front-end frame is complete too
-                frontEnd.releaseArt();
-                releaseFrontEndArt = false;
-            }
-            tt::prof::lap(tt::prof::kLoads);
             if (shotName) {
                 char path[96];
                 snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
@@ -705,6 +696,14 @@ int main() {
                 tt::shot::dumpTarget(bottom, path);
                 shotName = nullptr;
                 tt::prof::lap(tt::prof::kCapture);
+            }
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            tt::prof::lap(tt::prof::kWait);
+            renderer.resetStats();
+            toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+            if (releaseFrontEndArt) { // the last front-end frame is complete too
+                frontEnd.releaseArt();
+                releaseFrontEndArt = false;
             }
             tt::prof::lap(tt::prof::kLoads);
             frontEnd.drawTop(renderer);
@@ -2862,6 +2861,30 @@ int main() {
         }
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
+        if (shotName) {
+            if (!strncmp(shotName, "view_", 5)) {
+                unsigned nearCount=0;
+                for (int i=0; i<place.zone().numChunks(); ++i)
+                    if (place.zone().chunkLod(i)==0) ++nearCount;
+                TT_LOG("view %s draws %lu tris %lu resident_near %u", shotName+5,
+                       static_cast<unsigned long>(lastStats.drawCalls),
+                       static_cast<unsigned long>(lastStats.triangles), nearCount);
+            }
+            // Out-of-frame VRAM readback waits for the previous render queue and
+            // completes the copy before returning. Inside a frame Citro3D only
+            // queues that copy, which used to leave an all-zero dump here.
+            char path[96];
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
+            tt::shot::dumpTarget(renderer.topLeft(), path);
+            if (stereoActive) { // right eye too, to check the parallax
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
+                tt::shot::dumpTarget(renderer.topRight(), path);
+            }
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
+            tt::shot::dumpTarget(bottom, path);
+            shotName = nullptr;
+            tt::prof::lap(tt::prof::kCapture);
+        }
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         tt::prof::lap(tt::prof::kWait);
         if (tt::world::retireStreamCard(zonePhase)) zoneLoad.release();
@@ -2890,28 +2913,6 @@ int main() {
         racing.pumpAssets();
         estate.pumpAssets();
         tt::prof::lap(tt::prof::kLoads);
-        if (shotName) {
-            if (!strncmp(shotName, "view_", 5)) {
-                unsigned nearCount=0;
-                for (int i=0; i<place.zone().numChunks(); ++i)
-                    if (place.zone().chunkLod(i)==0) ++nearCount;
-                TT_LOG("view %s draws %lu tris %lu resident_near %u", shotName+5,
-                       static_cast<unsigned long>(lastStats.drawCalls),
-                       static_cast<unsigned long>(lastStats.triangles), nearCount);
-            }
-            // Previous frame is complete after FrameBegin; dump it before clearing.
-            char path[96];
-            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
-            tt::shot::dumpTarget(renderer.topLeft(), path);
-            if (stereoActive) { // right eye too, to check the parallax
-                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
-                tt::shot::dumpTarget(renderer.topRight(), path);
-            }
-            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
-            tt::shot::dumpTarget(bottom, path);
-            shotName = nullptr;
-            tt::prof::lap(tt::prof::kCapture);
-        }
         renderer.resetStats();
         C3D_Mtx m;
         C3D_FVec worldEye=player.cameraEye(), worldTarget=player.cameraTarget();

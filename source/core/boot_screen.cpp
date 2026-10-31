@@ -82,13 +82,15 @@ void linkScreens() {
 void drawFrame() {
     if (!gTop || !gBottom) return;
     C2D_TextBufClear(gBuf);
-    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-    linkScreens();
+    // Capture while Citro3D is out of frame. Its VRAM copy waits synchronously
+    // only in this state; inside a frame it merely queues the copy for FrameEnd.
     if (gShot == 1) {
         tt::shot::dumpTarget(gTop, "sdmc:/3ds/toontown3ds/shot_boot_top.bin");
         tt::shot::dumpTarget(gBottom, "sdmc:/3ds/toontown3ds/shot_boot_bottom.bin");
         gShot = 2;
     }
+    C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+    linkScreens();
     C2D_TargetClear(gTop, kSkyTop);
     C2D_SceneBegin(gTop);
     drawBackground(400, 240);
