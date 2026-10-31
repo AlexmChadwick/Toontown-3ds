@@ -28,11 +28,13 @@ void TutorialFlow::start(quest::ScriptId id, bool femaleToon) {
         xforms_[i] = quest::ScriptXform{};
         colors_[i][0] = colors_[i][1] = colors_[i][2] = colors_[i][3] = 1.0f;
     }
+    // stop() cleared the staging; a script that never loads a character draws none.
     player_.start(id, femaleToon, this);
     TT_LOG("tutorial: script %s start", quest::scriptDef(id).name);
 }
 
 void TutorialFlow::update(float dt) {
+    time_ += dt;
     player_.update(dt);
     if (player_.popFinished()) {
         finished_ = true;
@@ -56,6 +58,11 @@ void TutorialFlow::stop() {
     text_[0] = 0;
     arrows_ = false;
     card_ = quest::ScriptVar::None;
+    speaker_ = quest::ScriptVar::None;
+    charLoaded_ = charShown_ = toonPosed_ = cameraStaged_ = toonReleased_ = false;
+    charAnim_ = ActorAnim{};
+    toonAnim_ = ActorAnim{};
+    time_ = 0.0f;
     finished_ = false;
 }
 
@@ -73,6 +80,7 @@ bool TutorialFlow::getXform(quest::ScriptVar var, quest::ScriptXform* out) {
 
 void TutorialFlow::setXform(quest::ScriptVar var, const quest::ScriptXform& x) {
     xforms_[varIndex(var)] = x;
+    if (var == quest::ScriptVar::LocalToon) toonPosed_ = true; // LOCK_LOCALTOON's scripted moves
 }
 
 void TutorialFlow::setColorScale(quest::ScriptVar var, const float rgba[4]) {
@@ -88,7 +96,31 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
     case quest::ScriptOp::CCChatConfirm:
     case quest::ScriptOp::CCChatToConfirm:
         snprintf(text_, sizeof(text_), "%s", text ? text : "");
+        speaker_ = cmd.var;
         TT_LOG("tutorial: dialogue %s", text_);
+        break;
+    case quest::ScriptOp::LoadClassicChar:
+        charLoaded_ = true;
+        break;
+    case quest::ScriptOp::UnloadChar:
+        if (cmd.var == quest::ScriptVar::ClassicChar) charLoaded_ = charShown_ = false;
+        break;
+    case quest::ScriptOp::LoopAnim:
+    case quest::ScriptOp::PlayAnim: {
+        ActorAnim* a = cmd.var == quest::ScriptVar::ClassicChar ? &charAnim_
+                       : cmd.var == quest::ScriptVar::LocalToon ? &toonAnim_ : nullptr;
+        if (a) {
+            snprintf(a->name, sizeof(a->name), "%s", cmd.text ? cmd.text : "neutral");
+            a->loop = cmd.op == quest::ScriptOp::LoopAnim;
+            a->rate = cmd.numArgs > 0 ? cmd.args[0] : 1.0f;
+            a->start = time_;
+        }
+        break;
+    }
+    case quest::ScriptOp::FreeLocalToon:
+        toonReleased_ = toonPosed_;
+        toonPosed_ = false;
+        toonAnim_ = ActorAnim{};
         break;
     case quest::ScriptOp::ArrowsOn:
         arrows_ = true;
@@ -101,6 +133,8 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         card_ = quest::ScriptVar::None;
         break;
     case quest::ScriptOp::ReparentTo:
+        if (cmd.var == quest::ScriptVar::ClassicChar) charShown_ = cmd.var2 == quest::ScriptVar::Render;
+        if (cmd.var == quest::ScriptVar::Camera) cameraStaged_ = cmd.var2 == quest::ScriptVar::Render;
         if (isCard(cmd.var)) {
             if (cmd.var2 == quest::ScriptVar::Camera) card_ = cmd.var;
             else if (card_ == cmd.var) card_ = quest::ScriptVar::None;
