@@ -475,26 +475,30 @@ server.
   (`Client::changeStreetCell`).
   Chunks outside the camera cone keep a resident near mesh until the retain
   budget evicts them. That mesh is not replaced by the far blob, and it is not
-  submitted. Inside the cone every chunk is drawn, at least at its far mesh.
-  A near mesh inside `lodKeep` stays (Toon Hall). Past `lodKeep` it is demoted
-  to the far mesh when keeping it would pass 15,000 triangles or 130 draws
-  (`Zone::kDrawBudget`). `Zone::draw` does not skip an in-cone chunk to enforce
-  that cap. With no camera the whole cell stays inside 15,000 triangles and 150
-  draws (the file's far-set cap); a chunk that would pass it is not loaded.
-  The loading card drops when the in-cone chunks covering most of the screen
-  have a mesh (`Zone::cardPending`; the cell underfoot and anything large on
-  screen always count; v1: its only mesh). A profiled near chunk is about 500 KB
-  and about 330 ms of SD read. The far blob is the vertex-coloured mesh already
-  in the v2 file, and that is what the card's prefix reads. A chunk that already
-  has its far mesh queues its near read before a smaller chunk's far read, one
-  new near read per frame, so the street is not left on the far blobs after the
-  card and the swaps do not land on one frame. A chunk with MickeyFont sign
-  letters (texture name `palette_2tmlc`) upgrades to the near mesh out to twice
-  `lodNear` (320 Old / 520 New). It still has to fit the retain cap. Out-of-cone
-  far textures do not count against that fit, and a generic near mesh is demoted
-  when it is what keeps the letters out, so Donald's Dock's building is not left
-  on the faint far mesh. With no camera the 15k-triangle / 150-draw ceiling also
-  applies to a near mesh already resident inside `lodKeep`. `warmAround` fills a
+  submitted. Inside the cone every chunk that fits is drawn, at least at its
+  far mesh. Near upgrades stop at 130 draws (`Zone::kDrawBudget`). The submitted
+  set also stops at 150 draws and 15,000 triangles. A resident near mesh inside
+  `lodMust` may stay up to that 150 (Toon Hall). `lodKeep` does not bypass the
+  cap. `Zone::draw` does not skip an in-cone chunk the plan kept. With no camera
+  the whole cell stays inside 15,000 triangles and 150 draws (the file's far-set
+  cap); a chunk that would pass it is not loaded.
+  The loading card drops when the distant in-cone chunks covering most of the
+  screen have a far mesh (`Zone::cardPending`). Membership is projected area,
+  not a `lodNear` / `lodMust` ring, so New's larger radius does not pull extra
+  chunks into the card. The cell underfoot and chunks inside `lodMust` are not
+  in that prefix: they read their near mesh directly. Distant chunks still read
+  far first. A profiled near chunk is about 500 KB and about 330 ms of SD read.
+  A mesh that is already in view is not evicted or swapped out until its
+  replacement is uploaded and published. Texture upload is sliced at 64 KB
+  inside the 10 ms pump budget, so one near mesh cannot fill a frame. One
+  on-screen sign (the letter chunk with the largest projected area, texture
+  name `palette_2tmlc`, out to twice `lodNear`) may take a near mesh. It still
+  has to fit the retain cap and 130 draws. Out-of-cone far textures do not
+  count against that fit, and only the generic near mesh blocking that sign is
+  demoted. Other letter chunks stay on the `lodNear` test. Near upgrades stop
+  at 130 draws. The submitted set, far meshes included, also stops at 150 draws
+  and 15k triangles. A resident near mesh inside `lodMust` may stay up to that
+  150; `lodKeep` does not bypass the cap. `warmAround` fills a
   ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring

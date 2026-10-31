@@ -28,16 +28,17 @@ struct Quality {
 // (`palette_2tmlc`) upgrades out to twice lodNear, ahead of a generic chunk, so
 // Donald's Dock's far building does not stay on the 14-triangle far letters.
 // When a camera is set, Zone spends the 15k-triangle and 130-draw caps
-// (Zone::kDrawBudget) on chunks that frame will submit, and still refuses an
-// upgrade past the retain ceiling (4/4 MiB Old, 5/5 MiB New, and never above
-// 6/8 MiB). Chunks outside the cone keep their near mesh until the retain budget
-// evicts it, and that mesh is not replaced by the far blob. Their far textures
-// do not count against a sign's upgrade. Inside the cone every chunk draws at
-// least its far mesh. The loading card waits until the chunks covering most of
-// the screen have a mesh; a near read of a chunk that already has its far mesh
-// starts before a smaller chunk's far read. A near mesh past lodKeep is demoted
-// when it no longer fits. With no camera the whole cell stays inside 15k
-// triangles and 150 draws, and a resident near mesh inside lodKeep does too.
+// (Zone::kDrawBudget) on near upgrades, and the submitted set also stays within
+// 150 draws. A resident near mesh inside lodMust may stay up to that 150.
+// lodKeep does not bypass the cap. Chunks outside the cone keep their near mesh
+// until the retain budget evicts it, and that mesh is not replaced by the far
+// blob. Their far textures do not count against a sign's upgrade. Inside the
+// cone every chunk that fits draws at least its far mesh. A mesh that is in
+// view is not evicted or swapped out until its replacement is published.
+// The loading card waits for the distant chunks that cover most of the screen.
+// The cell and lodMust read their near mesh directly. One on-screen sign may
+// demote the generic near mesh blocking it. With no camera the whole cell stays
+// inside 15k triangles and 150 draws.
 inline Quality qualityFor(bool new3ds) {
     if (new3ds) return {900.0f, 740.0f, 260.0f, 290.0f, 64.0f, 180.0f, 680.0f, true};
     return {520.0f, 440.0f, 160.0f, 185.0f, 48.0f, 110.0f, 400.0f, false};

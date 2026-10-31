@@ -333,39 +333,6 @@ u32 elapsedUs(u64 t0) {
     return static_cast<u32>((svcGetSystemTick() - t0) / (SYSCLOCK_ARM11 / 1000000));
 }
 
-bool uploadTexture(const TexEntry& e, const u8* bytes, C3D_Tex* tex) {
-    C3D_TexInitParams p{};
-    p.width = e.width;
-    p.height = e.height;
-    p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
-    p.format = static_cast<GPU_TEXCOLOR>(e.format);
-    p.type = GPU_TEX_2D;
-    p.onVram = false;
-    bool inited;
-    {
-        mem::LinearGuard g;
-        inited = C3D_TexInitWithParams(tex, nullptr, p);
-    }
-    if (!inited) {
-        *tex = C3D_Tex{};
-        return false;
-    }
-    const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
-    if (total != e.dataSize || !bytes) {
-        mem::LinearGuard g;
-        C3D_TexDelete(tex);
-        *tex = C3D_Tex{};
-        return false;
-    }
-    memcpy(tex->data, bytes, total);
-    C3D_TexFlush(tex);
-    C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
-    if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
-    C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
-                   static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
-    return true;
-}
-
 } // namespace
 
 void ModelStaging::reset() {
@@ -386,6 +353,8 @@ void ModelStaging::reset() {
     numVertices_ = numIndices_ = 0;
     vertBytes_ = indexBytes_ = copiedV_ = copiedI_ = flushedV_ = flushedI_ = 0;
     rebased_ = texDone_ = 0;
+    texFilled_ = 0;
+    texReady_ = false;
     rebaseOk_ = true;
     absolute_ = false;
 }
@@ -582,14 +551,61 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
         stage_ = Stage::Textures;
     }
     if (stage_ == Stage::Textures) {
+        // One texture used to be copied and flushed whole. A 15-texture near
+        // mesh is ~566 KB and that single pump was a 133 ms hitch. Copy and
+        // flush 64 KB at a time; the model is not drawn until Complete.
         while (texDone_ < numTextures_) {
-            if (!uploadTexture(tex_[texDone_], texBytes_ + texOff_[texDone_], &dst.textures_[texDone_])) {
-                dst.unload();
-                reset();
-                return Result::Error;
+            if (over() && !texReady_) return Result::Pending;
+            C3D_Tex* tex = &dst.textures_[texDone_];
+            const TexEntry& e = tex_[texDone_];
+            if (!texReady_) {
+                C3D_TexInitParams p{};
+                p.width = e.width;
+                p.height = e.height;
+                p.maxLevel = e.mipLevels ? e.mipLevels - 1 : 0;
+                p.format = static_cast<GPU_TEXCOLOR>(e.format);
+                p.type = GPU_TEX_2D;
+                p.onVram = false;
+                bool inited;
+                {
+                    mem::LinearGuard g;
+                    inited = C3D_TexInitWithParams(tex, nullptr, p);
+                }
+                if (!inited) {
+                    *tex = C3D_Tex{};
+                    dst.unload();
+                    reset();
+                    return Result::Error;
+                }
+                const u32 total = C3D_TexCalcTotalSize(tex->size, tex->maxLevel);
+                if (total != e.dataSize || !texBytes_) {
+                    mem::LinearGuard g;
+                    C3D_TexDelete(tex);
+                    *tex = C3D_Tex{};
+                    dst.unload();
+                    reset();
+                    return Result::Error;
+                }
+                texReady_ = true;
+                texFilled_ = 0;
+                if (over()) return Result::Pending;
             }
-            dst.linearBytes_ += dst.textures_[texDone_].size;
+            const u8* src = texBytes_ + texOff_[texDone_];
+            while (texFilled_ < e.dataSize) {
+                const u32 n = texFilled_ + kSlice < e.dataSize ? kSlice : e.dataSize - texFilled_;
+                memcpy(static_cast<u8*>(tex->data) + texFilled_, src + texFilled_, n);
+                GSPGPU_FlushDataCache(static_cast<u8*>(tex->data) + texFilled_, n);
+                texFilled_ += n;
+                if (over()) return Result::Pending;
+            }
+            C3D_TexSetFilter(tex, GPU_LINEAR, GPU_LINEAR);
+            if (tex->maxLevel > 0) C3D_TexSetFilterMipmap(tex, GPU_LINEAR);
+            C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
+                           static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
+            dst.linearBytes_ += tex->size;
             texDone_++;
+            texReady_ = false;
+            texFilled_ = 0;
             if (over()) return Result::Pending;
         }
         TT_LOG("model: staged %lu tris, %u batches, %u tex, %lu KB linear",

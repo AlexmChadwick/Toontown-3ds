@@ -167,6 +167,8 @@ private:
     u32 flushedI_ = 0;
     u16 rebased_ = 0;
     u16 texDone_ = 0;
+    u32 texFilled_ = 0; // bytes of the current texture already copied
+    bool texReady_ = false; // C3D_Tex for texDone_ is allocated
     bool rebaseOk_ = true;
     bool absolute_ = false; // header flags bit 0: indices already address the whole vertex array
 };

@@ -521,12 +521,14 @@ Sign letters (`sign_text`) are split out before the far mesh is simplified and
 colourised, then appended if that cell still fits `DRAW_CAP` and `LOW_TARGET`.
 Other decals still drop. Zone 1000's far-right building (chunk g6) kept 14 letter
 triangles on `phase_3_palette_2tmlc_1` in that far mesh. The runtime treats a
-chunk whose mesh names that palette as a sign: inside the cone, and out to twice
-`lodNear` (320 on Old 3DS), it may take a near mesh. That upgrade still has to
-fit the retain cap (4 MiB textures on Old 3DS) and 130 draws. Out-of-cone far
-textures are not charged against the fit, and a generic near mesh is demoted
-when it is the one in the way. Chunks are ordered by screen size, so the
-building that fills the view is ahead of a small prop. The card drops once the
-chunks covering most of the screen have a mesh; a near read starts as soon as
-that chunk's far mesh is in, before the tail of the cone. The other 36 zones
-still drop letters from the far mesh until the next full bake.
+chunk whose mesh names that palette as a sign. The one with the largest
+projected area, inside the cone and out to twice `lodNear` (320 on Old 3DS),
+may take a near mesh. That upgrade still has to fit the retain cap (4 MiB
+textures on Old 3DS) and 130 draws. Out-of-cone far textures are not charged
+against the fit, and only the generic near mesh blocking that sign is demoted.
+Other letter chunks use `lodNear`. The card drops once the distant chunks
+covering most of the screen have a far mesh. The cell and `lodMust` read near
+directly and do not hold the card. A mesh in view stays until its replacement
+is published. Near upgrades stop at 130 draws; the submitted set also stops at
+150. The other 36 zones still drop letters from the far mesh until the next
+full bake.

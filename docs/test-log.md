@@ -1805,3 +1805,78 @@ What changed, and why this default:
   from a 90-draw near mesh to a chunk 100 units away and lands at lods 1/0,
   100 draws, 100 triangles. The assert in `zone_test.cpp` is unchanged.
 
+## 2026-10-31 — close chunks read near, in-view meshes stay up
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `22a83f5`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The Round 8 Azahar
+notes for `22a83f5` (Old 2100 card 1969 ms, 1000 cards 1366/1367 ms, crisp Old
+DD sign, and the six failures below) are the user's measurements. This host
+does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/1/1/0 draws 18
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+```
+
+What changed, and why this default:
+
+- An in-view mesh is not evicted and not swapped for an empty lod. `makeRoom`
+  and the 12 MiB loop skip a chunk `draw` can submit. A demotion to the far
+  mesh queues that read and keeps the shown mesh (`keepHigh`) until the upload
+  is published. The Old 2100 drop from 73 draws to 28 was that hole. This host
+  cannot say the street no longer blobs.
+- The cell and any chunk inside `lodMust` whose plan is the near mesh skip the
+  far read. Distant chunks still read far first, and those far reads take
+  loader slots before the close near reads, so the card is not stuck behind a
+  500 KB near mesh. One distant near upgrade is still started per frame.
+- The card prefix is the distant in-cone chunks walked by projected area until
+  80% of that area, plus a chunk at least 20% of the largest. `lodMust` is not
+  forced in. New's larger lod radius was the extra card bytes. This host cannot
+  say the New 2100 card is now ≤2 s.
+- `ModelStaging::pump` copies and flushes each texture in 64 KB slices inside
+  the 10 ms budget. The 133 ms hitch was one 566 KB near upload finishing in a
+  single pump. This host cannot time that on Azahar.
+- Sign demotion runs for the one letter chunk with the largest projected area.
+  The host crowd is ground plus three signs past `lodNear`: only the large one
+  is near (lods 0/1/1/0, 18 draws). Donald's Dock's single on-screen building
+  is still the sign fixture (lods 0/1/0, 17 draws).
+- Near upgrades still stop at 130 draws. The running total, far meshes
+  included, now stops at 150 draws and 15k triangles on the camera path as
+  well. `keepNear` bypasses 130 only for a resident mesh inside `lodMust`, and
+  only up to 150. The host cap fixture is eight chunks of 20 near / 16 far:
+  lods end `…/1/-1`, 136 draws on Old and on New. `zone_test.cpp:144` is
+  unchanged and was not run (no `1000.tz`). Toon Hall is still the cone line
+  above (hall lod 0, 131 draws with the shop far mesh).
+

@@ -1,6 +1,7 @@
 // Host test for the zone retain cache: a chunk that leaves the draw set stays
 // resident, and a near mesh that is still resident is not replaced by the far
 // blob. Build: see the comment in main().
+#include "render/quality.h"
 #include "world/zone.h"
 
 #include <cassert>
@@ -376,8 +377,8 @@ void finishHeader(std::vector<uint8_t>& b, uint32_t branch, uint32_t chunks, uin
     std::memcpy(b.data() + 8, fields, sizeof fields);
 }
 
-// Near mesh is several triangles; far mesh is one. The card must publish the far
-// mesh before it queues the near mesh.
+// Near mesh is several triangles; far mesh is one. This chunk is the cell, so
+// it reads the near mesh and does not hold the card.
 std::vector<uint8_t> buildCard() {
     std::vector<uint8_t> near, far;
     writeTtmN(near, 4);
@@ -686,6 +687,138 @@ std::vector<uint8_t> buildKeepWalk() {
     return b;
 }
 
+// Eight chunks inside lodNear. Six near meshes fill 120 draws. The next far
+// mesh fits under 150. The one after that must not be loaded. The far set of
+// the vis list stays at 8*16 = 128 draws so the file cap (150) still accepts it.
+std::vector<uint8_t> buildDrawCap() {
+    std::vector<uint8_t> near, far;
+    writeTtmN(near, 20);
+    writeTtmN(far, 16);
+    const MeshInfo ni = meshInfo(near, 20, 0), fi = meshInfo(far, 16, 0);
+    const int n = 8;
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i) {
+        writeChunk(b, 2100, 0, static_cast<uint32_t>(n), 0, ni.size, static_cast<float>(i * 15),
+                   static_cast<uint32_t>(i), "cap", true);
+    }
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i) u16(b, static_cast<uint16_t>(i));
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    for (int i = 0; i < n; ++i) {
+        const float x = static_cast<float>(i * 15);
+        writeFloor(b, x - 4, -4, x + 4, -4, x, 6, static_cast<uint16_t>(i), 2100);
+    }
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    uint32_t nearOff[8], farOff[8];
+    for (int i = 0; i < n; ++i) {
+        align128(b);
+        nearOff[i] = static_cast<uint32_t>(b.size());
+        append(b, near.data(), near.size());
+        align128(b);
+        farOff[i] = static_cast<uint32_t>(b.size());
+        append(b, far.data(), far.size());
+    }
+    for (int i = 0; i < n; ++i)
+        patchNearFar(b, chunkOff + static_cast<uint32_t>(i) * 104, ni, nearOff[i], fi, farOff[i]);
+    finishHeader(b, 2100, static_cast<uint32_t>(n), static_cast<uint32_t>(n), static_cast<uint32_t>(n),
+                 chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// Three letter chunks past lodNear. Only the one that covers the screen goes near.
+std::vector<uint8_t> buildSignCrowd() {
+    std::vector<uint8_t> one, letters, far;
+    writeTtmN(one, 1);
+    writeLetterTtm(letters, 15);
+    writeTtmN(far, 1);
+    const MeshInfo oneI = meshInfo(one, 1, 0);
+    const MeshInfo letI = meshInfo(letters, 15, 64);
+    const MeshInfo farI = meshInfo(far, 1, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 1000, 0, 4, 0, oneI.size, 0, 0, "ground", true);
+    writeChunk(b, 1001, 0, 4, 0, letI.size, 200, 1, "near", true);
+    writeChunk(b, 1002, 0, 4, 0, letI.size, 220, 2, "mid", true);
+    writeChunk(b, 1003, 0, 4, 0, letI.size, 260, 3, "big", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1); u16(b, 2); u16(b, 3);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 1000);
+    writeFloor(b, 196, -4, 204, -4, 200, 6, 1, 1001);
+    writeFloor(b, 216, -4, 224, -4, 220, 6, 2, 1002);
+    writeFloor(b, 256, -4, 264, -4, 260, 6, 3, 1003);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    auto add=[&](const std::vector<uint8_t>& src) {
+        align128(b);
+        const uint32_t off = static_cast<uint32_t>(b.size());
+        append(b, src.data(), src.size());
+        return off;
+    };
+    const uint32_t gN = add(one), gF = add(far);
+    const uint32_t aN = add(letters), aF = add(far);
+    const uint32_t bN = add(letters), bF = add(far);
+    const uint32_t cN = add(letters), cF = add(far);
+    patchNearFar(b, chunkOff, oneI, gN, farI, gF);
+    patchNearFar(b, chunkOff + 104, letI, aN, farI, aF);
+    patchNearFar(b, chunkOff + 208, letI, bN, farI, bF);
+    patchNearFar(b, chunkOff + 312, letI, cN, farI, cF);
+    patchBounds(b, chunkOff + 312, 80, -40, 0, 360, 40, 30);
+    finishHeader(b, 1000, 4, 4, 4, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
+// B is showing its near mesh. Moving onto A makes B the far mesh. The near mesh
+// stays until that far read is published; an empty swap must not blank it.
+std::vector<uint8_t> buildHold() {
+    std::vector<uint8_t> aNear, bNear, far;
+    writeTtmN(aNear, 40);
+    writeTtmN(bNear, 120);
+    writeTtmN(far, 1);
+    const MeshInfo aI = meshInfo(aNear, 40, 0);
+    const MeshInfo bI = meshInfo(bNear, 120, 0);
+    const MeshInfo fI = meshInfo(far, 1, 0);
+    std::vector<uint8_t> b(64, 0);
+    align128(b);
+    const uint32_t chunkOff = static_cast<uint32_t>(b.size());
+    writeChunk(b, 2100, 0, 2, 0, aI.size, 0, 0, "a", true);
+    writeChunk(b, 2101, 0, 2, 0, bI.size, 20, 1, "b", true);
+    align128(b);
+    const uint32_t visOff = static_cast<uint32_t>(b.size());
+    u16(b, 0); u16(b, 1);
+    align128(b);
+    const uint32_t floorOff = static_cast<uint32_t>(b.size());
+    writeFloor(b, -4, -4, 4, -4, 0, 6, 0, 2100);
+    writeFloor(b, 16, -4, 24, -4, 20, 6, 1, 2101);
+    align128(b);
+    const uint32_t collisionOff = static_cast<uint32_t>(b.size());
+    writeCollision(b);
+    align128(b);
+    auto add=[&](const std::vector<uint8_t>& src) {
+        align128(b);
+        const uint32_t off = static_cast<uint32_t>(b.size());
+        append(b, src.data(), src.size());
+        return off;
+    };
+    const uint32_t aN = add(aNear), aF = add(far), bN = add(bNear), bF = add(far);
+    patchNearFar(b, chunkOff, aI, aN, fI, aF);
+    patchNearFar(b, chunkOff + 104, bI, bN, fI, bF);
+    finishHeader(b, 2100, 2, 2, 2, chunkOff, visOff, floorOff, collisionOff);
+    return b;
+}
+
 void settle(tt::world::Zone& zone, tt::world::Vec3 at) {
     for (int i = 0; i < 500; ++i) {
         assert(zone.update(at));
@@ -819,16 +952,13 @@ int main() {
     zone.setCamera({-20.0f, 0.0f, 8.0f}, {10.0f, 0.0f, 2.0f});
     const tt::world::Vec3 origin{0, 0, 1};
     assert(zone.update(origin));
-    assert(zone.cardPending() && zone.loading());
+    // The only chunk is under the camera, so the card does not wait on it and
+    // the first read is the near mesh.
+    assert(!zone.cardPending() && zone.loading());
     assert(zone.chunkLod(0) == -1 && zone.loadsQueued() == 1);
     assert(zone.completeLoads() == 1);
-    assert(zone.chunkLod(0) == 1 && !zone.cardPending() && zone.loading());
-    const uint32_t afterFar = zone.loadsQueued();
-    assert(zone.update(origin));
-    assert(zone.loadsQueued() == afterFar + 1);
-    assert(zone.completeLoads() == 1);
     assert(zone.chunkLod(0) == 0 && !zone.loading() && !zone.cardPending());
-    std::printf("card: far mesh drops the card, near streams after\n");
+    std::printf("card: cell reads near, distant far still drops the card\n");
     zone.unload();
 
     assert(zone.load(signPath));
@@ -860,16 +990,16 @@ int main() {
     assert(zone.update(origin));
     std::printf("overlap: card %d queued %u lod %d/%d\n", zone.cardPending() ? 1 : 0,
                 zone.loadsQueued(), zone.chunkLod(0), zone.chunkLod(1));
-    // The big chunk's empty far mesh is resident, so its near read is queued
-    // beside the small chunk's far read. The card does not wait on the small one.
-    assert(!zone.cardPending() && zone.loading());
-    assert(zone.chunkLod(0) == 1 && zone.chunkLod(1) == -1);
+    // The cell reads near directly. The distant chunk is the card and reads far
+    // in the same update. The card stays up until that far mesh is published.
+    assert(zone.cardPending() && zone.loading());
+    assert(zone.chunkLod(0) == -1 && zone.chunkLod(1) == -1);
     assert(zone.loadsQueued() == 2);
     assert(zone.completeLoads() == 2);
-    assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1);
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(1) == 1 && !zone.cardPending());
     const uint32_t overlapNear = zone.loadsQueued();
     assert(zone.update(origin));
-    assert(zone.loadsQueued() == overlapNear + 1); // one new near read this frame
+    assert(zone.loadsQueued() == overlapNear + 1); // the distant chunk's near read
     zone.unload();
 
     assert(zone.load(signRoomPath));
@@ -894,6 +1024,56 @@ int main() {
                 zone.chunkLod(0), zone.chunkLod(1), zone.drawCalls(), zone.triangles());
     assert(zone.chunkLod(0) == 1 && zone.chunkLod(1) == 0);
     assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    zone.unload();
+
+    const char* capPath = "/tmp/tt_retain_cap.tz";
+    const char* crowdPath = "/tmp/tt_retain_crowd.tz";
+    const char* holdPath = "/tmp/tt_retain_hold.tz";
+    save(capPath, buildDrawCap());
+    save(crowdPath, buildSignCrowd());
+    save(holdPath, buildHold());
+
+    assert(zone.load(capPath));
+    zone.setCamera({-30.0f, 0.0f, 8.0f}, {80.0f, 0.0f, 4.0f});
+    settle(zone, origin);
+    std::printf("cap: old lod %d/%d draws %u tris %u\n",
+                zone.chunkLod(6), zone.chunkLod(7), zone.drawCalls(), zone.triangles());
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(5) == 0);
+    assert(zone.chunkLod(6) == 1 && zone.chunkLod(7) == -1);
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    tt::render::setActiveQuality(true);
+    zone.setCamera({-22.0f, 0.0f, 8.0f}, {80.0f, 0.0f, 4.0f});
+    settle(zone, origin);
+    std::printf("cap: new draws %u tris %u\n", zone.drawCalls(), zone.triangles());
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    tt::render::setActiveQuality(false);
+    zone.unload();
+
+    assert(zone.load(crowdPath));
+    zone.setCamera({-40.0f, 0.0f, 8.0f}, {300.0f, 0.0f, 4.0f});
+    settle(zone, origin);
+    std::printf("sign: crowd lod %d/%d/%d/%d draws %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.chunkLod(2), zone.chunkLod(3),
+                zone.drawCalls());
+    assert(zone.chunkLod(0) == 0 && zone.chunkLod(3) == 0);
+    assert(zone.chunkLod(1) == 1 && zone.chunkLod(2) == 1);
+    assert(zone.drawCalls() <= 130);
+    zone.unload();
+
+    assert(zone.load(holdPath));
+    const tt::world::Vec3 onB{20, 0, 1};
+    settle(zone, onB);
+    assert(zone.chunkLod(1) == 0 && zone.chunkLod(0) == 1);
+    const uint32_t beforeMove = zone.loadsQueued();
+    assert(zone.update(origin));
+    std::printf("hold: shown lod %d queued %u\n", zone.chunkLod(1), zone.loadsQueued());
+    assert(zone.chunkLod(1) == 0); // the far replacement is not published yet
+    assert(zone.loadsQueued() > beforeMove);
+    settle(zone, origin);
+    assert(zone.chunkLod(1) == 1 && zone.chunkLod(0) == 0);
+    assert(zone.drawCalls() <= 150 && zone.triangles() <= 15000);
+    std::printf("hold: published lod %d/%d draws %u\n",
+                zone.chunkLod(0), zone.chunkLod(1), zone.drawCalls());
     zone.unload();
     return 0;
 }
