@@ -193,8 +193,14 @@ Key decisions:
    - Streamed zones (`bake_street.py`) pack the near mesh as 64px tiles with an 8px
      gutter and three per-tile mips. Ground textures (upward faces with an edge of
      at least 8) stay standalone at 256. The far mesh samples those textures into
-     vertex colour and stores no texture pages, so a long PVS fits the 8 MiB copy
-     budget. The default of `street_atlas.build` is still the 32px single-mip page
+     vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
+     (balloons, palm fronds, tree leaves) and decals (windows, doors, shop signs)
+     with unit UVs keep their texture on one small per-chunk far atlas page (16px
+     tiles, two mips, 64/128/256 page): a corner texel of a cutout is clear, so its
+     vertex-coloured copy vanished on Old 3DS past 160. Far decals are not voxel
+     snapped (they z-fought), sign letters keep priority, and far hill cards are
+     128px so far pages still fit Old's 4 MiB texture retain with Toon Hall's near
+     mesh. The default of `street_atlas.build` is still the 32px single-mip page
      used by cog HQs. The RomFS playground mesh stays at 128 because the whole
      playground is one resident model and a 256px set does not fit the 8 MiB
      texture budget. Runtime filtering is linear,

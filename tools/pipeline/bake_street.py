@@ -97,21 +97,45 @@ def _far_image(sources, cache, index, images):
     return image
 
 
-def _colorize_far(sources, chunks, images=None):
+def _far_detail(image, b, tri):
+    """A far triangle that must keep its texture: an alpha cutout or a decal.
+
+    A corner texel of a cutout (balloons, flowers, leaves) is usually clear, so a
+    vertex-coloured copy vanishes under the alpha test. A decal (window, door,
+    shop sign) sampled at its corners is a flat frame-coloured patch. Only unit
+    UVs qualify: a far atlas tile never repeats, so nothing is clipped.
+    """
+    import ttm
+    if image is None:
+        return False
+    uv = tri[:, 3:5]
+    if float(uv.min()) < -0.01 or float(uv.max()) > 1.01:
+        return False
+    if b.layer:
+        return True
+    return b.blend != ttm.BLEND_OPAQUE and int(image[:, :, 3].min()) <= 16
+
+
+def _colorize_far(sources, chunks, images=None, details=False):
     """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
 
     Everything else samples the texel at the corner (32px) and drops the page.
-    Decals are already gone. `images` injects arrays in tests; keys are texture ids.
-    Kept cards still carry the source texture id. encode_far_pages remaps it.
+    With details, cutouts and decals with unit UVs stay textured instead, as
+    batches on their source texture ids for build_far_atlas; other decals drop.
+    Without it decals are already gone. `images` injects arrays in tests; keys are
+    texture ids. Kept cards still carry the source texture id. encode_far_pages
+    remaps it. Returns (chunks, kept card triangles, per-chunk detail batches).
     """
     import numpy as np
     import ttm
     cache = {}
     result = []
+    extra = []
     kept = 0
     for batches in chunks:
         groups = {}
         cards = {}
+        detail = {}
         for b in batches:
             if b.indices is None or len(b.indices) < 3:
                 continue
@@ -124,6 +148,11 @@ def _colorize_far(sources, chunks, images=None):
                         and _silhouette_card(image, tri.reshape(-1, 9))):
                     cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
+                if details and _far_detail(image, b, tri.reshape(-1, 9)):
+                    detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
+                    continue
+                if b.layer:
+                    continue  # a repeating decal: a flat patch would cover its wall
                 verts = tri.reshape(-1, 9).copy()
                 if image is not None:
                     height, width = image.shape[:2]
@@ -151,7 +180,50 @@ def _colorize_far(sources, chunks, images=None):
                 merged.append(ttm.Batch(tex, ttm.BLEND_ALPHA_TEST, two, 0, 0, vs,
                                         np.arange(len(vs), dtype=np.int64)))
         result.append(merged)
-    return result, kept
+        extra.append([ttm.Batch(tex, blend, two, 0, layer, np.concatenate([p.reshape(-1, 9) for p in parts]),
+                                np.arange(3 * len(parts), dtype=np.int64))
+                      for (tex, blend, two, layer), parts in sorted(detail.items())])
+    return result, kept, extra
+
+
+# Far detail atlas: one small page per chunk. Past lodNear (160 Old, 260 New) a
+# 10-unit shop sign covers about 14 px of the top screen, so a 16px tile holds all
+# the detail it can show; two mips stop minified tiles from shimmering. Far pages
+# stay resident with every planned chunk, so they must stay small: a 256px page
+# per chunk kept Old 3DS from fitting Toon Hall's near mesh in its retain budget.
+FAR_ATLAS = dict(tile=16, gutter=2, mip_levels=2)
+FAR_PAGES = (64, 128, 256)
+
+
+def build_far_atlas(sources, chunks, encode=True):
+    """Per-chunk atlas pages for the detail batches of each chunk.
+
+    Returns (per-chunk textures, per-chunk batches whose texture indexes that
+    chunk's list). The page is the smallest of FAR_PAGES that holds the chunk's
+    textures; only a chunk that overflows a 256 page uses more than one.
+    """
+    import street_atlas
+    import ttm
+    span = FAR_ATLAS['tile'] + 2 * FAR_ATLAS['gutter']
+    pages, out = [], []
+    for batches in chunks:
+        used = sorted({b.texture for b in batches})
+        if not used:
+            pages.append([])
+            out.append([])
+            continue
+        local = {src: i for i, src in enumerate(used)}
+        page = next((p for p in FAR_PAGES if len(used) <= (p // span) ** 2), FAR_PAGES[-1])
+        remapped = [ttm.Batch(local[b.texture], b.blend, b.two_sided, 0, b.layer, b.verts, b.indices)
+                    for b in batches]
+        textures, result = street_atlas.build([sources[i] for i in used], [remapped], encode=encode,
+                                              standalone_size=32, page=page, **FAR_ATLAS)
+        pages.append(textures)
+        out.append(result[0])
+    return pages, out
+
+
+FAR_CARD_SIZE = 128
 
 
 def encode_far_pages(sources, chunks):
@@ -168,7 +240,11 @@ def encode_far_pages(sources, chunks):
     mapping = {}
     for src in used:
         mapping[src] = len(textures)
-        image, nc, pf = street_atlas.texture_pixels(sources[src], 256)
+        # A hill card past lodNear spans about a 128px slice of the top screen. The
+        # 256px page cost each far chunk ~32 KB of the retain budget per card; sign
+        # fonts keep 256 so the letters stay legible.
+        size = 256 if sign_text.is_font_texture(sources[src]) else FAR_CARD_SIZE
+        image, nc, pf = street_atlas.texture_pixels(sources[src], size)
         textures.append(ttm.Texture(
             sources[src].getName(), image, extract.choose_format(image, nc, pf),
             extract._WRAP.get(sources[src].getWrapU(), ttm.GPU_CLAMP_TO_EDGE),
@@ -209,11 +285,14 @@ def choose_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
     Spacing climbs until 48 units so a whole playground still fits. Hill cards
-    whose alpha cuts the silhouette keep a 256px texture; a corner sample of
+    whose alpha cuts the silhouette keep a 128px texture; a corner sample of
     those is a flat green quad. Draws are counted after that split, and must
     fit street_lod.DRAW_CAP. `images` is a test injection for _colorize_far.
+    Then cutouts and decals are kept textured on per-chunk far atlas pages when
+    that still fits within one voxel rung of the plain mesh.
     """
     import street_lod
+    import ttm
     steps = (0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48)
     def worst_of(low):
         tris = max((sum(street_lod.count(low[j]) for j in c['vis']) for c in chunks), default=0)
@@ -226,30 +305,69 @@ def choose_far(sources, raw, chunks, images=None):
         sign_sets.append(signs)
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
-    worst = draws = None
-    for step in steps:
-        low = [street_lod.simplify(bs, step) for bs in bodies]
-        colored, kept = _colorize_far(sources, low, images)
-        worst, draws = worst_of(colored)
-        signed = [list(chunk) + signs for chunk, signs in zip(colored, sign_sets)]
+    def attempt(step, details):
+        """The far mesh at one voxel step, or None when a PVS misses the budget."""
+        low = [street_lod.simplify(bs, step, keep_layers=details) for bs in bodies]
+        colored, kept, extra = _colorize_far(sources, low, images, details=details)
+        if details:
+            _, atlased = build_far_atlas(sources, extra, encode=False)
+            # Count each chunk's pages as their own textures; nothing is shared.
+            placed = [list(c) + [ttm.Batch(('far', i, b.texture), b.blend, b.two_sided, 0, b.layer,
+                                           b.verts, b.indices) for b in a]
+                      for i, (c, a) in enumerate(zip(colored, atlased))]
+        else:
+            placed = colored
+        worst, draws = worst_of(placed)
+        if worst > street_lod.LOW_TARGET or draws > street_lod.DRAW_CAP:
+            return None, (worst, draws)
+        signed = [list(chunk) + signs for chunk, signs in zip(placed, sign_sets)]
         signed_worst, signed_draws = worst_of(signed)
         # Letters stay when they still fit. A view that is already on the cap keeps the
         # old far mesh rather than failing the bake.
         use_signs = signed_worst <= street_lod.LOW_TARGET and signed_draws <= street_lod.DRAW_CAP
-        if worst <= street_lod.LOW_TARGET and draws <= street_lod.DRAW_CAP:
-            if use_signs:
-                colored, worst, draws = signed, signed_worst, signed_draws
-            if images is None:
-                colored, textures = encode_far_pages(sources, colored)
-            else:
-                textures = []
-            return colored, textures, {
-                'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
-                'before_worst_triangles': before, 'low_worst_triangles': worst,
-                'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
-                'hill_card_triangles': kept, 'sign_triangles': sign_tris if use_signs else 0,
-                'draw_cap': street_lod.DRAW_CAP}
-    raise FarBudgetError(worst, draws)
+        if use_signs:
+            colored = [list(chunk) + signs for chunk, signs in zip(colored, sign_sets)]
+            worst, draws = signed_worst, signed_draws
+        detail_tris = sum(street_lod.count(e) for e in extra)
+        if images is None:
+            colored, textures = encode_far_pages(sources, colored)
+            if details:
+                pages, atlased = build_far_atlas(sources, extra)
+                for i, (chunk_pages, batches) in enumerate(zip(pages, atlased)):
+                    base = len(textures)
+                    textures.extend(chunk_pages)
+                    colored[i] = list(colored[i]) + [
+                        ttm.Batch(base + b.texture, b.blend, b.two_sided, 0, b.layer, b.verts, b.indices)
+                        for b in batches]
+        else:
+            textures = []
+        return (colored, textures, {
+            'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
+            'before_worst_triangles': before, 'low_worst_triangles': worst,
+            'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
+            'hill_card_triangles': kept, 'sign_triangles': sign_tris if use_signs else 0,
+            'detail_triangles': detail_tris if details else 0,
+            'draw_cap': street_lod.DRAW_CAP}), (worst, draws)
+
+    worst = draws = None
+    plain = None
+    for rung, step in enumerate(steps):
+        plain, (worst, draws) = attempt(step, False)
+        if plain is not None:
+            break
+    if plain is None:
+        raise FarBudgetError(worst, draws)
+    if images is not None:
+        return plain
+    # Textured cutouts and decals cost triangles and draws. They are worth at most one
+    # coarser voxel rung than the plain far mesh; past that the shape suffers more.
+    # Sign letters come first: a detailed mesh that loses letters the plain one kept is
+    # not taken.
+    for step in steps[rung:rung + 2]:
+        detailed, _ = attempt(step, True)
+        if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+            return detailed
+    return plain
 
 
 def split_grid(batches, size):

@@ -1,4 +1,4 @@
-"""Shared 256px atlas pages; repeat UV triangles are clipped at tile boundaries.
+"""Shared atlas pages (256px unless page= says otherwise); repeat UV triangles are clipped at tile boundaries.
 
 The default (what existing callers and the atlas unit test use) is 32px tiles,
 four-pixel gutters and a base mip only. bake_street passes a near profile:
@@ -129,7 +129,7 @@ def _tile_mips(page, slots, levels):
 
 
 def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels=1,
-          large_ground=False, encode=True):
+          large_ground=False, encode=True, page=256):
     """Return textures and transformed chunk batches, with shared atlas indices.
 
     encode=False skips pixel reads and ETC1 so a far-LOD spacing search can count
@@ -138,9 +138,9 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
     if tile < 8 or gutter < 1 or mip_levels < 1:
         raise ValueError('invalid atlas tile')
     span = tile + 2 * gutter
-    cols = 256 // span
+    cols = page // span
     if cols < 1:
-        raise ValueError('tile does not fit a 256 page')
+        raise ValueError(f'tile does not fit a {page} page')
     per_page = cols * cols
     # Keep pathological UV tiling separate, bounded in both memory and bake time.
     standalone = {i for i, t in enumerate(sources) if sign_text.is_font_texture(t)}
@@ -160,8 +160,8 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
     frequency = {i: sum(any(b.texture == i for b in bs) for bs in chunks) for i in range(len(sources))}
     entries = sorted((i for i in range(len(sources)) if i not in standalone), key=lambda i: (-frequency[i], i))
     for start in range(0, len(entries), per_page):
-        px = np.full((256, 256, 4), 255, dtype=np.uint8)
-        page = len(textures)
+        px = np.full((page, page, 4), 255, dtype=np.uint8)
+        index = len(textures)
         slots = []
         for slot, idx in enumerate(entries[start:start + per_page]):
             x, y = (slot % cols) * span + gutter, (slot // cols) * span + gutter
@@ -172,11 +172,11 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
                 px[y - gutter:y + tile + gutter, x - gutter:x + tile + gutter] = np.pad(
                     image, ((gutter, gutter), (gutter, gutter), (0, 0)), mode='edge')
             slots.append((x, y, tile, gutter))
-            mapping[idx] = (page, x, y)
+            mapping[idx] = (index, x, y)
         if encode:
             fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
             levels = _tile_mips(px, slots, mip_levels) if mip_levels > 1 else None
-            textures.append(ttm.Texture(f'street_atlas_{page}', px, fmt, 0, 0,
+            textures.append(ttm.Texture(f'street_atlas_{index}', px, fmt, 0, 0,
                                         mipmaps=False, levels=levels))
         else:
             textures.append(type('AtlasRef', (), {'wrap_s': 0, 'wrap_t': 0, 'mips': mip_levels})())
@@ -196,8 +196,8 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
     for batches in chunks:
         groups = {}
         for b in batches:
-            page, x, y = mapping[b.texture] if b.texture is not None else (None, None, None)
-            key = (page, b.blend, b.two_sided, b.tint, b.layer)
+            pg, x, y = mapping[b.texture] if b.texture is not None else (None, None, None)
+            key = (pg, b.blend, b.two_sided, b.tint, b.layer)
             parts = groups.setdefault(key, [])
             if x is None:
                 parts.append(b.verts[b.indices].copy())
@@ -222,8 +222,8 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
                         uv = p[:, 3:5].copy()
                         for axis, k in enumerate((u, v)):
                             uv[:, axis] = uv[:, axis] - k if repeat[axis] else np.clip(uv[:, axis], 0, 1)
-                        p[:, 3] = (x + uv[:, 0] * tile) / 256
-                        p[:, 4] = (256 - y - tile + uv[:, 1] * tile) / 256
+                        p[:, 3] = (x + uv[:, 0] * tile) / page
+                        p[:, 4] = (page - y - tile + uv[:, 1] * tile) / page
                         parts.append(np.array([p[j] for k in range(1, len(p)-1) for j in (0, k, k+1)]))
         # Merge mixed cull-state groups by enabling two-sided rendering only where
         # an atlas/state already contains both kinds. This cannot hide any faces.
