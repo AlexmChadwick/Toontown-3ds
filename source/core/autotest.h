@@ -22,8 +22,16 @@ struct Step {
                                 // and "name**" every 0.25 s.
 };
 
+// "pose <zone> <eye x y z> <target x y z> <toon x y z h>" in the autotest file: the N-th
+// such line is held by the step "pose: N" (main.cpp), for close-ups of any spot.
+struct Pose {
+    unsigned zone;
+    float eye[3], target[3], toon[4];
+};
+
 class Runner {
 public:
+    static constexpr int kMaxPoses = 24;
     void setTrolleyProgress(const TrolleyProgress& progress) { trolleyProgress_ = progress; }
     bool begin(); // returns false (and stays inactive) if the trigger file is absent
     bool active() const { return active_; }
@@ -51,6 +59,8 @@ public:
     // "drop at <label>": true on the first frame of that step, which then drops the connection
     // (the reconnect path, like a dead socket after sleep).
     bool dropNow() const { return dropAt_[0] && stepBegan() && !strcmp(label(), dropAt_); }
+    // The current "pose: N" step's pose, or null.
+    const Pose* pose() const;
 
 private:
     TrolleyProgress trolleyProgress_;
@@ -73,7 +83,10 @@ private:
     char seriesName_[40] = {};
     char dropAt_[64] = {};
     char only_[192] = {}; // "only" line: comma-separated label prefixes (empty = every step)
+    Pose poses_[kMaxPoses] = {};
+    int numPoses_ = 0;
     bool selected(const char* label) const;
+    bool skipped(const char* label) const;
 };
 
 } // namespace tt::autotest

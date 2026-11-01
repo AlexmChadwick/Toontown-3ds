@@ -67,6 +67,14 @@ void TutorialFlow::stop() {
     toonAnim_ = ActorAnim{};
     time_ = 0.0f;
     finished_ = false;
+    numEyeCalls_ = 0;
+}
+
+int TutorialFlow::takeNpcEyeCalls(EyeCall* out, int maxOut) {
+    const int n = numEyeCalls_ < maxOut ? numEyeCalls_ : maxOut;
+    for (int i = 0; i < n; ++i) out[i] = eyeCalls_[i];
+    numEyeCalls_ = 0;
+    return n;
 }
 
 bool TutorialFlow::takeFinished() {
@@ -151,6 +159,19 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
             else if (card_ == cmd.var) card_ = quest::ScriptVar::None;
         }
         break;
+    case quest::ScriptOp::Function: {
+        // quest_assign_101 / 110: the NPC's ToonHead eye methods.
+        static const struct { const char* name; EyeCall call; } kEyeCalls[] = {
+            {"normalEyes", EyeCall::Normal}, {"sadEyes", EyeCall::Sad}, {"angryEyes", EyeCall::Angry},
+            {"surpriseEyes", EyeCall::Surprise}, {"blinkEyes", EyeCall::Blink}};
+        if (cmd.var != quest::ScriptVar::Npc || !cmd.text) break;
+        for (const auto& e : kEyeCalls) {
+            if (strcmp(cmd.text, e.name) != 0) continue;
+            if (numEyeCalls_ < kMaxEyeCalls) eyeCalls_[numEyeCalls_++] = e.call;
+            break;
+        }
+        break;
+    }
     default:
         // UI-only commands (book obscuring, inventory highlights and camera tracks) retain
         // their order in ScriptPlayer.  The compact 3DS HUD has no Panda node equivalent.

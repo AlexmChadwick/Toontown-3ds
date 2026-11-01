@@ -2003,6 +2003,26 @@ int main() {
             }
         }
         // ---- end render views ----
+        // ---- autotest poses: "pose <zone> <eye> <target> <toon xyz h>" lines, held by "pose: N" ----
+        if (const tt::autotest::Pose* p = autotest.active() && transition.idle() ? autotest.pose() : nullptr) {
+            static const char* posedLabel = nullptr;
+            static u32 posedZone = 0;
+            // Streets change zone id per cell; an interior (branch + 500 + block) must match exactly.
+            const bool interior = p->zone % 1000 >= 500;
+            if (interior ? place.zoneId() != p->zone : place.zoneId() / 100 != p->zone / 100) {
+                if (!uiState.teleportRequest) uiState.teleportRequest = p->zone;
+            } else {
+                if (posedLabel != autotest.label() || posedZone != place.zoneId()) {
+                    player.reset(p->toon[0], p->toon[1], p->toon[2], p->toon[3]);
+                    posedLabel = autotest.label();
+                    posedZone = place.zoneId();
+                    TT_LOG("%s in zone %u", autotest.label(), static_cast<unsigned>(place.zoneId()));
+                }
+                player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),
+                                      FVec3_New(p->target[0], p->target[1], p->target[2]));
+            }
+        }
+        // ---- end autotest poses ----
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);
@@ -2473,6 +2493,21 @@ int main() {
             }
             tutorialSaidSpeedChat = false;
             tutorial.update(dt);
+            {
+                tt::world::TutorialFlow::EyeCall calls[8];
+                const int n = tutorial.takeNpcEyeCalls(calls, 8);
+                if (tt::world::ToonAvatar* npc = n ? zoneActors.npcAvatar(tutorialSpeaker) : nullptr) {
+                    using EC = tt::world::TutorialFlow::EyeCall;
+                    using Mood = tt::world::ToonAvatar::EyeMood;
+                    for (int i = 0; i < n; ++i) {
+                        if (calls[i] == EC::Normal) npc->setEyeMood(Mood::Normal);
+                        else if (calls[i] == EC::Sad) npc->setEyeMood(Mood::Sad);
+                        else if (calls[i] == EC::Angry) npc->setEyeMood(Mood::Angry);
+                        else if (calls[i] == EC::Surprise) npc->surpriseEyes();
+                        else npc->blinkEyes();
+                    }
+                }
+            }
             if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
             if (talk.phase() == tt::quest::Talk::Phase::Script) {
                 talk.setScriptLine(tutorial.text());

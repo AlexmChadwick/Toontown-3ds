@@ -47,6 +47,9 @@ public:
     quest::ScriptVar speaker() const { return speaker_; } // who says text()
     float time() const { return time_; }
     bool takeFinished();
+    // FUNCTION npc "<ToonHead method>" calls since the last take, in order (EyeCall).
+    enum class EyeCall : uint8_t { Normal, Sad, Angry, Surprise, Blink };
+    int takeNpcEyeCalls(EyeCall* out, int maxOut);
 
     bool getXform(quest::ScriptVar var, quest::ScriptXform* out) override;
     void setXform(quest::ScriptVar var, const quest::ScriptXform& x) override;
@@ -66,6 +69,9 @@ private:
     ActorAnim charAnim_, toonAnim_;
     float time_ = 0.0f;
     bool finished_ = false;
+    static constexpr int kMaxEyeCalls = 8;
+    EyeCall eyeCalls_[kMaxEyeCalls] = {};
+    int numEyeCalls_ = 0;
 };
 
 } // namespace tt::world

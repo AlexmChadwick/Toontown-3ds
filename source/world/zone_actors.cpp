@@ -289,6 +289,12 @@ int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
     return n;
 }
 
+ToonAvatar* ZoneActors::npcAvatar(u32 doId) {
+    for (Npc& s : npcs_)
+        if (s.active && s.doId == doId) return &s.avatar;
+    return nullptr;
+}
+
 int ZoneActors::npcCount() const {
     int n = 0;
     for (const Npc& s : npcs_) n += s.active;

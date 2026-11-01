@@ -41,6 +41,7 @@ public:
     // the pet, kart, fisherman and party clerks pass the local toon's.
     bool talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight = -1) const;
     int npcCount() const;
+    ToonAvatar* npcAvatar(u32 doId); // nullptr when that NPC is not here (QuestScript FUNCTION npc)
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
