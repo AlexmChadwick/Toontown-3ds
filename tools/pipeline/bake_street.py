@@ -100,12 +100,13 @@ def _far_image(sources, cache, index, images):
 
 
 def _far_texel(image, uv, mips_cache, key):
-    """Per-vertex colour from the mip a GPU would use for this triangle.
+    """Per-vertex colour that reads like the near mesh seen from far away.
 
     The corner texel of a big face is often its border (the TTC tunnel rock went
-    flat beige). The level is picked so the triangle's UV footprint spans about
-    one texel, and the vertex samples it bilinearly with wrap: the far mesh then
-    shows the texture's average tone, like the near mesh seen from that far.
+    flat beige). Each vertex samples bilinearly, with wrap, a quarter of the way
+    toward the triangle's UV centroid, on the mip where the triangle spans about
+    four texels. A coarser mip mixed in the neighbouring art of a palette page
+    and the far tunnel rock went brown.
     """
     import numpy as np
     if key not in mips_cache:
@@ -118,7 +119,8 @@ def _far_texel(image, uv, mips_cache, key):
         mips_cache[key] = levels
     levels = mips_cache[key]
     extent = float(np.ptp(uv, axis=0).max()) * max(image.shape[:2])
-    level = int(np.clip(np.floor(np.log2(max(extent, 1.0))), 0, len(levels) - 1))
+    level = int(np.clip(np.floor(np.log2(max(extent / 4.0, 1.0))), 0, len(levels) - 1))
+    uv = uv.mean(axis=0) + (uv - uv.mean(axis=0)) * 0.75
     img = levels[level]
     h, w = img.shape[:2]
     out = np.empty((len(uv), 4))
