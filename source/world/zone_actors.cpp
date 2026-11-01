@@ -329,6 +329,12 @@ void ZoneActors::setNpcHidden(u32 npc, bool hidden) {
     }
 }
 
+const char* ZoneActors::npcName(u32 npc) const {
+    for (const Npc& s : npcs_)
+        if (s.active && s.doId == npc && s.name[0]) return s.name;
+    return nullptr;
+}
+
 int ZoneActors::npcCount() const {
     int n = 0;
     for (const Npc& s : npcs_) n += s.active;

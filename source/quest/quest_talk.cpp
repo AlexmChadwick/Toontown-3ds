@@ -259,8 +259,13 @@ void Talk::chooseTrack(int index) {
 }
 
 const char* Talk::npcName() const {
+    if (serverName_[0]) return serverName_;
     const char* n = quest::npcName(npcId_);
     return n ? n : "";
+}
+
+void Talk::setServerName(const char* name) {
+    snprintf(serverName_, sizeof(serverName_), "%s", name ? name : "");
 }
 
 const char* Talk::speech(uint32_t* npcDoIdOut) const {

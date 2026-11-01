@@ -2424,6 +2424,7 @@ int main() {
                 if (ev.type == tt::net::EventType::NpcMovie) {
                     tt::net::NpcMovie movie;
                     while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                    talk.setServerName(zoneActors.npcName(talk.npcDoId())); // the NPC's own nametag name
                     // ---- tutorial ----
                     // Tutorial Tom / HQ Harry: quest_assign_101 / 110 play as QuestScripts.
                     if (const uint16_t q = talk.takeScript()) {

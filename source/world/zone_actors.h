@@ -41,6 +41,8 @@ public:
     // the pet, kart, fisherman and party clerks pass the local toon's.
     bool talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight = -1) const;
     int npcCount() const;
+    // The NPC's own setName (TutorialHQBuildingAI names its officer "HQ Harry", not NPCToonDict's).
+    const char* npcName(u32 npc) const;
     // A QuestScript moving an NPC (tutorial_blocker's Flippy runs off, then REPARENTTO npc hidden):
     // its pose (world, heading in degrees), a looping clip, and hiding it (no drawing, nametag or
     // collision) until it is generated again.
