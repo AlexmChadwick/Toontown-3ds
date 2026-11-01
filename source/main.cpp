@@ -1945,6 +1945,21 @@ int main() {
                                           tutorial.npcAnim().rate);
                 if (tutorial.npcHidden()) zoneActors.setNpcHidden(tutorialSpeaker, true);
             }
+            // quest_assign_101: LERP_HPR npc -50 0 0 0.5 turns Tutorial Tom to the door while he points at
+            // it, LERP_HPR npc -0.068 back (his render heading is ~0, so the script's H is a turn from his
+            // own heading). His right-hand / right-point clips are not in the 3DS Toon clip set.
+            static u32 tomTurnNpc = 0;
+            static float tomBaseH = 0.0f;
+            if (scriptNpc && tutorial.scriptId() == tt::quest::ScriptId::QuestAssign101 && tutorial.npcPosed()) {
+                float nx, ny, nz, nh;
+                if (zoneActors.npcPose(scriptNpc, &nx, &ny, &nz, &nh)) {
+                    if (tomTurnNpc != scriptNpc) {
+                        tomTurnNpc = scriptNpc;
+                        tomBaseH = nh;
+                    }
+                    zoneActors.setNpcPose(scriptNpc, nx, ny, nz, tomBaseH + tutorial.xform(SV::Npc).hpr[0]);
+                }
+            }
             const bool place = tutorial.takeToonPlace();
             if (tutorial.toonPosed() || place) {
                 const tt::quest::ScriptXform& x = tutorial.xform(SV::LocalToon);
