@@ -97,7 +97,7 @@ void frameBegin() {
         // Uninstrumented tails stay visible; never mislabel an early owner as audio.
         s.frameAcc[kOther] += now - s.lastLap;
         // A five-second log cadence must not miss a bad intervening frame.
-        constexpr float kHitchMs = 100.0f; // task's interactive-frame ceiling
+        constexpr float kHitchMs = 50.0f; // post-card frames should stay under this
         const uint64_t total = now - s.frameStart;
         if (ticksToMs(total) >= kHitchMs) {
             s.hitchPending = true;

@@ -14,7 +14,7 @@ import sys
 sys.dont_write_bytecode = True
 import tempfile
 
-os.environ['TT_ETC1_THREADS'] = '3'
+os.environ.setdefault('TT_ETC1_THREADS', '2')
 os.environ['OPENBLAS_NUM_THREADS'] = '1'
 os.environ['OMP_NUM_THREADS'] = '1'
 os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
@@ -30,11 +30,12 @@ import sign_text
 # texture: a corner sample of those is a flat green quad. Playground vis
 # (--distance 760) plus a 78-unit margin covers the New 3DS draw distance.
 # --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
-NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
-OLD_LOD_NEAR = 160.0
+NEAR_ATLAS = dict(tile=128, gutter=16, standalone_size=256, mip_levels=4,
+                  large_ground=True, page_size=512)
+OLD_LOD_NEAR = 260.0
 NEW_LOD_NEAR = 260.0
 # render/quality.h lodMust (Old, New): upgraded first, still inside DRAW_CAP.
-LOD_MUST = {OLD_LOD_NEAR: 48.0, NEW_LOD_NEAR: 64.0}
+LOD_MUST = {OLD_LOD_NEAR: 64.0, NEW_LOD_NEAR: 64.0}
 
 
 # Sizes the baker may raise a playground or Cog HQ to. --grid-size is the floor:
@@ -43,8 +44,8 @@ GRID_LADDER = (96, 128, 160, 192, 256, 320, 384, 512)
 
 
 class FarBudgetError(ValueError):
-    def __init__(self, tris, draws):
-        super().__init__(f'far LOD cannot meet budgets: {tris} triangles, {draws} draws')
+    def __init__(self, tris, draws, tex=0):
+        super().__init__(f'far LOD cannot meet budgets: {tris} triangles, {draws} draws, {tex} texture bytes')
         self.tris = tris
         self.draws = draws
 
@@ -206,6 +207,38 @@ def _split_signs(sources, batches):
 
 
 def choose_far(sources, raw, chunks, images=None):
+    """Preserve original textured geometry and all decals; fail rather than blob."""
+    import far_atlas
+    import street_lod
+    import far_shell
+    original = raw
+    print('far shell raw:', sum(street_lod.count(bs) for bs in raw), 'tris;',
+          sum(street_lod.count([b]) for bs in raw for b in bs if _is_sign(b, sources)),
+          'sign tris', flush=True)
+    for ratio in (1.0, .8, .65, .5, .35, .2, .1):
+        candidate = original if ratio == 1 else [[far_shell.simplify(b, ratio) for b in bs] for bs in original]
+        preview_tex, preview = far_atlas.build(sources, candidate, encode=False, images=images)
+        worst = max((sum(street_lod.count(preview[j]) for j in c['vis']) for c in chunks), default=0)
+        draws = max((sum(len(preview[j]) for j in c['vis']) for c in chunks), default=0)
+        tex_bytes = max((sum(sum(preview_tex[t].byte_size for t in
+            {b.texture for b in preview[j]}) for j in c['vis']) for c in chunks), default=0)
+        if worst <= street_lod.TRI_BUDGET and draws <= street_lod.DRAW_CAP and tex_bytes <= 8*1024*1024:
+            raw = candidate
+            break
+    else:
+        raise FarBudgetError(worst, draws, tex_bytes)
+    textures, low = far_atlas.build(sources, raw, images=images)
+    return low, textures, dict(voxel_spacing=0, max_vertex_displacement=None if ratio < 1 else 0,
+        quadric_ratio=ratio, max_surface_error=.75 if ratio < 1 else 0,
+        before_worst_triangles=max((sum(street_lod.count(original[j]) for j in c['vis'])
+                                  for c in chunks), default=0),
+        low_worst_triangles=worst, low_worst_draws=draws,
+        textured=True, hill_card_triangles=0,
+        sign_triangles=sum(street_lod.count([b]) for bs in raw for b in bs if _is_sign(b, sources)),
+        draw_cap=street_lod.DRAW_CAP)
+
+
+def choose_voxel_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
     Spacing climbs until 48 units so a whole playground still fits. Hill cards
@@ -379,6 +412,7 @@ def bake(zone_id, args, base):
         return {'zone': zone_id, 'points': num_points}
     ex = street_atlas.Extractor()
     chunks, raw, floors = [],[],[]
+    far_raw = []
     ground_stats = {'triangles_in': 0, 'triangles_out': 0, 'split': 0}
     low, far_textures, lod_report, grid_used = None, [], None, None
     whole_collision = collide.extract(root)
@@ -398,6 +432,7 @@ def bake(zone_id, args, base):
             if not mat.isIdentity():
                 for b in bs:
                     b.verts[:,:3]=[tuple(mat.xformPoint(tuple(p))) for p in b.verts[:,:3]]
+            far_raw.append(bs)
             bs, part = extract.subdivide_ground(bs)
             for key in ground_stats:
                 ground_stats[key] += part[key]
@@ -415,7 +450,8 @@ def bake(zone_id, args, base):
                     floors.append((np.array([a,b,c]),i,int(name)))
     else:
         ex.add(root)
-        split_src, part = extract.subdivide_ground(ex.batches())
+        original = ex.batches()
+        split_src, part = extract.subdivide_ground(original)
         for key in ground_stats:
             ground_stats[key] += part[key]
         floor_tris = [np.array([a, b, c]) for a, b, c, normal, flags in whole_collision.tris
@@ -429,8 +465,11 @@ def bake(zone_id, args, base):
             if len(trial_chunks) > 256 or lower_draw_bound(trial_raw, trial_chunks) > street_lod.DRAW_CAP:
                 continue
             try:
-                trial_low, trial_tex, trial_lod = choose_far(ex.sources, trial_raw, trial_chunks)
-            except FarBudgetError:
+                far_groups = split_grid(original, size)
+                trial_far = [far_groups.get(tuple(c['grid']), []) for c in trial_chunks]
+                trial_low, trial_tex, trial_lod = choose_far(ex.sources, trial_far, trial_chunks)
+            except FarBudgetError as error:
+                print(f"grid {size:g}: {error}", flush=True)
                 continue
             if not prefer_far(trial_lod, lod_report):
                 continue
@@ -442,6 +481,10 @@ def bake(zone_id, args, base):
         if low is None:
             raise ValueError(
                 f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
+    if low is None:
+        # Fail a street before expensive near encoding if its original shell
+        # cannot fit. Never silently substitute the old voxel mesh.
+        low, far_textures, lod_report = choose_far(ex.sources, far_raw, chunks)
     textures, batches=street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
     batches=[[street_atlas.rebase_large_uvs(b,textures) for b in bs] for bs in batches]
     out=Path(args.out)
@@ -461,9 +504,6 @@ def bake(zone_id, args, base):
     with tempfile.TemporaryDirectory() as tmp:
         for chunk,bs in zip(chunks,batches):
             chunk['model'],chunk['stats']=pack(bs,tmp,textures)
-    if low is None:
-        # Streets: the DNA vis is already on each chunk. Same far path as playgrounds.
-        low, far_textures, lod_report = choose_far(ex.sources, raw, chunks)
     with tempfile.TemporaryDirectory() as tmp:
         for chunk,bs in zip(chunks,low):
             # Hill cards keep their page. Everything else is vertex coloured.

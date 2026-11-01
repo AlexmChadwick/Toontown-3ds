@@ -2,9 +2,7 @@
 
 #include <3ds.h>
 
-// libctru reads these at startup to size the heaps. Pinning them explicitly keeps
-// the split identical across Old/New 3DS and HBL/CIA launches instead of depending
-// on whatever memory the host process happened to leave.
+// Fallback defaults; the startup allocator selects the granted-region profile.
 extern "C" {
 u32 __ctru_heap_size = tt::mem::kHeapBudget;
 u32 __ctru_linear_heap_size = tt::mem::kLinearBudget;
@@ -24,8 +22,15 @@ void mappableInit(u32 addrMin, u32 addrMax);
 
 static u32 gRemainingAtBoot = 0;
 static u32 gAllocFailures = 0;
+static u32 gApplicationRegion = 0;
+static u32 gAppMemType = 0;
 
 void __system_allocateHeaps(void) {
+    gApplicationRegion = osGetMemRegionSize(MEMREGION_APPLICATION);
+    gAppMemType = *reinterpret_cast<volatile const u8*>(0x1FF80030);
+    const auto profile = tt::mem::memoryProfile(gApplicationRegion);
+    __ctru_heap_size = profile.heap;
+    __ctru_linear_heap_size = profile.linear;
     Handle reslimit = 0;
     s64 maxCommit = 0, curCommit = 0;
     if (R_SUCCEEDED(svcGetResourceLimit(&reslimit, CUR_PROCESS_HANDLE))) {
@@ -86,6 +91,8 @@ bool gLinearLockReady = false;
 
 HeapReport heapReport() {
     HeapReport r;
+    r.applicationRegion = gApplicationRegion;
+    r.appMemType = gAppMemType;
     r.remainingAtBoot = gRemainingAtBoot;
     r.heap = __ctru_heap_size;
     r.linear = __ctru_linear_heap_size;

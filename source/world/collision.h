@@ -75,6 +75,7 @@ public:
     // A TTC1 blob embedded at `base` of an open file (e.g. inside a .tz). File stays open.
     bool loadFrom(FILE* f, uint32_t base, uint32_t size, const char* label = nullptr);
     void unload();
+    void swap(CollisionWorld& other);
     bool loaded() const { return blob_ != nullptr; }
 
     // Highest floor surface under (x, y) whose height is <= zFrom + stepHeight. With

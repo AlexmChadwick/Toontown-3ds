@@ -62,6 +62,14 @@ inline void noteZone(const char* path) {
     std::snprintf(counters().zone, sizeof(counters().zone), "%s", path);
 }
 
+// Start a fresh zone measurement after the previous zone's loader has stopped.
+// The old counter was process-lifetime, so a Donald's Dock report included TTC,
+// Silly Street and unrelated model reads and looked like a 179 MB single load.
+inline void beginZone(const char* path) {
+    counters() = Counters{};
+    noteZone(path);
+}
+
 inline void notePlayable(uint32_t ms) { counters().playableMs = ms; }
 inline void noteStream(uint32_t ms) { counters().streamMs = ms; }
 

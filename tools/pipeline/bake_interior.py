@@ -193,7 +193,7 @@ def _setup_texture_caching():
 
 
 def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
-             spec=None, max_tex=128, want_preview=False):
+             spec=None, max_tex=256, want_preview=False):
     """Assemble and bake one interior to .ttm, .ttc, .pts, and .json."""
     import assemble
     import collide
@@ -310,7 +310,7 @@ def main():
     ap.add_argument('--tutorial', action='store_true', help="Bake the Toontorial's two interiors (20501, 20502)")
     ap.add_argument('--out-dir', default=DEFAULT_OUT_DIR, help='Output directory for baked data')
     ap.add_argument('--preview-dir', default=DEFAULT_PREVIEW_DIR, help='Output directory for preview PNGs')
-    ap.add_argument('--max-tex', type=int, default=128, help='Max texture dimension (default 128)')
+    ap.add_argument('--max-tex', type=int, default=256, help='Max texture dimension (default 256)')
     ap.add_argument('--resources', default=DEFAULT_RESOURCES, help='Resources directory path')
     ap.add_argument('--no-preview', action='store_true', help='Skip preview PNG generation')
     args = ap.parse_args()

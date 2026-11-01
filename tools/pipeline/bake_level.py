@@ -287,7 +287,7 @@ def bake_tz(level, ents, model, out, args):
     # Per-texture batches with native repeat (no 32 px atlas tiles: the interiors are close-up
     # and heavily tiled). Textures are shared; each chunk TTM copies the ones it uses.
     import assemble
-    ex = extract.Extractor(max_tex=128, layer_rules=assemble.LAYER_RULES)
+    ex = extract.Extractor(max_tex=256, layer_rules=assemble.LAYER_RULES)
     raw, chunks, floors = [], [], []
     stashed = [zones[z] for z in order if z != 0]
     for z in order:
@@ -449,7 +449,7 @@ def spin_props(level, ents, model, out, write=True):
             i = len(found)
             name = f'{level}_spin_{i}.ttm'
             if write:
-                ex = extract.Extractor(max_tex=128)
+                ex = extract.Extractor(max_tex=256)
                 ex.add(n)
                 ttm.write(str(out / name), ex.textures, ex.batches())
             n.setHpr(0, 0, 0)  # initProps: prop.setHpr(0, 0, 0) before the spin

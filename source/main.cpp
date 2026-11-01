@@ -61,6 +61,8 @@
 #include "world/fishing.h"
 #include "world/golf.h"
 #include "world/place.h"
+#include "world/sky.h"
+#include "world/stream_card.h"
 #include "world/player.h"
 #include "world/remote_toons.h"
 #include "world/toon_avatar.h"
@@ -115,6 +117,29 @@ bool featureBusyForWater(bool fishing, bool trolley, bool minigame, bool transit
 }
 
 using tt::render::Model;
+
+struct FixedView {
+    const char* name;
+    u32 zone;
+    float eye[3], target[3], toon[4];
+};
+constexpr FixedView kFixedViews[] = {
+    {"ttc_near", 2000, {-79.2f, -78.1f, 5.5f}, {-82.8f, -91.6f, 5.0f}, {-81.5f, -86.8f, 1.0f, 165.0f}},
+    {"ttc_mid", 2000, {68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f}, {75.7f, 1.0f, 5.0f, -90.0f}},
+    {"ttc_far", 2000, {112.0f, -135.0f, 30.0f}, {0.0f, 130.0f, 0.0f}, {101.0f, -117.0f, 5.0f, 19.0f}},
+    {"ttc_tree", 2000, {-30.0f, 30.0f, 6.0f}, {-80.0f, 40.0f, 0.0f}, {-38.0f, 31.6f, 1.0f, 100.0f}},
+    {"street_near", 2100, {-123.0f, -115.0f, 5.0f}, {-137.0f, -115.0f, 6.0f}, {-130.0f, -115.0f, 0.5f, 90.0f}},
+    {"street_far", 2100, {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f, 180.0f}},
+    {"dd_near", 1000, {-108.0f, -28.0f, 11.0f}, {-122.0f, -28.0f, 10.0f}, {-115.0f, -28.0f, 6.0f, 90.0f}},
+    {"dd_far", 1000, {-110.0f, -40.0f, 14.0f}, {20.0f, 110.0f, 5.0f}, {-112.0f, -33.0f, 6.0f, -40.0f}},
+};
+
+const FixedView* fixedView(const char* label, u32 zone) {
+    if (!label || strncmp(label, "view: ", 6)) return nullptr;
+    for (const FixedView& view : kFixedViews)
+        if (view.zone / 100 == zone / 100 && !strcmp(label + 6, view.name)) return &view;
+    return nullptr;
+}
 
 // Street visgroup changes from tt::world::Zone, applied to the network once in zone.
 struct StreetCell {
@@ -223,6 +248,8 @@ int main() {
     tt::mem::linearLockInit();
     aptHook(&gAptCookie, onApt, nullptr);
     const tt::mem::HeapReport heapRep = tt::mem::heapReport();
+    TT_LOG("boot: APPMEMTYPE %u application region %u KB", heapRep.appMemType,
+           static_cast<unsigned>(heapRep.applicationRegion / 1024));
     TT_LOG("boot: heaps %u KB + linear %u KB (commit free at start %u KB, %u retries)",
            static_cast<unsigned>(heapRep.heap / 1024), static_cast<unsigned>(heapRep.linear / 1024),
            static_cast<unsigned>(heapRep.remainingAtBoot / 1024), heapRep.allocFailures);
@@ -360,6 +387,10 @@ int main() {
         tt::boot::showFatal("Graphics could not start.", "The 3D renderer failed to set up.\nDetails are in sdmc:/3ds/toontown3ds/log.txt");
         return 1;
     }
+
+    static tt::world::Sky zoneSky;
+    zoneSky.load();
+    const u64 skyStartMs=osGetTime();
 
     tt::boot::stage("Building Toontown Central", 0.4f);
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
@@ -552,13 +583,19 @@ int main() {
     tt::autotest::Runner autotest;
     autotest.begin();
     const char* shotName = nullptr;
-    enum class ZonePhase : u8 { Idle, Cover, Streaming };
+    using ZonePhase = tt::world::StreamCardPhase;
     ZonePhase zonePhase = ZonePhase::Idle;
     u32 zoneDest = 0, zoneFrom = 0;
     u64 zoneT0 = 0, zoneStreamT0 = 0;
     float zoneAx = 0, zoneAy = 0, zoneAz = 0, zoneAh = 0;
     bool zoneShotArmed = false;
     static tt::ui::ZoneLoadScreen zoneLoad;
+    static tt::world::Place zonePreload;
+    static tt::world::Player zonePreloadPlayer;
+    bool zonePreloadActive = false;
+    u32 zonePreloadDest = 0;
+    u64 zonePreloadT0 = 0;
+    float zonePreloadX = 0, zonePreloadY = 0, zonePreloadZ = 0;
     bool autotestGrabbed = false;
     bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false, autotestBought = false;
     unsigned netInBps = 0, netOutBps = 0;
@@ -587,12 +624,47 @@ int main() {
     if (inFrontEnd) playFrontEndMusic(1);
     else playHoodMusic(2000);
 
+    auto beginZonePreload = [&](u32 dest) {
+        if (!dest || dest == place.zoneId() || zonePreloadActive || !tt::world::Place::available(dest)) return;
+        zonePreloadT0 = osGetTime();
+        if (!zonePreload.load(dest)) {
+            TT_LOG("prewarm: zone %lu load failed", static_cast<unsigned long>(dest));
+            zonePreload.unload();
+            return;
+        }
+        float h=0;
+        // Map/hood teleports use the destination's default drop point, not a
+        // tunnel arrival from the current zone.
+        zonePreload.arrival(0,&zonePreloadX,&zonePreloadY,&zonePreloadZ,&h);
+        const FixedView* view=fixedView(autotest.active() ? autotest.label() : nullptr,dest);
+        if (view) {
+            zonePreloadX=view->toon[0]; zonePreloadY=view->toon[1]; zonePreloadZ=view->toon[2]; h=view->toon[3];
+        }
+        zonePreloadPlayer.setCollision(&zonePreload.collision());
+        zonePreloadPlayer.reset(zonePreloadX,zonePreloadY,zonePreloadZ,h);
+        if (view) zonePreloadPlayer.overrideCamera(FVec3_New(view->eye[0],view->eye[1],view->eye[2]),
+                                                   FVec3_New(view->target[0],view->target[1],view->target[2]));
+        zonePreload.setCamera(zonePreloadPlayer.cameraEye(),zonePreloadPlayer.cameraTarget());
+        zonePreload.beginStreaming(zonePreloadX,zonePreloadY,zonePreloadZ,nullptr,nullptr);
+        zonePreloadDest=dest;
+        zonePreloadActive=true;
+        TT_LOG("prewarm: zone %lu started during teleport out", static_cast<unsigned long>(dest));
+    };
+
     u64 lastTick = svcGetSystemTick();
     u64 fpsTick = lastTick;
     int fpsFrames = 0;
     float fps = 0.0f;
     tt::render::FrameStats lastStats;
     float lastCmdBufUsage = 0.0f;
+
+    // The first world frame must be as complete as a teleported arrival.  The
+    // front end does not pump Place, and exposing TTC immediately after it used
+    // to show 25 draws and fill in for many seconds.  Keep the boot screen up
+    // while the initial admitted cone is read and published.
+    tt::boot::stage("Finishing the playground", 0.96f);
+    place.setCamera(player.cameraEye(), player.cameraTarget());
+    place.finishLoading(player.x(), player.y(), player.z(), nullptr, nullptr);
 
     TT_LOG("boot: heap %u KB used, linear %lu KB free, vram %lu KB free",
            static_cast<unsigned>(mallinfo().uordblks / 1024),
@@ -680,15 +752,6 @@ int main() {
             }
             if (in.down & (KEY_A | KEY_TOUCH)) tt::audio::playSfx(sfxClick);
             tt::prof::lap(tt::prof::kFrontUpdate);
-            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
-            tt::prof::lap(tt::prof::kWait);
-            renderer.resetStats();
-            toonCache.pump(); // previous GPU frame is complete: publish streamed poses
-            if (releaseFrontEndArt) { // the last front-end frame is complete too
-                frontEnd.releaseArt();
-                releaseFrontEndArt = false;
-            }
-            tt::prof::lap(tt::prof::kLoads);
             if (shotName) {
                 char path[96];
                 snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
@@ -697,6 +760,14 @@ int main() {
                 tt::shot::dumpTarget(bottom, path);
                 shotName = nullptr;
                 tt::prof::lap(tt::prof::kCapture);
+            }
+            C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
+            tt::prof::lap(tt::prof::kWait);
+            renderer.resetStats();
+            toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+            if (releaseFrontEndArt) { // the last front-end frame is complete too
+                frontEnd.releaseArt();
+                releaseFrontEndArt = false;
             }
             tt::prof::lap(tt::prof::kLoads);
             frontEnd.drawTop(renderer);
@@ -729,6 +800,10 @@ int main() {
         if (netStarted && net.fatal()) {
             remoteToons.clear();
             transition.reset(); // a transition in progress is abandoned with the session
+            if (zonePreloadActive) {
+                zonePreload.unload();
+                zonePreloadActive = false;
+            }
             frontEnd.reset();
             inFrontEnd = true;
             continue;
@@ -1867,31 +1942,23 @@ int main() {
             player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
         }
         // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
+        bool fixedViewActive = false;
         if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
             // Test-only: teleport to the view's zone, stand the toon at a fixed pose, and pin the
             // camera to a fixed eye/target so every build shoots exactly the same frame.
-            struct View { const char* name; u32 zone; float eye[3], target[3], toon[4]; };
-            static const View kViews[] = {
-                {"ttc_near", 2000, {-79.2f, -78.1f, 5.5f}, {-82.8f, -91.6f, 5.0f}, {-81.5f, -86.8f, 1.0f, 165.0f}},
-                {"ttc_mid", 2000, {68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f}, {75.7f, 1.0f, 5.0f, -90.0f}},
-                {"ttc_far", 2000, {112.0f, -135.0f, 30.0f}, {0.0f, 130.0f, 0.0f}, {101.0f, -117.0f, 5.0f, 19.0f}},
-                {"ttc_tree", 2000, {-30.0f, 30.0f, 6.0f}, {-80.0f, 40.0f, 3.0f}, {-38.0f, 31.6f, 1.0f, 100.0f}},
-                {"street_near", 2100, {-123.0f, -115.0f, 5.0f}, {-137.0f, -115.0f, 6.0f}, {-130.0f, -115.0f, 0.5f, 90.0f}},
-                {"street_far", 2100, {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f, 180.0f}},
-                {"dd_near", 1000, {-108.0f, -28.0f, 11.0f}, {-122.0f, -28.0f, 10.0f}, {-115.0f, -28.0f, 6.0f, 90.0f}},
-                {"dd_far", 1000, {-110.0f, -40.0f, 14.0f}, {20.0f, 110.0f, 5.0f}, {-112.0f, -33.0f, 6.0f, -40.0f}},
-            };
             // Placed once per (step, zone): a teleport's arrival puts the toon at the drop point.
             static const char* placedLabel = nullptr;
             static u32 placedZone = 0;
-            for (const View& v : kViews) {
+            for (const FixedView& v : kFixedViews) {
                 if (strcmp(autotest.label() + 6, v.name)) continue;
+                fixedViewActive = true;
                 if (place.zoneId() / 100 != v.zone / 100) {
                     if (!uiState.teleportRequest) uiState.teleportRequest = v.zone;
                     break;
                 }
                 if (placedLabel != autotest.label() || placedZone != place.zoneId()) {
                     player.reset(v.toon[0], v.toon[1], v.toon[2], v.toon[3]);
+                    place.zone().releaseHeldView();
                     placedLabel = autotest.label();
                     placedZone = place.zoneId();
                     TT_LOG("view: %s in zone %u", v.name, static_cast<unsigned>(place.zoneId()));
@@ -1918,7 +1985,8 @@ int main() {
         const bool clipTest = autotest.active() && !strncmp(autotest.label(), "clip: ", 6);
         const bool featureAnimation = fishing.active() || trolley.seated() || minigame.inScene() ||
             transition.active();
-        if (!racing.driving() && !battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
+        if (!racing.driving() && !battle.inBattle() && !clipTest && !featureAnimation &&
+            !fixedViewActive && !localToon.actionActive()) localToon.play(anim,animRate);
         // ---- racing2 ----
         if (racing.driving())
             racing.animate(localToon);
@@ -1958,6 +2026,9 @@ int main() {
                 transition.applyAnimation(localToon, dt);
             }
         }
+        // A fixed camera with a wall-clock neutral cycle still changes silhouette
+        // between Old/New runs. Pin the same source pose for the complete view window.
+        if (fixedViewActive) localToon.hold(tt::world::kAnimNeutral, 0.0f);
         if (anim != loggedAnim) { // anim changes are rare; useful when checking stairs/falls
             TT_LOG("player: anim %d at %.1f,%.1f,%.2f (ground %.2f)", int(anim), double(player.x()), double(player.y()),
                    double(player.z()), double(player.groundZ()));
@@ -1978,7 +2049,8 @@ int main() {
         // Streets stream per visgroup; crossing into another server cell changes interest.
         // The draw cap follows this camera, so chunks behind the toon do not spend it.
         place.setCamera(player.cameraEye(), player.cameraTarget());
-        place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
+        // Publish/reclaim after FrameBegin below. An extra FrameSync here
+        // waited a second vblank on each staged mesh and charged it to place.
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
         // its place loads, and the tutorial street is a single cell anyway. ----
@@ -2058,6 +2130,7 @@ int main() {
             if (tt::world::Place::available(uiState.teleportRequest)) {
                 if (uiState.teleportFromMap && netStarted) net.sendCheckTeleportAccess(uiState.teleportRequest);
                 transition.startTeleportOut(uiState.teleportRequest, player, netStarted ? &net : nullptr);
+                beginZonePreload(uiState.teleportRequest);
             }
             uiState.teleportRequest = 0;
         } else if (travelTarget && transition.idle()) {
@@ -2107,10 +2180,9 @@ int main() {
             toastAge = 0.0f;
         }
 
-        // finishLoading used to upload every chunk before the next frame. Zone::update
-        // now uploads about 10 ms per frame. The loading card stays up until the cone
-        // plan is resident; the warm ring continues after the card drops. This path
-        // does not call finishLoading.
+        // Zone::update keeps reads asynchronous and uploads within a time/byte bound.
+        // The loading card stays up until the complete admitted cone is resident at
+        // its planned LOD, so arrival never exposes an empty or blob-only world.
         if (transition.readyToLoad()) {
             auto finishZoneStream = [&]() {
                 const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);
@@ -2131,11 +2203,10 @@ int main() {
                        tt::loadprof::report(profile, sizeof(profile)));
                 if (!tt::loadprof::dump("sdmc:/3ds/toontown3ds/load_profile.txt"))
                     TT_LOG("load: could not write load_profile.txt");
-                // The card was on the previous frame. FrameBegin is what waits for that GPU
-                // work, and we return before it, so sync before freeing the card's textures.
-                ::tt::gpu::frameSync();
-                zoneLoad.release();
-                zonePhase = ZonePhase::Idle;
+                // Keep one last card frame after arrival work. Reclaim it at
+                // the next FrameBegin fence, with no separate vblank wait.
+                zonePhase = ZonePhase::Ready;
+                tt::prof::lap(tt::prof::kPlace);
             };
             if (zonePhase == ZonePhase::Idle) {
                 // One presented frame of the loading screen before the open() stalls.
@@ -2146,7 +2217,17 @@ int main() {
                 TT_LOG("load: cover zone %lu", static_cast<unsigned long>(zoneDest));
             } else if (zonePhase == ZonePhase::Cover) {
                 remoteToons.clear();
-                if (place.load(zoneDest)) {
+                const bool usePreload=zonePreloadActive && zonePreloadDest==zoneDest;
+                const bool loaded=usePreload ? (place.swap(zonePreload),true) : place.load(zoneDest);
+                if (loaded) {
+                    if (usePreload) {
+                        zonePreloadActive=false;
+                        TT_LOG("prewarm: zone %lu swapped after %lu ms", static_cast<unsigned long>(zoneDest),
+                               static_cast<unsigned long>(osGetTime()-zonePreloadT0));
+                        // The preload holder now owns the preceding place. The cover
+                        // is up; unload fences its final world frame before release.
+                        zonePreload.unload();
+                    }
                     if (level.active()) {
                         TT_LOG("level: left for zone %u", unsigned(zoneDest));
                         level.shutdown();
@@ -2159,17 +2240,21 @@ int main() {
                     cogBuildings.syncAnchors(place);
                     suits.setZone(zoneDest);
                     place.arrival(zoneFrom, &zoneAx, &zoneAy, &zoneAz, &zoneAh);
+                    const FixedView* view=fixedView(autotest.active() ? autotest.label() : nullptr,zoneDest);
+                    if (view) {
+                        zoneAx=view->toon[0]; zoneAy=view->toon[1]; zoneAz=view->toon[2]; zoneAh=view->toon[3];
+                    }
                     player.setCollision(&place.collision());
                     player.reset(zoneAx, zoneAy, zoneAz, zoneAh);
+                    if (view) player.overrideCamera(FVec3_New(view->eye[0],view->eye[1],view->eye[2]),
+                                                    FVec3_New(view->target[0],view->target[1],view->target[2]));
                     if (netStarted) net.changeZone(zoneDest);
-                    zoneStreamT0 = osGetTime();
+                    zoneStreamT0 = usePreload ? zonePreloadT0 : osGetTime();
                     place.setCamera(player.cameraEye(), player.cameraTarget());
-                    place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
-                    if (place.streamReady()) {
-                        finishZoneStream();
-                        continue;
-                    }
-                    zonePhase = ZonePhase::Streaming;
+                    if (usePreload) place.update(zoneAx,zoneAy,zoneAz,onStreetCell,nullptr);
+                    else place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
+                    if (place.streamReady()) finishZoneStream();
+                    else zonePhase = ZonePhase::Streaming;
                 } else {
                     place.load(zoneFrom);
                     transition.reset();
@@ -2182,12 +2267,15 @@ int main() {
                 place.update(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
                 if (place.streamReady()) {
                     finishZoneStream();
-                    continue;
                 }
             }
-        } else if (zonePhase != ZonePhase::Idle) {
+        } else if (zonePhase != ZonePhase::Idle && zonePhase != ZonePhase::Ready && zonePhase != ZonePhase::Retire) {
             // The transition was abandoned (disconnect, relocation). Don't leave the load screen up.
             ::tt::gpu::frameSync();
+            if (zonePreloadActive) {
+                zonePreload.unload();
+                zonePreloadActive = false;
+            }
             zoneLoad.release();
             zonePhase = ZonePhase::Idle;
         }
@@ -2858,8 +2946,44 @@ int main() {
         }
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
+        if (shotName) {
+            if (!strncmp(shotName, "view_", 5)) {
+                unsigned nearCount=0;
+                for (int i=0; i<place.zone().numChunks(); ++i)
+                    if (place.zone().chunkLod(i)==0) ++nearCount;
+                TT_LOG("view %s draws %lu tris %lu resident_near %u", shotName+5,
+                       static_cast<unsigned long>(lastStats.drawCalls),
+                       static_cast<unsigned long>(lastStats.triangles), nearCount);
+            }
+            // dumpTarget fences the preceding render and completes a direct GX
+            // readback before writing. It must remain outside FrameBegin/FrameEnd.
+            char path[96];
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
+            tt::shot::dumpTarget(renderer.topLeft(), path);
+            if (stereoActive) { // right eye too, to check the parallax
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
+                tt::shot::dumpTarget(renderer.topRight(), path);
+            }
+            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
+            tt::shot::dumpTarget(bottom, path);
+            shotName = nullptr;
+            tt::prof::lap(tt::prof::kCapture);
+        }
         C3D_FrameBegin(C3D_FRAME_SYNCDRAW);
         tt::prof::lap(tt::prof::kWait);
+        if (tt::world::retireStreamCard(zonePhase)) zoneLoad.release();
+        if (zonePhase == ZonePhase::Idle) {
+            if (zonePreloadActive && transition.active()) {
+                zonePreload.setCamera(zonePreloadPlayer.cameraEye(),zonePreloadPlayer.cameraTarget());
+                zonePreload.update(zonePreloadX,zonePreloadY,zonePreloadZ,nullptr,nullptr,true);
+            } else {
+                // Once departure starts, destination reads own the streaming
+                // bandwidth. The completed source view remains resident to draw.
+                place.setCamera(player.cameraEye(), player.cameraTarget());
+                place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr, true);
+            }
+        }
+        tt::prof::lap(tt::prof::kPlace);
         // ---- clerks: publish preview resources only after the GPU fence ----
         int8_t clerkKartDna[9];
         clerkKartPreview.select(serviceClerks.kartPreview(clerkKartDna) ? clerkKartDna : nullptr);
@@ -2880,22 +3004,14 @@ int main() {
         racing.pumpAssets();
         estate.pumpAssets();
         tt::prof::lap(tt::prof::kLoads);
-        if (shotName) {
-            // Previous frame is complete after FrameBegin; dump it before clearing.
-            char path[96];
-            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
-            tt::shot::dumpTarget(renderer.topLeft(), path);
-            if (stereoActive) { // right eye too, to check the parallax
-                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
-                tt::shot::dumpTarget(renderer.topRight(), path);
-            }
-            snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
-            tt::shot::dumpTarget(bottom, path);
-            shotName = nullptr;
-            tt::prof::lap(tt::prof::kCapture);
-        }
         renderer.resetStats();
         C3D_Mtx m;
+        C3D_FVec worldEye=player.cameraEye(), worldTarget=player.cameraTarget();
+        tt::world::Vec3 heldEye{}, heldTarget{};
+        if (place.zone().heldCamera(&heldEye, &heldTarget)) {
+            worldEye=FVec3_New(heldEye.x, heldEye.y, heldEye.z);
+            worldTarget=FVec3_New(heldTarget.x, heldTarget.y, heldTarget.z);
+        }
         const int eyes = stereoActive ? 2 : 1;
         for (int e = 0; e < eyes; e++) {
             C3D_RenderTarget* target = e == 0 ? renderer.topLeft() : renderer.topRight();
@@ -2916,18 +3032,22 @@ int main() {
                     renderer.setFog(0x6A / 255.0f, 0xB0 / 255.0f, 0xD9 / 255.0f, q.fogStart, q.fogEnd);
                 }
             }
-            renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
+            renderer.beginWorld(target, worldEye, worldTarget, slider / 3.0f, eyeSign);
             if (zonePhase != ZonePhase::Idle) {
                 zoneLoad.drawCard(renderer, player.cameraEye(), player.cameraTarget());
                 continue;
             }
 
+            if (!indoors && !minigame.active() && !golf.active())
+                zoneSky.draw(renderer, worldEye, tt::world::hoodOf(place.zoneId()) == 1000,
+                             autotest.active() && !strncmp(autotest.label(), "view: ", 6) ? 300.0f :
+                             static_cast<float>((osGetTime()-skyStartMs)%7200000)/1000.0f);
             if (golf.active()) {
                 golf.draw(renderer);
                 tt::prof::lap(tt::prof::kGolfDraw);
             } else if (minigame.active()) {
                 // ---- qafix: Photo uses the real hood, not a viewfinder model as scenery ----
-                if (minigame.photoScene()) place.draw(renderer, player.cameraEye());
+                if (minigame.photoScene()) place.draw(renderer, worldEye);
                 // ---- end qafix ----
                 minigame.draw(renderer);
                 suits.draw(renderer); // ---- minigame Cogs (MinigameSession::cogs) ----
@@ -2961,7 +3081,7 @@ int main() {
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {
-                place.draw(renderer, player.cameraEye());
+                place.draw(renderer, worldEye);
             }
             // ---- clerks: preview the selected body/equipped accessory components ----
             if (clerkKartPreview.active())
@@ -3252,9 +3372,9 @@ int main() {
         ctx.modelsDrawn = lastStats.modelsDrawn;
         ctx.modelsCulled = lastStats.modelsCulled;
         ctx.heapUsedKB = mi.uordblks / 1024;
-        ctx.heapBudgetKB = tt::mem::kHeapBudget / 1024;
+        ctx.heapBudgetKB = heapRep.heap / 1024;
         ctx.linearFreeKB = linearSpaceFree() / 1024;
-        ctx.linearBudgetKB = tt::mem::kLinearBudget / 1024;
+        ctx.linearBudgetKB = heapRep.linear / 1024;
         ctx.vramFreeKB = vramSpaceFree() / 1024;
         ctx.isNew3ds = isNew3ds;
         ctx.zoneId = place.zoneId();
@@ -3385,7 +3505,12 @@ int main() {
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
         } else {
-            const float prog = zonePhase == ZonePhase::Cover ? 0.12f : place.streamProgress();
+            // Destination work normally begins during teleport-out.  If the first
+            // covered frame arrives after prewarming, show that real completion
+            // instead of drawing a fake empty bar immediately before it closes.
+            const float prog = zonePhase == ZonePhase::Cover
+                ? (zonePreloadActive && zonePreloadDest == zoneDest ? zonePreload.streamProgress() : 0.0f)
+                : place.streamProgress();
             C2D_Prepare();
             zoneLoad.drawUi(renderer, bottom, stereoActive, zoneDest, prog);
             if (autotest.active() && !zoneShotArmed) {
@@ -3433,7 +3558,9 @@ int main() {
     toonCache.shutdown();
     transition.shutdown();
     dropShadow.unload();
+    zonePreload.unload();
     place.unload();
+    zoneSky.unload();
     balloons.shutdown();
     ui.shutdown();
     renderer.shutdown();

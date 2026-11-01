@@ -90,7 +90,7 @@ def choose_format(px, ncomp, panda_fmt, etc1=None, binary_alpha_5551=None):
 
 
 class Extractor:
-    def __init__(self, max_tex=128, tint_rules=(), layer_rules=(), encode_textures=True,
+    def __init__(self, max_tex=256, tint_rules=(), layer_rules=(), encode_textures=True,
                  etc1=None, decals=False):
         self.max_tex = max_tex
         self.etc1 = etc1                 # None: env TT_ETC1 (default on)

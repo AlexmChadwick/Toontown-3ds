@@ -241,6 +241,22 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints,
     drawBatches(model, tints, slotTex, !model.absoluteIndices());
 }
 
+void Renderer::drawSky(Model& model, const C3D_Mtx& world) {
+    skyPass_ = true;
+    batchState_ = BatchState{};
+    C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
+    drawModel(model, world);
+    skyPass_ = false;
+    batchState_ = BatchState{};
+    C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_ALL);
+    C3D_DepthMap(true, -1.0f, 0.0f);
+    if (fogOn_) {
+        C3D_FogGasMode(GPU_FOG, GPU_PLAIN_DENSITY, true);
+        C3D_FogColor(fogColor_);
+        C3D_FogLutBind(&fogLut_);
+    }
+}
+
 void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                          const Tints* tints, const C3D_Tex* const* slotTex) {
     // Morph draws bind one vertex buffer per model, so they need absolute indices.
@@ -299,7 +315,8 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
 
         if (b.blend != batchState_.blend) {
             C3D_AlphaTest(b.blend == kBlendAlphaTest, GPU_GREATER, 127);
-            C3D_DepthTest(true, GPU_GREATER, b.blend == kBlendAlpha ? GPU_WRITE_COLOR : GPU_WRITE_ALL);
+            C3D_DepthTest(!skyPass_, skyPass_ ? GPU_ALWAYS : GPU_GREATER,
+                          skyPass_ || b.blend == kBlendAlpha ? GPU_WRITE_COLOR : GPU_WRITE_ALL);
             batchState_.blend = b.blend;
         }
         if (b.layer != batchState_.layer) {
