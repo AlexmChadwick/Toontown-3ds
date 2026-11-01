@@ -44,7 +44,7 @@ private:
     // button (icon, count) per unlocked level.
     void drawGagGrid(const world::BattleView& v, const BattleGags& g);
     // InventoryNew's battle buttons (Fire / Pass / Run / SOS) in its own blue.
-    void drawButtons(const world::BattleView& v);
+    void drawButtons(const world::BattleView& v, const BattleGags& g);
     void drawSos(const world::BattleView& v);
     void drawFire(const world::BattleView& v);
     void smallButton(float x, float y, float w, bool enabled, const char* label);

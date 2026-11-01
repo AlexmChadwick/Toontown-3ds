@@ -85,6 +85,8 @@ public:
     uint32_t npcDoId() const { return npcDoId_; }
     uint16_t npcId() const { return npcId_; }
     const char* npcName() const;
+    // DistributedNPCToonBase.setName of the NPC in this talk: wins over the quest tables' name.
+    void setServerName(const char* name);
     int numPages() const { return numPages_; }
     int page() const { return page_; }
     const char* pageText() const { return page_ < numPages_ ? pages_[page_] : ""; }
@@ -128,6 +130,7 @@ private:
     uint16_t scriptQuest_ = 0;
     bool scriptPending_ = false;
     char scriptLine_[kPageChars * 2] = {};
+    char serverName_[32] = {};
     int scriptSerial_ = 0;
     int scriptCard_ = -1;
     const char* scriptWait_ = nullptr;

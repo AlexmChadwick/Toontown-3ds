@@ -26,6 +26,8 @@ public:
     static constexpr float kMaxTextW = 160.0f;
     // Approximation of libotp's CCNormal nametag (the C++ nametag code is not in ref/).
     static constexpr u32 kNameColorToon = 0xFFC04020; // ABGR: RGB(0x20,0x40,0xC0)
+    // NametagGlobals CCNonPlayer name fg (0.8, 0.4, 0.0): NPC Toons (DistributedNPCToonBase setPlayerType)
+    static constexpr u32 kNameColorNpc = 0xFF0066CC; // ABGR: RGB(0xCC,0x66,0x00)
 
     bool init();
     void shutdown();
