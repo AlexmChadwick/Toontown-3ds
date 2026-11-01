@@ -164,8 +164,24 @@ def _colorize_far(sources, chunks, images=None, details=False):
                 verts[:, 3:5] = 0.0
                 np.clip(verts[:, 5:9], 0.0, 1.0, out=verts[:, 5:9])
                 colored.append(verts)
+            blend = b.blend
+            if colored and details and blend == ttm.BLEND_ALPHA_TEST:
+                # A coloured alpha-test triangle is a solid patch or nothing: under the
+                # 0.5 test it shows where its corners are opaque. As opaque it shares
+                # the opaque draw instead of costing one more.
+                tri_alpha = np.stack(colored).reshape(-1, 3, 9)[:, :, 8].mean(axis=1)
+                colored = [v for v, a in zip(colored, tri_alpha) if a >= 0.5]
+                for v in colored:
+                    v[:, 8] = 1.0
+                blend = ttm.BLEND_OPAQUE
             if colored:
-                groups.setdefault((b.blend, bool(b.two_sided)), []).extend(colored)
+                groups.setdefault((blend, bool(b.two_sided)), []).extend(colored)
+        if details:
+            # Like the near atlas: a state that already has two-sided faces takes its
+            # one-sided ones too, which cannot hide a face.
+            for blend, two in list(groups):
+                if not two and (blend, True) in groups:
+                    groups[(blend, True)].extend(groups.pop((blend, False)))
         merged = []
         for (blend, two), parts in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
             block = np.concatenate(parts)
@@ -285,6 +301,23 @@ def _split_signs(sources, batches):
     return signs, rest
 
 
+def _merge_states(batches):
+    """Batches with one texture, blend, cull and layer as one draw (DNA signs come per sign)."""
+    import numpy as np
+    import ttm
+    groups = {}
+    for b in batches:
+        key = (b.texture, b.blend, bool(b.two_sided), b.tint, b.layer, getattr(b, 'sign', False))
+        groups.setdefault(key, []).append(np.asarray(b.verts)[np.asarray(b.indices)])
+    out = []
+    for (tex, blend, two, tint, layer, sign), parts in groups.items():
+        block = np.concatenate(parts)
+        for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
+            vs = block[start:start + ttm.MAX_BATCH_VERTS]
+            out.append(ttm.Batch(tex, blend, two, tint, layer, vs, np.arange(len(vs)), sign))
+    return out
+
+
 def choose_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
@@ -311,6 +344,7 @@ def choose_far(sources, raw, chunks, images=None):
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     def attempt(step, details):
         """The far mesh at one voxel step, or None when a PVS misses the budget."""
+        merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
         low = [street_lod.simplify(bs, step, keep_layers=details) for bs in bodies]
         colored, kept, extra = _colorize_far(sources, low, images, details=details)
         if details:
@@ -324,13 +358,13 @@ def choose_far(sources, raw, chunks, images=None):
         worst, draws = worst_of(placed)
         if worst > street_lod.LOW_TARGET or draws > street_lod.DRAW_CAP:
             return None, (worst, draws)
-        signed = [list(chunk) + signs for chunk, signs in zip(placed, sign_sets)]
+        signed = [list(chunk) + signs for chunk, signs in zip(placed, merged_signs)]
         signed_worst, signed_draws = worst_of(signed)
         # Letters stay when they still fit. A view that is already on the cap keeps the
         # old far mesh rather than failing the bake.
         use_signs = signed_worst <= street_lod.LOW_TARGET and signed_draws <= street_lod.DRAW_CAP
         if use_signs:
-            colored = [list(chunk) + signs for chunk, signs in zip(colored, sign_sets)]
+            colored = [list(chunk) + signs for chunk, signs in zip(colored, merged_signs)]
             worst, draws = signed_worst, signed_draws
         detail_tris = sum(street_lod.count(e) for e in extra)
         if images is None:
