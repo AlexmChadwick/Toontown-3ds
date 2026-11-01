@@ -214,7 +214,11 @@ def build_far_atlas(sources, chunks, encode=True):
             continue
         local = {src: i for i, src in enumerate(used)}
         page = next((p for p in FAR_PAGES if len(used) <= (p // span) ** 2), FAR_PAGES[-1])
-        remapped = [ttm.Batch(local[b.texture], b.blend, b.two_sided, 0, b.layer, b.verts, b.indices)
+        # One draw per page: far detail is alpha tested (a blended decal past lodNear
+        # reads the same at >0.5), two-sided and on one decal layer. Split by state it
+        # cost about three draws a chunk, and a TTC view past the 150 submit cap
+        # dropped a far ground chunk (a sky hole).
+        remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, True, 0, 1, b.verts, b.indices)
                     for b in batches]
         textures, result = street_atlas.build([sources[i] for i in used], [remapped], encode=encode,
                                               standalone_size=32, page=page, **FAR_ATLAS)
