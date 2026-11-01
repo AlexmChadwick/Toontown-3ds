@@ -41,7 +41,7 @@ private:
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void drawToons(const world::BattleView& v, float x0, float w);
     // InventoryNew's battle buttons (Fire / Pass / Run / SOS) in its own blue.
-    void drawButtons(const world::BattleView& v);
+    void drawButtons(const world::BattleView& v, const BattleGags& g);
     void drawSos(const world::BattleView& v);
     void drawFire(const world::BattleView& v);
     void smallButton(float x, float y, float w, bool enabled, const char* label);

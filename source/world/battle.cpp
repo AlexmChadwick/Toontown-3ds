@@ -1365,7 +1365,7 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         v->secondsLeft = (ms + 999) / 1000;
         if (v->secondsLeft > int(kInputTimeoutMs / 1000)) v->secondsLeft = int(kInputTimeoutMs / 1000);
     }
-    v->canRun = phase_ == BattlePhase::Input;
+    v->canRun = phase_ == BattlePhase::Input && !tutorial_; // ---- tutorial ---- no RUN in the Toontorial
     v->rewardSent = rewardSent_;
     // InventoryNew.battleActivate: Fire is live with a pink slip; the tutorial shows neither.
     v->pinkSlips = client.bossPinkSlips();

@@ -13,6 +13,7 @@
 #include "world/battle_fx.h"
 #include "ui/suit_heads_atlas.h"
 #include "ui/theme.h"
+#include "ui/tutorial_art.h"
 
 namespace tt::ui {
 
@@ -267,6 +268,9 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
         for (int l = 0; l < gags::kLevels; l++) usableGag[t * gags::kLevels + l] = usable(v, g, t, l);
     }
     pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, v.canFire, v.canSos);
+    // ---- tutorial ---- InventoryNew tutorialFlag: Pass is hidden with Run, SOS and Fire
+    if (v.tutorialArrows && focus_.indexOf(pad::battle::kIdPass) >= 0)
+        focus_.setItemEnabled(focus_.indexOf(pad::battle::kIdPass), false);
     if (wantFocus_ >= 0) {
         focus_.setFocusById(wantFocus_);
         wantFocus_ = -1;
@@ -481,7 +485,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                 text(x + 20, y + 1.5f, 0.38f, ok ? kInk : kInkSoft, "%u", unsigned(g.count[t][l]));
             }
         }
-        drawButtons(v);
+        drawButtons(v, g);
     }
     drawToons(v, pad::battle::kToonsX, pad::battle::kToonsW);
     if (choosing) focus_.drawHighlight();
@@ -495,8 +499,20 @@ void BattlePanel::smallButton(float x, float y, float w, bool enabled, const cha
     centered(x + w * 0.5f, y + 2, 0.42f, enabled ? theme::kWhite : theme::rgb(0xD8, 0xD8, 0xD8), w - 6, label);
 }
 
-void BattlePanel::drawButtons(const world::BattleView& v) {
+void BattlePanel::drawButtons(const world::BattleView& v, const BattleGags& g) {
     const bool choosing = v.phase == world::BattlePhase::Input;
+    // ---- tutorial ---- InventoryNew.setActivateMode(tutorialFlag=1) hides RUN, SOS, PASS and FIRE;
+    // show() blinks tutArrows at the Throw and Squirt gags (arrowsOn(-0.43, -0.12, 180, -0.43, -0.24, 180,
+    // onTime 1.0, offTime 0.2)), each only when the Toon has that gag.
+    if (choosing && v.tutorialArrows) {
+        const float s = static_cast<float>(osGetTime() % 1200) / 1000.0f;
+        const float a = s < 1.0f ? 0.25f + 0.75f * s : 1.0f - 0.75f * (s - 1.0f) / 0.2f;
+        for (int t : {4, 5}) { // THROW_TRACK, SQUIRT_TRACK
+            if (!g.count || !g.count[t][0]) continue;
+            drawTutorialArrow(kGridX + kCellW + 4, kGridY + t * kRowH + (kRowH - 2) * 0.5f, 180, 20.0f, a);
+        }
+        return;
+    }
     smallButton(pad::battle::kFireX, kBtnY, pad::battle::kSmallW, choosing && v.canFire, "FIRE");
     smallButton(pad::battle::kPassX, kBtnY, pad::battle::kSmallW, choosing, "PASS");
     smallButton(pad::battle::kRunX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canRun, "RUN");
