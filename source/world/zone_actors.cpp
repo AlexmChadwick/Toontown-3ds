@@ -90,6 +90,7 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
         n->y = p->y;
         n->z = p->z;
         n->h = p->h;
+        n->hidden = false;
         ToonDna dna;
         if (!src->hasDna || !parseNetString(src->dna, net::kDnaSize, &dna)) dna = defaultToonDna();
         cache_->acquire(dna, ToonLod::High, &n->look);
@@ -155,7 +156,7 @@ void ZoneActors::update(float dt) {
 void ZoneActors::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     C3D_Mtx m;
     for (Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue;
         Mtx_Identity(&m);
         Mtx_Translate(&m, n.x, n.y, n.z, true);
         Mtx_RotateZ(&m, n.h * kDegToRad, true);
@@ -176,7 +177,7 @@ void ZoneActors::draw(render::Renderer& renderer, const C3D_FVec& eye) {
 
 void ZoneActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
     for (const Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue;
         float sx, sy, depth;
         if (ui::projectToScreen(proj, view, n.x, n.y, n.z + n.look.nametagHeight, &sx, &sy, &depth) &&
             depth < kNametagMaxDistance) {
@@ -217,7 +218,7 @@ u32 ZoneActors::touchingNpc(float x, float y, float z, const net::Client& client
     const float reach = tubeRadius + kToonRadius * 1.04f;
     const float cz = z + kToonRadius - 0.1f;
     for (const Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue; // resetBlocker clears the collision mask
         const net::NpcToon* src = client.findNpc(n.doId);
         if (!src || src->classId != classId) continue;
         const float h = n.h * kDegToRad;
@@ -279,7 +280,7 @@ bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* targe
 int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
     int n = 0;
     for (const Npc& s : npcs_) {
-        if (!s.active || n >= maxOut) continue;
+        if (!s.active || s.hidden || n >= maxOut) continue;
         xyzs[4 * n] = s.x;
         xyzs[4 * n + 1] = s.y;
         xyzs[4 * n + 2] = s.z;
@@ -287,6 +288,45 @@ int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
         n++;
     }
     return n;
+}
+
+ZoneActors::Npc* ZoneActors::findNpc(u32 doId) {
+    for (Npc& n : npcs_) {
+        if (n.active && n.doId == doId) return &n;
+    }
+    return nullptr;
+}
+
+bool ZoneActors::npcPose(u32 npc, float* x, float* y, float* z, float* h) const {
+    for (const Npc& n : npcs_) {
+        if (!n.active || n.doId != npc) continue;
+        *x = n.x;
+        *y = n.y;
+        *z = n.z;
+        *h = n.h;
+        return true;
+    }
+    return false;
+}
+
+void ZoneActors::setNpcPose(u32 npc, float x, float y, float z, float h) {
+    if (Npc* n = findNpc(npc)) {
+        n->x = x;
+        n->y = y;
+        n->z = z;
+        n->h = h;
+    }
+}
+
+void ZoneActors::setNpcAnim(u32 npc, ToonAnim anim, float rate) {
+    if (Npc* n = findNpc(npc)) n->avatar.play(anim, rate);
+}
+
+void ZoneActors::setNpcHidden(u32 npc, bool hidden) {
+    if (Npc* n = findNpc(npc)) {
+        if (n->hidden != hidden) TT_LOG("zone: NPC %s %s", n->name, hidden ? "hidden" : "shown");
+        n->hidden = hidden;
+    }
 }
 
 int ZoneActors::npcCount() const {

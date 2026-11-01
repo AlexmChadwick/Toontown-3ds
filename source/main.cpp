@@ -450,6 +450,7 @@ int main() {
     static tt::world::TutorialChar tutorialChar; // tutorial_mickey's Mickey / Minnie
     static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
     static bool tutorialSaidSpeedChat = false;
+    static bool tutorialBlockerPlayed = false; // Flippy's movie ran on this street visit
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
@@ -1912,20 +1913,65 @@ int main() {
         }
         // ---- end qafix ----
         // ---- tutorial ----
-        // tutorial_mickey: LOCK_LOCALTOON's scripted run in, the camera parented to render
-        // (POSHPRSCALE camera 11 7 3 52 0 0), and the last pose at FREE_LOCALTOON.
+        // The QuestScript's staging: LOCK_LOCALTOON's scripted moves (tutorial_mickey's run in),
+        // a one-off placement (FREE_LOCALTOON, or the POS of an unlocked Toon: quest_assign_101's
+        // last pose, tutorial_blocker's spot by Flippy), the NPC the script moves (Flippy runs
+        // off), and the camera in its parent's frame (render, the NPC or the local Toon).
         {
-            const bool release = tutorial.takeToonRelease();
-            if (tutorial.toonPosed() || release) {
-                const tt::quest::ScriptXform& x = tutorial.xform(tt::quest::ScriptVar::LocalToon);
+            using SV = tt::quest::ScriptVar;
+            const u32 scriptNpc = tutorialSpeaker ? tutorialSpeaker : netStarted ? net.tutorialInterior().npcDoId : 0;
+            if (tutorialSpeaker && tutorial.scriptId() == tt::quest::ScriptId::TutorialBlocker) {
+                // Flippy is parented to render (NPCToons.BlockerPositions): the script's pose is his.
+                if (tutorial.npcPosed()) {
+                    const tt::quest::ScriptXform& n = tutorial.xform(SV::Npc);
+                    zoneActors.setNpcPose(tutorialSpeaker, n.pos[0], n.pos[1], n.pos[2], n.hpr[0]);
+                }
+                if (tutorial.npcAnim().name[0])
+                    zoneActors.setNpcAnim(tutorialSpeaker, tt::world::toonAnimByName(tutorial.npcAnim().name),
+                                          tutorial.npcAnim().rate);
+                if (tutorial.npcHidden()) zoneActors.setNpcHidden(tutorialSpeaker, true);
+            }
+            const bool place = tutorial.takeToonPlace();
+            if (tutorial.toonPosed() || place) {
+                const tt::quest::ScriptXform& x = tutorial.xform(SV::LocalToon);
                 player.reset(x.pos[0], x.pos[1], x.pos[2], x.hpr[0]);
             }
+            // A parent node's world pose (x, y, z, heading); pitch and roll of parents are zero here.
+            auto parentPose = [&](SV parent, float* p) {
+                p[0] = p[1] = p[2] = p[3] = 0.0f;
+                if (parent == SV::LocalToon) {
+                    p[0] = player.x(), p[1] = player.y(), p[2] = player.z(), p[3] = player.headingDeg();
+                    return true;
+                }
+                return parent != SV::Npc || zoneActors.npcPose(scriptNpc, &p[0], &p[1], &p[2], &p[3]);
+            };
+            SV wrtFrom = SV::None;
+            if (tutorial.takeCameraWrt(&wrtFrom)) {
+                // WrtParentInterval: keep the camera where it is in the world, now in the new frame.
+                float a[4], b[4];
+                const bool known = parentPose(wrtFrom, a) && parentPose(tutorial.cameraParent(), b);
+                tt::quest::ScriptXform c = tutorial.xform(SV::Camera);
+                const float ha = a[3] * kDegToRad, hb = b[3] * kDegToRad;
+                const float wx = a[0] + c.pos[0] * cosf(ha) - c.pos[1] * sinf(ha);
+                const float wy = a[1] + c.pos[0] * sinf(ha) + c.pos[1] * cosf(ha);
+                const float dx = wx - b[0], dy = wy - b[1];
+                c.pos[0] = dx * cosf(hb) + dy * sinf(hb);
+                c.pos[1] = -dx * sinf(hb) + dy * cosf(hb);
+                c.pos[2] += a[2] - b[2];
+                c.hpr[0] += a[3] - b[3];
+                if (known) tutorial.setCameraLocal(c);
+            }
             if (tutorial.active() && tutorial.cameraStaged()) {
-                const tt::quest::ScriptXform& c = tutorial.xform(tt::quest::ScriptVar::Camera);
-                const float h = c.hpr[0] * 3.14159265f / 180.0f, p = c.hpr[1] * 3.14159265f / 180.0f;
-                const C3D_FVec eye = FVec3_New(c.pos[0], c.pos[1], c.pos[2]);
-                player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f, eye.y + cosf(h) * cosf(p) * 10.0f,
-                                                     eye.z + sinf(p) * 10.0f));
+                const tt::quest::ScriptXform& c = tutorial.xform(SV::Camera);
+                float pp[4];
+                const bool known = parentPose(tutorial.cameraParent(), pp); // the NPC may not be generated yet
+                const float ph = pp[3] * kDegToRad;
+                const float h = ph + c.hpr[0] * kDegToRad, p = c.hpr[1] * kDegToRad;
+                const C3D_FVec eye = FVec3_New(pp[0] + c.pos[0] * cosf(ph) - c.pos[1] * sinf(ph),
+                                               pp[1] + c.pos[0] * sinf(ph) + c.pos[1] * cosf(ph), pp[2] + c.pos[2]);
+                if (known)
+                    player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f,
+                                                         eye.y + cosf(h) * cosf(p) * 10.0f, eye.z + sinf(p) * 10.0f));
             }
         }
         // ---- end tutorial ----
@@ -2329,7 +2375,12 @@ int main() {
                     while (net.pollBlockerMovie(movie)) {
                         if (movie.avId == net.avatarId() && movie.mode == 1) {
                             tutorialSpeaker = movie.npcDoId;
+                            tutorialBlockerPlayed = true;
                             tutorial.start(tt::quest::ScriptId::TutorialBlocker, localToonFemale(net));
+                            tt::quest::ScriptXform flippy; // his LERP_POS / LERP_HPR start where he stands
+                            if (zoneActors.npcPose(movie.npcDoId, &flippy.pos[0], &flippy.pos[1], &flippy.pos[2],
+                                                   &flippy.hpr[0]))
+                                tutorial.seedNpc(flippy);
                         }
                     }
                 } else if (ev.type == tt::net::EventType::Quests && autotest.tutorialPath()) {
@@ -2645,12 +2696,19 @@ int main() {
                 if (npcFree || !giver) lastTouchedQuestNpc = giver;
                 // ---- tutorial ----
                 // Flippy at the tunnel: DistributedNPCBlocker.handleCollisionSphereEnter sends
-                // avatarEnter once per contact; the AI answers with BLOCKER_MOVIE_START.
+                // avatarEnter once per contact; the AI answers with BLOCKER_MOVIE_START. After his
+                // movie resetBlocker clears his collision: no second lesson on this street visit.
                 if (net.inTutorial()) {
                     static u32 lastTouchedBlocker = 0;
+                    static u32 blockerZone = 0;
+                    if (place.zoneId() != blockerZone) {
+                        blockerZone = place.zoneId();
+                        tutorialBlockerPlayed = false;
+                    }
                     const u32 blocker = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
                                                                tt::dc::DistributedNPCBlocker::kClassId);
-                    if (blocker && blocker != lastTouchedBlocker && !tutorial.active() && net.sendBlockerAvatarEnter(blocker))
+                    if (blocker && blocker != lastTouchedBlocker && !tutorial.active() && !tutorialBlockerPlayed &&
+                        net.sendBlockerAvatarEnter(blocker))
                         TT_LOG("tutorial: Flippy blocker contact %u", unsigned(blocker));
                     lastTouchedBlocker = blocker;
                 }
@@ -3159,7 +3217,8 @@ int main() {
             }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) { // ---- racing2 ----
+            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible() &&
+                !tutorial.toonHidden()) { // ---- racing2 ---- (tutorial_blocker: HIDE localToon)
                 if (transition.toonScale() != 1.0f) {
                     const float ts = transition.toonScale();
                     Mtx_Scale(&m, ts, ts, ts);
@@ -3261,7 +3320,11 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && tutorial.text()[0] && talk.phase() != tt::quest::Talk::Phase::Script &&
+                // tutorial_mickey ends on LOCAL_CHAT_PERSIST "Come here!": it stays over Tom until
+                // the player walks up to him (quest_assign_101 opens with CLEAR_CHAT npc).
+                if (talk.locked()) tutorial.dropPersist();
+                if ((tutorial.active() || tutorial.persisting()) && tutorial.text()[0] &&
+                    talk.phase() != tt::quest::Talk::Phase::Script &&
                     !(tutorial.speaker() == tt::quest::ScriptVar::ClassicChar && tutorialChar.loaded())) {
                     // Mickey's intro is said over Tom (no classic-char actor in his room); Flippy's
                     // SpeedChat lesson over Flippy.

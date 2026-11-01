@@ -41,6 +41,13 @@ public:
     // the pet, kart, fisherman and party clerks pass the local toon's.
     bool talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight = -1) const;
     int npcCount() const;
+    // A QuestScript moving an NPC (tutorial_blocker's Flippy runs off, then REPARENTTO npc hidden):
+    // its pose (world, heading in degrees), a looping clip, and hiding it (no drawing, nametag or
+    // collision) until it is generated again.
+    bool npcPose(u32 npc, float* x, float* y, float* z, float* h) const;
+    void setNpcPose(u32 npc, float x, float y, float z, float h);
+    void setNpcAnim(u32 npc, ToonAnim anim, float rate);
+    void setNpcHidden(u32 npc, bool hidden);
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
@@ -55,6 +62,7 @@ private:
         u32 doId = 0;
         char name[32] = {};
         float x = 0, y = 0, z = 0, h = 0;
+        bool hidden = false;
         ToonLook look;
         ToonAvatar avatar;
     };
@@ -66,6 +74,7 @@ private:
         bool grabbed = false;
     };
     const Point* findPoint(const char* name) const;
+    Npc* findNpc(u32 doId);
 
     ToonCache* cache_ = nullptr;
     Point points_[kMaxPoints];
