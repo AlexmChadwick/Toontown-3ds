@@ -70,6 +70,7 @@
 // ---- tutorial ----
 #include "world/tutorial.h"
 #include "world/tutorial_char.h"
+#include "ui/tutorial_art.h"
 
 namespace {
 // DistributedTutorialSuit.enterWalk: makePathTrack over these points at 4.5 units/s, looped. Each
@@ -1681,7 +1682,13 @@ int main() {
         }
         ui.setTalk(&talk);
         // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
-        tutorial.setInTutorialHood(netStarted && net.inTutorial());
+        {
+            static bool inTutorialHood = false;
+            const bool inHood = netStarted && net.inTutorial();
+            if (inTutorialHood && !inHood) tt::ui::releaseTutorialArt(); // Tom's cards, the arrows
+            inTutorialHood = inHood;
+            tutorial.setInTutorialHood(inHood);
+        }
         ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
         ui.setTutorialArrows(tutorial.arrows());
         ui.book().setScriptLock(tutorial.bookCloseEnabled(), tutorial.bookNextShown(), tutorial.bookPrevShown(),

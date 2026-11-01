@@ -15,6 +15,10 @@ bool drawTutorialCard(TutorialCard card, float x, float y, float w, float h, flo
 // (tipX, tipY), pointing `angleDeg` clockwise from screen right (90 = down), at `alpha`.
 bool drawTutorialArrow(float tipX, float tipY, float angleDeg, float size, float alpha, float z = 0.9f);
 
+// Frees the atlas (512 KB of linear memory on the Old 3DS) once the Toontorial is over; the next
+// draw loads it again.
+void releaseTutorialArt();
+
 // BlinkingArrows' colour-scale loop: 0.25 -> 1 over 0.75 s, then back, from `seconds` = 0.
 float tutorialArrowAlpha(float seconds);
 

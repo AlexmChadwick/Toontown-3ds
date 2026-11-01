@@ -57,6 +57,12 @@ bool drawTutorialArrow(float tipX, float tipY, float angleDeg, float size, float
     return true;
 }
 
+void releaseTutorialArt() {
+    if (gArt.loaded()) TT_LOG("ui: tutorial_gui released");
+    gArt.unload();
+    gTried = false;
+}
+
 float tutorialArrowAlpha(float seconds) {
     constexpr float kOn = 0.75f, kOff = 0.25f; // BlinkingArrows onTime / offTime and offColor alpha
     const float t = fmodf(seconds > 0.0f ? seconds : 0.0f, 2.0f * kOn);
