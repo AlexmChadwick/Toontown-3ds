@@ -182,6 +182,13 @@ public:
         hudLaff_ = laff;
         hudChat_ = speedChat;
     }
+    // QuestParser ARROWS_ON / ARROWS_OFF: BlinkingArrows at what the lesson asks for, here the
+    // 3DS control in its place (the talk panel's Shticker Book button, the book's Next and close
+    // buttons, the Chat tab). Call every frame.
+    void setTutorialArrows(bool on) {
+        if (on && !arrowsOn_) arrowsSinceMs_ = osGetTime();
+        arrowsOn_ = on;
+    }
     // The Chat tab's recent-chat strip: what was said nearby, by us, or whispered to us.
     // `you` marks our own lines; nothing is drawn after kChatLogMs without new chat.
     void logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs);
@@ -284,6 +291,9 @@ private:
     bool tabShown(int tab) const; // not obscured by the Toontorial (setTutorialHud)
     int firstShownTab(const State& s) const; // -1: the Toontorial hides every tab
     bool hudBook_ = true, hudLaff_ = true, hudChat_ = true;
+    void drawTutorialArrows(PanelOwner owner, const State& s) const;
+    bool arrowsOn_ = false;
+    u64 arrowsSinceMs_ = 0;
     FocusGroup tabFocus_{"tab"};
     bool toonOnline_ = false; // the Toon tab's last drawn layout (ToonTasks + book, or colours)
     // ---- end padnav ----

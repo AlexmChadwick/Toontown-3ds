@@ -9,6 +9,7 @@
 #include "ui/laff_meter.h"
 #include "ui/book_tab_icons.h"
 #include "ui/theme.h"
+#include "ui/tutorial_art.h"
 #include "ui/map_view.h"
 #include "quest/quest_text.h"
 #include "world/battle_fx.h"
@@ -400,6 +401,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         bdc.mapW = mapW_;
         bdc.mapH = mapH_;
         book_.draw(bdc);
+        drawTutorialArrows(owner, s);
         return;
     }
     if (owner == PanelOwner::Shop) {
@@ -428,6 +430,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     }
     if (owner == PanelOwner::Talk) {
         quest_.drawTalk(*talk_);
+        drawTutorialArrows(owner, s);
         return;
     }
     if (owner == PanelOwner::Fishing) {
@@ -469,6 +472,33 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     tabFocus_.drawHighlight();
     // ---- end padnav ----
     drawTabs(s, c);
+    drawTutorialArrows(owner, s);
+}
+
+void Ui::drawTutorialArrows(PanelOwner owner, const State& s) const {
+    if (!arrowsOn_) return;
+    constexpr float kSize = 30.0f; // BlinkingArrows: scale 0.2 of aspect2d's 2-unit height
+    const float a = tutorialArrowAlpha(static_cast<float>(osGetTime() - arrowsSinceMs_) / 1000.0f);
+    if (owner == PanelOwner::Book) {
+        if (book_.closeEnabled()) { // 110 "close the book": the X at the header's right end
+            drawTutorialArrow(282, 12, 0, kSize, a);
+            drawTutorialArrow(300, 25, -90, kSize, a);
+        } else if (book_.nextEnabled()) { // 110 "turn the page": Next >
+            drawTutorialArrow(248, 24, -90, kSize, a);
+        }
+    } else if (owner == PanelOwner::Talk) {
+        // 110 "open your Shticker Book": the talk panel's Shticker Book button stands in for it.
+        if (talk_ && talk_->scriptWait() && !strcmp(talk_->scriptWait(), "enterStickerBook")) {
+            drawTutorialArrow(pad::quest::kCancelX - 3, pad::quest::kCancelY + pad::quest::kCancelH * 0.5f, 0, kSize, a);
+            drawTutorialArrow(pad::quest::kCancelX + pad::quest::kCancelW * 0.5f, pad::quest::kCancelY - 3, 90, kSize, a);
+        }
+    } else if (owner == PanelOwner::Tabs && tabShown(kTabChat)) {
+        // tutorial_blocker "open SpeedChat": the Chat tab.
+        const float tw = (kW - kPocketW) / numTabs(s);
+        const float x = kPocketW + kTabChat * tw + 2, w = tw - 4;
+        drawTutorialArrow(x + w * 0.5f, kTabY + 3, 90, kSize, a);
+        drawTutorialArrow(x + w + 2, kTabY + kTabH * 0.5f + 2, 180, kSize, a);
+    }
 }
 
 // ---- padnav: button focus on the Map / Toon / Book tabs ----

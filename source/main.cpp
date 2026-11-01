@@ -1683,6 +1683,7 @@ int main() {
         // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
         tutorial.setInTutorialHood(netStarted && net.inTutorial());
         ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
+        ui.setTutorialArrows(tutorial.arrows());
         ui.book().setScriptLock(tutorial.bookCloseEnabled(), tutorial.bookNextShown(), tutorial.bookPrevShown(),
                                 !tutorial.bookScripted());
         // ---- end tutorial ----

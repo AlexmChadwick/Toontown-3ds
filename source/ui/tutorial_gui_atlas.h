@@ -4,16 +4,17 @@
 namespace tt::ui {
 
 constexpr int kTutorialGuiAtlasW = 512, kTutorialGuiAtlasH = 256;
-enum class TutorialCard : int { Cogs, ToonBuilding, CogBuilding, Squirt1, Squirt2, Count };
+enum class TutorialCard : int { Cogs, ToonBuilding, CogBuilding, Squirt1, Squirt2, Arrow, Count };
 struct TutorialCardRect {
     float x, y, w, h; // the card in the atlas (pixels, top-left origin)
 };
-constexpr TutorialCardRect kTutorialCardRects[5] = {
+constexpr TutorialCardRect kTutorialCardRects[6] = {
     {2.21f, 1.25f, 155.57f, 125.49f}, // Cogs
     {162.21f, 1.25f, 155.57f, 125.49f}, // ToonBuilding
     {322.21f, 1.25f, 155.57f, 125.49f}, // CogBuilding
     {2.21f, 129.25f, 155.57f, 125.49f}, // Squirt1
     {162.21f, 129.25f, 155.57f, 125.49f}, // Squirt2
+    {321.25f, 129.25f, 125.49f, 125.49f}, // Arrow
 };
 
 } // namespace tt::ui
