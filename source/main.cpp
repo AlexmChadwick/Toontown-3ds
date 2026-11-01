@@ -1683,6 +1683,8 @@ int main() {
         // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
         tutorial.setInTutorialHood(netStarted && net.inTutorial());
         ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
+        ui.book().setScriptLock(tutorial.bookCloseEnabled(), tutorial.bookNextShown(), tutorial.bookPrevShown(),
+                                !tutorial.bookScripted());
         // ---- end tutorial ----
         // ---- qafix: retire context panels before dispatching any input ----
         const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active() || racing.driving(); // ---- racing2 ----
@@ -2514,6 +2516,10 @@ int main() {
             }
             tutorialSaidSpeedChat = false;
             tutorial.update(dt);
+            if (const int bookRequest = tutorial.takeBookRequest()) { // SHOW_BOOK / HIDE_BOOK
+                if (bookRequest > 0) ui.openBookPage(tt::ui::Book::kPageMap);
+                else ui.book().close("HIDE_BOOK");
+            }
             if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
             if (talk.phase() == tt::quest::Talk::Phase::Script) {
                 talk.setScriptLine(tutorial.text());
