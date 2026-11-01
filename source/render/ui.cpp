@@ -267,23 +267,37 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         s.tab = s.debugOverlay ? kTabDebug : kTabMap;
         TT_LOG("ui: debug %s", s.debugOverlay ? "on" : "off");
     }
+    // The Toontorial: a tab it obscures is skipped; with none shown the bar is empty.
+    if (!tabShown(s.tab)) {
+        const int first = firstShownTab(s);
+        if (first < 0) return 0;
+        s.tab = first;
+    }
     // ---- padnav: D-Pad / A / B on a focused Map, Toon or Book tab ----
     if (const u32 padUsed = handleTabPad(down, t, s)) return padUsed;
     // ---- end padnav ----
     if (down & KEY_START) {
-        book_.open();
+        if (hudBook_) book_.open(); // the book button, obscured in the Toontorial until Harry's lesson
         return KEY_START;
     }
     const int tabs = numTabs(s);
-    if (down & KEY_DLEFT) s.tab = (s.tab + tabs - 1) % tabs;
-    if (down & KEY_DRIGHT) s.tab = (s.tab + 1) % tabs;
-    if (down & KEY_X) s.tab = kTabChat;
-    if (down & KEY_Y) s.tab = kTabMap;
+    const int fromTab = s.tab;
+    if (down & KEY_DLEFT) {
+        do s.tab = (s.tab + tabs - 1) % tabs;
+        while (!tabShown(s.tab) && s.tab != fromTab);
+    }
+    if (down & KEY_DRIGHT) {
+        do s.tab = (s.tab + 1) % tabs;
+        while (!tabShown(s.tab) && s.tab != fromTab);
+    }
+    if ((down & KEY_X) && tabShown(kTabChat)) s.tab = kTabChat;
+    if ((down & KEY_Y) && tabShown(kTabMap)) s.tab = kTabMap;
     if ((down & KEY_TOUCH) && t.px < kPocketW && t.py >= kPocketTop) {
-        s.tab = kTabToon; // the laff pocket: our Toon
+        if (tabShown(kTabToon)) s.tab = kTabToon; // the laff pocket: our Toon
     } else if ((down & KEY_TOUCH) && t.py >= kTabY) {
-        s.tab = static_cast<int>((t.px - kPocketW) / ((kW - kPocketW) / tabs));
-        if (s.tab >= tabs) s.tab = tabs - 1;
+        int touched = static_cast<int>((t.px - kPocketW) / ((kW - kPocketW) / tabs));
+        if (touched >= tabs) touched = tabs - 1;
+        if (tabShown(touched)) s.tab = touched;
     }
     if (s.tab != lastTab_) {
         chat_.blur(); // the highlight (and A/B capture) never survives a tab change
@@ -420,9 +434,11 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         fishingPanel_.draw(*c.fishing, 240.0f); // owns the screen: no tab bar under it
         return;
     }
-    const int tab = s.tab >= 0 && s.tab < numTabs(s) ? s.tab : kTabMap;
+    int tab = s.tab >= 0 && s.tab < numTabs(s) ? s.tab : kTabMap;
+    if (!tabShown(tab)) tab = firstShownTab(s);
     if (tab != kTabDebug) theme::sky(kW, kTabY);
     switch (tab) {
+    case -1: break; // the Toontorial has every tab obscured
     case kTabMap: drawMap(c); break;
     case kTabChat: {
         chat_.draw(chatBottom());
@@ -564,6 +580,19 @@ void Ui::drawChatLog(float y0, float y1) {
 }
 
 // Shtiker-Book-style tabs on the binder: the open tab is yellow and stands taller.
+bool Ui::tabShown(int tab) const {
+    if (tab == kTabChat) return hudChat_;
+    if (tab == kTabMap || tab == kTabToon || tab == kTabGags || tab == kTabBook) return hudBook_;
+    return true;
+}
+
+int Ui::firstShownTab(const State& s) const {
+    for (int i = 0; i < numTabs(s); i++) {
+        if (tabShown(i)) return i;
+    }
+    return -1;
+}
+
 void Ui::drawTabs(const State& s, const Context& c) {
     const int tabs = numTabs(s);
     const float tw = (kW - kPocketW) / tabs;
@@ -581,8 +610,9 @@ void Ui::drawTabs(const State& s, const Context& c) {
     }
     for (int i = 0; i < 3; i++) face.rgb[i] = c.headRgb[i];
     face.species = c.species;
-    laff_.draw(face, kPocketW * 0.5f - 1, kPocketTop + (240 - kPocketTop) * 0.5f + 1, kPocketLaff, 0.55f);
+    if (hudLaff_) laff_.draw(face, kPocketW * 0.5f - 1, kPocketTop + (240 - kPocketTop) * 0.5f + 1, kPocketLaff, 0.55f);
     for (int i = 0; i < tabs; i++) {
+        if (!tabShown(i)) continue; // obscured in the Toontorial: an empty slot keeps the others in place
         const bool on = i == s.tab;
         const float x = kPocketW + i * tw + 2, y = on ? kTabY + 2 : kTabY + 5, h = kTabH - (on ? 4 : 7);
         const u32 face = on ? theme::kYellow : i == kTabDebug ? kPanel : theme::kBinder;

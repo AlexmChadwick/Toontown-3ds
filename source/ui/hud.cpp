@@ -101,7 +101,7 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     // Upstream's HUD is the laff meter alone; jellybeans show on the book's Gags page and the
     // Toon tab (InventoryPage.moneyDisplay), not over the world. While the bottom screen shows
     // our laff (its tab bar pocket, the battle panel's Toon cards) the world stays clear.
-    if (!v.laffOnBottom) {
+    if (!v.laffOnBottom && !v.laffHidden) {
         LaffFace face;
         face.hp = v.hp;
         face.maxHp = v.maxHp;

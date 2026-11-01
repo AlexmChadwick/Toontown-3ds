@@ -1680,6 +1680,10 @@ int main() {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
         ui.setTalk(&talk);
+        // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
+        tutorial.setInTutorialHood(netStarted && net.inTutorial());
+        ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
+        // ---- end tutorial ----
         // ---- qafix: retire context panels before dispatching any input ----
         const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active() || racing.driving(); // ---- racing2 ----
         const bool lostPanelContext = netStarted && !net.inZone();
@@ -3368,6 +3372,7 @@ int main() {
                 }
             }
             hv.laffOnBottom = ui.laffShown();
+            hv.laffHidden = !tutorial.laffShown(); // enterTutorialHood: laffMeter.obscure(1)
             hv.toast = toast;
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())

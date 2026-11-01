@@ -17,6 +17,7 @@ struct HudValues {
     int species = 0;                         // world::Species: which laff meter head
     bool online = false;
     bool laffOnBottom = false; // the bottom screen shows the meter: leave it off the world
+    bool laffHidden = false;   // the Toontorial obscures the meter until Tom's lesson shows it
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
