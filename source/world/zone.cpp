@@ -724,9 +724,15 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     if (!impl_) return fail("zone: update before load");
     Impl& z=*impl_;
     int next=cellAt(feet,reach);
-    if (next<0 && z.cell<0) {
-        // Nothing streamed yet and no tagged floor underfoot (e.g. arriving in a tunnel
-        // mouth): use the cell whose bounds contain the toon, else the nearest one.
+    // No tagged floor underfoot (a tunnel mouth on arrival, a prop top, a slope the
+    // floor tags miss): use the cell whose bounds contain the toon, else the nearest
+    // one. Only before the first plan, or in a playground grid, where every cell is
+    // the same server zone. A street keeps its cell (the cell names the interest
+    // zone), but still replans below as the toon and camera move: returning -1 here
+    // froze the plan, and a toon on an untagged spot of TTC saw sky through the ground.
+    bool oneZone=true;
+    for (uint32_t i=1;i<z.h.chunks && oneZone;++i) oneZone=z.chunks[i].zone==z.chunks[0].zone;
+    if (next<0 && (z.cell<0 || oneZone)) {
         float bestD=INFINITY;
         for (uint32_t i=0;i<z.h.chunks;++i) {
             const Chunk& c=z.chunks[i];
@@ -737,6 +743,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             if (d<bestD) { bestD=d; next=static_cast<int>(i); }
         }
     }
+    if (next<0) next=z.cell;
     bool replan=next>=0 && (next!=z.cell || !z.planned || z.extraDirty);
     const bool extrasChanged=replan && z.extraDirty;
     if (next>=0 && !replan && z.h.version>=2) {
