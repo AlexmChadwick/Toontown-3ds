@@ -2,6 +2,7 @@
 
 #include <cstdio>
 
+#include "core/gpu_sync.h"
 #include "core/log.h"
 #include "core/memory.h"
 
@@ -23,9 +24,21 @@ bool dumpTarget(C3D_RenderTarget* target, const char* path) {
         TT_LOG("shot: could not allocate %lu-byte readback", static_cast<unsigned long>(size));
         return false;
     }
-    // Raw contiguous copy, matching Citro3D's own VRAM texture upload path.
-    C3D_SyncTextureCopy(static_cast<u32*>(fb.colorBuf), 0,
-                        static_cast<u32*>(readback), 0, size, GX_TRANSFER_RAW_COPY(1));
+    // C3D_SyncTextureCopy is only synchronous with Citro3D's render queue: outside
+    // a frame it can remain queued until the next FrameEnd. Writing the file here
+    // then captured recycled linear memory from the preceding named shot. Fence the
+    // completed render and submit a direct GX copy whose PPF event we wait for.
+    gpu::frameSync();
+    const Result copy = GX_TextureCopy(static_cast<u32*>(fb.colorBuf), 0,
+                                       static_cast<u32*>(readback), 0, size,
+                                       GX_TRANSFER_RAW_COPY(1));
+    if (R_FAILED(copy)) {
+        TT_LOG("shot: GX copy failed %08lX", static_cast<unsigned long>(copy));
+        mem::LinearGuard guard;
+        linearFree(readback);
+        return false;
+    }
+    gspWaitForPPF();
     GSPGPU_InvalidateDataCache(readback, size);
     FILE* f = fopen(path, "wb");
     if (!f) {
