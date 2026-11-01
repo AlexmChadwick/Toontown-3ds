@@ -43,9 +43,15 @@ def compact(batch):
 
 
 class StableExtractor(extract.Extractor):
-    """Stable joint-name skinning avoids pointer-ordered float32 blend sums."""
-    def __init__(self,*args,**kwargs):
+    """Stable joint-name skinning avoids pointer-ordered float32 blend sums.
+
+    keep_cull: animated batches keep the source CullFaceAttrib instead of all becoming
+    two-sided. Cog bodies need it: their inward-facing cuff and collar shells are only
+    meant to show through the sleeve and neck openings, and drawn two-sided they cover
+    the forearms in black. No suit body clip mirrors a joint (determinants stay >= 0)."""
+    def __init__(self,*args,keep_cull=False,**kwargs):
         super().__init__(*args,**kwargs)
+        self.keep_cull = keep_cull
         self.skin_cache = {}
         self.matrix_cache = {}
         self.was_animated = False
@@ -90,13 +96,13 @@ class StableExtractor(extract.Extractor):
         self.skin_cache[key] = result
         return result
 
-    def _add_geom(self,geom,state,mat,tint,layer,animated):
+    def _add_geom(self,geom,state,mat,tint,layer,animated,sign=False):
         if animated:
             result = geom.makeCopy()
             result.setVertexData(self.skin(geom.getVertexData()))
             geom = result
         before = {key:len(parts) for key,parts in self._groups.items()}
-        super()._add_geom(geom,state,mat,tint,layer,False)
+        super()._add_geom(geom,state,mat,tint,layer,False,sign)
         if animated:
             self.was_animated = True
             if mat.getUpper3().determinant() < 0:
@@ -109,7 +115,7 @@ class StableExtractor(extract.Extractor):
 
     def batches(self):
         batches = super().batches()
-        if self.was_animated:
+        if self.was_animated and not self.keep_cull:
             for batch in batches:
                 batch.two_sided = True
         return batches
@@ -128,8 +134,8 @@ class StableExtractor(extract.Extractor):
         return super()._texture(tex)
 
 
-def capture(root,encode=False,tint_rules=(),animated=True,max_tex=64):
-    ex = StableExtractor(max_tex=max_tex,tint_rules=tint_rules,encode_textures=encode)
+def capture(root,encode=False,tint_rules=(),animated=True,max_tex=64,keep_cull=False):
+    ex = StableExtractor(max_tex=max_tex,tint_rules=tint_rules,encode_textures=encode,keep_cull=keep_cull)
     ex.add(root,animated=animated)
     return ex,[compact(b) for b in ex.batches()]
 
@@ -161,7 +167,7 @@ def write_joints(path,names,frames):
     path.write_bytes(out)
 
 
-def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=(),head_joint=None):
+def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=(),head_joint=None,keep_cull=False):
     import math
     from direct.actor.Actor import Actor
     import suit_lod
@@ -171,13 +177,13 @@ def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=()
     first = 'neutral' if 'neutral' in clips else next(iter(clips))
     actor.pose(first,0)
     actor.update(force=True)
-    ex,reference = capture(actor,True,tint_rules)
+    ex,reference = capture(actor,True,tint_rules,keep_cull=keep_cull)
     for batch in reference:
         if batch.tint in (1,2,3):
             batch.tex_slot = batch.tint
             batch.tint = 0
     # Frame extraction still uses the pre-slot tint keys for identity validation.
-    _,identity = capture(actor,False,tint_rules)
+    _,identity = capture(actor,False,tint_rules,keep_cull=keep_cull)
     child = actor.find('**/'+head_joint) if head_joint else None
     if head_joint:
         assert not child.isEmpty(), (model,head_joint)
@@ -204,7 +210,7 @@ def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=()
             if index not in cache:
                 actor.pose(clip,index)
                 actor.update(force=True)
-                _,batches = capture(actor,False,tint_rules)
+                _,batches = capture(actor,False,tint_rules,keep_cull=keep_cull)
                 check_order(batches,identity)
                 cache[index] = (batches,mat34(child,actor) if child else None,
                                 np.array([mat34(j,actor) for j in joints]))

@@ -95,17 +95,17 @@ def main():
             species={c:{atk:(anim_of[atk] if anim_of[atk] in counts else 'throw-paper') for atk in s['attacks']}
                      for c,s in specs.items() if s['body']==body})
         manifest['bodies'][body]=bake_actor(base,args.out,prefix,f'phase_3.5/models/char/{prefix}-mod',clips,
-            {'full':1400,'low':327},lambda a:clothes(base,a),TINT_RULES,'joint_head')
+            {'full':1400,'low':327},lambda a:clothes(base,a),TINT_RULES,'joint_head',keep_cull=True)
         if not args.no_variants:
             phase=3.5 if body=='c' else 4
             lose={"lose":f'phase_{phase:g}/models/char/{prefix}-lose'}
             manifest['bodies'][body+'_lose']=bake_actor(base,args.out,prefix+'_lose',
                 f'phase_{phase:g}/models/char/{prefix}-lose-mod',lose,{'full':1400,'low':327},
-                lambda a:clothes(base,a),TINT_RULES,'joint_head')
+                lambda a:clothes(base,a),TINT_RULES,'joint_head',keep_cull=True)
             manifest['bodies'][body+'_skeleton']=bake_actor(base,args.out,prefix+'_skeleton',
-                f'phase_5/models/char/cog{body.upper()}_robot-zero',clips,{'full':1500,'low':400})
+                f'phase_5/models/char/cog{body.upper()}_robot-zero',clips,{'full':1500,'low':400},keep_cull=True)
             manifest['bodies'][body+'_skeleton_lose']=bake_actor(base,args.out,prefix+'_skeleton_lose',
-                f'phase_5/models/char/cog{body.upper()}_robot-lose-mod',lose,{'full':1500,'low':400})
+                f'phase_5/models/char/cog{body.upper()}_robot-lose-mod',lose,{'full':1500,'low':400},keep_cull=True)
     for body in 'abc':
         heads=[h for h in manifest['heads'].values() if h['body']==body]
         for lod,limit in [('full',1500),('low',400)]:
