@@ -30,7 +30,9 @@ import sign_text
 # texture: a corner sample of those is a flat green quad. Playground vis
 # (--distance 760) plus a 78-unit margin covers the New 3DS draw distance.
 # --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
-NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
+# Cog HQs still use the shared 64px atlas (street_atlas.build).
+SHARED_NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
+NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
 # render/quality.h lodMust (Old, New): upgraded first, still inside DRAW_CAP.
@@ -499,6 +501,27 @@ def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
     return raw, chunks, floors
 
 
+def view_points(floors, eye=4.0, step=6.0):
+    """Walkable floor samples at eye height for street_atlas.ViewDensity.
+
+    Each floor triangle gives its corners, centroid and a step-spaced fill so a
+    big plaza triangle still has points near the props on it.
+    """
+    import numpy as np
+    pts = []
+    for f in floors:
+        a, b, c = np.asarray(f[0], dtype=np.float64)
+        n = max(1, int(max(np.linalg.norm(b - a), np.linalg.norm(c - a)) // step))
+        for i in range(n + 1):
+            for j in range(n + 1 - i):
+                pts.append(a + (b - a) * i / n + (c - a) * j / n)
+    pts = np.array(pts).reshape(-1, 3)
+    if len(pts):
+        pts[:, 2] += eye
+        pts = np.unique(np.round(pts / 2) * 2, axis=0)
+    return pts
+
+
 def bake(zone_id, args, base):
     import numpy as np
     import assemble
@@ -598,8 +621,11 @@ def bake(zone_id, args, base):
         if low is None:
             raise ValueError(
                 f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
-    textures, batches=street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
-    batches=[[street_atlas.rebase_large_uvs(b,textures) for b in bs] for bs in batches]
+    chunk_textures, batches, atlas_stats=street_atlas.build_local(ex.sources, raw, view_points=view_points(floors),
+        **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density']))))
+    batches=[[street_atlas.rebase_large_uvs(b,t) for b in bs] for bs,t in zip(batches,chunk_textures)]
+    if os.environ.get('TT_ATLAS_DEBUG'):
+        Path(os.environ['TT_ATLAS_DEBUG']).write_text(json.dumps(atlas_stats,indent=1))
     out=Path(args.out)
     out.mkdir(parents=True,exist_ok=True)
     def pack(bs,tmp,tex_list):
@@ -615,8 +641,8 @@ def bake(zone_id, args, base):
             raise ValueError('UV overflow')
         return path.read_bytes(),stats
     with tempfile.TemporaryDirectory() as tmp:
-        for chunk,bs in zip(chunks,batches):
-            chunk['model'],chunk['stats']=pack(bs,tmp,textures)
+        for chunk,bs,tex_list in zip(chunks,batches,chunk_textures):
+            chunk['model'],chunk['stats']=pack(bs,tmp,tex_list)
     if low is None:
         # Streets: the DNA vis is already on each chunk. Same far path as playgrounds.
         low, far_textures, lod_report = choose_far(ex.sources, raw, chunks)
@@ -672,7 +698,7 @@ def bake(zone_id, args, base):
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
-                   'warnings':warnings,'collision':collision_stats,'atlas_pages':len(textures),
+                   'warnings':warnings,'collision':collision_stats,'atlas_pages':sum(a['pages'] for a in atlas_stats),
                    'near_atlas':NEAR_ATLAS,'ground_split':ground_stats,
                    'grid_size':grid_used,'draw_cap':street_lod.DRAW_CAP})
     (out/f'{zone_id}.json').write_text(json.dumps(report,indent=2)+'\n')

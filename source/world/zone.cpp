@@ -102,7 +102,7 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize, bo
             name[32]=0;
             fontTex[i]=signFontName(name);
         }
-        if (t.w<8 || t.h<8 || t.w>256 || t.h>256 ||
+        if (t.w<8 || t.h<8 || t.w>512 || t.h>512 ||
             (t.w & (t.w-1)) || (t.h & (t.h-1)) || !t.mips || t.mips>6 ||
             (t.ws!=0 && t.ws!=2) || (t.wt!=0 && t.wt!=2)) return false;
         const uint32_t at=c.offset+t.off;
@@ -951,6 +951,20 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 liveDraws+=mesh.draws;
                 liveTris+=mesh.tris;
             };
+            // Out-of-cone far meshes leave the cap before any near upgrade is
+            // tried. Subtracting them in walk order let a far chunk later in the
+            // order block a near one 10 units away (TTC's Loopy Lane tunnel on Old
+            // stayed half far at 4.3 of 4 MiB while the cone needed 3.3).
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                const bool nearResident=(z.resident[id] && z.lod[id]==0) || z.parked[id];
+                if ((!viewCap || seenView[id]) || nearResident) continue;
+                const Chunk low=modelInfo(z.chunks[id], 1);
+                // want() already added this far mesh. It is not submitted and
+                // makeRoom drops it when an in-cone sign needs the bytes.
+                subLow(geom, low.geom);
+                subLow(tex, low.tex);
+            }
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
@@ -962,11 +976,6 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                         markNear(id);
                         subLow(geom, low.geom); geom+=high.geom;
                         subLow(tex, low.tex); tex+=high.tex;
-                    } else {
-                        // want() already added this far mesh. It is not submitted and
-                        // makeRoom drops it when an in-cone sign needs the bytes.
-                        subLow(geom, low.geom);
-                        subLow(tex, low.tex);
                     }
                     continue;
                 }
@@ -1668,17 +1677,17 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         if (!cap && !z.desired[i]) return false;
         return true;
     };
+    // Opaque and alpha-test batches of every admitted chunk first, blended ones
+    // after (setBlendPass). A sign split across two chunks lost its letters: they
+    // are blended (no depth write) and the next chunk's opaque board covered them.
+    uint16_t drawn[kMaxChunks];
+    uint32_t ndrawn=0;
     auto submitId=[&](uint32_t i) {
         if (seen[i] || !viewedDraw(i)) return;
         seen[i]=true;
         const Chunk mesh=modelInfo(z.chunks[i], z.lod[i]);
         if (!admitFrame(usedDraws, usedTris, mesh.draws, mesh.tris)) return;
-#ifdef __3DS__
-        renderer.drawModel(z.models[i], identity);
-#else
-        (void)renderer;
-        (void)mesh;
-#endif
+        drawn[ndrawn++]=static_cast<uint16_t>(i);
     };
     for (uint32_t j=0;j<z.numOrder;++j) {
         const uint16_t id=z.order[j];
@@ -1702,6 +1711,15 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         farIds[at]=id;
     }
     for (uint32_t j=0;j<nfar;++j) submitId(farIds[j]);
+#ifdef __3DS__
+    for (int pass=1;pass<=2;++pass) {
+        renderer.setBlendPass(pass);
+        for (uint32_t j=0;j<ndrawn;++j) renderer.drawModel(z.models[drawn[j]], identity);
+    }
+    renderer.setBlendPass(0);
+#else
+    (void)renderer;
+#endif
 }
 int Zone::visibleZones(uint16_t* out,int capacity) const {
     if (!impl_ || impl_->cell<0) return 0;

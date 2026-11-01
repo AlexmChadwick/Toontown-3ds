@@ -283,3 +283,338 @@ def rebase_large_uvs(batch, textures):
         return b
     verts=np.concatenate(pieces)
     return ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts)))
+
+
+# ---- chunk-local near atlas ----
+# The shared atlas above puts every texture in a 64px tile of a 256 page holding
+# nine tiles, and each chunk uploads every page it touches. A chunk that used one
+# tile of a page paid for all nine, and a 256px palette (the TTC tunnel rock is a
+# corner of phase_3.5_palette_3cmla_1) shrank to 64px: a smeared beige blob. Here
+# each chunk gets its own pages. A tile holds only the UV rectangle that chunk
+# samples, sized by how many world units it covers (texels per unit), capped by
+# the source resolution. Opaque and alpha textures use separate pages so opaque
+# tiles stay 4 bpp ETC1.
+LOCAL_PAGES = ((128, 128), (256, 128), (256, 256), (512, 256), (512, 512))
+LOCAL_MIN_TILE = 16
+LOCAL_MAX_TILE = 240
+
+
+def _pow2_ceil(n):
+    return 1 << max(0, math.ceil(math.log2(max(n, 1))))
+
+
+class _SourceCache:
+    def __init__(self, sources):
+        self.sources, self.px = sources, {}
+
+    def get(self, idx):
+        if idx not in self.px:
+            self.px[idx] = texture_pixels(self.sources[idx], 1024)[0]
+        return self.px[idx]
+
+
+def _clipped_parts(tri, tex):
+    """The tile-range pieces of one triangle, each with its UV moved into [0, 1]."""
+    repeat = (tex.getWrapU() == tex.WM_repeat, tex.getWrapV() == tex.WM_repeat)
+    xr, yr = tile_ranges(tri, tex)
+    out = []
+    for u in xr:
+        for v in yr:
+            poly = list(tri)
+            for a, k, rep in ((3, u, repeat[0]), (4, v, repeat[1])):
+                if rep or k == 0:
+                    poly = clip(clip(poly, a, k, True), a, k + 1, False) if poly else []
+                elif k < 0:
+                    poly = clip(poly, a, 0, False) if poly else []
+                else:
+                    poly = clip(poly, a, 1, True) if poly else []
+            if len(poly) < 3:
+                continue
+            p = np.array(poly)
+            for axis, k in enumerate((u, v)):
+                p[:, 3 + axis] = p[:, 3 + axis] - k if repeat[axis] else np.clip(p[:, 3 + axis], 0, 1)
+            out.append(np.array([p[j] for k in range(1, len(p) - 1) for j in (0, k, k + 1)]))
+    return out
+
+
+class ViewDensity:
+    """Texels per world unit a triangle needs, from how close the camera gets.
+
+    The top screen is 400 px over a 55 degree fov: about 384 / d px per world unit
+    at distance d. view_points are walkable floor samples raised to eye height;
+    quality scales that (1 = one texel per screen pixel at the closest approach).
+    """
+    def __init__(self, view_points, quality, near=12.0, far=160.0):
+        self.pts = np.asarray(view_points, dtype=np.float64).reshape(-1, 3)
+        self.quality, self.near, self.far = quality, near, far
+
+    def __call__(self, centroids):
+        if not len(self.pts):
+            return np.full(len(centroids), self.quality * 384.0 / self.near)
+        d = np.empty(len(centroids))
+        for s in range(0, len(centroids), 256):
+            c = centroids[s:s + 256]
+            d[s:s + 256] = np.sqrt(((c[:, None, :] - self.pts[None, :, :]) ** 2).sum(-1).min(axis=1))
+        return self.quality * 384.0 / np.clip(d, self.near, self.far)
+
+
+def _texel_need(parts, density):
+    """Texels per UV unit along u and v: area-weighted 90th percentile of
+    (world units per UV unit) * (texels per world unit at that triangle)."""
+    rows, cents = [], []
+    for p in parts:
+        for t in p.reshape(-1, 3, 9):
+            e = np.stack((t[1, :3] - t[0, :3], t[2, :3] - t[0, :3]), axis=1)      # 3x2 world
+            d = np.stack((t[1, 3:5] - t[0, 3:5], t[2, 3:5] - t[0, 3:5]), axis=1)  # 2x2 uv
+            det = d[0, 0] * d[1, 1] - d[0, 1] * d[1, 0]
+            area = float(np.linalg.norm(np.cross(e[:, 0], e[:, 1]))) / 2
+            if abs(det) < 1e-9 or area < 1e-6:
+                continue
+            j = e @ np.linalg.inv(d)
+            rows.append((float(np.linalg.norm(j[:, 0])), float(np.linalg.norm(j[:, 1])), area))
+            cents.append(t[:, :3].mean(axis=0))
+    if not rows:
+        return 0.0, 0.0
+    r = np.array(rows)
+    k = density(np.array(cents))
+    r[:, 0] *= k
+    r[:, 1] *= k
+    out = []
+    for axis in (0, 1):
+        order = np.argsort(r[:, axis])
+        cum = np.cumsum(r[order, 2])
+        out.append(float(r[order[np.searchsorted(cum, 0.9 * cum[-1])], axis]))
+    return out[0], out[1]
+
+
+def _skyline_fit(skyline, w, h, pw, ph):
+    """Bottom-left position for a w x h rect on the skyline [(x, y, width)], or None."""
+    best = None
+    for i in range(len(skyline)):
+        x = skyline[i][0]
+        if x + w > pw:
+            break
+        y, span, k = 0, 0, i
+        while span < w:
+            y = max(y, skyline[k][1])
+            span += skyline[k][2]
+            k += 1
+        if y + h <= ph and (best is None or (y + h, x) < (best[1] + h, best[0])):
+            best = (x, y)
+    return best
+
+
+def _skyline_add(skyline, x, y, w, h):
+    out = []
+    for sx, sy, sw in skyline:
+        if sx + sw <= x or sx >= x + w:
+            out.append((sx, sy, sw))
+            continue
+        if sx < x:
+            out.append((sx, sy, x - sx))
+        if sx + sw > x + w:
+            out.append((x + w, sy, sx + sw - x - w))
+    out.append((x, y + h, w))
+    out.sort()
+    merged = []
+    for seg in out:
+        if merged and merged[-1][1] == seg[1] and merged[-1][0] + merged[-1][2] == seg[0]:
+            merged[-1] = (merged[-1][0], seg[1], merged[-1][2] + seg[2])
+        else:
+            merged.append(seg)
+    return merged
+
+
+def _pack_page(rects, pw, ph):
+    skyline, placed, left = [(0, 0, pw)], {}, []
+    for key, w, h in rects:
+        at = _skyline_fit(skyline, w, h, pw, ph) if w <= pw and h <= ph else None
+        if at is None:
+            left.append((key, w, h))
+            continue
+        placed[key] = at
+        skyline = _skyline_add(skyline, at[0], at[1], w, h)
+    return placed, left
+
+
+def _shelf_pack(rects, page_sizes):
+    """rects: [(key, w, h)], multiples of 16. Skyline bottom-left packing; each page
+    is the smallest of page_sizes that holds everything left, else the largest.
+    Returns [(page_w, page_h, {key: (x, y)})]."""
+    pages = []
+    todo = sorted(rects, key=lambda r: (-r[2], -r[1], str(r[0])))
+    while todo:
+        for pw, ph in page_sizes:
+            placed, left = _pack_page(todo, pw, ph)
+            if not left:
+                break
+        if not placed:
+            raise ValueError('atlas tile larger than the biggest page')
+        pages.append((pw, ph, placed))
+        todo = left
+    return pages
+
+
+def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_levels=3, standalone_size=256,
+                large_ground=True, pages=LOCAL_PAGES):
+    """Per-chunk textures and batches: chunk-local pages (see the note above).
+
+    Returns (per-chunk texture lists, per-chunk batches indexing that chunk's list,
+    stats). Standalone textures (fonts, large ground, heavy repeats) are one shared
+    ttm.Texture object, so the TZ v3 pool stores each once.
+    """
+    from PIL import Image
+    if gutter < 1 << (mip_levels - 1):
+        raise ValueError('gutter too small for the mip chain')
+    fixed = {i for i, t in enumerate(sources) if sign_text.is_font_texture(t)}
+    ground = _large_ground_ids(chunks) if large_ground else set()
+    for batches in chunks:
+        for b in batches:
+            if b.texture is None or b.texture in fixed:
+                continue
+            for tri in b.verts[b.indices.reshape(-1, 3)]:
+                xr, yr = tile_ranges(tri, sources[b.texture])
+                if len(xr) * len(yr) > 32:
+                    fixed.add(b.texture)
+                    break
+    shared = {}
+
+    def standalone_texture(idx):
+        if idx not in shared:
+            size = 256 if sign_text.is_font_texture(sources[idx]) else standalone_size
+            image, nc, pf = texture_pixels(sources[idx], size)
+            shared[idx] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
+                                      extract._WRAP.get(sources[idx].getWrapU(), 2),
+                                      extract._WRAP.get(sources[idx].getWrapV(), 2))
+        return shared[idx]
+    need = ViewDensity(view_points, density)
+    cache = _SourceCache(sources)
+    alpha_of = {}
+    out_tex, out_batches, stats = [], [], []
+    for batches in chunks:
+        # Pieces per texture, kept with their batch state. A large-ground texture
+        # whose repeats would multiply its triangles stays standalone in this
+        # chunk; one that is only a palette corner on a big flat face is atlased.
+        pieces, tri_count = {}, {}
+        for bi, b in enumerate(batches):
+            if b.texture is None or b.texture in fixed:
+                continue
+            tex = sources[b.texture]
+            for tri in b.verts[b.indices.reshape(-1, 3)]:
+                parts = _clipped_parts(tri, tex)
+                pieces.setdefault(b.texture, []).extend((bi, p) for p in parts)
+                tri_count[b.texture] = tri_count.get(b.texture, 0) + 1
+        standalone = set(fixed)
+        for idx in list(pieces):
+            made = sum(len(p) // 3 for _, p in pieces[idx])
+            if idx in ground and made > 1.25 * tri_count[idx] + 8:
+                standalone.add(idx)
+                del pieces[idx]
+        tiles = {}
+        for idx, plist in pieces.items():
+            src = cache.get(idx)
+            sh, sw = src.shape[:2]
+            uv = np.concatenate([p[:, 3:5] for _, p in plist])
+            lo, hi = uv.min(axis=0), uv.max(axis=0)
+            # One source texel of margin keeps bilinear filtering inside real pixels.
+            lo = np.maximum(lo - np.array([1.0 / sw, 1.0 / sh]), 0)
+            hi = np.minimum(hi + np.array([1.0 / sw, 1.0 / sh]), 1)
+            ext = np.maximum(hi - lo, 1e-4)
+            nu, nv = _texel_need([p for _, p in plist], need)
+            size = []
+            for texels, e, n in ((nu, ext[0], sw), (nv, ext[1], sh)):
+                # Tiles need not be powers of two (only pages are): multiples of
+                # 16, at most 240 so a tile and its gutters span 256.
+                want = min(texels * e, n * e)
+                size.append(int(min(max(math.ceil(want / 16) * 16, LOCAL_MIN_TILE), LOCAL_MAX_TILE)))
+            if idx not in alpha_of:
+                alpha_of[idx] = bool(np.any(src[:, :, 3] < 255))
+            tiles[idx] = (lo, hi, size[0], size[1])
+        textures = []
+        mapping = {}
+        for alpha in (False, True):
+            keys = [i for i in sorted(tiles) if alpha_of[i] == alpha]
+            if not keys:
+                continue
+            rects = [(i, tiles[i][2] + 2 * gutter, tiles[i][3] + 2 * gutter) for i in keys]
+            for pw, ph, placed in _shelf_pack(rects, pages):
+                px = np.full((ph, pw, 4), 255, dtype=np.uint8)
+                slots = []
+                for i, (x0, y0) in placed.items():
+                    lo, hi, tw, th = tiles[i]
+                    src = cache.get(i)
+                    sh, sw = src.shape[:2]
+                    box = (lo[0] * sw, (1 - hi[1]) * sh, hi[0] * sw, (1 - lo[1]) * sh)
+                    im = Image.fromarray(src, 'RGBA')
+                    shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
+                    im = im.resize((tw, th), Image.BOX if shrink else Image.BICUBIC, box=box)
+                    x, y = x0 + gutter, y0 + gutter
+                    px[y0:y0 + th + 2 * gutter, x0:x0 + tw + 2 * gutter] = np.pad(
+                        np.asarray(im), ((gutter, gutter), (gutter, gutter), (0, 0)), mode='edge')
+                    slots.append((x, y, (tw, th), gutter))
+                    mapping[i] = (len(textures), x, y, tw, th, pw, ph)
+                levels = _tile_mips_rect(px, slots, mip_levels)
+                fmt = ttm.GPU_ETC1A4 if alpha else ttm.GPU_ETC1
+                textures.append(ttm.Texture(f'local_atlas_{len(out_tex)}_{len(textures)}', px, fmt, 0, 0,
+                                            mipmaps=False, levels=levels))
+        for idx in sorted({b.texture for b in batches if b.texture in standalone}):
+            mapping[idx] = (len(textures), None, None, None, None, None, None)
+            textures.append(standalone_texture(idx))
+        groups = {}
+        for b in batches:
+            pg = mapping[b.texture][0] if b.texture is not None else None
+            parts = groups.setdefault((pg, b.blend, b.two_sided, b.tint, b.layer), [])
+            if b.texture is None or mapping[b.texture][1] is None:
+                parts.append(b.verts[b.indices].copy())
+        for idx, plist in pieces.items():
+            pg, x, y, tw, th, pw, ph = mapping[idx]
+            lo, hi = tiles[idx][0], tiles[idx][1]
+            for bi, p in plist:
+                b = batches[bi]
+                q = p.copy()
+                q[:, 3] = (x + (q[:, 3] - lo[0]) / (hi[0] - lo[0]) * tw) / pw
+                q[:, 4] = (ph - y - th + (q[:, 4] - lo[1]) / (hi[1] - lo[1]) * th) / ph
+                groups[(pg, b.blend, b.two_sided, b.tint, b.layer)].append(q)
+        for key in list(groups):
+            tex, blend, two, tint, layer = key
+            other = (tex, blend, True, tint, layer)
+            if not two and other in groups:
+                groups[other].extend(groups.pop(key))
+        merged = []
+        for (tex, blend, two, tint, layer), parts in sorted(groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
+            if not parts:
+                continue
+            verts = np.concatenate(parts)
+            for start in range(0, len(verts), 65535):
+                vs = verts[start:start + 65535]
+                merged.append(ttm.Batch(tex, blend, two, tint, layer, vs, np.arange(len(vs))))
+        out_tex.append(textures)
+        out_batches.append(merged)
+        stats.append({'tiles': len(tiles), 'pages': sum(1 for t in textures if t not in shared.values()),
+                      'tile_px': sum(t[2] * t[3] for t in tiles.values()),
+                      'sizes': sorted(((sources[i].getName(), t[2], t[3]) for i, t in tiles.items()),
+                                      key=lambda r: -r[1] * r[2])})
+    return out_tex, out_batches, stats
+
+
+def _tile_mips_rect(page, slots, levels):
+    """_tile_mips for rectangular tiles: slots are (x, y, (w, h), gutter)."""
+    pages = [page]
+    cur = slots
+    for _ in range(levels - 1):
+        prev = pages[-1]
+        nxt = np.zeros((prev.shape[0] // 2, prev.shape[1] // 2, 4), dtype=np.uint8)
+        halved = []
+        for x, y, (tw, th), g in cur:
+            x0, y0 = x - g, y - g
+            region = prev[y0:y + th + g, x0:x + tw + g]
+            h, w = region.shape[:2]
+            if h % 2 or w % 2 or x0 % 2 or y0 % 2 or g < 1:
+                raise ValueError('atlas tile region is not even')
+            acc = region.astype(np.uint16)
+            down = (acc.reshape(h // 2, 2, w // 2, 2, 4).sum(axis=(1, 3)) + 2) // 4
+            nxt[y0 // 2:y0 // 2 + down.shape[0], x0 // 2:x0 // 2 + down.shape[1]] = down.astype(np.uint8)
+            halved.append((x // 2, y // 2, (tw // 2, th // 2), g // 2))
+        pages.append(nxt)
+        cur = halved
+    return pages

@@ -115,11 +115,14 @@ void applyRetain(Zone& zone) {
     // audio already sit in it; the old 6/8 and 8/12 MiB retain caps filled the rest
     // (New street free fell to about 6 MB). 4/4 and 5/5 leave the cone resident and
     // a small warm ring. Zone::update also drops non-cone chunks while linear free
-    // is under 12 MB, which is the Old 3DS floor.
+    // is under 12 MB, which is the Old 3DS floor. The totals stay 8 and 10 MiB, but
+    // a cone's geometry is under 1 MB (the per-file far cap is 810 KB) while the
+    // chunk-local near atlases need the texture side: at 4/4 Old kept TTC's tunnel
+    // chunks on their far mesh 60 units away with 3.3 MiB of geometry unused.
     if (tt::render::activeQuality().new3ds)
-        zone.setRetainBudget(5u * 1024u * 1024u, 5u * 1024u * 1024u);
+        zone.setRetainBudget(3u * 1024u * 1024u, 7u * 1024u * 1024u);
     else
-        zone.setRetainBudget(4u * 1024u * 1024u, 4u * 1024u * 1024u);
+        zone.setRetainBudget(5u * 512u * 1024u, 11u * 512u * 1024u);
 }
 } // namespace
 

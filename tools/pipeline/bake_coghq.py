@@ -122,7 +122,7 @@ def bake(zone_id, args, base):
     import street_lod
     import ttm
     import tz
-    from bake_street import (FAR_BODY, LOD_MUST, NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
+    from bake_street import (FAR_BODY, LOD_MUST, SHARED_NEAR_ATLAS as NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
                              choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid)
     cfg = coghq_catalog.CATALOG[zone_id]
     root, info = build_scene(zone_id, cfg, base.loader, args.resources)
