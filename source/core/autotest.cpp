@@ -340,6 +340,17 @@ const Step kScript[] = {
     {25.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_near", "view_dd_near"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_far", "view_dd_far"},
     // ---- end render views ----
+    // ---- poses: "pose <zone> ..." lines in the autotest file (main.cpp). Run with
+    // AUTOTEST_ONLY="pose:"; a step without its pose line is skipped. ----
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 1", "pose_1"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 2", "pose_2"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 3", "pose_3"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 4", "pose_4"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 5", "pose_5"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 6", "pose_6"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 7", "pose_7"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 8", "pose_8"},
+    // ---- end poses ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
@@ -418,6 +429,13 @@ bool Runner::begin() {
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
         else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
         else if (!strncmp(line, "battle hold ", 12)) battleHoldMs_ = static_cast<u32>(atoi(line + 12)) * 1000u;
+        else if (!strncmp(line, "pose ", 5) && numPoses_ < kMaxPoses) {
+            Pose& p = poses_[numPoses_];
+            if (sscanf(line + 5, "%u %f %f %f %f %f %f %f %f %f %f", &p.zone, &p.eye[0], &p.eye[1], &p.eye[2],
+                       &p.target[0], &p.target[1], &p.target[2], &p.toon[0], &p.toon[1], &p.toon[2],
+                       &p.toon[3]) == 11)
+                numPoses_++;
+        }
     }
     fclose(f);
     active_ = true;
@@ -457,6 +475,18 @@ bool Runner::selected(const char* label) const {
     return false;
 }
 
+bool Runner::skipped(const char* label) const {
+    if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
+    return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10);
+}
+
+const Pose* Runner::pose() const {
+    const char* l = label();
+    if (strncmp(l, "pose: ", 6)) return nullptr;
+    const int n = atoi(l + 6);
+    return n >= 1 && n <= numPoses_ ? &poses_[n - 1] : nullptr;
+}
+
 const char* Runner::label() const { return active_ && ready_ && step_ < numSteps_ ? script_[step_].label : ""; }
 
 bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons) {
@@ -467,8 +497,8 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         TT_LOG("autotest: finished");
         return false;
     }
-    while (step_ < numSteps_ && (only_[0] ? !selected(script_[step_].label) : !strncmp(script_[step_].label, "returning:", 10)))
-        step_++; // "only" filter; "returning:" steps need one
+    while (step_ < numSteps_ && skipped(script_[step_].label))
+        step_++; // "only" filter; "returning:" steps need one; "pose: N" needs N pose lines
     if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");

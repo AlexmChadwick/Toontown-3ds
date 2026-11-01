@@ -2003,6 +2003,24 @@ int main() {
             }
         }
         // ---- end render views ----
+        // ---- autotest poses: "pose <zone> <eye> <target> <toon xyz h>" lines, held by "pose: N" ----
+        if (const tt::autotest::Pose* p = autotest.active() && transition.idle() ? autotest.pose() : nullptr) {
+            static const char* posedLabel = nullptr;
+            static u32 posedZone = 0;
+            if (place.zoneId() / 100 != p->zone / 100) {
+                if (!uiState.teleportRequest) uiState.teleportRequest = p->zone;
+            } else {
+                if (posedLabel != autotest.label() || posedZone != place.zoneId()) {
+                    player.reset(p->toon[0], p->toon[1], p->toon[2], p->toon[3]);
+                    posedLabel = autotest.label();
+                    posedZone = place.zoneId();
+                    TT_LOG("%s in zone %u", autotest.label(), static_cast<unsigned>(place.zoneId()));
+                }
+                player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),
+                                      FVec3_New(p->target[0], p->target[1], p->target[2]));
+            }
+        }
+        // ---- end autotest poses ----
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);
