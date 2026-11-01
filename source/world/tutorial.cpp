@@ -38,6 +38,9 @@ void TutorialFlow::update(float dt) {
     player_.update(dt);
     if (player_.popFinished()) {
         finished_ = true;
+        // A script that ends locked (no FREE_LOCALTOON) still hands the Toon back.
+        if (toonPosed_) toonReleased_ = true;
+        toonPosed_ = toonLocked_ = false;
         TT_LOG("tutorial: script %s finish", quest::scriptDef(player_.id()).name);
     }
 }
@@ -59,7 +62,7 @@ void TutorialFlow::stop() {
     arrows_ = false;
     card_ = quest::ScriptVar::None;
     speaker_ = quest::ScriptVar::None;
-    charLoaded_ = charShown_ = toonPosed_ = cameraStaged_ = toonReleased_ = false;
+    charLoaded_ = charShown_ = toonPosed_ = toonLocked_ = cameraStaged_ = toonReleased_ = false;
     charAnim_ = ActorAnim{};
     toonAnim_ = ActorAnim{};
     time_ = 0.0f;
@@ -80,7 +83,12 @@ bool TutorialFlow::getXform(quest::ScriptVar var, quest::ScriptXform* out) {
 
 void TutorialFlow::setXform(quest::ScriptVar var, const quest::ScriptXform& x) {
     xforms_[varIndex(var)] = x;
-    if (var == quest::ScriptVar::LocalToon) toonPosed_ = true; // LOCK_LOCALTOON's scripted moves
+    // LOCK_LOCALTOON's scripted moves hold the Toon until FREE_LOCALTOON. A POS of an unlocked
+    // Toon (quest_assign_101's POS localToon 0.776 14.6 0) is a single setPos: place it once.
+    if (var == quest::ScriptVar::LocalToon) {
+        if (toonLocked_) toonPosed_ = true;
+        else toonReleased_ = true;
+    }
 }
 
 void TutorialFlow::setColorScale(quest::ScriptVar var, const float rgba[4]) {
@@ -117,9 +125,12 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         }
         break;
     }
+    case quest::ScriptOp::LockLocalToon:
+        toonLocked_ = true;
+        break;
     case quest::ScriptOp::FreeLocalToon:
         toonReleased_ = toonPosed_;
-        toonPosed_ = false;
+        toonPosed_ = toonLocked_ = false;
         toonAnim_ = ActorAnim{};
         break;
     case quest::ScriptOp::ArrowsOn:

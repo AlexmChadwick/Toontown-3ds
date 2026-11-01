@@ -62,7 +62,7 @@ private:
     bool arrows_ = false;
     quest::ScriptVar card_ = quest::ScriptVar::None;
     quest::ScriptVar speaker_ = quest::ScriptVar::None;
-    bool charLoaded_ = false, charShown_ = false, toonPosed_ = false, cameraStaged_ = false, toonReleased_ = false;
+    bool charLoaded_ = false, charShown_ = false, toonPosed_ = false, toonLocked_ = false, cameraStaged_ = false, toonReleased_ = false;
     ActorAnim charAnim_, toonAnim_;
     float time_ = 0.0f;
     bool finished_ = false;
