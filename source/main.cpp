@@ -3314,7 +3314,9 @@ int main() {
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();
             float sx, sy, depth;
-            if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
+            // ---- tutorial ---- HIDE localToon (tutorial_blocker's close-up) hides the whole Toon, nametag too
+            if (!tutorial.toonHidden() &&
+                tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
