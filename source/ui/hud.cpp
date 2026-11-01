@@ -107,7 +107,13 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         face.maxHp = v.maxHp;
         for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
         face.species = v.species;
-        laff_.draw(face, kLaffX, kLaffY, kLaffSize);
+        // quest_assign_101 flies the meter from (-1.18, -0.87) scale 0.075 to (-0.25, -0.15) scale 0.2
+        // (aspect2d: 120 px per unit on the 400 x 240 top screen)
+        const float k = v.laffGrow;
+        const float bigSize = kLaffSize * (0.2f / 0.075f) * 0.75f; // keeps the whole meter on the 240 px screen
+        const float cx = kLaffX + (200.0f - 0.25f * 120.0f - kLaffX) * k;
+        const float cy = kLaffY + (120.0f + 0.15f * 120.0f - kLaffY) * k;
+        laff_.draw(face, cx, cy, kLaffSize + (bigSize - kLaffSize) * k);
     }
     if (v.timerSeconds >= 0) battleTimer_.draw(v.timerSeconds, kBattleTimerX, kBattleTimerY, kBattleTimerSize);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default

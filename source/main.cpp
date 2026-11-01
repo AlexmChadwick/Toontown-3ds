@@ -3405,6 +3405,18 @@ int main() {
             }
             hv.laffOnBottom = ui.laffShown();
             hv.laffHidden = !tutorial.laffShown(); // enterTutorialHood: laffMeter.obscure(1)
+            {
+                int demoHp = -1, demoMax = 15;
+                float grow = 0.0f;
+                if (tutorial.laffDemo(&demoHp, &demoMax, &grow)) {
+                    if (demoHp >= 0) {
+                        hv.hp = demoHp;
+                        hv.maxHp = demoMax;
+                    }
+                    hv.laffGrow = grow;
+                    hv.laffOnBottom = false; // the lesson's meter is on the top screen, over Tom's room
+                }
+            }
             hv.toast = toast;
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())

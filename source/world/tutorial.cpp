@@ -57,6 +57,7 @@ void TutorialFlow::endMovie() {
     arrows_ = false;
     card_ = quest::ScriptVar::None;
     bookScripted_ = false;
+    laffValue_ = laffPosed_ = false; // the meter goes back to the Toon's own Laff, in its corner
 }
 
 void TutorialFlow::advance() {
@@ -96,6 +97,7 @@ void TutorialFlow::stop() {
     bookScripted_ = false;
     closeEnabled_ = nextShown_ = prevShown_ = true;
     bookRequest_ = 0;
+    laffValue_ = laffPosed_ = false;
 }
 
 void TutorialFlow::dropPersist() {
@@ -153,6 +155,7 @@ void TutorialFlow::setXform(quest::ScriptVar var, const quest::ScriptXform& x) {
         else toonPlace_ = true;
     }
     if (var == quest::ScriptVar::Npc) npcPosed_ = true;
+    if (var == quest::ScriptVar::LaffMeter) laffPosed_ = true;
 }
 
 void TutorialFlow::setColorScale(quest::ScriptVar var, const float rgba[4]) {
@@ -242,6 +245,11 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         break;
     case ScriptOp::ArrowsOn:
         arrows_ = true;
+        break;
+    case ScriptOp::LaffMeter: // LaffMeter.adjustFace(hp, maxHp): the face follows the lesson, not the Toon
+        laffValue_ = true;
+        laffHp_ = cmd.numArgs > 0 ? static_cast<int>(cmd.args[0]) : 15;
+        laffMax_ = cmd.numArgs > 1 ? static_cast<int>(cmd.args[1]) : 15;
         break;
     case ScriptOp::ArrowsOff:
         arrows_ = false;

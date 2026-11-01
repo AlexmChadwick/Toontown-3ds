@@ -18,6 +18,7 @@ struct HudValues {
     bool online = false;
     bool laffOnBottom = false; // the bottom screen shows the meter: leave it off the world
     bool laffHidden = false;   // the Toontorial obscures the meter until Tom's lesson shows it
+    float laffGrow = 0.0f;     // Tom's Laff meter lesson: 0 in its corner .. 1 big in the middle
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;

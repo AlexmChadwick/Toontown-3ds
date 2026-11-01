@@ -86,6 +86,18 @@ public:
     void setInTutorialHood(bool in);
     bool bookButtonShown() const { return !hood_ || bookShown_; }
     bool laffShown() const { return !hood_ || laffShown_; }
+    // quest_assign_101's Laff meter lesson: LAFFMETER hp max drains the meter 15 -> 0 -> 15 while
+    // POS / SCALE / LERP laffMeter fly it from its corner (scale 0.075) to the middle (0.2) and back.
+    // False when no lesson runs; *grow is 0 in the corner .. 1 at the middle.
+    bool laffDemo(int* hp, int* maxHp, float* grow) const {
+        if (!laffValue_ && !laffPosed_) return false;
+        if (hp) *hp = laffValue_ ? laffHp_ : -1;
+        if (maxHp) *maxHp = laffMax_;
+        const float s = xforms_[static_cast<int>(quest::ScriptVar::LaffMeter)].scale[0];
+        const float g = laffPosed_ ? (s - 0.075f) / (0.2f - 0.075f) : 0.0f;
+        if (grow) *grow = g < 0.0f ? 0.0f : g > 1.0f ? 1.0f : g;
+        return true;
+    }
     bool speedChatShown() const { return !hood_ || scShown_; }
     // Harry's book lesson: SHOW_BOOK opens the book on the map page with its close button off
     // until ENABLE_CLOSE_BOOK; HIDE / SHOW bookNextArrow / bookPrevArrow gate the page turns.
@@ -134,6 +146,8 @@ private:
     bool hood_ = false, bookShown_ = true, laffShown_ = true, scShown_ = true;
     bool bookScripted_ = false, closeEnabled_ = true, nextShown_ = true, prevShown_ = true;
     int bookRequest_ = 0;
+    bool laffValue_ = false, laffPosed_ = false;
+    int laffHp_ = 15, laffMax_ = 15;
 };
 
 } // namespace tt::world
