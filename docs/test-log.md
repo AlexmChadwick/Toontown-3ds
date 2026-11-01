@@ -2101,3 +2101,64 @@ compare the same clouds rather than unrelated wall-clock phases. Host tests
 cover the 24-minute boundary and common two-hour period. Build verified only;
 cloud rendering/sky stddev remain tester checks. Device numbers are from the
 tester, not from this agent.
+
+### 2026-11-01 - Round 13 screenshots, covered arrival and fidelity
+
+Branch `cursor/cone-card-bytes-0b72`, starting at `d34a7bb`. Tests used the
+installed r11 zone set plus the repository sky bake in offline Azahar. No live
+server was contacted. Evidence is in `/workspace/shots/codex-r13/3ds/`.
+
+The all-zero TTSH dumps were caused by CPU reads from VRAM render targets. The
+final readback fences the prior frame, performs a direct GX copy to guarded
+linear memory, waits for completion and invalidates the destination cache before
+writing. Old and New boot/world dumps contain real frames. The copy remains
+outside `C3D_FrameBegin` / `C3D_FrameEnd`.
+
+TZ v3 staging was also treating the shared texture pool as inline chunk data.
+Its one-read span crossed the gap from each chunk's geometry to the file-wide
+pool, so common pages and the gap were read repeatedly. Staging now excludes
+shared payloads from that span and a zone caches pools up to 4 MiB once in regular
+heap. Larger pools retain a correct, measured direct-read fallback.
+
+Old and New final arrival measurements:
+
+| Zone | Old total / covered | New total / covered | Profiled reads | First visible world |
+|---|---:|---:|---:|---|
+| 2000 initial | boot-only / 434 ms resident pass | boot-only / 434 ms resident pass | included in boot | complete before front end releases |
+| 2100 | 5281 / 573 ms | 5366 / 640 ms | 24 calls, 3,055,774 bytes, 393 ms | 134 draws before teleport-in completes |
+| 1000 | 4618 / 411 ms | 4618 / 411 ms | 14 calls, 3,316,814 bytes, 520 ms | 148 draws before teleport-in completes |
+
+The total column begins when destination prewarming starts during teleport-out,
+so it includes about four seconds of the transition animation. The covered
+column is the player-visible loading screen. Before the fix, the comparable Old
+profiles were 22,112,396 bytes and 3.889 seconds for 2100, and 12,533,910 bytes
+and 2.185 seconds for 1000. The cover now waits for the full admitted first cone,
+uses byte-weighted progress, and publishes with a 128 KiB ceiling plus the 2 ms
+time target. The first covered frame reports the destination preload's real
+completion instead of resetting its bar to zero. No post-arrival empty-world
+ramp was seen.
+
+Fixed views set their destination pose and camera before prewarming, release the
+long-jump held camera for deliberate scripted cuts, and pin neutral frame zero.
+Toon Hall and the pond remain in their correct pose for their full windows.
+Near scenery uses `lodBias -4` and nearest filtering on both profiles. At native
+400x240 this is visibly more pixel-defined than the bilinear version, especially
+on signs and doors, with no added memory or SD payload.
+
+The final strict gate (`fidelity-final2.txt`) passes all 8 views. Seven Old/New
+pairs are pixel-identical. `street_far` is SSIM 0.997, minimum tile 0.907 and
+0.2 percent large-difference pixels. Old/New draw counts are 131/131, 95/95,
+137/137, 126/126, 134/134, 122/88, 148/148 and 146/146. Near detail scores are
+1009.8 TTC, 778.3 street and 647.4 DD on both models, above targets 785, 482 and
+471. The labeled full-size visual grid is `old-new-8views.png`; manual review
+found no empty world or blob substitute in these views.
+
+A fresh current-baker 1000 probe was not installed. Its New planned preview has
+severe diagonal triangle smears across the door, wall and floor, so replacing the
+known-good supplied zone would regress fidelity despite fitting file budgets.
+
+Verification: incremental devkitARM 3DSX/CIA build passes. Six fidelity unit
+tests, six legacy zone format tests and three far-atlas tests pass. The four
+far-shell tests could not run in this environment because `fast_simplification`
+is absent; no far-shell code changed in this round. Emulator panics: zero in both
+final 240-second Old/New passes.

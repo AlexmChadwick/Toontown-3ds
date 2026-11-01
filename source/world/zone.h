@@ -34,6 +34,7 @@ public:
     // allocation goes through tt::mem::LinearGuard, so it is safe next to the toon loader.
     bool load(const char* path);
     void unload();
+    void swap(Zone& other);
     bool loaded() const { return impl_ != nullptr; }
     const char* error() const { return error_; }
     // Eye and look-at for the frame about to be drawn. The next update() spends the
@@ -42,6 +43,9 @@ public:
     void setCamera(const Vec3& eye, const Vec3& target);
     // A long jump keeps the last complete view until destination coverage is ready.
     bool heldCamera(Vec3* eye, Vec3* target) const;
+    // Fixed fidelity views are deliberate camera cuts, not gameplay jumps. Drop
+    // the retained previous view so each scripted pose owns its full window.
+    void releaseHeldView();
     // Call once before FrameBegin, never per eye.
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
     // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call
@@ -50,6 +54,12 @@ public:
     // down: DistributedLevel's camera ray onto the zone floors has no length limit).
     bool update(const Vec3& feet, CellChanged callback = nullptr, void* user = nullptr, float reach = kFloorReach, bool gpuFenced = false);
     bool loading() const; // in-cone chunks are not yet at the planned LOD
+    // The first view is not presentable until every admitted in-cone chunk is at
+    // its planned LOD. Unlike loading(), this latch stays false after arrival so
+    // ordinary camera movement never brings the loading cover back.
+    bool arrivalPending() const;
+    // Byte-weighted completion of that first admitted view, in [0, 1].
+    float arrivalProgress() const;
     // True while a distant chunk covering most of the screen has no mesh yet.
     // v2 zones satisfy this with that chunk's far mesh. The cell underfoot and
     // chunks inside lodMust are not in the prefix: they read their near mesh

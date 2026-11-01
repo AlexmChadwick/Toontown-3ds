@@ -41,6 +41,7 @@ public:
     static bool available(u32 zoneId);
     bool load(u32 zoneId);
     void unload();
+    void swap(Place& other);
     u32 zoneId() const { return zoneId_; }
     PlaceKind kind() const { return placeKind(zoneId_); }
 
@@ -57,9 +58,9 @@ public:
     void setCamera(const C3D_FVec& eye, const C3D_FVec& target);
     void update(float x, float y, float z, Zone::CellChanged cb, void* user, bool gpuFenced = false);
     // Queues the draw plan, then a ring of neighbouring chunks. The loader thread
-    // does the reads. Call update() until streamReady(). streamReady is the part of
-    // the cone that covers most of the screen; near upgrades and the ring continue
-    // after the card drops.
+    // does the reads. Call update() until streamReady(). streamReady requires the
+    // complete admitted cone at its planned LOD, so arrival never reveals sparse
+    // far stand-ins. The warm ring continues after the card drops.
     void beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user);
     bool streamReady() const;
     float streamProgress() const;

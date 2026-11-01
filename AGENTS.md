@@ -185,6 +185,10 @@ Key decisions:
      chunk TTMs point into it (`docs/design/streets.md`). Interiors share one
      `interiors/textures.ttp` (pooled TTM v2, `tools/pipeline/ttm_pool.py`). Never let a
      baker copy the same atlas page into every chunk file again: that doubled the SD set.
+     Runtime staging excludes this distant shared pool from each chunk's contiguous
+     geometry read. Pools up to 4 MiB are cached once in regular heap; larger pools
+     use measured direct payload reads. Including the gap to the pool in every chunk
+     read caused the Round 13 179 MB cumulative SD profile.
 3. **Baked mesh data.**
    - Positions are quantized to `int16`; UVs use `int16` or `u8`.
    - Vertex color is `u8×4`.
@@ -204,10 +208,11 @@ Key decisions:
      <=0.75-unit surface error and <=0.5-unit bounds change. Original colours
      and alpha stay. Budget failure stops the bake; no voxel/blob fallback.
      The legacy colour baker remains only for historical format tests.
-     **Round 12 status: TTC probe bakes within file budgets but fails the
-     Toon Hall near-coverage host check; 2100 replacement fails budgets.
-     Neither probe replaces the supplied test zones. Do not claim a complete
-     fidelity asset set or visual gate pass.**
+     **Round 13 status: TTC probe bakes within file budgets but fails the
+     Toon Hall near-coverage host check; 2100 replacement fails budgets. A fresh
+     1000 probe also produces stretched triangles on New. None replaces the supplied
+     test zones. The supplied zones pass the eight-view Old/New gate, but do not claim
+     these replacement bakers are integration-ready.**
    - Zone skies (`bake_sky.py`) are TT dome + two cloud rings (three draws) or
      BR dome (one draw). Draw camera-relative before the world, with depth
      test/write and fog off. TT rings rotate +0.25 and -0.20 degrees/s.
@@ -231,6 +236,9 @@ Key decisions:
    - **Texture orientation:** rows are stored top row first, untiled order = image file
      order. This matches tex3ds; the first row in memory samples as t=1, which equals
      Panda's v=1.
+   - Resident near-zone pages use base-biased nearest sampling (`lodBias -4`) on both
+     Old and New. This preserves the baked texel detail at 400x240 and passes the
+     Round 13 near-detail gate without adding texture memory or SD bytes.
    - **Panda `TransparencyAttrib.M_dual`** is baked as alpha test (>0.5) instead of
      sorted blending.
    - **"Draw in front"** (eyes over face, pupils over eyes) uses a per-batch `layer`
@@ -497,8 +505,8 @@ server.
   cap. `Zone::draw` does not skip an in-cone chunk the plan kept. With no camera
   the whole cell stays inside 15,000 triangles and 150 draws (the file's far-set
   cap); a chunk that would pass it is not loaded.
-  The loading card drops when the distant in-cone chunks covering most of the
-  screen have a far mesh (`Zone::cardPending`). Membership is projected area,
+  `Zone::cardPending` still prioritizes distant in-cone chunks covering most of the
+  screen. Membership is projected area,
   not a `lodNear` / `lodMust` ring, so New's larger radius does not pull extra
   chunks into the card. The cell underfoot and chunks inside `lodMust` are not
   in that prefix: they read their near mesh directly. Distant chunks still read
@@ -507,10 +515,14 @@ server.
   replacement is uploaded and published. The frame cap counts that shown mesh,
   not the near mesh that is still loading, so a published far stays in the cone
   while its near read is in flight. Normal place streaming publishes after the
-  existing FrameBegin fence, without an extra FrameSync vblank. Post-card
-  staging has a 2 ms target, a 16 KiB byte ceiling and one pump per frame;
-  behind the card the ceiling is 64 KiB. These are work bounds, not measured
-  device frame times. Card resources retire at the next existing frame fence.
+  existing FrameBegin fence, without an extra FrameSync vblank. Ordinary-play
+  staging has a 2 ms target, a 16 KiB byte ceiling and one pump per frame.
+  Covered initial arrival uses a 128 KiB ceiling while retaining the 2 ms target.
+  These are work bounds, not measured device frame times. Card resources retire
+  at the next existing frame fence. The visible cover remains until the complete
+  admitted first cone reaches its planned LOD, with byte-weighted progress; it no
+  longer drops after only the far coverage prefix. A prewarmed cover starts from
+  the destination's real progress instead of resetting its bar to zero.
   Visible fars reserve their costs before near upgrades. Current-PVS fars
   rank ahead of retained old-PVS fars; reset choice==0 alone is not a stand-in. Drawing uses the
   exact admitted set counted by the host. A desired in-cone near chunk remains
@@ -521,8 +533,10 @@ server.
   meshes AND camera until destination coverage reaches 100 or finishes. The
   sparse early-card jump remains unresolved; `TT_STRICT_CARD_JUMP=1` exposes
   it using real 2100 data and 4/4 MiB caps. Default tests exercise the completed
-  view case. Cross-zone prewarming and new vertex AO remain unfinished.
-  Street and playground arrival does not call `finishLoading`. `finishLoading`
+  view case. Map and hood teleports prewarm the destination during teleport-out
+  and swap it under the cover. Tunnel/door prewarming and new vertex AO remain
+  unfinished. Street and playground arrival does not call `finishLoading`. Initial
+  TTC calls it behind the boot screen; other `finishLoading`
   (boss / cogdo) waits for the full cone plan, not the card and not the warm ring.
   Textures are already tiled at bake time, and new bakes store absolute indices
   (TTM header flags bit 0) when the model fits in 16-bit indices.

@@ -2,11 +2,13 @@
 
 #include "render/quality.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sys/stat.h>
+#include <utility>
 
 #include "core/log.h"
 #include "core/memory.h"
@@ -136,15 +138,14 @@ void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void
 }
 
 bool Place::streamReady() const {
-    // The card tracks the chunks that cover most of the screen (v1: the only mesh).
-    // Near upgrades and warmAround keep going after this returns, from Place::update.
-    return !zone_.loaded() || !zone_.cardPending();
+    // Never expose the sparse far-prefix view. Arrival completes only when every
+    // admitted in-cone chunk is at its chosen LOD; later camera replans stream live.
+    return !zone_.loaded() || !zone_.arrivalPending();
 }
 
 float Place::streamProgress() const {
     if (!zone_.loaded() || streamReady()) return 1.0f;
-    if (!zone_.loading()) return 0.85f;
-    return 0.45f;
+    return zone_.arrivalProgress();
 }
 
 void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user) {
@@ -172,6 +173,16 @@ void Place::unload() {
     collision_.unload();
     numPoints_ = 0;
     zoneId_ = 0;
+}
+
+void Place::swap(Place& o) {
+    model_.swap(o.model_);
+    collision_.swap(o.collision_);
+    zone_.swap(o.zone_);
+    std::swap(zoneId_,o.zoneId_);
+    std::swap(numPoints_,o.numPoints_);
+    for (size_t i=0;i<sizeof(pointsPath_);++i) std::swap(pointsPath_[i],o.pointsPath_[i]);
+    std::swap_ranges(points_,points_+kMaxPoints,o.points_);
 }
 
 bool Place::load(u32 zoneId) {

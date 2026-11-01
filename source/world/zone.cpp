@@ -11,6 +11,7 @@
 #include <new>
 #ifdef __3DS__
 #include "core/gpu_sync.h"
+#include "core/log.h"
 #include "render/renderer.h"
 #endif
 
@@ -206,6 +207,7 @@ inline void testFloor(const Floor& f,const Vec3& feet,float reach,float* best,in
 struct Zone::Impl {
     FILE* file = nullptr;
     Header h{};
+    uint8_t* poolData = nullptr; // v3 texture payloads, read once to avoid per-chunk SD rereads
     Chunk* chunks = nullptr;
     uint16_t* vis = nullptr;
     Floor* floors = nullptr;
@@ -225,6 +227,7 @@ struct Zone::Impl {
     uint16_t order[kMaxChunks] = {};
     uint32_t numOrder = 0;
     bool planned = false;
+    bool firstView = true; // cleared once the complete initial cone is resident
     bool extra[kMaxChunks] = {}; // setExtraVisible: chunks shown beyond the cell's PVS
     bool extraDirty = false;
     Vec3 lastPlan{};
@@ -234,6 +237,7 @@ struct Zone::Impl {
     bool submitted[kMaxChunks] = {};
     bool held[kMaxChunks] = {};
     bool holdingView = false;
+    bool suppressNextHold = false; // deterministic autotest camera cut
     Vec3 heldEye{}, heldTarget{};
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
@@ -300,7 +304,8 @@ void loaderMain(void* arg) {
         if (!job) { LightEvent_Wait(&z.wake); continue; }
         const Chunk d = modelInfo(z.chunks[job->chunk], job->lod);
         // Bytes only. GPU upload is sliced on the main thread so one chunk cannot stall a frame.
-        const bool ok = job->staging.read(z.file, d.offset);
+        const bool ok = job->staging.read(z.file, d.offset, nullptr, z.h.poolOff, z.h.poolSize,
+                                          z.poolData);
         LightLock_Lock(&z.lock);
         job->state = ok ? Zone::Impl::Uploading : Zone::Impl::Failed;
         LightLock_Unlock(&z.lock);
@@ -357,6 +362,14 @@ bool Zone::fail(const char* message) {
     snprintf(error_,sizeof(error_),"%s",message);
     return false;
 }
+void Zone::swap(Zone& o) {
+    std::swap(impl_,o.impl_);
+    collision_.swap(o.collision_);
+    char error[sizeof(error_)];
+    memcpy(error,error_,sizeof(error));
+    memcpy(error_,o.error_,sizeof(error_));
+    memcpy(o.error_,error,sizeof(error));
+}
 void Zone::unload() {
     if (!impl_) return;
 #ifdef __3DS__
@@ -374,14 +387,16 @@ void Zone::unload() {
 #endif
     collision_.unload();
     if (impl_->file) fclose(impl_->file);
+    free(impl_->poolData);
     free(impl_->chunks); free(impl_->vis); free(impl_->floors); free(impl_->triggers);
     free(impl_->grid.start); free(impl_->grid.items);
     delete impl_;
     impl_ = nullptr;
 }
 bool Zone::load(const char* path) {
-    const uint64_t metaT0 = tt::loadprof::nowUs();
     unload();
+    tt::loadprof::beginZone(path);
+    const uint64_t metaT0 = tt::loadprof::nowUs();
     error_[0]=0;
     if (!path || !*path) return fail("zone: invalid path");
     impl_ = new(std::nothrow) Impl;
@@ -488,6 +503,32 @@ bool Zone::load(const char* path) {
     if (ok) {
         ok=collision_.loadFrom(z.file,h.collisionOff,h.collisionSize,"tz collision");
     }
+    // V3 pages are shared by many chunks. Keep one regular-heap copy while the
+    // zone is open so every near/far staging job does not seek and reread the
+    // same ETC payload from SD. Allocation/read failure is a safe direct-read
+    // fallback in ModelStaging.
+    constexpr uint32_t kPoolCacheCap=4u*1024u*1024u;
+    if (ok && h.poolSize && h.poolSize<=kPoolCacheCap) {
+        z.poolData=static_cast<uint8_t*>(malloc(h.poolSize));
+        if (z.poolData) {
+            const uint64_t t0=tt::loadprof::nowUs();
+            if (readAt(z.file,h.poolOff,z.poolData,h.poolSize))
+                tt::loadprof::addRead(h.poolSize,static_cast<uint32_t>(tt::loadprof::nowUs()-t0));
+            else {
+                free(z.poolData);
+                z.poolData=nullptr;
+            }
+        }
+#ifdef __3DS__
+        if (!z.poolData) TT_LOG("zone: shared texture pool cache unavailable; using direct reads");
+#endif
+    }
+#ifdef __3DS__
+    else if (ok && h.poolSize) {
+        TT_LOG("zone: %lu KB texture pool exceeds cache cap; using direct reads",
+               static_cast<unsigned long>(h.poolSize/1024));
+    }
+#endif
 #ifdef __3DS__
     if (ok) {
         z.models=new(std::nothrow) render::Model[h.chunks];
@@ -496,7 +537,6 @@ bool Zone::load(const char* path) {
     }
 #endif
     tt::loadprof::addMeta(static_cast<uint32_t>(tt::loadprof::nowUs() - metaT0));
-    tt::loadprof::noteZone(path);
     if (!ok) { unload(); return fail("zone: invalid TZ/model/collision, budget, heap or I/O failure"); }
 #ifdef __3DS__
     LightLock_Init(&z.lock);
@@ -556,6 +596,11 @@ constexpr int kMaxPublishPerUpdate = 2;
 #ifdef __3DS__
 // Main-thread upload target plus an independent byte ceiling (device timing pending).
 constexpr uint32_t kUploadBudgetUs = 2000;
+// A covered arrival has no useful world frame to protect, but real hardware still
+// obeys the time limit above. The byte ceiling bounds emulators whose tick does not
+// advance during memcpy. 128 KiB cuts the former 16 KiB-per-frame initial ramp by 8x.
+constexpr uint32_t kArrivalUploadBytes = 128u * 1024u;
+constexpr uint32_t kPlayUploadBytes = 16u * 1024u;
 // Spread mesh publishes so place+upload stay near one frame budget.
 // Old 3DS linear heap is 24 MB. Non-cone chunks are evicted below this free floor.
 // Kept in this block: the host build does not link linearSpaceFree, and a
@@ -772,7 +817,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,b
     }
     if (replan) {
         const float jumpX=feet.x-z.lastPlan.x, jumpY=feet.y-z.lastPlan.y;
-        if (z.plannedCam && !z.holdingView && z.draws >= 100 &&
+        if (z.plannedCam && !z.holdingView && !z.suppressNextHold && z.draws >= 100 &&
             jumpX*jumpX+jumpY*jumpY > 128.0f*128.0f) {
             // Keep a real, completed view while a discontinuous move streams.
             // Drawing the old set through the NEW camera would still be empty.
@@ -780,6 +825,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,b
             z.heldEye=z.planEye; z.heldTarget=z.planTarget;
             z.holdingView=true;
         }
+        z.suppressNextHold=false;
         const Chunk& c=z.chunks[next];
         memset(z.desired,0,sizeof(z.desired));
         memset(z.choice,0,sizeof(z.choice));
@@ -1162,11 +1208,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,b
             // memcpy, and one pump used to upload a whole near mesh.
             if (j.lod==0 && nearDone) continue;
             const uint64_t t0=svcGetSystemTick();
-            const auto result=j.staging.pump(j.model, budget, cardPending() ? 64u*1024u : 16u*1024u);
+            const bool covered=arrivalPending();
+            const auto result=j.staging.pump(j.model, budget,
+                                             covered ? kArrivalUploadBytes : kPlayUploadBytes);
             const uint32_t used=static_cast<uint32_t>((svcGetSystemTick()-t0)/(SYSCLOCK_ARM11/1000000));
             if (used>=budget || (result==render::ModelStaging::Result::Pending && used==0)) budget=0;
             else budget-=used;
-            if (!cardPending()) budget=0; // one bounded staging operation after the card
+            if (!covered) budget=0; // one bounded staging operation during ordinary play
             if (result==render::ModelStaging::Result::Complete) {
                 j.state=Impl::Done;
                 if (j.lod==0) nearDone=true;
@@ -1209,6 +1257,10 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,b
                 sync();
                 if (z.parked[id] && j.lod==0) { z.parkedModels[id].unload(); z.parked[id]=false; }
                 z.models[id].swap(j.model);
+                // The baked near pages contain the detail already.  A negative
+                // bias keeps oblique ground and facade samples from dropping
+                // that detail too early, equally on Old and New.
+                if (j.lod==0) z.models[id].setTextureLodBias(-4.0f);
                 z.resident[id]=true; z.lod[id]=j.lod; z.keepHigh[id]=false;
                 if (j.lod==0) z.parked[id]=false;
             } else if (st==Impl::Done && j.lod==1 && nearHeld) {
@@ -1541,6 +1593,15 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach,b
     }
 #endif
     recountZone(z);
+    if (z.firstView) {
+        bool pending=false;
+        for (uint32_t j=0;j<z.numOrder;++j) {
+            const uint16_t i=z.order[j];
+            if (!z.inCone[i] || z.failed[i]) continue;
+            if (!(z.resident[i] && z.lod[i]==z.choice[i])) { pending=true; break; }
+        }
+        if (!pending) z.firstView=false;
+    }
     return true;
 }
 bool Zone::loading() const {
@@ -1551,6 +1612,24 @@ bool Zone::loading() const {
         if (!impl_->failed[i] && !(impl_->resident[i] && impl_->lod[i]==impl_->choice[i])) return true;
     }
     return false;
+}
+bool Zone::arrivalPending() const {
+    return impl_ && impl_->firstView && loading();
+}
+float Zone::arrivalProgress() const {
+    if (!impl_ || !impl_->planned || !impl_->firstView) return 1.0f;
+    uint64_t done=0, total=0;
+    for (uint32_t j=0;j<impl_->numOrder;++j) {
+        const uint16_t i=impl_->order[j];
+        if (!impl_->inCone[i]) continue;
+        const Chunk target=modelInfo(impl_->chunks[i], impl_->choice[i]);
+        const uint64_t cost=static_cast<uint64_t>(target.geom)+target.tex;
+        total+=cost;
+        if (impl_->failed[i] || (impl_->resident[i] && impl_->lod[i]==impl_->choice[i])) done+=cost;
+    }
+    if (!total) return 1.0f;
+    const float result=static_cast<float>(done)/static_cast<float>(total);
+    return result<0.0f ? 0.0f : (result>1.0f ? 1.0f : result);
 }
 bool Zone::cardPending() const {
     // v2 drops the card once the chunks covering most of the screen have a mesh
@@ -1577,6 +1656,12 @@ bool Zone::heldCamera(Vec3* eye, Vec3* target) const {
     if (!impl_ || !impl_->holdingView) return false;
     *eye=impl_->heldEye; *target=impl_->heldTarget;
     return true;
+}
+void Zone::releaseHeldView() {
+    if (!impl_) return;
+    impl_->holdingView=false;
+    impl_->suppressNextHold=true;
+    memset(impl_->held,0,sizeof(impl_->held));
 }
 void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
     for (int guard=0; guard<3000 && impl_; ++guard) {

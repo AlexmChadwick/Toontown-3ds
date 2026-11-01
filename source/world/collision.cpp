@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 
 #include "core/log.h"
 
@@ -256,6 +257,18 @@ bool horizontalPush(const float* c, const float* q, float r, const float* fallba
 } // namespace
 
 CollisionWorld::~CollisionWorld() { unload(); }
+
+void CollisionWorld::swap(CollisionWorld& o) {
+    using std::swap;
+    swap(blob_,o.blob_); swap(heapBytes_,o.heapBytes_);
+    swap(originX_,o.originX_); swap(originY_,o.originY_); swap(cellSize_,o.cellSize_); swap(invCell_,o.invCell_);
+    swap(gridW_,o.gridW_); swap(gridH_,o.gridH_);
+    swap(numTris_,o.numTris_); swap(numCaps_,o.numCaps_); swap(numPlanes_,o.numPlanes_); swap(numTriggers_,o.numTriggers_);
+    swap(tris_,o.tris_); swap(caps_,o.caps_); swap(planes_,o.planes_);
+    swap(cellTable_,o.cellTable_); swap(cellData_,o.cellData_); swap(cellDataCount_,o.cellDataCount_);
+    swap(triggers_,o.triggers_); swap(stamps_,o.stamps_); swap(stamp_,o.stamp_);
+    numGatherTris_=numGatherCaps_=o.numGatherTris_=o.numGatherCaps_=0;
+}
 
 void CollisionWorld::unload() {
     free(blob_);

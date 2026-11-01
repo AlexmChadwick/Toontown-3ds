@@ -167,8 +167,15 @@ void Model::swap(Model& o) {
 
 void Model::setTextureLodBias(float bias) {
 #ifdef __3DS__
-    for (u16 i = 0; i < numTextures_; ++i)
-        if (textures_[i].data) C3D_TexSetLodBias(&textures_[i], bias);
+    for (u16 i = 0; i < numTextures_; ++i) {
+        if (!textures_[i].data) continue;
+        C3D_TexSetLodBias(&textures_[i], bias);
+        // Near scenery has isolated per-tile mip chains. Bias and sample toward
+        // the sharper texels instead of discarding the small 3DS atlas tiles'
+        // remaining detail on close walls and oblique ground.
+        C3D_TexSetFilter(&textures_[i], GPU_NEAREST, GPU_NEAREST);
+        if (textures_[i].maxLevel > 0) C3D_TexSetFilterMipmap(&textures_[i], GPU_NEAREST);
+    }
 #else
     (void)bias;
 #endif
@@ -399,7 +406,8 @@ void ModelStaging::reset() {
 
 ModelStaging::~ModelStaging() { reset(); }
 
-bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
+bool ModelStaging::read(FILE* f, u32 base, FILE* pool, u32 sharedPoolOff, u32 sharedPoolSize,
+                        const u8* sharedPoolData) {
     reset();
     Header h;
     if (!readAt(f, base, &h, sizeof(h)) || memcmp(h.magic, "TTM1", 4) ||
@@ -447,8 +455,14 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     const u32 indexAt = base + h.indexOffset;
     if (indexAt < spanLo) spanLo = indexAt;
     if (indexAt + indexBytes_ > spanHi) spanHi = indexAt + indexBytes_;
+    auto inSharedPool = [&](const TexEntry& e) {
+        return sharedPoolSize && e.dataOffset >= sharedPoolOff &&
+               e.dataSize <= sharedPoolSize &&
+               e.dataOffset - sharedPoolOff <= sharedPoolSize - e.dataSize;
+    };
     if (texFile == f) {
         for (u16 i = 0; i < numTextures_; i++) {
+            if (inSharedPool(tex_[i])) continue;
             const u32 at = tex_[i].dataOffset;
             if (at < spanLo) spanLo = at;
             if (at + tex_[i].dataSize > spanHi) spanHi = at + tex_[i].dataSize;
@@ -460,26 +474,37 @@ bool ModelStaging::read(FILE* f, u32 base, FILE* pool) {
     bool spanned = false;
     if (spanBytes > 0 && spanBytes <= kOneReadCap) {
         blob = static_cast<uint8_t*>(malloc(spanBytes));
-        const u64 t0 = loadprof::nowUs();
-        spanned = blob && readAt(f, spanLo, blob, spanBytes);
-        loadprof::addRead(spanBytes, static_cast<u32>(loadprof::nowUs() - t0));
+        if (blob) {
+            const u64 t0 = loadprof::nowUs();
+            spanned = readAt(f, spanLo, blob, spanBytes);
+            loadprof::addRead(spanBytes, static_cast<u32>(loadprof::nowUs() - t0));
+        }
     }
     auto fromBlob = [&](u32 fileOff, u32 n) -> const uint8_t* {
         if (!spanned || fileOff < spanLo || fileOff + n > spanHi) return nullptr;
         return blob + (fileOff - spanLo);
     };
+    auto measuredRead = [&](FILE* file, u32 off, void* dst, u32 n) {
+        const u64 t0 = loadprof::nowUs();
+        const bool result = readAt(file, off, dst, n);
+        loadprof::addRead(n, static_cast<u32>(loadprof::nowUs() - t0));
+        return result;
+    };
     bool ok = true;
     if (const uint8_t* src = fromBlob(base + h.vertexOffset, vertBytes_)) memcpy(verts_, src, vertBytes_);
-    else ok = readAt(f, base + h.vertexOffset, verts_, vertBytes_);
+    else ok = measuredRead(f, base + h.vertexOffset, verts_, vertBytes_);
     if (ok) {
         if (const uint8_t* src = fromBlob(base + h.indexOffset, indexBytes_)) memcpy(indices_, src, indexBytes_);
-        else ok = readAt(f, base + h.indexOffset, indices_, indexBytes_);
+        else ok = measuredRead(f, base + h.indexOffset, indices_, indexBytes_);
     }
     for (u16 i = 0; ok && i < numTextures_; i++) {
-        if (const uint8_t* src = fromBlob(tex_[i].dataOffset, tex_[i].dataSize))
+        if (sharedPoolData && inSharedPool(tex_[i]))
+            memcpy(texBytes_ + texOff_[i], sharedPoolData + tex_[i].dataOffset - sharedPoolOff,
+                   tex_[i].dataSize);
+        else if (const uint8_t* src = fromBlob(tex_[i].dataOffset, tex_[i].dataSize))
             memcpy(texBytes_ + texOff_[i], src, tex_[i].dataSize);
         else
-            ok = readAt(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize);
+            ok = measuredRead(texFile, tex_[i].dataOffset, texBytes_ + texOff_[i], tex_[i].dataSize);
     }
     free(blob);
     if (!ok) {

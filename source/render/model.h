@@ -104,7 +104,7 @@ public:
     // already stored them that way; otherwise load rebases batch-relative indices.
     bool absoluteIndices() const { return absoluteIndices_; }
 
-    // Old 3DS sign chunks: bias mipmap selection toward the sharper tier New 3DS gets.
+    // Bias mipmap selection without changing the retained texture or SD footprint.
     void setTextureLodBias(float bias);
     // Boot/fenced main thread only. Move small, always-hot textures including
     // every mip to VRAM; leave at least 1 MiB free and fall back on allocation failure.
@@ -143,7 +143,12 @@ public:
 
     void reset();
     // Heap only: no linearAlloc and no C3D. `pool` is the textures.ttp a v2 model reads.
-    bool read(FILE* f, u32 base, FILE* pool = nullptr);
+    // An embedded TZ v3 model remains v1, but its absolute texture payloads lie in
+    // [sharedPoolOff, sharedPoolOff+sharedPoolSize); exclude that distant pool from
+    // the inline geometry span instead of reading the gap between them.
+    bool read(FILE* f, u32 base, FILE* pool = nullptr,
+              u32 sharedPoolOff = 0, u32 sharedPoolSize = 0,
+              const u8* sharedPoolData = nullptr);
     bool pending() const { return stage_ != Stage::Empty && stage_ != Stage::Done; }
     // Uploads into `dst` until `budgetUs` microseconds have been spent or the model is
     // finished. One step may run past the budget; the next call stops first if it is used up.
