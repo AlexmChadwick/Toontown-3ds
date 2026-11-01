@@ -50,6 +50,10 @@ public:
     void setNpcPose(u32 npc, float x, float y, float z, float h);
     void setNpcAnim(u32 npc, ToonAnim anim, float rate);
     void setNpcHidden(u32 npc, bool hidden);
+    // A client-side Toon no server object stands for (Movie.playTutorialReward builds its own
+    // Tutorial Tom on the street): drawn, animated and given balloons like the zone's NPCs.
+    bool spawnLocalNpc(u32 id, const char* name, const uint8_t* dna, float x, float y, float z, float h);
+    void despawnLocalNpc(u32 id);
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;

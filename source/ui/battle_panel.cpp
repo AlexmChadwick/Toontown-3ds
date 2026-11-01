@@ -448,6 +448,16 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                       v.rewardSent ? theme::kGrey : theme::kGreen, v.rewardSent ? theme::kGreyDark : theme::kGreenDark);
         centered(pad::battle::kContinueX + pad::battle::kContinueW * 0.5f, pad::battle::kContinueY + 5, 0.5f,
                  v.rewardSent ? kInkSoft : theme::kWhite, pad::battle::kContinueW - 8, "Continue");
+        // ---- tutorial ---- Movie.playTutorialReward's TTDialog (Acknowledge) in GlobalDialogColor over the panel
+        if (v.tutorialDialog) {
+            constexpr float dx = 40, dy = 40, dw = kW - 80, dh = 100;
+            theme::roundRect(dx - 2, dy - 2, dw + 4, dh + 4, 9, theme::rgb(0x50, 0x50, 0x50));
+            theme::roundRect(dx, dy, dw, dh, 8, theme::rgb(0xFF, 0xFF, 0xBF));
+            C2D_Text t;
+            textCache_.parse(&t, buf_, v.tutorialDialog, 1024);
+            C2D_DrawText(&t, C2D_WithColor | C2D_WordWrap, dx + 12, dy + 12, 0.6f, 0.5f, 0.5f, kInk, dw - 24);
+            centered(dx + dw * 0.5f, dy + dh - 22, 0.5f, theme::kGreenDark, dw - 20, "OK (A)");
+        }
         focus_.drawHighlight();
         return;
     }

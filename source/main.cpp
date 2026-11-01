@@ -69,6 +69,7 @@
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
+#include "world/tutorial_reward.h"
 #include "world/tutorial_char.h"
 #include "ui/tutorial_art.h"
 
@@ -526,6 +527,8 @@ int main() {
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
+    tt::world::TutorialReward tutorialReward; // ---- tutorial ---- Movie.playTutorialReward
+    bool tutorialRewardTom = false;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
@@ -829,7 +832,14 @@ int main() {
             if (battle.tutorialBattle()) {
                 battle.setAutoPlay(true, -1); // select an available cupcake/flower as InventoryNew permits
             }
-            if (battle.tutorialRewardPending()) in.down |= KEY_A;
+            if (battle.tutorialRewardPending()) {
+                static float rewardPressT = 0.0f;
+                rewardPressT += dt;
+                if (rewardPressT >= 2.0f) {
+                    rewardPressT = 0.0f;
+                    in.down |= KEY_A;
+                }
+            }
             if (!net.inTutorial() && net.tutorialFinished()) autotest.finishStep();
 
             // The points below are emitted by the tutorial bakers: never synthesize a position.
@@ -1663,6 +1673,7 @@ int main() {
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
+            battleView.tutorialDialog = tutorialReward.dialog(); // ---- tutorial ----
             // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
             // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
@@ -1712,6 +1723,11 @@ int main() {
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
                 (battleAction.kind == tt::world::BattleAction::NpcSos || battleAction.kind == tt::world::BattleAction::Fire))
                 continue; // the demo's sample cards and slips are not ours (padnav)
+            // ---- tutorial ---- the reward movie's dialogs take the panel's Continue as their OK
+            if (battleAction.kind == tt::world::BattleAction::Continue && tutorialReward.active()) {
+                tutorialReward.advance();
+                continue;
+            }
             battle.perform(net, battleAction, tt::net::plat::nowMs());
         }
         if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
@@ -2027,6 +2043,16 @@ int main() {
             battle.cameraEye(&ex, &ey, &ez);
             battle.cameraTarget(&tx, &ty, &tz);
             player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
+        }
+        // ---- tutorial ---- playTutorialReward_3: camera.setPosHpr(render, 34, 19.88, 3.48, -90, -2.36, 0),
+        // localAvatar.setPosHpr(40.31, 22.0, -0.47, 150, ...)
+        if (tutorialReward.staged()) {
+            using TR = tt::world::TutorialReward;
+            player.reset(TR::kToonPos[0], TR::kToonPos[1], TR::kToonPos[2], TR::kToonPos[3]);
+            const float h = TR::kCamH * kDegToRad, p = TR::kCamP * kDegToRad;
+            const C3D_FVec eye = FVec3_New(TR::kCamPos[0], TR::kCamPos[1], TR::kCamPos[2]);
+            player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f, eye.y + cosf(h) * cosf(p) * 10.0f,
+                                                 eye.z + sinf(p) * 10.0f));
         }
         // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
         if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
@@ -3041,10 +3067,35 @@ int main() {
             // ---- tutorial ----
             // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
             // RewardPanel timer.  The compact client presents that acknowledgement on A.
-            if (battle.tutorialRewardPending() && (in.down & KEY_A)) {
+            if (battle.tutorialRewardPending() && !tutorialReward.active() && !tutorialReward.done())
+                tutorialReward.start();
+            // its OK / page presses come through the panel's Continue (BattleAction::Continue above)
+            tutorialReward.update(dt);
+            {
+                // the movie's own Tutorial Tom on the street, beside the Toon
+                using TR = tt::world::TutorialReward;
+                const bool want = tutorialReward.tomShown();
+                if (want && !tutorialRewardTom)
+                    tutorialRewardTom = zoneActors.spawnLocalNpc(TR::kTomId, TR::tomName(), TR::tomDna(), TR::kTomPos[0],
+                                                                 TR::kTomPos[1], TR::kTomPos[2], TR::kTomPos[3]);
+                if (!want && tutorialRewardTom) {
+                    zoneActors.despawnLocalNpc(TR::kTomId);
+                    tutorialRewardTom = false;
+                }
+                if (tutorialRewardTom) {
+                    float rate = 1.0f;
+                    const tt::world::ToonAnim a = tutorialReward.tomAnim(&rate);
+                    zoneActors.setNpcAnim(TR::kTomId, a, rate);
+                }
+            }
+            if (tutorialReward.done()) {
+                // handleRewardDone: rewardDone, then playTutorialReward_4's localAvatar.setH(270)
                 battle.finishTutorialReward(net);
+                player.reset(player.x(), player.y(), player.z(), 270.0f);
+                tutorialReward.stop();
                 TT_LOG("tutorial: acknowledged Flunky reward");
             }
+            if (!battle.tutorialRewardPending() && tutorialReward.active()) tutorialReward.stop();
             // ---- end tutorial ----
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
@@ -3369,6 +3420,8 @@ int main() {
                 }
                 // ---- end tutorial ----
                 zoneActors.setSpeech(talker, said);
+                // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
+                if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);
             }
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);

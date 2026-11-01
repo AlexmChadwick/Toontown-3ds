@@ -330,6 +330,39 @@ void ZoneActors::setNpcHidden(u32 npc, bool hidden) {
     }
 }
 
+bool ZoneActors::spawnLocalNpc(u32 id, const char* name, const uint8_t* dna, float x, float y, float z, float h) {
+    if (findNpc(id)) return true;
+    Npc* n = nullptr;
+    for (Npc& s : npcs_) {
+        if (!s.active && !n) n = &s;
+    }
+    if (!n) return false;
+    n->active = true;
+    n->doId = id;
+    snprintf(n->name, sizeof(n->name), "%s", name ? name : "");
+    n->x = x;
+    n->y = y;
+    n->z = z;
+    n->h = h;
+    n->hidden = false;
+    ToonDna d;
+    if (!parseNetString(dna, net::kDnaSize, &d)) d = defaultToonDna();
+    cache_->acquire(d, ToonLod::High, &n->look);
+    n->avatar.setLook(&n->look, &cache_->fallback());
+    n->avatar.play(kAnimNeutral, 1.0f);
+    return true;
+}
+
+void ZoneActors::despawnLocalNpc(u32 id) {
+    for (Npc& n : npcs_) {
+        if (n.active && n.doId == id) {
+            cache_->release(&n.look);
+            n.active = false;
+        }
+    }
+    if (speechNpc_ == id) speechNpc_ = 0, speech_ = nullptr;
+}
+
 const char* ZoneActors::npcName(u32 npc) const {
     for (const Npc& s : npcs_)
         if (s.active && s.doId == npc && s.name[0]) return s.name;

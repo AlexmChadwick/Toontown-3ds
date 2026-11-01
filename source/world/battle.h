@@ -141,6 +141,8 @@ struct BattleView {
     // DistributedBattleTutorial: InventoryNew.show with tutorialFlag points arrows at the
     // throw and squirt buttons under "Click a gag to attack" (TTLocalizer.InventoryClickToAttack).
     bool tutorialArrows = false;
+    // Movie.playTutorialReward's TTDialog (MovieTutorialReward1 / 2) over the RewardPanel, or null.
+    const char* tutorialDialog = nullptr;
     // ---- end tutorial ----
     // InventoryNew's battle buttons: Fire needs a pink slip (setPinkSlips); SOS lists our
     // Rescued Toons (setNPCFriendsDict: NPC id, calls left). The tutorial hides both.
