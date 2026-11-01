@@ -163,6 +163,7 @@ def _setup_texture_caching():
     import hashlib
     import extract
     import ttm
+    from panda3d.core import Texture
     if getattr(extract.Extractor, '_cached_texture_installed', False):
         return
     global_cache = {}
@@ -175,6 +176,12 @@ def _setup_texture_caching():
         if not self.encode_textures:
             return orig_texture(self, tex)
         px, ncomp, pfmt = extract.texture_pixels(tex, self.max_tex)
+        if pfmt == Texture.F_alpha:
+            # Texture.store gives an alpha-only texture (sign lettering fonts) as grayscale:
+            # move the mask to alpha over white, as Panda samples it. Kept as alpha 255 it
+            # baked every letter as a solid block.
+            px[:, :, 3] = px[:, :, 0]
+            px[:, :, :3] = 255
         wrap_u = extract._WRAP.get(tex.getWrapU(), ttm.GPU_REPEAT)
         wrap_v = extract._WRAP.get(tex.getWrapV(), ttm.GPU_REPEAT)
         content = (tex.getName(), wrap_u, wrap_v, self.max_tex, self.etc1, ncomp, str(pfmt), px.shape,
