@@ -527,9 +527,16 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 # 16, at most 240 so a tile and its gutters span 256.
                 want = min(texels * e, n * e)
                 size.append(int(min(max(math.ceil(want / 16) * 16, LOCAL_MIN_TILE), LOCAL_MAX_TILE)))
-            if idx not in alpha_of:
-                alpha_of[idx] = bool(np.any(src[:, :, 3] < 255))
-            tiles[idx] = (lo, hi, size[0], size[1])
+            tw, th = size
+            box = (lo[0] * sw, (1 - hi[1]) * sh, hi[0] * sw, (1 - lo[1]) * sh)
+            shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
+            image = np.asarray(Image.fromarray(src, 'RGBA').resize(
+                (tw, th), Image.BOX if shrink else Image.BICUBIC, box=box))
+            # By the crop, not the source: a palette page mixes opaque art and
+            # cutouts, and an opaque crop belongs on a 4 bpp ETC1 page.
+            alpha_of[idx] = bool(np.any(src[int(box[1]):max(int(box[1]) + 1, math.ceil(box[3])),
+                                            int(box[0]):max(int(box[0]) + 1, math.ceil(box[2])), 3] < 255))
+            tiles[idx] = (lo, hi, tw, th, image)
         textures = []
         mapping = {}
         for alpha in (False, True):
@@ -541,13 +548,7 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 px = np.full((ph, pw, 4), 255, dtype=np.uint8)
                 slots = []
                 for i, (x0, y0) in placed.items():
-                    lo, hi, tw, th = tiles[i]
-                    src = cache.get(i)
-                    sh, sw = src.shape[:2]
-                    box = (lo[0] * sw, (1 - hi[1]) * sh, hi[0] * sw, (1 - lo[1]) * sh)
-                    im = Image.fromarray(src, 'RGBA')
-                    shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
-                    im = im.resize((tw, th), Image.BOX if shrink else Image.BICUBIC, box=box)
+                    lo, hi, tw, th, im = tiles[i]
                     x, y = x0 + gutter, y0 + gutter
                     px[y0:y0 + th + 2 * gutter, x0:x0 + tw + 2 * gutter] = np.pad(
                         np.asarray(im), ((gutter, gutter), (gutter, gutter), (0, 0)), mode='edge')

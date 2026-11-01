@@ -99,6 +99,42 @@ def _far_image(sources, cache, index, images):
     return image
 
 
+def _far_texel(image, uv, mips_cache, key):
+    """Per-vertex colour from the mip a GPU would use for this triangle.
+
+    The corner texel of a big face is often its border (the TTC tunnel rock went
+    flat beige). The level is picked so the triangle's UV footprint spans about
+    one texel, and the vertex samples it bilinearly with wrap: the far mesh then
+    shows the texture's average tone, like the near mesh seen from that far.
+    """
+    import numpy as np
+    if key not in mips_cache:
+        levels = [image.astype(np.float64)]
+        while min(levels[-1].shape[:2]) > 1:
+            a = levels[-1]
+            h, w = a.shape[0] // 2 * 2, a.shape[1] // 2 * 2
+            a = a[:h, :w]
+            levels.append((a[0::2, 0::2] + a[1::2, 0::2] + a[0::2, 1::2] + a[1::2, 1::2]) / 4)
+        mips_cache[key] = levels
+    levels = mips_cache[key]
+    extent = float(np.ptp(uv, axis=0).max()) * max(image.shape[:2])
+    level = int(np.clip(np.floor(np.log2(max(extent, 1.0))), 0, len(levels) - 1))
+    img = levels[level]
+    h, w = img.shape[:2]
+    out = np.empty((len(uv), 4))
+    for k, (u, v) in enumerate(uv):
+        x = (u % 1.0) * w - 0.5
+        y = (1.0 - (v % 1.0)) * h - 0.5
+        x0, y0 = int(np.floor(x)), int(np.floor(y))
+        fx, fy = x - x0, y - y0
+        c = 0.0
+        for dy, wy in ((0, 1 - fy), (1, fy)):
+            for dx, wx in ((0, 1 - fx), (1, fx)):
+                c = c + img[(y0 + dy) % h, (x0 + dx) % w] * (wx * wy)
+        out[k] = c
+    return out
+
+
 def _far_detail(image, b, tri):
     """A far triangle that must keep its texture: an alpha cutout or a decal.
 
@@ -131,6 +167,7 @@ def _colorize_far(sources, chunks, images=None, details=False):
     import numpy as np
     import ttm
     cache = {}
+    mips_cache = {}
     result = []
     extra = []
     kept = 0
@@ -157,12 +194,7 @@ def _colorize_far(sources, chunks, images=None, details=False):
                     continue  # a repeating decal: a flat patch would cover its wall
                 verts = tri.reshape(-1, 9).copy()
                 if image is not None:
-                    height, width = image.shape[:2]
-                    u = np.mod(verts[:, 3], 1.0)
-                    v = np.mod(verts[:, 4], 1.0)
-                    x = np.clip((u * (width - 1)).astype(np.intp), 0, width - 1)
-                    y = np.clip(((1.0 - v) * (height - 1)).astype(np.intp), 0, height - 1)
-                    verts[:, 5:9] *= image[y, x].astype(np.float64) / 255.0
+                    verts[:, 5:9] *= _far_texel(image, verts[:, 3:5], mips_cache, b.texture) / 255.0
                 verts[:, 3:5] = 0.0
                 np.clip(verts[:, 5:9], 0.0, 1.0, out=verts[:, 5:9])
                 colored.append(verts)
