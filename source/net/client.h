@@ -1037,6 +1037,10 @@ struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
     uint32_t defaultZone = 2000; // setDefaultZone: the playground a sad toon returns to
+    // toonUp / takeDamage (DistributedToon.showHpText): the clamped change and when it came; the world
+    // floats "+n" / "-n" over our Toon for 1.95 s
+    int16_t hpTextValue = 0;
+    uint32_t hpTextMs = 0;
     // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
     uint16_t experience[7] = {};
     uint8_t inventory[7][7] = {}; // count per track, level
