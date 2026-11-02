@@ -3454,8 +3454,9 @@ int main() {
                     suits.drawShowcase(renderer, kShow[i], player.x() - sinf(hh) * ahead + cosf(hh) * side,
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
-                    if (set >= 1) {
-                        // The battle hit splats over the Cogs: squirt splash, then each pie splat.
+                    if (set >= 1 && (tt::net::plat::nowMs() / 1500) % 2) {
+                        // Every other 1.5 s, the battle hit splats over the Cogs: squirt splash,
+                        // then each pie splat (the Cogs show clean in between).
                         static const int kSplat[4][2] = {{5, 0}, {4, 0}, {4, 1}, {4, 2}};
                         battleFx.drawSplatDemo(renderer, kSplat[i][0], kSplat[i][1],
                                                player.x() - sinf(hh) * ahead + cosf(hh) * side,
