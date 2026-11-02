@@ -19,7 +19,33 @@ NEAR_DRAW_CAP = DRAW_CAP
 LOW_TARGET = 12000
 
 
-def simplify(batches, spacing, keep_layers=False):
+def position_keys(points):
+    """Exact-match keys for world positions (1/1024 unit), one void scalar per row."""
+    q=np.ascontiguousarray(np.round(np.asarray(points,dtype=np.float64)[:,:3]*1024.0).astype(np.int64))
+    return q.view(np.dtype((np.void,24))).ravel()
+
+
+def shared_positions(chunks):
+    """Keys of the vertex positions used by more than one chunk's batches.
+
+    Chunks own whole triangles (split_grid bins them by centroid), so the seam
+    between two chunks is a run of original edges whose corners both chunks use.
+    """
+    per=[np.unique(position_keys(np.concatenate([b.verts[b.indices] for b in bs])))
+         for bs in chunks if any(len(b.indices) for b in bs)]
+    if len(per)<2:
+        return per[0][:0] if per else position_keys(np.zeros((0,3)))
+    keys,counts=np.unique(np.concatenate(per),return_counts=True)
+    return keys[counts>1]
+
+
+def simplify(batches, spacing, keep_layers=False, fixed=None):
+    """Far mesh of one chunk at a voxel spacing.
+
+    `fixed` (shared_positions) are seam corners that stay where they are. Snapped,
+    a far chunk pulled its edge off its near neighbour's and the sky showed through
+    the TTC hills on Old 3DS, which draws the far mesh from 160.
+    """
     result=[]
     for b in batches:
         if b.layer and not keep_layers:
@@ -29,7 +55,11 @@ def simplify(batches, spacing, keep_layers=False):
         # z-fights. Its wall moves up to half a voxel diagonal, so the decal is lifted by
         # that much instead; the TTC tunnel signs were buried in their snapped rock.
         if spacing and not b.layer:
-            verts[:,:3]=np.round(verts[:,:3]/spacing)*spacing
+            snapped=np.round(verts[:,:3]/spacing)*spacing
+            if fixed is not None and len(fixed):
+                keep=np.isin(position_keys(verts),fixed)
+                snapped[keep]=verts[keep,:3]
+            verts[:,:3]=snapped
         elif spacing:
             verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)

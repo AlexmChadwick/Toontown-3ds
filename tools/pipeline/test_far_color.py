@@ -120,6 +120,22 @@ class FarColorTest(unittest.TestCase):
         self.assertTrue(np.allclose(wall.verts[:, 1], 0.0))
         self.assertTrue(np.all(decal.verts[:, 1] < -0.05))
 
+    def test_far_seam_corners_stay_on_the_near_neighbour(self):
+        # Two chunks share the edge (10.3,0.2,0.4)-(0.1,10.3,0.7). Snapped at spacing 4
+        # the far chunk would pull it to (12,0,0)-(0,12,0) and open a gap to the near one.
+        def tri(pts):
+            verts = np.zeros((3, 9))
+            verts[:, :3] = pts
+            verts[:, 5:9] = 1
+            return ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, verts, np.arange(3))
+        a = [tri([[0, 0, 0], [10.3, 0.2, 0.4], [0.1, 10.3, 0.7]])]
+        b = [tri([[10.3, 0.2, 0.4], [20, 0, 0], [0.1, 10.3, 0.7]])]
+        seams = street_lod.shared_positions([a, b])
+        self.assertEqual(len(seams), 2)
+        far = street_lod.simplify(a, 4, fixed=seams)[0].verts[:, :3]
+        self.assertTrue(np.allclose(far[1:], b[0].verts[[0, 2], :3]))
+        self.assertTrue(np.allclose(street_lod.simplify(a, 4)[0].verts[1, :3], [12, 0, 0]))
+
     def test_far_body_keeps_walls_and_leaves_ground_coloured(self):
         class Tex:
             WM_repeat = 1

@@ -433,6 +433,7 @@ def choose_far(sources, raw, chunks, images=None):
         sign_sets.append(signs)
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
+    seams = street_lod.shared_positions(bodies)
     def attempt(step, details):
         """The far mesh at one voxel step, or None when a PVS misses the budget."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
@@ -442,7 +443,7 @@ def choose_far(sources, raw, chunks, images=None):
                                        street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
                                        np.arange(len(b.indices)), getattr(b, 'sign', False))
                              for b in signs] for signs in merged_signs]
-        low = [street_lod.simplify(bs, step, keep_layers=details) for bs in bodies]
+        low = [street_lod.simplify(bs, step, keep_layers=details, fixed=seams) for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
                                                     with_bodies=True)
         body_pages, body_batches = (build_far_bodies(sources, faces) if details and images is None
