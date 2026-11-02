@@ -2015,3 +2015,20 @@ the lane's headless scripts (Xvfb, null audio). Emulator timing only; no hardwar
 Fixed this round: QuestPoster art, Cog-death explosion flipbook, squirt hit splat, white
 splat bake, Cog head and clip cache eviction. The Cog showcase draws 141-150 draws and
 16.5k triangles with 4 Cogs plus all splats in view (test-only load above the envelope).
+
+## 2026-11-02 - 3ds-toons lane round 4 (Azahar headless, Old + New 3DS)
+
+Branch `claude/3ds-toons-interiors` (PR #11) at 7a9e1b5 (merge of origin/feature/3ds-visual-fixes 3433d79).
+Local server on port 31300, zone data from lane B's current bake. Emulator timing only; no hardware run.
+
+| Run | Model | Result | fps (last stats) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Online interiors with the AI's NPCs, 20 poses (npc_old) | Old | every TTC room type plus MM, DL and DD rooms; every clerk, HQ officer and Toon Hall NPC present with nametag, DNA colours and clothes | 29.9 | 3098K / 16844K / 4194K |
+| Same (npc_new) | New | matches Old view for view | 29.9 | |
+| Full Make-a-Toon, Toontorial, TTC (tut5_old) | Old | flow complete, no faults or PARSE lines | 29.9 | 3329K / 14835K / 4194K |
+| Same (tut5_new) | New | flow complete, no faults | 29.9 | 3330K / 14835K / 4194K |
+| Cog showcase, 32 types (cogs3_new, r3w build) | New | every type with its head after 772cb18 | 29.9 | 2195K / 14678K / 4194K |
+| Fishing (fish2_old / fish2_new, r3w build) | Old + New | cast, bite, catch card, bucket and jar art | 29.0 | 3451K / 13672K / 4194K |
+| Toon showcase close, 34 heads (toons2_new) | New | every species with DNA colours and clothes; grey default body only for about 1 s while parts load | 29.9 | |
+
+Not changed this round: no code fix was needed. Open: no hardware run; expression muzzles are not swapped (no QuestScript uses them).
