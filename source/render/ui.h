@@ -172,7 +172,23 @@ public:
     void setMapZone(unsigned fileZone);
     // The last drawn bottom screen showed our laff meter (the tab bar's pocket or the battle
     // panel's Toon cards), so the top HUD leaves it off the world.
-    bool laffShown() const { return lastOwner_ == PanelOwner::Tabs || lastOwner_ == PanelOwner::Battle; }
+    bool laffShown() const { return hudLaff_ && (lastOwner_ == PanelOwner::Tabs || lastOwner_ == PanelOwner::Battle); }
+    // PlayGame.enterTutorialHood: the Toontorial obscures the book button (here the Book, Map,
+    // Gags and Toon tabs, whose upstream pages live in the Shticker Book, and START), the laff
+    // meter (the tab bar's pocket) and SpeedChat (the Chat tab) until its lessons reveal them.
+    // Call every frame; all true outside the Toontorial.
+    void setTutorialHud(bool book, bool laff, bool speedChat) {
+        hudBook_ = book;
+        hudLaff_ = laff;
+        hudChat_ = speedChat;
+    }
+    // QuestParser ARROWS_ON / ARROWS_OFF: BlinkingArrows at what the lesson asks for, here the
+    // 3DS control in its place (the talk panel's Shticker Book button, the book's Next and close
+    // buttons, the Chat tab). Call every frame.
+    void setTutorialArrows(bool on) {
+        if (on && !arrowsOn_) arrowsSinceMs_ = osGetTime();
+        arrowsOn_ = on;
+    }
     // The Chat tab's recent-chat strip: what was said nearby, by us, or whispered to us.
     // `you` marks our own lines; nothing is drawn after kChatLogMs without new chat.
     void logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs);
@@ -272,6 +288,12 @@ private:
     void activateTabControl(int id, State& s);
     void cycleWhisper(State& s);
     int numTabs(const State& s) const { return s.debugOverlay ? kTabCount : kNumPlayerTabs; }
+    bool tabShown(int tab) const; // not obscured by the Toontorial (setTutorialHud)
+    int firstShownTab(const State& s) const; // -1: the Toontorial hides every tab
+    bool hudBook_ = true, hudLaff_ = true, hudChat_ = true;
+    void drawTutorialArrows(PanelOwner owner, const State& s) const;
+    bool arrowsOn_ = false;
+    u64 arrowsSinceMs_ = 0;
     FocusGroup tabFocus_{"tab"};
     bool toonOnline_ = false; // the Toon tab's last drawn layout (ToonTasks + book, or colours)
     // ---- end padnav ----

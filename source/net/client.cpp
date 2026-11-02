@@ -575,6 +575,7 @@ void Client::resetWorld() {
     ownBook_.initDefaults();
     movieHead_ = movieTail_ = 0;
     ownerReceived_ = false;
+    ownTutorialAck_ = -1;
     shardId_ = 0;
     timeManagerId_ = 0;
     tutorialManagerId_ = 0;
@@ -1645,6 +1646,9 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
+    } else if (fieldId == dc::DistributedToon::k_setTutorialAck) {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setTutorialAck, "u8"), "setTutorialAck layout changed");
+        ownTutorialAck_ = r.u8();
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
         Bytes b = r.blob();
         if (r.ok()) memcpy(ownDna_, b.data, b.len < kDnaSize ? b.len : kDnaSize);
@@ -1663,6 +1667,22 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         if (fieldId == dc::DistributedToon::k_setMoney) ownStats_.money = v;
         if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
         if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_toonUp || fieldId == dc::DistributedToon::k_takeDamage) {
+        // DistributedToon.toonUp / takeDamage: the AI's setHp follows; the gain is clamped to maxHp
+        static_assert(dc::sigEq(dc::DistributedToon::sig_toonUp, "u16"), "toonUp layout changed");
+        static_assert(dc::sigEq(dc::DistributedToon::sig_takeDamage, "u16"), "takeDamage layout changed");
+        const int v = r.u16();
+        if (!r.ok()) return false;
+        const int old = ownStats_.hp > 0 ? ownStats_.hp : 0;
+        int hp;
+        if (fieldId == dc::DistributedToon::k_toonUp) hp = old + v < ownStats_.maxHp ? old + v : ownStats_.maxHp;
+        else hp = old - v > 0 ? old - v : 0;
+        if (ownStats_.hp > 0 || fieldId == dc::DistributedToon::k_toonUp) ownStats_.hp = int16_t(hp);
+        if (hp != old) {
+            ownStats_.hpTextValue = int16_t(hp - old);
+            ownStats_.hpTextMs = now_ ? now_ : 1;
+        }
         pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setTeleportAccess ||
                fieldId == dc::DistributedToon::k_setHoodsVisited) {

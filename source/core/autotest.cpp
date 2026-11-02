@@ -355,6 +355,11 @@ const Step kFrontEndScript[] = {
     // Pick-A-Toon's squares (ui/pick_a_toon_atlas.h): slot 1 is picked on arrival; Y is its
     // trashcan; a tap on an empty square makes a Toon there.
     {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: pick slot 1"},
+    // "returning:" steps run only when an "only" line names them (a returning Toon: A plays the
+    // picked Toon, which must go straight to its playground when tutorialAck is 1).
+    {2.0f, 0, 0, 0, KEY_A, -1, -1, -1, "returning: play slot 1", "fe_returning_play"},
+    {12.0f, 0, 0, 0, 0, -1, -1, -1, "returning: entering", "fe_returning_world"},
+    {3.0f, 0, 150, 0, 0, -1, -1, -1, "returning: run in world", "fe_returning_run"},
     {2.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "fe: delete toon", "fe_delete_prompt"},
     // Inside the dialog's Delete button and between the Pink and Yellow squares, so a run with no
     // Toon to delete (no dialog) taps nothing.
@@ -372,9 +377,9 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_tutorial_choice"},
-    // The stock/front-end regression keeps the historical skip path.  A dedicated manual
-    // Toontorial pass chooses the left "Play it" button at (85, 150).
-    {0.4f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_entering"},
+    // An account's first Toon goes straight into the Toontorial (NameShop.__isFirstTime); the
+    // "skip" trigger line makes Create! skip it (the stock regression path).  No tap here.
+    {0.4f, 0, 0, 0, 0, -1, -1, -1, "fe: created", "fe_entering"},
     {9.6f, 0, 0, 0, 0, -1, -1, -1, "fe: entering", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
@@ -404,6 +409,8 @@ bool Runner::begin() {
             shotsEnabled_ = false;
         else if (!strcmp(line, "tutorial"))
             tutorial_ = true;
+        else if (!strcmp(line, "skip"))
+            game::FrontEnd::setTestSkipTutorial(true);  // the old stock path: Create! skips the Toontorial
         else if (!strncmp(line, "from ", 5))
             snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
@@ -458,7 +465,8 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         TT_LOG("autotest: finished");
         return false;
     }
-    while (only_[0] && step_ < numSteps_ && !selected(script_[step_].label)) step_++; // "only" filter
+    while (step_ < numSteps_ && (only_[0] ? !selected(script_[step_].label) : !strncmp(script_[step_].label, "returning:", 10)))
+        step_++; // "only" filter; "returning:" steps need one
     if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");
@@ -474,8 +482,6 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         down |= s.downOnce;
         int touchX = s.touchX;
         int touchY = s.touchY;
-        // FrontEnd::TutorialChoice: Play it is the left button, Skip is the established default.
-        if (!strcmp(s.label, "fe: tutorial skip") && tutorial_) touchX = 85;
         if (touchX >= 0) {
             touch.px = static_cast<u16>(touchX);
             touch.py = static_cast<u16>(touchY);
@@ -520,7 +526,7 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         seriesIndex_ = 0;
         stepStarted_ = false;
         step_++;
-        if (tutorial_ && frontEnd_ && step_ == numSteps_) {
+        if (tutorial_ && frontEnd_ && step_ == numSteps_ && script_ != kTutorialScript) {
             script_ = kTutorialScript;
             numSteps_ = sizeof(kTutorialScript) / sizeof(kTutorialScript[0]);
             step_ = 0;

@@ -47,6 +47,8 @@ public:
     // Test hook for autotest: sets the typed name to use instead of opening swkbd.
     static void setTestTypedName(const char* name);
     static const char* testTypedName();
+    // Test hook for autotest ("skip"): Create! skips the Toontorial (the old stock regression path).
+    static void setTestSkipTutorial(bool skip);
 
     Action update(u32 down, u32 held, const touchPosition& touch, float dt);
     // MakeAToon.music (create_a_toon) while making or naming a Toon; otherwise the title's tt_theme.

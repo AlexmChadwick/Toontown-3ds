@@ -1,5 +1,6 @@
 #include "render/ui_font.h"
 #include "ui/quest_panel.h"
+#include "ui/tutorial_art.h"
 
 #include <cstdio>
 #include <cstring>
@@ -118,6 +119,19 @@ u32 QuestPanel::handleInput(u32 keysDown, const touchPosition& touch, quest::Tal
             talk.chooseTrack(-1);
         }
         break;
+    case quest::Talk::Phase::Script:
+        // The QuestScript's LOCAL_CHAT_CONFIRM pages: A or a tap dismisses the line.
+        focus_.clear();
+        if (talk.scriptWait() && !strcmp(talk.scriptWait(), "enterStickerBook")) {
+            // Harry: "Open it, and I'll show you." The pill is the book button (A or a tap on it).
+            if ((keysDown & KEY_A) || ((keysDown & KEY_TOUCH) && touch.px >= pad::quest::kCancelX &&
+                                       touch.px < pad::quest::kCancelX + pad::quest::kCancelW && touch.py >= kCancelY &&
+                                       touch.py < kCancelY + pad::quest::kCancelH))
+                openBook_ = true;
+        } else if (!talk.scriptWait() && (keysDown & (KEY_A | KEY_TOUCH))) {
+            talk.scriptAdvance();
+        }
+        break;
     default:
         focus_.clear();
         break;
@@ -139,12 +153,22 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         theme::paper(4, 26, kW - 8, 40, 10.0f, theme::kWhite, theme::kInk);
         text(16, 34, 0.5f, kInkSoft, 0, "...");
         break;
+    case quest::Talk::Phase::Script:
     case quest::Talk::Phase::Pages: {
-        // A chat balloon sized to the page, as upstream's balloons grow with their text.
-        if (talk.pageText() != measuredText_ || talk.page() != measuredPage_) {
-            measuredText_ = talk.pageText();
-            measuredPage_ = talk.page();
-            measuredLines_ = wrappedLines(talk.pageText(), 0.5f, kW - 28);
+        // A chat balloon sized to the page, as upstream's balloons grow with their text.  A
+        // QuestScript (Toontorial) shows its current LOCAL_CHAT_CONFIRM line the same way.
+        const bool script = talk.phase() == quest::Talk::Phase::Script;
+        const char* body = script ? talk.scriptLine() : talk.pageText();
+        if (!body[0]) { // the script is between lines (an animation or a WAIT)
+            if (script && talk.scriptCard() >= 0)
+                drawTutorialCard(TutorialCard(talk.scriptCard()), 40, 30, kW - 80, kCancelY - 36);
+            break;
+        }
+        const int pageKey = script ? -1 - talk.scriptSerial() : talk.page();
+        if (body != measuredText_ || pageKey != measuredPage_) {
+            measuredText_ = body;
+            measuredPage_ = pageKey;
+            measuredLines_ = wrappedLines(body, 0.5f, kW - 28);
         }
         constexpr float kLineH = 15.0f; // the UI font's line at scale 0.5
         float h = 18.0f + measuredLines_ * kLineH;
@@ -154,9 +178,16 @@ void QuestPanel::drawTalk(const quest::Talk& talk) {
         // The balloon's tail, pointing up at the speaker's name.
         C2D_DrawTriangle(28, 27, theme::kInk, 52, 27, theme::kInk, 30, 16, theme::kInk, 0.5f);
         C2D_DrawTriangle(31, 29, theme::kWhite, 49, 29, theme::kWhite, 32, 20, theme::kWhite, 0.5f);
-        text(14, 34, 0.5f, kInk, kW - 28, talk.pageText());
+        text(14, 34, 0.5f, kInk, kW - 28, body);
+        // Tom's lesson card (parented to the camera upstream) under his words.
+        if (script && talk.scriptCard() >= 0 && 26 + h + 6 < kCancelY - 40)
+            drawTutorialCard(TutorialCard(talk.scriptCard()), 40, 26 + h + 6, kW - 80, kCancelY - (26 + h + 12));
         char nav[32];
-        snprintf(nav, sizeof(nav), "%s  (%d/%d)", talk.onLastPage() ? "Done" : "Next", talk.page() + 1, talk.numPages());
+        const bool bookButton = script && talk.scriptWait() && !strcmp(talk.scriptWait(), "enterStickerBook");
+        if (script && talk.scriptWait() && !bookButton) break; // a lesson step the player does elsewhere
+        if (bookButton) snprintf(nav, sizeof(nav), "Shticker Book");
+        else if (script) snprintf(nav, sizeof(nav), "Next");
+        else snprintf(nav, sizeof(nav), "%s  (%d/%d)", talk.onLastPage() ? "Done" : "Next", talk.page() + 1, talk.numPages());
         theme::pill(pad::quest::kCancelX, kCancelY, pad::quest::kCancelW, pad::quest::kCancelH, theme::Pill::Cyan);
         C2D_Text navText;
         tt::render::textParse(&navText, buf_, nav);

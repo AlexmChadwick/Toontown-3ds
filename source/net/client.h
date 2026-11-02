@@ -1037,6 +1037,10 @@ struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
     uint32_t defaultZone = 2000; // setDefaultZone: the playground a sad toon returns to
+    // toonUp / takeDamage (DistributedToon.showHpText): the clamped change and when it came; the world
+    // floats "+n" / "-n" over our Toon for 1.95 s
+    int16_t hpTextValue = 0;
+    uint32_t hpTextMs = 0;
     // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
     uint16_t experience[7] = {};
     uint8_t inventory[7][7] = {}; // count per track, level
@@ -2077,10 +2081,12 @@ private:
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
     // ---- tutorial (survives reconnects with the new toon, like skipTutorialSent_) ----
-    TutorialChoice tutorialChoice_ = TutorialChoice::Skip;
+    // NameShop / OTPClientRepository: a new Toon plays the Toontorial unless the player skips it
+    TutorialChoice tutorialChoice_ = TutorialChoice::Play;
     bool tutorialRequested_ = false;  // requestTutorial sent this session
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent
+    int ownTutorialAck_ = -1;         // DistributedToon.setTutorialAck from the owner view (-1 = not yet)
     world::TutorialZones tutorialZones_{};
     TutorialInterior tutorialInterior_{};
     uint32_t tutorialSuitId_ = 0;

@@ -69,6 +69,9 @@
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
+#include "world/tutorial_reward.h"
+#include "world/tutorial_char.h"
+#include "ui/tutorial_art.h"
 
 namespace {
 // DistributedTutorialSuit.enterWalk: makePathTrack over these points at 4.5 units/s, looped. Each
@@ -209,6 +212,14 @@ float frameCpuMs() {
 #endif
 }
 } // namespace
+
+// ---- tutorial ----
+// QuestParser picks Minnie over Mickey (and the female text variants) for a girl Toon.
+static bool localToonFemale(const tt::net::Client& net) {
+    tt::world::ToonDna dna;
+    return tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna) && dna.gender == tt::world::Gender::Female;
+}
+// ---- end tutorial ----
 
 int main() {
     // Boot order: only what the first frame needs comes before it (gfx, RomFS, log, GPU, the UI
@@ -438,6 +449,10 @@ int main() {
     static tt::quest::Talk talk;
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
+    static tt::world::TutorialChar tutorialChar; // tutorial_mickey's Mickey / Minnie
+    static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
+    static bool tutorialSaidSpeedChat = false;
+    static bool tutorialBlockerPlayed = false; // Flippy's movie ran on this street visit
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
@@ -512,6 +527,8 @@ int main() {
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
+    tt::world::TutorialReward tutorialReward; // ---- tutorial ---- Movie.playTutorialReward
+    bool tutorialRewardTom = false;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
@@ -778,9 +795,36 @@ int main() {
                        static_cast<unsigned long>(net.zoneId()));
             }
             if (tutorial.active()) {
-                in.down |= KEY_A; // confirm every generated CHAT_CONFIRM page
-                const char* event = tutorial.waitingEvent();
-                if (event && tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                // Confirm every generated CHAT_CONFIRM page after a reader's pause (so the shots
+                // show each line with its card).
+                static char shownLine[256] = {};
+                static float shownFor = 0.0f;
+                if (strcmp(shownLine, tutorial.text())) {
+                    snprintf(shownLine, sizeof(shownLine), "%s", tutorial.text());
+                    shownFor = 0.0f;
+                }
+                shownFor += dt;
+                if (shownFor > 1.2f) {
+                    in.down |= KEY_A;
+                    shownFor = 0.0f;
+                }
+                // WAIT_EVENTs are answered as a player would: the book and the SpeedChat tab are
+                // operated here, and the game's own bridge (below) posts the event.
+                if (const char* event = tutorial.waitingEvent()) {
+                    static const char* acted = nullptr;
+                    if (event != acted) {
+                        acted = event;
+                        TT_LOG("tutorial: autotest answers %s", event);
+                        if (!strcmp(event, "enterStickerBook")) {
+                            // Harry's talk panel shows the Shticker Book button: the A presses above use it.
+                        } else if (!strcmp(event, "stickerBookPageChange-3")) ui.book().setPage(tt::ui::Book::kPageGags);
+                        else if (!strcmp(event, "stickerBookPageChange-4")) ui.book().setPage(tt::ui::Book::kPageTasks);
+                        else if (!strcmp(event, "exitStickerBook")) ui.book().close("tutorial autotest");
+                        else if (!strcmp(event, "enterSpeedChat")) uiState.tab = tt::ui::kTabChat;
+                        else if (!strcmp(event, "SCChatEvent")) tutorialSaidSpeedChat = true; // the phrase pick
+                        else if (tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                    }
+                }
             }
             if (talk.phase() == tt::quest::Talk::Phase::Pages) talk.advance();
             if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) talk.chooseQuest(0);
@@ -788,7 +832,14 @@ int main() {
             if (battle.tutorialBattle()) {
                 battle.setAutoPlay(true, -1); // select an available cupcake/flower as InventoryNew permits
             }
-            if (battle.tutorialRewardPending()) in.down |= KEY_A;
+            if (battle.tutorialRewardPending()) {
+                static float rewardPressT = 0.0f;
+                rewardPressT += dt;
+                if (rewardPressT >= 2.0f) {
+                    rewardPressT = 0.0f;
+                    in.down |= KEY_A;
+                }
+            }
             if (!net.inTutorial() && net.tutorialFinished()) autotest.finishStep();
 
             // The points below are emitted by the tutorial bakers: never synthesize a position.
@@ -798,8 +849,14 @@ int main() {
             // then the street Flunky, then Harry (TutorialHQBuildingAI); the tunnel ends the Toontorial.
             // Tom's street door is locked (TALK_TO_HQ_TOM) after the Flunky and nothing reopens it.
             if (talk.locked() && zone == tt::world::kTutorialShop) tutorialTomTalked = true;
-            if (talk.locked() && zone == tt::world::kTutorialHq) tutorialHqTalked = true;
-            if (!tutorial.active() && !battle.active() && transition.idle()) {
+            // Harry completes 101 (dialog pages), then assigns 110 (its QuestScript): leave once
+            // 110 is ours, not in the gap between the two movies.
+            if (talk.locked() && zone == tt::world::kTutorialHq) {
+                const tt::net::OwnQuests& own = net.ownQuests();
+                for (int i = 0; i < own.count; ++i)
+                    if (own.quests[i].questId == 110) tutorialHqTalked = true;
+            }
+            if (!tutorial.active() && !battle.active() && !talk.locked() && transition.idle()) {
                 if (zone == tt::world::kTutorialShop) {
                     if (!tutorialTomTalked) {
                         float npc[4];
@@ -809,8 +866,21 @@ int main() {
                                    double(npc[2]));
                         }
                     } else if (const tt::world::Place::Point* p = place.point("door_origin")) {
-                        player.reset(p->x, p->y, p->z, p->h);
-                        TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                        // As at the HQ: step off the trigger if we stand on it (the no-bounce
+                        // guard), then run into the door from just inside it.
+                        static bool runningOutOfShop = false;
+                        const float hr = p->h * 3.14159265f / 180.0f;
+                        if (lastExitZone != 0) {
+                            player.reset(p->x + sinf(hr) * 4.0f, p->y - cosf(hr) * 4.0f, p->z, p->h);
+                        } else {
+                            if (!runningOutOfShop) {
+                                player.reset(p->x + sinf(hr) * 2.0f, p->y - cosf(hr) * 2.0f, p->z, p->h);
+                                runningOutOfShop = true;
+                                TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
+                        }
                     }
                 } else if (zone == tt::world::kTutorialStreet) {
                     float sx, sy, sz, sh;
@@ -822,8 +892,17 @@ int main() {
                         }
                     } else if (!tutorialHqVisited) {
                         if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: enter HQ via %s", p->name);
+                            // As at the tunnel: a toon standing on the door never touches its
+                            // trigger, so start a few units out in the street and run in.
+                            static bool runningToHq = false;
+                            if (!runningToHq) {
+                                const float hr = p->h * 3.14159265f / 180.0f;
+                                player.reset(p->x - sinf(hr) * 4.0f, p->y + cosf(hr) * 4.0f, p->z, p->h + 180.0f);
+                                runningToHq = true;
+                                TT_LOG("tutorial: enter HQ via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
                         }
                     } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
                         // The origin faces out of the tunnel: start a few units out in the street,
@@ -910,7 +989,8 @@ int main() {
                 TT_LOG("book touch: step '%s' book %s", bookTouchStep, ui.book().isOpen() ? "open" : "closed");
             }
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
-                   strncmp(autotest.label(), "pad: book", 9) != 0) { // padnav: those steps drive the book with buttons
+                   strncmp(autotest.label(), "pad: book", 9) != 0 && // padnav: those steps drive the book with buttons
+                   !autotest.tutorialPath()) { // Harry's lesson: the book stays open until his script closes it
             ui.book().close("autotest step");
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
@@ -1593,6 +1673,7 @@ int main() {
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
+            battleView.tutorialDialog = tutorialReward.dialog(); // ---- tutorial ----
             // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
             // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
@@ -1611,6 +1692,19 @@ int main() {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
         ui.setTalk(&talk);
+        // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
+        {
+            static bool inTutorialHood = false;
+            const bool inHood = netStarted && net.inTutorial();
+            if (inTutorialHood && !inHood) tt::ui::releaseTutorialArt(); // Tom's cards, the arrows
+            inTutorialHood = inHood;
+            tutorial.setInTutorialHood(inHood);
+        }
+        ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
+        ui.setTutorialArrows(tutorial.arrows());
+        ui.book().setScriptLock(tutorial.bookCloseEnabled(), tutorial.bookNextShown(), tutorial.bookPrevShown(),
+                                !tutorial.bookScripted());
+        // ---- end tutorial ----
         // ---- qafix: retire context panels before dispatching any input ----
         const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active() || racing.driving(); // ---- racing2 ----
         const bool lostPanelContext = netStarted && !net.inZone();
@@ -1629,6 +1723,11 @@ int main() {
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
                 (battleAction.kind == tt::world::BattleAction::NpcSos || battleAction.kind == tt::world::BattleAction::Fire))
                 continue; // the demo's sample cards and slips are not ours (padnav)
+            // ---- tutorial ---- the reward movie's dialogs take the panel's Continue as their OK
+            if (battleAction.kind == tt::world::BattleAction::Continue && tutorialReward.active()) {
+                tutorialReward.advance();
+                continue;
+            }
             battle.perform(net, battleAction, tt::net::plat::nowMs());
         }
         if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
@@ -1660,6 +1759,7 @@ int main() {
         ui.setChatTasks(netStarted && net.inZone() ? &net.ownQuests() : nullptr);
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
+            tutorialSaidSpeedChat = true; // QuestParser WAIT_EVENT 'SCChatEvent' (Flippy's lesson)
             if(speechMsg<0) {
                 tryEmote(-1-speechMsg);
                 continue;
@@ -1699,7 +1799,7 @@ int main() {
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
         talk.update(dt);
-        if (talk.locked()) { // talking to an NPC: the dialog panel has the buttons
+        if (talk.locked() || tutorial.active()) { // talking to an NPC / a QuestScript: the dialog panel has the buttons
             in.pad.dx = 0;
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
@@ -1842,6 +1942,84 @@ int main() {
             talkCameraNpc = 0;
         }
         // ---- end qafix ----
+        // ---- tutorial ----
+        // The QuestScript's staging: LOCK_LOCALTOON's scripted moves (tutorial_mickey's run in),
+        // a one-off placement (FREE_LOCALTOON, or the POS of an unlocked Toon: quest_assign_101's
+        // last pose, tutorial_blocker's spot by Flippy), the NPC the script moves (Flippy runs
+        // off), and the camera in its parent's frame (render, the NPC or the local Toon).
+        {
+            using SV = tt::quest::ScriptVar;
+            const u32 scriptNpc = tutorialSpeaker ? tutorialSpeaker : netStarted ? net.tutorialInterior().npcDoId : 0;
+            if (tutorialSpeaker && tutorial.scriptId() == tt::quest::ScriptId::TutorialBlocker) {
+                // Flippy is parented to render (NPCToons.BlockerPositions): the script's pose is his.
+                if (tutorial.npcPosed()) {
+                    const tt::quest::ScriptXform& n = tutorial.xform(SV::Npc);
+                    zoneActors.setNpcPose(tutorialSpeaker, n.pos[0], n.pos[1], n.pos[2], n.hpr[0]);
+                }
+                if (tutorial.npcAnim().name[0])
+                    zoneActors.setNpcAnim(tutorialSpeaker, tt::world::toonAnimByName(tutorial.npcAnim().name),
+                                          tutorial.npcAnim().rate);
+                if (tutorial.npcHidden()) zoneActors.setNpcHidden(tutorialSpeaker, true);
+            }
+            // quest_assign_101: LERP_HPR npc -50 0 0 0.5 turns Tutorial Tom to the door while he points at
+            // it, LERP_HPR npc -0.068 back (his render heading is ~0, so the script's H is a turn from his
+            // own heading). His right-hand / right-point clips are not in the 3DS Toon clip set.
+            static u32 tomTurnNpc = 0;
+            static float tomBaseH = 0.0f;
+            if (scriptNpc && tutorial.scriptId() == tt::quest::ScriptId::QuestAssign101 && tutorial.npcPosed()) {
+                float nx, ny, nz, nh;
+                if (zoneActors.npcPose(scriptNpc, &nx, &ny, &nz, &nh)) {
+                    if (tomTurnNpc != scriptNpc) {
+                        tomTurnNpc = scriptNpc;
+                        tomBaseH = nh;
+                    }
+                    zoneActors.setNpcPose(scriptNpc, nx, ny, nz, tomBaseH + tutorial.xform(SV::Npc).hpr[0]);
+                }
+            }
+            const bool place = tutorial.takeToonPlace();
+            if (tutorial.toonPosed() || place) {
+                const tt::quest::ScriptXform& x = tutorial.xform(SV::LocalToon);
+                player.reset(x.pos[0], x.pos[1], x.pos[2], x.hpr[0]);
+            }
+            // A parent node's world pose (x, y, z, heading); pitch and roll of parents are zero here.
+            auto parentPose = [&](SV parent, float* p) {
+                p[0] = p[1] = p[2] = p[3] = 0.0f;
+                if (parent == SV::LocalToon) {
+                    p[0] = player.x(), p[1] = player.y(), p[2] = player.z(), p[3] = player.headingDeg();
+                    return true;
+                }
+                return parent != SV::Npc || zoneActors.npcPose(scriptNpc, &p[0], &p[1], &p[2], &p[3]);
+            };
+            SV wrtFrom = SV::None;
+            if (tutorial.takeCameraWrt(&wrtFrom)) {
+                // WrtParentInterval: keep the camera where it is in the world, now in the new frame.
+                float a[4], b[4];
+                const bool known = parentPose(wrtFrom, a) && parentPose(tutorial.cameraParent(), b);
+                tt::quest::ScriptXform c = tutorial.xform(SV::Camera);
+                const float ha = a[3] * kDegToRad, hb = b[3] * kDegToRad;
+                const float wx = a[0] + c.pos[0] * cosf(ha) - c.pos[1] * sinf(ha);
+                const float wy = a[1] + c.pos[0] * sinf(ha) + c.pos[1] * cosf(ha);
+                const float dx = wx - b[0], dy = wy - b[1];
+                c.pos[0] = dx * cosf(hb) + dy * sinf(hb);
+                c.pos[1] = -dx * sinf(hb) + dy * cosf(hb);
+                c.pos[2] += a[2] - b[2];
+                c.hpr[0] += a[3] - b[3];
+                if (known) tutorial.setCameraLocal(c);
+            }
+            if (tutorial.active() && tutorial.cameraStaged()) {
+                const tt::quest::ScriptXform& c = tutorial.xform(SV::Camera);
+                float pp[4];
+                const bool known = parentPose(tutorial.cameraParent(), pp); // the NPC may not be generated yet
+                const float ph = pp[3] * kDegToRad;
+                const float h = ph + c.hpr[0] * kDegToRad, p = c.hpr[1] * kDegToRad;
+                const C3D_FVec eye = FVec3_New(pp[0] + c.pos[0] * cosf(ph) - c.pos[1] * sinf(ph),
+                                               pp[1] + c.pos[0] * sinf(ph) + c.pos[1] * cosf(ph), pp[2] + c.pos[2]);
+                if (known)
+                    player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f,
+                                                         eye.y + cosf(h) * cosf(p) * 10.0f, eye.z + sinf(p) * 10.0f));
+            }
+        }
+        // ---- end tutorial ----
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
@@ -1865,6 +2043,16 @@ int main() {
             battle.cameraEye(&ex, &ey, &ez);
             battle.cameraTarget(&tx, &ty, &tz);
             player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
+        }
+        // ---- tutorial ---- playTutorialReward_3: camera.setPosHpr(render, 34, 19.88, 3.48, -90, -2.36, 0),
+        // localAvatar.setPosHpr(40.31, 22.0, -0.47, 150, ...)
+        if (tutorialReward.staged()) {
+            using TR = tt::world::TutorialReward;
+            player.reset(TR::kToonPos[0], TR::kToonPos[1], TR::kToonPos[2], TR::kToonPos[3]);
+            const float h = TR::kCamH * kDegToRad, p = TR::kCamP * kDegToRad;
+            const C3D_FVec eye = FVec3_New(TR::kCamPos[0], TR::kCamPos[1], TR::kCamPos[2]);
+            player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f, eye.y + cosf(h) * cosf(p) * 10.0f,
+                                                 eye.z + sinf(p) * 10.0f));
         }
         // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
         if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
@@ -1905,6 +2093,10 @@ int main() {
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);
+        if (tutorial.toonPosed() && tutorial.toonAnim().name[0]) { // LOOP_ANIM localToon "run" / "neutral"
+            anim = !strcmp(tutorial.toonAnim().name, "run") ? tt::world::kAnimRun : tt::world::kAnimNeutral;
+            animRate = 1.0f;
+        }
         // ---- water: swimming in Donald's Dock / Acorn Acres (world/water.*) ----
         static tt::world::Water water;
         if (place.zoneId() != water.zone()) water.setZone(place.zoneId(), renderer);
@@ -2231,12 +2423,20 @@ int main() {
                 if (ev.type == tt::net::EventType::TutorialEnter) {
                     loadTutorialPlace(net.zoneId());
                 } else if (ev.type == tt::net::EventType::TutorialInterior) {
-                    tutorial.start(tt::quest::ScriptId::TutorialMickey, false);
+                    tutorialSpeaker = 0;
+                    tutorial.start(tt::quest::ScriptId::TutorialMickey, localToonFemale(net));
                 } else if (ev.type == tt::net::EventType::BlockerMovie) {
                     tt::net::Client::BlockerMovie movie;
                     while (net.pollBlockerMovie(movie)) {
-                        if (movie.avId == net.avatarId() && movie.mode == 1)
-                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, false);
+                        if (movie.avId == net.avatarId() && movie.mode == 1) {
+                            tutorialSpeaker = movie.npcDoId;
+                            tutorialBlockerPlayed = true;
+                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, localToonFemale(net));
+                            tt::quest::ScriptXform flippy; // his LERP_POS / LERP_HPR start where he stands
+                            if (zoneActors.npcPose(movie.npcDoId, &flippy.pos[0], &flippy.pos[1], &flippy.pos[2],
+                                                   &flippy.hpr[0]))
+                                tutorial.seedNpc(flippy);
+                        }
                     }
                 } else if (ev.type == tt::net::EventType::Quests && autotest.tutorialPath()) {
                     const tt::net::OwnQuests& quests = net.ownQuests();
@@ -2265,6 +2465,15 @@ int main() {
                 if (ev.type == tt::net::EventType::NpcMovie) {
                     tt::net::NpcMovie movie;
                     while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                    talk.setServerName(zoneActors.npcName(talk.npcDoId())); // the NPC's own nametag name
+                    // ---- tutorial ----
+                    // Tutorial Tom / HQ Harry: quest_assign_101 / 110 play as QuestScripts.
+                    if (const uint16_t q = talk.takeScript()) {
+                        tutorialSpeaker = talk.npcDoId();
+                        tutorial.start(q == 101 ? tt::quest::ScriptId::QuestAssign101 : tt::quest::ScriptId::QuestAssign110,
+                                       localToonFemale(net));
+                    }
+                    // ---- end tutorial ----
                 } else if (ev.type == tt::net::EventType::NpcFree) {
                     talk.onFree(ev.doId);
                 } else if (ev.type == tt::net::EventType::NpcDespawn) {
@@ -2342,8 +2551,35 @@ int main() {
             tt::prof::lap(tt::prof::kEstate);
             pets.update(net);
             // ---- tutorial ----
+            // The player's own actions answer the scripts' WAIT_EVENTs (Harry's Shticker Book lesson,
+            // Flippy's SpeedChat lesson), as the messenger events do upstream.
+            if (const char* ev = tutorial.active() ? tutorial.waitingEvent() : nullptr) {
+                const tt::ui::Book& book = ui.book();
+                bool hit = false;
+                if (!strcmp(ev, "enterStickerBook")) hit = book.isOpen();
+                else if (!strcmp(ev, "stickerBookPageChange-3")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageGags;
+                else if (!strcmp(ev, "stickerBookPageChange-4")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageTasks;
+                else if (!strcmp(ev, "exitStickerBook")) hit = !book.isOpen();
+                else if (!strcmp(ev, "enterSpeedChat")) hit = uiState.tab == tt::ui::kTabChat;
+                else if (!strcmp(ev, "SCChatEvent")) hit = tutorialSaidSpeedChat;
+                if (hit && tutorial.postEvent(ev)) TT_LOG("tutorial: player answered %s", ev);
+            }
+            tutorialSaidSpeedChat = false;
             tutorial.update(dt);
-            if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
+            if (const int bookRequest = tutorial.takeBookRequest()) { // SHOW_BOOK / HIDE_BOOK
+                if (bookRequest > 0) ui.openBookPage(tt::ui::Book::kPageMap);
+                else ui.book().close("HIDE_BOOK");
+            }
+            if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
+            if (talk.phase() == tt::quest::Talk::Phase::Script) {
+                talk.setScriptLine(tutorial.text());
+                talk.setScriptWait(tutorial.waitingEvent());
+                using SV = tt::quest::ScriptVar;
+                const SV c = tutorial.card();
+                talk.setScriptCard(c == SV::Cogs ? 0 : c == SV::ToonBuilding ? 1 : c == SV::CogBuilding ? 2
+                                   : c == SV::Squirt1 ? 3 : c == SV::Squirt2 ? 4 : -1); // ui::TutorialCard
+                if (tutorial.takeFinished() || !tutorial.active()) talk.scriptDone();
+            }
             // ---- end tutorial ----
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
@@ -2518,6 +2754,25 @@ int main() {
                     TT_LOG("quest: talking to NPC %u", unsigned(giver));
                 }
                 if (npcFree || !giver) lastTouchedQuestNpc = giver;
+                // ---- tutorial ----
+                // Flippy at the tunnel: DistributedNPCBlocker.handleCollisionSphereEnter sends
+                // avatarEnter once per contact; the AI answers with BLOCKER_MOVIE_START. After his
+                // movie resetBlocker clears his collision: no second lesson on this street visit.
+                if (net.inTutorial()) {
+                    static u32 lastTouchedBlocker = 0;
+                    static u32 blockerZone = 0;
+                    if (place.zoneId() != blockerZone) {
+                        blockerZone = place.zoneId();
+                        tutorialBlockerPlayed = false;
+                    }
+                    const u32 blocker = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                               tt::dc::DistributedNPCBlocker::kClassId);
+                    if (blocker && blocker != lastTouchedBlocker && !tutorial.active() && !tutorialBlockerPlayed &&
+                        net.sendBlockerAvatarEnter(blocker))
+                        TT_LOG("tutorial: Flippy blocker contact %u", unsigned(blocker));
+                    lastTouchedBlocker = blocker;
+                }
+                // ---- end tutorial ----
                 tt::quest::TalkAction ta;
                 while (talk.popAction(ta)) {
                     switch (ta.kind) {
@@ -2812,10 +3067,35 @@ int main() {
             // ---- tutorial ----
             // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
             // RewardPanel timer.  The compact client presents that acknowledgement on A.
-            if (battle.tutorialRewardPending() && (in.down & KEY_A)) {
+            if (battle.tutorialRewardPending() && !tutorialReward.active() && !tutorialReward.done())
+                tutorialReward.start();
+            // its OK / page presses come through the panel's Continue (BattleAction::Continue above)
+            tutorialReward.update(dt);
+            {
+                // the movie's own Tutorial Tom on the street, beside the Toon
+                using TR = tt::world::TutorialReward;
+                const bool want = tutorialReward.tomShown();
+                if (want && !tutorialRewardTom)
+                    tutorialRewardTom = zoneActors.spawnLocalNpc(TR::kTomId, TR::tomName(), TR::tomDna(), TR::kTomPos[0],
+                                                                 TR::kTomPos[1], TR::kTomPos[2], TR::kTomPos[3]);
+                if (!want && tutorialRewardTom) {
+                    zoneActors.despawnLocalNpc(TR::kTomId);
+                    tutorialRewardTom = false;
+                }
+                if (tutorialRewardTom) {
+                    float rate = 1.0f;
+                    const tt::world::ToonAnim a = tutorialReward.tomAnim(&rate);
+                    zoneActors.setNpcAnim(TR::kTomId, a, rate);
+                }
+            }
+            if (tutorialReward.done()) {
+                // handleRewardDone: rewardDone, then playTutorialReward_4's localAvatar.setH(270)
                 battle.finishTutorialReward(net);
+                player.reset(player.x(), player.y(), player.z(), 270.0f);
+                tutorialReward.stop();
                 TT_LOG("tutorial: acknowledged Flunky reward");
             }
+            if (!battle.tutorialRewardPending() && tutorialReward.active()) tutorialReward.stop();
             // ---- end tutorial ----
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
@@ -3022,7 +3302,8 @@ int main() {
             }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) { // ---- racing2 ----
+            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible() &&
+                !tutorial.toonHidden()) { // ---- racing2 ---- (tutorial_blocker: HIDE localToon)
                 if (transition.toonScale() != 1.0f) {
                     const float ts = transition.toonScale();
                     Mtx_Scale(&m, ts, ts, ts);
@@ -3044,6 +3325,10 @@ int main() {
             // [end interior life]
             boat.draw(renderer);
             cchars.draw(renderer);
+            // ---- tutorial ----
+            if (tutorial.charShown() && tutorialChar.ensure(tutorial.femaleChar())) tutorialChar.draw(renderer, tutorial);
+            else if (!tutorial.active() && tutorialChar.loaded()) tutorialChar.unload(); // UNLOAD_CHAR
+            // ---- end tutorial ----
             if (netStarted && !golf.active()) {
                 trolley.draw(renderer, net, tt::net::plat::nowMs());
                 golf.drawKart(renderer, net);
@@ -3095,10 +3380,22 @@ int main() {
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();
             float sx, sy, depth;
-            if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
+            // ---- tutorial ---- HIDE localToon (tutorial_blocker's close-up) hides the whole Toon, nametag too
+            if (!tutorial.toonHidden() &&
+                tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
+            }
+            // ---- tutorial ---- Mickey / Minnie's lines over their own head (CC_CHAT_CONFIRM classicChar)
+            if (tutorial.charShown() && tutorialChar.loaded() && tutorial.speaker() == tt::quest::ScriptVar::ClassicChar &&
+                tutorial.text()[0]) {
+                const tt::quest::ScriptXform& cx = tutorial.xform(tt::quest::ScriptVar::ClassicChar);
+                float csx, csy, cdepth;
+                if (tt::ui::projectToScreen(proj, view, cx.pos[0], cx.pos[1], cx.pos[2] + tt::world::TutorialChar::kHeight + 0.5f,
+                                            &csx, &csy, &cdepth))
+                    balloons.addSpeaker(csx, csy, tutorialChar.name(), tutorial.text(), 0.0f, cdepth);
+            // ---- end tutorial ----
             }
             // ---- racing2 ----
             if (racing.active())
@@ -3110,12 +3407,21 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && net.tutorialInterior().active && tutorial.text()[0]) {
-                    talker = net.tutorialInterior().npcDoId;
+                // tutorial_mickey ends on LOCAL_CHAT_PERSIST "Come here!": it stays over Tom until
+                // the player walks up to him (quest_assign_101 opens with CLEAR_CHAT npc).
+                if (talk.locked()) tutorial.dropPersist();
+                if ((tutorial.active() || tutorial.persisting()) && tutorial.text()[0] &&
+                    talk.phase() != tt::quest::Talk::Phase::Script &&
+                    !(tutorial.speaker() == tt::quest::ScriptVar::ClassicChar && tutorialChar.loaded())) {
+                    // Mickey's intro is said over Tom (no classic-char actor in his room); Flippy's
+                    // SpeedChat lesson over Flippy.
+                    talker = tutorialSpeaker ? tutorialSpeaker : net.tutorialInterior().npcDoId;
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
-                zoneActors.setSpeech(talker, said);
+                zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
+                // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
+                if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);
             }
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
@@ -3128,6 +3434,24 @@ int main() {
                 float sx, sy, depth;
                 if (tt::ui::projectToScreen(proj, view, p.x, p.y, p.z, &sx, &sy, &depth)) {
                     balloons.addSpeaker(sx, sy - p.rise * p.age, p.text, nullptr, 99.0f, 0.0f, p.color);
+                }
+            }
+            // DistributedToon.showHpText: toonUp / takeDamage (HQ Harry's +1 Laff, treasures, the playground heal)
+            // rises from half the Toon's height to height + 1.5 in 1 s (easeOut), stays 0.85 s, then goes
+            if (netStarted && !battle.active() && !tutorial.toonHidden()) {
+                const tt::net::OwnStats& st = net.ownStats();
+                const uint32_t age = tt::net::plat::nowMs() - st.hpTextMs;
+                if (st.hpTextMs && st.hpTextValue && age < 1950) {
+                    const float h = localLook.valid() ? localLook.nametagHeight - 0.5f : 3.5f;
+                    const float u = age < 1000 ? age / 1000.0f : 1.0f;
+                    const float z = h * 0.5f + (h * 0.5f + 1.5f) * (3.0f * u - u * u * u) * 0.5f;
+                    float hx, hy, hd;
+                    if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + z, &hx, &hy, &hd)) {
+                        char hpText[8];
+                        snprintf(hpText, sizeof(hpText), st.hpTextValue > 0 ? "+%d" : "%d", int(st.hpTextValue));
+                        // green (0, 0.9, 0) / red (0.9, 0, 0), ABGR as ui::Balloons takes it
+                        balloons.addSpeaker(hx, hy, hpText, nullptr, 99.0f, 0.0f, st.hpTextValue > 0 ? 0xFF00E600 : 0xFF0000E6);
+                    }
                 }
             }
             balloons.draw(renderer.topLeft());
@@ -3151,6 +3475,19 @@ int main() {
                 }
             }
             hv.laffOnBottom = ui.laffShown();
+            hv.laffHidden = !tutorial.laffShown(); // enterTutorialHood: laffMeter.obscure(1)
+            {
+                int demoHp = -1, demoMax = 15;
+                float grow = 0.0f;
+                if (tutorial.laffDemo(&demoHp, &demoMax, &grow)) {
+                    if (demoHp >= 0) {
+                        hv.hp = demoHp;
+                        hv.maxHp = demoMax;
+                    }
+                    hv.laffGrow = grow;
+                    hv.laffOnBottom = false; // the lesson's meter is on the top screen, over Tom's room
+                }
+            }
             hv.toast = toast;
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())

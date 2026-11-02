@@ -27,10 +27,12 @@ public:
     void update(float dt);
     void draw(render::Renderer& renderer, const C3D_FVec& cameraEye);
     void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const;
-    // What an NPC is saying (quest dialog), shown in its balloon; null clears.
-    void setSpeech(u32 npcDoId, const char* text) {
+    // What an NPC is saying (quest dialog), shown in its balloon; null clears. reversed: the
+    // script line's CFReversed flag (the balloon mirrored to the speaker's left).
+    void setSpeech(u32 npcDoId, const char* text, bool reversed = false) {
         speechNpc_ = text ? npcDoId : 0;
         speech_ = text;
+        speechReversed_ = text && reversed;
     }
     // Treasure the toon at (x, y, z) is touching, or 0 (DistributedTreasure sphere r = 2).
     u32 touchingTreasure(float x, float y, float z) const;
@@ -41,6 +43,19 @@ public:
     // the pet, kart, fisherman and party clerks pass the local toon's.
     bool talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight = -1) const;
     int npcCount() const;
+    // The NPC's own setName (TutorialHQBuildingAI names its officer "HQ Harry", not NPCToonDict's).
+    const char* npcName(u32 npc) const;
+    // A QuestScript moving an NPC (tutorial_blocker's Flippy runs off, then REPARENTTO npc hidden):
+    // its pose (world, heading in degrees), a looping clip, and hiding it (no drawing, nametag or
+    // collision) until it is generated again.
+    bool npcPose(u32 npc, float* x, float* y, float* z, float* h) const;
+    void setNpcPose(u32 npc, float x, float y, float z, float h);
+    void setNpcAnim(u32 npc, ToonAnim anim, float rate);
+    void setNpcHidden(u32 npc, bool hidden);
+    // A client-side Toon no server object stands for (Movie.playTutorialReward builds its own
+    // Tutorial Tom on the street): drawn, animated and given balloons like the zone's NPCs.
+    bool spawnLocalNpc(u32 id, const char* name, const uint8_t* dna, float x, float y, float z, float h);
+    void despawnLocalNpc(u32 id);
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
@@ -55,6 +70,7 @@ private:
         u32 doId = 0;
         char name[32] = {};
         float x = 0, y = 0, z = 0, h = 0;
+        bool hidden = false;
         ToonLook look;
         ToonAvatar avatar;
     };
@@ -66,6 +82,7 @@ private:
         bool grabbed = false;
     };
     const Point* findPoint(const char* name) const;
+    Npc* findNpc(u32 doId);
 
     ToonCache* cache_ = nullptr;
     Point points_[kMaxPoints];
@@ -76,6 +93,7 @@ private:
     float time_ = 0.0f;
     u32 speechNpc_ = 0;
     const char* speech_ = nullptr;
+    bool speechReversed_ = false;
 };
 
 } // namespace tt::world

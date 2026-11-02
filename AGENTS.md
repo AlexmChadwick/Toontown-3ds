@@ -452,7 +452,8 @@ server.
   is not thread-safe, so every runtime linear alloc/free holds `tt::mem::LinearGuard`,
   and toons draw the resident default body until their parts are ready.
 - ✅ **Front end** (`game/front_end.*`). Title → connect → Pick-a-Toon → 5-step
-  Make-a-Toon → playground. `requestSkipTutorial` is sent for new toons. The
+  Make-a-Toon → Toontorial → playground (an account's first Toon goes straight into the
+  Toontorial; later Toons get Enter / Skip, and only Skip sends `requestSkipTutorial`). The
   `autotest_fe` trigger drives the whole flow.
 - ✅ **Zone objects.** NPC toons stand at the DNA anchors listed in the `.pts`
   sidecar of `bake_zone.py`. Treasures can be grabbed (the AI refuses at full laff:
@@ -633,7 +634,8 @@ combat/gags, shops, tasks, pets, the full name shop, and stereo polish.
   interaction, shops, the catalog, estates, pets, fishing, gardening, racing, golf,
   minigames, trolley, parties, cog HQs, boss battles, friends lists, whispers, typed
   chat, the name shop (toons keep the server default name).
-- The tutorial. The client skips straight to the playground; the server allows this.
+- The tutorial is the default for a new Toon (docs/design/tutorial.md); `skip` in autotest_fe keeps
+  the old skip path for regressions.
 - Street zones (2100 and others), interiors, doors, tunnels between zones. Only the TTC
   playground (2000) is in scope.
 - Particles (`.ptf`), dynamic shadows (a blob shadow quad is fine), the full lighting
@@ -858,8 +860,8 @@ A/B checks. This task prohibited emulator execution.
 
 ### Toontorial protocol and assets (tutorial, 2026-10-26)
 
-New avatars choose **Play the Toontorial** or **Skip** before creation; Skip remains the
-default. TutorialManager's runtime-allocated zones are never baked by id: `world/tutorial_zones.h`
+New avatars take the Toontorial by default, as upstream NameShop: the first Toon goes straight
+in, later Toons get Enter / Skip (B goes back, never skips). TutorialManager's runtime-allocated zones are never baked by id: `world/tutorial_zones.h`
 maps them to canonical 20000/20001/20501/20502 assets at the client boundary and translates
 destinations back before Astron location updates. `tools/gen_quest_scripts.py` emits the five
 stock tutorial QuestScripts and rejects unrecognised source data. `tools/tutorial_test/run.sh`
