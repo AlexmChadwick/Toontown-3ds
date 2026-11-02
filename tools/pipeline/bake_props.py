@@ -64,6 +64,17 @@ def atlas(base,out,preview):
     return metadata
 
 
+def white_splat(actor):
+    """splat-mod's splatter carries a dark navy ColorAttrib that every user replaces with
+    prop.setColor (the pie colours, splash-from-splat's (0.75, 0.75, 1)). The runtime
+    multiplies its tint into the vertex colour, so bake the splatter white."""
+    from panda3d.core import ColorAttrib
+    for node in actor.findAllMatches('**/+GeomNode'):
+        geom_node=node.node()
+        for i in range(geom_node.getNumGeoms()):
+            geom_node.setGeomState(i,geom_node.getGeomState(i).removeAttrib(ColorAttrib))
+
+
 def bake_flipbook(base,out,name,model):
     """A SequenceNode flipbook (explosion.bam: 10 cards on one 256 px page, 24 fps): one batch
     per frame in sequence order on the shared page at full size, so the runtime can show one
@@ -102,7 +113,10 @@ def main():
             info=bake_flipbook(base,args.out,name,model)
         elif len(row)==4:
             clip=f'phase_{row[0]:g}/models/props/{row[3]}'
-            info=bake_actor(base,args.out,name,model,{'action':clip},{'full':4000})['full']
+            prepare=white_splat if name=='splat' else None
+            # The splat shows on every pie and squirt hit: keep its 128 px pages.
+            info=bake_actor(base,args.out,name,model,{'action':clip},{'full':4000},prepare=prepare,
+                            max_tex=128 if name=='splat' else 64)['full']
         else:
             prop=base.loader.loadModel(model);root=NodePath('prop_root');prop.reparentTo(root)
             if name=='tart':prop.setScale(.5)

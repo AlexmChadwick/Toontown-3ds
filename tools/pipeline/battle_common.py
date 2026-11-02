@@ -167,7 +167,8 @@ def write_joints(path,names,frames):
     path.write_bytes(out)
 
 
-def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=(),head_joint=None,keep_cull=False):
+def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=(),head_joint=None,keep_cull=False,
+               max_tex=64):
     import math
     from direct.actor.Actor import Actor
     import suit_lod
@@ -177,13 +178,13 @@ def bake_actor(base,out,stem,model,clips,targets=None,prepare=None,tint_rules=()
     first = 'neutral' if 'neutral' in clips else next(iter(clips))
     actor.pose(first,0)
     actor.update(force=True)
-    ex,reference = capture(actor,True,tint_rules,keep_cull=keep_cull)
+    ex,reference = capture(actor,True,tint_rules,keep_cull=keep_cull,max_tex=max_tex)
     for batch in reference:
         if batch.tint in (1,2,3):
             batch.tex_slot = batch.tint
             batch.tint = 0
     # Frame extraction still uses the pre-slot tint keys for identity validation.
-    _,identity = capture(actor,False,tint_rules,keep_cull=keep_cull)
+    _,identity = capture(actor,False,tint_rules,keep_cull=keep_cull,max_tex=max_tex)
     child = actor.find('**/'+head_joint) if head_joint else None
     if head_joint:
         assert not child.isEmpty(), (model,head_joint)
