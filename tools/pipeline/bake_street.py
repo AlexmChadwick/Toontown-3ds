@@ -632,6 +632,50 @@ def view_points(floors, eye=4.0, step=6.0):
     return pts
 
 
+def hide_wall_shadows(root):
+    """Stashes drop-shadow cards that lie flat against a wall.
+
+    Upstream draws these in the 'shadow' cull bin, after the ground bin and before
+    every other opaque bin, without depth writes. A card on the ground shows; a card
+    on a facade (prop_marquee's square_drop_shadow) is painted over by the wall it
+    sits on. Baked as a blended decal it drew on top: a dark smear over the theatre
+    windows on every TT_A3.
+    """
+    from panda3d.core import CullBinAttrib, GeomVertexReader
+    import numpy as np
+    hidden = 0
+    for gnp in root.findAllMatches('**/+GeomNode'):
+        gn = gnp.node()
+        if gnp.isHidden():
+            continue
+        bins = {gnp.getNetState().compose(gn.getGeomState(i)).getAttrib(CullBinAttrib)
+                for i in range(gn.getNumGeoms())}
+        names = {b.getBinName() for b in bins if b is not None}
+        if names != {'shadow'}:
+            continue
+        mat = gnp.getMat(root)
+        normals = []
+        for i in range(gn.getNumGeoms()):
+            geom = gn.getGeom(i)
+            r = GeomVertexReader(geom.getVertexData(), 'vertex')
+            pts = []
+            while not r.isAtEnd():
+                pts.append(tuple(mat.xformPoint(r.getData3())))
+            pts = np.array(pts)
+            for prim in geom.getPrimitives():
+                t = prim.decompose()
+                for k in range(t.getNumPrimitives()):
+                    a, b, c = (pts[t.getVertex(t.getPrimitiveStart(k) + j)] for j in range(3))
+                    normals.append(np.cross(b - a, c - a))
+        if not normals:
+            continue
+        n = np.sum(np.abs(np.array(normals)), axis=0)
+        if n[2] < 0.5 * float(np.linalg.norm(n)):
+            gnp.stash()
+            hidden += 1
+    return hidden
+
+
 def bake(zone_id, args, base):
     import numpy as np
     import assemble
@@ -658,6 +702,7 @@ def bake(zone_id, args, base):
         # skipped by findAllMatches, so neither its geometry nor its collision reach the .tz.
         for n in root.findAllMatches('**/donalds_boat'):
             n.stash()
+    wall_shadows = hide_wall_shadows(root)
     import bake_moving_props
     movers = bake_moving_props.split(root, zone_id, args.out)
     if args.points_only:  # refresh the .pts anchors without re-encoding the zone
@@ -807,7 +852,7 @@ def bake(zone_id, args, base):
     report.update({'moving_props':movers,'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
-                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
+                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),'wall_shadows':wall_shadows,
                    'warnings':warnings,'collision':collision_stats,'atlas_pages':sum(a['pages'] for a in atlas_stats),
                    'near_atlas':NEAR_ATLAS,'ground_split':ground_stats,
                    'grid_size':grid_used,'draw_cap':street_lod.DRAW_CAP})
