@@ -156,7 +156,51 @@ def _far_detail(image, b, tri):
     return b.blend != ttm.BLEND_OPAQUE and int(image[:, :, 3].min()) <= 16
 
 
-def _colorize_far(sources, chunks, images=None, details=False):
+def _far_body(sources, image, b, tri):
+    """A far wall, roof or landmark face that keeps a small cropped texture.
+
+    Vertex colour turned the TTC tunnel rock, Toon Hall and the shop fronts into
+    flat patches on Old 3DS past 160. Ground-like faces (|normal z| > 0.8) and
+    faces whose UVs cross a texture repeat stay coloured: those are big, already
+    flat at that range, and clipping their repeats pushed TTC past the far
+    triangle budget.
+    """
+    import numpy as np
+    import ttm
+    import street_atlas
+    if image is None or sources is None or not isinstance(sources, (list, tuple)) or b.layer:
+        return False
+    if b.blend == ttm.BLEND_ALPHA:
+        return False
+    if b.blend == ttm.BLEND_ALPHA_TEST and int(image[:, :, 3].min()) <= 16:
+        return False
+    p = tri[:, :3]
+    n = np.cross(p[1] - p[0], p[2] - p[0])
+    length = float(np.linalg.norm(n))
+    if length < 1e-9 or abs(n[2]) / length > 0.8:
+        return False
+    xr, yr = street_atlas.tile_ranges(tri, sources[b.texture])
+    return len(xr) == 1 and len(yr) == 1
+
+
+# Far body pages: past lodNear (160 on Old 3DS) a texel per two screen pixels is
+# 0.5 * 384 / 160 = 1.2 texels per world unit. Two mips stop minified tiles from
+# shimmering; one opaque ETC1 page per chunk costs about one draw.
+FAR_BODY_ATLAS = dict(density=0.5, gutter=2, mip_levels=2, view_near=160.0, view_far=160.0,
+                      large_ground=False, pages=((64, 64), (128, 64), (128, 128), (256, 128), (256, 256),
+                                                 (512, 256), (512, 512)), name='far_body')
+
+
+def build_far_bodies(sources, chunks):
+    """Per-chunk opaque pages for the textured far faces (_far_body)."""
+    import street_atlas
+    if not any(chunks):
+        return [[] for _ in chunks], [[] for _ in chunks]
+    textures, batches, _ = street_atlas.build_local(sources, chunks, **FAR_BODY_ATLAS)
+    return textures, batches
+
+
+def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False):
     """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
 
     Everything else samples the texel at the corner (32px) and drops the page.
@@ -172,11 +216,13 @@ def _colorize_far(sources, chunks, images=None, details=False):
     mips_cache = {}
     result = []
     extra = []
+    bodies = []
     kept = 0
     for batches in chunks:
         groups = {}
         cards = {}
         detail = {}
+        body = {}
         for b in batches:
             if b.indices is None or len(b.indices) < 3:
                 continue
@@ -191,6 +237,9 @@ def _colorize_far(sources, chunks, images=None, details=False):
                     continue
                 if details and _far_detail(image, b, tri.reshape(-1, 9)):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
+                    continue
+                if details and _far_body(sources, image, b, tri):
+                    body.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
                 if b.layer:
                     continue  # a repeating decal: a flat patch would cover its wall
@@ -235,6 +284,11 @@ def _colorize_far(sources, chunks, images=None, details=False):
         extra.append([ttm.Batch(tex, blend, two, 0, layer, np.concatenate([p.reshape(-1, 9) for p in parts]),
                                 np.arange(3 * len(parts), dtype=np.int64))
                       for (tex, blend, two, layer), parts in sorted(detail.items())])
+        bodies.append([ttm.Batch(tex, ttm.BLEND_OPAQUE, two, 0, 0, np.concatenate([p.reshape(-1, 9) for p in parts]),
+                                 np.arange(3 * len(parts), dtype=np.int64))
+                       for (tex, two), parts in sorted(body.items())])
+    if with_bodies:
+        return result, kept, extra, bodies
     return result, kept, extra
 
 
@@ -364,6 +418,7 @@ def choose_far(sources, raw, chunks, images=None):
     Then cutouts and decals are kept textured on per-chunk far atlas pages when
     that still fits within one voxel rung of the plain mesh.
     """
+    import numpy as np
     import street_lod
     import ttm
     steps = (0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48)
@@ -381,17 +436,31 @@ def choose_far(sources, raw, chunks, images=None):
     def attempt(step, details):
         """The far mesh at one voxel step, or None when a PVS misses the budget."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
+        if step:
+            # Letters are not snapped either: lift them with the kept decals.
+            merged_signs = [[ttm.Batch(b.texture, b.blend, b.two_sided, b.tint, b.layer,
+                                       street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
+                                       np.arange(len(b.indices)), getattr(b, 'sign', False))
+                             for b in signs] for signs in merged_signs]
         low = [street_lod.simplify(bs, step, keep_layers=details) for bs in bodies]
-        colored, kept, extra = _colorize_far(sources, low, images, details=details)
+        colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
+                                                    with_bodies=True)
+        body_pages, body_batches = (build_far_bodies(sources, faces) if details and images is None
+                                    else ([[] for _ in low], [[] for _ in low]))
         if details:
             _, atlased = build_far_atlas(sources, extra, encode=False)
             # Count each chunk's pages as their own textures; nothing is shared.
             placed = [list(c) + [ttm.Batch(('far', i, b.texture), b.blend, b.two_sided, 0, b.layer,
                                            b.verts, b.indices) for b in a]
-                      for i, (c, a) in enumerate(zip(colored, atlased))]
+                      + [ttm.Batch(('body', i, b.texture), b.blend, b.two_sided, 0, b.layer,
+                                   b.verts, b.indices) for b in bb]
+                      for i, (c, a, bb) in enumerate(zip(colored, atlased, body_batches))]
         else:
             placed = colored
         worst, draws = worst_of(placed)
+        if os.environ.get('TT_FAR_DEBUG'):
+            print(f'far attempt step={step} details={details} worst={worst} draws={draws} '
+                  f'body={street_lod.count(sum(body_batches, []))}', flush=True)
         if worst > street_lod.LOW_TARGET or draws > street_lod.DRAW_CAP:
             return None, (worst, draws)
         signed = [list(chunk) + signs for chunk, signs in zip(placed, merged_signs)]
@@ -413,6 +482,12 @@ def choose_far(sources, raw, chunks, images=None):
                     colored[i] = list(colored[i]) + [
                         ttm.Batch(base + b.texture, b.blend, b.two_sided, 0, b.layer, b.verts, b.indices)
                         for b in batches]
+                for i, (chunk_pages, batches) in enumerate(zip(body_pages, body_batches)):
+                    base = len(textures)
+                    textures.extend(chunk_pages)
+                    colored[i] = list(colored[i]) + [
+                        ttm.Batch(base + b.texture, b.blend, b.two_sided, 0, b.layer, b.verts, b.indices)
+                        for b in batches]
         else:
             textures = []
         return (colored, textures, {
@@ -421,6 +496,7 @@ def choose_far(sources, raw, chunks, images=None):
             'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
             'hill_card_triangles': kept, 'sign_triangles': sign_tris if use_signs else 0,
             'detail_triangles': detail_tris if details else 0,
+            'body_triangles': sum(street_lod.count(b) for b in body_batches) if details else 0,
             'draw_cap': street_lod.DRAW_CAP}), (worst, draws)
 
     worst = draws = None
@@ -556,6 +632,50 @@ def view_points(floors, eye=4.0, step=6.0):
     return pts
 
 
+def hide_wall_shadows(root):
+    """Stashes drop-shadow cards that lie flat against a wall.
+
+    Upstream draws these in the 'shadow' cull bin, after the ground bin and before
+    every other opaque bin, without depth writes. A card on the ground shows; a card
+    on a facade (prop_marquee's square_drop_shadow) is painted over by the wall it
+    sits on. Baked as a blended decal it drew on top: a dark smear over the theatre
+    windows on every TT_A3.
+    """
+    from panda3d.core import CullBinAttrib, GeomVertexReader
+    import numpy as np
+    hidden = 0
+    for gnp in root.findAllMatches('**/+GeomNode'):
+        gn = gnp.node()
+        if gnp.isHidden():
+            continue
+        bins = {gnp.getNetState().compose(gn.getGeomState(i)).getAttrib(CullBinAttrib)
+                for i in range(gn.getNumGeoms())}
+        names = {b.getBinName() for b in bins if b is not None}
+        if names != {'shadow'}:
+            continue
+        mat = gnp.getMat(root)
+        normals = []
+        for i in range(gn.getNumGeoms()):
+            geom = gn.getGeom(i)
+            r = GeomVertexReader(geom.getVertexData(), 'vertex')
+            pts = []
+            while not r.isAtEnd():
+                pts.append(tuple(mat.xformPoint(r.getData3())))
+            pts = np.array(pts)
+            for prim in geom.getPrimitives():
+                t = prim.decompose()
+                for k in range(t.getNumPrimitives()):
+                    a, b, c = (pts[t.getVertex(t.getPrimitiveStart(k) + j)] for j in range(3))
+                    normals.append(np.cross(b - a, c - a))
+        if not normals:
+            continue
+        n = np.sum(np.abs(np.array(normals)), axis=0)
+        if n[2] < 0.5 * float(np.linalg.norm(n)):
+            gnp.stash()
+            hidden += 1
+    return hidden
+
+
 def bake(zone_id, args, base):
     import numpy as np
     import assemble
@@ -582,6 +702,7 @@ def bake(zone_id, args, base):
         # skipped by findAllMatches, so neither its geometry nor its collision reach the .tz.
         for n in root.findAllMatches('**/donalds_boat'):
             n.stash()
+    wall_shadows = hide_wall_shadows(root)
     import bake_moving_props
     movers = bake_moving_props.split(root, zone_id, args.out)
     if args.points_only:  # refresh the .pts anchors without re-encoding the zone
@@ -731,7 +852,7 @@ def bake(zone_id, args, base):
     report.update({'moving_props':movers,'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
-                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),
+                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),'wall_shadows':wall_shadows,
                    'warnings':warnings,'collision':collision_stats,'atlas_pages':sum(a['pages'] for a in atlas_stats),
                    'near_atlas':NEAR_ATLAS,'ground_split':ground_stats,
                    'grid_size':grid_used,'draw_cap':street_lod.DRAW_CAP})

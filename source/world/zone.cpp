@@ -972,12 +972,24 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 subLow(geom, low.geom);
                 subLow(tex, low.tex);
             }
+            // Far meshes of the in-cone chunks not walked yet. A near upgrade
+            // must leave room for them: TTC's far view on New spent the 15k
+            // triangles on near upgrades and dropped the far Loopy Lane tunnel
+            // and the hills behind it, which sit last in the order.
+            uint64_t restDraws=0, restTris=0;
+            for (uint32_t j=0;j<count;++j) {
+                const uint16_t id=z.order[j];
+                if (viewCap && !seenView[id]) continue;
+                const Chunk low=modelInfo(z.chunks[id], 1);
+                restDraws+=low.draws; restTris+=low.tris;
+            }
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
                 const bool inThis=!viewCap || seenView[id];
                 const bool nearResident=(z.resident[id] && z.lod[id]==0) || z.parked[id];
                 const Chunk low=modelInfo(high, 1);
+                if (inThis) { subLow(restDraws, low.draws); subLow(restTris, low.tris); }
                 if (!inThis) {
                     if (nearResident) {
                         markNear(id);
@@ -994,13 +1006,16 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const uint64_t t=tex>=low.tex ? tex-low.tex+high.tex : high.tex;
                 const uint64_t tr=viewTris+high.tris, dr=viewDraws+high.draws;
                 const bool memOk=g<=geomCap && t<=texCap;
-                const bool countOk=tr<=kTriangleBudget && dr<=drawCap;
-                const bool fits=memOk && tr<=kTriangleBudget && dr<=kDrawBudget;
+                const uint64_t trR=tr+restTris, drR=dr+restDraws;
+                const bool restOk=trR<=kTriangleBudget && drR<=kSubmitDrawCap;
+                const bool countOk=restOk && dr<=drawCap;
+                const bool fits=memOk && restOk && dr<=kDrawBudget;
                 // lodMust may stay near only when BOTH the 150-draw file cap and
                 // the 15k triangle cap still have room (Toon Hall). Draws alone
                 // used to keep the near ring and a street settled at 154 draws
                 // or 18k triangles. Everything else, including lodKeep, stops at 130.
-                const bool underSubmit=tr<=kTriangleBudget && dr<=kSubmitDrawCap;
+                const bool underSubmit=mustNear ? tr<=kTriangleBudget && dr<=kSubmitDrawCap
+                                                : trR<=kTriangleBudget && drR<=kSubmitDrawCap;
                 const bool keepNear=nearResident && within && memOk && underSubmit &&
                                     (viewCap ? mustNear : countOk);
                 if (keepNear || (fits && (within || nearResident || signNear))) {

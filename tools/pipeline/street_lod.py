@@ -26,9 +26,12 @@ def simplify(batches, spacing, keep_layers=False):
             continue  # windows, letters and other overlaid details disappear only far away
         verts=b.verts[b.indices].copy()
         # A kept decal is not snapped: snapped, it cuts through its wall at an angle and
-        # z-fights. Its wall moves at most half a voxel, unnoticeable past lodNear.
+        # z-fights. Its wall moves up to half a voxel diagonal, so the decal is lifted by
+        # that much instead; the TTC tunnel signs were buried in their snapped rock.
         if spacing and not b.layer:
             verts[:,:3]=np.round(verts[:,:3]/spacing)*spacing
+        elif spacing:
+            verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)
         area=np.linalg.norm(np.cross(tri[:,1,:3]-tri[:,0,:3],tri[:,2,:3]-tri[:,0,:3]),axis=1)
         tri=tri[area>1e-6]
@@ -40,6 +43,23 @@ def simplify(batches, spacing, keep_layers=False):
         verts=tri[np.sort(unique)].reshape(-1,9)
         result.append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts))))
     return result
+
+
+def lift(verts, spacing):
+    """Move each triangle of unsnapped decal corners off its wall along the face normal.
+
+    `verts` are non-indexed corners (3 per triangle). The snapped wall behind moves at
+    most spacing*sqrt(3)/2, so a decal lifted past that cannot fall behind it. Past
+    lodNear the gap does not show.
+    """
+    out=np.asarray(verts,dtype=np.float64).copy()
+    tri=out[:,:3].reshape(-1,3,3)
+    n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+    length=np.linalg.norm(n,axis=1,keepdims=True)
+    n=np.where(length>1e-9,n/np.maximum(length,1e-9),0.0)
+    tri+=n[:,None,:]*(spacing*3**.5/2+0.05)
+    out[:,:3]=tri.reshape(-1,3)
+    return out
 
 
 def count(batches):

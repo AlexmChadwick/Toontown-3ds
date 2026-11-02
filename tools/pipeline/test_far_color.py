@@ -107,6 +107,38 @@ class FarColorTest(unittest.TestCase):
                     longest = max(longest, float(np.max(ground_split._edges(tri))))
         self.assertLessEqual(longest, stats['max_edge'] + 1e-6)
 
+    def test_kept_decal_stays_in_front_of_its_snapped_wall(self):
+        # A wall facing -y at y=0.9 snaps forward to y=0 at spacing 2; a decal 0.1 in
+        # front of it (y=0.8, wound to face -y) must still be in front after the lift.
+        def quad(y, layer):
+            v = np.array([[0, y, 0], [4, y, 4], [0, y, 4], [0, y, 0], [4, y, 0], [4, y, 4]], float)
+            verts = np.zeros((6, 9))
+            verts[:, :3] = v
+            verts[:, 5:9] = 1
+            return ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, layer, verts, np.arange(6))
+        wall, decal = street_lod.simplify([quad(0.9, 0), quad(0.8, 1)], 2, keep_layers=True)
+        self.assertTrue(np.allclose(wall.verts[:, 1], 0.0))
+        self.assertTrue(np.all(decal.verts[:, 1] < -0.05))
+
+    def test_far_body_keeps_walls_and_leaves_ground_coloured(self):
+        class Tex:
+            WM_repeat = 1
+            def getWrapU(self):
+                return 1
+            getWrapV = getWrapU
+        image = np.full((32, 32, 4), 255, dtype=np.uint8)
+        wall = np.zeros((3, 9))
+        wall[:, :3] = [[0, 0, 0], [4, 0, 4], [0, 0, 4]]
+        wall[:, 3:5] = [[0, 0], [1, 1], [0, 1]]
+        floor = wall.copy()
+        floor[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
+        repeats = wall.copy()
+        repeats[:, 3:5] *= 1.5
+        b = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, wall, np.arange(3))
+        self.assertTrue(bake_street._far_body([Tex()], image, b, wall))
+        self.assertFalse(bake_street._far_body([Tex()], image, b, floor))
+        self.assertFalse(bake_street._far_body([Tex()], image, b, repeats))
+
 
 if __name__ == '__main__':
     unittest.main()
