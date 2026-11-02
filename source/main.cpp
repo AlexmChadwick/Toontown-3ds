@@ -66,6 +66,7 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "world/toon_dna_tables.h"
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
@@ -2843,6 +2844,54 @@ int main() {
         tt::prof::lap(tt::prof::kNet);
         remoteToons.update(dt);
         tt::prof::lap(tt::prof::kRemote);
+        {
+            // Test-only "toon showcase N" (1..9): four client-side Toons in front of the toon,
+            // heads (N-1)*4 .. +3 of toonHeadTypes (every species and head), alternating boy and
+            // girl (skirt or shorts), each torso and leg size, varied shirts, bottoms and colours.
+            static int showcaseSet = 0;
+            const char* lbl = autotest.active() ? autotest.label() : "";
+            const int want = !strncmp(lbl, "toon showcase ", 14) ? atoi(lbl + 14) : 0;
+            if (want != showcaseSet) {
+                for (int i = 0; i < 4; i++) zoneActors.despawnLocalNpc(0x7F00F000u + i);
+                showcaseSet = want;
+                namespace dt_ = tt::world::dna_tables;
+                const float hh = player.headingDeg() * kDegToRad;
+                for (int i = 0; want > 0 && i < 4; i++) {
+                    const unsigned head = unsigned(want - 1) * 4 + i;
+                    if (head >= dt_::kNumHeadTypes) break;
+                    tt::world::ToonDna d;
+                    d.head = uint8_t(head);
+                    d.gender = i % 2 ? tt::world::Gender::Female : tt::world::Gender::Male;
+                    d.legs = uint8_t(head % 3);
+                    d.topTex = uint8_t((head * 37 + 5) % dt_::kNumShirts);
+                    d.sleeveTex = uint8_t((head * 29 + 3) % dt_::kNumSleeves);
+                    d.topTexColor = uint8_t((head * 7) % dt_::kNumClothesColors);
+                    d.sleeveTexColor = d.topTexColor;
+                    d.botTexColor = uint8_t((head * 11 + 4) % dt_::kNumClothesColors);
+                    if (d.gender == tt::world::Gender::Male) {
+                        d.torso = uint8_t((head / 3) % 3);
+                        d.botTex = uint8_t((head * 13) % dt_::kNumBoyShorts);
+                    } else {
+                        const bool skirt = (head / 2) % 2 == 0;
+                        d.torso = uint8_t((skirt ? 3 : 0) + (head / 3) % 3);
+                        unsigned b = (head * 13) % dt_::kNumGirlBottoms;
+                        while (bool(dt_::kGirlBottomIsSkirt[b]) != skirt) b = (b + 1) % dt_::kNumGirlBottoms;
+                        d.botTex = uint8_t(b);
+                    }
+                    d.armColor = d.legColor = d.headColor = uint8_t((head * 5 + 1) % dt_::kNumAllColors);
+                    uint8_t net[tt::world::kDnaNetStringSize];
+                    tt::world::makeNetString(d, net);
+                    char name[32];
+                    snprintf(name, sizeof name, "%s %s", dt_::kHeadTypes[head], dt_::kTorsoTypes[d.torso]);
+                    const float side = (i - 1.5f) * 3.5f, ahead = 10.0f;
+                    const bool ok = zoneActors.spawnLocalNpc(0x7F00F000u + i, name, net,
+                                                             player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                                             player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
+                                                             player.headingDeg() + 180.0f);
+                    TT_LOG("autotest: toon showcase %d: %s valid %d spawned %d", want, name, int(tt::world::isValidDna(d)), int(ok));
+                }
+            }
+        }
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
@@ -3405,6 +3454,14 @@ int main() {
                     suits.drawShowcase(renderer, kShow[i], player.x() - sinf(hh) * ahead + cosf(hh) * side,
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
+                    if (set >= 1) {
+                        // The battle hit splats over the Cogs: squirt splash, then each pie splat.
+                        static const int kSplat[4][2] = {{5, 0}, {4, 0}, {4, 1}, {4, 2}};
+                        battleFx.drawSplatDemo(renderer, kSplat[i][0], kSplat[i][1],
+                                               player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                               player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z() + 2.0f,
+                                               player.headingDeg() + 180.0f, 0.2f);
+                    }
                 }
             }
             tt::prof::lap(tt::prof::kDrawActors);

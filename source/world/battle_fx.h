@@ -171,6 +171,9 @@ public:
     // Frame update and 3D draw
     void update(float dt, uint32_t nowMs, const Battle* battle, const ToonLook* localLook);
     void draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook);
+    // Test-only (autotest "cog showcase"): a hit splat of (track, level) at a Cog's head, drawn
+    // exactly like a battle hit at `age` seconds into it.
+    void drawSplatDemo(render::Renderer& renderer, int track, int level, float x, float y, float z, float h, float age);
     // Finds the drawn avatar of a battle toon (local or remote) so held props follow its
     // torso's JNT hand joint. Call draw() after the toons are drawn this frame.
     using ToonLookup = const ToonAvatar* (*)(void* user, uint32_t doId);

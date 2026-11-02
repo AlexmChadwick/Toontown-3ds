@@ -708,6 +708,28 @@ void BattleFx::update(float dt, uint32_t nowMs, const Battle* battle, const Toon
     cogAttacks_.update(dt, nowMs, battle);
 }
 
+void BattleFx::drawSplatDemo(render::Renderer& renderer, int track, int level, float x, float y, float z, float h,
+                             float age) {
+    if (!modelsLoaded_) return;
+    ActiveSplat keep[kMaxSplats];
+    memcpy(keep, splats_, sizeof keep);
+    const uint32_t keepNow = nowMs_;
+    for (ActiveSplat& o : splats_) o.active = false;
+    ActiveSplat& s = splats_[0];
+    s = ActiveSplat{};
+    s.active = true;
+    s.track = track;
+    s.level = level;
+    s.isSplash = track == 5;
+    s.x = x, s.y = y, s.z = z, s.h = h;
+    nowMs_ = 1000000u;
+    s.startMs = nowMs_ - uint32_t(age * 1000.0f);
+    s.durMs = 0xFFFFFFu;
+    draw(renderer, nullptr, nullptr);
+    memcpy(splats_, keep, sizeof keep);
+    nowMs_ = keepNow;
+}
+
 void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float z) const {
     if (!explosionModel_.loaded()) return;
     // setBillboardPointEye: the card's +Y points from the eye through the burst.
