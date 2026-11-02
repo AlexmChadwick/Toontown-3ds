@@ -3419,7 +3419,7 @@ int main() {
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
-                zoneActors.setSpeech(talker, said);
+                zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
                 // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
                 if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);
             }

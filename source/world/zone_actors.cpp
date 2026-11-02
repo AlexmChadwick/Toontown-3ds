@@ -183,7 +183,7 @@ void ZoneActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const 
             depth < kNametagMaxDistance) {
             const bool talking = speechNpc_ == n.doId && speech_;
             balloons.addSpeaker(sx, sy, n.name, talking ? speech_ : nullptr, talking ? 0.0f : 99.0f, depth,
-                                ui::Balloons::kNameColorNpc);
+                                ui::Balloons::kNameColorNpc, talking && speechReversed_);
         }
     }
 }

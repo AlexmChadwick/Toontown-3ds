@@ -71,7 +71,7 @@ void Balloons::shutdown() {
 void Balloons::begin() { numSpeakers_ = 0; }
 
 void Balloons::addSpeaker(float sx, float sy, const char* name, const char* phrase, float ageSec, float depth,
-                          u32 nameColor) {
+                          u32 nameColor, bool reversed) {
     if (numSpeakers_ >= kMaxSpeakers) return;
     Speaker& s = speakers_[numSpeakers_++];
     s.sx = sx;
@@ -82,6 +82,7 @@ void Balloons::addSpeaker(float sx, float sy, const char* name, const char* phra
     s.phrase = phrase && phrase[0] && ageSec < kHoldSec + kFadeSec ? phrase : nullptr;
     s.nameColor = nameColor;
     s.nameEntry = s.phraseEntry = -1;
+    s.reversed = reversed;
 }
 
 void Balloons::flush() {
@@ -222,8 +223,9 @@ void Balloons::draw(C3D_RenderTarget* top, float parallaxPx) {
             const float tipX = clampf(headX, kScreenPad + kBubbleRadius + kTailHalfW,
                                       kTopW - kScreenPad - kBubbleRadius - kTailHalfW);
             const float tipY = clampf(s.sy, bh + kTailH + kScreenPad, kTopH);
-            // Bubble sits up-and-right of the tail like Toontown's balloon, clamped on screen.
-            const float bx = clampf(tipX - bw * 0.35f, kScreenPad, kTopW - kScreenPad - bw);
+            // Bubble sits up-and-right of the tail like Toontown's balloon (up-and-left when
+            // CFReversed mirrors it), clamped on screen.
+            const float bx = clampf(tipX - bw * (s.reversed ? 0.65f : 0.35f), kScreenPad, kTopW - kScreenPad - bw);
             const float by = tipY - kTailH - bh;
             const float tailX = clampf(tipX, bx + kBubbleRadius + kTailHalfW, bx + bw - kBubbleRadius - kTailHalfW);
             const u32 ol = withAlpha(kOutline, a), fill = withAlpha(kBubble, a);

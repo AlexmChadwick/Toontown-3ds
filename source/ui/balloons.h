@@ -39,9 +39,10 @@ public:
     // units). phrase may be null/empty for "nametag only". ageSec is the time since the
     // phrase was said; past kHoldSec + kFadeSec the nametag is shown instead. depth (eye
     // distance, from projectToScreen) orders drawing far-to-near. Extra speakers beyond
-    // kMaxSpeakers are dropped (callers should add nearest first).
+    // kMaxSpeakers are dropped (callers should add nearest first). reversed (chat flag CFReversed)
+    // puts the bubble up-and-left of its tail instead of up-and-right, as ChatBalloon mirrors it.
     void addSpeaker(float sx, float sy, const char* name, const char* phrase, float ageSec, float depth = 0.0f,
-                    u32 nameColor = kNameColorToon);
+                    u32 nameColor = kNameColorToon, bool reversed = false);
     // Draws on the top target. Must be inside C3D_FrameBegin/End, after Renderer::endWorld()
     // and C2D_Prepare(). parallaxPx shifts everything horizontally (stereo: +/- per eye).
     void draw(C3D_RenderTarget* top, float parallaxPx = 0.0f);
@@ -64,6 +65,7 @@ private:
         const char* phrase;
         u32 nameColor;
         int nameEntry, phraseEntry;
+        bool reversed;
     };
 
     int resolve(const char* s, bool wrap); // -1 if the cache must be flushed first
