@@ -195,8 +195,11 @@ Key decisions:
      A tile holds only the UV rectangle that chunk samples, sized by screen need:
      0.5 texel per top-screen pixel at the closest walkable floor point (eye height,
      distance clamped 12..160), capped by the source, multiples of 16 up to 240,
-     8px gutter, three per-tile mips, skyline packed. Ground textures stay standalone
-     at 256 only where atlasing their repeats would multiply triangles. A shared
+     8px gutter, four per-tile mips, skyline packed. Ground textures stay standalone
+     at 256 only where atlasing their repeats would multiply triangles. PICA mips
+     stop at 8x8 and clamp there, so a repeating standalone texture's last level is
+     its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
+     face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A shared
      64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
      such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
      vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts

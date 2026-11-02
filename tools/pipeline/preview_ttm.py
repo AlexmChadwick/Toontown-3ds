@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
 from panda3d.core import (AlphaTestAttrib, ColorBlendAttrib, CullFaceAttrib, Geom,  # noqa: E402
                           GeomNode, GeomTriangles, GeomVertexData, GeomVertexFormat,
-                          GeomVertexWriter, NodePath, PNMImage, RenderAttrib, Texture,
+                          GeomVertexWriter, NodePath, PNMImage, PTA_uchar, RenderAttrib, SamplerState, Texture,
                           TransparencyAttrib, loadPrcFileData)
 
 loadPrcFileData('', 'window-type offscreen\naudio-library-name null\nnotify-level warning\n'
@@ -96,6 +96,23 @@ def load(path, tints):
                 img.setXelA(x, y, r, g, b, a)
         tex = Texture(name.rstrip(b'\0').decode())
         tex.load(img)
+        if os.environ.get('PREVIEW_MIPS') and mips > 1:
+            # The stored chain, as the GPU samples it (linear mip, no levels past the last).
+            tex.setMinfilter(Texture.FT_linear_mipmap_linear)
+            off, lw, lh = doff, w, h
+            for lv in range(mips):
+                n = ttm.BITS_PER_PIXEL[fmt] * lw * lh // 8
+                if lv:
+                    lp = untile(buf[off:off + n], lw, lh, fmt)
+                    raw = np.ascontiguousarray(lp[::-1, :, [2, 1, 0, 3]]).tobytes()
+                    arr = PTA_uchar.emptyArray(len(raw))
+                    memoryview(arr)[:] = raw
+                    tex.setRamMipmapImage(lv, arr)
+                off += n
+                lw, lh = lw // 2, lh // 2
+            smp = SamplerState(tex.getDefaultSampler())
+            smp.setMaxLod(mips - 1)
+            tex.setDefaultSampler(smp)
         tex.setWrapU(Texture.WM_repeat if ws == ttm.GPU_REPEAT else Texture.WM_clamp)
         tex.setWrapV(Texture.WM_repeat if wt == ttm.GPU_REPEAT else Texture.WM_clamp)
         textures.append(tex)

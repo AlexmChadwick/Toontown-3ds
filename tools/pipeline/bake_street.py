@@ -32,7 +32,7 @@ import sign_text
 # --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
 # Cog HQs still use the shared 64px atlas (street_atlas.build).
 SHARED_NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
-NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
+NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=4, large_ground=True)
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
 # render/quality.h lodMust (Old, New): upgraded first, still inside DRAW_CAP.

@@ -535,3 +535,16 @@ is published; the 150-draw and 15k-triangle caps count that shown mesh, not the
 near mesh still loading. Vertex and index uploads are sliced at 64 KB with the
 textures. The other 36 zones still drop letters from the far mesh until the next
 full bake.
+
+## Mip depth: near tiles and repeating textures (2026-11-02)
+
+Chunk-local near tiles keep four per-tile mips (the 8px gutter is still 1px at the
+last level, so nothing bleeds). PICA textures cannot go below 8x8 and the sampler
+clamps at the last level, while Panda continues to 1x1. A texture repeated many
+times across a face seen nearly edge-on therefore averaged out on PC but showed its
+8x8 pattern at full contrast on the 3DS: the TTC gag shop's awning end cap
+(`awning_edge`, nine repeats) drew a bright pink and yellow streak beside the door.
+`street_atlas._repeat_mips` gives every repeating standalone texture a last level of
+its mean colour, keeping the alpha pattern so cutout coverage does not change.
+`preview_ttm.py` with `PREVIEW_MIPS=1` samples the stored levels as the GPU does; it
+reproduces the Azahar streak and is the way to check mip changes offline.

@@ -2,7 +2,7 @@
 
 The default (what existing callers and the atlas unit test use) is 32px tiles,
 four-pixel gutters and a base mip only. bake_street passes a near profile:
-64px tiles, an 8px gutter and three mip levels downsampled per tile so the
+64px tiles, an 8px gutter and mip levels downsampled per tile so the
 gutter still isolates neighbours. Large ground textures are optionally kept as
 standalone pages (256 near, 128 far) instead of the prop atlas. Automatic
 whole-page mips are never used: they would bleed across tiles. Large tiled
@@ -483,9 +483,10 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
         if idx not in shared:
             size = 256 if sign_text.is_font_texture(sources[idx]) else standalone_size
             image, nc, pf = texture_pixels(sources[idx], size)
+            ws = extract._WRAP.get(sources[idx].getWrapU(), 2)
+            wt = extract._WRAP.get(sources[idx].getWrapV(), 2)
             shared[idx] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
-                                      extract._WRAP.get(sources[idx].getWrapU(), 2),
-                                      extract._WRAP.get(sources[idx].getWrapV(), 2))
+                                      ws, wt, levels=_repeat_mips(image, ws, wt))
         return shared[idx]
     need = ViewDensity(view_points, density, near=view_near, far=view_far)
     cache = _SourceCache(sources)
@@ -596,6 +597,24 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                       'sizes': sorted(((sources[i].getName(), t[2], t[3]) for i, t in tiles.items()),
                                       key=lambda r: -r[1] * r[2])})
     return out_tex, out_batches, stats
+
+
+def _repeat_mips(image, wrap_s, wrap_t):
+    """Mip chain of a standalone texture; a repeating one ends on its mean colour.
+
+    PICA levels stop at 8x8 and the sampler clamps there. Panda goes on to 1x1, so a
+    texture repeated many times across a face seen edge-on (the gag shop awning end,
+    awning_edge nine times along a sliver) averages out on PC but strobes its 8x8
+    pattern on the 3DS. The last level takes the colour the levels below it would
+    reach; alpha keeps its pattern so cutout coverage is unchanged.
+    """
+    levels = ttm.mip_chain(image)
+    if len(levels) > 1 and ttm.GPU_REPEAT in (wrap_s, wrap_t):
+        last = levels[-1].copy()
+        rgb = levels[0][..., :3].reshape(-1, 3).astype(np.float64).mean(axis=0)
+        last[..., :3] = np.round(rgb).astype(np.uint8)
+        levels[-1] = last
+    return levels
 
 
 def _tile_mips_rect(page, slots, levels):
