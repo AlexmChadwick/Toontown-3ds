@@ -176,6 +176,7 @@ void TutorialFlow::run(const quest::ScriptCmd& cmd, const char* text) {
         if (cmd.key && !strcmp(cmd.key, "QuestScriptTutorialMickey_4")) text = "Come here! Use the Circle Pad to move.";
         setLine(text);
         persist_ = cmd.op == ScriptOp::LocalChatPersist;
+        reversed_ = (cmd.flags & quest::kScriptReversed) != 0;
         speaker_ = cmd.var;
         TT_LOG("tutorial: dialogue %s", line_);
         break;

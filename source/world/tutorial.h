@@ -22,6 +22,8 @@ public:
     bool arrows() const { return arrows_; }
     // The speaker's current balloon page (setPageChat pages split at \x07).
     const char* text() const { return numPages_ ? pages_[page_] : ""; }
+    // The current line was given "CFReversed" (Tom's 101 lines, Flippy's last four).
+    bool reversed() const { return reversed_; }
     // A LOCAL_CHAT_PERSIST line the movie ended on (tutorial_mickey's "Come here!"): it stays up
     // over its speaker after the script until the player talks to him (dropPersist).
     bool persisting() const { return persist_ && numPages_ && !player_.active(); }
@@ -131,6 +133,7 @@ private:
     const char* pages_[kMaxPages] = {};
     int numPages_ = 0, page_ = 0;
     bool persist_ = false;
+    bool reversed_ = false; // the current line's chat flag CFReversed
     bool arrows_ = false;
     quest::ScriptVar card_ = quest::ScriptVar::None;
     quest::ScriptVar speaker_ = quest::ScriptVar::None;

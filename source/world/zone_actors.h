@@ -27,10 +27,12 @@ public:
     void update(float dt);
     void draw(render::Renderer& renderer, const C3D_FVec& cameraEye);
     void addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const;
-    // What an NPC is saying (quest dialog), shown in its balloon; null clears.
-    void setSpeech(u32 npcDoId, const char* text) {
+    // What an NPC is saying (quest dialog), shown in its balloon; null clears. reversed: the
+    // script line's CFReversed flag (the balloon mirrored to the speaker's left).
+    void setSpeech(u32 npcDoId, const char* text, bool reversed = false) {
         speechNpc_ = text ? npcDoId : 0;
         speech_ = text;
+        speechReversed_ = text && reversed;
     }
     // Treasure the toon at (x, y, z) is touching, or 0 (DistributedTreasure sphere r = 2).
     u32 touchingTreasure(float x, float y, float z) const;
@@ -91,6 +93,7 @@ private:
     float time_ = 0.0f;
     u32 speechNpc_ = 0;
     const char* speech_ = nullptr;
+    bool speechReversed_ = false;
 };
 
 } // namespace tt::world

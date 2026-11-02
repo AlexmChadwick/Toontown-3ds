@@ -1668,6 +1668,22 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
         if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
         pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_toonUp || fieldId == dc::DistributedToon::k_takeDamage) {
+        // DistributedToon.toonUp / takeDamage: the AI's setHp follows; the gain is clamped to maxHp
+        static_assert(dc::sigEq(dc::DistributedToon::sig_toonUp, "u16"), "toonUp layout changed");
+        static_assert(dc::sigEq(dc::DistributedToon::sig_takeDamage, "u16"), "takeDamage layout changed");
+        const int v = r.u16();
+        if (!r.ok()) return false;
+        const int old = ownStats_.hp > 0 ? ownStats_.hp : 0;
+        int hp;
+        if (fieldId == dc::DistributedToon::k_toonUp) hp = old + v < ownStats_.maxHp ? old + v : ownStats_.maxHp;
+        else hp = old - v > 0 ? old - v : 0;
+        if (ownStats_.hp > 0 || fieldId == dc::DistributedToon::k_toonUp) ownStats_.hp = int16_t(hp);
+        if (hp != old) {
+            ownStats_.hpTextValue = int16_t(hp - old);
+            ownStats_.hpTextMs = now_ ? now_ : 1;
+        }
+        pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setTeleportAccess ||
                fieldId == dc::DistributedToon::k_setHoodsVisited) {
         uint32_t bits = 0;

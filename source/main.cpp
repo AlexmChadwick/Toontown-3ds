@@ -3452,7 +3452,7 @@ int main() {
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
-                zoneActors.setSpeech(talker, said);
+                zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
                 // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
                 if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);
             }
@@ -3467,6 +3467,24 @@ int main() {
                 float sx, sy, depth;
                 if (tt::ui::projectToScreen(proj, view, p.x, p.y, p.z, &sx, &sy, &depth)) {
                     balloons.addSpeaker(sx, sy - p.rise * p.age, p.text, nullptr, 99.0f, 0.0f, p.color);
+                }
+            }
+            // DistributedToon.showHpText: toonUp / takeDamage (HQ Harry's +1 Laff, treasures, the playground heal)
+            // rises from half the Toon's height to height + 1.5 in 1 s (easeOut), stays 0.85 s, then goes
+            if (netStarted && !battle.active() && !tutorial.toonHidden()) {
+                const tt::net::OwnStats& st = net.ownStats();
+                const uint32_t age = tt::net::plat::nowMs() - st.hpTextMs;
+                if (st.hpTextMs && st.hpTextValue && age < 1950) {
+                    const float h = localLook.valid() ? localLook.nametagHeight - 0.5f : 3.5f;
+                    const float u = age < 1000 ? age / 1000.0f : 1.0f;
+                    const float z = h * 0.5f + (h * 0.5f + 1.5f) * (3.0f * u - u * u * u) * 0.5f;
+                    float hx, hy, hd;
+                    if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + z, &hx, &hy, &hd)) {
+                        char hpText[8];
+                        snprintf(hpText, sizeof(hpText), st.hpTextValue > 0 ? "+%d" : "%d", int(st.hpTextValue));
+                        // green (0, 0.9, 0) / red (0.9, 0, 0), ABGR as ui::Balloons takes it
+                        balloons.addSpeaker(hx, hy, hpText, nullptr, 99.0f, 0.0f, st.hpTextValue > 0 ? 0xFF00E600 : 0xFF0000E6);
+                    }
                 }
             }
             balloons.draw(renderer.topLeft());

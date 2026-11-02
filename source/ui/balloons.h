@@ -26,8 +26,9 @@ public:
     static constexpr float kMaxTextW = 160.0f;
     // Approximation of libotp's CCNormal nametag (the C++ nametag code is not in ref/).
     static constexpr u32 kNameColorToon = 0xFFC04020; // ABGR: RGB(0x20,0x40,0xC0)
-    // NametagGlobals CCNonPlayer name fg (0.8, 0.4, 0.0): NPC Toons (DistributedNPCToonBase setPlayerType)
-    static constexpr u32 kNameColorNpc = 0xFF0066CC; // ABGR: RGB(0xCC,0x66,0x00)
+    // NametagGlobals CCNonPlayer name fg, inactive state (0.6, 0.4, 0.2): NPC Toons are never pickable
+    // (DistributedNPCToonBase setPickable(0)), so libotp draws their names inactive
+    static constexpr u32 kNameColorNpc = 0xFF336699; // ABGR: RGB(0x99,0x66,0x33)
 
     bool init();
     void shutdown();
@@ -38,9 +39,10 @@ public:
     // units). phrase may be null/empty for "nametag only". ageSec is the time since the
     // phrase was said; past kHoldSec + kFadeSec the nametag is shown instead. depth (eye
     // distance, from projectToScreen) orders drawing far-to-near. Extra speakers beyond
-    // kMaxSpeakers are dropped (callers should add nearest first).
+    // kMaxSpeakers are dropped (callers should add nearest first). reversed (chat flag CFReversed)
+    // puts the bubble up-and-left of its tail instead of up-and-right, as ChatBalloon mirrors it.
     void addSpeaker(float sx, float sy, const char* name, const char* phrase, float ageSec, float depth = 0.0f,
-                    u32 nameColor = kNameColorToon);
+                    u32 nameColor = kNameColorToon, bool reversed = false);
     // Draws on the top target. Must be inside C3D_FrameBegin/End, after Renderer::endWorld()
     // and C2D_Prepare(). parallaxPx shifts everything horizontally (stereo: +/- per eye).
     void draw(C3D_RenderTarget* top, float parallaxPx = 0.0f);
@@ -63,6 +65,7 @@ private:
         const char* phrase;
         u32 nameColor;
         int nameEntry, phraseEntry;
+        bool reversed;
     };
 
     int resolve(const char* s, bool wrap); // -1 if the cache must be flushed first
