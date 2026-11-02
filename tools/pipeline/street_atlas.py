@@ -456,7 +456,7 @@ def _shelf_pack(rects, page_sizes):
 
 
 def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_levels=3, standalone_size=256,
-                large_ground=True, pages=LOCAL_PAGES):
+                large_ground=True, pages=LOCAL_PAGES, view_near=12.0, view_far=160.0, name='local_atlas'):
     """Per-chunk textures and batches: chunk-local pages (see the note above).
 
     Returns (per-chunk texture lists, per-chunk batches indexing that chunk's list,
@@ -487,7 +487,7 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                                       extract._WRAP.get(sources[idx].getWrapU(), 2),
                                       extract._WRAP.get(sources[idx].getWrapV(), 2))
         return shared[idx]
-    need = ViewDensity(view_points, density)
+    need = ViewDensity(view_points, density, near=view_near, far=view_far)
     cache = _SourceCache(sources)
     alpha_of = {}
     out_tex, out_batches, stats = [], [], []
@@ -556,7 +556,7 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                     mapping[i] = (len(textures), x, y, tw, th, pw, ph)
                 levels = _tile_mips_rect(px, slots, mip_levels)
                 fmt = ttm.GPU_ETC1A4 if alpha else ttm.GPU_ETC1
-                textures.append(ttm.Texture(f'local_atlas_{len(out_tex)}_{len(textures)}', px, fmt, 0, 0,
+                textures.append(ttm.Texture(f'{name}_{len(out_tex)}_{len(textures)}', px, fmt, 0, 0,
                                             mipmaps=False, levels=levels))
         for idx in sorted({b.texture for b in batches if b.texture in standalone}):
             mapping[idx] = (len(textures), None, None, None, None, None, None)
