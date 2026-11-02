@@ -26,8 +26,9 @@ public:
     static constexpr float kMaxTextW = 160.0f;
     // Approximation of libotp's CCNormal nametag (the C++ nametag code is not in ref/).
     static constexpr u32 kNameColorToon = 0xFFC04020; // ABGR: RGB(0x20,0x40,0xC0)
-    // NametagGlobals CCNonPlayer name fg (0.8, 0.4, 0.0): NPC Toons (DistributedNPCToonBase setPlayerType)
-    static constexpr u32 kNameColorNpc = 0xFF0066CC; // ABGR: RGB(0xCC,0x66,0x00)
+    // NametagGlobals CCNonPlayer name fg, inactive state (0.6, 0.4, 0.2): NPC Toons are never pickable
+    // (DistributedNPCToonBase setPickable(0)), so libotp draws their names inactive
+    static constexpr u32 kNameColorNpc = 0xFF336699; // ABGR: RGB(0x99,0x66,0x33)
 
     bool init();
     void shutdown();
