@@ -330,7 +330,6 @@ bool BattleFx::init() {
         {"sdmc:/3ds/toontown3ds/data/props/squirting-flower.ttm", &flowerModel_},
         {"sdmc:/3ds/toontown3ds/data/props/water-gun.ttm", &watergunModel_},
         {"sdmc:/3ds/toontown3ds/data/props/bottle.ttm", &bottleModel_},
-        {"sdmc:/3ds/toontown3ds/data/props/splash.ttm", &splashModel_},
         {"sdmc:/3ds/toontown3ds/data/props/megaphone.ttm", &megaphoneModel_},
         {"sdmc:/3ds/toontown3ds/data/props/button.ttm", &buttonModel_},
         {"sdmc:/3ds/toontown3ds/data/props/feather_full.ttm", &featherModel_},
@@ -371,7 +370,6 @@ void BattleFx::shutdown() {
     flowerModel_.unload();
     watergunModel_.unload();
     bottleModel_.unload();
-    splashModel_.unload();
     megaphoneModel_.unload();
     buttonModel_.unload();
     featherModel_.unload();
@@ -584,7 +582,6 @@ void BattleFx::onHit(uint32_t targetId, uint32_t attackerId, int track, int leve
                 splats_[i].level = level;
                 splats_[i].startMs = nowMs_;
                 splats_[i].durMs = 500;
-                splats_[i].isSplash = (track == 5);
                 break;
             }
         }
@@ -720,17 +717,25 @@ void BattleFx::drawSplatDemo(render::Renderer& renderer, int track, int level, f
     s.active = true;
     s.track = track;
     s.level = level;
-    s.isSplash = track == 5;
     s.x = x, s.y = y, s.z = z, s.h = h;
     nowMs_ = 1000000u;
     s.startMs = nowMs_ - uint32_t(age * 1000.0f);
     s.durMs = 0xFFFFFFu;
     draw(renderer, nullptr, nullptr);
     memcpy(splats_, keep, sizeof keep);
+    if (render::Model* prop = getPropModel(track, level); prop && prop->loaded()) {
+        // The thrown or squirted prop itself, a little above the splat.
+        C3D_Mtx m;
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, x, y, z + 4.5f, true);
+        Mtx_RotateZ(&m, h * kDegToRad, true);
+        renderer.drawModel(*prop, m);
+    }
+    if (track == 4 && level == 2) drawExplosion(renderer, x, y, z + 7.0f, float(keepNow % 1250u) / 1000.0f); // Cog death
     nowMs_ = keepNow;
 }
 
-void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float z) const {
+void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float z, float age) const {
     if (!explosionModel_.loaded()) return;
     // setBillboardPointEye: the card's +Y points from the eye through the burst.
     const C3D_FVec& eye = renderer.eye();
@@ -742,7 +747,11 @@ void BattleFx::drawExplosion(render::Renderer& renderer, float x, float y, float
     Mtx_RotateZ(&m, atan2f(-dx, dy), true);
     Mtx_RotateX(&m, atan2f(dz, flat), true);
     Mtx_Scale(&m, 0.4f, 0.4f, 0.4f);
+    // Older bakes flattened the frames into one overlapping card (two batches); draw those whole.
+    const int frames = int(explosionModel_.numBatches());
+    if (frames > 2) renderer.setOnlyBatch(int(age * 24.0f) % frames);
     renderer.drawModel(const_cast<render::Model&>(explosionModel_), m);
+    renderer.setOnlyBatch(-1);
 }
 
 void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook) {
@@ -787,11 +796,9 @@ void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const Toon
             Mtx_RotateZ(&m, s.h * kDegToRad, true);
             Mtx_Scale(&m, cfg.scale, cfg.scale, cfg.scale);
 
-            if (s.isSplash) {
-                renderer.setBaseTint(cfg.r, cfg.g, cfg.b, cfg.a);
-                if (splashModel_.loaded()) renderer.drawModel(splashModel_, m);
-                renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
-            } else if (splatModel_.loaded() && splatAnim_.loaded()) {
+            // Squirt hits are MovieSquirt's 'splash-from-splat': the same splat actor as the
+            // pies, coloured (0.75, 0.75, 1). (splash.bam is a 4-frame water flipbook.)
+            if (splatModel_.loaded() && splatAnim_.loaded()) {
                 u32 a = 0, b = 0;
                 float blend = 0.0f;
                 render::sampleClip(splatAnim_, age, &a, &b, &blend);
@@ -806,7 +813,8 @@ void BattleFx::draw(render::Renderer& renderer, const Battle* battle, const Toon
     // billboarded to the eye, at the Cog's height - 0.2, for 0.6 s.
     for (int i = 0; i < kMaxKapows; ++i) {
         const ActiveKapow& k = kapows_[i];
-        if (k.active && nowMs_ >= k.startMs) drawExplosion(renderer, k.x, k.y, k.z + (k.height > 0 ? k.height - 0.2f : 3.0f));
+        if (k.active && nowMs_ >= k.startMs) drawExplosion(renderer, k.x, k.y, k.z + (k.height > 0 ? k.height - 0.2f : 3.0f),
+                                                        float(nowMs_ - k.startMs) / 1000.0f);
     }
 
     // 4. Draw held props

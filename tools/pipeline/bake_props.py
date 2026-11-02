@@ -64,6 +64,28 @@ def atlas(base,out,preview):
     return metadata
 
 
+def bake_flipbook(base,out,name,model):
+    """A SequenceNode flipbook (explosion.bam: 10 cards on one 256 px page, 24 fps): one batch
+    per frame in sequence order on the shared page at full size, so the runtime can show one
+    frame at a time. Flattened together the cards overlapped as a blocky blur."""
+    prop=base.loader.loadModel(model)
+    seq=prop.find('**/+SequenceNode')
+    assert not seq.isEmpty(),model
+    textures=None;batches=[]
+    for frame in seq.getChildren():
+        root=NodePath('frame');card=frame.copyTo(root);card.setMat(frame.getMat(prop))
+        ex,b=capture(root,True,animated=False,max_tex=256)
+        assert len(b)==1 and len(ex.textures)==1,(model,len(b))
+        if textures is None:textures=ex.textures
+        assert ex.textures[0].data==textures[0].data,model  # every card samples the same page
+        b[0].texture=0;batches+=b;root.removeNode()
+    filename=name+'.ttm'
+    info=dict(file=filename,source_model=model,clips={},frames=len(batches),
+              frame_rate=seq.node().getFrameRate(),**ttm.write(out/filename,textures,batches))
+    prop.removeNode()
+    return info
+
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--out',type=Path,default=DATA/'props')
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
@@ -76,7 +98,9 @@ def main():
     manifest=dict(version=1,props={})
     for name in WANTED:
         row=entries[name];model=f'phase_{row[0]:g}/models/props/{row[2]}'
-        if len(row)==4:
+        if name=='explosion':
+            info=bake_flipbook(base,args.out,name,model)
+        elif len(row)==4:
             clip=f'phase_{row[0]:g}/models/props/{row[3]}'
             info=bake_actor(base,args.out,name,model,{'action':clip},{'full':4000})['full']
         else:

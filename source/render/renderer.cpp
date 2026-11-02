@@ -275,6 +275,7 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
     for (u32 i = 0; i < model.numBatches(); i++) {
         const Batch& b = model.batch(i);
         if (blendPass_ && (b.blend == kBlendAlpha) != (blendPass_ == 2)) continue;
+        if (onlyBatch_ >= 0 && int(i) != onlyBatch_) continue;
 
         const float *color = tints && b.tint ? tints->rgba[b.tint] : baseTint_;
         if (batchState_.uploadTint(color)) {

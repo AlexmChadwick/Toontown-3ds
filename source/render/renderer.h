@@ -44,6 +44,9 @@ public:
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                    const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
+    // Draw only batch `i` of the next drawModel calls (-1: all). Flipbook props such as the
+    // Cog-death explosion keep one card per frame; set back to -1 after the draw.
+    void setOnlyBatch(int i) { onlyBatch_ = i; }
     // Colour multiplier for batches without a tint slot (default white). Used e.g. to draw
     // the drop shadow card black and translucent.
     void setBaseTint(float r, float g, float b, float a) {
@@ -108,6 +111,7 @@ private:
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    int onlyBatch_ = -1;
     int blendPass_ = 0; // setBlendPass
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;

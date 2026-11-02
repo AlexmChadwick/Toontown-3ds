@@ -178,7 +178,8 @@ public:
     // torso's JNT hand joint. Call draw() after the toons are drawn this frame.
     using ToonLookup = const ToonAvatar* (*)(void* user, uint32_t doId);
     void setToonLookup(ToonLookup fn, void* user) { toonLookup_ = fn; toonLookupUser_ = user; }
-    void drawExplosion(render::Renderer& renderer, float x, float y, float z) const;
+    // explosion.bam's SequenceNode: one card per frame at 24 fps, looping; `age` in seconds.
+    void drawExplosion(render::Renderer& renderer, float x, float y, float z, float age) const;
 
 
     // Sound cue playback
@@ -194,7 +195,6 @@ private:
     render::Model flowerModel_;
     render::Model watergunModel_;
     render::Model bottleModel_;
-    render::Model splashModel_;
     render::Model megaphoneModel_;
     render::Model buttonModel_;
     render::Model featherModel_;
@@ -244,7 +244,6 @@ private:
         int level = 0;
         uint32_t startMs = 0;
         uint32_t durMs = 500;
-        bool isSplash = false;
     };
     static constexpr int kMaxSplats = 4;
     ActiveSplat splats_[kMaxSplats] = {};

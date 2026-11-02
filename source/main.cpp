@@ -2883,7 +2883,7 @@ int main() {
                     tt::world::makeNetString(d, net);
                     char name[32];
                     snprintf(name, sizeof name, "%s %s", dt_::kHeadTypes[head], dt_::kTorsoTypes[d.torso]);
-                    const float side = (i - 1.5f) * 3.5f, ahead = 10.0f;
+                    const float side = (i < 2 ? -5.0f + 2.4f * i : 2.6f + 2.4f * (i - 2)), ahead = 5.0f; // centre clear
                     const bool ok = zoneActors.spawnLocalNpc(0x7F00F000u + i, name, net,
                                                              player.x() - sinf(hh) * ahead + cosf(hh) * side,
                                                              player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
