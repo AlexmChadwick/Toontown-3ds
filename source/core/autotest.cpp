@@ -85,6 +85,10 @@ const Step kScript[] = {
     // ---- end padnav ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: gags", "book_gags"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: tasks", "book_tasks"},
+    // Sample QuestPosters (main.cpp fills them in for these steps only).
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 1", "book_tasks_demo1"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 2", "book_tasks_demo2"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 3", "book_tasks_demo3"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: cogs", "book_cogs"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: disguise", "book_disguise"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: fish", "book_fish"},
@@ -133,6 +137,15 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase", "showcase"},
+    // Every Cog type, four at a time (SuitDNA.suitHeadTypes order).
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 1", "showcase1"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 2", "showcase2"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 3", "showcase3"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 4", "showcase4"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 5", "showcase5"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 6", "showcase6"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 7", "showcase7"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 8", "showcase8"},
     {1.3f, 0, 0, 0, 0, -1, -1, 0, "clip: throw", "clip_throw"},
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},

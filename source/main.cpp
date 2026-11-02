@@ -964,7 +964,7 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
             if (!strcmp(page, "gags")) ui.openBookPage(tt::ui::Book::kPageGags);
-            else if (!strcmp(page, "tasks")) ui.openBookPage(tt::ui::Book::kPageTasks);
+            else if (!strncmp(page, "tasks", 5)) ui.openBookPage(tt::ui::Book::kPageTasks); // + "tasks demo N"
             else if (!strcmp(page, "cogs")) ui.openBookPage(tt::ui::Book::kPageCogs);
             else if (!strcmp(page, "disguise")) ui.openBookPage(tt::ui::Book::kPageDisguise);
             else if (!strcmp(page, "fish")) ui.openBookPage(tt::ui::Book::kPageFish);
@@ -3245,9 +3245,16 @@ int main() {
                 battleFx.draw(renderer, &battle, localLook.valid() ? &localLook : nullptr);
             }
             if (netStarted) cogBuildings.draw(renderer, net);
-            if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
-                // Test-only: four real Cogs (one per department) in front of the toon.
-                static const char* const kShow[4] = {"f", "bf", "sc", "cc"};
+            if (autotest.active() && !strncmp(autotest.label(), "cog showcase", 12)) {
+                // Test-only: four real Cogs in front of the toon: one per department, or for
+                // "cog showcase N" (1..8) the Nth four of SuitDNA.suitHeadTypes.
+                static const char* const kDepts[4] = {"f", "bf", "sc", "cc"};
+                static const char* const kAll[32] = {"f",  "p",  "ym", "mm", "ds", "hh", "cr", "tbc",
+                                                     "bf", "b",  "dt", "ac", "bs", "sd", "le", "bw",
+                                                     "sc", "pp", "tw", "bc", "nc", "mb", "ls", "rb",
+                                                     "cc", "tm", "nd", "gh", "ms", "tf", "m",  "mh"};
+                const int set = autotest.label()[12] == ' ' ? atoi(autotest.label() + 13) : 0;
+                const char* const* kShow = set >= 1 && set <= 8 ? kAll + (set - 1) * 4 : kDepts;
                 const float hh = player.headingDeg() * kDegToRad;
                 for (int i = 0; i < 4; i++) {
                     const float side = (i - 1.5f) * 4.0f, ahead = 12.0f;
@@ -3527,6 +3534,26 @@ int main() {
         ctx.fishing = fishing.view();
         if (netStarted && net.inZone()) {
             ctx.quests = &net.ownQuests();
+            // "book: tasks demo N" steps show sample QuestPosters of every kind (cog head,
+            // department, any cog, visit, complete with the NPC to return to, gags, items).
+            if (autotest.active() && !strncmp(autotest.label(), "book: tasks demo ", 17)) {
+                static tt::net::OwnQuests demo;
+                static const uint32_t kDemo[3][2][3] = {{{101, 0, 1000}, {166, 1, 3}},   // Flunky, Bossbots
+                                                        {{164, 0, 2002}, {101, 1, 1000}}, // visit; complete
+                                                        {{2159, 0, 1}, {1044, 2, 3}}};    // gags; recover
+                const int n = (autotest.label()[17] - '1') % 3;
+                demo.count = 2;
+                demo.carryLimit = 2;
+                for (int i = 0; i < 2; i++) {
+                    demo.quests[i] = tt::net::QuestEntry{};
+                    demo.quests[i].questId = kDemo[n][i][0];
+                    demo.quests[i].progress = kDemo[n][i][1];
+                    demo.quests[i].toNpc = kDemo[n][i][2];
+                    demo.quests[i].reward = 100;
+                }
+                demo.version = 1000 + n;
+                ctx.quests = &demo;
+            }
             for (int i = 0; i < tt::net::kMaxRemoteToons && ctx.numNearby < 8; i++) {
                 const tt::net::RemoteToon& t = net.remoteToonSlot(i);
                 if (!t.active) continue;

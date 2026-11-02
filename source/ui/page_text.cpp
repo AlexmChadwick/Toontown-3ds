@@ -24,7 +24,7 @@ void PageText::shutdown() {
 }
 
 float PageText::emit(Align a, float x, float y, float scale, u32 color, float maxW, const char* str) {
-    if (!buf_ || !cache_ || !str[0]) return 0.0f;
+    if (!buf_ || !cache_ || !str[0] || measureOnly_) return 0.0f;
     C2D_Text t;
     cache_->parse(&t, buf_, str, cap_);
     float w = 0.0f;
@@ -105,6 +105,13 @@ int PageText::wrap(float x, float y, float scale, u32 color, float maxW, float l
         p += best;
         ++lines;
     }
+    return lines;
+}
+
+int PageText::wrapLines(float scale, float maxW, int maxLines, const char* str) {
+    measureOnly_ = true;
+    const int lines = wrap(0, 0, scale, 0, maxW, 0, maxLines, str);
+    measureOnly_ = false;
     return lines;
 }
 
