@@ -156,6 +156,8 @@ const Step kScript[] = {
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 7", "toonshow7"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 8", "toonshow8"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 9", "toonshow9"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 10", "toonshow10"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 11", "toonshow11"},
     {1.3f, 0, 0, 0, 0, -1, -1, 0, "clip: throw", "clip_throw"},
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},

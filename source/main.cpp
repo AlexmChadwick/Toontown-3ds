@@ -2857,11 +2857,12 @@ int main() {
                 namespace dt_ = tt::world::dna_tables;
                 const float hh = player.headingDeg() * kDegToRad;
                 for (int i = 0; want > 0 && i < 4; i++) {
-                    const unsigned head = unsigned(want - 1) * 4 + i;
+                    // 10 / 11 (diagnostic): four copies of set 1's third / first Toon.
+                    const unsigned head = want == 10 ? 2u : want == 11 ? 0u : unsigned(want - 1) * 4 + i;
                     if (head >= dt_::kNumHeadTypes) break;
                     tt::world::ToonDna d;
                     d.head = uint8_t(head);
-                    d.gender = i % 2 ? tt::world::Gender::Female : tt::world::Gender::Male;
+                    d.gender = (want >= 10 ? head : unsigned(i)) % 2 ? tt::world::Gender::Female : tt::world::Gender::Male;
                     d.legs = uint8_t(head % 3);
                     d.topTex = uint8_t((head * 37 + 5) % dt_::kNumShirts);
                     d.sleeveTex = uint8_t((head * 29 + 3) % dt_::kNumSleeves);

@@ -123,6 +123,8 @@ private:
         static constexpr int kClips = 10;
         char clipName[kClips][24] = {};
         render::Anim clips[kClips];
+        u32 clipUsedMs[kClips] = {};    // last frame a Cog played the clip
+        bool clipEvicting[kClips] = {}; // re-pointed: held back until the old clip is freed
         // Suit.getLoseActor: a defeated Cog swaps to its lose-mod model with its own 'lose'
         // animation (the head is instanced onto its joint_head); loaded the first time.
         bool loseTried = false, loseBad = false;
@@ -134,6 +136,8 @@ private:
     struct Head {
         char code[4] = {};
         bool tried = false;
+        bool evicting = false; // re-pointed at another head: hidden until the old one is freed
+        u32 usedMs = 0;        // last frame a Cog asked for this head
         render::Model model;
     };
     static constexpr int kMaxHeads = 12;
