@@ -146,6 +146,9 @@ def load(path, tints):
             np_.setAttrib(AlphaTestAttrib.make(RenderAttrib.M_greater, 0.5))
         elif blend == ttm.BLEND_ALPHA:
             np_.setTransparency(TransparencyAttrib.M_alpha)
+            # Renderer::drawModel: blended batches test depth but write colour only, so
+            # coplanar sign shadows and letters keep their draw order.
+            np_.setDepthWrite(False)
         if flags & 1:
             np_.setTwoSided(True)
         if layer:
