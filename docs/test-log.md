@@ -1996,3 +1996,22 @@ generic far under 150 draws); Old signPick chunks get `setTextureLodBias(-1)`;
 8 ms upload budget and two publishes per update; `run.py` no longer requires
 three floor walk points.
 
+
+## 2026-11-02 - 3ds-toons lane round 3 (Azahar headless, Old + New 3DS)
+
+Branch `claude/3ds-toons-interiors` (PR #11). Local server on port 31300. Azahar via
+the lane's headless scripts (Xvfb, null audio). Emulator timing only; no hardware run.
+
+| Run | Model | Result | fps (last stats) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Full Make-a-Toon, Toontorial, TTC (tut3_old) | Old | flow complete, no faults or PARSE lines | 29.9 | 3329K / 15778K / 4194K |
+| Same (tut3_new) | New | flow complete; Tom's angry, sad and surprised eyes seen | 29.9 | 3328K / 15778K / 4194K |
+| Interiors, 47 poses (int1/int2_new) | New | every room type matches the Old sweep; sign lettering correct | 29.9 | 1819K / 18849K / 4194K |
+| GUI sweep, 59 steps (gui_new) | New | tabs, SpeedChat, every book page, quest posters | 29.9 | 3451K / 14125K / 4194K |
+| Cog showcase, 32 types + splats (cogs_new) | New | splat colours right; most heads missing (cache bug, fixed in 772cb18) | 29.9 | 2195K / 14571K / 4194K |
+| Cog showcase after 772cb18 (cogs2_old) | Old | all 32 types with heads, eviction logged | 29.9 | 2195K / 14679K / 4194K |
+| Toon showcase, 34 heads (toons_old/new, toons2_old) | Old + New | every species with its DNA clothes | 25-27 while loading | 2207K / 14669K / 4194K |
+
+Fixed this round: QuestPoster art, Cog-death explosion flipbook, squirt hit splat, white
+splat bake, Cog head and clip cache eviction. The Cog showcase draws 141-150 draws and
+16.5k triangles with 4 Cogs plus all splats in view (test-only load above the envelope).
