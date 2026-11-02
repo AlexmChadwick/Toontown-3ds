@@ -423,6 +423,14 @@ Lessons recorded for agents:
   `net: PARSE ...` now logs any message a handler reads only partly or past its end.
 - **Labels are not tests.** Several autotest steps (`cog building: *`) existed without driver
   code. A step must log what it did and fail visibly when its target is absent.
+- **Fixed asset caches must evict.** `SuitActors` once kept 12 Cog heads and 10 battle clips per
+  body until exit, so Cogs went headless after 12 types in one session. Re-point the least
+  recently used slot through the asset batch (it frees the old data at the fence) and draw
+  nothing from that slot until then.
+- **Check battle props against their source node types.** `explosion.bam` is a 10-frame
+  SequenceNode (one batch per frame, `Renderer::setOnlyBatch`), squirt hits use the splat actor
+  (`splash-from-splat`), not `splash.bam`, and props that upstream recolours with `setColor` must
+  bake white (the splat's own ColorAttrib is dark navy).
 - **Codex helpers cannot commit.** The Codex sandbox cannot write `.git`. That includes a
   worktree's metadata in the main checkout. Give Codex a standalone clone; the main agent reviews,
   commits and fetches the branch.
