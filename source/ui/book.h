@@ -40,6 +40,19 @@ public:
     void close(const char* why = "code"); // every close is logged with its reason
     void toggle();
 
+    // A QuestScript driving the book (Harry's quest_assign_110): SHOW_BOOK disables the close
+    // button until ENABLE_CLOSE_BOOK, HIDE / SHOW bookNextArrow / bookPrevArrow gate the page
+    // turns, and the page tabs stay hidden (the Toontorial's safe mode). Call every frame; all
+    // true when no script owns the book.
+    void setScriptLock(bool closeEnabled, bool nextEnabled, bool prevEnabled, bool tabsEnabled) {
+        closeEnabled_ = closeEnabled;
+        nextEnabled_ = nextEnabled;
+        prevEnabled_ = prevEnabled;
+        tabsEnabled_ = tabsEnabled;
+    }
+    bool closeEnabled() const { return closeEnabled_; }
+    bool nextEnabled() const { return nextEnabled_; }
+
     void setPage(int page);
     void nextPage();
     void prevPage();
@@ -55,6 +68,7 @@ private:
 
     bool isOpen_ = false;
     bool touchBlocked_ = false; // the stylus has not been lifted since the book opened
+    bool closeEnabled_ = true, nextEnabled_ = true, prevEnabled_ = true, tabsEnabled_ = true;
     int curPage_ = kPageGags;
 
     PageInventory pageGags_;

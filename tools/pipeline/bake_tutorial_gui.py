@@ -2,7 +2,8 @@
 """Bake Tutorial Tom's lesson cards (phase_3.5/models/gui/tutorial_gui) into one atlas.
 
 quest_assign_101 LOADs the five cards (suits, toon_buildings, suit_buildings, squirt1, squirt2)
-and parents each to the camera while Tom talks about it. The 3DS shows the card under his
+and parents each to the camera while Tom talks about it. The atlas also holds the BlinkingArrows
+arrow (phase_3/models/props/arrow) the scripts' ARROWS_ON blink at the HUD. The 3DS shows the card under his
 speech on the bottom screen (world/tutorial.* tracks which card the script has up). Each card is
 rendered offscreen into its cell, aspect preserved and centred (ui_atlas.py).
 
@@ -38,6 +39,8 @@ PARTS = [
     Part('CogBuilding', MODEL, ['suit_buildings'], (320, 0, 160, 128)),
     Part('Squirt1', MODEL, ['squirt1'], (0, 128, 160, 128)),
     Part('Squirt2', MODEL, ['squirt2'], (160, 128, 160, 128)),
+    # BlinkingArrows' phase_3/models/props/arrow (QuestParser ARROWS_ON), pointing right (R 0).
+    Part('Arrow', 'phase_3/models/props/arrow', ['poly'], (320, 128, 128, 128)),
 ]
 
 

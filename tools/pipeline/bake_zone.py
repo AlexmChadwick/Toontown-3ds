@@ -97,7 +97,12 @@ def write_points(root, path):
                                                       ':' in building.getName()):
                     building = building.getParent()
                 if not building.isEmpty():
-                    name = f'{building.getName()}/{parent.getName()}'
+                    # The index comes from the trigger (door_trigger_N): Donald's Dock's boat HQ
+                    # hangs its triggers under an unnamed node that flattening calls __decal1__,
+                    # which put both of its doors on the triggers under the wrong name.
+                    index = np_.getName().replace('_trigger', '').rsplit('_', 1)[-1]
+                    door = f'door_{index}' if index.isdigit() else parent.getName()
+                    name = f'{building.getName()}/{door}'
                     # Both door_N nodes sit at the model origin. DistributedDoor's EXT_HQ door
                     # path is the landmark's door_origin_N (hqTT: door_origin_0 faces 180,
                     # door_origin_1 0). leftDoor_N has door_origin_N's heading; the old
@@ -105,10 +110,9 @@ def write_points(root, path):
                     # the toon out of the door and put the camera inside the building against
                     # the closed leaves. assemble strips door_origin_N from landmarks the DNA
                     # does not type "hq" (the Toontorial's), so the leaves stay the fallback.
-                    index = parent.getName().rsplit('_', 1)[-1]
                     origin = building.find(f'**/door_origin_{index}')
-                    left = parent.find(f'**/leftDoor_{index}')
-                    right = parent.find(f'**/rightDoor_{index}')
+                    left = building.find(f'**/leftDoor_{index}')
+                    right = building.find(f'**/rightDoor_{index}')
                     if not origin.isEmpty():
                         p, h = origin.getPos(root), origin.getH(root)
                     elif not left.isEmpty() and not right.isEmpty():

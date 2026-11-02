@@ -190,11 +190,23 @@ Key decisions:
      drives this.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
-   - Streamed zones (`bake_street.py`) pack the near mesh as 64px tiles with an 8px
-     gutter and three per-tile mips. Ground textures (upward faces with an edge of
-     at least 8) stay standalone at 256. The far mesh samples those textures into
-     vertex colour and stores no texture pages, so a long PVS fits the 8 MiB copy
-     budget. The default of `street_atlas.build` is still the 32px single-mip page
+   - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
+     its own near atlas pages (128 to 512 px; opaque ETC1 and alpha ETC1A4 apart).
+     A tile holds only the UV rectangle that chunk samples, sized by screen need:
+     0.5 texel per top-screen pixel at the closest walkable floor point (eye height,
+     distance clamped 12..160), capped by the source, multiples of 16 up to 240,
+     8px gutter, three per-tile mips, skyline packed. Ground textures stay standalone
+     at 256 only where atlasing their repeats would multiply triangles. A shared
+     64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
+     such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
+     vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
+     (balloons, palm fronds, tree leaves) and decals (windows, doors, shop signs)
+     with unit UVs keep their texture on one small per-chunk far atlas page (16px
+     tiles, two mips, 64/128/256 page): a corner texel of a cutout is clear, so its
+     vertex-coloured copy vanished on Old 3DS past 160. Far decals are not voxel
+     snapped (they z-fought), sign letters keep priority, and far hill cards are
+     128px so far pages still fit Old's 4 MiB texture retain with Toon Hall's near
+     mesh. The default of `street_atlas.build` is still the 32px single-mip page
      used by cog HQs. The RomFS playground mesh stays at 128 because the whole
      playground is one resident model and a 256px set does not fit the 8 MiB
      texture budget. Runtime filtering is linear,
@@ -511,8 +523,12 @@ server.
   at 130 draws. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring
-  only queues chunks that fit in the retain budget. Retain is 4 MiB geometry /
-  4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS. On device, non-cone chunks
+  only queues chunks that fit in the retain budget. Retain is 2.5 MiB geometry /
+  5.5 MiB textures on Old 3DS and 3 / 7 MiB on New 3DS (a cone's geometry stays
+  under 1 MB; the chunk-local near atlases need the texture side). Out-of-cone far
+  meshes leave the plan's cap before any near upgrade. Zone chunks draw the opaque
+  batches of every chunk first, then the blended ones (`Renderer::setBlendPass`),
+  so a sign split across chunks keeps its letters. Zone textures may be 512 px. On device, non-cone chunks
   are also evicted while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street
   keeps that much of the 24 MiB linear heap free. The loader thread reads a chunk's
   vertex, index and inline-texture span in one shot (`ModelStaging::read`); the

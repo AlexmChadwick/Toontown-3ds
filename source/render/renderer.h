@@ -52,6 +52,10 @@ public:
         baseTint_[2] = b;
         baseTint_[3] = a;
     }
+    // 0 draws every batch. 1 skips alpha-blended batches, 2 draws only those: a caller
+    // whose models overlap (zone chunks) draws all opaque first, so a blended decal
+    // (no depth write) is not painted over by a later model's opaque surface.
+    void setBlendPass(int pass) { blendPass_ = pass; }
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map, fog).
     void endWorld();
     // Linear distance fog for the world pass (Panda Fog.setLinearRange(start, end), colour
@@ -104,6 +108,7 @@ private:
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    int blendPass_ = 0; // setBlendPass
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)

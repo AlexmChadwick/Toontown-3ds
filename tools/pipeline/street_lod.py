@@ -19,13 +19,15 @@ NEAR_DRAW_CAP = DRAW_CAP
 LOW_TARGET = 12000
 
 
-def simplify(batches, spacing):
+def simplify(batches, spacing, keep_layers=False):
     result=[]
     for b in batches:
-        if b.layer:
+        if b.layer and not keep_layers:
             continue  # windows, letters and other overlaid details disappear only far away
         verts=b.verts[b.indices].copy()
-        if spacing:
+        # A kept decal is not snapped: snapped, it cuts through its wall at an angle and
+        # z-fights. Its wall moves at most half a voxel, unnoticeable past lodNear.
+        if spacing and not b.layer:
             verts[:,:3]=np.round(verts[:,:3]/spacing)*spacing
         tri=verts.reshape(-1,3,9)
         area=np.linalg.norm(np.cross(tri[:,1,:3]-tri[:,0,:3],tri[:,2,:3]-tri[:,0,:3]),axis=1)

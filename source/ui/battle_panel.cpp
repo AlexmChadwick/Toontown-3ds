@@ -14,6 +14,7 @@
 #include "world/battle_fx.h"
 #include "ui/suit_heads_atlas.h"
 #include "ui/theme.h"
+#include "ui/tutorial_art.h"
 
 namespace tt::ui {
 
@@ -298,6 +299,9 @@ u32 BattlePanel::handleInput(u32 keysDown, const touchPosition& touch, const wor
     bool owned[gags::kTracks];
     for (int t = 0; t < gags::kTracks; t++) owned[t] = g.access && g.access[t];
     pad::buildBattleInput(focus_, v.numCogs, cogActive, usableGag, v.canRun, v.canFire, v.canSos, owned);
+    // ---- tutorial ---- InventoryNew tutorialFlag: Pass is hidden with Run, SOS and Fire
+    if (v.tutorialArrows && focus_.indexOf(pad::battle::kIdPass) >= 0)
+        focus_.setItemEnabled(focus_.indexOf(pad::battle::kIdPass), false);
     if (wantFocus_ >= 0) {
         focus_.setFocusById(wantFocus_);
         wantFocus_ = -1;
@@ -491,6 +495,16 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                       v.rewardSent ? theme::kGrey : theme::kGreen, v.rewardSent ? theme::kGreyDark : theme::kGreenDark);
         centered(pad::battle::kContinueX + pad::battle::kContinueW * 0.5f, pad::battle::kContinueY + 5, 0.5f,
                  v.rewardSent ? kInkSoft : theme::kWhite, pad::battle::kContinueW - 8, "Continue");
+        // ---- tutorial ---- Movie.playTutorialReward's TTDialog (Acknowledge) in GlobalDialogColor over the panel
+        if (v.tutorialDialog) {
+            constexpr float dx = 40, dy = 40, dw = kW - 80, dh = 100;
+            theme::roundRect(dx - 2, dy - 2, dw + 4, dh + 4, 9, theme::rgb(0x50, 0x50, 0x50));
+            theme::roundRect(dx, dy, dw, dh, 8, theme::rgb(0xFF, 0xFF, 0xBF));
+            C2D_Text t;
+            textCache_.parse(&t, buf_, v.tutorialDialog, 1024);
+            C2D_DrawText(&t, C2D_WithColor | C2D_WordWrap, dx + 12, dy + 12, 0.6f, 0.5f, 0.5f, kInk, dw - 24);
+            centered(dx + dw * 0.5f, dy + dh - 22, 0.5f, theme::kGreenDark, dw - 20, "OK (A)");
+        }
         focus_.drawHighlight();
         return;
     }
@@ -501,8 +515,7 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     } else if (choosing && mode_ == Mode::Fire) {
         drawFire(v);
     } else {
-        drawGagGrid(v, g);
-        drawButtons(v);
+        drawGagGrid(v, g); // ends with drawButtons
     }
     drawToons(v, pad::battle::kToonsX, pad::battle::kToonsW);
     if (choosing) focus_.drawHighlight();
@@ -585,7 +598,7 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
                              ok[t][l] ? theme::rgb(0x00, 0x2A, 0x55) : theme::rgb(0x20, 0x20, 0x20, 0x60));
         }
     }
-    drawButtons(v);
+    drawButtons(v, g);
 }
 
 // InventoryNew's battle button: InventoryButtonUp in image_color (0, 0.6, 1) with white text; a
@@ -611,8 +624,24 @@ void BattlePanel::smallButton(float x, float y, float w, bool enabled, const cha
                      enabled ? theme::kWhite : theme::rgb(0xD8, 0xD8, 0xD8), theme::rgb(0x00, 0x2A, 0x55, enabled ? 0xFF : 0x80));
 }
 
-void BattlePanel::drawButtons(const world::BattleView& v) {
+void BattlePanel::drawButtons(const world::BattleView& v, const BattleGags& g) {
     const bool choosing = v.phase == world::BattlePhase::Input;
+    // ---- tutorial ---- InventoryNew.setActivateMode(tutorialFlag=1) hides RUN, SOS, PASS and FIRE;
+    // show() blinks tutArrows at the Throw and Squirt gags (arrowsOn(-0.43, -0.12, 180, -0.43, -0.24, 180,
+    // onTime 1.0, offTime 0.2)), each only when the Toon has that gag.
+    if (choosing && v.tutorialArrows) {
+        const float s = static_cast<float>(osGetTime() % 1200) / 1000.0f;
+        const float a = s < 1.0f ? 0.25f + 0.75f * s : 1.0f - 0.75f * (s - 1.0f) / 0.2f;
+        bool owned[gags::kTracks];
+        for (int t = 0; t < gags::kTracks; t++) owned[t] = g.access && g.access[t];
+        float rowY[gags::kTracks], rowH[gags::kTracks];
+        pad::battleRows(owned, rowY, rowH);
+        for (int t : {4, 5}) { // THROW_TRACK, SQUIRT_TRACK
+            if (!g.count || !g.count[t][0]) continue;
+            drawTutorialArrow(kGridX + kCellW + 4, rowY[t] + rowH[t] * 0.5f, 180, 20.0f, a);
+        }
+        return;
+    }
     smallButton(pad::battle::kFireX, kBtnY, pad::battle::kSmallW, choosing && v.canFire, "FIRE");
     smallButton(pad::battle::kPassX, kBtnY, pad::battle::kSmallW, choosing, "PASS");
     smallButton(pad::battle::kRunX, pad::battle::kRow2Y, pad::battle::kSmallW, choosing && v.canRun, "RUN");
