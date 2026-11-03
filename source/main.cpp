@@ -1852,6 +1852,7 @@ int main() {
         // ---- end clerks ----
         // Donald's boat: its deck collision carries the toon (Player::setPlatform); pose first.
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
+        boat.setZone(place.zoneId());
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
         fishing.setTouch(ui.fishingPanel().touch()); // the touch Cast button (gesture events once)
@@ -1877,7 +1878,8 @@ int main() {
             net.changeZone(next);
             remoteToons.clear();
         }
-        player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
+        // Facility doors, buttons, lifts; Donald's Dock's pier ramps; nullptr elsewhere.
+        player.setDynamic(level.solids() ? level.solids() : boat.pierSolids());
         {
             float floorZ;
             if (level.active() && level.popSquish(&floorZ) > 0) {
@@ -3429,10 +3431,9 @@ int main() {
             if (tutorial.charShown() && tutorialChar.ensure(tutorial.femaleChar())) tutorialChar.draw(renderer, tutorial);
             else if (!tutorial.active() && tutorialChar.loaded()) tutorialChar.unload(); // UNLOAD_CHAR
             // ---- end tutorial ----
-            if (netStarted && !golf.active()) {
-                trolley.draw(renderer, net, tt::net::plat::nowMs());
-                golf.drawKart(renderer, net);
-            }
+            // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
+            if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
+            if (netStarted && !golf.active()) golf.drawKart(renderer, net);
             fishing.draw(renderer);
             suits.draw(renderer);
             if (battle.active()) {
@@ -3903,6 +3904,7 @@ int main() {
     golf.shutdown();
     racing.shutdown(); // ---- racing2: release before AssetLoader and ToonCache ----
     trolley.shutdown();
+    boat.setZone(0); // unloads the piers
     boat.shutdown();
     // ---- clerks: release preview before the loader ----
     clerkKartPreview.shutdown();
