@@ -3500,7 +3500,17 @@ int main() {
             if (!tutorial.toonHidden() &&
                 tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
-                const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
+                // Offline there is no server name: show the one the server gives an unnamed Toon
+                // of this look (the Toon tab's body colour is an allColorsList index).
+                static char offlineName[32];
+                static int offlineColor = -1;
+                if (offlineColor != uiState.bodyColor) {
+                    tt::world::ToonDna dna = tt::world::defaultToonDna();
+                    dna.headColor = static_cast<uint8_t>(uiState.bodyColor);
+                    tt::world::defaultName(dna, offlineName, sizeof offlineName);
+                    offlineColor = uiState.bodyColor;
+                }
+                const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : offlineName;
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
             // ---- tutorial ---- Mickey / Minnie's lines over their own head (CC_CHAT_CONFIRM classicChar)
