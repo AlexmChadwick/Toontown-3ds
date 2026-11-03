@@ -43,6 +43,36 @@ class Extractor(extract.Extractor):
         return self._tex_index[key]
 
 
+# A state drawn both one- and two-sided becomes one one-sided draw when it has at
+# most this many two-sided triangles. A draw costs about as much of the frame
+# budget (150 draws, 15k triangles) as a hundred triangles.
+FOLD_TWO_SIDED_MAX = 96
+
+
+def fold_two_sided(groups, cull):
+    """Merges each state's two-sided triangles into its one-sided draw, culling exactly.
+
+    groups: state key -> list of flat triangle vertex arrays (n*3, 9); key[cull] is
+    the two-sided flag. Each two-sided triangle is added again with reversed winding,
+    so the merged draw culls like the original: a one-sided face never shows its
+    back. (Drawing the one-sided faces two-sided instead showed awnings and roofs from
+    behind, and the inward wall of the pet shop bowl hid its fish.) States with more
+    two-sided triangles than FOLD_TWO_SIDED_MAX keep both draws.
+    """
+    for key in list(groups):
+        if not key[cull]:
+            continue
+        one = key[:cull] + (False,) + key[cull + 1:]
+        if one not in groups or not groups[one]:
+            continue
+        parts = groups[key]
+        if sum(len(p) for p in parts) // 3 > FOLD_TWO_SIDED_MAX:
+            continue
+        del groups[key]
+        groups[one].extend(parts + [p.reshape(-1, 3, p.shape[-1])[:, ::-1].reshape(-1, p.shape[-1])
+                                    for p in parts])
+
+
 def clip(poly, axis, edge, above):
     """Sutherland-Hodgman, interpolating all nine vertex attributes."""
     out = []
@@ -225,13 +255,7 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
                         p[:, 3] = (x + uv[:, 0] * tile) / page
                         p[:, 4] = (page - y - tile + uv[:, 1] * tile) / page
                         parts.append(np.array([p[j] for k in range(1, len(p)-1) for j in (0, k, k+1)]))
-        # Merge mixed cull-state groups by enabling two-sided rendering only where
-        # an atlas/state already contains both kinds. This cannot hide any faces.
-        for key in list(groups):
-            tex, blend, two, tint, layer = key
-            other = (tex, blend, True, tint, layer)
-            if not two and other in groups:
-                groups[other].extend(groups.pop(key))
+        fold_two_sided(groups, 2)
         merged = []
         for (tex, blend, two, tint, layer), parts in sorted(groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
             if not parts:
@@ -577,11 +601,7 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 q[:, 3] = (x + (q[:, 3] - lo[0]) / (hi[0] - lo[0]) * tw) / pw
                 q[:, 4] = (ph - y - th + (q[:, 4] - lo[1]) / (hi[1] - lo[1]) * th) / ph
                 groups[(pg, b.blend, b.two_sided, b.tint, b.layer)].append(q)
-        for key in list(groups):
-            tex, blend, two, tint, layer = key
-            other = (tex, blend, True, tint, layer)
-            if not two and other in groups:
-                groups[other].extend(groups.pop(key))
+        fold_two_sided(groups, 2)
         merged = []
         for (tex, blend, two, tint, layer), parts in sorted(groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
             if not parts:

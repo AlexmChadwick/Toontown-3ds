@@ -156,5 +156,37 @@ class FarColorTest(unittest.TestCase):
         self.assertFalse(bake_street._far_body([Tex()], image, b, repeats))
 
 
+
+class FoldTwoSidedTest(unittest.TestCase):
+    def tri(self, z=0.0):
+        t = np.zeros((3, 9))
+        t[:, :3] = [[0, 0, z], [1, 0, z], [0, 0, z + 1]]
+        t[:, 5:9] = 1
+        return t
+
+    def test_small_two_sided_folds_with_reversed_copy(self):
+        import street_atlas
+        one, two = self.tri(), self.tri(5)
+        groups = {(0, True): [two.copy()], (0, False): [one.copy()]}
+        street_atlas.fold_two_sided(groups, 1)
+        self.assertEqual(list(groups), [(0, False)])
+        tris = np.concatenate(groups[(0, False)]).reshape(-1, 3, 9)
+        self.assertEqual(len(tris), 3)
+        self.assertTrue(np.array_equal(tris[1], two))
+        self.assertTrue(np.array_equal(tris[2], two[::-1]))  # same face, reversed winding
+
+    def test_large_two_sided_keeps_both_draws(self):
+        import street_atlas
+        many = np.concatenate([self.tri(i) for i in range(street_atlas.FOLD_TWO_SIDED_MAX + 1)])
+        groups = {(0, True): [many], (0, False): [self.tri()]}
+        street_atlas.fold_two_sided(groups, 1)
+        self.assertEqual(sorted(groups), [(0, False), (0, True)])
+
+    def test_far_mesh_keeps_one_sided_faces_one_sided(self):
+        batches = [ttm.Batch(None, ttm.BLEND_OPAQUE, two, 0, 0, self.tri(), np.arange(3)) for two in (True, False)]
+        far, _, _ = bake_street._colorize_far([], [batches], details=True)
+        self.assertEqual([(bool(b.two_sided), len(b.indices) // 3) for b in far[0]], [(False, 3)])
+
+
 if __name__ == '__main__':
     unittest.main()

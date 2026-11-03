@@ -212,6 +212,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
     """
     import numpy as np
     import ttm
+    import street_atlas
     cache = {}
     mips_cache = {}
     result = []
@@ -262,11 +263,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
             if colored:
                 groups.setdefault((blend, bool(b.two_sided)), []).extend(colored)
         if details:
-            # Like the near atlas: a state that already has two-sided faces takes its
-            # one-sided ones too, which cannot hide a face.
-            for blend, two in list(groups):
-                if not two and (blend, True) in groups:
-                    groups[(blend, True)].extend(groups.pop((blend, False)))
+            street_atlas.fold_two_sided(groups, 1)  # like the near atlas
         merged = []
         for (blend, two), parts in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
             block = np.concatenate(parts)
