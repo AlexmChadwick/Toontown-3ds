@@ -766,15 +766,16 @@ def _wall_like_textures(chunks):
 
 
 def _pretile_factor(image, wrap_s, wrap_t, uv_range, limit=256):
-    """Copies per axis (power of two, at most 4) to store a small repeating texture as;
-    its UVs are divided by the same factor.
+    """Copies per axis (1 or 2) to store a small repeating texture as; its UVs are
+    divided by the same factor.
 
     PICA mips stop at 8x8, so a 64px texture has no level past Panda's level 3 and
     its last level must stand for every coarser one (_repeat_mips: the mean colour).
-    As 4x4 copies in 256px it keeps the same texel density and has two more real
-    levels: the TTC trolley and gag shop awnings keep their stripes at 125 units on
-    New 3DS instead of a flat band, and still end on the mean colour where Panda would
-    (seen edge-on). A clamped axis is tiled too when its UVs stay inside 0..1 (the
+    As 2x2 copies it keeps the same texel density and has one more real level: the
+    TTC trolley awning keeps its stripes at 125 units (Panda level ~3.1) on New 3DS
+    instead of a flat band, and still ends on the mean colour where Panda would
+    (seen edge-on). 4x4 copies (two levels) cost TTC 133 KB of near textures, enough
+    to push Old 3DS's Loopy Lane tunnel out of its 5.5 MiB retain onto the far mesh. A clamped axis is tiled too when its UVs stay inside 0..1 (the
     awnings repeat along u only); it then blends a half texel into the next copy at its
     top edge. Ground textures are left alone (_wall_like_textures): they cover most of a
     view, and 16x their bytes does not fit the retain budget.
@@ -786,7 +787,7 @@ def _pretile_factor(image, wrap_s, wrap_t, uv_range, limit=256):
         if wrap != ttm.GPU_REPEAT and (lo[axis] < -0.05 or hi[axis] > 1.05):
             return 1
     k = 1
-    while max(image.shape[:2]) * k * 2 <= limit and k < 4:
+    while max(image.shape[:2]) * k * 2 <= limit and k < 2:
         k *= 2
     return k
 
