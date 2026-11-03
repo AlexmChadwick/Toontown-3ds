@@ -366,9 +366,9 @@ const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, KEY_TOUCH, 212, 157, -1, "fe: confirm delete", "fe_deleted"},
     {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: select empty slot 1", "fe_pick_empty"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 59, 77, -1, "fe: make a toon"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 160, 51, -1, "fe: species cat", "fe_species"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 225, 110, -1, "fe: girl", "fe_gender"}, // GenderShop's girl button
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> body"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 278, 51, -1, "fe: girl", "fe_body"}, // GenderShop's girl button beside the Species frame
+    {2.0f, 0, 0, 0, KEY_TOUCH, 148, 52, -1, "fe: species cat", "fe_body"}, // the Species frame's > arrow: Dog -> Cat
     {1.25f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> colour", "fe_room_drop**"}, // the colour shop drops in
     {2.0f, 0, 0, 0, KEY_TOUCH, 191, 76, -1, "fe: colour 6", "fe_color"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> clothes"},
