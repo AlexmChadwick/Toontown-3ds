@@ -31,6 +31,8 @@ public:
     // Word-wrapped left-aligned text in at most maxLines lines of lineH px; the last line shrinks
     // to fit whatever is left. Newlines in str are treated as spaces. Returns the lines used.
     int wrap(float x, float y, float scale, u32 color, float maxW, float lineH, int maxLines, const char* str);
+    // The lines wrap would use, without drawing.
+    int wrapLines(float scale, float maxW, int maxLines, const char* str);
     // Draw depth for the following calls (citro2d z; panels draw text above their cards).
     void setDepth(float z) { z_ = z; }
 
@@ -41,6 +43,7 @@ private:
     C2D_TextBuf buf_ = nullptr;
     size_t cap_ = 0;
     float z_ = 0.6f;
+    bool measureOnly_ = false; // wrapLines: emit draws nothing
     // On the heap (init): a TextCache is ~28 KB and panels live inside Ui on main()'s stack.
     render::TextCache* cache_ = nullptr;
 };

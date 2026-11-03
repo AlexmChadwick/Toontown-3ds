@@ -591,6 +591,14 @@ int posterInfo(const QuestDef& q, uint16_t toNpc, bool complete, char* out, int 
     const bool npcBased = q.type == QuestType::Visit || q.type == QuestType::DeliverItem ||
                           q.type == QuestType::DeliverGag || q.type == QuestType::TrackChoice;
     if (complete || npcBased) return npcDestination(toNpc, out, cap);
+    // QuestPoster.update's infoText for the quests without a location (TTLocalizer.QuestPoster*).
+    switch (q.type) {
+    case QuestType::Trolley: return copyStr(out, cap, "In the playground");
+    case QuestType::Mailbox: return copyStr(out, cap, "At your home");
+    case QuestType::Phone: return copyStr(out, cap, "On your phone");
+    case QuestType::Friend: return copyStr(out, cap, str(kS_QuestPosterAnywhere));
+    default: break;
+    }
     char loc[kTmp / 2];
     locationName(q, loc, sizeof(loc));
     char cw[kTmp / 2];

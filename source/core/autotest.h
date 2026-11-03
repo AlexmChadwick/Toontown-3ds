@@ -31,7 +31,7 @@ struct Pose {
 
 class Runner {
 public:
-    static constexpr int kMaxPoses = 8;
+    static constexpr int kMaxPoses = 24;
     void setTrolleyProgress(const TrolleyProgress& progress) { trolleyProgress_ = progress; }
     bool begin(); // returns false (and stays inactive) if the trigger file is absent
     bool active() const { return active_; }

@@ -142,34 +142,69 @@ void SuitActors::loadTies() {
 }
 
 SuitActors::Head* SuitActors::head(const char* code) {
-    for (Head& h : heads_)
-        if (h.tried && !strcmp(h.code, code)) return h.model.loaded() ? &h : nullptr;
     for (Head& h : heads_) {
-        if (h.tried) continue;
-        h.tried = true;
-        snprintf(h.code, sizeof(h.code), "%s", code);
-        char path[96];
-        snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
-        assetBatch_.load(h.model, path);
-        return nullptr;
+        if (!h.tried || strcmp(h.code, code)) continue;
+        h.usedMs = nowMs_;
+        if (h.evicting) {
+            // The batch frees the previous head at the frame fence, then loads this one.
+            if (h.model.loaded()) return nullptr;
+            h.evicting = false;
+        }
+        return h.model.loaded() ? &h : nullptr;
     }
-    return nullptr; // cache full (a street rarely shows more than a dozen head types)
+    // A free slot, else the head no Cog has drawn for the longest (at least 1 s): one session
+    // meets far more than a dozen head types (TTC's streets alone show twelve).
+    Head* slot = nullptr;
+    for (Head& h : heads_) {
+        if (!h.tried) {
+            slot = &h;
+            break;
+        }
+        if (nowMs_ - h.usedMs >= 1000 && (!slot || h.usedMs < slot->usedMs)) slot = &h;
+    }
+    if (!slot) return nullptr; // every head drawn within the last second
+    char path[96];
+    snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
+    if (slot->tried) TT_LOG("suits: head cache full, %s replaces %s", code, slot->code);
+    slot->evicting = slot->tried;
+    slot->tried = true;
+    slot->usedMs = nowMs_;
+    snprintf(slot->code, sizeof(slot->code), "%s", code);
+    assetBatch_.load(slot->model, path);
+    return nullptr;
 }
 
 const render::Anim* SuitActors::battleClip(int b, const char* name) {
     if (!name || !*name || b < 0 || b >= 6) return nullptr;
     Body& body = bodies_[b];
-    for (int i = 0; i < Body::kClips; i++)
-        if (body.clipName[i][0] && !strcmp(body.clipName[i], name)) return body.clips[i].loaded() ? &body.clips[i] : nullptr;
     for (int i = 0; i < Body::kClips; i++) {
-        if (body.clipName[i][0]) continue;
-        snprintf(body.clipName[i], sizeof(body.clipName[i]), "%s", name);
-        char stem[24], path[112];
-        bodyStem(b, stem, sizeof(stem));
-        snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
-        assetBatch_.load(body.clips[i], path);
-        return nullptr;
+        if (!body.clipName[i][0] || strcmp(body.clipName[i], name)) continue;
+        body.clipUsedMs[i] = nowMs_;
+        if (body.clipEvicting[i]) {
+            if (body.clips[i].loaded()) return nullptr; // the previous clip, until the fence frees it
+            body.clipEvicting[i] = false;
+        }
+        return body.clips[i].loaded() ? &body.clips[i] : nullptr;
     }
+    // A free slot, else the clip unplayed for the longest (at least 1 s): reactions and every
+    // Cog type's attacks add up to more than ten clips per body over a session.
+    int slot = -1;
+    for (int i = 0; i < Body::kClips; i++) {
+        if (!body.clipName[i][0]) {
+            slot = i;
+            break;
+        }
+        if (nowMs_ - body.clipUsedMs[i] >= 1000 && (slot < 0 || body.clipUsedMs[i] < body.clipUsedMs[slot])) slot = i;
+    }
+    if (slot < 0) return nullptr;
+    if (body.clipName[slot][0]) TT_LOG("suits: body %d clips full, %s replaces %s", b, name, body.clipName[slot]);
+    body.clipEvicting[slot] = body.clipName[slot][0] != 0;
+    body.clipUsedMs[slot] = nowMs_;
+    snprintf(body.clipName[slot], sizeof(body.clipName[slot]), "%s", name);
+    char stem[24], path[112];
+    bodyStem(b, stem, sizeof(stem));
+    snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
+    assetBatch_.load(body.clips[slot], path);
     return nullptr;
 }
 
@@ -268,6 +303,7 @@ void SuitActors::shutdown() {
         for (int i = 0; i < Body::kClips; i++) {
             b.clips[i].unload();
             b.clipName[i][0] = 0;
+            b.clipEvicting[i] = false;
         }
         b.loseModel.unload();
         b.loseClip.unload();
@@ -276,7 +312,7 @@ void SuitActors::shutdown() {
     }
     for (Head& h : heads_) {
         h.model.unload();
-        h.tried = false;
+        h.tried = h.evicting = false;
     }
     if (deptLoaded_) {
         for (auto& d : deptTex_)

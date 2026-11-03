@@ -275,6 +275,7 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
     for (u32 i = 0; i < model.numBatches(); i++) {
         const Batch& b = model.batch(i);
         if (blendPass_ && (b.blend == kBlendAlpha) != (blendPass_ == 2)) continue;
+        if (onlyBatch_ >= 0 && int(i) != onlyBatch_) continue;
 
         const float *color = tints && b.tint ? tints->rgba[b.tint] : baseTint_;
         if (batchState_.uploadTint(color)) {
@@ -290,8 +291,17 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
             if (tex) {
                 ++stats_.textureBinds;
                 C3D_TexBind(0, const_cast<C3D_Tex*>(tex));
-                C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
-                C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+                if (tex->fmt == GPU_A8) {
+                    // Panda samples an alpha-only texture as white with alpha (sign and font
+                    // lettering); the PICA returns black RGB, so take RGB from the vertex colour.
+                    C3D_TexEnvSrc(env, C3D_RGB, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_RGB, GPU_REPLACE);
+                    C3D_TexEnvSrc(env, C3D_Alpha, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
+                } else {
+                    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+                }
             } else {
                 C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
                 C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);

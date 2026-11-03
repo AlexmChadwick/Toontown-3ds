@@ -171,11 +171,15 @@ public:
     // Frame update and 3D draw
     void update(float dt, uint32_t nowMs, const Battle* battle, const ToonLook* localLook);
     void draw(render::Renderer& renderer, const Battle* battle, const ToonLook* localLook);
+    // Test-only (autotest "cog showcase"): a hit splat of (track, level) at a Cog's head, drawn
+    // exactly like a battle hit at `age` seconds into it.
+    void drawSplatDemo(render::Renderer& renderer, int track, int level, float x, float y, float z, float h, float age);
     // Finds the drawn avatar of a battle toon (local or remote) so held props follow its
     // torso's JNT hand joint. Call draw() after the toons are drawn this frame.
     using ToonLookup = const ToonAvatar* (*)(void* user, uint32_t doId);
     void setToonLookup(ToonLookup fn, void* user) { toonLookup_ = fn; toonLookupUser_ = user; }
-    void drawExplosion(render::Renderer& renderer, float x, float y, float z) const;
+    // explosion.bam's SequenceNode: one card per frame at 24 fps, looping; `age` in seconds.
+    void drawExplosion(render::Renderer& renderer, float x, float y, float z, float age) const;
 
 
     // Sound cue playback
@@ -191,7 +195,6 @@ private:
     render::Model flowerModel_;
     render::Model watergunModel_;
     render::Model bottleModel_;
-    render::Model splashModel_;
     render::Model megaphoneModel_;
     render::Model buttonModel_;
     render::Model featherModel_;
@@ -241,7 +244,6 @@ private:
         int level = 0;
         uint32_t startMs = 0;
         uint32_t durMs = 500;
-        bool isSplash = false;
     };
     static constexpr int kMaxSplats = 4;
     ActiveSplat splats_[kMaxSplats] = {};

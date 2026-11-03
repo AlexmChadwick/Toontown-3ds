@@ -1,4 +1,5 @@
 #include "world/toon_avatar.h"
+#include <cstdint>
 #include <cstring>
 namespace tt::world {
 namespace {
@@ -29,8 +30,43 @@ void ToonAvatar::cancel() {
     anim_=kAnimNeutral; playback_.begin(ClipMode::Loop,0,-1);
 }
 bool ToonAvatar::finished() const { return playback_.finished(toonDuration(anim_,torsoKey(look_))); }
+float ToonAvatar::blinkRandom() {
+    if (!blinkSeed_) blinkSeed_=static_cast<u32>(reinterpret_cast<uintptr_t>(this))*2654435761u|1u;
+    blinkSeed_=blinkSeed_*1664525u+1013904223u;
+    return static_cast<float>(blinkSeed_>>8)*(1.0f/16777216.0f);
+}
+void ToonAvatar::setLids(Lids lids) {
+    lids_=lids;
+    const bool sad=eyeMood_==EyeMood::Sad, angry=eyeMood_==EyeMood::Angry;
+    lidTex_=lids==Lids::Surprised?ToonCache::kEyesSurprised
+           :lids==Lids::Closed?(sad?ToonCache::kEyesSadClosed:angry?ToonCache::kEyesAngryClosed:ToonCache::kEyesClosed)
+           :(sad?ToonCache::kEyesSadOpen:angry?ToonCache::kEyesAngryOpen:ToonCache::kEyesOpen);
+}
+void ToonAvatar::blinkEyes() {
+    setLids(Lids::Closed);
+    blinkIn_=0.1f;
+}
+void ToonAvatar::setBlink(bool on) {
+    blinking_=on;
+    setLids(Lids::Open);
+    blinkIn_=on?blinkRandom()*4.0f+1.0f:-1;
+}
 void ToonAvatar::update(float dt) {
     playback_.update(dt);
+    // ToonHead.__blinkCloseEyes / __blinkOpenEyes.
+    if (blinking_ && blinkIn_<0) blinkIn_=blinkRandom()*4.0f+1.0f; // startBlink
+    if (blinking_ && (blinkIn_-=dt)<=0) {
+        if (lids_==Lids::Closed) {
+            setLids(Lids::Open);
+            const float r=blinkRandom();
+            blinkIn_=r<0.1f?0.2f:r*4.0f+1.0f;
+        } else if (lids_!=Lids::Open) {
+            blinkIn_=4.0f;
+        } else {
+            setLids(Lids::Closed);
+            blinkIn_=0.125f;
+        }
+    }
     if (emote_>=0) {
         emoteAge_+=dt;
         if (emoteAge_>=emoteDuration(emote_,skirt(look_),torsoKey(look_))) { emote_=-1; emoteFinished_=true; }
@@ -57,6 +93,15 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
     if (!look || !look->ready()) return;
     const render::Tints* tints=tintOverride?tintOverride:&look->tints;
     const C3D_Tex* textures[render::kTexSlotCount];look->slotTextures(textures);
+    // enterEyelidsOpen / Closed / Surprised: the eye texture, pupils and lashes per state.
+    if (look->cache && look->cache->eyeTexture(ToonCache::kEyesClear)) {
+        const ToonCache& c=*look->cache;
+        const C3D_Tex* clear=c.eyeTexture(ToonCache::kEyesClear);
+        textures[5]=c.eyeTexture(static_cast<ToonCache::EyeTex>(lidTex_));
+        textures[6]=lids_==Lids::Closed?clear:nullptr;
+        textures[7]=lids_==Lids::Open?nullptr:clear;
+        textures[8]=lids_==Lids::Closed?nullptr:clear;
+    }
     C3D_Mtx actorWorld=world;
     Mtx_RotateX(&actorWorld,bodyPitch_*0.01745329252f,true);
     Mtx_Translate(&actorWorld,0,0,bodyZ_,true);
@@ -89,7 +134,7 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
         if (p<2 && clip && clip->hasAttach()) {
             C3D_Mtx attach,next;clip->attach(0,1,blend,&attach);Mtx_Multiply(&next,&partWorld,&attach);partWorld=next;
         }
-        if(p==2 && look->lashes && look->lashes->state==SlotState::Ready) renderer.drawModel(look->lashes->model,partWorld,tints);
+        if(p==2 && look->lashes && look->lashes->state==SlotState::Ready) renderer.drawModel(look->lashes->model,partWorld,tints,textures);
     }
 }
 } // namespace tt::world

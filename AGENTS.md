@@ -426,6 +426,14 @@ Lessons recorded for agents:
   `net: PARSE ...` now logs any message a handler reads only partly or past its end.
 - **Labels are not tests.** Several autotest steps (`cog building: *`) existed without driver
   code. A step must log what it did and fail visibly when its target is absent.
+- **Fixed asset caches must evict.** `SuitActors` once kept 12 Cog heads and 10 battle clips per
+  body until exit, so Cogs went headless after 12 types in one session. Re-point the least
+  recently used slot through the asset batch (it frees the old data at the fence) and draw
+  nothing from that slot until then.
+- **Check battle props against their source node types.** `explosion.bam` is a 10-frame
+  SequenceNode (one batch per frame, `Renderer::setOnlyBatch`), squirt hits use the splat actor
+  (`splash-from-splat`), not `splash.bam`, and props that upstream recolours with `setColor` must
+  bake white (the splat's own ColorAttrib is dark navy).
 - **Codex helpers cannot commit.** The Codex sandbox cannot write `.git`. That includes a
   worktree's metadata in the main checkout. Give Codex a standalone clone; the main agent reviews,
   commits and fetches the branch.
@@ -710,6 +718,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py`, `bake_purchase_gui.py`, `bake_pick_a_toon.py`, `bake_mat_gui.py` (shared `ui_atlas.py`) | ToontownTimer's alarm clock, fishingGui's cast interface, the Shtiker Book page tab icons, the purchase screens' sign plank and bean jar, AvatarChooser's background, squares and trashcan, and Make-A-Toon's round, gender and shuffle buttons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
+| `tools/pipeline/bake_quest_poster.py` | QuestPoster's art (stickerbook_gui questCard / questPictureFrame, the trolley, package, building and cog icons) → `romfs/baked/quest_poster.ttm` + `source/ui/quest_poster_atlas.h`, and each quest NPC's species and head colour from NPCToons DNA → `source/ui/quest_npc_heads.h` (drawn with the laff-meter heads) |
 | `tools/pipeline/bake_loading_screen.py` | ToontownLoadingScreen's art: progress-background's radial `bg` as a 3D quad (`loading_bg.ttm`, drawn behind the front-end Toon) and toon_council's scroll for the TOON TIP (`loading_gui.ttm` + `source/ui/loading_atlas.h`); tips in `source/game/loading_tips.h` |
 | `tools/pipeline/bake_mat_room.py` | Make-A-Toon's room (`tt_m_ara_mat_room`): floor / background / spotlight plus each shop's walls and props → pooled `romfs/baked/mat_room/` (TTM v2 + `textures.ttp`), and the roomDrop / roomSquish / propSquish joint tracks → `source/ui/mat_room_tracks.h`; drawn behind the Toon with MakeAToon's camera |
 | `tools/pipeline/bake_golf_physics.py` | golf BAM collision nodes → versioned `.gph` meshes (grass, slick, cup, hard) |

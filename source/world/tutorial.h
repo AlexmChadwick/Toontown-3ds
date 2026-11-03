@@ -81,6 +81,9 @@ public:
     quest::ScriptVar speaker() const { return speaker_; } // who says text()
     float time() const { return time_; }
     bool takeFinished();
+    // FUNCTION npc "<ToonHead method>" calls since the last take, in order (EyeCall).
+    enum class EyeCall : uint8_t { Normal, Sad, Angry, Surprise, Blink };
+    int takeNpcEyeCalls(EyeCall* out, int maxOut);
 
     // PlayGame.enterTutorialHood obscures the book button, the laff meter and both chat buttons
     // for the whole Toontorial; the scripts reveal them one lesson at a time (OBSCURE_* 0, SHOW)
@@ -145,6 +148,9 @@ private:
     ActorAnim charAnim_, toonAnim_, npcAnim_;
     float time_ = 0.0f;
     bool finished_ = false;
+    static constexpr int kMaxEyeCalls = 8;
+    EyeCall eyeCalls_[kMaxEyeCalls] = {};
+    int numEyeCalls_ = 0;
     bool ended_ = true; // endMovie ran for the current movie
     bool hood_ = false, bookShown_ = true, laffShown_ = true, scShown_ = true;
     bool bookScripted_ = false, closeEnabled_ = true, nextShown_ = true, prevShown_ = true;

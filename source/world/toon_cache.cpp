@@ -114,11 +114,46 @@ bool ToonCache::init() {
         TT_LOG("toon: no clothes.ttx; models keep their own clothing");
     }
 
+    loadEyes();
+
     // Main thread runs at 0x30; 0x31 only runs while the main thread waits (vsync, GPU),
     // so loading never takes frame time. Core 0 = the Old 3DS application core.
     loader_ = threadCreate(loaderMain, this, 32 * 1024, 0x31, 0, false);
     if (!loader_) TT_LOG("toon: loader thread failed; parts load synchronously");
     return true;
+}
+
+// eyes.ttx: one table of kEyeTexCount textures (bake_toon.EYE_TEXTURES, then 'clear').
+void ToonCache::loadEyes() {
+    char path[128];
+    if (!findFile("eyes.ttx", path, sizeof(path))) {
+        TT_LOG("toon: no eyes.ttx; eyes stay open");
+        return;
+    }
+    FILE* f = fopen(path, "rb");
+    TtxHeader h;
+    u16 map[kEyeTexCount];
+    render::TexEntry entries[kEyeTexCount];
+    bool ok = f && fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 &&
+              h.counts[0] == kEyeTexCount && h.numTextures == kEyeTexCount &&
+              fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, sizeof(u16), kEyeTexCount, f) == kEyeTexCount &&
+              fseek(f, h.texOffset, SEEK_SET) == 0 &&
+              fread(entries, sizeof(render::TexEntry), kEyeTexCount, f) == kEyeTexCount;
+    int loaded = 0;
+    for (; ok && loaded < kEyeTexCount; loaded++) {
+        ok = map[loaded] < kEyeTexCount && render::loadTexture(f, entries[map[loaded]], &eyeTex_[loaded]);
+        if (ok) eyesBytes_ += C3D_TexCalcTotalSize(eyeTex_[loaded].size, eyeTex_[loaded].maxLevel);
+    }
+    if (f) fclose(f);
+    if (!ok) {
+        mem::LinearGuard g;
+        for (int i = 0; i < kEyeTexCount; i++) if (eyeTex_[i].data) C3D_TexDelete(&eyeTex_[i]);
+        memset(eyeTex_, 0, sizeof(eyeTex_));
+        eyesBytes_ = 0;
+    }
+    eyesLoaded_ = ok;
+    TT_LOG("toon: eyes pack %s %s (%lu bytes)", path, ok ? "loaded" : "bad; eyes stay open",
+           static_cast<unsigned long>(eyesBytes_));
 }
 
 bool ToonCache::initFallback() {
@@ -165,6 +200,13 @@ void ToonCache::shutdown() {
         c = ToonClothing{};
     }
     fallback_ = ToonLook{};
+    if (eyesLoaded_) {
+        mem::LinearGuard g;
+        for (C3D_Tex& t : eyeTex_) C3D_TexDelete(&t);
+    }
+    memset(eyeTex_, 0, sizeof(eyeTex_));
+    eyesLoaded_ = false;
+    eyesBytes_ = 0;
     if (clothesFile_) fclose(clothesFile_);
     clothesFile_ = nullptr;
     free(clothesMap_);
@@ -175,7 +217,7 @@ void ToonCache::shutdown() {
 
 u32 ToonCache::linearBytes() const {
     Lock lock(lock_);
-    u32 total = streamBytes_;
+    u32 total = streamBytes_ + eyesBytes_;
     for (const auto& p : parts_) total += p.bytes;
     for (const auto& c : clothes_) total += c.bytes;
     return total;

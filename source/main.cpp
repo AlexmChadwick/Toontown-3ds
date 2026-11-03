@@ -66,6 +66,7 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "world/toon_dna_tables.h"
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
@@ -976,7 +977,7 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
             if (!strcmp(page, "gags")) ui.openBookPage(tt::ui::Book::kPageGags);
-            else if (!strcmp(page, "tasks")) ui.openBookPage(tt::ui::Book::kPageTasks);
+            else if (!strncmp(page, "tasks", 5)) ui.openBookPage(tt::ui::Book::kPageTasks); // + "tasks demo N"
             else if (!strcmp(page, "cogs")) ui.openBookPage(tt::ui::Book::kPageCogs);
             else if (!strcmp(page, "disguise")) ui.openBookPage(tt::ui::Book::kPageDisguise);
             else if (!strcmp(page, "fish")) ui.openBookPage(tt::ui::Book::kPageFish);
@@ -2108,7 +2109,9 @@ int main() {
         if (const tt::autotest::Pose* p = autotest.active() && transition.idle() ? autotest.pose() : nullptr) {
             static const char* posedLabel = nullptr;
             static u32 posedZone = 0;
-            if (place.zoneId() / 100 != p->zone / 100) {
+            // Streets change zone id per cell; an interior (branch + 500 + block) must match exactly.
+            const bool interior = p->zone % 1000 >= 500;
+            if (interior ? place.zoneId() != p->zone : place.zoneId() / 100 != p->zone / 100) {
                 if (!uiState.teleportRequest) uiState.teleportRequest = p->zone;
             } else {
                 if (posedLabel != autotest.label() || posedZone != place.zoneId()) {
@@ -2598,6 +2601,21 @@ int main() {
             }
             tutorialSaidSpeedChat = false;
             tutorial.update(dt);
+            {
+                tt::world::TutorialFlow::EyeCall calls[8];
+                const int n = tutorial.takeNpcEyeCalls(calls, 8);
+                if (tt::world::ToonAvatar* npc = n ? zoneActors.npcAvatar(tutorialSpeaker) : nullptr) {
+                    using EC = tt::world::TutorialFlow::EyeCall;
+                    using Mood = tt::world::ToonAvatar::EyeMood;
+                    for (int i = 0; i < n; ++i) {
+                        if (calls[i] == EC::Normal) npc->setEyeMood(Mood::Normal);
+                        else if (calls[i] == EC::Sad) npc->setEyeMood(Mood::Sad);
+                        else if (calls[i] == EC::Angry) npc->setEyeMood(Mood::Angry);
+                        else if (calls[i] == EC::Surprise) npc->surpriseEyes();
+                        else npc->blinkEyes();
+                    }
+                }
+            }
             if (const int bookRequest = tutorial.takeBookRequest()) { // SHOW_BOOK / HIDE_BOOK
                 if (bookRequest > 0) ui.openBookPage(tt::ui::Book::kPageMap);
                 else ui.book().close("HIDE_BOOK");
@@ -2826,6 +2844,55 @@ int main() {
         tt::prof::lap(tt::prof::kNet);
         remoteToons.update(dt);
         tt::prof::lap(tt::prof::kRemote);
+        {
+            // Test-only "toon showcase N" (1..9): four client-side Toons in front of the toon,
+            // heads (N-1)*4 .. +3 of toonHeadTypes (every species and head), alternating boy and
+            // girl (skirt or shorts), each torso and leg size, varied shirts, bottoms and colours.
+            static int showcaseSet = 0;
+            const char* lbl = autotest.active() ? autotest.label() : "";
+            const int want = !strncmp(lbl, "toon showcase ", 14) ? atoi(lbl + 14) : 0;
+            if (want != showcaseSet) {
+                for (int i = 0; i < 4; i++) zoneActors.despawnLocalNpc(0x7F00F000u + i);
+                showcaseSet = want;
+                namespace dt_ = tt::world::dna_tables;
+                const float hh = player.headingDeg() * kDegToRad;
+                for (int i = 0; want > 0 && i < 4; i++) {
+                    // 10 / 11 (diagnostic): four copies of set 1's third / first Toon.
+                    const unsigned head = want == 10 ? 2u : want == 11 ? 0u : unsigned(want - 1) * 4 + i;
+                    if (head >= dt_::kNumHeadTypes) break;
+                    tt::world::ToonDna d;
+                    d.head = uint8_t(head);
+                    d.gender = (want >= 10 ? head : unsigned(i)) % 2 ? tt::world::Gender::Female : tt::world::Gender::Male;
+                    d.legs = uint8_t(head % 3);
+                    d.topTex = uint8_t((head * 37 + 5) % dt_::kNumShirts);
+                    d.sleeveTex = uint8_t((head * 29 + 3) % dt_::kNumSleeves);
+                    d.topTexColor = uint8_t((head * 7) % dt_::kNumClothesColors);
+                    d.sleeveTexColor = d.topTexColor;
+                    d.botTexColor = uint8_t((head * 11 + 4) % dt_::kNumClothesColors);
+                    if (d.gender == tt::world::Gender::Male) {
+                        d.torso = uint8_t((head / 3) % 3);
+                        d.botTex = uint8_t((head * 13) % dt_::kNumBoyShorts);
+                    } else {
+                        const bool skirt = (head / 2) % 2 == 0;
+                        d.torso = uint8_t((skirt ? 3 : 0) + (head / 3) % 3);
+                        unsigned b = (head * 13) % dt_::kNumGirlBottoms;
+                        while (bool(dt_::kGirlBottomIsSkirt[b]) != skirt) b = (b + 1) % dt_::kNumGirlBottoms;
+                        d.botTex = uint8_t(b);
+                    }
+                    d.armColor = d.legColor = d.headColor = uint8_t((head * 5 + 1) % dt_::kNumAllColors);
+                    uint8_t net[tt::world::kDnaNetStringSize];
+                    tt::world::makeNetString(d, net);
+                    char name[32];
+                    snprintf(name, sizeof name, "%s %s", dt_::kHeadTypes[head], dt_::kTorsoTypes[d.torso]);
+                    const float side = (i < 2 ? -5.0f + 2.4f * i : 2.6f + 2.4f * (i - 2)), ahead = 5.0f; // centre clear
+                    const bool ok = zoneActors.spawnLocalNpc(0x7F00F000u + i, name, net,
+                                                             player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                                             player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
+                                                             player.headingDeg() + 180.0f);
+                    TT_LOG("autotest: toon showcase %d: %s valid %d spawned %d", want, name, int(tt::world::isValidDna(d)), int(ok));
+                }
+            }
+        }
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
@@ -3372,15 +3439,31 @@ int main() {
                 battleFx.draw(renderer, &battle, localLook.valid() ? &localLook : nullptr);
             }
             if (netStarted) cogBuildings.draw(renderer, net);
-            if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
-                // Test-only: four real Cogs (one per department) in front of the toon.
-                static const char* const kShow[4] = {"f", "bf", "sc", "cc"};
+            if (autotest.active() && !strncmp(autotest.label(), "cog showcase", 12)) {
+                // Test-only: four real Cogs in front of the toon: one per department, or for
+                // "cog showcase N" (1..8) the Nth four of SuitDNA.suitHeadTypes.
+                static const char* const kDepts[4] = {"f", "bf", "sc", "cc"};
+                static const char* const kAll[32] = {"f",  "p",  "ym", "mm", "ds", "hh", "cr", "tbc",
+                                                     "bf", "b",  "dt", "ac", "bs", "sd", "le", "bw",
+                                                     "sc", "pp", "tw", "bc", "nc", "mb", "ls", "rb",
+                                                     "cc", "tm", "nd", "gh", "ms", "tf", "m",  "mh"};
+                const int set = autotest.label()[12] == ' ' ? atoi(autotest.label() + 13) : 0;
+                const char* const* kShow = set >= 1 && set <= 8 ? kAll + (set - 1) * 4 : kDepts;
                 const float hh = player.headingDeg() * kDegToRad;
                 for (int i = 0; i < 4; i++) {
                     const float side = (i - 1.5f) * 4.0f, ahead = 12.0f;
                     suits.drawShowcase(renderer, kShow[i], player.x() - sinf(hh) * ahead + cosf(hh) * side,
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
+                    if (set >= 1 && (tt::net::plat::nowMs() / 1500) % 2) {
+                        // Every other 1.5 s, the battle hit splats over the Cogs: squirt splash,
+                        // then each pie splat (the Cogs show clean in between).
+                        static const int kSplat[4][2] = {{5, 0}, {4, 0}, {4, 1}, {4, 2}};
+                        battleFx.drawSplatDemo(renderer, kSplat[i][0], kSplat[i][1],
+                                               player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                               player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z() + 2.0f,
+                                               player.headingDeg() + 180.0f, 0.2f);
+                    }
                 }
             }
             tt::prof::lap(tt::prof::kDrawActors);
@@ -3693,6 +3776,26 @@ int main() {
         ctx.fishing = fishing.view();
         if (netStarted && net.inZone()) {
             ctx.quests = &net.ownQuests();
+            // "book: tasks demo N" steps show sample QuestPosters of every kind (cog head,
+            // department, any cog, visit, complete with the NPC to return to, gags, items).
+            if (autotest.active() && !strncmp(autotest.label(), "book: tasks demo ", 17)) {
+                static tt::net::OwnQuests demo;
+                static const uint32_t kDemo[3][2][3] = {{{101, 0, 1000}, {166, 1, 3}},   // Flunky, Bossbots
+                                                        {{164, 0, 2002}, {101, 1, 1000}}, // visit; complete
+                                                        {{2159, 0, 1}, {1044, 2, 3}}};    // gags; recover
+                const int n = (autotest.label()[17] - '1') % 3;
+                demo.count = 2;
+                demo.carryLimit = 2;
+                for (int i = 0; i < 2; i++) {
+                    demo.quests[i] = tt::net::QuestEntry{};
+                    demo.quests[i].questId = kDemo[n][i][0];
+                    demo.quests[i].progress = kDemo[n][i][1];
+                    demo.quests[i].toNpc = kDemo[n][i][2];
+                    demo.quests[i].reward = 100;
+                }
+                demo.version = 1000 + n;
+                ctx.quests = &demo;
+            }
             for (int i = 0; i < tt::net::kMaxRemoteToons && ctx.numNearby < 8; i++) {
                 const tt::net::RemoteToon& t = net.remoteToonSlot(i);
                 if (!t.active) continue;
