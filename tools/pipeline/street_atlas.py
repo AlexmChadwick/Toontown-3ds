@@ -159,11 +159,13 @@ def _tile_mips(page, slots, levels):
 
 
 def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels=1,
-          large_ground=False, encode=True, page=256):
+          large_ground=False, encode=True, page=256, repeat_standalone=False):
     """Return textures and transformed chunk batches, with shared atlas indices.
 
     encode=False skips pixel reads and ETC1 so a far-LOD spacing search can count
     triangles. The default arguments match the historical 32px, single-mip atlas.
+    repeat_standalone puts every texture a triangle repeats across on its own
+    wrapping texture instead of clipping it per repeat (one draw, no new triangles).
     """
     if tile < 8 or gutter < 1 or mip_levels < 1:
         raise ValueError('invalid atlas tile')
@@ -183,16 +185,32 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
             tex = sources[b.texture]
             for tri in b.verts[b.indices.reshape(-1, 3)]:
                 xr, yr = tile_ranges(tri, tex)
-                if len(xr) * len(yr) > 32:
+                if len(xr) * len(yr) > (1 if repeat_standalone else 32):
                     standalone.add(b.texture)
                     break
     textures, mapping = [], {}
+    strips, rows = {}, []
+    if repeat_standalone:
+        stride, top = _strip_stride(tile, gutter, mip_levels)
+        rows = _strip_picks(sources, chunks, standalone, stride)
+        standalone -= set(rows)
     frequency = {i: sum(any(b.texture == i for b in bs) for bs in chunks) for i in range(len(sources))}
-    entries = sorted((i for i in range(len(sources)) if i not in standalone), key=lambda i: (-frequency[i], i))
-    for start in range(0, len(entries), per_page):
+    entries = sorted((i for i in range(len(sources)) if i not in standalone and i not in rows),
+                     key=lambda i: (-frequency[i], i))
+    # Strip rows share the first page (bottom rows, u wrap) when the tiles leave room.
+    strip_y = page - len(rows) * stride if rows else page
+    shared = bool(rows) and len(entries) <= cols * (strip_y // span)
+    if rows and not shared:
+        strips = _strip_page(sources, rows, tile, stride, top, mip_levels, textures, encode)
+    for start in range(0, max(len(entries), 1 if shared else 0), per_page):
         px = np.full((page, page, 4), 255, dtype=np.uint8)
         index = len(textures)
         slots = []
+        with_strips = shared and start == 0
+        if with_strips:
+            strips = {idx: (index, strip_y + row * stride + top, tile, page) for row, idx in enumerate(rows)}
+            if encode:
+                _paint_strips(px, sources, rows, strip_y, stride, top, tile)
         for slot, idx in enumerate(entries[start:start + per_page]):
             x, y = (slot % cols) * span + gutter, (slot // cols) * span + gutter
             if encode:
@@ -206,19 +224,23 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
         if encode:
             fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
             levels = _tile_mips(px, slots, mip_levels) if mip_levels > 1 else None
-            textures.append(ttm.Texture(f'street_atlas_{index}', px, fmt, 0, 0,
-                                        mipmaps=False, levels=levels))
+            if with_strips and levels:
+                _strip_levels(levels, strip_y)
+            # Tiles never sample past their gutters, so u wrap only changes the strips.
+            textures.append(ttm.Texture(f'street_atlas_{index}', px, fmt,
+                                        ttm.GPU_REPEAT if with_strips else 0, 0, mipmaps=False, levels=levels))
         else:
-            textures.append(type('AtlasRef', (), {'wrap_s': 0, 'wrap_t': 0, 'mips': mip_levels})())
+            textures.append(type('AtlasRef', (), {'wrap_s': ttm.GPU_REPEAT if with_strips else 0, 'wrap_t': 0,
+                                                  'mips': mip_levels})())
     for idx in sorted(standalone):
         size = 256 if sign_text.is_font_texture(sources[idx]) else standalone_size
         mapping[idx] = (len(textures), None, None)
         if encode:
             image, nc, pf = texture_pixels(sources[idx], size)
-            textures.append(ttm.Texture(sources[idx].getName(), image,
-                                        extract.choose_format(image, nc, pf),
-                                        extract._WRAP.get(sources[idx].getWrapU(), 2),
-                                        extract._WRAP.get(sources[idx].getWrapV(), 2)))
+            ws = extract._WRAP.get(sources[idx].getWrapU(), 2)
+            wt = extract._WRAP.get(sources[idx].getWrapV(), 2)
+            textures.append(ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
+                                        ws, wt, levels=_repeat_mips(image, ws, wt) if repeat_standalone else None))
         else:
             wrap = extract._WRAP.get(sources[idx].getWrapU(), 2)
             textures.append(type('AtlasRef', (), {'wrap_s': wrap, 'wrap_t': wrap, 'mips': 1})())
@@ -226,6 +248,12 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
     for batches in chunks:
         groups = {}
         for b in batches:
+            if b.texture in strips:
+                pg, y, th, ph = strips[b.texture]
+                p = b.verts[b.indices].copy()
+                p[:, 4] = (ph - y - th + np.clip(p[:, 4], 0.0, 1.0) * th) / ph
+                groups.setdefault((pg, b.blend, b.two_sided, b.tint, b.layer), []).append(p)
+                continue
             pg, x, y = mapping[b.texture] if b.texture is not None else (None, None, None)
             key = (pg, b.blend, b.two_sided, b.tint, b.layer)
             parts = groups.setdefault(key, [])
@@ -266,6 +294,95 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
                 merged.append(ttm.Batch(tex, blend, two, tint, layer, vs, np.arange(len(vs))))
         result.append(merged)
     return textures, result
+
+
+STRIP_ROWS_MAX = 256
+
+
+def _strip_stride(tile, gutter, mip_levels):
+    """Row stride and content offset of a strip row, 4px (ETC block) aligned at every mip."""
+    align = 4 << (mip_levels - 1)
+    stride = -(-(tile + 2 * gutter) // align) * align
+    return stride, (stride - tile) // 2
+
+
+def _strip_picks(sources, chunks, candidates, stride):
+    """Textures that repeat only along u, which a full-width page row can hold.
+
+    The row is as wide as its page, so the sampler's u wrap repeats the row while v
+    picks the row. All of a chunk's repeating far cutouts (fences, hedges) then share
+    its far page and its draw. Textures that repeat along v stay standalone.
+    """
+    picked = []
+    for idx in sorted(candidates):
+        tex = sources[idx]
+        if sign_text.is_font_texture(tex) or tex.getWrapU() != tex.WM_repeat:
+            continue
+        ok = True
+        for batches in chunks:
+            for b in batches:
+                if b.texture == idx:
+                    v = b.verts[b.indices][:, 4]
+                    if float(v.min()) < -0.01 or float(v.max()) > 1.01:
+                        ok = False
+        if ok and (len(picked) + 1) * stride <= STRIP_ROWS_MAX:
+            picked.append(idx)
+    return picked
+
+
+def _paint_strips(px, sources, rows, y0, stride, top, tile):
+    """Full-width rows from y0, each a texture at tile px high with edge-copied gutters."""
+    width = px.shape[1]
+    for row, idx in enumerate(rows):
+        image, _, _ = texture_pixels(sources[idx], width)
+        h, w = image.shape[:2]
+        if h > tile and h % tile == 0:
+            image = image.reshape(tile, h // tile, w, 4).astype(np.uint16).mean(axis=1).round().astype(np.uint8)
+        image = image[np.arange(tile) * image.shape[0] // tile][:, np.arange(width) * w // width]
+        y = y0 + row * stride
+        px[y:y + stride] = np.pad(image, ((top, stride - tile - top), (0, 0), (0, 0)), mode='edge')
+
+
+def _strip_levels(levels, y0):
+    """Box-filter the strip rows (y0 to the page bottom) of levels[0] into every level."""
+    for i in range(1, len(levels)):
+        q = levels[i - 1][y0 >> (i - 1):].astype(np.uint16)
+        down = (q[0::2, 0::2] + q[1::2, 0::2] + q[0::2, 1::2] + q[1::2, 1::2] + 2) // 4
+        levels[i][y0 >> i:] = down.astype(np.uint8)
+    return levels
+
+
+def _strip_page(sources, rows, tile, stride, top, mip_levels, textures, encode):
+    """A page of strip rows alone (the chunk's tiles did not leave room for them)."""
+    width = 2 * tile
+    height = max(8 << (mip_levels - 1), 1 << (len(rows) * stride - 1).bit_length())
+    index = len(textures)
+    if encode:
+        px = np.full((height, width, 4), 255, dtype=np.uint8)
+        _paint_strips(px, sources, rows, 0, stride, top, tile)
+        levels = [px]
+        for _ in range(mip_levels - 1):
+            levels.append(np.zeros((levels[-1].shape[0] // 2, levels[-1].shape[1] // 2, 4), dtype=np.uint8))
+        _strip_levels(levels, 0)
+        fmt = ttm.GPU_ETC1 if np.all(px[:, :, 3] == 255) else ttm.GPU_ETC1A4
+        textures.append(ttm.Texture(f'street_strip_{index}', px, fmt, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE,
+                                    mipmaps=False, levels=levels))
+    else:
+        textures.append(type('AtlasRef', (), {'wrap_s': ttm.GPU_REPEAT, 'wrap_t': ttm.GPU_CLAMP_TO_EDGE,
+                                              'mips': mip_levels})())
+    return {idx: (index, row * stride + top, tile, height) for row, idx in enumerate(rows)}
+
+
+def strip_rows_needed(sources, chunks, tile, gutter, mip_levels):
+    """Pixel rows build(repeat_standalone=True) reserves for strip rows."""
+    stride, _ = _strip_stride(tile, gutter, mip_levels)
+    candidates = set()
+    for batches in chunks:
+        for b in batches:
+            if b.texture is not None and any(len(xr) * len(yr) > 1 for xr, yr in
+                                             (tile_ranges(t, sources[b.texture]) for t in b.verts[b.indices.reshape(-1, 3)])):
+                candidates.add(b.texture)
+    return len(_strip_picks(sources, chunks, candidates, stride)) * stride
 
 
 def rebase_large_uvs(batch, textures):

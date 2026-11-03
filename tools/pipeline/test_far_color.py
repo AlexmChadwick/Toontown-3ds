@@ -187,6 +187,39 @@ class FoldTwoSidedTest(unittest.TestCase):
         far, _, _ = bake_street._colorize_far([], [batches], details=True)
         self.assertEqual([(bool(b.two_sided), len(b.indices) // 3) for b in far[0]], [(False, 3)])
 
+class StripPageTest(unittest.TestCase):
+    class Tex:
+        WM_repeat, WM_clamp = 1, 0
+
+        def __init__(self, n):
+            self.this, self.n = 10_000 + n, n
+
+        def getWrapU(self):
+            return 1
+
+        def getWrapV(self):
+            return 0
+
+        def getName(self):
+            return f't{self.n}'
+
+    def test_u_repeating_textures_share_one_wrapping_page(self):
+        import street_atlas
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [10, 0, 0], [0, 0, 2]]
+        tri[:, 3:5] = [[0, 0], [5, 0], [0, 1]]
+        tri[:, 5:9] = 1
+        batches = [ttm.Batch(i, ttm.BLEND_ALPHA_TEST, True, 0, 1, tri.copy(), np.arange(3)) for i in (0, 1)]
+        textures, result = street_atlas.build([self.Tex(0), self.Tex(1)], [batches], encode=False, tile=16,
+                                              gutter=2, mip_levels=2, standalone_size=32, page=64,
+                                              repeat_standalone=True)
+        self.assertEqual(len(result[0]), 1)  # one draw
+        page = textures[result[0][0].texture]
+        self.assertEqual((page.wrap_s, page.wrap_t), (ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE))
+        v = result[0][0].verts[:, 4]
+        self.assertTrue(0 < v.min() and v.max() < 1)
+        self.assertEqual(result[0][0].verts[:, 3].max(), 5)  # u keeps its repeats
+
 
 if __name__ == '__main__':
     unittest.main()

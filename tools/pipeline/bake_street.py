@@ -137,23 +137,40 @@ def _far_texel(image, uv, mips_cache, key):
     return out
 
 
-def _far_detail(image, b, tri):
+# A repeating far cutout gets its own wrapping copy (build_far_atlas), so repeats
+# cost no triangles; this cap only bounds how hard a 32px copy is minified. The TTC
+# fence (wall_fence_wood, 2 to 12 repeats per face, alpha test) went flat salmon as
+# vertex colour on Old 3DS past 160, and hedges lost their leafy top edge.
+FAR_DETAIL_REPEATS = 32
+
+
+def _far_detail(image, b, tri, sources=None):
     """A far triangle that must keep its texture: an alpha cutout or a decal.
 
     A corner texel of a cutout (balloons, flowers, leaves) is usually clear, so a
     vertex-coloured copy vanishes under the alpha test. A decal (window, door,
-    shop sign) sampled at its corners is a flat frame-coloured patch. Only unit
-    UVs qualify: a far atlas tile never repeats, so nothing is clipped.
+    shop sign) sampled at its corners is a flat frame-coloured patch. Unit UVs
+    qualify. A wall-like alpha-tested or blended face that repeats does too (fences,
+    hedges): it keeps a wrapping texture. Ground-like faces stay coloured (big and
+    flat at range); repeating decals are dropped (a flat patch would cover the wall).
     """
+    import numpy as np
     import ttm
+    import street_atlas
     if image is None:
         return False
     uv = tri[:, 3:5]
-    if float(uv.min()) < -0.01 or float(uv.max()) > 1.01:
+    if float(uv.min()) >= -0.01 and float(uv.max()) <= 1.01:
+        return bool(b.layer) or (b.blend != ttm.BLEND_OPAQUE and int(image[:, :, 3].min()) <= 16)
+    if b.layer or b.blend == ttm.BLEND_OPAQUE or sources is None or not isinstance(sources, (list, tuple)):
         return False
-    if b.layer:
-        return True
-    return b.blend != ttm.BLEND_OPAQUE and int(image[:, :, 3].min()) <= 16
+    p = tri[:, :3]
+    n = np.cross(p[1] - p[0], p[2] - p[0])
+    length = float(np.linalg.norm(n))
+    if length < 1e-9 or abs(n[2]) / length > 0.8:
+        return False
+    xr, yr = street_atlas.tile_ranges(tri, sources[b.texture])
+    return len(xr) * len(yr) <= FAR_DETAIL_REPEATS
 
 
 def _far_body(sources, image, b, tri):
@@ -236,7 +253,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                         and _silhouette_card(image, tri.reshape(-1, 9))):
                     cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
-                if details and _far_detail(image, b, tri.reshape(-1, 9)):
+                if details and _far_detail(image, b, tri.reshape(-1, 9), sources):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
                     continue
                 if details and _far_body(sources, image, b, tri):
@@ -316,15 +333,21 @@ def build_far_atlas(sources, chunks, encode=True):
             out.append([])
             continue
         local = {src: i for i, src in enumerate(used)}
-        page = next((p for p in FAR_PAGES if len(used) <= (p // span) ** 2), FAR_PAGES[-1])
+        srcs = [sources[i] for i in used]
+        rows = street_atlas.strip_rows_needed(srcs, [[ttm.Batch(local[b.texture], b.blend, b.two_sided, 0, 0,
+                                                                b.verts, b.indices) for b in batches]],
+                                              FAR_ATLAS['tile'], FAR_ATLAS['gutter'], FAR_ATLAS['mip_levels'])
+        # Repeating cutouts (fences, hedges) take full-width rows at the page bottom.
+        page = next((p for p in FAR_PAGES if len(used) <= (p // span) * ((p - rows) // span)), FAR_PAGES[-1])
         # One draw per page: far detail is alpha tested (a blended decal past lodNear
         # reads the same at >0.5), two-sided and on one decal layer. Split by state it
         # cost about three draws a chunk, and a TTC view past the 150 submit cap
         # dropped a far ground chunk (a sky hole).
         remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, True, 0, 1, b.verts, b.indices)
                     for b in batches]
-        textures, result = street_atlas.build([sources[i] for i in used], [remapped], encode=encode,
-                                              standalone_size=32, page=page, **FAR_ATLAS)
+        textures, result = street_atlas.build(srcs, [remapped], encode=encode,
+                                              standalone_size=32, page=page, repeat_standalone=True,
+                                              **FAR_ATLAS)
         pages.append(textures)
         out.append(result[0])
     return pages, out
