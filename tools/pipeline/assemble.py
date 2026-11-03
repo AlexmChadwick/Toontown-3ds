@@ -469,17 +469,27 @@ def cross_billboards(root):
 
     The extra copy is named ``<name>__bbx`` and both are tagged ``billboard=1`` so a
     future runtime billboard path can find them. Returns the number converted.
+
+    The effect may sit on any node, not only a GeomNode: Acorn Acres' 121 golf_flowers
+    sprites carry it on a PandaNode above their card, so they baked frozen at one
+    heading and read as edge-on sticks. The topmost billboard node of a subtree is
+    crossed (a nested one, like each gag shop's chimney inside o26, goes with it).
     """
+    kind = BillboardEffect.getClassType()
     count = 0
-    for gnp in root.findAllMatches('**/+GeomNode'):
-        if not gnp.node().getEffect(BillboardEffect.getClassType()):
+    done = []
+    for gnp in root.findAllMatches('**'):
+        if not gnp.node().getEffect(kind) or any(d.isAncestorOf(gnp) for d in done):
             continue
-        gnp.node().clearEffect(BillboardEffect.getClassType())
+        gnp.node().clearEffect(kind)
+        for sub in gnp.findAllMatches('**'):
+            sub.node().clearEffect(kind)
         gnp.setTwoSided(True)
         gnp.setTag('billboard', '1')
         x = gnp.copyTo(gnp.getParent())
         x.setName(gnp.getName() + '__bbx')
         x.setMat(Mat4.rotateMat(90, Vec3(0, 0, 1)) * gnp.getMat())
+        done.append(gnp)
         count += 1
     return count
 
