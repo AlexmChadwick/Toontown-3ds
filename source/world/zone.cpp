@@ -983,6 +983,42 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const Chunk low=modelInfo(z.chunks[id], 1);
                 restDraws+=low.draws; restTris+=low.tris;
             }
+            // A chunk whose far mesh no longer fits the frame caps would vanish (Daisy
+            // Gardens' hedge backdrop behind three big near chunks inside lodMust, which
+            // keep their near mesh without reserving the rest). Before that, the near
+            // chunks that took that lodMust shortcut (never the cell underfoot; farthest
+            // first) step down to their far mesh. Other near upgrades already left room.
+            bool mustOver[kMaxChunks]={};
+            auto overCapDemote=[&](uint32_t upTo, uint16_t id, const Chunk& low) {
+                if (!viewCap || !seenView[id]) return false;
+                auto over=[&]() {
+                    return viewTris+low.tris>kTriangleBudget || viewDraws+low.draws>kSubmitDrawCap;
+                };
+                if (!over()) return false;
+                const uint16_t cellId=static_cast<uint16_t>(next);
+                while (over()) {
+                    int victim=-1;
+                    float worst=-1.0f;
+                    for (uint32_t k=0;k<upTo;++k) {
+                        const uint16_t other=z.order[k];
+                        if (other==cellId || !mustOver[other] || z.choice[other]!=0 || !z.inCone[other] || !seenView[other]) continue;
+                        const Chunk& oh=z.chunks[other];
+                        const Chunk ol=modelInfo(oh, 1);
+                        if (!ol.size || ol.tris>=oh.tris) continue;
+                        const float d=distance2(feet, oh);
+                        if (d>worst) { worst=d; victim=static_cast<int>(other); }
+                    }
+                    if (victim<0) return false;
+                    const Chunk& vh=z.chunks[victim];
+                    const Chunk vl=modelInfo(vh, 1);
+                    z.choice[victim]=1;
+                    subLow(viewTris, vh.tris); viewTris+=vl.tris;
+                    subLow(viewDraws, vh.draws); viewDraws+=vl.draws;
+                    subLow(geom, vh.geom); geom+=vl.geom;
+                    subLow(tex, vh.tex); tex+=vl.tex;
+                }
+                return true;
+            };
             for (uint32_t j=0;j<count;++j) {
                 const uint16_t id=z.order[j];
                 const Chunk& high=z.chunks[id];
@@ -1019,10 +1055,14 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const bool keepNear=nearResident && within && memOk && underSubmit &&
                                     (viewCap ? mustNear : countOk);
                 if (keepNear || (fits && (within || nearResident || signNear))) {
+                    mustOver[id]=keepNear && !restOk;
                     markNear(id);
                     geom=g; tex=t;
                     viewTris=tr; viewDraws=dr;
                     addLive(nearResident ? high : low);
+                } else if (overCapDemote(j, id, low)) {
+                    viewTris+=low.tris; viewDraws+=low.draws;
+                    addLive(low);
                 } else if (viewTris+low.tris>kTriangleBudget || viewDraws+low.draws>kSubmitDrawCap) {
                     // The planned total is over the cap. A mesh that is already
                     // published still fits in the live total: keep it in the cone

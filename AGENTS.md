@@ -200,8 +200,8 @@ Key decisions:
      stop at 8x8 and clamp there, so a repeating standalone texture's last level is
      its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
      face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A small
-     repeating texture on mostly non-ground faces is stored as 4x4 copies (UVs / 4), so
-     it has two real levels before that mean one: awnings keep their stripes at range. A shared
+     repeating texture on mostly non-ground faces is stored as 2x2 copies (UVs / 2), so
+     it has one more real level before that mean one: awnings keep their stripes at range. A shared
      64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
      such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
      vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
@@ -535,7 +535,9 @@ server.
   drops before near draws or sign stand-ins. Up to two picked signs on Old 3DS
   get a negative texture LOD bias so their mips match New. GPU upload stays near
   8 ms and at most two mesh publishes run per `Place::update`. Near upgrades stop
-  at 130 draws. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
+  at 130 draws. Before an in-cone chunk is dropped for the frame caps, earlier near chunks (not
+  the cell, farthest first) step down to far: lodMust near meshes had spent Daisy Gardens' 15k
+  triangles and its hedge backdrop vanished. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring
   only queues chunks that fit in the retain budget. Retain is 2.5 MiB geometry /
@@ -565,7 +567,8 @@ server.
     - `setChat` chatter
     - Donald at the wheel rides the moving `DistributedBoat` (`world/boat.*`, `docs/design/boat.md`);
       the local toon rides it too (deck collision, `setParent` 3) and the boat has bell/foghorn/creak/lap
-      sounds (built, not yet run in Azahar); remaining: animated piers
+      sounds (built, not yet run in Azahar); the two pier ramps (`1000_pier_*`) are drawn and walkable at
+      DistributedBoat's pitch per boat state (raised with no boat)
     - Character and boat models now load on the shared background loader
       (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
       main thread; never hold `LinearGuard` around `Model::load`)
