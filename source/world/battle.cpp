@@ -1355,7 +1355,7 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     }
     // ---- tutorial ----
     if (tutorial_ && phase_ == BattlePhase::Input) {
-        v->status = "Click a gag to attack"; // TTLocalizer.InventoryClickToAttack ('Click a\ngag to\nattack')
+        // TTLocalizer.InventoryClickToAttack is the battle panel's tutText box over the rows (BattlePanel::drawButtons)
         v->tutorialArrows = true;
     }
     // ---- end tutorial ----

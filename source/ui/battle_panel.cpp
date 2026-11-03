@@ -521,6 +521,19 @@ void BattlePanel::drawButtons(const world::BattleView& v, const BattleGags& g) {
             if (!g.count || !g.count[t][0]) continue;
             drawTutorialArrow(kGridX + kCellW + 4, kGridY + t * kRowH + (kRowH - 2) * 0.5f, 180, 20.0f, a);
         }
+        // tutText: the default dialog geom in GlobalDialogColor at (0.05, -0.1133) of battleFrame, scale 0.143,
+        // image_scale 5.125. Measured on the stock 800x600 frame: from 1.71 to 5.98 gag steps right of the first
+        // gag's centre, from 1.59 to 7.89 rows below the Toon-Up row's centre (centred by Throw and Squirt);
+        // here the bottom stops above our Toon card.
+        constexpr float kStep = kCellW + pad::battle::kCellGap;
+        constexpr float bx = kGridX + kCellW * 0.5f + 1.71f * kStep, bw = 4.27f * kStep;
+        constexpr float by = kGridY + (kRowH - 2) * 0.5f + 1.59f * kRowH, bh = kBtnY - 2 - by;
+        theme::roundRect(bx - 2, by - 2, bw + 4, bh + 4, 9, theme::rgb(0x2C, 0x8C, 0x42));
+        theme::roundRect(bx, by, bw, bh, 8, theme::rgb(0xE8, 0xEA, 0xAF));
+        theme::roundRect(bx + 2, by + 2, bw - 4, bh - 4, 7, theme::rgb(0xFF, 0xFF, 0xBF));
+        // TTLocalizer.InventoryClickToAttack 'Click a\ngag to\nattack'
+        const char* lines[] = {"Click a", "gag to", "attack"};
+        for (int i = 0; i < 3; i++) centered(bx + bw * 0.5f, by + bh * 0.5f - 37 + i * 24, 0.78f, kInk, bw - 10, lines[i]);
         return;
     }
     smallButton(pad::battle::kFireX, kBtnY, pad::battle::kSmallW, choosing && v.canFire, "FIRE");
