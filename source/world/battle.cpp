@@ -564,7 +564,8 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         } else if (localActive) {
             phase_ = BattlePhase::Input;
             inputEndMs_ = nb.stateMs + kInputTimeoutMs;
-            autoAtMs_ = nowMs + 700;
+            // Test-only autoplay: the tutorial battle holds the menu long enough for a shot of tutText.
+            autoAtMs_ = nowMs + (tutorial_ ? 2500 : 700);
         } else {
             phase_ = BattlePhase::Waiting; // pending: joined mid-round, active from the next one
         }
@@ -1348,14 +1349,16 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     case BattlePhase::FaceOff: v->status = "The Cog wants a fight!"; break;
     case BattlePhase::Waiting: v->status = running_ ? "Running away!" : "Waiting for the next round..."; break;
     case BattlePhase::Input: v->status = "Choose a gag!"; break;
-    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for other players..."; break;
+    case BattlePhase::Chosen: // TownBattleWaitPanel: TownSoloBattleWaitTitle when we are the only Toon
+        v->status = running_ ? "Running away!" : nb && nb->numToons > 1 ? "Waiting for other players..." : "Please wait...";
+        break;
     case BattlePhase::Movie: v->status = "The round is playing out..."; break;
     case BattlePhase::Reward: v->status = "You beat the Cogs!"; break;
     default: break;
     }
     // ---- tutorial ----
     if (tutorial_ && phase_ == BattlePhase::Input) {
-        v->status = "Click a gag to attack"; // TTLocalizer.InventoryClickToAttack ('Click a\ngag to\nattack')
+        // TTLocalizer.InventoryClickToAttack is the battle panel's tutText box over the rows (BattlePanel::drawButtons)
         v->tutorialArrows = true;
     }
     // ---- end tutorial ----

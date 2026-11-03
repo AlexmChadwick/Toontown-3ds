@@ -189,7 +189,9 @@ Key decisions:
    - Batches are merged per texture after atlasing. The ≤150 draw calls per frame target
      drives this.
 4. **Textures.**
-   - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
+   - Max 128×128 for props and buildings, 256×256 for terrain, atlases and interiors
+     (`bake_interior.py`: room walls and floors are seen up close; the largest interior,
+     Tutorial Tom with 54 textures, is 1.9 MB at 256), mipmapped.
    - Streamed zones (`bake_street.py`) pack the near mesh as 64px tiles with an 8px
      gutter and three per-tile mips. Ground textures (upward faces with an edge of
      at least 8) stay standalone at 256. The far mesh samples those textures into

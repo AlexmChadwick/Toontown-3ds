@@ -63,7 +63,7 @@ public:
 
 private:
     enum class Screen : u8 { Title, Connecting, Pick, Make, TutorialChoice, Entering, Error };
-    enum class MakeStep : u8 { Species, Body, Color, Clothes, Name, Count };
+    enum class MakeStep : u8 { Gender, Body, Color, Clothes, Name, Count }; // MakeAToon's shop order
 
     bool tapped(const Button& b) const;
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
@@ -85,6 +85,7 @@ private:
     void updateConstructedName();
     void randomizePatternName();
     void makeStepInput(u32 down);
+    void setMakeGender(world::Gender gender);
     bool createToon(net::Client::TutorialChoice tutorial);
     void drawMakeBottom();
     void drawPickBottom();
@@ -96,7 +97,7 @@ private:
     world::ToonCache* cache_ = nullptr;
     net::Client* net_ = nullptr;
     Screen screen_ = Screen::Title;
-    MakeStep step_ = MakeStep::Species;
+    MakeStep step_ = MakeStep::Gender;
     int cursor_ = 0;      // highlighted button for D-pad navigation
     int pickSlot_ = 0;    // 0..5
     int colorTarget_ = 0; // 0 all, 1 head, 2 arms, 3 legs

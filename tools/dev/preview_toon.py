@@ -213,6 +213,7 @@ def main():
     ap.add_argument('--cols', type=int, default=6)
     ap.add_argument('--all-heads', action='store_true', help='one toon per toonHeadType (female: lashes)')
     ap.add_argument('--closeup', action='store_true', help='frame the head')
+    ap.add_argument('--heading', type=float, default=0.0, help='turn the toon (180: seen from behind)')
     args = ap.parse_args()
     base = ShowBase()
     base.setBackgroundColor(0.41, 0.69, 0.85, 1)
@@ -236,6 +237,7 @@ def main():
     cells = []
     for spec in specs:
         toon = build(base, spec, args.dir, args.anim, args.frame, args.lod, ttx)
+        toon.setH(args.heading)
         if args.closeup:
             top = toon.getTightBounds()[1][2]
             base.camera.setPos(-1.0, 3.2, top - 0.35)

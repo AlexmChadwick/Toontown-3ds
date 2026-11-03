@@ -142,7 +142,7 @@ bool FrontEnd::init(world::ToonCache* cache) {
     if (!logo_.loaded() && !logo_.load("romfs:/baked/title_logo.ttm")) TT_LOG("frontend: no title_logo.ttm");
     if (!loadingBg_.loaded() && !loadingBg_.load("romfs:/baked/loading_bg.ttm")) TT_LOG("frontend: no loading_bg.ttm");
     setPreviewDna(world::defaultToonDna());
-    preview_.play(world::kAnimWave, 1.0f);
+    preview_.play(world::kAnimNeutral, 1.0f); // MakeAToon / GenderShop: toon.loop('neutral')
     reset();
     return textBuf_ != nullptr;
 }
@@ -273,24 +273,6 @@ bool FrontEnd::matButton(const Button& b, const char* label, bool selected, bool
         // z 0.5: the caption (drawn at 0.5 after it) must pass the depth test over the bar.
         if (!ui::drawMatArt(touching_ && inside(b) ? MatArt::ShuffleDown : MatArt::ShuffleUp, x, y, w, h, 0.5f)) return false;
         textCentered(Button{x, y, w, h}, 0.56f, kWhite, label);
-        return true;
-    }
-    if (step_ == MakeStep::Species) { // the species' laff-meter head in our body colour on its pill
-        int species = -1;
-        for (int i = 0; i < 9; i++)
-            if (!strcmp(label, kSpeciesLabel[i])) species = i;
-        if (species < 0) return false;
-        if (focused) th::roundRect(b.x - 3, b.y - 3, b.w + 6, b.h + 6, 9, th::kRed);
-        const th::Pill style = selected ? th::Pill::Cyan : th::Pill::Yellow;
-        th::pill(b.x, b.y, b.w, b.h, style);
-        ui::LaffFace face;
-        face.hp = face.maxHp = 1;
-        face.species = species;
-        const float* c = world::bodyColor(makeDna_.headColor);
-        for (int k = 0; k < 3; k++) face.rgb[k] = c[k];
-        const float d = b.h - 6;
-        ui::drawLaffMeter(face, b.x + 9, b.y + 2, d, nullptr, nullptr, 0.52f);
-        textCentered(Button{b.x + 9 + d, b.y + 1, b.w - d - 16, b.h}, 0.52f, th::pillInk(style), label);
         return true;
     }
     const bool boy = !strcmp(label, "Boy"), girl = !strcmp(label, "Girl");
@@ -468,7 +450,7 @@ Action FrontEnd::update(u32 down, u32 held, const touchPosition& touch, float dt
                 renameAvId_ = 0;
                 updatePickPreview();
                 go(Screen::Pick);
-            } else if (step_ == MakeStep::Species) {
+            } else if (step_ == MakeStep::Gender) {
                 updatePickPreview();
                 go(Screen::Pick);
             } else {
@@ -618,24 +600,33 @@ int FrontEnd::shuffleRow(int row, const char* name, bool glow, bool enabled) {
     return result;
 }
 
+void FrontEnd::setMakeGender(world::Gender gender) {
+    if (choice_.gender != gender) {
+        choice_.gender = gender;
+        // Colour and clothing lists differ by gender: start from their first entries.
+        choice_.headColor = choice_.armColor = choice_.legColor = world::matColor(gender, 0);
+        choice_.shirt = choice_.bottom = 0;
+        randomizePatternName();
+    }
+    rebuildMakeDna();
+}
+
 void FrontEnd::makeStepInput(u32 down) {
     (void)down;
     using world::Gender;
     using world::Species;
     switch (step_) {
-    case MakeStep::Species:
-        for (int i = 0; i < 9; i++) {
-            const Button b{10.0f + (i % 3) * 102.0f, 28.0f + (i / 3) * 52.0f, 96.0f, 46.0f};
-            if (TT_BUTTON(b, kSpeciesLabel[i], static_cast<int>(choice_.species) == i, true)) {
-                choice_.species = static_cast<Species>(i);
-                choice_.headVariant = 0;
-                rebuildMakeDna();
-            }
+    case MakeStep::Gender:
+        // GenderShop: the boy and girl buttons side by side (pos -0.4 / 0.4, -0.8).
+        for (int g = 0; g < 2; g++) {
+            if (TT_BUTTON((Button{40.0f + g * 130.0f, 80, 110, 60}), g == 0 ? "Boy" : "Girl",
+                          choice_.gender == (g == 0 ? Gender::Male : Gender::Female), true))
+                setMakeGender(g == 0 ? Gender::Male : Gender::Female);
         }
         break;
     case MakeStep::Body: {
         // BodyShop: the Species frame (scale 1.3) and the Head / Body / Legs frames (0.9, tilted),
-        // each stepping its choice with the gold arrows; GenderShop's boy / girl buttons beside them.
+        // each stepping its choice with the gold arrows.
         int r = shuffleRow(0, kSpeciesLabel[static_cast<int>(choice_.species)], false, true);
         if (r == 1 || r == -1) {
             choice_.species = static_cast<Species>((static_cast<int>(choice_.species) + r + 9) % 9);
@@ -657,20 +648,6 @@ void FrontEnd::makeStepInput(u32 down) {
         if (r == 1 || r == -1) {
             choice_.legSize = static_cast<u8>((choice_.legSize + r + 3) % 3);
             rebuildMakeDna();
-        }
-        for (int g = 0; g < 2; g++) {
-            const Gender gender = g == 0 ? Gender::Male : Gender::Female;
-            if (TT_BUTTON((Button{kSwatchX - 2 + g * 72.0f, 34, 68, 34}), g == 0 ? "Boy" : "Girl",
-                          choice_.gender == gender, true)) {
-                if (choice_.gender != gender) {
-                    choice_.gender = gender;
-                    // Colour and clothing lists differ by gender: start from their first entries.
-                    choice_.headColor = choice_.armColor = choice_.legColor = world::matColor(gender, 0);
-                    choice_.shirt = choice_.bottom = 0;
-                    randomizePatternName();
-                }
-                rebuildMakeDna();
-            }
         }
         break;
     }
@@ -927,8 +904,8 @@ bool FrontEnd::ensureRoom() {
     int shop = kRoomName;
     if (!renameAvId_) {
         switch (step_) {
-        case MakeStep::Species: shop = kRoomBody; break;
-        case MakeStep::Body: shop = kRoomGender; break;
+        case MakeStep::Gender: shop = kRoomGender; break;
+        case MakeStep::Body: shop = kRoomBody; break;
         case MakeStep::Color: shop = kRoomColor; break;
         case MakeStep::Clothes: shop = kRoomClothes; break;
         default: shop = kRoomName; break;
@@ -1120,8 +1097,8 @@ void FrontEnd::drawTop(render::Renderer& renderer) {
             break;
         }
         switch (step_) {
-        case MakeStep::Species: title = "Choose Your Type"; titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF); break;
-        case MakeStep::Body: title = "Choose Boy or Girl"; titleColor = C2D_Color32(0xFF, 0xEA, 0x33, 0xFF); break;
+        case MakeStep::Gender: title = "Choose Boy or Girl"; titleColor = C2D_Color32(0xFF, 0xEA, 0x33, 0xFF); break;
+        case MakeStep::Body: title = "Choose Your Type"; titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF); break;
         case MakeStep::Color: title = "Choose Your Color"; titleColor = C2D_Color32(0x00, 0xFF, 0xFF, 0xFF); break;
         case MakeStep::Clothes: title = "Choose Your Clothes"; titleColor = C2D_Color32(0xFF, 0xEA, 0x33, 0xFF); break;
         default: title = "Choose Your Name"; titleColor = C2D_Color32(0x00, 0xFA, 0x80, 0xFF); break;
@@ -1220,7 +1197,7 @@ FrontEnd::Button namePillRect(int i) { return {ui::pat::kSlots[i].cx - 49, ui::p
 
 void FrontEnd::startMakeAToon() {
     choice_ = world::MakeAToonChoice{};
-    step_ = MakeStep::Species;
+    step_ = MakeStep::Gender;
     rebuildMakeDna();
     randomizePatternName();
     go(Screen::Make);
@@ -1408,7 +1385,7 @@ void FrontEnd::shuffleFrame(float cy, const char* name, const char* count) {
 }
 
 void FrontEnd::drawMakeBottom() {
-    static const char* const kStepNames[] = {"Species", "Body", "Color", "Clothes", "Name Shop"};
+    static const char* const kStepNames[] = {"Gender", "Body", "Color", "Clothes", "Name Shop"};
     if (renameAvId_) {
         text(10, 6, 0.5f, kBSoft, "Name Shop: name your Toon!");
     } else {
