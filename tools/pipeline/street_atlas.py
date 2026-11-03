@@ -618,14 +618,20 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 if len(xr) * len(yr) > 32:
                     fixed.add(b.texture)
                     break
-    shared = {}
+    shared, repeats = {}, {}
+    wall_like = _wall_like_textures(chunks)
 
     def standalone_texture(idx):
         if idx not in shared:
-            size = 256 if sign_text.is_font_texture(sources[idx]) else standalone_size
+            font = sign_text.is_font_texture(sources[idx])
+            size = 256 if font else standalone_size
             image, nc, pf = texture_pixels(sources[idx], size)
             ws = extract._WRAP.get(sources[idx].getWrapU(), 2)
             wt = extract._WRAP.get(sources[idx].getWrapV(), 2)
+            k = 1 if font or idx not in wall_like else _pretile_factor(image, ws, wt, wall_like[idx], standalone_size)
+            if k > 1:
+                image = np.tile(image, (k, k, 1))
+            repeats[idx] = k
             shared[idx] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
                                       ws, wt, levels=_repeat_mips(image, ws, wt))
         return shared[idx]
@@ -708,7 +714,9 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             pg = mapping[b.texture][0] if b.texture is not None else None
             parts = groups.setdefault((pg, b.blend, b.two_sided, b.tint, b.layer), [])
             if b.texture is None or mapping[b.texture][1] is None:
-                parts.append(b.verts[b.indices].copy())
+                q = b.verts[b.indices].copy()
+                q[:, 3:5] /= repeats.get(b.texture, 1)
+                parts.append(q)
         for idx, plist in pieces.items():
             pg, x, y, tw, th, pw, ph = mapping[idx]
             lo, hi = tiles[idx][0], tiles[idx][1]
@@ -734,6 +742,53 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                       'sizes': sorted(((sources[i].getName(), t[2], t[3]) for i, t in tiles.items()),
                                       key=lambda r: -r[1] * r[2])})
     return out_tex, out_batches, stats
+
+
+def _wall_like_textures(chunks):
+    """Textures to pre-tile: mostly not flat ground by area (|normal z| <= 0.95: walls,
+    roofs, awnings), and every UV along a clamped axis inside the texture (0..1)."""
+    area, inside = {}, {}
+    for batches in chunks:
+        for b in batches:
+            if b.texture is None:
+                continue
+            tri = b.verts[b.indices.reshape(-1, 3)]
+            p = tri[:, :, :3].astype(np.float64)
+            n = np.cross(p[:, 1] - p[:, 0], p[:, 2] - p[:, 0])
+            a = np.linalg.norm(n, axis=1)
+            nz = np.abs(n[:, 2]) / np.maximum(a, 1e-12)
+            w, g = area.get(b.texture, (0.0, 0.0))
+            area[b.texture] = (w + float(a[nz <= 0.95].sum()), g + float(a[nz > 0.95].sum()))
+            uv = tri[:, :, 3:5].reshape(-1, 2)
+            lo, hi = inside.get(b.texture, (np.full(2, np.inf), np.full(2, -np.inf)))
+            inside[b.texture] = (np.minimum(lo, uv.min(axis=0)), np.maximum(hi, uv.max(axis=0)))
+    return {i: inside[i] for i, (w, g) in area.items() if w > g}
+
+
+def _pretile_factor(image, wrap_s, wrap_t, uv_range, limit=256):
+    """Copies per axis (power of two, at most 4) to store a small repeating texture as;
+    its UVs are divided by the same factor.
+
+    PICA mips stop at 8x8, so a 64px texture has no level past Panda's level 3 and
+    its last level must stand for every coarser one (_repeat_mips: the mean colour).
+    As 4x4 copies in 256px it keeps the same texel density and has two more real
+    levels: the TTC trolley and gag shop awnings keep their stripes at 125 units on
+    New 3DS instead of a flat band, and still end on the mean colour where Panda would
+    (seen edge-on). A clamped axis is tiled too when its UVs stay inside 0..1 (the
+    awnings repeat along u only); it then blends a half texel into the next copy at its
+    top edge. Ground textures are left alone (_wall_like_textures): they cover most of a
+    view, and 16x their bytes does not fit the retain budget.
+    """
+    if ttm.GPU_REPEAT not in (wrap_s, wrap_t):
+        return 1
+    lo, hi = uv_range
+    for axis, wrap in ((0, wrap_s), (1, wrap_t)):
+        if wrap != ttm.GPU_REPEAT and (lo[axis] < -0.05 or hi[axis] > 1.05):
+            return 1
+    k = 1
+    while max(image.shape[:2]) * k * 2 <= limit and k < 4:
+        k *= 2
+    return k
 
 
 def _repeat_mips(image, wrap_s, wrap_t):

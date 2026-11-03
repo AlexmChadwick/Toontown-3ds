@@ -199,7 +199,9 @@ Key decisions:
      at 256 only where atlasing their repeats would multiply triangles. PICA mips
      stop at 8x8 and clamp there, so a repeating standalone texture's last level is
      its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
-     face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A shared
+     face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A small
+     repeating texture on mostly non-ground faces is stored as 4x4 copies (UVs / 4), so
+     it has two real levels before that mean one: awnings keep their stripes at range. A shared
      64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
      such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
      vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
