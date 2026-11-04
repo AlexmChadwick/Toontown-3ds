@@ -3813,6 +3813,60 @@ int main() {
                 ctx.nearbyIds[ctx.numNearby] = t.doId;
                 ctx.nearbyNames[ctx.numNearby++] = t.name;
             }
+            for (int i = 0; i < net.numFriends() && ctx.numFriends < 8; i++) {
+                const tt::net::FriendInfo& f = net.friendAt(i);
+                ctx.friendIds[ctx.numFriends] = f.doId;
+                ctx.friendNames[ctx.numFriends] = f.hasName ? f.name : "Unknown Toon";
+                ctx.friendNearby[ctx.numFriends] = f.nearby;
+                ctx.friendOpenChat[ctx.numFriends] = (f.code & 1u) != 0;
+                ctx.numFriends++;
+            }
+        }
+        // Offline GUI sweep: a stock-shaped FriendsListPanel with the three states the real
+        // setFriendsList data can expose (open chat, SpeedChat-only, offline/unknown).
+        if (autotest.active() && !strncmp(autotest.label(), "friends: ", 9)) {
+            static const char* kDemoFriends[] = {"Aqua Dog", "Little Pepper", "Sleepy Rabbit"};
+            ctx.numFriends = 3;
+            for (int i = 0; i < ctx.numFriends; i++) {
+                ctx.friendIds[i] = 100001u + unsigned(i);
+                ctx.friendNames[i] = kDemoFriends[i];
+                ctx.friendNearby[i] = i < 2;
+                ctx.friendOpenChat[i] = i == 0;
+            }
+        }
+        if (autotest.active() && (!strncmp(autotest.label(), "gui: ", 5) ||
+                                  !strcmp(autotest.label(), "book: gags"))) {
+            static tt::net::OwnStats demoStats;
+            static tt::net::OwnQuests demoQuests;
+            static tt::net::OwnBookStats demoBook;
+            static bool ready = false;
+            if (!ready) {
+                demoStats.hp = 12;
+                demoStats.maxHp = 15;
+                demoStats.money = 42;
+                demoStats.maxMoney = 80;
+                demoStats.maxCarry = 20;
+                demoStats.hasGags = true;
+                demoStats.trackAccess[4] = demoStats.trackAccess[5] = 1;
+                demoStats.experience[4] = demoStats.experience[5] = 10;
+                demoStats.inventory[4][0] = 4;
+                demoStats.inventory[5][0] = 3;
+                demoQuests.carryLimit = 1;
+                demoQuests.version = 1;
+                demoBook.initDefaults();
+                ready = true;
+            }
+            ctx.stats = &demoStats;
+            ctx.quests = &demoQuests;
+            ctx.book = &demoBook;
+            ctx.toonName = "Aqua Dog";
+            ctx.headRgb[0] = 0.35f;
+            ctx.headRgb[1] = 0.82f;
+            ctx.headRgb[2] = 0.95f;
+            ctx.gagExp = demoStats.experience;
+            ctx.gagCount = demoStats.inventory;
+            ctx.trackAccess = demoStats.trackAccess;
+            ctx.maxCarry = demoStats.maxCarry;
         }
         // ---- qafix: trolley owns its panel before the minigame hand-off ----
         if (trolley.seated()) {

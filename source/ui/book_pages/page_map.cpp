@@ -54,7 +54,7 @@ void PageMap::draw(float x, float y, float w, float h, const BookDrawContext& bd
     }
     // The same map and controls as the Map tab, below the book's title bar.
     drawMapFrame(*bdc.ctx, map, 4, 27, kW - 8, pad::hoods::kRowY - 31);
-    drawHoodControls(*bdc.ctx, pad::hoods::kBookHomeX);
+    drawHoodControls(*bdc.ctx, pad::hoods::kBookHomeX, focus_.focusedId());
     focus_.drawHighlight(); // padnav
 }
 

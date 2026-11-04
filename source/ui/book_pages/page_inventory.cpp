@@ -28,6 +28,10 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
         const float bw = text_.right(x + w - 8, y + 3, theme::kTextBody, theme::rgb(0x80, 0x50, 0x00), 0,
                                      "Jellybeans  %d / %d", st->money, st->maxMoney);
         drawJarIcon(x + w - 30 - bw, y, 19);
+    } else {
+        // Keep the offline explanation in the header. The old line below all seven 22 px rows
+        // landed under the book's tab strip and was visibly clipped.
+        text_.right(x + w - 8, y + 3, theme::kTextTiny, theme::kInkSoft, w - 92, "Go online to load gags");
     }
     GagTableData d;
     if (st) {
@@ -40,10 +44,6 @@ void PageInventory::draw(float x, float y, float w, float h, const BookDrawConte
         d.trainingBits = bdc.book->trackProgress;
     }
     drawGagTable(text_, d, x + 5, y + 24, w - 10, 22.0f);
-    if (!st) {
-        text_.centered(x + w * 0.5f, y + 24 + 7 * 22 + 4, theme::kTextSmall, theme::kInkSoft, w - 16,
-                       "Your gags appear here once you are online.");
-    }
 }
 
 } // namespace tt::ui

@@ -148,7 +148,7 @@ void note(const char* fmt, const char* name) {
 
 } // namespace
 
-void drawHoodControls(const Context& c, float homeX) {
+void drawHoodControls(const Context& c, float homeX, int focusedHood) {
     using namespace pad::hoods;
     initText();
     if (!gPlayground.buf) {
@@ -184,18 +184,20 @@ void drawHoodControls(const Context& c, float homeX) {
     gCache.parse(&label, gDynamic, noting ? gNote : where, 256);
     theme::textCentered(label, labelX + labelW * 0.5f, noting ? kHomeY + 4 : kHomeY + 2,
                         noting ? 0.42f : 0.5f, noting ? theme::kRedDark : theme::kInk, labelW - 12);
-    // Teleport row (MapPage), Toontown's quit_button pills: the rollover cyan = here, yellow = Go To
-    // (teleport access), grey = walk there (visited, dark ink) or not visited yet / not installed.
+    // Teleport row (MapPage), Toontown's quit_button pills: cyan is the one selected destination
+    // (D-Pad/touch focus when present, otherwise where we are), yellow = Go To (teleport access),
+    // grey = walk there (visited, dark ink) or not visited yet / not installed.
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
+        const bool selected = focusedHood >= 0 && focusedHood < kNumTeleportHoods ? i == focusedHood : here;
         const bool go = have && (c.hoodsTeleport & (1u << i));
         const bool seen = have && (c.hoodsVisited & (1u << i));
         const float x = i * kHoodW + 2;
-        const theme::Pill style = here ? theme::Pill::Cyan : go ? theme::Pill::Yellow : theme::Pill::Grey;
+        const theme::Pill style = selected ? theme::Pill::Cyan : go ? theme::Pill::Yellow : theme::Pill::Grey;
         theme::pill(x, kRowY, kHoodW - 4, kRowH - 2, style);
         theme::textCentered(gHoods[i], x + (kHoodW - 4) * 0.5f, kRowY + 3, 0.48f,
-                            here || go || seen ? theme::kInk : theme::kInkSoft, kHoodW - 10);
+                            selected || here || go || seen ? theme::kInk : theme::kInkSoft, kHoodW - 10);
     }
 }
 

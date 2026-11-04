@@ -35,6 +35,10 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "tab: toon"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 8 + 4 * 34 + 15, 44 + 15, -1, "toon: pick color 4", "toon"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "tab: gags", "gags"},
+    // Deterministic real-art sweep: online-style Toon/Laff/jar and Gags/jar panels without a
+    // server. main.cpp supplies the same view structs a setHp/setMoney/setInventory would.
+    {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "gui: toon assets", "gui_toon_assets"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "gui: gags assets", "gui_gags_assets"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(4), kTabY, -1, "tab: book", "booktab"},
     {1.0f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: on", "debug"},
     {0.5f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: off"},
@@ -67,6 +71,11 @@ const Step kScript[] = {
     {0.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open toontasks"},
     {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open my tasks", "pad_chat_mytasks"},
     {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say task", "pad_chat_task_said"},
+    // The stock FriendsListPanel art inside Chat. R is the button-only shortcut; this touch
+    // exercises the visible header button, then B returns to SpeedChat.
+    {1.5f, 0, 0, 0, KEY_TOUCH, 280, 14, -1, "friends: open", "friends_panel"},
+    {0.8f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "friends: focus", "friends_focus"},
+    {0.8f, 0, 0, 0, KEY_B, -1, -1, -1, "friends: close", "friends_closed"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab toon"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: toon focus", "pad_toon"},
     {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book from toon tab", "pad_book"},
