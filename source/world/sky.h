@@ -13,9 +13,11 @@ namespace tt::world {
 
 class Sky {
 public:
-    // New place: loads the hood's sky (none indoors and in Cog HQs).
+    // New place: loads the hood's sky, or a Cog HQ place's own sky box (none indoors).
     void setZone(u32 zoneId, bool indoors);
     void update(float dt) { cloudH_ += dt * 0.25f; }
+    // Fixed-camera autotest steps: clouds at their start heading, so Old/New grabs match.
+    void holdClouds() { cloudH_ = 0.0f; }
     bool active() const { return dome_.loaded(); }
     // Horizon colour of the dome (0..1): the draw-distance fog fades into it.
     const float* horizon() const { return horizon_; }
@@ -25,7 +27,8 @@ public:
 
 private:
     render::Model dome_, cloud1_, cloud2_;
-    char name_[4] = {};
+    char name_[8] = {};
+    bool world_ = false;
     float horizon_[3] = {0x6A / 255.0f, 0xB0 / 255.0f, 0xD9 / 255.0f};
     float cloudH_ = 0.0f;
 };

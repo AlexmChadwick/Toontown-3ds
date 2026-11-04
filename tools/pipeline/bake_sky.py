@@ -19,6 +19,10 @@ cog_sky keeps its dome and hills. CogHood.load puts MiddleGroup / InnerGroup (bu
 silhouettes) in the background bin without depth writes, so the opaque dome drawn after
 them paints them over: upstream never shows them, and neither does this bake.
 
+Cog HQ places that do not startSky have a sky box inside their own model instead, which
+coghq_catalog stashes from the zone bake. Those bake here in world space (hq<zone>.ttm);
+the runtime draws them first with no depth, scaled about the camera into the far plane.
+
 The cloud cards are TransparencyAttrib.M_dual; drawn after the dome with no depth
 they bake as plain alpha blending (soft cloud edges) instead of the usual alpha test.
 """
@@ -29,7 +33,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from panda3d.core import Filename, TransparencyAttrib, loadPrcFileData  # noqa: E402
+from panda3d.core import Filename, NodePath, TransparencyAttrib, loadPrcFileData  # noqa: E402
 
 loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\n'
                 'textures-power-2 none')
@@ -46,6 +50,16 @@ SKIES = {
     'cog': 'phase_9/models/cogHQ/cog_sky.bam',
 }
 HIDDEN = ('**/MiddleGroup', '**/InnerGroup')
+# zone -> (model, stashed sky node), as coghq_catalog's drop list.
+HQ_SKIES = {
+    10000: ('phase_12/models/bossbotHQ/CogGolfHub.bam', 'SkyBox'),
+    10100: ('phase_12/models/bossbotHQ/CogGolfCourtyard.bam', 'SkyBox'),
+    11100: ('phase_9/models/cogHQ/SellbotHQLobby.bam', 'skyGeo'),
+    12000: ('phase_10/models/cogHQ/CashBotShippingStation.bam', 'SkyBox1'),
+    12100: ('phase_10/models/cogHQ/VaultLobby.bam', 'SkyBox'),
+    13000: ('phase_11/models/lawbotHQ/LawbotPlaza.bam', 'LB_Sky'),
+    13100: ('phase_11/models/lawbotHQ/LB_CH_Lobby.bam', 'CH_SkyBox'),
+}
 
 
 def blend_clouds(node):
@@ -84,6 +98,15 @@ def main():
             blend_clouds(c)
             report[f'{name}_cloud{i}'] = bake(c, os.path.join(args.out, f'{name}_cloud{i}.ttm'))
         report[name] = bake(model, os.path.join(args.out, f'{name}.ttm'))
+    for zone, (rel, node) in sorted(HQ_SKIES.items()):
+        model = base.loader.loadModel(Filename.fromOsSpecific(os.path.abspath(os.path.join(args.resources, rel))))
+        root = NodePath('sky')
+        found = model.findAllMatches(f'**/{node}')
+        if not found.getNumPaths():
+            sys.exit(f'{rel}: no {node}')
+        for sky in found:
+            sky.wrtReparentTo(root)
+        report[f'hq{zone}'] = bake(root, os.path.join(args.out, f'hq{zone}.ttm'))
     print(json.dumps(report, indent=1, sort_keys=True))
 
 

@@ -289,7 +289,9 @@ Key decisions:
      DL_sky, and cog_sky in the Sellbot courtyard and factory exterior only. It is centred on the
      camera at world z 0, scaled inside the far plane, with no depth and no fog (Donald's Dock
      fogs it, as DDHood.setWhiteFog). The clear and the draw-distance fog take the hood's horizon
-     colour. The other Cog HQs keep their stashed in-model sky boxes (`docs/design/coghq.md`).
+     colour. The other Cog HQ places' own sky boxes, which the zone bake stashes, bake in world space
+     to `hq<zone>.ttm` and draw first with no depth, scaled about the eye into the far plane.
+     Fixed-camera autotest steps (`view:`, `pose:`) hold the clouds at their start heading.
    - Stereo 3D is off by default (`gfxSet3D(false)`). When it is enabled in settings, the
      top screen renders twice with an IOD from `osGet3DSliderState()`. That roughly
      halves the triangle budget, so stereo forces LOD down.
