@@ -44,6 +44,10 @@ public:
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                    const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
+    // Sky dome (Hood.sky: background bin, no depth test or write). Call first in the world
+    // pass. fogged = false draws it without fog (Hood.load setFogOff); Donald's Dock fogs
+    // its sky with the white / underwater fog (DDHood.setWhiteFog), so pass true there.
+    void drawSky(Model& model, const C3D_Mtx& world, bool fogged);
     // Draw only batch `i` of the next drawModel calls (-1: all). Flipbook props such as the
     // Cog-death explosion keep one card per frame; set back to -1 after the draw.
     void setOnlyBatch(int i) { onlyBatch_ = i; }
@@ -113,6 +117,7 @@ private:
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
     int onlyBatch_ = -1;
     int blendPass_ = 0; // setBlendPass
+    bool skyPass_ = false; // drawSky: batches skip the depth test and write colour only
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
