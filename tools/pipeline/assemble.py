@@ -72,6 +72,7 @@ class Assembler:
         self.skipped = Counter()      # feature -> count
         self.wall_height = 0.0
         self.billboards_crossed = 0
+        self.lods_reduced = 0
         self.sign_letters = 0
         self.sign_baselines = 0
 
@@ -494,11 +495,36 @@ def cross_billboards(root):
     return count
 
 
+def keep_near_lod(root):
+    """Stashes every LODNode child except the highest-detail one (the switch nearest the camera).
+
+    The bake walks every GeomNode, so a model with a LODNode baked all of its levels on top of
+    each other: the trolley station in every playground and each TTC street's animated
+    hydrant, mailbox and trash can (tt_r_ara_ttc_*: high/med/low, each with its own 0.5 alpha
+    drop shadow, so the shadows stacked to a near-black blob three times the triangles).
+    Upstream shows the high level up close; the far mesh is simplified from it anyway.
+    Returns the number of LODNodes reduced.
+    """
+    count = 0
+    for lnp in root.findAllMatches('**/+LODNode'):
+        lod = lnp.node()
+        n = min(lod.getNumSwitches(), lnp.getNumChildren())
+        if n < 2:
+            continue
+        keep = min(range(n), key=lambda i: lod.getOut(i))
+        for i, child in enumerate(list(lnp.getChildren())):
+            if i != keep:
+                child.stash()
+        count += 1
+    return count
+
+
 def assemble(dna_root, storage, seed=1, name='dna', billboards='cross'):
     """Build a NodePath for a parsed DNA tree. Returns (root, Assembler) for reporting."""
     root = NodePath(PandaNode(name))
     asm = Assembler(storage, seed)
     asm.traverse(dna_root, root)
+    asm.lods_reduced = keep_near_lod(root)
     lift_decals(root)
     if billboards == 'cross':
         asm.billboards_crossed = cross_billboards(root)

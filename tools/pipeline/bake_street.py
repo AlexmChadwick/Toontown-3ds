@@ -873,7 +873,7 @@ def bake(zone_id, args, base):
     report.update({'moving_props':movers,'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
-                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),'wall_shadows':wall_shadows,
+                   'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),'lods_reduced':asm.lods_reduced,'wall_shadows':wall_shadows,
                    'warnings':warnings,'collision':collision_stats,'atlas_pages':sum(a['pages'] for a in atlas_stats),
                    'near_atlas':NEAR_ATLAS,'ground_split':ground_stats,
                    'grid_size':grid_used,'draw_cap':street_lod.DRAW_CAP})

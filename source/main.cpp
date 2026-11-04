@@ -3258,7 +3258,10 @@ int main() {
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         sky.setZone(place.zoneId(), level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
-        sky.update(dt);
+        if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
+            sky.holdClouds();
+        else
+            sky.update(dt);
         level.pumpAssets();
         pets.pumpAssets();
         cogInterior.pumpAssets();
