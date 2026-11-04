@@ -184,9 +184,9 @@ void drawHoodControls(const Context& c, float homeX, int focusedHood) {
     gCache.parse(&label, gDynamic, noting ? gNote : where, 256);
     theme::textCentered(label, labelX + labelW * 0.5f, noting ? kHomeY + 4 : kHomeY + 2,
                         noting ? 0.42f : 0.5f, noting ? theme::kRedDark : theme::kInk, labelW - 12);
-    // Teleport row (MapPage), Toontown's quit_button pills: cyan is the one selected destination
-    // (D-Pad/touch focus when present, otherwise where we are), yellow = Go To (teleport access),
-    // grey = walk there (visited, dark ink) or not visited yet / not installed.
+    // Teleport row (MapPage), Toontown's quit_button pills: cyan marks exactly one destination,
+    // the D-Pad/touch focus while choosing or the current hood before the row has focus. Every
+    // other hood stays grey, with dark ink when it is reachable or visited.
     for (int i = 0; i < kNumTeleportHoods; i++) {
         const bool have = c.hoodsAvailable & (1u << i);
         const bool here = kTeleportHoods[i] == c.currentHood;
@@ -194,7 +194,7 @@ void drawHoodControls(const Context& c, float homeX, int focusedHood) {
         const bool go = have && (c.hoodsTeleport & (1u << i));
         const bool seen = have && (c.hoodsVisited & (1u << i));
         const float x = i * kHoodW + 2;
-        const theme::Pill style = selected ? theme::Pill::Cyan : go ? theme::Pill::Yellow : theme::Pill::Grey;
+        const theme::Pill style = selected ? theme::Pill::Cyan : theme::Pill::Grey;
         theme::pill(x, kRowY, kHoodW - 4, kRowH - 2, style);
         theme::textCentered(gHoods[i], x + (kHoodW - 4) * 0.5f, kRowY + 3, 0.48f,
                             selected || here || go || seen ? theme::kInk : theme::kInkSoft, kHoodW - 10);

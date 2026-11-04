@@ -201,7 +201,9 @@ Key decisions:
      its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
      face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A small
      repeating texture on mostly non-ground faces is stored as 2x2 copies (UVs / 2), so
-     it has one more real level before that mean one: awnings keep their stripes at range. A shared
+     it has one more real level before that mean one: awnings keep their stripes at range.
+     That choice is per triangle (a clamped axis must stay inside 0..1), so one texture can
+     be 2x2 for the TTC trolley valance and single for the gag shop end cap that leaves it. A shared
      64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
      such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
      vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
@@ -281,6 +283,13 @@ Key decisions:
    - Every target is cleared every frame (`C3D_RenderTargetClear` / `C2D_TargetClear`).
    - Call `C2D_Prepare()` before 2D drawing after any custom shader use.
    - Use one `C3D_FrameBegin`/`C3D_FrameEnd` pair per frame.
+   - **Sky.** Toon hoods draw their `Hood.skyFile` dome first (`world/sky.*`,
+     `Renderer::drawSky`, RomFS `baked/sky/` from `tools/pipeline/bake_sky.py`): TT_sky with its
+     two cloud groups turning at h / -0.8 h, BR_sky for The Brrrgh and Donald's Dock, MM_sky,
+     DL_sky, and cog_sky in the Sellbot courtyard and factory exterior only. It is centred on the
+     camera at world z 0, scaled inside the far plane, with no depth and no fog (Donald's Dock
+     fogs it, as DDHood.setWhiteFog). The clear and the draw-distance fog take the hood's horizon
+     colour. The other Cog HQs keep their stashed in-model sky boxes (`docs/design/coghq.md`).
    - Stereo 3D is off by default (`gfxSet3D(false)`). When it is enabled in settings, the
      top screen renders twice with an IOD from `osGet3DSliderState()`. That roughly
      halves the triangle budget, so stereo forces LOD down.
@@ -722,6 +731,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/ttm_pool.py` | one shared `textures.ttp` per model directory (interiors), TTM v2; `tz.py <files>` repacks `.tz` to v3 |
 | `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
+| `tools/pipeline/bake_sky.py` | the hood skies (TT_sky + its two cloud groups, BR_sky, MM_sky, DL_sky, cog_sky) → `romfs/baked/sky/*.ttm` |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py`, `bake_purchase_gui.py`, `bake_pick_a_toon.py`, `bake_mat_gui.py` (shared `ui_atlas.py`) | ToontownTimer's alarm clock, fishingGui's cast interface, the Shtiker Book page tab icons, the purchase screens' sign plank and bean jar, AvatarChooser's background, squares and trashcan, and Make-A-Toon's round, gender and shuffle buttons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |

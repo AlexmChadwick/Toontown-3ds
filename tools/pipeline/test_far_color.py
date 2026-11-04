@@ -220,6 +220,16 @@ class StripPageTest(unittest.TestCase):
         self.assertTrue(0 < v.min() and v.max() < 1)
         self.assertEqual(result[0][0].verts[:, 3].max(), 5)  # u keeps its repeats
 
+    def test_pretile_is_decided_by_each_triangles_own_uvs(self):
+        # awning_edge: the TTC trolley valance stays inside v 0..1 and is tiled 2x2; the gag
+        # shop end cap reaches v 1.33 on the clamped axis and keeps the single copy.
+        import street_atlas
+        image = np.zeros((64, 64, 4), dtype=np.uint8)
+        inside = (np.array([0.0, -0.02]), np.array([10.5, 1.0]))
+        outside = (np.array([0.0, -0.02]), np.array([10.5, 1.33]))
+        self.assertEqual(street_atlas._pretile_factor(image, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE, inside), 2)
+        self.assertEqual(street_atlas._pretile_factor(image, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE, outside), 1)
+
 
 if __name__ == '__main__':
     unittest.main()

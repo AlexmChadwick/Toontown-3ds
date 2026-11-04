@@ -26,6 +26,8 @@ public:
     bool update(float toonX, float toonY, float toonZ, float cameraZ, bool moving, net::Client* net,
                 render::Renderer& renderer);
     bool swimming() const { return toonSubmerged_; }
+    // Donald's Dock's white or underwater fog is on (applyFog); it covers the sky too.
+    bool fogActive() const { return active_ && (cameraSubmerged_ || hasWhiteFog_); }
     uint32_t zone() const { return zoneId_; }
 
 private:

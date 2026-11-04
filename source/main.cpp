@@ -58,6 +58,7 @@
 #include "world/battle.h"
 #include "world/battle_fx.h"
 #include "world/trolley.h"
+#include "world/sky.h"
 #include "world/fishing.h"
 #include "world/golf.h"
 #include "world/place.h"
@@ -516,6 +517,8 @@ int main() {
     static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
+    static tt::world::Sky sky; // the hood's sky dome (Hood.skyFile)
+    static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
     static tt::world::GolfSession golf;
@@ -2135,7 +2138,6 @@ int main() {
             animRate = 1.0f;
         }
         // ---- water: swimming in Donald's Dock / Acorn Acres (world/water.*) ----
-        static tt::world::Water water;
         if (place.zoneId() != water.zone()) water.setZone(place.zoneId(), renderer);
         const bool swimming = !battle.inBattle() && !featureBusyForWater(fishing.active(), trolley.seated(),
                                                                        minigame.inScene(), transition.active()) &&
@@ -3255,6 +3257,8 @@ int main() {
                                   FVec3_New(player.x() + 5, player.y() + 6, player.z() + 2));
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+        sky.setZone(place.zoneId(), level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
+        sky.update(dt);
         level.pumpAssets();
         pets.pumpAssets();
         cogInterior.pumpAssets();
@@ -3288,7 +3292,12 @@ int main() {
             // Indoors (interiors, facilities) gaps show OTPGlobals.DefaultBackgroundColor (0.3 grey),
             // not the playground sky blue.
             const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
-            renderer.setBackground(indoors ? 0x4C4C4CFF : 0x6AB0D9FF);
+            // Outdoors the clear and the draw-distance fog take the hood sky's horizon colour
+            // (TT blue, BR grey, MM sunset, DL night), so distant chunks fade into the dome.
+            const float* hz = sky.horizon();
+            const auto hzByte = [](float v) { return u32(v * 255.0f + 0.5f); };
+            renderer.setBackground(indoors ? 0x4C4C4CFF
+                                           : hzByte(hz[0]) << 24 | hzByte(hz[1]) << 16 | hzByte(hz[2]) << 8 | 0xFF);
             if (minigame.active()) minigame.applyWorld(renderer);
             else {
                 minigame.releaseWorld(renderer); // far plane 0 restores the quality profile
@@ -3296,9 +3305,9 @@ int main() {
                 // underwater fog are already on (world/water.cpp); do not replace them. Indoors
                 // keep the flat grey clear. Stereo uses this same LUT for both eyes.
                 if (indoors) renderer.clearFog();
-                else if (!renderer.fogEnabled()) {
+                else if (!water.fogActive()) {
                     const tt::render::Quality& q = tt::render::activeQuality();
-                    renderer.setFog(0x6A / 255.0f, 0xB0 / 255.0f, 0xD9 / 255.0f, q.fogStart, q.fogEnd);
+                    renderer.setFog(hz[0], hz[1], hz[2], q.fogStart, q.fogEnd); // no-op when unchanged
                 }
             }
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
@@ -3346,6 +3355,8 @@ int main() {
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {
+                // Donald's Dock's white / underwater fog (world/water.cpp) covers its sky too.
+                sky.draw(renderer, player.cameraEye(), water.fogActive());
                 place.draw(renderer, player.cameraEye());
             }
             // ---- clerks: preview the selected body/equipped accessory components ----
