@@ -118,11 +118,12 @@ void applyRetain(Zone& zone) {
     // is under 12 MB, which is the Old 3DS floor. The totals stay 8 and 10 MiB, but
     // a cone's geometry is under 1 MB (the per-file far cap is 810 KB) while the
     // chunk-local near atlases need the texture side: at 4/4 Old kept TTC's tunnel
-    // chunks on their far mesh 60 units away with 3.3 MiB of geometry unused.
+    // chunks on their far mesh 60 units away with 3.3 MiB of geometry unused, and at
+    // 2.5/5.5 an extra 38 KB of TTC awning texture put the Loopy Lane tunnel back on it.
     if (tt::render::activeQuality().new3ds)
         zone.setRetainBudget(3u * 1024u * 1024u, 7u * 1024u * 1024u);
     else
-        zone.setRetainBudget(5u * 512u * 1024u, 11u * 512u * 1024u);
+        zone.setRetainBudget(2u * 1024u * 1024u, 6u * 1024u * 1024u);
 }
 } // namespace
 

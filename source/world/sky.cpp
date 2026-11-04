@@ -81,17 +81,15 @@ void Sky::draw(render::Renderer& renderer, const C3D_FVec& eye, bool fogged) {
         reach = fmaxf(reach, sqrtf(x * x + y * y + z * z));
     }
     const float fit = fminf(1.0f, 0.9f * renderer.farPlane() / reach);
+    // T(eye) S(fit) T(-eye): seen from the eye the sky looks the same at any far plane (Old 520,
+    // New 900). A hood dome sits at (eye.x, eye.y, 0) (CompassEffect PRot | PZ: world Z 0); a Cog
+    // HQ box stays where its model put it.
     C3D_Mtx m;
     Mtx_Identity(&m);
-    if (world_) {
-        // world = T(eye) S(fit) T(-eye): the box stays where the model put it, seen from the eye.
-        Mtx_Translate(&m, eye.x, eye.y, eye.z, true);
-        Mtx_Scale(&m, fit, fit, fit);
-        Mtx_Translate(&m, -eye.x, -eye.y, -eye.z, true);
-    } else {
-        Mtx_Translate(&m, eye.x, eye.y, 0.0f, true); // CompassEffect PRot | PZ: world Z 0
-        Mtx_Scale(&m, fit, fit, fit);
-    }
+    Mtx_Translate(&m, eye.x, eye.y, eye.z, true);
+    Mtx_Scale(&m, fit, fit, fit);
+    Mtx_Translate(&m, -eye.x, -eye.y, -eye.z, true);
+    if (!world_) Mtx_Translate(&m, eye.x, eye.y, 0.0f, true);
     renderer.drawSky(dome_, m, fogged);
     const float h = fmodf(cloudH_, 360.0f) * kDegToRad;
     if (cloud1_.loaded()) {

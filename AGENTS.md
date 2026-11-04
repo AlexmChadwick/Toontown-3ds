@@ -551,8 +551,8 @@ server.
   triangles and its hedge backdrop vanished. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
   upload is kept, and eviction does not drop a warm hold while that preload is
   in progress. The ring
-  only queues chunks that fit in the retain budget. Retain is 2.5 MiB geometry /
-  5.5 MiB textures on Old 3DS and 3 / 7 MiB on New 3DS (a cone's geometry stays
+  only queues chunks that fit in the retain budget. Retain is 2 MiB geometry /
+  6 MiB textures on Old 3DS and 3 / 7 MiB on New 3DS (a cone's geometry stays
   under 1 MB; the chunk-local near atlases need the texture side). Out-of-cone far
   meshes leave the plan's cap before any near upgrade. Zone chunks draw the opaque
   batches of every chunk first, then the blended ones (`Renderer::setBlendPass`),
