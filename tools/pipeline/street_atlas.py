@@ -618,23 +618,37 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 if len(xr) * len(yr) > 32:
                     fixed.add(b.texture)
                     break
-    shared, repeats = {}, {}
+    shared, base = {}, {}
     wall_like = _wall_like_textures(chunks)
 
-    def standalone_texture(idx):
-        if idx not in shared:
+    def source_pixels(idx):
+        if idx not in base:
             font = sign_text.is_font_texture(sources[idx])
-            size = 256 if font else standalone_size
-            image, nc, pf = texture_pixels(sources[idx], size)
-            ws = extract._WRAP.get(sources[idx].getWrapU(), 2)
-            wt = extract._WRAP.get(sources[idx].getWrapV(), 2)
-            k = 1 if font or idx not in wall_like else _pretile_factor(image, ws, wt, wall_like[idx], standalone_size)
+            image, nc, pf = texture_pixels(sources[idx], 256 if font else standalone_size)
+            base[idx] = (font, image, nc, pf, extract._WRAP.get(sources[idx].getWrapU(), 2),
+                         extract._WRAP.get(sources[idx].getWrapV(), 2))
+        return base[idx]
+
+    def repeat_of(b):
+        """Copies per axis of b's standalone texture, per triangle by its own UVs: one
+        texture is 2x2 for the triangles whose clamped UVs stay inside 0..1 (the TTC
+        trolley's awning_edge valance) and single where they leave it (the gag shop end
+        cap reaches v 1.33), even inside one merged batch."""
+        tri = b.verts[b.indices.reshape(-1, 3), 3:5]
+        font, image, _, _, ws, wt = source_pixels(b.texture)
+        if font or b.texture not in wall_like:
+            return np.ones(len(tri), dtype=np.int64)
+        return np.array([_pretile_factor(image, ws, wt, (t.min(axis=0), t.max(axis=0)), standalone_size)
+                         for t in tri], dtype=np.int64)
+
+    def standalone_texture(idx, k):
+        if (idx, k) not in shared:
+            _, image, nc, pf, ws, wt = source_pixels(idx)
             if k > 1:
                 image = np.tile(image, (k, k, 1))
-            repeats[idx] = k
-            shared[idx] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
-                                      ws, wt, levels=_repeat_mips(image, ws, wt))
-        return shared[idx]
+            shared[(idx, k)] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
+                                           ws, wt, levels=_repeat_mips(image, ws, wt))
+        return shared[(idx, k)]
     need = ViewDensity(view_points, density, near=view_near, far=view_far)
     cache = _SourceCache(sources)
     alpha_of = {}
@@ -706,17 +720,24 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 fmt = ttm.GPU_ETC1A4 if alpha else ttm.GPU_ETC1
                 textures.append(ttm.Texture(f'{name}_{len(out_tex)}_{len(textures)}', px, fmt, 0, 0,
                                             mipmaps=False, levels=levels))
-        for idx in sorted({b.texture for b in batches if b.texture in standalone}):
-            mapping[idx] = (len(textures), None, None, None, None, None, None)
-            textures.append(standalone_texture(idx))
+        copies = {bi: repeat_of(b) for bi, b in enumerate(batches) if b.texture in standalone}
+        for key in sorted({(batches[bi].texture, int(k)) for bi, ks in copies.items() for k in ks}):
+            mapping[key] = (len(textures),)
+            textures.append(standalone_texture(*key))
         groups = {}
-        for b in batches:
-            pg = mapping[b.texture][0] if b.texture is not None else None
-            parts = groups.setdefault((pg, b.blend, b.two_sided, b.tint, b.layer), [])
-            if b.texture is None or mapping[b.texture][1] is None:
-                q = b.verts[b.indices].copy()
-                q[:, 3:5] /= repeats.get(b.texture, 1)
-                parts.append(q)
+        for bi, b in enumerate(batches):
+            if b.texture is None:
+                parts = groups.setdefault((None, b.blend, b.two_sided, b.tint, b.layer), [])
+                parts.append(b.verts[b.indices].copy())
+            elif bi in copies:
+                tri = b.verts[b.indices.reshape(-1, 3)]
+                for k in sorted(set(copies[bi].tolist())):
+                    pg = mapping[(b.texture, k)][0]
+                    q = tri[copies[bi] == k].reshape(-1, tri.shape[2]).copy()
+                    q[:, 3:5] /= k
+                    groups.setdefault((pg, b.blend, b.two_sided, b.tint, b.layer), []).append(q)
+            else:
+                groups.setdefault((mapping[b.texture][0], b.blend, b.two_sided, b.tint, b.layer), [])
         for idx, plist in pieces.items():
             pg, x, y, tw, th, pw, ph = mapping[idx]
             lo, hi = tiles[idx][0], tiles[idx][1]
