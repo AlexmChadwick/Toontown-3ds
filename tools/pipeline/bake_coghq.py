@@ -123,7 +123,8 @@ def bake(zone_id, args, base):
     import ttm
     import tz
     from bake_street import (FAR_BODY, LOD_MUST, SHARED_NEAR_ATLAS as NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
-                             choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid)
+                             choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid,
+                             straighter_far)
     cfg = coghq_catalog.CATALOG[zone_id]
     root, info = build_scene(zone_id, cfg, base.loader, args.resources)
     ex = street_atlas.Extractor()
@@ -157,6 +158,10 @@ def bake(zone_id, args, base):
     if chosen is None:
         raise ValueError(f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
     size, raw, chunks, floors, low, far_textures, lod_report = chosen
+    better = straighter_far(ex.sources, raw_batches, floor_tris, zone_id, size, args.distance, lod_report)
+    if better is not None:
+        raw, chunks, floors, low, far_textures, lod_report = better
+        lod_report = dict(lod_report, straight_seams=True)
     textures, batches = street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
     batches = [[street_atlas.rebase_large_uvs(b, textures) for b in bs] for bs in batches]
     out = Path(args.out)

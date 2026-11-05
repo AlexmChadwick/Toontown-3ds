@@ -349,5 +349,57 @@ class MergeWhiteTest(unittest.TestCase):
         self.assertEqual(bodies[0], [])
 
 
+def ground_grid(x0, x1, y0, y1, pitch):
+    """A flat ground batch of pitch-sized quads (z 0), colour white, uv = xy / 10."""
+    tris = []
+    for x in np.arange(x0, x1, pitch):
+        for y in np.arange(y0, y1, pitch):
+            a, b, c, d = (x, y), (x + pitch, y), (x + pitch, y + pitch), (x, y + pitch)
+            for t in ((a, b, c), (a, c, d)):
+                tris.extend([[p[0], p[1], 0, p[0] / 10, p[1] / 10, 1, 1, 1, 1] for p in t])
+    v = np.array(tris, dtype=np.float64)
+    return ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, v, np.arange(len(v)))
+
+
+class StraightSeamTest(unittest.TestCase):
+    def test_ground_is_cut_at_grid_lines(self):
+        # 7 unit quads across the x = 64 line: centroid binning made a staircase seam.
+        groups = bake_street.split_grid([ground_grid(50, 78, 0, 14, 7)], 64, straight=True)
+        self.assertEqual(sorted(groups), [(0, 0), (1, 0)])
+        left = np.concatenate([b.verts for b in groups[(0, 0)]])
+        right = np.concatenate([b.verts for b in groups[(1, 0)]])
+        self.assertLessEqual(left[:, 0].max(), 64)
+        self.assertGreaterEqual(right[:, 0].min(), 64)
+        on_left = {tuple(p) for p in np.round(left[left[:, 0] == 64][:, :3], 9)}
+        on_right = {tuple(p) for p in np.round(right[right[:, 0] == 64][:, :3], 9)}
+        self.assertEqual(on_left, on_right)
+        area = lambda v: np.linalg.norm(np.cross(v[1::3, :3] - v[0::3, :3], v[2::3, :3] - v[0::3, :3]), axis=1).sum() / 2
+        self.assertAlmostEqual(area(left) + area(right), 28 * 14)
+        np.testing.assert_allclose(right[:, 3], right[:, 0] / 10)
+
+    def test_seam_corners_merge_along_the_line(self):
+        groups = bake_street.split_grid([ground_grid(0, 128, 0, 64, 4)], 64, straight=True)
+        chunks = [groups[k] for k in sorted(groups)]
+        seams = street_lod.shared_positions(chunks)
+        moves = street_lod.seam_line_moves(chunks, seams, 64, 16)
+        self.assertTrue(moves)
+        lows = [street_lod.simplify(bs, 16, fixed=seams, ground=None, moves=moves) for bs in chunks]
+        fixed_only = [street_lod.simplify(bs, 16, fixed=seams) for bs in chunks]
+        self.assertLess(sum(map(street_lod.count, lows)), sum(map(street_lod.count, fixed_only)))
+        area = lambda bs: (lambda v: np.linalg.norm(np.cross(v[1::3, :3] - v[0::3, :3], v[2::3, :3] - v[0::3, :3]),
+                                                    axis=1).sum() / 2)(np.concatenate([b.verts for b in bs]))
+        edge = []
+        for low, pinned in zip(lows, fixed_only):
+            v = np.concatenate([b.verts for b in low])
+            seam_side = v[np.abs(v[:, 0] - 64) < 1e-9]
+            edge.append({tuple(p) for p in np.round(seam_side[:, :3], 9)})
+            # Merging along the seam covers exactly what the pinned seam did.
+            self.assertAlmostEqual(area(low), area(pinned))
+        self.assertEqual(edge[0], edge[1])
+        # Grid corners and the open ends of the line stay where they were.
+        self.assertIn((64.0, 0.0, 0.0), edge[0])
+        self.assertIn((64.0, 64.0, 0.0), edge[0])
+
+
 if __name__ == '__main__':
     unittest.main()

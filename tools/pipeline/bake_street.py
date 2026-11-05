@@ -534,6 +534,8 @@ def _merge_states(batches):
 # A uniform far voxel above this is mostly spent on split ground; choose_far then tries
 # a coarser ground lattice under a finer one for everything else.
 COARSE_FAR = 2
+FAR_GROUND_STEPS = (24, 32, 48)
+FAR_DETAIL_WEIGHT = 8
 
 
 def choose_far(sources, raw, chunks, images=None):
@@ -563,6 +565,7 @@ def choose_far(sources, raw, chunks, images=None):
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
+    cell_size = chunks[0].get('cell_size') if chunks else None
     def attempt(step, details, ground=None, bodies_only=False):
         """The far mesh at one voxel step, or None when a PVS misses the budget.
 
@@ -575,8 +578,10 @@ def choose_far(sources, raw, chunks, images=None):
                                        street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
                                        np.arange(len(b.indices)), getattr(b, 'sign', False))
                              for b in signs] for signs in merged_signs]
+        moves = (street_lod.seam_line_moves(bodies, seams, cell_size, ground or step)
+                 if cell_size and step else None)
         low = [street_lod.simplify(bs, step, keep_layers=details and not bodies_only, fixed=seams,
-                                   ground=ground)
+                                   ground=ground, moves=moves)
                for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
                                                     with_bodies=True, bodies_only=bodies_only)
@@ -649,15 +654,22 @@ def choose_far(sources, raw, chunks, images=None):
     ground = None
     if step > COARSE_FAR:
         # Split ground spent the budget. Ground corners take a coarser lattice so walls,
-        # rocks and buildings can keep a finer one; the finest detail step that fits wins.
-        ground = min(steps[-1], max(2 * step, 24))
-        for rung_g, fine in enumerate(steps[:rung]):
-            trial, _ = attempt(fine, False, ground)
-            if trial is not None:
-                plain, rung = trial, rung_g
+        # rocks and buildings can keep a finer one. Each lattice keeps its finest detail
+        # step that fits; the pair with the least ground + FAR_DETAIL_WEIGHT * step wins
+        # (Cashbot HQ: 48 kept its stairs but cut its carpets into wedges).
+        best = None
+        for g in FAR_GROUND_STEPS:
+            if best is not None and best[0] <= g:
                 break
-        else:
-            ground = None
+            for rung_g, fine in enumerate(steps[:rung]):
+                trial, _ = attempt(fine, False, g)
+                if trial is not None:
+                    score = g + FAR_DETAIL_WEIGHT * fine
+                    if best is None or score < best[0]:
+                        best = (score, trial, rung_g, g)
+                    break
+        if best is not None:
+            _, plain, rung, ground = best
     if images is not None:
         return plain
     # Textured cutouts and decals cost triangles and draws. They are worth at most one
@@ -677,15 +689,78 @@ def choose_far(sources, raw, chunks, images=None):
     return plain
 
 
-def split_grid(batches, size):
+def _clip_line(poly, axis, edge, above):
+    """Sutherland-Hodgman against one grid line. The crossing is computed from the edge's
+    endpoints in a fixed order and lands exactly on the line, so the two cells of a
+    shared edge get the same corner."""
+    out = []
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        da, db = a[axis] - edge, b[axis] - edge
+        ina, inb = (da >= 0, db >= 0) if above else (da <= 0, db <= 0)
+        if ina:
+            out.append(a)
+        if ina != inb:
+            p, q = (a, b) if tuple(a[:3]) <= tuple(b[:3]) else (b, a)
+            dp, dq = p[axis] - edge, q[axis] - edge
+            c = p + (q - p) * (dp / (dp - dq))
+            c[axis] = edge
+            out.append(c)
+    return out
+
+
+def _ground_pieces(tri, size):
+    """An up-facing triangle cut at the grid lines it crosses: (cell, triangle) pairs."""
+    import numpy as np
+    lo = np.floor(tri[:, :2].min(axis=0) / size).astype(int)
+    hi = np.floor(tri[:, :2].max(axis=0) / size).astype(int)
+    for axis in (0, 1):
+        # A corner exactly on a line belongs to the cell above it.
+        if hi[axis] > lo[axis] and tri[:, axis].max() == hi[axis] * size:
+            hi[axis] -= 1
+    out = []
+    for cy in range(lo[1], hi[1] + 1):
+        for cx in range(lo[0], hi[0] + 1):
+            poly = [np.asarray(v, dtype=np.float64) for v in tri]
+            for axis, k in ((0, cx), (1, cy)):
+                if poly and k > lo[axis]:
+                    poly = _clip_line(poly, axis, k * size, True)
+                if poly and k < hi[axis]:
+                    poly = _clip_line(poly, axis, (k + 1) * size, False)
+            for j in range(1, len(poly) - 1):
+                t = np.array([poly[0], poly[j], poly[j + 1]])
+                if np.linalg.norm(np.cross(t[1, :3] - t[0, :3], t[2, :3] - t[0, :3])) > 1e-6:
+                    out.append(((cx, cy), t))
+    return out
+
+
+def split_grid(batches, size, straight=False):
+    """Bin triangles into grid cells by centroid. With straight, up-facing triangles that
+    cross a grid line are cut at it, so ground seams are straight lines that the far
+    mesh can merge along (street_lod.seam_line_moves)."""
     import numpy as np
     import ttm
+    import street_lod
     groups = {}
     for b in batches:
         triangles = b.verts[b.indices.reshape(-1,3)]
         cells = np.floor(triangles[:,:,:2].mean(axis=1)/size).astype(int)
-        for key in sorted(set(map(tuple,cells))):
-            verts = triangles[np.all(cells==key,axis=1)].reshape(-1,9)
+        cut = {}
+        if straight and not b.layer:
+            n = np.cross(triangles[:,1,:3]-triangles[:,0,:3], triangles[:,2,:3]-triangles[:,0,:3])
+            ln = np.linalg.norm(n, axis=1)
+            up = np.where(ln > 1e-8, n[:,2]/np.maximum(ln, 1e-8), 0.0) >= street_lod.GROUND_UP
+            span = (np.floor(triangles[:,:,:2].min(axis=1)/size) != np.floor(triangles[:,:,:2].max(axis=1)/size)).any(axis=1)
+            for t in np.nonzero(up & span)[0]:
+                for key, piece in _ground_pieces(triangles[t], size):
+                    cut.setdefault(key, []).append(piece)
+            keep = ~(up & span)
+            triangles, cells = triangles[keep], cells[keep]
+        for key in sorted(set(map(tuple,cells)) | set(cut)):
+            parts = [triangles[np.all(cells==key,axis=1)].reshape(-1,9)] if len(cells) else []
+            parts += [p.reshape(-1, 9) for p in cut.get(key, [])]
+            verts = np.concatenate(parts) if parts else np.zeros((0, 9))
+            if not len(verts):
+                continue
             groups.setdefault(key,[]).append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,
                                                      verts,np.arange(len(verts)), getattr(b, 'sign', False)))
     return groups
@@ -708,15 +783,16 @@ def prefer_far(report, best):
     return report['low_worst_triangles'] > best['low_worst_triangles']
 
 
-def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
+def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0, straight=False):
     """Bin render and floor triangles into grid cells and build a distance vis.
 
     floor_tris are (3, 3) world triangles. An empty cell's bounds are its grid
     square, so a floor sliver still joins the vis. Returns raw, chunks, floors.
+    With straight (split_grid), each chunk records its 'cell_size' for choose_far.
     """
     import numpy as np
     import street_atlas
-    groups = split_grid(batches, size)
+    groups = split_grid(batches, size, straight)
 
     def cells_of(p):
         return [(cx, cy)
@@ -740,6 +816,8 @@ def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
         bs = groups[key]
         raw.append(bs)
         chunks.append({'name': f'g{i}', 'zone': zone_id, 'vis': [], 'grid': key})
+        if straight:
+            chunks[-1]['cell_size'] = size
         pts = [b.verts[:, :3] for b in bs if len(b.verts)]
         if pts:
             stacked = np.concatenate(pts)
@@ -766,6 +844,25 @@ def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
                 vis.append(j)
         c['vis'] = vis
     return raw, chunks, floors
+
+
+def straighter_far(sources, batches, floor_tris, zone_id, size, distance, lod):
+    """The grid split again with straight ground seams, when the far mesh was limited by
+    its ground lattice. Returns (raw, chunks, floors, low, textures, lod) when that far
+    mesh keeps a finer voxel, else None."""
+    import street_lod
+    if not lod or lod['ground_voxel_spacing'] <= lod['voxel_spacing']:
+        return None
+    raw, chunks, floors = split_zone_grid(batches, floor_tris, zone_id, size, distance, straight=True)
+    if len(chunks) > 256 or lower_draw_bound(raw, chunks) > street_lod.DRAW_CAP:
+        return None
+    try:
+        low, textures, report = choose_far(sources, raw, chunks)
+    except FarBudgetError:
+        return None
+    if (report['voxel_spacing'], report['ground_voxel_spacing']) < (lod['voxel_spacing'], lod['ground_voxel_spacing']):
+        return raw, chunks, floors, low, textures, report
+    return None
 
 
 def view_points(floors, eye=4.0, step=6.0):
@@ -933,6 +1030,10 @@ def bake(zone_id, args, base):
         if low is None:
             raise ValueError(
                 f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
+        better = straighter_far(ex.sources, split_src, floor_tris, zone_id, grid_used, args.distance, lod_report)
+        if better is not None:
+            raw, chunks, floors, low, far_textures, lod_report = better
+            lod_report = dict(lod_report, straight_seams=True)
     chunk_textures, batches, atlas_stats=street_atlas.build_local(ex.sources, raw, view_points=view_points(floors),
         **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density']))))
     batches=[[street_atlas.rebase_large_uvs(b,t) for b in bs] for bs,t in zip(batches,chunk_textures)]

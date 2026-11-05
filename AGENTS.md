@@ -208,7 +208,16 @@ Key decisions:
      under 40 square units keep a far body texture (the HQ brim); larger ones stay
      coloured as ground. An upright alpha-cut strip that repeats along a wrapping u
      stays a textured card when it would otherwise be coloured (Bossbot's hedges had
-     become black slabs).
+     become black slabs). Each far body page carries a white tile, and the chunk's
+     vertex-coloured opaque faces ride on it (`merge_white`), so textured far bodies
+     cost no draw; when decal pages do not fit, bodies alone are kept (at most 3 MiB of
+     far pages per view). Lawbot's skyline had been grey slabs. A ground-limited grid
+     zone is re-binned with ground cut at the grid lines (`split_grid(straight=True)`),
+     and its far seam corners merge along those lines with one mapping for every chunk
+     (`street_lod.seam_line_moves`), so the edge stays on the near neighbour's line.
+     Pinned seam strips were half of Cashbot HQ's far triangles (voxel 16, the vault
+     stairs a slab; now 0.75). The ground lattice is chosen from 24/32/48 by the least
+     ground + 8 x detail voxel.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
    - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
