@@ -2126,6 +2126,14 @@ int main() {
                     posedZone = place.zoneId();
                     TT_LOG("%s in zone %u", autotest.label(), static_cast<unsigned>(place.zoneId()));
                 }
+                // Zone plan once every 8 s of a pose, to read LOD and frame-cap decisions from the log.
+                static u64 planLogAt = 0;
+                if (osGetTime() >= planLogAt && place.streamed()) {
+                    char plan[768];
+                    place.zone().describePlan(plan, sizeof(plan));
+                    TT_LOG("%s plan: %s", autotest.label(), plan);
+                    planLogAt = osGetTime() + 8000;
+                }
                 // An eye equal to the target keeps the follow camera (shots of the stock camera).
                 if (p->eye[0] != p->target[0] || p->eye[1] != p->target[1] || p->eye[2] != p->target[2])
                     player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),

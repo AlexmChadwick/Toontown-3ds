@@ -53,6 +53,9 @@ public:
     // chunks inside lodMust are not in the prefix: they read their near mesh
     // directly and do not hold the card. v1 has one mesh, so this matches loading().
     bool cardPending() const;
+    // One line for logs: the cell, then each in-cone or drawn chunk as id:LOD/choice
+    // with '*' when the last draw() submitted it ('-' resident only).
+    int describePlan(char* out, int capacity) const;
     // Chunks outside the cone keep a resident near mesh until the retain budget
     // evicts it. That mesh is not replaced by the far blob. Inside the cone every
     // chunk that fits is drawn, at least at its far mesh. Near upgrades stop at
