@@ -99,7 +99,12 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
     float x = labelCx - totalW * 0.5f;
     drawOutlinedText(*hpText, x, labelCy - hpH * 0.5f, z, scale, ink, rim);
     x += hpW + gap;
-    drawOutlinedText(*slashText, x, labelCy - slashH * 0.5f, z, scale, ink, rim);
+    const float slashY = labelCy - slashH * 0.5f;
+    drawOutlinedText(*slashText, x, slashY, z, scale, ink, rim);
+    // ImpressBT's slash has a one-pixel diagonal at pocket size. Reinforce its fill inside the
+    // existing glyph advance so three-digit labels read as hp/max rather than hp,max.
+    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + 0.55f, slashY, z + 0.002f,
+                 scale, scale, ink);
     x += slashW + gap;
     drawOutlinedText(*maxText, x, labelCy - maxH * 0.5f, z, scale, ink, rim);
     return true;
