@@ -808,7 +808,7 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         const float meter = 19.0f;
         const float s = meter * pulse_[i].update(t.hp);
         const float mx = x + cw * 0.33f, my = kBtnY + 11.5f;
-        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.58f);
+        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, nullptr, 0.58f);
         char num[24];
         snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, face.maxHp);
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;

@@ -14,10 +14,11 @@ struct LaffFace {
     int species = 0;                   // world::Species: which head
 };
 
-// Draws the meter in the size x size square at (x0, y0). hpText / maxText are the parsed
-// numbers for the eyes (either may be null). Returns false when the atlas is missing.
+// Draws the meter in the size x size square at (x0, y0). hpText / slashText / maxText are the
+// parsed hp/max label in the eyes (all three must be present to draw it). Returns false when the
+// atlas is missing.
 bool drawLaffMeter(const LaffFace& face, float x0, float y0, float size, const C2D_Text* hpText,
-                   const C2D_Text* maxText, float z = 0.5f);
+                   const C2D_Text* slashText, const C2D_Text* maxText, float z = 0.5f);
 
 // LaffMeter.animatedEffect (ToontownIntervals.getPulseLargerIval / getPulseSmallerIval): the
 // meter swells on a heal and shrinks on damage, then eases back. Feed it the laff every frame.
@@ -43,7 +44,7 @@ public:
 
 private:
     C2D_TextBuf buf_ = nullptr;
-    C2D_Text hp_{}, max_{};
+    C2D_Text hp_{}, slash_{}, max_{};
     int hpShown_ = -1, maxShown_ = -1;
     LaffPulse pulse_;
 };

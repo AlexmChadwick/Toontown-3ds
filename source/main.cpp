@@ -3704,9 +3704,10 @@ int main() {
                 hv.maxHp = st.maxHp;
                 hv.money = st.money;
                 hv.maxMoney = st.maxMoney;
-                for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
                 tt::world::ToonDna hudDna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &hudDna)) {
+                    const float* head = tt::world::bodyColor(hudDna.headColor);
+                    for (int i = 0; i < 3; i++) hv.headRgb[i] = head[i];
                     hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
                 }
             }
@@ -3868,11 +3869,13 @@ int main() {
             }
             ctx.homeAvailable = net.hasEstateManager();
             ctx.toonName = net.avatarName();
-            for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
             {
                 tt::world::ToonDna tabDna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna))
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna)) {
+                    const float* head = tt::world::bodyColor(tabDna.headColor);
+                    for (int i = 0; i < 3; i++) ctx.headRgb[i] = head[i];
                     ctx.species = static_cast<int>(tt::world::species(tabDna)); // the Toon tab's laff meter
+                }
             }
             ctx.book = &net.ownBook();
             ctx.fish = &net.ownFish();

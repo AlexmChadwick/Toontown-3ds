@@ -55,7 +55,7 @@ bool drawQuestNpcHead(uint32_t npc, float x, float y, float size, float z) {
     face.rgb[1] = head->g / 255.0f;
     face.rgb[2] = head->b / 255.0f;
     face.species = head->species;
-    return drawLaffMeter(face, x, y, size, nullptr, nullptr, z);
+    return drawLaffMeter(face, x, y, size, nullptr, nullptr, nullptr, z);
 }
 
 } // namespace tt::ui
