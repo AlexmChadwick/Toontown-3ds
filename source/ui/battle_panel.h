@@ -50,7 +50,8 @@ private:
     void smallButton(float x, float y, float w, bool enabled, const char* label);
     bool sosCallable(const world::BattleView& v, int card) const;
     bool fireable(const world::BattleView& v, int cog) const;
-    void centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z = 0.6f);
+    void centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z = 0.6f,
+                  bool bold = false);
 
     render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;

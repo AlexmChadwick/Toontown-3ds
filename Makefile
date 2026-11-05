@@ -43,6 +43,8 @@ ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
 CFLAGS   := -g -Wall -Wextra -O2 -mword-relocations -ffunction-sections \
             $(ARCH) $(INCLUDE) -D__3DS__
+GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+CFLAGS   += -DTT_GIT_COMMIT=\"$(GIT_COMMIT)\"
 CXXFLAGS := $(CFLAGS) -std=gnu++17 -fno-rtti -fno-exceptions
 ASFLAGS  := -g $(ARCH)
 LDFLAGS   = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map) -Wl,--wrap=svcBreak,--wrap=abort,--wrap=fopen,--wrap=stat

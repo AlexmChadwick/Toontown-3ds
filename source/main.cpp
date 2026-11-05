@@ -251,7 +251,8 @@ int main() {
                q.new3ds ? "New 3DS" : "Old 3DS", double(q.farPlane), double(q.drawDistance), double(q.lodNear),
                double(q.lodKeep), double(q.lodMust), double(q.fogStart), double(q.fogEnd));
     }
-    TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
+    TT_LOG("boot: %s, commit %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", TT_GIT_COMMIT,
+           static_cast<unsigned long>(romfsRc));
 
     if (!C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE)) { // 512 KB; stress tests overflowed 256 KB at ~700 draws
         tt::crash::panic("Graphics could not start (C3D_Init)", "Not enough graphics memory.", nullptr);

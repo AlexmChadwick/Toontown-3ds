@@ -16,6 +16,10 @@ constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 17, kCogH = 32, kCogW = 78, kCogGap = 1;
+constexpr float kHintY = 3, kHintH = 45, kHintW = 74, kHintGap = 3;
+constexpr float kHintTextTop = 4, kHintTextStep = 13, kHintTextScale = 0.43f;
+constexpr float kHintTextMaxW = kHintW - 10;
+constexpr float kCogRight = kCogX + kMaxCogs * kCogW + (kMaxCogs - 1) * kCogGap;
 // InventoryNew inside battle_gui's red BATTLE_Menu frame: one InventoryRow per track, the label
 // end on the left and the seven gag buttons over the row's slots (InventoryRow's first slot sits
 // 22% in, ui/inventory_art.h). The rows fill [kGridY, kGridY + kGridH).

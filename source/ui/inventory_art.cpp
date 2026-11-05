@@ -44,6 +44,23 @@ void drawInvArt(InvArt art, float x, float y, float w, float h, float z, u32 tin
     drawSub(tex, r.x, r.y, r.x + r.w, r.y + r.h, x, y, w, h, z, tint);
 }
 
+void drawInvHint(float x, float y, float w, float h, float z, u32 tint) {
+    C3D_Tex* tex = guiTex();
+    if (!tex || w <= 0.0f || h <= 0.0f) return;
+    const InvArtRect& r = kInvArtRects[int(InvArt::Hint)];
+    constexpr float kC = 15.0f;
+    const float sx[4] = {r.x, r.x + kC, r.x + r.w - kC, r.x + r.w};
+    const float sy[4] = {r.y, r.y + kC, r.y + r.h - kC, r.y + r.h};
+    const float dx[4] = {x, x + kC, x + w - kC, x + w};
+    const float dy[4] = {y, y + kC, y + h - kC, y + h};
+    for (int row = 0; row < 3; row++) {
+        for (int col = 0; col < 3; col++) {
+            drawSub(tex, sx[col], sy[row], sx[col + 1], sy[row + 1], dx[col], dy[row],
+                    dx[col + 1] - dx[col], dy[row + 1] - dy[row], z, tint, col == 2);
+        }
+    }
+}
+
 void drawInvRow(float x, float y, float w, float h, float slotX, float z, u32 tint) {
     C3D_Tex* tex = guiTex();
     if (!tex) return;
@@ -74,11 +91,9 @@ void drawInvMenu(float x, float y, float w, float h, float z) {
 
 void drawOutlinedText(const C2D_Text& t, float x, float y, float z, float scale, u32 fill, u32 outline, u32 flags) {
     const u32 f = C2D_WithColor | flags;
-    static constexpr float kOff[4][2] = {{-1, 0}, {1.5f, 0}, {0.25f, -1}, {0.25f, 1}};
+    static constexpr float kOff[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
     for (const auto& o : kOff) C2D_DrawText(&t, f, x + o[0], y + o[1], z, scale, scale, outline);
-    // Bold: the fill twice, half a pixel apart.
     C2D_DrawText(&t, f, x, y, z + 0.001f, scale, scale, fill);
-    C2D_DrawText(&t, f, x + 0.5f, y, z + 0.001f, scale, scale, fill);
 }
 
 } // namespace tt::ui

@@ -400,21 +400,30 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // InventoryNew uses Toontown's default dialog card for this three-line prompt. Put the real
     // card beside the Cog cards, where it can be stock-sized without covering either the gags or
     // a Cog. Four-Cog battles keep the compact status strip because the cards fill the whole row.
-    const bool bigHint = v.phase == world::BattlePhase::Input && mode_ == Mode::Attack && !detail && nc < 4;
+    const bool bigHint = v.phase == world::BattlePhase::Input && mode_ == Mode::Attack && !detail &&
+                         v.tutorialArrows && nc < 4;
     if (bigHint) {
-        constexpr float hintW = 74.0f, hintH = 48.0f;
-        const float cogsRight = nc > 0 ? 2.0f + nc * kCogW + (nc - 1) : 2.0f;
-        const float hintX = cogsRight + 3.0f + (kW - 2.0f - (cogsRight + 3.0f) - hintW) * 0.5f;
+        const float cogsRight = pad::battle::kCogX + nc * kCogW +
+                                (nc > 0 ? (nc - 1) * pad::battle::kCogGap : 0);
+        const float hintX = cogsRight + pad::battle::kHintGap +
+                            (kW - 2.0f - (cogsRight + pad::battle::kHintGap) - pad::battle::kHintW) * 0.5f;
         if (invArtReady()) {
             invTintBegin();
-            drawInvArt(InvArt::Hint, hintX, 1, hintW, hintH, 0.55f, theme::rgb(0xFF, 0xFF, 0xBF));
+            drawInvHint(hintX, pad::battle::kHintY, pad::battle::kHintW, pad::battle::kHintH, 0.55f,
+                        theme::rgb(0xFF, 0xFF, 0xBF));
             invTintEnd();
         } else {
-            theme::paper(hintX, 1, hintW, hintH, 7.0f, theme::rgb(0xFF, 0xFF, 0xBF));
+            theme::paper(hintX, pad::battle::kHintY, pad::battle::kHintW, pad::battle::kHintH, 7.0f,
+                        theme::rgb(0xFF, 0xFF, 0xBF));
         }
-        centered(hintX + hintW * 0.5f, 4, 0.43f, kInk, hintW - 10, "Click a", 0.6f);
-        centered(hintX + hintW * 0.5f, 17, 0.43f, kInk, hintW - 10, "gag to", 0.6f);
-        centered(hintX + hintW * 0.5f, 30, 0.43f, kInk, hintW - 10, "attack", 0.6f);
+        centered(hintX + pad::battle::kHintW * 0.5f, pad::battle::kHintY + pad::battle::kHintTextTop,
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "Click a", 0.6f, true);
+        centered(hintX + pad::battle::kHintW * 0.5f,
+                 pad::battle::kHintY + pad::battle::kHintTextTop + pad::battle::kHintTextStep,
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "gag to", 0.6f, true);
+        centered(hintX + pad::battle::kHintW * 0.5f,
+                 pad::battle::kHintY + pad::battle::kHintTextTop + 2 * pad::battle::kHintTextStep,
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "attack", 0.6f, true);
     } else {
         theme::paper(1, 0, kW - 2, 15, 5.0f);
         if (pad::battle::isGagId(focusId) && g.count && g.exp) {
@@ -597,8 +606,18 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
             ls *= room / lw;
             C2D_TextGetDimensions(&label, ls, ls, &lw, &lh);
         }
-        drawOutlinedText(label, pad::battle::kRowX + 4, y + (h - lh) * 0.5f, 0.56f, ls,
+        const bool showExp = (t == 4 || t == 5) && g.exp && h >= 24.0f;
+        drawOutlinedText(label, pad::battle::kRowX + 4, y + (showExp ? 1.0f : (h - lh) * 0.5f), 0.56f, ls,
                          theme::rgb(0x33, 0x33, 0x33), theme::kWhite);
+        if (showExp) {
+            const int next = gags::kLevelExp[t][1];
+            const float progress = next > 0 ? (g.exp[t] < next ? float(g.exp[t]) / next : 1.0f) : 1.0f;
+            theme::roundRect(pad::battle::kRowX + 4, y + h - 7, room - 4, 3, 1, theme::rgb(0x80, 0x80, 0x80, 0xA0));
+            if (progress > 0.0f)
+                theme::roundRect(pad::battle::kRowX + 4, y + h - 7, (room - 4) * progress, 3, 1,
+                                 theme::kTrackColors[t], 0.58f);
+            text(pad::battle::kRowX + 5, y + h - 11, 0.28f, kInk, "%u/%d", unsigned(g.exp[t]), next);
+        }
         for (int l = 0; l < levels[t]; l++) {
             const float x = cellX(l);
             // geom_scale 0.7 of the button: the icon fills most of the face, a little left of centre.
@@ -618,6 +637,20 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
                              ok[t][l] ? theme::kWhite : theme::rgb(0xFF, 0xFF, 0xFF, 0x60),
                              ok[t][l] ? theme::rgb(0x00, 0x2A, 0x55) : theme::rgb(0x20, 0x20, 0x20, 0x60));
         }
+    }
+    if (g.count) {
+        int total = 0, totalMax = 0;
+        for (int t = 0; t < gags::kTracks; t++) {
+            const int unlocked = g.exp ? gags::levelsUnlocked(t, g.exp[t]) : 0;
+            const int carryRow = unlocked > 0 ? unlocked - 1 : 0;
+            for (int l = 0; l < gags::kLevels; l++) {
+                total += g.count[t][l];
+                if (unlocked > 0) totalMax += gags::kCarry[t][carryRow][l];
+            }
+        }
+        char totalText[24];
+        snprintf(totalText, sizeof totalText, "Total gags %d/%d", total, totalMax);
+        text(pad::battle::kRowX + 4, rowY[6] + rowH[6] - 11, 0.28f, kInk, "%s", totalText);
     }
     drawButtons(v, g);
 }
@@ -730,11 +763,11 @@ void BattlePanel::drawFire(const world::BattleView& v) {
     smallButton(pad::battle::kBackX, kBtnY, pad::battle::kBackW, true, "BACK");
 }
 
-void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z) {
+void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z, bool bold) {
     C2D_Text t;
     textCache_.parse(&t, buf_, str, 1024);
     theme::textCentered(t, cx, y, scale, color, maxW, z);
-    theme::textCentered(t, cx + 0.5f, y, scale, color, maxW, z);
+    if (bold) theme::textCentered(t, cx + 0.5f, y, scale, color, maxW, z);
 }
 
 // TownBattleToonPanel: every toon in the battle on ToonBtl_Status_BG (image_color (0.5, 0.9, 0.5,
@@ -763,7 +796,6 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         } else {
             theme::paper(x, kBtnY, cw, ch, 5.0f, gone ? theme::kGrey : theme::kPaper, theme::kPaperEdge);
         }
-        if (t.local) theme::roundRect(x + 4, kBtnY + ch - 3, cw - 8, 2, 1, theme::kYellow, 0.57f);
         if (pulseId_[i] != t.doId) {
             pulseId_[i] = t.doId;
             pulse_[i] = LaffPulse{};
@@ -779,12 +811,12 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         const float s = meter * pulse_[i].update(t.hp);
         const float mx = x + cw * 0.33f, my = kBtnY + ch * 0.48f;
         drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.58f);
-        char num[12];
-        snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
+        char num[24];
+        snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, face.maxHp);
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
         C2D_Text hp;
         textCache_.parse(&hp, buf_, num, 1024);
-        float hs = 0.50f, hw = 0, hh = 0;
+        float hs = 0.42f, hw = 0, hh = 0;
         C2D_TextGetDimensions(&hp, hs, hs, &hw, &hh);
         const float maxW = meter * 0.62f;
         if (hw > maxW) {
