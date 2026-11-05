@@ -1747,9 +1747,10 @@ int main() {
             // ---- end padnav ----
             const tt::net::OwnStats& st = net.ownStats();
             if (qaLocked || qaEmpty || qaNormal)
-                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess});
+                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess, 20});
             else
-                ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+                ui.setBattle(&battleView,
+                             tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess, st.maxCarry});
         } else if (qaBattle && netStarted) {
             // The edge-state script is presentation-only. Keep it independent of the preceding
             // live battle so a completed network round cannot turn its screenshots into a map.
@@ -1777,9 +1778,10 @@ int main() {
             applyBattleQa();
             const tt::net::OwnStats& st = net.ownStats();
             if (qaLocked || qaEmpty || qaNormal)
-                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess});
+                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess, 20});
             else
-                ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+                ui.setBattle(&battleView,
+                             tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess, st.maxCarry});
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }

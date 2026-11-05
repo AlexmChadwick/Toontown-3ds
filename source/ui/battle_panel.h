@@ -18,6 +18,7 @@ struct BattleGags {
     const uint8_t (*count)[7] = nullptr; // [track][level]
     const uint16_t* exp = nullptr;       // [7]
     const uint8_t* access = nullptr;     // [7]
+    uint8_t maxCarry = 20;               // Toon inventory limit (maxCarry), not per-level limits
 };
 
 class BattlePanel {

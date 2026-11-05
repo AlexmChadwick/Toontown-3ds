@@ -433,16 +433,13 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
         } else {
             text(6, -1, 0.44f, kInk, "%s", status);
             if (g.count) {
-                int total = 0, totalMax = 0;
+                int total = 0;
                 for (int t = 0; t < gags::kTracks; t++) {
-                    const int unlocked = g.exp ? gags::levelsUnlocked(t, g.exp[t]) : 0;
-                    const int carryRow = unlocked > 0 ? unlocked - 1 : 0;
                     for (int l = 0; l < gags::kLevels; l++) {
                         total += g.count[t][l];
-                        if (unlocked > 0) totalMax += gags::kCarry[t][carryRow][l];
                     }
                 }
-                text(kW - 96, -1, 0.40f, kInk, "Total gags %d/%d", total, totalMax);
+                text(kW - 96, -1, 0.40f, kInk, "Total gags %d/%u", total, unsigned(g.maxCarry));
             }
         }
     }
