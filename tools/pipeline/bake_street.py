@@ -250,15 +250,63 @@ FAR_BODY_ATLAS = dict(density=0.5, gutter=2, mip_levels=2, view_near=160.0, view
 
 
 def build_far_bodies(sources, chunks):
-    """Per-chunk opaque pages for the textured far faces (_far_body)."""
+    """Per-chunk opaque pages for the textured far faces (_far_body), and each page's
+    white texel (page, u, v) or None."""
     import street_atlas
     if not any(chunks):
-        return [[] for _ in chunks], [[] for _ in chunks]
-    textures, batches, _ = street_atlas.build_local(sources, chunks, **FAR_BODY_ATLAS)
-    return textures, batches
+        return [[] for _ in chunks], [[] for _ in chunks], [None for _ in chunks]
+    textures, batches, stats = street_atlas.build_local(sources, chunks, white=True, **FAR_BODY_ATLAS)
+    return textures, batches, [s['white'] for s in stats]
 
 
-def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False):
+def merge_white(colored, bodies, whites):
+    """Move each chunk's vertex-coloured opaque one-sided far faces onto its body page's
+    white texel, so textured far bodies cost no draw of their own. Lawbot HQ, Bossbot
+    HQ and Acorn Acres sat at the draw cap, so their far buildings were flat colour."""
+    import numpy as np
+    import ttm
+    out_c, out_b = [], []
+    for batches, body, white in zip(colored, bodies, whites):
+        if white is None:
+            out_c.append(batches)
+            out_b.append(body)
+            continue
+        page, u, v = white
+        flat = [b for b in batches if b.texture is None and b.blend == ttm.BLEND_OPAQUE and not b.two_sided]
+        if not flat:
+            out_c.append(batches)
+            out_b.append(body)
+            continue
+        parts = []
+        for b in flat:
+            vs = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)].copy()
+            vs[:, 3], vs[:, 4] = u, v
+            parts.append(vs)
+        rest = [b for b in body if (b.texture, b.blend, bool(b.two_sided)) == (page, ttm.BLEND_OPAQUE, False)]
+        for b in rest:
+            parts.append(np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)])
+        block = np.concatenate(parts)
+        merged = [b for b in body if b not in rest]
+        for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
+            vs = block[start:start + ttm.MAX_BATCH_VERTS]
+            merged.append(ttm.Batch(page, ttm.BLEND_OPAQUE, False, 0, 0, vs, np.arange(len(vs), dtype=np.int64)))
+        out_c.append([b for b in batches if not any(b is f for f in flat)])
+        out_b.append(merged)
+    return out_c, out_b
+
+
+# Far body pages a worst view may hold when bodies are kept without decals (bytes).
+# Old 3DS retains 6 MiB of zone textures; the near meshes in view need the rest.
+FAR_BODY_TEXTURE_CAP = 3 << 20
+
+
+def far_texture_worst(chunks, pages):
+    """The largest sum of per-chunk far page bytes over any vis set."""
+    sizes = [sum(len(t.data) for t in p) for p in pages]
+    return max((sum(sizes[j] for j in c['vis']) for c in chunks), default=0)
+
+
+def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False, bodies_only=False):
     """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
 
     Everything else samples the texel at the corner (32px) and drops the page.
@@ -267,6 +315,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
     Without it decals are already gone. `images` injects arrays in tests; keys are
     texture ids. Kept cards still carry the source texture id. encode_far_pages
     remaps it. Returns (chunks, kept card triangles, per-chunk detail batches).
+    bodies_only keeps the far bodies but no cutout or decal pages.
     """
     import numpy as np
     import ttm
@@ -300,7 +349,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                         and _silhouette_card(image, tri.reshape(-1, 9))):
                     cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
-                if details and _far_detail(image, b, tri.reshape(-1, 9), sources):
+                if details and not bodies_only and _far_detail(image, b, tri.reshape(-1, 9), sources):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
                     continue
                 if details and _far_body(sources, image, b, tri):
@@ -514,10 +563,11 @@ def choose_far(sources, raw, chunks, images=None):
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
-    def attempt(step, details, ground=None):
+    def attempt(step, details, ground=None, bodies_only=False):
         """The far mesh at one voxel step, or None when a PVS misses the budget.
 
-        `ground` is a coarser lattice for corners only on up-facing faces."""
+        `ground` is a coarser lattice for corners only on up-facing faces. bodies_only
+        keeps textured far bodies (on the coloured draw) without cutout/decal pages."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
         if step:
             # Letters are not snapped either: lift them with the kept decals.
@@ -525,12 +575,16 @@ def choose_far(sources, raw, chunks, images=None):
                                        street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
                                        np.arange(len(b.indices)), getattr(b, 'sign', False))
                              for b in signs] for signs in merged_signs]
-        low = [street_lod.simplify(bs, step, keep_layers=details, fixed=seams, ground=ground)
+        low = [street_lod.simplify(bs, step, keep_layers=details and not bodies_only, fixed=seams,
+                                   ground=ground)
                for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
-                                                    with_bodies=True)
-        body_pages, body_batches = (build_far_bodies(sources, faces) if details and images is None
-                                    else ([[] for _ in low], [[] for _ in low]))
+                                                    with_bodies=True, bodies_only=bodies_only)
+        body_pages, body_batches, whites = (build_far_bodies(sources, faces) if details and images is None
+                                            else ([[] for _ in low], [[] for _ in low], [None for _ in low]))
+        colored, body_batches = merge_white(colored, body_batches, whites)
+        if bodies_only and far_texture_worst(chunks, body_pages) > FAR_BODY_TEXTURE_CAP:
+            return None, (None, None)
         if details:
             _, atlased = build_far_atlas(sources, extra, encode=False)
             # Count each chunk's pages as their own textures; nothing is shared.
@@ -614,6 +668,12 @@ def choose_far(sources, raw, chunks, images=None):
         detailed, _ = attempt(step, True, ground)
         if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
             return detailed
+    # Decal pages cost a draw per chunk. Bodies ride on the coloured draw, so a mesh at
+    # the draw cap (Lawbot HQ's skyline, Bossbot HQ) still gets textured far walls.
+    bodied, _ = attempt(steps[rung], True, ground, bodies_only=True)
+    if bodied is not None and bodied[2]['body_triangles'] and (
+            bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+        return bodied
     return plain
 
 

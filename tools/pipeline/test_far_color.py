@@ -321,5 +321,33 @@ class StripPageTest(unittest.TestCase):
         self.assertEqual(street_atlas._pretile_factor(image, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE, outside), 1)
 
 
+class MergeWhiteTest(unittest.TestCase):
+    def tri(self, rgb):
+        v = np.zeros((3, 9))
+        v[:, :3] = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        v[:, 5:8] = rgb
+        v[:, 8] = 1
+        return v
+
+    def test_coloured_faces_join_the_body_draw(self):
+        flat = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(0.5), np.arange(3))
+        card = ttm.Batch(3, ttm.BLEND_ALPHA_TEST, False, 0, 0, self.tri(1), np.arange(3))
+        body = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(1), np.arange(3))
+        colored, bodies = bake_street.merge_white([[flat, card]], [[body]], [(0, 0.25, 0.75)])
+        self.assertEqual(colored[0], [card])
+        self.assertEqual(len(bodies[0]), 1)
+        merged = bodies[0][0]
+        self.assertEqual((merged.texture, merged.blend, merged.two_sided), (0, ttm.BLEND_OPAQUE, False))
+        self.assertEqual(len(merged.indices), 6)
+        np.testing.assert_allclose(merged.verts[:3, 3:5], [[0.25, 0.75]] * 3)
+        np.testing.assert_allclose(merged.verts[:3, 5:8], 0.5)
+
+    def test_no_white_tile_keeps_the_coloured_draw(self):
+        flat = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(0.5), np.arange(3))
+        colored, bodies = bake_street.merge_white([[flat]], [[]], [None])
+        self.assertEqual(colored[0], [flat])
+        self.assertEqual(bodies[0], [])
+
+
 if __name__ == '__main__':
     unittest.main()
