@@ -3,6 +3,7 @@
 #include "core/crash.h"
 #include "core/load_profile.h"
 #include "render/quality.h"
+#include "render/renderer.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -539,8 +540,8 @@ uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
     const int cell=cellAt(p,reach);
     return cell<0 ? 0 : static_cast<uint16_t>(impl_->chunks[cell].zone);
 }
-// Top-screen vertical FOV is 55 degrees (Renderer::kFovYDeg) at 400x240.
-constexpr float kHalfFovV = 55.0f * 0.5f * 3.14159265f / 180.0f;
+// Top-screen vertical FOV (Renderer::kFovYDeg) at 400x240.
+constexpr float kHalfFovV = render::Renderer::kFovYDeg * 0.5f * 3.14159265f / 180.0f;
 constexpr float kConeMargin = 4.0f * 3.14159265f / 180.0f;
 constexpr float kCamMove2 = 64.0f;          // replan after the eye moves 8 units
 constexpr float kCamTurnDot = 0.984807753f; // cos(10 deg)

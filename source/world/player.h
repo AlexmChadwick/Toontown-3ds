@@ -78,6 +78,8 @@ public:
     // World matrix for the toon model (Panda convention: toon faces +Y at H=0).
     void worldMatrix(C3D_Mtx* out) const;
 
+    // Follow camera height from the local Toon's DNA height (clamped to at least 3, as stock).
+    void setCameraHeight(float toonHeight) { camHeight_ = toonHeight > 3.0f ? toonHeight : 3.0f; }
     C3D_FVec cameraEye() const { return camEye_; }
     C3D_FVec cameraTarget() const { return camTarget_; }
     // Head-to-eye distance after wall avoidance; very small means the camera is inside the toon.
@@ -101,8 +103,9 @@ private:
     float ground_ = 0;   // ground height under the toon (flat until collision lands)
     float vz_ = 0;
     float camYawOffset_ = 0; // degrees relative to toon heading
-    float camPitch_ = 14;    // degrees above horizontal
-    float camDist_ = 12.0f;  // smoothed boom length (kCamDistance until the first avoid)
+    float camPitch_ = 0;     // degrees above horizontal (stock camera is level)
+    float camHeight_ = 3.5f; // LocalAvatar.getClampedAvatarHeight: max(toon height, 3)
+    float camDist_ = 10.5f;  // smoothed boom length (3 camHeight until the first avoid)
     C3D_FVec camEye_{};
     C3D_FVec camTarget_{};
     const CollisionWorld* collision_ = nullptr;

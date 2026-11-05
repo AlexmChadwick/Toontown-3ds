@@ -108,8 +108,8 @@ class FarColorTest(unittest.TestCase):
         self.assertLessEqual(longest, stats['max_edge'] + 1e-6)
 
     def test_kept_decal_stays_in_front_of_its_snapped_wall(self):
-        # A wall facing -y at y=0.9 snaps forward to y=0 at spacing 2; a decal 0.1 in
-        # front of it (y=0.8, wound to face -y) must still be in front after the lift.
+        # A wall facing -y at y=0.9 collapses to voxel means on its own plane at spacing 2;
+        # a decal 0.1 in front of it (y=0.8, wound to face -y) must stay in front.
         def quad(y, layer):
             v = np.array([[0, y, 0], [4, y, 4], [0, y, 4], [0, y, 0], [4, y, 0], [4, y, 4]], float)
             verts = np.zeros((6, 9))
@@ -117,7 +117,7 @@ class FarColorTest(unittest.TestCase):
             verts[:, 5:9] = 1
             return ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, layer, verts, np.arange(6))
         wall, decal = street_lod.simplify([quad(0.9, 0), quad(0.8, 1)], 2, keep_layers=True)
-        self.assertTrue(np.allclose(wall.verts[:, 1], 0.0))
+        self.assertTrue(np.allclose(wall.verts[:, 1], 0.9))
         self.assertTrue(np.all(decal.verts[:, 1] < -0.05))
 
     def test_far_seam_corners_stay_on_the_near_neighbour(self):
@@ -134,7 +134,43 @@ class FarColorTest(unittest.TestCase):
         self.assertEqual(len(seams), 2)
         far = street_lod.simplify(a, 4, fixed=seams)[0].verts[:, :3]
         self.assertTrue(np.allclose(far[1:], b[0].verts[[0, 2], :3]))
-        self.assertTrue(np.allclose(street_lod.simplify(a, 4)[0].verts[1, :3], [12, 0, 0]))
+        # Without the seam it is the only corner in its voxel, so the mean is itself.
+        self.assertTrue(np.allclose(street_lod.simplify(a, 4)[0].verts[1, :3], [10.3, 0.2, 0.4]))
+
+    def test_far_voxel_mean_keeps_flat_ground_flat(self):
+        # Four ground corners at z 0.3..0.6 share one 16 unit voxel. A voxel centre put
+        # them at z 0; the mean keeps them on the ground, and the merge is the same.
+        verts = np.zeros((6, 9))
+        verts[:, :3] = [[0, 0, 0.3], [40, 0, 0.3], [3, 2, 0.6], [3, 2, 0.6], [40, 0, 0.3], [40, 40, 0.3]]
+        verts[:, 5:9] = 1
+        b = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, verts, np.arange(6))
+        low = street_lod.simplify([b], 16)
+        self.assertEqual(street_lod.count(low), 1)
+        self.assertTrue(np.all(low[0].verts[:, 2] > 0.29))
+
+    def test_card_strip_pieces_keep_their_texture(self):
+        # One piece of a backdrop strip: 60 units wide, a fifth of the picture in u.
+        image = np.full((32, 32, 4), 255, dtype=np.uint8)
+        image[:8, :, 3] = 0  # clear sky above the rock
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [60, 0, 0], [60, 0, 80]]
+        tri[:, 3:5] = [[0.4, 0.5], [0.6, 0.5], [0.6, 1.0]]
+        self.assertTrue(bake_street._silhouette_card(image, tri))
+        tri[:, 3] = [0.5, 0.55, 0.55]
+        tri[:, 4] = [0.5, 0.5, 0.6]
+        self.assertFalse(bake_street._silhouette_card(image, tri))
+
+    def test_far_ground_lattice_spares_walls(self):
+        # A wall corner (shared with an upright face) keeps the fine lattice; ground-only
+        # corners collapse on the coarse one.
+        verts = np.zeros((6, 9))
+        verts[:, :3] = [[0, 0, 0], [30, 0, 0], [1, 1, 0],      # ground, faces up
+                        [30, 0, 0], [30, 0, 9], [30, 1.5, 0]]  # upright face at x=30
+        verts[:, 5:9] = 1
+        b = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, verts, np.arange(6))
+        low = street_lod.simplify([b], 1, ground=48)
+        self.assertEqual(street_lod.count(low), 1)
+        self.assertTrue(np.allclose(low[0].verts[:, 2].max(), 9))
 
     def test_far_body_keeps_walls_and_leaves_ground_coloured(self):
         class Tex:

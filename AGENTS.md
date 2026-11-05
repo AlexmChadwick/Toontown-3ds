@@ -188,6 +188,12 @@ Key decisions:
    - Indices are `u16`, as triangle lists or strips.
    - Batches are merged per texture after atlasing. The ≤150 draw calls per frame target
      drives this.
+   - Far meshes (`street_lod.simplify`) cluster vertices per voxel to the mean of the
+     corners in it, never to the voxel centre. When the uniform voxel would pass 2 units,
+     corners on up-facing faces only (split ground, roof middles) take a coarser lattice
+     (twice the uniform, at least 24) so walls, rocks and buildings keep a finer one: the
+     20-unit ground split had pushed Acorn Acres to 16 and Cashbot / Lawbot HQ to 48.
+     Plain far meshes fold two-sided faces into the one-sided draw like the near atlas.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
    - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
@@ -374,11 +380,13 @@ hardware. See `docs/test-log.md`.
   - Why `C2D_DrawCircleSolid` (proctex) fails after the 3D pass.
 
 Lessons recorded for agents:
-- **Camera and the near plane.** The follow camera sweeps a 1.75-unit sphere from the
+- **Camera and the near plane.** The follow camera is LocalAvatar position 0: camHeight =
+  max(toon height, 3), eye 3 camHeight behind at head height, look-at 1.5 ahead, level. It
+  sweeps a 1.75-unit sphere from the
   toon's head to the ideal eye (`CollisionWorld::cameraSphereCast`) and eases the boom
   back out only. Pull-in is instant. `Renderer::kNear` stays 1.0: closer, and the PICA200
   clipper shatters triangles that cross the near plane; the sphere is what keeps walls
-  outside the near-plane corners (about 1.53 at fov 55 with the stereo slider maxed).
+  outside the near-plane corners (about 1.32 at the stock fov, 1.53 at the old 55, with the stereo slider maxed).
   Do not shrink `kNear`, and do not raise it without raising `kCamClearance` in
   `world/player.cpp`. Both eyes share that near plane. NPC talk uses the same
   pull-in and keeps its own look-at.

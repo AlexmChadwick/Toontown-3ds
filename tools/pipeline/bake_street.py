@@ -65,12 +65,20 @@ def _far_draws(batches):
     return len({(b.texture, b.blend, b.two_sided) for b in batches})
 
 
+# A silhouette card piece spans at least this many texels of its 32px sample.
+CARD_TEXELS = 4
+
+
 def _silhouette_card(image, verts):
     """A backdrop hill card: one alpha-cut picture stretched over a huge quad.
 
     Sampling a corner texel paints the whole quad, and the alpha test then cuts
     a straight edge through it. That is the flat bright-green slab. The real
-    texture has to stay.
+    texture has to stay. A card made of a strip of quads (Acorn Acres' rock and
+    hedge backdrops) has pieces spanning a fifth of the picture; each piece is
+    tested on its own, so it only has to span CARD_TEXELS of the 32px sample.
+    Tested against half the picture, those pieces went flat grey: a spike on the
+    rock behind the Donald's Dock tunnel and a gap where the corners were clear.
     """
     import numpy as np
     alpha = image[:, :, 3]
@@ -79,7 +87,7 @@ def _silhouette_card(image, verts):
     uv = verts[:, 3:5]
     if float(uv.min()) < -0.05 or float(uv.max()) > 1.05:
         return False
-    if float(np.ptp(uv, axis=0).max()) < 0.5:
+    if float(np.ptp(uv, axis=0).max()) * max(alpha.shape) < CARD_TEXELS:
         return False
     tri = verts.reshape(-1, 3, 9)
     edges = np.linalg.norm(np.stack((tri[:, 1, :3] - tri[:, 0, :3], tri[:, 2, :3] - tri[:, 1, :3],
@@ -268,7 +276,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                 np.clip(verts[:, 5:9], 0.0, 1.0, out=verts[:, 5:9])
                 colored.append(verts)
             blend = b.blend
-            if colored and details and blend == ttm.BLEND_ALPHA_TEST:
+            if colored and blend == ttm.BLEND_ALPHA_TEST:
                 # A coloured alpha-test triangle is a solid patch or nothing: under the
                 # 0.5 test it shows where its corners are opaque. As opaque it shares
                 # the opaque draw instead of costing one more.
@@ -279,8 +287,9 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                 blend = ttm.BLEND_OPAQUE
             if colored:
                 groups.setdefault((blend, bool(b.two_sided)), []).extend(colored)
-        if details:
-            street_atlas.fold_two_sided(groups, 1)  # like the near atlas
+        # Like the near atlas. A plain far mesh folds too: a separate two-sided draw per
+        # chunk put Lawbot HQ and Acorn Acres one draw over the cap at every finer voxel.
+        street_atlas.fold_two_sided(groups, 1)
         merged = []
         for (blend, two), parts in sorted(groups.items(), key=lambda kv: (kv[0][0], kv[0][1])):
             block = np.concatenate(parts)
@@ -428,6 +437,11 @@ def _merge_states(batches):
     return out
 
 
+# A uniform far voxel above this is mostly spent on split ground; choose_far then tries
+# a coarser ground lattice under a finer one for everything else.
+COARSE_FAR = 2
+
+
 def choose_far(sources, raw, chunks, images=None):
     """Voxel-simplify, then bake vertex colours, until every PVS fits the far budget.
 
@@ -436,12 +450,13 @@ def choose_far(sources, raw, chunks, images=None):
     those is a flat green quad. Draws are counted after that split, and must
     fit street_lod.DRAW_CAP. `images` is a test injection for _colorize_far.
     Then cutouts and decals are kept textured on per-chunk far atlas pages when
-    that still fits within one voxel rung of the plain mesh.
+    that still fits within one voxel rung of the plain mesh. When the uniform step is
+    above COARSE_FAR, ground corners get a coarser lattice and the rest a finer one.
     """
     import numpy as np
     import street_lod
     import ttm
-    steps = (0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48)
+    steps = (0, .25, .5, .75, 1, 1.5, 2, 3, 4, 6, 8, 10, 12, 14, 16, 20, 24, 32, 48)
     def worst_of(low):
         tris = max((sum(street_lod.count(low[j]) for j in c['vis']) for c in chunks), default=0)
         draws = max((sum(_far_draws(low[j]) for j in c['vis']) for c in chunks), default=0)
@@ -454,8 +469,10 @@ def choose_far(sources, raw, chunks, images=None):
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
-    def attempt(step, details):
-        """The far mesh at one voxel step, or None when a PVS misses the budget."""
+    def attempt(step, details, ground=None):
+        """The far mesh at one voxel step, or None when a PVS misses the budget.
+
+        `ground` is a coarser lattice for corners only on up-facing faces."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
         if step:
             # Letters are not snapped either: lift them with the kept decals.
@@ -463,7 +480,8 @@ def choose_far(sources, raw, chunks, images=None):
                                        street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
                                        np.arange(len(b.indices)), getattr(b, 'sign', False))
                              for b in signs] for signs in merged_signs]
-        low = [street_lod.simplify(bs, step, keep_layers=details, fixed=seams) for bs in bodies]
+        low = [street_lod.simplify(bs, step, keep_layers=details, fixed=seams, ground=ground)
+               for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
                                                     with_bodies=True)
         body_pages, body_batches = (build_far_bodies(sources, faces) if details and images is None
@@ -480,7 +498,7 @@ def choose_far(sources, raw, chunks, images=None):
             placed = colored
         worst, draws = worst_of(placed)
         if os.environ.get('TT_FAR_DEBUG'):
-            print(f'far attempt step={step} details={details} worst={worst} draws={draws} '
+            print(f'far attempt step={step} ground={ground} details={details} worst={worst} draws={draws} '
                   f'body={street_lod.count(sum(body_batches, []))}', flush=True)
         if worst > street_lod.LOW_TARGET or draws > street_lod.DRAW_CAP:
             return None, (worst, draws)
@@ -512,7 +530,8 @@ def choose_far(sources, raw, chunks, images=None):
         else:
             textures = []
         return (colored, textures, {
-            'voxel_spacing': step, 'max_vertex_displacement': step * 3 ** .5 / 2,
+            'voxel_spacing': step, 'ground_voxel_spacing': ground or step,
+            'max_vertex_displacement': step * 3 ** .5,
             'before_worst_triangles': before, 'low_worst_triangles': worst,
             'low_worst_draws': draws, 'textured': bool(textures) or kept > 0,
             'hill_card_triangles': kept, 'sign_triangles': sign_tris if use_signs else 0,
@@ -528,6 +547,18 @@ def choose_far(sources, raw, chunks, images=None):
             break
     if plain is None:
         raise FarBudgetError(worst, draws)
+    ground = None
+    if step > COARSE_FAR:
+        # Split ground spent the budget. Ground corners take a coarser lattice so walls,
+        # rocks and buildings can keep a finer one; the finest detail step that fits wins.
+        ground = min(steps[-1], max(2 * step, 24))
+        for rung_g, fine in enumerate(steps[:rung]):
+            trial, _ = attempt(fine, False, ground)
+            if trial is not None:
+                plain, rung = trial, rung_g
+                break
+        else:
+            ground = None
     if images is not None:
         return plain
     # Textured cutouts and decals cost triangles and draws. They are worth at most one
@@ -535,7 +566,7 @@ def choose_far(sources, raw, chunks, images=None):
     # Sign letters come first: a detailed mesh that loses letters the plain one kept is
     # not taken.
     for step in steps[rung:rung + 2]:
-        detailed, _ = attempt(step, True)
+        detailed, _ = attempt(step, True, ground)
         if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
             return detailed
     return plain

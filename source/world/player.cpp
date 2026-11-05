@@ -25,15 +25,17 @@ constexpr float kGravity = 64.348f; // direct/controls/GravityWalker.py
 
 constexpr float kPadDeadzone = 24.0f;
 constexpr float kPadMax = 150.0f;
-constexpr float kCamDistance = 12.0f;
-constexpr float kCamLookHeight = 3.0f;
+// LocalAvatar.initCameraPositions, position 0: camHeight = max(toon height, 3), the eye at
+// (0, -3 camHeight, camHeight) and the look-at at (0, 1.5, camHeight), level with the head.
+constexpr float kCamBackPerHeight = 3.0f;
+constexpr float kCamLookAhead = 1.5f;
 constexpr float kCamOrbitSpeed = 120.0f; // deg/s with L/R
 constexpr float kCamRecenterRate = 3.0f; // 1/s, exponential
 // Stock LocalAvatar uses a CameraBitmask segment (ccLine) plus a sphere pusher
 // (ccSphere) on the lens. One swept sphere does both, and it has to clear the
 // near-plane corners, not just the centre ray:
-//   fov 55 deg, top 400x240, near 1 -> corner is ~1.42 from the eye
-//   full 3D slider shifts the frustum by iod/2 = 1/6 -> corner ~1.53
+//   fov 40.2 deg, top 400x240, near 1 -> corner is ~1.23 from the eye
+//   full 3D slider shifts the frustum by iod/2 = 1/6 -> corner ~1.32 (1.53 at the old fov 55)
 // 1.75 leaves a little for the visual mesh sitting proud of the collision hull
 // and for that stereo skew. Both eyes share Renderer::kNear (the skew is not a
 // second near plane). Pull-in is instant: easing inward would render frames with
@@ -69,7 +71,7 @@ void Player::reset(float x, float y, float z, float headingDeg) {
     speed_ = vz_ = 0;
     onPlat_ = false;
     camYawOffset_ = 0;
-    camDist_ = kCamDistance;
+    camDist_ = kCamBackPerHeight * camHeight_;
     update(Input{}, 0.0f);
 }
 
@@ -231,12 +233,16 @@ void Player::camera(const Input& in, float dt) {
     camPitch_ = camPitch_ < -5.0f ? -5.0f : (camPitch_ > 60.0f ? 60.0f : camPitch_);
     if (orbit == 0.0f && speed_ != 0.0f) camYawOffset_ -= camYawOffset_ * (1.0f - expf(-kCamRecenterRate * dt));
 
+    // Stock: eye 3 camHeight behind at head height, looking 1.5 ahead of the toon at head
+    // height. The C-stick pitch (New 3DS) swings the eye about the head on that boom.
     const float yaw = (heading_ + camYawOffset_) * kDegToRad;
     const float pitch = camPitch_ * kDegToRad;
-    camTarget_ = FVec3_New(x_, y_, z_ + kCamLookHeight);
-    camEye_ = FVec3_New(x_ + sinf(yaw) * cosf(pitch) * kCamDistance, y_ - cosf(yaw) * cosf(pitch) * kCamDistance,
-                        z_ + kCamLookHeight + sinf(pitch) * kCamDistance);
-    avoidCamera(camTarget_, dt);
+    const float boom = kCamBackPerHeight * camHeight_;
+    const float sy = sinf(yaw), cy = cosf(yaw);
+    const C3D_FVec head = FVec3_New(x_, y_, z_ + camHeight_);
+    camTarget_ = FVec3_New(x_ - sy * kCamLookAhead, y_ + cy * kCamLookAhead, z_ + camHeight_);
+    camEye_ = FVec3_New(x_ + sy * cosf(pitch) * boom, y_ - cy * cosf(pitch) * boom, z_ + camHeight_ + sinf(pitch) * boom);
+    avoidCamera(head, dt);
 }
 
 void Player::avoidCamera(const C3D_FVec& headPosition, float dt) {
@@ -296,7 +302,7 @@ void Player::overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target) 
     overrideCamera(eye, target);
     // NPC talk uses the same head-to-eye collision pull-in as the follow camera.
     // dt 0 snaps, so the talk shot does not ease through the wall on the way in.
-    avoidCamera(FVec3_New(x_, y_, z_ + kCamLookHeight), 0.0f);
+    avoidCamera(FVec3_New(x_, y_, z_ + camHeight_), 0.0f);
 }
 
 float Player::cameraDistance() const {

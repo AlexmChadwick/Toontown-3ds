@@ -5,15 +5,19 @@
 #include "core/log.h"
 #include "render/ui_font.h"
 #include "render/model.h"
+#include "ui/inventory_art.h"
 #include "ui/laff_meter_atlas.h"
 
 namespace tt::ui {
 
 namespace {
 
-// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70).
-constexpr float kLabelMaxW = 0.19f;
-constexpr float kLabelMinScale = 0.34f, kLabelMaxScale = 0.62f;
+// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70). The
+// labels sit kLabelSpread further apart than upstream's eye centres so two-digit numbers can be
+// this wide without touching; a white outline keeps them readable where they cross the rims.
+constexpr float kLabelMaxW = 0.215f;
+constexpr float kLabelSpread = 0.012f;
+constexpr float kLabelMinScale = 0.34f, kLabelMaxScale = 0.7f;
 // LaffMeter.fractions: tooth i shows while hp > maxHp * fraction (teeth listed 6 .. 1).
 constexpr float kToothFractions[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666f, 0.833333f};
 constexpr LaffPart kTeeth[6] = {kLaffTooth6, kLaffTooth5, kLaffTooth4, kLaffTooth3, kLaffTooth2, kLaffTooth1};
@@ -70,11 +74,10 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
         }
     }
     part(kLaffEyes, nullptr);
-    // Labels: upstream text_scale 0.4 is only ~8 px at HUD size, so draw them as large as the eye
-    // whites allow. Both labels share one scale, shrunk until the wider one fits its eye.
-    float scale = kLaffLabelHeight * size / 30.0f;
+    // Labels: upstream text_scale 0.4 is only ~6 px at HUD size (kLaffLabelHeight), so draw them as
+    // large as the eye whites allow. Both labels share one scale, shrunk until the wider one fits.
+    float scale = kLabelMaxScale * size / 72.0f;
     if (scale < kLabelMinScale) scale = kLabelMinScale;
-    if (scale > kLabelMaxScale) scale = kLabelMaxScale;
     float w = 0.0f, h = 0.0f, wMax = 0.0f;
     if (hpText) {
         C2D_TextGetDimensions(hpText, scale, scale, &w, &h);
@@ -87,15 +90,16 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
     const float fitW = kLabelMaxW * size;
     if (wMax > fitW && wMax > 0.0f) scale *= fitW / wMax;
     const u32 ink = C2D_Color32(0x10, 0x10, 0x10, 0xFF);
+    const u32 rim = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
     if (hpText) {
         C2D_TextGetDimensions(hpText, scale, scale, &w, &h);
-        C2D_DrawText(hpText, C2D_WithColor, x0 + kLaffHpLabel[0] * size - w * 0.5f,
-                     y0 + kLaffHpLabel[1] * size - h * 0.5f, z, scale, scale, ink);
+        drawOutlinedText(*hpText, x0 + (kLaffHpLabel[0] - kLabelSpread) * size - w * 0.5f,
+                         y0 + kLaffHpLabel[1] * size - h * 0.5f, z, scale, ink, rim);
     }
     if (maxText) {
         C2D_TextGetDimensions(maxText, scale, scale, &w, &h);
-        C2D_DrawText(maxText, C2D_WithColor, x0 + kLaffMaxLabel[0] * size - w * 0.5f,
-                     y0 + kLaffMaxLabel[1] * size - h * 0.5f, z, scale, scale, ink);
+        drawOutlinedText(*maxText, x0 + (kLaffMaxLabel[0] + kLabelSpread) * size - w * 0.5f,
+                         y0 + kLaffMaxLabel[1] * size - h * 0.5f, z, scale, ink, rim);
     }
     return true;
 }

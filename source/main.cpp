@@ -537,6 +537,7 @@ int main() {
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
+    player.setCameraHeight(tt::world::toonHeight(tt::world::defaultToonDna()));
     // ---- tutorial ----
     // enterTutorial already moved our Astron interest to the dynamic shop zone.  Load its
     // canonical bake before that interest generates Tutorial Tom and the interior objects.
@@ -2214,8 +2215,10 @@ int main() {
                     posedZone = place.zoneId();
                     TT_LOG("%s in zone %u", autotest.label(), static_cast<unsigned>(place.zoneId()));
                 }
-                player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),
-                                      FVec3_New(p->target[0], p->target[1], p->target[2]));
+                // An eye equal to the target keeps the follow camera (shots of the stock camera).
+                if (p->eye[0] != p->target[0] || p->eye[1] != p->target[1] || p->eye[2] != p->target[2])
+                    player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),
+                                          FVec3_New(p->target[0], p->target[1], p->target[2]));
             }
         }
         // ---- end autotest poses ----
@@ -2784,6 +2787,7 @@ int main() {
                         toonCache.acquire(dna, tt::world::ToonLod::High, &localLook)) {
                         memcpy(seenDna, dnaBytes, tt::net::kDnaSize);
                         haveDna = true;
+                        player.setCameraHeight(tt::world::toonHeight(dna));
                         localLookFromServer = true;
                         toonCache.pin(&localLook);
                     }
