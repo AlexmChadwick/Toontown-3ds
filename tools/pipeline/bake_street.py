@@ -422,17 +422,18 @@ FAR_ATLAS = dict(tile=16, gutter=2, mip_levels=2)
 FAR_PAGES = (64, 128, 256)
 
 
-# A blended far triangle stays a blended card when at least this share of the texels in
-# its UV box is partly transparent: soft clouds and glows, not crisp decals.
-FAR_SOFT_SHARE = 0.25
+# A blended far triangle stays a blended card when under this share of the visible
+# texels in its UV box is opaque: soft clouds and glass. Antialiased cutouts and decals
+# (a third to a half opaque at the 32px sample) stay on the alpha-tested detail page.
+FAR_SOFT_OPAQUE = 0.2
 
 
 def _soft_card(image, uv):
-    """A blended triangle whose UV box (unit UVs) shows mostly partial alpha.
+    """A blended triangle (unit UVs) whose visible texels are mostly partial alpha.
 
-    Dreamland's prop_DL_clouds: on the alpha-tested far detail page the wisps became a
-    hard grey cloud-shaped slab in the sky, and a 16px tile of it a blurred box. It
-    stays on its own texture, blended, like a hill card.
+    Dreamland's prop_DL_clouds (0.12 opaque): on the alpha-tested far detail page the
+    wisps became a hard grey cloud-shaped slab in the sky, and a 16px tile of it a
+    blurred box. It stays on its own texture, blended, like a hill card.
     """
     import numpy as np
     if image is None or float(uv.min()) < -0.01 or float(uv.max()) > 1.01:
@@ -442,7 +443,8 @@ def _soft_card(image, uv):
     x0, x1 = int(np.floor(uv[:, 0].min() * w)), int(np.ceil(uv[:, 0].max() * w))
     y0, y1 = int(np.floor((1.0 - uv[:, 1].max()) * h)), int(np.ceil((1.0 - uv[:, 1].min()) * h))
     crop = alpha[max(y0, 0):max(y1, y0 + 1), max(x0, 0):max(x1, x0 + 1)]
-    return bool(crop.size) and float(((crop > 24) & (crop < 232)).mean()) >= FAR_SOFT_SHARE
+    shown = crop[crop > 24]
+    return bool(shown.size) and float((shown > 232).mean()) < FAR_SOFT_OPAQUE
 
 
 def build_far_atlas(sources, chunks, encode=True):
