@@ -56,7 +56,7 @@ void drawInvHint(float x, float y, float w, float h, float z, u32 tint) {
     for (int row = 0; row < 3; row++) {
         for (int col = 0; col < 3; col++) {
             drawSub(tex, sx[col], sy[row], sx[col + 1], sy[row + 1], dx[col], dy[row],
-                    dx[col + 1] - dx[col], dy[row + 1] - dy[row], z, tint, col == 2);
+                    dx[col + 1] - dx[col], dy[row + 1] - dy[row], z, tint);
         }
     }
 }

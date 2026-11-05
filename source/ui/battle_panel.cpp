@@ -435,6 +435,18 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
             theme::textFit(d, 6, -1, 0.44f, kInk, kW - 12, 0.6f);
         } else {
             text(6, -1, 0.44f, kInk, "%s", status);
+            if (g.count) {
+                int total = 0, totalMax = 0;
+                for (int t = 0; t < gags::kTracks; t++) {
+                    const int unlocked = g.exp ? gags::levelsUnlocked(t, g.exp[t]) : 0;
+                    const int carryRow = unlocked > 0 ? unlocked - 1 : 0;
+                    for (int l = 0; l < gags::kLevels; l++) {
+                        total += g.count[t][l];
+                        if (unlocked > 0) totalMax += gags::kCarry[t][carryRow][l];
+                    }
+                }
+                text(kW - 96, -1, 0.40f, kInk, "Total gags %d/%d", total, totalMax);
+            }
         }
     }
     // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
@@ -612,11 +624,17 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
         if (showExp) {
             const int next = gags::kLevelExp[t][1];
             const float progress = next > 0 ? (g.exp[t] < next ? float(g.exp[t]) / next : 1.0f) : 1.0f;
-            theme::roundRect(pad::battle::kRowX + 4, y + h - 7, room - 4, 3, 1, theme::rgb(0x80, 0x80, 0x80, 0xA0));
+            char expStr[16];
+            snprintf(expStr, sizeof expStr, "%u/%d", unsigned(g.exp[t]), next);
+            C2D_Text et;
+            textCache_.parse(&et, buf_, expStr, 1024);
+            const float barY = y + h - 6.0f;
+            drawOutlinedText(et, pad::battle::kRowX + 5, barY - 9.0f, 0.59f, 0.32f,
+                             theme::kWhite, theme::rgb(0x20, 0x20, 0x20));
+            theme::roundRect(pad::battle::kRowX + 4, barY, room - 4, 4, 1, theme::rgb(0x30, 0x30, 0x30, 0xC0));
             if (progress > 0.0f)
-                theme::roundRect(pad::battle::kRowX + 4, y + h - 7, (room - 4) * progress, 3, 1,
-                                 theme::kTrackColors[t], 0.58f);
-            text(pad::battle::kRowX + 5, y + h - 11, 0.28f, kInk, "%u/%d", unsigned(g.exp[t]), next);
+                theme::roundRect(pad::battle::kRowX + 4, barY, (room - 4) * progress, 4, 1,
+                                 theme::mix(theme::kTrackColors[t], theme::kWhite, 0.35f), 0.58f);
         }
         for (int l = 0; l < levels[t]; l++) {
             const float x = cellX(l);
@@ -637,20 +655,6 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
                              ok[t][l] ? theme::kWhite : theme::rgb(0xFF, 0xFF, 0xFF, 0x60),
                              ok[t][l] ? theme::rgb(0x00, 0x2A, 0x55) : theme::rgb(0x20, 0x20, 0x20, 0x60));
         }
-    }
-    if (g.count) {
-        int total = 0, totalMax = 0;
-        for (int t = 0; t < gags::kTracks; t++) {
-            const int unlocked = g.exp ? gags::levelsUnlocked(t, g.exp[t]) : 0;
-            const int carryRow = unlocked > 0 ? unlocked - 1 : 0;
-            for (int l = 0; l < gags::kLevels; l++) {
-                total += g.count[t][l];
-                if (unlocked > 0) totalMax += gags::kCarry[t][carryRow][l];
-            }
-        }
-        char totalText[24];
-        snprintf(totalText, sizeof totalText, "Total gags %d/%d", total, totalMax);
-        text(pad::battle::kRowX + 4, rowY[6] + rowH[6] - 11, 0.28f, kInk, "%s", totalText);
     }
     drawButtons(v, g);
 }
@@ -805,25 +809,25 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         face.maxHp = t.maxHp > 0 ? t.maxHp : (t.hp > 0 ? t.hp : 15);
         for (int k = 0; k < 3; k++) face.rgb[k] = t.rgb[k];
         face.species = t.species;
-        // The stock panel puts Laff on the head. At this screen size, two tiny eye labels blur
-        // together, so retain the real face and place the current value boldly inside it.
-        const float meter = ch * 0.86f;
+        // Stock TownBattleToonPanel puts the LaffMeter head in the upper half and health text below it.
+        // Retain the real face with eyes unobstructed, and place the outlined hp/max text directly below.
+        const float meter = 19.0f;
         const float s = meter * pulse_[i].update(t.hp);
-        const float mx = x + cw * 0.33f, my = kBtnY + ch * 0.48f;
+        const float mx = x + cw * 0.33f, my = kBtnY + 11.5f;
         drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.58f);
         char num[24];
         snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, face.maxHp);
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
         C2D_Text hp;
         textCache_.parse(&hp, buf_, num, 1024);
-        float hs = 0.42f, hw = 0, hh = 0;
+        float hs = 0.34f, hw = 0, hh = 0;
         C2D_TextGetDimensions(&hp, hs, hs, &hw, &hh);
-        const float maxW = meter * 0.62f;
+        const float maxW = cw * 0.56f;
         if (hw > maxW) {
             hs *= maxW / hw;
             C2D_TextGetDimensions(&hp, hs, hs, &hw, &hh);
         }
-        drawOutlinedText(hp, mx - hw * 0.5f, my - hh * 0.5f, 0.61f, hs,
+        drawOutlinedText(hp, mx - hw * 0.5f, kBtnY + 23.5f, 0.61f, hs,
                          gone ? theme::rgb(0xE0, 0xE0, 0xE0) : low ? theme::rgb(0xFF, 0xD8, 0xD0) : theme::kWhite,
                          gone ? kInkSoft : low ? theme::kRedDark : theme::rgb(0x16, 0x4A, 0x16));
         // TownBattleToonPanel.setValues while choosing: the chosen gag, Pass, SOS or Fire ("?" until then).

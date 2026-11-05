@@ -222,6 +222,7 @@ const Step kScript[] = {
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "fight cog", "battle_start"},
     // ---- battle GUI edge-state views (hold the live Input panel; main.cpp supplies fixtures) ----
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa normal", "battle_qa_normal"},
     {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa 4-cog", "battle_qa_4cog"},
     {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa locked", "battle_qa_locked"},
     {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa empty", "battle_qa_empty"},
