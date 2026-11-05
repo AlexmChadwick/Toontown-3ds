@@ -204,7 +204,9 @@ Key decisions:
      A merged corner takes the area-weighted mean colour of the corners that landed on
      it (Cashbot's lit stair treads had made a white band). Blended cards whose visible
      texels are all near black (drop shadows) are left out of far meshes: forced to
-     alpha test they were black wedges (Toon HQ's shadow under the brim). Up-facing faces
+     alpha test they were black wedges (Toon HQ's shadow under the brim). Soft blended cards (mostly
+     partial alpha, Dreamland's clouds) stay blended on their own texture: alpha tested they were
+     grey slabs in the sky. Up-facing faces
      under 40 square units keep a far body texture (the HQ brim); larger ones stay
      coloured as ground. An upright alpha-cut strip that repeats along a wrapping u
      stays a textured card when it would otherwise be coloured (Bossbot's hedges had

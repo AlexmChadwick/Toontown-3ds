@@ -347,7 +347,11 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
             for tri in tris:
                 if (image is not None and b.blend == ttm.BLEND_ALPHA_TEST
                         and _silhouette_card(image, tri.reshape(-1, 9))):
-                    cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA_TEST), []).append(tri.copy())
+                    continue
+                if (details and b.blend == ttm.BLEND_ALPHA and not b.layer
+                        and _soft_card(image, tri[:, 3:5])):
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA), []).append(tri.copy())
                     continue
                 if details and not bodies_only and _far_detail(image, b, tri.reshape(-1, 9), sources):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
@@ -359,7 +363,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                 # repeating fences and hedges without a draw of its own.
                 if (wrap_u and b.blend == ttm.BLEND_ALPHA_TEST
                         and _silhouette_card(image, tri.reshape(-1, 9), wrap_u)):
-                    cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA_TEST), []).append(tri.copy())
                     continue
                 if b.layer:
                     continue  # a repeating decal: a flat patch would cover its wall
@@ -390,12 +394,12 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
             for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
                 vs = block[start:start + ttm.MAX_BATCH_VERTS]
                 merged.append(ttm.Batch(None, blend, two, 0, 0, vs, np.arange(len(vs), dtype=np.int64)))
-        for (tex, two), parts in sorted(cards.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        for (tex, two, blend), parts in sorted(cards.items()):
             block = np.concatenate([p.reshape(-1, 9) for p in parts])
             kept += len(block) // 3
             for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
                 vs = block[start:start + ttm.MAX_BATCH_VERTS]
-                merged.append(ttm.Batch(tex, ttm.BLEND_ALPHA_TEST, two, 0, 0, vs,
+                merged.append(ttm.Batch(tex, blend, two, 0, 0, vs,
                                         np.arange(len(vs), dtype=np.int64)))
         result.append(merged)
         extra.append([ttm.Batch(tex, blend, two, 0, layer, np.concatenate([p.reshape(-1, 9) for p in parts]),
@@ -416,6 +420,29 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
 # per chunk kept Old 3DS from fitting Toon Hall's near mesh in its retain budget.
 FAR_ATLAS = dict(tile=16, gutter=2, mip_levels=2)
 FAR_PAGES = (64, 128, 256)
+
+
+# A blended far triangle stays a blended card when at least this share of the texels in
+# its UV box is partly transparent: soft clouds and glows, not crisp decals.
+FAR_SOFT_SHARE = 0.25
+
+
+def _soft_card(image, uv):
+    """A blended triangle whose UV box (unit UVs) shows mostly partial alpha.
+
+    Dreamland's prop_DL_clouds: on the alpha-tested far detail page the wisps became a
+    hard grey cloud-shaped slab in the sky, and a 16px tile of it a blurred box. It
+    stays on its own texture, blended, like a hill card.
+    """
+    import numpy as np
+    if image is None or float(uv.min()) < -0.01 or float(uv.max()) > 1.01:
+        return False
+    alpha = image[:, :, 3].astype(np.int32)
+    h, w = alpha.shape
+    x0, x1 = int(np.floor(uv[:, 0].min() * w)), int(np.ceil(uv[:, 0].max() * w))
+    y0, y1 = int(np.floor((1.0 - uv[:, 1].max()) * h)), int(np.ceil((1.0 - uv[:, 1].min()) * h))
+    crop = alpha[max(y0, 0):max(y1, y0 + 1), max(x0, 0):max(x1, x0 + 1)]
+    return bool(crop.size) and float(((crop > 24) & (crop < 232)).mean()) >= FAR_SOFT_SHARE
 
 
 def build_far_atlas(sources, chunks, encode=True):
@@ -446,6 +473,7 @@ def build_far_atlas(sources, chunks, encode=True):
         # reads the same at >0.5), two-sided and on one decal layer. Split by state it
         # cost about three draws a chunk, and a TTC view past the 150 submit cap
         # dropped a far ground chunk (a sky hole).
+        # Soft blended cards never get here (_colorize_far keeps them as blended cards).
         remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, True, 0, 1, b.verts, b.indices)
                     for b in batches]
         textures, result = street_atlas.build(srcs, [remapped], encode=encode,

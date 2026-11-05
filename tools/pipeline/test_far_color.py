@@ -211,6 +211,23 @@ class FarColorTest(unittest.TestCase):
         self.assertEqual(colored, [[]])
         self.assertEqual(extra, [[]])
 
+    def test_soft_blended_card_keeps_blending(self):
+        image = np.zeros((32, 32, 4), dtype=np.uint8)
+        image[:, :, :3] = 200  # grey, not a drop shadow
+        image[:16, :16, 3] = np.linspace(40, 200, 16).astype(np.uint8)  # a cloud wisp (top left)
+        image[16:, 16:, 3] = 255  # a crisp decal
+        tri = np.zeros((6, 9))
+        tri[:, :3] = [[0, 0, 0], [10, 0, 0], [10, 0, 10]] * 2
+        tri[:, 5:9] = 1
+        tri[:3, 3:5] = [[0.05, 0.55], [0.45, 0.55], [0.45, 0.95]]
+        tri[3:, 3:5] = [[0.55, 0.05], [0.95, 0.05], [0.95, 0.45]]
+        b = ttm.Batch(0, ttm.BLEND_ALPHA, False, 0, 0, tri, np.arange(6))
+        colored, kept, extra = bake_street._colorize_far(None, [[b]], images={0: image}, details=True)
+        self.assertEqual(kept, 1)
+        cards = [c for c in colored[0] if c.texture == 0]
+        self.assertEqual([(c.blend, len(c.indices)) for c in cards], [(ttm.BLEND_ALPHA, 3)])
+        self.assertEqual(sum(len(e.indices) for e in extra[0]), 3)  # the decal stays on the page
+
     def test_far_ground_lattice_spares_walls(self):
         # A wall corner (shared with an upright face) keeps the fine lattice; ground-only
         # corners collapse on the coarse one.
