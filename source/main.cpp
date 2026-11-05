@@ -3262,6 +3262,8 @@ int main() {
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
         sky.setZone(place.zoneId(), level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
+        tt::render::setPlaceFar(level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior
+                                    ? 0.0f : tt::world::cameraFar(place.zoneId()));
         if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
             sky.holdClouds();
         else
@@ -3311,11 +3313,13 @@ int main() {
                 // Outdoor sky fog fades the draw-distance cutoff. Donald's Dock white fog and
                 // underwater fog are already on (world/water.cpp); do not replace them. Indoors
                 // keep the flat grey clear. Stereo uses this same LUT for both eyes.
+                // Hoods with an upstream camera far (Cog HQs, Acorn Acres, Goofy Speedway) have no
+                // draw-distance fog; Acorn Acres' underwater fog stays.
+                const tt::render::Quality& q = tt::render::activeQuality();
                 if (indoors) renderer.clearFog();
-                else if (!water.fogActive()) {
-                    const tt::render::Quality& q = tt::render::activeQuality();
-                    renderer.setFog(hz[0], hz[1], hz[2], q.fogStart, q.fogEnd); // no-op when unchanged
-                }
+                else if (water.fogActive()) {
+                } else if (tt::render::fogDisabled(q)) renderer.clearFog();
+                else renderer.setFog(hz[0], hz[1], hz[2], q.fogStart, q.fogEnd); // no-op when unchanged
             }
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
             if (zonePhase != ZonePhase::Idle) {

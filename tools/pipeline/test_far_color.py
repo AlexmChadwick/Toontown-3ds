@@ -160,6 +160,57 @@ class FarColorTest(unittest.TestCase):
         tri[:, 4] = [0.5, 0.5, 0.6]
         self.assertFalse(bake_street._silhouette_card(image, tri))
 
+    def test_repeating_hedge_strip_keeps_its_texture(self):
+        # Bossbot HQ's hedge: an upright strip repeating 6 times along u, clear above the
+        # leaves. It wraps, so it stays a textured card; a clamped texture or a ground-like
+        # face does not.
+        image = np.full((32, 32, 4), 255, dtype=np.uint8)
+        image[:10, :, 3] = 0
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [120, 0, 0], [120, 0, 40]]
+        tri[:, 3:5] = [[-3.0, 0.0], [3.0, 0.0], [3.0, 1.0]]
+        self.assertTrue(bake_street._silhouette_card(image, tri, wrap_u=True))
+        self.assertFalse(bake_street._silhouette_card(image, tri))
+        tri[:, :3] = [[0, 0, 0], [120, 0, 0], [120, 40, 0]]
+        self.assertFalse(bake_street._silhouette_card(image, tri, wrap_u=True))
+
+    def test_far_collapse_averages_merged_colours(self):
+        # A staircase of thin steps: lit treads (1.0) and dark risers (0.25). The
+        # surviving face takes the mean of what merged into it, not a tread's white.
+        verts = []
+        for k in range(8):
+            y0, z0 = k * 0.5, k * 0.5
+            tread = [[0, y0, z0 + .5], [10, y0, z0 + .5], [10, y0 + .5, z0 + .5],
+                     [0, y0, z0 + .5], [10, y0 + .5, z0 + .5], [0, y0 + .5, z0 + .5]]
+            riser = [[0, y0, z0], [10, y0, z0], [10, y0, z0 + .5],
+                     [0, y0, z0], [10, y0, z0 + .5], [0, y0, z0 + .5]]
+            for p in tread:
+                verts.append(p + [0, 0, 1, 1, 1, 1])
+            for p in riser:
+                verts.append(p + [0, 0, .25, .25, .25, 1])
+        verts = np.array(verts, dtype=np.float64)
+        b = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, verts, np.arange(len(verts)))
+        low = street_lod.simplify([b], 3)
+        self.assertGreater(street_lod.count(low), 0)
+        shade = low[0].verts[:, 5]
+        self.assertTrue(np.all(shade < 0.9) and np.all(shade > 0.3))
+
+    def test_far_drops_blended_shadow_cards(self):
+        shadow = np.zeros((32, 32, 4), dtype=np.uint8)
+        shadow[8:24, 8:24, 3] = 255
+        self.assertTrue(bake_street._shadow_card(shadow))
+        decal = shadow.copy()
+        decal[10:12, 10:12, :3] = 200  # a window frame is not a shadow
+        self.assertFalse(bake_street._shadow_card(decal))
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [10, 0, 0], [10, 0, 10]]
+        tri[:, 3:5] = [[0, 0], [1, 0], [1, 1]]
+        tri[:, 5:9] = 1
+        b = ttm.Batch(0, ttm.BLEND_ALPHA, False, 0, 1, tri, np.arange(3))
+        colored, kept, extra = bake_street._colorize_far(None, [[b]], images={0: shadow}, details=True)
+        self.assertEqual(colored, [[]])
+        self.assertEqual(extra, [[]])
+
     def test_far_ground_lattice_spares_walls(self):
         # A wall corner (shared with an upright face) keeps the fine lattice; ground-only
         # corners collapse on the coarse one.
@@ -183,12 +234,15 @@ class FarColorTest(unittest.TestCase):
         wall[:, :3] = [[0, 0, 0], [4, 0, 4], [0, 0, 4]]
         wall[:, 3:5] = [[0, 0], [1, 1], [0, 1]]
         floor = wall.copy()
-        floor[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
+        floor[:, :3] = [[0, 0, 0], [20, 0, 0], [0, 20, 0]]
+        brim = wall.copy()  # a small up-facing face (a hat brim) is not ground
+        brim[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
         repeats = wall.copy()
         repeats[:, 3:5] *= 1.5
         b = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, wall, np.arange(3))
         self.assertTrue(bake_street._far_body([Tex()], image, b, wall))
         self.assertFalse(bake_street._far_body([Tex()], image, b, floor))
+        self.assertTrue(bake_street._far_body([Tex()], image, b, brim))
         self.assertFalse(bake_street._far_body([Tex()], image, b, repeats))
 
 

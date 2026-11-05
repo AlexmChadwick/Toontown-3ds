@@ -22,6 +22,8 @@ namespace tt::world {
 enum class PlaceKind : u8 { Playground, Street, Interior };
 PlaceKind placeKind(u32 zoneId);
 u32 hoodOf(u32 zoneId); // 2000 for every TTC zone (2000, 21xx, 25xx, ...)
+// Upstream camera far of a Cog HQ hood (ToontownGlobals *HQCameraFar), 0 elsewhere.
+float cameraFar(u32 zoneId);
 
 struct Exit {
     enum Kind : u8 { None, Tunnel, Door } kind = None;

@@ -109,6 +109,7 @@ def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
         # z-fights. It is lifted off its collapsed wall instead (lift); the TTC tunnel signs were buried in their snapped rock.
         if spacing and not b.layer:
             verts[:,:3]=moved[id(b)]
+            verts[:,5:9]=_merged_colors(b.verts[b.indices],verts)
         elif spacing:
             verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)
@@ -122,6 +123,25 @@ def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
         verts=tri[np.sort(unique)].reshape(-1,9)
         result.append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts))))
     return result
+
+
+def _merged_colors(before, after):
+    """Vertex colours after a collapse: each merged corner takes the area-weighted mean
+    of the corners that landed on it (in this batch, degenerate triangles included).
+
+    Survivors otherwise keep only their own colours. Cashbot HQ's vault stairs bake
+    their lighting into vertex colour (treads 1.0, risers 0.24 to 0.43); the risers
+    collapsed and the far stairs were a white band across the entrance."""
+    tri=before[:,:3].reshape(-1,3,3)
+    area=np.linalg.norm(np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0]),axis=1)
+    weight=np.repeat(area,3)[:,None]+1e-12
+    _,group=np.unique(np.round(after[:,:3],6),axis=0,return_inverse=True)
+    group=group.reshape(-1)
+    total=np.zeros((group.max()+1,4))
+    norm=np.zeros((group.max()+1,1))
+    np.add.at(total,group,before[:,5:9]*weight)
+    np.add.at(norm,group,weight)
+    return total[group]/norm[group]
 
 
 def lift(verts, spacing):

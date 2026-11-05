@@ -782,6 +782,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         };
         for (uint32_t j=0;j<c.numVis;++j) want(z.vis[c.firstVis+j]);
         for (uint32_t i=0;i<z.h.chunks;++i) if (z.extra[i]) want(static_cast<uint16_t>(i));
+        // Cog HQ hoods see past the baked vis radius (render::setPlaceFar: stock camera far
+        // 900 to 3000). A playground grid's vis list is only that radius, so in-view chunks
+        // out to the place far join too; the frame caps below keep the nearest first.
+        if (z.haveCamera && z.h.version>=2 && quality.drawDistance > tt::render::baseQuality().drawDistance)
+            for (uint32_t i=0;i<z.h.chunks;++i)
+                if (z.chunks[i].numVis && inView(z.chunks[i], z.camEye, fwd, right, up, quality.drawDistance))
+                    want(static_cast<uint16_t>(i));
         z.extraDirty=false;
         z.numOrder=count;
         // No camera: nearest the feet, and the draw cap covers the whole cell (host tests).

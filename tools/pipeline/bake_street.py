@@ -69,7 +69,7 @@ def _far_draws(batches):
 CARD_TEXELS = 4
 
 
-def _silhouette_card(image, verts):
+def _silhouette_card(image, verts, wrap_u=False):
     """A backdrop hill card: one alpha-cut picture stretched over a huge quad.
 
     Sampling a corner texel paints the whole quad, and the alpha test then cuts
@@ -79,20 +79,48 @@ def _silhouette_card(image, verts):
     tested on its own, so it only has to span CARD_TEXELS of the 32px sample.
     Tested against half the picture, those pieces went flat grey: a spike on the
     rock behind the Donald's Dock tunnel and a gap where the corners were clear.
+    With `wrap_u` (the source texture repeats in u) an upright strip may repeat
+    along u: Bossbot HQ's CogHedgeFar2 hedges (u up to 15 repeats, 30 to 80 units
+    tall) have clear sky above the leaves, so as vertex colour they became opaque
+    black slabs over the far hedge line.
     """
     import numpy as np
     alpha = image[:, :, 3]
     if int(alpha.min()) > 16:
         return False
     uv = verts[:, 3:5]
-    if float(uv.min()) < -0.05 or float(uv.max()) > 1.05:
+    if float(uv[:, 1].min()) < -0.05 or float(uv[:, 1].max()) > 1.05:
         return False
+    if float(uv[:, 0].min()) < -0.05 or float(uv[:, 0].max()) > 1.05:
+        if not wrap_u:
+            return False
+        tri = verts.reshape(-1, 3, 9)[:, :, :3]
+        n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        length = np.linalg.norm(n, axis=1)
+        if np.any(length < 1e-9) or np.any(np.abs(n[:, 2]) / length > 0.5):
+            return False  # ground-like: stays coloured
     if float(np.ptp(uv, axis=0).max()) * max(alpha.shape) < CARD_TEXELS:
         return False
     tri = verts.reshape(-1, 3, 9)
     edges = np.linalg.norm(np.stack((tri[:, 1, :3] - tri[:, 0, :3], tri[:, 2, :3] - tri[:, 1, :3],
                                      tri[:, 0, :3] - tri[:, 2, :3])), axis=2)
     return float(edges.max()) >= 32.0
+
+
+def _shadow_card(image):
+    """A blended drop shadow: every texel that shows is near black.
+
+    The far mesh has no blending (its detail page is alpha tested), so a shadow
+    there is a solid black patch or nothing. Ground shadows (alpha 0.5) already
+    vanished; Toon HQ's shadow under the hat brim (hqTT shadow/o92_1, full alpha)
+    sits behind the arch, and voxel-snapped in front of it, it was a black wedge
+    across the HEAD QUARTERS sign. Past lodNear a shadow is dropped instead.
+    """
+    import numpy as np
+    if image is None:
+        return False
+    shown = image[:, :, 3] > 64
+    return bool(shown.any()) and int(image[:, :, :3][shown].max()) < 48
 
 
 def _far_image(sources, cache, index, images):
@@ -181,6 +209,11 @@ def _far_detail(image, b, tri, sources=None):
     return len(xr) * len(yr) <= FAR_DETAIL_REPEATS
 
 
+# An up-facing far face smaller than this (square units) still keeps its texture:
+# Toon HQ's hat brim (red / yellow stripes) went flat orange as vertex colour.
+FAR_BODY_FLAT_AREA = 40.0
+
+
 def _far_body(sources, image, b, tri):
     """A far wall, roof or landmark face that keeps a small cropped texture.
 
@@ -188,7 +221,7 @@ def _far_body(sources, image, b, tri):
     flat patches on Old 3DS past 160. Ground-like faces (|normal z| > 0.8) and
     faces whose UVs cross a texture repeat stay coloured: those are big, already
     flat at that range, and clipping their repeats pushed TTC past the far
-    triangle budget.
+    triangle budget. Small up-facing faces (brims, awning tops) are not ground.
     """
     import numpy as np
     import ttm
@@ -202,7 +235,7 @@ def _far_body(sources, image, b, tri):
     p = tri[:, :3]
     n = np.cross(p[1] - p[0], p[2] - p[0])
     length = float(np.linalg.norm(n))
-    if length < 1e-9 or abs(n[2]) / length > 0.8:
+    if length < 1e-9 or (abs(n[2]) / length > 0.8 and length > 2 * FAR_BODY_FLAT_AREA):
         return False
     xr, yr = street_atlas.tile_ranges(tri, sources[b.texture])
     return len(xr) == 1 and len(yr) == 1
@@ -238,6 +271,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
     import numpy as np
     import ttm
     import street_atlas
+    from panda3d.core import SamplerState
     cache = {}
     mips_cache = {}
     result = []
@@ -252,9 +286,14 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
         for b in batches:
             if b.indices is None or len(b.indices) < 3:
                 continue
+            if b.blend == ttm.BLEND_ALPHA and b.texture is not None and _shadow_card(
+                    _far_image(sources, cache, b.texture, images)):
+                continue
             tris = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)]
             tris = tris.reshape(-1, 3, 9)
             image = _far_image(sources, cache, b.texture, images) if b.texture is not None else None
+            wrap_u = (image is not None and isinstance(sources, (list, tuple))
+                      and getattr(sources[b.texture], 'getWrapU', lambda: None)() == SamplerState.WM_repeat)
             colored = []
             for tri in tris:
                 if (image is not None and b.blend == ttm.BLEND_ALPHA_TEST
@@ -266,6 +305,12 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                     continue
                 if details and _far_body(sources, image, b, tri):
                     body.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    continue
+                # Only what would otherwise go flat: the detail page already wraps
+                # repeating fences and hedges without a draw of its own.
+                if (wrap_u and b.blend == ttm.BLEND_ALPHA_TEST
+                        and _silhouette_card(image, tri.reshape(-1, 9), wrap_u)):
+                    cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
                 if b.layer:
                     continue  # a repeating decal: a flat patch would cover its wall
