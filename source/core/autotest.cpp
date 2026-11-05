@@ -77,6 +77,10 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, 280, 14, -1, "friends: open", "friends_panel"},
     {0.8f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "friends: focus", "friends_focus"},
     {0.8f, 0, 0, 0, KEY_B, -1, -1, -1, "friends: close", "friends_closed"},
+    // The same stock panel with no setFriendsList entries, followed by its visible X button.
+    {0.5f, 0, 0, 0, KEY_TOUCH, 280, 14, -1, "friends: empty open"},
+    {1.0f, 0, 0, 0, 0, -1, -1, -1, "friends: empty", "friends_empty"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 160, 186, -1, "friends: empty close button", "friends_empty_closed"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab toon"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: toon focus", "pad_toon"},
     {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book from toon tab", "pad_book"},

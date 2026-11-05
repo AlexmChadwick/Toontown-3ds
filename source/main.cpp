@@ -3940,7 +3940,8 @@ int main() {
         }
         // Offline GUI sweep: a stock-shaped FriendsListPanel with the three states the real
         // setFriendsList data can expose (open chat, SpeedChat-only, offline/unknown).
-        if (autotest.active() && !strncmp(autotest.label(), "friends: ", 9)) {
+        if (autotest.active() && !strncmp(autotest.label(), "friends: ", 9) &&
+            strncmp(autotest.label(), "friends: empty", 14)) {
             static const char* kDemoFriends[] = {"Aqua Dog", "Little Pepper", "Sleepy Rabbit"};
             ctx.numFriends = 3;
             for (int i = 0; i < ctx.numFriends; i++) {
