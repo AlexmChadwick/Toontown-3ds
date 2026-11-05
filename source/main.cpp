@@ -2130,8 +2130,11 @@ int main() {
                 static u64 planLogAt = 0;
                 if (osGetTime() >= planLogAt && place.streamed()) {
                     char plan[768];
-                    place.zone().describePlan(plan, sizeof(plan));
-                    TT_LOG("%s plan: %s", autotest.label(), plan);
+                    const int len = std::min<int>(place.zone().describePlan(plan, sizeof(plan)),
+                                                  static_cast<int>(sizeof(plan)) - 1);
+                    // A log line holds 256 bytes; a Cog HQ plan runs past that.
+                    for (int at = 0; at < len; at += 200)
+                        TT_LOG("%s plan%s %.200s", autotest.label(), at ? "+" : ":", plan + at);
                     planLogAt = osGetTime() + 8000;
                 }
                 // An eye equal to the target keeps the follow camera (shots of the stock camera).
