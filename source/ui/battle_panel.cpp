@@ -397,9 +397,9 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     const bool detail = padDetail_ && v.phase == world::BattlePhase::Input && mode_ == Mode::Attack;
     const int focusId = detail ? focus_.focusedId() : -1;
     const int nc = v.numCogs < pad::battle::kMaxCogs ? v.numCogs : pad::battle::kMaxCogs;
-    // InventoryNew uses Toontown's default dialog card for this three-line prompt. Put the real
-    // card beside the Cog cards, where it can be stock-sized without covering either the gags or
-    // a Cog. Four-Cog battles keep the compact status strip because the cards fill the whole row.
+    // InventoryNew uses Toontown's default dialog card for this prompt. Put the real card beside
+    // the Cog cards, shortened and reflowed so it covers neither the gags nor a Cog. Four-Cog
+    // battles keep the compact status strip because the cards fill the whole row.
     const bool bigHint = v.phase == world::BattlePhase::Input && mode_ == Mode::Attack && !detail &&
                          v.tutorialArrows && nc < 4;
     if (bigHint) {
@@ -417,13 +417,10 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
                         theme::rgb(0xFF, 0xFF, 0xBF));
         }
         centered(hintX + pad::battle::kHintW * 0.5f, pad::battle::kHintY + pad::battle::kHintTextTop,
-                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "Click a", 0.6f, true);
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "Click a gag", 0.6f, true);
         centered(hintX + pad::battle::kHintW * 0.5f,
                  pad::battle::kHintY + pad::battle::kHintTextTop + pad::battle::kHintTextStep,
-                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "gag to", 0.6f, true);
-        centered(hintX + pad::battle::kHintW * 0.5f,
-                 pad::battle::kHintY + pad::battle::kHintTextTop + 2 * pad::battle::kHintTextStep,
-                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "attack", 0.6f, true);
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "to attack", 0.6f, true);
     } else {
         theme::paper(1, 0, kW - 2, 15, 5.0f);
         if (pad::battle::isGagId(focusId) && g.count && g.exp) {

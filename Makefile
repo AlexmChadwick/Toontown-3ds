@@ -83,7 +83,7 @@ export APP_ICON := $(TOPDIR)/$(ICON)
 export _3DSXDEPS := $(OUTPUT).smdh
 export _3DSXFLAGS += --smdh=$(OUTPUT).smdh --romfs=$(CURDIR)/$(ROMFS)
 
-.PHONY: all clean cia cia-check assets banner
+.PHONY: all clean cia cia-check assets banner FORCE
 
 all: $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
@@ -129,6 +129,11 @@ else
 $(OUTPUT).3dsx: $(OUTPUT).elf $(_3DSXDEPS)
 $(OUTPUT).elf: $(OFILES)
 $(OFILES_SOURCES): $(HFILES)
+
+# TT_GIT_COMMIT is a command-line define, which make cannot otherwise see change when HEAD moves.
+# Recompile the one file that logs it so incremental builds never advertise an older revision.
+main.o: FORCE
+FORCE:
 
 %.bin.o %_bin.h: %.bin
 	@echo $(notdir $<)
