@@ -578,7 +578,8 @@ server.
   pinned against retain eviction for about 2 s. The submitted set admits every
   near mesh before far meshes; when the 150-draw cap bites, generic far scenery
   drops before near draws or sign stand-ins. Up to two picked signs on Old 3DS
-  get a negative texture LOD bias so their mips match New. GPU upload stays near
+  get a negative texture LOD bias on their sign-letter (palette_2tmlc) textures so the letter
+  mips match New; the rest of the chunk keeps its mips (biased, Toon Hall's plaza tiles aliased). GPU upload stays near
   8 ms and at most two mesh publishes run per `Place::update`. Near upgrades stop
   at 130 draws. Before an in-cone chunk is dropped for the frame caps, earlier near chunks (not
   the cell, farthest first) step down to far: lodMust near meshes had spent Daisy Gardens' 15k

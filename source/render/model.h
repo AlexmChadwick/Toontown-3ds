@@ -107,8 +107,10 @@ public:
     // already stored them that way; otherwise load rebases batch-relative indices.
     bool absoluteIndices() const { return absoluteIndices_; }
 
-    // Old 3DS sign chunks: bias mipmap selection toward the sharper tier New 3DS gets.
-    void setTextureLodBias(float bias);
+    // Old 3DS sign chunks: bias mipmap selection of the DNA sign-letter textures
+    // (MickeyFont's palette_2tmlc) toward the sharper tier New 3DS gets. The chunk's
+    // other textures keep their mips: biased, Toon Hall's plaza tiles aliased on Old only.
+    void setSignLodBias(float bias);
 
 private:
     u16 numTextures_ = 0;
@@ -125,6 +127,7 @@ private:
     u16* indices_ = nullptr;
     u32 linearBytes_ = 0;
     bool absoluteIndices_ = false;
+    u32 signFonts_ = 0; // bit i: texture i is a sign-letter font (first 32 textures)
 
     friend class ModelStaging;
 };

@@ -1257,7 +1257,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 z.models[id].swap(j.model);
                 if (!tt::render::activeQuality().new3ds &&
                     (static_cast<int>(id)==z.signNearId[0] || static_cast<int>(id)==z.signNearId[1]))
-                    z.models[id].setTextureLodBias(-1.0f);
+                    z.models[id].setSignLodBias(-1.0f);
                 z.resident[id]=true; z.lod[id]=j.lod; z.keepHigh[id]=false;
                 if (j.lod==0) z.parked[id]=false;
             } else if (st==Impl::Done && j.lod==1 && nearHeld) {
