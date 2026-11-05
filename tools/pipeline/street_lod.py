@@ -1,7 +1,8 @@
 """Deterministic far LOD and conservative per-PVS model selection.
 
-Near meshes are untouched. Far meshes omit decal layers and snap world positions
-to a shared voxel lattice, removing collapsed and duplicate triangles. Keeping UVs
+Near meshes are untouched. Far meshes omit decal layers and collapse world positions
+per voxel of a shared lattice (to the voxel's mean), removing collapsed and duplicate
+triangles. Keeping UVs
 and colours per corner preserves material seams. Adjacent chunks use the same
 lattice. Collision is never simplified. Runtime uses the same budgeted plan.
 """
@@ -39,27 +40,75 @@ def shared_positions(chunks):
     return keys[counts>1]
 
 
-def simplify(batches, spacing, keep_layers=False, fixed=None):
+# A triangle at least this upward (normal z) is ground for ground_spacing; ground_split
+# uses the same test for what it splits.
+GROUND_UP = 0.5
+
+
+def cluster_points(batches, spacing, fixed=None, ground_spacing=None):
+    """Vertex clustering of one chunk: the new position of every corner, batch by batch.
+
+    Every corner in a voxel (round(p / spacing)) collapses to the mean of the distinct
+    positions in it, not to the voxel centre. The merges are the same, so triangle
+    counts match; the shape does not. A centre moved flat ground and rock tops up to
+    half a voxel in height: at Acorn Acres' 16 unit far voxels the round rock behind
+    the Donald's Dock tunnel became a spike, and the ground stepped. A mean stays on a
+    flat or gently curved surface. `fixed` positions are not moved and do not count.
+
+    With `ground_spacing`, corners whose every triangle faces up (ground and the middle
+    of roofs: what ground_split cut into 20 unit pieces) use that coarser lattice; a
+    corner on any wall or slope keeps `spacing`. Split ground filled the far budget,
+    so Cashbot and Lawbot HQ walls collapsed at 48 units while their flat yards did not
+    need the triangles.
+    """
+    corners=[b.verts[b.indices][:,:3] for b in batches]
+    if not corners:
+        return []
+    pts=np.concatenate(corners).astype(np.float64)
+    keys,first,inverse=np.unique(position_keys(pts),return_index=True,return_inverse=True)
+    pos=pts[first]
+    rep=pos.copy()
+    free=~np.isin(keys,fixed) if fixed is not None and len(fixed) else np.ones(len(keys),bool)
+    if free.any():
+        step=np.full(len(keys),float(spacing))
+        if ground_spacing:
+            tri=pts.reshape(-1,3,3)
+            n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+            ln=np.linalg.norm(n,axis=1)
+            up=np.where(ln>1e-8,n[:,2]/np.maximum(ln,1e-8),0.0)>=GROUND_UP
+            ground=np.ones(len(keys),bool)
+            np.logical_and.at(ground,inverse.ravel(),np.repeat(up,3))
+            step[ground]=ground_spacing
+        lattice=np.round(pos/step[:,None]).astype(np.int64)
+        cells=np.concatenate([lattice,(step!=spacing)[:,None].astype(np.int64)],axis=1)[free]
+        _,group=np.unique(cells,axis=0,return_inverse=True)
+        group=group.ravel()
+        sums=np.zeros((group.max()+1,3))
+        np.add.at(sums,group,pos[free])
+        rep[free]=(sums/np.bincount(group)[:,None])[group]
+    moved=rep[inverse.ravel()]
+    return np.split(moved,np.cumsum([len(c) for c in corners])[:-1])
+
+
+def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
     """Far mesh of one chunk at a voxel spacing.
 
     `fixed` (shared_positions) are seam corners that stay where they are. Snapped,
     a far chunk pulled its edge off its near neighbour's and the sky showed through
-    the TTC hills on Old 3DS, which draws the far mesh from 160.
+    the TTC hills on Old 3DS, which draws the far mesh from 160. Other corners
+    collapse per voxel (cluster_points); `ground` is its ground_spacing.
     """
     result=[]
+    snapped=[b for b in batches if not b.layer] if spacing else []
+    moved=dict(zip(map(id,snapped),cluster_points(snapped,spacing,fixed,ground)))
     for b in batches:
         if b.layer and not keep_layers:
             continue  # windows, letters and other overlaid details disappear only far away
         verts=b.verts[b.indices].copy()
         # A kept decal is not snapped: snapped, it cuts through its wall at an angle and
-        # z-fights. Its wall moves up to half a voxel diagonal, so the decal is lifted by
-        # that much instead; the TTC tunnel signs were buried in their snapped rock.
+        # z-fights. It is lifted off its collapsed wall instead (lift); the TTC tunnel signs were buried in their snapped rock.
         if spacing and not b.layer:
-            snapped=np.round(verts[:,:3]/spacing)*spacing
-            if fixed is not None and len(fixed):
-                keep=np.isin(position_keys(verts),fixed)
-                snapped[keep]=verts[keep,:3]
-            verts[:,:3]=snapped
+            verts[:,:3]=moved[id(b)]
         elif spacing:
             verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)
@@ -78,9 +127,10 @@ def simplify(batches, spacing, keep_layers=False, fixed=None):
 def lift(verts, spacing):
     """Move each triangle of unsnapped decal corners off its wall along the face normal.
 
-    `verts` are non-indexed corners (3 per triangle). The snapped wall behind moves at
-    most spacing*sqrt(3)/2, so a decal lifted past that cannot fall behind it. Past
-    lodNear the gap does not show.
+    `verts` are non-indexed corners (3 per triangle). A voxel mean of a flat wall stays
+    on its plane, and at an outside corner it moves into the building, away from the
+    decal; a lift of half a voxel diagonal covers the rest. Past lodNear the gap does
+    not show.
     """
     out=np.asarray(verts,dtype=np.float64).copy()
     tri=out[:,:3].reshape(-1,3,3)

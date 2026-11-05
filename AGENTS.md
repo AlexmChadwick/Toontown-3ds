@@ -188,6 +188,12 @@ Key decisions:
    - Indices are `u16`, as triangle lists or strips.
    - Batches are merged per texture after atlasing. The ≤150 draw calls per frame target
      drives this.
+   - Far meshes (`street_lod.simplify`) cluster vertices per voxel to the mean of the
+     corners in it, never to the voxel centre. When the uniform voxel would pass 2 units,
+     corners on up-facing faces only (split ground, roof middles) take a coarser lattice
+     (twice the uniform, at least 24) so walls, rocks and buildings keep a finer one: the
+     20-unit ground split had pushed Acorn Acres to 16 and Cashbot / Lawbot HQ to 48.
+     Plain far meshes fold two-sided faces into the one-sided draw like the near atlas.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
    - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
