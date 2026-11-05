@@ -1,6 +1,7 @@
 // The battle inventory's original art (bake_inventory_gui.py): InventoryNew's track rows and
-// gag buttons, battle_gui's red BATTLE_Menu frame and TownBattleToonPanel's status card, drawn
-// with citro2d and tinted multiplicatively like DirectGui's image_color.
+// gag buttons, battle_gui's red BATTLE_Menu frame, TownBattleToonPanel's status card and the
+// stock dialog hint card, drawn with citro2d and tinted multiplicatively like DirectGui's
+// image_color.
 #pragma once
 
 #include <3ds.h>

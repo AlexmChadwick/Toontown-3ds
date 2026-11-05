@@ -1718,14 +1718,14 @@ int main() {
                        trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
-        // ---- visual: autotest "battle hold" presses D-Down once per input round (~1 s in), so
-        // shots show the focused gag's detail line ----
+        // ---- visual: autotest "battle hold" leaves the stock hint visible for 15 seconds,
+        // then presses D-Down once per input round so later shots show the gag detail line ----
         {
             static int inputFrames = 0;
             const bool held = autotest.active() && autotest.battleHoldMs() > 0 && battle.active() &&
                               battle.phase() == tt::world::BattlePhase::Input;
             inputFrames = held ? inputFrames + 1 : 0;
-            if (inputFrames == 30) {
+            if (inputFrames == 450) {
                 in.down |= KEY_DDOWN;
                 TT_LOG("autotest: battle hold D-Down (gag detail)");
             }

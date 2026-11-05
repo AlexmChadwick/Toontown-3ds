@@ -8,7 +8,8 @@ puts each toon's laff meter on ToonBtl_Status_BG. Every piece here is the origin
 offscreen (aspect preserved, centred in its cell):
 
     texture 0  256x256 RGBA8  the 49 gag icons, cell (level * 36, track * 36, 36, 36)
-    texture 1  256x128 RGBA8  InventoryRow, the four InventoryButton states, BATTLE_Menu, ToonBtl_Status_BG
+    texture 1  256x256 RGBA8  InventoryRow, the four InventoryButton states, BATTLE_Menu,
+                             ToonBtl_Status_BG and the stock dialog card used by the battle hint
 
     romfs/baked/inventory_gui.ttm      the two textures and a placeholder quad
     source/ui/inventory_gui_atlas.h    the rectangles (pixels, top-left origin)
@@ -43,6 +44,7 @@ HEADER = ROOT / 'source' / 'ui' / 'inventory_gui_atlas.h'
 INV = 'phase_3.5/models/gui/inventory_gui'
 BAT = 'phase_3.5/models/gui/battle_gui'
 ICONS = 'phase_3.5/models/gui/inventory_icons'
+DIALOG = 'phase_3/models/gui/dialog_box_gui'
 ICON_CELL = 36
 # (name, model, node, cell (x, y, w, h) in texture 1)
 GUI = [
@@ -53,6 +55,7 @@ GUI = [
     ('ButtonFlat', INV, 'InventoryButtonFlat', (192, 20, 64, 41)),
     ('Menu', BAT, 'BATTLE_Menu', (0, 62, 134, 64)),
     ('ToonStatus', BAT, 'ToonBtl_Status_BG', (136, 62, 100, 63)),
+    ('Hint', DIALOG, 'g1', (0, 128, 128, 124)),
 ]
 
 
@@ -150,7 +153,7 @@ def main():
             # One pixel of clear border so linear filtering never bleeds a neighbour in.
             r.render(ICONS, name, icons, (lv * ICON_CELL + 1, t * ICON_CELL + 1, ICON_CELL - 2, ICON_CELL - 2),
                      square=True)
-    gui = new_sheet(256, 128)
+    gui = new_sheet(256, 256)
     rows = [(name, *r.render(model, node, gui, cell)) for name, model, node, cell in GUI]
     if args.png:
         args.png.mkdir(parents=True, exist_ok=True)
@@ -173,7 +176,7 @@ def main():
              '// Texture 0: the gag icons, cell (level * kInvIconCell, track * kInvIconCell), one clear pixel',
              '// of border. Texture 1: the pieces below.',
              'constexpr int kInvIconTexW = 256, kInvIconTexH = 256, kInvIconCell = %d;' % ICON_CELL,
-             'constexpr int kInvGuiTexW = 256, kInvGuiTexH = 128;',
+             'constexpr int kInvGuiTexW = 256, kInvGuiTexH = 256;',
              'enum class InvArt : int { ' + ', '.join(row[0] for row in rows) + ', Count };',
              'struct InvArtRect {',
              '    float x, y, w, h; // the piece in texture 1 (pixels, top-left origin)',

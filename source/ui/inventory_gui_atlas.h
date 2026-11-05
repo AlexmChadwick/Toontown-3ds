@@ -6,12 +6,12 @@ namespace tt::ui {
 // Texture 0: the gag icons, cell (level * kInvIconCell, track * kInvIconCell), one clear pixel
 // of border. Texture 1: the pieces below.
 constexpr int kInvIconTexW = 256, kInvIconTexH = 256, kInvIconCell = 36;
-constexpr int kInvGuiTexW = 256, kInvGuiTexH = 128;
-enum class InvArt : int { Row, ButtonUp, ButtonDown, ButtonRollover, ButtonFlat, Menu, ToonStatus, Count };
+constexpr int kInvGuiTexW = 256, kInvGuiTexH = 256;
+enum class InvArt : int { Row, ButtonUp, ButtonDown, ButtonRollover, ButtonFlat, Menu, ToonStatus, Hint, Count };
 struct InvArtRect {
     float x, y, w, h; // the piece in texture 1 (pixels, top-left origin)
 };
-constexpr InvArtRect kInvArtRects[7] = {
+constexpr InvArtRect kInvArtRects[8] = {
     {2.51f, 0.44f, 250.98f, 17.13f}, // Row
     {0.63f, 20.72f, 62.75f, 39.56f}, // ButtonUp
     {64.63f, 20.72f, 62.75f, 39.56f}, // ButtonDown
@@ -19,6 +19,7 @@ constexpr InvArtRect kInvArtRects[7] = {
     {192.63f, 20.72f, 62.75f, 39.56f}, // ButtonFlat
     {1.31f, 62.65f, 131.37f, 62.69f}, // Menu
     {137.06f, 62.62f, 97.87f, 61.76f}, // ToonStatus
+    {7.00f, 129.22f, 113.99f, 121.57f}, // Hint
 };
 
 } // namespace tt::ui

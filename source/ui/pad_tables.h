@@ -23,7 +23,7 @@ constexpr float kFrameX = 1, kFrameY = 51, kFrameW = 318, kFrameH = 150;
 constexpr float kRowX = 5, kRowW = 310, kGridY = 56, kGridH = 140;
 constexpr float kGridX = 73, kCellW = 34, kCellGap = (kRowX + kRowW - kGridX - 7 * kCellW) / 7;
 // A track still to earn keeps its labelled row, thin, so the earned rows get big buttons.
-constexpr float kThinRowH = 11, kMaxRowH = 30, kRowGap = 1;
+constexpr float kThinRowH = 15, kMaxRowH = 30, kRowGap = 1;
 // The bottom strip. InventoryNew's battle buttons sit in a 2 x 2 block, as upstream: Fire and
 // Pass above Run and SOS. In the SOS and Fire panels the block holds Back (and the SOS page).
 constexpr float kBtnY = 203, kBtnH = 36;
