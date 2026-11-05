@@ -38,6 +38,7 @@ const Step kScript[] = {
     // Deterministic real-art sweep: online-style Toon/Laff/jar and Gags/jar panels without a
     // server. main.cpp supplies the same view structs a setHp/setMoney/setInventory would.
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "gui: toon assets", "gui_toon_assets"},
+    {1.5f, 0, 0, 0, 0, -1, -1, -1, "gui: pocket three digit", "gui_pocket_three_digit"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "gui: gags assets", "gui_gags_assets"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(4), kTabY, -1, "tab: book", "booktab"},
     {1.0f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: on", "debug"},

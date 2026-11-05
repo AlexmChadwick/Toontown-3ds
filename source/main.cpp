@@ -3709,6 +3709,8 @@ int main() {
                     const float* head = tt::world::bodyColor(hudDna.headColor);
                     for (int i = 0; i < 3; i++) hv.headRgb[i] = head[i];
                     hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
+                } else {
+                    for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
                 }
             }
             hv.laffOnBottom = ui.laffShown();
@@ -3875,6 +3877,8 @@ int main() {
                     const float* head = tt::world::bodyColor(tabDna.headColor);
                     for (int i = 0; i < 3; i++) ctx.headRgb[i] = head[i];
                     ctx.species = static_cast<int>(tt::world::species(tabDna)); // the Toon tab's laff meter
+                } else {
+                    for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
                 }
             }
             ctx.book = &net.ownBook();
@@ -3972,6 +3976,13 @@ int main() {
             ctx.quests = &demoQuests;
             ctx.book = &demoBook;
             ctx.toonName = "Aqua Dog";
+            if (!strcmp(autotest.label(), "gui: pocket three digit")) {
+                demoStats.hp = 100;
+                demoStats.maxHp = 137;
+            } else {
+                demoStats.hp = 12;
+                demoStats.maxHp = 15;
+            }
             ctx.headRgb[0] = 0.35f;
             ctx.headRgb[1] = 0.82f;
             ctx.headRgb[2] = 0.95f;
