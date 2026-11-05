@@ -380,11 +380,13 @@ hardware. See `docs/test-log.md`.
   - Why `C2D_DrawCircleSolid` (proctex) fails after the 3D pass.
 
 Lessons recorded for agents:
-- **Camera and the near plane.** The follow camera sweeps a 1.75-unit sphere from the
+- **Camera and the near plane.** The follow camera is LocalAvatar position 0: camHeight =
+  max(toon height, 3), eye 3 camHeight behind at head height, look-at 1.5 ahead, level. It
+  sweeps a 1.75-unit sphere from the
   toon's head to the ideal eye (`CollisionWorld::cameraSphereCast`) and eases the boom
   back out only. Pull-in is instant. `Renderer::kNear` stays 1.0: closer, and the PICA200
   clipper shatters triangles that cross the near plane; the sphere is what keeps walls
-  outside the near-plane corners (about 1.53 at fov 55 with the stereo slider maxed).
+  outside the near-plane corners (about 1.32 at the stock fov, 1.53 at the old 55, with the stereo slider maxed).
   Do not shrink `kNear`, and do not raise it without raising `kCamClearance` in
   `world/player.cpp`. Both eyes share that near plane. NPC talk uses the same
   pull-in and keeps its own look-at.
