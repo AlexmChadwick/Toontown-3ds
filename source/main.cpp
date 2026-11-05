@@ -1680,6 +1680,43 @@ int main() {
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
             battleView.tutorialDialog = tutorialReward.dialog(); // ---- tutorial ----
+            // ---- battle GUI QA fixtures: presentation-only, never sent to the server ----
+            const char* qaLabel = autotest.active() ? autotest.label() : "";
+            uint8_t qaCount[7][7] = {};
+            uint16_t qaExp[7] = {};
+            uint8_t qaAccess[7] = {};
+            const bool qaLocked = !strcmp(qaLabel, "battle: qa locked");
+            const bool qaEmpty = !strcmp(qaLabel, "battle: qa empty");
+            if (!strcmp(qaLabel, "battle: qa 4-cog")) {
+                const int oldCount = battleView.numCogs;
+                battleView.numCogs = 4;
+                for (int i = oldCount; i < battleView.numCogs; ++i) {
+                    battleView.cogs[i] = oldCount > 0 ? battleView.cogs[0] : tt::world::BattleCogView{};
+                    battleView.cogs[i].doId += uint32_t(i + 1);
+                    snprintf(battleView.cogs[i].name, sizeof battleView.cogs[i].name, "Flunky");
+                    battleView.cogs[i].active = true;
+                    battleView.cogs[i].hp = battleView.cogs[i].maxHp = 10 + i * 5;
+                }
+            }
+            for (int i = 0; i < battleView.numToons; ++i) {
+                if (!battleView.toons[i].local) continue;
+                if (!strcmp(qaLabel, "battle: qa low laff")) {
+                    battleView.toons[i].hp = 3;
+                    battleView.toons[i].maxHp = 15;
+                } else if (!strcmp(qaLabel, "battle: qa three digit laff")) {
+                    battleView.toons[i].hp = 123;
+                    battleView.toons[i].maxHp = 137;
+                } else if (!strcmp(qaLabel, "battle: qa gone toon")) {
+                    battleView.toons[i].active = false;
+                }
+            }
+            if (qaLocked || qaEmpty) {
+                for (int t = 0; t < 7; ++t) {
+                    qaAccess[t] = qaEmpty ? 1 : 0;
+                    for (int l = 0; l < 7; ++l)
+                        qaCount[t][l] = qaEmpty ? 0 : uint8_t((t == tt::world::kTrackThrow || t == tt::world::kTrackSquirt) ? 1 : 0);
+                }
+            }
             // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
             // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
@@ -1693,7 +1730,10 @@ int main() {
             }
             // ---- end padnav ----
             const tt::net::OwnStats& st = net.ownStats();
-            ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+            if (!strcmp(qaLabel, "battle: qa locked") || !strcmp(qaLabel, "battle: qa empty"))
+                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess});
+            else
+                ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
@@ -3127,6 +3167,8 @@ int main() {
                 else if (!strncmp(lbl, "battle: cog attacks", 19)) forced = tt::world::Battle::kAutoPass;
                 battle.setAutoPlay(true, forced);
                 battle.setAutoDelay(autotest.battleHoldMs());
+                if (!strncmp(lbl, "battle: qa ", 11))
+                    battle.setAutoPlay(false, -1);
 
                 if (forced >= 0) {
                     static float battleWaitTime = 0.0f;

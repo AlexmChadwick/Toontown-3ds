@@ -221,6 +221,13 @@ const Step kScript[] = {
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "exit: interior door", "street_back"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "see cog", "cog"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "fight cog", "battle_start"},
+    // ---- battle GUI edge-state views (hold the live Input panel; main.cpp supplies fixtures) ----
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa 4-cog", "battle_qa_4cog"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa locked", "battle_qa_locked"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa empty", "battle_qa_empty"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa low laff", "battle_qa_low_laff"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa three digit laff", "battle_qa_three_digit_laff"},
+    {2.0f, 0, 0, 0, 0, -1, -1, 0, "battle: qa gone toon", "battle_qa_gone_toon"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: trap", "movie_trap**"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: lure", "movie_lure**"},
     {20.0f, 0, 0, 0, 0, -1, -1, 0, "battle: sound", "movie_sound**"},
