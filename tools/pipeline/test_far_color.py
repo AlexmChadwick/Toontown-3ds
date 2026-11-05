@@ -160,6 +160,74 @@ class FarColorTest(unittest.TestCase):
         tri[:, 4] = [0.5, 0.5, 0.6]
         self.assertFalse(bake_street._silhouette_card(image, tri))
 
+    def test_repeating_hedge_strip_keeps_its_texture(self):
+        # Bossbot HQ's hedge: an upright strip repeating 6 times along u, clear above the
+        # leaves. It wraps, so it stays a textured card; a clamped texture or a ground-like
+        # face does not.
+        image = np.full((32, 32, 4), 255, dtype=np.uint8)
+        image[:10, :, 3] = 0
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [120, 0, 0], [120, 0, 40]]
+        tri[:, 3:5] = [[-3.0, 0.0], [3.0, 0.0], [3.0, 1.0]]
+        self.assertTrue(bake_street._silhouette_card(image, tri, wrap_u=True))
+        self.assertFalse(bake_street._silhouette_card(image, tri))
+        tri[:, :3] = [[0, 0, 0], [120, 0, 0], [120, 40, 0]]
+        self.assertFalse(bake_street._silhouette_card(image, tri, wrap_u=True))
+
+    def test_far_collapse_averages_merged_colours(self):
+        # A staircase of thin steps: lit treads (1.0) and dark risers (0.25). The
+        # surviving face takes the mean of what merged into it, not a tread's white.
+        verts = []
+        for k in range(8):
+            y0, z0 = k * 0.5, k * 0.5
+            tread = [[0, y0, z0 + .5], [10, y0, z0 + .5], [10, y0 + .5, z0 + .5],
+                     [0, y0, z0 + .5], [10, y0 + .5, z0 + .5], [0, y0 + .5, z0 + .5]]
+            riser = [[0, y0, z0], [10, y0, z0], [10, y0, z0 + .5],
+                     [0, y0, z0], [10, y0, z0 + .5], [0, y0, z0 + .5]]
+            for p in tread:
+                verts.append(p + [0, 0, 1, 1, 1, 1])
+            for p in riser:
+                verts.append(p + [0, 0, .25, .25, .25, 1])
+        verts = np.array(verts, dtype=np.float64)
+        b = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, verts, np.arange(len(verts)))
+        low = street_lod.simplify([b], 3)
+        self.assertGreater(street_lod.count(low), 0)
+        shade = low[0].verts[:, 5]
+        self.assertTrue(np.all(shade < 0.9) and np.all(shade > 0.3))
+
+    def test_far_drops_blended_shadow_cards(self):
+        shadow = np.zeros((32, 32, 4), dtype=np.uint8)
+        shadow[8:24, 8:24, 3] = 255
+        self.assertTrue(bake_street._shadow_card(shadow))
+        decal = shadow.copy()
+        decal[10:12, 10:12, :3] = 200  # a window frame is not a shadow
+        self.assertFalse(bake_street._shadow_card(decal))
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [10, 0, 0], [10, 0, 10]]
+        tri[:, 3:5] = [[0, 0], [1, 0], [1, 1]]
+        tri[:, 5:9] = 1
+        b = ttm.Batch(0, ttm.BLEND_ALPHA, False, 0, 1, tri, np.arange(3))
+        colored, kept, extra = bake_street._colorize_far(None, [[b]], images={0: shadow}, details=True)
+        self.assertEqual(colored, [[]])
+        self.assertEqual(extra, [[]])
+
+    def test_soft_blended_card_keeps_blending(self):
+        image = np.zeros((32, 32, 4), dtype=np.uint8)
+        image[:, :, :3] = 200  # grey, not a drop shadow
+        image[:16, :16, 3] = np.linspace(40, 200, 16).astype(np.uint8)  # a cloud wisp (top left)
+        image[16:, 16:, 3] = 255  # a crisp decal
+        tri = np.zeros((6, 9))
+        tri[:, :3] = [[0, 0, 0], [10, 0, 0], [10, 0, 10]] * 2
+        tri[:, 5:9] = 1
+        tri[:3, 3:5] = [[0.05, 0.55], [0.45, 0.55], [0.45, 0.95]]
+        tri[3:, 3:5] = [[0.55, 0.05], [0.95, 0.05], [0.95, 0.45]]
+        b = ttm.Batch(0, ttm.BLEND_ALPHA, False, 0, 0, tri, np.arange(6))
+        colored, kept, extra = bake_street._colorize_far(None, [[b]], images={0: image}, details=True)
+        self.assertEqual(kept, 1)
+        cards = [c for c in colored[0] if c.texture == 0]
+        self.assertEqual([(c.blend, len(c.indices)) for c in cards], [(ttm.BLEND_ALPHA, 3)])
+        self.assertEqual(sum(len(e.indices) for e in extra[0]), 3)  # the decal stays on the page
+
     def test_far_ground_lattice_spares_walls(self):
         # A wall corner (shared with an upright face) keeps the fine lattice; ground-only
         # corners collapse on the coarse one.
@@ -183,12 +251,15 @@ class FarColorTest(unittest.TestCase):
         wall[:, :3] = [[0, 0, 0], [4, 0, 4], [0, 0, 4]]
         wall[:, 3:5] = [[0, 0], [1, 1], [0, 1]]
         floor = wall.copy()
-        floor[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
+        floor[:, :3] = [[0, 0, 0], [20, 0, 0], [0, 20, 0]]
+        brim = wall.copy()  # a small up-facing face (a hat brim) is not ground
+        brim[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
         repeats = wall.copy()
         repeats[:, 3:5] *= 1.5
         b = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, wall, np.arange(3))
         self.assertTrue(bake_street._far_body([Tex()], image, b, wall))
         self.assertFalse(bake_street._far_body([Tex()], image, b, floor))
+        self.assertTrue(bake_street._far_body([Tex()], image, b, brim))
         self.assertFalse(bake_street._far_body([Tex()], image, b, repeats))
 
 
@@ -265,6 +336,86 @@ class StripPageTest(unittest.TestCase):
         outside = (np.array([0.0, -0.02]), np.array([10.5, 1.33]))
         self.assertEqual(street_atlas._pretile_factor(image, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE, inside), 2)
         self.assertEqual(street_atlas._pretile_factor(image, ttm.GPU_REPEAT, ttm.GPU_CLAMP_TO_EDGE, outside), 1)
+
+
+class MergeWhiteTest(unittest.TestCase):
+    def tri(self, rgb):
+        v = np.zeros((3, 9))
+        v[:, :3] = [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
+        v[:, 5:8] = rgb
+        v[:, 8] = 1
+        return v
+
+    def test_coloured_faces_join_the_body_draw(self):
+        flat = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(0.5), np.arange(3))
+        card = ttm.Batch(3, ttm.BLEND_ALPHA_TEST, False, 0, 0, self.tri(1), np.arange(3))
+        body = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(1), np.arange(3))
+        colored, bodies = bake_street.merge_white([[flat, card]], [[body]], [(0, 0.25, 0.75)])
+        self.assertEqual(colored[0], [card])
+        self.assertEqual(len(bodies[0]), 1)
+        merged = bodies[0][0]
+        self.assertEqual((merged.texture, merged.blend, merged.two_sided), (0, ttm.BLEND_OPAQUE, False))
+        self.assertEqual(len(merged.indices), 6)
+        np.testing.assert_allclose(merged.verts[:3, 3:5], [[0.25, 0.75]] * 3)
+        np.testing.assert_allclose(merged.verts[:3, 5:8], 0.5)
+
+    def test_no_white_tile_keeps_the_coloured_draw(self):
+        flat = ttm.Batch(None, ttm.BLEND_OPAQUE, False, 0, 0, self.tri(0.5), np.arange(3))
+        colored, bodies = bake_street.merge_white([[flat]], [[]], [None])
+        self.assertEqual(colored[0], [flat])
+        self.assertEqual(bodies[0], [])
+
+
+def ground_grid(x0, x1, y0, y1, pitch):
+    """A flat ground batch of pitch-sized quads (z 0), colour white, uv = xy / 10."""
+    tris = []
+    for x in np.arange(x0, x1, pitch):
+        for y in np.arange(y0, y1, pitch):
+            a, b, c, d = (x, y), (x + pitch, y), (x + pitch, y + pitch), (x, y + pitch)
+            for t in ((a, b, c), (a, c, d)):
+                tris.extend([[p[0], p[1], 0, p[0] / 10, p[1] / 10, 1, 1, 1, 1] for p in t])
+    v = np.array(tris, dtype=np.float64)
+    return ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, v, np.arange(len(v)))
+
+
+class StraightSeamTest(unittest.TestCase):
+    def test_ground_is_cut_at_grid_lines(self):
+        # 7 unit quads across the x = 64 line: centroid binning made a staircase seam.
+        groups = bake_street.split_grid([ground_grid(50, 78, 0, 14, 7)], 64, straight=True)
+        self.assertEqual(sorted(groups), [(0, 0), (1, 0)])
+        left = np.concatenate([b.verts for b in groups[(0, 0)]])
+        right = np.concatenate([b.verts for b in groups[(1, 0)]])
+        self.assertLessEqual(left[:, 0].max(), 64)
+        self.assertGreaterEqual(right[:, 0].min(), 64)
+        on_left = {tuple(p) for p in np.round(left[left[:, 0] == 64][:, :3], 9)}
+        on_right = {tuple(p) for p in np.round(right[right[:, 0] == 64][:, :3], 9)}
+        self.assertEqual(on_left, on_right)
+        area = lambda v: np.linalg.norm(np.cross(v[1::3, :3] - v[0::3, :3], v[2::3, :3] - v[0::3, :3]), axis=1).sum() / 2
+        self.assertAlmostEqual(area(left) + area(right), 28 * 14)
+        np.testing.assert_allclose(right[:, 3], right[:, 0] / 10)
+
+    def test_seam_corners_merge_along_the_line(self):
+        groups = bake_street.split_grid([ground_grid(0, 128, 0, 64, 4)], 64, straight=True)
+        chunks = [groups[k] for k in sorted(groups)]
+        seams = street_lod.shared_positions(chunks)
+        moves = street_lod.seam_line_moves(chunks, seams, 64, 16)
+        self.assertTrue(moves)
+        lows = [street_lod.simplify(bs, 16, fixed=seams, ground=None, moves=moves) for bs in chunks]
+        fixed_only = [street_lod.simplify(bs, 16, fixed=seams) for bs in chunks]
+        self.assertLess(sum(map(street_lod.count, lows)), sum(map(street_lod.count, fixed_only)))
+        area = lambda bs: (lambda v: np.linalg.norm(np.cross(v[1::3, :3] - v[0::3, :3], v[2::3, :3] - v[0::3, :3]),
+                                                    axis=1).sum() / 2)(np.concatenate([b.verts for b in bs]))
+        edge = []
+        for low, pinned in zip(lows, fixed_only):
+            v = np.concatenate([b.verts for b in low])
+            seam_side = v[np.abs(v[:, 0] - 64) < 1e-9]
+            edge.append({tuple(p) for p in np.round(seam_side[:, :3], 9)})
+            # Merging along the seam covers exactly what the pinned seam did.
+            self.assertAlmostEqual(area(low), area(pinned))
+        self.assertEqual(edge[0], edge[1])
+        # Grid corners and the open ends of the line stay where they were.
+        self.assertIn((64.0, 0.0, 0.0), edge[0])
+        self.assertIn((64.0, 64.0, 0.0), edge[0])
 
 
 if __name__ == '__main__':

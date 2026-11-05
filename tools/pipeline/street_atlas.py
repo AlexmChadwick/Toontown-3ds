@@ -440,6 +440,10 @@ LOCAL_MIN_TILE = 16
 LOCAL_MAX_TILE = 240
 
 
+# build_local's white tile key: no texture id is negative.
+WHITE_TILE = -1
+
+
 def _pow2_ceil(n):
     return 1 << max(0, math.ceil(math.log2(max(n, 1))))
 
@@ -597,11 +601,13 @@ def _shelf_pack(rects, page_sizes):
 
 
 def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_levels=3, standalone_size=256,
-                large_ground=True, pages=LOCAL_PAGES, view_near=12.0, view_far=160.0, name='local_atlas'):
+                large_ground=True, pages=LOCAL_PAGES, view_near=12.0, view_far=160.0, name='local_atlas',
+                white=False):
     """Per-chunk textures and batches: chunk-local pages (see the note above).
 
     Returns (per-chunk texture lists, per-chunk batches indexing that chunk's list,
-    stats). Standalone textures (fonts, large ground, heavy repeats) are one shared
+    stats). With `white`, a chunk with an opaque tile also gets a white one; its
+    stats 'white' is (page, u, v), so vertex-coloured faces can join that draw. Standalone textures (fonts, large ground, heavy repeats) are one shared
     ttm.Texture object, so the TZ v3 pool stores each once.
     """
     from PIL import Image
@@ -699,6 +705,10 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             alpha_of[idx] = bool(np.any(src[int(box[1]):max(int(box[1]) + 1, math.ceil(box[3])),
                                             int(box[0]):max(int(box[0]) + 1, math.ceil(box[2])), 3] < 255))
             tiles[idx] = (lo, hi, tw, th, image)
+        if white and any(not alpha_of[i] for i in tiles):
+            tiles[WHITE_TILE] = (np.zeros(2), np.ones(2), LOCAL_MIN_TILE, LOCAL_MIN_TILE,
+                                 np.full((LOCAL_MIN_TILE, LOCAL_MIN_TILE, 4), 255, dtype=np.uint8))
+            alpha_of[WHITE_TILE] = False
         textures = []
         mapping = {}
         for alpha in (False, True):
@@ -758,10 +768,15 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
                 merged.append(ttm.Batch(tex, blend, two, tint, layer, vs, np.arange(len(vs))))
         out_tex.append(textures)
         out_batches.append(merged)
+        white_uv = None
+        if WHITE_TILE in mapping:
+            pg, x, y, tw, th, pw, ph = mapping[WHITE_TILE]
+            white_uv = (pg, (x + tw / 2) / pw, (ph - y - th / 2) / ph)
         stats.append({'tiles': len(tiles), 'pages': sum(1 for t in textures if t not in shared.values()),
                       'tile_px': sum(t[2] * t[3] for t in tiles.values()),
-                      'sizes': sorted(((sources[i].getName(), t[2], t[3]) for i, t in tiles.items()),
-                                      key=lambda r: -r[1] * r[2])})
+                      'sizes': sorted(((sources[i].getName(), t[2], t[3]) for i, t in tiles.items()
+                                       if i != WHITE_TILE), key=lambda r: -r[1] * r[2]),
+                      'white': white_uv})
     return out_tex, out_batches, stats
 
 

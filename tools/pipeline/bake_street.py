@@ -69,7 +69,7 @@ def _far_draws(batches):
 CARD_TEXELS = 4
 
 
-def _silhouette_card(image, verts):
+def _silhouette_card(image, verts, wrap_u=False):
     """A backdrop hill card: one alpha-cut picture stretched over a huge quad.
 
     Sampling a corner texel paints the whole quad, and the alpha test then cuts
@@ -79,20 +79,48 @@ def _silhouette_card(image, verts):
     tested on its own, so it only has to span CARD_TEXELS of the 32px sample.
     Tested against half the picture, those pieces went flat grey: a spike on the
     rock behind the Donald's Dock tunnel and a gap where the corners were clear.
+    With `wrap_u` (the source texture repeats in u) an upright strip may repeat
+    along u: Bossbot HQ's CogHedgeFar2 hedges (u up to 15 repeats, 30 to 80 units
+    tall) have clear sky above the leaves, so as vertex colour they became opaque
+    black slabs over the far hedge line.
     """
     import numpy as np
     alpha = image[:, :, 3]
     if int(alpha.min()) > 16:
         return False
     uv = verts[:, 3:5]
-    if float(uv.min()) < -0.05 or float(uv.max()) > 1.05:
+    if float(uv[:, 1].min()) < -0.05 or float(uv[:, 1].max()) > 1.05:
         return False
+    if float(uv[:, 0].min()) < -0.05 or float(uv[:, 0].max()) > 1.05:
+        if not wrap_u:
+            return False
+        tri = verts.reshape(-1, 3, 9)[:, :, :3]
+        n = np.cross(tri[:, 1] - tri[:, 0], tri[:, 2] - tri[:, 0])
+        length = np.linalg.norm(n, axis=1)
+        if np.any(length < 1e-9) or np.any(np.abs(n[:, 2]) / length > 0.5):
+            return False  # ground-like: stays coloured
     if float(np.ptp(uv, axis=0).max()) * max(alpha.shape) < CARD_TEXELS:
         return False
     tri = verts.reshape(-1, 3, 9)
     edges = np.linalg.norm(np.stack((tri[:, 1, :3] - tri[:, 0, :3], tri[:, 2, :3] - tri[:, 1, :3],
                                      tri[:, 0, :3] - tri[:, 2, :3])), axis=2)
     return float(edges.max()) >= 32.0
+
+
+def _shadow_card(image):
+    """A blended drop shadow: every texel that shows is near black.
+
+    The far mesh has no blending (its detail page is alpha tested), so a shadow
+    there is a solid black patch or nothing. Ground shadows (alpha 0.5) already
+    vanished; Toon HQ's shadow under the hat brim (hqTT shadow/o92_1, full alpha)
+    sits behind the arch, and voxel-snapped in front of it, it was a black wedge
+    across the HEAD QUARTERS sign. Past lodNear a shadow is dropped instead.
+    """
+    import numpy as np
+    if image is None:
+        return False
+    shown = image[:, :, 3] > 64
+    return bool(shown.any()) and int(image[:, :, :3][shown].max()) < 48
 
 
 def _far_image(sources, cache, index, images):
@@ -181,6 +209,11 @@ def _far_detail(image, b, tri, sources=None):
     return len(xr) * len(yr) <= FAR_DETAIL_REPEATS
 
 
+# An up-facing far face smaller than this (square units) still keeps its texture:
+# Toon HQ's hat brim (red / yellow stripes) went flat orange as vertex colour.
+FAR_BODY_FLAT_AREA = 40.0
+
+
 def _far_body(sources, image, b, tri):
     """A far wall, roof or landmark face that keeps a small cropped texture.
 
@@ -188,7 +221,7 @@ def _far_body(sources, image, b, tri):
     flat patches on Old 3DS past 160. Ground-like faces (|normal z| > 0.8) and
     faces whose UVs cross a texture repeat stay coloured: those are big, already
     flat at that range, and clipping their repeats pushed TTC past the far
-    triangle budget.
+    triangle budget. Small up-facing faces (brims, awning tops) are not ground.
     """
     import numpy as np
     import ttm
@@ -202,7 +235,7 @@ def _far_body(sources, image, b, tri):
     p = tri[:, :3]
     n = np.cross(p[1] - p[0], p[2] - p[0])
     length = float(np.linalg.norm(n))
-    if length < 1e-9 or abs(n[2]) / length > 0.8:
+    if length < 1e-9 or (abs(n[2]) / length > 0.8 and length > 2 * FAR_BODY_FLAT_AREA):
         return False
     xr, yr = street_atlas.tile_ranges(tri, sources[b.texture])
     return len(xr) == 1 and len(yr) == 1
@@ -217,15 +250,63 @@ FAR_BODY_ATLAS = dict(density=0.5, gutter=2, mip_levels=2, view_near=160.0, view
 
 
 def build_far_bodies(sources, chunks):
-    """Per-chunk opaque pages for the textured far faces (_far_body)."""
+    """Per-chunk opaque pages for the textured far faces (_far_body), and each page's
+    white texel (page, u, v) or None."""
     import street_atlas
     if not any(chunks):
-        return [[] for _ in chunks], [[] for _ in chunks]
-    textures, batches, _ = street_atlas.build_local(sources, chunks, **FAR_BODY_ATLAS)
-    return textures, batches
+        return [[] for _ in chunks], [[] for _ in chunks], [None for _ in chunks]
+    textures, batches, stats = street_atlas.build_local(sources, chunks, white=True, **FAR_BODY_ATLAS)
+    return textures, batches, [s['white'] for s in stats]
 
 
-def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False):
+def merge_white(colored, bodies, whites):
+    """Move each chunk's vertex-coloured opaque one-sided far faces onto its body page's
+    white texel, so textured far bodies cost no draw of their own. Lawbot HQ, Bossbot
+    HQ and Acorn Acres sat at the draw cap, so their far buildings were flat colour."""
+    import numpy as np
+    import ttm
+    out_c, out_b = [], []
+    for batches, body, white in zip(colored, bodies, whites):
+        if white is None:
+            out_c.append(batches)
+            out_b.append(body)
+            continue
+        page, u, v = white
+        flat = [b for b in batches if b.texture is None and b.blend == ttm.BLEND_OPAQUE and not b.two_sided]
+        if not flat:
+            out_c.append(batches)
+            out_b.append(body)
+            continue
+        parts = []
+        for b in flat:
+            vs = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)].copy()
+            vs[:, 3], vs[:, 4] = u, v
+            parts.append(vs)
+        rest = [b for b in body if (b.texture, b.blend, bool(b.two_sided)) == (page, ttm.BLEND_OPAQUE, False)]
+        for b in rest:
+            parts.append(np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)])
+        block = np.concatenate(parts)
+        merged = [b for b in body if b not in rest]
+        for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
+            vs = block[start:start + ttm.MAX_BATCH_VERTS]
+            merged.append(ttm.Batch(page, ttm.BLEND_OPAQUE, False, 0, 0, vs, np.arange(len(vs), dtype=np.int64)))
+        out_c.append([b for b in batches if not any(b is f for f in flat)])
+        out_b.append(merged)
+    return out_c, out_b
+
+
+# Far body pages a worst view may hold when bodies are kept without decals (bytes).
+# Old 3DS retains 6 MiB of zone textures; the near meshes in view need the rest.
+FAR_BODY_TEXTURE_CAP = 3 << 20
+
+
+def far_texture_worst(chunks, pages):
+    """The largest sum of per-chunk far page bytes over any vis set."""
+    sizes = [sum(len(t.data) for t in p) for p in pages]
+    return max((sum(sizes[j] for j in c['vis']) for c in chunks), default=0)
+
+
+def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False, bodies_only=False):
     """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
 
     Everything else samples the texel at the corner (32px) and drops the page.
@@ -234,10 +315,12 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
     Without it decals are already gone. `images` injects arrays in tests; keys are
     texture ids. Kept cards still carry the source texture id. encode_far_pages
     remaps it. Returns (chunks, kept card triangles, per-chunk detail batches).
+    bodies_only keeps the far bodies but no cutout or decal pages.
     """
     import numpy as np
     import ttm
     import street_atlas
+    from panda3d.core import SamplerState
     cache = {}
     mips_cache = {}
     result = []
@@ -252,20 +335,35 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
         for b in batches:
             if b.indices is None or len(b.indices) < 3:
                 continue
+            if b.blend == ttm.BLEND_ALPHA and b.texture is not None and _shadow_card(
+                    _far_image(sources, cache, b.texture, images)):
+                continue
             tris = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)]
             tris = tris.reshape(-1, 3, 9)
             image = _far_image(sources, cache, b.texture, images) if b.texture is not None else None
+            wrap_u = (image is not None and isinstance(sources, (list, tuple))
+                      and getattr(sources[b.texture], 'getWrapU', lambda: None)() == SamplerState.WM_repeat)
             colored = []
             for tri in tris:
                 if (image is not None and b.blend == ttm.BLEND_ALPHA_TEST
                         and _silhouette_card(image, tri.reshape(-1, 9))):
-                    cards.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA_TEST), []).append(tri.copy())
                     continue
-                if details and _far_detail(image, b, tri.reshape(-1, 9), sources):
+                if (details and b.blend == ttm.BLEND_ALPHA and not b.layer
+                        and _soft_card(image, tri[:, 3:5])):
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA), []).append(tri.copy())
+                    continue
+                if details and not bodies_only and _far_detail(image, b, tri.reshape(-1, 9), sources):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
                     continue
                 if details and _far_body(sources, image, b, tri):
                     body.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
+                    continue
+                # Only what would otherwise go flat: the detail page already wraps
+                # repeating fences and hedges without a draw of its own.
+                if (wrap_u and b.blend == ttm.BLEND_ALPHA_TEST
+                        and _silhouette_card(image, tri.reshape(-1, 9), wrap_u)):
+                    cards.setdefault((b.texture, bool(b.two_sided), ttm.BLEND_ALPHA_TEST), []).append(tri.copy())
                     continue
                 if b.layer:
                     continue  # a repeating decal: a flat patch would cover its wall
@@ -296,12 +394,12 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
             for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
                 vs = block[start:start + ttm.MAX_BATCH_VERTS]
                 merged.append(ttm.Batch(None, blend, two, 0, 0, vs, np.arange(len(vs), dtype=np.int64)))
-        for (tex, two), parts in sorted(cards.items(), key=lambda kv: (kv[0][0], kv[0][1])):
+        for (tex, two, blend), parts in sorted(cards.items()):
             block = np.concatenate([p.reshape(-1, 9) for p in parts])
             kept += len(block) // 3
             for start in range(0, len(block), ttm.MAX_BATCH_VERTS):
                 vs = block[start:start + ttm.MAX_BATCH_VERTS]
-                merged.append(ttm.Batch(tex, ttm.BLEND_ALPHA_TEST, two, 0, 0, vs,
+                merged.append(ttm.Batch(tex, blend, two, 0, 0, vs,
                                         np.arange(len(vs), dtype=np.int64)))
         result.append(merged)
         extra.append([ttm.Batch(tex, blend, two, 0, layer, np.concatenate([p.reshape(-1, 9) for p in parts]),
@@ -322,6 +420,29 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
 # per chunk kept Old 3DS from fitting Toon Hall's near mesh in its retain budget.
 FAR_ATLAS = dict(tile=16, gutter=2, mip_levels=2)
 FAR_PAGES = (64, 128, 256)
+
+
+# A blended far triangle stays a blended card when at least this share of the texels in
+# its UV box is partly transparent: soft clouds and glows, not crisp decals.
+FAR_SOFT_SHARE = 0.25
+
+
+def _soft_card(image, uv):
+    """A blended triangle whose UV box (unit UVs) shows mostly partial alpha.
+
+    Dreamland's prop_DL_clouds: on the alpha-tested far detail page the wisps became a
+    hard grey cloud-shaped slab in the sky, and a 16px tile of it a blurred box. It
+    stays on its own texture, blended, like a hill card.
+    """
+    import numpy as np
+    if image is None or float(uv.min()) < -0.01 or float(uv.max()) > 1.01:
+        return False
+    alpha = image[:, :, 3].astype(np.int32)
+    h, w = alpha.shape
+    x0, x1 = int(np.floor(uv[:, 0].min() * w)), int(np.ceil(uv[:, 0].max() * w))
+    y0, y1 = int(np.floor((1.0 - uv[:, 1].max()) * h)), int(np.ceil((1.0 - uv[:, 1].min()) * h))
+    crop = alpha[max(y0, 0):max(y1, y0 + 1), max(x0, 0):max(x1, x0 + 1)]
+    return bool(crop.size) and float(((crop > 24) & (crop < 232)).mean()) >= FAR_SOFT_SHARE
 
 
 def build_far_atlas(sources, chunks, encode=True):
@@ -352,6 +473,7 @@ def build_far_atlas(sources, chunks, encode=True):
         # reads the same at >0.5), two-sided and on one decal layer. Split by state it
         # cost about three draws a chunk, and a TTC view past the 150 submit cap
         # dropped a far ground chunk (a sky hole).
+        # Soft blended cards never get here (_colorize_far keeps them as blended cards).
         remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, True, 0, 1, b.verts, b.indices)
                     for b in batches]
         textures, result = street_atlas.build(srcs, [remapped], encode=encode,
@@ -440,6 +562,8 @@ def _merge_states(batches):
 # A uniform far voxel above this is mostly spent on split ground; choose_far then tries
 # a coarser ground lattice under a finer one for everything else.
 COARSE_FAR = 2
+FAR_GROUND_STEPS = (24, 32, 48)
+FAR_DETAIL_WEIGHT = 8
 
 
 def choose_far(sources, raw, chunks, images=None):
@@ -469,10 +593,12 @@ def choose_far(sources, raw, chunks, images=None):
         bodies.append(rest)
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
-    def attempt(step, details, ground=None):
+    cell_size = chunks[0].get('cell_size') if chunks else None
+    def attempt(step, details, ground=None, bodies_only=False):
         """The far mesh at one voxel step, or None when a PVS misses the budget.
 
-        `ground` is a coarser lattice for corners only on up-facing faces."""
+        `ground` is a coarser lattice for corners only on up-facing faces. bodies_only
+        keeps textured far bodies (on the coloured draw) without cutout/decal pages."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
         if step:
             # Letters are not snapped either: lift them with the kept decals.
@@ -480,12 +606,18 @@ def choose_far(sources, raw, chunks, images=None):
                                        street_lod.lift(np.asarray(b.verts)[np.asarray(b.indices)], step),
                                        np.arange(len(b.indices)), getattr(b, 'sign', False))
                              for b in signs] for signs in merged_signs]
-        low = [street_lod.simplify(bs, step, keep_layers=details, fixed=seams, ground=ground)
+        moves = (street_lod.seam_line_moves(bodies, seams, cell_size, ground or step)
+                 if cell_size and step else None)
+        low = [street_lod.simplify(bs, step, keep_layers=details and not bodies_only, fixed=seams,
+                                   ground=ground, moves=moves)
                for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
-                                                    with_bodies=True)
-        body_pages, body_batches = (build_far_bodies(sources, faces) if details and images is None
-                                    else ([[] for _ in low], [[] for _ in low]))
+                                                    with_bodies=True, bodies_only=bodies_only)
+        body_pages, body_batches, whites = (build_far_bodies(sources, faces) if details and images is None
+                                            else ([[] for _ in low], [[] for _ in low], [None for _ in low]))
+        colored, body_batches = merge_white(colored, body_batches, whites)
+        if bodies_only and far_texture_worst(chunks, body_pages) > FAR_BODY_TEXTURE_CAP:
+            return None, (None, None)
         if details:
             _, atlased = build_far_atlas(sources, extra, encode=False)
             # Count each chunk's pages as their own textures; nothing is shared.
@@ -550,15 +682,22 @@ def choose_far(sources, raw, chunks, images=None):
     ground = None
     if step > COARSE_FAR:
         # Split ground spent the budget. Ground corners take a coarser lattice so walls,
-        # rocks and buildings can keep a finer one; the finest detail step that fits wins.
-        ground = min(steps[-1], max(2 * step, 24))
-        for rung_g, fine in enumerate(steps[:rung]):
-            trial, _ = attempt(fine, False, ground)
-            if trial is not None:
-                plain, rung = trial, rung_g
+        # rocks and buildings can keep a finer one. Each lattice keeps its finest detail
+        # step that fits; the pair with the least ground + FAR_DETAIL_WEIGHT * step wins
+        # (Cashbot HQ: 48 kept its stairs but cut its carpets into wedges).
+        best = None
+        for g in FAR_GROUND_STEPS:
+            if best is not None and best[0] <= g:
                 break
-        else:
-            ground = None
+            for rung_g, fine in enumerate(steps[:rung]):
+                trial, _ = attempt(fine, False, g)
+                if trial is not None:
+                    score = g + FAR_DETAIL_WEIGHT * fine
+                    if best is None or score < best[0]:
+                        best = (score, trial, rung_g, g)
+                    break
+        if best is not None:
+            _, plain, rung, ground = best
     if images is not None:
         return plain
     # Textured cutouts and decals cost triangles and draws. They are worth at most one
@@ -569,18 +708,87 @@ def choose_far(sources, raw, chunks, images=None):
         detailed, _ = attempt(step, True, ground)
         if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
             return detailed
+    # Decal pages cost a draw per chunk. Bodies ride on the coloured draw, so a mesh at
+    # the draw cap (Lawbot HQ's skyline, Bossbot HQ) still gets textured far walls.
+    bodied, _ = attempt(steps[rung], True, ground, bodies_only=True)
+    if bodied is not None and bodied[2]['body_triangles'] and (
+            bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+        return bodied
     return plain
 
 
-def split_grid(batches, size):
+def _clip_line(poly, axis, edge, above):
+    """Sutherland-Hodgman against one grid line. The crossing is computed from the edge's
+    endpoints in a fixed order and lands exactly on the line, so the two cells of a
+    shared edge get the same corner."""
+    out = []
+    for a, b in zip(poly, poly[1:] + poly[:1]):
+        da, db = a[axis] - edge, b[axis] - edge
+        ina, inb = (da >= 0, db >= 0) if above else (da <= 0, db <= 0)
+        if ina:
+            out.append(a)
+        if ina != inb:
+            p, q = (a, b) if tuple(a[:3]) <= tuple(b[:3]) else (b, a)
+            dp, dq = p[axis] - edge, q[axis] - edge
+            c = p + (q - p) * (dp / (dp - dq))
+            c[axis] = edge
+            out.append(c)
+    return out
+
+
+def _ground_pieces(tri, size):
+    """An up-facing triangle cut at the grid lines it crosses: (cell, triangle) pairs."""
+    import numpy as np
+    lo = np.floor(tri[:, :2].min(axis=0) / size).astype(int)
+    hi = np.floor(tri[:, :2].max(axis=0) / size).astype(int)
+    for axis in (0, 1):
+        # A corner exactly on a line belongs to the cell above it.
+        if hi[axis] > lo[axis] and tri[:, axis].max() == hi[axis] * size:
+            hi[axis] -= 1
+    out = []
+    for cy in range(lo[1], hi[1] + 1):
+        for cx in range(lo[0], hi[0] + 1):
+            poly = [np.asarray(v, dtype=np.float64) for v in tri]
+            for axis, k in ((0, cx), (1, cy)):
+                if poly and k > lo[axis]:
+                    poly = _clip_line(poly, axis, k * size, True)
+                if poly and k < hi[axis]:
+                    poly = _clip_line(poly, axis, (k + 1) * size, False)
+            for j in range(1, len(poly) - 1):
+                t = np.array([poly[0], poly[j], poly[j + 1]])
+                if np.linalg.norm(np.cross(t[1, :3] - t[0, :3], t[2, :3] - t[0, :3])) > 1e-6:
+                    out.append(((cx, cy), t))
+    return out
+
+
+def split_grid(batches, size, straight=False):
+    """Bin triangles into grid cells by centroid. With straight, up-facing triangles that
+    cross a grid line are cut at it, so ground seams are straight lines that the far
+    mesh can merge along (street_lod.seam_line_moves)."""
     import numpy as np
     import ttm
+    import street_lod
     groups = {}
     for b in batches:
         triangles = b.verts[b.indices.reshape(-1,3)]
         cells = np.floor(triangles[:,:,:2].mean(axis=1)/size).astype(int)
-        for key in sorted(set(map(tuple,cells))):
-            verts = triangles[np.all(cells==key,axis=1)].reshape(-1,9)
+        cut = {}
+        if straight and not b.layer:
+            n = np.cross(triangles[:,1,:3]-triangles[:,0,:3], triangles[:,2,:3]-triangles[:,0,:3])
+            ln = np.linalg.norm(n, axis=1)
+            up = np.where(ln > 1e-8, n[:,2]/np.maximum(ln, 1e-8), 0.0) >= street_lod.GROUND_UP
+            span = (np.floor(triangles[:,:,:2].min(axis=1)/size) != np.floor(triangles[:,:,:2].max(axis=1)/size)).any(axis=1)
+            for t in np.nonzero(up & span)[0]:
+                for key, piece in _ground_pieces(triangles[t], size):
+                    cut.setdefault(key, []).append(piece)
+            keep = ~(up & span)
+            triangles, cells = triangles[keep], cells[keep]
+        for key in sorted(set(map(tuple,cells)) | set(cut)):
+            parts = [triangles[np.all(cells==key,axis=1)].reshape(-1,9)] if len(cells) else []
+            parts += [p.reshape(-1, 9) for p in cut.get(key, [])]
+            verts = np.concatenate(parts) if parts else np.zeros((0, 9))
+            if not len(verts):
+                continue
             groups.setdefault(key,[]).append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,
                                                      verts,np.arange(len(verts)), getattr(b, 'sign', False)))
     return groups
@@ -603,15 +811,16 @@ def prefer_far(report, best):
     return report['low_worst_triangles'] > best['low_worst_triangles']
 
 
-def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
+def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0, straight=False):
     """Bin render and floor triangles into grid cells and build a distance vis.
 
     floor_tris are (3, 3) world triangles. An empty cell's bounds are its grid
     square, so a floor sliver still joins the vis. Returns raw, chunks, floors.
+    With straight (split_grid), each chunk records its 'cell_size' for choose_far.
     """
     import numpy as np
     import street_atlas
-    groups = split_grid(batches, size)
+    groups = split_grid(batches, size, straight)
 
     def cells_of(p):
         return [(cx, cy)
@@ -635,6 +844,8 @@ def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
         bs = groups[key]
         raw.append(bs)
         chunks.append({'name': f'g{i}', 'zone': zone_id, 'vis': [], 'grid': key})
+        if straight:
+            chunks[-1]['cell_size'] = size
         pts = [b.verts[:, :3] for b in bs if len(b.verts)]
         if pts:
             stacked = np.concatenate(pts)
@@ -661,6 +872,25 @@ def split_zone_grid(batches, floor_tris, zone_id, size, distance, margin=78.0):
                 vis.append(j)
         c['vis'] = vis
     return raw, chunks, floors
+
+
+def straighter_far(sources, batches, floor_tris, zone_id, size, distance, lod):
+    """The grid split again with straight ground seams, when the far mesh was limited by
+    its ground lattice. Returns (raw, chunks, floors, low, textures, lod) when that far
+    mesh keeps a finer voxel, else None."""
+    import street_lod
+    if not lod or lod['ground_voxel_spacing'] <= lod['voxel_spacing']:
+        return None
+    raw, chunks, floors = split_zone_grid(batches, floor_tris, zone_id, size, distance, straight=True)
+    if len(chunks) > 256 or lower_draw_bound(raw, chunks) > street_lod.DRAW_CAP:
+        return None
+    try:
+        low, textures, report = choose_far(sources, raw, chunks)
+    except FarBudgetError:
+        return None
+    if (report['voxel_spacing'], report['ground_voxel_spacing']) < (lod['voxel_spacing'], lod['ground_voxel_spacing']):
+        return raw, chunks, floors, low, textures, report
+    return None
 
 
 def view_points(floors, eye=4.0, step=6.0):
@@ -828,6 +1058,10 @@ def bake(zone_id, args, base):
         if low is None:
             raise ValueError(
                 f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
+        better = straighter_far(ex.sources, split_src, floor_tris, zone_id, grid_used, args.distance, lod_report)
+        if better is not None:
+            raw, chunks, floors, low, far_textures, lod_report = better
+            lod_report = dict(lod_report, straight_seams=True)
     chunk_textures, batches, atlas_stats=street_atlas.build_local(ex.sources, raw, view_points=view_points(floors),
         **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density']))))
     batches=[[street_atlas.rebase_large_uvs(b,t) for b in bs] for bs,t in zip(batches,chunk_textures)]

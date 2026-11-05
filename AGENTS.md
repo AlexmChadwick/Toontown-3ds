@@ -145,6 +145,13 @@ The playground and Cog HQ baker raises the grid until the far view fits 130 draw
   260 (New); past that the chunk is the coarse far mesh. Streets still stream by
   DNA visgroup. A chunk past the profile draw distance is not loaded. Donald's Dock
   white fog and underwater fog stay owned by `world/water.cpp`.
+  Toon hoods match upstream's DefaultCameraFar 400. Cog HQ hoods (not facilities or
+  interiors) use upstream's camera far instead, with no fog: Sellbot 900, Cashbot 2000,
+  Lawbot and Bossbot 3000; Acorn Acres and Goofy Speedway 8000 (SpeedwayCameraFar;
+  Acorn Acres keeps its underwater fog) (`render::setPlaceFar`, `world::cameraFar`).
+  Their in-view chunks past the baked 760 PVS join as far meshes under the same frame caps. Warm
+  rings keep the device radius. Re-baking the HQs with a 2000 vis radius was rejected:
+  every cell then saw the whole yard and the far mesh coarsened to voxel 32.
 
 ## 4. Architecture
 
@@ -194,6 +201,25 @@ Key decisions:
      (twice the uniform, at least 24) so walls, rocks and buildings keep a finer one: the
      20-unit ground split had pushed Acorn Acres to 16 and Cashbot / Lawbot HQ to 48.
      Plain far meshes fold two-sided faces into the one-sided draw like the near atlas.
+     A merged corner takes the area-weighted mean colour of the corners that landed on
+     it (Cashbot's lit stair treads had made a white band). Blended cards whose visible
+     texels are all near black (drop shadows) are left out of far meshes: forced to
+     alpha test they were black wedges (Toon HQ's shadow under the brim). Soft blended cards (mostly
+     partial alpha, Dreamland's clouds) stay blended on their own texture: alpha tested they were
+     grey slabs in the sky. Up-facing faces
+     under 40 square units keep a far body texture (the HQ brim); larger ones stay
+     coloured as ground. An upright alpha-cut strip that repeats along a wrapping u
+     stays a textured card when it would otherwise be coloured (Bossbot's hedges had
+     become black slabs). Each far body page carries a white tile, and the chunk's
+     vertex-coloured opaque faces ride on it (`merge_white`), so textured far bodies
+     cost no draw; when decal pages do not fit, bodies alone are kept (at most 3 MiB of
+     far pages per view). Lawbot's skyline had been grey slabs. A ground-limited grid
+     zone is re-binned with ground cut at the grid lines (`split_grid(straight=True)`),
+     and its far seam corners merge along those lines with one mapping for every chunk
+     (`street_lod.seam_line_moves`), so the edge stays on the near neighbour's line.
+     Pinned seam strips were half of Cashbot HQ's far triangles (voxel 16, the vault
+     stairs a slab; now 0.75). The ground lattice is chosen from 24/32/48 by the least
+     ground + 8 x detail voxel.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
    - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
@@ -552,7 +578,8 @@ server.
   pinned against retain eviction for about 2 s. The submitted set admits every
   near mesh before far meshes; when the 150-draw cap bites, generic far scenery
   drops before near draws or sign stand-ins. Up to two picked signs on Old 3DS
-  get a negative texture LOD bias so their mips match New. GPU upload stays near
+  get a negative texture LOD bias on their sign-letter (palette_2tmlc) textures so the letter
+  mips match New; the rest of the chunk keeps its mips (biased, Toon Hall's plaza tiles aliased). GPU upload stays near
   8 ms and at most two mesh publishes run per `Place::update`. Near upgrades stop
   at 130 draws. Before an in-cone chunk is dropped for the frame caps, earlier near chunks (not
   the cell, farthest first) step down to far: lodMust near meshes had spent Daisy Gardens' 15k

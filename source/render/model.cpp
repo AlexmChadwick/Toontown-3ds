@@ -38,6 +38,14 @@ struct Header {
 static_assert(sizeof(Header) == 64, "must match ttm.py header");
 
 
+// DNA sign letters are decals on MickeyFont's palette (zone.cpp signFontName).
+bool signFontTexture(const TexEntry& e) {
+    char name[sizeof(e.name) + 1];
+    memcpy(name, e.name, sizeof(e.name));
+    name[sizeof(e.name)] = 0;
+    return strstr(name, "palette_2tmlc") != nullptr;
+}
+
 bool readAt(FILE* f, u32 offset, void* dst, u32 size) {
     return fseek(f, offset, SEEK_SET) == 0 && fread(dst, 1, size, f) == size;
 }
@@ -110,6 +118,7 @@ void Model::unload() {
     numVertices_ = numIndices_ = 0;
     linearBytes_ = 0;
     absoluteIndices_ = false;
+    signFonts_ = 0;
 }
 
 bool Model::load(const char* path) {
@@ -161,12 +170,13 @@ void Model::swap(Model& o) {
     std::swap(indices_, o.indices_);
     std::swap(linearBytes_, o.linearBytes_);
     std::swap(absoluteIndices_, o.absoluteIndices_);
+    std::swap(signFonts_, o.signFonts_);
 }
 
-void Model::setTextureLodBias(float bias) {
+void Model::setSignLodBias(float bias) {
 #ifdef __3DS__
-    for (u16 i = 0; i < numTextures_; ++i)
-        if (textures_[i].data) C3D_TexSetLodBias(&textures_[i], bias);
+    for (u16 i = 0; i < numTextures_ && i < 32; ++i)
+        if (textures_[i].data && (signFonts_ >> i & 1u)) C3D_TexSetLodBias(&textures_[i], bias);
 #else
     (void)bias;
 #endif
@@ -323,6 +333,7 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
         }
         loadprof::addTexUpload(static_cast<u32>(loadprof::nowUs() - t0));
         if (ok) linearBytes_ += textures_[i].size;
+        if (ok && i < 32 && signFontTexture(texEntries[i])) signFonts_ |= 1u << i;
     }
     free(blob);
 
@@ -636,6 +647,7 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
             C3D_TexSetWrap(tex, static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapS),
                            static_cast<GPU_TEXTURE_WRAP_PARAM>(e.wrapT));
             dst.linearBytes_ += tex->size;
+            if (texDone_ < 32 && signFontTexture(e)) dst.signFonts_ |= 1u << texDone_;
             texDone_++;
             texReady_ = false;
             texFilled_ = 0;

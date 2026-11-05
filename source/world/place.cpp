@@ -63,6 +63,21 @@ PlaceKind placeKind(u32 zoneId) {
     return PlaceKind::Street;
 }
 
+float cameraFar(u32 zoneId) {
+    // CogHQ.enter (Sellbot) CogHQCameraFar 900; CashbotHQCameraFar 2000; LawbotHQ / BossbotHQ 3000;
+    // OZHood (Acorn Acres) and GSHood (Goofy Speedway) SpeedwayCameraFar 8000. Other toon hoods
+    // keep DefaultCameraFar 400, which the Old 3DS 440 profile already covers.
+    switch (zoneId / 1000) {
+    case 6:
+    case 8: return 8000.0f;
+    case 10: return 3000.0f;
+    case 11: return 900.0f;
+    case 12: return 2000.0f;
+    case 13: return 3000.0f;
+    default: return 0.0f;
+    }
+}
+
 u32 hoodOf(u32 zoneId) {
     // ---- tutorial ----
     // TutorialHood is Toontown Central's town: TutorialTownLoader extends TTTownLoader (TC_SZ town
@@ -138,7 +153,7 @@ void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void
     applyRetain(zone_);
     const Vec3 feet{x, y, z};
     if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
-    zone_.warmAround(feet, tt::render::activeQuality().drawDistance * 1.35f);
+    zone_.warmAround(feet, tt::render::baseQuality().drawDistance * 1.35f);
     if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
 }
 

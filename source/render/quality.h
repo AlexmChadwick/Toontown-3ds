@@ -52,6 +52,31 @@ inline Quality& activeQuality() {
     return q;
 }
 
-inline void setActiveQuality(bool new3ds) { activeQuality() = qualityFor(new3ds); }
+// The device profile without a place override (warm rings, budgets that must not grow).
+inline Quality& baseQuality() {
+    static Quality q = qualityFor(false);
+    return q;
+}
+
+inline void setActiveQuality(bool new3ds) { activeQuality() = baseQuality() = qualityFor(new3ds); }
+
+// Cog HQ hoods set the camera far for the whole hood (CogHQ / CashbotHQ / LawbotHQ /
+// BossbotHQ.enter: 900, 2000, 3000, 3000) and have no fog, so the far end of a courtyard
+// (Cashbot's vault facade is 985 units from the drop point) is on screen in the PC game.
+// Acorn Acres and Goofy Speedway use SpeedwayCameraFar 8000 (their mountain cards).
+// Past lodNear those chunks are their far mesh; the frame caps still apply nearest first.
+// `far` 0 restores the profile. Fog start past the far plane means no fog.
+inline void setPlaceFar(float far) {
+    Quality q = baseQuality();
+    if (far > q.drawDistance) {
+        q.drawDistance = far;
+        q.farPlane = far + 80.0f;
+        q.fogStart = q.fogEnd = 2.0f * q.farPlane;
+    }
+    Quality& a = activeQuality();
+    if (a.drawDistance != q.drawDistance || a.farPlane != q.farPlane) a = q;
+}
+
+inline bool fogDisabled(const Quality& q) { return q.fogStart >= q.farPlane; }
 
 } // namespace tt::render

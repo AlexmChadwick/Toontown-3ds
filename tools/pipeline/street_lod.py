@@ -45,7 +45,7 @@ def shared_positions(chunks):
 GROUND_UP = 0.5
 
 
-def cluster_points(batches, spacing, fixed=None, ground_spacing=None):
+def cluster_points(batches, spacing, fixed=None, ground_spacing=None, moves=None):
     """Vertex clustering of one chunk: the new position of every corner, batch by batch.
 
     Every corner in a voxel (round(p / spacing)) collapses to the mean of the distinct
@@ -60,6 +60,8 @@ def cluster_points(batches, spacing, fixed=None, ground_spacing=None):
     corner on any wall or slope keeps `spacing`. Split ground filled the far budget,
     so Cashbot and Lawbot HQ walls collapsed at 48 units while their flat yards did not
     need the triangles.
+
+    `moves` (seam_line_moves) maps seam corners to positions shared by every chunk.
     """
     corners=[b.verts[b.indices][:,:3] for b in batches]
     if not corners:
@@ -69,6 +71,12 @@ def cluster_points(batches, spacing, fixed=None, ground_spacing=None):
     pos=pts[first]
     rep=pos.copy()
     free=~np.isin(keys,fixed) if fixed is not None and len(fixed) else np.ones(len(keys),bool)
+    if moves:
+        for i,k in enumerate(keys):
+            target=moves.get(k.tobytes())
+            if target is not None:
+                rep[i]=target
+                free[i]=False
     if free.any():
         step=np.full(len(keys),float(spacing))
         if ground_spacing:
@@ -90,7 +98,7 @@ def cluster_points(batches, spacing, fixed=None, ground_spacing=None):
     return np.split(moved,np.cumsum([len(c) for c in corners])[:-1])
 
 
-def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
+def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None, moves=None):
     """Far mesh of one chunk at a voxel spacing.
 
     `fixed` (shared_positions) are seam corners that stay where they are. Snapped,
@@ -100,7 +108,7 @@ def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
     """
     result=[]
     snapped=[b for b in batches if not b.layer] if spacing else []
-    moved=dict(zip(map(id,snapped),cluster_points(snapped,spacing,fixed,ground)))
+    moved=dict(zip(map(id,snapped),cluster_points(snapped,spacing,fixed,ground,moves)))
     for b in batches:
         if b.layer and not keep_layers:
             continue  # windows, letters and other overlaid details disappear only far away
@@ -109,6 +117,7 @@ def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
         # z-fights. It is lifted off its collapsed wall instead (lift); the TTC tunnel signs were buried in their snapped rock.
         if spacing and not b.layer:
             verts[:,:3]=moved[id(b)]
+            verts[:,5:9]=_merged_colors(b.verts[b.indices],verts)
         elif spacing:
             verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)
@@ -122,6 +131,25 @@ def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None):
         verts=tri[np.sort(unique)].reshape(-1,9)
         result.append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts))))
     return result
+
+
+def _merged_colors(before, after):
+    """Vertex colours after a collapse: each merged corner takes the area-weighted mean
+    of the corners that landed on it (in this batch, degenerate triangles included).
+
+    Survivors otherwise keep only their own colours. Cashbot HQ's vault stairs bake
+    their lighting into vertex colour (treads 1.0, risers 0.24 to 0.43); the risers
+    collapsed and the far stairs were a white band across the entrance."""
+    tri=before[:,:3].reshape(-1,3,3)
+    area=np.linalg.norm(np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0]),axis=1)
+    weight=np.repeat(area,3)[:,None]+1e-12
+    _,group=np.unique(np.round(after[:,:3],6),axis=0,return_inverse=True)
+    group=group.reshape(-1)
+    total=np.zeros((group.max()+1,4))
+    norm=np.zeros((group.max()+1,1))
+    np.add.at(total,group,before[:,5:9]*weight)
+    np.add.at(norm,group,weight)
+    return total[group]/norm[group]
 
 
 def lift(verts, spacing):
@@ -140,6 +168,84 @@ def lift(verts, spacing):
     tri+=n[:,None,:]*(spacing*3**.5/2+0.05)
     out[:,:3]=tri.reshape(-1,3)
     return out
+
+
+# Seam corners on one chunk-grid line at one height closer than this are one run.
+SEAM_RUN_GAP = 40.0
+
+
+def seam_line_moves(chunks, fixed, size, spacing, flat=0.01):
+    """Shared far positions for seam corners on straight chunk-grid lines.
+
+    split_grid(straight=True) clips ground at the grid lines, so a seam between two
+    chunks is a straight line. Its corners were fixed, and on Cashbot HQ's 256 unit
+    grid those seam strips were half the far triangles (the vault stairs were then a
+    16 unit voxel slab). A corner whose triangles all face up, on exactly one grid
+    line, merges with its neighbours along that line and at the same height into the
+    mean of a `spacing` bucket, for every chunk alike: the far edge stays on the line
+    the near neighbour draws. Runs stop at fixed corners and grid corners; a run end
+    with no corner beyond it within SEAM_RUN_GAP stays put. Returns {key bytes: xyz}.
+    """
+    if not spacing or fixed is None or not len(fixed):
+        return {}
+    corners=[b.verts[b.indices][:,:3] for bs in chunks for b in bs if not b.layer and len(b.indices)]
+    if not corners:
+        return {}
+    pts=np.concatenate(corners).astype(np.float64)
+    keys,first,inverse=np.unique(position_keys(pts),return_index=True,return_inverse=True)
+    tri=pts.reshape(-1,3,3)
+    n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+    ln=np.linalg.norm(n,axis=1)
+    up=np.where(ln>1e-8,n[:,2]/np.maximum(ln,1e-8),0.0)>=GROUND_UP
+    ground=np.ones(len(keys),bool)
+    np.logical_and.at(ground,inverse.ravel(),np.repeat(up,3))
+    seam=np.isin(keys,fixed)
+    pos=pts[first]
+    on=np.abs(pos[:,:2]/size-np.round(pos[:,:2]/size))<1e-7
+    lines={}
+    for i in np.nonzero(seam&(on[:,0]^on[:,1]))[0]:
+        axis=0 if on[i,0] else 1
+        line=(axis,int(round(pos[i,axis]/size)),round(float(pos[i,2])/flat))
+        lines.setdefault(line,[]).append(i)
+    # Grid corners and other fixed corners on a line break its runs.
+    for i in np.nonzero(seam&on[:,0]&on[:,1])[0]:
+        for axis in (0,1):
+            line=(axis,int(round(pos[i,axis]/size)),round(float(pos[i,2])/flat))
+            if line in lines:
+                lines[line].append(i)
+    moves={}
+    for (axis,_,_),members in sorted(lines.items()):
+        along=1-axis
+        members=sorted(set(members),key=lambda i:pos[i,along])
+        runs,run,prev=[],[],None
+        for i in members:
+            mergeable=ground[i] and not (on[i,0] and on[i,1])
+            gap=prev is not None and pos[i,along]-pos[prev,along]>SEAM_RUN_GAP
+            if gap or not mergeable:
+                if run:
+                    runs.append((run,run_open,gap))
+                run=[]
+            if mergeable:
+                if not run:
+                    run_open=prev is None or gap
+                run.append(i)
+            prev=i
+        if run:
+            runs.append((run,run_open,True))
+        for run,open_start,open_end in runs:
+            if open_start:
+                run=run[1:]
+            if open_end:
+                run=run[:-1]
+            buckets={}
+            for i in run:
+                buckets.setdefault(int(np.floor(pos[i,along]/spacing)),[]).append(i)
+            for members_b in buckets.values():
+                target=pos[members_b[0]].copy()
+                target[along]=float(np.mean(pos[members_b,along]))
+                for i in members_b:
+                    moves[keys[i].tobytes()]=target
+    return moves
 
 
 def count(batches):

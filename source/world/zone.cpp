@@ -217,6 +217,7 @@ struct Zone::Impl {
     // The current plan: which chunks should be resident, at which LOD, nearest first.
     bool desired[kMaxChunks] = {};
     bool inCone[kMaxChunks] = {}; // desired and inside the view this plan will submit
+    bool drawnLast[kMaxChunks] = {}; // submitted by the last draw() (describePlan)
     bool card[kMaxChunks] = {};   // in-cone prefix the loading card waits on
     bool letters[kMaxChunks] = {}; // near or far mesh has a MickeyFont sign decal
     uint16_t letterBatches[kMaxChunks] = {}; // letter decals on the richer of the two meshes
@@ -232,6 +233,7 @@ struct Zone::Impl {
     bool haveCamera = false;
     bool plannedCam = false;
     Vec3 camEye{}, camTarget{}, planEye{}, planFwd{};
+    float planDist = 0.0f; // draw distance of the last plan (render::setPlaceFar may change it)
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
     // Retain budget. Defaults to the draw budget so a zone never holds more than the
@@ -754,6 +756,8 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     Vec3 fwd{}, right{}, up{};
     if (z.haveCamera) cameraBasis(z.camEye, z.camTarget, fwd, right, up);
     if (next>=0 && !replan && z.haveCamera && !z.plannedCam) replan=true;
+    // A place far set after the first plan (Cog HQ hoods) must add the chunks past the PVS.
+    if (next>=0 && !replan && z.planDist!=tt::render::activeQuality().drawDistance) replan=true;
     if (next>=0 && !replan && z.haveCamera && z.plannedCam) {
         const float dx=z.camEye.x-z.planEye.x, dy=z.camEye.y-z.planEye.y, dz=z.camEye.z-z.planEye.z;
         const float facing=fwd.x*z.planFwd.x+fwd.y*z.planFwd.y+fwd.z*z.planFwd.z;
@@ -782,6 +786,13 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         };
         for (uint32_t j=0;j<c.numVis;++j) want(z.vis[c.firstVis+j]);
         for (uint32_t i=0;i<z.h.chunks;++i) if (z.extra[i]) want(static_cast<uint16_t>(i));
+        // Cog HQ hoods see past the baked vis radius (render::setPlaceFar: stock camera far
+        // 900 to 3000). A playground grid's vis list is only that radius, so in-view chunks
+        // out to the place far join too; the frame caps below keep the nearest first.
+        if (z.haveCamera && z.h.version>=2 && quality.drawDistance > tt::render::baseQuality().drawDistance)
+            for (uint32_t i=0;i<z.h.chunks;++i)
+                if (z.chunks[i].numVis && inView(z.chunks[i], z.camEye, fwd, right, up, quality.drawDistance))
+                    want(static_cast<uint16_t>(i));
         z.extraDirty=false;
         z.numOrder=count;
         // No camera: nearest the feet, and the draw cap covers the whole cell (host tests).
@@ -1157,6 +1168,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
             z.signNearId[1]=signPick[1];
         }
         z.lastPlan=feet;
+        z.planDist=quality.drawDistance;
         z.plannedCam=z.haveCamera;
         if (z.haveCamera) { z.planEye=z.camEye; z.planFwd=fwd; }
         z.planned=true;
@@ -1245,7 +1257,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 z.models[id].swap(j.model);
                 if (!tt::render::activeQuality().new3ds &&
                     (static_cast<int>(id)==z.signNearId[0] || static_cast<int>(id)==z.signNearId[1]))
-                    z.models[id].setTextureLodBias(-1.0f);
+                    z.models[id].setSignLodBias(-1.0f);
                 z.resident[id]=true; z.lod[id]=j.lod; z.keepHigh[id]=false;
                 if (j.lod==0) z.parked[id]=false;
             } else if (st==Impl::Done && j.lod==1 && nearHeld) {
@@ -1750,8 +1762,10 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         seen[i]=true;
         const Chunk mesh=modelInfo(z.chunks[i], z.lod[i]);
         if (!admitFrame(usedDraws, usedTris, mesh.draws, mesh.tris)) return;
+        z.drawnLast[i]=true;
         drawn[ndrawn++]=static_cast<uint16_t>(i);
     };
+    memset(z.drawnLast, 0, sizeof(z.drawnLast));
     for (uint32_t j=0;j<z.numOrder;++j) {
         const uint16_t id=z.order[j];
         if (z.lod[id]==0) submitId(id);
@@ -1801,6 +1815,20 @@ int Zone::visibleZones(uint16_t* out,int capacity) const {
     if (out && capacity>0) std::copy(ids,ids+std::min(count,capacity),out);
     return count;
 }
+int Zone::describePlan(char* out, int capacity) const {
+    if (!impl_ || !out || capacity<=0) return 0;
+    const Impl& z=*impl_;
+    int n=snprintf(out, capacity, "cell %d", z.cell);
+    for (uint32_t j=0;j<z.numOrder && n<capacity-16;++j) {
+        const uint16_t id=z.order[j];
+        if (!z.inCone[id] && !z.drawnLast[id]) continue;
+        const char mark=z.drawnLast[id] ? '*' : (z.resident[id] ? '-' : ' ');
+        n+=snprintf(out+n, capacity-n, " %u:%c/%u%c", static_cast<unsigned>(id),
+                    z.resident[id] ? static_cast<char>('0'+z.lod[id]) : 'x', static_cast<unsigned>(z.choice[id]), mark);
+    }
+    return n;
+}
+
 void Zone::setExtraVisible(const uint16_t* zones, int count) {
     if (!impl_) return;
     bool next[kMaxChunks]={};
