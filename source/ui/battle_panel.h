@@ -18,6 +18,7 @@ struct BattleGags {
     const uint8_t (*count)[7] = nullptr; // [track][level]
     const uint16_t* exp = nullptr;       // [7]
     const uint8_t* access = nullptr;     // [7]
+    uint8_t maxCarry = 20;               // Toon inventory limit (maxCarry), not per-level limits
 };
 
 class BattlePanel {
@@ -50,7 +51,8 @@ private:
     void smallButton(float x, float y, float w, bool enabled, const char* label);
     bool sosCallable(const world::BattleView& v, int card) const;
     bool fireable(const world::BattleView& v, int cog) const;
-    void centered(float cx, float y, float scale, u32 color, float maxW, const char* str);
+    void centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z = 0.6f,
+                  bool bold = false);
 
     render::TextCache textCache_;
     C2D_TextBuf buf_ = nullptr;

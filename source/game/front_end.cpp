@@ -289,7 +289,7 @@ bool FrontEnd::matButton(const Button& b, const char* label, bool selected, bool
         const float* c = world::bodyColor(makeDna_.headColor);
         for (int k = 0; k < 3; k++) face.rgb[k] = c[k];
         const float d = b.h - 6;
-        ui::drawLaffMeter(face, b.x + 9, b.y + 2, d, nullptr, nullptr, 0.52f);
+        ui::drawLaffMeter(face, b.x + 9, b.y + 2, d, nullptr, nullptr, nullptr, 0.52f);
         textCentered(Button{b.x + 9 + d, b.y + 1, b.w - d - 16, b.h}, 0.52f, th::pillInk(style), label);
         return true;
     }
@@ -1369,7 +1369,7 @@ void FrontEnd::drawPickBottom() {
             for (int k = 0; k < 3; k++) face.rgb[k] = c[k];
             face.species = static_cast<int>(world::species(dna));
         }
-        ui::drawLaffMeter(face, sl.cx - 22, sl.cy - 27, 44, nullptr, nullptr, 0.45f);
+        ui::drawLaffMeter(face, sl.cx - 22, sl.cy - 27, 44, nullptr, nullptr, nullptr, 0.45f);
         shadowText(sl.nameX, sl.nameY - 8, 0.5f, kWhite, 88, pa->name);
         const char* status = nullptr;
         // statusText (0, -0.24): two short lines left of the trashcan, as TTLocalizer words them.

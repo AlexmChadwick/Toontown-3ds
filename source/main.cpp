@@ -251,7 +251,8 @@ int main() {
                q.new3ds ? "New 3DS" : "Old 3DS", double(q.farPlane), double(q.drawDistance), double(q.lodNear),
                double(q.lodKeep), double(q.lodMust), double(q.fogStart), double(q.fogEnd));
     }
-    TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
+    TT_LOG("boot: %s, commit %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", TT_GIT_COMMIT,
+           static_cast<unsigned long>(romfsRc));
 
     if (!C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE)) { // 512 KB; stress tests overflowed 256 KB at ~700 draws
         tt::crash::panic("Graphics could not start (C3D_Init)", "Not enough graphics memory.", nullptr);
@@ -1677,9 +1678,62 @@ int main() {
         }
         // ---- end padnav ----
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
+        const char* qaLabel = autotest.active() ? autotest.label() : "";
+        uint8_t qaCount[7][7] = {};
+        uint16_t qaExp[7] = {};
+        uint8_t qaAccess[7] = {};
+        const bool qaBattle = !strncmp(qaLabel, "battle: qa ", 11);
+        const bool qaNormal = !strcmp(qaLabel, "battle: qa normal");
+        const bool qaLocked = !strcmp(qaLabel, "battle: qa locked");
+        const bool qaEmpty = !strcmp(qaLabel, "battle: qa empty");
+        auto applyBattleQa = [&]() {
+            if (qaBattle) {
+                battleView.phase = tt::world::BattlePhase::Input;
+                battleView.secondsLeft = 20;
+                battleView.status = "Click a gag to attack";
+                battleView.tutorialArrows = true;
+            }
+            if (!strcmp(qaLabel, "battle: qa 4-cog")) {
+                const int oldCount = battleView.numCogs;
+                battleView.numCogs = 4;
+                for (int i = 0; i < 4; ++i) {
+                    if (i >= oldCount) {
+                        battleView.cogs[i] = oldCount > 0 ? battleView.cogs[0] : tt::world::BattleCogView{};
+                        battleView.cogs[i].doId = 401000001 + uint32_t(i);
+                    }
+                    snprintf(battleView.cogs[i].name, sizeof battleView.cogs[i].name, "Flunky");
+                    snprintf(battleView.cogs[i].code, sizeof battleView.cogs[i].code, "f");
+                    battleView.cogs[i].level = 1 + i;
+                    battleView.cogs[i].active = true;
+                    battleView.cogs[i].hp = battleView.cogs[i].maxHp = 10 + i * 5;
+                }
+            }
+            for (int i = 0; i < battleView.numToons; ++i) {
+                if (!battleView.toons[i].local) continue;
+                if (!strcmp(qaLabel, "battle: qa low laff")) {
+                    battleView.toons[i].hp = 3;
+                    battleView.toons[i].maxHp = 15;
+                } else if (!strcmp(qaLabel, "battle: qa three digit laff")) {
+                    battleView.toons[i].hp = 123;
+                    battleView.toons[i].maxHp = 137;
+                } else if (!strcmp(qaLabel, "battle: qa gone toon")) {
+                    battleView.toons[i].active = false;
+                }
+            }
+            if (qaLocked || qaEmpty || qaNormal) {
+                for (int t = 0; t < 7; ++t) {
+                    qaAccess[t] = qaEmpty ? 1 : ((t == tt::world::kTrackThrow || t == tt::world::kTrackSquirt) ? 1 : 0);
+                    for (int l = 0; l < 7; ++l)
+                        qaCount[t][l] = (qaEmpty || qaLocked) ? 0 : uint8_t((qaAccess[t] && l == 0) ? 1 : 0);
+                    qaExp[t] = 0;
+                }
+            }
+        };
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
             battleView.tutorialDialog = tutorialReward.dialog(); // ---- tutorial ----
+            // ---- battle GUI QA fixtures: presentation-only, never sent to the server ----
+            applyBattleQa();
             // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
             // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
             if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
@@ -1693,7 +1747,42 @@ int main() {
             }
             // ---- end padnav ----
             const tt::net::OwnStats& st = net.ownStats();
-            ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
+            if (qaLocked || qaEmpty || qaNormal)
+                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess, 20});
+            else
+                ui.setBattle(&battleView,
+                             tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess, st.maxCarry});
+        } else if (qaBattle && netStarted) {
+            // The edge-state script is presentation-only. Keep it independent of the preceding
+            // live battle so a completed network round cannot turn its screenshots into a map.
+            battleView = tt::world::BattleView{};
+            battleView.phase = tt::world::BattlePhase::Input;
+            battleView.secondsLeft = 20;
+            battleView.status = "Click a gag to attack";
+            battleView.tutorialArrows = true;
+            battleView.numCogs = 1;
+            battleView.cogs[0].doId = 401000001;
+            snprintf(battleView.cogs[0].name, sizeof battleView.cogs[0].name, "Flunky");
+            snprintf(battleView.cogs[0].code, sizeof battleView.cogs[0].code, "f");
+            battleView.cogs[0].level = 1;
+            battleView.cogs[0].hp = battleView.cogs[0].maxHp = 15;
+            battleView.cogs[0].active = true;
+            battleView.numToons = 1;
+            battleView.toons[0].doId = 401000000;
+            snprintf(battleView.toons[0].name, sizeof battleView.toons[0].name, "You");
+            battleView.toons[0].local = true;
+            battleView.toons[0].active = true;
+            battleView.toons[0].hp = battleView.toons[0].maxHp = 15;
+            battleView.toons[0].rgb[0] = 0.75f;
+            battleView.toons[0].rgb[1] = 0.55f;
+            battleView.toons[0].rgb[2] = 0.35f;
+            applyBattleQa();
+            const tt::net::OwnStats& st = net.ownStats();
+            if (qaLocked || qaEmpty || qaNormal)
+                ui.setBattle(&battleView, tt::ui::BattleGags{qaCount, qaExp, qaAccess, 20});
+            else
+                ui.setBattle(&battleView,
+                             tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess, st.maxCarry});
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
@@ -1719,14 +1808,14 @@ int main() {
                        trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
-        // ---- visual: autotest "battle hold" presses D-Down once per input round (~1 s in), so
-        // shots show the focused gag's detail line ----
+        // ---- visual: autotest "battle hold" leaves the stock hint visible for 15 seconds,
+        // then presses D-Down once per input round so later shots show the gag detail line ----
         {
             static int inputFrames = 0;
             const bool held = autotest.active() && autotest.battleHoldMs() > 0 && battle.active() &&
                               battle.phase() == tt::world::BattlePhase::Input;
             inputFrames = held ? inputFrames + 1 : 0;
-            if (inputFrames == 30) {
+            if (inputFrames == 450) {
                 in.down |= KEY_DDOWN;
                 TT_LOG("autotest: battle hold D-Down (gag detail)");
             }
@@ -3130,6 +3219,8 @@ int main() {
                 else if (!strncmp(lbl, "battle: cog attacks", 19)) forced = tt::world::Battle::kAutoPass;
                 battle.setAutoPlay(true, forced);
                 battle.setAutoDelay(autotest.battleHoldMs());
+                if (!strncmp(lbl, "battle: qa ", 11) || !strcmp(lbl, "fight cog"))
+                    battle.setAutoPlay(false, -1);
 
                 if (forced >= 0) {
                     static float battleWaitTime = 0.0f;
@@ -3613,10 +3704,13 @@ int main() {
                 hv.maxHp = st.maxHp;
                 hv.money = st.money;
                 hv.maxMoney = st.maxMoney;
-                for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
                 tt::world::ToonDna hudDna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &hudDna)) {
+                    const float* head = tt::world::bodyColor(hudDna.headColor);
+                    for (int i = 0; i < 3; i++) hv.headRgb[i] = head[i];
                     hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
+                } else {
+                    for (int i = 0; i < 3; i++) hv.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
                 }
             }
             hv.laffOnBottom = ui.laffShown();
@@ -3777,11 +3871,15 @@ int main() {
             }
             ctx.homeAvailable = net.hasEstateManager();
             ctx.toonName = net.avatarName();
-            for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
             {
                 tt::world::ToonDna tabDna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna))
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna)) {
+                    const float* head = tt::world::bodyColor(tabDna.headColor);
+                    for (int i = 0; i < 3; i++) ctx.headRgb[i] = head[i];
                     ctx.species = static_cast<int>(tt::world::species(tabDna)); // the Toon tab's laff meter
+                } else {
+                    for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
+                }
             }
             ctx.book = &net.ownBook();
             ctx.fish = &net.ownFish();
@@ -3831,6 +3929,67 @@ int main() {
                 ctx.nearbyIds[ctx.numNearby] = t.doId;
                 ctx.nearbyNames[ctx.numNearby++] = t.name;
             }
+            for (int i = 0; i < net.numFriends() && ctx.numFriends < 8; i++) {
+                const tt::net::FriendInfo& f = net.friendAt(i);
+                ctx.friendIds[ctx.numFriends] = f.doId;
+                ctx.friendNames[ctx.numFriends] = f.hasName ? f.name : "Unknown Toon";
+                ctx.friendNearby[ctx.numFriends] = f.nearby;
+                ctx.friendOpenChat[ctx.numFriends] = (f.code & 1u) != 0;
+                ctx.numFriends++;
+            }
+        }
+        // Offline GUI sweep: a stock-shaped FriendsListPanel with the three states the real
+        // setFriendsList data can expose (open chat, SpeedChat-only, offline/unknown).
+        if (autotest.active() && !strncmp(autotest.label(), "friends: ", 9)) {
+            static const char* kDemoFriends[] = {"Aqua Dog", "Little Pepper", "Sleepy Rabbit"};
+            ctx.numFriends = 3;
+            for (int i = 0; i < ctx.numFriends; i++) {
+                ctx.friendIds[i] = 100001u + unsigned(i);
+                ctx.friendNames[i] = kDemoFriends[i];
+                ctx.friendNearby[i] = i < 2;
+                ctx.friendOpenChat[i] = i == 0;
+            }
+        }
+        if (autotest.active() && (!strncmp(autotest.label(), "gui: ", 5) ||
+                                  !strcmp(autotest.label(), "book: gags"))) {
+            static tt::net::OwnStats demoStats;
+            static tt::net::OwnQuests demoQuests;
+            static tt::net::OwnBookStats demoBook;
+            static bool ready = false;
+            if (!ready) {
+                demoStats.hp = 12;
+                demoStats.maxHp = 15;
+                demoStats.money = 42;
+                demoStats.maxMoney = 80;
+                demoStats.maxCarry = 20;
+                demoStats.hasGags = true;
+                demoStats.trackAccess[4] = demoStats.trackAccess[5] = 1;
+                demoStats.experience[4] = demoStats.experience[5] = 10;
+                demoStats.inventory[4][0] = 4;
+                demoStats.inventory[5][0] = 3;
+                demoQuests.carryLimit = 1;
+                demoQuests.version = 1;
+                demoBook.initDefaults();
+                ready = true;
+            }
+            ctx.stats = &demoStats;
+            ctx.quests = &demoQuests;
+            ctx.book = &demoBook;
+            ctx.toonName = "Aqua Dog";
+            if (!strcmp(autotest.label(), "gui: pocket three digit")) {
+                demoStats.hp = 100;
+                demoStats.maxHp = 137;
+            } else {
+                demoStats.hp = 12;
+                demoStats.maxHp = 15;
+            }
+            ctx.headRgb[0] = 0.35f;
+            ctx.headRgb[1] = 0.82f;
+            ctx.headRgb[2] = 0.95f;
+            ctx.gagExp = demoStats.experience;
+            ctx.gagCount = demoStats.inventory;
+            ctx.trackAccess = demoStats.trackAccess;
+            ctx.maxCarry = demoStats.maxCarry;
         }
         // ---- qafix: trolley owns its panel before the minigame hand-off ----
         if (trolley.seated()) {

@@ -12,11 +12,10 @@ namespace tt::ui {
 
 namespace {
 
-// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70). The
-// labels sit kLabelSpread further apart than upstream's eye centres so two-digit numbers can be
-// this wide without touching; a white outline keeps them readable where they cross the rims.
-constexpr float kLabelMaxW = 0.215f;
-constexpr float kLabelSpread = 0.012f;
+// The complete hp/max label fits across the eye whites. Keeping it as one centred group prevents
+// adjacent two-digit values from reading as one number, and also keeps three-digit values bounded.
+constexpr float kLabelMaxW = 0.46f;
+constexpr float kLabelGap = 0.006f;
 constexpr float kLabelMinScale = 0.34f, kLabelMaxScale = 0.7f;
 // LaffMeter.fractions: tooth i shows while hp > maxHp * fraction (teeth listed 6 .. 1).
 constexpr float kToothFractions[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666f, 0.833333f};
@@ -36,7 +35,7 @@ bool gTried = false;
 // full laff the smile with eyes, otherwise the open smile, eyes and adjustTeeth's teeth; the
 // laff and max numbers sit in the eyes (hpLabel / maxLabel).
 bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_Text* hpText,
-                   const C2D_Text* maxText, float z) {
+                   const C2D_Text* slashText, const C2D_Text* maxText, float z) {
     if (!gTried) {
         gTried = true;
         if (!gAtlas.load("romfs:/baked/laff_meter.ttm")) TT_LOG("hud: no laff_meter.ttm");
@@ -74,33 +73,40 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
         }
     }
     part(kLaffEyes, nullptr);
-    // Labels: upstream text_scale 0.4 is only ~6 px at HUD size (kLaffLabelHeight), so draw them as
-    // large as the eye whites allow. Both labels share one scale, shrunk until the wider one fits.
+    // Labels: upstream text_scale 0.4 is only ~6 px at HUD size (kLaffLabelHeight), so draw the
+    // complete hp/max label as large as the eye whites allow, then shrink it as one unit to fit.
+    if (!hpText || !slashText || !maxText) return true;
     float scale = kLabelMaxScale * size / 72.0f;
     if (scale < kLabelMinScale) scale = kLabelMinScale;
-    float w = 0.0f, h = 0.0f, wMax = 0.0f;
-    if (hpText) {
-        C2D_TextGetDimensions(hpText, scale, scale, &w, &h);
-        wMax = w;
-    }
-    if (maxText) {
-        C2D_TextGetDimensions(maxText, scale, scale, &w, &h);
-        if (w > wMax) wMax = w;
-    }
+    float hpW = 0.0f, hpH = 0.0f, slashW = 0.0f, slashH = 0.0f, maxW = 0.0f, maxH = 0.0f;
+    C2D_TextGetDimensions(hpText, scale, scale, &hpW, &hpH);
+    C2D_TextGetDimensions(slashText, scale, scale, &slashW, &slashH);
+    C2D_TextGetDimensions(maxText, scale, scale, &maxW, &maxH);
+    const float gap = kLabelGap * size;
+    float totalW = hpW + slashW + maxW + gap * 2.0f;
     const float fitW = kLabelMaxW * size;
-    if (wMax > fitW && wMax > 0.0f) scale *= fitW / wMax;
+    if (totalW > fitW && totalW > 0.0f) {
+        scale *= fitW / totalW;
+        C2D_TextGetDimensions(hpText, scale, scale, &hpW, &hpH);
+        C2D_TextGetDimensions(slashText, scale, scale, &slashW, &slashH);
+        C2D_TextGetDimensions(maxText, scale, scale, &maxW, &maxH);
+        totalW = hpW + slashW + maxW + gap * 2.0f;
+    }
     const u32 ink = C2D_Color32(0x10, 0x10, 0x10, 0xFF);
     const u32 rim = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-    if (hpText) {
-        C2D_TextGetDimensions(hpText, scale, scale, &w, &h);
-        drawOutlinedText(*hpText, x0 + (kLaffHpLabel[0] - kLabelSpread) * size - w * 0.5f,
-                         y0 + kLaffHpLabel[1] * size - h * 0.5f, z, scale, ink, rim);
-    }
-    if (maxText) {
-        C2D_TextGetDimensions(maxText, scale, scale, &w, &h);
-        drawOutlinedText(*maxText, x0 + (kLaffMaxLabel[0] + kLabelSpread) * size - w * 0.5f,
-                         y0 + kLaffMaxLabel[1] * size - h * 0.5f, z, scale, ink, rim);
-    }
+    const float labelCx = x0 + (kLaffHpLabel[0] + kLaffMaxLabel[0]) * 0.5f * size;
+    const float labelCy = y0 + (kLaffHpLabel[1] + kLaffMaxLabel[1]) * 0.5f * size;
+    float x = labelCx - totalW * 0.5f;
+    drawOutlinedText(*hpText, x, labelCy - hpH * 0.5f, z, scale, ink, rim);
+    x += hpW + gap;
+    const float slashY = labelCy - slashH * 0.5f;
+    drawOutlinedText(*slashText, x, slashY, z, scale, ink, rim);
+    // ImpressBT's slash has a one-pixel diagonal at pocket size. Reinforce its fill inside the
+    // existing glyph advance so three-digit labels read as hp/max rather than hp,max.
+    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + 0.55f, slashY, z + 0.002f,
+                 scale, scale, ink);
+    x += slashW + gap;
+    drawOutlinedText(*maxText, x, labelCy - maxH * 0.5f, z, scale, ink, rim);
     return true;
 }
 
@@ -141,6 +147,8 @@ void LaffDisplay::draw(const LaffFace& face, float cx, float cy, float size, flo
         snprintf(n, sizeof n, "%d", hp);
         render::textParse(&hp_, buf_, n);
         C2D_TextOptimize(&hp_);
+        render::textParse(&slash_, buf_, "/");
+        C2D_TextOptimize(&slash_);
         snprintf(n, sizeof n, "%d", face.maxHp);
         render::textParse(&max_, buf_, n);
         C2D_TextOptimize(&max_);
@@ -148,7 +156,7 @@ void LaffDisplay::draw(const LaffFace& face, float cx, float cy, float size, flo
         maxShown_ = face.maxHp;
     }
     const float s = size * pulse_.update(face.hp);
-    drawLaffMeter(face, cx - s * 0.5f, cy - s * 0.5f, s, &hp_, &max_, z);
+    drawLaffMeter(face, cx - s * 0.5f, cy - s * 0.5f, s, &hp_, &slash_, &max_, z);
 }
 
 } // namespace tt::ui

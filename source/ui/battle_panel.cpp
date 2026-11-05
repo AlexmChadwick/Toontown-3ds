@@ -386,7 +386,6 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // Upstream's TownBattle: the cream gag panel with a row per track in its colour, Cog panels
     // with the suit's health light colours, and round Pass / Run buttons.
     theme::sky();
-    theme::paper(1, 0, kW - 2, 15, 5.0f);
     // TownBattleSOSPanel / FireCogPanel titles while those panels are open.
     const char* status = v.status ? v.status : "";
     if (v.phase == world::BattlePhase::Input && mode_ == Mode::Sos)
@@ -397,15 +396,52 @@ void BattlePanel::draw(const world::BattleView& v, const BattleGags& g) {
     // before any rollover).
     const bool detail = padDetail_ && v.phase == world::BattlePhase::Input && mode_ == Mode::Attack;
     const int focusId = detail ? focus_.focusedId() : -1;
-    if (pad::battle::isGagId(focusId) && g.count && g.exp) {
-        const int t = focusId / 10, l = focusId % 10;
-        char detail[96];
-        gagDetail(detail, sizeof detail, t, l, g.exp[t], g.count[t][l]);
-        C2D_Text d;
-        textCache_.parse(&d, buf_, detail, 1024);
-        theme::textFit(d, 6, -1, 0.44f, kInk, kW - 12, 0.6f);
+    const int nc = v.numCogs < pad::battle::kMaxCogs ? v.numCogs : pad::battle::kMaxCogs;
+    // InventoryNew uses Toontown's default dialog card for this prompt. Put the real card beside
+    // the Cog cards, shortened and reflowed so it covers neither the gags nor a Cog. Four-Cog
+    // battles keep the compact status strip because the cards fill the whole row.
+    const bool bigHint = v.phase == world::BattlePhase::Input && mode_ == Mode::Attack && !detail &&
+                         v.tutorialArrows && nc < 4;
+    if (bigHint) {
+        const float cogsRight = pad::battle::kCogX + nc * kCogW +
+                                (nc > 0 ? (nc - 1) * pad::battle::kCogGap : 0);
+        const float hintX = cogsRight + pad::battle::kHintGap +
+                            (kW - 2.0f - (cogsRight + pad::battle::kHintGap) - pad::battle::kHintW) * 0.5f;
+        if (invArtReady()) {
+            invTintBegin();
+            drawInvHint(hintX, pad::battle::kHintY, pad::battle::kHintW, pad::battle::kHintH, 0.55f,
+                        theme::rgb(0xFF, 0xFF, 0xBF));
+            invTintEnd();
+        } else {
+            theme::paper(hintX, pad::battle::kHintY, pad::battle::kHintW, pad::battle::kHintH, 7.0f,
+                        theme::rgb(0xFF, 0xFF, 0xBF));
+        }
+        centered(hintX + pad::battle::kHintW * 0.5f, pad::battle::kHintY + pad::battle::kHintTextTop,
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "Click a gag", 0.6f, true);
+        centered(hintX + pad::battle::kHintW * 0.5f,
+                 pad::battle::kHintY + pad::battle::kHintTextTop + pad::battle::kHintTextStep,
+                 pad::battle::kHintTextScale, kInk, pad::battle::kHintTextMaxW, "to attack", 0.6f, true);
     } else {
-        text(6, -1, 0.44f, kInk, "%s", status);
+        theme::paper(1, 0, kW - 2, 15, 5.0f);
+        if (pad::battle::isGagId(focusId) && g.count && g.exp) {
+            const int t = focusId / 10, l = focusId % 10;
+            char detailText[96];
+            gagDetail(detailText, sizeof detailText, t, l, g.exp[t], g.count[t][l]);
+            C2D_Text d;
+            textCache_.parse(&d, buf_, detailText, 1024);
+            theme::textFit(d, 6, -1, 0.44f, kInk, kW - 12, 0.6f);
+        } else {
+            text(6, -1, 0.44f, kInk, "%s", status);
+            if (g.count) {
+                int total = 0;
+                for (int t = 0; t < gags::kTracks; t++) {
+                    for (int l = 0; l < gags::kLevels; l++) {
+                        total += g.count[t][l];
+                    }
+                }
+                text(kW - 96, -1, 0.40f, kInk, "Total gags %d/%u", total, unsigned(g.maxCarry));
+            }
+        }
     }
     // The round timer is TownBattle's ToontownTimer in the top screen's top-right corner (ui/hud).
 
@@ -569,15 +605,31 @@ void BattlePanel::drawGagGrid(const world::BattleView& v, const BattleGags& g) {
         C2D_Text label;
         textCache_.parse(&label, buf_, kTrackLabels[t], 1024);
         float lw = 0, lh = 0;
-        float ls = h >= 18 ? 0.46f : 0.34f;
+        float ls = 0.46f;
         C2D_TextGetDimensions(&label, ls, ls, &lw, &lh);
         const float room = kGridX - pad::battle::kRowX - 8;
         if (lw > room) {
             ls *= room / lw;
             C2D_TextGetDimensions(&label, ls, ls, &lw, &lh);
         }
-        drawOutlinedText(label, pad::battle::kRowX + 4, y + (h - lh) * 0.5f, 0.56f, ls, theme::rgb(0x33, 0x33, 0x33),
-                         owned[t] ? theme::kWhite : theme::rgb(0xFF, 0xFF, 0xFF, 0x90));
+        const bool showExp = (t == 4 || t == 5) && g.exp && h >= 24.0f;
+        drawOutlinedText(label, pad::battle::kRowX + 4, y + (showExp ? 1.0f : (h - lh) * 0.5f), 0.56f, ls,
+                         theme::rgb(0x33, 0x33, 0x33), theme::kWhite);
+        if (showExp) {
+            const int next = gags::kLevelExp[t][1];
+            const float progress = next > 0 ? (g.exp[t] < next ? float(g.exp[t]) / next : 1.0f) : 1.0f;
+            char expStr[16];
+            snprintf(expStr, sizeof expStr, "%u/%d", unsigned(g.exp[t]), next);
+            C2D_Text et;
+            textCache_.parse(&et, buf_, expStr, 1024);
+            const float barY = y + h - 6.0f;
+            drawOutlinedText(et, pad::battle::kRowX + 5, barY - 9.0f, 0.59f, 0.32f,
+                             theme::kWhite, theme::rgb(0x20, 0x20, 0x20));
+            theme::roundRect(pad::battle::kRowX + 4, barY, room - 4, 4, 1, theme::rgb(0x30, 0x30, 0x30, 0xC0));
+            if (progress > 0.0f)
+                theme::roundRect(pad::battle::kRowX + 4, barY, (room - 4) * progress, 4, 1,
+                                 theme::mix(theme::kTrackColors[t], theme::kWhite, 0.35f), 0.58f);
+        }
         for (int l = 0; l < levels[t]; l++) {
             const float x = cellX(l);
             // geom_scale 0.7 of the button: the icon fills most of the face, a little left of centre.
@@ -709,10 +761,11 @@ void BattlePanel::drawFire(const world::BattleView& v) {
     smallButton(pad::battle::kBackX, kBtnY, pad::battle::kBackW, true, "BACK");
 }
 
-void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str) {
+void BattlePanel::centered(float cx, float y, float scale, u32 color, float maxW, const char* str, float z, bool bold) {
     C2D_Text t;
     textCache_.parse(&t, buf_, str, 1024);
-    theme::textCentered(t, cx, y, scale, color, maxW);
+    theme::textCentered(t, cx, y, scale, color, maxW, z);
+    if (bold) theme::textCentered(t, cx + 0.5f, y, scale, color, maxW, z);
 }
 
 // TownBattleToonPanel: every toon in the battle on ToonBtl_Status_BG (image_color (0.5, 0.9, 0.5,
@@ -741,7 +794,6 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         } else {
             theme::paper(x, kBtnY, cw, ch, 5.0f, gone ? theme::kGrey : theme::kPaper, theme::kPaperEdge);
         }
-        if (t.local) theme::roundRect(x + 4, kBtnY + ch - 3, cw - 8, 2, 1, theme::kYellow, 0.57f);
         if (pulseId_[i] != t.doId) {
             pulseId_[i] = t.doId;
             pulse_[i] = LaffPulse{};
@@ -751,19 +803,27 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
         face.maxHp = t.maxHp > 0 ? t.maxHp : (t.hp > 0 ? t.hp : 15);
         for (int k = 0; k < 3; k++) face.rgb[k] = t.rgb[k];
         face.species = t.species;
-        // laffMeter.setPos(-0.06, 0, 0.05) and healthText at (-0.06, -0.075) on a 0.43 x 0.27 panel.
-        const float meter = ch * 0.66f;
+        // Stock TownBattleToonPanel puts the LaffMeter head in the upper half and health text below it.
+        // Retain the real face with eyes unobstructed, and place the outlined hp/max text directly below.
+        const float meter = 19.0f;
         const float s = meter * pulse_[i].update(t.hp);
-        const float mx = x + cw * 0.34f, my = kBtnY + ch * 0.38f;
-        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, 0.58f);
+        const float mx = x + cw * 0.33f, my = kBtnY + 11.5f;
+        drawLaffMeter(face, mx - s * 0.5f, my - s * 0.5f, s, nullptr, nullptr, nullptr, 0.58f);
         char num[24];
-        if (t.maxHp > 0) {
-            snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, t.maxHp);
-        } else {
-            snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
-        }
+        snprintf(num, sizeof num, "%d/%d", t.hp > 0 ? t.hp : 0, face.maxHp);
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
-        centered(mx, kBtnY + ch * 0.68f, 0.34f, gone ? kInkSoft : low ? theme::kRedDark : kInk, cw * 0.62f, num);
+        C2D_Text hp;
+        textCache_.parse(&hp, buf_, num, 1024);
+        float hs = 0.34f, hw = 0, hh = 0;
+        C2D_TextGetDimensions(&hp, hs, hs, &hw, &hh);
+        const float maxW = cw * 0.56f;
+        if (hw > maxW) {
+            hs *= maxW / hw;
+            C2D_TextGetDimensions(&hp, hs, hs, &hw, &hh);
+        }
+        drawOutlinedText(hp, mx - hw * 0.5f, kBtnY + 23.5f, 0.61f, hs,
+                         gone ? theme::rgb(0xE0, 0xE0, 0xE0) : low ? theme::rgb(0xFF, 0xD8, 0xD0) : theme::kWhite,
+                         gone ? kInkSoft : low ? theme::kRedDark : theme::rgb(0x16, 0x4A, 0x16));
         // TownBattleToonPanel.setValues while choosing: the chosen gag, Pass, SOS or Fire ("?" until then).
         const bool picking = !gone && (v.phase == world::BattlePhase::Input || v.phase == world::BattlePhase::Chosen);
         const char* pick = nullptr;

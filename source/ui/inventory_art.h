@@ -1,6 +1,7 @@
 // The battle inventory's original art (bake_inventory_gui.py): InventoryNew's track rows and
-// gag buttons, battle_gui's red BATTLE_Menu frame and TownBattleToonPanel's status card, drawn
-// with citro2d and tinted multiplicatively like DirectGui's image_color.
+// gag buttons, battle_gui's red BATTLE_Menu frame, TownBattleToonPanel's status card and the
+// stock dialog hint card, drawn with citro2d and tinted multiplicatively like DirectGui's
+// image_color.
 #pragma once
 
 #include <3ds.h>
@@ -21,13 +22,14 @@ void invTintBegin();
 void invTintEnd();
 // One piece stretched to (x, y, w, h), multiplied by `tint` (alpha included).
 void drawInvArt(InvArt art, float x, float y, float w, float h, float z, u32 tint);
+void drawInvHint(float x, float y, float w, float h, float z, u32 tint);
 // InventoryRow tinted with the track colour: the label end is drawn over [x, slotX), the seven
 // button slots over [slotX, x + w), so the slots sit under the gag buttons.
 void drawInvRow(float x, float y, float w, float h, float slotX, float z, u32 tint);
 // BATTLE_Menu's red frame and dark panel as a nine-slice (inside invTintBegin / invTintEnd) (its left end, mirrored for the right;
 // the gag detail panel is not part of this layout).
 void drawInvMenu(float x, float y, float w, float h, float z);
-// Bold text with a one-pixel outline in `outline` (both cached C2D_Text, nothing parsed here).
+// Text with a one-pixel outline in `outline` (both cached C2D_Text, nothing parsed here).
 // flags: C2D_AlignLeft / C2D_AlignRight / C2D_AlignCenter.
 void drawOutlinedText(const C2D_Text& t, float x, float y, float z, float scale, u32 fill, u32 outline,
                       u32 flags = C2D_AlignLeft);

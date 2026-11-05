@@ -88,6 +88,12 @@ struct Context {
     int numNearby = 0;
     unsigned nearbyIds[8] = {};
     const char* nearbyNames[8] = {};
+    // FriendsListPanel: the first eight entries visible on the compact stock-art panel.
+    int numFriends = 0;
+    unsigned friendIds[8] = {};
+    const char* friendNames[8] = {};
+    bool friendNearby[8] = {};
+    bool friendOpenChat[8] = {};
     // Toon tab: our name and laff meter face (online only).
     const char* toonName = nullptr;
     float headRgb[3] = {0.7f, 0.7f, 0.8f};
@@ -255,6 +261,8 @@ private:
     u32 chatNowMs_ = 0;
     bool chatLogShown() const;
     void drawChatLog(float y0, float y1);
+    void drawFriends(const State& s);
+    u32 handleFriends(u32 down, const touchPosition& touch, State& s);
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
@@ -278,6 +286,13 @@ private:
     int numNearby_ = 0;
     unsigned nearbyIds_[8] = {};
     char nearbyNames_[8][24] = {};
+    int numFriends_ = 0;
+    unsigned friendIds_[8] = {};
+    char friendNames_[8][24] = {};
+    bool friendNearby_[8] = {};
+    bool friendOpenChat_[8] = {};
+    bool friendsOpen_ = false;
+    int friendFocus_ = 0;
     quest::Talk* talk_ = nullptr;
     const world::BattleView* battleView_ = nullptr;
     BattleGags battleGags_{};

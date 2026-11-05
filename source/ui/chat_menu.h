@@ -83,7 +83,7 @@ private:
     float labelScale_[kMaxRows];
     float labelH_[kMaxRows];
     bool labelWrap_[kMaxRows];
-    C2D_Text title_, back_, arrow_, hint_;
+    C2D_Text title_, back_, arrow_;
     float titleScale_ = 0.5f;
 
     int menu_ = 0;

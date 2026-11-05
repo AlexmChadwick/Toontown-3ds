@@ -2032,3 +2032,32 @@ Local server on port 31300, zone data from lane B's current bake. Emulator timin
 | Toon showcase close, 34 heads (toons2_new) | New | every species with DNA colours and clothes; grey default body only for about 1 s while parts load | 29.9 | |
 
 Not changed this round: no code fix was needed. Open: no hardware run; expression muzzles are not swapped (no QuestScript uses them).
+
+## 2026-11-05 - 3ds-gui Round 8 (Azahar headless, Old + New 3DS)
+
+Branch `codex/3ds-gui-panel` at `3614cd0`. The requested normal merge of
+`origin/feature/3ds-visual-fixes` reported already up to date: its current tip
+`7311b93` is already the second parent of merge `5a1be2c`. The devkitARM build passed
+with no source warnings; the linker printed only the existing `crtn.o` executable-stack
+note. Emulator timing only, with null audio; no hardware run.
+
+| Run | Model | Result | fps (last stats) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Full GUI asset sweep (`r8-regress/old`) | Old | 32 bottom frames, script complete, zero panics | 27.0 | 2188K / 14689K / 4194K |
+| Full GUI asset sweep (`r8-regress/new`) | New | same views; 31 of 32 PNGs byte-identical to Old, expected Debug statistics differ | 27.0 | 2188K / 14688K / 4194K |
+| Battle QA fixtures (`r8-regress/battle-old`) | Old | seven fixtures, script complete, zero panics | 29.9 | 3081K / 16771K / 4194K |
+| Battle QA fixtures (`r8-regress/battle-new`) | New | seven fixtures, script complete, zero panics | 29.9 | 3081K / 16771K / 4194K |
+
+Every decoded bottom frame was reviewed at native size. The pocket keeps the Aqua
+Dog head tint and readable hp/max labels; the Map view highlights only the focused DG
+button while current TTC stays grey. Battle rows, buttons, gag icons, hint card,
+`Total gags 2/20`, and normal/locked/empty/low/three-digit/gone states remain intact.
+Friends, SpeedChat, the Toon and Gags jellybean displays, and all non-Map book pages
+show their intended assets without missing, clipped, or corrupted art.
+
+The parked three-digit pocket minor was compared on Old 3DS under `r8-slash/`.
+`before-old` is unmodified `602c490`; `after-old` contains the slash change later
+committed as `3614cd0`. The slash fill is reinforced inside the same glyph advance,
+turning its one-pixel staircase into a two-pixel body without moving or shrinking
+`100` and `137`. Both scripts completed at 29.9 fps with zero emulator panics. The
+native frames and an 8x nearest-neighbor before/after sheet were reviewed.

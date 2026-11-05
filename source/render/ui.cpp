@@ -6,6 +6,7 @@
 #include "ui/gag_data.h"
 #include "ui/gag_table.h"
 #include "ui/purchase_art.h"
+#include "ui/friends_art.h"
 #include "ui/laff_meter.h"
 #include "ui/book_tab_icons.h"
 #include "ui/theme.h"
@@ -57,6 +58,14 @@ constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~
 // The info panel's button (Context::infoButton), centred near the card's foot.
 constexpr float kInfoBtnW = 160.0f, kInfoBtnH = 32.0f, kInfoBtnX = (kW - kInfoBtnW) * 0.5f, kInfoBtnY = 190.0f;
 constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
+constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButtonW = 72.0f,
+                kFriendsButtonH = 24.0f;
+constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
+                kFriendsPanelH = 204.0f;
+constexpr float kFriendsListX = 86.0f, kFriendsListY = 76.0f, kFriendsListW = 148.0f,
+                kFriendsRowH = 11.0f;
+constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
+                kFriendsCloseH = 26.0f;
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
 const char* const kBookPageNames[pad::booktab::kCount] = {"Gags",       "ToonTasks", "Cog Gallery",
@@ -213,6 +222,7 @@ void Ui::syncContext(net::Client& client, unsigned zone, bool lost, bool exclusi
         serviceClerks_.dismiss();
         if (talk_) talk_->reset();
         book_.close(changed ? "zone changed" : lost ? "left the zone" : "exclusive panel");
+        friendsOpen_ = false;
     }
     if (changed || lost) {
         if (auto* purchase = MinigamePurchasePanel::activeInstance()) purchase->close();
@@ -301,14 +311,28 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
         if (tabShown(touched)) s.tab = touched;
     }
     if (s.tab != lastTab_) {
+        if (fromTab == kTabChat && s.tab != kTabChat) friendsOpen_ = false;
         chat_.blur(); // the highlight (and A/B capture) never survives a tab change
         tabFocus_.blur(); // padnav
         lastTab_ = s.tab;
         return 0;
     }
     if (s.tab == kTabChat) {
+        if (friendsOpen_) return handleFriends(down, t, s);
+        if ((down & KEY_TOUCH) && inRect(t, kFriendsButtonX, kFriendsButtonY, kFriendsButtonW, kFriendsButtonH)) {
+            friendsOpen_ = true;
+            friendFocus_ = 0;
+            TT_LOG("padnav: friends open");
+            return KEY_TOUCH;
+        }
+        if (down & KEY_R) {
+            friendsOpen_ = true;
+            friendFocus_ = 0;
+            TT_LOG("padnav: friends open (R)");
+            return KEY_R;
+        }
         // Header button: cycle the whisper target through the toons in view.
-        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, kW - 100, 2, 96, 24)) {
+        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, 142, 2, 96, 24)) {
             cycleWhisper(s); // padnav: shared with X
             return down;
         }
@@ -444,9 +468,6 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
     case -1: break; // the Toontorial has every tab obscured
     case kTabMap: drawMap(c); break;
     case kTabChat: {
-        chat_.draw(chatBottom());
-        theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
-        if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
         numNearby_ = c.numNearby < 8 ? c.numNearby : 8;
         const char* target = "Everyone";
         for (int i = 0; i < numNearby_; i++) {
@@ -454,12 +475,31 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             snprintf(nearbyNames_[i], sizeof(nearbyNames_[i]), "%s", c.nearbyNames[i] ? c.nearbyNames[i] : "");
             if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
         }
+        numFriends_ = c.numFriends < 8 ? c.numFriends : 8;
+        for (int i = 0; i < numFriends_; i++) {
+            friendIds_[i] = c.friendIds[i];
+            snprintf(friendNames_[i], sizeof(friendNames_[i]), "%s", c.friendNames[i] && c.friendNames[i][0]
+                                                                   ? c.friendNames[i] : "Unknown Toon");
+            friendNearby_[i] = c.friendNearby[i];
+            friendOpenChat_[i] = c.friendOpenChat[i];
+        }
+        if (friendsOpen_) {
+            drawFriends(s);
+            break;
+        }
+        chat_.draw(chatBottom());
+        theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
+        if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
         if (numNearby_ > 0) {
             // SpeedChat's whisper target: green while whispering, like a rolled-over SC button.
-            theme::button(kW - 100, 1, 96, 26, s.whisperTo ? theme::kScRollover : theme::kScFrame,
+            theme::button(142, 1, 96, 26, s.whisperTo ? theme::kScRollover : theme::kScFrame,
                           s.whisperTo ? theme::kGreenDark : theme::kScFrameEdge);
-            text(kW - 94, 5, 0.42f, theme::kScText, "To: %.12s", target);
+            text(148, 5, 0.42f, theme::kScText, "To: %.12s", target);
         }
+        theme::button(kFriendsButtonX, kFriendsButtonY, kFriendsButtonW, kFriendsButtonH,
+                      theme::kScFrame, theme::kScFrameEdge);
+        drawFriendsArt(FriendsArt::NewFriend, kFriendsButtonX + 3, kFriendsButtonY + 2, 20, 20, 0.57f);
+        text(kFriendsButtonX + 24, 5, 0.4f, theme::kScText, "Friends");
         break;
     }
     case kTabToon: drawToon(s, c); break;
@@ -609,6 +649,81 @@ void Ui::drawChatLog(float y0, float y1) {
     }
 }
 
+u32 Ui::handleFriends(u32 down, const touchPosition& touch, State& s) {
+    if ((down & (KEY_B | KEY_R)) || ((down & KEY_TOUCH) &&
+                                     inRect(touch, kFriendsCloseX, kFriendsCloseY,
+                                            kFriendsCloseW, kFriendsCloseH))) {
+        friendsOpen_ = false;
+        TT_LOG("padnav: friends close");
+        return down & (KEY_B | KEY_R | KEY_TOUCH);
+    }
+    if (numFriends_ > 0 && (down & KEY_DUP)) {
+        friendFocus_ = (friendFocus_ + numFriends_ - 1) % numFriends_;
+        TT_LOG("padnav: friends focus %d", friendFocus_);
+        return KEY_DUP;
+    }
+    if (numFriends_ > 0 && (down & KEY_DDOWN)) {
+        friendFocus_ = (friendFocus_ + 1) % numFriends_;
+        TT_LOG("padnav: friends focus %d", friendFocus_);
+        return KEY_DDOWN;
+    }
+    int activate = -1;
+    if ((down & KEY_A) && numFriends_ > 0) activate = friendFocus_;
+    if ((down & KEY_TOUCH) && touch.px >= kFriendsListX && touch.px < kFriendsListX + kFriendsListW &&
+        touch.py >= kFriendsListY && touch.py < kFriendsListY + numFriends_ * kFriendsRowH) {
+        activate = static_cast<int>((touch.py - kFriendsListY) / kFriendsRowH);
+        friendFocus_ = activate;
+    }
+    if (activate >= 0 && activate < numFriends_) {
+        if (friendNearby_[activate]) {
+            s.whisperTo = friendIds_[activate];
+            friendsOpen_ = false;
+            TT_LOG("padnav: friends whisper %u", friendIds_[activate]);
+        } else {
+            TT_LOG("padnav: friends offline %u", friendIds_[activate]);
+        }
+        return down & (KEY_A | KEY_TOUCH);
+    }
+    // The list is a modal panel inside Chat. Keep a stray button from jumping or switching tabs.
+    return down;
+}
+
+void Ui::drawFriends(const State& s) {
+    (void)s;
+    if (!drawFriendsArt(FriendsArt::Panel, kFriendsPanelX, kFriendsPanelY,
+                        kFriendsPanelW, kFriendsPanelH, 0.5f)) {
+        theme::paper(kFriendsPanelX, kFriendsPanelY + 30, kFriendsPanelW,
+                     kFriendsPanelH - 30, 8.0f);
+    }
+    // FriendsListPanel.__updateTitle uses the Online Friends category by default. The original
+    // panel leaves this white title pill blank for DirectLabel to fill.
+    C2D_Text title;
+    textCache_.parse(&title, textBuf_, "Online Friends", 1024);
+    theme::textCentered(title, kW * 0.5f, 57, 0.46f, theme::kBlueDark, 136, 0.62f);
+    if (numFriends_ <= 0) {
+        C2D_Text empty;
+        textCache_.parse(&empty, textBuf_, "No friends yet.", 1024);
+        theme::textCentered(empty, kW * 0.5f, 105, 0.42f, theme::kInkSoft, kFriendsListW - 8, 0.62f);
+    }
+    for (int i = 0; i < numFriends_; i++) {
+        const float y = kFriendsListY + i * kFriendsRowH;
+        if (i == friendFocus_)
+            theme::roundRect(kFriendsListX, y, kFriendsListW, kFriendsRowH - 1, 3,
+                             theme::kScRollover, 0.58f);
+        const u32 fg = !friendNearby_[i] ? theme::kInkSoft
+                       : friendOpenChat_[i] ? theme::kBlueDark : theme::kGreenDark;
+        C2D_Text name;
+        textCache_.parse(&name, textBuf_, friendNames_[i], 1024);
+        theme::textFit(name, kFriendsListX + 5, y - 1, 0.38f, fg, kFriendsListW - 24, 0.62f);
+        theme::roundRect(kFriendsListX + kFriendsListW - 13, y + 3, 6, 6, 3,
+                         friendNearby_[i] ? theme::kGreen : theme::kGrey, 0.62f);
+    }
+    // The stock close button is already in FriendsBox_Open. B is shown as the 3DS equivalent.
+    C2D_Text close;
+    textCache_.parse(&close, textBuf_, "B", 1024);
+    theme::textCentered(close, kW * 0.5f, 181, 0.32f, theme::kWhite, 20, 0.64f);
+}
+
 // Shtiker-Book-style tabs on the binder: the open tab is yellow and stands taller.
 bool Ui::tabShown(int tab) const {
     if (tab == kTabChat) return hudChat_;
@@ -738,7 +853,7 @@ void Ui::drawMap(const Context& c) {
         map.h = mapH_;
     }
     drawMapFrame(c, map, 4, 4, kW - 8, kHoodRowY - 8);
-    drawHoodControls(c, kHomeX);
+    drawHoodControls(c, kHomeX, tabFocus_.focusedId());
 }
 
 void Ui::drawToon(const State& s, const Context& c) {

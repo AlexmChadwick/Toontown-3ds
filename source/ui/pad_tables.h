@@ -16,6 +16,12 @@ constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 17, kCogH = 32, kCogW = 78, kCogGap = 1;
+constexpr float kHintY = 3, kHintH = 45, kHintW = 74, kHintGap = 3;
+// The stock wording is reflowed to two lines so both baselines stay inside this short card's
+// cream centre. Three stock lines need the original roughly 82 px card and crossed our border.
+constexpr float kHintTextTop = 6, kHintTextStep = 13, kHintTextScale = 0.43f;
+constexpr float kHintTextMaxW = kHintW - 10;
+constexpr float kCogRight = kCogX + kMaxCogs * kCogW + (kMaxCogs - 1) * kCogGap;
 // InventoryNew inside battle_gui's red BATTLE_Menu frame: one InventoryRow per track, the label
 // end on the left and the seven gag buttons over the row's slots (InventoryRow's first slot sits
 // 22% in, ui/inventory_art.h). The rows fill [kGridY, kGridY + kGridH).
@@ -23,7 +29,7 @@ constexpr float kFrameX = 1, kFrameY = 51, kFrameW = 318, kFrameH = 150;
 constexpr float kRowX = 5, kRowW = 310, kGridY = 56, kGridH = 140;
 constexpr float kGridX = 73, kCellW = 34, kCellGap = (kRowX + kRowW - kGridX - 7 * kCellW) / 7;
 // A track still to earn keeps its labelled row, thin, so the earned rows get big buttons.
-constexpr float kThinRowH = 11, kMaxRowH = 30, kRowGap = 1;
+constexpr float kThinRowH = 15, kMaxRowH = 30, kRowGap = 1;
 // The bottom strip. InventoryNew's battle buttons sit in a 2 x 2 block, as upstream: Fire and
 // Pass above Run and SOS. In the SOS and Fire panels the block holds Back (and the SOS page).
 constexpr float kBtnY = 203, kBtnH = 36;

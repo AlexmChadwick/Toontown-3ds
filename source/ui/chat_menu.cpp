@@ -45,10 +45,8 @@ bool ChatMenu::init() {
     if (!menuBuf_ || !staticBuf_) return false;
     tt::render::textParse(&back_, staticBuf_, "< Back");
     tt::render::textParse(&arrow_, staticBuf_, ">");
-    tt::render::textParse(&hint_, staticBuf_, "Up/Down + A");
     C2D_TextOptimize(&back_);
     C2D_TextOptimize(&arrow_);
-    C2D_TextOptimize(&hint_);
     for (int m = 0; m < sc::kNumMenus; m++) {
         if (!strcmp(sc::kMenus[m].title, "TOONTASKS")) toontasksMenu_ = m;
     }
@@ -378,8 +376,6 @@ void ChatMenu::draw(float panelBottom) {
         theme::roundRect(kMarginX + 1.5f, 3.5f, kBackW - 3, kHeaderH - 8, kFrameR - 1.5f, pressedBack_ ? kPressed : kRow, kZ);
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
         titleX = kMarginX + kBackW + 8.0f;
-    } else if (focus_ < 0) {
-        C2D_DrawText(&hint_, C2D_WithColor, kW - 92.0f, 7.0f, kZ, 0.42f, 0.42f, kTitle);
     }
     C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
                  kTitle);
