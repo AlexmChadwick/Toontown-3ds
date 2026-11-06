@@ -938,7 +938,7 @@ void Ui::drawToon(const State& s, const Context& c) {
         theme::roundRect(x + 1, y + 1, kSwSize - 2, kSwSize - 2, 5, colorOf(i));
     }
     text(10, 152, 0.46f, theme::kInk, "Tap a color. Head, arms and legs share the body color.");
-    text(10, 172, 0.44f, theme::kInkSoft, "A: jump   B: walk   L/R: turn the camera");
+    text(kPocketW + 6, 172, 0.44f, theme::kInkSoft, "A: jump   B: walk   L/R: turn the camera");
 }
 
 // The Shtiker Book's cover: one button per page (upstream opens the book with its HUD button).
