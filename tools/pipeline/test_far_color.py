@@ -418,5 +418,52 @@ class StraightSeamTest(unittest.TestCase):
         self.assertIn((64.0, 64.0, 0.0), edge[0])
 
 
+class FarTileTest(unittest.TestCase):
+    def test_clear_texels_take_the_opaque_neighbour_colour(self):
+        import street_atlas
+        px = np.zeros((4, 4, 4), dtype=np.uint8)
+        px[:, :2] = (200, 40, 40, 255)
+        px[:, 2:] = (0, 255, 0, 0)  # hidden green under alpha 0
+        out = street_atlas._alpha_fill(px)
+        self.assertTrue((out[:, 2:, :3] == (200, 40, 40)).all())
+        self.assertTrue((out[:, 2:, 3] == 0).all())
+
+    def test_halve_weights_colour_by_alpha(self):
+        import street_atlas
+        px = np.zeros((2, 2, 4), dtype=np.uint8)
+        px[0, 0] = (255, 255, 255, 255)
+        px[0, 1] = px[1, 0] = px[1, 1] = (0, 0, 0, 0)
+        out = street_atlas._weighted_halve(px)
+        self.assertEqual(tuple(out[0, 0]), (255, 255, 255, 64))
+
+    def test_triangles_inside_the_unit_square_sample_their_crop(self):
+        class Tex:
+            this = 7
+
+            def getXSize(self):
+                return 256
+
+            getYSize = getXSize
+
+            def getFormat(self):
+                return 0
+
+            def getNumComponents(self):
+                return 4
+
+            def getName(self):
+                return 'palette'
+
+        verts = np.array([[0, 0, 0, .25, .25, 1, 1, 1, 1], [1, 0, 0, .5, .25, 1, 1, 1, 1],
+                          [0, 0, 1, .25, .5, 1, 1, 1, 1]], dtype=np.float64)
+        b = ttm.Batch(0, ttm.BLEND_ALPHA_TEST, False, 0, 0, verts, np.arange(3, dtype=np.int64))
+        ext, out = bake_street._crop_far_sources([Tex()], [b], encode=False)
+        self.assertEqual(len(ext), 2)
+        self.assertEqual(out[0].texture, 1)
+        uv = out[0].verts[:, 3:5]
+        self.assertTrue((uv >= 0).all() and (uv <= 1).all())
+        self.assertAlmostEqual(float(uv[:, 0].max() - uv[:, 0].min()), 64 / 66, places=6)
+
+
 if __name__ == '__main__':
     unittest.main()

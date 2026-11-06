@@ -242,7 +242,10 @@ Key decisions:
      (balloons, palm fronds, tree leaves) and decals (windows, doors, shop signs)
      with unit UVs keep their texture on one small per-chunk far atlas page (16px
      tiles, two mips, 64/128/256 page): a corner texel of a cutout is clear, so its
-     vertex-coloured copy vanished on Old 3DS past 160. Wall-like cutouts that repeat along u
+     vertex-coloured copy vanished on Old 3DS past 160. Each far tile is a crop of the palette rectangle the chunk
+     samples (a whole palette in 16px made Daisy Gardens' daisies grey-green), shrunk with
+     alpha-weighted mips, and the page keeps source culling (all two-sided, Elm Street's
+     awning backs floated over the houses). Textured far attempts go down to a 1 unit voxel. Wall-like cutouts that repeat along u
      (fences, hedges) keep a full-width wrapping row of that page, so the TTC fence
      is not a flat salmon band past 160. Far decals are not voxel
      snapped (they z-fought), sign letters keep priority, and far hill cards are

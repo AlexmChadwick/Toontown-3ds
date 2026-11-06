@@ -30,6 +30,68 @@ def texture_pixels(tex, size):
     return pixels,components,fmt
 
 
+def _alpha_fill(px, passes=8):
+    """Clear texels (alpha 0) take the mean colour of their opaque neighbours, grown a ring
+    per pass, so filtering or a mip at a cutout edge never pulls in the colour hidden
+    under alpha 0 (Daisy Gardens' far daisies had grey-green petals)."""
+    a = px[:, :, 3] > 0
+    if a.all() or not a.any():
+        return px
+    out = px.copy()
+    rgb = out[:, :, :3].astype(np.float64)
+    known = a.copy()
+    for _ in range(passes):
+        if known.all():
+            break
+        acc = np.zeros(rgb.shape)
+        cnt = np.zeros(known.shape)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                if dy or dx:
+                    k = np.roll(np.roll(known, dy, 0), dx, 1)
+                    acc += np.roll(np.roll(rgb * known[:, :, None], dy, 0), dx, 1)
+                    cnt += k
+        grow = ~known & (cnt > 0)
+        rgb[grow] = acc[grow] / cnt[grow, None]
+        known |= grow
+    if known.any():
+        rgb[~known] = rgb[known].mean(axis=0)
+    out[:, :, :3] = np.where(a[:, :, None], out[:, :, :3], np.round(rgb).astype(np.uint8))
+    return out
+
+
+def _weighted_halve(region):
+    """2x2 box filter with colour weighted by alpha (equal to the plain filter when opaque)."""
+    h, w = region.shape[:2]
+    blk = region.astype(np.uint32).reshape(h // 2, 2, w // 2, 2, 4)
+    a = blk[..., 3]
+    sa = a.sum(axis=(1, 3))
+    plain = (blk.sum(axis=(1, 3)) + 2) // 4
+    wc = ((blk[..., :3] * a[..., None]).sum(axis=(1, 3)) + sa[..., None] // 2) // np.maximum(sa, 1)[..., None]
+    out = plain.copy()
+    out[..., :3] = np.where(sa[..., None] > 0, wc, plain[..., :3])
+    return out.astype(np.uint8)
+
+
+def tile_pixels(tex, tile):
+    """A texture at most tile px a side for an atlas tile. With alpha the shrink is alpha
+    weighted from up to 256 px and clear texels are filled, so thin cutout parts keep their
+    own colour; opaque textures are exactly texture_pixels(tex, tile)."""
+    image, nc, fmt = texture_pixels(tex, max(tile, 256))
+    if (image[:, :, 3] == 255).all():
+        return texture_pixels(tex, tile)
+    image = _alpha_fill(image)
+    while image.shape[0] > tile or image.shape[1] > tile:
+        h, w = image.shape[:2]
+        if h > tile and w > tile:
+            image = _alpha_fill(_weighted_halve(image))
+        elif h > tile:
+            image = _alpha_fill(_weighted_halve(np.repeat(image, 2, axis=1)))
+        else:
+            image = _alpha_fill(_weighted_halve(np.repeat(image, 2, axis=0)))
+    return image, nc, fmt
+
+
 class Extractor(extract.Extractor):
     def __init__(self):
         super().__init__(layer_rules=__import__('assemble').LAYER_RULES)
@@ -148,10 +210,9 @@ def _tile_mips(page, slots, levels):
             h, w = region.shape[:2]
             if h % 2 or w % 2:
                 raise ValueError('atlas tile region is not even')
-            acc = region.astype(np.uint16)
-            down = (acc.reshape(h // 2, 2, w // 2, 2, 4).sum(axis=(1, 3)) + 2) // 4
+            down = _alpha_fill(_weighted_halve(region))
             nx, ny = x0 // 2, y0 // 2
-            nxt[ny:ny + down.shape[0], nx:nx + down.shape[1]] = down.astype(np.uint8)
+            nxt[ny:ny + down.shape[0], nx:nx + down.shape[1]] = down
             halved.append((x // 2, y // 2, tile // 2, gutter // 2))
         pages.append(nxt)
         cur = halved
@@ -214,7 +275,7 @@ def build(sources, chunks, *, tile=32, gutter=4, standalone_size=128, mip_levels
         for slot, idx in enumerate(entries[start:start + per_page]):
             x, y = (slot % cols) * span + gutter, (slot // cols) * span + gutter
             if encode:
-                image, _, _ = texture_pixels(sources[idx], tile)
+                image, _, _ = tile_pixels(sources[idx], tile)
                 # Upscale small source images to a predictable slot size (nearest).
                 image = image[np.arange(tile) * image.shape[0] // tile][:, np.arange(tile) * image.shape[1] // tile]
                 px[y - gutter:y + tile + gutter, x - gutter:x + tile + gutter] = np.pad(

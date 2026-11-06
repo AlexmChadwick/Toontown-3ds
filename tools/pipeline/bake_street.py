@@ -447,6 +447,130 @@ def _soft_card(image, uv):
     return bool(shown.size) and float((shown > 232).mean()) < FAR_SOFT_OPAQUE
 
 
+# A far tile holds only the UV rectangle its triangles sample. Toontown props sample
+# small parts of shared 256-512px palettes, and a whole palette in a 16px tile left
+# Daisy Gardens' far daisies a few grey-green pixels of daisy, lawnmower and duck.
+FAR_CROP_PAD = 1  # source texels around each rectangle (bilinear and mip footprint)
+FAR_CROP_MAX_TILES = 100  # past this a chunk keeps whole textures (a 256 page holds 144)
+_FAR_CROPS = {}
+_FAR_CROP_IMAGES = {}
+
+
+class _CropRef:
+    """What street_atlas.build(encode=False) reads of a crop: clamped, not a font."""
+    WM_repeat = 1
+    this = -1
+
+    def getWrapU(self):
+        return 0
+
+    getWrapV = getWrapU
+
+
+def _far_crop_texture(tex, rect, encode=True):
+    """A clamped Panda texture of one texel rectangle (x0, y0, x1, y1; y up) of tex."""
+    from panda3d.core import PNMImage, Texture
+    if not encode:
+        return _CropRef()
+    key = (int(tex.this), rect)
+    if key not in _FAR_CROPS:
+        img = _FAR_CROP_IMAGES.get(int(tex.this))
+        if img is None:
+            img = PNMImage()
+            if not tex.store(img):
+                raise RuntimeError(f'cannot read texture {tex.getName()}')
+            _FAR_CROP_IMAGES[int(tex.this)] = img
+        x0, y0, x1, y1 = rect
+        h = img.getYSize()
+        sub = PNMImage(x1 - x0, y1 - y0, img.getNumChannels(), img.getMaxval())
+        sub.copySubImage(img, 0, 0, x0, h - y1, x1 - x0, y1 - y0)
+        out = Texture(f'{tex.getName()}@{x0},{y0},{x1},{y1}')
+        out.load(sub)
+        out.setWrapU(Texture.WM_clamp)
+        out.setWrapV(Texture.WM_clamp)
+        _FAR_CROPS[key] = out
+    return _FAR_CROPS[key]
+
+
+def _crop_far_sources(sources, batches, encode=True):
+    """(sources + cropped textures, batches remapped onto them) for one chunk.
+
+    Triangles whose UVs stay inside the unit square are grouped by overlapping texel
+    rectangles; each group samples its own crop. Repeating or clamped-outside UVs,
+    sign fonts and alpha-only masks keep the whole texture."""
+    import numpy as np
+    import ttm
+    from panda3d.core import Texture
+    ext = list(sources)
+    groups = {}  # texture -> [[rect, [(batch, tri index)...]], ...]
+    for bi, b in enumerate(batches):
+        tex = sources[b.texture] if b.texture is not None else None
+        if (tex is None or sign_text.is_font_texture(tex) or tex.getFormat() == Texture.F_alpha
+                or tex.getNumComponents() < 3):
+            continue
+        w, h = tex.getXSize(), tex.getYSize()
+        tris = b.verts[b.indices.reshape(-1, 3)]
+        for ti, tri in enumerate(tris):
+            uv = tri[:, 3:5]
+            if float(uv.min()) < -1e-4 or float(uv.max()) > 1 + 1e-4:
+                continue
+            rect = [max(0, int(np.floor(uv[:, 0].min() * w)) - FAR_CROP_PAD),
+                    max(0, int(np.floor(uv[:, 1].min() * h)) - FAR_CROP_PAD),
+                    min(w, int(np.ceil(uv[:, 0].max() * w)) + FAR_CROP_PAD),
+                    min(h, int(np.ceil(uv[:, 1].max() * h)) + FAR_CROP_PAD)]
+            groups.setdefault(b.texture, []).append([rect, [(bi, ti)]])
+    merged = {}
+    for t, items in sorted(groups.items()):
+        changed = True
+        while changed:
+            changed = False
+            out = []
+            for rect, members in items:
+                for o in out:
+                    r = o[0]
+                    if rect[0] < r[2] and r[0] < rect[2] and rect[1] < r[3] and r[1] < rect[3]:
+                        o[0] = [min(r[0], rect[0]), min(r[1], rect[1]), max(r[2], rect[2]), max(r[3], rect[3])]
+                        o[1].extend(members)
+                        changed = True
+                        break
+                else:
+                    out.append([rect, members])
+            items = out
+        tex = sources[t]
+        area = tex.getXSize() * tex.getYSize()
+        # A group covering most of the texture gains nothing from a crop.
+        merged[t] = [(r, m) for r, m in items if (r[2] - r[0]) * (r[3] - r[1]) < area // 2]
+    if sum(len(v) for v in merged.values()) > FAR_CROP_MAX_TILES:
+        return ext, batches
+    remap = {}  # (batch, tri) -> (new texture, rect)
+    for t, items in sorted(merged.items()):
+        for rect, members in items:
+            ext.append(_far_crop_texture(sources[t], tuple(rect), encode))
+            for m in members:
+                remap[m] = (len(ext) - 1, rect)
+    if not remap:
+        return ext, batches
+    out = []
+    for bi, b in enumerate(batches):
+        tris = b.verts[b.indices.reshape(-1, 3)]
+        parts = {}
+        for ti, tri in enumerate(tris):
+            new = remap.get((bi, ti))
+            if new is None:
+                parts.setdefault(b.texture, []).append(tri)
+                continue
+            nt, (x0, y0, x1, y1) = new
+            tex = sources[b.texture]
+            tri = tri.copy()
+            tri[:, 3] = np.clip((tri[:, 3] * tex.getXSize() - x0) / (x1 - x0), 0.0, 1.0)
+            tri[:, 4] = np.clip((tri[:, 4] * tex.getYSize() - y0) / (y1 - y0), 0.0, 1.0)
+            parts.setdefault(nt, []).append(tri)
+        for t, tl in sorted(parts.items(), key=lambda kv: kv[0]):
+            v = np.concatenate(tl)
+            out.append(ttm.Batch(t, b.blend, b.two_sided, b.tint, b.layer, v, np.arange(len(v), dtype=np.int64)))
+    return ext, out
+
+
 def build_far_atlas(sources, chunks, encode=True):
     """Per-chunk atlas pages for the detail batches of each chunk.
 
@@ -454,29 +578,34 @@ def build_far_atlas(sources, chunks, encode=True):
     chunk's list). The page is the smallest of FAR_PAGES that holds the chunk's
     textures; only a chunk that overflows a 256 page uses more than one.
     """
+    import numpy as np
     import street_atlas
     import ttm
     span = FAR_ATLAS['tile'] + 2 * FAR_ATLAS['gutter']
     pages, out = [], []
     for batches in chunks:
+        ext, batches = _crop_far_sources(sources, batches, encode)
         used = sorted({b.texture for b in batches})
         if not used:
             pages.append([])
             out.append([])
             continue
         local = {src: i for i, src in enumerate(used)}
-        srcs = [sources[i] for i in used]
+        srcs = [ext[i] for i in used]
         rows = street_atlas.strip_rows_needed(srcs, [[ttm.Batch(local[b.texture], b.blend, b.two_sided, 0, 0,
                                                                 b.verts, b.indices) for b in batches]],
                                               FAR_ATLAS['tile'], FAR_ATLAS['gutter'], FAR_ATLAS['mip_levels'])
         # Repeating cutouts (fences, hedges) take full-width rows at the page bottom.
         page = next((p for p in FAR_PAGES if len(used) <= (p // span) * ((p - rows) // span)), FAR_PAGES[-1])
-        # One draw per page: far detail is alpha tested (a blended decal past lodNear
-        # reads the same at >0.5), two-sided and on one decal layer. Split by state it
-        # cost about three draws a chunk, and a TTC view past the 150 submit cap
-        # dropped a far ground chunk (a sky hole).
+        # Far detail is alpha tested (a blended decal past lodNear reads the same at
+        # >0.5) and on one decal layer. Split by blend and layer it cost about three
+        # draws a chunk, and a TTC view past the 150 submit cap dropped a far ground
+        # chunk (a sky hole). It keeps the source culling: drawn all two-sided, the
+        # backs of Elm Street's awnings, windows and doors floated over the houses in
+        # front. street_atlas.build folds up to FOLD_TWO_SIDED_MAX two-sided triangles
+        # into the one-sided draw (added again reversed); more cost one more draw.
         # Soft blended cards never get here (_colorize_far keeps them as blended cards).
-        remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, True, 0, 1, b.verts, b.indices)
+        remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, bool(b.two_sided), 0, 1, b.verts, b.indices)
                     for b in batches]
         textures, result = street_atlas.build(srcs, [remapped], encode=encode,
                                               standalone_size=32, page=page, repeat_standalone=True,
@@ -564,6 +693,7 @@ def _merge_states(batches):
 # A uniform far voxel above this is mostly spent on split ground; choose_far then tries
 # a coarser ground lattice under a finer one for everything else.
 COARSE_FAR = 2
+FAR_TEXTURED_STEP = 1
 FAR_GROUND_STEPS = (24, 32, 48)
 FAR_DETAIL_WEIGHT = 8
 
@@ -706,16 +836,22 @@ def choose_far(sources, raw, chunks, images=None):
     # coarser voxel rung than the plain far mesh; past that the shape suffers more.
     # Sign letters come first: a detailed mesh that loses letters the plain one kept is
     # not taken.
-    for step in steps[rung:rung + 2]:
+    # Steps up to FAR_TEXTURED_STEP are always worth it: a unit is about two pixels at
+    # lodNear, and Elm Street's letters only fitted beside its textured walls at 1.
+    tries = [s for s in steps[rung:] if s in steps[rung:rung + 2] or s <= FAR_TEXTURED_STEP]
+    for step in tries:
         detailed, _ = attempt(step, True, ground)
         if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
             return detailed
     # Decal pages cost a draw per chunk. Bodies ride on the coloured draw, so a mesh at
     # the draw cap (Lawbot HQ's skyline, Bossbot HQ) still gets textured far walls.
-    bodied, _ = attempt(steps[rung], True, ground, bodies_only=True)
-    if bodied is not None and bodied[2]['body_triangles'] and (
-            bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
-        return bodied
+    for step in tries:
+        bodied, (_, draws) = attempt(step, True, ground, bodies_only=True)
+        if bodied is not None and bodied[2]['body_triangles'] and (
+                bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+            return bodied
+        if bodied is None and draws is None:
+            break  # far pages over FAR_BODY_TEXTURE_CAP: a coarser voxel does not shrink them
     return plain
 
 
