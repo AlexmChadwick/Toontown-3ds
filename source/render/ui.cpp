@@ -62,7 +62,7 @@ constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButton
                 kFriendsButtonH = 24.0f;
 constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
                 kFriendsPanelH = 204.0f;
-constexpr float kFriendsListX = 86.0f, kFriendsListY = 76.0f, kFriendsListW = 148.0f,
+constexpr float kFriendsListX = 102.0f, kFriendsListY = 76.0f, kFriendsListW = 124.0f,
                 kFriendsRowH = 11.0f;
 constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
                 kFriendsCloseH = 26.0f;
