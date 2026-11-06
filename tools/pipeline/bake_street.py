@@ -571,7 +571,7 @@ def _crop_far_sources(sources, batches, encode=True):
     return ext, out
 
 
-def build_far_atlas(sources, chunks, encode=True):
+def build_far_atlas(sources, chunks, encode=True, fold=True):
     """Per-chunk atlas pages for the detail batches of each chunk.
 
     Returns (per-chunk textures, per-chunk batches whose texture indexes that
@@ -607,9 +607,17 @@ def build_far_atlas(sources, chunks, encode=True):
         # Soft blended cards never get here (_colorize_far keeps them as blended cards).
         remapped = [ttm.Batch(local[b.texture], ttm.BLEND_ALPHA_TEST, bool(b.two_sided), 0, 1, b.verts, b.indices)
                     for b in batches]
-        textures, result = street_atlas.build(srcs, [remapped], encode=encode,
-                                              standalone_size=32, page=page, repeat_standalone=True,
-                                              **FAR_ATLAS)
+        # fold=False keeps a chunk's two-sided triangles in their own draw: a view near
+        # the triangle budget with draws to spare (TTC) keeps its finer voxel and letters.
+        saved = street_atlas.FOLD_TWO_SIDED_MAX
+        if not fold:
+            street_atlas.FOLD_TWO_SIDED_MAX = -1
+        try:
+            textures, result = street_atlas.build(srcs, [remapped], encode=encode,
+                                                  standalone_size=32, page=page, repeat_standalone=True,
+                                                  **FAR_ATLAS)
+        finally:
+            street_atlas.FOLD_TWO_SIDED_MAX = saved
         pages.append(textures)
         out.append(result[0])
     return pages, out
@@ -726,7 +734,7 @@ def choose_far(sources, raw, chunks, images=None):
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
     cell_size = chunks[0].get('cell_size') if chunks else None
-    def attempt(step, details, ground=None, bodies_only=False):
+    def attempt(step, details, ground=None, bodies_only=False, fold=True):
         """The far mesh at one voxel step, or None when a PVS misses the budget.
 
         `ground` is a coarser lattice for corners only on up-facing faces. bodies_only
@@ -751,7 +759,7 @@ def choose_far(sources, raw, chunks, images=None):
         if bodies_only and far_texture_worst(chunks, body_pages) > FAR_BODY_TEXTURE_CAP:
             return None, (None, None)
         if details:
-            _, atlased = build_far_atlas(sources, extra, encode=False)
+            _, atlased = build_far_atlas(sources, extra, encode=False, fold=fold)
             # Count each chunk's pages as their own textures; nothing is shared.
             placed = [list(c) + [ttm.Batch(('far', i, b.texture), b.blend, b.two_sided, 0, b.layer,
                                            b.verts, b.indices) for b in a]
@@ -778,7 +786,7 @@ def choose_far(sources, raw, chunks, images=None):
         if images is None:
             colored, textures = encode_far_pages(sources, colored)
             if details:
-                pages, atlased = build_far_atlas(sources, extra)
+                pages, atlased = build_far_atlas(sources, extra, fold=fold)
                 for i, (chunk_pages, batches) in enumerate(zip(pages, atlased)):
                     base = len(textures)
                     textures.extend(chunk_pages)
@@ -840,9 +848,10 @@ def choose_far(sources, raw, chunks, images=None):
     # lodNear, and Elm Street's letters only fitted beside its textured walls at 1.
     tries = [s for s in steps[rung:] if s in steps[rung:rung + 2] or s <= FAR_TEXTURED_STEP]
     for step in tries:
-        detailed, _ = attempt(step, True, ground)
-        if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
-            return detailed
+        for fold in (True, False):
+            detailed, _ = attempt(step, True, ground, fold=fold)
+            if detailed is not None and (detailed[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+                return detailed
     # Decal pages cost a draw per chunk. Bodies ride on the coloured draw, so a mesh at
     # the draw cap (Lawbot HQ's skyline, Bossbot HQ) still gets textured far walls.
     for step in tries:
