@@ -36,13 +36,54 @@
 #include "ui/map_view.h"
 #include "ui/speedchat_data.h"
 #include "net/client.h" // OwnStats / OwnQuests / OwnBookStats
+// Panels for the shop / clerk / battle lane: real headers, driven through the same Ui owner
+// resolution the device uses (Ui::resolveOwner -> panel->draw / panel->handleInput).
+#include "ui/battle_panel.h"
+#include "ui/shop_panel.h"
+#include "ui/service_clerk_panel.h"
+#include "ui/closet_panel.h"
+#include "ui/tailor_panel.h"
+#include "ui/fishing_panel.h"
+#include "ui/minigame_purchase_panel.h"
+#include "ui/shop_rules.h"
+#include "ui/sos_tables.h"
+#include "ui/panel_owner.h"
+#include "world/toon_dna.h"
+
+// The fake-session staging defined in host_stub.cpp (see the Client::connect() seal there):
+// a suite fills these, calls gClient.connect(), and the panel openers see the same client
+// state the datagram parser would have produced for the same server messages. Global-scope
+// redeclarations of ::host's externs (a block inside the anonymous namespace would shadow the
+// recorder's ::host and break every host::gRecords below).
+namespace host {
+extern uint32_t stageAvatarId;
+extern tt::net::OwnStats stageStats;
+extern uint8_t stageOwnDna[tt::net::kDnaSize];
+extern tt::net::ShopMovie stageShopMovie;
+extern tt::net::TailorMovie stageTailorMovie;
+extern tt::net::Closet stageCloset;
+extern tt::net::ClerkProfile stageClerkProfile;
+extern tt::net::ClerkSession stageClerkSession;
+extern tt::net::OwnFish stageOwnFish;
+extern tt::net::OwnBookStats stageOwnBook;
+extern tt::net::NpcToon stageNpc;
+extern std::vector<tt::net::ClerkMovie> stageClerkMovies;
+extern size_t clerkMovieHead;
+extern int stageFishTotal;
+void stageReset();
+} // namespace host
 
 namespace {
 
 using namespace tt::ui;                    // the UI's public constants (pad::, theme::, kLaff* cells)
 namespace net = tt::net;                   // OwnStats / OwnQuests / OwnBookStats (as Context spells them)
 namespace gags = tt::gags;                 // kTracks / kLevels / kLevelExp
+namespace world = tt::world;              // BattleView / ToonDna (as battle_panel.h spells them)
+namespace shop = tt::shop;                // Cart / carryMax (as shop_panel.h spells them)
+namespace pb = tt::ui::pad::battle;        // the battle focus-table geometry (screen version)
+namespace pc = tt::ui::pad::counter;       // the shop / purchase button row
 namespace booktab = tt::ui::pad::booktab;  // Book cover button grid
+
 
 // ---------------------------------------------------------------------------
 // Test scaffolding
@@ -160,7 +201,7 @@ bool scissorRect(const HostRecord& r, float* x, float* y, float* w, float* h) {
 // Invariant 1: everything drawn stays on the bottom screen
 // ---------------------------------------------------------------------------
 
-void assertBounds(const char* panel, bool allowPocketBleed = true) {
+void assertBounds(const char* panel, bool allowPocketBleed = true, float extraTop = 0.0f) {
     bool haveScissor = false;
     float sx = 0, sy = 0, sw = 0, sh = 0;
     for (const auto& r : host::gRecords) {
@@ -180,14 +221,19 @@ void assertBounds(const char* panel, bool allowPocketBleed = true) {
                                     r.kind != HostRecord::Image && r.y + r.h > kScreenH &&
                                     r.y >= kScreenH - 36 && r.y + r.h <= kScreenH + kPocketBleed + kEps;
         chk(r.x >= -bleed - kEps, panel, "record left edge %.1f off screen", r.x);
-        chk(r.y >= -kEps, panel, "record top edge %.1f off screen", r.y);
+        chk(r.y >= -kEps - extraTop, panel, "record top edge %.1f off screen", r.y);
         chk(r.x + r.w <= kW + kEps, panel, "record right %.1f past 320", r.x + r.w);
         chk(r.y + r.h <= kScreenH + bleed + kEps || bottomHanging, panel, "record bottom %.1f past 240",
             r.y + r.h);
         if (r.kind == HostRecord::Text) {
             // Text is never off-screen, bleed or not: the pocket bleeds only the cell art.
-            chk(r.x >= -kEps && r.y >= -kEps && r.x + r.w <= kW + kEps && r.y + r.h <= kScreenH + kEps,
-                panel, "text '%s' off screen at (%.1f, %.1f, %.1f x %.1f)", r.text.c_str(), r.x, r.y, r.w, r.h);
+            // extraTop is the pre-existing full-screen panels' header baseline (the battle
+            // status strip draws its label at y = -1 by design; the ImpressBT cell has ~3px
+            // head padding, so no glyph ink clips).
+            chk(r.x >= -kEps && r.y >= -kEps - extraTop && r.x + r.w <= kW + kEps &&
+                    r.y + r.h <= kScreenH + kEps,
+                panel, "text '%s' off screen at (%.1f, %.1f, %.1f x %.1f)", r.text.c_str(), r.x,
+                r.y, r.w, r.h);
         }
     }
 }
@@ -935,6 +981,1044 @@ void suiteTabBar() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Invariant 2b: distinct labels never share pixels
+// ---------------------------------------------------------------------------
+
+// The ImpressBT cell (ch=31, base=23) keeps its ink off the cell's top rows and
+// below the baseline; discounting that padding compares ink, not line boxes.
+bool rectsOverlapInk(const HostRecord& a, const HostRecord& b) {
+    const float aTop = a.y + a.h * 0.16f, aBot = a.y + a.h * 0.74f;
+    const float bTop = b.y + b.h * 0.16f, bBot = b.y + b.h * 0.74f;
+    return a.x < b.x + b.w - 0.51f && b.x < a.x + a.w - 0.51f && aTop < bBot - 0.31f &&
+           bTop < aBot - 0.31f;
+}
+
+// An opaque fill drawn after this text (record order is paint order) covers its ink: the
+// label is hidden behind a later card, so overlapping it tells nothing about what is shown.
+bool coveredByLaterFill(const HostRecord& a, size_t ai) {
+    const float ax0 = a.x + 0.5f, ax1 = a.x + a.w - 0.5f;
+    const float ay0 = a.y + a.h * 0.16f, ay1 = a.y + a.h * 0.74f;
+    for (size_t k = ai + 1; k < host::gRecords.size(); k++) {
+        const HostRecord& r = host::gRecords[k];
+        if (r.kind != HostRecord::Rect && r.kind != HostRecord::RectGrad) continue;
+        if ((r.color >> 24) != 0xFF) continue;
+        if (r.x <= ax0 && r.x + r.w >= ax1 && r.y <= ay0 && r.y + r.h >= ay1) return true;
+    }
+    return false;
+}
+
+// Every pair of labels in one panel frame: outline / shadow copies of the same
+// string (drawOutlinedText, centered bold, the Cast / Exit shadows) are laid out
+// once and drawn a hair apart on purpose; a label hidden behind a later opaque
+// card is invisible; anything else that shares pixels is two lines on top of
+// each other.
+void assertLabelsNoOverlap(const char* panel) {
+    const auto ts = textRecords();
+    for (size_t i = 0; i < ts.size(); i++) {
+        for (size_t j = i + 1; j < ts.size(); j++) {
+            const HostRecord& a = *ts[i];
+            const HostRecord& b = *ts[j];
+            // outline / shadow copies: the same string drawn up to 1 px offset in
+            // each direction (their pairs span up to 2 px)
+            if (a.text == b.text && fabsf(a.x - b.x) < 2.1f && fabsf(a.y - b.y) < 2.1f) continue;
+            if (coveredByLaterFill(a, i)) continue;
+            chk(!rectsOverlapInk(a, b), panel, "labels '%s' (%.1f, %.1f, %.1f x %.1f) and '%s' "
+                                                 "(%.1f, %.1f, %.1f x %.1f) overlap",
+                a.text.c_str(), a.x, a.y, a.w, a.h, b.text.c_str(), b.x, b.y, b.w, b.h);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Full-screen panel owners: battle, gag shop, service clerks, tailor, closet,
+// minigame purchase, fishing
+// ---------------------------------------------------------------------------
+// These panels replace the tab bar entirely (ui/panel_owner.h choosePanel), so
+// the suites drive them the way the device does: fill the client state the
+// datagram parser would have produced (host::stage* + Client::connect(), both
+// in host_stub.cpp), pump the panel's own session method once per frame, give
+// Ui one input frame, then draw through Ui (resolveOwner hands the screen to
+// the active panel).
+
+tt::net::Client* gClient = nullptr;
+
+// The staged session the panel suites share: 214 beans, every track unlocked to
+// level 2, a few level-0 gags in the bag.
+void stagePanelSession() {
+    host::stageReset();
+    host::stageStats.money = 214;
+    host::stageStats.bankMoney = 30;
+    host::stageStats.maxCarry = 60;
+    host::stageStats.maxHp = 57;
+    for (int t = 0; t < 7; t++) {
+        host::stageStats.trackAccess[t] = 1;
+        host::stageStats.experience[t] = uint16_t(gags::kLevelExp[t][2]);
+        host::stageStats.inventory[t][0] = 2;
+        if (t == 4 || t == 5) host::stageStats.inventory[t][1] = 1;
+    }
+    gClient->connect();
+}
+
+// One device frame: input first (Ui::draw expects the same owner resolve), draw.
+u32 uiFrame(u32 down, u32 held, float tx, float ty) {
+    const u32 used = gUi->handleInput(down, held, T(tx, ty), *gState);
+    drawOnce();
+    return used;
+}
+
+const HostRecord* findTextIn(const char* str, float x, float y, float w, float h) {
+    for (const auto* t : textRecords())
+        if (t->text == str && contains(*t, x, y, w, h)) return t;
+    return nullptr;
+}
+
+void assertTextInside(const char* panel, const HostRecord* t, const char* label, float x, float y,
+                      float w, float h) {
+    char what[160];
+    snprintf(what, sizeof what, "%s: '%s' drawn", panel, label);
+    chk(t != nullptr, what);
+    if (t) {
+        snprintf(what, sizeof what, "%s: '%s' inside (%.0f, %.0f, %.0f x %.0f)", panel, label, x,
+                 y, w, h);
+        chk(contains(*t, x, y, w, h), what);
+    }
+}
+
+// The battle panel's toon cards (drawToons): a laff meter face per toon, the
+// same head / mouth rules as the tab bar's pocket, asserted inside the card.
+void assertCardLaff(const char* panel, float bx, float by, float bw, float bh, int hp, int maxHp,
+                    const float rgb[3], int species) {
+    const int speciesHead = kLaffDoghead + (species >= 0 && species < 9 ? species : 0);
+    const bool dead = hp < 1, full = hp >= maxHp && !dead;
+    const u32 wantTint = dead ? quantizeColor(0.58039216f, 0.80392157f, 0.34117647f)
+                              : quantizeColor(rgb[0], rgb[1], rgb[2]);
+    int head = 0, frown = 0, smile = 0, open = 0;
+    for (const auto& r : host::gRecords) {
+        if (r.x + r.w < bx - 2 || r.x > bx + bw + 2 || r.y + r.h < by - 2 || r.y > by + bh + 2)
+            continue;
+        if (isLaffPart(r, speciesHead) && r.tintAlpha > 0.5f) {
+            if (r.tint == wantTint) ++head;
+        } else if (isLaffPart(r, kLaffFrown)) {
+            ++frown;
+        } else if (isLaffPart(r, kLaffSmile)) {
+            ++smile;
+        } else if (isLaffPart(r, kLaffOpenSmile)) {
+            ++open;
+        }
+    }
+    chk(head == 1, "%s: card laff head drawn in the head tint", panel);
+    if (dead) chk(frown >= 1 && smile + open == 0, "%s: a dead card shows the frown only", panel);
+    if (full) chk(smile >= 1 && open == 0 && frown == 0, "%s: a full-laff card smiles", panel);
+    if (!dead && !full) chk(open >= 1, "%s: a mid-laff card uses the open smile", panel);
+    // The hp/max label rides under the meter, inside the card.
+    char n[24];
+    snprintf(n, sizeof n, "%d/%d", hp > 0 ? hp : 0, maxHp);
+    assertTextInside(panel, findTextIn(n, bx, by + bh * 0.5f, bw, bh * 0.5f), n, bx,
+                     by + bh * 0.5f, bw, bh * 0.5f);
+}
+
+// ===========================================================================
+// Battle panel: gag picker, Cog targeting, SOS, Fire, reward
+// ===========================================================================
+
+void suiteBattle() {
+    printf("suite: battle panel (gag picker, Cog targeting)\n");
+    static world::BattleView v;
+    v = world::BattleView{};
+    v.phase = world::BattlePhase::Input;
+    v.secondsLeft = 20;
+    v.canRun = true;
+    v.status = "Choose a gag to attack!";
+    v.numCogs = 2;
+    v.cogs[0].doId = 7001;
+    strcpy(v.cogs[0].name, "Flunky");
+    v.cogs[0].level = 2;
+    v.cogs[0].hp = 12;
+    v.cogs[0].maxHp = 30;
+    v.cogs[0].active = true;
+    strcpy(v.cogs[0].code, "f");
+    v.cogs[1].doId = 7002;
+    strcpy(v.cogs[1].name, "Backstabber");
+    v.cogs[1].level = 6;
+    v.cogs[1].hp = 45;
+    v.cogs[1].maxHp = 45;
+    v.cogs[1].active = true;
+    strcpy(v.cogs[1].code, "bc");
+    v.numToons = 2;
+    v.toons[0].doId = 100000101;
+    strcpy(v.toons[0].name, "Little Pepper");
+    v.toons[0].active = true;
+    v.toons[0].local = true;
+    v.toons[0].species = 0;
+    v.toons[0].hp = 34;
+    v.toons[0].maxHp = 57;
+    const float red[3] = {0.933594f, 0.265625f, 0.28125f};
+    v.toons[0].rgb[0] = red[0];
+    v.toons[0].rgb[1] = red[1];
+    v.toons[0].rgb[2] = red[2];
+    v.toons[1].doId = 100000202;
+    strcpy(v.toons[1].name, "Sleepy Rabbit");
+    v.toons[1].active = true;
+    v.toons[1].species = 4;
+    v.toons[1].hp = 18;
+    v.toons[1].maxHp = 45;
+    const float blue[3] = {0.09375f, 0.273438f, 0.546875f};
+    for (int k = 0; k < 3; k++) v.toons[1].rgb[k] = blue[k];
+
+    // The bag: some of every level-0 gag we own.
+    static uint8_t bag[7][7];
+    static uint16_t bagExp[7];
+    static uint8_t bagAccess[7];
+    memset(bag, 0, sizeof bag);
+    memset(bagAccess, 1, 7);
+    for (int t = 0; t < 7; t++) {
+        bagExp[t] = uint16_t(gags::kLevelExp[t][3]);
+        bag[t][0] = uint8_t(1 + (t % 3));
+    }
+    BattleGags g;
+    g.count = bag;
+    g.exp = bagExp;
+    g.access = bagAccess;
+    g.maxCarry = 26;
+    gUi->setBattle(&v, g);
+
+    bool owned[7];
+    float rowY[7], rowH[7];
+    for (int t = 0; t < 7; t++) owned[t] = true;
+    pad::battleRows(owned, rowY, rowH);
+    const float cellX0 = pb::kGridX, cellStep = pb::kCellW + pb::kCellGap;
+
+    // The targeted Cog's card wears the red tab (roundRect(x + 1, kCogY + 1, w - 2, 3)).
+    const auto targetTabX = []() -> int {
+        for (const auto& r : host::gRecords) {
+            if (r.kind != HostRecord::Rect) continue;
+            if (r.color != (0xFF000000u | tt::ui::theme::kRed)) continue;
+            if (r.h >= 2.9f && r.h <= 3.5f && r.w > 72 - 4 && r.w < 76 + 4 &&
+                r.y >= pb::kCogY - 1 && r.y <= pb::kCogY + 2 && r.x > 0.5f && r.x < kW)
+                return int(r.x + 0.5f) - 2;
+        }
+        return -1;
+    };
+
+    // ---- the attack view: Cogs, gag grid, buttons, toon cards ----
+    uiFrame(0, 0, 0, 0);
+    chk(host::gRecords.size() > 60, "battle: attack draw produced records", "%zu",
+        host::gRecords.size());
+    assertBounds("battle attack", true, 2.0f); // the status strip's label baseline is y = -1
+    assertLabelsNoOverlap("battle attack");
+    // Status strip: the status and the total-gags counter share one line.
+    chk(countTextStarting("Total gags") == 1, "battle: one total counter");
+    const HostRecord* total = nullptr;
+    for (const auto* t : textRecords())
+        if (t->text.rfind("Total gags", 0) == 0) total = t;
+    chk(total != nullptr, "battle: total gags counter drawn");
+    if (total) chk(total->x >= 6 && total->x + total->w <= kW - 4,
+                   "battle: total counter fits the corner", "%.1f", total->x + total->w);
+    chk(findTextIn(v.status, 0, -2, 220, 16) != nullptr, "battle: status drawn");
+    // Cog cards: name and level inside their card.
+    for (int i = 0; i < 2; i++) {
+        const float x = pb::kCogX + i * (pb::kCogW + pb::kCogGap);
+        char what[48];
+        snprintf(what, sizeof what, "battle: cog %d name drawn", i);
+        assertTextInside("battle", findTextIn(v.cogs[i].name, x, pb::kCogY, pb::kCogW, pb::kCogH),
+                         v.cogs[i].name, x, pb::kCogY, pb::kCogW, pb::kCogH);
+        char lv[16];
+        snprintf(lv, sizeof lv, "Level %d", v.cogs[i].level);
+        snprintf(what, sizeof what, "battle: cog %d level drawn", i);
+        assertTextInside("battle", findTextIn(lv, x, pb::kCogY, pb::kCogW, pb::kCogH), lv, x,
+                         pb::kCogY, pb::kCogW, pb::kCogH);
+    }
+    chk(targetTabX() == int(pb::kCogX), "battle: cog 0 is the first target", "%d", targetTabX());
+    // Gag grid: every unlocked level's icon and count inside its row cell.
+    int icons = 0;
+    for (const auto& r : host::gRecords)
+        if (r.tag.rfind("gag-icon", 0) == 0) ++icons;
+    chk(icons >= 4, "battle: gag icons drawn", "%d", icons);
+    for (int t = 0; t < 7; t++) {
+        const int levels = gags::levelsUnlocked(t, bagExp[t]);
+        for (int l = 0; l < levels; l++) {
+            const float x = cellX0 + l * cellStep;
+            const int track = t;
+            bool icon = false;
+            for (const auto& im : host::gRecords) {
+                if (im.tag.rfind("gag-icon", 0) != 0) continue;
+                if (contains(im, x, rowY[track], pb::kCellW, rowH[track], 1.0f)) {
+                    icon = true;
+                    break;
+                }
+            }
+            char what[64];
+            snprintf(what, sizeof what, "battle: gag %d-%d icon inside its cell", track, l);
+            chk(icon, what);
+            char num[8];
+            snprintf(num, sizeof num, "%u", unsigned(bag[track][l]));
+            snprintf(what, sizeof what, "battle: gag %d-%d count inside its cell", track, l);
+            chk(findTextIn(num, x, rowY[track], pb::kCellW, rowH[track]) != nullptr, what);
+        }
+    }
+    // Gag icons from different cells never overlap each other.
+    for (size_t i = 0; i < host::gRecords.size(); i++) {
+        if (host::gRecords[i].kind != HostRecord::Image ||
+            host::gRecords[i].tag.rfind("gag-icon", 0) != 0)
+            continue;
+        for (size_t j = i + 1; j < host::gRecords.size(); j++) {
+            if (host::gRecords[j].kind != HostRecord::Image ||
+                host::gRecords[j].tag.rfind("gag-icon", 0) != 0)
+                continue;
+            chk(!rectsOverlapInk(host::gRecords[i], host::gRecords[j]),
+                "battle: gag icons %s and %s overlap", host::gRecords[i].tag.c_str(),
+                host::gRecords[j].tag.c_str());
+        }
+    }
+    // Buttons: FIRE / PASS above RUN / SOS, each label inside its face, faces disjoint.
+    const struct {
+        const char* label;
+        float x, y;
+    } kBtns[4] = {{"FIRE", pb::kFireX, pb::kBtnY}, {"PASS", pb::kPassX, pb::kBtnY},
+                  {"RUN", pb::kRunX, pb::kRow2Y}, {"SOS", pb::kSosX, pb::kRow2Y}};
+    for (int i = 0; i < 4; i++) {
+        char what[48];
+        snprintf(what, sizeof what, "battle: %s label drawn", kBtns[i].label);
+        assertTextInside("battle", findTextIn(kBtns[i].label, kBtns[i].x, kBtns[i].y, pb::kSmallW,
+                                              pb::kSmallH),
+                         kBtns[i].label, kBtns[i].x, kBtns[i].y, pb::kSmallW, pb::kSmallH);
+        for (int j = i + 1; j < 4; j++) {
+            if (fabsf(kBtns[i].y - kBtns[j].y) >= 1.0f) continue;
+            chk(kBtns[i].x + pb::kSmallW <= kBtns[j].x - 0.5f,
+                "battle: %s and %s faces do not overlap", kBtns[i].label, kBtns[j].label);
+        }
+    }
+    // Toon cards: the pocket's laff rules inside each card, plus each pick square.
+    const float cardW = 66.0f;
+    for (int i = 0; i < 2; i++) {
+        const float x = pb::kToonsX + i * (cardW + 2.0f);
+        char what[48];
+        snprintf(what, sizeof what, "battle toon %d", i);
+        assertCardLaff(what, x, pb::kBtnY, cardW, pb::kBtnH, v.toons[i].hp, v.toons[i].maxHp,
+                       i == 0 ? red : blue, v.toons[i].species);
+        assertTextInside(what, findTextIn("?", x, pb::kBtnY, cardW, pb::kBtnH), "?", x, pb::kBtnY,
+                         cardW, pb::kBtnH);
+    }
+    // The button block and the toon cards do not overlap.
+    chk(pb::kSosX + pb::kSmallW <= pb::kToonsX - 0.5f,
+        "battle: buttons and toon cards do not overlap");
+
+    // ---- targeting: L moves the target card, a single-target gag follows it ----
+    uiFrame(KEY_L, 0, 0, 0);
+    chk(targetTabX() == int(pb::kCogX + (pb::kCogW + pb::kCogGap)),
+        "battle: L retargets to cog 1", "%d", targetTabX());
+    // Once the D-Pad has moved the focus, the focused gag gets its detail line.
+    uiFrame(KEY_DDOWN, 0, 0, 0);
+    uiFrame(KEY_DDOWN, 0, 0, 0);
+    uiFrame(KEY_DDOWN, 0, 0, 0);
+    int detail = 0;
+    for (const auto& r : host::gRecords)
+        if (r.kind == HostRecord::Text && r.text.find("Accuracy: ") != std::string::npos) ++detail;
+    chk(detail >= 1, "battle: the focused gag's detail line drawn");
+    assertBounds("battle detail", true, 2.0f);
+    assertLabelsNoOverlap("battle detail");
+
+    // Throw (single target): the attack goes to the targeted Cog.
+    world::BattleAction act{};
+    uiFrame(KEY_TOUCH, 0, cellX0 + pb::kCellW * 0.5f, rowY[4] + rowH[4] * 0.5f);
+    chk(gUi->battle().popAction(act), "battle: a tapped throw gag becomes an action");
+    chk(act.kind == world::BattleAction::Attack && act.track == 4 && act.level == 0,
+        "battle: the action is Throw level 0");
+    chk(act.target == v.cogs[1].doId, "battle: the throw targets the selected cog", "%u",
+        act.target);
+    // Sound (group attack): no single target.
+    uiFrame(KEY_TOUCH, 0, cellX0 + pb::kCellW * 0.5f, rowY[3] + rowH[3] * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Attack && act.track == 3,
+        "battle: sound gag picked");
+    chk(act.target == 0, "battle: a group attack has target 0", "%u", act.target);
+    // Toon-Up (with a second toon) heals them, not us.
+    uiFrame(KEY_TOUCH, 0, cellX0 + pb::kCellW * 0.5f, rowY[0] + rowH[0] * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Attack && act.track == 0,
+        "battle: toon-up gag picked");
+    chk(act.target == v.toons[1].doId, "battle: toon-up targets the other toon", "%u",
+        act.target);
+    // Pass and Run.
+    uiFrame(KEY_TOUCH, 0, pb::kPassX + pb::kSmallW * 0.5f, pb::kBtnY + pb::kSmallH * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Pass,
+        "battle: the PASS button passes");
+    uiFrame(KEY_TOUCH, 0, pb::kRunX + pb::kSmallW * 0.5f, pb::kRow2Y + pb::kSmallH * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Run,
+        "battle: the RUN button runs");
+    // A dead battle friend still gets its card, with the frown.
+    v.toons[1].hp = 0;
+    uiFrame(0, 0, 0, 0);
+    assertCardLaff("battle sad toon", pb::kToonsX + (cardW + 2.0f), pb::kBtnY, cardW, pb::kBtnH, 0,
+                   45, blue, 4);
+
+    // ---- SOS: the Rescued Toons cards, paging, a spent card ----
+    v.toons[1].hp = 18;
+    v.canSos = true;
+    v.numSosCards = 9;
+    v.sosCards[0] = {1001, 2}; // Clerk Will, trap 4
+    v.sosCards[1] = {1116, 1}; // Barnacle Bessie, drop 5
+    v.sosCards[2] = {2001, 0}; // Flippy: no calls left
+    for (int i = 3; i < 9; i++) v.sosCards[i] = {1323, 1}; // Stinky Ned, lure 5
+    uiFrame(KEY_TOUCH, 0, pb::kSosX + pb::kSmallW * 0.5f, pb::kRow2Y + pb::kSmallH * 0.5f);
+    assertBounds("battle sos", true, 2.0f);
+    assertLabelsNoOverlap("battle sos");
+    chk(findTextIn("Call which friend?", 1, -2, 318, 19) != nullptr, "battle: SOS status drawn");
+    const char* const kSosNames[3] = {"Clerk Will", "Barnacle Bessie", "Flippy"};
+    for (int i = 0; i < 3; i++) {
+        const float x = pb::kCardX + (i % 4) * (pb::kCardW + pb::kCardGap);
+        const float y = pb::kCardY + (i / 4) * (pb::kCardH + pb::kCardGap);
+        char what[64];
+        snprintf(what, sizeof what, "battle: SOS card %d name drawn", i);
+        assertTextInside("battle", findTextIn(kSosNames[i], x, y, pb::kCardW, pb::kCardH),
+                         kSosNames[i], x, y, pb::kCardW, pb::kCardH);
+    }
+    assertTextInside("battle", findTextIn("BACK", pb::kBackX, pb::kBtnY, pb::kBackW, pb::kSmallH),
+                     "BACK", pb::kBackX, pb::kBtnY, pb::kBackW, pb::kSmallH);
+    assertTextInside("battle",
+                     findTextIn("Page 1 / 2", pb::kBackX, pb::kRow2Y, pb::kBackW, pb::kSmallH),
+                     "Page 1 / 2", pb::kBackX, pb::kRow2Y, pb::kBackW, pb::kSmallH);
+    // L / R page the SOS cards; page 2's first card is Stinky Ned (a lure card, callable).
+    uiFrame(KEY_R, 0, 0, 0);
+    chk(findTextIn("Page 2 / 2", pb::kBackX, pb::kRow2Y, pb::kBackW, pb::kSmallH) != nullptr,
+        "battle: R turns the SOS page");
+    uiFrame(KEY_TOUCH, 0, pb::kCardX + pb::kCardW * 0.5f, pb::kCardY + pb::kCardH * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::NpcSos,
+        "battle: an SOS card becomes an NpcSos action");
+    chk(act.target == 1323, "battle: the called friend is the card's NPC", "%u", act.target);
+    uiFrame(0, 0, 0, 0);
+    chk(findTextIn("FIRE", pb::kFireX, pb::kBtnY, pb::kSmallW, pb::kSmallH) != nullptr,
+        "battle: SOS returns to the attack view");
+    // A spent card (Flippy, 0 left) cannot be called.
+    uiFrame(KEY_TOUCH, 0, pb::kSosX + pb::kSmallW * 0.5f, pb::kRow2Y + pb::kSmallH * 0.5f);
+    uiFrame(KEY_TOUCH, 0,
+            pb::kCardX + 2 * (pb::kCardW + pb::kCardGap) + pb::kCardW * 0.5f,
+            pb::kCardY + pb::kCardH * 0.5f);
+    chk(!gUi->battle().popAction(act), "battle: a spent SOS card calls nobody");
+    uiFrame(KEY_B, 0, 0, 0); // back to the attack view
+
+    // ---- Fire: pink slips over the Cog cards ----
+    v.canSos = false;
+    v.canFire = true;
+    v.pinkSlips = 2;
+    uiFrame(KEY_TOUCH, 0, pb::kFireX + pb::kSmallW * 0.5f, pb::kBtnY + pb::kSmallH * 0.5f);
+    assertBounds("battle fire", true, 2.0f);
+    assertLabelsNoOverlap("battle fire");
+    chk(findTextIn("PINK SLIPS LEFT: 2", 1, pb::kGridY - 3, 318, pb::kGridH + 4) != nullptr,
+        "battle: the fire slip count drawn");
+    chk(findTextIn("FIRE WHICH COG?", 1, pb::kGridY - 3, 318, pb::kGridH + 4) != nullptr,
+        "battle: FIRE WHICH COG? drawn");
+    assertTextInside("battle", findTextIn("FIRED!", 110, pb::kGridY + 14, 100, 62), "FIRED!", 110,
+                     pb::kGridY + 14, 100, 62);
+    for (int i = 0; i < 2; i++) {
+        const float x = pb::kCogX + i * (pb::kCogW + pb::kCogGap);
+        char what[48];
+        snprintf(what, sizeof what, "battle: cog %d fire chip drawn", i);
+        assertTextInside("battle", findTextIn("Fire", x, pb::kCogY, pb::kCogW, pb::kCogH), "Fire",
+                         x, pb::kCogY, pb::kCogW, pb::kCogH);
+    }
+    uiFrame(KEY_TOUCH, 0, pb::kCogX + pb::kCogW * 0.5f, pb::kCogY + pb::kCogH * 0.5f);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Fire,
+        "battle: tapping a cog in fire mode fires it");
+    chk(act.target == v.cogs[0].doId, "battle: the fired cog is the tapped one", "%u",
+        act.target);
+    // Without slips the FIRE button is dead.
+    v.canFire = false;
+    v.pinkSlips = 0;
+    uiFrame(0, 0, 0, 0);
+    uiFrame(KEY_TOUCH, 0, pb::kFireX + pb::kSmallW * 0.5f, pb::kBtnY + pb::kSmallH * 0.5f);
+    chk(!gUi->battle().popAction(act), "battle: FIRE without pink slips does nothing");
+    chk(countTextStarting("PINK SLIPS") == 0, "battle: the fire panel did not open");
+
+    // ---- the reward view ----
+    v.phase = world::BattlePhase::Reward;
+    v.numCogs = 0; // the defeated Cogs have left the fight
+    v.cogsDefeated = 2;
+    v.floorReward = false;
+    v.rewardSent = false;
+    v.numRewardRows = 2;
+    v.reward[0].track = 4;
+    v.reward[0].earned = 12;
+    v.reward[0].orig = 40;
+    v.reward[1].track = 5;
+    v.reward[1].earned = 6;
+    v.reward[1].orig = 39;
+    uiFrame(0, 0, 0, 0);
+    chk(host::gRecords.size() > 40, "battle: reward draw produced records");
+    assertBounds("battle reward", true, 2.0f);
+    assertLabelsNoOverlap("battle reward");
+    chk(findTextIn("Cogs defeated: 2", 2, pb::kCogY + 2, kW - 4, 180) != nullptr,
+        "battle: the defeated count drawn");
+    assertTextInside("battle", findTextIn("Throw", 10, pb::kCogY + 24, 60, 160), "Throw", 10,
+                     pb::kCogY + 24, 60, 160);
+    assertTextInside("battle", findTextIn("Squirt", 10, pb::kCogY + 24, 60, 160), "Squirt", 10,
+                     pb::kCogY + 24, 60, 160);
+    assertBounds("battle reward bars", true, 2.0f);
+    // Continue, clear of the toon cards.
+    assertTextInside("battle",
+                     findTextIn("Continue", pb::kContinueX, pb::kContinueY, pb::kContinueW,
+                                pb::kContinueH),
+                     "Continue", pb::kContinueX, pb::kContinueY, pb::kContinueW, pb::kContinueH);
+    chk(pb::kToonsRewardX + pb::kToonsRewardW <= pb::kContinueX,
+        "battle: the reward cards stay clear of Continue");
+    uiFrame(KEY_A, 0, 0, 0);
+    chk(gUi->battle().popAction(act) && act.kind == world::BattleAction::Continue,
+        "battle: A continues from the reward");
+    // The Toontorial's reward dialog draws over the view with its OK button.
+    v.tutorialDialog = "You did it! Take these gags.";
+    uiFrame(0, 0, 0, 0);
+    assertBounds("battle reward dialog", true, 2.0f);
+    assertLabelsNoOverlap("battle reward dialog");
+    const HostRecord* dialog = findTextIn(v.tutorialDialog, 40, 40, kW - 80, 100);
+    chk(dialog != nullptr, "battle: the tutorial dialog drawn");
+    if (dialog)
+        chk(dialog->x >= 52 - kEps && dialog->y >= 52 - kEps && dialog->x + dialog->w <= 278,
+            "battle: the dialog text inside its card", "(%.1f, %.1f, %.1f)", dialog->x, dialog->y,
+            dialog->x + dialog->w);
+    assertTextInside("battle", findTextIn("OK (A)", 40, 118, kW - 80, 24), "OK (A)", 40, 118,
+                     kW - 80, 24);
+    v.tutorialDialog = nullptr;
+
+    // ---- the movie phase: input ignored, the panel still draws in bounds ----
+    v.phase = world::BattlePhase::Movie;
+    uiFrame(KEY_A, 0, 0, 0);
+    assertBounds("battle movie", true, 2.0f);
+    chk(!gUi->battle().popAction(act), "battle: A during the movie sends nothing");
+
+    // Leaving the battle: the tab owner takes the screen back.
+    gUi->setBattle(nullptr, g);
+    uiFrame(0, 0, 0, 0);
+    chk(findTextIn("Map", 62, 208, 52, 32) != nullptr, "battle: clear returns to the tabs");
+}
+
+// ===========================================================================
+// Gag shop, service clerks, tailor, closet, minigame purchase, fishing
+// ===========================================================================
+
+// The gag shop's grid (shared by the minigame purchase panel): file-local
+// constants of shop_panel.cpp mirrored beside the draw code they test.
+constexpr float kShopNameX = 4, kShopGridX = 64, kShopGridY = 26, kShopCellW = 42, kShopCellH = 22;
+constexpr float kShopInfoY = 184, kShopSignW = 170;
+
+void assertShopGrid(const char* panel, const char* doneLabel, const tt::shop::Cart& cart,
+                    const tt::shop::Profile& profile) {
+    for (int t = 0; t < 7; t++) {
+        const float y = kShopGridY + t * kShopCellH;
+        char what[64];
+        snprintf(what, sizeof what, "%s: track label '%s' inside its pill", panel,
+                 tt::ui::theme::kTrackTitles[t]);
+        assertTextInside(panel, findTextIn(tt::ui::theme::kTrackTitles[t], kShopNameX, y + 1,
+                                           kShopGridX - kShopNameX - 3, kShopCellH - 3),
+                         tt::ui::theme::kTrackTitles[t], kShopNameX, y + 1,
+                         kShopGridX - kShopNameX - 3, kShopCellH - 3);
+        for (int l = 0; l < 4; l++) {
+            const float x = kShopGridX + l * kShopCellW;
+            const bool open = profile.trackAccess[t] && shop::expLevel(t, profile.experience[t]) >= l;
+            char cell[24];
+            if (!open) {
+                strcpy(cell, "-");
+            } else {
+                snprintf(cell, sizeof cell, "%u/%d", unsigned(cart.inv[t][l]),
+                         shop::carryMax(profile, t, l));
+            }
+            snprintf(what, sizeof what, "%s: gag %d-%d cell drawn", panel, t, l);
+            assertTextInside(panel, findTextIn(cell, x, y, kShopCellW - 1, kShopCellH - 1), cell, x,
+                             y, kShopCellW - 1, kShopCellH - 1);
+        }
+    }
+    // The button row: [-] [+] <done> Cancel, pairwise disjoint, each label inside. The done
+    // caption is the panel's own (DONE SHOPPING in the gag shop; the trolley purchase panel
+    // uses upstream's GagShopBackToPlayground instead, so the suite passes it in).
+    const struct {
+        const char* label;
+        float cx, w;
+    } kRow[4] = {
+        {"-", pc::kMinusX + pc::kBtnSmallW * 0.5f, pc::kBtnSmallW},
+        {"+", pc::kPlusX + pc::kBtnSmallW * 0.5f, pc::kBtnSmallW},
+        {doneLabel, pc::kDoneX + pc::kDoneW * 0.5f, pc::kDoneW},
+        {"Cancel", pc::kCancelX + pc::kCancelW * 0.5f, pc::kCancelW}};
+    const float kRowX0[4] = {pc::kMinusX, pc::kPlusX, pc::kDoneX, pc::kCancelX};
+    const float kRowW[4] = {pc::kBtnSmallW, pc::kBtnSmallW, pc::kDoneW, pc::kCancelW};
+    for (int i = 0; i < 4; i++) {
+        char what[64];
+        snprintf(what, sizeof what, "%s: button %d label inside", panel, i);
+        assertTextInside(panel, findTextIn(kRow[i].label, kRowX0[i], pc::kBtnY, kRowW[i],
+                                           pc::kBtnH),
+                         kRow[i].label, kRowX0[i], pc::kBtnY, kRowW[i], pc::kBtnH);
+        for (int j = i + 1; j < 4; j++)
+            chk(kRowX0[i] + kRowW[i] <= kRowX0[j] - 0.5f,
+                "%s: buttons %d and %d do not overlap", panel, i, j);
+    }
+}
+
+void suiteShop() {
+    printf("suite: gag shop panel\n");
+    stagePanelSession();
+    host::stageShopMovie.clerkDoId = 555;
+    host::stageShopMovie.mode = net::kPurchaseMovieStart;
+    host::stageShopMovie.deadlineMs = uint32_t(gHostNowMs) + 120000;
+    host::stageShopMovie.seq = 1;
+    gClient->connect();
+    gUi->shop().onMovie(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->shop().active(), "shop: the panel is open");
+    chk(gUi->shop().clerkDoId() == 555, "shop: the clerk id recorded");
+    chk(gUi->shop().secondsLeft(uint32_t(gHostNowMs)) == 120, "shop: the countdown starts at 120",
+        "%d", gUi->shop().secondsLeft(uint32_t(gHostNowMs)));
+
+    const uint32_t kDeadline = uint32_t(gHostNowMs) + 120000;
+    auto frame = [&](u32 down, float tx = 0, float ty = 0, uint32_t now = uint32_t(gHostNowMs)) {
+        gUi->shop().update(*gClient, now);
+        const u32 used = gUi->handleInput(down, 0, T(tx, ty), *gState);
+        drawOnce();
+        return used;
+    };
+
+    frame(0);
+    chk(host::gRecords.size() > 60, "shop: draw produced records", "%zu", host::gRecords.size());
+    assertBounds("shop");
+    assertLabelsNoOverlap("shop");
+    // The plank title and the carry tag beside it.
+    assertTextInside("shop", findTextIn("Goofy's Gag Shop", 4, 0, kShopSignW, 24),
+                     "Goofy's Gag Shop", 4, 0, kShopSignW, 24);
+    assertTextInside("shop", findTextIn("Carry: 16/60", kShopSignW + 10, 2, 138, 20),
+                     "Carry: 16/60", kShopSignW + 10, 2, 138, 20);
+    // The grid and the button row.
+    tt::shop::Profile profile;
+    for (int t = 0; t < 7; t++) {
+        profile.experience[t] = host::stageStats.experience[t];
+        profile.trackAccess[t] = host::stageStats.trackAccess[t];
+    }
+    profile.maxCarry = host::stageStats.maxCarry;
+    assertShopGrid("shop", "DONE\nSHOPPING", gUi->shop().cart(), profile);
+    // The info line fits its strip and the money label sits on the jar. Its wording is
+    // ShopPanel::rebuildInfo's: the selected gag (track 0, level 0) not yet bought, so
+    // "have <bag> of <carryMax>": carryMax for our experience, computed by the same
+    // shop_rules the cell counts above use (15 at exp level 2, not a flat 10).
+    char info[96];
+    snprintf(info, sizeof info, "%s: have %u of %d. 1 bean each", gags::kGagNames[0][0],
+             unsigned(gUi->shop().cart().inv[0][0]), shop::carryMax(profile, 0, 0));
+    const HostRecord* infoRec = findTextIn(info, 1, kShopInfoY - 3, 318, 18);
+    chk(infoRec != nullptr, "shop: the info line drawn (%s)", info);
+    if (infoRec)
+        chk(infoRec->x + infoRec->w <= kW - 4, "shop: the info line fits", "%.1f",
+            infoRec->x + infoRec->w);
+    chk(findTextIn("214", 100, pc::kBtnY - 4, 74, 40) != nullptr, "shop: the bean count on the jar");
+
+    // The gag icons sit left of their cell count (16 px icon starting x + 2).
+    for (int t = 0; t < 7; t++) {
+        for (int l = 0; l < 4; l++) {
+            const float x = kShopGridX + l * kShopCellW;
+            const float y = kShopGridY + t * kShopCellH;
+            const bool open = profile.trackAccess[t] &&
+                              shop::expLevel(t, profile.experience[t]) >= l;
+            if (!open) continue;
+            const HostRecord* icon = nullptr;
+            for (const auto& r : host::gRecords) {
+                if (r.kind != HostRecord::Image) continue;
+                char tag[32];
+                snprintf(tag, sizeof tag, "gag-icon %d-%d", t, l);
+                if (r.tag == tag) icon = &r;
+            }
+            char what[64];
+            snprintf(what, sizeof what, "shop: gag %d-%d icon drawn", t, l);
+            chk(icon != nullptr, what);
+            if (icon) {
+                snprintf(what, sizeof what, "shop: gag %d-%d icon inside its cell", t, l);
+                chk(contains(*icon, x, y, kShopCellW - 1, kShopCellH - 1, 1.0f), what);
+            }
+        }
+        break; // the icons repeat per track; spot-check track 0 only
+    }
+
+    // Buying: A buys the selected gag (onMovie starts the cursor on the first
+    // open track: Toon-Up level 0).
+    frame(KEY_A);
+    chk(gUi->shop().cart().inv[0][0] == 3 && gUi->shop().cart().money == 213,
+        "shop: A buys one more of the selected gag", "%u", unsigned(gUi->shop().cart().inv[0][0]));
+    chk(gUi->shop().cart().bought(0, 0) == 1, "shop: the cart remembers what it bought");
+    // A locked cell refuses: level 3 is beyond our experience.
+    chk(!gUi->shop().buy(0, 3), "shop: buying a locked gag is refused");
+    assertLabelsNoOverlap("shop refused");
+    frame(0);
+    // The [+] button on the jar row buys too.
+    frame(KEY_TOUCH, pc::kPlusX + pc::kBtnSmallW * 0.5f, pc::kBtnY + pc::kBtnH * 0.5f);
+    chk(gUi->shop().cart().bought(0, 0) == 2, "shop: the [+] button buys");
+    // Cancel closes without sending a purchase.
+    gUi->shop().finish(false); // Done: queued
+    frame(0);
+    chk(!gUi->shop().active(), "shop: Done closes the panel");
+
+    // Reopen with a near deadline: update auto-submits and closes (sendClerkSetInventory
+    // is an inert host stub; the close is the behaviour under test).
+    host::stageShopMovie.mode = net::kPurchaseMovieStart;
+    host::stageShopMovie.seq++;
+    gClient->connect();
+    gUi->shop().onMovie(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->shop().active(), "shop: reopened");
+    frame(0, 0, 0, kDeadline - 1000);
+    chk(!gUi->shop().active(), "shop: the panel auto-submits before the AI timeout");
+    gUi->shop().dismiss();
+}
+
+void suiteClerks() {
+    printf("suite: service clerk panels (pet, kart, fisherman)\n");
+    stagePanelSession();
+    host::stageNpc.doId = 777;
+    host::stageNpc.active = true;
+    host::stageOwnFish.tankCount = 3;
+    host::stageFishTotal = 40;
+    net::ClerkMovie m1{};
+    m1.clerk = 777;
+    m1.kind = net::ClerkKind::Pet;
+    m1.mode = 1;
+    m1.deadline = uint32_t(gHostNowMs) + 90000;
+    host::stageClerkMovies.push_back(m1);
+    gClient->connect();
+    gUi->serviceClerks().update(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->serviceClerks().active(), "clerk: the pet clerk opened");
+    chk(gUi->serviceClerks().kind() == net::ClerkKind::Pet, "clerk: the kind is Pet");
+
+    auto frame = [&](u32 down, float tx = 0, float ty = 0,
+                     uint32_t now = uint32_t(gHostNowMs)) {
+        gUi->serviceClerks().update(*gClient, now);
+        const u32 used = gUi->handleInput(down, 0, T(tx, ty), *gState);
+        drawOnce();
+        return used;
+    };
+
+    frame(0);
+    chk(host::gRecords.size() > 40, "clerk: draw produced records", "%zu", host::gRecords.size());
+    assertBounds("clerk pet menu");
+    assertLabelsNoOverlap("clerk pet menu");
+    // Title, bean line and countdown badge, inside the card, the badge clear of the title.
+    assertTextInside("clerk", findTextIn("Pet shop", 4, 4, 312, 194), "Pet shop", 4, 4, 312, 194);
+    assertTextInside("clerk", findTextIn("Jellybeans 214   Bank 30", 4, 4, 312, 194),
+                     "Jellybeans 214   Bank 30", 4, 4, 312, 194);
+    assertTextInside("clerk", findTextIn("1:30", 268, 9, 40, 20), "1:30", 268, 9, 40, 20);
+    // Menu rows inside their pills (rows start at y = 3*23 + 6 = 75).
+    const char* const kPetRows[4] = {"Sell fish", "Adopt a Doodle", "No Doodle to return", "Done"};
+    for (int i = 0; i < 4; i++) {
+        const float y = 3 * 23 + 6 + i * 23;
+        char what[64];
+        snprintf(what, sizeof what, "clerk: pet row %d drawn", i);
+        assertTextInside("clerk", findTextIn(kPetRows[i], 13, y - 1, 294, 20), kPetRows[i], 13,
+                         y - 1, 294, 20);
+    }
+    assertTextInside("clerk", findTextIn("Tank: 3 fish, value 40 beans", 4, 4, 312, 194),
+                     "Tank: 3 fish, value 40 beans", 4, 4, 312, 194);
+    // The button pills match the touch columns (Prev < 75, Next < 150, Choose < 235, B else).
+    const struct {
+        const char* label;
+        float x, w, col;
+    } kCols[4] = {{ "< Prev", 4, 68, 75}, {"Next >", 79, 68, 150}, {"Choose", 154, 78, 235},
+                  {"Back", 239, 77, 320}};
+    for (int i = 0; i < 4; i++) {
+        char what[64];
+        snprintf(what, sizeof what, "clerk: %s drawn in its column", kCols[i].label);
+        assertTextInside("clerk", findTextIn(kCols[i].label, kCols[i].x, 206, kCols[i].w, 30),
+                         kCols[i].label, kCols[i].x, 206, kCols[i].w, 30);
+        chk(kCols[i].x + kCols[i].w <= kCols[i].col, "clerk: %s fits its touch column",
+            kCols[i].label);
+        if (i)
+            chk(kCols[i - 1].w + kCols[i - 1].x <= kCols[i].x, "clerk: the pill buttons do not overlap");
+    }
+    // Touch down the rows chooses one; the footer buttons page / act.
+    frame(KEY_TOUCH, 100, 210); // Next column
+    frame(KEY_TOUCH, 200, 210); // Choose: adopt
+    chk(findTextIn("Waiting for the server's Doodle seeds...", 4, 4, 312, 194) != nullptr,
+        "clerk: the pet page shows the empty-seeds wording");
+    assertBounds("clerk pets");
+    assertLabelsNoOverlap("clerk pets");
+    frame(KEY_B, 0, 0); // back to the menu
+    // The fisherman clerk: sell fish, with the result page and its lone OK.
+    net::ClerkMovie m2{};
+    m2.clerk = 888;
+    m2.kind = net::ClerkKind::Fisherman;
+    m2.mode = 1;
+    m2.deadline = uint32_t(gHostNowMs) + 90000;
+    host::stageClerkMovies.push_back(m2);
+    host::stageNpc.doId = 888;
+    frame(0);
+    chk(gUi->serviceClerks().kind() == net::ClerkKind::Fisherman, "clerk: a new movie switches kind");
+    assertBounds("clerk fisherman");
+    assertLabelsNoOverlap("clerk fisherman");
+    chk(findTextIn("Sell 3 fish for 40 jellybeans?", 4, 4, 312, 194) != nullptr,
+        "clerk: the fisherman sell line drawn");
+    frame(KEY_A, 0, 0);
+    chk(gUi->serviceClerks().active(), "clerk: the sale keeps the panel open for the result");
+    frame(0);
+    chk(findTextIn("Waiting for the fish sale...", 4, 4, 312, 194) != nullptr,
+        "clerk: the result wording drawn");
+    assertBounds("clerk result");
+    assertLabelsNoOverlap("clerk result");
+    chk(findTextIn("Back", 4, 206, 312, 30) == nullptr, "clerk: a result page shows no Back");
+    // The result expires.
+    frame(0, 0, 0, uint32_t(gHostNowMs) + 6001);
+    chk(!gUi->serviceClerks().active(), "clerk: the result page expires");
+    gUi->serviceClerks().dismiss();
+}
+
+void suiteTailor() {
+    printf("suite: tailor panel\n");
+    stagePanelSession();
+    // A valid ToonDNA net string (the front end's default dog).
+    const uint8_t dna[net::kDnaSize] = {'t', 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 1};
+    for (int i = 0; i < net::kDnaSize; i++) host::stageOwnDna[i] = dna[i];
+    host::stageTailorMovie.tailorDoId = 556;
+    host::stageTailorMovie.mode = net::kTailorMovieStart;
+    host::stageTailorMovie.deadlineMs = uint32_t(gHostNowMs) + 280000;
+    gClient->connect();
+    gUi->tailor().onMovie(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->tailor().active(), "tailor: the panel is open");
+
+    auto frame = [&](u32 down, float tx = 0, float ty = 0, uint32_t now = uint32_t(gHostNowMs)) {
+        gUi->tailor().update(*gClient, now);
+        const u32 used = gUi->handleInput(down, 0, T(tx, ty), *gState);
+        drawOnce();
+        return used;
+    };
+    frame(0);
+    chk(host::gRecords.size() > 40, "tailor: draw produced records", "%zu", host::gRecords.size());
+    assertBounds("tailor");
+    assertLabelsNoOverlap("tailor");
+    assertTextInside("tailor", findTextIn("Clothing Store", 4, 3, 312, 30), "Clothing Store", 4, 3,
+                     312, 30);
+    // The two shuffle rows: labels inside, rows disjoint (kTopY 38, kBottomY 104).
+    assertTextInside("tailor", findTextIn("Shirts", 90, tt::ui::pad::tailor::kTopY, 140, 62),
+                     "Shirts", 90, tt::ui::pad::tailor::kTopY, 140, 62);
+    assertTextInside("tailor",
+                     findTextIn("Shorts", 90, tt::ui::pad::tailor::kBottomY, 140, 62), "Shorts", 90,
+                     tt::ui::pad::tailor::kBottomY, 140, 62);
+    chk(tt::ui::pad::tailor::kTopY + tt::ui::pad::tailor::kRowH <= tt::ui::pad::tailor::kBottomY,
+        "tailor: the shirt and shorts rows do not overlap");
+    assertTextInside("tailor",
+                     findTextIn("Up/Down picks shirt or bottoms; Left/Right changes it.", 4, 172,
+                                312, 20),
+                     "hint", 4, 172, 312, 20);
+    // Done / Cancel, below the rows, each label inside its button.
+    assertTextInside("tailor", findTextIn("Done", 160, 196, 76, 36), "Done", 160, 196, 76, 36);
+    assertTextInside("tailor", findTextIn("Cancel", 240, 196, 76, 36), "Cancel", 240, 196, 76, 36);
+    chk(160 + 76 <= 240, "tailor: Done and Cancel do not overlap");
+    // Left / Right change the shirt; the "n of m" count follows, inside its frame.
+    auto shirtCount = [&]() -> std::string {
+        for (const auto& r : host::gRecords) {
+            if (r.kind != HostRecord::Text || r.text.size() < 5) continue;
+            if (contains(r, 90, tt::ui::pad::tailor::kTopY, 140, tt::ui::pad::tailor::kRowH) &&
+                r.text.find(" of ") != std::string::npos)
+                return r.text;
+        }
+        return "";
+    };
+    const std::string count0 = shirtCount();
+    chk(!count0.empty(), "tailor: the shirt count drawn");
+    frame(KEY_DRIGHT, 0, 0);
+    const std::string count1 = shirtCount();
+    chk(!count1.empty() && count1 != count0, "tailor: the shirt count advanced");
+    frame(KEY_DLEFT, 0, 0);
+    chk(shirtCount() == count0, "tailor: the shirt count steps back");
+    // B on the menu asks to leave: the panel sends on the NEXT update, then closes.
+    frame(KEY_B, 0, 0);
+    frame(0);
+    chk(!gUi->tailor().active(), "tailor: B on the menu closes the panel");
+    // A new movie with a near deadline reopens it; the Hurry! countdown appears
+    // inside its badge for the last 30 seconds.
+    host::stageTailorMovie.mode = net::kTailorMovieStart;
+    host::stageTailorMovie.deadlineMs = uint32_t(gHostNowMs) + 20000;
+    host::stageTailorMovie.seq = 2;
+    gClient->connect();
+    gUi->tailor().onMovie(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->tailor().active(), "tailor: reopened");
+    frame(0);
+    assertTextInside("tailor", findTextIn("Hurry! 0:20", 212, 8, 100, 20), "Hurry! 0:20", 212, 8,
+                     100, 20);
+    assertBounds("tailor timer");
+    assertLabelsNoOverlap("tailor timer");
+    gUi->tailor().dismiss();
+}
+
+void suiteCloset() {
+    printf("suite: closet panel\n");
+    stagePanelSession();
+    host::stageCloset.doId = 999;
+    host::stageCloset.ownerId = host::stageAvatarId;
+    host::stageCloset.active = true;
+    gClient->connect();
+    gUi->closet().open(*gClient, uint32_t(gHostNowMs));
+    chk(gUi->closet().active(), "closet: the panel is open");
+    gUi->closet().update(*gClient);
+    drawOnce();
+    chk(host::gRecords.size() > 10, "closet: draw produced records", "%zu",
+        host::gRecords.size());
+    assertBounds("closet");
+    assertLabelsNoOverlap("closet");
+    assertTextInside("closet", findTextIn("Closet", 4, 4, 312, 252), "Closet", 4, 4, 312, 252);
+    const HostRecord* body = findTextIn(
+        "Save keeps your current owned clothes.\nD-Pad picks a button, A presses it. B cancels.",
+        4, 40, 312, 150);
+    chk(body != nullptr, "closet: the body text drawn");
+    if (body)
+        chk(body->x + body->w <= kW - 4, "closet: the body text fits the card", "%.1f",
+            body->x + body->w);
+    assertTextInside("closet", findTextIn("Save", 160, 196, 76, 36), "Save", 160, 196, 76, 36);
+    assertTextInside("closet", findTextIn("Cancel", 240, 196, 76, 36), "Cancel", 240, 196, 76, 36);
+    // Cancel: pending, then update does the (stubbed) exit and closes.
+    gUi->handleInput(KEY_TOUCH, 0, T(278, 214), *gState);
+    gUi->closet().update(*gClient);
+    chk(!gUi->closet().active(), "closet: Cancel closes the panel");
+    gUi->closet().dismiss();
+}
+
+void suitePurchase() {
+    printf("suite: minigame purchase panel\n");
+    stagePanelSession();
+    static MinigamePurchasePanel purchase; // the trolley owns one; the test owns it here
+    chk(purchase.init(), "purchase: init");
+    purchase.open(*gClient, 32, uint32_t(gHostNowMs) + 60000, uint32_t(gHostNowMs));
+    chk(purchase.active(), "purchase: the panel is open");
+    chk(gUi->handleInput(0, 0, T(0, 0), *gState) == 0,
+        "purchase: Ui routes the frame (owner resolves)");
+    drawOnce();
+    chk(host::gRecords.size() > 60, "purchase: draw produced records", "%zu",
+        host::gRecords.size());
+    assertBounds("purchase");
+    assertLabelsNoOverlap("purchase");
+    const HostRecord* beans = findTextIn("214", 100, pc::kBtnY - 4, 74, 40);
+    chk(beans != nullptr, "purchase: the beans on the jar");
+    if (beans) chk(beans->x >= pc::kPlusX && beans->x + beans->w <= pc::kDoneX + pc::kDoneW,
+                   "purchase: the jar sits between [+] and Done", "(%.1f, %.1f)", beans->x,
+                   beans->x + beans->w);
+    assertTextInside("purchase", findTextIn("+32 won   Carry: 16/60", kShopSignW + 10, 2, 138, 20),
+                     "+32 won   Carry: 16/60", kShopSignW + 10, 2, 138, 20);
+    tt::shop::Profile profile;
+    for (int t = 0; t < 7; t++) {
+        profile.experience[t] = host::stageStats.experience[t];
+        profile.trackAccess[t] = host::stageStats.trackAccess[t];
+    }
+    profile.maxCarry = host::stageStats.maxCarry;
+    assertShopGrid("purchase", "EXIT BACK TO\nPLAYGROUND", purchase.cart(), profile);
+    // Buying with the beans the minigame paid.
+    chk(purchase.buy(4, 0), "purchase: buying a throw gag");
+    chk(purchase.cart().money == 213, "purchase: the beans are spent", "%d",
+        purchase.cart().money);
+    // The countdown auto-submits near the deadline and closes.
+    purchase.update(*gClient, uint32_t(gHostNowMs) + 59001);
+    chk(purchase.active() == false, "purchase: closes before the PurchaseManager timeout");
+    purchase.close();
+    chk(MinigamePurchasePanel::activeInstance() == nullptr,
+        "purchase: the owner releases the screen");
+}
+
+void suiteFishing() {
+    printf("suite: fishing panel\n");
+    static FishingView fv;
+    fv = FishingView{};
+    fv.phase = FishingView::kReady;
+    fv.practice = true;
+    strcpy(fv.status, "Tap Cast, then drag down for power.");
+    fv.tank = 3;
+    fv.tankMax = 20;
+    fv.beans = 214;
+    fv.rod = 0;
+    gCtx->fishing = &fv;
+    // Ui::handleInput resolves the owner from the synced context (main loop order);
+    // the panels can only see the fishing view in draw().
+    gUi->syncContext(*gClient, 2000, false, false, true, false);
+    uiFrame(0, 0, 0, 0);
+    chk(host::gRecords.size() > 20, "fishing: draw produced records", "%zu",
+        host::gRecords.size());
+    assertBounds("fishing ready");
+    assertLabelsNoOverlap("fishing ready");
+    chk(gUi->laffShown() == false, "fishing: no tab bar under the fishing panel");
+    // The header: practice badge and status inside the card. FishingPanel labels the badge
+    // "Practice mode" (its kLPractice reparse), drawn inside the yellow pill.
+    assertTextInside("fishing", findTextIn("Practice mode", 196, 5, 112, 17), "Practice mode",
+                     196, 5, 112, 17);
+    const HostRecord* status = findTextIn(fv.status, 4, 2, 312, 40);
+    chk(status != nullptr, "fishing: the status line drawn");
+    if (status) chk(status->x + status->w <= kW - 4, "fishing: the status fits the card", "%.1f",
+                    status->x + status->w);
+    // The Cast button and its label; the Exit part and its label; both on screen,
+    // neither inside the other.
+    // The Cast label: FishingPanel centers it on the button's cx and hangs it at the
+    // button's BOTTOM edge (kBtnCy + kBtnSize/2 - 2 = y 148, the button spans y 94..150),
+    // with a shadow copy 1 px down-right (modeled as-is; a raise is a claude-3ds-gui call).
+    // The ruler asserts what 320x240 needs: drawn, shadow + ink on screen, centered.
+    const HostRecord* castLabel = nullptr;
+    for (const auto* t : textRecords())
+        if (t->text == "Cast" && (!castLabel || t->x + t->w < castLabel->x + castLabel->w))
+            castLabel = t;
+    chk(castLabel != nullptr, "fishing: 'Cast' drawn");
+    if (castLabel) {
+        chk(castLabel->x >= 0 && castLabel->x + castLabel->w <= kW, "fishing: 'Cast' on screen",
+            "(%.1f, %.1f)", castLabel->x, castLabel->x + castLabel->w);
+        chk(castLabel->y >= 0 && castLabel->y + castLabel->h <= kScreenH,
+            "fishing: 'Cast' on screen vertically", "(%.1f, %.1f)", castLabel->y,
+            castLabel->y + castLabel->h);
+        chk(fabsf(castLabel->x + castLabel->w * 0.5f - 160.0f) <= 2.0f,
+            "fishing: 'Cast' centered on the cast button", "%.1f",
+            castLabel->x + castLabel->w * 0.5f);
+    }
+    const HostRecord* exitLabel = findTextIn("Exit", 279, 165, 34, 45);
+    chk(exitLabel != nullptr, "fishing: the Exit label drawn");
+    if (exitLabel)
+        chk(exitLabel->x + exitLabel->w <= kW && exitLabel->y + exitLabel->h <= kScreenH,
+            "fishing: the Exit label stays on screen", "(%.1f, %.1f)", exitLabel->x,
+            exitLabel->y);
+    // A catch result: the "You caught:" card, item, weight and value, all inside.
+    fv.phase = FishingView::kResult;
+    fv.result = FishingView::kFish;
+    strcpy(fv.itemName, "Old King Claude");
+    strcpy(fv.itemWeight, "12 lbs");
+    strcpy(fv.itemValue, "+34 beans");
+    fv.revision++;
+    uiFrame(0, 0, 0, 0);
+    assertBounds("fishing result");
+    assertLabelsNoOverlap("fishing result");
+    assertTextInside("fishing", findTextIn("You caught:", 10, 46, 300, 46), "You caught:", 10, 46,
+                     300, 46);
+    assertTextInside("fishing", findTextIn("Old King Claude", 10, 46, 300, 46), "Old King Claude",
+                     10, 46, 300, 46);
+    assertTextInside("fishing", findTextIn("12 lbs", 10, 46, 300, 46), "12 lbs", 10, 46, 300, 46);
+    assertTextInside("fishing", findTextIn("+34 beans", 10, 46, 300, 46), "+34 beans", 10, 46, 300,
+                     46);
+    // The cast gesture: press inside the Cast circle, drag down for power, release. On the
+    // device a touch that is down also appears in hidKeysHeld, so the press frame carries
+    // held = KEY_TOUCH too (else FishingPanel::handleInput would see "drag ended" on the
+    // very press frame; Ui::handleInput(down, t) adds the bit exactly like this).
+    uiFrame(KEY_TOUCH, KEY_TOUCH, 160, 122);
+    chk(gUi->fishingPanel().touch().started, "fishing: the cast button press starts a cast");
+    uiFrame(0, KEY_TOUCH, 160, 152); // a 30 px drag = half power
+    chk(fabsf(gUi->fishingPanel().touch().power - 0.5f) < 0.02f, "fishing: 30px drag is half power",
+        "%.2f", gUi->fishingPanel().touch().power);
+    chk(gUi->fishingPanel().touch().dragging, "fishing: the drag is live while held");
+    uiFrame(0, KEY_TOUCH, 200, 252); // far past full: clamps
+    chk(gUi->fishingPanel().touch().power == 1.0f, "fishing: power clamps at 1");
+    uiFrame(0, 0, 0, 0); // release
+    chk(gUi->fishingPanel().touch().released, "fishing: release fires the cast");
+    // The drag direction sets the angle, clamped to FishGlobals' 50 degrees. The panel's
+    // rad2Deg(atan(dx / -dy)) makes a down-LEFT drag positive: (-160 / -30) -> ~79 -> +50.
+    uiFrame(KEY_TOUCH, KEY_TOUCH, 160, 122);
+    uiFrame(0, KEY_TOUCH, 61, 222); // 45 degrees down-left
+    const FishingTouch& t2 = gUi->fishingPanel().touch();
+    chk(fabsf(t2.angle - 45.0f) < 1.0f, "fishing: the 45-degree drag aims 45 degrees", "%.1f",
+        t2.angle);
+    uiFrame(0, KEY_TOUCH, 0, 152); // steep left: clamps
+    chk(fabsf(fabsf(gUi->fishingPanel().touch().angle) - 50.0f) < 0.5f,
+        "fishing: the angle clamps at 50", "%.1f", gUi->fishingPanel().touch().angle);
+    uiFrame(0, 0, 0, 0); // release
+    gUi->fishingPanel().clearTouchEvents();
+    // The Exit button: press inside its circle and release (the press frame holds the
+    // touch like the device does, so the exit waits for the finger to lift).
+    uiFrame(KEY_TOUCH, KEY_TOUCH, 296, 182);
+    chk(!gUi->fishingPanel().touch().exit, "fishing: the exit needs a release");
+    uiFrame(0, 0, 0, 0);
+    chk(gUi->fishingPanel().touch().exit, "fishing: the exit fires on release");
+    gUi->fishingPanel().clearTouchEvents();
+    gCtx->fishing = nullptr;
+    gUi->syncContext(*gClient, 2000, false, false, false, false);
+    uiFrame(0, 0, 0, 0);
+    chk(findTextIn("Map", 62, 208, 52, 32) != nullptr, "fishing: clear returns to the tabs");
+}
+
 } // namespace
 
 int main() {
@@ -950,6 +2034,9 @@ int main() {
     gCtx = &ctx;
     static net::OwnStats stats;
     gStats = &stats;
+    static net::Client client;
+    gClient = &client;
+    host::stageReset();
 
     gHostNowMs = 1000; // frozen clock: pulses ease from t=0, the chat log stays fresh
     if (!ui.init()) {
@@ -966,6 +2053,13 @@ int main() {
     suiteGags();
     suiteToon();
     suiteBook();
+    suiteBattle();
+    suiteShop();
+    suiteClerks();
+    suiteTailor();
+    suiteCloset();
+    suitePurchase();
+    suiteFishing();
 
     ui.shutdown();
     printf("checks: %ld, failures: %d\n", gChecks, gFails);
