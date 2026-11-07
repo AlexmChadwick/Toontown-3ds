@@ -5,11 +5,12 @@
 #include "host_draw_recorder.h"
 #include "world/battle_fx.h"
 
-// Inactive-path partners of the compiled panels: the battle / clerk / closet / tailor /
-// purchase panels are linked (the Ui object owns them with the tab panels) but are never
-// active in these tests, so their off-device partners (the net sender methods, audio
-// volumes, the ToonCache) get inert host definitions instead of pulling in the whole game.
-// Every definition matches the real declaration; none of them is on a tested path.
+// Inactive-path partners of the compiled panels: the shop / clerk / closet / tailor /
+// purchase / battle panels are linked and driven by the suites below, so their off-device
+// partners (the net senders, audio volumes, the ToonCache) get inert host definitions instead
+// of pulling in the whole game. Where a panel needs client state the datagram parser would
+// produce, the seam is explicit and lives in this file (Client::connect plus the
+// host::stage* globals): no definition invents behaviour, they only serve staged test data.
 #include "core/memory.h"
 #include "ui/clerk_rules.h"
 #include "world/battle.h"
@@ -25,6 +26,43 @@ HostScissor gScissor;
 bool gRecordEnabled = true;
 FontMetrics gFont;
 std::string gFontName = "impress";
+
+// ---- fake offline net session (see Client::connect() at the bottom of this file): the
+// gui_panel_test.cpp suites fill these, call client.connect(), and the staged panel openers
+// (ShopPanel::onMovie, ServiceClerkPanel::update, TailorPanel::onMovie, ClosetPanel::open,
+// MinigamePurchasePanel::open) see the same client state the parser would produce. ----
+uint32_t stageAvatarId = 100000101;
+tt::net::OwnStats stageStats;
+uint8_t stageOwnDna[tt::net::kDnaSize] = {};
+tt::net::ShopMovie stageShopMovie;
+tt::net::TailorMovie stageTailorMovie;
+tt::net::Closet stageCloset;
+tt::net::ClerkProfile stageClerkProfile;
+tt::net::ClerkSession stageClerkSession;
+tt::net::OwnFish stageOwnFish;
+tt::net::OwnBookStats stageOwnBook;
+tt::net::NpcToon stageNpc;
+std::vector<tt::net::ClerkMovie> stageClerkMovies;
+size_t clerkMovieHead = 0;
+int stageFishTotal = 0;
+
+void stageReset() {
+    stageAvatarId = 100000101;
+    stageStats = tt::net::OwnStats{};
+    for (int i = 0; i < tt::net::kDnaSize; i++) stageOwnDna[i] = 0;
+    stageShopMovie = tt::net::ShopMovie{};
+    stageTailorMovie = tt::net::TailorMovie{};
+    stageCloset = tt::net::Closet{};
+    stageClerkProfile = tt::net::ClerkProfile{};
+    stageClerkSession = tt::net::ClerkSession{};
+    stageOwnFish = tt::net::OwnFish{};
+    stageOwnBook = tt::net::OwnBookStats{};
+    stageOwnBook.initDefaults();
+    stageNpc = tt::net::NpcToon{};
+    stageClerkMovies.clear();
+    clerkMovieHead = 0;
+    stageFishTotal = 0;
+}
 } // namespace host
 
 u64 gHostNowMs = 0;
@@ -79,9 +117,15 @@ PlaceKind placeKind(uint32_t zoneId) {
     return PlaceKind::Street;
 }
 bool attackAffectsGroup(int track, int level) {
-    (void)track;
-    (void)level;
-    return false;
+    // Faithful mirror of AvPropTargetCat[AvPropTarget[track]][level] as re-stated beside its
+    // only compiled caller (battle_panel.cpp's gagDetail table): only the entry below matters
+    // for the panel's usable()/BattleAction target rules. The old stub said "never group",
+    // which grounded the gag picker's group targeting for no reason.
+    static constexpr uint8_t kGroup[7][7] = {
+        {0, 1, 0, 1, 0, 1, 1}, {0, 0, 0, 0, 0, 0, 1}, {0, 1, 0, 1, 0, 1, 1}, {1, 1, 1, 1, 1, 1, 1},
+        {0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 1}, {0, 0, 0, 0, 0, 0, 1}};
+    if (track < 0 || track > 6 || level < 0 || level > 6) return false;
+    return kGroup[track][level] != 0;
 }
 bool ToonCache::acquire(const ToonDna&, ToonLod, ToonLook* out) {
     if (out) *out = ToonLook{};
@@ -90,28 +134,61 @@ bool ToonCache::acquire(const ToonDna&, ToonLod, ToonLook* out) {
 } // namespace tt::world
 
 namespace tt::net {
-bool Client::sendClosetDNA(uint32_t, const uint8_t*, int8_t, uint8_t) { return false; }
-bool Client::sendClosetExit(uint32_t) { return false; }
-bool Client::sendTailorDNA(uint32_t, const uint8_t*, int8_t, uint8_t) { return false; }
-bool Client::sendPurchaseExit() { return false; }
-bool Client::sendPetAdopt(uint8_t, uint32_t) { return false; }
-bool Client::sendPetReturn() { return false; }
-bool Client::sendServiceFishSale(bool) { return false; }
-bool Client::sendClerkKartBody(uint8_t) { return false; }
-bool Client::sendClerkKartAccessory(uint8_t) { return false; }
-bool Client::sendServiceClerkDone() { return false; }
+// The senders below report "queued" while the fake session (Client::connect) is up: the
+// real client would put the datagram on the socket, and several panels (clerk sale
+// results, the tailor's close-on-send) branch on that. Nothing is written anywhere;
+// the queues the parser fills (pollClerkMovie) stay under the test's control.
+bool Client::sendClosetDNA(uint32_t, const uint8_t*, int8_t, uint8_t) { return true; }
+bool Client::sendClosetExit(uint32_t) { return true; }
+bool Client::sendTailorDNA(uint32_t, const uint8_t*, int8_t, uint8_t) { return true; }
+bool Client::sendPurchaseExit() { return true; }
+bool Client::sendPetAdopt(uint8_t, uint32_t) { return true; }
+bool Client::sendPetReturn() { return true; }
+bool Client::sendServiceFishSale(bool) { return true; }
+bool Client::sendClerkKartBody(uint8_t) { return true; }
+bool Client::sendClerkKartAccessory(uint8_t) { return true; }
+bool Client::sendServiceClerkDone() { return true; }
 bool Client::sendClerkSetInventory(uint32_t, const uint8_t inv[7][7], int16_t, bool) {
     (void)inv;
-    return false;
+    return true;
 }
 bool Client::pollClerkMovie(ClerkMovie& movie) {
-    movie = ClerkMovie{};
-    return false;
+    // Test seam: the staged movie queue (see host::stageClerkMovies) instead of a datagram
+    // parser. Same drain semantics as the real client_clerks.cpp queue.
+    if (host::clerkMovieHead >= host::stageClerkMovies.size()) return false;
+    movie = host::stageClerkMovies[host::clerkMovieHead++];
+    return true;
 }
-int Client::clerkFishTotal() const { return 0; }
+int Client::clerkFishTotal() const { return host::stageFishTotal; }
 const NpcToon* Client::findNpc(uint32_t doId) const {
-    (void)doId;
+    // Test seam: the single staged NPC (host::stageNpc) is the one the panels get to see; the
+    // panel code only checks non-null / classId, never what the datagram parser would fill.
+    if (host::stageNpc.active && host::stageNpc.doId == doId) return &host::stageNpc;
     return nullptr;
+}
+} // namespace tt::net
+
+namespace tt::net {
+bool Client::connect() {
+    // Test seam: with no sockets in the host suite, connect() installs a fake offline session
+    // from the stage globals the test fills first (see gui_panel_test.cpp). All the fields
+    // below are (private) members and this is a member function, exactly like the previous
+    // inert send* stubs: no source outside tools/gui_panel_test/ changes.
+    state_ = State::InZone;
+    avatarId_ = host::stageAvatarId;
+    ownStats_ = host::stageStats;
+    for (int i = 0; i < kDnaSize; i++) ownDna_[i] = host::stageOwnDna[i];
+    shopMovie_ = host::stageShopMovie;
+    tailorMovie_ = host::stageTailorMovie;
+    closet_ = host::stageCloset;
+    clerkProfile_ = host::stageClerkProfile;
+    clerkSession_ = host::stageClerkSession;
+    ownFish_ = host::stageOwnFish;
+    ownBook_ = host::stageOwnBook;
+    npcs_[0] = host::stageNpc;
+    shopMovie_.avId = host::stageAvatarId;
+    tailorMovie_.avId = host::stageAvatarId;
+    return true;
 }
 } // namespace tt::net
 
