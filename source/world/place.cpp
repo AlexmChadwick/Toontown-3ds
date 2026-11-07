@@ -1,5 +1,7 @@
 #include "world/place.h"
 
+#include "render/quality.h"
+
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -61,6 +63,21 @@ PlaceKind placeKind(u32 zoneId) {
     return PlaceKind::Street;
 }
 
+float cameraFar(u32 zoneId) {
+    // CogHQ.enter (Sellbot) CogHQCameraFar 900; CashbotHQCameraFar 2000; LawbotHQ / BossbotHQ 3000;
+    // OZHood (Acorn Acres) and GSHood (Goofy Speedway) SpeedwayCameraFar 8000. Other toon hoods
+    // keep DefaultCameraFar 400, which the Old 3DS 440 profile already covers.
+    switch (zoneId / 1000) {
+    case 6:
+    case 8: return 8000.0f;
+    case 10: return 3000.0f;
+    case 11: return 900.0f;
+    case 12: return 2000.0f;
+    case 13: return 3000.0f;
+    default: return 0.0f;
+    }
+}
+
 u32 hoodOf(u32 zoneId) {
     // ---- tutorial ----
     // TutorialHood is Toontown Central's town: TutorialTownLoader extends TTTownLoader (TC_SZ town
@@ -102,14 +119,60 @@ bool Place::available(u32 zoneId) {
     return probe.resolve(zoneId, "ttm", path, sizeof(path)) && probe.resolve(zoneId, "ttc", path, sizeof(path));
 }
 
+void Place::setCamera(const C3D_FVec& eye, const C3D_FVec& target) {
+    zone_.setCamera(Vec3{eye.x, eye.y, eye.z}, Vec3{target.x, target.y, target.z});
+}
+
+namespace {
+void applyRetain(Zone& zone) {
+    if (!zone.loaded()) return;
+    // Old 3DS linear heap is 24 MB. A street view's command buffer, toon, UI and
+    // audio already sit in it; the old 6/8 and 8/12 MiB retain caps filled the rest
+    // (New street free fell to about 6 MB). 4/4 and 5/5 leave the cone resident and
+    // a small warm ring. Zone::update also drops non-cone chunks while linear free
+    // is under 12 MB, which is the Old 3DS floor. The totals stay 8 and 10 MiB, but
+    // a cone's geometry is under 1 MB (the per-file far cap is 810 KB) while the
+    // chunk-local near atlases need the texture side: at 4/4 Old kept TTC's tunnel
+    // chunks on their far mesh 60 units away with 3.3 MiB of geometry unused, and at
+    // 2.5/5.5 an extra 38 KB of TTC awning texture put the Loopy Lane tunnel back on it.
+    if (tt::render::activeQuality().new3ds)
+        zone.setRetainBudget(3u * 1024u * 1024u, 7u * 1024u * 1024u);
+    else
+        zone.setRetainBudget(2u * 1024u * 1024u, 6u * 1024u * 1024u);
+}
+} // namespace
+
 void Place::update(float x, float y, float z, Zone::CellChanged cb, void* user) {
     if (!zone_.loaded()) return;
+    applyRetain(zone_);
     if (!zone_.update(Vec3{x, y, z}, cb, user)) TT_LOG("place: %s", zone_.error());
+}
+
+void Place::beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user) {
+    if (!zone_.loaded()) return;
+    applyRetain(zone_);
+    const Vec3 feet{x, y, z};
+    if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
+    zone_.warmAround(feet, tt::render::baseQuality().drawDistance * 1.35f);
+    if (!zone_.update(feet, cb, user)) TT_LOG("place: %s", zone_.error());
+}
+
+bool Place::streamReady() const {
+    // The card tracks the chunks that cover most of the screen (v1: the only mesh).
+    // Near upgrades and warmAround keep going after this returns, from Place::update.
+    return !zone_.loaded() || !zone_.cardPending();
+}
+
+float Place::streamProgress() const {
+    if (!zone_.loaded() || streamReady()) return 1.0f;
+    if (!zone_.loading()) return 0.85f;
+    return 0.45f;
 }
 
 void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user) {
     if (!zone_.loaded()) return;
     const u64 t0 = osGetTime();
+    beginStreaming(x, y, z, cb, user);
     zone_.finishLoading(Vec3{x, y, z}, cb, user);
     TT_LOG("place: %lu chunks resident in %lu ms", (unsigned long)zone_.numVisible(),
            (unsigned long)(osGetTime() - t0));
@@ -117,7 +180,7 @@ void Place::finishLoading(float x, float y, float z, Zone::CellChanged cb, void*
 
 void Place::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     if (zone_.loaded()) {
-        zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, 120.0f);
+        zone_.draw(renderer, Vec3{eye.x, eye.y, eye.z}, tt::render::activeQuality().drawDistance);
         return;
     }
     C3D_Mtx m;
@@ -347,6 +410,11 @@ void Place::arrival(u32 fromZone, float* x, float* y, float* z, float* h) const 
             *x = (boundsMin()[0] + boundsMax()[0]) * 0.5f;
             *y = (boundsMin()[1] + boundsMax()[1]) * 0.5f;
             *z = boundsMax()[2];
+            // Land on the floor the fall would reach, so the loading card streams the
+            // cone the toon will stand in, not one 50 units up.
+            bool found = false;
+            const float g = cw.groundHeight(*x, *y, *z, &found);
+            if (found) *z = g;
         }
         return;
     }

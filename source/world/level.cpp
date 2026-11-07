@@ -806,6 +806,20 @@ void Level::updateElevators(net::Client& client, float x, float y, float z, uint
     for (int i = 0; i < net::kMaxLevelElevators; ++i) {
         const net::LevelElevator& e = client.levelElevatorSlot(i);
         const LevelEntity* m = e.active ? elevatorMarker(e) : nullptr;
+        if (e.active && !m && nowMs - elevatorUnresolvedMs_ > 5000) {
+            // Every 5 s while it lasts: why the elevator's marker does not resolve.
+            elevatorUnresolvedMs_ = nowMs;
+            int markers = 0;
+            for (int k = 0; k < net::kMaxLevelEntities; ++k) {
+                const net::LevelEntityObj& d = client.levelEntitySlot(k);
+                if (!d.active || d.classId != dc::DistributedElevatorMarker::kClassId) continue;
+                ++markers;
+                TT_LOG("level: marker %u level %u ent %u room %d%s", unsigned(d.doId), unsigned(d.levelDoId),
+                       unsigned(d.entId), roomOf(d.levelDoId), d.doId == e.latch ? " (latch)" : "");
+            }
+            TT_LOG("level: elevator %u latch %u unresolved, %d marker(s)", unsigned(e.doId), unsigned(e.latch),
+                   markers);
+        }
         if (!m || !shown(m->room)) continue;
         const bool closed = elevatorDoors(e, nowMs) > 0.99f;
         for (int k = 0; k < numElevatorBoxes_; ++k) {
@@ -1609,12 +1623,16 @@ bool Level::loadFloor(const net::Facility& fac) {
     if (ok && h.numFloorTris) {
         floorTris_ = static_cast<FloorTri*>(malloc(h.numFloorTris * sizeof(FloorTri)));
         ok = floorTris_ != nullptr;
-        for (uint32_t i = 0; ok && i < h.numFloorTris; ++i) {
-            FloorTriRecord t;
-            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(t)), &t, sizeof(t));
-            floorTris_[i].piece = t.roomNum;
-            memcpy(floorTris_[i].v, t.v, sizeof(t.v));
-            numFloorTris_ = int(i + 1);
+        // In blocks: one seek + read per record (up to ~850 a floor) cost an SD round trip each.
+        FloorTriRecord block[64];
+        for (uint32_t i = 0; ok && i < h.numFloorTris;) {
+            const uint32_t n = std::min<uint32_t>(64, h.numFloorTris - i);
+            ok = readAt(f, long(h.floorTrisOffset + i * sizeof(FloorTriRecord)), block, n * sizeof(FloorTriRecord));
+            for (uint32_t k = 0; ok && k < n; ++k, ++i) {
+                floorTris_[i].piece = block[k].roomNum;
+                memcpy(floorTris_[i].v, block[k].v, sizeof(block[k].v));
+                numFloorTris_ = int(i + 1);
+            }
         }
     }
     if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);

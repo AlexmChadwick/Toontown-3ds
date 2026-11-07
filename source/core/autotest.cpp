@@ -2,17 +2,26 @@
 
 #include <cstring>
 #include <cstdio>
+#include <cstdlib>
 
 #include "core/log.h"
 #include "game/front_end.h"
+#include "ui/pad_tables.h"
 
 namespace tt::autotest {
 
 namespace {
 
-// Bottom-screen tab centres (render/ui.cpp: 5 tabs across 320 px, bar at y >= 208).
+// Bottom-screen tab centres (render/ui.cpp: Map Chat Toon Gags Book across 320 px, bar at y >= 208;
+// the Debug tab joins them only while SELECT has it on).
 constexpr int kTabY = 224;
-constexpr int tabX(int i) { return 26 + i * 53; } // 6 tabs of 320/6 px
+// The middle of player tab i (5 tabs right of the laff pocket, ui/pad_tables.h).
+constexpr int tabX(int i) { return int((tt::ui::pad::tabX(i, 5) + tt::ui::pad::tabX(i + 1, 5)) * 0.5f); }
+// The Map tab's teleport row (pad::hoods): the middle of hood i.
+constexpr int kHoodTapY = int(tt::ui::pad::hoods::kRowY + tt::ui::pad::hoods::kRowH * 0.5f);
+
+constexpr int kBattleSosX = int(tt::ui::pad::battle::kSosX + 10), kBattleSosY = int(tt::ui::pad::battle::kRow2Y + 8);
+constexpr int kBattleFireX = int(tt::ui::pad::battle::kFireX + 10), kBattleFireY = int(tt::ui::pad::battle::kBtnY + 8);
 
 const Step kScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "idle"},
@@ -26,17 +35,38 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(2), kTabY, -1, "tab: toon"},
     {1.0f, 0, 0, 0, KEY_TOUCH, 8 + 4 * 34 + 15, 44 + 15, -1, "toon: pick color 4", "toon"},
     {1.5f, 0, 0, 0, KEY_TOUCH, tabX(3), kTabY, -1, "tab: gags", "gags"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, tabX(5), kTabY, -1, "tab: debug"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, tabX(4), kTabY, -1, "tab: book", "booktab"},
+    {1.0f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: on", "debug"},
+    {0.5f, 0, 0, 0, KEY_SELECT, -1, -1, -1, "debug: off"},
     // ---- padnav: the tabs and the Shtiker Book with buttons only (no touch) ----
     {1.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "pad: tab map"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: map hoods"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: map hoods"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: map next hood", "pad_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: map release"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab chat"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat focus", "pad_chat"},
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat down"},
+    {0.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open hello", "pad_chat_hello"},
+    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say hello", "pad_chat_said"}, // the recent-chat strip
     {1.0f, 0, 0, 0, KEY_X, -1, -1, -1, "pad: chat whisper"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat back"},
+    // SpeedChat TOONTASKS > MY TASKS (TTSCToontaskMenu). The menu is still in HELLO: focus a row,
+    // B back to the root, B lets go, then Up wraps from the top row past OK, No, Yes, GAG SHOP
+    // and BATTLE to TOONTASKS; then MY TASKS and its first phrase (setSCToontask online).
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat tasks hello row"},
+    {0.5f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat tasks to root"},
+    {0.5f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: chat tasks release"},
+    {0.5f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: chat tasks focus"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 1"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 2"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 3"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 4"},
+    {0.3f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 5"},
+    {0.5f, 0, 0, 0, KEY_DUP, -1, -1, -1, "pad: chat tasks up 6", "pad_chat_toontasks"},
+    {0.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open toontasks"},
+    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat open my tasks", "pad_chat_mytasks"},
+    {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: chat say task", "pad_chat_task_said"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab toon"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: toon focus", "pad_toon"},
     {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book from toon tab", "pad_book"},
@@ -44,18 +74,21 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: book page turn", "pad_book_turn"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book close"},
     {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab gags"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab setup"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: setup focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: setup stress"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: setup stress plus"},
-    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: setup press plus", "pad_setup"},
-    {1.0f, 0, 0, 0, KEY_DLEFT, -1, -1, -1, "pad: setup stress minus"},
-    {1.0f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: setup press minus"},
-    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: setup release"},
-    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab debug"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab book"},
+    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: book tab focus"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: book tab right"},
+    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, -1, "pad: book tab down", "pad_booktab"},
+    {1.5f, 0, 0, 0, KEY_A, -1, -1, -1, "pad: book tab press", "pad_booktab_fish"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book tab close"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, -1, "pad: book tab release"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, -1, "pad: tab wraps to map"},
     // ---- end padnav ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: gags", "book_gags"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: tasks", "book_tasks"},
+    // Sample QuestPosters (main.cpp fills them in for these steps only).
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 1", "book_tasks_demo1"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 2", "book_tasks_demo2"},
+    {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 3", "book_tasks_demo3"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: cogs", "book_cogs"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: disguise", "book_disguise"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: fish", "book_fish"},
@@ -69,15 +102,62 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_A, -1, -1, 0, "pad: book options press again"},
     {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: book map page"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book map focus"},
-    {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book map hoods", "pad_book_map"},
+    {1.0f, 0, 0, 0, KEY_DRIGHT, -1, -1, 0, "pad: book map hoods", "pad_book_map"},
     {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: book close map"},
     // ---- end padnav ----
+    // Shtiker Book by touch, held like a real stylus tap (6 frames, see apply): every tap but the
+    // red X / B / START must leave it open. Run with AUTOTEST_FROM / AUTOTEST_ONLY="book touch".
+    {1.0f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: open (START)", "booktouch_open"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 53, 224, 0, "book touch: tab tasks", "booktouch_tab_tasks"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 88, 224, 0, "book touch: tab cogs", "booktouch_tab_cogs"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 159, 224, 0, "book touch: tab fish", "booktouch_tab_fish"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 301, 224, 0, "book touch: tab map", "booktouch_tab_map"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 20, 10, 0, "book touch: prev", "booktouch_prev"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 245, 10, 0, "book touch: next", "booktouch_next"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 140, 10, 0, "book touch: header gap", "booktouch_header"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 265, 224, 0, "book touch: tab options", "booktouch_tab_options"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 40, 0, "book touch: options stereo", "booktouch_opt_stereo"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 40, 0, "book touch: options stereo back"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 64, 0, "book touch: options detail"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 80, 64, 0, "book touch: options detail back"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 136, 88, 0, "book touch: options music +", "booktouch_opt_music"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 90, 112, 0, "book touch: options sound -"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 236, 120, 0, "book touch: options districts", "booktouch_opt_districts"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 17, 224, 0, "book touch: tab gags"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 160, 120, 0, "book touch: gags content", "booktouch_gags_content"},
+    {0.8f, 0, 0, 0, KEY_TOUCH, 300, 10, 0, "book touch: close X", "booktouch_closed_x"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: reopen 1"},
+    {0.8f, 0, 0, 0, KEY_B, -1, -1, 0, "book touch: close B", "booktouch_closed_b"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: reopen 2"},
+    {0.8f, 0, 0, 0, KEY_START, -1, -1, 0, "book touch: close START", "booktouch_closed_start"},
+    {0.5f, 0, 0, 0, 0, -1, -1, 0, "book touch: done"},
     {3.0f, 0, 0, 0, 0, -1, -1, 8, "stress 8 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 16, "stress 16 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 32, "stress 32 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 48, "stress 48 toons"},
     {3.0f, 0, 0, 0, 0, -1, -1, 64, "stress 64 toons", "stress64"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase", "showcase"},
+    // Every Cog type, four at a time (SuitDNA.suitHeadTypes order).
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 1", "showcase1"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 2", "showcase2"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 3", "showcase3"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 4", "showcase4"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 5", "showcase5"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 6", "showcase6"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 7", "showcase7"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "cog showcase 8", "showcase8"},
+    // Every Toon head (species), both genders, sizes and clothes, four at a time.
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 1", "toonshow1"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 2", "toonshow2"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 3", "toonshow3"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 4", "toonshow4"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 5", "toonshow5"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 6", "toonshow6"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 7", "toonshow7"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 8", "toonshow8"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 9", "toonshow9"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 10", "toonshow10"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "toon showcase 11", "toonshow11"},
     {1.3f, 0, 0, 0, 0, -1, -1, 0, "clip: throw", "clip_throw"},
     {1.6f, 0, 0, 0, 0, -1, -1, 0, "clip: pushbutton", "clip_push"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "clip: cringe", "clip_cringe"},
@@ -94,7 +174,12 @@ const Step kScript[] = {
     {2.0f, 0, 0, KEY_DLEFT, 0, -1, -1, 0, "pad: fish aim", "pad_fish_aim"}, // padnav: D-Pad aims
     {1.0f, 0, 0, KEY_A, KEY_A, -1, -1, 0, "fish: charge"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "fish: wait", "fish_cast"},
+    {0.6f, 0, 0, 0, 0, -1, -1, 0, "fish: touch cast", "fish_touch_drag"}, // shot mid-drag
+    {6.0f, 0, 0, 0, 0, -1, -1, 0, "fish: touch wait", "fish_touch_cast"},
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
+    // Board, then the panel's Hop off button by touch (Trolley's exitButton); then board for real.
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "trolley hop: board", "trolley_hop_wait"},
+    {3.0f, 0, 0, 0, KEY_TOUCH, 160, 206, 0, "trolley hop: tap hop off", "trolley_hop"},
     {7.0f, 0, 0, 0, 0, -1, -1, 0, "board trolley", "trolley"},
     {9.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: ride", "trolley_ride"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "trolley: game", "trolley_game*"},
@@ -140,23 +225,33 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, KEY_DUP, -1, -1, 0, "pad: battle cogs"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: battle gags"},
     {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: battle target", "pad_battle"},
+    // TownBattleSOSPanel by touch, then B back to the gag that was focused (Fire stays grey
+    // without pink slips; the stock server gives a fresh toon none).
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleSosX, kBattleSosY, 0, "pad: battle sos", "pad_battle_sos"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle sos back", "pad_battle_sos_back"},
+    // The same panels with sample cards and slips (main.cpp fills them in for these steps only).
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleSosX, kBattleSosY, 0, "pad: battle demo sos", "pad_battle_demo_sos"},
+    {1.0f, 0, 0, 0, KEY_R, -1, -1, 0, "pad: battle demo sos page", "pad_battle_demo_sos2"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle demo sos back"},
+    {1.5f, 0, 0, 0, KEY_TOUCH, kBattleFireX, kBattleFireY, 0, "pad: battle demo fire", "pad_battle_demo_fire"},
+    {1.0f, 0, 0, 0, KEY_B, -1, -1, 0, "pad: battle demo fire back", "pad_battle_demo_back"},
     {2.0f, 0, 0, 0, KEY_A, -1, -1, 0, "pad: battle fire"},
     {30.0f, 0, 0, 0, 0, -1, -1, 0, "pad: battle rounds", "pad_battle_end*"},
     // ---- end padnav ----
     {1.0f, 0, 0, 0, KEY_TOUCH, tabX(0), kTabY, 0, "tab: map (teleport)"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 60, 191, 0, "move: teleport", "move_teleport**"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 60, kHoodTapY, 0, "move: teleport", "move_teleport**"},
     {5.0f, 0, 0, 0, 0, -1, -1, 0, "see boat", "boat"},
     {20.0f, 0, 60, 0, 0, -1, -1, 0, "swim: harbor", "swim*"}, // includes a teleport to 1000
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "ride boat", "ride"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 100, 191, 0, "teleport DG", "hood_dg"},
-    {8.0f, 0, 0, 0, KEY_TOUCH, 180, 191, 0, "teleport BR", "hood_br"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 100, kHoodTapY, 0, "teleport DG", "hood_dg"},
+    {8.0f, 0, 0, 0, KEY_TOUCH, 180, kHoodTapY, 0, "teleport BR", "hood_br"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go sellbot hq", "hq_sell"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go cashbot hq", "hq_cash"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go lawbot hq", "hq_law"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "go bossbot hq", "hq_boss"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "toon hq: talk", "hq_talk"},
     // ---- padnav: the quest choice with buttons (A pages through the dialog) ----
-    {16.0f, 0, 0, 0, 0, -1, -1, 0, "pad: quest pages"},
+    {16.0f, 0, 0, 0, 0, -1, -1, 0, "pad: quest pages", "pad_quest_pages*"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: quest focus"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: quest next"},
     {1.0f, 0, 0, 0, KEY_DUP, -1, -1, 0, "pad: quest back up", "pad_quest"},
@@ -220,6 +315,7 @@ const Step kScript[] = {
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: moles", "club_moles**"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf green", "club_golf**"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "club: battle", "club_battle*"},
+    {90.0f, 0, 0, 0, 0, -1, -1, 0, "club: next floor", "club_next"}, // the kart room's golf kart
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "club: boss", "club_boss*"},
     {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: exit", "club_exit"},
     {10.0f, 0, 0, 0, 0, -1, -1, 0, "go speedway", "speedway"},
@@ -258,6 +354,44 @@ const Step kScript[] = {
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "interior: door leaves", "door_leaves*"},
     {22.0f, 0, 0, 0, 0, -1, -1, 0, "street: knock knock", "knock_knock*"},
     // [end interior life]
+    // ---- render: fixed camera views for before/after render comparisons (main.cpp kViews). Run
+    // with AUTOTEST_ONLY="view:". The first view of each zone waits longer for the teleport. ----
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_near", "view_ttc_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_mid", "view_ttc_mid"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_far", "view_ttc_far"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: ttc_tree", "view_ttc_tree"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "view: street_near", "view_street_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: street_far", "view_street_far"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_near", "view_dd_near"},
+    {10.0f, 0, 0, 0, 0, -1, -1, 0, "view: dd_far", "view_dd_far"},
+    // ---- end render views ----
+    // ---- poses: "pose <zone> ..." lines in the autotest file (main.cpp). Run with
+    // AUTOTEST_ONLY="pose:"; a step without its pose line is skipped. ----
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 1", "pose_1"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 2", "pose_2"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 3", "pose_3"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 4", "pose_4"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 5", "pose_5"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 6", "pose_6"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 7", "pose_7"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 8", "pose_8"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 9", "pose_9"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 10", "pose_10"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 11", "pose_11"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 12", "pose_12"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 13", "pose_13"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 14", "pose_14"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 15", "pose_15"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 16", "pose_16"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 17", "pose_17"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 18", "pose_18"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 19", "pose_19"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 20", "pose_20"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 21", "pose_21"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 22", "pose_22"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 23", "pose_23"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "pose: 24", "pose_24"},
+    // ---- end poses ----
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "done"},
 };
 constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
@@ -268,26 +402,38 @@ constexpr int kWorldSteps = sizeof(kScript) / sizeof(kScript[0]);
 constexpr int kFeNextX = 255, kFeNextY = 217;
 const Step kFrontEndScript[] = {
     {2.0f, 0, 0, 0, 0, -1, -1, -1, "fe: title", "fe_title"},
-    {6.0f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_pick"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: pick slot 1"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 132, 217, -1, "fe: delete toon", "fe_delete_prompt"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 230, 157, -1, "fe: confirm delete", "fe_deleted"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, 82, 52, -1, "fe: select empty slot 1"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: make a toon"},
+    // The loading screen (ToontownLoadingScreen: logo, TOON TIP scroll, label) while it connects.
+    {0.3f, 0, 0, 0, KEY_TOUCH, 160, 94, -1, "fe: play online", "fe_connecting"},
+    {5.7f, 0, 0, 0, 0, -1, -1, -1, "fe: avatar list", "fe_pick"},
+    // Pick-A-Toon's squares (ui/pick_a_toon_atlas.h): slot 1 is picked on arrival; Y is its
+    // trashcan; a tap on an empty square makes a Toon there.
+    {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: pick slot 1"},
+    // "returning:" steps run only when an "only" line names them (a returning Toon: A plays the
+    // picked Toon, which must go straight to its playground when tutorialAck is 1).
+    {2.0f, 0, 0, 0, KEY_A, -1, -1, -1, "returning: play slot 1", "fe_returning_play"},
+    {12.0f, 0, 0, 0, 0, -1, -1, -1, "returning: entering", "fe_returning_world"},
+    {3.0f, 0, 150, 0, 0, -1, -1, -1, "returning: run in world", "fe_returning_run"},
+    {2.0f, 0, 0, 0, KEY_Y, -1, -1, -1, "fe: delete toon", "fe_delete_prompt"},
+    // Inside the dialog's Delete button and between the Pink and Yellow squares, so a run with no
+    // Toon to delete (no dialog) taps nothing.
+    {2.0f, 0, 0, 0, KEY_TOUCH, 212, 157, -1, "fe: confirm delete", "fe_deleted"},
+    {1.0f, 0, 0, 0, 0, -1, -1, -1, "fe: select empty slot 1", "fe_pick_empty"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 59, 77, -1, "fe: make a toon"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 160, 51, -1, "fe: species cat", "fe_species"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> body"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 255, 171, -1, "fe: girl", "fe_body"},
-    {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> colour"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 278, 51, -1, "fe: girl", "fe_body"}, // GenderShop's girl button beside the Species frame
+    {1.25f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> colour", "fe_room_drop**"}, // the colour shop drops in
     {2.0f, 0, 0, 0, KEY_TOUCH, 191, 76, -1, "fe: colour 6", "fe_color"},
     {1.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> clothes"},
-    {2.0f, 0, 0, 0, KEY_TOUCH, 280, 70, -1, "fe: next shirt", "fe_clothes"},
+    {2.0f, 0, 0, 0, KEY_TOUCH, 256, 70, -1, "fe: next shirt", "fe_clothes"}, // the Shirt frame's > arrow
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: next -> name", "fe_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 61, 164, -1, "fe: pick a name", "fe_pick_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, 166, 164, -1, "fe: typed name", "fe_typed_name"},
     {2.0f, 0, 0, 0, KEY_TOUCH, kFeNextX, kFeNextY, -1, "fe: create", "fe_tutorial_choice"},
-    // The stock/front-end regression keeps the historical skip path.  A dedicated manual
-    // Toontorial pass chooses the left "Play it" button at (85, 150).
-    {10.0f, 0, 0, 0, KEY_TOUCH, 235, 150, -1, "fe: tutorial skip", "fe_world"},
+    // An account's first Toon goes straight into the Toontorial (NameShop.__isFirstTime); the
+    // "skip" trigger line makes Create! skip it (the stock regression path).  No tap here.
+    {0.4f, 0, 0, 0, 0, -1, -1, -1, "fe: created", "fe_entering"},
+    {9.6f, 0, 0, 0, 0, -1, -1, -1, "fe: entering", "fe_world"},
     {3.0f, 0, 150, 0, 0, -1, -1, -1, "fe: run in world", "fe_run"},
 };
 constexpr int kFrontEndSteps = sizeof(kFrontEndScript) / sizeof(kFrontEndScript[0]);
@@ -316,10 +462,21 @@ bool Runner::begin() {
             shotsEnabled_ = false;
         else if (!strcmp(line, "tutorial"))
             tutorial_ = true;
+        else if (!strcmp(line, "skip"))
+            game::FrontEnd::setTestSkipTutorial(true);  // the old stock path: Create! skips the Toontorial
         else if (!strncmp(line, "from ", 5))
             snprintf(from, sizeof(from), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
+        else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
+        else if (!strncmp(line, "battle hold ", 12)) battleHoldMs_ = static_cast<u32>(atoi(line + 12)) * 1000u;
+        else if (!strncmp(line, "pose ", 5) && numPoses_ < kMaxPoses) {
+            Pose& p = poses_[numPoses_];
+            if (sscanf(line + 5, "%u %f %f %f %f %f %f %f %f %f %f", &p.zone, &p.eye[0], &p.eye[1], &p.eye[2],
+                       &p.target[0], &p.target[1], &p.target[2], &p.toon[0], &p.toon[1], &p.toon[2],
+                       &p.toon[3]) == 11)
+                numPoses_++;
+        }
     }
     fclose(f);
     active_ = true;
@@ -359,6 +516,18 @@ bool Runner::selected(const char* label) const {
     return false;
 }
 
+bool Runner::skipped(const char* label) const {
+    if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
+    return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10);
+}
+
+const Pose* Runner::pose() const {
+    const char* l = label();
+    if (strncmp(l, "pose: ", 6)) return nullptr;
+    const int n = atoi(l + 6);
+    return n >= 1 && n <= numPoses_ ? &poses_[n - 1] : nullptr;
+}
+
 const char* Runner::label() const { return active_ && ready_ && step_ < numSteps_ ? script_[step_].label : ""; }
 
 bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPosition& touch, int& stressToons) {
@@ -369,7 +538,8 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         TT_LOG("autotest: finished");
         return false;
     }
-    while (only_[0] && step_ < numSteps_ && !selected(script_[step_].label)) step_++; // "only" filter
+    while (step_ < numSteps_ && skipped(script_[step_].label))
+        step_++; // "only" filter; "returning:" steps need one; "pose: N" needs N pose lines
     if (step_ >= numSteps_) {
         active_ = false;
         TT_LOG("autotest: finished");
@@ -385,8 +555,6 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         down |= s.downOnce;
         int touchX = s.touchX;
         int touchY = s.touchY;
-        // FrontEnd::TutorialChoice: Play it is the left button, Skip is the established default.
-        if (!strcmp(s.label, "fe: tutorial skip") && tutorial_) touchX = 85;
         if (touchX >= 0) {
             touch.px = static_cast<u16>(touchX);
             touch.py = static_cast<u16>(touchY);
@@ -394,6 +562,13 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         }
         if (s.stressToons >= 0) stressToons = s.stressToons;
         stepStarted_ = true;
+    }
+    // "book touch" steps hold the stylus for 6 frames like a real tap: down on the first frame,
+    // then held with the same point (hardware never reports a one-frame touch).
+    if (s.touchX >= 0 && stepFrames_ > 1 && stepFrames_ <= 6 && !strncmp(s.label, "book touch", 10)) {
+        touch.px = static_cast<u16>(s.touchX);
+        touch.py = static_cast<u16>(s.touchY);
+        held |= KEY_TOUCH;
     }
     pad.dx = s.padX;
     pad.dy = s.padY;
@@ -424,7 +599,7 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
         seriesIndex_ = 0;
         stepStarted_ = false;
         step_++;
-        if (tutorial_ && frontEnd_ && step_ == numSteps_) {
+        if (tutorial_ && frontEnd_ && step_ == numSteps_ && script_ != kTutorialScript) {
             script_ = kTutorialScript;
             numSteps_ = sizeof(kTutorialScript) / sizeof(kTutorialScript[0]);
             step_ = 0;

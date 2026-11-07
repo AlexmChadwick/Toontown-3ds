@@ -2,6 +2,7 @@
 
 #include "ui/book_pages/book_page.h"
 #include "ui/focus.h"
+#include "ui/page_text.h"
 
 namespace tt::ui {
 
@@ -16,17 +17,9 @@ public:
     void draw(float x, float y, float w, float h, const BookDrawContext& bdc) override;
 
 private:
-    void rebuildText(const BookDrawContext& bdc);
     void applyOption(int id, State& s); // padnav: the action behind each pad::book option id
 
-    C2D_TextBuf textBuf_ = nullptr;
-    int lastMusicVol_ = -1;
-    int lastSfxVol_ = -1;
-    int lastStress_ = -1;
-    bool lastStereo_ = false;
-    bool lastDebug_ = false;
-    int lastLod_ = -1;
-    int lastNumDistricts_ = -1;
+    PageText text_;
     FocusGroup focus_{"book_options"}; // padnav
 };
 

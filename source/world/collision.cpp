@@ -10,7 +10,10 @@
 //                                  height = 2 * radius
 //   direct/controls/GravityWalker.py:102  floor ray from z = 4000 straight down
 //                                  (ControlManager.py:19 CollisionHandlerRayStart)
-//   otp/avatar/LocalAvatar.py:210-216  camera: CollisionSegment with CameraBitmask
+//   otp/avatar/LocalAvatar.py:210-216  camera: CollisionSegment (ccLine) plus a
+//                                  CollisionSphere pusher (ccSphere), CameraBitmask.
+//                                  cameraSphereCast is both: the centre stops `radius`
+//                                  before the surface, in one walk.
 #include "world/collision.h"
 
 #include <cmath>
@@ -166,6 +169,60 @@ float rayTri(const float* o, const float* d, const CollTri& t, float tMax) {
     if (v < 0.0f || u + v > 1.0f) return -1.0f;
     float tt = dot3(e2, qv) * inv;
     return (tt >= 0.0f && tt <= tMax) ? tt : -1.0f;
+}
+
+// True when p lies on triangle t (closest-point distance under 0.001).
+bool triContains(const float* p, const CollTri& t) {
+    float q[3];
+    closestPtTri(p, t.v0, t.v1, t.v2, q);
+    float dx = p[0] - q[0], dy = p[1] - q[1], dz = p[2] - q[2];
+    return dx * dx + dy * dy + dz * dz <= 1e-6f;
+}
+
+// Sphere of radius r whose centre moves from o along d (the full segment, not a unit
+// direction). Returns the first t in [0, 1], or -1. A convex triangle is the face
+// plane or, when that contact falls outside the triangle, one of the three edges.
+float sphereCastTri(const float* o, const float* d, float r, const CollTri& tri) {
+    float q[3];
+    closestPtTri(o, tri.v0, tri.v1, tri.v2, q);
+    float diff[3] = {o[0] - q[0], o[1] - q[1], o[2] - q[2]};
+    if (dot3(diff, diff) <= r * r) return 0.0f;
+
+    float sd = dot3(tri.n, o) - tri.d;
+    float denom = dot3(tri.n, d);
+    if (fabsf(sd) > r && fabsf(denom) > 1e-8f) {
+        const float sign = sd >= 0.0f ? 1.0f : -1.0f;
+        const float t = (sign * r - sd) / denom;
+        if (t >= 0.0f && t <= 1.0f) {
+            float hit[3] = {o[0] + d[0] * t - tri.n[0] * sign * r, o[1] + d[1] * t - tri.n[1] * sign * r,
+                            o[2] + d[2] * t - tri.n[2] * sign * r};
+            // Inside the face: that is the first contact with a convex triangle.
+            if (triContains(hit, tri)) return t;
+        }
+    }
+
+    const float len2 = dot3(d, d);
+    if (len2 < 1e-12f) return -1.0f;
+    const float len = sqrtf(len2);
+    float dir[3] = {d[0] / len, d[1] / len, d[2] / len};
+    float best = 2.0f;
+    const float* vs[4] = {tri.v0, tri.v1, tri.v2, tri.v0};
+    for (int e = 0; e < 3; ++e) {
+        CollCap cap{};
+        cap.a[0] = vs[e][0];
+        cap.a[1] = vs[e][1];
+        cap.a[2] = vs[e][2];
+        cap.b[0] = vs[e + 1][0];
+        cap.b[1] = vs[e + 1][1];
+        cap.b[2] = vs[e + 1][2];
+        cap.r = r;
+        const float th = rayCapsule(o, dir, cap);
+        if (th >= 0.0f && th <= len) {
+            const float t = th / len;
+            if (t < best) best = t;
+        }
+    }
+    return best <= 1.0f ? best : -1.0f;
 }
 
 // Horizontal push that moves a sphere centre c (radius r) clear of the closest point q.
@@ -652,6 +709,128 @@ bool CollisionWorld::cameraRaycast(const Vec3& from, const Vec3& to, float* hitT
                 }
             }
             float tCellExit = minf(tMaxX, tMaxY);
+            if (best <= tCellExit || tCellExit > tExit) break;
+            if (tMaxX < tMaxY) {
+                cx += stepX;
+                tMaxX += tDX;
+            } else {
+                cy += stepY;
+                tMaxY += tDY;
+            }
+            if (cx < 0 || cy < 0 || cx >= gridW_ || cy >= gridH_) break;
+        }
+    }
+    if (best > 1.0f) return false;
+    if (hitT) *hitT = best;
+    return true;
+}
+
+bool CollisionWorld::cameraSphereCast(const Vec3& from, const Vec3& to, float radius, float* hitT) const {
+    if (!blob_) return false;
+    if (radius < 0.0f) radius = 0.0f;
+    float d[3] = {to.x - from.x, to.y - from.y, to.z - from.z};
+    float len = sqrtf(dot3(d, d));
+    if (len < 1e-6f) return false;
+    const float o[3] = {from.x, from.y, from.z};
+    float dir[3] = {d[0] / len, d[1] / len, d[2] / len};
+    float best = 2.0f;
+
+    for (uint32_t i = 0; i < numPlanes_; ++i) {
+        const CollPlane& p = planes_[i];
+        if (!(p.flags & kCollideCamera)) continue;
+        // Free side is n·p >= d (same half-space as cameraRaycast). Stop radius short of it.
+        const float sd = dot3(p.n, o) - p.d;
+        const float travel = dot3(p.n, d);
+        if (sd <= radius) {
+            best = 0.0f;
+        } else if (travel < 0.0f) {
+            const float t = (radius - sd) / travel;
+            if (t >= 0.0f && t <= 1.0f && t < best) best = t;
+        }
+    }
+    if (best <= 0.0f) {
+        if (hitT) *hitT = 0.0f;
+        return true;
+    }
+
+    // Cells the sphere can touch while the centre is in the current cell. The closest
+    // point of a cell at Chebyshev distance k is (k-1) cells away, so k = floor(r/cell)+1
+    // covers a sphere of this radius, including one that lands exactly on a boundary.
+    int reach = int(floorf(radius / cellSize_)) + 1;
+
+    const uint32_t s = nextStamp();
+    auto testCell = [&](int cx, int cy) {
+        if (cx < 0 || cy < 0 || cx >= gridW_ || cy >= gridH_) return;
+        CellLists cl = cell(cx, cy);
+        const uint16_t* idx = cl.idx + cl.counts[0] + cl.counts[1] + cl.counts[2] + cl.counts[3];
+        for (uint16_t i = 0; i < cl.counts[4]; ++i) {
+            const uint16_t ti = idx[i];
+            if (stamps_[ti] == s) continue;
+            stamps_[ti] = s;
+            const float t = sphereCastTri(o, d, radius, tris_[ti]);
+            if (t >= 0.0f && t < best) best = t;
+        }
+        idx += cl.counts[4];
+        for (uint16_t i = 0; i < cl.counts[5]; ++i) {
+            const uint16_t ci = idx[i];
+            if (stamps_[numTris_ + ci] == s) continue;
+            stamps_[numTris_ + ci] = s;
+            CollCap grown = caps_[ci];
+            grown.r += radius;
+            const float th = rayCapsule(o, dir, grown);
+            if (th >= 0.0f) {
+                const float t = th / len;
+                if (t <= 1.0f && t < best) best = t;
+            }
+        }
+    };
+
+    // Pad the grid clip by radius so a sphere that enters a boundary cell before its
+    // centre does is still tested. The DDA itself is the cameraRaycast walk.
+    float gx0 = originX_ - radius, gy0 = originY_ - radius;
+    float gx1 = originX_ + float(gridW_) * cellSize_ + radius;
+    float gy1 = originY_ + float(gridH_) * cellSize_ + radius;
+    float tEnter = 0.0f, tExit = 1.0f;
+    const float pxy[2] = {from.x, from.y};
+    const float lo[2] = {gx0, gy0}, hi[2] = {gx1, gy1};
+    for (int a = 0; a < 2; ++a) {
+        if (fabsf(d[a]) < 1e-9f) {
+            if (pxy[a] < lo[a] || pxy[a] >= hi[a]) tExit = -1.0f;
+        } else {
+            float t0 = (lo[a] - pxy[a]) / d[a], t1 = (hi[a] - pxy[a]) / d[a];
+            if (t0 > t1) {
+                float tmp = t0;
+                t0 = t1;
+                t1 = tmp;
+            }
+            tEnter = maxf(tEnter, t0);
+            tExit = minf(tExit, t1);
+        }
+    }
+    if (tEnter <= tExit && tExit >= 0.0f) {
+        float px = from.x + d[0] * tEnter, py = from.y + d[1] * tEnter;
+        int cx = int((px - originX_) * invCell_), cy = int((py - originY_) * invCell_);
+        cx = cx < 0 ? 0 : (cx >= gridW_ ? gridW_ - 1 : cx);
+        cy = cy < 0 ? 0 : (cy >= gridH_ ? gridH_ - 1 : cy);
+        int stepX = d[0] > 0.0f ? 1 : -1, stepY = d[1] > 0.0f ? 1 : -1;
+        float tMaxX = INFINITY, tMaxY = INFINITY, tDX = INFINITY, tDY = INFINITY;
+        if (fabsf(d[0]) > 1e-9f) {
+            float bx = originX_ + float(cx + (stepX > 0 ? 1 : 0)) * cellSize_;
+            tMaxX = (bx - from.x) / d[0];
+            tDX = cellSize_ / fabsf(d[0]);
+        }
+        if (fabsf(d[1]) > 1e-9f) {
+            float by = originY_ + float(cy + (stepY > 0 ? 1 : 0)) * cellSize_;
+            tMaxY = (by - from.y) / d[1];
+            tDY = cellSize_ / fabsf(d[1]);
+        }
+        for (int guard = 0; guard < gridW_ + gridH_ + 2; ++guard) {
+            for (int oy = -reach; oy <= reach; ++oy) {
+                for (int ox = -reach; ox <= reach; ++ox) testCell(cx + ox, cy + oy);
+            }
+            const float tCellExit = minf(tMaxX, tMaxY);
+            // Anything the sphere can touch before the centre leaves this cell is in
+            // the neighbourhood just tested. A later cell cannot be a closer hit.
             if (best <= tCellExit || tCellExit > tExit) break;
             if (tMaxX < tMaxY) {
                 cx += stepX;

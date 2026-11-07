@@ -1,4 +1,7 @@
+#include "core/gpu_sync.h"
 #include "world/toon_cache.h"
+
+#include "core/crash.h"
 
 #include <cstdlib>
 #include <initializer_list>
@@ -111,11 +114,46 @@ bool ToonCache::init() {
         TT_LOG("toon: no clothes.ttx; models keep their own clothing");
     }
 
+    loadEyes();
+
     // Main thread runs at 0x30; 0x31 only runs while the main thread waits (vsync, GPU),
     // so loading never takes frame time. Core 0 = the Old 3DS application core.
     loader_ = threadCreate(loaderMain, this, 32 * 1024, 0x31, 0, false);
     if (!loader_) TT_LOG("toon: loader thread failed; parts load synchronously");
     return true;
+}
+
+// eyes.ttx: one table of kEyeTexCount textures (bake_toon.EYE_TEXTURES, then 'clear').
+void ToonCache::loadEyes() {
+    char path[128];
+    if (!findFile("eyes.ttx", path, sizeof(path))) {
+        TT_LOG("toon: no eyes.ttx; eyes stay open");
+        return;
+    }
+    FILE* f = fopen(path, "rb");
+    TtxHeader h;
+    u16 map[kEyeTexCount];
+    render::TexEntry entries[kEyeTexCount];
+    bool ok = f && fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 &&
+              h.counts[0] == kEyeTexCount && h.numTextures == kEyeTexCount &&
+              fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, sizeof(u16), kEyeTexCount, f) == kEyeTexCount &&
+              fseek(f, h.texOffset, SEEK_SET) == 0 &&
+              fread(entries, sizeof(render::TexEntry), kEyeTexCount, f) == kEyeTexCount;
+    int loaded = 0;
+    for (; ok && loaded < kEyeTexCount; loaded++) {
+        ok = map[loaded] < kEyeTexCount && render::loadTexture(f, entries[map[loaded]], &eyeTex_[loaded]);
+        if (ok) eyesBytes_ += C3D_TexCalcTotalSize(eyeTex_[loaded].size, eyeTex_[loaded].maxLevel);
+    }
+    if (f) fclose(f);
+    if (!ok) {
+        mem::LinearGuard g;
+        for (int i = 0; i < kEyeTexCount; i++) if (eyeTex_[i].data) C3D_TexDelete(&eyeTex_[i]);
+        memset(eyeTex_, 0, sizeof(eyeTex_));
+        eyesBytes_ = 0;
+    }
+    eyesLoaded_ = ok;
+    TT_LOG("toon: eyes pack %s %s (%lu bytes)", path, ok ? "loaded" : "bad; eyes stay open",
+           static_cast<unsigned long>(eyesBytes_));
 }
 
 bool ToonCache::initFallback() {
@@ -136,11 +174,11 @@ void ToonCache::shutdown() {
     if (loader_) {
         quit_ = true;
         LightEvent_Signal(&wake_);
-        threadJoin(loader_, U64_MAX);
-        threadFree(loader_);
+        const bool joined = ::tt::gpu::joinBounded(loader_, "toon loader", 2000ULL * 1000 * 1000);
         loader_ = nullptr;
+        if (!joined) return; // still loading a part: leave its memory to the process exit
     }
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     for (auto& stream : streams_) for (int p=0;p<3;p++) {
         if(stream.files[p]) { fclose(stream.files[p]);stream.files[p]=nullptr; }
         stream.active[p].unload(); stream.staging[p].unload();
@@ -162,6 +200,13 @@ void ToonCache::shutdown() {
         c = ToonClothing{};
     }
     fallback_ = ToonLook{};
+    if (eyesLoaded_) {
+        mem::LinearGuard g;
+        for (C3D_Tex& t : eyeTex_) C3D_TexDelete(&t);
+    }
+    memset(eyeTex_, 0, sizeof(eyeTex_));
+    eyesLoaded_ = false;
+    eyesBytes_ = 0;
     if (clothesFile_) fclose(clothesFile_);
     clothesFile_ = nullptr;
     free(clothesMap_);
@@ -172,7 +217,7 @@ void ToonCache::shutdown() {
 
 u32 ToonCache::linearBytes() const {
     Lock lock(lock_);
-    u32 total = streamBytes_;
+    u32 total = streamBytes_ + eyesBytes_;
     for (const auto& p : parts_) total += p.bytes;
     for (const auto& c : clothes_) total += c.bytes;
     return total;
@@ -268,6 +313,19 @@ ToonClothing* ToonCache::bookClothing(u8 table, u8 index) {
     return slot;
 }
 
+void ToonCache::pin(const ToonLook* look) {
+    Lock l(lock_);
+    for (ToonPart& p : parts_) p.pinned = false;
+    for (ToonClothing& c : clothes_) c.pinned = false;
+    if (!look) return;
+    for (ToonPart* p : {look->legs, look->torso, look->head, look->lashes}) {
+        if (p) p->pinned = true;
+    }
+    for (ToonClothing* c : look->clothes) {
+        if (c) c->pinned = true;
+    }
+}
+
 void ToonCache::release(ToonLook* look) {
     Lock l(lock_);
     for (ToonPart* p : {look->legs, look->torso, look->head, look->lashes}) {
@@ -321,6 +379,7 @@ bool ToonCache::acquire(const ToonDna& dna, ToonLod lod, ToonLook* out) {
 // ---- loader thread: all linear-memory work ----
 
 void ToonCache::loaderMain(void* arg) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     ToonCache& self = *static_cast<ToonCache*>(arg);
     while (!self.quit_) {
         if (!self.loaderStep()) LightEvent_Wait(&self.wake_);
@@ -359,10 +418,10 @@ bool ToonCache::admit(u32 bytes) {
         ToonClothing* cloth = nullptr;
         {
             Lock lock(lock_);
-            for (auto& p : parts_) if (p.state==SlotState::Ready && !p.refs && p.retiredFrame<frame_ &&
+            for (auto& p : parts_) if (p.state==SlotState::Ready && !p.refs && !p.pinned && p.retiredFrame<frame_ &&
                 (!victim || p.lastUsed<victim->lastUsed)) victim=&p;
             if (victim) { victim->state=SlotState::Free; victim->key[0]=0; }
-            else for (auto& c : clothes_) if (c.state==SlotState::Ready && !c.refs && c.retiredFrame<frame_ &&
+            else for (auto& c : clothes_) if (c.state==SlotState::Ready && !c.refs && !c.pinned && c.retiredFrame<frame_ &&
                 (!cloth || c.lastUsed<cloth->lastUsed)) cloth=&c;
             if (cloth) cloth->state=SlotState::Free;
         }
@@ -568,6 +627,8 @@ bool ToonCache::streamStep() {
         if (!ok) {
             fallback[p]=true;
             if(!slot->fileFallback[p]) {
+                // Once per clip file: the part shows its neutral pose instead (emotes look frozen).
+                TT_LOG("toon: clip %s %s, using neutral", file, slot->files[p] ? "read failed" : "missing");
                 if(slot->files[p]) fclose(slot->files[p]);
                 snprintf(file,sizeof(file),"%.23s_neutral.tta",keys[p]);
                 slot->files[p]=findFile(file,path,sizeof(path))?fopen(path,"rb"):nullptr;

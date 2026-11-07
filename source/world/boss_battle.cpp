@@ -1,3 +1,5 @@
+#include "core/gpu_sync.h"
+#include "ui/boss_titles.h"
 #include "world/boss_battle.h"
 #include "core/profile.h"
 #include "world/ceo_battle.h"
@@ -159,7 +161,7 @@ void BossBattle::release() {
 
 void BossBattle::leave(BossFrame& frame) {
     // All GPU users have completed before resources or the underlying place change.
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossNear(false);
     frame.client.sendBossExit();
     frame.cache.release(&rescuedLook_);
@@ -200,12 +202,17 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
         frame.remotes.clear();
         return;
     }
-    const bool cfoScript = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: board");
-    const bool scripted = cfoScript || (frame.test.active() && !std::strcmp(frame.test.label(), "boss: board"));
+    // The rounds steps board again from the lobby: a reconnect returns the toon there (the boss
+    // office dies with the session). They never teleport: board() also runs on the ride into the
+    // office, before the boss object exists.
+    const char* step = frame.test.active() ? frame.test.label() : "";
+    const bool rejoin = !std::strcmp(step, "boss: rounds") || !std::strcmp(step, "cfo: rounds");
+    const bool cfoScript = !std::strcmp(step, "cfo: board") || !std::strcmp(step, "cfo: rounds");
+    const bool scripted = cfoScript || rejoin || !std::strcmp(step, "boss: board");
     const bool cashbot = cfoScript || frame.place.zoneId() == 12100;
     const uint32_t lobby = cashbot ? 12100 : 11100;
     const uint16_t elevatorClass = cashbot ? dc::DistributedCFOElevator::kClassId : dc::DistributedVPElevator::kClassId;
-    if (scripted && frame.place.zoneId() != lobby) {
+    if (scripted && !rejoin && frame.place.zoneId() != lobby) {
         frame.uiState.teleportRequest = lobby;
         return;
     }
@@ -829,11 +836,12 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : state.phase;
+    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "VP %.0f / 100  %s  Laff %d", damage,
                   state.attack == net::kBossDizzyNow ? "STUNNED" : vpHatchOpen(state, nowMs) ? "HATCH OPEN" : "", frame.client.ownStats().hp);
     std::snprintf(details_, sizeof(details_), "Pies %u  Power %.0f%%  Aim %.0f", unsigned(frame.client.bossPies()),
@@ -851,7 +859,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
                            failed_ ? "Copy data/boss from the bake. B: return" :
                            "A jump; B hold/release pie; D-pad aim; cage refills";
     if (cashbot_) {
-        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : state.phase;
+        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : ui::bossPhaseTitle(state.phase);
         std::snprintf(status_, sizeof(status_), "CFO %.0f / 500  Laff %d", damage, frame.client.ownStats().hp);
         std::snprintf(details_, sizeof(details_), "Magnet %s   %s", cfo_.magnetOn() ? "ON" : "OFF",
                       state.attack == net::kBossDizzy ? "STUNNED: throw safes" : "Jump on goons; knock helmet off");
@@ -899,11 +907,11 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.ui.setBattle(nullptr, {});
         frame.remotes.clear();
         frame.suits.setZone(frame.client.zoneId());
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.place.unload(); // The lobby and arena never consume the zone pools together.
         if (cashbot_) frame.player.reset(88, -214, 0, 210);
         else frame.player.reset(-10, -80, 0, 0);
-        frame.ui.book().close();
+        frame.ui.book().close("boss_battle");
     }
     frame.client.update(nowMs);
     net::Event event;

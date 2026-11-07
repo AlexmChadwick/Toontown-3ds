@@ -1,8 +1,13 @@
 #include "net/connection.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
+#include "core/log.h"
+#ifdef __3DS__
+#include "core/crash.h"
+#endif
 #include "net/msg_types.h"
 
 namespace tt::net {
@@ -74,7 +79,14 @@ bool Connection::init() {
 void Connection::shutdown() {
     if (!storage_) return;
     quit_ = true;
-    thread_.join();
+    if (!thread_.join()) {
+        // Net thread still running (stuck in a SOC call): shut the socket down under it and
+        // leave its buffers and soc:U alone; the process exit reclaims them.
+        TT_LOG("net: thread stuck at exit; skipping socExit");
+        plat::tcpClose(fd_);
+        fd_ = -1;
+        return;
+    }
     plat::tcpClose(fd_);
     fd_ = -1;
     plat::socketsExit();
@@ -132,8 +144,16 @@ void Connection::closeSocket(const char* why) {
     plat::tcpClose(fd_);
     fd_ = -1;
     heartbeat_ = false;
+    const char* io = plat::tcpLastIoError();
     plat::LockGuard g(sendLock_);
-    error_ = why;
+    if (io[0]) snprintf(errorBuf_, sizeof(errorBuf_), "%s (%s)", why, io);
+    else snprintf(errorBuf_, sizeof(errorBuf_), "%s", why);
+    if (!loggedDrop_) {
+        TT_LOG("net: socket closed: %s", errorBuf_);
+        tt::log::flush();
+        loggedDrop_ = true;
+    }
+    error_ = errorBuf_;
     status_ = Status::Disconnected;
 }
 
@@ -149,13 +169,17 @@ void Connection::doConnect() {
     if (fd_ >= 0) closeSocket("reconnecting");
     status_ = Status::Connecting;
     const char* err = "";
-    int fd = plat::tcpConnect(host, port, kConnectTimeoutMs, &err);
+    int fd = plat::tcpConnect(host, port, kConnectTimeoutMs, &err, &quit_);
     if (fd < 0) {
+        TT_LOG("net: connect to %s:%u failed: %s", host, unsigned(port), err);
+        tt::log::flush();
         plat::LockGuard g(sendLock_);
-        error_ = err;
+        snprintf(errorBuf_, sizeof(errorBuf_), "%s", err);
+        error_ = errorBuf_;
         status_ = Status::Disconnected;
         return;
     }
+    loggedDrop_ = false;
     fd_ = fd;
     {
         plat::LockGuard r(recvLock_);
@@ -211,6 +235,9 @@ bool Connection::pumpRecv() {
 }
 
 void Connection::run() {
+#ifdef __3DS__
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
+#endif
     while (!quit_) {
         bool connectNow, disconnectNow;
         {
@@ -256,8 +283,10 @@ void Connection::run() {
             plat::LockGuard g(sendLock_);
             pending = send_.used();
         }
-        plat::tcpWait(fd_, pending > 0, pending > 0 ? 2 : 10);
-        if (!pumpRecv()) { closeSocket("connection closed by server"); continue; }
+        // recv only when poll reports data (or a hang-up): on hardware every recv is a SOC
+        // service call, and an idle loop runs ~100 times a second.
+        const int ready = plat::tcpWait(fd_, pending > 0, pending > 0 ? 2 : 10);
+        if ((ready & plat::kTcpReadable) && !pumpRecv()) { closeSocket("connection closed by server"); continue; }
         uint32_t freeSpace;
         {
             plat::LockGuard g(recvLock_);

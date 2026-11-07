@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "game/cannon_game.h"
 #include "world/toon_avatar.h"
 
@@ -83,7 +84,7 @@ void CannonGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
 void CannonGame::shutdown() {
     assetBatch_.clear();
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     ground_.unload();
     hill_.unload();
     tower_.unload();

@@ -1,8 +1,9 @@
 # The Toontorial
 
-The tutorial is an opt-in, new-avatar path against the stock `TutorialManagerAI`.
-The make-a-toon screen records the player's choice before `createAvatar`; the default is
-Skip, which preserves the old front-end behaviour.  Play holds the normal initial zone
+The tutorial is the default new-avatar path against the stock `TutorialManagerAI`, as in
+the original (NameShop.__isFirstTime): an account's first Toon goes straight in; later Toons
+get the PromptTutorial screen (Enter Toontorial / Skip Toontorial; B goes back, it never
+skips).  The choice is recorded before `createAvatar`.  Play holds the normal initial zone
 entry, opens the management interest, and sends only `TutorialManager.requestTutorial`
 after the owner view has arrived.  `enterTutorial` supplies four dynamic zone ids.
 
@@ -52,6 +53,21 @@ are retained for the scene owner. Commands whose Panda target has no 3DS equival
 order but intentionally have no extra visual object; inventory/book actions remain on the
 bottom-screen UI. This is the deliberate visual simplification, not fabricated script data.
 
+Where each script starts (as upstream):
+
+| Script | Trigger (upstream) | 3DS |
+| --- | --- | --- |
+| `tutorial_mickey` | DistributedTutorialInterior generate | `TutorialInterior` event; Minnie's lines for a girl Toon |
+| `quest_assign_101` | Tom's `QUEST_MOVIE_ASSIGN` 101 (DistributedNPCToon.setMovie, `questDefined`) | `Talk` enters `Phase::Script`, main starts the script; its end sends `setMovieDone` |
+| `quest_assign_110` | HQ Harry's `QUEST_MOVIE_ASSIGN` 110 | same as 101 |
+| `tutorial_blocker` | Flippy's `BLOCKER_MOVIE_START`, after `avatarEnter` on touching his (4.5, 1, 6) scaled tube | Flippy stands at `NPCToons.BlockerPositions`; contact sends `avatarEnter` once |
+
+While a script runs the toon stands still (the `quest` place state). Its lines show in the
+speaker's balloon and on the bottom-screen talk panel (A or a tap dismisses a line). Tom's
+lesson cards are the real `tutorial_gui` art (`tools/pipeline/bake_tutorial_gui.py` ->
+`romfs/baked/tutorial_gui.ttm`), drawn under his words while the script has a card parented to
+the camera.
+
 ## Packet safety and host verification
 
 Every tutorial sender is a `TT_NET_UPDATE` with a generated `TT_SIG` layout assertion:
@@ -61,7 +77,8 @@ scripts against the upstream parser, verifies every sender is generated `clsend`
 signature guard, and compiles the dynamic-zone mapping vectors.
 
 For an emulator verification (not run by this change), create
-`sdmc:/3ds/toontown3ds/autotest_fe` with `shots off`, choose **Play it** in the new prompt,
+`sdmc:/3ds/toontown3ds/autotest_fe` with `shots off` and `tutorial` (a fresh account's first
+Toon enters the Toontorial on Create!; add `skip` for the old skip path),
 and inspect `sdmc:/3ds/toontown3ds/log.txt` for these lines in order:
 
 ```

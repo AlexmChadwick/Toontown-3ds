@@ -22,6 +22,8 @@ namespace tt::world {
 enum class PlaceKind : u8 { Playground, Street, Interior };
 PlaceKind placeKind(u32 zoneId);
 u32 hoodOf(u32 zoneId); // 2000 for every TTC zone (2000, 21xx, 25xx, ...)
+// Upstream camera far of a Cog HQ hood (ToontownGlobals *HQCameraFar), 0 elsewhere.
+float cameraFar(u32 zoneId);
 
 struct Exit {
     enum Kind : u8 { None, Tunnel, Door } kind = None;
@@ -53,8 +55,17 @@ public:
     const float* boundsMax() const { return zone_.loaded() ? zone_.boundsMax() : model_.boundsMax(); }
     // Streams chunks for the toon's cell; cb fires when the server cell (street visgroup)
     // changes, with [branch] + vis zones for the interest. Call once per frame.
+    // setCamera before update: the draw/triangle cap follows that view.
+    void setCamera(const C3D_FVec& eye, const C3D_FVec& target);
     void update(float x, float y, float z, Zone::CellChanged cb, void* user);
-    // Blocks until the chunks around (x, y, z) are resident (arrival; no pop-in).
+    // Queues the draw plan, then a ring of neighbouring chunks. The loader thread
+    // does the reads. Call update() until streamReady(). streamReady is the part of
+    // the cone that covers most of the screen; near upgrades and the ring continue
+    // after the card drops.
+    void beginStreaming(float x, float y, float z, Zone::CellChanged cb, void* user);
+    bool streamReady() const;
+    float streamProgress() const;
+    // Blocks until the chunks around (x, y, z) are resident (boss / cogdo arrival).
     void finishLoading(float x, float y, float z, Zone::CellChanged cb, void* user);
     void draw(render::Renderer& renderer, const C3D_FVec& eye);
     const char* pointsPath() const { return pointsPath_; }

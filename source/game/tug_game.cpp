@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "game/tug_game.h"
 #include "world/toon_avatar.h"
 
@@ -82,7 +83,7 @@ void TugGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
 void TugGame::shutdown() {
     assetBatch_.clear();
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     sky_.unload();
     dock_.unload();
     rope_.unload();

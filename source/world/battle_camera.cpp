@@ -675,52 +675,29 @@ void BattleCamera::chooseRewardShot(uint32_t localToonId, uint32_t startMs, uint
 // ----------------------------------------------------------------------
 void BattleCamera::buildMovie(uint32_t battleId, uint32_t round, const Battle& battle,
                               const net::BattleMovie& m, uint32_t movieStartMs) {
-    (void)battle;
     reset();
     currentMode_ = BattleCamShotKind::WaitForInput; // movie shots will override
     rng_.seed(battleId ^ (round * 0x9E3779B9u) ^ 0x55AA3311u);
 
-    uint32_t t = movieStartMs + 300;
-
-    // Sort toon attacks by track then level, exactly matching Battle::buildMovie
-    int order[4];
-    int n = 0;
-    for (int i = 0; i < 4; ++i) {
-        const net::BattleToonAttack& a = m.toonAttacks[i];
-        if (a.track < 0 || a.track > 6 || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
-        int pos = n++;
-        while (pos > 0) {
-            const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
-            if (p.track < a.track || (p.track == a.track && p.level <= a.level)) break;
-            order[pos] = order[pos - 1];
-            --pos;
+    // Battle::buildMovie already laid the round out (Movie.py order, its timings, SOS and Fire
+    // specials); frame each of its steps so the camera never drifts from what plays.
+    for (int i = 0; i < battle.numMovieSteps(); ++i) {
+        const BattleMovieStep& st = battle.movieStep(i);
+        const uint32_t t = movieStartMs + st.startMs, attackDur = st.durMs;
+        const uint32_t who = st.who, target = st.target;
+        if (st.kind == BattleMovieStep::kSuit) {
+            chooseSuitShot(st.level, who, target, t, attackDur, st.group);
+            continue;
         }
-        order[pos] = i;
-    }
-
-    for (int k = 0; k < n; ++k) {
-        const net::BattleToonAttack& a = m.toonAttacks[order[k]];
-        const uint32_t who = m.toons[a.toonIdx];
-        uint32_t target = 0;
-        if (a.target >= 0) {
-            if (a.track == 0 && a.target < m.numToons) target = m.toons[a.target];
-            else if (a.track != 0 && a.target < m.numSuits) target = m.suits[a.target];
+        if (st.kind == BattleMovieStep::kSpecial) {
+            chooseSOSShot(who, t, attackDur);
+            continue;
         }
-
-        uint32_t attackDur = 2200;
-        if (a.track == 4) attackDur = 3500; // Throw
-        else if (a.track == 5) attackDur = 3300; // Squirt
-        else if (a.track == 6) attackDur = 4200; // Drop
-        else if (a.track == 3) attackDur = 3500; // Sound
-        else if (a.track == 1) attackDur = 3500; // Trap
-        else if (a.track == 2) attackDur = 4500; // Lure
-        else if (a.track == 0) attackDur = 3200; // Heal
-
-        const bool isGroup = (a.track == 3) || (a.track == 0 && a.level >= 1) || (a.level == 6);
-
-        switch (a.track) {
+        const int numSuits = m.numSuits;
+        const bool isGroup = (st.track == 3) || (st.track == 0 && st.level >= 1) || (st.level == 6);
+        switch (st.track) {
         case 0: // Heal
-            chooseHealShot(who, t, attackDur, a.level == 6);
+            chooseHealShot(who, t, attackDur, st.level == 6);
             break;
         case 1: // Trap
             chooseTrapShot(who, t, attackDur);
@@ -729,7 +706,7 @@ void BattleCamera::buildMovie(uint32_t battleId, uint32_t round, const Battle& b
             chooseLureShot(who, t, attackDur, false);
             break;
         case 3: // Sound
-            chooseSoundShot(who, target, t, attackDur, 1, m.numSuits, a.level == 6);
+            chooseSoundShot(who, target, t, attackDur, 1, numSuits, st.level == 6);
             break;
         case 4: // Throw
             chooseThrowShot(who, target, t, attackDur, 1, 1);
@@ -738,31 +715,12 @@ void BattleCamera::buildMovie(uint32_t battleId, uint32_t round, const Battle& b
             chooseSquirtShot(who, target, t, attackDur, 1, 1);
             break;
         case 6: // Drop
-            chooseDropShot(who, target, t, attackDur, 1, isGroup ? m.numSuits : 1);
+            chooseDropShot(who, target, t, attackDur, 1, isGroup ? numSuits : 1);
             break;
         default:
             addShot(makeAllGroupLowShot(t, attackDur));
             break;
         }
-
-        uint32_t dur = attackDur;
-        for (int j = 0; j < m.numSuits; ++j) {
-            if ((a.died >> j) & 1) {
-                dur = attackDur + 1500; // extra time for defeat animation
-            }
-        }
-        t += dur;
-    }
-
-    // Suit attacks
-    for (int i = 0; i < 4; ++i) {
-        const net::BattleSuitAttack& s = m.suitAttacks[i];
-        if (s.suitIdx < 0 || s.suitIdx >= m.numSuits || s.attack < 0) continue;
-        const uint32_t who = m.suits[s.suitIdx];
-        const uint32_t target = (s.target >= 0 && s.target < m.numToons) ? m.toons[s.target] : 0;
-        constexpr uint32_t suitAttackDur = 2600;
-        chooseSuitShot(s.attack, who, target, t, suitAttackDur, s.target < 0);
-        t += suitAttackDur;
     }
 }
 

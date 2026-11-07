@@ -7,7 +7,7 @@ ROOT="$DIR/../.."
 OUT="$DIR/out"
 mkdir -p "$OUT"
 
-clang++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions \
+${CXX:-clang++} -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions \
     -fsanitize=address,undefined -fno-omit-frame-pointer -I"$ROOT/source" \
     "$DIR/padnav_test.cpp" \
     "$ROOT/source/ui/focus.cpp" \

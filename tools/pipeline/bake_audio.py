@@ -103,6 +103,16 @@ SOUNDSCAPE = [
     ('amb_dg_bird2', 'phase_8/audio/sfx/SZ_DG_bird_02.ogg', 'sfx_adpcm', False, 'sd'),
     ('amb_dg_bird3', 'phase_8/audio/sfx/SZ_DG_bird_03.ogg', 'sfx_adpcm', False, 'sd'),
     ('amb_dg_bird4', 'phase_8/audio/sfx/SZ_DG_bird_04.ogg', 'sfx_adpcm', False, 'sd'),
+    # --- front end: ToontownStart / ToontownClientRepository's tt_theme (title, Pick-A-Toon) and
+    #     MakeAToon.music (source/main.cpp frontEndMusic) ---
+    ('fe_theme', 'phase_3/audio/bgm/tt_theme.ogg', 'music', True, 'sd'),
+    ('fe_create', 'phase_3/audio/bgm/create_a_toon.ogg', 'music', True, 'sd'),
+    # MakeAToon.crashSounds: one at random as each shop's room drops in (FrontEnd::ensureRoom).
+    ('mat_crash_boing', 'phase_3/audio/sfx/tt_s_ara_mat_crash_boing.ogg', 'sfx_adpcm', False, 'sd'),
+    ('mat_crash_glass_boing', 'phase_3/audio/sfx/tt_s_ara_mat_crash_glassBoing.ogg', 'sfx_adpcm', False, 'sd'),
+    ('mat_crash_wood', 'phase_3/audio/sfx/tt_s_ara_mat_crash_wood.ogg', 'sfx_adpcm', False, 'sd'),
+    ('mat_crash_wood_boing', 'phase_3/audio/sfx/tt_s_ara_mat_crash_woodBoing.ogg', 'sfx_adpcm', False, 'sd'),
+    ('mat_crash_wood_glass', 'phase_3/audio/sfx/tt_s_ara_mat_crash_woodGlass.ogg', 'sfx_adpcm', False, 'sd'),
     # --- street music (TownLoader.musicFile) st_<hood> and interior music (activityMusicFile) in_<hood> ---
     ('st_2000', 'phase_3.5/audio/bgm/TC_SZ.ogg', 'music', True, 'sd'),
     ('in_2000', 'phase_3.5/audio/bgm/TC_SZ_activity.ogg', 'music', True, 'sd'),

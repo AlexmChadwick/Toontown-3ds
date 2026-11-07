@@ -355,6 +355,7 @@ struct Boat {
 enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other, Cogdo };
 struct CogBuilding {
     bool cogdoVictory = false; // ---- cogdo: actual waitForVictorsFromCogdo state ----
+    bool suitVictory = false;  // waitForVictors: a won Cog building waits for its victors
     uint32_t doId = 0, block = 0, interiorZoneId = 0;
     int8_t track = -1, difficulty = -1, numFloors = -1;
     CogBuildingState state = CogBuildingState::Unknown;
@@ -602,7 +603,7 @@ struct Suit {
     bool tutorial;          // DistributedTutorialSuit: walks its own loop (world/tutorial.*), no path
     // ---- end tutorial ----
 };
-constexpr int kMaxSuits = 16;
+constexpr int kMaxSuits = 48; // the VP generates ~36 at once (both rounds plus reserves)
 struct SuitPlanner {
     uint32_t doId;
     uint32_t zoneId;        // DistributedSuitPlanner.setZoneId: the street branch (2100, ...)
@@ -765,6 +766,13 @@ struct Battle {
     uint32_t movieSeq;         // bumped whenever setMovie arrives with an active movie
     BattleExperience exp;
     uint32_t expSeq;
+    // setChosenToonAttacks (sent after every requestAttack while choosing): each active toon's
+    // pick, for TownBattleToonPanel. Track as the AI sends it: -1 none, -2 un-chose, 0..6 a gag,
+    // 98 PASS, 99 / 97 / 96 SOS, 100 FIRE. chosenStateSeq = stateSeq it arrived under.
+    uint8_t numChosen;
+    uint32_t chosenIds[kBattleToons];
+    int16_t chosenTrack[kBattleToons], chosenLevel[kBattleToons];
+    uint32_t chosenStateSeq;
     uint32_t adjustSeq;
     uint32_t adjustMs;         // local time of the last adjust(ts)
     bool active;
@@ -1029,6 +1037,10 @@ struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
     uint32_t defaultZone = 2000; // setDefaultZone: the playground a sad toon returns to
+    // toonUp / takeDamage (DistributedToon.showHpText): the clamped change and when it came; the world
+    // floats "+n" / "-n" over our Toon for 1.95 s
+    int16_t hpTextValue = 0;
+    uint32_t hpTextMs = 0;
     // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
     uint16_t experience[7] = {};
     uint8_t inventory[7][7] = {}; // count per track, level
@@ -1037,6 +1049,11 @@ struct OwnStats {
     uint8_t emoteAccess[25] = {};
     bool hasEmotes = false;
     bool hasGags = false; // setInventory received
+    // setTeleportAccess / setHoodsVisited, one bit per hood id / 1000 (2000 TTC = bit 2, the Cog
+    // HQs 10000-13000 = bits 10-13). The Map page teleports only to hoods in teleportAccess.
+    uint32_t teleportAccess = 0;
+    uint32_t hoodsVisited = 1u << 2; // toon.dc default [2000]
+    bool hasTeleportAccess = false;  // setTeleportAccess received (offline: no gating)
 };
 
 // ===================== friends / whispers (docs/design/friends.md) =====================
@@ -1081,14 +1098,14 @@ struct FriendInvite {
     int32_t context = 0;
     uint32_t sinceMs = 0;
 };
-enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing };
+enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing, ToonTask };
 struct Whisper {
     uint32_t fromId;       // sender (ourselves for Outgoing)
     uint32_t toId;         // recipient (ourselves for incoming)
     WhisperKind kind;
     uint16_t index;        // SpeedChat/custom/emote index (the UI decodes it); 0 for Typed/System
     char name[kNameLen];   // the other party
-    char text[kWhisperTextLen]; // Typed and System text; empty for index-only kinds
+    char text[kWhisperTextLen]; // Typed, System and ToonTask text; empty for index-only kinds
     uint32_t ms;
 };
 struct TeleportResult {
@@ -1217,6 +1234,11 @@ public:
     // Drop the connection and go through the normal retry path, keeping the chosen toon
     // and zone (after sleep, when the socket is known to be dead).
     void forceReconnect(const char* why);
+    // ToontownGlobals.DynamicZonesBegin: zones allocated per facility floor / minigame / estate.
+    static constexpr uint32_t kDynamicZonesBegin = 61000;
+    // Once, after a reconnect that could not rejoin a dynamic zone: the static zone the session
+    // is now in, so the world can follow (the old place is gone on the server).
+    bool takeRelocation(uint32_t* zone);
     // True when the toon being played was created in this session.
     bool playingNewAvatar() const { return newAvatarId_ != 0 && newAvatarId_ == avatarId_; }
     bool tutorialSkipSent() const { return skipTutorialSent_; }
@@ -1290,6 +1312,7 @@ public:
     // DistributedNode.setParent on our avatar: kParentRender or kParentDonaldsBoat. The pose sent
     // afterwards must be in that parent's frame (DistributedSmoothNode).
     void sendSetParent(uint32_t token);
+    void sendCheckTeleportAccess(uint32_t hoodId); // MapPage.__buttonCallback, before a teleport
     // Our world position for chat targeting when the pose we send is parent-local.
     void setOwnWorldPos(float x, float y, float z) { ownX_ = x, ownY_ = y, ownZ_ = z; }
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
@@ -1309,6 +1332,7 @@ public:
 
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
+    bool sendSCToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex);
     bool sendEmote(int id, float multiplier=1);
     bool sendSplashEffect(float x, float y, float z);
     // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
@@ -1334,6 +1358,8 @@ public:
     bool sendCogdoInterior(CogdoInteriorAction action);
     bool sendCogdoReady();
     bool sendCogdoVictor(uint32_t building);
+    // DistributedBuilding.setVictorReady while a won Cog building waits for us (waitForVictors).
+    bool sendVictorReady(uint32_t building);
     bool sendCogdoAction(uint8_t action, uint32_t data = 0);
     bool sendCogdoGag(float x, float y, float heading);
     bool sendCogdoSuit(uint8_t type, uint8_t serial, bool hitByGag);
@@ -1445,6 +1471,7 @@ public:
     uint32_t suitPlannerZone(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
+    bool hasEstateManager() const { return estateManagerDoId_ != 0; }
     const OwnBookStats& ownBook() const { return ownBook_; }
     const District* districts() const { return districts_; }
     int numDistricts() const { return kMaxDistricts; }
@@ -1729,6 +1756,9 @@ public:
     const FriendInfo* findFriend(uint32_t doId) const;
     bool isFriend(uint32_t doId) const { return findFriend(doId) != nullptr; }
     bool sendWhisperSC(uint32_t toDoId, uint16_t msgIndex);
+    // setWhisperSCToontaskFrom; `text` is our decoded phrase for the outgoing log line.
+    bool sendWhisperSCToontask(uint32_t toDoId, uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex,
+                               const char* text);
     bool requestFriend(uint32_t avId);
     void cancelFriendRequest();          // cancelFriendQuery when in flight, then back to Idle
     void clearFriendRequest() { friends_.request = FriendRequest(); }
@@ -1808,6 +1838,8 @@ private:
     void sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uint32_t* zones, int n);
     void dropZoneObjects();
     uint32_t targetZone_ = 0;
+    uint32_t lastStaticZone_ = 0; // the latest zone below kDynamicZonesBegin we were in
+    uint32_t relocatedZone_ = 0;  // see takeRelocation
     uint32_t visZones_[kMaxVisZones] = {};
     int numVisZones_ = 0;
     uint32_t quietCtx_ = 0;
@@ -1833,6 +1865,7 @@ private:
     uint32_t session_ = 0;
     uint32_t backoffUntil_ = 0;
     uint32_t backoffMs_ = 0;
+    bool everConnected_ = false; // a session started since start()/connect(): Backoff wording
     bool fatal_ = false;
 
     RacingPad racingPads_[kMaxRacingPads] = {};
@@ -1988,6 +2021,7 @@ private:
     bool parseBattleMembers(Battle& b, DatagramReader& r);
     bool parseBattleMovie(Battle& b, DatagramReader& r);
     bool parseBattleExperience(Battle& b, DatagramReader& r);
+    bool parseChosenToonAttacks(Battle& b, DatagramReader& r);
     void clearBattles();
     // ---- trolley and minigames ----
     Trolley trolley_ = {};
@@ -2047,10 +2081,12 @@ private:
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
     // ---- tutorial (survives reconnects with the new toon, like skipTutorialSent_) ----
-    TutorialChoice tutorialChoice_ = TutorialChoice::Skip;
+    // NameShop / OTPClientRepository: a new Toon plays the Toontorial unless the player skips it
+    TutorialChoice tutorialChoice_ = TutorialChoice::Play;
     bool tutorialRequested_ = false;  // requestTutorial sent this session
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent
+    int ownTutorialAck_ = -1;         // DistributedToon.setTutorialAck from the owner view (-1 = not yet)
     world::TutorialZones tutorialZones_{};
     TutorialInterior tutorialInterior_{};
     uint32_t tutorialSuitId_ = 0;

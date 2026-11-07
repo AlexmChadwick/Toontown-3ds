@@ -40,6 +40,7 @@ struct ToonPart {
     int refs = 0;
     u32 lastUsed = 0;
     bool animated = false;
+    bool pinned = false; // the local toon: admit() will not evict this slot
     volatile SlotState state = SlotState::Free;
     u32 bytes = 0; // conservative allocated bytes, including mips/alignment
     u32 retiredFrame = 0;
@@ -51,6 +52,7 @@ struct ToonClothing {
     int refs = 0;
     u32 lastUsed = 0;
     u32 retiredFrame = 0, bytes = 0;
+    bool pinned = false;
     volatile SlotState state = SlotState::Free;
 };
 
@@ -89,12 +91,20 @@ public:
     void shutdown();
     // Always-resident default toon, drawn while a toon's own parts are still loading.
     const ToonLook& fallback() const { return fallback_; }
+    // eyes.ttx (bake_toon.write_eyes_ttx), resident from init(): ToonHead's eye textures in
+    // EyeTex order. Null when the pack is missing: heads then keep their baked open eyes.
+    enum EyeTex : u8 { kEyesOpen, kEyesClosed, kEyesSadOpen, kEyesSadClosed, kEyesAngryOpen, kEyesAngryClosed,
+                       kEyesSurprised, kEyesClear, kEyeTexCount };
+    const C3D_Tex* eyeTexture(EyeTex t) const { return eyesLoaded_ && t < kEyeTexCount ? &eyeTex_[t] : nullptr; }
 
     // Books the parts/clothing for a DNA into `out` (previous contents released).
     // Loading happens on the loader thread; draw fallback() until out->ready().
     // Returns false (out left empty) when a part is known missing or tables are full.
     bool acquire(const ToonDna& dna, ToonLod lod, ToonLook* out);
     void release(ToonLook* look);
+    // Keep this look's parts and clothes resident even if their refcount drops.
+    // Clears any previous pin, then pins `look` (the local toon).
+    void pin(const ToonLook* look);
 
     // Main thread only, right after C3D_FrameBegin(C3D_FRAME_SYNCDRAW) and before any toon is
     // drawn: FrameBegin has waited for the previous frame's GPU queue, so this is the fence for
@@ -125,6 +135,7 @@ private:
     bool admit(u32 bytes);
     bool streamStep();
     bool findFile(const char* file, char* out, size_t outSize) const;
+    void loadEyes();
 
     enum class StreamState : u8 { Idle, Queued, Loading, Staged };
     struct Stream {
@@ -153,6 +164,9 @@ private:
     u16* clothesMap_ = nullptr;
     render::TexEntry* clothesEntries_ = nullptr;
     u16 numClothesTex_ = 0;
+    C3D_Tex eyeTex_[kEyeTexCount] = {};
+    bool eyesLoaded_ = false;
+    u32 eyesBytes_ = 0;
 
     mutable LightLock lock_;
     LightEvent wake_;

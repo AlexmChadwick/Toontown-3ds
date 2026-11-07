@@ -1,5 +1,7 @@
 #include "render/renderer.h"
 
+#include "render/quality.h"
+
 #include <cmath>
 
 #include "core/log.h"
@@ -29,6 +31,12 @@ C3D_FVec normalizePlane(C3D_FVec p) {
 }
 
 } // namespace
+
+void Renderer::linkOutputs(C3D_RenderTarget* bottom) {
+    C3D_RenderTargetSetOutput(topLeft_, GFX_TOP, GFX_LEFT, kDisplayTransferFlags);
+    C3D_RenderTargetSetOutput(topRight_, GFX_TOP, GFX_RIGHT, kDisplayTransferFlags);
+    if (bottom) C3D_RenderTargetSetOutput(bottom, GFX_BOTTOM, GFX_LEFT, kDisplayTransferFlags);
+}
 
 bool Renderer::init() {
     topLeft_ = C3D_RenderTargetCreate(240, 400, GPU_RB_RGBA8, GPU_RB_DEPTH24_STENCIL8);
@@ -111,7 +119,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     C3D_CullFace(GPU_CULL_BACK_CCW);
     C3D_DepthMap(true, -1.0f, 0.0f);
 
-    const float fovy = C3D_AngleFromDegrees(kFovYDeg);
+    const float fovy = C3D_AngleFromDegrees(fovYDeg_);
     if (eyeSign == 0) {
         Mtx_PerspTilt(&projection_, fovy, C3D_AspectRatioTop, kNear, farPlane_, false);
     } else {
@@ -138,8 +146,22 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
     frustum_[5] = normalizePlane(FVec4_Add(r3, r2)); // z >= -w
 }
 
+void Renderer::setFarPlane(float far) {
+    const float next = far > 0.0f ? far : activeQuality().farPlane;
+    if (next == farPlane_) return;
+    farPlane_ = next;
+    if (!fogOn_) return;
+    const float r = fogRgb_[0], g = fogRgb_[1], b = fogRgb_[2];
+    const float start = fogStart_, end = fogEnd_;
+    fogOn_ = false; // setFog skips the LUT when the inputs have not changed
+    setFog(r, g, b, start, end);
+}
+
 void Renderer::setFog(float r, float g, float b, float start, float end) {
     const auto byte = [](float v) { return u32((v < 0.0f ? 0.0f : v > 1.0f ? 1.0f : v) * 255.0f + 0.5f); };
+    fogRgb_[0] = r;
+    fogRgb_[1] = g;
+    fogRgb_[2] = b;
     fogColor_ = byte(b) << 16 | byte(g) << 8 | byte(r);
     fogClear_ = byte(r) << 24 | byte(g) << 16 | byte(b) << 8 | 0xFF;
     if (fogOn_ && start == fogStart_ && end == fogEnd_ && farPlane_ == fogFar_) return;
@@ -219,6 +241,18 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints,
     drawBatches(model, tints, slotTex, !model.absoluteIndices());
 }
 
+void Renderer::drawSky(Model& model, const C3D_Mtx& world, bool fogged) {
+    if (!model.loaded()) return;
+    const bool fogOff = fogOn_ && !fogged;
+    if (fogOff) C3D_FogGasMode(GPU_NO_FOG, GPU_PLAIN_DENSITY, false);
+    skyPass_ = true;
+    batchState_.blend = -1;
+    drawModel(model, world);
+    skyPass_ = false;
+    batchState_.blend = -1; // the next batch restores its depth test
+    if (fogOff) C3D_FogGasMode(GPU_FOG, GPU_PLAIN_DENSITY, true);
+}
+
 void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                          const Tints* tints, const C3D_Tex* const* slotTex) {
     // Morph draws bind one vertex buffer per model, so they need absolute indices.
@@ -252,6 +286,8 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
 
     for (u32 i = 0; i < model.numBatches(); i++) {
         const Batch& b = model.batch(i);
+        if (blendPass_ && (b.blend == kBlendAlpha) != (blendPass_ == 2)) continue;
+        if (onlyBatch_ >= 0 && int(i) != onlyBatch_) continue;
 
         const float *color = tints && b.tint ? tints->rgba[b.tint] : baseTint_;
         if (batchState_.uploadTint(color)) {
@@ -267,8 +303,17 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
             if (tex) {
                 ++stats_.textureBinds;
                 C3D_TexBind(0, const_cast<C3D_Tex*>(tex));
-                C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
-                C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+                if (tex->fmt == GPU_A8) {
+                    // Panda samples an alpha-only texture as white with alpha (sign and font
+                    // lettering); the PICA returns black RGB, so take RGB from the vertex colour.
+                    C3D_TexEnvSrc(env, C3D_RGB, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_RGB, GPU_REPLACE);
+                    C3D_TexEnvSrc(env, C3D_Alpha, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_Alpha, GPU_MODULATE);
+                } else {
+                    C3D_TexEnvSrc(env, C3D_Both, GPU_TEXTURE0, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+                    C3D_TexEnvFunc(env, C3D_Both, GPU_MODULATE);
+                }
             } else {
                 C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
                 C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
@@ -277,7 +322,8 @@ void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* cons
 
         if (b.blend != batchState_.blend) {
             C3D_AlphaTest(b.blend == kBlendAlphaTest, GPU_GREATER, 127);
-            C3D_DepthTest(true, GPU_GREATER, b.blend == kBlendAlpha ? GPU_WRITE_COLOR : GPU_WRITE_ALL);
+            if (skyPass_) C3D_DepthTest(true, GPU_ALWAYS, GPU_WRITE_COLOR);
+            else C3D_DepthTest(true, GPU_GREATER, b.blend == kBlendAlpha ? GPU_WRITE_COLOR : GPU_WRITE_ALL);
             batchState_.blend = b.blend;
         }
         if (b.layer != batchState_.layer) {

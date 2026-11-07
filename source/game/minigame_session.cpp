@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "game/minigame_session.h"
 #include "world/toon_avatar.h"
 
@@ -55,13 +56,13 @@ void MinigameSession::setPhase(Phase p) {
 
 void MinigameSession::unloadCatch() {
     assetBatch_.clear();
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     ground_.unload();
     for (auto& o : objects_) o.unload();
 }
 
 void MinigameSession::unloadCurrent() {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     if (isCatch_) unloadCatch();
     if (isCannon_) cannon_.shutdown();
     if (isTug_) tug_.shutdown();

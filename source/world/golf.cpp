@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/golf.h"
 
 #include <cmath>
@@ -9,7 +10,7 @@ namespace tt::world {
 
 void GolfSession::shutdown() {
     // A network event may replace resources before this frame's GPU fence.
-    if (hole_.loaded() || kart_.loaded()) C3D_FrameSync();
+    if (hole_.loaded() || kart_.loaded()) ::tt::gpu::frameSync();
     assetBatch_.clear();
     hole_.unload();
     kart_.unload();

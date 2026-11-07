@@ -71,12 +71,37 @@ The C++ loader reads old entries at their original 80-byte stride into zeroed
 the new 15k guarantee applies to v2. Host tests repack every exterior as v1 and load
 it through the actual C++ code, in addition to testing every v2 output.
 
+## Format v3: shared texture pool (2026-10-27)
+
+Every chunk TTM used to carry its own copy of each atlas page it touched, so a page shared
+by 30 chunks was stored 30 times (near and far). Across all `.tz` files that was 271 MB of
+texture copies for about 12 MB of distinct payloads. TZ v3 (the `tz.write` default) keeps
+the v2 layout and stores each distinct payload once in a pool after the last blob; the
+header's two former reserved words are the pool offset and size. Embedded TTMs keep their
+full texture tables but end after their index data, and each entry's blob-relative
+`dataOffset` points forward into the pool, so `Model::loadFrom` is unchanged. Both readers
+(`tz.validate`, `zone.cpp`) require every pooled payload to lie inside the pool.
+`tz.model_bytes()` rebuilds a standalone TTM for host tools.
+
+Residency is unchanged: each loaded chunk still uploads its own copy of a texture, and the
+budgets count those copies. Existing files convert without a rebake (lossless; v3 -> v2
+gives back the original bytes):
+
+```sh
+.venv/bin/python -I tools/pipeline/tz.py sdmc-out/3ds/toontown3ds/data/{zones,estate,level}/*.tz
+.venv/bin/python -I tools/pipeline/tz.py --version 2 <file>.tz   # back to v2
+```
+
+Sizes on SD: zones 389 -> 131 MB (2100.tz 22.0 -> 6.2 MB), level 68 -> 58 MB.
+
 ## Geometry reduction and runtime selection
 
 Near geometry is preserved, apart from the pre-existing quantization/atlasing and
 UV clipping. Far LOD does two things:
 
-- Removes overlaid decal layers, including window details and sign letters.
+- Removes overlaid decal layers, including window details. Sign letters are
+  pulled out first and put back on the far mesh when that cell still fits the
+  draw cap (see the 2026-10-30 follow-up).
 - Snaps world positions to a common voxel lattice, then removes collapsed and
   duplicate triangles. UVs/vertex colours remain per corner, preserving material
   seams. Adjacent chunks use the same lattice. Full-precision collision and tagged
@@ -90,19 +115,25 @@ and an additional eight units for possible far-mesh displacement. Streets retain
 the exact authored DNA PVS lists.
 
 For v2, Zone::update starts with all far models in the PVS. It considers chunks in
-stable nearest-first order and upgrades those within 65 units only if the complete
-selected set remains within all four caps:
+stable nearest-first order and upgrades those within the profile near radius only if
+the selected set remains within all four caps. `Zone::setCamera` changes the draw
+and triangle caps: they then count chunks the frame will submit (the cell underfoot,
+then the view cone, nearer first), and a chunk behind the camera stays at the far
+mesh. Geometry and texture caps still cover the whole cell. With no camera the
+draw cap still covers the cell, which is what the host tests check:
 
 - 15,000 world triangles
-- 150 world draws
+- 130 world draws while upgrading (`Zone::kDrawBudget`); a cell's all-far set may still load at 150
 - 6 MiB geometry
 - 8 MiB textures, including every resident copy and mip
 
-This is a bound on the **entire selected PVS before frustum/distance culling**. No
-PVS cell is discarded to fake a passing triangle count. Collision and network
-interests always describe the complete authored visible set. Far baseline validity
-is checked for every cell by both writer and runtime; each upgrade rechecks all
-caps. Consequently the bound does not depend on sampling particular camera angles.
+No PVS cell is discarded to fake a passing triangle count. Collision and network
+interests always describe the complete authored visible set. The all-far baseline
+is checked for every cell by both writer and runtime, and that check does not
+depend on a camera angle. With a camera, the draw and triangle upgrade caps do:
+they follow the submitted view, so chunks behind the toon stay on the far mesh
+and do not spend the budget. Each upgrade still rechecks geometry and texture
+for the whole cell.
 
 The selected plan is reconsidered on cell changes or after four units of movement,
 limiting SD churn. Stable updates and selection use fixed arrays and no allocation.
@@ -362,3 +393,158 @@ suite; eight moving meshes were compared to authored geometry and anchor frames.
 An independent repeat bake produced **43 byte-identical files** (seven zone triplets,
 eight TTM/TTC pairs and six moving-prop metadata files). No make, Azahar, push or
 merge was performed.
+
+## Near tiles, far colour meshes, ground split — 2026-10-30
+
+`bake_street.py` now takes two atlas profiles. The near mesh uses 64px tiles, an
+8px gutter and three mips downsampled per tile (gutters do not bleed). Upward
+faces with an edge of at least 8 stay on their own 256px texture. `street_atlas.build`
+defaults are unchanged (32px, 4px gutter, one mip) so the atlas unit test keeps
+its coordinates. Cog HQ exteriors use the same near profile as playgrounds.
+
+The far mesh is no longer a second full atlas. After the same voxel simplify,
+each corner samples its texture at 32px into the vertex colour and that triangle
+drops its page. Alpha-cut backdrop cards are the exception: they keep a 256px
+page, because a corner sample of those is a flat green quad. Dropping the other
+pages is what lets a playground PVS cover the New 3DS draw distance (baker
+`--distance` 760, plus 78 for the camera orbit and the coarsest snap) inside
+8 MiB. Old 3DS loads that file out to 440. Window decals still drop out of
+the far mesh. Sign letters are kept, textured, when the far cell still fits
+the draw cap (the follow-up below). Collision is not simplified and is not
+split.
+
+Ground triangles whose normal Z is at least 0.5 and whose longest edge is over
+20 are bisected in `ground_split.py` before the atlas. That is the PICA200
+clipper fix (sky through huge TTC ground triangles). Walls are left alone.
+`bake_zone.py` applies the same split to the RomFS playground mesh and leaves
+that mesh at 128px.
+
+Host bakes with panda3d 1.10.15, three ETC1 workers. The all-near sum is over
+the caps, which is expected: the runtime upgrades the submitted view, nearer
+first, and stops at the caps. Planned rows sample both the Old 160 and New 260
+near radii. The first three-zone bake filled a 150-draw plan; the table in the
+next section is the rebake under the 130-draw cap.
+
+## Far hill cards and the 130-draw cap — 2026-10-30
+
+TTC's backdrop hills (`BG5_1`, `BG5_2`, `BG5_3`) are a handful of ~130-unit
+alpha-tested quads. `_colorize_far` used to sample one texel per corner. The
+bottom corners are bright green and the top of the card is transparent, so the
+alpha test cut a straight edge and the quad drew as a flat green slab. Those
+cards stay textured (256px, alpha test). A host preview of zone 2000's far mesh
+shows the painted hill silhouette behind the gag shop and past the speedway
+tunnel. Everything else is still vertex coloured.
+
+`street_lod.DRAW_CAP` is 130. With a camera, `Zone::update` spends that cap
+(`kDrawBudget`) on chunks the frame will submit; the load check stays at 150
+so an older facility bake whose far set is between the two still opens. Playgrounds and Cog HQs treat `--grid-size`
+as a floor and rebin coarser (`grid_ladder`) until the far view fits. Zone 17000
+at grid 128 was one draw per cell (197) and `choose_far` cannot merge across
+cells; the ladder stops at 192, where the far view is 116 draws. A fit that
+keeps under `FAR_BODY` (4000) far triangles does not stop the search: Bossbot
+HQ at grid 96 survived only by voxel-deleting the mesh (about 700 triangles),
+and grid 128 keeps 9k–12k. Cog HQs use this same near atlas, ground split and
+far path, with vis out to the New 3DS distance. The RomFS playground
+(`bake_zone.py` / `rewrite_ground_ttm.py`) loosens the ground-edge cap until the
+single mesh is under 15k triangles. `ttc_sz.ttm` is 14,609 triangles at edge 30.
+
+Across all 37 zone bakes the busiest far mesh is zone 6000 (126 draws, 11,379
+triangles) and zone 11200 (11,964 far triangles). The busiest planned view is
+130 draws and 15,000 triangles. Donald's Dock was rebaked after that so its far
+mesh could keep sign letters: far worst 50 draws and 11,443 triangles, planned
+view 129 draws and 12,968 triangles. The other rows are the earlier bake.
+Every far and planned view is within 130 draws, 15,000 triangles, 6 MiB
+geometry and 8 MiB textures.
+
+**Near chunks first (2026-10-30), then replaced.** The 130-draw cap counted every
+resident chunk, behind the camera too. Promoting chunks within `Quality::lodMust`
+against a 150-draw envelope fixed the half of Toon Hall under the toon and then
+submitted 147–149 draws in Donald's Dock. That envelope is gone. The section
+below spends the 130-draw cap on the submitted view instead.
+
+| Zone | Grid | Far draws | Far tris | Planned draws | Planned tris |
+|---|---:|---:|---:|---:|---:|
+| 1000 | 128 | 50 | 11,443 | 129 | 12,968 |
+| 1100 | vis | 53 | 9,891 | 130 | 14,467 |
+| 1200 | vis | 59 | 11,958 | 130 | 14,846 |
+| 1300 | vis | 56 | 10,914 | 130 | 14,984 |
+| 2000 | 128 | 78 | 11,525 | 130 | 14,898 |
+| 2100 | vis | 84 | 10,049 | 130 | 12,374 |
+| 2200 | vis | 60 | 10,522 | 130 | 14,956 |
+| 2300 | vis | 69 | 11,176 | 130 | 14,927 |
+| 3000 | 128 | 49 | 9,228 | 130 | 10,432 |
+| 3100 | vis | 67 | 10,988 | 130 | 14,976 |
+| 3200 | vis | 82 | 11,328 | 130 | 14,974 |
+| 3300 | vis | 65 | 9,484 | 130 | 12,629 |
+| 4000 | 128 | 32 | 10,537 | 129 | 12,384 |
+| 4100 | vis | 58 | 8,937 | 130 | 14,919 |
+| 4200 | vis | 78 | 11,569 | 130 | 14,412 |
+| 4300 | vis | 65 | 11,052 | 130 | 14,970 |
+| 5000 | 128 | 38 | 11,239 | 128 | 14,298 |
+| 5100 | vis | 73 | 10,903 | 130 | 14,193 |
+| 5200 | vis | 92 | 10,502 | 130 | 12,955 |
+| 5300 | vis | 52 | 10,655 | 130 | 14,400 |
+| 6000 | 128 | 126 | 11,379 | 130 | 13,615 |
+| 8000 | 128 | 71 | 11,884 | 128 | 13,667 |
+| 9000 | 128 | 46 | 9,306 | 130 | 10,177 |
+| 9100 | vis | 76 | 11,085 | 130 | 13,362 |
+| 9200 | vis | 61 | 11,410 | 130 | 14,990 |
+| 10000 | 128 | 104 | 9,078 | 130 | 15,000 |
+| 10100 | 128 | 104 | 11,759 | 130 | 15,000 |
+| 11000 | 96 | 60 | 9,108 | 130 | 9,108 |
+| 11100 | 96 | 20 | 3,897 | 50 | 5,499 |
+| 11200 | 96 | 67 | 11,964 | 130 | 12,452 |
+| 12000 | 256 | 102 | 8,140 | 125 | 14,981 |
+| 12100 | 96 | 72 | 5,923 | 121 | 6,239 |
+| 13000 | 128 | 122 | 6,419 | 130 | 11,126 |
+| 13100 | 96 | 79 | 4,549 | 125 | 5,813 |
+| 13200 | 96 | 46 | 7,730 | 99 | 9,354 |
+| 17000 | 192 | 116 | 7,831 | 130 | 14,985 |
+| 20000 | vis | 6 | 3,504 | 29 | 4,641 |
+
+## View budget, upload slices, sign letters — 2026-10-30
+
+`Zone::setCamera` is called once a frame, before `update`. The upgrade order is
+the cell underfoot, then chunks inside a cone a few degrees wider than the
+55° top-screen frustum. Inside that cone, chunks within `Quality::lodMust` of
+the toon (48 Old / 64 New) come before anything farther. Chunks outside the
+cone stay on the far mesh. They still load, and they still count toward the 6 MiB / 8 MiB caps, but
+they do not spend the 130-draw or 15k-triangle caps. `Zone::draw` applies the
+same cone again and stops submitting once the running total would pass those
+caps, so a one-frame LOD overlap (the old high mesh still resident while a new
+high mesh swaps in) cannot push the frame past 130 draws. Downgrade swaps are
+published before upgrade swaps. `finishLoading` is unchanged and still blocks;
+boss and cogdo arrivals use it. A playground or street arrival does not: the
+black frame stays up while `update` uploads about 10 ms of GPU data per frame.
+
+Sign letters (`sign_text`) are split out before the far mesh is simplified and
+colourised, then appended if that cell still fits `DRAW_CAP` and `LOW_TARGET`.
+Other decals still drop. Zone 1000's far-right building (chunk g6) kept 14 letter
+triangles on `phase_3_palette_2tmlc_1` in that far mesh. The runtime treats a
+chunk whose mesh names that palette as a sign. Up to two of them, inside the
+cone and out to twice `lodNear` (320 on Old 3DS), may take a near mesh. Rank is
+letter-batch count times projected area, divided by the mesh's draws, so the
+far building's letters beat a closer mesh that only has one decal. Each upgrade
+still has to fit the retain cap (4 MiB textures on Old 3DS) and 130 draws.
+Out-of-cone far textures are not charged against the fit, and only the generic
+near mesh blocking that sign is demoted. Other letter chunks use `lodNear`.
+The card drops once the distant chunks covering most of the screen have a far
+mesh. The cell, `lodMust`, and any near chunk that is not in that prefix read
+near once and do not hold the card. A mesh in view stays until its replacement
+is published; the 150-draw and 15k-triangle caps count that shown mesh, not the
+near mesh still loading. Vertex and index uploads are sliced at 64 KB with the
+textures. The other 36 zones still drop letters from the far mesh until the next
+full bake.
+
+## Mip depth: near tiles and repeating textures (2026-11-02)
+
+Chunk-local near tiles keep four per-tile mips (the 8px gutter is still 1px at the
+last level, so nothing bleeds). PICA textures cannot go below 8x8 and the sampler
+clamps at the last level, while Panda continues to 1x1. A texture repeated many
+times across a face seen nearly edge-on therefore averaged out on PC but showed its
+8x8 pattern at full contrast on the 3DS: the TTC gag shop's awning end cap
+(`awning_edge`, nine repeats) drew a bright pink and yellow streak beside the door.
+`street_atlas._repeat_mips` gives every repeating standalone texture a last level of
+its mean colour, keeping the alpha pattern so cutout coverage does not change.
+`preview_ttm.py` with `PREVIEW_MIPS=1` samples the stored levels as the GPU does; it
+reproduces the Azahar streak and is the way to check mip changes offline.

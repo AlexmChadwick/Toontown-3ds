@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "game/ring_game.h"
 
 #include <cmath>
@@ -67,7 +68,7 @@ void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 
 void RingGame::shutdown() {
     assetBatch_.clear();
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     environ_.unload();
     ringModel_.unload();
 }

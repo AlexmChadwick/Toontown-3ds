@@ -2,6 +2,8 @@
 #pragma once
 
 #include "render/model.h"
+#include "ui/laff_meter.h"
+#include "ui/toontown_timer.h"
 
 #include <3ds.h>
 #include <citro2d.h>
@@ -14,10 +16,14 @@ struct HudValues {
     float headRgb[3] = {0.7f, 0.7f, 0.8f}; // laff meter face colour (toon head colour)
     int species = 0;                         // world::Species: which laff meter head
     bool online = false;
+    bool laffOnBottom = false; // the bottom screen shows the meter: leave it off the world
+    bool laffHidden = false;   // the Toontorial obscures the meter until Tom's lesson shows it
+    float laffGrow = 0.0f;     // Tom's Laff meter lesson: 0 in its corner .. 1 big in the middle
     const char* toast = nullptr; // short centred message ("Coming soon...", "Loading...")
     bool racing = false;
     int raceSpeed = 0, raceLap = 0, raceLaps = 0, racePlace = 0;
     bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
+    int timerSeconds = -1;       // TownBattle's and Purchase's ToontownTimer, top right, -1 = hidden
 };
 
 class Hud {
@@ -27,19 +33,11 @@ public:
     void draw(C3D_RenderTarget* top, const HudValues& v);
 
 private:
-    C2D_TextBuf buf_ = nullptr;
     C2D_TextBuf raceBuf_ = nullptr;
-    int lastHp_ = -1, lastMaxHp_ = -1;
-    C2D_Text hpText_{}, toastText_{};
+    C2D_Text toastText_{};
     C2D_Text raceText_{};
-    C2D_Text maxText_{};
-    // romfs:/baked/laff_meter.ttm (tools/pipeline/bake_laff_meter.py), loaded on first use.
-    render::Model laffAtlas_;
-    bool laffTried_ = false;
-    // LaffMeter.animatedEffect: pulse larger on a heal, smaller on damage.
-    uint64_t pulseStartMs_ = 0;
-    float pulseChange_ = 1.0f;
-    void drawLaffMeter(const HudValues& v);
+    LaffDisplay laff_;
+    ToontownTimer battleTimer_;
     const char* lastToast_ = nullptr;
     C2D_TextBuf toastBuf_ = nullptr;
 };

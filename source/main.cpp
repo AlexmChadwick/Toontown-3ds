@@ -1,4 +1,5 @@
 // Toontown 3DS - Phase 1 client: TTC playground scene, controllable toon, bottom-screen UI.
+#include "core/gpu_sync.h"
 #include <3ds.h>
 #include <citro2d.h>
 #include <citro3d.h>
@@ -10,23 +11,30 @@
 
 #include "audio/audio.h"
 #include "core/autotest.h"
+#include "core/boot_screen.h"
 #include "core/crash.h"
 #include "core/config.h"
+#include "core/load_profile.h"
 #include "core/log.h"
 #include "core/memory.h"
 #include "core/profile.h"
 #include "core/screenshot.h"
 #include "game/front_end.h"
+#include "render/ui_font.h"
 #include "net/client.h"
 #include "net/connection.h"
 #include "net/net_platform.h"
 #include "render/model.h"
+#include "render/quality.h"
 #include "render/renderer.h"
 #include "render/ui.h"
 #include "ui/balloons.h"
 #include "ui/hud.h"
+#include "ui/sos_tables.h"
+#include "ui/map_view.h"
 #include "ui/projection.h"
 #include "ui/speedchat_data.h"
+#include "ui/zone_load_screen.h"
 #include "world/asset_loader.h"
 #include "world/boat.h"
 // ---- cogdo place runtime ----
@@ -50,6 +58,7 @@
 #include "world/battle.h"
 #include "world/battle_fx.h"
 #include "world/trolley.h"
+#include "world/sky.h"
 #include "world/fishing.h"
 #include "world/golf.h"
 #include "world/place.h"
@@ -58,9 +67,13 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "world/toon_dna_tables.h"
 #include "world/transition.h"
 // ---- tutorial ----
 #include "world/tutorial.h"
+#include "world/tutorial_reward.h"
+#include "world/tutorial_char.h"
+#include "ui/tutorial_art.h"
 
 namespace {
 // DistributedTutorialSuit.enterWalk: makePathTrack over these points at 4.5 units/s, looped. Each
@@ -127,7 +140,16 @@ void onStreetCell(void*, uint16_t cell, const uint16_t* zones, int count) {
 // console slept, because sockets do not survive sleep on hardware.
 volatile bool gWokeFromSleep = false;
 aptHookCookie gAptCookie;
+// citro3d stops counting VBlanks on SUSPEND and resumes only on RESTORE; HOME -> Close goes
+// SUSPEND -> EXIT with no RESTORE, so every C3D_FrameSync after that would hang (see
+// core/gpu_sync.h). Track it so the exit path skips those waits.
 void onApt(APT_HookType hook, void*) {
+    if (hook == APTHOOK_ONSUSPEND) tt::gpu::setVblankLive(false);
+    if (hook == APTHOOK_ONRESTORE) tt::gpu::setVblankLive(true);
+    if (hook == APTHOOK_ONEXIT) {
+        tt::gpu::setVblankLive(false);
+        TT_LOG("apt: exit requested (HOME Close / power), shutting down");
+    }
     if (hook == APTHOOK_ONSUSPEND || hook == APTHOOK_ONSLEEP || hook == APTHOOK_ONEXIT) tt::log::flush();
     if (hook == APTHOOK_ONWAKEUP) gWokeFromSleep = true;
 }
@@ -193,20 +215,71 @@ float frameCpuMs() {
 }
 } // namespace
 
+// ---- tutorial ----
+// QuestParser picks Minnie over Mickey (and the female text variants) for a girl Toon.
+static bool localToonFemale(const tt::net::Client& net) {
+    tt::world::ToonDna dna;
+    return tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna) && dna.gender == tt::world::Gender::Female;
+}
+// ---- end tutorial ----
+
 int main() {
+    // Boot order: only what the first frame needs comes before it (gfx, RomFS, log, GPU, the UI
+    // font); everything riskier runs behind the loading screen, one named stage at a time, so a
+    // failure on real hardware is shown on screen and in log.txt instead of a black screen.
     gfxInitDefault();
-    gfxSet3D(false); // stereo is opt-in only
-    romfsInit();
+    gfxSet3D(false); // the loading screen is 2D; the game turns stereo on when it starts drawing
+    tt::crash::screensReady();
+    const Result romfsRc = romfsInit();
     tt::log::init();
-    tt::crash::installForThisThread(); // a CPU fault on the main thread is logged, not silent
+    tt::crash::installForThisThread(); // a CPU fault on the main thread is shown and logged
     tt::mem::linearLockInit();
     aptHook(&gAptCookie, onApt, nullptr);
+    const tt::mem::HeapReport heapRep = tt::mem::heapReport();
+    TT_LOG("boot: heaps %u KB + linear %u KB (commit free at start %u KB, %u retries)",
+           static_cast<unsigned>(heapRep.heap / 1024), static_cast<unsigned>(heapRep.linear / 1024),
+           static_cast<unsigned>(heapRep.remainingAtBoot / 1024), heapRep.allocFailures);
 
     bool isNew3ds = false;
     APT_CheckNew3DS(&isNew3ds);
-    if (isNew3ds) osSetSpeedupEnable(true); // optional extra, never required
-    TT_LOG("boot: %s", isNew3ds ? "New 3DS" : "Old 3DS");
+    // No osSetSpeedupEnable: it needs ptm:sysm, a system service the game does not need. Old 3DS
+    // speed is the baseline either way.
+    tt::render::setActiveQuality(isNew3ds);
+    {
+        const tt::render::Quality& q = tt::render::activeQuality();
+        TT_LOG("render: %s profile far %.0f draw %.0f lod %.0f/%.0f must %.0f fog %.0f-%.0f",
+               q.new3ds ? "New 3DS" : "Old 3DS", double(q.farPlane), double(q.drawDistance), double(q.lodNear),
+               double(q.lodKeep), double(q.lodMust), double(q.fogStart), double(q.fogEnd));
+    }
+    TT_LOG("boot: %s, romfs %08lx", isNew3ds ? "New 3DS" : "Old 3DS", static_cast<unsigned long>(romfsRc));
 
+    if (!C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE)) { // 512 KB; stress tests overflowed 256 KB at ~700 draws
+        tt::crash::panic("Graphics could not start (C3D_Init)", "Not enough graphics memory.", nullptr);
+    }
+    C3D_FrameRate(30.0f); // AGENTS.md: locked 30 fps on Old 3DS
+    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
+    C2D_Prepare();
+    tt::render::loadUiFont(); // before any panel parses text
+    tt::boot::begin();
+    tt::boot::stage("Starting up", 0.05f);
+    if (R_FAILED(romfsRc)) {
+        tt::boot::showFatal("The game files are missing.", "The built-in RomFS could not be opened.\nPlease reinstall toontown.cia with FBI.");
+        return 1;
+    }
+    if (heapRep.heap < tt::mem::kMinHeap || heapRep.linear < tt::mem::kMinLinear) {
+        char detail[160];
+        snprintf(detail, sizeof(detail), "Got %u MB + %u MB, needs %u MB + %u MB.\nClose other software (HOME > Close)\nand try again.",
+                 static_cast<unsigned>(heapRep.heap >> 20), static_cast<unsigned>(heapRep.linear >> 20),
+                 static_cast<unsigned>(tt::mem::kMinHeap >> 20), static_cast<unsigned>(tt::mem::kMinLinear >> 20));
+        tt::boot::showFatal("Not enough memory to start.", detail);
+        return 1;
+    }
+
+    tt::boot::stage("Tuning up the sound", 0.12f);
+    if (FILE* t = fopen("sdmc:/3ds/toontown3ds/panic_test", "r")) { // test runs: prove the panic screen
+        fclose(t);
+        svcBreak(USERBREAK_PANIC);
+    }
     // Audio: silent (not fatal) if the DSP is unavailable, e.g. no sdmc:/3ds/dspfirm.cdc on hardware.
     tt::audio::init();
     // Playground music per hood (toontown/safezone/*SafeZoneLoader.py musicFile): TTC is in
@@ -222,7 +295,6 @@ int main() {
         tt::audio::stopMusic(300);
         tt::audio::playMusic(path, true, 300);
     };
-    playHoodMusic(2000);
     // Streets play the hood's town music (TownLoader.musicFile), interiors its activity
     // music (activityMusicFile); docs/design/audio.md. Falls back to the playground track.
     auto playPlaceMusic = [&](u32 zone) {
@@ -292,24 +364,29 @@ int main() {
     tt::audio::VoiceHandle footsteps = tt::audio::kNoVoice;
     tt::world::ToonAnim footstepAnim = tt::world::kAnimNeutral;
 
-    C3D_Init(2 * C3D_DEFAULT_CMDBUF_SIZE); // 512 KB; stress tests overflowed 256 KB at ~700 draws
-    C3D_FrameRate(30.0f); // AGENTS.md: locked 30 fps on Old 3DS
-    C2D_Init(C2D_DEFAULT_MAX_OBJECTS);
-    C2D_Prepare();
     C3D_RenderTarget* bottom = C2D_CreateScreenTarget(GFX_BOTTOM, GFX_LEFT);
 
+    tt::boot::stage("Painting the scenery", 0.25f);
     tt::render::Renderer renderer;
     tt::ui::Ui ui;
-    if (!renderer.init() || !ui.init()) TT_LOG("boot: renderer/ui init failed");
+    if (!renderer.init() || !ui.init()) {
+        tt::boot::showFatal("Graphics could not start.", "The 3D renderer failed to set up.\nDetails are in sdmc:/3ds/toontown3ds/log.txt");
+        return 1;
+    }
 
+    tt::boot::stage("Building Toontown Central", 0.4f);
     // Toontown Central playground assembled from DNA (tools/pipeline/bake_zone.py).
     // The zone we're in (starts in the Toontown Central playground).
     static tt::world::Place place;
     place.load(kStartZone);
 
+    tt::boot::stage("Dressing up the toons", 0.6f);
     // Toon parts/clothing shared by every toon (SD set, RomFS boot set fallback).
     static tt::world::ToonCache toonCache;
-    if (!toonCache.init()) { TT_LOG("boot: Toon stream pool allocation failed"); return 1; }
+    if (!toonCache.init()) {
+        tt::boot::showFatal("Not enough memory for toons.", "The toon cache could not be allocated.");
+        return 1;
+    }
     tt::world::AssetLoader::init(); // background .ttm/.tta loads (classic characters, boat)
     if (!toonCache.initFallback()) TT_LOG("boot: default toon failed to load");
     // Local toon: default dog until the server tells us our real DNA.
@@ -323,6 +400,7 @@ int main() {
     static tt::world::RemoteToons remoteToons;
     remoteToons.init(&toonCache);
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
+    tt::boot::stage("Waking up the neighbors", 0.75f);
     static tt::world::ZoneActors zoneActors;
     zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
     // Mickey and friends (DistributedCCharBase), walking their playground's graph.
@@ -355,6 +433,7 @@ int main() {
     const char* toast = nullptr;
     float toastAge = 99.0f;
     char toastBuf[96];
+    char infoTimeBuf[24]; // the info panel's "Time: N" line (trolley, Cog elevator)
     const tt::audio::SfxId sfxTreasure = tt::audio::loadSfx("romfs:/baked/audio/treasure_grab.tsnd");
     u32 grabRequested = 0;
     u32 lastTouchedTreasure = 0;
@@ -372,9 +451,14 @@ int main() {
     static tt::quest::Talk talk;
     // ---- tutorial ----
     static tt::world::TutorialFlow tutorial;
+    static tt::world::TutorialChar tutorialChar; // tutorial_mickey's Mickey / Minnie
+    static u32 tutorialSpeaker = 0; // the NPC saying the running QuestScript's lines (0 = Tom's room)
+    static bool tutorialSaidSpeedChat = false;
+    static bool tutorialBlockerPlayed = false; // Flippy's movie ran on this street visit
     // ---- end tutorial ----
     tt::ui::Hud hud;
     hud.init();
+    tt::boot::stage("Almost there!", 0.9f);
 
     // Multiplayer: Open Toontown server from sdmc:/3ds/toontown3ds/server.txt.
     const tt::config::Settings settings = tt::config::load();
@@ -407,25 +491,15 @@ int main() {
         stressToons[i].update(i * 0.37f); // desynchronize
     }
 
-    // Map markers: positions from phase_4/dna/toontown_central_sz.dna.
-    const u32 kBuilding = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF), kTunnel = C2D_Color32(0xE0, 0x60, 0x20, 0xFF),
-              kLandmark = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), kWater = C2D_Color32(0x40, 0x90, 0xE0, 0xFF);
-    const tt::ui::MapMarker markers[] = {
-        {24.6f, 24.9f, kBuilding},   // Toon HQ
-        {-86.7f, -90.6f, kBuilding}, // Gag shop
-        {-124.4f, 74.4f, kBuilding}, // Pet shop
-        {106.3f, 160.8f, kBuilding}, // Clothing shop
-        {57.2f, 38.7f, kBuilding},   // Bank
-        {116.7f, 24.3f, kBuilding},  // Toon Hall
-        {91.4f, -44.9f, kBuilding},  // Library
-        {129.9f, -138.4f, kBuilding}, // School house
-        {-60.9f, -8.8f, kLandmark},  // Gazebo
-        {93.2f, -106.5f, kLandmark}, // Fountain
-        {-68.0f, -2.0f, kWater},     // Fishing pond
-        {-239.7f, 64.1f, kTunnel},   // Tunnels to the streets
-        {-68.4f, -202.6f, kTunnel},
-        {27.6f, 176.5f, kTunnel},
-    };
+    // Map markers: built from each zone's baked anchors when the zone changes (ui/map_view.h).
+    tt::ui::MapMarker placeMarkerList[kMaxMapMarkers];
+    int numPlaceMarkers = 0;
+    // The last playground / street the Map showed (its minimap file, markers and where we stood).
+    u32 mapOutsideFile = 0;
+    float mapOutsideX = 0, mapOutsideY = 0, mapOutsideH = 0, mapOutsideMin[2] = {}, mapOutsideMax[2] = {};
+    tt::ui::MapMarker mapOutsideMarkers[kMaxMapMarkers];
+    int mapOutsideCount = 0;
+    u32 placeMarkersZone = 0;
 
     tt::world::Player player;
     fishing.init(&player, &net);
@@ -443,6 +517,8 @@ int main() {
     static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
+    static tt::world::Sky sky; // the hood's sky dome (Hood.skyFile)
+    static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
     static tt::world::GolfSession golf;
@@ -455,9 +531,12 @@ int main() {
     cogBuildings.setZone(kStartZone);
     cogBuildings.syncAnchors(place);
     tt::world::BattleView battleView;
+    tt::world::TutorialReward tutorialReward; // ---- tutorial ---- Movie.playTutorialReward
+    bool tutorialRewardTom = false;
     fishing.setZone(kStartZone, place.pointsPath());
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
+    player.setCameraHeight(tt::world::toonHeight(tt::world::defaultToonDna()));
     // ---- tutorial ----
     // enterTutorial already moved our Astron interest to the dynamic shop zone.  Load its
     // canonical bake before that interest generates Tutorial Tom and the interior objects.
@@ -485,12 +564,23 @@ int main() {
     const char* myPhrase = nullptr;
     float myPhraseAge = 99.0f;
     int pendingSpeech = -1;
+    // A MY TASKS phrase waiting for the net block (static: main()'s frame is kept small).
+    static tt::ui::ChatMenu::TaskPhrase pendingTask;
+    static char myTaskPhrase[tt::quest::kScLen];
+    bool hasPendingTask = false;
     tt::render::Tints tints;
     bool stereoActive = false;
 
     tt::autotest::Runner autotest;
     autotest.begin();
     const char* shotName = nullptr;
+    enum class ZonePhase : u8 { Idle, Cover, Streaming };
+    ZonePhase zonePhase = ZonePhase::Idle;
+    u32 zoneDest = 0, zoneFrom = 0;
+    u64 zoneT0 = 0, zoneStreamT0 = 0;
+    float zoneAx = 0, zoneAy = 0, zoneAz = 0, zoneAh = 0;
+    bool zoneShotArmed = false;
+    static tt::ui::ZoneLoadScreen zoneLoad;
     bool autotestGrabbed = false;
     bool autotestClerk = false, autotestBoarded = false, autotestBoardedTrolley = false, autotestBought = false;
     unsigned netInBps = 0, netOutBps = 0;
@@ -500,8 +590,24 @@ int main() {
     // straight into the world with automatic login (when online).
     static tt::game::FrontEnd frontEnd;
     frontEnd.init(&toonCache);
+    frontEnd.setServer(settings.host, settings.port, settings.online);
     bool inFrontEnd = !autotest.active() || autotest.frontEndScript();
+    bool releaseFrontEndArt = false; // FrontEnd::releaseArt at the next frame fence
     if (!inFrontEnd && settings.online) startNet(false);
+    // Front-end music: ToontownStart's tt_theme (title, connecting, Pick-A-Toon) and MakeAToon.music
+    // (create_a_toon) from the SD set; the playground track if they are missing. 0 none, 1 theme, 2 MAT.
+    int frontEndMusic = 0;
+    auto playFrontEndMusic = [&](int which) {
+        if (frontEndMusic == which) return;
+        frontEndMusic = which;
+        tt::audio::stopMusic(300);
+        if (!tt::audio::playMusic(which == 2 ? "sdmc:/3ds/toontown3ds/data/audio/fe_create.tsnd"
+                                             : "sdmc:/3ds/toontown3ds/data/audio/fe_theme.tsnd",
+                                  true, 300))
+            playHoodMusic(2000);
+    };
+    if (inFrontEnd) playFrontEndMusic(1);
+    else playHoodMusic(2000);
 
     u64 lastTick = svcGetSystemTick();
     u64 fpsTick = lastTick;
@@ -516,7 +622,15 @@ int main() {
            static_cast<unsigned long>(vramSpaceFree() / 1024));
 
     tt::prof::init();
+    tt::boot::stage("Here we go!", 1.0f);
+    tt::boot::end();
+    renderer.linkOutputs(bottom);
+    tt::log::setFlushEveryLine(false); // SD writes can stall for milliseconds: batch them in play
     while (aptMainLoop()) {
+        if (tt::crash::panicking()) { // another thread's report is on screen: stop drawing over it
+            svcSleepThread(100 * 1000 * 1000);
+            continue;
+        }
         tt::prof::frameBegin();
         tt::prof::logWindow(autotest.active() ? autotest.label() : "play");
         const u64 now = svcGetSystemTick();
@@ -538,6 +652,12 @@ int main() {
         in.down = hidKeysDown();
         hidCircleRead(&in.pad);
         if (isNew3ds) hidCstickRead(&in.cstick);
+        if (zonePhase != ZonePhase::Idle) {
+            // The loading screen owns this frame. Don't walk into the next tunnel under it.
+            in.held = in.down = 0;
+            in.pad.dx = in.pad.dy = 0;
+            in.cstick.dx = in.cstick.dy = 0;
+        }
         touchPosition touch;
         hidTouchRead(&touch);
         if (autotest.active() && secondElapsed) {
@@ -556,12 +676,14 @@ int main() {
         }
         tt::prof::lap(tt::prof::kInput);
         if (inFrontEnd) {
-            if (in.down & KEY_START) break;
+            // START no longer quits from the front end (a stray press ended the whole game on
+            // hardware); HOME closes the app, and the book's Options page has Quit Toontown.
             if (netStarted) net.update(tt::net::plat::nowMs());
             tt::prof::lap(tt::prof::kNet);
             autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
             if (autotest.pendingShot()) shotName = autotest.pendingShot();
             const tt::game::Action action = frontEnd.update(in.down, in.held, touch, dt);
+            playFrontEndMusic(frontEnd.wantsMakeAToonMusic() ? 2 : 1);
             if (action == tt::game::Action::StartOnline) {
                 if (startNet(true)) {
                     frontEnd.setNet(&net);
@@ -571,6 +693,9 @@ int main() {
             } else if (action == tt::game::Action::StartOffline || action == tt::game::Action::EnterWorld) {
                 if (action == tt::game::Action::StartOffline && netStarted) net.disconnect();
                 inFrontEnd = false;
+                frontEndMusic = 0;
+                playPlaceMusic(place.zoneId()); // the place's own track replaces the front end's
+                releaseFrontEndArt = true; // after this frame's C3D_FrameBegin fence
                 localLookFromServer = false;
                 player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
                 tt::audio::playSfx(sfxClick);
@@ -581,6 +706,10 @@ int main() {
             tt::prof::lap(tt::prof::kWait);
             renderer.resetStats();
             toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+            if (releaseFrontEndArt) { // the last front-end frame is complete too
+                frontEnd.releaseArt();
+                releaseFrontEndArt = false;
+            }
             tt::prof::lap(tt::prof::kLoads);
             if (shotName) {
                 char path[96];
@@ -614,6 +743,10 @@ int main() {
             TT_LOG("apt: woke from sleep");
             if (netStarted) net.forceReconnect("woke from sleep");
         }
+        if (netStarted && autotest.active() && autotest.dropNow()) {
+            TT_LOG("autotest: dropping the connection at '%s'", autotest.label());
+            net.forceReconnect("autotest drop");
+        }
         // Lost the server for good (e.g. logged in elsewhere): back to the title.
         if (netStarted && net.fatal()) {
             remoteToons.clear();
@@ -637,6 +770,18 @@ int main() {
                                     minigame.completedPurchase() && !minigame.active()});
         // ---- end qafix ----
         autotest.apply(dt, in.pad, in.held, in.down, touch, uiState.stressToons);
+        if (autotest.active() && !strcmp(autotest.label(), "fish: touch cast")) {
+            // Test-only: press the touch Cast button and drag down-left over 0.8 s, then let go
+            // (fishing_panel.cpp: power from the drag length, a cast to the right).
+            static float dragT = 0.0f;
+            dragT = autotest.stepTime() < dt ? 0.0f : dragT + dt;
+            if (dragT < 0.8f) {
+                in.held |= KEY_TOUCH;
+                if (dragT == 0.0f) in.down |= KEY_TOUCH;
+                touch.px = u16(160 - 30.0f * dragT / 0.8f);
+                touch.py = u16(122 + 50.0f * dragT / 0.8f);
+            }
+        }
         if (autotest.pendingShot()) shotName = autotest.pendingShot();
         // ---- tutorial ----
         // The Toontorial pass uses the same UI acknowledgements as a player.  QuestParser's
@@ -655,17 +800,52 @@ int main() {
                        static_cast<unsigned long>(net.zoneId()));
             }
             if (tutorial.active()) {
-                in.down |= KEY_A; // confirm every generated CHAT_CONFIRM page
-                const char* event = tutorial.waitingEvent();
-                if (event && tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                // Confirm every generated CHAT_CONFIRM page after a reader's pause (so the shots
+                // show each line with its card).
+                static char shownLine[256] = {};
+                static float shownFor = 0.0f;
+                if (strcmp(shownLine, tutorial.text())) {
+                    snprintf(shownLine, sizeof(shownLine), "%s", tutorial.text());
+                    shownFor = 0.0f;
+                }
+                shownFor += dt;
+                if (shownFor > 1.2f) {
+                    in.down |= KEY_A;
+                    shownFor = 0.0f;
+                }
+                // WAIT_EVENTs are answered as a player would: the book and the SpeedChat tab are
+                // operated here, and the game's own bridge (below) posts the event.
+                if (const char* event = tutorial.waitingEvent()) {
+                    static const char* acted = nullptr;
+                    if (event != acted) {
+                        acted = event;
+                        TT_LOG("tutorial: autotest answers %s", event);
+                        if (!strcmp(event, "enterStickerBook")) {
+                            // Harry's talk panel shows the Shticker Book button: the A presses above use it.
+                        } else if (!strcmp(event, "stickerBookPageChange-3")) ui.book().setPage(tt::ui::Book::kPageGags);
+                        else if (!strcmp(event, "stickerBookPageChange-4")) ui.book().setPage(tt::ui::Book::kPageTasks);
+                        else if (!strcmp(event, "exitStickerBook")) ui.book().close("tutorial autotest");
+                        else if (!strcmp(event, "enterSpeedChat")) uiState.tab = tt::ui::kTabChat;
+                        else if (!strcmp(event, "SCChatEvent")) tutorialSaidSpeedChat = true; // the phrase pick
+                        else if (tutorial.postEvent(event)) TT_LOG("tutorial: QuestScript event %s", event);
+                    }
+                }
             }
             if (talk.phase() == tt::quest::Talk::Phase::Pages) talk.advance();
             if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) talk.chooseQuest(0);
             if (talk.phase() == tt::quest::Talk::Phase::TrackChoice) talk.chooseTrack(0);
             if (battle.tutorialBattle()) {
                 battle.setAutoPlay(true, -1); // select an available cupcake/flower as InventoryNew permits
+                battle.setAutoDelay(autotest.battleHoldMs());
             }
-            if (battle.tutorialRewardPending()) in.down |= KEY_A;
+            if (battle.tutorialRewardPending()) {
+                static float rewardPressT = 0.0f;
+                rewardPressT += dt;
+                if (rewardPressT >= 2.0f) {
+                    rewardPressT = 0.0f;
+                    in.down |= KEY_A;
+                }
+            }
             if (!net.inTutorial() && net.tutorialFinished()) autotest.finishStep();
 
             // The points below are emitted by the tutorial bakers: never synthesize a position.
@@ -675,8 +855,14 @@ int main() {
             // then the street Flunky, then Harry (TutorialHQBuildingAI); the tunnel ends the Toontorial.
             // Tom's street door is locked (TALK_TO_HQ_TOM) after the Flunky and nothing reopens it.
             if (talk.locked() && zone == tt::world::kTutorialShop) tutorialTomTalked = true;
-            if (talk.locked() && zone == tt::world::kTutorialHq) tutorialHqTalked = true;
-            if (!tutorial.active() && !battle.active() && transition.idle()) {
+            // Harry completes 101 (dialog pages), then assigns 110 (its QuestScript): leave once
+            // 110 is ours, not in the gap between the two movies.
+            if (talk.locked() && zone == tt::world::kTutorialHq) {
+                const tt::net::OwnQuests& own = net.ownQuests();
+                for (int i = 0; i < own.count; ++i)
+                    if (own.quests[i].questId == 110) tutorialHqTalked = true;
+            }
+            if (!tutorial.active() && !battle.active() && !talk.locked() && transition.idle()) {
                 if (zone == tt::world::kTutorialShop) {
                     if (!tutorialTomTalked) {
                         float npc[4];
@@ -686,8 +872,21 @@ int main() {
                                    double(npc[2]));
                         }
                     } else if (const tt::world::Place::Point* p = place.point("door_origin")) {
-                        player.reset(p->x, p->y, p->z, p->h);
-                        TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                        // As at the HQ: step off the trigger if we stand on it (the no-bounce
+                        // guard), then run into the door from just inside it.
+                        static bool runningOutOfShop = false;
+                        const float hr = p->h * 3.14159265f / 180.0f;
+                        if (lastExitZone != 0) {
+                            player.reset(p->x + sinf(hr) * 4.0f, p->y - cosf(hr) * 4.0f, p->z, p->h);
+                        } else {
+                            if (!runningOutOfShop) {
+                                player.reset(p->x + sinf(hr) * 2.0f, p->y - cosf(hr) * 2.0f, p->z, p->h);
+                                runningOutOfShop = true;
+                                TT_LOG("tutorial: leave Tutorial Tom via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
+                        }
                     }
                 } else if (zone == tt::world::kTutorialStreet) {
                     float sx, sy, sz, sh;
@@ -699,18 +898,53 @@ int main() {
                         }
                     } else if (!tutorialHqVisited) {
                         if (const tt::world::Place::Point* p = place.point("tb1:toon_landmark_hqTT_DNARoot/door_0")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: enter HQ via %s", p->name);
+                            // As at the tunnel: a toon standing on the door never touches its
+                            // trigger, so start a few units out in the street and run in.
+                            static bool runningToHq = false;
+                            if (!runningToHq) {
+                                const float hr = p->h * 3.14159265f / 180.0f;
+                                player.reset(p->x - sinf(hr) * 4.0f, p->y + cosf(hr) * 4.0f, p->z, p->h + 180.0f);
+                                runningToHq = true;
+                                TT_LOG("tutorial: enter HQ via %s", p->name);
+                            }
+                            in.pad.dx = 0;
+                            in.pad.dy = 150;
                         }
                     } else if (const tt::world::Place::Point* p = place.point("linktunnel_tt_0_DNARoot_origin")) {
-                        player.reset(p->x, p->y, p->z, p->h);
-                        TT_LOG("tutorial: leave for Toontown Central via %s", p->name);
+                        // The origin faces out of the tunnel: start a few units out in the street,
+                        // turn round and run in, as a player does (a standing toon never reaches
+                        // the tunnel trigger).
+                        static bool runningIn = false;
+                        if (!runningIn) {
+                            const float hr = p->h * 3.14159265f / 180.0f;
+                            player.reset(p->x - sinf(hr) * 4.0f, p->y + cosf(hr) * 4.0f, p->z, p->h + 180.0f);
+                            runningIn = true;
+                            TT_LOG("tutorial: leave for Toontown Central via %s", p->name);
+                        }
+                        in.pad.dx = 0;
+                        in.pad.dy = 150;
                     }
                 } else if (zone == tt::world::kTutorialHq) {
                     if (tutorialHqTalked) {
                         if (const tt::world::Place::Point* p = place.point("door_origin_1")) {
-                            player.reset(p->x, p->y, p->z, p->h);
-                            TT_LOG("tutorial: leave HQ via %s", p->name);
+                            if (lastExitZone != 0) {
+                                // Still on the arrival door's trigger: a walking player steps off it
+                                // (clearing the no-bounce guard) before reaching the other door.
+                                const float hr = p->h * 3.14159265f / 180.0f;
+                                player.reset(p->x + sinf(hr) * 4.0f, p->y - cosf(hr) * 4.0f, p->z, p->h);
+                            } else {
+                                // Run into the door from just inside it: the flush trigger is
+                                // touched by the moving toon's probe, not by one standing still.
+                                static bool runningOut = false;
+                                if (!runningOut) {
+                                    const float hr = p->h * 3.14159265f / 180.0f;
+                                    player.reset(p->x + sinf(hr) * 2.0f, p->y - cosf(hr) * 2.0f, p->z, p->h);
+                                    runningOut = true;
+                                    TT_LOG("tutorial: leave HQ via %s", p->name);
+                                }
+                                in.pad.dx = 0;
+                                in.pad.dy = 150;
+                            }
                         }
                     } else {
                         float npc[4];
@@ -747,16 +981,23 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
             if (!strcmp(page, "gags")) ui.openBookPage(tt::ui::Book::kPageGags);
-            else if (!strcmp(page, "tasks")) ui.openBookPage(tt::ui::Book::kPageTasks);
+            else if (!strncmp(page, "tasks", 5)) ui.openBookPage(tt::ui::Book::kPageTasks); // + "tasks demo N"
             else if (!strcmp(page, "cogs")) ui.openBookPage(tt::ui::Book::kPageCogs);
             else if (!strcmp(page, "disguise")) ui.openBookPage(tt::ui::Book::kPageDisguise);
             else if (!strcmp(page, "fish")) ui.openBookPage(tt::ui::Book::kPageFish);
             else if (!strcmp(page, "trophies")) ui.openBookPage(tt::ui::Book::kPageTrophies);
             else if (!strcmp(page, "sos")) ui.openBookPage(tt::ui::Book::kPageSos);
             else if (!strcmp(page, "options")) ui.openBookPage(tt::ui::Book::kPageOptions);
+        } else if (autotest.active() && !strncmp(autotest.label(), "book touch", 10)) {
+            static const char* bookTouchStep = nullptr;
+            if (autotest.label() != bookTouchStep) {
+                bookTouchStep = autotest.label();
+                TT_LOG("book touch: step '%s' book %s", bookTouchStep, ui.book().isOpen() ? "open" : "closed");
+            }
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
-                   strncmp(autotest.label(), "pad: book", 9) != 0) { // padnav: those steps drive the book with buttons
-            ui.book().close();
+                   strncmp(autotest.label(), "pad: book", 9) != 0 && // padnav: those steps drive the book with buttons
+                   !autotest.tutorialPath()) { // Harry's lesson: the book stays open until his script closes it
+            ui.book().close("autotest step");
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
@@ -775,9 +1016,34 @@ int main() {
                     continue;
                 }
                 const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;
-                if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
-                    player.reset(cx, cy, t.min[2], player.headingDeg());
-                    TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
+                if (strcmp(autotest.label(), "move: door") != 0) {
+                    if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
+                        player.reset(cx, cy, t.min[2], player.headingDeg());
+                        TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
+                    }
+                    break;
+                }
+                if (!transition.idle()) {
+                    // A transition (the minigame return) still owns the toon: wait beside the door.
+                    break;
+                }
+                // Exits are found at the toon's probe (just ahead of it), and flush door triggers
+                // push a toon standing still back out, so run into the trigger like a player:
+                // from 4 units on the place's side (toward its middle), facing it.
+                const u32 target = place.exitAt(cx, cy, t.min[2]).targetZone;
+                const tt::world::Exit probe = place.exitAt(player.probeX(), player.probeY(), player.z());
+                const float dx = cx - player.x(), dy = cy - player.y(), d2 = dx * dx + dy * dy;
+                const float c = sqrtf(cx * cx + cy * cy), ux = c > 1.0f ? cx / c : 0.0f, uy = c > 1.0f ? cy / c : 1.0f;
+                if (probe.kind != tt::world::Exit::None && probe.targetZone == target && lastExitZone != target) {
+                    // The exit code takes it from here this frame.
+                } else if (d2 > 36.0f || lastExitZone == target) {
+                    // Far away, or the no-bounce guard holds this door: start over from outside.
+                    player.reset(cx - ux * 4.0f, cy - uy * 4.0f, t.min[2], atan2f(-ux, uy) / kDegToRad);
+                    TT_LOG("autotest: moved to %s / %s", t.name, t.owner);
+                } else {
+                    player.reset(player.x(), player.y(), player.z(), atan2f(-dx, dy) / kDegToRad);
+                    in.pad.dx = 0;
+                    in.pad.dy = 150;
                 }
                 break;
             }
@@ -796,12 +1062,37 @@ int main() {
             float sx, sy, sz, sh;
             if (fishing.nearestSpot(player.x(), player.y(), &sx, &sy, &sz, &sh)) player.reset(sx, sy, sz + 0.5f, sh);
         }
-        if (autotest.active() && !strcmp(autotest.label(), "board trolley") && !trolley.seated() &&
-            !minigame.active() && !autotestBoardedTrolley) {
-            // Test-only: walk into the TTC trolley station (trolley_sphere centre).
+        static bool autotestHopBoarded = false;
+        if (autotest.active() && !strcmp(autotest.label(), "trolley hop: board") && !trolley.seated() &&
+            !autotestHopBoarded) { // Test-only: the same walk-in, to try the Hop off button
             float bx, by, bz;
             trolley.boardingPoint(&bx, &by, &bz);
             if (trolley.hasStation()) player.reset(bx, by, bz + 1.0f, player.headingDeg());
+            autotestHopBoarded = true;
+        }
+        static bool autotestHopLogged = false;
+        if (autotest.active() && !strcmp(autotest.label(), "trolley hop: tap hop off") && autotest.stepTime() > 2.5f &&
+            !autotestHopLogged) {
+            autotestHopLogged = true;
+            TT_LOG("autotest: trolley hop off -> seated %d (%s)", trolley.seated() ? 1 : 0,
+                   trolley.seated() ? "FAIL: still seated" : "ok");
+        }
+        if (autotest.active() && !strcmp(autotest.label(), "board trolley") && !trolley.seated() &&
+            !minigame.active()) {
+            // Test-only: walk into the TTC trolley station (trolley_sphere centre). Boarding fires on
+            // entering the sphere while the trolley waits; on a shared server it may be away on a
+            // ride, so step out and back in every 4 s until seated.
+            static float nextTry = 0.0f;
+            static bool stepOut = false;
+            float bx, by, bz;
+            trolley.boardingPoint(&bx, &by, &bz);
+            if (!autotestBoardedTrolley) { nextTry = 0.0f; stepOut = false; }
+            if (trolley.hasStation() && (stepOut || autotest.stepTime() >= nextTry)) {
+                // One frame outside the sphere, then back in: a fresh entry for TrolleyRide::update.
+                stepOut = !stepOut && autotestBoardedTrolley;
+                player.reset(bx + (stepOut ? 12.0f : 0.0f), by, bz + 1.0f, player.headingDeg());
+                if (!stepOut) nextTry = autotest.stepTime() + 4.0f;
+            }
             autotestBoardedTrolley = true;
         }
         if (autotest.active() && !strncmp(autotest.label(), "toon hq", 7)) {
@@ -830,6 +1121,33 @@ int main() {
                 talk.chooseQuest(0);
             }
         }
+        // Test-only: walk up to the first NPC of `classId` like a player: from 9 units in front
+        // of its DNA anchor, then onto its contact tube 1 unit in front (DistributedNPCToonBase
+        // CollisionTube (0, 1, 0)). Teleporting onto the NPC put the toon inside the counter.
+        auto approachNpc = [&](uint16_t classId, bool sessionOpen, float startSec) {
+            if (!netStarted || !net.inZone() || !transition.idle() || sessionOpen) return;
+            for (int slot = 0; slot < tt::net::kMaxNpcs; ++slot) {
+                const auto &npc = net.npcSlot(slot);
+                if (!npc.active || npc.classId != classId) continue;
+                char name[48];
+                snprintf(name, sizeof(name), "npc_origin_%u", unsigned(npc.posIndex));
+                const auto *anchor = place.point(name);
+                if (!anchor) continue;
+                const float angle = anchor->h * 3.14159265f / 180.0f;
+                const float approach = autotest.stepTime() < startSec + 3 ? 9.0f : 1.0f;
+                const float dx = anchor->x - sinf(angle) * approach - player.x();
+                const float dy = anchor->y + cosf(angle) * approach - player.y();
+                if (autotest.stepTime() < startSec || dx * dx + dy * dy > 15.0f * 15.0f) {
+                    player.reset(anchor->x - sinf(angle) * 9.0f, anchor->y + cosf(angle) * 9.0f, anchor->z + 0.5f,
+                                 anchor->h + 180.0f);
+                } else if (dx * dx + dy * dy > .25f) {
+                    player.setHeading(atan2f(-dx, dy) * 180.0f / 3.14159265f);
+                    in.pad.dx = 0;
+                    in.pad.dy = 90;
+                }
+                return;
+            }
+        };
         // ---- clerks: diagnostics walk toward the actual DNA anchor ----
         if (autotest.active() && !strncmp(autotest.label(), "clerk: ", 7)) {
             const char *label = autotest.label();
@@ -1003,14 +1321,8 @@ int main() {
         }
         if (autotest.active() && !strcmp(autotest.label(), "tailor visit")) {
             // Test-only: teleport into the TTC Clothing Store (2521) and step onto the tailor.
-            static u32 tailorNextMs = 0;
-            const u32 now = tt::net::plat::nowMs();
             if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
-            float npc[4];
-            if (place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 && now > tailorNextMs) {
-                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
-                tailorNextMs = now + 5000;
-            }
+            if (place.zoneId() == 2521) approachNpc(tt::dc::DistributedNPCTailor::kClassId, tailor.active(), 0.0f);
         }
         if (autotest.active() && !strncmp(autotest.label(), "go ", 3)) {
             // Test-only: teleport straight to a Cog HQ courtyard or a facility's entrance (upstream
@@ -1204,11 +1516,15 @@ int main() {
             }
             if (facilityStep("next floor")) {
                 // Into the floor elevator's doors (again after any battle there) until we have a seat.
+                // Floor elevators are never locked, so this rides on through the middle floors (their
+                // rooms are the floor-1 kinds the earlier steps cover) and stops on the top floor,
+                // the one with the boss Cog, for the boss step.
                 static u32 elevatorNextMs = 0;
                 const u32 now = tt::net::plat::nowMs();
                 if (autotest.stepBegan()) elevatorNextMs = 0;
-                float ex, ey, ez, eh;
-                if (!level.aboardElevator() && now >= elevatorNextMs &&
+                float ex, ey, ez, eh, bx, by, bz;
+                const bool top = level.foremanPosition(&bx, &by, &bz);
+                if (!level.aboardElevator() && !top && now >= elevatorNextMs &&
                     level.elevatorPosition(&ex, &ey, &ez, &eh)) {
                     player.reset(ex, ey, ez + 0.5f, eh);
                     elevatorNextMs = now + 10000;
@@ -1217,6 +1533,7 @@ int main() {
             if (facilityStep("boss") && autotest.stepBegan()) {
                 float fx, fy, fz;
                 if (level.foremanPosition(&fx, &fy, &fz)) player.reset(fx, fy - 6.0f, fz + 0.3f, 0.0f); // walk in
+                else TT_LOG("autotest: FAIL '%s': no boss Cog on this floor (not the top floor?)", autotest.label());
             }
             const bool look = !strcmp(autotest.label(), "factory: entities");
             const bool fight = !strcmp(autotest.label(), "factory: battle") || facilityStep("battle");
@@ -1247,12 +1564,9 @@ int main() {
             autotestBought = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "visit clerk") && !autotestClerk) {
-            // Test-only: step onto the first NPC (the Gag Shop clerk) so the shop opens.
-            float npc[4];
-            if (zoneActors.shadowPositions(npc, 1) == 1) {
-                player.reset(npc[0], npc[1] - 2.0f, npc[2], 0.0f);
-                autotestClerk = true;
-            }
+            // Test-only: walk up to the Gag Shop clerk so the shop opens.
+            approachNpc(tt::dc::DistributedNPCClerk::kClassId, shop.active(), 0.0f);
+            if (shop.active()) autotestClerk = true;
         }
         if (autotest.active() && !strcmp(autotest.label(), "ride boat") && boat.active() && !autotestBoarded) {
             // Test-only: drop onto the middle of the deck.
@@ -1325,9 +1639,7 @@ int main() {
         if (autotest.active() && !strncmp(autotest.label(), "pad: ", 5)) {
             constexpr float kPadPagePressSec = 2.0f;  // one A per dialog page
             constexpr float kPadAwaySec = 2.0f;       // off the clerk first: the NPC wants a new contact
-            constexpr float kPadAwayDist = 8.0f;
             constexpr float kPadSafetySec = 1.5f;     // a press step that left its panel open closes it
-            constexpr u32 kPadTailorRetryMs = 5000;
             const char* padStep = autotest.label();
             if (!strcmp(padStep, "pad: battle start")) {
                 // Walk into a cog like "fight cog"; the gag choice is left to the pad steps.
@@ -1346,27 +1658,17 @@ int main() {
                 if (talk.phase() == tt::quest::Talk::Phase::QuestChoice) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: shop open")) {
-                float npc[4];
-                if (!shop.active() && zoneActors.shadowPositions(npc, 1) == 1) {
-                    const float back = autotest.stepTime() < kPadAwaySec ? kPadAwayDist : 2.0f;
-                    player.reset(npc[0], npc[1] - back, npc[2], 0.0f);
-                }
+                // Away first (the shop just closed), then walk back up to the clerk.
+                approachNpc(tt::dc::DistributedNPCClerk::kClassId, shop.active(), kPadAwaySec);
                 if (shop.active()) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: shop press") && autotest.stepTime() > kPadSafetySec && shop.active()) {
                 shop.finish(true);
             }
             if (!strcmp(padStep, "pad: tailor open")) {
-                static u32 tailorRetryMs = 0;
-                const u32 now = tt::net::plat::nowMs();
                 if (place.zoneId() != 2521 && !uiState.teleportRequest && transition.idle()) uiState.teleportRequest = 2521;
-                float npc[4];
-                if (!tailor.active() && place.zoneId() == 2521 && zoneActors.shadowPositions(npc, 1) == 1 &&
-                    now > tailorRetryMs) {
-                    const bool away = autotest.stepTime() < kPadAwaySec;
-                    player.reset(npc[0], npc[1] - (away ? kPadAwayDist : 2.0f), npc[2], 0.0f);
-                    if (!away) tailorRetryMs = now + kPadTailorRetryMs;
-                }
+                if (place.zoneId() == 2521)
+                    approachNpc(tt::dc::DistributedNPCTailor::kClassId, tailor.active(), kPadAwaySec);
                 if (tailor.active()) autotest.finishStep();
             }
             if (!strcmp(padStep, "pad: tailor press") && autotest.stepTime() > kPadSafetySec && tailor.active()) {
@@ -1377,12 +1679,38 @@ int main() {
         // Buttons the UI used (e.g. A/B in the SpeedChat list) must not also reach the world.
         if (battle.active() && netStarted) {
             battle.fillView(net, tt::net::plat::nowMs(), &battleView);
+            battleView.tutorialDialog = tutorialReward.dialog(); // ---- tutorial ----
+            // ---- padnav: "pad: battle demo" steps show the SOS cards and the Fire panel with
+            // sample Rescued Toons and pink slips (display only; their actions are dropped below) ----
+            if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
+                battleView.phase == tt::world::BattlePhase::Input) {
+                battleView.numSosCards = 10;
+                for (int i = 0; i < 10; i++) {
+                    battleView.sosCards[i] = tt::world::BattleView::SosCard{tt::ui::kSosCards[i * 4].npcId, uint8_t(i == 2 ? 0 : 1 + i % 3)};
+                }
+                battleView.pinkSlips = 3;
+                battleView.canFire = battleView.canSos;
+            }
+            // ---- end padnav ----
             const tt::net::OwnStats& st = net.ownStats();
             ui.setBattle(&battleView, tt::ui::BattleGags{st.inventory, st.experience, st.trackAccess});
         } else {
             ui.setBattle(nullptr, tt::ui::BattleGags{});
         }
         ui.setTalk(&talk);
+        // ---- tutorial ---- PlayGame.enterTutorialHood / exitTutorialHood: what the lessons reveal
+        {
+            static bool inTutorialHood = false;
+            const bool inHood = netStarted && net.inTutorial();
+            if (inTutorialHood && !inHood) tt::ui::releaseTutorialArt(); // Tom's cards, the arrows
+            inTutorialHood = inHood;
+            tutorial.setInTutorialHood(inHood);
+        }
+        ui.setTutorialHud(tutorial.bookButtonShown(), tutorial.laffShown(), tutorial.speedChatShown());
+        ui.setTutorialArrows(tutorial.arrows());
+        ui.book().setScriptLock(tutorial.bookCloseEnabled(), tutorial.bookNextShown(), tutorial.bookPrevShown(),
+                                !tutorial.bookScripted());
+        // ---- end tutorial ----
         // ---- qafix: retire context panels before dispatching any input ----
         const bool exclusivePanel = battle.active() || trolley.seated() || minigame.active() || golf.active() || racing.driving(); // ---- racing2 ----
         const bool lostPanelContext = netStarted && !net.inZone();
@@ -1391,9 +1719,36 @@ int main() {
                        trolley.seated() || minigame.active() || golf.active() || racing.hudVisible()); // ---- racing2 ----
         // ---- end qafix ----
         ui.setRacingInput(racing.hudVisible()); // ---- racing2 ----
+        // ---- visual: autotest "battle hold" presses D-Down once per input round (~1 s in), so
+        // shots show the focused gag's detail line ----
+        {
+            static int inputFrames = 0;
+            const bool held = autotest.active() && autotest.battleHoldMs() > 0 && battle.active() &&
+                              battle.phase() == tt::world::BattlePhase::Input;
+            inputFrames = held ? inputFrames + 1 : 0;
+            if (inputFrames == 30) {
+                in.down |= KEY_DDOWN;
+                TT_LOG("autotest: battle hold D-Down (gag detail)");
+            }
+        }
+        // ---- end visual ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
+        if (uiState.infoButtonPressed) { // the info panel's Hop off / Leave button is B
+            uiState.infoButtonPressed = false;
+            in.down |= KEY_B;
+        }
         tt::world::BattleAction battleAction;
-        while (ui.battle().popAction(battleAction)) battle.perform(net, battleAction, tt::net::plat::nowMs());
+        while (ui.battle().popAction(battleAction)) {
+            if (autotest.active() && !strncmp(autotest.label(), "pad: battle demo", 16) &&
+                (battleAction.kind == tt::world::BattleAction::NpcSos || battleAction.kind == tt::world::BattleAction::Fire))
+                continue; // the demo's sample cards and slips are not ours (padnav)
+            // ---- tutorial ---- the reward movie's dialogs take the panel's Continue as their OK
+            if (battleAction.kind == tt::world::BattleAction::Continue && tutorialReward.active()) {
+                tutorialReward.advance();
+                continue;
+            }
+            battle.perform(net, battleAction, tt::net::plat::nowMs());
+        }
         if (uiState.tab != prevTab) tt::audio::playSfx(uiState.tab == tt::ui::kTabChat ? sfxChatOpen : sfxClick);
         ambientTimer -= dt;
         if (ambientTimer <= 0.0f) {
@@ -1420,10 +1775,28 @@ int main() {
             if (localToon.emoteActive()) localToon.cancel(); // back-to-back steps; shots land mid-clip
             tryEmote(atoi(autotest.label() + 7));
         }
+        ui.setChatTasks(netStarted && net.inZone() ? &net.ownQuests() : nullptr);
         int speechMsg;
         while (ui.popSpeech(speechMsg)) {
+            tutorialSaidSpeedChat = true; // QuestParser WAIT_EVENT 'SCChatEvent' (Flippy's lesson)
             if(speechMsg<0) {
                 tryEmote(-1-speechMsg);
+                continue;
+            }
+            if (speechMsg >= tt::ui::ChatMenu::kTaskCode) {
+                // TOONTASKS > MY TASKS: setSCToontask (said aloud) or setWhisperSCToontaskFrom.
+                const tt::ui::ChatMenu::TaskPhrase* tp = ui.chatTaskPhrase(speechMsg);
+                if (!tp) continue;
+                pendingTask = *tp;
+                hasPendingTask = true;
+                if (!uiState.whisperTo) {
+                    snprintf(myTaskPhrase, sizeof(myTaskPhrase), "%s", tp->text);
+                    myPhrase = myTaskPhrase;
+                    myPhraseAge = 0.0f;
+                }
+                tt::audio::playSfx(sfxClick);
+                ui.logChat(uiState.whisperTo ? "You whisper" : "You", tp->text, uiState.whisperTo != 0, true,
+                           static_cast<u32>(osGetTime()));
                 continue;
             }
             if (!uiState.whisperTo) { // whispers are private: no balloon over our head
@@ -1432,6 +1805,8 @@ int main() {
             }
             tt::audio::playSfx(sfxClick);
             pendingSpeech = speechMsg;
+            ui.logChat(uiState.whisperTo ? "You whisper" : "You", tt::sc::phraseText(speechMsg), uiState.whisperTo != 0,
+                       true, static_cast<u32>(osGetTime()));
         }
         myPhraseAge += dt;
         if (localToon.bodyLocked() && !racing.driving()) {
@@ -1443,7 +1818,7 @@ int main() {
         tt::prof::lap(tt::prof::kInput);
         const circlePosition minigamePad = in.pad;
         talk.update(dt);
-        if (talk.locked()) { // talking to an NPC: the dialog panel has the buttons
+        if (talk.locked() || tutorial.active()) { // talking to an NPC / a QuestScript: the dialog panel has the buttons
             in.pad.dx = 0;
             in.pad.dy = 0;
             in.held &= ~(KEY_A | KEY_B);
@@ -1481,8 +1856,11 @@ int main() {
         // ---- end clerks ----
         // Donald's boat: its deck collision carries the toon (Player::setPlatform); pose first.
         boat.setListener(player.cameraEye().x, player.cameraEye().y, player.cameraTarget().x, player.cameraTarget().y);
+        boat.setZone(place.zoneId());
         boat.update(tt::net::plat::nowMs());
         player.setPlatform(boat.deck(), boat.x(), boat.y(), boat.z(), boat.heading());
+        fishing.setTouch(ui.fishingPanel().touch()); // the touch Cast button (gesture events once)
+        ui.fishingPanel().clearTouchEvents();
         fishing.handleInput(in, dt, tt::net::plat::nowMs(), transition.idle() && !exclusivePanel &&
                             !shop.active() && !tailor.active() && !serviceClerks.active() && !talk.locked());
         tt::prof::lap(tt::prof::kNet);
@@ -1504,7 +1882,8 @@ int main() {
             net.changeZone(next);
             remoteToons.clear();
         }
-        player.setDynamic(level.solids()); // facility doors, buttons, lifts (nullptr elsewhere)
+        // Facility doors, buttons, lifts; Donald's Dock's pier ramps; nullptr elsewhere.
+        player.setDynamic(level.solids() ? level.solids() : boat.pierSolids());
         {
             float floorZ;
             if (level.active() && level.popSquish(&floorZ) > 0) {
@@ -1545,14 +1924,34 @@ int main() {
         const bool choiceCamera = talk.phase() == tt::quest::Talk::Phase::QuestChoice ||
                                   talk.phase() == tt::quest::Talk::Phase::TrackChoice;
         C3D_FVec talkEye, talkTarget;
-        if (talk.locked() && zoneActors.talkCamera(talk.npcDoId(), choiceCamera, &talkEye, &talkTarget)) {
-            if (talkCameraNpc != talk.npcDoId() || talkCameraChoice != choiceCamera) {
-                talkCameraNpc = talk.npcDoId();
+        // Clerk movies (DistributedNPCClerk/Petclerk/KartClerk/Fisherman/PartyPerson/Tailor
+        // PURCHASE_MOVIE_START) lerp the camera to the same pose as the quest talk. The tailor's
+        // clothes GUI then cuts to face the toon with the tailor and its counter hidden; the
+        // counter is baked into the interior mesh here, so the tailor keeps the clerk view.
+        u32 cameraNpc = 0;
+        bool haveTalkCamera = false;
+        const float localHeight = localLook.valid() ? localLook.nametagHeight : 4.2f;
+        if (talk.locked()) {
+            cameraNpc = talk.npcDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, choiceCamera, &talkEye, &talkTarget);
+        } else if (shop.active() && shop.clerkDoId()) {
+            cameraNpc = shop.clerkDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget);
+        } else if (serviceClerks.active() && serviceClerks.clerkDoId()) {
+            cameraNpc = serviceClerks.clerkDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget, localHeight);
+        } else if (tailor.active() && tailor.tailorDoId()) {
+            cameraNpc = tailor.tailorDoId();
+            haveTalkCamera = zoneActors.talkCamera(cameraNpc, false, &talkEye, &talkTarget);
+        }
+        if (haveTalkCamera) {
+            if (talkCameraNpc != cameraNpc || talkCameraChoice != choiceCamera) {
+                talkCameraNpc = cameraNpc;
                 talkCameraChoice = choiceCamera;
                 talkCameraAge = 0;
                 talkFromEye = player.cameraEye();
                 talkFromTarget = player.cameraTarget();
-                TT_LOG("quest camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
+                TT_LOG("talk camera: npc %lu choice %u", static_cast<unsigned long>(talkCameraNpc), unsigned(choiceCamera));
             }
             talkCameraAge = fminf(1.0f, talkCameraAge + dt);
             const float blend = 1 - (1 - talkCameraAge) * (1 - talkCameraAge);
@@ -1564,6 +1963,84 @@ int main() {
             talkCameraNpc = 0;
         }
         // ---- end qafix ----
+        // ---- tutorial ----
+        // The QuestScript's staging: LOCK_LOCALTOON's scripted moves (tutorial_mickey's run in),
+        // a one-off placement (FREE_LOCALTOON, or the POS of an unlocked Toon: quest_assign_101's
+        // last pose, tutorial_blocker's spot by Flippy), the NPC the script moves (Flippy runs
+        // off), and the camera in its parent's frame (render, the NPC or the local Toon).
+        {
+            using SV = tt::quest::ScriptVar;
+            const u32 scriptNpc = tutorialSpeaker ? tutorialSpeaker : netStarted ? net.tutorialInterior().npcDoId : 0;
+            if (tutorialSpeaker && tutorial.scriptId() == tt::quest::ScriptId::TutorialBlocker) {
+                // Flippy is parented to render (NPCToons.BlockerPositions): the script's pose is his.
+                if (tutorial.npcPosed()) {
+                    const tt::quest::ScriptXform& n = tutorial.xform(SV::Npc);
+                    zoneActors.setNpcPose(tutorialSpeaker, n.pos[0], n.pos[1], n.pos[2], n.hpr[0]);
+                }
+                if (tutorial.npcAnim().name[0])
+                    zoneActors.setNpcAnim(tutorialSpeaker, tt::world::toonAnimByName(tutorial.npcAnim().name),
+                                          tutorial.npcAnim().rate);
+                if (tutorial.npcHidden()) zoneActors.setNpcHidden(tutorialSpeaker, true);
+            }
+            // quest_assign_101: LERP_HPR npc -50 0 0 0.5 turns Tutorial Tom to the door while he points at
+            // it, LERP_HPR npc -0.068 back (his render heading is ~0, so the script's H is a turn from his
+            // own heading). His right-hand / right-point clips are not in the 3DS Toon clip set.
+            static u32 tomTurnNpc = 0;
+            static float tomBaseH = 0.0f;
+            if (scriptNpc && tutorial.scriptId() == tt::quest::ScriptId::QuestAssign101 && tutorial.npcPosed()) {
+                float nx, ny, nz, nh;
+                if (zoneActors.npcPose(scriptNpc, &nx, &ny, &nz, &nh)) {
+                    if (tomTurnNpc != scriptNpc) {
+                        tomTurnNpc = scriptNpc;
+                        tomBaseH = nh;
+                    }
+                    zoneActors.setNpcPose(scriptNpc, nx, ny, nz, tomBaseH + tutorial.xform(SV::Npc).hpr[0]);
+                }
+            }
+            const bool place = tutorial.takeToonPlace();
+            if (tutorial.toonPosed() || place) {
+                const tt::quest::ScriptXform& x = tutorial.xform(SV::LocalToon);
+                player.reset(x.pos[0], x.pos[1], x.pos[2], x.hpr[0]);
+            }
+            // A parent node's world pose (x, y, z, heading); pitch and roll of parents are zero here.
+            auto parentPose = [&](SV parent, float* p) {
+                p[0] = p[1] = p[2] = p[3] = 0.0f;
+                if (parent == SV::LocalToon) {
+                    p[0] = player.x(), p[1] = player.y(), p[2] = player.z(), p[3] = player.headingDeg();
+                    return true;
+                }
+                return parent != SV::Npc || zoneActors.npcPose(scriptNpc, &p[0], &p[1], &p[2], &p[3]);
+            };
+            SV wrtFrom = SV::None;
+            if (tutorial.takeCameraWrt(&wrtFrom)) {
+                // WrtParentInterval: keep the camera where it is in the world, now in the new frame.
+                float a[4], b[4];
+                const bool known = parentPose(wrtFrom, a) && parentPose(tutorial.cameraParent(), b);
+                tt::quest::ScriptXform c = tutorial.xform(SV::Camera);
+                const float ha = a[3] * kDegToRad, hb = b[3] * kDegToRad;
+                const float wx = a[0] + c.pos[0] * cosf(ha) - c.pos[1] * sinf(ha);
+                const float wy = a[1] + c.pos[0] * sinf(ha) + c.pos[1] * cosf(ha);
+                const float dx = wx - b[0], dy = wy - b[1];
+                c.pos[0] = dx * cosf(hb) + dy * sinf(hb);
+                c.pos[1] = -dx * sinf(hb) + dy * cosf(hb);
+                c.pos[2] += a[2] - b[2];
+                c.hpr[0] += a[3] - b[3];
+                if (known) tutorial.setCameraLocal(c);
+            }
+            if (tutorial.active() && tutorial.cameraStaged()) {
+                const tt::quest::ScriptXform& c = tutorial.xform(SV::Camera);
+                float pp[4];
+                const bool known = parentPose(tutorial.cameraParent(), pp); // the NPC may not be generated yet
+                const float ph = pp[3] * kDegToRad;
+                const float h = ph + c.hpr[0] * kDegToRad, p = c.hpr[1] * kDegToRad;
+                const C3D_FVec eye = FVec3_New(pp[0] + c.pos[0] * cosf(ph) - c.pos[1] * sinf(ph),
+                                               pp[1] + c.pos[0] * sinf(ph) + c.pos[1] * cosf(ph), pp[2] + c.pos[2]);
+                if (known)
+                    player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f,
+                                                         eye.y + cosf(h) * cosf(p) * 10.0f, eye.z + sinf(p) * 10.0f));
+            }
+        }
+        // ---- end tutorial ----
         if (trolley.seated() || minigame.inScene() || golf.active()) {
             float sx, sy, sz, sh;
             C3D_FVec eye, target;
@@ -1588,11 +2065,93 @@ int main() {
             battle.cameraTarget(&tx, &ty, &tz);
             player.overrideCamera(FVec3_New(ex, ey, ez), FVec3_New(tx, ty, tz));
         }
+        // ---- tutorial ---- playTutorialReward_3: camera.setPosHpr(render, 34, 19.88, 3.48, -90, -2.36, 0),
+        // localAvatar.setPosHpr(40.31, 22.0, -0.47, 150, ...)
+        if (tutorialReward.staged()) {
+            using TR = tt::world::TutorialReward;
+            player.reset(TR::kToonPos[0], TR::kToonPos[1], TR::kToonPos[2], TR::kToonPos[3]);
+            const float h = TR::kCamH * kDegToRad, p = TR::kCamP * kDegToRad;
+            const C3D_FVec eye = FVec3_New(TR::kCamPos[0], TR::kCamPos[1], TR::kCamPos[2]);
+            player.overrideCamera(eye, FVec3_New(eye.x - sinf(h) * cosf(p) * 10.0f, eye.y + cosf(h) * cosf(p) * 10.0f,
+                                                 eye.z + sinf(p) * 10.0f));
+        }
+        // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
+        if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
+            // Test-only: teleport to the view's zone, stand the toon at a fixed pose, and pin the
+            // camera to a fixed eye/target so every build shoots exactly the same frame.
+            struct View { const char* name; u32 zone; float eye[3], target[3], toon[4]; };
+            static const View kViews[] = {
+                {"ttc_near", 2000, {-79.2f, -78.1f, 5.5f}, {-82.8f, -91.6f, 5.0f}, {-81.5f, -86.8f, 1.0f, 165.0f}},
+                {"ttc_mid", 2000, {68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f}, {75.7f, 1.0f, 5.0f, -90.0f}},
+                {"ttc_far", 2000, {112.0f, -135.0f, 30.0f}, {0.0f, 130.0f, 0.0f}, {101.0f, -117.0f, 5.0f, 19.0f}},
+                {"ttc_tree", 2000, {-30.0f, 30.0f, 6.0f}, {-80.0f, 40.0f, 3.0f}, {-38.0f, 31.6f, 1.0f, 100.0f}},
+                {"street_near", 2100, {-123.0f, -115.0f, 5.0f}, {-137.0f, -115.0f, 6.0f}, {-130.0f, -115.0f, 0.5f, 90.0f}},
+                {"street_far", 2100, {-112.0f, -105.0f, 10.0f}, {-118.0f, -250.0f, 4.0f}, {-112.0f, -112.0f, 0.5f, 180.0f}},
+                {"dd_near", 1000, {-108.0f, -28.0f, 11.0f}, {-122.0f, -28.0f, 10.0f}, {-115.0f, -28.0f, 6.0f, 90.0f}},
+                {"dd_far", 1000, {-110.0f, -40.0f, 14.0f}, {20.0f, 110.0f, 5.0f}, {-112.0f, -33.0f, 6.0f, -40.0f}},
+            };
+            // Placed once per (step, zone): a teleport's arrival puts the toon at the drop point.
+            static const char* placedLabel = nullptr;
+            static u32 placedZone = 0;
+            for (const View& v : kViews) {
+                if (strcmp(autotest.label() + 6, v.name)) continue;
+                if (place.zoneId() / 100 != v.zone / 100) {
+                    if (!uiState.teleportRequest) uiState.teleportRequest = v.zone;
+                    break;
+                }
+                if (placedLabel != autotest.label() || placedZone != place.zoneId()) {
+                    player.reset(v.toon[0], v.toon[1], v.toon[2], v.toon[3]);
+                    placedLabel = autotest.label();
+                    placedZone = place.zoneId();
+                    TT_LOG("view: %s in zone %u", v.name, static_cast<unsigned>(place.zoneId()));
+                }
+                player.overrideCamera(FVec3_New(v.eye[0], v.eye[1], v.eye[2]),
+                                      FVec3_New(v.target[0], v.target[1], v.target[2]));
+                break;
+            }
+        }
+        // ---- end render views ----
+        // ---- autotest poses: "pose <zone> <eye> <target> <toon xyz h>" lines, held by "pose: N" ----
+        if (const tt::autotest::Pose* p = autotest.active() && transition.idle() ? autotest.pose() : nullptr) {
+            static const char* posedLabel = nullptr;
+            static u32 posedZone = 0;
+            // Streets change zone id per cell; an interior (branch + 500 + block) must match exactly.
+            const bool interior = p->zone % 1000 >= 500;
+            if (interior ? place.zoneId() != p->zone : place.zoneId() / 100 != p->zone / 100) {
+                if (!uiState.teleportRequest) uiState.teleportRequest = p->zone;
+            } else {
+                if (posedLabel != autotest.label() || posedZone != place.zoneId()) {
+                    player.reset(p->toon[0], p->toon[1], p->toon[2], p->toon[3]);
+                    posedLabel = autotest.label();
+                    posedZone = place.zoneId();
+                    TT_LOG("%s in zone %u", autotest.label(), static_cast<unsigned>(place.zoneId()));
+                }
+                // Zone plan once every 8 s of a pose, to read LOD and frame-cap decisions from the log.
+                static u64 planLogAt = 0;
+                if (osGetTime() >= planLogAt && place.streamed()) {
+                    char plan[768];
+                    const int len = std::min<int>(place.zone().describePlan(plan, sizeof(plan)),
+                                                  static_cast<int>(sizeof(plan)) - 1);
+                    // A log line holds 256 bytes; a Cog HQ plan runs past that.
+                    for (int at = 0; at < len; at += 200)
+                        TT_LOG("%s plan%s %.200s", autotest.label(), at ? "+" : ":", plan + at);
+                    planLogAt = osGetTime() + 8000;
+                }
+                // An eye equal to the target keeps the follow camera (shots of the stock camera).
+                if (p->eye[0] != p->target[0] || p->eye[1] != p->target[1] || p->eye[2] != p->target[2])
+                    player.overrideCamera(FVec3_New(p->eye[0], p->eye[1], p->eye[2]),
+                                          FVec3_New(p->target[0], p->target[1], p->target[2]));
+            }
+        }
+        // ---- end autotest poses ----
         if (player.onPlatform() != boatRider) boat.setRider(boatRider = player.onPlatform());
         float animRate = 1.0f;
         tt::world::ToonAnim anim = player.animState(&animRate);
+        if (tutorial.toonPosed() && tutorial.toonAnim().name[0]) { // LOOP_ANIM localToon "run" / "neutral"
+            anim = !strcmp(tutorial.toonAnim().name, "run") ? tt::world::kAnimRun : tt::world::kAnimNeutral;
+            animRate = 1.0f;
+        }
         // ---- water: swimming in Donald's Dock / Acorn Acres (world/water.*) ----
-        static tt::world::Water water;
         if (place.zoneId() != water.zone()) water.setZone(place.zoneId(), renderer);
         const bool swimming = !battle.inBattle() && !featureBusyForWater(fishing.active(), trolley.seated(),
                                                                        minigame.inScene(), transition.active()) &&
@@ -1632,7 +2191,7 @@ int main() {
             }
         } else if (battleClips.count) {
             localToon.play(tt::world::kAnimNeutral, 1.0f);
-            C3D_FrameSync(); // the last frame may still be drawing with them
+            ::tt::gpu::frameSync(); // the last frame may still be drawing with them
             battleClips.unload();
         }
         if(!battle.inBattle() && !clipTest) {
@@ -1662,6 +2221,8 @@ int main() {
         tt::prof::lap(tt::prof::kPlayer);
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
+        // The draw cap follows this camera, so chunks behind the toon do not spend it.
+        place.setCamera(player.cameraEye(), player.cameraTarget());
         place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
@@ -1678,7 +2239,28 @@ int main() {
 
         // Tunnels and building doors (QuietZone zone change). The new zone loads first, so
         // DNA-anchored objects (NPCs, doors) find their anchors when they generate.
-        const tt::world::Exit exitHere = place.exitAt(player.probeX(), player.probeY(), player.z());
+        // Test the collided feet first. The unpushed probe can pass through a wall into a
+        // tunnel trigger (a run out of battle, or a walk along a wall) and zone-change.
+        // Use the probe only when the step does not cross a camera wall, so a flush door
+        // still touches its trigger.
+        static bool blockExitUntilClear = false;
+        tt::world::Exit exitHere = place.exitAt(player.x(), player.y(), player.z());
+        if (exitHere.kind == tt::world::Exit::None) {
+            const float px = player.probeX(), py = player.probeY();
+            const float dx = px - player.x(), dy = py - player.y();
+            bool crossed = false;
+            if (dx * dx + dy * dy > 1.0e-6f && place.collision().loaded()) {
+                float hitT = 1.0f;
+                const float z = player.z() + tt::world::kToonRadius;
+                crossed = place.collision().cameraRaycast(tt::world::Vec3{player.x(), player.y(), z},
+                                                          tt::world::Vec3{px, py, z}, &hitT) &&
+                          hitT < 0.98f;
+            }
+            if (!crossed) exitHere = place.exitAt(px, py, player.z());
+        }
+        if (battle.active()) blockExitUntilClear = true;
+        else if (blockExitUntilClear && exitHere.kind == tt::world::Exit::None) blockExitUntilClear = false;
+        if (blockExitUntilClear) exitHere = {};
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
             // A transition is running, we are on the trolley / away at a minigame, or in a battle or
@@ -1686,7 +2268,9 @@ int main() {
             // out): no exits. The Cog floor shares the toon interior's zone id, not its doors.
         // ---- tutorial ----
         } else if (netStarted && net.inTutorial() && place.zoneId() == tt::world::kTutorialStreet &&
-                   exitHere.kind == tt::world::Exit::Tunnel && exitHere.targetZone != lastExitZone) {
+                   exitHere.kind == tt::world::Exit::Tunnel) {
+            // No lastExitZone guard: the tutorial tunnel is linktunnel_tt_0 (target zone 0, which is
+            // also lastExitZone off every trigger), and nothing arrives through it to bounce back.
             // TutorialStreet.handleEnterTunnel posts stopTutorial before TTStreet starts the
             // normal TTC tunnel.  allDone tears down dynamic objects; the next location is TTC.
             if (net.sendTutorialAllDone()) {
@@ -1705,6 +2289,8 @@ int main() {
                 toastAge = 0.0f;
             } else {
                 travelTarget = exitHere.targetZone;
+                TT_LOG("place: exit %s -> zone %lu (%s)", exitHere.name, static_cast<unsigned long>(travelTarget),
+                       netStarted ? "online" : "offline");
             }
         }
         if (uiState.teleportRequest && (minigame.active() || trolley.seated() || battle.active())) {
@@ -1715,6 +2301,7 @@ int main() {
         } else if (uiState.teleportRequest && transition.idle()) {
             // Map tab teleport to a playground (upstream: Shticker Book map page).
             if (tt::world::Place::available(uiState.teleportRequest)) {
+                if (uiState.teleportFromMap && netStarted) net.sendCheckTeleportAccess(uiState.teleportRequest);
                 transition.startTeleportOut(uiState.teleportRequest, player, netStarted ? &net : nullptr);
             }
             uiState.teleportRequest = 0;
@@ -1756,6 +2343,7 @@ int main() {
             uiState.homeRequest = false;
         }
         uiState.teleportRequest = 0;
+        uiState.teleportFromMap = false;
 
         transition.update(dt, player, place, netStarted ? &net : nullptr);
         const char* doorReject = nullptr;
@@ -1764,41 +2352,92 @@ int main() {
             toastAge = 0.0f;
         }
 
+        // finishLoading used to upload every chunk before the next frame. Zone::update
+        // now uploads about 10 ms per frame. The loading card stays up until the chunks
+        // covering most of the screen have a mesh; near upgrades of those chunks start
+        // while the rest of the cone is still reading. This path does not call finishLoading.
         if (transition.readyToLoad()) {
-            const u32 dest = transition.targetZone();
-            const u32 fromZone = transition.fromZone();
-            remoteToons.clear();
-            if (place.load(dest)) {
-                // Facilities are entered by elevator, never by a transition, so any arrival means we
-                // left one (won, went sad, teleported): end it even if its gone events never come.
-                if (level.active()) {
-                    TT_LOG("level: left for zone %u", unsigned(dest));
-                    level.shutdown();
+            auto finishZoneStream = [&]() {
+                const tt::world::Exit arrivalExit = place.exitAt(zoneAx, zoneAy, zoneAz);
+                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : zoneFrom;
+                if (tt::world::hoodOf(zoneDest) != tt::world::hoodOf(zoneFrom) ||
+                    tt::world::placeKind(zoneDest) != tt::world::placeKind(zoneFrom)) {
+                    playPlaceMusic(zoneDest);
                 }
-                zoneActors.loadPoints(place.pointsPath());
-                cchars.setZone(dest);
-                fishing.setZone(dest, place.pointsPath());
-                trolley.setZone(dest);
-                cogBuildings.setZone(dest);
-                cogBuildings.syncAnchors(place);
-                suits.setZone(dest);
-                float ax, ay, az, ah;
-                place.arrival(fromZone, &ax, &ay, &az, &ah);
-                player.reset(ax, ay, az, ah);
-                if (netStarted) net.changeZone(dest);
-                place.finishLoading(ax, ay, az, onStreetCell, nullptr);
-                const tt::world::Exit arrivalExit = place.exitAt(ax, ay, az);
-                lastExitZone = arrivalExit.kind != tt::world::Exit::None ? arrivalExit.targetZone : fromZone; // don't bounce straight back
-                if (tt::world::hoodOf(dest) != tt::world::hoodOf(fromZone) ||
-                    tt::world::placeKind(dest) != tt::world::placeKind(fromZone)) {
-                    playPlaceMusic(dest);
+                loadAmbient(zoneDest);
+                transition.notifyLoaded(zoneDest, place, player, netStarted ? &net : nullptr);
+                const u32 playable = static_cast<u32>(osGetTime() - zoneT0);
+                const u32 streamMs = static_cast<u32>(osGetTime() - zoneStreamT0);
+                tt::loadprof::notePlayable(playable);
+                tt::loadprof::noteStream(streamMs);
+                char profile[640];
+                TT_LOG("load: zone %lu stream %u ms, playable %u ms\n%s", static_cast<unsigned long>(zoneDest),
+                       static_cast<unsigned>(streamMs), static_cast<unsigned>(playable),
+                       tt::loadprof::report(profile, sizeof(profile)));
+                if (!tt::loadprof::dump("sdmc:/3ds/toontown3ds/load_profile.txt"))
+                    TT_LOG("load: could not write load_profile.txt");
+                // The card was on the previous frame. FrameBegin is what waits for that GPU
+                // work, and we return before it, so sync before freeing the card's textures.
+                ::tt::gpu::frameSync();
+                zoneLoad.release();
+                zonePhase = ZonePhase::Idle;
+                // The continue below skips the lap at the bottom of the frame, and the
+                // unlapped tail was logged as a hitch ("other") on the card drop.
+                tt::prof::lap(tt::prof::kPlace);
+            };
+            if (zonePhase == ZonePhase::Idle) {
+                // One presented frame of the loading screen before the open() stalls.
+                zoneDest = transition.targetZone();
+                zoneFrom = transition.fromZone();
+                zoneT0 = osGetTime();
+                zonePhase = ZonePhase::Cover;
+                TT_LOG("load: cover zone %lu", static_cast<unsigned long>(zoneDest));
+            } else if (zonePhase == ZonePhase::Cover) {
+                remoteToons.clear();
+                if (place.load(zoneDest)) {
+                    if (level.active()) {
+                        TT_LOG("level: left for zone %u", unsigned(zoneDest));
+                        level.shutdown();
+                    }
+                    zoneActors.loadPoints(place.pointsPath());
+                    cchars.setZone(zoneDest);
+                    fishing.setZone(zoneDest, place.pointsPath());
+                    trolley.setZone(zoneDest);
+                    cogBuildings.setZone(zoneDest);
+                    cogBuildings.syncAnchors(place);
+                    suits.setZone(zoneDest);
+                    place.arrival(zoneFrom, &zoneAx, &zoneAy, &zoneAz, &zoneAh);
+                    player.setCollision(&place.collision());
+                    player.reset(zoneAx, zoneAy, zoneAz, zoneAh);
+                    if (netStarted) net.changeZone(zoneDest);
+                    zoneStreamT0 = osGetTime();
+                    place.setCamera(player.cameraEye(), player.cameraTarget());
+                    place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
+                    if (place.streamReady()) {
+                        finishZoneStream();
+                        continue;
+                    }
+                    zonePhase = ZonePhase::Streaming;
+                } else {
+                    place.load(zoneFrom);
+                    transition.reset();
+                    ::tt::gpu::frameSync();
+                    zoneLoad.release();
+                    zonePhase = ZonePhase::Idle;
                 }
-                loadAmbient(dest);
-                transition.notifyLoaded(dest, place, player, netStarted ? &net : nullptr);
-                continue;
+            } else if (place.streamReady() || zonePhase == ZonePhase::Streaming) {
+                place.setCamera(player.cameraEye(), player.cameraTarget());
+                place.update(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
+                if (place.streamReady()) {
+                    finishZoneStream();
+                    continue;
+                }
             }
-            place.load(fromZone); // fall back to where we were
-            transition.reset();
+        } else if (zonePhase != ZonePhase::Idle) {
+            // The transition was abandoned (disconnect, relocation). Don't leave the load screen up.
+            ::tt::gpu::frameSync();
+            zoneLoad.release();
+            zonePhase = ZonePhase::Idle;
         }
         if (!transition.active()) {
             lastExitZone = exitHere.kind != tt::world::Exit::None ? exitHere.targetZone : 0;
@@ -1837,12 +2476,20 @@ int main() {
                 if (ev.type == tt::net::EventType::TutorialEnter) {
                     loadTutorialPlace(net.zoneId());
                 } else if (ev.type == tt::net::EventType::TutorialInterior) {
-                    tutorial.start(tt::quest::ScriptId::TutorialMickey, false);
+                    tutorialSpeaker = 0;
+                    tutorial.start(tt::quest::ScriptId::TutorialMickey, localToonFemale(net));
                 } else if (ev.type == tt::net::EventType::BlockerMovie) {
                     tt::net::Client::BlockerMovie movie;
                     while (net.pollBlockerMovie(movie)) {
-                        if (movie.avId == net.avatarId() && movie.mode == 1)
-                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, false);
+                        if (movie.avId == net.avatarId() && movie.mode == 1) {
+                            tutorialSpeaker = movie.npcDoId;
+                            tutorialBlockerPlayed = true;
+                            tutorial.start(tt::quest::ScriptId::TutorialBlocker, localToonFemale(net));
+                            tt::quest::ScriptXform flippy; // his LERP_POS / LERP_HPR start where he stands
+                            if (zoneActors.npcPose(movie.npcDoId, &flippy.pos[0], &flippy.pos[1], &flippy.pos[2],
+                                                   &flippy.hpr[0]))
+                                tutorial.seedNpc(flippy);
+                        }
                     }
                 } else if (ev.type == tt::net::EventType::Quests && autotest.tutorialPath()) {
                     const tt::net::OwnQuests& quests = net.ownQuests();
@@ -1857,6 +2504,12 @@ int main() {
                 }
                 // ---- end tutorial ----
                 remoteToons.handleEvent(ev, net);
+                if (ev.type == tt::net::EventType::Chat) { // the Chat tab's recent-chat strip
+                    if (const tt::net::RemoteToon* t = net.findToon(ev.doId)) {
+                        const char* said = t->scIndex >= 0 ? tt::sc::phraseText(static_cast<uint16_t>(t->scIndex)) : t->chat;
+                        ui.logChat(t->name, said, false, false, static_cast<u32>(osGetTime()));
+                    }
+                }
                 zoneActors.handleEvent(ev, net);
                 cchars.handleEvent(ev, net, nowMs);
                 fishing.handleEvent(ev);
@@ -1865,6 +2518,15 @@ int main() {
                 if (ev.type == tt::net::EventType::NpcMovie) {
                     tt::net::NpcMovie movie;
                     while (net.pollNpcMovie(movie)) talk.onMovie(movie);
+                    talk.setServerName(zoneActors.npcName(talk.npcDoId())); // the NPC's own nametag name
+                    // ---- tutorial ----
+                    // Tutorial Tom / HQ Harry: quest_assign_101 / 110 play as QuestScripts.
+                    if (const uint16_t q = talk.takeScript()) {
+                        tutorialSpeaker = talk.npcDoId();
+                        tutorial.start(q == 101 ? tt::quest::ScriptId::QuestAssign101 : tt::quest::ScriptId::QuestAssign110,
+                                       localToonFemale(net));
+                    }
+                    // ---- end tutorial ----
                 } else if (ev.type == tt::net::EventType::NpcFree) {
                     talk.onFree(ev.doId);
                 } else if (ev.type == tt::net::EventType::NpcDespawn) {
@@ -1903,10 +2565,27 @@ int main() {
                     grabRequested = 0;
                 }
             }
+            // A reconnect could not rejoin the dynamic zone we were in (a facility floor, a minigame,
+            // a race, golf, an estate): the server freed it, and the session is back in a static zone. The old
+            // place is empty, so end it and teleport the world to where the session is.
+            u32 relocated = 0;
+            if (net.takeRelocation(&relocated)) {
+                TT_LOG("net: rejoined at zone %u; leaving place %u", unsigned(relocated), unsigned(place.zoneId()));
+                if (level.active()) level.shutdown();
+                if (minigame.active()) minigame.shutdown(); // its game and purchase objects are gone
+                if (battle.active()) battle.reset();
+                if (racing.active()) racing.shutdown();
+                if (golf.active()) golf.shutdown();
+                if (estate.active()) estate.shutdown();
+                transition.reset();
+                uiState.teleportRequest = relocated; // taken next frame
+                toast = "The connection dropped, so you're back outside.";
+                toastAge = -4.0f; // 7 s: still up for a while after the ~4 s teleport
+            }
             // ---- clerks: ordered replies retain COMPLETE even when CLEAR follows ----
             serviceClerks.update(net, nowMs);
             if (serviceClerks.active())
-                ui.book().close();
+                ui.book().close("service clerk");
             // ---- end clerks ----
             shop.update(net, nowMs);
             tailor.update(net, nowMs);
@@ -1925,8 +2604,50 @@ int main() {
             tt::prof::lap(tt::prof::kEstate);
             pets.update(net);
             // ---- tutorial ----
+            // The player's own actions answer the scripts' WAIT_EVENTs (Harry's Shticker Book lesson,
+            // Flippy's SpeedChat lesson), as the messenger events do upstream.
+            if (const char* ev = tutorial.active() ? tutorial.waitingEvent() : nullptr) {
+                const tt::ui::Book& book = ui.book();
+                bool hit = false;
+                if (!strcmp(ev, "enterStickerBook")) hit = book.isOpen();
+                else if (!strcmp(ev, "stickerBookPageChange-3")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageGags;
+                else if (!strcmp(ev, "stickerBookPageChange-4")) hit = book.isOpen() && book.currentPage() == tt::ui::Book::kPageTasks;
+                else if (!strcmp(ev, "exitStickerBook")) hit = !book.isOpen();
+                else if (!strcmp(ev, "enterSpeedChat")) hit = uiState.tab == tt::ui::kTabChat;
+                else if (!strcmp(ev, "SCChatEvent")) hit = tutorialSaidSpeedChat;
+                if (hit && tutorial.postEvent(ev)) TT_LOG("tutorial: player answered %s", ev);
+            }
+            tutorialSaidSpeedChat = false;
             tutorial.update(dt);
-            if (tutorial.active() && (in.down & KEY_A)) tutorial.advance();
+            {
+                tt::world::TutorialFlow::EyeCall calls[8];
+                const int n = tutorial.takeNpcEyeCalls(calls, 8);
+                if (tt::world::ToonAvatar* npc = n ? zoneActors.npcAvatar(tutorialSpeaker) : nullptr) {
+                    using EC = tt::world::TutorialFlow::EyeCall;
+                    using Mood = tt::world::ToonAvatar::EyeMood;
+                    for (int i = 0; i < n; ++i) {
+                        if (calls[i] == EC::Normal) npc->setEyeMood(Mood::Normal);
+                        else if (calls[i] == EC::Sad) npc->setEyeMood(Mood::Sad);
+                        else if (calls[i] == EC::Angry) npc->setEyeMood(Mood::Angry);
+                        else if (calls[i] == EC::Surprise) npc->surpriseEyes();
+                        else npc->blinkEyes();
+                    }
+                }
+            }
+            if (const int bookRequest = tutorial.takeBookRequest()) { // SHOW_BOOK / HIDE_BOOK
+                if (bookRequest > 0) ui.openBookPage(tt::ui::Book::kPageMap);
+                else ui.book().close("HIDE_BOOK");
+            }
+            if (tutorial.active() && ((in.down & KEY_A) || talk.takeScriptAdvance())) tutorial.advance();
+            if (talk.phase() == tt::quest::Talk::Phase::Script) {
+                talk.setScriptLine(tutorial.text());
+                talk.setScriptWait(tutorial.waitingEvent());
+                using SV = tt::quest::ScriptVar;
+                const SV c = tutorial.card();
+                talk.setScriptCard(c == SV::Cogs ? 0 : c == SV::ToonBuilding ? 1 : c == SV::CogBuilding ? 2
+                                   : c == SV::Squirt1 ? 3 : c == SV::Squirt2 ? 4 : -1); // ui::TutorialCard
+                if (tutorial.takeFinished() || !tutorial.active()) talk.scriptDone();
+            }
             // ---- end tutorial ----
             const bool facilityActive = cogInterior.active() || level.active();
             if (cogInterior.active() && cogInterior.collision()) player.setCollision(cogInterior.collision());
@@ -1966,6 +2687,7 @@ int main() {
                                  said ? said : "...");
                         toast = toastBuf;
                         toastAge = 0.0f;
+                        ui.logChat(w.name[0] ? w.name : "A toon", said, true, false, static_cast<u32>(osGetTime()));
                     } else if (fe.type == tt::net::FriendEventType::InviteIn && net.pendingInvite()) {
                         snprintf(toastBuf, sizeof(toastBuf), "%s wants to be friends!", net.pendingInvite()->name);
                         toast = toastBuf;
@@ -1973,14 +2695,27 @@ int main() {
                     }
                 }
             }
-            if (net.inZone() && !localLookFromServer) {
-                tt::world::ToonDna dna;
-                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &dna)) {
-                    toonCache.acquire(dna, tt::world::ToonLod::High, &localLook);
+            if (net.inZone()) {
+                // Do not drop the look on a quiet zone. Reacquiring on every tunnel released the
+                // local parts and the next frame drew the fallback body (the featureless blob).
+                // Rebook only when the server DNA actually changes, and pin those parts so the
+                // 4 MiB cache cannot evict the toon we are standing in.
+                static uint8_t seenDna[tt::net::kDnaSize];
+                static bool haveDna = false;
+                const uint8_t* dnaBytes = net.avatarDna();
+                if (!haveDna || memcmp(seenDna, dnaBytes, tt::net::kDnaSize) != 0) {
+                    tt::world::ToonDna dna;
+                    if (tt::world::parseNetString(dnaBytes, tt::net::kDnaSize, &dna) &&
+                        toonCache.acquire(dna, tt::world::ToonLod::High, &localLook)) {
+                        memcpy(seenDna, dnaBytes, tt::net::kDnaSize);
+                        haveDna = true;
+                        player.setCameraHeight(tt::world::toonHeight(dna));
+                        localLookFromServer = true;
+                        toonCache.pin(&localLook);
+                    }
+                } else {
                     localLookFromServer = true;
                 }
-            } else if (!net.inZone()) {
-                localLookFromServer = false;
             }
             if (net.inZone()) {
                 // Our motion: setSmPosHpr at 5 Hz while moving, one final sample + setSmStop when
@@ -2034,6 +2769,13 @@ int main() {
                     if (uiState.whisperTo) net.sendWhisperSC(uiState.whisperTo, static_cast<uint16_t>(pendingSpeech));
                     else net.sendSpeedChat(static_cast<uint16_t>(pendingSpeech));
                 }
+                if (hasPendingTask) {
+                    const tt::ui::ChatMenu::TaskPhrase& tp = pendingTask;
+                    if (uiState.whisperTo)
+                        net.sendWhisperSCToontask(uiState.whisperTo, tp.taskId, tp.toNpc, tp.progress, tp.msgIndex,
+                                                  tp.text);
+                    else net.sendSCToontask(tp.taskId, tp.toNpc, tp.progress, tp.msgIndex);
+                }
                 // Entering a treasure's sphere asks the AI for it once (DistributedTreasure.
                 // handleEnterSphere). The AI refuses while laff is full (validAvatar: hp < maxHp).
                 const u32 touching = zoneActors.touchingTreasure(player.x(), player.y(), player.z());
@@ -2081,6 +2823,25 @@ int main() {
                     TT_LOG("quest: talking to NPC %u", unsigned(giver));
                 }
                 if (npcFree || !giver) lastTouchedQuestNpc = giver;
+                // ---- tutorial ----
+                // Flippy at the tunnel: DistributedNPCBlocker.handleCollisionSphereEnter sends
+                // avatarEnter once per contact; the AI answers with BLOCKER_MOVIE_START. After his
+                // movie resetBlocker clears his collision: no second lesson on this street visit.
+                if (net.inTutorial()) {
+                    static u32 lastTouchedBlocker = 0;
+                    static u32 blockerZone = 0;
+                    if (place.zoneId() != blockerZone) {
+                        blockerZone = place.zoneId();
+                        tutorialBlockerPlayed = false;
+                    }
+                    const u32 blocker = zoneActors.touchingNpc(player.x(), player.y(), player.z(), net,
+                                                               tt::dc::DistributedNPCBlocker::kClassId);
+                    if (blocker && blocker != lastTouchedBlocker && !tutorial.active() && !tutorialBlockerPlayed &&
+                        net.sendBlockerAvatarEnter(blocker))
+                        TT_LOG("tutorial: Flippy blocker contact %u", unsigned(blocker));
+                    lastTouchedBlocker = blocker;
+                }
+                // ---- end tutorial ----
                 tt::quest::TalkAction ta;
                 while (talk.popAction(ta)) {
                     switch (ta.kind) {
@@ -2098,9 +2859,59 @@ int main() {
             }
         }
         pendingSpeech = -1;
+        hasPendingTask = false;
         tt::prof::lap(tt::prof::kNet);
         remoteToons.update(dt);
         tt::prof::lap(tt::prof::kRemote);
+        {
+            // Test-only "toon showcase N" (1..9): four client-side Toons in front of the toon,
+            // heads (N-1)*4 .. +3 of toonHeadTypes (every species and head), alternating boy and
+            // girl (skirt or shorts), each torso and leg size, varied shirts, bottoms and colours.
+            static int showcaseSet = 0;
+            const char* lbl = autotest.active() ? autotest.label() : "";
+            const int want = !strncmp(lbl, "toon showcase ", 14) ? atoi(lbl + 14) : 0;
+            if (want != showcaseSet) {
+                for (int i = 0; i < 4; i++) zoneActors.despawnLocalNpc(0x7F00F000u + i);
+                showcaseSet = want;
+                namespace dt_ = tt::world::dna_tables;
+                const float hh = player.headingDeg() * kDegToRad;
+                for (int i = 0; want > 0 && i < 4; i++) {
+                    // 10 / 11 (diagnostic): four copies of set 1's third / first Toon.
+                    const unsigned head = want == 10 ? 2u : want == 11 ? 0u : unsigned(want - 1) * 4 + i;
+                    if (head >= dt_::kNumHeadTypes) break;
+                    tt::world::ToonDna d;
+                    d.head = uint8_t(head);
+                    d.gender = (want >= 10 ? head : unsigned(i)) % 2 ? tt::world::Gender::Female : tt::world::Gender::Male;
+                    d.legs = uint8_t(head % 3);
+                    d.topTex = uint8_t((head * 37 + 5) % dt_::kNumShirts);
+                    d.sleeveTex = uint8_t((head * 29 + 3) % dt_::kNumSleeves);
+                    d.topTexColor = uint8_t((head * 7) % dt_::kNumClothesColors);
+                    d.sleeveTexColor = d.topTexColor;
+                    d.botTexColor = uint8_t((head * 11 + 4) % dt_::kNumClothesColors);
+                    if (d.gender == tt::world::Gender::Male) {
+                        d.torso = uint8_t((head / 3) % 3);
+                        d.botTex = uint8_t((head * 13) % dt_::kNumBoyShorts);
+                    } else {
+                        const bool skirt = (head / 2) % 2 == 0;
+                        d.torso = uint8_t((skirt ? 3 : 0) + (head / 3) % 3);
+                        unsigned b = (head * 13) % dt_::kNumGirlBottoms;
+                        while (bool(dt_::kGirlBottomIsSkirt[b]) != skirt) b = (b + 1) % dt_::kNumGirlBottoms;
+                        d.botTex = uint8_t(b);
+                    }
+                    d.armColor = d.legColor = d.headColor = uint8_t((head * 5 + 1) % dt_::kNumAllColors);
+                    uint8_t net[tt::world::kDnaNetStringSize];
+                    tt::world::makeNetString(d, net);
+                    char name[32];
+                    snprintf(name, sizeof name, "%s %s", dt_::kHeadTypes[head], dt_::kTorsoTypes[d.torso]);
+                    const float side = (i < 2 ? -5.0f + 2.4f * i : 2.6f + 2.4f * (i - 2)), ahead = 5.0f; // centre clear
+                    const bool ok = zoneActors.spawnLocalNpc(0x7F00F000u + i, name, net,
+                                                             player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                                             player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
+                                                             player.headingDeg() + 180.0f);
+                    TT_LOG("autotest: toon showcase %d: %s valid %d spawned %d", want, name, int(tt::world::isValidDna(d)), int(ok));
+                }
+            }
+        }
         zoneActors.update(dt);
         cchars.update(dt, tt::net::plat::nowMs(), &place.collision());
         suits.update(dt, tt::net::plat::nowMs(), &place.collision());
@@ -2123,6 +2934,48 @@ int main() {
             const u32 nowMs = tt::net::plat::nowMs();
             if (const u32 hood = level.popWinDestination()) {
                 if (!uiState.teleportRequest) uiState.teleportRequest = hood; // the factory is won
+            }
+            // Link health every 10 s: heartbeat age > 20 s or a growing backlog means the net
+            // thread is not getting its heartbeat out (Astron ejects at 60 s with 345).
+            {
+                static u32 linkLogMs = 0;
+                if (nowMs - linkLogMs >= 10000) {
+                    linkLogMs = nowMs;
+                    TT_LOG("net: link out %lu in %lu B, heartbeat %lu ms ago, backlog %lu B",
+                           static_cast<unsigned long>(netConn.bytesOut()), static_cast<unsigned long>(netConn.bytesIn()),
+                           static_cast<unsigned long>(netConn.heartbeatAgeMs()),
+                           static_cast<unsigned long>(netConn.sendBacklog()));
+                }
+            }
+            // A won Cog building (DistributedSuitInterior.enterReward): back to its street, out of
+            // its elevator, then DistributedBuilding.setVictorReady once the building waits for
+            // its victors (waitForVictors), which lets the AI turn it back into a toon building.
+            {
+                static u32 victorBuilding = 0, victorZone = 0, victorSinceMs = 0;
+                static bool victorPlaced = false;
+                u32 vz = 0, vb = 0;
+                if (cogInterior.popVictory(&vz, &vb) && vz && vb) {
+                    victorZone = vz, victorBuilding = vb, victorSinceMs = nowMs, victorPlaced = false;
+                    if (!uiState.teleportRequest) uiState.teleportRequest = vz;
+                }
+                if (victorBuilding && transition.idle() && !cogInterior.active() &&
+                    place.zoneId() - place.zoneId() % 100 == victorZone - victorZone % 100) {
+                    const tt::net::CogBuilding* b = net.findCogBuilding(victorBuilding);
+                    float ex, ey, ez, eh;
+                    if (!victorPlaced && b && cogBuildings.blockPoint(b->block, &ex, &ey, &ez, &eh)) {
+                        const float r = eh * kDegToRad;
+                        player.reset(ex + 5.0f * sinf(r), ey - 5.0f * cosf(r), ez + 0.5f, eh + 180.0f);
+                        victorPlaced = true;
+                    }
+                    if (net.sendVictorReady(victorBuilding)) {
+                        TT_LOG("cog building %lu: victor ready", static_cast<unsigned long>(victorBuilding));
+                        victorBuilding = 0;
+                    }
+                }
+                if (victorBuilding && nowMs - victorSinceMs > 60000) {
+                    TT_LOG("cog building %lu: no waitForVictors within 60 s", static_cast<unsigned long>(victorBuilding));
+                    victorBuilding = 0;
+                }
             }
             if (level.active()) {
                 // Facility cogs walk/chase (level.update ran before the toon moved, see above);
@@ -2287,6 +3140,7 @@ int main() {
                 // [cog attacks]
                 else if (!strncmp(lbl, "battle: cog attacks", 19)) forced = tt::world::Battle::kAutoPass;
                 battle.setAutoPlay(true, forced);
+                battle.setAutoDelay(autotest.battleHoldMs());
 
                 if (forced >= 0) {
                     static float battleWaitTime = 0.0f;
@@ -2306,13 +3160,61 @@ int main() {
             }
             // ---- end padnav ----
             battle.update(net, nowMs, dt, tt::world::CogPoseSource{tt::world::SuitActors::poseThunk, &suits});
+            // BattleBase plays encntr_general_bg for the whole fight and restores the place
+            // track when the battle object is gone. The file is on the SD audio set.
+            {
+                static bool battleMusic = false;
+                static bool battleMusicMissing = false;
+                if (battle.active()) {
+                    if (!battleMusic && !battleMusicMissing) {
+                        const char* path = "sdmc:/3ds/toontown3ds/data/audio/encntr_general_bg.tsnd";
+                        FILE* music = fopen(path, "rb");
+                        if (music) {
+                            fclose(music);
+                            tt::audio::stopMusic(200);
+                            battleMusic = tt::audio::playMusic(path, true, 200);
+                        } else {
+                            battleMusicMissing = true;
+                            TT_LOG("battle: encntr_general_bg.tsnd is not on the SD card");
+                        }
+                    }
+                } else if (battleMusic) {
+                    battleMusic = false;
+                    playPlaceMusic(place.zoneId());
+                }
+            }
             // ---- tutorial ----
             // Movie.playTutorialReward waits for its final acknowledgement instead of the normal
             // RewardPanel timer.  The compact client presents that acknowledgement on A.
-            if (battle.tutorialRewardPending() && (in.down & KEY_A)) {
+            if (battle.tutorialRewardPending() && !tutorialReward.active() && !tutorialReward.done())
+                tutorialReward.start();
+            // its OK / page presses come through the panel's Continue (BattleAction::Continue above)
+            tutorialReward.update(dt);
+            {
+                // the movie's own Tutorial Tom on the street, beside the Toon
+                using TR = tt::world::TutorialReward;
+                const bool want = tutorialReward.tomShown();
+                if (want && !tutorialRewardTom)
+                    tutorialRewardTom = zoneActors.spawnLocalNpc(TR::kTomId, TR::tomName(), TR::tomDna(), TR::kTomPos[0],
+                                                                 TR::kTomPos[1], TR::kTomPos[2], TR::kTomPos[3]);
+                if (!want && tutorialRewardTom) {
+                    zoneActors.despawnLocalNpc(TR::kTomId);
+                    tutorialRewardTom = false;
+                }
+                if (tutorialRewardTom) {
+                    float rate = 1.0f;
+                    const tt::world::ToonAnim a = tutorialReward.tomAnim(&rate);
+                    zoneActors.setNpcAnim(TR::kTomId, a, rate);
+                }
+            }
+            if (tutorialReward.done()) {
+                // handleRewardDone: rewardDone, then playTutorialReward_4's localAvatar.setH(270)
                 battle.finishTutorialReward(net);
+                player.reset(player.x(), player.y(), player.z(), 270.0f);
+                tutorialReward.stop();
                 TT_LOG("tutorial: acknowledged Flunky reward");
             }
+            if (!battle.tutorialRewardPending() && tutorialReward.active()) tutorialReward.stop();
             // ---- end tutorial ----
             for (int i = 0; i < battle.numSuitPoses(); i++) {
                 const tt::world::BattleActorPose& p = battle.suitPose(i);
@@ -2354,6 +3256,7 @@ int main() {
         if (wantStereo != stereoActive) {
             gfxSet3D(wantStereo);
             stereoActive = wantStereo;
+            TT_LOG("stereo: %s (slider %.2f)", wantStereo ? "on" : "off", double(slider));
         }
 
         tt::prof::lap(tt::prof::kActors); // stereo toggle
@@ -2369,11 +3272,19 @@ int main() {
                                   FVec3_New(player.x() + 5, player.y() + 6, player.z() + 2));
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
+        sky.setZone(place.zoneId(), level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
+        tt::render::setPlaceFar(level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior
+                                    ? 0.0f : tt::world::cameraFar(place.zoneId()));
+        if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
+            sky.holdClouds();
+        else
+            sky.update(dt);
         level.pumpAssets();
         pets.pumpAssets();
         cogInterior.pumpAssets();
         minigame.pumpAssets();
         suits.pumpAssets();
+        battleFx.cogAttacks().pumpAssets();
         golf.pumpAssets();
         racing.pumpAssets();
         estate.pumpAssets();
@@ -2383,6 +3294,10 @@ int main() {
             char path[96];
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_top.bin", shotName);
             tt::shot::dumpTarget(renderer.topLeft(), path);
+            if (stereoActive) { // right eye too, to check the parallax
+                snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_right.bin", shotName);
+                tt::shot::dumpTarget(renderer.topRight(), path);
+            }
             snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/shot_%s_bottom.bin", shotName);
             tt::shot::dumpTarget(bottom, path);
             shotName = nullptr;
@@ -2397,10 +3312,31 @@ int main() {
             // Indoors (interiors, facilities) gaps show OTPGlobals.DefaultBackgroundColor (0.3 grey),
             // not the playground sky blue.
             const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
-            renderer.setBackground(indoors ? 0x4C4C4CFF : 0x6AB0D9FF);
+            // Outdoors the clear and the draw-distance fog take the hood sky's horizon colour
+            // (TT blue, BR grey, MM sunset, DL night), so distant chunks fade into the dome.
+            const float* hz = sky.horizon();
+            const auto hzByte = [](float v) { return u32(v * 255.0f + 0.5f); };
+            renderer.setBackground(indoors ? 0x4C4C4CFF
+                                           : hzByte(hz[0]) << 24 | hzByte(hz[1]) << 16 | hzByte(hz[2]) << 8 | 0xFF);
             if (minigame.active()) minigame.applyWorld(renderer);
-            else minigame.releaseWorld(renderer);
+            else {
+                minigame.releaseWorld(renderer); // far plane 0 restores the quality profile
+                // Outdoor sky fog fades the draw-distance cutoff. Donald's Dock white fog and
+                // underwater fog are already on (world/water.cpp); do not replace them. Indoors
+                // keep the flat grey clear. Stereo uses this same LUT for both eyes.
+                // Hoods with an upstream camera far (Cog HQs, Acorn Acres, Goofy Speedway) have no
+                // draw-distance fog; Acorn Acres' underwater fog stays.
+                const tt::render::Quality& q = tt::render::activeQuality();
+                if (indoors) renderer.clearFog();
+                else if (water.fogActive()) {
+                } else if (tt::render::fogDisabled(q)) renderer.clearFog();
+                else renderer.setFog(hz[0], hz[1], hz[2], q.fogStart, q.fogEnd); // no-op when unchanged
+            }
             renderer.beginWorld(target, player.cameraEye(), player.cameraTarget(), slider / 3.0f, eyeSign);
+            if (zonePhase != ZonePhase::Idle) {
+                zoneLoad.drawCard(renderer, player.cameraEye(), player.cameraTarget());
+                continue;
+            }
 
             if (golf.active()) {
                 golf.draw(renderer);
@@ -2441,6 +3377,8 @@ int main() {
             } else if (cogInterior.active()) {
                 cogInterior.draw(renderer);
             } else {
+                // Donald's Dock's white / underwater fog (world/water.cpp) covers its sky too.
+                sky.draw(renderer, player.cameraEye(), water.fogActive());
                 place.draw(renderer, player.cameraEye());
             }
             // ---- clerks: preview the selected body/equipped accessory components ----
@@ -2499,7 +3437,8 @@ int main() {
             }
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
-            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible()) { // ---- racing2 ----
+            if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible() &&
+                !tutorial.toonHidden()) { // ---- racing2 ---- (tutorial_blocker: HIDE localToon)
                 if (transition.toonScale() != 1.0f) {
                     const float ts = transition.toonScale();
                     Mtx_Scale(&m, ts, ts, ts);
@@ -2521,25 +3460,44 @@ int main() {
             // [end interior life]
             boat.draw(renderer);
             cchars.draw(renderer);
-            if (netStarted && !golf.active()) {
-                trolley.draw(renderer, net, tt::net::plat::nowMs());
-                golf.drawKart(renderer, net);
-            }
+            // ---- tutorial ----
+            if (tutorial.charShown() && tutorialChar.ensure(tutorial.femaleChar())) tutorialChar.draw(renderer, tutorial);
+            else if (!tutorial.active() && tutorialChar.loaded()) tutorialChar.unload(); // UNLOAD_CHAR
+            // ---- end tutorial ----
+            // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
+            if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
+            if (netStarted && !golf.active()) golf.drawKart(renderer, net);
             fishing.draw(renderer);
             suits.draw(renderer);
             if (battle.active()) {
                 battleFx.draw(renderer, &battle, localLook.valid() ? &localLook : nullptr);
             }
             if (netStarted) cogBuildings.draw(renderer, net);
-            if (autotest.active() && !strcmp(autotest.label(), "cog showcase")) {
-                // Test-only: four real Cogs (one per department) in front of the toon.
-                static const char* const kShow[4] = {"f", "bf", "sc", "cc"};
+            if (autotest.active() && !strncmp(autotest.label(), "cog showcase", 12)) {
+                // Test-only: four real Cogs in front of the toon: one per department, or for
+                // "cog showcase N" (1..8) the Nth four of SuitDNA.suitHeadTypes.
+                static const char* const kDepts[4] = {"f", "bf", "sc", "cc"};
+                static const char* const kAll[32] = {"f",  "p",  "ym", "mm", "ds", "hh", "cr", "tbc",
+                                                     "bf", "b",  "dt", "ac", "bs", "sd", "le", "bw",
+                                                     "sc", "pp", "tw", "bc", "nc", "mb", "ls", "rb",
+                                                     "cc", "tm", "nd", "gh", "ms", "tf", "m",  "mh"};
+                const int set = autotest.label()[12] == ' ' ? atoi(autotest.label() + 13) : 0;
+                const char* const* kShow = set >= 1 && set <= 8 ? kAll + (set - 1) * 4 : kDepts;
                 const float hh = player.headingDeg() * kDegToRad;
                 for (int i = 0; i < 4; i++) {
                     const float side = (i - 1.5f) * 4.0f, ahead = 12.0f;
                     suits.drawShowcase(renderer, kShow[i], player.x() - sinf(hh) * ahead + cosf(hh) * side,
                                        player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z(),
                                        player.headingDeg() + 180.0f, i % 2 == 1, static_cast<float>(tt::net::plat::nowMs() % 100000) / 1000.0f);
+                    if (set >= 1 && (tt::net::plat::nowMs() / 1500) % 2) {
+                        // Every other 1.5 s, the battle hit splats over the Cogs: squirt splash,
+                        // then each pie splat (the Cogs show clean in between).
+                        static const int kSplat[4][2] = {{5, 0}, {4, 0}, {4, 1}, {4, 2}};
+                        battleFx.drawSplatDemo(renderer, kSplat[i][0], kSplat[i][1],
+                                               player.x() - sinf(hh) * ahead + cosf(hh) * side,
+                                               player.y() + cosf(hh) * ahead + sinf(hh) * side, player.z() + 2.0f,
+                                               player.headingDeg() + 180.0f, 0.2f);
+                    }
                 }
             }
             tt::prof::lap(tt::prof::kDrawActors);
@@ -2558,6 +3516,7 @@ int main() {
             transition.drawWorld(renderer);
         }
         renderer.endWorld();
+        if (zonePhase == ZonePhase::Idle) {
         lastStats = renderer.stats();
         lastCmdBufUsage = C3D_GetCmdBufUsage();
 
@@ -2567,14 +3526,36 @@ int main() {
             // Nametag + speech balloon over the head (toon height + 0.5, Avatar.py).
             C3D_Mtx proj, view;
             Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(tt::render::Renderer::kFovYDeg), C3D_AspectRatioTop,
-                          tt::render::Renderer::kNear, tt::render::Renderer::kFar, false);
+                          tt::render::Renderer::kNear, renderer.farPlane(), false);
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();
             float sx, sy, depth;
-            if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
+            // ---- tutorial ---- HIDE localToon (tutorial_blocker's close-up) hides the whole Toon, nametag too
+            if (!tutorial.toonHidden() &&
+                tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
-                const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : "Toon";
+                // Offline there is no server name: show the one the server gives an unnamed Toon
+                // of this look (the Toon tab's body colour is an allColorsList index).
+                static char offlineName[32];
+                static int offlineColor = -1;
+                if (offlineColor != uiState.bodyColor) {
+                    tt::world::ToonDna dna = tt::world::defaultToonDna();
+                    dna.headColor = static_cast<uint8_t>(uiState.bodyColor);
+                    tt::world::defaultName(dna, offlineName, sizeof offlineName);
+                    offlineColor = uiState.bodyColor;
+                }
+                const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : offlineName;
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
+            }
+            // ---- tutorial ---- Mickey / Minnie's lines over their own head (CC_CHAT_CONFIRM classicChar)
+            if (tutorial.charShown() && tutorialChar.loaded() && tutorial.speaker() == tt::quest::ScriptVar::ClassicChar &&
+                tutorial.text()[0]) {
+                const tt::quest::ScriptXform& cx = tutorial.xform(tt::quest::ScriptVar::ClassicChar);
+                float csx, csy, cdepth;
+                if (tt::ui::projectToScreen(proj, view, cx.pos[0], cx.pos[1], cx.pos[2] + tt::world::TutorialChar::kHeight + 0.5f,
+                                            &csx, &csy, &cdepth))
+                    balloons.addSpeaker(csx, csy, tutorialChar.name(), tutorial.text(), 0.0f, cdepth);
+            // ---- end tutorial ----
             }
             // ---- racing2 ----
             if (racing.active())
@@ -2586,12 +3567,21 @@ int main() {
                 u32 talker = 0;
                 const char* said = talk.speech(&talker);
                 // ---- tutorial ----
-                if (tutorial.active() && net.tutorialInterior().active && tutorial.text()[0]) {
-                    talker = net.tutorialInterior().npcDoId;
+                // tutorial_mickey ends on LOCAL_CHAT_PERSIST "Come here!": it stays over Tom until
+                // the player walks up to him (quest_assign_101 opens with CLEAR_CHAT npc).
+                if (talk.locked()) tutorial.dropPersist();
+                if ((tutorial.active() || tutorial.persisting()) && tutorial.text()[0] &&
+                    talk.phase() != tt::quest::Talk::Phase::Script &&
+                    !(tutorial.speaker() == tt::quest::ScriptVar::ClassicChar && tutorialChar.loaded())) {
+                    // Mickey's intro is said over Tom (no classic-char actor in his room); Flippy's
+                    // SpeedChat lesson over Flippy.
+                    talker = tutorialSpeaker ? tutorialSpeaker : net.tutorialInterior().npcDoId;
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
-                zoneActors.setSpeech(talker, said);
+                zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
+                // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
+                if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);
             }
             zoneActors.addBalloons(balloons, proj, view);
             cchars.addBalloons(balloons, proj, view);
@@ -2604,6 +3594,24 @@ int main() {
                 float sx, sy, depth;
                 if (tt::ui::projectToScreen(proj, view, p.x, p.y, p.z, &sx, &sy, &depth)) {
                     balloons.addSpeaker(sx, sy - p.rise * p.age, p.text, nullptr, 99.0f, 0.0f, p.color);
+                }
+            }
+            // DistributedToon.showHpText: toonUp / takeDamage (HQ Harry's +1 Laff, treasures, the playground heal)
+            // rises from half the Toon's height to height + 1.5 in 1 s (easeOut), stays 0.85 s, then goes
+            if (netStarted && !battle.active() && !tutorial.toonHidden()) {
+                const tt::net::OwnStats& st = net.ownStats();
+                const uint32_t age = tt::net::plat::nowMs() - st.hpTextMs;
+                if (st.hpTextMs && st.hpTextValue && age < 1950) {
+                    const float h = localLook.valid() ? localLook.nametagHeight - 0.5f : 3.5f;
+                    const float u = age < 1000 ? age / 1000.0f : 1.0f;
+                    const float z = h * 0.5f + (h * 0.5f + 1.5f) * (3.0f * u - u * u * u) * 0.5f;
+                    float hx, hy, hd;
+                    if (tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + z, &hx, &hy, &hd)) {
+                        char hpText[8];
+                        snprintf(hpText, sizeof(hpText), st.hpTextValue > 0 ? "+%d" : "%d", int(st.hpTextValue));
+                        // green (0, 0.9, 0) / red (0.9, 0, 0), ABGR as ui::Balloons takes it
+                        balloons.addSpeaker(hx, hy, hpText, nullptr, 99.0f, 0.0f, st.hpTextValue > 0 ? 0xFF00E600 : 0xFF0000E6);
+                    }
                 }
             }
             balloons.draw(renderer.topLeft());
@@ -2626,7 +3634,25 @@ int main() {
                     hv.species = static_cast<int>(tt::world::species(hudDna)); // the laff meter's head
                 }
             }
+            hv.laffOnBottom = ui.laffShown();
+            hv.laffHidden = !tutorial.laffShown(); // enterTutorialHood: laffMeter.obscure(1)
+            {
+                int demoHp = -1, demoMax = 15;
+                float grow = 0.0f;
+                if (tutorial.laffDemo(&demoHp, &demoMax, &grow)) {
+                    if (demoHp >= 0) {
+                        hv.hp = demoHp;
+                        hv.maxHp = demoMax;
+                    }
+                    hv.laffGrow = grow;
+                    hv.laffOnBottom = false; // the lesson's meter is on the top screen, over Tom's room
+                }
+            }
             hv.toast = toast;
+            if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
+            if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())
+                hv.timerSeconds = buy->secondsLeft(tt::net::plat::nowMs());
+            if (ui.shop().active()) hv.timerSeconds = ui.shop().secondsLeft(tt::net::plat::nowMs());
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;
@@ -2663,13 +3689,58 @@ int main() {
         // Static landmarks plus other players (blue).
         tt::ui::MapMarker mapMarkers[kMaxMapMarkers];
         int numMapMarkers = 0;
-        if (place.zoneId() == kStartZone) {
-            for (const tt::ui::MapMarker& mk : markers) mapMarkers[numMapMarkers++] = mk;
+        if (place.zoneId() != placeMarkersZone) {
+            placeMarkersZone = place.zoneId();
+            numPlaceMarkers = 0;
+            if (place.kind() != tt::world::PlaceKind::Interior) {
+                static const char* names[tt::world::Place::kMaxPoints];
+                static float xy[2 * tt::world::Place::kMaxPoints];
+                const int n = place.numPoints();
+                for (int i = 0; i < n; i++) {
+                    names[i] = place.pointAt(i).name;
+                    xy[2 * i] = place.pointAt(i).x;
+                    xy[2 * i + 1] = place.pointAt(i).y;
+                }
+                numPlaceMarkers = tt::ui::placeMarkers(place.kind() == tt::world::PlaceKind::Playground, names, xy, n,
+                                                       placeMarkerList, kMaxMapMarkers / 2);
+                // Older TTC anchor sets (romfs) predate trolley_station: use the trolley's own.
+                bool trolleyShown = false;
+                for (int i = 0; i < numPlaceMarkers; i++) trolleyShown |= placeMarkerList[i].color == tt::ui::kMarkTrolley;
+                if (!trolleyShown && trolley.hasStation() && trolley.hood() == place.zoneId() &&
+                    numPlaceMarkers < kMaxMapMarkers / 2)
+                    placeMarkerList[numPlaceMarkers++] = {trolley.stationX(), trolley.stationY(), tt::ui::kMarkTrolley};
+            }
+        }
+        for (int i = 0; i < numPlaceMarkers; i++) mapMarkers[numMapMarkers++] = placeMarkerList[i];
+        // The place outside, as we last saw it: indoors the Map keeps showing it, with the arrow
+        // where we went in (an interior is zone - zone % 100 + 500 + block of its street / playground).
+        const u32 hereZone = place.zoneId();
+        u32 mapIndoorsFile = 0; // the minimap file shown inside a building
+        if (place.kind() == tt::world::PlaceKind::Playground || place.kind() == tt::world::PlaceKind::Street) {
+            mapOutsideFile = place.kind() == tt::world::PlaceKind::Street ? hereZone - hereZone % 100 : hereZone;
+            mapOutsideX = player.x(), mapOutsideY = player.y(), mapOutsideH = player.headingDeg();
+            for (int k = 0; k < 2; k++) mapOutsideMin[k] = place.boundsMin()[k], mapOutsideMax[k] = place.boundsMax()[k];
+            mapOutsideCount = numPlaceMarkers;
+            for (int i = 0; i < numPlaceMarkers; i++) mapOutsideMarkers[i] = placeMarkerList[i];
+        } else if (place.kind() == tt::world::PlaceKind::Interior && hereZone % 1000 >= 500 && mapOutsideFile &&
+                   hereZone - hereZone % 100 - 500 == mapOutsideFile) {
+            ctx.mapOutside = true;
+            mapIndoorsFile = mapOutsideFile;
+            ctx.playerX = mapOutsideX, ctx.playerY = mapOutsideY, ctx.playerHeadingDeg = mapOutsideH;
+            ctx.zoneMinX = mapOutsideMin[0], ctx.zoneMinY = mapOutsideMin[1];
+            ctx.zoneMaxX = mapOutsideMax[0], ctx.zoneMaxY = mapOutsideMax[1];
+            numMapMarkers = 0;
+            for (int i = 0; i < mapOutsideCount; i++) mapMarkers[numMapMarkers++] = mapOutsideMarkers[i];
+        } else if (place.kind() == tt::world::PlaceKind::Interior && hereZone % 1000 >= 500) {
+            // Arrived indoors without walking in (teleport, reconnect): the outside map alone.
+            ctx.mapOutside = ctx.mapNoArrow = true;
+            mapIndoorsFile = hereZone - hereZone % 100 - 500;
+            numMapMarkers = 0;
         }
         float remoteXY[2 * kMaxMapMarkers];
-        const int numRemote = remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
+        const int numRemote = ctx.mapOutside ? 0 : remoteToons.mapPositions(remoteXY, kMaxMapMarkers - numMapMarkers);
         for (int i = 0; i < numRemote; i++) {
-            mapMarkers[numMapMarkers++] = {remoteXY[2 * i], remoteXY[2 * i + 1], C2D_Color32(0x40, 0xF0, 0xFF, 0xFF)};
+            mapMarkers[numMapMarkers++] = {remoteXY[2 * i], remoteXY[2 * i + 1], tt::ui::kMarkToon};
         }
         ctx.markers = mapMarkers;
         ctx.numMarkers = numMapMarkers;
@@ -2704,6 +3775,29 @@ int main() {
             }
             // ---- end clerks ----
             ctx.stats = &net.ownStats();
+            // MapPage: teleportAccess and hoodsVisited. The world script's teleport steps run with
+            // fresh test toons, so scripted runs keep every hood open (main logs it once).
+            static bool loggedScriptHoods = false;
+            if (autotest.active() && !loggedScriptHoods) {
+                TT_LOG("map: autotest keeps every hood teleportable (players need teleportAccess)");
+                loggedScriptHoods = true;
+            }
+            if (net.ownStats().hasTeleportAccess && !autotest.active()) {
+                ctx.hoodsTeleport = ctx.hoodsVisited = 0;
+                for (int i = 0; i < tt::ui::kNumTeleportHoods; i++) {
+                    const unsigned bit = 1u << (tt::ui::kTeleportHoods[i] / 1000);
+                    if (net.ownStats().teleportAccess & bit) ctx.hoodsTeleport |= 1u << i;
+                    if (net.ownStats().hoodsVisited & bit) ctx.hoodsVisited |= 1u << i;
+                }
+            }
+            ctx.homeAvailable = net.hasEstateManager();
+            ctx.toonName = net.avatarName();
+            for (int i = 0; i < 3; i++) ctx.headRgb[i] = localLook.tints.rgba[tt::render::kTintHead][i];
+            {
+                tt::world::ToonDna tabDna;
+                if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna))
+                    ctx.species = static_cast<int>(tt::world::species(tabDna)); // the Toon tab's laff meter
+            }
             ctx.book = &net.ownBook();
             ctx.fish = &net.ownFish();
             ctx.districts = net.districts();
@@ -2720,12 +3814,32 @@ int main() {
             // Baked minimap per exterior zone file: playgrounds by id, street cells by branch.
             const u32 z = place.zoneId();
             const tt::world::PlaceKind kind = tt::world::placeKind(z);
-            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? 0
+            ui.setMapZone(kind == tt::world::PlaceKind::Interior ? mapIndoorsFile
                           : kind == tt::world::PlaceKind::Street ? z - z % 100 : z);
         }
         ctx.fishing = fishing.view();
         if (netStarted && net.inZone()) {
             ctx.quests = &net.ownQuests();
+            // "book: tasks demo N" steps show sample QuestPosters of every kind (cog head,
+            // department, any cog, visit, complete with the NPC to return to, gags, items).
+            if (autotest.active() && !strncmp(autotest.label(), "book: tasks demo ", 17)) {
+                static tt::net::OwnQuests demo;
+                static const uint32_t kDemo[3][2][3] = {{{101, 0, 1000}, {166, 1, 3}},   // Flunky, Bossbots
+                                                        {{164, 0, 2002}, {101, 1, 1000}}, // visit; complete
+                                                        {{2159, 0, 1}, {1044, 2, 3}}};    // gags; recover
+                const int n = (autotest.label()[17] - '1') % 3;
+                demo.count = 2;
+                demo.carryLimit = 2;
+                for (int i = 0; i < 2; i++) {
+                    demo.quests[i] = tt::net::QuestEntry{};
+                    demo.quests[i].questId = kDemo[n][i][0];
+                    demo.quests[i].progress = kDemo[n][i][1];
+                    demo.quests[i].toNpc = kDemo[n][i][2];
+                    demo.quests[i].reward = 100;
+                }
+                demo.version = 1000 + n;
+                ctx.quests = &demo;
+            }
             for (int i = 0; i < tt::net::kMaxRemoteToons && ctx.numNearby < 8; i++) {
                 const tt::net::RemoteToon& t = net.remoteToonSlot(i);
                 if (!t.active) continue;
@@ -2735,17 +3849,25 @@ int main() {
         }
         // ---- qafix: trolley owns its panel before the minigame hand-off ----
         if (trolley.seated()) {
+            // Trolley.enterTrolleyBoarded: the countdown and the Hop off button (TTLocalizer.TrolleyHopOff).
+            const int left = trolley.countdown(net, tt::net::plat::nowMs());
             ctx.infoTitle = "Trolley";
             ctx.infoLines[0] = "Waiting for the trolley to leave...";
-            ctx.infoLines[1] = "B: hop off before departure";
+            if (left >= 0) {
+                snprintf(infoTimeBuf, sizeof(infoTimeBuf), "Time: %d", left);
+                ctx.infoLines[1] = infoTimeBuf;
+                ctx.infoButton = "Hop off";
+            }
         }
         // ---- end qafix ----
         if (cogInterior.seated()) {
             const int left = cogInterior.elevatorCountdown(net, tt::net::plat::nowMs());
             ctx.infoTitle = "Cog elevator";
             ctx.infoLines[0] = left >= 0 ? "Leaving in a few seconds..." : "Riding to the next floor...";
-            ctx.infoLines[1] = "B: leave elevator";
             if (left >= 0) {
+                snprintf(infoTimeBuf, sizeof(infoTimeBuf), "Time: %d", left);
+                ctx.infoLines[1] = infoTimeBuf;
+                ctx.infoButton = "Leave elevator"; // B as before
                 snprintf(toastBuf, sizeof(toastBuf), "Cog elevator leaves in %d...  (B: leave)", left);
                 toast = toastBuf;
                 toastAge = 0.0f;
@@ -2782,6 +3904,15 @@ int main() {
         }
         ui.draw(bottom, uiState, ctx);
         tt::prof::lap(tt::prof::kBottomUi);
+        } else {
+            const float prog = zonePhase == ZonePhase::Cover ? 0.12f : place.streamProgress();
+            C2D_Prepare();
+            zoneLoad.drawUi(renderer, bottom, stereoActive, zoneDest, prog);
+            if (autotest.active() && !zoneShotArmed) {
+                zoneShotArmed = true;
+                if (!shotName) shotName = "zone_load";
+            }
+        }
 
         C3D_FrameEnd(0);
         tt::prof::lap(tt::prof::kFrameEnd);
@@ -2789,6 +3920,14 @@ int main() {
         tt::prof::lap(tt::prof::kAudio);
     }
 
+    // Exit (HOME -> Close, power menu, START on a fatal screen). Bounded: every wait below
+    // either has a timeout or is skipped once VBlank is gone (tt::gpu::frameSync), and teardown
+    // runs in reverse init order: network (last up) first, audio before citro2d/citro3d.
+    TT_LOG("exit: begin (vblank %s)", tt::gpu::vblankLive() ? "live" : "off");
+    tt::log::setFlushEveryLine(true);
+    if (netStarted) net.stop();
+    if (netConnReady) netConn.shutdown();
+    TT_LOG("exit: network down");
     frontEnd.shutdown();
     hud.shutdown();
     zoneActors.shutdown();
@@ -2798,6 +3937,7 @@ int main() {
     golf.shutdown();
     racing.shutdown(); // ---- racing2: release before AssetLoader and ToonCache ----
     trolley.shutdown();
+    boat.setZone(0); // unloads the piers
     boat.shutdown();
     // ---- clerks: release preview before the loader ----
     clerkKartPreview.shutdown();
@@ -2808,8 +3948,7 @@ int main() {
     interiorLife.shutdown();
     // [end interior life]
     battleFx.shutdown();
-    if (netStarted) net.stop();
-    if (netConnReady) netConn.shutdown();
+    TT_LOG("exit: world released");
     remoteToons.clear();
     toonCache.release(&localLook);
     toonCache.shutdown();
@@ -2819,9 +3958,11 @@ int main() {
     balloons.shutdown();
     ui.shutdown();
     renderer.shutdown();
+    tt::audio::shutdown(); // inited after C3D_Init: stop it first
+    TT_LOG("exit: audio down");
     C2D_Fini();
     C3D_Fini();
-    tt::audio::shutdown();
+    TT_LOG("exit: done");
     aptUnhook(&gAptCookie);
     tt::log::shutdown();
     romfsExit();

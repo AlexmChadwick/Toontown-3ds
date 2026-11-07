@@ -131,11 +131,27 @@ VRAM usage plus frame time. Every Azahar or hardware test logs those numbers in
 - **Target 30 fps locked** on Old 3DS, which is 33.3 ms per frame. Never trade
   stability for 60 fps.
 - **Rough GPU envelope** to validate in Phase 1: ≤ 15k triangles and ≤ 150 draw calls
-  per frame on the top screen.
+per frame on the top screen. When a camera is set, world chunks spend the
+130-draw and 15k-triangle caps (`Zone::kDrawBudget`) on what that frame submits,
+in view and nearer first (`Quality::lodMust` is that near band: 48 Old / 64 New),
+so a chunk behind the toon cannot take Toon Hall's budget. Memory caps still
+cover the whole cell. With no camera the same caps cover the cell (host tests).
+The playground and Cog HQ baker raises the grid until the far view fits 130 draws.
 - **CPU per frame:** ≤ 6 ms for animation and skinning, ≤ 3 ms for networking.
-- **Draw distance:** fog, plus the far plane at about 120 units in the playground.
-  Streets use visgroup PVS (only `vis[]` groups of the current cell are drawn and
-  resident).
+- **Draw distance:** `source/render/quality.h`. Old 3DS draws to 440 and fogs from
+  110 to 400, with the far plane at 520 so the sky is fog colour rather than a clip
+  edge. New 3DS (detected with `APT_CheckNew3DS`, no `osSetSpeedupEnable`) draws to
+  740 and fogs from 180 to 680, far plane 900. High LOD is used inside 160 (Old) or
+  260 (New); past that the chunk is the coarse far mesh. Streets still stream by
+  DNA visgroup. A chunk past the profile draw distance is not loaded. Donald's Dock
+  white fog and underwater fog stay owned by `world/water.cpp`.
+  Toon hoods match upstream's DefaultCameraFar 400. Cog HQ hoods (not facilities or
+  interiors) use upstream's camera far instead, with no fog: Sellbot 900, Cashbot 2000,
+  Lawbot and Bossbot 3000; Acorn Acres and Goofy Speedway 8000 (SpeedwayCameraFar;
+  Acorn Acres keeps its underwater fog) (`render::setPlaceFar`, `world::cameraFar`).
+  Their in-view chunks past the baked 760 PVS join as far meshes under the same frame caps. Warm
+  rings keep the device radius. Re-baking the HQs with a 2000 vis radius was rejected:
+  every cell then saw the whole yard and the far mesh coarsened to voxel 32.
 
 ## 4. Architecture
 
@@ -169,14 +185,76 @@ Key decisions:
    - Cells: playgrounds are split into a uniform grid. Streets use DNA visgroups.
    - Each chunk is one contiguous blob that can be read straight into `linearAlloc`
      memory.
+   - **TZ v3** (current) stores each distinct texture payload once in a per-file pool;
+     chunk TTMs point into it (`docs/design/streets.md`). Interiors share one
+     `interiors/textures.ttp` (pooled TTM v2, `tools/pipeline/ttm_pool.py`). Never let a
+     baker copy the same atlas page into every chunk file again: that doubled the SD set.
 3. **Baked mesh data.**
    - Positions are quantized to `int16`; UVs use `int16` or `u8`.
    - Vertex color is `u8×4`.
    - Indices are `u16`, as triangle lists or strips.
    - Batches are merged per texture after atlasing. The ≤150 draw calls per frame target
      drives this.
+   - Far meshes (`street_lod.simplify`) cluster vertices per voxel to the mean of the
+     corners in it, never to the voxel centre. When the uniform voxel would pass 2 units,
+     corners on up-facing faces only (split ground, roof middles) take a coarser lattice
+     (twice the uniform, at least 24) so walls, rocks and buildings keep a finer one: the
+     20-unit ground split had pushed Acorn Acres to 16 and Cashbot / Lawbot HQ to 48.
+     Plain far meshes fold two-sided faces into the one-sided draw like the near atlas.
+     A merged corner takes the area-weighted mean colour of the corners that landed on
+     it (Cashbot's lit stair treads had made a white band). Blended cards whose visible
+     texels are all near black (drop shadows) are left out of far meshes: forced to
+     alpha test they were black wedges (Toon HQ's shadow under the brim). Soft blended cards (under
+     a fifth of the visible texels opaque: Dreamland's clouds, glass) stay blended on their own texture: alpha tested they were
+     grey slabs in the sky. Up-facing faces
+     under 40 square units keep a far body texture (the HQ brim); larger ones stay
+     coloured as ground. An upright alpha-cut strip that repeats along a wrapping u
+     stays a textured card when it would otherwise be coloured (Bossbot's hedges had
+     become black slabs). Each far body page carries a white tile, and the chunk's
+     vertex-coloured opaque faces ride on it (`merge_white`), so textured far bodies
+     cost no draw; when decal pages do not fit, bodies alone are kept (at most 3 MiB of
+     far pages per view). Lawbot's skyline had been grey slabs. A ground-limited grid
+     zone is re-binned with ground cut at the grid lines (`split_grid(straight=True)`),
+     and its far seam corners merge along those lines with one mapping for every chunk
+     (`street_lod.seam_line_moves`), so the edge stays on the near neighbour's line.
+     Pinned seam strips were half of Cashbot HQ's far triangles (voxel 16, the vault
+     stairs a slab; now 0.75). The ground lattice is chosen from 24/32/48 by the least
+     ground + 8 x detail voxel.
 4. **Textures.**
    - Max 128×128 for props and buildings, 256×256 for terrain and atlases, mipmapped.
+   - Streamed zones (`bake_street.py`, `street_atlas.build_local`) give each chunk
+     its own near atlas pages (128 to 512 px; opaque ETC1 and alpha ETC1A4 apart).
+     A tile holds only the UV rectangle that chunk samples, sized by screen need:
+     0.5 texel per top-screen pixel at the closest walkable floor point (eye height,
+     distance clamped 12..160), capped by the source, multiples of 16 up to 240,
+     8px gutter, four per-tile mips, skyline packed. Ground textures stay standalone
+     at 256 only where atlasing their repeats would multiply triangles. PICA mips
+     stop at 8x8 and clamp there, so a repeating standalone texture's last level is
+     its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
+     face seen edge-on strobes (the TTC gag shop awning streak) where PC averages it. A small
+     repeating texture on mostly non-ground faces is stored as 2x2 copies (UVs / 2), so
+     it has one more real level before that mean one: awnings keep their stripes at range.
+     That choice is per triangle (a clamped axis must stay inside 0..1), so one texture can
+     be 2x2 for the TTC trolley valance and single for the gag shop end cap that leaves it. A shared
+     64px-tile page (the old scheme, still used by Cog HQs) shrank 256px palettes
+     such as the TTC tunnel rock to 64px and cost a draw per nine tiles. The far mesh samples those textures into
+     vertex colour, so a long PVS fits the 8 MiB copy budget. Alpha cutouts
+     (balloons, palm fronds, tree leaves) and decals (windows, doors, shop signs)
+     with unit UVs keep their texture on one small per-chunk far atlas page (16px
+     tiles, two mips, 64/128/256 page): a corner texel of a cutout is clear, so its
+     vertex-coloured copy vanished on Old 3DS past 160. Each far tile is a crop of the palette rectangle the chunk
+     samples (a whole palette in 16px made Daisy Gardens' daisies grey-green), shrunk with
+     alpha-weighted mips, and the page keeps source culling (all two-sided, Elm Street's
+     awning backs floated over the houses). Textured far attempts go down to a 1 unit voxel. Wall-like cutouts that repeat along u
+     (fences, hedges) keep a full-width wrapping row of that page, so the TTC fence
+     is not a flat salmon band past 160. Far decals are not voxel
+     snapped (they z-fought), sign letters keep priority, and far hill cards are
+     128px so far pages still fit Old's 4 MiB texture retain with Toon Hall's near
+     mesh. The default of `street_atlas.build` is still the 32px single-mip page
+     used by cog HQs. The RomFS playground mesh stays at 128 because the whole
+     playground is one resident model and a 256px set does not fit the 8 MiB
+     texture budget. Runtime filtering is linear,
+     plus a linear mip when the texture has more than one level.
    - Format by use:
      - **ETC1** for opaque textures.
      - **ETC1A4** when there is alpha.
@@ -211,7 +289,20 @@ Key decisions:
      4×3 matrices).
    - Color (DNA `armColor`, `legColor`, `headColor`) is a per-draw uniform. Clothes come
      from an atlas.
-   - LOD 250 or 500 is used for remote toons, and 1000 only for the local toon on New 3DS.
+   - The local toon and every toon inside the 120-unit far plane use LOD 500. LOD 250
+     is only past that plane. There is no LOD 1000 asset. The local look is pinned
+     in the 4 MiB cache and is not released on a quiet-zone change.
+   - Holding B uses OTPGlobals slow speeds (forward 6, reverse 2.5, rotate 33), which
+     stay under RunCutOff 8 so the walk cycle plays. Full run stays the run cycle at
+     rate 1, matching Toon.setSpeed.
+   - Door leaves rotate about the baked hinge. An extra hinge translation made them
+     slide. Leaving an interior flips the door heading when the walk-out ray hits the
+     building and the opposite ray is open.
+   - Battle music is `encntr_general_bg` while a battle is active. `movieDone` is
+     resent until PlayMovie ends. Squirt plays its spray when the water leaves.
+   - The HQ desk title is the string `Toon Platoon` in MickeyFont
+     (`romfs/baked/fonts/mickey.bcfnt`). That sign font has no lowercase, and
+     TextNode draws a-z with the A-Z glyphs, so the title reads as capitals.
 6. **Threads.**
    - The main thread runs simulation and rendering at prio 0x30.
    - The net thread is a blocking socket with a ring buffer, prio 0x31, on core 0.
@@ -227,6 +318,15 @@ Key decisions:
    - Every target is cleared every frame (`C3D_RenderTargetClear` / `C2D_TargetClear`).
    - Call `C2D_Prepare()` before 2D drawing after any custom shader use.
    - Use one `C3D_FrameBegin`/`C3D_FrameEnd` pair per frame.
+   - **Sky.** Toon hoods draw their `Hood.skyFile` dome first (`world/sky.*`,
+     `Renderer::drawSky`, RomFS `baked/sky/` from `tools/pipeline/bake_sky.py`): TT_sky with its
+     two cloud groups turning at h / -0.8 h, BR_sky for The Brrrgh and Donald's Dock, MM_sky,
+     DL_sky, and cog_sky in the Sellbot courtyard and factory exterior only. It is centred on the
+     camera at world z 0, scaled inside the far plane, with no depth and no fog (Donald's Dock
+     fogs it, as DDHood.setWhiteFog). The clear and the draw-distance fog take the hood's horizon
+     colour. The other Cog HQ places' own sky boxes, which the zone bake stashes, bake in world space
+     to `hq<zone>.ttm` and draw first with no depth, scaled about the eye into the far plane.
+     Fixed-camera autotest steps (`view:`, `pose:`) hold the clouds at their start heading.
    - Stereo 3D is off by default (`gfxSet3D(false)`). When it is enabled in settings, the
      top screen renders twice with an IOD from `osGet3DSliderState()`. That roughly
      halves the triangle budget, so stereo forces LOD down.
@@ -309,6 +409,16 @@ hardware. See `docs/test-log.md`.
   - Why `C2D_DrawCircleSolid` (proctex) fails after the 3D pass.
 
 Lessons recorded for agents:
+- **Camera and the near plane.** The follow camera is LocalAvatar position 0: camHeight =
+  max(toon height, 3), eye 3 camHeight behind at head height, look-at 1.5 ahead, level. It
+  sweeps a 1.75-unit sphere from the
+  toon's head to the ideal eye (`CollisionWorld::cameraSphereCast`) and eases the boom
+  back out only. Pull-in is instant. `Renderer::kNear` stays 1.0: closer, and the PICA200
+  clipper shatters triangles that cross the near plane; the sphere is what keeps walls
+  outside the near-plane corners (about 1.32 at the stock fov, 1.53 at the old 55, with the stereo slider maxed).
+  Do not shrink `kNear`, and do not raise it without raising `kCamClearance` in
+  `world/player.cpp`. Both eyes share that near plane. NPC talk uses the same
+  pull-in and keeps its own look-at.
 - **Command buffer.** The citro3d command buffer overflows into an svcBreak PANIC.
   Keep per-draw state changes minimal: one `BufInfo` per model (indices are rebased to
   absolute at load), and `C3D_GetCmdBufUsage()` guards each model.
@@ -324,6 +434,9 @@ Lessons recorded for agents:
   - Overlapping runs once killed each other's emulator (it looked like app crashes) and left
     the user's config in test mode.
   - `make` does not repack RomFS when only a data file changes; delete the `.3dsx`.
+  - Never rebuild while Azahar runs the tree's `.3dsx`: the emulator reads RomFS from that
+    file on demand, so a relink mid-run feeds the test shifted data. Copy it first
+    (`cp toontown3ds.3dsx /tmp/run.3dsx; tools/dev/azahar_test.sh /tmp/run.3dsx ...`).
 - **Main-thread stack.** It is 256 KB (`__stacksize__` in `main.cpp`). `main()` keeps a 16 KB
   frame of subsystems; the 32 KB default crashed at startup (PC 0).
 - **CPU faults** on the main thread are logged by `core/crash.*` (type, pc, fault address,
@@ -348,6 +461,14 @@ Lessons recorded for agents:
   heartbeats then arrive minutes apart, and Astron ejects it with code 345. That fakes
   "connection closed by server" bugs. `azahar_test.sh` turns App Nap off for the run, and
   agent builds run under `nice -n 19`. Compare log time with real time before blaming the client.
+  On the Linux/Xvfb rig (software GL) facilities run at ~25-40% speed even alone; start the
+  server with `ASTRON_HEARTBEAT_TIMEOUT_MS=300000` for those passes.
+- **3DS sockets differ from Azahar** (`net/net_platform.cpp`). SOC has no POLLERR/POLLHUP: 0x08
+  is POLLWRNORM (the real "writable" bit, which libctru's poll.h calls POLLERR) and 0x10 is
+  POLLWRBAND (libctru's POLLOUT). `getsockopt(SO_ERROR)` returns the raw SOC -26 after a good
+  connect (libctru#412). Connect completion is decided by calling `connect()` again (0 / EISCONN),
+  never by SO_ERROR or POLLERR. Every connect failure names its step, errno and revents on screen
+  and in log.txt.
 - **Every hand-parsed field needs a layout check, and every handled class must be in the
   table.** Golf was dead twice over:
   - `DistributedGolfKart.setState` was read without its i16 timestamp.
@@ -357,6 +478,14 @@ Lessons recorded for agents:
   `net: PARSE ...` now logs any message a handler reads only partly or past its end.
 - **Labels are not tests.** Several autotest steps (`cog building: *`) existed without driver
   code. A step must log what it did and fail visibly when its target is absent.
+- **Fixed asset caches must evict.** `SuitActors` once kept 12 Cog heads and 10 battle clips per
+  body until exit, so Cogs went headless after 12 types in one session. Re-point the least
+  recently used slot through the asset batch (it frees the old data at the fence) and draw
+  nothing from that slot until then.
+- **Check battle props against their source node types.** `explosion.bam` is a 10-frame
+  SequenceNode (one batch per frame, `Renderer::setOnlyBatch`), squirt hits use the splat actor
+  (`splash-from-splat`), not `splash.bam`, and props that upstream recolours with `setColor` must
+  bake white (the splat's own ColorAttrib is dark navy).
 - **Codex helpers cannot commit.** The Codex sandbox cannot write `.git`. That includes a
   worktree's metadata in the main checkout. Give Codex a standalone clone; the main agent reviews,
   commits and fetches the branch.
@@ -398,7 +527,8 @@ server.
   is not thread-safe, so every runtime linear alloc/free holds `tt::mem::LinearGuard`,
   and toons draw the resident default body until their parts are ready.
 - ✅ **Front end** (`game/front_end.*`). Title → connect → Pick-a-Toon → 5-step
-  Make-a-Toon → playground. `requestSkipTutorial` is sent for new toons. The
+  Make-a-Toon → Toontorial → playground (an account's first Toon goes straight into the
+  Toontorial; later Toons get Enter / Skip, and only Skip sends `requestSkipTutorial`). The
   `autotest_fe` trigger drives the whole flow.
 - ✅ **Zone objects.** NPC toons stand at the DNA anchors listed in the `.pts`
   sidecar of `bake_zone.py`. Treasures can be grabbed (the AI refuses at full laff:
@@ -419,6 +549,60 @@ server.
   Every visible set fits 117 draws / 15,000 tris / 810 KB geometry; the per-zone table
   is in `docs/design/streets.md`. Street cell changes come from floor zone ids
   (`Client::changeStreetCell`).
+  Chunks outside the camera cone keep a resident near mesh until the retain
+  budget evicts them. That mesh is not replaced by the far blob, and it is not
+  submitted. Inside the cone every chunk that fits is drawn, at least at its
+  far mesh. Near upgrades stop at 130 draws (`Zone::kDrawBudget`). The submitted
+  set also stops at 150 draws and 15,000 triangles. A resident near mesh inside
+  `lodMust` may stay up to that 150 (Toon Hall). `lodKeep` does not bypass the
+  cap. `Zone::draw` does not skip an in-cone chunk the plan kept. With no camera
+  the whole cell stays inside 15,000 triangles and 150 draws (the file's far-set
+  cap); a chunk that would pass it is not loaded.
+  The loading card drops when the distant in-cone chunks covering most of the
+  screen have a far mesh (`Zone::cardPending`). Membership is projected area,
+  not a `lodNear` / `lodMust` ring, so New's larger radius does not pull extra
+  chunks into the card. The cell underfoot and chunks inside `lodMust` are not
+  in that prefix: they read their near mesh directly. Distant chunks still read
+  far first. A profiled near chunk is about 500 KB and about 330 ms of SD read.
+  A mesh that is already in view is not evicted or swapped out until its
+  replacement is uploaded and published. The frame cap counts that shown mesh,
+  not the near mesh that is still loading, so a published far stays in the cone
+  while its near read is in flight. Vertex, index and texture upload are sliced
+  at 64 KB inside the 10 ms pump budget. A clock that does not move during the
+  copy still ends the pump after one slice, and frames at or above 50 ms log a
+  hitch. Up to two on-screen signs (letter decals on `palette_2tmlc`, ranked by
+  letter-batch screen density, out to twice `lodNear`) may take a near mesh.
+  The denser sign is first. Each still has to fit the retain cap and 130 draws.
+  Out-of-cone far textures do not count against that fit, and only the generic
+  near mesh blocking that sign is demoted. Other letter chunks stay on the
+  `lodNear` test. Choice-0 chunks outside the cell and `lodMust` read far first
+  and keep that far on screen until the near mesh publishes, including chunks
+  first planned after the card drops. Near-plan chunks and in-flight reads are
+  pinned against retain eviction for about 2 s. The submitted set admits every
+  near mesh before far meshes; when the 150-draw cap bites, generic far scenery
+  drops before near draws or sign stand-ins. Up to two picked signs on Old 3DS
+  get a negative texture LOD bias on their sign-letter (palette_2tmlc) textures so the letter
+  mips match New; the rest of the chunk keeps its mips (biased, Toon Hall's plaza tiles aliased). GPU upload stays near
+  8 ms and at most two mesh publishes run per `Place::update`. Near upgrades stop
+  at 130 draws. Before an in-cone chunk is dropped for the frame caps, earlier near chunks (not
+  the cell, farthest first) step down to far: lodMust near meshes had spent Daisy Gardens' 15k
+  triangles and its hedge backdrop vanished. `warmAround` fills a ring outside the cone after the cone is at its chosen LOD; a finished warm
+  upload is kept, and eviction does not drop a warm hold while that preload is
+  in progress. The ring
+  only queues chunks that fit in the retain budget. Retain is 2 MiB geometry /
+  6 MiB textures on Old 3DS and 3 / 7 MiB on New 3DS (a cone's geometry stays
+  under 1 MB; the chunk-local near atlases need the texture side). Out-of-cone far
+  meshes leave the plan's cap before any near upgrade. Zone chunks draw the opaque
+  batches of every chunk first, then the blended ones (`Renderer::setBlendPass`),
+  so a sign split across chunks keeps its letters. Zone textures may be 512 px. On device, non-cone chunks
+  are also evicted while `linearSpaceFree()` is under 12 MiB, so an Old 3DS street
+  keeps that much of the 24 MiB linear heap free. The loader thread reads a chunk's
+  vertex, index and inline-texture span in one shot (`ModelStaging::read`); the
+  main thread uploads about 10 ms of that per `Zone::update` (`ModelStaging::pump`).
+  Street and playground arrival does not call `finishLoading`. `finishLoading`
+  (boss / cogdo) waits for the full cone plan, not the card and not the warm ring.
+  Textures are already tiled at bake time, and new bakes store absolute indices
+  (TTM header flags bit 0) when the model fits in 16-bit indices.
 - ✅ **All 536 building interiors** (`bake_interior.py`, `docs/design/interiors.md`),
   entered with the upstream zone formula `zone - zone%100 + 500 + block`.
 - ✅ **Classic characters** (`world/cchar.*`, `docs/design/chars.md`). Mickey, Minnie,
@@ -432,7 +616,8 @@ server.
     - `setChat` chatter
     - Donald at the wheel rides the moving `DistributedBoat` (`world/boat.*`, `docs/design/boat.md`);
       the local toon rides it too (deck collision, `setParent` 3) and the boat has bell/foghorn/creak/lap
-      sounds (built, not yet run in Azahar); remaining: animated piers
+      sounds (built, not yet run in Azahar); the two pier ramps (`1000_pier_*`) are drawn and walkable at
+      DistributedBoat's pitch per boat state (raised with no boat)
     - Character and boat models now load on the shared background loader
       (`world/asset_loader.*`: fixed slots, thread prio 0x31, staging `Model`/`Anim` swapped in by the
       main thread; never hold `LinearGuard` around `Model::load`)
@@ -532,7 +717,8 @@ combat/gags, shops, tasks, pets, the full name shop, and stereo polish.
   interaction, shops, the catalog, estates, pets, fishing, gardening, racing, golf,
   minigames, trolley, parties, cog HQs, boss battles, friends lists, whispers, typed
   chat, the name shop (toons keep the server default name).
-- The tutorial. The client skips straight to the playground; the server allows this.
+- The tutorial is the default for a new Toon (docs/design/tutorial.md); `skip` in autotest_fe keeps
+  the old skip path for regressions.
 - Street zones (2100 and others), interiors, doors, tunnels between zones. Only the TTC
   playground (2000) is in scope.
 - Particles (`.ptf`), dynamic shadows (a blob shadow quad is fine), the full lighting
@@ -581,11 +767,17 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_facility_floors.py` | every mint / DA office / country-club floor, assembled by the stock upstream layout code → `.tlf` (`docs/design/levels.md`) |
 | `tools/dcgen/dcgen.py` | DC → `source/net/dc_generated.h` (IDs, hash, field descriptors) |
 | `tools/gen_speedchat.py`, `tools/gen_toon_tables.py` | generated SpeedChat and ToonDNA tables |
-| `tools/server/` | local Open Toontown server (`setup.sh`, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
+| `tools/server/` | local Open Toontown server (`setup.sh` on macOS, `setup_linux.sh` on Linux x86_64, `start.sh`, `stop.sh`, `smoke_test.py` bot) |
+| `tools/pipeline/ttm_pool.py` | one shared `textures.ttp` per model directory (interiors), TTM v2; `tz.py <files>` repacks `.tz` to v3 |
 | `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
+| `tools/pipeline/bake_sky.py` | the hood skies (TT_sky + its two cloud groups, BR_sky, MM_sky, DL_sky, cog_sky) → `romfs/baked/sky/*.ttm` |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
+| `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py`, `bake_purchase_gui.py`, `bake_pick_a_toon.py`, `bake_mat_gui.py` (shared `ui_atlas.py`) | ToontownTimer's alarm clock, fishingGui's cast interface, the Shtiker Book page tab icons, the purchase screens' sign plank and bean jar, AvatarChooser's background, squares and trashcan, and Make-A-Toon's round, gender and shuffle buttons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
+| `tools/pipeline/bake_quest_poster.py` | QuestPoster's art (stickerbook_gui questCard / questPictureFrame, the trolley, package, building and cog icons) → `romfs/baked/quest_poster.ttm` + `source/ui/quest_poster_atlas.h`, and each quest NPC's species and head colour from NPCToons DNA → `source/ui/quest_npc_heads.h` (drawn with the laff-meter heads) |
+| `tools/pipeline/bake_loading_screen.py` | ToontownLoadingScreen's art: progress-background's radial `bg` as a 3D quad (`loading_bg.ttm`, drawn behind the front-end Toon) and toon_council's scroll for the TOON TIP (`loading_gui.ttm` + `source/ui/loading_atlas.h`); tips in `source/game/loading_tips.h` |
+| `tools/pipeline/bake_mat_room.py` | Make-A-Toon's room (`tt_m_ara_mat_room`): floor / background / spotlight plus each shop's walls and props → pooled `romfs/baked/mat_room/` (TTM v2 + `textures.ttp`), and the roomDrop / roomSquish / propSquish joint tracks → `source/ui/mat_room_tracks.h`; drawn behind the Toon with MakeAToon's camera |
 | `tools/pipeline/bake_golf_physics.py` | golf BAM collision nodes → versioned `.gph` meshes (grass, slick, cup, hard) |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
 | `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |
@@ -753,8 +945,8 @@ A/B checks. This task prohibited emulator execution.
 
 ### Toontorial protocol and assets (tutorial, 2026-10-26)
 
-New avatars choose **Play the Toontorial** or **Skip** before creation; Skip remains the
-default. TutorialManager's runtime-allocated zones are never baked by id: `world/tutorial_zones.h`
+New avatars take the Toontorial by default, as upstream NameShop: the first Toon goes straight
+in, later Toons get Enter / Skip (B goes back, never skips). TutorialManager's runtime-allocated zones are never baked by id: `world/tutorial_zones.h`
 maps them to canonical 20000/20001/20501/20502 assets at the client boundary and translates
 destinations back before Astron location updates. `tools/gen_quest_scripts.py` emits the five
 stock tutorial QuestScripts and rejects unrecognised source data. `tools/tutorial_test/run.sh`

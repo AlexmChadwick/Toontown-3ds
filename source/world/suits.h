@@ -30,7 +30,7 @@ public:
     bool loadingAssets() const { return assetBatch_.loading(); }
 
     // Street cogs (net::kMaxSuits) plus the facility cogs of the visible level zones.
-    static constexpr int kMax = 32;
+    static constexpr int kMax = 48;
 
     bool init(); // loads the placeholder model; false leaves suits invisible (never fatal)
     void shutdown();
@@ -123,9 +123,11 @@ private:
         static constexpr int kClips = 10;
         char clipName[kClips][24] = {};
         render::Anim clips[kClips];
+        u32 clipUsedMs[kClips] = {};    // last frame a Cog played the clip
+        bool clipEvicting[kClips] = {}; // re-pointed: held back until the old clip is freed
         // Suit.getLoseActor: a defeated Cog swaps to its lose-mod model with its own 'lose'
         // animation (the head is instanced onto its joint_head); loaded the first time.
-        bool loseTried = false;
+        bool loseTried = false, loseBad = false;
         render::Model loseModel;
         render::Anim loseClip;
     };
@@ -134,6 +136,8 @@ private:
     struct Head {
         char code[4] = {};
         bool tried = false;
+        bool evicting = false; // re-pointed at another head: hidden until the old one is freed
+        u32 usedMs = 0;        // last frame a Cog asked for this head
         render::Model model;
     };
     static constexpr int kMaxHeads = 12;
@@ -142,8 +146,8 @@ private:
     Head* head(const char* code);
     void loadDepartments();
     void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
-    // 6 bodies * (model + neutral + walk + 10 clips) + 12 heads = 90.
-    BasicAssetBatch<96> assetBatch_;
+    // 6 bodies * (model + neutral + walk + 10 clips + lose model + lose clip) + 12 heads = 102.
+    BasicAssetBatch<104> assetBatch_;
     Body bodies_[6];
     C3D_Tex tieTex_[4] = {}; // skeleton_ties.ttx: a skelecog's tie per department (c l m s)
     bool tiesLoaded_ = false;

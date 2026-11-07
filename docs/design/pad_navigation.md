@@ -51,7 +51,7 @@ a touch player's A still jumps.
 |---|---|---|---|
 | Tab bar (`render/ui.cpp`) | Map / Chat / Toon / Gags / Setup / Debug | touch, D-Left / D-Right, X = Chat, Y = Map | unchanged (D-Left / D-Right move inside a focused tab instead) |
 | Map tab (`render/ui.cpp`) | Home | touch only | D-Up / D-Down focus, A presses (`homeRequest`) |
-| Map tab | 8 hood teleport buttons | touch only | D-Down from Home to the row, D-Left / D-Right (wraps), A teleports; unavailable hoods are refused by main.cpp, as with touch |
+| Map tab | 8 hood teleport buttons | touch only | D-Down from Home to the row, D-Left / D-Right (wraps), A teleports; hoods without teleport access stay focusable and explain why (`ui::pressHoodControl`) |
 | Chat tab (`ui/chat_menu.cpp`) | SpeedChat rows | D-Up / D-Down, A, B, touch | unchanged; now logged `padnav: chat focus/activate` |
 | Chat tab (`render/ui.cpp`) | "To:" whisper target button | touch only | X while already on the Chat tab |
 | Toon tab, online (`render/ui.cpp`) | Open Shtiker Book | touch, START | D-Down focuses it, A opens (START still works) |
@@ -65,7 +65,7 @@ a touch player's A still jumps.
 | Battle | Fire / SOS | not in this client's battle panel | — |
 | Shtiker Book (`ui/book.cpp`) | page turn, page tabs, close | touch; L / R and D-Left / D-Right turn pages; START closes | L / R turn pages; B or START closes; D-Left / D-Right turn pages unless the page uses them |
 | Book: Map page | Home, 8 hood buttons | touch only | D-Pad focus, A presses |
-| Book: Options page | Stereo, Debug HUD, LOD, Music −/+, SFX −/+, Stress −/+, Quit | touch only | D-Pad focus, A presses |
+| Book: Options page | Stereo, LOD, Music −/+, SFX −/+, then (only while SELECT has the Debug tab on) Debug HUD and Stress −/+, Quit | touch only | D-Pad focus, A presses |
 | Book: Cogs, Disguise pages | 4 department tabs | touch only | D-Left / D-Right step through them (highlighted) |
 | Book: Fish page | genus < / > | touch; D-Left / D-Right were unreachable (the book took them) | D-Left / D-Right press < / > (highlighted) |
 | Book: SOS page | "[Page n/2]" (more than 8 cards) | touch only | D-Left / D-Right flip it |
@@ -84,6 +84,7 @@ a touch player's A still jumps.
 | Trolley / minigame info panel | display only | — | — |
 | Boss battles (`world/boss_battle.cpp`, `cj_battle.cpp`) | pie throw / evidence fire | B (hold / release) and a touch shortcut | unchanged: B already does it; their Cog rounds use the battle panel above |
 | CEO, CFO, Cogdo (`world/ceo_battle.cpp`, `cfo_*`, `cogdo_runtime.cpp`) | no bottom-screen touch input besides the battle panel | buttons | unchanged |
+| Pick-A-Toon (`game/front_end.cpp`) | six slot squares, trashcan, Name Your Toon!, Logout | touch, D-Pad cursor over pills | D-Pad moves the gold ring between squares (`padnav: pick focus <n>`, previews the Toon up top); A plays (or makes a Toon in an empty square); Y deletes, X names an open-named Toon, B logs out (`padnav: pick activate ...`) |
 | Golf, racing, minigames (`game/*`) | out of scope (other agents own these files) | — | — |
 
 Book page rectangles that differ from their touch areas (the touch areas are kept as they were):
@@ -103,7 +104,7 @@ up, so run the whole script, or an `only` line that keeps those steps too, for e
 | Steps | Expected log lines |
 |---|---|
 | `pad: tab map` … `pad: map release` | `padnav: tab_map focus 0` (Home), a hood focus, `padnav: tab_map blur` |
-| `pad: tab chat`, `pad: chat focus`, `pad: chat whisper`, `pad: chat back` | `padnav: chat focus 0`, `padnav: chat activate whisper` (only with toons in view), `padnav: chat back` |
+| `pad: tab chat`, `pad: chat focus`, `pad: chat down`, `pad: chat open hello`, `pad: chat say hello` (shot `pad_chat_said`: the recent-chat strip shows "You: Hi!"), `pad: chat whisper`, `pad: chat back` | `padnav: chat focus 0`, `padnav: chat focus 1`, `padnav: chat activate 1`, `padnav: chat activate 0`, `padnav: chat activate whisper` (only with toons in view), `padnav: chat back` |
 | `pad: tab toon`, `pad: toon focus`, `pad: book from toon tab` | `padnav: tab_toon focus 0`, `padnav: tab_toon activate 200` (the book opens online) |
 | `pad: book next page`, `pad: book page turn`, `pad: book close` | the book title page changes in `pad_book_turn.png`; the book closes |
 | `pad: tab setup` … `pad: setup release` | `padnav: tab_setup activate 2`, then `activate 1` (stress 0 → 1 → 0), `blur` |

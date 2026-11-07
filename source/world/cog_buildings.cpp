@@ -26,7 +26,10 @@ void CogBuildings::setZone(uint32_t zone) {
         s.loaded = false;
     }
 
-    for (int i = 0; i < 4; ++i) {
+    // Cog buildings and field offices only stand on streets: skip the shells (~250 ms of SD
+    // reads, ~350 KB linear) when entering a playground, an interior or a Cog HQ.
+    const bool street = placeKind(zone) == PlaceKind::Street;
+    for (int i = 0; street && i < 4; ++i) {
         char path[112];
         snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/shell_%s.ttm", kDept[i]);
         shells_[i].dept = static_cast<int8_t>(i);
@@ -34,7 +37,7 @@ void CogBuildings::setZone(uint32_t zone) {
     }
     // ---- cogdo exterior: load geometry and door anchor once per street ----
     cogdoShell_.unload();
-    cogdoShell_.load("sdmc:/3ds/toontown3ds/data/cogdo/shell.ttm");
+    if (street) cogdoShell_.load("sdmc:/3ds/toontown3ds/data/cogdo/shell.ttm");
     FILE* cogdoPoints = fopen("sdmc:/3ds/toontown3ds/data/cogdo/points.bin", "rb");
     if (cogdoPoints) {
         char magic[4] = {};
@@ -174,6 +177,15 @@ bool CogBuildings::suitElevatorPoint(const net::Client& client, float* x, float*
             *h = a.h;
             return true;
         }
+    }
+    return false;
+}
+
+bool CogBuildings::blockPoint(uint32_t block, float* x, float* y, float* z, float* h) const {
+    for (const Anchor& a : anchors_) {
+        if (!a.used || a.block != block) continue;
+        *x = a.x, *y = a.y, *z = a.z, *h = a.h;
+        return true;
     }
     return false;
 }

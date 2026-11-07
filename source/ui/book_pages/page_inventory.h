@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ui/book_pages/book_page.h"
+#include "ui/page_text.h"
 
 namespace tt::ui {
 
@@ -14,11 +15,7 @@ public:
     void draw(float x, float y, float w, float h, const BookDrawContext& bdc) override;
 
 private:
-    void rebuildText(const BookDrawContext& bdc);
-
-    C2D_TextBuf textBuf_ = nullptr;
-    uint32_t lastStatsVer_ = 0;
-    uint32_t lastBookVer_ = 0;
+    PageText text_;
 };
 
 } // namespace tt::ui

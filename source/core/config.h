@@ -4,14 +4,27 @@
 //   port=7198
 //   token=my-toon       # dev servers create an account per token
 //   online=1            # 0 = offline (no network at all)
+//
+// With no server.txt the build's baked-in server is used (TT_DEFAULT_HOST / _PORT / _TOKEN,
+// set by the release build), so a fresh install needs nothing on the SD card.
 #pragma once
+
+#ifndef TT_DEFAULT_HOST
+#define TT_DEFAULT_HOST "2.25.74.62"
+#endif
+#ifndef TT_DEFAULT_PORT
+#define TT_DEFAULT_PORT 7198
+#endif
+#ifndef TT_DEFAULT_TOKEN
+#define TT_DEFAULT_TOKEN "alex-3ds"
+#endif
 
 namespace tt::config {
 
 struct Settings {
-    char host[64] = "127.0.0.1"; // Azahar maps 3DS sockets to host sockets
-    int port = 7198;
-    char token[64] = "3ds-player";
+    char host[64] = TT_DEFAULT_HOST;
+    int port = TT_DEFAULT_PORT;
+    char token[64] = TT_DEFAULT_TOKEN;
     bool online = true;
 };
 

@@ -629,6 +629,10 @@ constexpr uint16_t k_teleportResponse = 506;
 constexpr uint16_t k_teleportGiveup = 508;
 constexpr uint16_t k_setTunnelIn = 477;
 constexpr uint16_t k_setTunnelOut = 478;
+constexpr uint16_t k_setTeleportAccess = 502;
+constexpr uint16_t k_checkTeleportAccess = 503;
+constexpr uint16_t k_setSCToontask = 497;
+constexpr uint16_t k_setWhisperSCToontaskFrom = 496;
 constexpr uint16_t kw_setName = 0x10b;
 constexpr uint16_t kw_setDNAString = 0x08b;
 constexpr uint16_t kw_setAnimState = 0x146;
@@ -720,6 +724,10 @@ constexpr uint16_t kw_teleportResponse = 0x090;
 constexpr uint16_t kw_teleportGiveup = 0x090;
 constexpr uint16_t kw_setTunnelIn = 0x042;
 constexpr uint16_t kw_setTunnelOut = 0x042;
+constexpr uint16_t kw_setTeleportAccess = 0x089;
+constexpr uint16_t kw_checkTeleportAccess = 0x140;
+constexpr uint16_t kw_setSCToontask = 0x042;
+constexpr uint16_t kw_setWhisperSCToontaskFrom = 0x090;
 constexpr const char* sig_setName = "string";
 constexpr const char* sig_setDNAString = "blob";
 constexpr const char* sig_setAnimState = "string,i16/1000,i16";
@@ -811,6 +819,10 @@ constexpr const char* sig_teleportResponse = "u32,i8,u32,u32,u32";
 constexpr const char* sig_teleportGiveup = "u32";
 constexpr const char* sig_setTunnelIn = "i16,i16/10,i16/10,i16/10,i16/100,i32/100";
 constexpr const char* sig_setTunnelOut = "i16,i16/10,i16/10,i16/10,i16/10,i16/100,i32/100";
+constexpr const char* sig_setTeleportAccess = "u32[]";
+constexpr const char* sig_checkTeleportAccess = "u16";
+constexpr const char* sig_setSCToontask = "u32,u32,u32,u8";
+constexpr const char* sig_setWhisperSCToontaskFrom = "u32,u32,u32,u32,u8";
 } // namespace DistributedToon
 
 namespace DistributedNPCToonBase {

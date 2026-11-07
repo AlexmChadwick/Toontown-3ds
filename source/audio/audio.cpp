@@ -1,4 +1,7 @@
+#include "core/gpu_sync.h"
 #include "audio/audio.h"
+
+#include "core/crash.h"
 
 #include <3ds.h>
 #include <cstdio>
@@ -100,7 +103,13 @@ inline u16 ndspFormat(uint8_t enc) {
 
 inline float clamp01(float v) { return v < 0.0f ? 0.0f : (v > 1.0f ? 1.0f : v); }
 
+// True only between a successful ndspInit and ndspExit. Every ndsp* call checks it: with
+// ndspInit failed (no DSP firmware) a channel call writes DSP memory that is not mapped (an
+// older hardware crash was a data abort in ndspChnWaveBufClear at 0x1ff57ffe).
+bool gNdspUp = false;
+
 void setMix(int chn, float left, float right) {
+    if (!gNdspUp) return;
     float mix[12] = {};
     mix[0] = left;
     mix[1] = right;
@@ -216,7 +225,7 @@ bool fillSlot(int s) {
             m.ctx[s][c] = inBlock == 0 ? blockCtx[c] : m.ch[c].loopCtx;
             wb.adpcm_data = reinterpret_cast<ndspAdpcmData*>(&m.ctx[s][c]);
         }
-        ndspChnWaveBufAdd(c == 0 ? kMusicChannelL : kMusicChannelR, &wb);
+        if (gNdspUp) ndspChnWaveBufAdd(c == 0 ? kMusicChannelL : kMusicChannelR, &wb);
     }
 
     m.cursor = segEnd;
@@ -230,6 +239,7 @@ bool fillSlot(int s) {
 }
 
 void setupMusicChannels() {
+    if (!gNdspUp) return;
     const TsndHeader& h = gMusic.hdr;
     for (int c = 0; c < h.channels; ++c) {
         int chn = c == 0 ? kMusicChannelL : kMusicChannelR;
@@ -246,6 +256,7 @@ void setupMusicChannels() {
 }
 
 void stopMusicChannels() {
+    if (!gNdspUp) return;
     ndspChnWaveBufClear(kMusicChannelL);
     ndspChnWaveBufClear(kMusicChannelR);
     ndspChnReset(kMusicChannelL);
@@ -253,6 +264,7 @@ void stopMusicChannels() {
 }
 
 void streamThread(void*) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     Music& m = gMusic;
     for (;;) {
         if (m.streaming)
@@ -279,7 +291,7 @@ void streamThread(void*) {
                 }
                 if (ok) {
                     for (int c = 0; c < m.hdr.channels; ++c)
-                        ndspChnSetPaused(c == 0 ? kMusicChannelL : kMusicChannelR, false);
+                        if (gNdspUp) ndspChnSetPaused(c == 0 ? kMusicChannelL : kMusicChannelR, false);
                     m.streaming = true;
                 } else {
                     stopMusicChannels();
@@ -316,7 +328,10 @@ void sendCmd(Cmd c) {
     LightEvent_Clear(&gMusic.ack);
     gMusic.cmd = c;
     LightEvent_Signal(&gMusic.wake);
-    LightEvent_Wait(&gMusic.ack);
+    // Bounded: a stream thread stuck in an SD read must not hang the exit path.
+    if (tt::gpu::vblankLive()) LightEvent_Wait(&gMusic.ack);
+    else if (LightEvent_WaitTimeout(&gMusic.ack, 500LL * 1000 * 1000) != 0) // exiting
+        TT_LOG("audio: stream thread did not ack cmd %d in 500 ms", int(c));
 }
 
 void stopMusicNow() {
@@ -365,7 +380,7 @@ bool voiceBusy(int v) {
 }
 
 void stopVoiceIndex(int v) {
-    ndspChnWaveBufClear(voiceChannel(v));
+    if (gNdspUp) ndspChnWaveBufClear(voiceChannel(v));
     gVoices[v].sfx = kInvalidSfx;
 }
 
@@ -399,12 +414,14 @@ bool init() {
                (unsigned long)rc);
         return false;
     }
+    gNdspUp = true;
     ndspSetOutputMode(NDSP_OUTPUT_STEREO);
     ndspSetMasterVol(1.0f);
 
     gMusic.ring = static_cast<uint8_t*>(linearAlloc(kMusicRingBytes));
     if (!gMusic.ring) {
         TT_LOG("audio: no linear memory for music ring - silent mode");
+        gNdspUp = false;
         ndspExit();
         return false;
     }
@@ -428,12 +445,12 @@ void shutdown() {
     stopMusicNow();
     if (gMusic.thread) {
         sendCmd(Cmd::Quit);
-        threadJoin(gMusic.thread, U64_MAX);
-        threadFree(gMusic.thread);
+        tt::gpu::joinBounded(gMusic.thread, "audio stream");
         gMusic.thread = nullptr;
     }
     for (int v = 0; v < kNumSfxVoices; ++v) stopVoiceIndex(v);
     for (SfxId i = 0; i < kMaxSfx; ++i) freeSfx(i);
+    gNdspUp = false;
     ndspExit();
     linearFree(gMusic.ring);
     gMusic.ring = nullptr;
@@ -663,7 +680,7 @@ int freeVoices() {
 }
 
 void setMasterVolume(float v) {
-    if (gOk) ndspSetMasterVol(clamp01(v));
+    if (gOk && gNdspUp) ndspSetMasterVol(clamp01(v));
 }
 
 void update() {

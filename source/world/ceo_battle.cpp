@@ -1,3 +1,5 @@
+#include "core/gpu_sync.h"
+#include "ui/boss_titles.h"
 #include "world/ceo_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
@@ -200,7 +202,7 @@ void CeoBattle::begin(BossFrame& frame, const net::BossState& state) {
         }
     }
 
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.battle.reset();
     frame.ui.setBattle(nullptr, {});
     frame.remotes.clear();
@@ -208,11 +210,11 @@ void CeoBattle::begin(BossFrame& frame, const net::BossState& state) {
     frame.place.unload();
     frame.player.setDynamic(nullptr);
     frame.player.reset(-1.40f, 59.78f, 0.0f, 0.0f); // BossbotHQBossBattle.teleportInPosHpr
-    frame.ui.book().close();
+    frame.ui.book().close("ceo_battle");
 }
 
 void CeoBattle::leave(BossFrame& frame, bool sad) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossExit();
     for (uint32_t& id : dinerIds_) {
         if (id) {
@@ -941,13 +943,14 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
     }
 
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
 
     ui::Context context{};
     context.stats = &frame.client.ownStats();
     context.infoTitle = assets_.failed() ? "CEO assets missing / over budget"
-        : !assets_.ready() ? "Loading CEO banquet" : state.phase;
+        : !assets_.ready() ? "Loading CEO banquet" : ui::bossPhaseTitle(state.phase);
 
     std::snprintf(status_, sizeof(status_), "CEO %.0f / 500  Speed %.1f / 90  Laff %d",
         net::currentBossDamage(state, nowMs), ceoSpeedDamage(state, nowMs), frame.client.ownStats().hp);

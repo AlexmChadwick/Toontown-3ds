@@ -1,10 +1,15 @@
+#include "render/ui_font.h"
+#include "ui/theme.h"
 #include "ui/minigame_purchase_panel.h"
+
+#include "ui/purchase_art.h"
 
 #include <cstdio>
 #include <cstring>
 
 #include "core/log.h"
 #include "ui/pad_tables.h"
+#include "world/battle_fx.h"
 
 namespace tt::ui {
 
@@ -14,6 +19,8 @@ namespace {
 
 constexpr float kNameX = 4, kGridX = 64, kGridY = 26, kCellW = 42, kCellH = 22;
 constexpr float kInfoY = 184;
+constexpr float kSignW = 170;                          // the title plank
+constexpr float kJarH = 40, kJarX = 136 - kJarH * 0.41f; // the bean jar, centred between [+] and Done
 // The button row is shared with its focus table (ui/pad_tables.h).
 constexpr float kBtnY = pad::counter::kBtnY, kBtnH = pad::counter::kBtnH;
 constexpr float kMinusX = pad::counter::kMinusX, kPlusX = pad::counter::kPlusX;
@@ -23,15 +30,7 @@ constexpr float kCancelX = pad::counter::kCancelX, kCancelW = pad::counter::kCan
 constexpr uint32_t kAutoSubmitMarginMs = 2000;
 constexpr uint32_t kNoteMs = 2500;
 
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kLocked = C2D_Color32(0x16, 0x1E, 0x32, 0xFF);
-const u32 kBought = C2D_Color32(0x6B, 0x52, 0x10, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0x7C, 0x88, 0xA4, 0xFF);
-const u32 kGood = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
-const u32 kBad = C2D_Color32(0xFF, 0x80, 0x80, 0xFF);
 
 bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
@@ -46,15 +45,15 @@ bool MinigamePurchasePanel::init() {
     infoBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !gridBuf_ || !infoBuf_) return false;
     for (int t = 0; t < gags::kTracks; t++) {
-        C2D_TextParse(&trackText_[t], staticBuf_, gags::kTrackNames[t]);
+        tt::render::textParse(&trackText_[t], staticBuf_, theme::kTrackTitles[t]);
         C2D_TextOptimize(&trackText_[t]);
     }
-    static const char* const kBtn[4] = {"-", "+", "Done", "Cancel"};
+    static const char* const kBtn[4] = {"-", "+", "EXIT BACK TO\nPLAYGROUND", "Cancel"}; // GagShopBackToPlayground
     for (int i = 0; i < 4; i++) {
-        C2D_TextParse(&btnText_[i], staticBuf_, kBtn[i]);
+        tt::render::textParse(&btnText_[i], staticBuf_, kBtn[i]);
         C2D_TextOptimize(&btnText_[i]);
     }
-    C2D_TextParse(&dashText_, staticBuf_, "-");
+    tt::render::textParse(&dashText_, staticBuf_, "-");
     C2D_TextOptimize(&dashText_);
     return true;
 }
@@ -102,7 +101,6 @@ void MinigamePurchasePanel::open(const net::Client& client, uint32_t beansWon, u
     selLevel_ = 0;
     pad::buildCounterButtons(buttons_); // padnav: the grid has the focus
     dirty_ = true;
-    lastSecond_ = -1;
     active_ = true;
     activeInstance_ = this;
     TT_LOG("minigame purchase: opened with %u won, %d total money", unsigned(beansWon), cart_.money);
@@ -154,11 +152,6 @@ void MinigamePurchasePanel::update(net::Client& client, uint32_t nowMs) {
     }
     if (note_[0] && int32_t(nowMs - noteUntilMs_) >= 0) {
         note_[0] = 0;
-        dirty_ = true;
-    }
-    const int sec = remain > 0 ? remain / 1000 : 0;
-    if (sec != lastSecond_) {
-        lastSecond_ = sec;
         dirty_ = true;
     }
 }
@@ -252,30 +245,43 @@ void MinigamePurchasePanel::rebuildGrid() {
                 continue;
             }
             snprintf(buf, sizeof(buf), "%u/%d", unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
-            C2D_TextParse(&cellText_[t][l], gridBuf_, buf);
+            tt::render::textParse(&cellText_[t][l], gridBuf_, buf);
             C2D_TextOptimize(&cellText_[t][l]);
         }
     }
 }
 
-void MinigamePurchasePanel::rebuildInfo(uint32_t nowMs) {
+void MinigamePurchasePanel::rebuildInfo() {
     C2D_TextBufClear(infoBuf_);
     char buf[96];
-    C2D_TextParse(&titleText_, infoBuf_, "Gag Purchase");
-    snprintf(buf, sizeof(buf), "Beans: %d (+%u won)", cart_.money, unsigned(beansWon_));
-    C2D_TextParse(&beansText_, infoBuf_, buf);
-    snprintf(buf, sizeof(buf), "Carry: %d/%d", shop::countProps(cart_.inv), int(profile_.maxCarry));
-    C2D_TextParse(&carryText_, infoBuf_, buf);
-    const int sec = deadlineMs_ > nowMs ? int((deadlineMs_ - nowMs) / 1000) : 0;
-    snprintf(buf, sizeof(buf), "%02d:%02d", sec / 60, sec % 60);
-    C2D_TextParse(&timerText_, infoBuf_, buf);
-    const char* msg = note_[0] ? note_ : gags::kGagNames[selTrack_][selLevel_];
-    C2D_TextParse(&infoText_, infoBuf_, msg);
+    tt::render::textParse(&titleText_, infoBuf_, "Goofy's Gag Shop"); // PurchaseBase's title sign
+    snprintf(buf, sizeof(buf), "%d", cart_.money); // on the jar
+    tt::render::textParse(&beansText_, infoBuf_, buf);
+    snprintf(buf, sizeof(buf), "+%u won   Carry: %d/%d", unsigned(beansWon_), shop::countProps(cart_.inv),
+             int(profile_.maxCarry));
+    tt::render::textParse(&carryText_, infoBuf_, buf);
+    // The Gag Shop's info line (ui/shop_panel.cpp), plus why a gag can't be added.
+    const int t = selTrack_, l = selLevel_;
+    const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
+    if (note_[0]) {
+        snprintf(buf, sizeof(buf), "%s", note_);
+    } else if (!open) {
+        snprintf(buf, sizeof(buf), "%s: not unlocked yet", gags::kGagNames[t][l]);
+    } else if (cart_.bought(t, l) > 0) {
+        snprintf(buf, sizeof(buf), "%s: have %u, +%d now. 1 bean each", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]), cart_.bought(t, l));
+    } else if (shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::TooManyProps) {
+        snprintf(buf, sizeof(buf), "%s: have %u. Your gag bag is full!", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]));
+    } else {
+        snprintf(buf, sizeof(buf), "%s: have %u of %d. 1 bean each", gags::kGagNames[t][l],
+                 unsigned(cart_.inv[t][l]), shop::carryMax(profile_, t, l));
+    }
+    tt::render::textParse(&infoText_, infoBuf_, buf);
 
     C2D_TextOptimize(&titleText_);
     C2D_TextOptimize(&beansText_);
     C2D_TextOptimize(&carryText_);
-    C2D_TextOptimize(&timerText_);
     C2D_TextOptimize(&infoText_);
 }
 
@@ -283,61 +289,60 @@ void MinigamePurchasePanel::draw() {
     if (!active_) return;
     if (dirty_) {
         rebuildGrid();
-        rebuildInfo(nowMs_);
+        rebuildInfo();
         dirty_ = false;
     }
-    C2D_DrawRectSolid(0, 0, 0.1f, 320, 240, kBg);
-    // Title on the left; timer, carry and beans right-aligned from the edge, measured so they
-    // never run into each other.
-    constexpr float kHeadScale = 0.42f;
-    constexpr float kHeadGap = 8.0f;
-    float w = 0.0f;
-    C2D_DrawText(&titleText_, C2D_WithColor, 4, 4, 0.5f, 0.45f, 0.45f, kAccent);
-    C2D_TextGetDimensions(&timerText_, kHeadScale, kHeadScale, &w, nullptr);
-    float right = 316.0f - w;
-    C2D_DrawText(&timerText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kDim);
-    C2D_TextGetDimensions(&carryText_, kHeadScale, kHeadScale, &w, nullptr);
-    right -= kHeadGap + w;
-    C2D_DrawText(&carryText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kWhite);
-    C2D_TextGetDimensions(&beansText_, kHeadScale, kHeadScale, &w, nullptr);
-    right -= kHeadGap + w;
-    C2D_DrawText(&beansText_, C2D_WithColor, right, 5, 0.5f, kHeadScale, kHeadScale, kGood);
+    // The same cream gag panel on the sky as the Gag Shop (ui/shop_panel.cpp).
+    theme::sky();
+    theme::paper(1, kGridY - 3, 318, gags::kTracks * kCellH + 4, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
+    theme::paper(1, kInfoY - 3, 318, 18, 5.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
+    // PurchaseBase's title plank; the beans won and the carry count on a paper tag beside it.
+    // The countdown is Purchase's ToontownTimer in the top screen's corner (ui/hud).
+    drawGagShopSign(titleText_, 4, 0, kSignW, 24, 0.2f);
+    theme::paper(kSignW + 10, 2, 318 - kSignW - 11, 20, 6.0f, theme::kPaper, theme::kPaperEdge, 0.2f);
+    theme::textCentered(carryText_, (kSignW + 10 + 318) * 0.5f, 5, 0.42f, theme::kInk, 318 - kSignW - 20, 0.3f);
 
     for (int t = 0; t < gags::kTracks; t++) {
         const float y = kGridY + t * kCellH;
-        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX, y + 4, 0.5f, 0.42f, 0.42f,
-                     profile_.trackAccess[t] ? kWhite : kDim);
+        theme::roundRect(kNameX, y + 1, kGridX - kNameX - 3, kCellH - 3, 4,
+                         profile_.trackAccess[t] ? theme::kTrackColors[t]
+                                                 : theme::mix(theme::kTrackColors[t], theme::kPaper, 0.55f), 0.2f);
+        C2D_DrawText(&trackText_[t], C2D_WithColor, kNameX + 4, y + 4, 0.5f, 0.4f, 0.4f,
+                     profile_.trackAccess[t] ? theme::kInk : theme::kInkSoft);
         for (int l = 0; l < kCols; l++) {
             const float x = kGridX + l * kCellW;
             const bool open = profile_.trackAccess[t] && shop::expLevel(t, profile_.experience[t]) >= l;
+            const bool canBuy = open && shop::canBuy(profile_, cart_.inv, cart_.money, t, l) == shop::Buy::Ok;
             const bool sel = t == selTrack_ && l == selLevel_;
             const bool hasBought = cart_.bought(t, l) > 0;
-            u32 bg = open ? (hasBought ? kBought : kPanel) : kLocked;
-            if (sel) bg = C2D_Color32(0x40, 0x58, 0x8C, 0xFF);
-            C2D_DrawRectSolid(x, y, 0.2f, kCellW - 2, kCellH - 2, bg);
-            if (sel) {
-                C2D_DrawRectSolid(x - 1, y - 1, 0.25f, kCellW, 1, kAccent);
-                C2D_DrawRectSolid(x - 1, y + kCellH - 2, 0.25f, kCellW, 1, kAccent);
-                C2D_DrawRectSolid(x - 1, y, 0.25f, 1, kCellH - 2, kAccent);
-                C2D_DrawRectSolid(x + kCellW - 2, y, 0.25f, 1, kCellH - 2, kAccent);
-            }
-            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + 4, y + 4, 0.5f, 0.40f, 0.40f,
-                         open ? (hasBought ? kAccent : kWhite) : kDim);
+            // The Gag Shop's cells (ui/shop_panel.cpp): the gag's icon, then have/max.
+            const u32 bg = !open ? theme::mix(theme::kTrackColors[t], theme::kPaper, 0.82f) : hasBought ? theme::kYellow
+                         : canBuy ? theme::mix(theme::kTrackColors[t], theme::kWhite, 0.6f) : theme::kPaperShade;
+            theme::roundRect(x, y, kCellW - 2, kCellH - 2, 4, sel ? theme::kRed : theme::kPaperEdge, 0.2f);
+            const float in = sel ? 2.0f : 1.0f;
+            theme::roundRect(x + in, y + in, kCellW - 2 - 2 * in, kCellH - 2 - 2 * in, 3, bg, 0.25f);
+            if (open) world::GagAtlas::instance().drawIcon(t, l, x + 2, y + 2, 16.0f, 0.3f, canBuy ? 1.0f : 0.45f);
+            C2D_DrawText(&cellText_[t][l], C2D_WithColor, x + (open ? 19 : 6), y + 4, 0.5f, 0.40f, 0.40f,
+                         !open ? theme::kInkSoft : canBuy || hasBought ? theme::kInk : theme::kInkSoft);
         }
     }
 
-    C2D_DrawText(&infoText_, C2D_WithColor, 4, kInfoY, 0.5f, 0.45f, 0.45f, note_[0] ? kBad : kWhite);
+    C2D_DrawText(&infoText_, C2D_WithColor, 6, kInfoY - 2, 0.5f, 0.45f, 0.45f, note_[0] ? theme::kRed : theme::kInk);
 
-    // Buttons
-    C2D_DrawRectSolid(kMinusX, kBtnY, 0.3f, kBtnSmallW, kBtnH, kPanel);
-    C2D_DrawRectSolid(kPlusX, kBtnY, 0.3f, kBtnSmallW, kBtnH, kPanel);
-    C2D_DrawRectSolid(kDoneX, kBtnY, 0.3f, kDoneW, kBtnH, kGood);
-    C2D_DrawRectSolid(kCancelX, kBtnY, 0.3f, kCancelW, kBtnH, kPanel);
-
-    C2D_DrawText(&btnText_[0], C2D_WithColor, kMinusX + 16, kBtnY + 8, 0.5f, 0.6f, 0.6f, kWhite);
-    C2D_DrawText(&btnText_[1], C2D_WithColor, kPlusX + 16, kBtnY + 8, 0.5f, 0.6f, 0.6f, kWhite);
-    C2D_DrawText(&btnText_[2], C2D_WithColor, kDoneX + 14, kBtnY + 8, 0.5f, 0.55f, 0.55f, C2D_Color32(0x00, 0x30, 0x00, 0xFF));
-    C2D_DrawText(&btnText_[3], C2D_WithColor, kCancelX + 8, kBtnY + 8, 0.5f, 0.5f, 0.5f, kWhite);
+    drawBeanJar(beansText_, kJarX, kBtnY - 4, kJarH, 0.3f); // PurchaseBase.pointDisplay
+    // Purchase's PurchScrn_BTN buttons; Done is its backToPlayground (sendPurchaseExit).
+    const bool canSell = cart_.bought(selTrack_, selLevel_) > 0;
+    const bool canAdd = shop::canBuy(profile_, cart_.inv, cart_.money, selTrack_, selLevel_) == shop::Buy::Ok;
+    theme::purchaseButton(kMinusX, kBtnY, kBtnSmallW, kBtnH, canSell, false, 0.3f);
+    theme::purchaseButton(kPlusX, kBtnY, kBtnSmallW, kBtnH, canAdd, false, 0.3f);
+    theme::purchaseButton(kDoneX, kBtnY, kDoneW, kBtnH, true, false, 0.3f);
+    theme::purchaseButton(kCancelX, kBtnY, kCancelW, kBtnH, true, false, 0.3f, true);
+    theme::textCentered(btnText_[0], kMinusX + kBtnSmallW * 0.5f, kBtnY + 2, 0.8f,
+                        canSell ? theme::kPurchaseInk : theme::kPurchaseInkOff, 0, 0.35f);
+    theme::textCentered(btnText_[1], kPlusX + kBtnSmallW * 0.5f, kBtnY + 2, 0.8f,
+                        canAdd ? theme::kPurchaseInk : theme::kPurchaseInkOff, 0, 0.35f);
+    theme::textCentered(btnText_[2], kDoneX + kDoneW * 0.5f, kBtnY + 4, 0.42f, theme::kPurchaseInk, kDoneW - 6, 0.35f);
+    theme::textCentered(btnText_[3], kCancelX + kCancelW * 0.5f, kBtnY + 9, 0.5f, theme::kWhite, kCancelW - 6, 0.35f);
     buttons_.drawHighlight(); // padnav
 }
 

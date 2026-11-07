@@ -16,6 +16,7 @@ public:
     void setPreview(world::ToonCache* cache, world::ToonLook* look);
     void dismiss(); // zone/disconnect/exclusive-context cleanup
     bool active() const { return active_; }
+    uint32_t tailorDoId() const { return tailor_; }
     // Puts the original clothes back and closes (sent on the next update). Also used by the
     // autotest: the stock AI crashes if a client vanishes with a tailor session open.
     void cancel() {
@@ -58,7 +59,8 @@ private:
     bool dirty_ = true;
 
     C2D_TextBuf textBuf_ = nullptr;
-    C2D_Text titleText_, topText_, bottomText_, hintText_, timerText_, doneText_, cancelText_;
+    int32_t shownSecond_ = -1; // the last-30-seconds countdown shown
+    C2D_Text titleText_, topText_, bottomText_, topCount_, bottomCount_, hintText_, timerText_, doneText_, cancelText_;
 };
 
 } // namespace tt::ui

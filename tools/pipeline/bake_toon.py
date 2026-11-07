@@ -24,6 +24,10 @@ Files written (codes as in toontown/toon/ToonDNA.py):
         phase_3/models/char/<species>-lashes), static, drawn with the head's transform.
         Upstream only attaches them to the LOD 1000 head; we use them at every LOD.
     clothes.ttx                         clothing texture pack (format below)
+    eyes.ttx                            ToonHead's eye textures (open, closed, sad, angry,
+        surprised) plus a clear one, TTX1 table 0 (write_eyes_ttx). Heads mark their eyes,
+        pupils and lashes with eyelid texture slots (TEX_SLOT_EYES ...), lashes_*.ttm holds
+        both the open and the closed lashes.
     toon_manifest.json                  every file with sizes, vertex counts, etc.
 
 Every part is baked once, independent of the other parts: a part's vertex frames are
@@ -153,6 +157,14 @@ LAYER_RULES = [('*pupil*', 2), ('eyes*', 1)]
 # Clothing texture slots (ttm batch entry 'texSlot'): which DNA texture replaces the
 # batch's own texture (Toon.generateToonClothes: torso-top, sleeves, torso-bot).
 TEX_SLOT_NONE, TEX_SLOT_SHIRT, TEX_SLOT_SLEEVE, TEX_SLOT_BOTTOM = range(4)
+# Eyelid slots (ToonHead eyelids FSM; slot 4 is a skelecog's tie, source/world/suits.cpp).
+# The runtime binds eyes.ttx's open / closed / sad / angry / surprised texture to the eyes
+# batch, and the pack's clear texture to whatever the eyelid state hides: the pupils and open
+# lashes while closed, the closed lashes while open (enterEyelidsOpen / Closed / Surprised).
+TEX_SLOT_EYES, TEX_SLOT_PUPILS, TEX_SLOT_LASHES_OPEN, TEX_SLOT_LASHES_CLOSED = range(5, 9)
+# eyes.ttx table 0, in this order (ToonHead.EyesOpen ... EyesSurprised), then 'clear'.
+EYE_TEXTURES = ('eyes', 'eyesClosed', 'eyesSad', 'eyesSadClosed', 'eyesAngry', 'eyesAngryClosed',
+                'eyesSurprised')
 TINT_TEX_SLOT = {TINT_SHIRT: TEX_SLOT_SHIRT, TINT_SLEEVE: TEX_SLOT_SLEEVE, TINT_BOTTOM: TEX_SLOT_BOTTOM}
 SLOT_NODES = {TEX_SLOT_SHIRT: 'torso-top', TEX_SLOT_SLEEVE: 'sleeves', TEX_SLOT_BOTTOM: 'torso-bot'}
 
@@ -243,8 +255,25 @@ def read_batch_slots(path):
     return [buf[batch_off + 24 * i + 6] for i in range(nbatch)]
 
 
-def write_ttm(path, ex, tex_slots=False):
+def head_slot(ex, b):
+    name = ex.textures[b.texture].name if b.texture is not None else ''
+    # Want-new-anims dog heads keep their pupils outside def_*_pupil (no layer 2).
+    if b.layer == 2 or name.startswith('pupil'):
+        return TEX_SLOT_PUPILS
+    if b.layer == 1 and name.startswith('eyes'):
+        return TEX_SLOT_EYES
+    return TEX_SLOT_NONE
+
+
+def lashes_slot(ex, b):
+    return TEX_SLOT_LASHES_CLOSED if b.layer == 1 else TEX_SLOT_LASHES_OPEN
+
+
+def write_ttm(path, ex, tex_slots=False, slot_fn=None):
     batches = ex.batches()
+    if slot_fn:
+        for b in batches:
+            b.tex_slot = slot_fn(ex, b)
     if tex_slots:
         for b in batches:
             b.tex_slot = TINT_TEX_SLOT.get(b.tint, TEX_SLOT_NONE)
@@ -264,7 +293,7 @@ def write_ttm(path, ex, tex_slots=False):
 
 
 def bake_animated(kind, code, lod, model_path, anim_paths, child_joint, out_dir, max_tex,
-                  tint_rules, prepare=None, tex_slots=False):
+                  tint_rules, prepare=None, tex_slots=False, slot_fn=None):
     """Bakes one animated part (+ clips). child_joint: joint the next part hangs off."""
     report = {}
     actor = Actor({kind: model_path}, {kind: anim_paths or {}})
@@ -288,7 +317,7 @@ def bake_animated(kind, code, lod, model_path, anim_paths, child_joint, out_dir,
     ex = extract_part(part, skip, tint_rules, max_tex)
     name = f'{kind}_{code}_{lod}'
     path = os.path.join(out_dir, name + '.ttm')
-    stats, nverts = write_ttm(path, ex, tex_slots)
+    stats, nverts = write_ttm(path, ex, tex_slots, slot_fn)
     report[os.path.basename(path)] = stats
 
     clips = {}
@@ -336,7 +365,8 @@ def bake_head(code, lod, anims, out_dir, max_tex):
     anim_paths = ({a: phase_dir(ANIMS[a][1]) + prefix + ANIMS[a][0] for a in anims}
                   if code[0] == 'd' else None)
     report, info = bake_animated('head', code, lod, CHAR + prefix + lod, anim_paths, None, out_dir,
-                                 max_tex, head_tint_rules(code), lambda part: fix_head(part, code))
+                                 max_tex, head_tint_rules(code), lambda part: fix_head(part, code),
+                                 slot_fn=head_slot)
     info['species'] = SPECIES[code[0]]
     info['animated'] = bool(anim_paths)
     info['lashes'] = f'lashes_{code[0]}{code[1]}.ttm'
@@ -347,10 +377,16 @@ def bake_lashes(species_length, out_dir, max_tex):
     sp, length = species_length
     model = loader.loadModel(f'{CHAR}{SPECIES[sp]}-lashes')  # noqa: F821
     holder = NodePath('lashes')
-    model.find('**/open-' + ('long' if length == 'l' else 'short')).copyTo(holder)
-    ex = extract_part(holder, [], TINT_RULES, max_tex)
+    suffix = 'long' if length == 'l' else 'short'
+    # setupEyelashes: the open lashes show while the eyelids are open, the closed ones while
+    # closed. Layer 1 keeps the closed lashes a batch of their own (lashes_slot).
+    model.find('**/open-' + suffix).copyTo(holder)
+    model.find('**/closed-' + suffix).copyTo(holder)
+    ex = extract.Extractor(max_tex=max_tex, tint_rules=TINT_RULES, layer_rules=[('closed-*', 1)])
+    ex.add(holder, animated=True)
     path = os.path.join(out_dir, f'lashes_{sp}{length}.ttm')
-    stats, nverts = write_ttm(path, ex)
+    stats, nverts = write_ttm(path, ex, slot_fn=lashes_slot)
+    assert sorted(stats['tex_slots']) == [str(TEX_SLOT_LASHES_OPEN), str(TEX_SLOT_LASHES_CLOSED)], stats
     model.removeNode()
     return {os.path.basename(path): stats}, {'ttm': os.path.basename(path), 'vertices': nverts}
 
@@ -394,6 +430,14 @@ def write_ttx(path, max_tex, subset=None):
                                             extract._WRAP.get(tex.getWrapV(), ttm.GPU_REPEAT)))
             m.append(index_of[p])
         maps.append(m)
+    stats = _write_ttx_file(path, textures, maps)
+    stats.update({'entries': dict(zip([n for n, _ in clothing_tables()], [len(m) for m in maps])),
+                  'missing_fallback_to_0': missing})
+    return stats
+
+
+def _write_ttx_file(path, textures, maps):
+    maps = list(maps) + [[]] * (4 - len(maps))
     counts = [len(m) for m in maps]
     map_off = 32
     tex_off = ttm._align(map_off + 2 * sum(counts), 4)
@@ -418,9 +462,23 @@ def write_ttx(path, max_tex, subset=None):
     formats = {}
     for t in textures:
         formats[ttm.FORMAT_NAMES[t.fmt]] = formats.get(ttm.FORMAT_NAMES[t.fmt], 0) + 1
-    return {'file_bytes': len(out), 'textures': len(textures), 'entries': dict(zip(
-        [n for n, _ in clothing_tables()], counts)), 'formats': formats,
-        'sizes': sorted({f'{t.w}x{t.h}' for t in textures}), 'missing_fallback_to_0': missing}
+    return {'file_bytes': len(out), 'textures': len(textures), 'formats': formats,
+            'sizes': sorted({f'{t.w}x{t.h}' for t in textures})}
+
+
+def write_eyes_ttx(path):
+    """eyes.ttx: ToonHead's eye textures (EYE_TEXTURES order, the source alpha in its _a.rgb),
+    then an 8x8 fully clear texture that hides a batch under the alpha test. One table."""
+    textures = []
+    for name in EYE_TEXTURES:
+        tex = loader.loadTexture(f'phase_3/maps/{name}.jpg', f'phase_3/maps/{name}_a.rgb')  # noqa: F821
+        px, ncomp, pfmt = extract.texture_pixels(tex, 256)
+        textures.append(ttm.Texture(name, px, extract.choose_format(px, ncomp, pfmt),
+                                    extract._WRAP.get(tex.getWrapU(), ttm.GPU_REPEAT),
+                                    extract._WRAP.get(tex.getWrapV(), ttm.GPU_REPEAT)))
+    textures.append(ttm.Texture('clear', np.zeros((8, 8, 4), dtype=np.uint8), ttm.GPU_ETC1A4,
+                                ttm.GPU_CLAMP_TO_EDGE, ttm.GPU_CLAMP_TO_EDGE, mipmaps=False))
+    return _write_ttx_file(path, textures, [list(range(len(textures)))])
 
 
 # --- driver ---
@@ -482,6 +540,8 @@ def worker(args):
             _, out[lod] = bake(code, lod, anims, args.out_dir, args.max_tex)
     elif kind == 'lashes':
         _, out = bake_lashes(code, args.out_dir, args.max_tex)
+    elif kind == 'eyes':
+        out = write_eyes_ttx(os.path.join(args.out_dir, 'eyes.ttx'))
     elif kind == 'clothes':
         out = write_ttx(os.path.join(args.out_dir, 'clothes.ttx'), args.clothes_max_tex,
                         mat_subset() if code == 'mat' else None)
@@ -525,8 +585,8 @@ def main():
     ap.add_argument('--legacy-only', action='store_true', help='the original 17 clips only')
     ap.add_argument('--battle-only', action='store_true',
                     help='battle clips plus neutral as the unchanged base-mesh pose')
-    ap.add_argument('--max-tex', type=int, default=128)
-    ap.add_argument('--clothes-max-tex', type=int, default=64,
+    ap.add_argument('--max-tex', type=int, default=256)
+    ap.add_argument('--clothes-max-tex', type=int, default=128,
                     help='clothing textures are up to 128x128 upstream; 64 keeps clothes.ttx ~1/4 the size')
     ap.add_argument('--clothes', choices=('all', 'mat', 'none'), default='all',
                     help='clothes.ttx content: every DNA texture, the Make-A-Toon subset, or none')
@@ -549,6 +609,7 @@ def main():
     lashes = sorted({h[:2] for h in heads})
     jobs = ([('legs', c, args.out_dir) for c in legs] + [('torso', c, args.out_dir) for c in torsos] +
             [('head', c, args.out_dir) for c in heads] + [('lashes', c, args.out_dir) for c in lashes])
+    jobs.append(('eyes', 'all', args.out_dir))
     if args.clothes != 'none':
         jobs.append(('clothes', args.clothes, args.out_dir))
     if args.boot_dir:
@@ -562,7 +623,9 @@ def main():
     parts = {'legs': {}, 'torso': {}, 'head': {}, 'lashes': {}}
     extra = {}
     for (kind, code, out_dir), res in results.items():
-        if kind == 'clothes':
+        if kind == 'eyes':
+            extra['eyes'] = {'file': 'eyes.ttx', **res}
+        elif kind == 'clothes':
             if out_dir == args.out_dir:
                 extra['clothes'] = {'file': 'clothes.ttx', **res}
         else:
@@ -588,7 +651,9 @@ def bake_boot(args, anims, clothes):
         for name in [info['ttm']] + list(info['clips'].values()):
             shutil.copyfile(os.path.join(args.out_dir, name), os.path.join(args.boot_dir, name))
     parts['lashes'] = {}
-    manifest = build_manifest(args.boot_dir, parts, {'clothes': {'file': 'clothes.ttx', **clothes}}, [lod], anims)
+    shutil.copyfile(os.path.join(args.out_dir, 'eyes.ttx'), os.path.join(args.boot_dir, 'eyes.ttx'))
+    manifest = build_manifest(args.boot_dir, parts, {'clothes': {'file': 'clothes.ttx', **clothes},
+                                                     'eyes': {'file': 'eyes.ttx', **full['eyes']}}, [lod], anims)
     with open(os.path.join(args.boot_dir, 'toon_manifest.json'), 'w') as f:
         json.dump(manifest, f, indent=1, sort_keys=True)
     print('boot set:', json.dumps(manifest['totals']))

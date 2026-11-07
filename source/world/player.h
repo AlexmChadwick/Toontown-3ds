@@ -40,7 +40,10 @@ public:
     void overrideCamera(const C3D_FVec& eye, const C3D_FVec& target) {
         camEye_ = eye;
         camTarget_ = target;
+        camDist_ = cameraDistance();
     }
+    // Same as overrideCamera, then snap the lens in along head -> eye if a camera
+    // solid is in the way. The look-at stays `target`.
     void overrideCameraCollide(const C3D_FVec& eye, const C3D_FVec& target);
     // Moving platform (Donald's Dock boat). `deck` is the platform's collision in its own frame;
     // (x, y, z, headingDeg) is the platform's current pose in the world (boat-local -> world is
@@ -67,20 +70,25 @@ public:
     // Pose to send over the network: platform-local while aboard (setParent token), else world.
     void netPose(float* x, float* y, float* z, float* headingDeg) const;
     bool airborne() const { return z_ > ground_ + 0.01f || vz_ > 0.0f; }
-    // Clip + play rate for the current motion (Toon.setSpeed rules: run >= 8, walk > 0.5,
-    // reverse = walk at -1, turning in place = walk; airborne = jump-idle).
+    // Clip + play rate for the current motion (Toon.setSpeed: run >= 8, walk > 0.5,
+    // reverse = walk at -1, turning in place = walk; airborne = jump-idle). B uses the
+    // OTP slow speeds, so a full-stick walk stays under RunCutOff and plays walk at rate 1.
     ToonAnim animState(float* rate) const;
 
     // World matrix for the toon model (Panda convention: toon faces +Y at H=0).
     void worldMatrix(C3D_Mtx* out) const;
 
+    // Follow camera height from the local Toon's DNA height (clamped to at least 3, as stock).
+    void setCameraHeight(float toonHeight) { camHeight_ = toonHeight > 3.0f ? toonHeight : 3.0f; }
     C3D_FVec cameraEye() const { return camEye_; }
     C3D_FVec cameraTarget() const { return camTarget_; }
     // Head-to-eye distance after wall avoidance; very small means the camera is inside the toon.
     float cameraDistance() const;
 
 private:
-    void avoidCamera(const C3D_FVec& head);
+    // Pull the boom in so a sphere around the lens misses camera solids, then ease it
+    // back out. dt <= 0 snaps (teleport, talk camera) so the lens never rests in a wall.
+    void avoidCamera(const C3D_FVec& head, float dt);
     void locomote(const Input& in, float dt, const CollisionWorld* world);
     void camera(const Input& in, float dt);
     bool tryBoard();
@@ -95,7 +103,9 @@ private:
     float ground_ = 0;   // ground height under the toon (flat until collision lands)
     float vz_ = 0;
     float camYawOffset_ = 0; // degrees relative to toon heading
-    float camPitch_ = 14;    // degrees above horizontal
+    float camPitch_ = 0;     // degrees above horizontal (stock camera is level)
+    float camHeight_ = 3.5f; // LocalAvatar.getClampedAvatarHeight: max(toon height, 3)
+    float camDist_ = 10.5f;  // smoothed boom length (3 camHeight until the first avoid)
     C3D_FVec camEye_{};
     C3D_FVec camTarget_{};
     const CollisionWorld* collision_ = nullptr;

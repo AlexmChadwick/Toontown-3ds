@@ -46,6 +46,12 @@ public:
     // circle pad, A and B from `in` (so the toon does not walk or jump). canEnter is false while
     // a zone transition runs.
     void handleInput(Input& in, float dt, u32 nowMs, bool canEnter);
+    // This frame's touch gesture from the bottom-screen panel (call before handleInput).
+    void setTouch(const ui::FishingTouch& t) {
+        const bool started = touch_.started, released = touch_.released, exit = touch_.exit;
+        touch_ = t;
+        touch_.started |= started, touch_.released |= released, touch_.exit |= exit;
+    }
     // After Player::update: overrides the follow camera while fishing.
     void applyCamera();
     void draw(render::Renderer& renderer);
@@ -108,6 +114,8 @@ private:
     u32 sessionSpot_ = 0; // doId of the spot we are fishing at (server mode)
 
     float aim_ = 0.0f;     // degrees, + = left, relative to the spot heading
+    ui::FishingTouch touch_{};
+    bool touchCharge_ = false; // this charge follows a drag from the touch Cast button
     u32 dpadAimHeld_ = 0;  // padnav: D-Left / D-Right held last frame (logs the aim on release)
     float power_ = 0.0f;   // 0..1
     float castPower_ = 0.0f, castAim_ = 0.0f;

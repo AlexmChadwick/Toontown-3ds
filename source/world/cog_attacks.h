@@ -11,6 +11,7 @@
 #include "render/anim.h"
 #include "render/model.h"
 #include "render/renderer.h"
+#include "world/asset_batch.h"
 #endif
 
 namespace tt::world {
@@ -42,17 +43,20 @@ public:
 
     void update(float dt, uint32_t nowMs, const Battle* battle);
     void draw(render::Renderer& renderer, const Battle* battle);
+    // After the GPU fence: publishes props streamed by the shared background loader.
+    void pumpAssets() { assetBatch_.pump(); }
 
 private:
     struct PropSlot {
         char name[32] = {};
         render::Model model;
         render::Anim anim;
-        bool hasAnim = false;
-        bool loaded = false;
+        bool hasAnim = false; // an animated (actor) prop: its clip was requested too
+        bool loaded = false;  // slot in use: requested (model.loaded() once published)
     };
     static constexpr int kMaxPropSlots = 14;
     PropSlot propSlots_[kMaxPropSlots] = {};
+    BasicAssetBatch<2 * kMaxPropSlots> assetBatch_;
 
     PropSlot* findOrLoadProp(const char* propName, const char* propAnim);
 
@@ -104,6 +108,7 @@ public:
     void onAttack(uint32_t, uint32_t, int, uint32_t, uint32_t, uint32_t, const Battle*) {}
     void onHit(uint32_t, uint32_t, int, int, bool, const Battle*) {}
     void update(float, uint32_t, const Battle*) {}
+    void pumpAssets() {}
 };
 
 #endif // __3DS__

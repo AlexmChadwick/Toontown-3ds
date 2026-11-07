@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/fishing.h"
 #include "world/toon_avatar.h"
 
@@ -101,7 +102,7 @@ void Fishing::loadAssets(int rod) {
     }
     if (loadedRod_ != rod) {
         if (rod_.loaded()) {
-            C3D_FrameSync();
+            ::tt::gpu::frameSync();
             rod_.unload();
         }
         snprintf(path, sizeof(path), "%srod_%d.ttm", kDataDir, rod);
@@ -118,7 +119,7 @@ void Fishing::loadAssets(int rod) {
 }
 
 void Fishing::unloadAssets() {
-    if (rod_.loaded() || bob_.loaded() || line_.loaded()) C3D_FrameSync();
+    if (rod_.loaded() || bob_.loaded() || line_.loaded()) ::tt::gpu::frameSync();
     rod_.unload();
     bob_.unload();
     line_.unload();
@@ -539,7 +540,17 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
     }
     dpadAimHeld_ = dpadAim;
     // ---- end padnav ----
-    const bool aDown = (in.down & KEY_A) != 0, aHeld = (in.held & KEY_A) != 0, bDown = (in.down & KEY_B) != 0;
+    bool aDown = (in.down & KEY_A) != 0, aHeld = (in.held & KEY_A) != 0, bDown = (in.down & KEY_B) != 0;
+    // The touch screen's cast button (DistributedFishingSpot: press it and drag down; the drag
+    // sets power and angle, letting go casts) and its Exit button.
+    const ui::FishingTouch touch = touch_;
+    touch_.started = touch_.released = touch_.exit = false;
+    if (touch.exit) bDown = true;
+    if (touch.started && (state_ == State::Ready || state_ == State::Result || state_ == State::Waiting)) {
+        startCharge();
+        touchCharge_ = true;
+        setStatus("Drag down, then let go to cast!");
+    }
     in.pad = circlePosition{};
     in.cstick = circlePosition{};
     in.held = 0;
@@ -549,7 +560,7 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
 
     const bool canAim = state_ == State::Ready || state_ == State::Charging || state_ == State::Waiting ||
                         state_ == State::Result;
-    if (canAim) {
+    if (canAim && !touchCharge_) {
         aim_ -= aimAxis * kAimRate * dt; // pad right = clockwise = negative Panda heading
         const float lim = fish::kFishingAngleMax;
         aim_ = aim_ < -lim ? -lim : (aim_ > lim ? lim : aim_);
@@ -571,7 +582,21 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
         else if (bDown) beginLeave();
         break;
     case State::Charging:
-        if (bDown) {
+        if (touchCharge_) {
+            // FishingSpot.localAdjustingCastTask: the drag is the power and the angle.
+            power_ = touch.power;
+            const float lim = fish::kFishingAngleMax;
+            aim_ = -touch.angle < -lim ? -lim : (-touch.angle > lim ? lim : -touch.angle);
+            if (!touch.dragging) {
+                touchCharge_ = false;
+                if (power_ > 0.0f) {
+                    releaseCast(nowMs);
+                } else {
+                    setState(State::Ready);
+                    setStatus("Drag down from Cast, then let go!");
+                }
+            }
+        } else if (bDown) {
             power_ = 0.0f;
             setState(State::Ready);
             setStatus("Hold A, then let go to cast!");

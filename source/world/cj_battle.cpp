@@ -1,3 +1,5 @@
+#include "core/gpu_sync.h"
+#include "ui/boss_titles.h"
 #include "world/cj_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
@@ -115,7 +117,7 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     for (JurorFlight& flight : flights_) flight = {};
     for (Evidence& evidence : evidence_) evidence = {};
     for (bool& ack : acknowledged_) ack = false;
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.battle.reset();
     frame.ui.setBattle(nullptr, {});
     frame.remotes.clear();
@@ -123,11 +125,11 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     frame.place.unload();
     frame.player.setDynamic(nullptr);
     frame.player.reset(-2.84f, -99.47f, 0, 0); // LawbotHQBossBattle teleportInPosHpr.
-    frame.ui.book().close();
+    frame.ui.book().close("cj_battle");
 }
 
 void CjBattle::leave(BossFrame& frame, bool sad) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossExit();
     // Network deletion can clear a child before this frame observes the exit.
     // Keep the published actor IDs independently so no ghost survives departure.
@@ -721,11 +723,12 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : state.phase;
+    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "Scales %.0f / 2700  Laff %d%s", damage, frame.client.ownStats().hp,
                   state.bonusRevision && nowMs - state.bonusMs < 20000 ? "  BONUS" : "");
     std::snprintf(details_, sizeof(details_), "Evidence %u  Cannon %.0f / %.0f  Aim %.0f", unsigned(frame.client.bossPies()), rotation_, elevation_, pitch_);

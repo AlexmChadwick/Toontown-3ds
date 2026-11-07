@@ -3,6 +3,8 @@
 
 #ifdef __3DS__
 #include <citro2d.h>
+
+#include "ui/theme.h"
 #endif
 
 #include <cmath>
@@ -69,6 +71,7 @@ int FocusGroup::addItem(int id, float x, float y, float w, float h, bool enabled
     it.w = w;
     it.h = h;
     it.enabled = enabled;
+    it.radius = 0.0f;
     if (keepId_ >= 0 && id == keepId_ && enabled && focusIndex_ < 0) {
         focusIndex_ = index; // the same control as last frame: no log line
     }
@@ -234,6 +237,10 @@ u32 FocusGroup::handleInput(u32 down, const touchPosition& touch, int* outActiva
     return consumed;
 }
 
+void FocusGroup::setRadius(int index, float radius) {
+    if (index >= 0 && index < itemCount_) items_[index].radius = radius;
+}
+
 void FocusGroup::logActivate(int id) const {
     TT_LOG("padnav: %s activate %d", panelName_, id);
 }
@@ -254,6 +261,12 @@ void FocusGroup::drawHighlight(float z) const {
     constexpr u32 kGoldWash = C2D_Color32(0xF5, 0xB8, 0x1A, 0x38); // about 22% alpha
     constexpr float kLayerStep = 0.01f;
 
+    if (it.radius > 0.0f) { // the same frames, following the control's rounded outline
+        theme::roundRect(x, y, w, h, it.radius, kGoldWash, z - kLayerStep);
+        theme::roundRing(x - 2.0f, y - 2.0f, w + 4.0f, h + 4.0f, it.radius + 2.0f, 1.0f, kDarkFrame, z);
+        theme::roundRing(x - 1.0f, y - 1.0f, w + 2.0f, h + 2.0f, it.radius + 1.0f, 2.0f, kGoldFrame, z + kLayerStep);
+        return;
+    }
     C2D_DrawRectSolid(x, y, z - kLayerStep, w, h, kGoldWash);
 
     C2D_DrawRectSolid(x - 2.0f, y - 2.0f, z, w + 4.0f, 1.0f, kDarkFrame);

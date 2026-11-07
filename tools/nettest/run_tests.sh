@@ -63,5 +63,11 @@ start_server --drop-after 4
 stop_server
 grep -E "error in|retry in|ENTERED ZONE|LEFT ZONE|client test" "$OUT/client3.log"
 
+step "reconnect from a dynamic zone"
+start_server --drop-after 4
+"$OUT/nettest" client --port "$PORT" --token erin --seconds 12 --dynamic-hop --expect-reconnect > "$OUT/client4.log" 2>&1 || fail=1
+stop_server
+grep -E "changing zone|dynamic|RELOCATED|ENTERED ZONE|client test" "$OUT/client4.log"
+
 if [ $fail -eq 0 ]; then echo "ALL NET TESTS PASSED"; else echo "NET TESTS FAILED"; fi
 exit $fail

@@ -383,6 +383,7 @@ private:
     LevelSpec spec_;
     Room rooms_[kMaxRooms];
     int numRooms_ = 0;
+    uint32_t elevatorUnresolvedMs_ = 0; // diagnostic log rate
     bool active_ = false;
     bool spawned_ = false;
     uint16_t winHood_ = 0;          // the facility (or factory) id whose hood a win teleports to
