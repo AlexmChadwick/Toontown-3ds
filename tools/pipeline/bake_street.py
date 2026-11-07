@@ -213,15 +213,24 @@ def _far_detail(image, b, tri, sources=None):
 # Toon HQ's hat brim (red / yellow stripes) went flat orange as vertex colour.
 FAR_BODY_FLAT_AREA = 40.0
 
+# Repeat copies (u x v) a far body face may span: its tile holds that many copies of
+# the texture (build_far_bodies), so the face keeps its own triangles and draw.
+# Lawbot HQ's window facades (2 x 2) and marble ledges (14 x 1) were dark slabs.
+# Those tiles take FAR_UNROLL_DENSITY of the far body texel density: at full density
+# Lawbot's yard-wide view held 4.4 MB of far pages, over FAR_BODY_TEXTURE_CAP.
+FAR_BODY_REPEATS = 16
+FAR_UNROLL_DENSITY = 0.5
 
-def _far_body(sources, image, b, tri):
+
+def _far_body(sources, image, b, tri, repeats=FAR_BODY_REPEATS):
     """A far wall, roof or landmark face that keeps a small cropped texture.
 
     Vertex colour turned the TTC tunnel rock, Toon Hall and the shop fronts into
-    flat patches on Old 3DS past 160. Ground-like faces (|normal z| > 0.8) and
-    faces whose UVs cross a texture repeat stay coloured: those are big, already
-    flat at that range, and clipping their repeats pushed TTC past the far
-    triangle budget. Small up-facing faces (brims, awning tops) are not ground.
+    flat patches on Old 3DS past 160. Ground-like faces (|normal z| > 0.8) stay
+    coloured: they are big and already flat at that range. A face may cross up to
+    FAR_BODY_REPEATS texture repeats: its tile unrolls them (clipping the repeats
+    instead pushed TTC past the far triangle budget). Small up-facing faces (brims,
+    awning tops) are not ground.
     """
     import numpy as np
     import ttm
@@ -237,8 +246,75 @@ def _far_body(sources, image, b, tri):
     length = float(np.linalg.norm(n))
     if length < 1e-9 or (abs(n[2]) / length > 0.8 and length > 2 * FAR_BODY_FLAT_AREA):
         return False
-    xr, yr = street_atlas.tile_ranges(tri, sources[b.texture])
-    return len(xr) == 1 and len(yr) == 1
+    return _unroll_key(sources[b.texture], tri, repeats) is not None
+
+
+def _unroll_key(tex, tri, repeats=FAR_BODY_REPEATS):
+    """(first u copy, first v copy, u copies, v copies) of a far body face, or None
+    when it spans more than `repeats` copies or leaves a clamped texture."""
+    import street_atlas
+    xr, yr = street_atlas.tile_ranges(tri, tex)
+    for r, wrap in ((xr, tex.getWrapU()), (yr, tex.getWrapV())):
+        if wrap != tex.WM_repeat and len(r) != 1:
+            return None
+    if len(xr) * len(yr) > repeats:
+        return None
+    return xr.start, yr.start, len(xr), len(yr)
+
+
+class _Unrolled:
+    """A far body source holding u x v copies of a repeating texture (clamped)."""
+    from panda3d.core import SamplerState as _S
+    WM_repeat = _S.WM_repeat
+
+    def __init__(self, tex, nu, nv, image):
+        self.this, self.image, self.density = 0, image, FAR_UNROLL_DENSITY
+        self.name = f'{tex.getName()}_x{nu}x{nv}'
+
+    def getWrapU(self):
+        return self._S.WM_clamp
+
+    getWrapV = getWrapU
+
+    def getName(self):
+        return self.name
+
+
+def _unroll_far_bodies(sources, chunks):
+    """Sources and chunks where each far body face that crosses texture repeats points
+    at an unrolled copy of its texture (_Unrolled), its UVs moved into 0..1."""
+    import numpy as np
+    import ttm
+    import street_atlas
+    from PIL import Image
+    extra, index, cache = [], {}, street_atlas._SourceCache(sources)
+    out = []
+    for batches in chunks:
+        groups = {}
+        for b in batches:
+            tris = np.asarray(b.verts, dtype=np.float64)[np.asarray(b.indices, dtype=np.int64)].reshape(-1, 3, 9)
+            for tri in tris:
+                u0, v0, nu, nv = _unroll_key(sources[b.texture], tri)
+                tex = b.texture
+                if nu > 1 or nv > 1:
+                    key = (b.texture, nu, nv)
+                    if key not in index:
+                        src = cache.get(b.texture)
+                        h, w = src.shape[:2]
+                        cw, ch = max(8, min(w, 1024 // nu)), max(8, min(h, 1024 // nv))
+                        one = src if (cw, ch) == (w, h) else np.asarray(
+                            Image.fromarray(src, 'RGBA').resize((cw, ch), Image.BOX))
+                        index[key] = len(sources) + len(extra)
+                        extra.append(_Unrolled(sources[b.texture], nu, nv, np.tile(one, (nv, nu, 1))))
+                    tex = index[key]
+                    tri = tri.copy()
+                    tri[:, 3] = (tri[:, 3] - u0) / nu
+                    tri[:, 4] = (tri[:, 4] - v0) / nv
+                groups.setdefault((tex, bool(b.two_sided)), []).append(tri)
+        out.append([ttm.Batch(tex, ttm.BLEND_OPAQUE, two, 0, 0, np.concatenate(parts).reshape(-1, 9),
+                              np.arange(3 * len(parts), dtype=np.int64))
+                    for (tex, two), parts in sorted(groups.items())])
+    return list(sources) + extra, out
 
 
 # Far body pages: past lodNear (160 on Old 3DS) a texel per two screen pixels is
@@ -255,6 +331,7 @@ def build_far_bodies(sources, chunks):
     import street_atlas
     if not any(chunks):
         return [[] for _ in chunks], [[] for _ in chunks], [None for _ in chunks]
+    sources, chunks = _unroll_far_bodies(sources, chunks)
     textures, batches, stats = street_atlas.build_local(sources, chunks, white=True, **FAR_BODY_ATLAS)
     return textures, batches, [s['white'] for s in stats]
 
@@ -306,7 +383,8 @@ def far_texture_worst(chunks, pages):
     return max((sum(sizes[j] for j in c['vis']) for c in chunks), default=0)
 
 
-def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False, bodies_only=False):
+def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False, bodies_only=False,
+                 repeats=FAR_BODY_REPEATS):
     """Bake far triangles to vertex colour, but keep alpha-cut hill cards textured.
 
     Everything else samples the texel at the corner (32px) and drops the page.
@@ -356,7 +434,7 @@ def _colorize_far(sources, chunks, images=None, details=False, with_bodies=False
                 if details and not bodies_only and _far_detail(image, b, tri.reshape(-1, 9), sources):
                     detail.setdefault((b.texture, b.blend, bool(b.two_sided), int(b.layer)), []).append(tri.copy())
                     continue
-                if details and _far_body(sources, image, b, tri):
+                if details and _far_body(sources, image, b, tri, repeats):
                     body.setdefault((b.texture, bool(b.two_sided)), []).append(tri.copy())
                     continue
                 # Only what would otherwise go flat: the detail page already wraps
@@ -734,11 +812,12 @@ def choose_far(sources, raw, chunks, images=None):
     sign_tris = sum(street_lod.count(s) for s in sign_sets)
     seams = street_lod.shared_positions(bodies)
     cell_size = chunks[0].get('cell_size') if chunks else None
-    def attempt(step, details, ground=None, bodies_only=False, fold=True):
+    def attempt(step, details, ground=None, bodies_only=False, fold=True, repeats=FAR_BODY_REPEATS):
         """The far mesh at one voxel step, or None when a PVS misses the budget.
 
         `ground` is a coarser lattice for corners only on up-facing faces. bodies_only
-        keeps textured far bodies (on the coloured draw) without cutout/decal pages."""
+        keeps textured far bodies (on the coloured draw) without cutout/decal pages.
+        `repeats` is the most texture repeats a far body face may unroll (_far_body)."""
         merged_signs = [_merge_states(signs) for signs in sign_sets] if details else sign_sets
         if step:
             # Letters are not snapped either: lift them with the kept decals.
@@ -752,7 +831,8 @@ def choose_far(sources, raw, chunks, images=None):
                                    ground=ground, moves=moves)
                for bs in bodies]
         colored, kept, extra, faces = _colorize_far(sources, low, images, details=details,
-                                                    with_bodies=True, bodies_only=bodies_only)
+                                                    with_bodies=True, bodies_only=bodies_only,
+                                                    repeats=repeats)
         body_pages, body_batches, whites = (build_far_bodies(sources, faces) if details and images is None
                                             else ([[] for _ in low], [[] for _ in low], [None for _ in low]))
         colored, body_batches = merge_white(colored, body_batches, whites)
@@ -854,13 +934,15 @@ def choose_far(sources, raw, chunks, images=None):
                 return detailed
     # Decal pages cost a draw per chunk. Bodies ride on the coloured draw, so a mesh at
     # the draw cap (Lawbot HQ's skyline, Bossbot HQ) still gets textured far walls.
-    for step in tries:
-        bodied, (_, draws) = attempt(step, True, ground, bodies_only=True)
-        if bodied is not None and bodied[2]['body_triangles'] and (
-                bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
-            return bodied
-        if bodied is None and draws is None:
-            break  # far pages over FAR_BODY_TEXTURE_CAP: a coarser voxel does not shrink them
+    # Unrolled repeats add far texels; a view over the page cap retries without them.
+    for repeats in (FAR_BODY_REPEATS, 1):
+        for step in tries:
+            bodied, (_, draws) = attempt(step, True, ground, bodies_only=True, repeats=repeats)
+            if bodied is not None and bodied[2]['body_triangles'] and (
+                    bodied[2]['sign_triangles'] or not plain[2]['sign_triangles']):
+                return bodied
+            if bodied is None and draws is None:
+                break  # far pages over FAR_BODY_TEXTURE_CAP: a coarser voxel does not shrink them
     return plain
 
 

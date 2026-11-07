@@ -254,13 +254,44 @@ class FarColorTest(unittest.TestCase):
         floor[:, :3] = [[0, 0, 0], [20, 0, 0], [0, 20, 0]]
         brim = wall.copy()  # a small up-facing face (a hat brim) is not ground
         brim[:, :3] = [[0, 0, 0], [4, 0, 0], [0, 4, 0]]
-        repeats = wall.copy()
+        repeats = wall.copy()  # a few repeats unroll into the tile (Lawbot's facades)
         repeats[:, 3:5] *= 1.5
+        many = wall.copy()
+        many[:, 3] *= 17
         b = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, wall, np.arange(3))
         self.assertTrue(bake_street._far_body([Tex()], image, b, wall))
         self.assertFalse(bake_street._far_body([Tex()], image, b, floor))
         self.assertTrue(bake_street._far_body([Tex()], image, b, brim))
-        self.assertFalse(bake_street._far_body([Tex()], image, b, repeats))
+        self.assertTrue(bake_street._far_body([Tex()], image, b, repeats))
+        self.assertFalse(bake_street._far_body([Tex()], image, b, many))
+
+    def test_far_body_unrolls_repeats_into_one_source(self):
+        class Tex:
+            WM_repeat = 1
+            def getWrapU(self):
+                return 1
+            getWrapV = getWrapU
+            def getName(self):
+                return 'facade'
+        image = np.zeros((8, 8, 4), dtype=np.uint8)
+        image[:, :4] = 255
+        tri = np.zeros((3, 9))
+        tri[:, :3] = [[0, 0, 0], [4, 0, 4], [0, 0, 4]]
+        tri[:, 3:5] = [[3, 0], [5, 2], [3, 2]]  # copies 3..4 by 0..1
+        b = ttm.Batch(0, ttm.BLEND_OPAQUE, False, 0, 0, tri, np.arange(3))
+        import street_atlas
+        real = street_atlas._SourceCache.get
+        street_atlas._SourceCache.get = lambda self, idx: image
+        try:
+            sources, chunks = bake_street._unroll_far_bodies([Tex()], [[b]])
+        finally:
+            street_atlas._SourceCache.get = real
+        self.assertEqual(len(sources), 2)
+        self.assertEqual(sources[1].getName(), 'facade_x2x2')
+        self.assertEqual(sources[1].image.shape, (16, 16, 4))
+        out = chunks[0][0]
+        self.assertEqual(out.texture, 1)
+        self.assertTrue(np.allclose(out.verts[:, 3:5], [[0, 0], [1, 1], [0, 1]]))
 
 
 

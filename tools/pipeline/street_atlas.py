@@ -515,7 +515,8 @@ class _SourceCache:
 
     def get(self, idx):
         if idx not in self.px:
-            self.px[idx] = texture_pixels(self.sources[idx], 1024)[0]
+            src = self.sources[idx]
+            self.px[idx] = src.image if hasattr(src, 'image') else texture_pixels(src, 1024)[0]
         return self.px[idx]
 
 
@@ -750,6 +751,8 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             hi = np.minimum(hi + np.array([1.0 / sw, 1.0 / sh]), 1)
             ext = np.maximum(hi - lo, 1e-4)
             nu, nv = _texel_need([p for _, p in plist], need)
+            # A source may ask for fewer texels (bake_street._Unrolled: far repeats).
+            nu, nv = nu * getattr(sources[idx], 'density', 1.0), nv * getattr(sources[idx], 'density', 1.0)
             size = []
             for texels, e, n in ((nu, ext[0], sw), (nv, ext[1], sh)):
                 # Tiles need not be powers of two (only pages are): multiples of
