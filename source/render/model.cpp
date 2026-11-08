@@ -119,6 +119,9 @@ void Model::unload() {
     linearBytes_ = 0;
     absoluteIndices_ = false;
     signFonts_ = 0;
+    free(hideSaved_);
+    hideSaved_ = nullptr;
+    hideCount_ = hideCapacity_ = hideRevision_ = 0;
 }
 
 bool Model::load(const char* path) {
@@ -171,6 +174,54 @@ void Model::swap(Model& o) {
     std::swap(linearBytes_, o.linearBytes_);
     std::swap(absoluteIndices_, o.absoluteIndices_);
     std::swap(signFonts_, o.signFonts_);
+    std::swap(hideRevision_, o.hideRevision_);
+    std::swap(hideSaved_, o.hideSaved_);
+    std::swap(hideCount_, o.hideCount_);
+    std::swap(hideCapacity_, o.hideCapacity_);
+}
+
+void Model::setHidden(u32 revision, HideTest hide, void* user) {
+    if (revision == hideRevision_ || !indices_) return;
+    for (u32 k = 0; k < hideCount_; ++k) {
+        const u32 at = hideSaved_[2 * k];
+        indices_[at + 1] = static_cast<u16>(hideSaved_[2 * k + 1]);
+        indices_[at + 2] = static_cast<u16>(hideSaved_[2 * k + 1] >> 16);
+    }
+    const bool restored = hideCount_ != 0;
+    hideCount_ = 0;
+    hideRevision_ = revision;
+    if (hide) {
+        const s16* v = static_cast<const s16*>(vertices_);
+        for (u16 b = 0; b < numBatches_; ++b) {
+            const Batch& bt = batches_[b];
+            const u32 base = absoluteIndices_ ? 0 : bt.firstVertex;
+            for (u32 i = bt.firstIndex; i + 2 < bt.firstIndex + bt.numIndices; i += 3) {
+                float p[3][3];
+                bool ok = true;
+                for (int c = 0; c < 3; ++c) {
+                    const u32 vi = base + indices_[i + c];
+                    if (vi >= numVertices_) { ok = false; break; }
+                    for (int k = 0; k < 3; ++k) p[c][k] = v[vi * 8 + k] * posScale_[k] + posOffset_[k];
+                }
+                if (!ok || !hide(user, p[0], p[1], p[2])) continue;
+                if (hideCount_ == hideCapacity_) {
+                    const u32 cap = hideCapacity_ ? hideCapacity_ * 2 : 256;
+                    u32* grown = static_cast<u32*>(realloc(hideSaved_, cap * 2 * sizeof(u32)));
+                    if (!grown) break;
+                    hideSaved_ = grown;
+                    hideCapacity_ = cap;
+                }
+                hideSaved_[2 * hideCount_] = i;
+                hideSaved_[2 * hideCount_ + 1] = u32(indices_[i + 1]) | u32(indices_[i + 2]) << 16;
+                ++hideCount_;
+                indices_[i + 1] = indices_[i + 2] = indices_[i];
+            }
+        }
+    }
+    if (!hideCount_ && !restored) return;
+#ifdef __3DS__
+    GSPGPU_FlushDataCache(indices_, numIndices_ * sizeof(u16));
+#endif
 }
 
 void Model::setSignLodBias(float bias) {

@@ -3,7 +3,7 @@
 #include <cstdint>
 #include "world/collision.h"
 
-namespace tt::render { class Renderer; }
+namespace tt::render { class Renderer; class Model; }
 namespace tt::world {
 
 
@@ -94,6 +94,10 @@ public:
     // with eye then given in zone space; nullptr draws in place.
     void draw(render::Renderer& renderer, const Vec3& eye, float distance = 120.0f,
               const float* placement = nullptr);
+    // Called for every chunk model draw() is about to submit, before its batches go out
+    // (far: the chunk's far mesh). Street Cog buildings hide the Toon block with it.
+    using DrawHook = void (*)(void* user, render::Model& model, bool far);
+    void setDrawHook(DrawHook hook, void* user) { drawHook_ = hook; drawHookUser_ = user; }
     int cellAt(const Vec3& feet, float reach = kFloorReach) const; // -1 on miss; XY grid over the floors
     // The same query as a scan of every floor; cellAt() must match it exactly (host tests
     // and benchmarks only).
@@ -127,6 +131,8 @@ public:
 private:
     bool fail(const char* message);
     Impl* impl_ = nullptr;
+    DrawHook drawHook_ = nullptr;
+    void* drawHookUser_ = nullptr;
     CollisionWorld collision_;
     char error_[128] = {};
 };

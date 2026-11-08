@@ -2261,6 +2261,10 @@ int main() {
         if (battle.active()) blockExitUntilClear = true;
         else if (blockExitUntilClear && exitHere.kind == tt::world::Exit::None) blockExitUntilClear = false;
         if (blockExitUntilClear) exitHere = {};
+        // setToSuit stashes a Cog-owned block's Toon building, door and all.
+        if (netStarted && exitHere.kind == tt::world::Exit::Door && !strncmp(exitHere.name, "tb", 2) &&
+            cogBuildings.blockOwned(net, static_cast<u32>(strtoul(exitHere.name + 2, nullptr, 10))))
+            exitHere = {};
         u32 travelTarget = 0;
         if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
             // A transition is running, we are on the trolley / away at a minigame, or in a battle or

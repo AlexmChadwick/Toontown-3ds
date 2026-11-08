@@ -1788,6 +1788,8 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         farIds[at]=id;
     }
     for (uint32_t j=0;j<nfar;++j) submitId(farIds[j]);
+    if (drawHook_)
+        for (uint32_t j=0;j<ndrawn;++j) drawHook_(drawHookUser_, z.models[drawn[j]], z.lod[drawn[j]]==1);
 #ifdef __3DS__
     for (int pass=1;pass<=2;++pass) {
         renderer.setBlendPass(pass);

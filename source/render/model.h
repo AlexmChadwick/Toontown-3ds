@@ -112,6 +112,15 @@ public:
     // other textures keep their mips: biased, Toon Hall's plaza tiles aliased on Old only.
     void setSignLodBias(float bias);
 
+    // Street Cog buildings (world/cog_buildings.*): collapse every triangle `hide` accepts
+    // into a degenerate one, after restoring the set a previous call collapsed. The test
+    // gets the three corners in model space. A call with the revision already applied
+    // does nothing; revision 0 with no test restores the model. Main thread only, before
+    // the frame's draws of this model are submitted. The originals are kept on the heap.
+    using HideTest = bool (*)(void* user, const float* a, const float* b, const float* c);
+    void setHidden(u32 revision, HideTest hide, void* user);
+    u32 hiddenRevision() const { return hideRevision_; }
+
 private:
     u16 numTextures_ = 0;
     u16 numBatches_ = 0;
@@ -128,6 +137,10 @@ private:
     u32 linearBytes_ = 0;
     bool absoluteIndices_ = false;
     u32 signFonts_ = 0; // bit i: texture i is a sign-letter font (first 32 textures)
+    u32 hideRevision_ = 0;
+    u32* hideSaved_ = nullptr; // per collapsed triangle: first index position, then i1 | i2 << 16
+    u32 hideCount_ = 0;
+    u32 hideCapacity_ = 0;
 
     friend class ModelStaging;
 };

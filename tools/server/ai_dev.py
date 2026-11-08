@@ -95,6 +95,31 @@ def _patch(name, mod):
         cls.generateSuits = generateSuits
     # ---- cogdo local test switches; production AI remains unchanged ----
     elif name == 'toontown.building.DistributedBuildingAI':
+        # AI_DEV_SUITBLDG="2100:69:s:2,2100:10:c": take these blocks over for Cog buildings
+        # (zone:block:dept[:floors]) 5 s after they start, to look at the street exterior.
+        takeovers = {}
+        for item in filter(None, os.environ.get('AI_DEV_SUITBLDG', '').split(',')):
+            fields = item.split(':')
+            takeovers[(int(fields[0]), int(fields[1]))] = (fields[2], int(fields[3]) - 1 if len(fields) > 3 else None)
+        if takeovers:
+            plain = mod.DistributedBuildingAI.enterToon
+
+            def enterToonSuit(self, *args):
+                plain(self, *args)
+                spec = takeovers.pop((self.canonicalZoneId - self.canonicalZoneId % 100, self.block), None)
+                if spec is None:
+                    return
+
+                def takeOver(task):
+                    if not self.isDeleted() and self.isToonBlock():
+                        self.suitTakeOver(spec[0], 0, spec[1])
+                        print('ai_dev: suit takeover zone %s block %s dept %s' % (self.zoneId, self.block, spec[0]), flush=True)
+                    return task.done
+                import builtins
+                manager = getattr(mod, 'taskMgr', getattr(builtins, 'taskMgr', None))
+                if manager is not None:
+                    manager.doMethodLater(5, takeOver, self.uniqueName('suit-dev-takeover'))
+            mod.DistributedBuildingAI.enterToon = enterToonSuit
         if os.environ.get('AI_DEV_COGDO') != '1':
             return
         original = mod.DistributedBuildingAI.enterToon
