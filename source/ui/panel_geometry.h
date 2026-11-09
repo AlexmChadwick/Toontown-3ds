@@ -52,10 +52,16 @@ constexpr float kChatTitleMin = kChatTitleScale; // a crumb never draws smaller 
 constexpr float kWhisperButtonX = 142.0f;
 constexpr float kWhisperButtonW = 96.0f;
 constexpr float kWhisperPadX = 6.0f;
-// Button interior: 96 px wide, 6 px of padding on each side. theme::textFit scales
-// the whole "To: <name>" label into this width. It does not cut glyphs.
+// Button interior: 96 px wide, 6 px of padding on each side. The label is fitted
+// by fitWhisperName, not by theme::textFit (that helper has no scale floor).
+constexpr float kWhisperButtonY = 1.0f;
+constexpr float kWhisperButtonH = 26.0f;
 constexpr float kWhisperTextMaxW = kWhisperButtonW - 2.0f * kWhisperPadX;
 constexpr float kWhisperTextScale = 0.42f;
+constexpr float kWhisperTextFloor = 0.36f;
+// FINF line feed of romfs/baked/fonts/impress.bcfnt. At the floor, one line is 10.8 px.
+constexpr float kWhisperLineAt1 = 30.0f;
+constexpr char kWhisperMark = '.'; // one glyph; the baked font has no U+2026
 // Pocket laff. The extra slash fill scales with the meter. It stays at least one
 // pixel short of the next glyph so it does not cross that glyph's outline.
 constexpr float kLaffLabelMaxW = 0.46f;
@@ -152,6 +158,120 @@ constexpr TitleFit fitChatTitle(float titleAt1, float speedAt1, float titleX, fl
     return fit;
 }
 
+// Whisper target, in order:
+//   "To: <name>" at 0.42 when it fits in 84 px,
+//   otherwise the name alone, shrunk no lower than 0.36,
+//   otherwise two lines at 0.36,
+//   and only then a glyph-boundary cut of line 2 plus one '.' .
+enum class WhisperKind { Prefixed, Name, Wrapped, Cut };
+
+struct WhisperLabel {
+    float scale;
+    WhisperKind kind;
+    int split; // name index where line 2 starts
+    int keep;  // line 2 glyphs before the mark
+};
+
+inline float whisperSpan(const float* glyphAt1, int begin, int end) {
+    float w = 0.0f;
+    for (int i = begin; i < end; i++) w += glyphAt1[i];
+    return w;
+}
+
+inline WhisperLabel fitWhisperName(float prefixAt1, float markAt1, const float* glyphAt1, int count,
+                                   const char* name) {
+    WhisperLabel fit{kWhisperTextScale, WhisperKind::Prefixed, count > 0 ? count : 0, 0};
+    if (count < 0) count = 0;
+    if (!name) name = "";
+    const float nameAt1 = whisperSpan(glyphAt1, 0, count);
+    if ((prefixAt1 + nameAt1) * kWhisperTextScale <= kWhisperTextMaxW) return fit;
+
+    fit.kind = WhisperKind::Name;
+    if (!(nameAt1 > 0.0f) || nameAt1 * kWhisperTextScale <= kWhisperTextMaxW) return fit;
+    const float fitted = kWhisperTextMaxW / nameAt1;
+    if (fitted >= kWhisperTextFloor) {
+        fit.scale = fitted;
+        return fit;
+    }
+
+    fit.scale = kWhisperTextFloor;
+    fit.kind = WhisperKind::Wrapped;
+    const float limit = kWhisperTextMaxW / kWhisperTextFloor;
+    int split = count;
+    float used = 0.0f;
+    int afterSpace = -1;
+    for (int i = 0; i < count; i++) {
+        if (used + glyphAt1[i] > limit && afterSpace > 0) {
+            split = afterSpace;
+            break;
+        }
+        used += glyphAt1[i];
+        if (name[i] == ' ') afterSpace = i + 1;
+    }
+    if (split == count) {
+        used = 0.0f;
+        split = count > 0 ? 1 : 0;
+        for (int i = 0; i < count; i++) {
+            if (i > 0 && used + glyphAt1[i] > limit) {
+                split = i;
+                break;
+            }
+            used += glyphAt1[i];
+            split = i + 1;
+        }
+    }
+    fit.split = split;
+    const float line2 = whisperSpan(glyphAt1, split, count);
+    if (line2 <= limit) {
+        fit.keep = count - split;
+        return fit;
+    }
+    fit.kind = WhisperKind::Cut;
+    used = 0.0f;
+    int keep = 0;
+    for (int i = split; i < count; i++) {
+        if (used + glyphAt1[i] + markAt1 > limit) break;
+        used += glyphAt1[i];
+        keep++;
+    }
+    fit.keep = keep;
+    return fit;
+}
+
+inline void copyWhisper(char* dst, int cap, const char* src, int n, bool mark) {
+    if (cap <= 0) return;
+    int i = 0;
+    if (src) {
+        for (; i < n && i + 1 < cap && src[i]; i++) dst[i] = src[i];
+    }
+    if (mark && i + 1 < cap) dst[i++] = kWhisperMark;
+    dst[i] = 0;
+}
+
+// line1 is empty when the label is one line. The caller draws these strings at fit.scale.
+inline void whisperLines(const WhisperLabel& fit, const char* name, char* line0, int n0, char* line1, int n1) {
+    if (n0 > 0) line0[0] = 0;
+    if (n1 > 0) line1[0] = 0;
+    if (!name) name = "";
+    if (fit.kind == WhisperKind::Prefixed) {
+        char prefixed[8] = {'T', 'o', ':', ' ', 0};
+        int i = 0;
+        for (; prefixed[i] && i + 1 < n0; i++) line0[i] = prefixed[i];
+        for (int k = 0; name[k] && i + 1 < n0; k++, i++) line0[i] = name[k];
+        if (n0 > 0) line0[i] = 0;
+        return;
+    }
+    if (fit.kind == WhisperKind::Name) {
+        copyWhisper(line0, n0, name, 64, false);
+        return;
+    }
+    int end1 = fit.split;
+    if (end1 > 0 && name[end1 - 1] == ' ') end1--;
+    copyWhisper(line0, n0, name, end1, false);
+    const bool mark = fit.kind == WhisperKind::Cut;
+    copyWhisper(line1, n1, name + fit.split, fit.keep, mark);
+}
+
 constexpr bool chatShowsCrumb(int parent, int grandparent) {
     return parent >= 0 && grandparent >= 0;
 }
@@ -182,6 +302,9 @@ static_assert(slashBold(kLaffMeterRef) < slashGap(kLaffMeterRef) - 1.0f,
               "rest slash stays clear of the next outline");
 static_assert(kChatTitleMin == 0.5f, "crumb scale never drops below 0.5");
 static_assert(kWhisperTextMaxW == 84.0f, "whisper label fits the button interior");
+static_assert(kWhisperTextFloor >= 0.36f, "whisper label never draws below 0.36");
+static_assert(kWhisperLineAt1 * kWhisperTextFloor * 2.0f <= kWhisperButtonH,
+              "two whisper lines fit in the button");
 static_assert(kChatLogPaperY == kTabY - kChatLogH, "paper y is the log strip top");
 static_assert(kChatFrameBottom + kChatLogGap == kChatLogPaperY, "four pixels of sky above the paper");
 static_assert(kChatLogGap == 4.0f, "four pixels of sky above the chat log");

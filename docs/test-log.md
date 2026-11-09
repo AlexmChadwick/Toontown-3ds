@@ -2070,9 +2070,10 @@ or hardware pass, and it does not claim a frame budget.
 `tools/gui_layout_test/run.sh` passed. Friends rows sit on the parchment and
 scroll. A depth-2 SpeedChat crumb stays at scale 0.5. Menu 17 does not fit
 at that scale, so the header shows SpeedChat, and shows nothing if that word
-does not fit either. The whisper label is the whole "To: <name>", scaled into
-the 84 px button interior. "To: Little Pepper" fits at 0.42. A "To: " plus
-twelve W name scales down whole. Neither label is cut.
+does not fit either. The whisper label keeps "To: Little Pepper" at 0.42.
+A name that does not fit drops the prefix, then wraps at 0.36, and cuts the
+second line with one '.' only when two lines still overflow. The floor is 0.36.
+The label is parsed into its own buffer when the target changes.
 Battle hint text sits in the cream. The pocket slash fill scales with the meter
 and stays a pixel clear of the next glyph, including the shrink pulse. The chat
 log paper starts at the log strip, so the sky above it is 4 px. Nine book tab

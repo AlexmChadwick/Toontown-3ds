@@ -117,8 +117,9 @@ bool Ui::init() {
     textBuf_ = C2D_TextBufNew(1024);
     staticBuf_ = C2D_TextBufNew(256);
     debugBuf_ = C2D_TextBufNew(1024);
+    whisperBuf_ = C2D_TextBufNew(128);
     if (!gagText_.init(768) || !chatLogText_.init(512) || !toonText_.init(1024) || !laff_.init() || !timer_.init()) return false;
-    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
+    if (!textBuf_ || !staticBuf_ || !debugBuf_ || !whisperBuf_ || !chat_.init() || !shop_.init() || !tailor_.init() ||
         !closet_.init() ||
         !battle_.init() || !quest_.init() || !fishingPanel_.init() || !book_.init()) return false;
     for (int i = 0; i < kTabCount; i++) parseStatic(&tabText_[i], staticBuf_, kTabNames[i]);
@@ -146,7 +147,7 @@ void Ui::shutdown() {
     toonText_.shutdown();
     laff_.shutdown();
     timer_.shutdown();
-    C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_};
+    C2D_TextBuf* bufs[] = {&textBuf_, &staticBuf_, &debugBuf_, &whisperBuf_};
     for (C2D_TextBuf* b : bufs) {
         if (*b) C2D_TextBufDelete(*b);
         *b = nullptr;
@@ -495,16 +496,22 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         if (chatLogShown()) drawChatLog(layout::chatLogPaperY(), kTabY);
         if (numNearby_ > 0) {
             // SpeedChat's whisper target: green while whispering, like a rolled-over SC button.
-            // The whole "To: <name>" scales into the button. It is never cut mid-glyph.
-            theme::button(layout::kWhisperButtonX, 1, layout::kWhisperButtonW, 26,
-                          s.whisperTo ? theme::kScRollover : theme::kScFrame,
+            theme::button(layout::kWhisperButtonX, layout::kWhisperButtonY, layout::kWhisperButtonW,
+                          layout::kWhisperButtonH, s.whisperTo ? theme::kScRollover : theme::kScFrame,
                           s.whisperTo ? theme::kGreenDark : theme::kScFrameEdge);
-            char label[160];
-            snprintf(label, sizeof(label), "To: %s", target);
-            C2D_Text whisper;
-            textCache_.parse(&whisper, textBuf_, label, 1024);
-            theme::textFit(whisper, layout::kWhisperButtonX + layout::kWhisperPadX, 5.0f,
-                           layout::kWhisperTextScale, theme::kScText, layout::kWhisperTextMaxW);
+            syncWhisper(target);
+            const float x = layout::kWhisperButtonX + layout::kWhisperPadX;
+            if (whisperLines_ == 1) {
+                C2D_DrawText(&whisperText_[0], C2D_WithColor, x, 5.0f, 0.5f, whisperScale_, whisperScale_,
+                             theme::kScText);
+            } else if (whisperLines_ == 2) {
+                const float line = layout::kWhisperLineAt1 * whisperScale_;
+                const float y = layout::kWhisperButtonY + (layout::kWhisperButtonH - line * 2.0f) * 0.5f;
+                C2D_DrawText(&whisperText_[0], C2D_WithColor, x, y, 0.5f, whisperScale_, whisperScale_,
+                             theme::kScText);
+                C2D_DrawText(&whisperText_[1], C2D_WithColor, x, y + line, 0.5f, whisperScale_, whisperScale_,
+                             theme::kScText);
+            }
         }
         theme::button(kFriendsButtonX, kFriendsButtonY, kFriendsButtonW, kFriendsButtonH,
                       theme::kScFrame, theme::kScFrameEdge);
@@ -643,6 +650,45 @@ bool Ui::chatLogShown() const {
 
 // The SpeedChat menu stops kChatLogGap above the chat-log paper, or above the laff pocket.
 float Ui::chatBottom() const { return layout::chatBottom(chatLogShown()); }
+
+float Ui::cachedTextWidth(const char* text) {
+    C2D_Text parsed;
+    textCache_.parse(&parsed, textBuf_, text ? text : "", 1024);
+    float w = 0.0f;
+    C2D_TextGetDimensions(&parsed, 1.0f, 1.0f, &w, nullptr);
+    return w;
+}
+
+// TextCache hits do not allocate, but a full shared buffer flush drops every entry.
+// The whisper lines therefore live in whisperBuf_ and are parsed only when the name changes.
+void Ui::syncWhisper(const char* name) {
+    if (!name) name = "";
+    char shown[sizeof(whisperName_)];
+    snprintf(shown, sizeof(shown), "%s", name);
+    if (whisperValid_ && std::strcmp(whisperName_, shown) == 0) return;
+    std::memcpy(whisperName_, shown, sizeof(whisperName_));
+    float glyphs[48];
+    int count = 0;
+    for (const char* p = whisperName_; *p && count < 47; ++p, ++count) {
+        char one[2] = {*p, 0};
+        glyphs[count] = cachedTextWidth(one);
+    }
+    const layout::WhisperLabel fit = layout::fitWhisperName(cachedTextWidth("To: "), cachedTextWidth("."), glyphs,
+                                                            count, whisperName_);
+    whisperScale_ = fit.scale;
+    layout::whisperLines(fit, whisperName_, whisperLine_[0], int(sizeof(whisperLine_[0])), whisperLine_[1],
+                         int(sizeof(whisperLine_[1])));
+    whisperLines_ = whisperLine_[1][0] ? 2 : 1;
+    if (!whisperBuf_) return;
+    C2D_TextBufClear(whisperBuf_);
+    tt::render::textParse(&whisperText_[0], whisperBuf_, whisperLine_[0]);
+    C2D_TextOptimize(&whisperText_[0]);
+    if (whisperLines_ == 2) {
+        tt::render::textParse(&whisperText_[1], whisperBuf_, whisperLine_[1]);
+        C2D_TextOptimize(&whisperText_[1]);
+    }
+    whisperValid_ = true;
+}
 
 // Newest line at the bottom, like a chat window: names in nametag blue (ours in green,
 // whispers in the whisper panel's purple). It starts right of the laff pocket.

@@ -221,6 +221,7 @@ void textCentered(const C2D_Text& t, float cx, float y, float scale, u32 color, 
 }
 
 void textFit(const C2D_Text& t, float x, float y, float scale, u32 color, float maxW, float z) {
+    // No scale floor. The whisper target does not use this; fitWhisperName does.
     float w = 0.0f;
     C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
     scale = layout::fitTextScale(w, scale, maxW);

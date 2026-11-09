@@ -261,11 +261,21 @@ private:
     u32 chatNowMs_ = 0;
     bool chatLogShown() const;
     void drawChatLog(float y0, float y1);
+    // Whisper label glyphs live in whisperBuf_. Parsed only when the target name changes.
+    void syncWhisper(const char* name);
+    float cachedTextWidth(const char* text);
     void drawFriends(const State& s);
     u32 handleFriends(u32 down, const touchPosition& touch, State& s);
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
+    C2D_TextBuf whisperBuf_ = nullptr; // whisper label, cleared only when the target changes
+    C2D_Text whisperText_[2] = {};
+    char whisperName_[48] = {};
+    char whisperLine_[2][48] = {};
+    int whisperLines_ = 0;
+    float whisperScale_ = 0.42f;
+    bool whisperValid_ = false;
     C2D_Text tabText_[kTabCount];
     C2D_Text bookText_[9]; // Book tab page buttons
     C2D_Text bookTitle_, bookHint_, bookOpen_;

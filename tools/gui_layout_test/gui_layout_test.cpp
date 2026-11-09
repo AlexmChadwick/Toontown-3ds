@@ -26,6 +26,7 @@ void expect(bool ok, const char* what) {
 
 struct Font {
     std::unordered_map<int, int> advance;
+    int lineFeed = 0;
 };
 
 int readU16(const std::string& s, size_t o) { return int(uint8_t(s[o])) | int(uint8_t(s[o + 1])) << 8; }
@@ -41,6 +42,8 @@ Font loadImpress(const char* path) {
         std::exit(1);
     }
     const int finf = readU16(s, 6);
+    Font font;
+    font.lineFeed = int(uint8_t(s[finf + 9]));
     const int cwdhPtr = readU32(s, finf + 20);
     const int cmapPtr = readU32(s, finf + 24);
     std::unordered_map<int, int> glyphOf;
@@ -77,7 +80,6 @@ Font loadImpress(const char* path) {
             advanceOf[g] = int(int8_t(s[b + 16 + 3 * i + 2]));
         p = next;
     }
-    Font font;
     for (const auto& it : glyphOf) {
         const auto w = advanceOf.find(it.second);
         if (w == advanceOf.end()) {
@@ -100,6 +102,24 @@ int advanceOf(const Font& font, const char* text) {
         sum += it->second;
     }
     return sum;
+}
+
+int glyphWidths(const Font& font, const char* text, float* out) {
+    int n = 0;
+    for (const char* p = text; *p; p++, n++) {
+        const char one[2] = {*p, 0};
+        out[n] = float(advanceOf(font, one));
+    }
+    return n;
+}
+
+tt::ui::layout::WhisperLabel fitName(const Font& font, const char* name, char* line0, char* line1) {
+    float glyphs[64];
+    const int n = glyphWidths(font, name, glyphs);
+    const tt::ui::layout::WhisperLabel fit = tt::ui::layout::fitWhisperName(float(advanceOf(font, "To: ")),
+                                                                            float(advanceOf(font, ".")), glyphs, n, name);
+    tt::ui::layout::whisperLines(fit, name, line0, 64, line1, 64);
+    return fit;
 }
 
 } // namespace
@@ -171,22 +191,53 @@ int main(int argc, char** argv) {
     expect(hidden.shown == layout::ChatTitle::Hidden && hidden.scale == layout::kChatTitleScale,
            "SpeedChat is dropped too when the header has no room");
 
-    const char* pepper = "To: Little Pepper";
-    const int pepperAdv = advanceOf(font, pepper);
-    expect(std::strlen(pepper) == 17, "Little Pepper is the whole name, not a 12-character cut");
-    const float pepperW = float(pepperAdv) * layout::kWhisperTextScale;
-    expect(pepperW <= layout::kWhisperTextMaxW, "To: Little Pepper fits inside the 84 px button");
-    const float pepperScale = layout::fitTextScale(pepperW, layout::kWhisperTextScale, layout::kWhisperTextMaxW);
-    expect(pepperScale == layout::kWhisperTextScale, "a label that fits is not scaled down");
+    char line0[64], line1[64];
+    const layout::WhisperLabel pepper = fitName(font, "Little Pepper", line0, line1);
+    expect(std::strcmp(line0, "To: Little Pepper") == 0, "Little Pepper keeps the To: prefix");
+    expect(line1[0] == 0, "Little Pepper stays on one line");
+    expect(pepper.scale == layout::kWhisperTextScale, "Little Pepper stays at 0.42");
+    expect(pepper.kind == layout::WhisperKind::Prefixed, "Little Pepper is not rewritten");
 
-    const char* wide = "To: WWWWWWWWWWWW";
-    const int wideAdv = advanceOf(font, wide);
-    expect(std::strlen(wide) == 16, "the twelve-W name is complete");
-    const float wideW = float(wideAdv) * layout::kWhisperTextScale;
-    expect(wideW > layout::kWhisperTextMaxW, "twelve W names overflow the button at full scale");
-    const float wideScale = layout::fitTextScale(wideW, layout::kWhisperTextScale, layout::kWhisperTextMaxW);
-    expect(float(wideAdv) * wideScale <= layout::kWhisperTextMaxW + 0.05f,
-           "twelve W names scale down whole into 84 px");
+    const char* trip = "Baron Alvin Blubberflinger";
+    expect(std::strlen(trip) == 26, "the fixture is a 26-character three-part name");
+    const layout::WhisperLabel three = fitName(font, trip, line0, line1);
+    expect(three.scale >= layout::kWhisperTextFloor, "the 26-character name stays at or above 0.36");
+    expect(three.kind != layout::WhisperKind::Cut, "the 26-character name is not cut");
+    expect(std::strcmp(line0, "Baron Alvin") == 0, "the 26-character name wraps after Alvin");
+    expect(std::strcmp(line1, "Blubberflinger") == 0, "the 26-character second line is the whole last word");
+
+    const layout::WhisperLabel wide = fitName(font, "WWWWWWWWWWWW", line0, line1);
+    expect(wide.scale >= layout::kWhisperTextFloor, "twelve W stays at or above 0.36");
+    expect(wide.kind != layout::WhisperKind::Cut, "twelve W wraps without a cut");
+    expect(std::strlen(line0) + std::strlen(line1) == 12, "twelve W keeps every glyph");
+
+    const layout::WhisperLabel mid = fitName(font, "MMMMMMMMMMM", line0, line1);
+    expect(mid.kind == layout::WhisperKind::Name, "a name that fits alone drops To:");
+    expect(mid.scale >= layout::kWhisperTextFloor && mid.scale <= layout::kWhisperTextScale,
+           "the dropped-prefix name stays between 0.36 and 0.42");
+    expect(line1[0] == 0, "a one-line name is not wrapped");
+
+    const layout::WhisperLabel cut = fitName(font, "WWWWWWWWWWWWWWWWWWWWWWW", line0, line1);
+    expect(cut.kind == layout::WhisperKind::Cut, "a second line that still overflows is cut");
+    expect(cut.scale >= layout::kWhisperTextFloor, "the cut label stays at or above 0.36");
+    const int line1n = int(std::strlen(line1));
+    expect(line1n > 1 && line1[line1n - 1] == layout::kWhisperMark, "the cut adds one trailing glyph");
+    expect(std::strchr(line1, layout::kWhisperMark) == line1 + line1n - 1, "the mark is a single glyph");
+    float kept = 0.0f;
+    for (int i = 0; i < line1n - 1; i++) kept += float(font.advance.at(uint8_t(line1[i])));
+    const float mark = float(font.advance.at(uint8_t(layout::kWhisperMark)));
+    const float next = float(font.advance.at(uint8_t('W')));
+    expect((kept + mark) * cut.scale <= layout::kWhisperTextMaxW + 0.05f, "the cut line fits in 84 px");
+    expect((kept + next + mark) * cut.scale > layout::kWhisperTextMaxW, "the cut stops on a glyph boundary");
+
+    const layout::WhisperLabel paths[] = {pepper, three, wide, mid, cut};
+    for (const layout::WhisperLabel& path : paths)
+        expect(path.scale >= layout::kWhisperTextFloor, "every whisper path stays at or above 0.36");
+
+    expect(font.lineFeed == int(layout::kWhisperLineAt1), "impress.bcfnt line feed is 30");
+    const float linePx = float(font.lineFeed) * layout::kWhisperTextFloor;
+    expect(linePx >= 9.0f && linePx <= 12.0f, "a wrapped line is about 10 px");
+    expect(linePx * 2.0f <= layout::kWhisperButtonH, "two lines fit in the 26 px button");
 
     expect(layout::chatLogPaperY() == 174.0f, "drawChatLog passes 174 to theme::paper");
     expect(layout::chatLogPaperY() == layout::chatBottom(true) + layout::kChatLogGap,
