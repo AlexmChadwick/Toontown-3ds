@@ -342,6 +342,20 @@ struct CChar {
 };
 constexpr int kMaxCChars = 4;
 
+// Playground butterflies (DistributedButterfly; the AI spawns 24 in TTC, 36 in DG). setArea
+// names the ButterflyGlobals point table; setState(state, cur, dest, flight seconds, ts):
+// 1 flying cur -> dest from startMs, 2 landed on cur, 0 off.
+struct Butterfly {
+    uint32_t doId = 0;
+    int16_t playground = 0, area = 0;
+    int8_t state = 0;
+    uint8_t cur = 0, dest = 0;
+    float seconds = 0;
+    uint32_t startMs = 0;
+    bool active = false;
+};
+constexpr int kMaxButterflies = 40;
+
 // Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
 // cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
 enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
@@ -1347,6 +1361,7 @@ public:
     const NpcToon& npcSlot(int i) const { return npcs_[i]; }
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
+    const Butterfly& butterflySlot(int i) const { return butterflies_[i]; }
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
     bool cogdoParticipant() const;
@@ -1895,6 +1910,14 @@ private:
     NpcToon npcs_[kMaxNpcs] = {};
     Treasure treasures_[kMaxTreasures] = {};
     CChar cchars_[kMaxCChars] = {};
+    // client_butterfly.cpp
+    Butterfly butterflies_[kMaxButterflies] = {};
+    bool handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                              uint16_t reqCount, bool other);
+    bool handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool applyButterflyField(Butterfly& b, DatagramReader& r, uint16_t fieldId);
+    bool butterflyLeft(uint32_t doId);
+    void clearButterflies();
     bool handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                           bool other);
     bool applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId);

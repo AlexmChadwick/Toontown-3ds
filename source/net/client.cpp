@@ -551,6 +551,7 @@ void Client::resetWorld() {
         if (c.active) pushEvent(EventType::CCharGone, c.doId);
         c.active = false;
     }
+    clearButterflies();
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearBattles();
@@ -972,6 +973,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleButterflyEnter(doId, classId, r, req, reqCount, other)) return; // client_butterfly.cpp
     if (handleCogdoEnter(doId, classId, r, req, reqCount, other)) return; // cogdo
     if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
@@ -1106,6 +1108,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         handleTailorMovie(r, doId);
         return;
     }
+    if (handleButterflyField(r, doId, fieldId)) return;
     if (handleTrolleyField(r, doId, fieldId)) return;
     if (handleGolfField(r, doId, fieldId)) return;
     if (handleLevelField(r, doId, fieldId)) return; // client_level.cpp
@@ -1213,6 +1216,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    if (butterflyLeft(doId)) return;
     // ---- clerks: a removed clerk cannot retain transaction authority ----
     if (clerkNewsManager_ == doId) {
         clerkNewsManager_ = 0;
@@ -2995,6 +2999,7 @@ void Client::dropZoneObjects() {
         if (c.active) pushEvent(EventType::CCharGone, c.doId);
         c.active = false;
     }
+    clearButterflies();
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearFishing();
