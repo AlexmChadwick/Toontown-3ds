@@ -96,7 +96,13 @@ def write_points(root, path):
                 while not building.isEmpty() and not (building.getName()[:2] in ('sz', 'tb') and
                                                       ':' in building.getName()):
                     building = building.getParent()
-                if not building.isEmpty():
+                if not building.isEmpty() and 'animated_building_' in building.getName():
+                    # The Sign Factory's trigger sits at the model origin; its door is door_origin.
+                    name = building.getName()
+                    origin = building.find('**/door_origin')
+                    if not origin.isEmpty():
+                        p, h = origin.getPos(root), origin.getH(root)
+                elif not building.isEmpty():
                     # The index comes from the trigger (door_trigger_N): Donald's Dock's boat HQ
                     # hangs its triggers under an unnamed node that flattening calls __decal1__,
                     # which put both of its doors on the triggers under the wrong name.

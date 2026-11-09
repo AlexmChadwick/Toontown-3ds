@@ -199,8 +199,21 @@ class Assembler:
         return np_
 
     def _t_anim_building(self, d, parent):
-        self.skipped['anim_building'] += 1
-        return None
+        # Silly Street's Toontown Sign Factory (tt_r_ara_ttc_B2): a landmark whose model is a
+        # Character. GenericAnimatedBuilding only poses it ('buildings-animate' is off), so it
+        # stands still; the bind pose is what the static model shows. Its door is part of the
+        # model (no DNA door), and write_points takes the door anchor from its door_origin.
+        src = self._find(d.get('code', ''))
+        if src is None:
+            return None
+        np_ = src.copyTo(parent)
+        np_.setName(d.name or 'anim_building')
+        np_.setPosHprScale(d.vec('pos', (0, 0, 0)), _hpr(d), d.vec('scale', (1, 1, 1)))
+        self._children(d, np_)
+        o = np_.find('**/*sign_origin')
+        if not o.isEmpty():
+            o.removeNode()
+        return np_
 
     @staticmethod
     def _decal_base(parent, patterns):
