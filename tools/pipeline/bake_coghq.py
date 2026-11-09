@@ -87,9 +87,69 @@ def build_scene(zone_id, cfg, loader, resources):
             origin = top.find('**/tunnel_origin')
             if not origin.isEmpty():
                 origin.setH(-33.33)
+    info['signs'] = sellbot_signs(zone_id, root, loader, resources)
     assemble.lift_decals(root)
     info['billboards_crossed'] = assemble.cross_billboards(root)
     return root, info
+
+
+# SellbotCogHQLoader.loadPlaceGeom copies sign_sellBotHeadHQ onto the tunnels and factory
+# doorways and writes OnscreenText (suit font, default black, centred) on it. Per zone:
+# (parent node, pos, hpr, sign scale, [(text, z, text scale)]).
+_SELLBOT_SIGN_SF, _SELLBOT_ELEVATOR_SF, _SELLBOT_ASPECT = 23, 15, 0.7227
+SELLBOT_SIGNS = {
+    11000: [('linktunnel_dg_5316_DNARoot', (0.0, -291.5, 29), 180.0, _SELLBOT_SIGN_SF,
+             [('Daisy Gardens', -0.3, 0.1)]),
+            ('linktunnel_sellhq_11200_DNARoot', (148.625, -155, 27), -90.0, _SELLBOT_SIGN_SF,
+             [('Sellbot', -0.25, 0.075), ('Factory', -0.34, 0.12)])],
+    11200: [('linktunnel_sellhq_11000_DNARoot', (0.0, -353, 27.5), -180.0, _SELLBOT_SIGN_SF,
+             [('Sellbot', -0.25, 0.075), ('Headquarters', -0.34, 0.1)]),
+            ('doorway1', (62.74, -87.99, 17.26), 2.72, _SELLBOT_ELEVATOR_SF,
+             [('Factory', -0.25, 0.075), ('Front Entrance', -0.34, 0.1)]),
+            ('doorway2', (-164.78, 26.28, 17.25), -89.89, _SELLBOT_ELEVATOR_SF,
+             [('Factory', -0.25, 0.075), ('Side Entrance', -0.34, 0.1)])],
+}
+
+
+def sellbot_signs(zone_id, root, loader, resources):
+    """The Sellbot HQ / factory exterior signs the stock loader adds at run time."""
+    if zone_id not in SELLBOT_SIGNS:
+        return []
+    from panda3d.core import DecalEffect, DynamicTextFont, Filename, TextNode
+    import sign_text
+    card = loader.loadModel(str(Path(resources) / 'phase_4/models/props/sign_sellBotHeadHQ.bam'), noCache=True)
+    sign = card.find('**/sign_sellBotHeadHQ')
+    if sign.isEmpty():
+        raise ValueError('sign_sellBotHeadHQ missing')
+    # ToontownGlobals.getSuitFont; a fresh font per zone keeps the bake order-independent.
+    font = DynamicTextFont(Filename.fromOsSpecific(str(Path(resources) / 'phase_3/models/fonts/vtRemingtonPortable.ttf')))
+    font.setPixelsPerUnit(40)
+    font.setSpaceAdvance(0.25)
+    font.setLineHeight(1.0)
+    made = []
+    for parent_name, pos, h, sf, lines in SELLBOT_SIGNS[zone_id]:
+        parent = root.find('**/' + parent_name)
+        if parent.isEmpty():
+            raise ValueError(f'{zone_id}: sign parent {parent_name} missing')
+        copy = sign.copyTo(parent)
+        copy.setPosHprScale(*pos, h, 0, 0, sf, sf, sf * _SELLBOT_ASPECT)
+        copy.node().setEffect(DecalEffect.make())
+        for text, z, scale in lines:
+            tn = TextNode('sign_letters')
+            tn.setFont(font)
+            tn.setAlign(TextNode.ACenter)
+            tn.setTextColor(0, 0, 0, 1)
+            tn.setText(text)
+            letters = copy.attachNewNode(tn.generate())
+            for tex in letters.findAllTextures():
+                sign_text._FONT_TEXTURES.add(int(tex.this))
+            letters.setPos(0, 0, z)
+            letters.setScale(scale)
+            letters.setDepthWrite(False)
+            letters.setTag('sign_text', '1')
+        made.append(parent_name)
+    card.removeNode()
+    return made
 
 
 def write_points(root, cfg, path):
