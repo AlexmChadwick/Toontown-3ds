@@ -356,6 +356,15 @@ struct Butterfly {
 };
 constexpr int kMaxButterflies = 40;
 
+// Daisy Gardens' big flower (DistributedDGFlower): setHeight(z) raises it; avatarEnter /
+// avatarExit (clsend) as our toon enters or leaves its trigger sphere.
+struct DGFlower {
+    uint32_t doId = 0;
+    float height = 2.0f; // DistributedDGFlowerAI.MIN_HEIGHT, the model's start z
+    uint32_t heightMs = 0;
+    bool active = false;
+};
+
 // Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
 // cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
 enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
@@ -1362,6 +1371,8 @@ public:
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
     const Butterfly& butterflySlot(int i) const { return butterflies_[i]; }
+    const DGFlower* dgFlower() const { return dgFlower_.active ? &dgFlower_ : nullptr; }
+    bool sendDGFlowerTouch(bool enter);
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
     bool cogdoParticipant() const;
@@ -1912,6 +1923,7 @@ private:
     CChar cchars_[kMaxCChars] = {};
     // client_butterfly.cpp
     Butterfly butterflies_[kMaxButterflies] = {};
+    DGFlower dgFlower_ = {};
     bool handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                               uint16_t reqCount, bool other);
     bool handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);

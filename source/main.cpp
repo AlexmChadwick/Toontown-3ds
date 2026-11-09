@@ -60,6 +60,7 @@
 #include "world/trolley.h"
 #include "world/waterfall.h"
 #include "world/butterflies.h"
+#include "world/dg_flower.h"
 #include "world/sky.h"
 #include "world/fishing.h"
 #include "world/golf.h"
@@ -521,11 +522,13 @@ int main() {
     static tt::world::TrolleyRide trolley;
     static tt::world::Waterfall waterfall;
     static tt::world::Butterflies butterflies;
+    static tt::world::DGFlower dgFlower;
     static tt::world::Sky sky; // the hood's sky dome (Hood.skyFile)
     static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
     waterfall.setZone(kStartZone);
     butterflies.setZone(kStartZone);
+    dgFlower.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
     static tt::world::GolfSession golf;
     static tt::world::CogBuildings cogBuildings;
@@ -1888,8 +1891,12 @@ int main() {
             net.changeZone(next);
             remoteToons.clear();
         }
-        // Facility doors, buttons, lifts; Donald's Dock's pier ramps; nullptr elsewhere.
-        player.setDynamic(level.solids() ? level.solids() : boat.pierSolids());
+        // Facility doors, buttons, lifts; Donald's Dock's pier ramps; Daisy Gardens' flower;
+        // nullptr elsewhere.
+        if (netStarted) dgFlower.update(net, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        player.setDynamic(level.solids()      ? level.solids()
+                          : boat.pierSolids() ? boat.pierSolids()
+                                              : dgFlower.solids());
         {
             float floorZ;
             if (level.active() && level.popSquish(&floorZ) > 0) {
@@ -2415,6 +2422,7 @@ int main() {
                     trolley.setZone(zoneDest);
                     waterfall.setZone(zoneDest);
                     butterflies.setZone(zoneDest);
+                    dgFlower.setZone(zoneDest);
                     cogBuildings.setZone(zoneDest);
                     cogBuildings.syncAnchors(place);
                     suits.setZone(zoneDest);
@@ -3480,6 +3488,7 @@ int main() {
             if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
             waterfall.draw(renderer, tt::net::plat::nowMs());
             if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
+            dgFlower.draw(renderer, tt::net::plat::nowMs());
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
             fishing.draw(renderer);
             suits.draw(renderer);

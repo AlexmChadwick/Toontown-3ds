@@ -258,6 +258,7 @@ WANTED = {
     'DistributedCrusherEntity': [],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState', 'requestInteract', 'requestExit'],
     'DistributedButterfly': ['setArea', 'setState'],
+    'DistributedDGFlower': ['setHeight', 'avatarEnter', 'avatarExit'],
     'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
     'DistributedHQInterior': ['setZoneIdAndBlock', 'setLeaderBoard', 'setTutorial'],
     'DistributedGagshopInterior': ['setZoneIdAndBlock'],
@@ -306,7 +307,7 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  'DistributedTrophyMgr', 'NewsManager', 'SafeZoneManager',
                  'ToontownMagicWordManager', 'WelcomeValleyManager',
                  # (shard, 2000) playground objects
-                 'DistributedTrolley', 'DistributedBoat', 'DistributedButterfly', 'DistributedFishingPond',
+                 'DistributedTrolley', 'DistributedBoat', 'DistributedButterfly', 'DistributedDGFlower', 'DistributedFishingPond',
                  'DistributedFishingSpot', 'DistributedFishingTarget',
                  'DistributedPondBingoManager', 'DistributedPartyGate',
                  # interiors (2513-2522), reached through DistributedDoor
