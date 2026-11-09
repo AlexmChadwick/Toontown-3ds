@@ -47,6 +47,7 @@ void CogBuildings::setZone(uint32_t zone) {
     // ---- end cogdo exterior ----
     kart_.unload();
     if (zone == 10000) kart_.load("sdmc:/3ds/toontown3ds/data/cogbldg/cog_kart.ttm"); // Bossbot HQ
+    loadHqElevators(zone);
 }
 
 // DistributedCogKart.announceGenerate: it drives up from 10 below its spot as the doors "open"
@@ -250,6 +251,7 @@ bool CogBuildings::blockPoint(uint32_t block, float* x, float* y, float* z, floa
 }
 
 void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) const {
+    drawHqElevators(renderer, client);
     for (int n = 0; kart_.loaded() && n < net::kMaxCogElevators; ++n) {
         const net::CogElevator& e = client.cogElevatorSlot(n);
         float kx, ky, kz;
@@ -274,6 +276,7 @@ void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) c
 void CogBuildings::shutdown() {
     cogdoShell_.unload(); // cogdo exterior
     unloadExterior();
+    loadHqElevators(0);
 }
 
 const char* CogBuildings::popMessage() {
@@ -638,5 +641,113 @@ void CogBuildings::drawCogdo(render::Renderer& renderer, const Block& bk) const 
     renderer.setBaseTint(1, 1, 1, 1);
 }
 // ---- end street look ----
+
+// ---- Cog HQ elevators ----
+void CogBuildings::loadHqElevators(uint32_t zone) {
+    for (int t = 0; t < kHqTypes; ++t) {
+        hqFrame_[t].unload();
+        hqLeft_[t].unload();
+        hqRight_[t].unload();
+    }
+    hqSigns_.unload();
+    numHq_ = 0;
+    if (zone == 0) return;
+    char path[112];
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/zones/%lu.thq", static_cast<unsigned long>(zone));
+    FILE* f = fopen(path, "rb");
+    if (!f) return; // no runtime elevators in this zone
+    char magic[4];
+    uint16_t version = 0, count = 0;
+    bool ok = readAll(f, magic, 4) && !memcmp(magic, "THQ1", 4) && readAll(f, &version, 2) && version == 1 &&
+              readAll(f, &count, 2) && count <= kMaxHq;
+    for (int i = 0; ok && i < count; ++i) {
+        HqElevator& e = hq_[i];
+        uint8_t head[4];
+        float tail[3];
+        ok = readAll(f, head, 4) && readAll(f, e.rows, 48) && readAll(f, tail, 12) && head[0] < kHqTypes;
+        e.type = head[0];
+        e.origin = static_cast<int8_t>(head[1]);
+        e.sign = head[2];
+        e.width = tail[0];
+        e.openTime = tail[1] > 0 ? tail[1] : 1;
+        e.closeTime = tail[2] > 0 ? tail[2] : 1;
+    }
+    fclose(f);
+    if (!ok) {
+        TT_LOG("cog buildings: %s is corrupt, ignored", path);
+        return;
+    }
+    numHq_ = count;
+    static const char* const kTypes[kHqTypes] = {"factory", "mint", "vp", "cfo", "cj", "bb"};
+    bool signs = false;
+    for (int i = 0; i < numHq_; ++i) {
+        const int t = hq_[i].type;
+        signs |= hq_[i].sign != 255;
+        if (hqFrame_[t].loaded()) continue;
+        render::Model* parts[3] = {&hqFrame_[t], &hqLeft_[t], &hqRight_[t]};
+        static const char* const kParts[3] = {"frame", "left", "right"};
+        for (int k = 0; k < 3; ++k) {
+            snprintf(path, sizeof(path), "%shqelev_%s_%s.ttm", kCogDir, kTypes[t], kParts[k]);
+            if (!parts[k]->load(path)) TT_LOG("cog buildings: cannot load %s", path);
+        }
+    }
+    if (signs) {
+        snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/zones/%lu_hqsign.ttm", static_cast<unsigned long>(zone));
+        if (!hqSigns_.load(path)) TT_LOG("cog buildings: cannot load %s", path);
+    }
+    TT_LOG("cog buildings: zone %lu has %d HQ elevator spots", static_cast<unsigned long>(zone), numHq_);
+}
+
+// An HQ elevator model exists while its DistributedElevator does (setupElevator / delete):
+// the facility elevators by entrance / mint origin, a lobby's boss elevator by class.
+void CogBuildings::drawHqElevators(render::Renderer& renderer, const net::Client& client) const {
+    for (int i = 0; i < numHq_; ++i) {
+        const HqElevator& h = hq_[i];
+        const net::CogElevator* found = nullptr;
+        for (int n = 0; n < net::kMaxCogElevators && !found; ++n) {
+            const net::CogElevator& e = client.cogElevatorSlot(n);
+            if (!e.active) continue;
+            bool match;
+            switch (h.type) {
+            case 0: match = e.classId == dc::DistributedFactoryElevatorExt::kClassId && e.origin == h.origin; break;
+            case 1:
+                match = (e.classId == dc::DistributedMintElevatorExt::kClassId ||
+                         e.classId == dc::DistributedLawOfficeElevatorExt::kClassId) && e.origin == h.origin;
+                break;
+            case 2: match = e.classId == dc::DistributedVPElevator::kClassId; break;
+            case 3: match = e.classId == dc::DistributedCFOElevator::kClassId; break;
+            case 4: match = e.classId == dc::DistributedCJElevator::kClassId; break;
+            default: match = e.classId == dc::DistributedBBElevator::kClassId; break;
+            }
+            if (match) found = &e;
+        }
+        if (!found) continue;
+        // ElevatorUtils: doors at (0, 0, 0) open, (+-width, 0, 0) closed; waitEmpty forces
+        // them open, opening / closing slide over ElevatorData's open / close time.
+        const float age = int32_t(net::plat::nowMs() - found->stateStartMs) / 1000.0f;
+        float open = 0.0f;
+        if (!strcmp(found->state, "opening")) open = age / h.openTime;
+        else if (!strcmp(found->state, "waitEmpty") || !strcmp(found->state, "waitCountdown")) open = 1.0f;
+        else if (!strcmp(found->state, "closing")) open = 1.0f - age / h.closeTime;
+        open = open < 0 ? 0 : open > 1 ? 1 : open;
+        const C3D_Mtx frame = toMtx(h.rows);
+        if (hqFrame_[h.type].loaded()) renderer.drawModel(const_cast<render::Model&>(hqFrame_[h.type]), frame);
+        for (int side = 0; side < 2; ++side) {
+            const render::Model& door = side ? hqRight_[h.type] : hqLeft_[h.type];
+            if (!door.loaded()) continue;
+            C3D_Mtx m = frame;
+            Mtx_Translate(&m, (side ? -1.0f : 1.0f) * h.width * (1.0f - open), 0, 0, true);
+            renderer.drawModel(const_cast<render::Model&>(door), m);
+        }
+        if (h.sign != 255 && hqSigns_.loaded() && h.sign < hqSigns_.numBatches()) {
+            C3D_Mtx identity;
+            Mtx_Identity(&identity);
+            renderer.setOnlyBatch(h.sign);
+            renderer.drawModel(const_cast<render::Model&>(hqSigns_), identity);
+            renderer.setOnlyBatch(-1);
+        }
+    }
+}
+// ---- end Cog HQ elevators ----
 
 } // namespace tt::world

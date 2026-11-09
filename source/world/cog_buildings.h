@@ -90,6 +90,23 @@ private:
     // and its door in that space (points.bin).
     render::Model cogdoShell_;
     float cogdoDoor_[3] = {15.463f, 0, 0};
+    // ---- Cog HQ elevators (tools/pipeline/bake_hq_elevators.py) ----
+    // Upstream's setupElevator loads these at run time (the zone bake holds only the HQ
+    // model): <zone>.thq places them, data/cogbldg/hqelev_<type>_* are frame and doors.
+    struct HqElevator {
+        uint8_t type = 0, sign = 255;
+        int8_t origin = -1;
+        float rows[12] = {};
+        float width = 0, openTime = 1, closeTime = 1;
+    };
+    static constexpr int kHqTypes = 6;     // factory mint vp cfo cj bb
+    static constexpr int kMaxHq = 8;
+    void loadHqElevators(uint32_t zone);
+    void drawHqElevators(render::Renderer& renderer, const net::Client& client) const;
+    HqElevator hq_[kMaxHq] = {};
+    int numHq_ = 0;
+    render::Model hqFrame_[kHqTypes], hqLeft_[kHqTypes], hqRight_[kHqTypes], hqSigns_;
+    // ---- end Cog HQ elevators ----
     render::Model kart_; // DistributedCogKart (Coggolf_cart3)
     uint32_t zone_ = 0;
     uint32_t requestedElevator_ = 0;

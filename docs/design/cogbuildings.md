@@ -55,6 +55,18 @@ Font pages are alpha-only (`F_alpha`) textures; `extract.texture_pixels` takes t
 channel as the mask. It used to read them as alpha 255, which baked every sign letter as a
 solid block.
 
+## Cog HQ elevators
+
+The HQ zone bakes hold only the HQ model; each DistributedElevator's `setupElevator` loads
+its own model (factory: phase_4 elevator at setEntranceId's pos/hpr, scale 1.05, no light
+panel; mint and DA office: `mintElevator` at `elevator_origin_<n>` plus the destination in
+the suit font on `ElevatorFrameFront_<n>`; the VP / CFO / CJ / CEO lobbies: their elevator on
+`elevator_locator`, VP turned 180). Without them the doorways were holes (sky through the DA
+office doors, a black void in the CFO lobby). `tools/pipeline/bake_hq_elevators.py` writes the
+frame and both doors per type and a `<zone>.thq` placement list (THQ1);
+`CogBuildings::drawHqElevators` draws one while its elevator object exists, doors at
+(+-width, 0, 0) closed and 0 open over ElevatorData's open / close time.
+
 ## Elevator and hand-off
 
 `DistributedElevator` declares `setBldgDoId`, `setState`, eight `fillSlot` and
