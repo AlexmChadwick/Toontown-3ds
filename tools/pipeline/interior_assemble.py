@@ -311,13 +311,14 @@ def _add_tutorial_street_view(root, loader, resources):
 
 
 def parse_dna_landmarks(dna_path):
-    """Parse landmark_building blocks from a DNA file."""
+    """Parse landmark_building blocks (and Silly Street's anim_building, the Sign Factory, an
+    ordinary Toon building to the AI) from a DNA file."""
     with open(dna_path, 'r', encoding='utf-8') as f:
         text = f.read()
     results = []
     pos = 0
     while True:
-        m = re.search(r'landmark_building\s+"([^"]+)"\s*\[', text[pos:])
+        m = re.search(r'(?:landmark|anim)_building\s+"([^"]+)"\s*\[', text[pos:])
         if not m:
             break
         root_name = m.group(1)
@@ -491,7 +492,7 @@ def get_all_interior_specs(resources):
                     title = f'Building {block}'
 
             itype = btype
-            if itype in ('toon', 'standard', 'clotheshop', 'bank', 'school', 'library'):
+            if itype in ('toon', 'standard', 'clotheshop', 'bank', 'school', 'library', 'animbldg'):
                 if canonical_zone == 2513:
                     itype = 'toonhall'
                 elif canonical_zone == 2514:
