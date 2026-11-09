@@ -5,6 +5,7 @@
 #pragma once
 
 #include "ui/focus.h"
+#include "ui/panel_geometry.h"
 
 namespace tt::ui::pad {
 
@@ -16,17 +17,18 @@ constexpr int kMaxCogs = 4;
 constexpr int kTracks = 7;
 constexpr int kLevels = 7;
 constexpr float kCogX = 2, kCogY = 17, kCogH = 32, kCogW = 78, kCogGap = 1;
-constexpr float kHintY = 3, kHintH = 45, kHintW = 74, kHintGap = 3;
-// The stock wording is reflowed to two lines so both baselines stay inside this short card's
-// cream centre. Three stock lines need the original roughly 82 px card and crossed our border.
-constexpr float kHintTextTop = 6, kHintTextStep = 13, kHintTextScale = 0.43f;
-constexpr float kHintTextMaxW = kHintW - 10;
+constexpr float kHintY = 3, kHintH = layout::kHintH, kHintW = 74, kHintGap = 3;
+// Two lines, below the 9-slice corner. The card stays above the gag grid (kGridY).
+constexpr float kHintTextTop = layout::kHintTextTop, kHintTextStep = layout::kHintTextStep,
+                kHintTextScale = layout::kHintTextScale;
+constexpr float kHintTextMaxW = kHintW - 2.0f * layout::hintCorner(kHintW, kHintH) - 4.0f;
 constexpr float kCogRight = kCogX + kMaxCogs * kCogW + (kMaxCogs - 1) * kCogGap;
 // InventoryNew inside battle_gui's red BATTLE_Menu frame: one InventoryRow per track, the label
 // end on the left and the seven gag buttons over the row's slots (InventoryRow's first slot sits
 // 22% in, ui/inventory_art.h). The rows fill [kGridY, kGridY + kGridH).
 constexpr float kFrameX = 1, kFrameY = 51, kFrameW = 318, kFrameH = 150;
 constexpr float kRowX = 5, kRowW = 310, kGridY = 56, kGridH = 140;
+static_assert(kHintY + kHintH <= kGridY, "hint card stays above the gag grid");
 constexpr float kGridX = 73, kCellW = 34, kCellGap = (kRowX + kRowW - kGridX - 7 * kCellW) / 7;
 // A track still to earn keeps its labelled row, thin, so the earned rows get big buttons.
 constexpr float kThinRowH = 15, kMaxRowH = 30, kRowGap = 1;

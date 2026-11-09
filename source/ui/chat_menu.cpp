@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/panel_geometry.h"
 #include "ui/theme.h"
 
 namespace tt::ui {
@@ -12,10 +13,10 @@ namespace tt::ui {
 namespace {
 
 constexpr float kZ = 0.5f;
-constexpr float kMarginX = 6.0f;
+constexpr float kMarginX = layout::kChatMarginX;
 constexpr float kArrowW = 18.0f;
 constexpr float kScrollBarW = 4.0f;
-constexpr float kBackW = 64.0f;
+constexpr float kBackW = layout::kChatBackW;
 constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 
 // SpeedChat's own look (SCColorScheme defaults, ui/theme.h): pale frames, black text, a green
@@ -133,20 +134,24 @@ void ChatMenu::enter(int menu, int focusItem) {
     menu_ = menu;
     C2D_TextBufClear(menuBuf_);
 
-    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat).
-    char crumb[96];
+    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat). A title that
+    // does not fit at kChatTitleScale is replaced by "SpeedChat" in draw().
+    const char* leafTitle = titleOf(menu);
     const int parent = parentOf(menu);
-    if (parent < 0 || parentOf(parent) < 0) {
-        snprintf(crumb, sizeof(crumb), "%s", titleOf(menu));
+    const int grand = parent < 0 ? -1 : parentOf(parent);
+    char crumb[96];
+    if (!layout::chatShowsCrumb(parent, grand)) {
+        snprintf(crumb, sizeof(crumb), "%s", leafTitle);
     } else {
-        snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), titleOf(menu));
+        snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), leafTitle);
     }
     tt::render::textParse(&title_, menuBuf_, crumb);
+    tt::render::textParse(&speed_, menuBuf_, "SpeedChat");
     C2D_TextOptimize(&title_);
-    float tw, th;
-    C2D_TextGetDimensions(&title_, 0.5f, 0.5f, &tw, &th);
-    const float titleAvail = kW - kBackW - 2 * kMarginX - 8.0f;
-    titleScale_ = tw > titleAvail ? 0.5f * titleAvail / tw : 0.5f;
+    C2D_TextOptimize(&speed_);
+    float th = 0.0f;
+    C2D_TextGetDimensions(&title_, 1.0f, 1.0f, &titleFullW_, &th);
+    C2D_TextGetDimensions(&speed_, 1.0f, 1.0f, &speedW_, &th);
 
     const int n = numRows(menu);
     for (int i = 0; i < n && i < kMaxRows; i++) {
@@ -317,7 +322,7 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
     return consumed;
 }
 
-void ChatMenu::draw(float panelBottom) {
+void ChatMenu::draw(float panelBottom, float headerRight) {
     const float listH = panelBottom - kHeaderH;
     const int numItems = numRows(menu_);
 
@@ -368,17 +373,19 @@ void ChatMenu::draw(float panelBottom) {
         theme::roundRect(kW - kMarginX - kScrollBarW, barY, kScrollBarW, barH, 2, theme::kScArrow, kZ);
     }
 
-    // Header.
-    theme::skyBand(0, kHeaderH, kW, panelBottom, kZ);
-    float titleX = kMarginX + 2.0f;
-    if (parentOf(menu_) >= 0) { // a small panel of the menu's own frame, rollover green while pressed
+    theme::skyBand(0, kHeaderH, kW, layout::kTabY, kZ);
+    const bool nested = parentOf(menu_) >= 0;
+    float titleX = layout::chatTitleX(false);
+    if (nested) { // a small panel of the menu's own frame, rollover green while pressed
         theme::roundRect(kMarginX, 2, kBackW, kHeaderH - 5, kFrameR, kFrameEdge, kZ);
         theme::roundRect(kMarginX + 1.5f, 3.5f, kBackW - 3, kHeaderH - 8, kFrameR - 1.5f, pressedBack_ ? kPressed : kRow, kZ);
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
-        titleX = kMarginX + kBackW + 8.0f;
+        titleX = layout::chatTitleX(true);
     }
-    C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
-                 kTitle);
+    const layout::TitleFit fit = layout::fitChatTitle(titleFullW_, speedW_, titleX, headerRight);
+    if (fit.shown == layout::ChatTitle::Hidden) return;
+    const C2D_Text* shown = fit.shown == layout::ChatTitle::SpeedChat ? &speed_ : &title_;
+    C2D_DrawText(shown, C2D_WithColor, titleX, 4.0f, kZ, fit.scale, fit.scale, kTitle);
 }
 
 } // namespace tt::ui

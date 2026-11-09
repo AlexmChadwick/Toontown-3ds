@@ -196,8 +196,11 @@ Dated entries: what was done, how it was verified, and what is next. Test number
 - Host: padnav_test 154 checks (conda GCC). `make`: zero warnings in source/.
 
 ### Asset size decisions
-- `book_tabs.ttm`: the nine original icons at 48 x 48 in a 256 x 128 RGBA8 atlas (128 KB RomFS,
+- `book_tabs.ttm`: the nine page icons at 48 x 48 in a 256 x 128 RGBA8 atlas (128 KB RomFS,
   loaded on first use). They are drawn at 21-26 px; RGBA8 keeps the card logo and fish edges clean.
+  The Map cell is teleportIcon redrawn with a shaft, a downward head and a portal rim
+  (`tools/pipeline/book_tab_glyph.py`). The 1 px gaussian turned that arrow into a check
+  in a solid well at tab size.
 
 ### Known issues
 - QuestChoiceGui's clock was built but not captured: the HQ autotest's choice step was past by the

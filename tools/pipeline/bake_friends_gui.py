@@ -8,6 +8,11 @@ reuses those exact pieces around its compact list instead of approximating the s
     romfs/baked/friends_gui.ttm       one 256x256 RGBA8 texture
     source/ui/friends_gui_atlas.h     atlas rectangles
 
+The parchment and button edges are antialiased. RGBA4 steps on those edges.
+Flat paper fills would survive RGBA4. The panel alone is 118 x 220, which
+already needs a 256 x 256 sheet. Scroll, Arrow and Close are unused at runtime
+and do not change that size.
+
     .venv/bin/python -I tools/pipeline/bake_friends_gui.py --res ref/resources [--png atlas.png]
 """
 import argparse

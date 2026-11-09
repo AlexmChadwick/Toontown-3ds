@@ -2061,3 +2061,40 @@ committed as `3614cd0`. The slash fill is reinforced inside the same glyph advan
 turning its one-pixel staircase into a two-pixel body without moving or shrinking
 `100` and `137`. Both scripts completed at 29.9 fps with zero emulator panics. The
 native frames and an 8x nearest-neighbor before/after sheet were reviewed.
+
+## 2026-11-09 - bottom-screen GUI review (host only)
+
+No Azahar binary and no devkitARM on this machine. This entry is not an emulator
+or hardware pass, and it does not claim a frame budget.
+
+`tools/gui_layout_test/run.sh` passed. Friends rows sit on the parchment and
+scroll. A depth-2 SpeedChat crumb stays at scale 0.5. Menu 17 does not fit
+at that scale, so the header shows SpeedChat, and shows nothing if that word
+does not fit either. The whisper label keeps "To: Little Pepper" at 0.42.
+A name that does not fit drops the prefix, then wraps at 0.36, and cuts the
+second line with one '.' only when two lines still overflow. The floor is 0.36.
+The label is parsed into its own buffer when the target changes.
+Battle hint text sits in the cream. The pocket slash fill scales with the meter
+and stays a pixel clear of the next glyph, including the shrink pulse. The chat
+log paper starts at the log strip, so the sky above it is 4 px. Nine book tab
+rects do not overlap. The Map cell check requires a centred arrow tip, a portal
+interior, flags 0, and the original relative quad indices.
+
+The Map glyph in `romfs/baked/book_tabs.ttm` was upstream `teleportIcon` after the
+baker's 1 px gaussian. At 21 px that arrow read as a check in a black well.
+`tools/pipeline/book_tab_glyph.py` redraws the same arrow with a shaft, a downward
+head and a rim. The other eight icons are unchanged. `ref/resources` is not
+checked out here and panda3d is not installed, so this is not a rebake from the bam.
+
+320x240 layout composites (real atlas pixels and the panel rectangles, not
+emulator captures) show the tab bar before and after, and the SpeedChat frame
+against the chat log. The log paper is drawn on the strip's top row, so the sky
+between the frame and the paper is 4 px.
+
+GUI sheets stayed RGBA8 because their antialiased edges pick up partial coverage
+that RGBA4 steps on. Flat fills would be fine at RGBA4. The friends panel is
+118 x 220 and the hint card starts at y 129, so neither sheet can shrink to a
+smaller power of two. Font sheets are already the minimum size that holds the cells.
+`DEVKITPRO` make produced `toontown3ds.3dsx` with no warnings in `source/`.
+The linker still prints the existing `crtn.o` executable-stack note.
+
