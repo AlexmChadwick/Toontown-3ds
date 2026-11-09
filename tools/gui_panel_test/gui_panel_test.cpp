@@ -23,6 +23,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <algorithm>
 #include <string>
 #include <vector>
 
@@ -123,21 +124,28 @@ constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButton
                 kFriendsButtonH = 24.0f;
 constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
                 kFriendsPanelH = 204.0f;
-// QA-20261109-09: the list inset is mirrored only for the checks that do not decide the
+// QA-20261109-09: the list inset is used only for the checks that do not decide the
 // clip (row stacking, status-dot positions). The left-edge invariant itself is derived
 // from the real panel art at run time (friendsWhiteFaceEdge below), never from this
 // constant: at the pre-fix inset 86 the names sat at x 91 while the art's white inner
 // face starts at about x 100, and a check copied from the inset passed that clipped
-// layout. The right edge and dot columns still use the mirrored list rect.
-constexpr float kFriendsListX = 102.0f, kFriendsListY = 76.0f, kFriendsListW = 124.0f,
-                kFriendsRowH = 11.0f;
+// layout. Since PR #14 (1297365) the constants live in ui/panel_geometry.h, shared with
+// this suite, so they alias the real values instead of drifting: a 4-row visible
+// window (kFriendsVisible), 16 px rows ending at the close button, dots inside the
+// list's right edge (1297365 drawFriends).
+constexpr float kFriendsListX = layout::kFriendsListX, kFriendsListY = layout::kFriendsListY,
+                kFriendsListW = layout::kFriendsListW;
+constexpr float kFriendsRowH = layout::kFriendsRowH;
+constexpr int kFriendsVisible = layout::kFriendsVisible;
 constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
                 kFriendsCloseH = 26.0f;
 constexpr float kGagsRow0 = 27.0f, kGagsRowH = 21.0f;
 constexpr float kToonSwX = 8, kToonSwY = 44, kToonSwSize = 30, kToonSwGap = 4, kToonSwCols = 9;
 constexpr float kToonTargetsX = 8, kToonTargetsW = 98, kToonTargetsH = 30;
 // LaffMeter file-local constants mirrored for the label math (ui/laff_meter.cpp).
-constexpr float kLafLabelMaxW = 0.46f, kLafLabelGap = 0.006f;
+// PR #14 (1297365) widened the label gap (kLaffLabelGap 0.040) so the bold slash fill
+// stays clear of the next glyph's outline; both come from panel_geometry.h now.
+constexpr float kLafLabelMaxW = layout::kLaffLabelMaxW, kLafLabelGap = layout::kLaffLabelGap;
 constexpr float kLafToothFr[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666f, 0.833333f};
 
 constexpr float kEps = 0.6f;      // draw-rounding tolerance
@@ -276,37 +284,49 @@ int countLaffPart(int part) {
 // ---------------------------------------------------------------------------
 // Invariant 3b: the pocket Laff's slash reads as a divider, not a comma-thin stroke
 // ---------------------------------------------------------------------------
-// laff_meter.cpp inks the hp/max label's slash twice: drawOutlinedText's fill pass
-// plus a reinforcement at +0.55 px (the ImpressBT diagonal is about 1 px at pocket
-// scale). The ruler grounds "readable at native 320x240" on the real glyph: the
-// inked row span and stroke width come from the committed bcfnt's sheet, and the
-// drawn scale is read off the recorded draw. A hairline glyph, a comma-shaped
-// re-bake or a missing reinforcement fails below.
+// laff_meter.cpp inks the hp/max label's slash three times: drawOutlinedText's fill
+// pass, a mid reinforcement always half of the bold one (0.55 px at the reference
+// meter size), and the bold pass at layout::slashBold (kLaffSlashBold, 1.15 px). PR
+// #14's 1297365 widened the label gap so that scar stays clear of the max digit, so
+// the ruler reads at pocket scale: three ink passes with those source offsets must
+// appear. A hairline glyph, a comma-shaped re-bake, a dropped reinforcement or an
+// offset that crosses the next glyph's outline fails below.
 void assertSlashDivider() {
-    // The two ink-coloured "/" passes inside the pocket: the smaller x is the
-    // outlined fill, the larger one the reinforcement (rim passes are white).
+    // The ink-coloured "/" passes inside the pocket, left to right: the outlined
+    // fill, then the mid and bold reinforcements (rim passes are white).
     const u32 kInk = C2D_Color32(0x10, 0x10, 0x10, 0xFF); // laff_meter.cpp label ink
-    const HostRecord* ink = nullptr;
-    const HostRecord* reinf = nullptr;
+    std::vector<const HostRecord*> passes;
     for (const auto* t : textRecords()) {
         if (t->text != "/" || t->color != kInk) continue;
         if (!contains(*t, 0, kPocketTop, kPocketW, kScreenH - kPocketTop)) continue;
-        if (!ink || t->x < ink->x) {
-            reinf = ink;
-            ink = t;
-        } else if (!reinf || t->x > reinf->x) {
-            reinf = t;
-        }
+        passes.push_back(t);
     }
-    chk(ink != nullptr, "laff pocket: slash drawn in the hp/max label");
-    chk(ink && reinf, "laff pocket: slash reinforced (second ink pass)");
-    if (!ink) return;
+    std::sort(passes.begin(), passes.end(),
+              [](const HostRecord* a, const HostRecord* b) { return a->x < b->x; });
+    chk(!passes.empty(), "laff pocket: slash drawn in the hp/max label");
+    chk(passes.size() >= 3, "laff pocket: slash inked thrice (fill + mid + bold)", "%zu",
+        passes.size());
     float dx = 0.0f;
-    if (reinf) {
-        dx = reinf->x - ink->x;
-        chk(dx >= 0.3f && dx <= 0.8f, "laff pocket: slash reinforcement offsets the ink pass",
-            "%.2f px", dx);
-        chk(fabsf(reinf->y - ink->y) < 0.05f, "laff pocket: the reinforcement stays on the line");
+    if (passes.size() >= 3) {
+        dx = passes[2]->x - passes[0]->x;
+        // The reinforcements ride the real source offsets (laff_meter.cpp / panel_geometry.h):
+        // the mid pass is half the bold one, and both scale with the drawn meter size,
+        // which the tab-bar pocket draws at kPocketLaff at rest.
+        const float mid = passes[1]->x - passes[0]->x;
+        const float wantMid = 0.55f * kPocketLaff / layout::kLaffMeterRef;
+        const float wantBold = layout::slashBold(kPocketLaff);
+        chk(fabsf(mid - wantMid) <= 0.06f, "laff pocket: the mid slash pass offsets the fill",
+            "%.2f of %.2f px", mid, wantMid);
+        chk(fabsf(dx - wantBold) <= 0.06f, "laff pocket: the bold slash pass offsets the fill",
+            "%.2f of %.2f px (kLaffSlashBold)", dx, wantBold);
+        chk(fabsf(passes[2]->y - passes[0]->y) < 0.05f,
+            "laff pocket: the bold reinforcement stays on the line");
+        // panel_geometry.h's own clearance rule, restated on the drawn record: the
+        // bold fill stays a pixel short of the label gap, so the max digit's outline
+        // stays clear of the slash (1297365, "the slash clear").
+        const float gap = layout::slashGap(kPocketLaff);
+        chk(dx <= gap - 1.0f + 0.06f, "laff pocket: the bold slash stays clear of the max glyph",
+            "%.2f px vs the gap's last %.2f px", dx, gap - 1.0f);
     }
     // The glyph itself, from the same bcfnt the device samples.
     host::FontMetrics::GlyphInk gi;
@@ -316,17 +336,14 @@ void assertSlashDivider() {
         "%d rows", gi.rows);
     chk(gi.stroke >= 2, "laff pocket: the slash glyph is not a single-pixel hairline",
         "%d columns", gi.stroke);
-    // Visible stroke on the bottom screen at the panel's drawn scale.
-    const float scale = ink->scale;
+    // Visible stroke on the bottom screen at the panel's drawn scale; the union of
+    // the fill and the bold reinforcement is what the eye reads at 320x240.
+    const float scale = passes.empty() ? 0.4f : passes[0]->scale;
     const float visible = gi.stroke * scale + dx; // union of fill and reinforcement
     chk(visible >= 1.5f, "laff pocket: slash reads as a divider at 320x240",
         "stroke %.2f px, comma-thin", visible);
     chk(gi.rows * scale >= 6.0f, "laff pocket: the drawn slash towers over digits",
         "%.1f px", gi.rows * scale);
-    // The advance box must dominate kLabelGap so the label reads hp / max, not hp, max.
-    const float gap = kLafLabelGap * kPocketLaff;
-    chk(ink->w >= 3.0f * gap, "laff pocket: the slash box clears the label gap",
-        "%.2f vs %.2f", ink->w, 3.0f * gap);
 }
 
 // The tinted species head record plus the label text group inside the pocket.
@@ -736,24 +753,131 @@ float friendsWhiteFaceEdge(const std::vector<const HostRecord*>& namesDrawn,
     return edge;
 }
 
+// PR #14 (1297365) the Friends panel is a scrolled 4-row window over the friend list
+// (ui/panel_geometry.h: kFriendsVisible, friendsScroll, friendVisible, friendAt), not
+// the 8 stacked rows the pre-PR14 test drove. The fixture all window helpers share;
+// "Little Pepper" stays index 0 (the QA-20261109-09 clip canary) and the two offline
+// friends sit at the end so scrolling the window down flips the status dots to grey.
+static const char* const kFriendNames[8] = {"Little Pepper", "Sleepy Rabbit", "Daisy Mae",
+                                            "Doctor Drizzle", "Sir Fumblebump",
+                                            "Madam Applecheek", "Rainbow Nibbles",
+                                            "Colonel Thumbwhisker"};
+constexpr int kNumFriendFixture = 8;
+bool friendIsNearby(int i) { return i < 6; } // six online, two offline
+
+// The status dot on a visible row: drawFriends paints a 6x6 roundRect at the list's
+// right inset (kFriendsListX + kFriendsListW - 13; PR #14: x 211), green when the
+// friend is nearby, grey when offline. The recorder sees its corner-fan triangles and
+// side slivers, so the dot is asserted through its pieces.
+void assertFriendDot(int row, int index) {
+    const float dotX = kFriendsListX + kFriendsListW - 13.0f;
+    const float dotY = kFriendsListY + row * kFriendsRowH + 5.0f;
+    const u32 want = 0xFF000000u | (friendIsNearby(index) ? theme::kGreen : theme::kGrey);
+    const u32 other = 0xFF000000u | (friendIsNearby(index) ? theme::kGrey : theme::kGreen);
+    int hit = 0, wrong = 0;
+    for (const auto& r : host::gRecords) {
+        if (r.x + r.w < dotX - 1.6f || r.x > dotX + 7.6f) continue;
+        if (r.y < dotY - 1.6f || r.y > dotY + 6.6f) continue;
+        if (r.color == want) ++hit;
+        else if (r.color == other) ++wrong;
+    }
+    char what[96];
+    snprintf(what, sizeof what, "friends: row %d status dot drawn %s", row,
+             friendIsNearby(index) ? "green" : "grey");
+    chk(hit >= 4, what, "%d pieces at x %.1f", hit, dotX);
+    chk(wrong == 0, what, "but %d pieces of the other colour", wrong);
+}
+
+// The focus highlight on a visible row: drawFriends paints a roundRect the width of
+// the list, one pixel short of the row (PR #14 geometry: 122 x 15, radius 3). The
+// recorder sees its body/side rects and corner-fan triangles, so the union is checked;
+// a finder that matches one big piece (w > 130, h < 12) never sees the real shape.
+void assertFriendHighlight(int row, float whiteEdge) {
+    const float top = kFriendsListY + row * kFriendsRowH;
+    const u32 kHl = 0xFF000000u | theme::kScRollover;
+    float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
+    for (const auto& r : host::gRecords) {
+        if (r.color != kHl) continue;
+        if (r.x > kFriendsListX + kFriendsListW + 2 || r.x + r.w < kFriendsListX - 2) continue;
+        if (r.y < top - 2 || r.y > top + kFriendsRowH - 1 + 2) continue;
+        x0 = fminf(x0, r.x);
+        y0 = fminf(y0, r.y);
+        x1 = fmaxf(x1, r.x + r.w);
+        y1 = fmaxf(y1, r.y + r.h);
+    }
+    chk(x1 > x0, "friends: focus highlight drawn");
+    if (x1 <= x0) return;
+    chk(fabsf(x0 - kFriendsListX) <= 1.0f && fabsf(y0 - top) <= 1.0f,
+        "friends: highlight starts on the focused row", "(%.1f, %.1f) vs (%.1f, %.1f)", x0,
+        y0, kFriendsListX, top);
+    chk(fabsf((x1 - x0) - kFriendsListW) <= 1.5f &&
+            fabsf((y1 - y0) - (kFriendsRowH - 1.0f)) <= 1.5f,
+        "friends: highlight covers the row (PR #14: 122 x 15)", "%.1f x %.1f", x1 - x0,
+        y1 - y0);
+    chk(x0 >= whiteEdge - kEps, "friends: highlight starts on the white panel face",
+        "x %.1f vs the art's white edge %.1f", x0, whiteEdge);
+}
+
+// One full check of the visible window at a focus index: which of the fixture names
+// are on screen follows panel_geometry.h's own scroll arithmetic, each visible row's
+// text sits on the art-derived white face, its status dot matches the friend's state,
+// and the focus highlight covers the focused row.
+void assertFriendsWindow(int focus, float whiteEdge) {
+    const int clamped = layout::friendFocusClamp(kNumFriendFixture, focus);
+    const int scroll = layout::friendsScroll(kNumFriendFixture, clamped);
+    const int visible = layout::friendVisible(kNumFriendFixture, focus);
+    chk(visible == kFriendsVisible, "friends: the window shows kFriendsVisible rows", "%d",
+        visible);
+    for (int i = 0; i < kNumFriendFixture; i++) {
+        const bool onScreen = i >= scroll && i < scroll + visible;
+        const HostRecord* t = findText(kFriendNames[i]);
+        char what[96];
+        snprintf(what, sizeof what, "friends (focus %d): '%s' %s the 4-row window", focus,
+                 kFriendNames[i], onScreen ? "inside" : "scrolled out of");
+        chk((t != nullptr) == onScreen, what);
+        if (!t || !onScreen) continue;
+        const int row = i - scroll;
+        const float rowY = kFriendsListY + row * kFriendsRowH;
+        // Row stacking: the text sits inside its row band (PR #14: rows at 86 + 16i,
+        // the glyphs at +2), never clipping into the next row.
+        snprintf(what, sizeof what, "friends: '%s' row %d inside the list", kFriendNames[i], row);
+        chk(t->y >= rowY - 1.0f - kEps && t->y + t->h <= rowY + kFriendsRowH + kEps &&
+                t->x + t->w <= kFriendsListX + kFriendsListW + kEps,
+            what, "(%.1f, %.1f, %.1f x %.1f)", t->x, t->y, t->w, t->h);
+        // The clip invariant itself (QA-20261109-09): the name's leading glyphs start
+        // on the white panel face, past the border, at the art-derived edge.
+        snprintf(what, sizeof what, "friends: '%s' starts on the white panel face",
+                 kFriendNames[i]);
+        chk(t->x >= whiteEdge - kEps, what, "x %.1f vs the art's white edge %.1f", t->x,
+            whiteEdge);
+        // And the name (shrunk by theme::textFit) must not run under the status dot.
+        chk(t->x + t->w <= kFriendsListX + kFriendsListW - 15 + kEps,
+            "friends name leaves room for the status dot", "'%s' ends at %.1f",
+            t->text.c_str(), t->x + t->w);
+        // Vertical: rows stack without clipping the glyph tops at the header or the close row.
+        chk(t->y >= kFriendsListY - 1 - kEps && t->y + t->h <= kFriendsCloseY + kEps,
+            "friends rows fit between header and close button", "'%s' y %.1f..%.1f",
+            t->text.c_str(), t->y, t->y + t->h);
+        assertFriendDot(row, i);
+    }
+    assertFriendHighlight(clamped - scroll, whiteEdge);
+}
+
+// The eight-name fixture's Little Pepper is the QA-20261109-09 clip canary and must
+// stay friend 0: it is the first name the clipped layout pushed left of the white
+// inner edge, so its leading glyphs ("Li...") are the ones that sat on the teal
+// border and read as cut off at the panel face. Keep it a 13-glyph name drawn at the
+// list's fixed inset so the whole leading word rides the edge band.
 void suiteFriends() {
     printf("suite: Friends panel\n");
     setOnlineContext();
-    // The eight-name fixture. names[0] "Little Pepper" is the QA-20261109-09 clip canary
-    // and must stay row 0: it is the first name the clipped layout pushed left of the
-    // white inner edge, so its leading glyphs ("Li...") are the ones that sat on the
-    // teal border and read as cut off at the panel face. Keep it a 13-glyph name drawn
-    // at the fixed inset so the whole leading word rides the edge band.
-    static const char* names[8] = {"Little Pepper", "Sleepy Rabbit", "Daisy Mae", "Doctor Drizzle",
-                                  "Sir Fumblebump", "Madam Applecheek", "Rainbow Nibbles",
-                                  "Colonel Thumbwhisker"};
     tt::ui::Context& c = *gCtx;
     c.numNearby = 0;
-    c.numFriends = 8;
-    for (int i = 0; i < 8; i++) {
+    c.numFriends = kNumFriendFixture;
+    for (int i = 0; i < kNumFriendFixture; i++) {
         c.friendIds[i] = 100 + i;
-        c.friendNames[i] = names[i];
-        c.friendNearby[i] = i < 6;  // six online, two offline
+        c.friendNames[i] = kFriendNames[i];
+        c.friendNearby[i] = friendIsNearby(i);
         c.friendOpenChat[i] = i % 2 == 0;
     }
     gState->tab = tt::ui::kTabChat;
@@ -773,122 +897,71 @@ void suiteFriends() {
     if (panel)
         chk(contains(*panel, kFriendsPanelX, kFriendsPanelY, kFriendsPanelW, kFriendsPanelH, 1.0f),
             "friends: panel art at the stock pocket position");
-    // Title: centred, inside the panel.
+    // Title: centred, at panel_geometry.h's title seat (164, 56).
     const HostRecord* title = findText("Online Friends");
     chk(title != nullptr, "friends: title drawn");
     if (title)
-        chk(contains(*title, kFriendsPanelX + 2, 40, kFriendsPanelW - 4, 36),
+        chk(contains(*title, kFriendsPanelX + 2, layout::kFriendsTitleY - 6, kFriendsPanelW - 4, 20),
             "friends: title inside the panel");
     // Empty-list wording (regression for the soft-panel crossover): drawn within the list.
-    for (int i = 0; i < 8; i++) c.friendNames[i] = nullptr;
+    for (int i = 0; i < kNumFriendFixture; i++) c.friendNames[i] = nullptr;
     c.numFriends = 0;
     drawOnce();
     assertBounds("friends empty");
     const HostRecord* empty = findText("No friends yet.");
     chk(empty != nullptr, "friends: empty-list text drawn");
     if (empty)
-        chk(contains(*empty, kFriendsListX, 70, kFriendsListW, 90), "friends: empty text in the list");
-    c.numFriends = 8;
-    for (int i = 0; i < 8; i++) c.friendNames[i] = names[i];
+        chk(contains(*empty, kFriendsListX, kFriendsListY, kFriendsListW, layout::kFriendsListH),
+            "friends: empty text in the list");
+    c.numFriends = kNumFriendFixture;
+    for (int i = 0; i < kNumFriendFixture; i++) c.friendNames[i] = kFriendNames[i];
     drawOnce();
-    // The eight stacked names. The LEFT bound of every clip assertion below is the
-    // art-derived white inner edge (QA-20261109-09), never the mirrored list inset: the
-    // pre-fix layout kept the names inside its list rect while its leading column sat on
-    // the panel border, and only the real face edge catches that.
-    std::vector<const HostRecord*> drawn;
-    for (int i = 0; i < 8; i++)
-        if (const HostRecord* t = findText(names[i])) drawn.push_back(t);
-    chk(drawn.size() == 8, "friends: the eight names drawn", "%zu", drawn.size());
+    // The white inner edge ruler, from the panel art this very draw recorded.
     float whiteEdge = -1.0f;
-    for (const auto& r : host::gRecords)
-        if (r.kind == HostRecord::Image && r.w > 170 && r.h > 195 && r.y < 8) {
-            whiteEdge = friendsWhiteFaceEdge(drawn, r);
-            break;
-        }
+    for (const auto& r : host::gRecords) {
+        if (r.kind != HostRecord::Image || r.w <= 170 || r.h <= 195 || r.y >= 8) continue;
+        std::vector<const HostRecord*> drawn;
+        for (int i = 0; i < kNumFriendFixture; i++)
+            if (const HostRecord* t = findText(kFriendNames[i])) drawn.push_back(t);
+        whiteEdge = friendsWhiteFaceEdge(drawn, r);
+        break;
+    }
     chk(whiteEdge > 0.0f, "friends: the white inner edge measured off the panel art",
         "%.1f", whiteEdge);
-    for (int i = 0; i < 8; i++) {
-        char what[96];
-        const HostRecord* t = findText(names[i]);
-        snprintf(what, sizeof what, "friends: name '%s' drawn", names[i]);
-        chk(t != nullptr, what);
-        if (!t) continue;
-        const float y = kFriendsListY + i * kFriendsRowH;
-        snprintf(what, sizeof what, "friends: '%s' row %d inside the list", names[i], i);
-        chk(t->y >= y - 1.0f - kEps && t->y + t->h <= y + kFriendsRowH + kEps &&
-                t->x + t->w <= kFriendsListX + kFriendsListW + kEps,
-            what, "(%.1f, %.1f, %.1f x %.1f)", t->x, t->y, t->w, t->h);
-        // The clip invariant itself (QA-20261109-09): the name's leading glyphs start on
-        // the white panel face, past the border, at the art-derived edge.
-        snprintf(what, sizeof what, "friends: '%s' starts on the white panel face", names[i]);
-        chk(t->x >= whiteEdge - kEps, what, "x %.1f vs the art's white edge %.1f", t->x,
-            whiteEdge);
-        // And the name (shrunk by theme::textFit) must not run under the status dot.
-        chk(t->x + t->w <= kFriendsListX + kFriendsListW - 15 + kEps,
-            "friends name leaves room for the status dot", "'%s' ends at %.1f",
-            t->text.c_str(), t->x + t->w);
-        // Vertical: rows stack without clipping the glyph tops at the panel.
-        chk(t->y >= kFriendsListY - 1 - kEps && t->y + t->h <= kFriendsCloseY + kEps,
-            "friends rows fit between header and close button", "'%s' y %.1f..%.1f",
-            t->text.c_str(), t->y, t->y + t->h);
-    }
-    // QA-20261109-09 clip canary, asserted on its own so the failure names the fix ticket:
-    // Little Pepper is row 0, and at the clipped inset its "Li" glyphs were the first to
-    // land on the teal border left of the white face.
+    // Focus 0: the window's first four names; Little Pepper canary rides row 0.
+    assertFriendsWindow(0, whiteEdge);
+    // QA-20261109-09 clip canary, asserted on its own so the failure names the fix
+    // ticket: at the clipped inset "Li" landed on the teal border left of the white face.
     const HostRecord* pepper = findText("Little Pepper");
     chk(pepper != nullptr, "QA-20261109-09: clip canary 'Little Pepper' drawn");
     if (pepper)
         chk(pepper->x >= whiteEdge - kEps,
             "QA-20261109-09: 'Little Pepper' leading glyphs start on the white face",
             "x %.1f vs the art's white edge %.1f", pepper->x, whiteEdge);
-    // Status dots: green when nearby, grey when offline. A dot is a roundRect of radius 3,
-    // so the recorder sees its corner-fan triangles; count those by colour in the list.
-    int green = 0, grey = 0;
-    for (const auto& r : host::gRecords) {
-        if (r.kind != HostRecord::Triangle) continue;
-        if (r.x < kFriendsListX + kFriendsListW - 15 || r.x > kFriendsListX + kFriendsListW - 9)
-            continue;
-        if (r.y < kFriendsListY || r.y > kFriendsListY + 8 * kFriendsRowH) continue;
-        if (r.color == (0xFF000000u | tt::ui::theme::kGreen)) ++green;
-        if (r.color == (0xFF000000u | tt::ui::theme::kGrey)) ++grey;
-    }
-    chk(green >= 6, "friends: six green status dots", "%d", green);
-    chk(grey >= 2, "friends: two grey status dots", "%d", grey);
-    // Focus highlight stays on a row; DDOWN moves it to the second row. The highlight is
-    // a clip surface too (the rollover washes the whole row), so its left edge is held
-    // to the art-derived white face edge as well (QA-20261109-09), not to the list inset.
-    const HostRecord* hl = nullptr;
-    for (const auto& r : host::gRecords) {
-        if (r.kind == HostRecord::Rect && r.color == (0xFF000000u | tt::ui::theme::kScRollover) &&
-            r.w > 100 && r.w < 130 && r.h < 12)
-            hl = &r;
-    }
-    chk(hl != nullptr, "friends: focused row highlighted");
-    if (hl) {
-        chk(contains(*hl, kFriendsListX, kFriendsListY, kFriendsListW, 8 * kFriendsRowH),
-            "friends: highlight on the first row");
-        chk(hl->x >= whiteEdge - kEps, "friends: highlight starts on the white panel face",
-            "x %.1f vs the art's white edge %.1f", hl->x, whiteEdge);
-    }
-    gUi->handleInput(KEY_DDOWN, 0, T(0, 0), *gState); // friends list owns the chat tab now
+    // PR #14's 4-row window scrolls with the focus (friendsScroll in
+    // panel_geometry.h): one step stays in place, past the window's bottom edge the
+    // list moves, and scrolling to the end brings the two offline friends' grey dots.
+    gUi->handleInput(KEY_DDOWN, 0, T(0, 0), *gState);
     drawOnce();
-    assertBounds("friends focus moved");
-    hl = nullptr;
-    for (const auto& r : host::gRecords) {
-        if (r.kind == HostRecord::Rect && r.color == (0xFF000000u | tt::ui::theme::kScRollover) &&
-            r.w > 100 && r.w < 130 && r.h < 12)
-            hl = &r;
-    }
-    chk(hl != nullptr, "friends: highlight drawn after DDOWN");
-    if (hl) {
-        chk(fabsf(hl->y - (kFriendsListY + kFriendsRowH)) < 1.5f, "friends: highlight moved to row 1",
-            "%.1f", hl->y);
-        chk(hl->x >= whiteEdge - kEps, "friends: moved highlight stays on the white face",
-            "x %.1f vs the art's white edge %.1f", hl->x, whiteEdge);
-    }
-    // Whispers: a nearby friend click chooses them as the whisper target.
+    assertBounds("friends focus row 1");
+    assertFriendsWindow(1, whiteEdge);
+    for (int i = 0; i < 3; i++) gUi->handleInput(KEY_DDOWN, 0, T(0, 0), *gState); // focus 4
+    drawOnce();
+    assertBounds("friends scrolled");
+    assertFriendsWindow(4, whiteEdge); // scroll 1: Sir Fumblebump in, canary out
+    chk(findText("Little Pepper") == nullptr,
+        "friends: the scrolled-out canary leaves the 4-row window");
+    for (int i = 0; i < 3; i++) gUi->handleInput(KEY_DDOWN, 0, T(0, 0), *gState); // focus 7
+    drawOnce();
+    assertBounds("friends scrolled to the end");
+    assertFriendsWindow(7, whiteEdge); // rows 4-7: the offline friends' grey dots
+    for (int i = 0; i < 2; i++) gUi->handleInput(KEY_DUP, 0, T(0, 0), *gState); // focus 5
+    drawOnce();
+    assertBounds("friends focus back up");
+    assertFriendsWindow(5, whiteEdge);
+    // Whispers: A on the focused nearby friend chooses them as the whisper target.
     gUi->handleInput(KEY_A, 0, T(0, 0), *gState);
-    chk(gState->whisperTo == 101, "friends: A whispers to the focused friend", "%u",
+    chk(gState->whisperTo == 105, "friends: A whispers to the focused friend", "%u",
         gState->whisperTo);
     // Close (B) leaves the friends overlay.
     gUi->handleInput(KEY_B, 0, T(0, 0), *gState);
