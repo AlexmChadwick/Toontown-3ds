@@ -19,6 +19,7 @@
 //      and the hp "/" max label with its slash glyph present.
 
 #include <cstdarg>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -33,6 +34,7 @@
 #include "ui/laff_meter.h"
 #include "ui/laff_meter_atlas.h"
 #include "ui/friends_gui_atlas.h"
+#include "ttm_atlas.h"
 #include "ui/map_view.h"
 #include "ui/speedchat_data.h"
 #include "net/client.h" // OwnStats / OwnQuests / OwnBookStats
@@ -121,7 +123,13 @@ constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButton
                 kFriendsButtonH = 24.0f;
 constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
                 kFriendsPanelH = 204.0f;
-constexpr float kFriendsListX = 86.0f, kFriendsListY = 76.0f, kFriendsListW = 148.0f,
+// QA-20261109-09: the list inset is mirrored only for the checks that do not decide the
+// clip (row stacking, status-dot positions). The left-edge invariant itself is derived
+// from the real panel art at run time (friendsWhiteFaceEdge below), never from this
+// constant: at the pre-fix inset 86 the names sat at x 91 while the art's white inner
+// face starts at about x 100, and a check copied from the inset passed that clipped
+// layout. The right edge and dot columns still use the mirrored list rect.
+constexpr float kFriendsListX = 102.0f, kFriendsListY = 76.0f, kFriendsListW = 124.0f,
                 kFriendsRowH = 11.0f;
 constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
                 kFriendsCloseH = 26.0f;
@@ -641,9 +649,47 @@ void suiteChat() {
             "chat log: message inside strip");
 }
 
+// ---------------------------------------------------------------------------
+// Friends left-clip (QA-20261109-09)
+// ---------------------------------------------------------------------------
+// The visible white inner edge of the drawn panel face, measured per run from the REAL
+// panel art: friends_gui.ttm (the FriendsBox_Open render bake) is decoded by
+// host::TtmAtlas, and the recorded Panel draw's own rect + UVs map the name rows onto
+// the atlas. The scan then walks atlas columns from the art's left edge inward until a
+// stable run of near-white columns (the face) starts. That is the boundary the device
+// screen really shows, so a layout whose names start on the teal border (the pre-fix
+// inset 86 put them at x 91 while the face starts at about x 100) fails here even
+// though it never leaves the list rect. Returns a negative value on any parse failure,
+// which fails the checks that use it on purpose.
+float friendsWhiteFaceEdge(const std::vector<const HostRecord*>& namesDrawn,
+                           const HostRecord& panel) {
+    static host::TtmAtlas art;
+    static bool tried = false;
+    if (!tried) {
+        tried = true;
+        chk(art.load("romfs/baked/friends_gui.ttm"),
+            "friends: panel art decoded for the white-edge ruler (romfs/baked/friends_gui.ttm)");
+    }
+    if (!art.loaded() || namesDrawn.empty()) return -1.0f;
+    float bandTop = 1e9f, bandBottom = -1e9f;
+    for (const HostRecord* t : namesDrawn) {
+        bandTop = fminf(bandTop, t->y);
+        bandBottom = fmaxf(bandBottom, t->y + t->h);
+    }
+    const float edge = art.whiteFaceLeftEdgeX(panel, bandTop, bandBottom);
+    chk(edge > panel.x + 10.0f && edge < panel.x + panel.w * 0.5f,
+        "friends: the white inner face found past the panel's left border", "%.1f", edge);
+    return edge;
+}
+
 void suiteFriends() {
     printf("suite: Friends panel\n");
     setOnlineContext();
+    // The eight-name fixture. names[0] "Little Pepper" is the QA-20261109-09 clip canary
+    // and must stay row 0: it is the first name the clipped layout pushed left of the
+    // white inner edge, so its leading glyphs ("Li...") are the ones that sat on the
+    // teal border and read as cut off at the panel face. Keep it a 13-glyph name drawn
+    // at the fixed inset so the whole leading word rides the edge band.
     static const char* names[8] = {"Little Pepper", "Sleepy Rabbit", "Daisy Mae", "Doctor Drizzle",
                                   "Sir Fumblebump", "Madam Applecheek", "Rainbow Nibbles",
                                   "Colonel Thumbwhisker"};
@@ -691,7 +737,22 @@ void suiteFriends() {
     c.numFriends = 8;
     for (int i = 0; i < 8; i++) c.friendNames[i] = names[i];
     drawOnce();
-    // The eight stacked names: no leading/trailing glyph cut by the list, rows not overlapping.
+    // The eight stacked names. The LEFT bound of every clip assertion below is the
+    // art-derived white inner edge (QA-20261109-09), never the mirrored list inset: the
+    // pre-fix layout kept the names inside its list rect while its leading column sat on
+    // the panel border, and only the real face edge catches that.
+    std::vector<const HostRecord*> drawn;
+    for (int i = 0; i < 8; i++)
+        if (const HostRecord* t = findText(names[i])) drawn.push_back(t);
+    chk(drawn.size() == 8, "friends: the eight names drawn", "%zu", drawn.size());
+    float whiteEdge = -1.0f;
+    for (const auto& r : host::gRecords)
+        if (r.kind == HostRecord::Image && r.w > 170 && r.h > 195 && r.y < 8) {
+            whiteEdge = friendsWhiteFaceEdge(drawn, r);
+            break;
+        }
+    chk(whiteEdge > 0.0f, "friends: the white inner edge measured off the panel art",
+        "%.1f", whiteEdge);
     for (int i = 0; i < 8; i++) {
         char what[96];
         const HostRecord* t = findText(names[i]);
@@ -700,13 +761,16 @@ void suiteFriends() {
         if (!t) continue;
         const float y = kFriendsListY + i * kFriendsRowH;
         snprintf(what, sizeof what, "friends: '%s' row %d inside the list", names[i], i);
-        chk(contains(*t, kFriendsListX + 4, y - 1, kFriendsListW - 8, kFriendsRowH + 1, 1.0f),
+        chk(t->y >= y - 1.0f - kEps && t->y + t->h <= y + kFriendsRowH + kEps &&
+                t->x + t->w <= kFriendsListX + kFriendsListW + kEps,
             what, "(%.1f, %.1f, %.1f x %.1f)", t->x, t->y, t->w, t->h);
-        // The layout math must not push a name's leading glyphs past the list's left edge.
-        chk(t->x >= kFriendsListX + 5 - kEps, "friends name keeps its left padding",
-            "'%s' at x %.1f (list at %.0f)", t->text.c_str(), t->x, kFriendsListX + 5);
+        // The clip invariant itself (QA-20261109-09): the name's leading glyphs start on
+        // the white panel face, past the border, at the art-derived edge.
+        snprintf(what, sizeof what, "friends: '%s' starts on the white panel face", names[i]);
+        chk(t->x >= whiteEdge - kEps, what, "x %.1f vs the art's white edge %.1f", t->x,
+            whiteEdge);
         // And the name (shrunk by theme::textFit) must not run under the status dot.
-        chk(t->x + t->w <= kFriendsListX + kFriendsListW - 24 - 13 + kEps,
+        chk(t->x + t->w <= kFriendsListX + kFriendsListW - 15 + kEps,
             "friends name leaves room for the status dot", "'%s' ends at %.1f",
             t->text.c_str(), t->x + t->w);
         // Vertical: rows stack without clipping the glyph tops at the panel.
@@ -714,6 +778,15 @@ void suiteFriends() {
             "friends rows fit between header and close button", "'%s' y %.1f..%.1f",
             t->text.c_str(), t->y, t->y + t->h);
     }
+    // QA-20261109-09 clip canary, asserted on its own so the failure names the fix ticket:
+    // Little Pepper is row 0, and at the clipped inset its "Li" glyphs were the first to
+    // land on the teal border left of the white face.
+    const HostRecord* pepper = findText("Little Pepper");
+    chk(pepper != nullptr, "QA-20261109-09: clip canary 'Little Pepper' drawn");
+    if (pepper)
+        chk(pepper->x >= whiteEdge - kEps,
+            "QA-20261109-09: 'Little Pepper' leading glyphs start on the white face",
+            "x %.1f vs the art's white edge %.1f", pepper->x, whiteEdge);
     // Status dots: green when nearby, grey when offline. A dot is a roundRect of radius 3,
     // so the recorder sees its corner-fan triangles; count those by colour in the list.
     int green = 0, grey = 0;
@@ -727,30 +800,38 @@ void suiteFriends() {
     }
     chk(green >= 6, "friends: six green status dots", "%d", green);
     chk(grey >= 2, "friends: two grey status dots", "%d", grey);
-    // Focus highlight stays on a row; DDOWN moves it to the second row.
+    // Focus highlight stays on a row; DDOWN moves it to the second row. The highlight is
+    // a clip surface too (the rollover washes the whole row), so its left edge is held
+    // to the art-derived white face edge as well (QA-20261109-09), not to the list inset.
     const HostRecord* hl = nullptr;
     for (const auto& r : host::gRecords) {
         if (r.kind == HostRecord::Rect && r.color == (0xFF000000u | tt::ui::theme::kScRollover) &&
-            r.w > 130 && r.h < 12)
+            r.w > 100 && r.w < 130 && r.h < 12)
             hl = &r;
     }
     chk(hl != nullptr, "friends: focused row highlighted");
-    if (hl)
+    if (hl) {
         chk(contains(*hl, kFriendsListX, kFriendsListY, kFriendsListW, 8 * kFriendsRowH),
             "friends: highlight on the first row");
+        chk(hl->x >= whiteEdge - kEps, "friends: highlight starts on the white panel face",
+            "x %.1f vs the art's white edge %.1f", hl->x, whiteEdge);
+    }
     gUi->handleInput(KEY_DDOWN, 0, T(0, 0), *gState); // friends list owns the chat tab now
     drawOnce();
     assertBounds("friends focus moved");
     hl = nullptr;
     for (const auto& r : host::gRecords) {
         if (r.kind == HostRecord::Rect && r.color == (0xFF000000u | tt::ui::theme::kScRollover) &&
-            r.w > 130 && r.h < 12)
+            r.w > 100 && r.w < 130 && r.h < 12)
             hl = &r;
     }
     chk(hl != nullptr, "friends: highlight drawn after DDOWN");
-    if (hl)
+    if (hl) {
         chk(fabsf(hl->y - (kFriendsListY + kFriendsRowH)) < 1.5f, "friends: highlight moved to row 1",
             "%.1f", hl->y);
+        chk(hl->x >= whiteEdge - kEps, "friends: moved highlight stays on the white face",
+            "x %.1f vs the art's white edge %.1f", hl->x, whiteEdge);
+    }
     // Whispers: a nearby friend click chooses them as the whisper target.
     gUi->handleInput(KEY_A, 0, T(0, 0), *gState);
     chk(gState->whisperTo == 101, "friends: A whispers to the focused friend", "%u",
