@@ -85,8 +85,8 @@ private:
     float labelScale_[kMaxRows];
     float labelH_[kMaxRows];
     bool labelWrap_[kMaxRows];
-    C2D_Text title_, back_, arrow_;
-    float titleScale_ = 0.5f;
+    C2D_Text title_, titleLeaf_, back_, arrow_;
+    float titleFullW_ = 0.0f, titleLeafW_ = 0.0f;
 
     int menu_ = 0;
     int focus_ = -1; // highlighted item, -1 = none (D-pad mode off)

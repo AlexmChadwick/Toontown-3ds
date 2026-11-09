@@ -13,10 +13,10 @@ namespace tt::ui {
 namespace {
 
 constexpr float kZ = 0.5f;
-constexpr float kMarginX = 6.0f;
+constexpr float kMarginX = layout::kChatMarginX;
 constexpr float kArrowW = 18.0f;
 constexpr float kScrollBarW = 4.0f;
-constexpr float kBackW = 64.0f;
+constexpr float kBackW = layout::kChatBackW;
 constexpr float kLabelScale = 0.5f, kMinLabelScale = 0.4f;
 
 // SpeedChat's own look (SCColorScheme defaults, ui/theme.h): pale frames, black text, a green
@@ -134,22 +134,24 @@ void ChatMenu::enter(int menu, int focusItem) {
     menu_ = menu;
     C2D_TextBufClear(menuBuf_);
 
-    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat).
-    char crumb[96];
+    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat). A depth-2 title
+    // that cannot stay at kChatTitleMin drops the parent in draw().
+    const char* leafTitle = titleOf(menu);
     const int parent = parentOf(menu);
-    if (parent < 0 || parentOf(parent) < 0) {
-        snprintf(crumb, sizeof(crumb), "%s", titleOf(menu));
+    const int grand = parent < 0 ? -1 : parentOf(parent);
+    char crumb[96];
+    if (!layout::chatShowsCrumb(parent, grand)) {
+        snprintf(crumb, sizeof(crumb), "%s", leafTitle);
     } else {
-        snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), titleOf(menu));
+        snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), leafTitle);
     }
     tt::render::textParse(&title_, menuBuf_, crumb);
+    tt::render::textParse(&titleLeaf_, menuBuf_, leafTitle);
     C2D_TextOptimize(&title_);
-    float tw, th;
-    C2D_TextGetDimensions(&title_, 0.5f, 0.5f, &tw, &th);
-    const bool nested = parent >= 0;
-    const float titleX = nested ? kMarginX + kBackW + 8.0f : kMarginX + 2.0f;
-    const float titleAvail = layout::chatHeaderLimit(layout::kFriendsButtonX, false, 0.0f) - titleX;
-    titleScale_ = tw > titleAvail && titleAvail > 1.0f ? 0.5f * titleAvail / tw : 0.5f;
+    C2D_TextOptimize(&titleLeaf_);
+    float th = 0.0f;
+    C2D_TextGetDimensions(&title_, 1.0f, 1.0f, &titleFullW_, &th);
+    C2D_TextGetDimensions(&titleLeaf_, 1.0f, 1.0f, &titleLeafW_, &th);
 
     const int n = numRows(menu);
     for (int i = 0; i < n && i < kMaxRows; i++) {
@@ -371,22 +373,23 @@ void ChatMenu::draw(float panelBottom, float headerRight) {
         theme::roundRect(kW - kMarginX - kScrollBarW, barY, kScrollBarW, barH, 2, theme::kScArrow, kZ);
     }
 
-    // Header. The sky height is the tab bar, not panelBottom (that value is the
-    // menu's bottom edge and was squashing the gradient).
-    theme::skyBand(0, kHeaderH, kW, 208.0f, kZ);
-    float titleX = kMarginX + 2.0f;
-    if (parentOf(menu_) >= 0) { // a small panel of the menu's own frame, rollover green while pressed
+    theme::skyBand(0, kHeaderH, kW, layout::kTabY, kZ);
+    const bool nested = parentOf(menu_) >= 0;
+    float titleX = layout::chatTitleX(false);
+    if (nested) { // a small panel of the menu's own frame, rollover green while pressed
         theme::roundRect(kMarginX, 2, kBackW, kHeaderH - 5, kFrameR, kFrameEdge, kZ);
         theme::roundRect(kMarginX + 1.5f, 3.5f, kBackW - 3, kHeaderH - 8, kFrameR - 1.5f, pressedBack_ ? kPressed : kRow, kZ);
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
-        titleX = kMarginX + kBackW + 8.0f;
+        titleX = layout::chatTitleX(true);
     }
-    float scale = titleScale_;
-    float tw = 0.0f, th = 0.0f;
-    C2D_TextGetDimensions(&title_, scale, scale, &tw, &th);
+    const layout::TitleFit fit = layout::fitChatTitle(titleFullW_, titleLeafW_, titleX, headerRight);
+    const C2D_Text* shown = fit.dropPrefix ? &titleLeaf_ : &title_;
     const float room = headerRight - titleX;
-    if (room > 1.0f && tw > room) scale *= room / tw;
-    C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - scale) * 14.0f, kZ, scale, scale, kTitle);
+    const bool cut = fit.scissor && room > 1.0f;
+    if (cut) theme::clip(titleX, 0.0f, room, kHeaderH);
+    C2D_DrawText(shown, C2D_WithColor, titleX, 4.0f + (layout::kChatTitleBase - fit.scale) * 14.0f, kZ,
+                 fit.scale, fit.scale, kTitle);
+    if (cut) theme::unclip();
 }
 
 } // namespace tt::ui

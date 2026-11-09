@@ -32,18 +32,25 @@ def untile_rgba8(raw, w, h):
     return px
 
 
-def load_atlas(path):
-    data = Path(path).read_bytes()
+def load_atlas(data):
     w, h, fmt = struct.unpack_from('<HHB', data, struct.unpack_from('<I', data, 44)[0])
     off = struct.unpack_from('<I', data, 44)[0]
     doff, size = struct.unpack_from('<II', data, off + 8)
     if fmt != ttm.GPU_RGBA8:
-        raise SystemExit(f'{path} texture 0 is format {fmt}, expected RGBA8')
+        raise SystemExit(f'book_tabs texture 0 is format {fmt}, expected RGBA8')
     return untile_rgba8(data[doff:doff + size], w, h)
 
 
 def main():
-    px = load_atlas(ROOT / 'romfs' / 'baked' / 'book_tabs.ttm')
+    data = (ROOT / 'romfs' / 'baked' / 'book_tabs.ttm').read_bytes()
+    flags, = struct.unpack_from('<H', data, 6)
+    if flags != 0:
+        raise SystemExit(f'book_tabs flags {flags}, expected 0 (relative indices)')
+    index_off, = struct.unpack_from('<I', data, 56)
+    indices = data[index_off:index_off + 12]
+    if indices != bytes([0, 0, 1, 0, 2, 0, 0, 0, 2, 0, 3, 0]):
+        raise SystemExit('book_tabs indices are not the original relative quad')
+    px = load_atlas(data)
     cell = px[48:96, 144:192]
     red = (cell[:, :, 0] > 160) & (cell[:, :, 0] > cell[:, :, 1] * 2) & (cell[:, :, 0] > cell[:, :, 2] * 2)
     ys, xs = np.where(red)

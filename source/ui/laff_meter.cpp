@@ -24,7 +24,7 @@ constexpr LaffPart kTeeth[6] = {kLaffTooth6, kLaffTooth5, kLaffTooth4, kLaffToot
 // LaffMeter.deathColor: the head at 0 laff.
 constexpr float kDeathColor[3] = {0.58039216f, 0.80392157f, 0.34117647f};
 
-constexpr float kPulseChange = 0.333f; // ToontownIntervals.PULSE_GUI_CHANGE
+constexpr float kPulseChange = layout::kLaffPulseChange; // ToontownIntervals.PULSE_GUI_CHANGE
 constexpr float kPulseSeconds = 0.2f;  // PULSE_GUI_DURATION, each half
 
 render::Model gAtlas;
@@ -102,12 +102,14 @@ bool drawLaffMeter(const LaffFace& v, float x0, float y0, float size, const C2D_
     x += hpW + gap;
     const float slashY = labelCy - slashH * 0.5f;
     drawOutlinedText(*slashText, x, slashY, z, scale, ink, rim);
-    // ImpressBT's slash is a one-pixel diagonal. Two extra fills thicken it into a stroke
-    // that stays inside kLaffLabelGap, so 100/137 reads as a slash and not a comma.
-    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + 0.55f, slashY, z + 0.002f,
+    // The extra fills scale with the meter. slashBold stays a pixel short of the
+    // next glyph, including while the meter shrinks to kLaffPulseSize.
+    const float mid = 0.55f * size / layout::kLaffMeterRef;
+    const float bold = layout::slashBold(size);
+    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + mid, slashY, z + 0.002f,
                  scale, scale, ink);
-    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + layout::kLaffSlashBold, slashY,
-                 z + 0.003f, scale, scale, ink);
+    C2D_DrawText(slashText, C2D_WithColor | C2D_AlignLeft, x + bold, slashY, z + 0.003f,
+                 scale, scale, ink);
     x += slashW + gap;
     drawOutlinedText(*maxText, x, labelCy - maxH * 0.5f, z, scale, ink, rim);
     return true;

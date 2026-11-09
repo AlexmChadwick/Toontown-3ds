@@ -51,13 +51,15 @@ constexpr float kHomeX = pad::hoods::kTabHomeX, kHomeY = pad::hoods::kHomeY, kHo
                 kHomeH = pad::hoods::kHomeH;
 constexpr float kTabH = 32.0f;
 constexpr float kTabY = 240.0f - kTabH;
+static_assert(kTabY == layout::kTabY, "tab bar y");
 // Our Laff meter sits in a pocket at the binder's left end, as upstream's sits at the screen's
 // bottom left; the tabs share the rest of the bar. Panels keep the pocket's corner clear.
 constexpr float kPocketW = pad::kLaffPocketW, kPocketTop = pad::kLaffPocketTop;
+static_assert(kPocketTop == layout::kPocketTop, "pocket top");
 constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~75% of it)
 // The info panel's button (Context::infoButton), centred near the card's foot.
 constexpr float kInfoBtnW = 160.0f, kInfoBtnH = 32.0f, kInfoBtnX = (kW - kInfoBtnW) * 0.5f, kInfoBtnY = 190.0f;
-constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
+constexpr float kChatLogH = layout::kChatLogH; // Chat tab: two lines of recent chat above the tab bar
 constexpr float kFriendsButtonX = layout::kFriendsButtonX, kFriendsButtonY = layout::kFriendsButtonY,
                 kFriendsButtonW = layout::kFriendsButtonW, kFriendsButtonH = layout::kFriendsButtonH;
 constexpr float kFriendsPanelX = layout::kFriendsPanelX, kFriendsPanelY = layout::kFriendsPanelY,
@@ -332,7 +334,7 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
             return KEY_R;
         }
         // Header button: cycle the whisper target through the toons in view.
-        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, 142, 2, 96, 24)) {
+        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, layout::kWhisperButtonX, 2, 96, 24)) {
             cycleWhisper(s); // padnav: shared with X
             return down;
         }
@@ -487,14 +489,14 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             drawFriends(s);
             break;
         }
-        chat_.draw(chatBottom(), layout::chatHeaderLimit(kFriendsButtonX, numNearby_ > 0, 142.0f));
+        chat_.draw(chatBottom(), layout::chatHeaderLimit(kFriendsButtonX, numNearby_ > 0, layout::kWhisperButtonX));
         theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
         if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
         if (numNearby_ > 0) {
             // SpeedChat's whisper target: green while whispering, like a rolled-over SC button.
-            theme::button(142, 1, 96, 26, s.whisperTo ? theme::kScRollover : theme::kScFrame,
+            theme::button(layout::kWhisperButtonX, 1, 96, 26, s.whisperTo ? theme::kScRollover : theme::kScFrame,
                           s.whisperTo ? theme::kGreenDark : theme::kScFrameEdge);
-            text(148, 5, 0.42f, theme::kScText, "To: %.12s", target);
+            text(layout::kWhisperButtonX + 6, 5, 0.42f, theme::kScText, "To: %.12s", target);
         }
         theme::button(kFriendsButtonX, kFriendsButtonY, kFriendsButtonW, kFriendsButtonH,
                       theme::kScFrame, theme::kScFrameEdge);
@@ -631,17 +633,14 @@ bool Ui::chatLogShown() const {
     return chatLogCount_ > 0 && chatNowMs_ - chatLog_[chatLogCount_ - 1].ms < kChatLogMs;
 }
 
-// The SpeedChat menu stops above the recent-chat strip (with a few pixels of sky
-// between the last row and the log), or above the laff pocket.
-float Ui::chatBottom() const {
-    return chatLogShown() ? kTabY - kChatLogH - layout::kChatLogGap : kPocketTop;
-}
+// The SpeedChat menu stops kChatLogGap above the chat-log paper, or above the laff pocket.
+float Ui::chatBottom() const { return layout::chatBottom(chatLogShown()); }
 
 // Newest line at the bottom, like a chat window: names in nametag blue (ours in green,
 // whispers in the whisper panel's purple). It starts right of the laff pocket.
 void Ui::drawChatLog(float y0, float y1) {
     const float x0 = kPocketW + 2;
-    theme::paper(x0, y0 + 1, kW - 4 - x0, y1 - y0 - 3, 6.0f, theme::kScFrame, theme::kScFrameEdge);
+    theme::paper(x0, y0, kW - 4 - x0, y1 - y0 - 2, 6.0f, theme::kScFrame, theme::kScFrameEdge);
     for (int i = 0; i < chatLogCount_; i++) {
         const ChatLine& l = chatLog_[i];
         const float y = y0 + (y1 - y0 - 3 - chatLogCount_ * 13.5f) * 0.5f + i * 13.5f;
@@ -653,9 +652,7 @@ void Ui::drawChatLog(float y0, float y1) {
 }
 
 u32 Ui::handleFriends(u32 down, const touchPosition& touch, State& s) {
-    if (numFriends_ <= 0) friendFocus_ = 0;
-    else if (friendFocus_ < 0) friendFocus_ = 0;
-    else if (friendFocus_ >= numFriends_) friendFocus_ = numFriends_ - 1;
+    friendFocus_ = layout::friendFocusClamp(numFriends_, friendFocus_);
     if ((down & (KEY_B | KEY_R)) || ((down & KEY_TOUCH) &&
                                      inRect(touch, kFriendsCloseX, kFriendsCloseY,
                                             kFriendsCloseW, kFriendsCloseH))) {
@@ -674,16 +671,12 @@ u32 Ui::handleFriends(u32 down, const touchPosition& touch, State& s) {
         return KEY_DDOWN;
     }
     int activate = -1;
-    const int scroll = layout::friendsScroll(numFriends_, friendFocus_);
-    const int shown = numFriends_ - scroll;
-    const int visible = shown > layout::kFriendsVisible ? layout::kFriendsVisible : shown;
     if ((down & KEY_A) && numFriends_ > 0) activate = friendFocus_;
-    if ((down & KEY_TOUCH) && touch.px >= kFriendsListX && touch.px < kFriendsListX + kFriendsListW &&
-        touch.py >= kFriendsListY && touch.py < kFriendsListY + visible * kFriendsRowH) {
-        const int row = static_cast<int>((touch.py - kFriendsListY) / kFriendsRowH);
-        if (row >= 0 && row < visible) {
-            activate = scroll + row;
-            friendFocus_ = activate;
+    if (down & KEY_TOUCH) {
+        const int hit = layout::friendAt(numFriends_, friendFocus_, touch.px, touch.py);
+        if (hit >= 0) {
+            activate = hit;
+            friendFocus_ = hit;
         }
     }
     if (activate >= 0 && activate < numFriends_) {
@@ -713,12 +706,9 @@ void Ui::drawFriends(const State& s) {
     textCache_.parse(&title, textBuf_, "Online Friends", 1024);
     theme::textCentered(title, layout::kFriendsTitleX, layout::kFriendsTitleY, layout::kFriendsTitleScale,
                         theme::kBlueDark, layout::kFriendsTitleMaxW, 0.62f);
-    if (numFriends_ <= 0) friendFocus_ = 0;
-    else if (friendFocus_ < 0) friendFocus_ = 0;
-    else if (friendFocus_ >= numFriends_) friendFocus_ = numFriends_ - 1;
+    friendFocus_ = layout::friendFocusClamp(numFriends_, friendFocus_);
     const int scroll = layout::friendsScroll(numFriends_, friendFocus_);
-    const int shown = numFriends_ - scroll;
-    const int visible = shown > layout::kFriendsVisible ? layout::kFriendsVisible : shown;
+    const int visible = layout::friendVisible(numFriends_, friendFocus_);
     if (numFriends_ <= 0) {
         C2D_Text empty;
         textCache_.parse(&empty, textBuf_, "No friends yet.", 1024);

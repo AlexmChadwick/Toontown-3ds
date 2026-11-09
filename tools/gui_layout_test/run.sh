@@ -10,7 +10,8 @@ mkdir -p "$OUT"
 ${CXX:-g++} -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions \
     -I"$ROOT/source" \
     "$DIR/gui_layout_test.cpp" \
+    "$ROOT/source/ui/speedchat_data.cpp" \
     -o "$OUT/gui_layout_test"
 
-"$OUT/gui_layout_test"
+"$OUT/gui_layout_test" "$ROOT/romfs/baked/fonts/impress.bcfnt"
 python3 -I "$DIR/check_map_glyph.py"

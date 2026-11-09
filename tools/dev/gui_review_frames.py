@@ -119,22 +119,23 @@ def book_frame(atlas):
     return img
 
 
-def chat_frame(panel_bottom):
+def chat_frame(panel_bottom, paper_y):
     img = np.zeros((240, 320, 3), np.uint8)
     sky(img)
     rect(img, 0, 176, 62, 64, (0x52, 0x10, 0x0C))
     # SpeedChat frame down to panel_bottom. A long menu fills that edge.
     rect(img, 6, 28, 300, panel_bottom - 28, (0x2A, 0x2A, 0x3C))
-    rect(img, 8, 30, 296, panel_bottom - 32, (0xF2, 0xF2, 0xFF))
+    rect(img, 8, 30, 296, max(0, panel_bottom - 32), (0xF2, 0xF2, 0xFF))
     y = 28 + 2
     while y + 28 <= panel_bottom:
         rect(img, 16, y + 6, 180, 14, (0x2A, 0x1A, 0x0C))
         y += 30
-    # Recent chat, same place either way: just above the tab bar, right of the pocket.
-    rect(img, 64, 175, 252, 31, (0x80, 0x80, 0xFF))
-    rect(img, 66, 177, 248, 27, (0xF2, 0xF2, 0xFF))
-    rect(img, 72, 184, 90, 10, (0x2B, 0x58, 0xA8))
-    rect(img, 168, 184, 120, 10, (0x2A, 0x1A, 0x0C))
+    # Log paper. The old draw inset it one pixel (paper_y 175). The fix draws it
+    # on the strip top (174), so a frame at 170 leaves exactly 4 px of sky.
+    rect(img, 64, paper_y, 252, 206 - paper_y, (0x80, 0x80, 0xFF))
+    rect(img, 66, paper_y + 2, 248, 206 - paper_y - 4, (0xF2, 0xF2, 0xFF))
+    rect(img, 72, paper_y + 9, 90, 10, (0x2B, 0x58, 0xA8))
+    rect(img, 168, paper_y + 9, 120, 10, (0x2A, 0x1A, 0x0C))
     return img
 
 
@@ -145,13 +146,19 @@ def write_atlas(px):
                      [1, 0, 1, 1, 1, 1, 1, 1, 1], [-1, 0, 1, 0, 1, 1, 1, 1, 1]], dtype=float)
     batch = ttm.Batch(0, ttm.BLEND_ALPHA, True, 0, 0, quad, np.array([0, 1, 2, 0, 2, 3]))
     stats = ttm.write(ATLAS, [texture], [batch])
-    print(f'{ATLAS}: {stats["file_bytes"]} bytes')
+    # The placeholder quad's indices are batch-relative. ttm.write sets flags bit 0
+    # whenever the vertex count fits in u16, which would claim those indices are
+    # absolute. This atlas keeps the original flags value of 0.
+    data = bytearray(ATLAS.read_bytes())
+    data[6] = 0
+    ATLAS.write_bytes(data)
+    print(f'{ATLAS}: {stats["file_bytes"]} bytes, flags 0')
 
 
 def main():
     before = load_atlas(ATLAS)
     save_png(book_frame(before), OUT / 'book_tabs_before.png')
-    save_png(chat_frame(174), OUT / 'chat_log_before.png')
+    save_png(chat_frame(174, 175), OUT / 'chat_log_before.png')
     after = before.copy()
     unchanged = after.copy()
     paint_teleport_icon(after, 144, 48, 48, 48)
@@ -161,7 +168,7 @@ def main():
         raise SystemExit('paint leaked outside the Map cell')
     write_atlas(after)
     save_png(book_frame(after), OUT / 'book_tabs_after.png')
-    save_png(chat_frame(170), OUT / 'chat_log_after.png')
+    save_png(chat_frame(170, 174), OUT / 'chat_log_after.png')
     print('frames', OUT)
 
 
