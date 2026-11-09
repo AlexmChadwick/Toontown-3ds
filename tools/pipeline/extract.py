@@ -48,6 +48,12 @@ def texture_pixels(tex, max_size):
                 g = img.getGray(x, y) * 255
                 px[y, x, :3] = (g, g, g)
             px[y, x, 3] = img.getAlpha(x, y) * 255 if img.hasAlpha() else 255
+    if tex.getFormat() == Texture.F_alpha:
+        # Texture.store gives an alpha-only texture (dynamic font pages) as one grey
+        # channel; that grey is the mask. Alpha 255 baked every glyph as a solid block
+        # (the Cog building signs). RGB keeps the grey, so the bakers that move channel 0
+        # into alpha themselves (street_atlas, bake_interior, bake_char) read the same.
+        px[:, :, 3] = px[:, :, 0]
     return px, n, tex.getFormat()
 
 

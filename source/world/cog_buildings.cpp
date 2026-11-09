@@ -99,16 +99,16 @@ void CogBuildings::handleEvent(const net::Event& ev, const net::Client&) {
 }
 
 void CogBuildings::update(net::Client& client, float x, float y, float z, uint32_t nowMs) {
-    // setToSuit stashes the block's Toon building: collect the Cog-owned blocks this street
-    // has exterior data for, and bump the revision the zone draw hook applies when it changes.
+    // setToSuit / setToCogdo stash the block's Toon building: collect the Cog-owned blocks this
+    // street has exterior data for, and bump the revision the zone draw hook applies when it changes.
     const Block* owned[kMaxHidden] = {};
     int ownedDept[kMaxHidden] = {};
     int numOwned = 0;
     for (int n = 0; n < net::kMaxCogBuildings && numOwned < kMaxHidden; ++n) {
         const net::CogBuilding& b = client.cogBuildingSlot(n);
-        if (!b.active || b.state != net::CogBuildingState::Suit) continue;
+        if (!b.active || (b.state != net::CogBuildingState::Suit && b.state != net::CogBuildingState::Cogdo)) continue;
         if (const Block* bk = findBlock(b.block)) {
-            ownedDept[numOwned] = deptIndex(b.track);
+            ownedDept[numOwned] = b.state == net::CogBuildingState::Cogdo ? kFieldOffice : deptIndex(b.track);
             owned[numOwned++] = bk;
         }
     }
@@ -190,20 +190,21 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
         Anchor* a = nullptr;
         for (Anchor& candidate : anchors_) if (candidate.used && candidate.block == b->block) a = &candidate;
         if (!a) continue;
-        // ---- cogdo exterior: the stock shell is offset from the DNA anchor ----
+        // The elevator stands on the suit landmark's door origin, or (field office) on the
+        // field office's door, 15.463 along the same suit origin.
         float targetX = a->x, targetY = a->y, targetZ = a->z;
-        if (const Block* bk = b->state == net::CogBuildingState::Suit ? findBlock(b->block) : nullptr) {
-            float m[12];
-            elevatorMatrix(*bk, deptIndex(b->track), m);
-            targetX = m[9], targetY = m[10], targetZ = m[11];
+        if (const Block* bk = findBlock(b->block)) {
+            if (b->state == net::CogBuildingState::Cogdo) {
+                const float* L = bk->landmark;
+                for (int j = 0; j < 3; ++j)
+                    (j == 0 ? targetX : j == 1 ? targetY : targetZ) =
+                        cogdoDoor_[0] * L[j] + cogdoDoor_[1] * L[3 + j] + cogdoDoor_[2] * L[6 + j] + L[9 + j];
+            } else {
+                float m[12];
+                elevatorMatrix(*bk, deptIndex(b->track), m);
+                targetX = m[9], targetY = m[10], targetZ = m[11];
+            }
         }
-        if (b->state == net::CogBuildingState::Cogdo) {
-            const float angle = a->h * kDegToRad;
-            targetX += cosf(angle) * cogdoDoor_[0] - sinf(angle) * cogdoDoor_[1];
-            targetY += sinf(angle) * cogdoDoor_[0] + cosf(angle) * cogdoDoor_[1];
-            targetZ += cogdoDoor_[2];
-        }
-        // ---- end cogdo exterior ----
         const float dx = x - targetX, dy = y - targetY, dz = z - targetZ;
         if (dx * dx + dy * dy + dz * dz < kBoardRadius * kBoardRadius &&
             requestedElevator_ == 0 && client.sendCogElevatorBoard(e.doId)) {
@@ -261,21 +262,12 @@ void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) c
     }
     for (int n = 0; n < net::kMaxCogBuildings; ++n) {
         const net::CogBuilding& b = client.cogBuildingSlot(n);
-        // ---- cogdo exterior: all departments use the pinned shared shell ----
-        if (!b.active || (b.state != net::CogBuildingState::Suit && b.state != net::CogBuildingState::Cogdo)) continue;
-        // ---- end cogdo exterior ----
-        if (b.state == net::CogBuildingState::Suit) {
-            if (const Block* bk = findBlock(b.block)) drawSuit(renderer, client, b, *bk);
-            continue;
-        }
-        const Anchor* a = nullptr;
-        for (const Anchor& candidate : anchors_) if (candidate.used && candidate.block == b.block) a = &candidate;
-        if (!a || !cogdoShell_.loaded()) continue;
-        C3D_Mtx m;
-        Mtx_Identity(&m);
-        Mtx_Translate(&m, a->x, a->y, a->z, true);
-        Mtx_RotateZ(&m, a->h * kDegToRad, true);
-        renderer.drawModel(const_cast<render::Model&>(cogdoShell_), m);
+        if (!b.active) continue;
+        // A block without exterior data keeps its Toon look (update() does not hide it).
+        const Block* bk = findBlock(b.block);
+        if (!bk) continue;
+        if (b.state == net::CogBuildingState::Suit) drawSuit(renderer, client, b, *bk);
+        else if (b.state == net::CogBuildingState::Cogdo) drawCogdo(renderer, *bk);
     }
 }
 
@@ -368,7 +360,7 @@ void CogBuildings::loadExterior(uint32_t zone) {
     }
     char magic[4];
     uint16_t version = 0, count = 0;
-    bool ok = readAll(f, magic, 4) && !memcmp(magic, "TSB1", 4) && readAll(f, &version, 2) && version == 1 &&
+    bool ok = readAll(f, magic, 4) && !memcmp(magic, "TSB1", 4) && readAll(f, &version, 2) && version == 2 &&
               readAll(f, &count, 2) && count <= kMaxAnchors;
     // u16 offsets index flats_ / boxes_.
     // Two passes: count flats and boxes, then read into exact-size arrays.
@@ -429,6 +421,8 @@ void CogBuildings::unloadExterior() {
     for (render::Model& m : landmarks_) m.unload();
     for (render::Model& m : icons_) m.unload();
     for (render::Model& m : walls_) m.unload();
+    for (render::Model& m : cogdoWalls_) m.unload();
+    cogdoTried_ = 0;
     for (render::Model& m : lights_) m.unload();
     suitDoor_.unload();
     signs_.unload();
@@ -470,14 +464,27 @@ void CogBuildings::ensureModels(int dept, const Block& b) {
         if (!m.load(path)) TT_LOG("cog buildings: cannot load %s", path);
     };
     char name[32];
-    snprintf(name, sizeof(name), "suit_landmark_%s", kDept[dept]);
-    once(1u << dept, landmarks_[dept], name);
-    snprintf(name, sizeof(name), "cog_icon_%s", kDept[dept]);
-    once(1u << (4 + dept), icons_[dept], name);
+    if (dept != kFieldOffice) {
+        snprintf(name, sizeof(name), "suit_landmark_%s", kDept[dept]);
+        once(1u << dept, landmarks_[dept], name);
+        snprintf(name, sizeof(name), "cog_icon_%s", kDept[dept]);
+        once(1u << (4 + dept), icons_[dept], name);
+    }
     if (!(triedModels_ & (1u << 8))) {
         triedModels_ |= 1u << 8;
         snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/zones/%lu_cogsign.ttm", static_cast<unsigned long>(zone_));
         if (!signs_.load(path)) TT_LOG("cog buildings: cannot load %s", path);
+    }
+    once(1u << 17, suitDoor_, "suit_door");
+    if (dept == kFieldOffice) {
+        for (int k = 0; k < b.numFlats; ++k) {
+            const int w = flats_[b.firstFlat + k].wall;
+            if (cogdoTried_ & (1u << w)) continue;
+            cogdoTried_ |= 1u << w;
+            snprintf(path, sizeof(path), "%scogdo_wall_%d.ttm", kCogDir, w);
+            if (!cogdoWalls_[w].load(path)) TT_LOG("cog buildings: cannot load %s", path);
+        }
+        return;
     }
     once(1u << 9, cab_, "elevator_cab");
     once(1u << 10, leftDoor_, "elevator_left-door");
@@ -486,7 +493,6 @@ void CogBuildings::ensureModels(int dept, const Block& b) {
         snprintf(name, sizeof(name), "elevator_floor_light_%d", i + 1);
         once(1u << (12 + i), lights_[i], name);
     }
-    once(1u << 17, suitDoor_, "suit_door");
     for (int k = 0; k < b.numFlats; ++k) {
         const int w = flats_[b.firstFlat + k].wall;
         snprintf(name, sizeof(name), "suit_wall_%d", w);
@@ -600,6 +606,36 @@ void CogBuildings::drawSuit(render::Renderer& renderer, const net::Client& clien
         normalizeAxes(d);
         draw(suitDoor_, toMtx(d));
     }
+}
+// setupCogdo: the field office (with elevatorB on its door) 15.463 along the suit origin and its
+// "<title> Field Office" sign; libtoontown setup_cogdo_flat_building: a cogdo wall per Toon
+// flat, suit_door if it had one. setToCogdo colour scales every piece 0.6 (the field office
+// and its sign are baked with it).
+void CogBuildings::drawCogdo(render::Renderer& renderer, const Block& bk) const {
+    auto draw = [&](const render::Model& m, const C3D_Mtx& mtx) {
+        if (m.loaded()) renderer.drawModel(const_cast<render::Model&>(m), mtx);
+    };
+    const C3D_Mtx landmark = toMtx(bk.landmark);
+    draw(cogdoShell_, landmark);
+    if (signs_.loaded() && bk.signBatch + 2u * kFieldOffice + 1 < signs_.numBatches()) {
+        for (int part = 0; part < 2; ++part) {
+            renderer.setOnlyBatch(bk.signBatch + 2 * kFieldOffice + part);
+            draw(signs_, landmark);
+        }
+        renderer.setOnlyBatch(-1);
+    }
+    renderer.setBaseTint(0.6f, 0.6f, 0.6f, 1.0f);
+    for (int k = 0; k < bk.numFlats; ++k) {
+        const Flat& fl = flats_[bk.firstFlat + k];
+        draw(cogdoWalls_[fl.wall], toMtx(fl.rows));
+        if (!fl.door) continue;
+        float d[12];
+        memcpy(d, fl.rows, sizeof(d));
+        for (int j = 0; j < 3; ++j) d[9 + j] += 0.5f * fl.rows[j];
+        normalizeAxes(d);
+        draw(suitDoor_, toMtx(d));
+    }
+    renderer.setBaseTint(1, 1, 1, 1);
 }
 // ---- end street look ----
 

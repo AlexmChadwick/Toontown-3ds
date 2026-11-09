@@ -10,19 +10,27 @@ there, hangs ``suit_sign`` with "<title>, Inc.\\n<department>" in the suit font 
 ``sign_origin``, and loadElevator puts the elevator (with the department icon on the cab) on
 its ``*_door_origin``.
 
+A Cogdominium (DistributedBuilding.setToCogdo / setupCogdo) stashes the same Toon nodes and
+shows the ``cb<block>:`` flats instead: a random ``cogdo_wall`` per Toon flat (plus
+``suit_door``), and the field office (``data/cogdo/shell.ttm``, with elevatorB) 15.463 along
+the same suit origin, its ``field_office_sign`` reading "<title> Field Office" (or
+"COG Field Office"). Every piece is colour scaled 0.6.
+
 The street meshes are baked flat, so the runtime hides the Toon block by collapsing the
 triangles that lie inside its boxes (``source/world/cog_buildings.cpp``). This tool writes:
 
   --global  data/cogbldg/suit_landmark_{c,l,m,s}.ttm, suit_wall_{0..9}.ttm, suit_door.ttm,
-            cog_icon_{c,l,m,s}.ttm and suit_exterior.bin (TCX1: per department the
+            cog_icon_{c,l,m,s}.ttm, cogdo_wall_{0..9}.ttm and suit_exterior.bin (TCX1: per department the
             sign_origin and door_origin transforms in landmark space).
   --zone Z  data/zones/<Z>.tsb (TSB1, below) and <Z>_cogsign.ttm (each block's sign for each
-            department, landmark space; two batches per sign: card, then letters).
+            department and then the field office, landmark space; two batches per sign: card,
+            then letters).
 
 TSB1 (little endian):
-  char[4] "TSB1"; u16 version (1); u16 numBlocks
+  char[4] "TSB1"; u16 version (2); u16 numBlocks
   per block:
-    u16 block; u16 signBatch (first batch of department c; l, m, s follow, 2 batches each)
+    u16 block; u16 signBatch (first batch of department c; l, m, s and the field office
+                              follow, 2 batches each)
     u16 numFlats; u16 numHide; u16 numKeep; u16 pad
     f32[12] landmark: world from suit-origin, rows x axis, y axis, z axis, origin
     f32[3] lo, f32[3] hi: world AABB of the hide boxes
@@ -51,6 +59,12 @@ ICONS = {'c': 'CorpIcon', 'l': 'LegalIcon', 'm': 'MoneyIcon', 's': 'SalesIcon'}
 MEDALLION = {'c': (0.863, 0.776, 0.769, 1.0), 's': (0.843, 0.745, 0.745, 1.0),
              'l': (0.749, 0.776, 0.824, 1.0), 'm': (0.749, 0.769, 0.749, 1.0)}  # Suit.medallionColors
 SUIT_WALLS = [f'wall_suit_build{i}_{s}' for i in range(1, 6) for s in ('ur', 'ul')]  # storage_town.dna order
+COGDO_WALLS = [f'wall_cogdo_build{i}_{s}' for i in range(1, 6) for s in ('ur', 'ul')]
+FIELD_OFFICE_X = 15.463   # setupCogdo: setPosHprScale(nodePath, 15.463, 0, 0, ...)
+FIELD_OFFICE_SCALE = 0.6  # setToCogdo / setupCogdo: setColorScale(0.6, 0.6, 0.6, 1)
+COGDO_TITLE = 'COG Field Office'  # TTLocalizer.Cogdominiums
+COGDO_EXT = ' Field Office'       # TTLocalizer.CogdominiumsExt
+TSB_VERSION = 2
 COGS_INC = 'COGS, Inc.'   # TTLocalizer.CogsInc
 INC_EXT = ', Inc.'        # TTLocalizer.CogsIncExt
 TAKEABLE = ('landmark_building', 'anim_building')
@@ -105,18 +119,21 @@ def bake_global(base, resources, out):
         ex.add(model)
         report[f'suit_landmark_{d}'] = _write(out / f'suit_landmark_{d}.ttm', ex)
         model.removeNode()
-    walls = _load(base, resources, 'phase_5/models/modules/suit_walls.bam')
-    for i, code in enumerate(SUIT_WALLS):
-        node = walls.find(f'**/{code}')
-        if node.isEmpty():
-            raise RuntimeError(f'suit_walls: missing {code}')
-        # storage copies keep the node's own transform (assemble._find / copyTo).
-        holder = NodePath('wall')
-        node.copyTo(holder)
-        ex = extract.Extractor(max_tex=256)
-        ex.add(holder)
-        report[f'suit_wall_{i}'] = _write(out / f'suit_wall_{i}.ttm', ex)
-        holder.removeNode()
+    for kind, rel, codes in (('suit', 'phase_5/models/modules/suit_walls.bam', SUIT_WALLS),
+                             ('cogdo', 'phase_5/models/cogdominium/tt_m_ara_cbe_walls.bam', COGDO_WALLS)):
+        walls = _load(base, resources, rel)
+        for i, code in enumerate(codes):
+            node = walls.find(f'**/{code}')
+            if node.isEmpty():
+                raise RuntimeError(f'{rel}: missing {code}')
+            # storage copies keep the node's own transform (assemble._find / copyTo).
+            holder = NodePath('wall')
+            node.copyTo(holder)
+            ex = extract.Extractor(max_tex=256)
+            ex.add(holder)
+            report[f'{kind}_wall_{i}'] = _write(out / f'{kind}_wall_{i}.ttm', ex)
+            holder.removeNode()
+        walls.removeNode()
     door = _load(base, resources, 'phase_5/models/modules/suit_door.bam')
     ex = extract.Extractor(max_tex=128)
     ex.add(door)
@@ -211,7 +228,7 @@ def bake_zone(base, resources, zone, out):
     import dna
     import extract
     import street_catalog
-    from panda3d.core import NodePath, TextNode
+    from panda3d.core import LMatrix4f, NodePath, TextNode
 
     store = dna.Storage(base.loader, str(resources))
     playground, storages, src = street_catalog.paths(zone)
@@ -276,6 +293,14 @@ def bake_zone(base, resources, zone, out):
         sign_origin[d] = model.find('**/sign_origin;+s').getMat(model)
         model.removeNode()
 
+    office = _load(base, resources, 'phase_5/models/cogdominium/tt_m_ara_cbe_fieldOfficeMoverShaker.bam')
+    office_sign = office.find('**/sign_origin;+s')
+    if office_sign.isEmpty():
+        raise RuntimeError('field office: missing sign_origin')
+    office_sign_mat = office_sign.getMat(office) * LMatrix4f.translateMat(FIELD_OFFICE_X, 0, 0)
+    office.removeNode()
+    office_card = _load(base, resources, 'phase_5/models/cogdominium/field_office_sign.bam')
+
     blocks, sign_nodes = [], []
     for block in sorted(landmarks):
         name, title = landmarks[block]
@@ -333,18 +358,38 @@ def bake_zone(base, resources, zone, out):
             letters = bg.attachNewNode(text.generate())
             letters.setPosHprScale(0, 0, -0.21 + height * 0.1 / z_scale, 0, 0, 0, 0.1, 0.1, 0.1 / z_scale)
             letters.setColor(1, 1, 1, 1)
-            sign_nodes.append((holder, bg, letters))
+            sign_nodes.append((holder, bg, letters, 1.0))
+        # setupCogdo: "<title> Field Office" (or "COG Field Office"), wordwrap 12, on the
+        # field office's sign_origin, the whole building colour scaled 0.6.
+        text = TextNode('sign')
+        text.setTextColor(1, 1, 1, 1)
+        text.setFont(font)
+        text.setAlign(TextNode.ACenter)
+        text.setWordwrap(12.0)
+        text.setText(title + COGDO_EXT if title else COGDO_TITLE)
+        height = text.getHeight()
+        z_scale = (height + 2) / 3.0
+        holder = signs_root.attachNewNode(f'{block}f')
+        at = holder.attachNewNode('sign_origin')
+        at.setMat(office_sign_mat)
+        bg = office_card.copyTo(at)
+        bg.setPosHprScale(0, 0, -1.2 + height * 0.8 / z_scale, 0, 0, 0, 20, 8, 8 * z_scale)
+        letters = bg.attachNewNode(text.generate())
+        letters.setPosHprScale(0, 0, -0.13 + height * 0.1 / z_scale, 0, 0, 0, 0.1 * 8.0 / 20.0, 0.1, 0.1 / z_scale)
+        letters.setColor(1, 1, 1, 1)
+        sign_nodes.append((holder, bg, letters, FIELD_OFFICE_SCALE))
         blocks.append((block, landmark_mat, lo, hi, flat_rows, hide, keep))
 
     # Every glyph is on the dynamic font's pages before any texture is read.
     ex = extract.Extractor(max_tex=256)
     sign_batches = []
-    for holder, bg, letters in sign_nodes:
+    for holder, bg, letters, scale in sign_nodes:
         letters.wrtReparentTo(holder)
         bg.wrtReparentTo(holder)
         for part, layer in ((bg, 1), (letters, 2)):
             ex._groups = {}
             tmp = NodePath('part')
+            tmp.setColorScale(scale, scale, scale, 1)
             part.copyTo(tmp).setMat(part.getMat(holder))
             ex.add(tmp)
             bs = ex.batches()
@@ -356,9 +401,9 @@ def bake_zone(base, resources, zone, out):
     sign_stats = _write(out / f'{zone}_cogsign.ttm', ex, sign_batches) if sign_batches else None
 
     with open(out / f'{zone}.tsb', 'wb') as f:
-        f.write(struct.pack('<4sHH', b'TSB1', 1, len(blocks)))
+        f.write(struct.pack('<4sHH', b'TSB1', TSB_VERSION, len(blocks)))
         for i, (block, landmark_mat, lo, hi, flat_rows, hide, keep) in enumerate(blocks):
-            f.write(struct.pack('<HHHHHH', block, i * len(DEPTS) * 2, len(flat_rows), len(hide), len(keep), 0))
+            f.write(struct.pack('<HHHHHH', block, i * (len(DEPTS) + 1) * 2, len(flat_rows), len(hide), len(keep), 0))
             f.write(struct.pack('<12f', *_r(_mat_rows(landmark_mat))))
             f.write(struct.pack('<6f', *_r(lo), *_r(hi)))
             for rows, wall, door in flat_rows:

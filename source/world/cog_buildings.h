@@ -54,6 +54,7 @@ private:
         float lo[3] = {}, hi[3] = {};
     };
     static constexpr int kDepts = 4;   // c l m s
+    static constexpr int kFieldOffice = kDepts; // a Cogdominium's index in the per-block signs
     static constexpr int kWalls = 10;  // storage_town.dna suit_wall codes
     static constexpr int kMaxHidden = 16;
     void loadExterior(uint32_t zone);
@@ -63,6 +64,7 @@ private:
     void ensureModels(int dept, const Block& b);
     void drawSuit(render::Renderer& renderer, const net::Client& client, const net::CogBuilding& b,
                   const Block& bk) const;
+    void drawCogdo(render::Renderer& renderer, const Block& bk) const;
     static int deptIndex(int8_t track);
     static void zoneDrawHook(void* user, render::Model& model, bool far);
     static bool hideTest(void* user, const float* a, const float* b, const float* c);
@@ -73,9 +75,10 @@ private:
     bool exteriorOk_ = false;            // suit_exterior.bin read
     float signOrigin_[kDepts][12] = {};
     float doorOrigin_[kDepts][12] = {};
-    render::Model landmarks_[kDepts], icons_[kDepts], walls_[kWalls];
+    render::Model landmarks_[kDepts], icons_[kDepts], walls_[kWalls], cogdoWalls_[kWalls];
     render::Model suitDoor_, signs_, cab_, leftDoor_, rightDoor_, lights_[5];
     uint32_t triedModels_ = 0;           // bits: a load was attempted (not retried)
+    uint32_t cogdoTried_ = 0;            // the same for cogdoWalls_
     const Block* hidden_[kMaxHidden] = {};
     int hiddenDept_[kMaxHidden] = {};
     int numHidden_ = 0;
@@ -83,10 +86,10 @@ private:
     float hideLo_[3] = {}, hideHi_[3] = {};
     bool hideFar_ = false;               // the model being tested is a far mesh
     // ---- end street look ----
-    // ---- cogdo exterior (shared source kept additive) ----
+    // data/cogdo: the field office with elevatorB (bake_cogdo.py "shell", suit-origin space)
+    // and its door in that space (points.bin).
     render::Model cogdoShell_;
     float cogdoDoor_[3] = {15.463f, 0, 0};
-    // ---- end cogdo exterior ----
     render::Model kart_; // DistributedCogKart (Coggolf_cart3)
     uint32_t zone_ = 0;
     uint32_t requestedElevator_ = 0;

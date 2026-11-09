@@ -95,8 +95,9 @@ def _patch(name, mod):
         cls.generateSuits = generateSuits
     # ---- cogdo local test switches; production AI remains unchanged ----
     elif name == 'toontown.building.DistributedBuildingAI':
-        # AI_DEV_SUITBLDG="2100:69:s:2,2100:10:c": take these blocks over for Cog buildings
-        # (zone:block:dept[:floors]) 5 s after they start, to look at the street exterior.
+        # AI_DEV_SUITBLDG="2100:69:s:2,2100:10:c,2100:59:f": take these blocks over for Cog
+        # buildings (zone:block:dept[:floors]; dept f: a Sellbot field office) 5 s after they
+        # start, to look at the street exterior.
         takeovers = {}
         for item in filter(None, os.environ.get('AI_DEV_SUITBLDG', '').split(',')):
             fields = item.split(':')
@@ -111,7 +112,10 @@ def _patch(name, mod):
                     return
 
                 def takeOver(task):
-                    if not self.isDeleted() and self.isToonBlock():
+                    if not self.isDeleted() and self.isToonBlock() and spec[0] == 'f':
+                        self.cogdoTakeOver('s', 0, 1)
+                        print('ai_dev: field office takeover zone %s block %s' % (self.zoneId, self.block), flush=True)
+                    elif not self.isDeleted() and self.isToonBlock():
                         self.suitTakeOver(spec[0], 0, spec[1])
                         print('ai_dev: suit takeover zone %s block %s dept %s' % (self.zoneId, self.block, spec[0]), flush=True)
                     return task.done

@@ -772,7 +772,7 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/dev/azahar_test.sh` | unattended Old 3DS emulator pass (restores the user's Azahar config) |
 | `tools/dev/make_sd_package.sh` | assembles `dist/sd/` (3DSX + SD data set + placeholder `server.txt`) for the SD card; rsync, no network |
 | `tools/pipeline/bake_sky.py` | the hood skies (TT_sky + its two cloud groups, BR_sky, MM_sky, DL_sky, cog_sky) → `romfs/baked/sky/*.ttm` |
-| `tools/pipeline/bake_cog_exterior.py` | the street look of a Cog-owned building: suit landmarks, suit walls / door, cab icons (`data/cogbldg`), per street `<zone>.tsb` hide boxes + Cog flats and `<zone>_cogsign.ttm` signs (`docs/design/cogbuildings.md`) |
+| `tools/pipeline/bake_cog_exterior.py` | the street look of a Cog-owned building: suit landmarks, suit walls / door, cab icons (`data/cogbldg`), cogdo walls for field offices, per street `<zone>.tsb` hide boxes + Cog flats and `<zone>_cogsign.ttm` signs (Cog building and field office) (`docs/design/cogbuildings.md`) |
 | `tools/pipeline/bake_suit_paths.py` | street DNA → `.tsp` suit point/edge graph (spec in the file; cogs walk it, `source/world/suit_path.*`) |
 | `tools/pipeline/bake_suit_placeholder.py` | the `romfs/baked/suit_placeholder.ttm` stand-in cog box |
 | `tools/pipeline/bake_timer_clock.py`, `bake_fishing_gui.py`, `bake_book_tabs.py`, `bake_purchase_gui.py`, `bake_pick_a_toon.py`, `bake_mat_gui.py` (shared `ui_atlas.py`) | ToontownTimer's alarm clock, fishingGui's cast interface, the Shtiker Book page tab icons, the purchase screens' sign plank and bean jar, AvatarChooser's background, squares and trashcan, and Make-A-Toon's round, gender and shuffle buttons → RomFS `.ttm` atlases plus generated `source/ui/*_atlas.h` geometry |
