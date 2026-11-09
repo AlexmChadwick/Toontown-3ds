@@ -9,7 +9,7 @@ import os
 
 import numpy as np
 import ground_split
-from panda3d.core import (ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
+from panda3d.core import (LPoint3f, ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
                           PNMImage, SamplerState, Texture, TextureAttrib, TexMatrixAttrib,
                           Thread, TransparencyAttrib)
 
@@ -232,7 +232,7 @@ class Extractor:
             if ruv:
                 uv = ruv.getData2()
                 if tex_mat is not None:
-                    uv = tex_mat.xformPoint(uv)
+                    uv = tex_mat.xformPoint(LPoint3f(uv[0], uv[1], 0))
                 verts[i, 3:5] = (uv[0], uv[1])
             if rc:
                 c = rc.getData4()

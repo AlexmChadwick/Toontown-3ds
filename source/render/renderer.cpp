@@ -62,6 +62,7 @@ bool Renderer::loadProgram(const u8* shbin, u32 size, Program* out) {
     out->uModelView = shaderInstanceGetUniformLocation(out->program.vertexShader, "modelView");
     out->uTint = shaderInstanceGetUniformLocation(out->program.vertexShader, "tint");
     out->uBlend = shaderInstanceGetUniformLocation(out->program.vertexShader, "blend");
+    out->uUvShift = shaderInstanceGetUniformLocation(out->program.vertexShader, "uvShift");
     return true;
 }
 
@@ -81,6 +82,7 @@ void Renderer::bindMode(Mode mode) {
     if (mode == mode_) return;
     mode_ = mode;
     batchState_.tintValid = false;
+    batchState_.uvShiftValid = false;
     batchState_.geometryValid = false;
     const Program& p = programs_[mode];
     C3D_BindProgram(const_cast<shaderProgram_s*>(&p.program));
@@ -238,6 +240,10 @@ void Renderer::drawModel(Model& model, const C3D_Mtx& world, const Tints* tints,
     if (!beginDraw(model.boundsMin(), model.boundsMax(), world)) return;
     bindMode(kModeStatic);
     setModelView(world, model.posScale(), model.posOffset());
+    if (programs_[kModeStatic].uUvShift >= 0 && batchState_.uploadUvShift(uvShift_)) {
+        ++stats_.uniformUploads;
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeStatic].uUvShift, uvShift_[0], uvShift_[1], 0, 0);
+    }
 
     const u8* vbase = static_cast<const u8*>(model.vertices());
     if (model.absoluteIndices() && batchState_.bindGeometry(model.vertices())) {

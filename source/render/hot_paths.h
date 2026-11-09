@@ -27,6 +27,16 @@ struct BatchState {
         return true;
     }
     bool textureValid = false;
+    bool uvShiftValid = false;
+    float uvShift[2] = {};
+    bool uploadUvShift(const float* next) {
+        if (uvShiftValid && uvShift[0] == next[0] && uvShift[1] == next[1])
+            return false;
+        uvShift[0] = next[0];
+        uvShift[1] = next[1];
+        uvShiftValid = true;
+        return true;
+    }
     bool tintValid = false;
     float tint[4] = {};
     int blend = -1;

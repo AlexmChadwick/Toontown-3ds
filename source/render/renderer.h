@@ -63,6 +63,11 @@ public:
     // whose models overlap (zone chunks) draws all opaque first, so a blended decal
     // (no depth write) is not painted over by a later model's opaque surface.
     void setBlendPass(int pass) { blendPass_ = pass; }
+    // Added to the texture coordinates of static models (scrolling water); reset to 0 after use.
+    void setUvShift(float u, float v) {
+        uvShift_[0] = u;
+        uvShift_[1] = v;
+    }
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map, fog).
     void endWorld();
     // Linear distance fog for the world pass (Panda Fog.setLinearRange(start, end), colour
@@ -104,7 +109,7 @@ private:
     struct Program {
         DVLB_s* dvlb = nullptr;
         shaderProgram_s program{};
-        int uProjection = -1, uModelView = -1, uTint = -1, uBlend = -1;
+        int uProjection = -1, uModelView = -1, uTint = -1, uBlend = -1, uUvShift = -1;
     };
 
     static bool loadProgram(const u8* shbin, u32 size, Program* out);
@@ -122,6 +127,7 @@ private:
     bool skyPass_ = false; // drawSky: batches skip the depth test and write colour only
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;
+    float uvShift_[2] = {};
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
     float fogStart_ = 0.0f, fogEnd_ = 0.0f, fogFar_ = 0.0f;

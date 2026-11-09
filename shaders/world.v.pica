@@ -4,6 +4,8 @@
 ;   v2 = u8 rgba
 .fvec projection[4], modelView[4]
 .fvec tint
+; xy added to the texture coordinates (Renderer::setUvShift: scrolling water)
+.fvec uvShift
 
 ; x = 1/255 (color), y = 1/1024 (uv), z = 1, w = 0
 .constf consts(0.003921569, 0.0009765625, 1.0, 0.0)
@@ -31,7 +33,8 @@
     dp4 outpos.z, projection[2], r1
     dp4 outpos.w, projection[3], r1
 
-    mul outtc0, consts.yyyy, intex
+    mul r3, consts.yyyy, intex
+    add outtc0, uvShift, r3
 
     mul r2, consts.xxxx, inclr
     mul outclr, tint, r2

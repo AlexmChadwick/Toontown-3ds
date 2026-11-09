@@ -58,6 +58,7 @@
 #include "world/battle.h"
 #include "world/battle_fx.h"
 #include "world/trolley.h"
+#include "world/waterfall.h"
 #include "world/sky.h"
 #include "world/fishing.h"
 #include "world/golf.h"
@@ -517,9 +518,11 @@ int main() {
     static tt::world::ToonClipSet battleClips; // the local toon's battle clips, loaded per fight
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
+    static tt::world::Waterfall waterfall;
     static tt::world::Sky sky; // the hood's sky dome (Hood.skyFile)
     static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
+    waterfall.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
     static tt::world::GolfSession golf;
     static tt::world::CogBuildings cogBuildings;
@@ -2407,6 +2410,7 @@ int main() {
                     cchars.setZone(zoneDest);
                     fishing.setZone(zoneDest, place.pointsPath());
                     trolley.setZone(zoneDest);
+                    waterfall.setZone(zoneDest);
                     cogBuildings.setZone(zoneDest);
                     cogBuildings.syncAnchors(place);
                     suits.setZone(zoneDest);
@@ -3470,6 +3474,7 @@ int main() {
             // ---- end tutorial ----
             // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
             if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
+            waterfall.draw(renderer, tt::net::plat::nowMs());
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
             fishing.draw(renderer);
             suits.draw(renderer);
