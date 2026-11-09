@@ -59,6 +59,8 @@
 #include "world/battle_fx.h"
 #include "world/trolley.h"
 #include "world/waterfall.h"
+#include "world/gs_blimp.h"
+#include "world/gs_leaderboard.h"
 #include "world/butterflies.h"
 #include "world/dg_flower.h"
 #include "world/sky.h"
@@ -521,12 +523,17 @@ int main() {
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
     static tt::world::Waterfall waterfall;
+    static tt::world::GsBlimp gsBlimp;
+    static tt::world::GsLeaderBoards gsBoards;
+    gsBoards.init();
     static tt::world::Butterflies butterflies;
     static tt::world::DGFlower dgFlower;
     static tt::world::Sky sky; // the hood's sky dome (Hood.skyFile)
     static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
     waterfall.setZone(kStartZone);
+    gsBlimp.setZone(kStartZone);
+    gsBoards.setZone(kStartZone);
     butterflies.setZone(kStartZone);
     dgFlower.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
@@ -2421,6 +2428,8 @@ int main() {
                     fishing.setZone(zoneDest, place.pointsPath());
                     trolley.setZone(zoneDest);
                     waterfall.setZone(zoneDest);
+                    gsBlimp.setZone(zoneDest);
+                    gsBoards.setZone(zoneDest);
                     butterflies.setZone(zoneDest);
                     dgFlower.setZone(zoneDest);
                     cogBuildings.setZone(zoneDest);
@@ -3487,6 +3496,7 @@ int main() {
             // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
             if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
             waterfall.draw(renderer, tt::net::plat::nowMs());
+            gsBlimp.draw(renderer, tt::net::plat::nowMs());
             if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
             dgFlower.draw(renderer, tt::net::plat::nowMs());
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
@@ -3637,6 +3647,7 @@ int main() {
                     }
                 }
             }
+            if (netStarted) gsBoards.draw2D(net, proj, view, renderer.topLeft());
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
             // [interior life]
@@ -3969,6 +3980,7 @@ int main() {
     suits.shutdown();
     // [interior life]
     interiorLife.shutdown();
+    gsBoards.shutdown();
     // [end interior life]
     battleFx.shutdown();
     TT_LOG("exit: world released");

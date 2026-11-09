@@ -2923,8 +2923,11 @@ constexpr const char* sig_movieFinished = "";
 namespace DistributedLeaderBoard {
 constexpr uint16_t kClassId = 326;
 constexpr uint16_t k_setPosHpr = 1798;
+constexpr uint16_t k_setDisplay = 1799;
 constexpr uint16_t kw_setPosHpr = 0x007;
+constexpr uint16_t kw_setDisplay = 0x006;
 constexpr const char* sig_setPosHpr = "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10";
+constexpr const char* sig_setDisplay = "blob";
 } // namespace DistributedLeaderBoard
 
 namespace DistributedFactorySuit {

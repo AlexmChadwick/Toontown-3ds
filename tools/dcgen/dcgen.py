@@ -285,7 +285,7 @@ WANTED = {
     'DistributedStartingBlock': ['setPadDoId', 'setPosHpr', 'setPadLocationId',
                                  'requestEnter', 'rejectEnter', 'requestExit', 'setOccupied', 'setMovie',
                                  'movieFinished'],
-    'DistributedLeaderBoard': ['setPosHpr'],
+    'DistributedLeaderBoard': ['setPosHpr', 'setDisplay'],
 }
 
 # Class families whose every subclass gets a table (and a kClassId namespace).

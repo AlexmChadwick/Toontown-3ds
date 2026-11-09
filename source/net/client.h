@@ -365,6 +365,21 @@ struct DGFlower {
     bool active = false;
 };
 
+// Goofy Speedway's race leader boards (DistributedLeaderBoard): setPosHpr places the text
+// surface; setDisplay (a pickled (track, period, [(time, name), ...])) fills its rows.
+struct GsLeaderBoard {
+    static constexpr int kRows = 10;
+    uint32_t doId = 0;
+    float pos[3] = {}, hpr[3] = {};
+    char track[48] = "Track Title";
+    char period[32] = "Period Title";
+    char names[kRows][72] = {};
+    char times[kRows][40] = {};
+    uint32_t version = 0; // bumped on every setDisplay
+    bool active = false;
+};
+constexpr int kMaxLeaderBoards = 4;
+
 // Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
 // cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
 enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
@@ -1372,6 +1387,7 @@ public:
     const CChar* findCChar(uint32_t doId) const;
     const Butterfly& butterflySlot(int i) const { return butterflies_[i]; }
     const DGFlower* dgFlower() const { return dgFlower_.active ? &dgFlower_ : nullptr; }
+    const GsLeaderBoard& leaderBoardSlot(int i) const { return leaderBoards_[i]; }
     bool sendDGFlowerTouch(bool enter);
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
@@ -1924,6 +1940,7 @@ private:
     // client_butterfly.cpp
     Butterfly butterflies_[kMaxButterflies] = {};
     DGFlower dgFlower_ = {};
+    GsLeaderBoard leaderBoards_[kMaxLeaderBoards] = {};
     bool handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                               uint16_t reqCount, bool other);
     bool handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
