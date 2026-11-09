@@ -1,5 +1,6 @@
 #include "ui/inventory_art.h"
 
+#include "ui/panel_geometry.h"
 #include "world/battle_fx.h"
 
 namespace tt::ui {
@@ -48,7 +49,8 @@ void drawInvHint(float x, float y, float w, float h, float z, u32 tint) {
     C3D_Tex* tex = guiTex();
     if (!tex || w <= 0.0f || h <= 0.0f) return;
     const InvArtRect& r = kInvArtRects[int(InvArt::Hint)];
-    constexpr float kC = 15.0f;
+    // A 15 px corner on a short card leaves no cream. Cap it so the centre stays open.
+    const float kC = layout::hintCorner(w, h);
     const float sx[4] = {r.x, r.x + kC, r.x + r.w - kC, r.x + r.w};
     const float sy[4] = {r.y, r.y + kC, r.y + r.h - kC, r.y + r.h};
     const float dx[4] = {x, x + kC, x + w - kC, x + w};

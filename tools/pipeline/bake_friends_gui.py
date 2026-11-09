@@ -8,6 +8,10 @@ reuses those exact pieces around its compact list instead of approximating the s
     romfs/baked/friends_gui.ttm       one 256x256 RGBA8 texture
     source/ui/friends_gui_atlas.h     atlas rectangles
 
+The parchment gradient is finer than a 4-bit step, so this stays RGBA8. The panel
+alone is 118 x 220, which already needs a 256 x 256 sheet. Scroll, Arrow and Close
+are unused at runtime and do not change that size.
+
     .venv/bin/python -I tools/pipeline/bake_friends_gui.py --res ref/resources [--png atlas.png]
 """
 import argparse

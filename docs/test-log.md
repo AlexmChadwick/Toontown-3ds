@@ -2061,3 +2061,30 @@ committed as `3614cd0`. The slash fill is reinforced inside the same glyph advan
 turning its one-pixel staircase into a two-pixel body without moving or shrinking
 `100` and `137`. Both scripts completed at 29.9 fps with zero emulator panics. The
 native frames and an 8x nearest-neighbor before/after sheet were reviewed.
+
+## 2026-11-09 - bottom-screen GUI review (host only)
+
+No Azahar binary and no devkitARM on this machine. This entry is not an emulator
+or hardware pass, and it does not claim a frame budget.
+
+`tools/gui_layout_test/run.sh` passed: friends list on the parchment with a 4-row
+window, SpeedChat titles stopping before the Friends and whisper buttons, the
+battle hint text inside the cream, the pocket slash thicker than its gap, a 4 px
+gap above the chat log, and nine non-overlapping book tab rects. The Map cell
+check requires a centred arrow tip and a portal interior that is not a solid well.
+
+The Map glyph in `romfs/baked/book_tabs.ttm` was upstream `teleportIcon` after the
+baker's 1 px gaussian. At 21 px that arrow read as a check in a black well.
+`tools/pipeline/book_tab_glyph.py` redraws the same arrow with a shaft, a downward
+head and a rim. The other eight icons are unchanged. `ref/resources` is not
+checked out here and panda3d is not installed, so this is not a rebake from the bam.
+
+320x240 layout composites (real atlas pixels and the panel rectangles, not
+emulator captures) show the tab bar before and after, and the SpeedChat frame
+flush with the chat log versus 4 px of sky between them.
+
+GUI sheets stayed RGBA8. The friends parchment and the inventory chrome change by
+less than one 4-bit step per row, so RGBA4 would band them. The friends panel is
+118 x 220 and the hint card starts at y 129, so neither sheet can shrink to a
+smaller power of two. Font sheets are already the minimum size that holds the cells.
+

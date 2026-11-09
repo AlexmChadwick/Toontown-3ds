@@ -58,14 +58,14 @@ constexpr float kPocketLaff = 72.0f; // the meter's atlas cell (the head fills ~
 // The info panel's button (Context::infoButton), centred near the card's foot.
 constexpr float kInfoBtnW = 160.0f, kInfoBtnH = 32.0f, kInfoBtnX = (kW - kInfoBtnW) * 0.5f, kInfoBtnY = 190.0f;
 constexpr float kChatLogH = 34.0f; // Chat tab: two lines of recent chat above the tab bar
-constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButtonW = 72.0f,
-                kFriendsButtonH = 24.0f;
-constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
-                kFriendsPanelH = 204.0f;
-constexpr float kFriendsListX = 86.0f, kFriendsListY = 76.0f, kFriendsListW = 148.0f,
-                kFriendsRowH = 11.0f;
-constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
-                kFriendsCloseH = 26.0f;
+constexpr float kFriendsButtonX = layout::kFriendsButtonX, kFriendsButtonY = layout::kFriendsButtonY,
+                kFriendsButtonW = layout::kFriendsButtonW, kFriendsButtonH = layout::kFriendsButtonH;
+constexpr float kFriendsPanelX = layout::kFriendsPanelX, kFriendsPanelY = layout::kFriendsPanelY,
+                kFriendsPanelW = layout::kFriendsPanelW, kFriendsPanelH = layout::kFriendsPanelH;
+constexpr float kFriendsListX = layout::kFriendsListX, kFriendsListY = layout::kFriendsListY,
+                kFriendsListW = layout::kFriendsListW, kFriendsRowH = layout::kFriendsRowH;
+constexpr float kFriendsCloseX = layout::kFriendsCloseX, kFriendsCloseY = layout::kFriendsCloseY,
+                kFriendsCloseW = layout::kFriendsCloseW, kFriendsCloseH = layout::kFriendsCloseH;
 const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book", "Debug"};
 // Book tab buttons, in Book::PageIndex order.
 const char* const kBookPageNames[pad::booktab::kCount] = {"Gags",       "ToonTasks", "Cog Gallery",
@@ -487,7 +487,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             drawFriends(s);
             break;
         }
-        chat_.draw(chatBottom());
+        chat_.draw(chatBottom(), layout::chatHeaderLimit(kFriendsButtonX, numNearby_ > 0, 142.0f));
         theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
         if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
         if (numNearby_ > 0) {
@@ -631,8 +631,11 @@ bool Ui::chatLogShown() const {
     return chatLogCount_ > 0 && chatNowMs_ - chatLog_[chatLogCount_ - 1].ms < kChatLogMs;
 }
 
-// The SpeedChat menu stops above the recent-chat strip, or above the laff pocket.
-float Ui::chatBottom() const { return chatLogShown() ? kTabY - kChatLogH : kPocketTop; }
+// The SpeedChat menu stops above the recent-chat strip (with a few pixels of sky
+// between the last row and the log), or above the laff pocket.
+float Ui::chatBottom() const {
+    return chatLogShown() ? kTabY - kChatLogH - layout::kChatLogGap : kPocketTop;
+}
 
 // Newest line at the bottom, like a chat window: names in nametag blue (ours in green,
 // whispers in the whisper panel's purple). It starts right of the laff pocket.
@@ -650,6 +653,9 @@ void Ui::drawChatLog(float y0, float y1) {
 }
 
 u32 Ui::handleFriends(u32 down, const touchPosition& touch, State& s) {
+    if (numFriends_ <= 0) friendFocus_ = 0;
+    else if (friendFocus_ < 0) friendFocus_ = 0;
+    else if (friendFocus_ >= numFriends_) friendFocus_ = numFriends_ - 1;
     if ((down & (KEY_B | KEY_R)) || ((down & KEY_TOUCH) &&
                                      inRect(touch, kFriendsCloseX, kFriendsCloseY,
                                             kFriendsCloseW, kFriendsCloseH))) {
@@ -668,11 +674,17 @@ u32 Ui::handleFriends(u32 down, const touchPosition& touch, State& s) {
         return KEY_DDOWN;
     }
     int activate = -1;
+    const int scroll = layout::friendsScroll(numFriends_, friendFocus_);
+    const int shown = numFriends_ - scroll;
+    const int visible = shown > layout::kFriendsVisible ? layout::kFriendsVisible : shown;
     if ((down & KEY_A) && numFriends_ > 0) activate = friendFocus_;
     if ((down & KEY_TOUCH) && touch.px >= kFriendsListX && touch.px < kFriendsListX + kFriendsListW &&
-        touch.py >= kFriendsListY && touch.py < kFriendsListY + numFriends_ * kFriendsRowH) {
-        activate = static_cast<int>((touch.py - kFriendsListY) / kFriendsRowH);
-        friendFocus_ = activate;
+        touch.py >= kFriendsListY && touch.py < kFriendsListY + visible * kFriendsRowH) {
+        const int row = static_cast<int>((touch.py - kFriendsListY) / kFriendsRowH);
+        if (row >= 0 && row < visible) {
+            activate = scroll + row;
+            friendFocus_ = activate;
+        }
     }
     if (activate >= 0 && activate < numFriends_) {
         if (friendNearby_[activate]) {
@@ -699,24 +711,33 @@ void Ui::drawFriends(const State& s) {
     // panel leaves this white title pill blank for DirectLabel to fill.
     C2D_Text title;
     textCache_.parse(&title, textBuf_, "Online Friends", 1024);
-    theme::textCentered(title, kW * 0.5f, 57, 0.46f, theme::kBlueDark, 136, 0.62f);
+    theme::textCentered(title, layout::kFriendsTitleX, layout::kFriendsTitleY, layout::kFriendsTitleScale,
+                        theme::kBlueDark, layout::kFriendsTitleMaxW, 0.62f);
+    if (numFriends_ <= 0) friendFocus_ = 0;
+    else if (friendFocus_ < 0) friendFocus_ = 0;
+    else if (friendFocus_ >= numFriends_) friendFocus_ = numFriends_ - 1;
+    const int scroll = layout::friendsScroll(numFriends_, friendFocus_);
+    const int shown = numFriends_ - scroll;
+    const int visible = shown > layout::kFriendsVisible ? layout::kFriendsVisible : shown;
     if (numFriends_ <= 0) {
         C2D_Text empty;
         textCache_.parse(&empty, textBuf_, "No friends yet.", 1024);
-        theme::textCentered(empty, kW * 0.5f, 105, 0.42f, theme::kInkSoft, kFriendsListW - 8, 0.62f);
+        theme::textCentered(empty, kFriendsListX + kFriendsListW * 0.5f, kFriendsListY + 18, 0.42f,
+                            theme::kInkSoft, kFriendsListW - 8, 0.62f);
     }
-    for (int i = 0; i < numFriends_; i++) {
+    for (int i = 0; i < visible; i++) {
+        const int index = scroll + i;
         const float y = kFriendsListY + i * kFriendsRowH;
-        if (i == friendFocus_)
+        if (index == friendFocus_)
             theme::roundRect(kFriendsListX, y, kFriendsListW, kFriendsRowH - 1, 3,
                              theme::kScRollover, 0.58f);
-        const u32 fg = !friendNearby_[i] ? theme::kInkSoft
-                       : friendOpenChat_[i] ? theme::kBlueDark : theme::kGreenDark;
+        const u32 fg = !friendNearby_[index] ? theme::kInkSoft
+                       : friendOpenChat_[index] ? theme::kBlueDark : theme::kGreenDark;
         C2D_Text name;
-        textCache_.parse(&name, textBuf_, friendNames_[i], 1024);
-        theme::textFit(name, kFriendsListX + 5, y - 1, 0.38f, fg, kFriendsListW - 24, 0.62f);
-        theme::roundRect(kFriendsListX + kFriendsListW - 13, y + 3, 6, 6, 3,
-                         friendNearby_[i] ? theme::kGreen : theme::kGrey, 0.62f);
+        textCache_.parse(&name, textBuf_, friendNames_[index], 1024);
+        theme::textFit(name, kFriendsListX + 5, y + 2, 0.36f, fg, kFriendsListW - 22, 0.62f);
+        theme::roundRect(kFriendsListX + kFriendsListW - 13, y + 5, 6, 6, 3,
+                         friendNearby_[index] ? theme::kGreen : theme::kGrey, 0.62f);
     }
     // The stock close button is already in FriendsBox_Open. B is shown as the 3DS equivalent.
     C2D_Text close;

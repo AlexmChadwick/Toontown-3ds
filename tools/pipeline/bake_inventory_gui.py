@@ -10,6 +10,8 @@ offscreen (aspect preserved, centred in its cell):
     texture 0  256x256 RGBA8  the 49 gag icons, cell (level * 36, track * 36, 36, 36)
     texture 1  256x256 RGBA8  InventoryRow, the four InventoryButton states, BATTLE_Menu,
                              ToonBtl_Status_BG and the stock dialog card used by the battle hint
+                             (RGBA4 posterizes this cream; the hint rect starts at y 129, so the
+                             sheet cannot shrink back to 128)
 
     romfs/baked/inventory_gui.ttm      the two textures and a placeholder quad
     source/ui/inventory_gui_atlas.h    the rectangles (pixels, top-left origin)

@@ -44,7 +44,9 @@ public:
     u32 handleInput(u32 down, u32 held, const touchPosition& t, float panelBottom);
     // Call when the Chat tab is left or entered: drops the highlight and any drag.
     void blur();
-    void draw(float panelBottom);
+    // headerRight: the title stops short of the Friends button, and of the whisper
+    // button when that button is on screen.
+    void draw(float panelBottom, float headerRight);
     // Oldest queued phrase the player chose (SpeedChat msgIndex for setSC; negative = an emote;
     // >= kTaskCode = a ToonTask phrase, read it with taskPhrase()).
     bool popSpeech(int& msgIndex);

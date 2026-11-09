@@ -29,6 +29,7 @@ from direct.showbase.ShowBase import ShowBase  # noqa: E402
 from panda3d.core import NodePath, OrthographicLens, PNMImage, TransparencyAttrib  # noqa: E402
 
 import ttm  # noqa: E402
+from book_tab_glyph import paint_teleport_icon  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'romfs' / 'baked' / 'book_tabs.ttm'
@@ -110,6 +111,10 @@ def main():
         for x in range(ATLAS_W):
             c = sheet.getXelA(x, y)
             px[y, x] = [round(c[0] * 255), round(c[1] * 255), round(c[2] * 255), round(c[3] * 255)]
+    # teleportIcon's 1 px gaussian reads as a check in a well at tab size. See book_tab_glyph.py.
+    for index, (name, *_) in enumerate(rows):
+        if name == 'Map':
+            paint_teleport_icon(px, (index % cols) * CELL, (index // cols) * CELL, CELL, CELL)
     texture = ttm.Texture('book_tabs', px, ttm.GPU_RGBA8, ttm.GPU_CLAMP_TO_EDGE, ttm.GPU_CLAMP_TO_EDGE,
                           mipmaps=False)
     quad = np.array([[-1, 0, -1, 0, 0, 1, 1, 1, 1], [1, 0, -1, 1, 0, 1, 1, 1, 1],

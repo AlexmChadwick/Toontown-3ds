@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "ui/panel_geometry.h"
 #include "ui/theme.h"
 
 namespace tt::ui {
@@ -145,8 +146,10 @@ void ChatMenu::enter(int menu, int focusItem) {
     C2D_TextOptimize(&title_);
     float tw, th;
     C2D_TextGetDimensions(&title_, 0.5f, 0.5f, &tw, &th);
-    const float titleAvail = kW - kBackW - 2 * kMarginX - 8.0f;
-    titleScale_ = tw > titleAvail ? 0.5f * titleAvail / tw : 0.5f;
+    const bool nested = parent >= 0;
+    const float titleX = nested ? kMarginX + kBackW + 8.0f : kMarginX + 2.0f;
+    const float titleAvail = layout::chatHeaderLimit(layout::kFriendsButtonX, false, 0.0f) - titleX;
+    titleScale_ = tw > titleAvail && titleAvail > 1.0f ? 0.5f * titleAvail / tw : 0.5f;
 
     const int n = numRows(menu);
     for (int i = 0; i < n && i < kMaxRows; i++) {
@@ -317,7 +320,7 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
     return consumed;
 }
 
-void ChatMenu::draw(float panelBottom) {
+void ChatMenu::draw(float panelBottom, float headerRight) {
     const float listH = panelBottom - kHeaderH;
     const int numItems = numRows(menu_);
 
@@ -368,8 +371,9 @@ void ChatMenu::draw(float panelBottom) {
         theme::roundRect(kW - kMarginX - kScrollBarW, barY, kScrollBarW, barH, 2, theme::kScArrow, kZ);
     }
 
-    // Header.
-    theme::skyBand(0, kHeaderH, kW, panelBottom, kZ);
+    // Header. The sky height is the tab bar, not panelBottom (that value is the
+    // menu's bottom edge and was squashing the gradient).
+    theme::skyBand(0, kHeaderH, kW, 208.0f, kZ);
     float titleX = kMarginX + 2.0f;
     if (parentOf(menu_) >= 0) { // a small panel of the menu's own frame, rollover green while pressed
         theme::roundRect(kMarginX, 2, kBackW, kHeaderH - 5, kFrameR, kFrameEdge, kZ);
@@ -377,8 +381,12 @@ void ChatMenu::draw(float panelBottom) {
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
         titleX = kMarginX + kBackW + 8.0f;
     }
-    C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - titleScale_) * 14.0f, kZ, titleScale_, titleScale_,
-                 kTitle);
+    float scale = titleScale_;
+    float tw = 0.0f, th = 0.0f;
+    C2D_TextGetDimensions(&title_, scale, scale, &tw, &th);
+    const float room = headerRight - titleX;
+    if (room > 1.0f && tw > room) scale *= room / tw;
+    C2D_DrawText(&title_, C2D_WithColor, titleX, 4.0f + (0.5f - scale) * 14.0f, kZ, scale, scale, kTitle);
 }
 
 } // namespace tt::ui
