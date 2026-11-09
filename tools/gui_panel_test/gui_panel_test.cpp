@@ -721,6 +721,198 @@ void suiteChat() {
 }
 
 // ---------------------------------------------------------------------------
+// The whisper label's fit ladder (PR #14 heads 7678fda + 5f761f2, QA-20261109-44)
+// ---------------------------------------------------------------------------
+// Ui::draw's whisper target goes through layout::fitWhisperName
+// (ui/panel_geometry.h, via Ui::syncWhisper), never through theme::textFit anymore:
+//   Prefixed  "To: <name>" on one line at 0.42 when it fits the 84 px button interior
+//   Name      the name alone, shrunk by whole-string fit but never below the
+//             kWhisperTextFloor of 0.36 (5f761f2, "keep the whisper label at scale
+//             0.36"), or verbatim at 0.42 when it already fits once the prefix is gone
+//   Wrapped   two lines at exactly 0.36, split at the last fitting space when one
+//             exists (Kaiserwilhelmfeatherstoneham below has none and takes the hard
+//             glyph split), both lines fitting the 84 px interior, one line = 10.8 px
+//   Cut       and only then a glyph-boundary cut of line 2 plus one '.' (the font has
+//             no U+2026): keep glyphs fit the interior, the mark rides the last one
+// The old 1297365 draw ("To: %.12s" through textFit) drew a 12-char one-line cut at
+// any fitted scale; the stages below fail on that layout on purpose.
+float hostCharWidth(char c) { return host::gFont.advance(uint8_t(c)); }
+
+void stageWhisperName(const char* name) {
+    gCtx->numNearby = 1;
+    gCtx->nearbyIds[0] = 42;
+    gCtx->nearbyNames[0] = name;
+    gState->whisperTo = 42;
+    drawTab(tt::ui::kTabChat);
+}
+
+// The whisper label's records: text inside the whisper button's interior. Everything
+// else the chat header draws sits at x 8..70 (title, back chip), at the Friends button
+// (x >= 244) or below y 28 (rows); the label itself starts at exactly the interior pad.
+std::vector<const HostRecord*> whisperLabelRecords() {
+    const float x0 = layout::kWhisperButtonX + layout::kWhisperPadX;
+    std::vector<const HostRecord*> out;
+    for (const auto* r : textRecords()) {
+        if (r->x >= x0 - 1.0f && r->x <= x0 + 1.0f &&
+            r->y < layout::kWhisperButtonY + layout::kWhisperButtonH - 1.0f)
+            out.push_back(r);
+    }
+    return out;
+}
+
+void suiteWhisper() {
+    printf("suite: whisper label fit ladder\n");
+    setOnlineContext();
+    struct Stage {
+        const char* name;
+        layout::WhisperKind kind;
+        int lines;
+        const char* note;
+    };
+    const Stage stages[] = {
+        // Prefixed: "To: <name>" fits the 84 px interior at the full 0.42.
+        {"Sleepy Rabbit", layout::WhisperKind::Prefixed, 1, "prefix line"},
+        // Name, shrunk: whole-string fit lands at 84/229 = 0.3668, inside the band
+        // (0.36, 0.42): the 5f761f2 floor's tightest canary. A draw without the
+        // floor (arbitrary textFit shrink) drops below 0.36 here when the name is a
+        // few glyphs longer, which is what the floor checks below guard.
+        {"Doctor Whiskerbottom", layout::WhisperKind::Name, 1, "shrunk name stays above the floor"},
+        // Wrapped, space split: "Countess Von" / "Fancyfeathersworth", both at 0.36.
+        {"Countess Von Fancyfeathersworth", layout::WhisperKind::Wrapped, 2, "two-line wrap (space)"},
+        // Wrapped, hard split: no space, so line 1 breaks at the glyph that does not
+        // fit; line 2 is the 6-glyph tail. Still two lines at 0.36, never a cut.
+        {"Kaiserwilhelmfeatherstoneham", layout::WhisperKind::Wrapped, 2, "two-line wrap (hard split)"},
+        // Cut: line 2 alone still exceeds the interior at 0.36, so it keeps the
+        // glyphs that fit and appends one '.', the baked font's only way to say more.
+        {"Bartholomewwidgetsby Chizzleworth-Poppelstadt", layout::WhisperKind::Cut, 2, "mark cut"},
+    };
+    for (const Stage& st : stages) {
+        stageWhisperName(st.name);
+        char what[96];
+        const float x0 = layout::kWhisperButtonX + layout::kWhisperPadX;
+        const float interiorR = x0 + layout::kWhisperTextMaxW;
+        // The ladder itself: the same per-glyph widths Ui::syncWhisper caches from the
+        // committed font, fed to the real fitWhisperName, predict kind / scale /
+        // split / keep. The stage pins the kind, so a fixture drifting onto another
+        // rung fails here instead of quietly re-deriving itself.
+        float glyphs[48] = {0};
+        int glyphCount = 0;
+        for (const char* p = st.name; *p && glyphCount < 47; ++p, ++glyphCount)
+            glyphs[glyphCount] = hostCharWidth(*p);
+        float prefix = 0.0f, mark = 0.0f;
+        for (const char* p = "To: "; *p; ++p) prefix += hostCharWidth(*p);
+        for (const char* p = "."; *p; ++p) mark += hostCharWidth(*p);
+        const layout::WhisperLabel fit =
+            layout::fitWhisperName(prefix, mark, glyphs, glyphCount, st.name);
+        snprintf(what, sizeof what, "whisper '%s': the fit lands on its stage's rung", st.name);
+        chk(fit.kind == st.kind, what, "fit kind %d, expected %d", int(fit.kind), int(st.kind));
+
+        const auto records = whisperLabelRecords();
+        snprintf(what, sizeof what, "whisper '%s': drawn as the rung spells", st.name);
+        chk(int(records.size()) == st.lines, what, "%d lines, expected %d", int(records.size()),
+            st.lines);
+        // The reconstruction of the visible strings from the real fit (mirrors
+        // layout::whisperLines): independent of the draw path under test.
+        std::string line0, line1;
+        if (fit.kind == layout::WhisperKind::Prefixed) {
+            line0 = "To: " + std::string(st.name);
+        } else if (fit.kind == layout::WhisperKind::Name) {
+            line0 = st.name;
+        } else {
+            line0.assign(st.name, size_t(fit.split));
+            if (!line0.empty() && line0.back() == ' ') line0.pop_back();
+            line1.assign(st.name + fit.split, size_t(fit.keep));
+            if (fit.kind == layout::WhisperKind::Cut) line1 += layout::kWhisperMark;
+        }
+        char want[128];
+        if (fit.kind == layout::WhisperKind::Prefixed || fit.kind == layout::WhisperKind::Name)
+            snprintf(want, sizeof want, "%s", line0.c_str());
+        else
+            snprintf(want, sizeof want, "[%s] [%s]", line0.c_str(), line1.c_str());
+        for (size_t i = 0; i < records.size() && i < 2; i++) {
+            snprintf(what, sizeof what, "whisper '%s': line %d content", st.name, int(i));
+            const std::string& wantLine = i == 0 ? line0 : line1;
+            chk(records[i]->text == wantLine, what, "drew '%s', expected '%s'",
+                records[i]->text.c_str(), wantLine.c_str());
+            // The floor: no whisper glyph ever draws below 0.36 (5f761f2, pinned as a
+            // literal so a floor silently lowered in the source fails here too).
+            snprintf(what, sizeof what, "whisper '%s': line %d never below the 0.36 floor",
+                     st.name, int(i));
+            chk(layout::kWhisperTextFloor == 0.36f,
+                what, "kWhisperTextFloor changed from 0.36: %.3f", layout::kWhisperTextFloor);
+            chk(records[i]->scale >= 0.36f - 0.002f, what,
+                "scale %.4f (floor 0.36)", records[i]->scale);
+            snprintf(what, sizeof what, "whisper '%s': line %d rides the fit's scale", st.name,
+                     int(i));
+            chk(fabsf(records[i]->scale - fit.scale) <= 0.002f, what, "drew %.4f, fit %.4f",
+                records[i]->scale, fit.scale);
+            snprintf(what, sizeof what, "whisper '%s': line %d inside the button interior",
+                     st.name, int(i));
+            chk(contains(*records[i], layout::kWhisperButtonX, layout::kWhisperButtonY,
+                         layout::kWhisperButtonW, layout::kWhisperButtonH, 1.0f),
+                what, "'%s' at (%.1f, %.1f, %.1f x %.1f)", records[i]->text.c_str(),
+                records[i]->x, records[i]->y, records[i]->w, records[i]->h);
+            snprintf(what, sizeof what, "whisper '%s': line %d fits the 84 px interior",
+                     st.name, int(i));
+            chk(records[i]->x >= x0 - 0.5f && records[i]->x + records[i]->w <= interiorR + 0.6f,
+                what, "'%s' spans %.1f..%.1f", records[i]->text.c_str(), records[i]->x,
+                records[i]->x + records[i]->w);
+        }
+        // Geometry the rung dictates: one line sits at y 5; two lines split the 26 px
+        // button height around 10.8 px lines, both inside the button's face.
+        const float lineH = layout::kWhisperLineAt1 * fit.scale;
+        const float y2 = layout::kWhisperButtonY + (layout::kWhisperButtonH - lineH * 2.0f) * 0.5f;
+        snprintf(what, sizeof what, "whisper '%s': %d-line layout offsets", st.name, st.lines);
+        const float wantY0 = st.lines == 1 ? 5.0f : y2;
+        chk(!records.empty() && fabsf(records[0]->y - wantY0) <= 0.02f, what, "line 1 y %.2f",
+            records.empty() ? -1.0f : records[0]->y);
+        if (st.lines == 2 && records.size() >= 2)
+            chk(fabsf(records[1]->y - (records[0]->y + lineH)) <= 0.02f, what,
+                "line 2 y %.2f, expected %.2f", records[1]->y, records[0]->y + lineH);
+        printf("  %-46s %s: [%s]\n", st.name, st.note, want);
+    }
+    // The Name rung's shrunk fixtures stay in the fitted band, not on the floor: the
+    // whole-string fit of "Doctor Whiskerbottom" is 84/229 = 0.3668, a hair above the
+    // 0.36 floor. If a later name lands in the band below the floor, the check above
+    // has already failed; the band here also fails a layout that shrinks without a
+    // floor (the 1297365 textFit path had none).
+    stageWhisperName("Doctor Whiskerbottom");
+    const auto shrunk = whisperLabelRecords();
+    chk(shrunk.size() == 1, "whisper: the shrunk-name fixture stays one line", "%zu", shrunk.size());
+    if (shrunk.size() == 1) {
+        chk(shrunk[0]->scale > layout::kWhisperTextFloor + 0.001f &&
+                shrunk[0]->scale < layout::kWhisperTextScale - 0.001f,
+            "whisper: the shrunk name draws inside the fitted band (floor, full)", "%.4f",
+            shrunk[0]->scale);
+    }
+    // The 7678fda crumb policy: titles draw at kChatTitleScale (0.5) or not at all;
+    // a crumb that misses the room shows "SpeedChat", not a shrunken or clipped
+    // breadcrumb. The rooms here are measured with the real glyph widths of a wide
+    // real crumb, fed through the real fitChatTitle ladder.
+    float speedW = 0.0f, fullW = 0.0f;
+    for (const char* p = "SpeedChat"; *p; ++p) speedW += hostCharWidth(*p);
+    for (const char* p = "SpeedChat > Places"; *p; ++p) fullW += hostCharWidth(*p);
+    const float titleX = 78.0f; // layout::chatTitleX(true): back chip + 8
+    const float fullRoom = fullW * layout::kChatTitleScale;
+    const float speedRoom = speedW * layout::kChatTitleScale;
+    const layout::TitleFit menuFit = layout::fitChatTitle(fullW, speedW, titleX, titleX + fullRoom + 1.0f);
+    chk(menuFit.shown == layout::ChatTitle::Menu, "crumb: the full breadcrumb shows when it fits at 0.5");
+    chk(fabsf(menuFit.scale - layout::kChatTitleScale) < 1e-4f, "crumb: menu scale stays 0.5, never shrunk",
+        "%.3f", menuFit.scale);
+    // A room between the SpeedChat stand-in's 0.5 width and the full crumb's shows
+    // the stand-in; below the stand-in's width the header shows nothing at all.
+    const layout::TitleFit speedFit =
+        layout::fitChatTitle(fullW, speedW, titleX, titleX + (speedRoom + fullRoom) * 0.5f);
+    chk(speedFit.shown == layout::ChatTitle::SpeedChat,
+        "crumb: a crumb that misses the room shows SpeedChat instead of shrinking");
+    chk(fabsf(speedFit.scale - layout::kChatTitleScale) < 1e-4f, "crumb: the SpeedChat stand-in stays at 0.5");
+    const layout::TitleFit hiddenFit = layout::fitChatTitle(fullW, speedW, titleX, titleX + speedRoom - 3.0f);
+    chk(hiddenFit.shown == layout::ChatTitle::Hidden, "crumb: no room, no title (never a clipped draw)");
+    chk(layout::kChatTitleMin == layout::kChatTitleScale,
+        "crumb: the minimum crumb scale is the base scale (no crumb ever shrinks)");
+}
+
+// ---------------------------------------------------------------------------
 // Friends left-clip (QA-20261109-09)
 // ---------------------------------------------------------------------------
 // The visible white inner edge of the drawn panel face, measured per run from the REAL
@@ -2378,6 +2570,7 @@ int main() {
     suiteLaffStates();
     suiteMap();
     suiteChat();
+    suiteWhisper();
     suiteFriends();
     suiteGags();
     suiteToon();
