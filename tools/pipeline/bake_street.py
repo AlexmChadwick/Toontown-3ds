@@ -1208,6 +1208,9 @@ def bake(zone_id, args, base):
     warnings = []
     tree = dna.parse_file(resources/src,warnings)
     root,asm = assemble.assemble(tree,store,seed=1)
+    import bake_coghq
+    if bake_coghq.hq_text_signs(zone_id, root, resources):  # loader-added sign text (17000)
+        assemble.lift_decals(root)
     if args.separate_boat:
         # Donald's Dock boat is the moving DistributedBoat (bake_boat.py). Stashed nodes are
         # skipped by findAllMatches, so neither its geometry nor its collision reach the .tz.

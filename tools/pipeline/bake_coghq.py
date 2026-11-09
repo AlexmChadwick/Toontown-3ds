@@ -111,15 +111,18 @@ SELLBOT_SIGNS = {
 }
 
 
-# Text the Cashbot / Bossbot loaders write on signs already in the HQ model (OnscreenText,
-# suit font): (sign node path, locator path, offset from the locator, text, scale, colour).
+# Text the loaders write on signs already in the model (OnscreenText, suit font): (sign node
+# path, locator path, offset from the locator, text, scale, colour, sign made a decal).
 # CashbotCogHQLoader: the Dreamland tunnel; BossbotCogHQLoader.makeSigns: GlobalStreetNames
-# upper-cased, setPosHpr(locator, 0, -0.1, -0.25).
+# upper-cased, setPosHpr(locator, 0, -0.1, -0.25); GZSafeZoneLoader.enterPlayground: the
+# Bossbot HQ tunnel of Chip 'n Dale's MiniGolf (bake_street.py applies that one).
 HQ_TEXT_SIGNS = {
     12000: [('**/EntranceFrameFront', '**/sign_origin', (0, 0, 0), "Donald's Dreamland", 3,
-             (0.87, 0.87, 0.87, 1))],
+             (0.87, 0.87, 0.87, 1), True)],
+    17000: [('**/linktunnel_bosshq_10000_DNARoot/**/Sign_5', '**/linktunnel_bosshq_10000_DNARoot/**/sign_origin',
+             (0, 0, -0.3), 'BOSSBOT HQ', 1.5, (0, 0, 0, 1), True)],
     10000: [('**/' + top + '/**/' + sign, '**/' + top + '/**/sign_origin', (0, -0.1, -0.25), text, 1.12,
-             (0, 0, 0, 1))
+             (0, 0, 0, 1), False)
             for top, sign, text in (('Gate_2', 'Sign_6', 'THE BACK NINE'), ('TunnelEntrance', 'Sign_2', 'PLAYGROUND'),
                                     ('Gate_3', 'Sign_3', 'THE MIDDLE SIX'), ('Gate_4', 'Sign_4', 'THE FRONT THREE'),
                                     ('GateHouse', 'Sign_5', 'THE CLUBHOUSE'))],
@@ -157,11 +160,11 @@ def hq_text_signs(zone_id, root, resources):
     from panda3d.core import DecalEffect
     made = []
     font = _suit_font(resources) if zone_id in HQ_TEXT_SIGNS else None
-    for sign_path, locator_path, offset, text, scale, color in HQ_TEXT_SIGNS.get(zone_id, ()):
+    for sign_path, locator_path, offset, text, scale, color, decal in HQ_TEXT_SIGNS.get(zone_id, ()):
         sign, locator = root.find(sign_path), root.find(locator_path)
         if sign.isEmpty() or locator.isEmpty():
             raise ValueError(f'{zone_id}: sign {sign_path} / {locator_path} missing')
-        if zone_id == 12000:
+        if decal:
             sign.node().setEffect(DecalEffect.make())
         letters = _letters(sign, font, text, color)
         letters.setScale(scale)
