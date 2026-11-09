@@ -77,6 +77,7 @@ private:
     render::Model suitDoor_, signs_, cab_, leftDoor_, rightDoor_, lights_[5];
     uint32_t triedModels_ = 0;           // bits: a load was attempted (not retried)
     const Block* hidden_[kMaxHidden] = {};
+    int hiddenDept_[kMaxHidden] = {};
     int numHidden_ = 0;
     uint32_t hideRevision_ = 0;
     float hideLo_[3] = {}, hideHi_[3] = {};

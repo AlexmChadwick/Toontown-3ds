@@ -202,7 +202,16 @@ bool Renderer::beginDraw(const float* lo, const float* hi, const C3D_Mtx& world)
     const C3D_FVec localCenter = FVec4_New((lo[0] + hi[0]) * 0.5f, (lo[1] + hi[1]) * 0.5f, (lo[2] + hi[2]) * 0.5f, 1.0f);
     const C3D_FVec worldCenter = Mtx_MultiplyFVec4(&world, localCenter);
     const float dx = hi[0] - lo[0], dy = hi[1] - lo[1], dz = hi[2] - lo[2];
-    const float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz); // conservative for world scales <= 1
+    float radius = 0.5f * sqrtf(dx * dx + dy * dy + dz * dz);
+    // A scaled model (the Cog flats stretch a unit suit wall to the flat's size) grows its
+    // sphere by the largest axis scale; scales <= 1 keep the model-space radius.
+    float scale2 = 1.0f;
+    for (int c = 0; c < 3; ++c) {
+        const float x = world.r[0].c[3 - c], y = world.r[1].c[3 - c], z = world.r[2].c[3 - c];
+        const float s2 = x * x + y * y + z * z;
+        if (s2 > scale2) scale2 = s2;
+    }
+    if (scale2 > 1.0f) radius *= sqrtf(scale2);
     if (!sphereVisible(worldCenter, radius)) {
         stats_.modelsCulled++;
         return false;

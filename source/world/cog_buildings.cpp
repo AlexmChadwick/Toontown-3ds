@@ -102,18 +102,24 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
     // setToSuit stashes the block's Toon building: collect the Cog-owned blocks this street
     // has exterior data for, and bump the revision the zone draw hook applies when it changes.
     const Block* owned[kMaxHidden] = {};
+    int ownedDept[kMaxHidden] = {};
     int numOwned = 0;
     for (int n = 0; n < net::kMaxCogBuildings && numOwned < kMaxHidden; ++n) {
         const net::CogBuilding& b = client.cogBuildingSlot(n);
         if (!b.active || b.state != net::CogBuildingState::Suit) continue;
         if (const Block* bk = findBlock(b.block)) {
-            ensureModels(deptIndex(b.track), *bk);
+            ownedDept[numOwned] = deptIndex(b.track);
             owned[numOwned++] = bk;
         }
     }
     bool changed = numOwned != numHidden_;
-    for (int i = 0; !changed && i < numOwned; ++i) changed = owned[i] != hidden_[i];
+    for (int i = 0; !changed && i < numOwned; ++i) changed = owned[i] != hidden_[i] || ownedDept[i] != hiddenDept_[i];
     if (changed) {
+        // The Cog pieces load once per street, when a building of that department first shows.
+        for (int i = 0; i < numOwned; ++i) {
+            ensureModels(ownedDept[i], *owned[i]);
+            hiddenDept_[i] = ownedDept[i];
+        }
         static uint32_t revisions = 0;
         numHidden_ = numOwned;
         for (int i = 0; i < numOwned; ++i) hidden_[i] = owned[i];
@@ -129,6 +135,21 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
                 if (owned[i]->hi[k] > hideHi_[k]) hideHi_[k] = owned[i]->hi[k];
             }
         TT_LOG("cog buildings: %d Cog-owned blocks hidden on zone %lu", numOwned, static_cast<unsigned long>(zone_));
+    }
+    static uint32_t elevatorLogMs = 0;
+    if (numHidden_ && nowMs - elevatorLogMs > 10000) { // which elevator state each Cog building shows
+        elevatorLogMs = nowMs;
+        for (int n = 0; n < net::kMaxCogBuildings; ++n) {
+            const net::CogBuilding& b = client.cogBuildingSlot(n);
+            if (!b.active || b.state != net::CogBuildingState::Suit) continue;
+            const net::CogElevator* found = nullptr;
+            for (int k = 0; k < net::kMaxCogElevators && !found; ++k) {
+                const net::CogElevator& e = client.cogElevatorSlot(k);
+                if (e.active && e.buildingDoId == b.doId) found = &e;
+            }
+            TT_LOG("cog building block %lu dept %c floors %d: elevator %s", static_cast<unsigned long>(b.block),
+                   b.track > 0 ? char(b.track) : '?', int(b.numFloors), found ? found->state : "(none)");
+        }
     }
     const uint32_t me = client.avatarId();
     for (int n = 0; n < net::kMaxCogElevators; ++n) {
@@ -487,8 +508,8 @@ void CogBuildings::zoneDrawHook(void* user, render::Model& model, bool far) {
     model.setHidden(self.hideRevision_, overlap ? &CogBuildings::hideTest : nullptr, &self);
 }
 
-// bake_cog_exterior.py: three corners in one hide box, not all within 0.4 of its floor (the
-// sidewalk under the building stays) and not all in one keep box. Far meshes cluster their
+// bake_cog_exterior.py: three corners in one hide box, not all within 0.4 of the building's
+// base (its local z 0; some landmarks reach below the street, so not the box floor) and not all in one keep box. Far meshes cluster their
 // corners, so they test the centroid.
 bool CogBuildings::hideTest(void* user, const float* a, const float* b, const float* c) {
     const CogBuildings& self = *static_cast<const CogBuildings*>(user);
@@ -512,7 +533,7 @@ bool CogBuildings::hideTest(void* user, const float* a, const float* b, const fl
                 all = inBox(box.rows, box.lo, box.hi, pts[i], &z);
                 if (z > top) top = z;
             }
-            hide = all && top > box.lo[2] + 0.4f;
+            hide = all && top > 0.4f; // local z 0 is the building's base: the street there stays
         }
         if (!hide) continue;
         for (int x = 0; x < bk.numKeep; ++x) {

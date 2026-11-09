@@ -30,7 +30,8 @@ TSB1 (little endian):
                  u8 wall (0..9); u8 door; u8 pad[2] }
     numHide + numKeep x { f32[12] box from world (rows as above); f32[3] min; f32[3] max }
 A triangle of a street chunk is hidden when its three corners are inside one hide box, not
-all within 0.4 of that box's floor (the sidewalk under the building stays), and not all inside
+all within 0.4 of the building's base, local z 0 (the street and sidewalk stay; some landmarks
+reach below the street, so not the box floor), and not all inside
 one keep box (DNA props and neighbouring buildings that overlap the block).
 """
 import argparse
