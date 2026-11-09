@@ -273,6 +273,62 @@ int countLaffPart(int part) {
     return n;
 }
 
+// ---------------------------------------------------------------------------
+// Invariant 3b: the pocket Laff's slash reads as a divider, not a comma-thin stroke
+// ---------------------------------------------------------------------------
+// laff_meter.cpp inks the hp/max label's slash twice: drawOutlinedText's fill pass
+// plus a reinforcement at +0.55 px (the ImpressBT diagonal is about 1 px at pocket
+// scale). The ruler grounds "readable at native 320x240" on the real glyph: the
+// inked row span and stroke width come from the committed bcfnt's sheet, and the
+// drawn scale is read off the recorded draw. A hairline glyph, a comma-shaped
+// re-bake or a missing reinforcement fails below.
+void assertSlashDivider() {
+    // The two ink-coloured "/" passes inside the pocket: the smaller x is the
+    // outlined fill, the larger one the reinforcement (rim passes are white).
+    const u32 kInk = C2D_Color32(0x10, 0x10, 0x10, 0xFF); // laff_meter.cpp label ink
+    const HostRecord* ink = nullptr;
+    const HostRecord* reinf = nullptr;
+    for (const auto* t : textRecords()) {
+        if (t->text != "/" || t->color != kInk) continue;
+        if (!contains(*t, 0, kPocketTop, kPocketW, kScreenH - kPocketTop)) continue;
+        if (!ink || t->x < ink->x) {
+            reinf = ink;
+            ink = t;
+        } else if (!reinf || t->x > reinf->x) {
+            reinf = t;
+        }
+    }
+    chk(ink != nullptr, "laff pocket: slash drawn in the hp/max label");
+    chk(ink && reinf, "laff pocket: slash reinforced (second ink pass)");
+    if (!ink) return;
+    float dx = 0.0f;
+    if (reinf) {
+        dx = reinf->x - ink->x;
+        chk(dx >= 0.3f && dx <= 0.8f, "laff pocket: slash reinforcement offsets the ink pass",
+            "%.2f px", dx);
+        chk(fabsf(reinf->y - ink->y) < 0.05f, "laff pocket: the reinforcement stays on the line");
+    }
+    // The glyph itself, from the same bcfnt the device samples.
+    host::FontMetrics::GlyphInk gi;
+    chk(host::gFont.glyphInk('/', &gi), "laff pocket: slash glyph ink parsed from fonts");
+    if (!host::gFont.glyphInk('/', &gi)) return;
+    chk(gi.rows >= 18, "laff pocket: the slash glyph spans the numeric band (not a dot)",
+        "%d rows", gi.rows);
+    chk(gi.stroke >= 2, "laff pocket: the slash glyph is not a single-pixel hairline",
+        "%d columns", gi.stroke);
+    // Visible stroke on the bottom screen at the panel's drawn scale.
+    const float scale = ink->scale;
+    const float visible = gi.stroke * scale + dx; // union of fill and reinforcement
+    chk(visible >= 1.5f, "laff pocket: slash reads as a divider at 320x240",
+        "stroke %.2f px, comma-thin", visible);
+    chk(gi.rows * scale >= 6.0f, "laff pocket: the drawn slash towers over digits",
+        "%.1f px", gi.rows * scale);
+    // The advance box must dominate kLabelGap so the label reads hp / max, not hp, max.
+    const float gap = kLafLabelGap * kPocketLaff;
+    chk(ink->w >= 3.0f * gap, "laff pocket: the slash box clears the label gap",
+        "%.2f vs %.2f", ink->w, 3.0f * gap);
+}
+
 // The tinted species head record plus the label text group inside the pocket.
 void assertPocketLaff(int hp, int maxHp, const float headRgb[3], int species) {
     const int speciesHead = kLaffDoghead + (species >= 0 && species < 9 ? species : 0);
@@ -327,11 +383,9 @@ void assertPocketLaff(int hp, int maxHp, const float headRgb[3], int species) {
         chk(maxText != nullptr, "laff pocket: max number drawn");
         if (maxText) chk(contains(*maxText, 0, kPocketTop, kPocketW, 240 - kPocketTop),
                          "laff pocket: max label inside pocket");
-        // The slash glyph: the pocket draws it twice (outlined, then reinforced).
-        int slashes = 0;
-        for (const auto* t : textRecords())
-            if (t->text == "/" && contains(*t, 0, kPocketTop, kPocketW, 240 - kPocketTop)) ++slashes;
-        chk(slashes >= 1, "laff pocket: slash drawn in hp/max label");
+        // The slash glyph: the pocket draws it twice (outlined, then reinforced); the
+        // ruler checks it against the real glyph so it stays a readable divider.
+        assertSlashDivider();
     } else {
         char n[16];
         snprintf(n, sizeof n, "%d", hp);
@@ -1203,6 +1257,30 @@ void assertCardLaff(const char* panel, float bx, float by, float bw, float bh, i
 // Battle panel: gag picker, Cog targeting, SOS, Fire, reward
 // ===========================================================================
 
+// BattlePanel::smallButton: the label fill is theme::kWhite when enabled and
+// (0.4, 0.4, 0.4) grey when disabled, so the same FIRE/PASS/RUN/SOS face must
+// never look pressable while dead (grey text on the greyed face).
+void assertButtonLook(const char* panel, const char* label, float bx, float by, bool enabled) {
+    const u32 fill = enabled ? u32(tt::ui::theme::kWhite) : tt::ui::theme::rgb(0xD8, 0xD8, 0xD8);
+    const u32 other = enabled ? tt::ui::theme::rgb(0xD8, 0xD8, 0xD8) : u32(tt::ui::theme::kWhite);
+    const u32 rim = tt::ui::theme::rgb(0x00, 0x2A, 0x55, enabled ? 0xFF : 0x80);
+    bool hasFill = false, hasOther = false, hasRim = false;
+    for (const auto* t : textRecords()) {
+        if (t->text != label || !contains(*t, bx, by, pb::kSmallW, pb::kSmallH, 2.0f)) continue;
+        if (t->color == fill) hasFill = true;
+        if (t->color == other) hasOther = true;
+        if (t->color == rim) hasRim = true;
+    }
+    char what[96];
+    snprintf(what, sizeof what, "%s: %s label ink matches its %s state", panel, label,
+             enabled ? "enabled" : "disabled");
+    chk(hasFill, what);
+    snprintf(what, sizeof what, "%s: %s does not mix enabled and disabled inks", panel, label);
+    chk(!hasOther, what);
+    snprintf(what, sizeof what, "%s: %s keeps its outline ink", panel, label);
+    chk(hasRim, what);
+}
+
 void suiteBattle() {
     printf("suite: battle panel (gag picker, Cog targeting)\n");
     static world::BattleView v;
@@ -1296,6 +1374,15 @@ void suiteBattle() {
     chk(total != nullptr, "battle: total gags counter drawn");
     if (total) chk(total->x >= 6 && total->x + total->w <= kW - 4,
                    "battle: total counter fits the corner", "%.1f", total->x + total->w);
+    // The counter reads bag/maxCarry (render::drawStatus "Total gags %d/%u"): the pocket
+    // carry guard for the panel, so a clipped "/26" or a wrong max fails.
+    int bagTotal = 0;
+    for (int t = 0; t < 7; t++)
+        for (int l = 0; l < 7; l++) bagTotal += bag[t][l];
+    char carry[32];
+    snprintf(carry, sizeof carry, "Total gags %d/%u", bagTotal, unsigned(g.maxCarry));
+    chk(findTextIn(carry, kW - 100, -2, 100, 16) != nullptr,
+        "battle: the total counter reads '%s'", carry);
     chk(findTextIn(v.status, 0, -2, 220, 16) != nullptr, "battle: status drawn");
     // Cog cards: name and level inside their card.
     for (int i = 0; i < 2; i++) {
@@ -1370,6 +1457,12 @@ void suiteBattle() {
                 "battle: %s and %s faces do not overlap", kBtns[i].label, kBtns[j].label);
         }
     }
+    // The same faces show their state in ink (smallButton): FIRE/SOS disabled grey without
+    // slips or rescued toons, PASS/RUN enabled white.
+    assertButtonLook("battle", "FIRE", pb::kFireX, pb::kBtnY, false);
+    assertButtonLook("battle", "PASS", pb::kPassX, pb::kBtnY, true);
+    assertButtonLook("battle", "RUN", pb::kRunX, pb::kRow2Y, true);
+    assertButtonLook("battle", "SOS", pb::kSosX, pb::kRow2Y, false);
     // Toon cards: the pocket's laff rules inside each card, plus each pick square.
     const float cardW = 66.0f;
     for (int i = 0; i < 2; i++) {
@@ -1469,6 +1562,8 @@ void suiteBattle() {
     uiFrame(0, 0, 0, 0);
     chk(findTextIn("FIRE", pb::kFireX, pb::kBtnY, pb::kSmallW, pb::kSmallH) != nullptr,
         "battle: SOS returns to the attack view");
+    // Back in the attack view with rescued toons, SOS is enabled.
+    assertButtonLook("battle", "SOS", pb::kSosX, pb::kRow2Y, true);
     // A spent card (Flippy, 0 left) cannot be called.
     uiFrame(KEY_TOUCH, 0, pb::kSosX + pb::kSmallW * 0.5f, pb::kRow2Y + pb::kSmallH * 0.5f);
     uiFrame(KEY_TOUCH, 0,
@@ -1481,6 +1576,9 @@ void suiteBattle() {
     v.canSos = false;
     v.canFire = true;
     v.pinkSlips = 2;
+    // With slips in hand the attack view shows FIRE enabled before the tap enters fire mode.
+    uiFrame(0, 0, 0, 0);
+    assertButtonLook("battle", "FIRE", pb::kFireX, pb::kBtnY, true);
     uiFrame(KEY_TOUCH, 0, pb::kFireX + pb::kSmallW * 0.5f, pb::kBtnY + pb::kSmallH * 0.5f);
     assertBounds("battle fire", true, 2.0f);
     assertLabelsNoOverlap("battle fire");
@@ -1509,6 +1607,29 @@ void suiteBattle() {
     uiFrame(KEY_TOUCH, 0, pb::kFireX + pb::kSmallW * 0.5f, pb::kBtnY + pb::kSmallH * 0.5f);
     chk(!gUi->battle().popAction(act), "battle: FIRE without pink slips does nothing");
     chk(countTextStarting("PINK SLIPS") == 0, "battle: the fire panel did not open");
+
+    // ---- tutorial: InventoryNew.setActivateMode(tutorialFlag) hides FIRE / PASS / RUN / SOS
+    // and blinks arrows at the Throw and Squirt rows instead (drawButtons' early return).
+    v.tutorialArrows = true;
+    uiFrame(0, 0, 0, 0);
+    assertBounds("battle tutorial", true, 2.0f);
+    chk(findText("FIRE") == nullptr && findText("PASS") == nullptr &&
+            findText("RUN") == nullptr && findText("SOS") == nullptr,
+        "battle: the tutorial hides FIRE, PASS, RUN and SOS");
+    int arrows = 0;
+    int throwArrow = 0, squirtArrow = 0;
+    for (const auto& r : host::gRecords) {
+        if (r.kind != HostRecord::Image || r.tag != "image-rotated") continue;
+        if (r.x < pb::kGridX - 8.0f || r.x > cellX0 + 2 * cellStep + 16.0f) continue;
+        ++arrows;
+        if (r.y >= rowY[4] - 6.0f && r.y <= rowY[4] + rowH[4] + 6.0f) ++throwArrow;
+        if (r.y >= rowY[5] - 6.0f && r.y <= rowY[5] + rowH[5] + 6.0f) ++squirtArrow;
+    }
+    chk(arrows >= 2, "battle: the tutorial blinks arrows at the attack rows", "%d", arrows);
+    chk(throwArrow >= 1, "battle: a tutorial arrow points at Throw");
+    chk(squirtArrow >= 1, "battle: a tutorial arrow points at Squirt");
+    v.tutorialArrows = false;
+    uiFrame(0, 0, 0, 0);
 
     // ---- the reward view ----
     v.phase = world::BattlePhase::Reward;
@@ -1723,10 +1844,64 @@ void suiteShop() {
     // The [+] button on the jar row buys too.
     frame(KEY_TOUCH, pc::kPlusX + pc::kBtnSmallW * 0.5f, pc::kBtnY + pc::kBtnH * 0.5f);
     chk(gUi->shop().cart().bought(0, 0) == 2, "shop: the [+] button buys");
+    // The carry tag counts the whole bag: 16 seeded + 2 bought, over the max.
+    frame(0);
+    assertTextInside("shop", findTextIn("Carry: 18/60", kShopSignW + 10, 2, 138, 20),
+                     "Carry: 18/60", kShopSignW + 10, 2, 138, 20);
     // Cancel closes without sending a purchase.
     gUi->shop().finish(false); // Done: queued
     frame(0);
     chk(!gUi->shop().active(), "shop: Done closes the panel");
+
+    // ---- a full bag: cells read N/max at their caps, and the refusals carry upstream's
+    // PurchaseBase wording (shop::canBuy: per-gag cap first, then the total carry). At
+    // the staged exp level the buyable caps are gags::kCarry row 2 (15 / 10 / 5 at
+    // levels 0/1/2): three level-0 cells at 15 plus a level-1 cell at 10 and a
+    // level-2 cell at 5 stage exactly maxCarry props across caps, with a level-0 cell
+    // left empty so the full-bag refusal still reaches TooManyProps.
+    const int cap0 = shop::carryMax(profile, 0, 0);
+    const int cap1 = shop::carryMax(profile, 0, 1);
+    const int cap2 = shop::carryMax(profile, 0, 2);
+    chk(cap0 > 0 && cap1 > 0 && cap2 > 0, "shop: levels 0..2 are buyable at the staged exp");
+    for (int t = 0; t < 7; t++)
+        memset(host::stageStats.inventory[t], 0, sizeof host::stageStats.inventory[t]);
+    host::stageStats.inventory[0][0] = host::stageStats.inventory[1][0] =
+        host::stageStats.inventory[2][0] = uint8_t(cap0);
+    host::stageStats.inventory[3][1] = uint8_t(cap1);
+    host::stageStats.inventory[4][2] = uint8_t(cap2);
+    chk(shop::countProps(host::stageStats.inventory) == host::stageStats.maxCarry,
+        "shop: the staged bag holds exactly the max carry", "%d",
+        shop::countProps(host::stageStats.inventory));
+    {
+        host::stageShopMovie.mode = net::kPurchaseMovieStart;
+        host::stageShopMovie.seq++;
+        gClient->connect();
+        gUi->shop().onMovie(*gClient, uint32_t(gHostNowMs));
+        chk(gUi->shop().active(), "shop: reopened with a full bag");
+        frame(0);
+        assertBounds("shop full");
+        assertLabelsNoOverlap("shop full");
+        assertShopGrid("shop full", "DONE\nSHOPPING", gUi->shop().cart(), profile);
+        assertTextInside("shop full",
+                         findTextIn("Carry: 60/60", kShopSignW + 10, 2, 138, 20), "Carry: 60/60",
+                         kShopSignW + 10, 2, 138, 20);
+        // A capped cell and the full bag each refuse with their own wording, drawn in
+        // the info strip (setNote takes the strip for kNoteMs). Track 5 level 0 is
+        // empty and below its cap, so a full bag turns it into the carry refusal.
+        chk(!gUi->shop().buy(0, 0), "shop: a capped cell refuses");
+        frame(0);
+        chk(findTextIn("Sorry, you have enough of those already", 1, kShopInfoY - 3, 318, 18) !=
+                nullptr,
+            "shop: the capped-cell refusal drawn");
+        chk(!gUi->shop().buy(5, 0), "shop: a full bag refuses an empty cell");
+        frame(0);
+        chk(findTextIn("Sorry, you have too many props", 1, kShopInfoY - 3, 318, 18) != nullptr,
+            "shop: the full-bag refusal drawn");
+        gUi->shop().finish(false);
+        frame(0);
+        chk(!gUi->shop().active(), "shop: the full-bag session closes");
+    }
+    gUi->shop().dismiss();
 
     // Reopen with a near deadline: update auto-submits and closes (sendClerkSetInventory
     // is an inert host stub; the close is the behaviour under test).
