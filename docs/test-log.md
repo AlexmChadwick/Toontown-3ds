@@ -2068,8 +2068,11 @@ No Azahar binary and no devkitARM on this machine. This entry is not an emulator
 or hardware pass, and it does not claim a frame budget.
 
 `tools/gui_layout_test/run.sh` passed. Friends rows sit on the parchment and
-scroll. A depth-2 SpeedChat crumb stays at scale 0.32: with the whisper button
-up it drops the parent prefix and clips to the button, with no ellipsis.
+scroll. A depth-2 SpeedChat crumb stays at scale 0.5. Menu 17 does not fit
+at that scale, so the header shows SpeedChat, and shows nothing if that word
+does not fit either. The whisper label is the whole "To: <name>", scaled into
+the 84 px button interior. "To: Little Pepper" fits at 0.42. A "To: " plus
+twelve W name scales down whole. Neither label is cut.
 Battle hint text sits in the cream. The pocket slash fill scales with the meter
 and stays a pixel clear of the next glyph, including the shrink pulse. The chat
 log paper starts at the log strip, so the sky above it is 4 px. Nine book tab

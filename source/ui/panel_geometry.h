@@ -47,9 +47,15 @@ constexpr float kPocketTop = 176.0f;
 constexpr float kChatLogGap = 4.0f;
 constexpr float kChatMarginX = 6.0f;
 constexpr float kChatBackW = 64.0f;
-constexpr float kChatTitleBase = 0.5f;
-constexpr float kChatTitleMin = 0.32f;
+constexpr float kChatTitleScale = 0.5f;
+constexpr float kChatTitleMin = kChatTitleScale; // a crumb never draws smaller than this
 constexpr float kWhisperButtonX = 142.0f;
+constexpr float kWhisperButtonW = 96.0f;
+constexpr float kWhisperPadX = 6.0f;
+// Button interior: 96 px wide, 6 px of padding on each side. theme::textFit scales
+// the whole "To: <name>" label into this width. It does not cut glyphs.
+constexpr float kWhisperTextMaxW = kWhisperButtonW - 2.0f * kWhisperPadX;
+constexpr float kWhisperTextScale = 0.42f;
 // Pocket laff. The extra slash fill scales with the meter. It stays at least one
 // pixel short of the next glyph so it does not cross that glyph's outline.
 constexpr float kLaffLabelMaxW = 0.46f;
@@ -119,38 +125,30 @@ constexpr float chatTitleX(bool nested) {
     return nested ? kChatMarginX + kChatBackW + 8.0f : kChatMarginX + 2.0f;
 }
 
-// A depth-2 crumb keeps its parent while it fits at kChatTitleMin or above.
-// Below that, the header shows only the current title. If that still exceeds
-// the room at the minimum scale, the draw clips it to [titleX, headerRight).
+// Same shrink as theme::textFit: the whole string scales down, and nothing is cut.
+constexpr float fitTextScale(float widthAtScale, float scale, float maxW) {
+    if (maxW > 0.0f && widthAtScale > maxW) return scale * (maxW / widthAtScale);
+    return scale;
+}
+
+// A title draws at kChatTitleScale or not at all. A crumb that does not fit at
+// 0.5 is replaced by "SpeedChat", and that word is dropped too when it does not fit.
+enum class ChatTitle { Menu, SpeedChat, Hidden };
+
 struct TitleFit {
     float scale;
-    bool dropPrefix;
-    bool scissor;
+    ChatTitle shown;
 };
 
-constexpr TitleFit fitChatTitle(float fullAt1, float leafAt1, float titleX, float right) {
-    TitleFit fit{kChatTitleBase, false, false};
+constexpr TitleFit fitChatTitle(float titleAt1, float speedAt1, float titleX, float right) {
+    TitleFit fit{kChatTitleScale, ChatTitle::Menu};
     const float room = right - titleX;
-    if (!(room > 1.0f)) {
-        fit.scale = kChatTitleMin;
-        fit.dropPrefix = true;
-        fit.scissor = true;
+    if (room > 1.0f && titleAt1 * kChatTitleScale <= room) return fit;
+    if (room > 1.0f && speedAt1 * kChatTitleScale <= room) {
+        fit.shown = ChatTitle::SpeedChat;
         return fit;
     }
-    if (fullAt1 * kChatTitleBase <= room) return fit;
-    const float fitted = room / fullAt1;
-    if (fitted >= kChatTitleMin) {
-        fit.scale = fitted;
-        return fit;
-    }
-    fit.dropPrefix = true;
-    const float leafFit = leafAt1 > 0.0f ? room / leafAt1 : kChatTitleMin;
-    if (leafFit >= kChatTitleMin) {
-        fit.scale = leafFit > kChatTitleBase ? kChatTitleBase : leafFit;
-        return fit;
-    }
-    fit.scale = kChatTitleMin;
-    fit.scissor = true;
+    fit.shown = ChatTitle::Hidden;
     return fit;
 }
 
@@ -159,9 +157,13 @@ constexpr bool chatShowsCrumb(int parent, int grandparent) {
 }
 
 constexpr float chatLogTop() { return kTabY - kChatLogH; }
-constexpr float chatLogPaperY() { return chatLogTop(); }
+// y passed to theme::paper in drawChatLog. Independent of chatBottom so a
+// one-pixel paper inset cannot hide inside the gap formula.
+constexpr float kChatLogPaperY = 174.0f;
+constexpr float kChatFrameBottom = 170.0f;
+constexpr float chatLogPaperY() { return kChatLogPaperY; }
 constexpr float chatBottom(bool logShown) {
-    return logShown ? chatLogPaperY() - kChatLogGap : kPocketTop;
+    return logShown ? kChatFrameBottom : kPocketTop;
 }
 constexpr bool chatListContains(float y, bool logShown) {
     return y >= kChatHeaderH && y < chatBottom(logShown);
@@ -178,7 +180,10 @@ static_assert(slashBold(kLaffPulseSize) < slashGap(kLaffPulseSize) - 1.0f,
               "shrunk slash stays clear of the next outline");
 static_assert(slashBold(kLaffMeterRef) < slashGap(kLaffMeterRef) - 1.0f,
               "rest slash stays clear of the next outline");
-static_assert(chatLogPaperY() - chatBottom(true) == kChatLogGap, "chat sky is the stated gap");
+static_assert(kChatTitleMin == 0.5f, "crumb scale never drops below 0.5");
+static_assert(kWhisperTextMaxW == 84.0f, "whisper label fits the button interior");
+static_assert(kChatLogPaperY == kTabY - kChatLogH, "paper y is the log strip top");
+static_assert(kChatFrameBottom + kChatLogGap == kChatLogPaperY, "four pixels of sky above the paper");
 static_assert(kChatLogGap == 4.0f, "four pixels of sky above the chat log");
 
 } // namespace layout

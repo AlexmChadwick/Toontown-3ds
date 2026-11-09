@@ -1,4 +1,5 @@
 #include "ui/theme.h"
+#include "ui/panel_geometry.h"
 
 #include <cmath>
 
@@ -222,7 +223,7 @@ void textCentered(const C2D_Text& t, float cx, float y, float scale, u32 color, 
 void textFit(const C2D_Text& t, float x, float y, float scale, u32 color, float maxW, float z) {
     float w = 0.0f;
     C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
-    if (maxW > 0.0f && w > maxW) scale *= maxW / w;
+    scale = layout::fitTextScale(w, scale, maxW);
     C2D_DrawText(&t, C2D_WithColor, x, y, z, scale, scale, color);
 }
 

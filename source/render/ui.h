@@ -285,7 +285,6 @@ private:
     // Whisper targets seen at the last draw (handleInput runs before draw each frame).
     int numNearby_ = 0;
     unsigned nearbyIds_[8] = {};
-    char nearbyNames_[8][24] = {};
     int numFriends_ = 0;
     unsigned friendIds_[8] = {};
     char friendNames_[8][24] = {};

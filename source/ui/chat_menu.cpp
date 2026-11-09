@@ -134,8 +134,8 @@ void ChatMenu::enter(int menu, int focusItem) {
     menu_ = menu;
     C2D_TextBufClear(menuBuf_);
 
-    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat). A depth-2 title
-    // that cannot stay at kChatTitleMin drops the parent in draw().
+    // Breadcrumb: "PLACES > COGS" (the root just says SpeedChat). A title that
+    // does not fit at kChatTitleScale is replaced by "SpeedChat" in draw().
     const char* leafTitle = titleOf(menu);
     const int parent = parentOf(menu);
     const int grand = parent < 0 ? -1 : parentOf(parent);
@@ -146,12 +146,12 @@ void ChatMenu::enter(int menu, int focusItem) {
         snprintf(crumb, sizeof(crumb), "%s > %s", titleOf(parent), leafTitle);
     }
     tt::render::textParse(&title_, menuBuf_, crumb);
-    tt::render::textParse(&titleLeaf_, menuBuf_, leafTitle);
+    tt::render::textParse(&speed_, menuBuf_, "SpeedChat");
     C2D_TextOptimize(&title_);
-    C2D_TextOptimize(&titleLeaf_);
+    C2D_TextOptimize(&speed_);
     float th = 0.0f;
     C2D_TextGetDimensions(&title_, 1.0f, 1.0f, &titleFullW_, &th);
-    C2D_TextGetDimensions(&titleLeaf_, 1.0f, 1.0f, &titleLeafW_, &th);
+    C2D_TextGetDimensions(&speed_, 1.0f, 1.0f, &speedW_, &th);
 
     const int n = numRows(menu);
     for (int i = 0; i < n && i < kMaxRows; i++) {
@@ -382,14 +382,10 @@ void ChatMenu::draw(float panelBottom, float headerRight) {
         C2D_DrawText(&back_, C2D_WithColor, kMarginX + 9.0f, 5.0f, kZ, 0.5f, 0.5f, kText);
         titleX = layout::chatTitleX(true);
     }
-    const layout::TitleFit fit = layout::fitChatTitle(titleFullW_, titleLeafW_, titleX, headerRight);
-    const C2D_Text* shown = fit.dropPrefix ? &titleLeaf_ : &title_;
-    const float room = headerRight - titleX;
-    const bool cut = fit.scissor && room > 1.0f;
-    if (cut) theme::clip(titleX, 0.0f, room, kHeaderH);
-    C2D_DrawText(shown, C2D_WithColor, titleX, 4.0f + (layout::kChatTitleBase - fit.scale) * 14.0f, kZ,
-                 fit.scale, fit.scale, kTitle);
-    if (cut) theme::unclip();
+    const layout::TitleFit fit = layout::fitChatTitle(titleFullW_, speedW_, titleX, headerRight);
+    if (fit.shown == layout::ChatTitle::Hidden) return;
+    const C2D_Text* shown = fit.shown == layout::ChatTitle::SpeedChat ? &speed_ : &title_;
+    C2D_DrawText(shown, C2D_WithColor, titleX, 4.0f, kZ, fit.scale, fit.scale, kTitle);
 }
 
 } // namespace tt::ui

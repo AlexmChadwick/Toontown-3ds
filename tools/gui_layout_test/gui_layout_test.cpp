@@ -124,8 +124,9 @@ int main(int argc, char** argv) {
 
     const float x = layout::kFriendsListX + 4.0f;
     const float y0 = layout::kFriendsListY;
-    expect(layout::friendAt(5, 4, x, y0 + 1.0f) == 1, "a scrolled touch hits the first visible friend");
-    expect(layout::friendAt(5, 4, x, y0 - 2.0f) == -1, "a touch cannot reach a friend scrolled off the top");
+    expect(layout::friendAt(5, 0, x, y0 + 1.0f) == 0, "unscrolled, friend 0 sits on the first row");
+    const int scrolledOff = layout::friendAt(5, 4, x, y0 + 1.0f);
+    expect(scrolledOff == 1, "that same in-list row is friend 1 after friend 0 scrolls off");
     expect(layout::friendAt(1, 0, x, y0 + 1.0f) == 0, "the only friend is hittable");
     expect(layout::friendAt(1, 0, x, y0 + layout::kFriendsRowH) == -1,
            "a touch below the last row misses");
@@ -144,27 +145,52 @@ int main(int argc, char** argv) {
     char crumb[96];
     std::snprintf(crumb, sizeof(crumb), "%s > %s", tt::sc::kMenus[parent].title, tt::sc::kMenus[menu].title);
     const int full = advanceOf(font, crumb);
-    const int leaf = advanceOf(font, tt::sc::kMenus[menu].title);
+    const int speed = advanceOf(font, "SpeedChat");
     expect(std::strcmp(crumb, "TOONTASKS > I think you should choose...") == 0, "menu 17 crumb text");
     expect(full == 450, "menu 17 crumb advance from impress.bcfnt");
-    expect(leaf == 288, "menu 17 title advance from impress.bcfnt");
+    expect(speed == 110, "SpeedChat advance from impress.bcfnt");
 
     const float titleX = layout::chatTitleX(true);
     const float whisperRight = layout::chatHeaderLimit(layout::kFriendsButtonX, true, layout::kWhisperButtonX);
-    const layout::TitleFit whisper = layout::fitChatTitle(float(full), float(leaf), titleX, whisperRight);
-    expect(whisper.scale >= layout::kChatTitleMin, "whisper crumb stays at the minimum scale");
-    expect(whisper.dropPrefix, "whisper crumb drops the parent prefix");
-    expect(whisper.scissor, "the current title is clipped to the whisper button");
-    expect(float(leaf) * whisper.scale > whisperRight - titleX, "the clipped title is wider than the room");
+    const layout::TitleFit whisper = layout::fitChatTitle(float(full), float(speed), titleX, whisperRight);
+    expect(whisper.scale == layout::kChatTitleScale, "whisper header stays at scale 0.5");
+    expect(whisper.scale >= layout::kChatTitleMin, "whisper header does not shrink below 0.5");
+    expect(whisper.shown == layout::ChatTitle::SpeedChat, "menu 17 drops the crumb while the whisper button is up");
+    expect(float(full) * whisper.scale > whisperRight - titleX, "the menu 17 crumb does not fit at 0.5");
+    expect(float(speed) * whisper.scale <= whisperRight - titleX + 0.05f, "SpeedChat fits beside the whisper button");
 
     const float friendsRight = layout::chatHeaderLimit(layout::kFriendsButtonX, false, 0.0f);
-    const layout::TitleFit friends = layout::fitChatTitle(float(full), float(leaf), titleX, friendsRight);
-    expect(friends.scale >= layout::kChatTitleMin, "friends-only crumb stays readable");
-    expect(!friends.dropPrefix && !friends.scissor, "friends-only crumb keeps its parent");
-    expect(float(full) * friends.scale <= friendsRight - titleX + 0.05f, "friends-only crumb ends at the button");
+    const layout::TitleFit friends = layout::fitChatTitle(float(full), float(speed), titleX, friendsRight);
+    expect(friends.scale == layout::kChatTitleScale, "friends-only header stays at scale 0.5");
+    expect(friends.shown == layout::ChatTitle::SpeedChat, "menu 17 drops the crumb beside Friends too");
+    expect(float(speed) * friends.scale <= friendsRight - titleX + 0.05f, "SpeedChat fits beside Friends");
+    const layout::TitleFit shortTitle = layout::fitChatTitle(80.0f, float(speed), titleX, friendsRight);
+    expect(shortTitle.shown == layout::ChatTitle::Menu && shortTitle.scale == layout::kChatTitleScale,
+           "a title that fits at 0.5 stays");
+    const layout::TitleFit hidden = layout::fitChatTitle(float(full), float(speed), titleX, titleX + 2.0f);
+    expect(hidden.shown == layout::ChatTitle::Hidden && hidden.scale == layout::kChatTitleScale,
+           "SpeedChat is dropped too when the header has no room");
 
-    expect(layout::chatLogPaperY() - layout::chatBottom(true) == layout::kChatLogGap,
-           "sky between the frame and the log paper is 4 px");
+    const char* pepper = "To: Little Pepper";
+    const int pepperAdv = advanceOf(font, pepper);
+    expect(std::strlen(pepper) == 17, "Little Pepper is the whole name, not a 12-character cut");
+    const float pepperW = float(pepperAdv) * layout::kWhisperTextScale;
+    expect(pepperW <= layout::kWhisperTextMaxW, "To: Little Pepper fits inside the 84 px button");
+    const float pepperScale = layout::fitTextScale(pepperW, layout::kWhisperTextScale, layout::kWhisperTextMaxW);
+    expect(pepperScale == layout::kWhisperTextScale, "a label that fits is not scaled down");
+
+    const char* wide = "To: WWWWWWWWWWWW";
+    const int wideAdv = advanceOf(font, wide);
+    expect(std::strlen(wide) == 16, "the twelve-W name is complete");
+    const float wideW = float(wideAdv) * layout::kWhisperTextScale;
+    expect(wideW > layout::kWhisperTextMaxW, "twelve W names overflow the button at full scale");
+    const float wideScale = layout::fitTextScale(wideW, layout::kWhisperTextScale, layout::kWhisperTextMaxW);
+    expect(float(wideAdv) * wideScale <= layout::kWhisperTextMaxW + 0.05f,
+           "twelve W names scale down whole into 84 px");
+
+    expect(layout::chatLogPaperY() == 174.0f, "drawChatLog passes 174 to theme::paper");
+    expect(layout::chatLogPaperY() == layout::chatBottom(true) + layout::kChatLogGap,
+           "the paper y is 4 px below the SpeedChat frame");
     expect(layout::chatListContains(169.0f, true), "py 169 is inside the SpeedChat list");
     expect(!layout::chatListContains(170.0f, true), "py 170 is the first pixel of the gap");
 

@@ -334,7 +334,8 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
             return KEY_R;
         }
         // Header button: cycle the whisper target through the toons in view.
-        if ((down & KEY_TOUCH) && numNearby_ > 0 && inRect(t, layout::kWhisperButtonX, 2, 96, 24)) {
+        if ((down & KEY_TOUCH) && numNearby_ > 0 &&
+            inRect(t, layout::kWhisperButtonX, 2, layout::kWhisperButtonW, 24)) {
             cycleWhisper(s); // padnav: shared with X
             return down;
         }
@@ -474,8 +475,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         const char* target = "Everyone";
         for (int i = 0; i < numNearby_; i++) {
             nearbyIds_[i] = c.nearbyIds[i];
-            snprintf(nearbyNames_[i], sizeof(nearbyNames_[i]), "%s", c.nearbyNames[i] ? c.nearbyNames[i] : "");
-            if (nearbyIds_[i] == s.whisperTo) target = nearbyNames_[i];
+            if (nearbyIds_[i] == s.whisperTo && c.nearbyNames[i] && c.nearbyNames[i][0])
+                target = c.nearbyNames[i];
         }
         numFriends_ = c.numFriends < 8 ? c.numFriends : 8;
         for (int i = 0; i < numFriends_; i++) {
@@ -491,12 +492,19 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         }
         chat_.draw(chatBottom(), layout::chatHeaderLimit(kFriendsButtonX, numNearby_ > 0, layout::kWhisperButtonX));
         theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
-        if (chatLogShown()) drawChatLog(kTabY - kChatLogH, kTabY);
+        if (chatLogShown()) drawChatLog(layout::chatLogPaperY(), kTabY);
         if (numNearby_ > 0) {
             // SpeedChat's whisper target: green while whispering, like a rolled-over SC button.
-            theme::button(layout::kWhisperButtonX, 1, 96, 26, s.whisperTo ? theme::kScRollover : theme::kScFrame,
+            // The whole "To: <name>" scales into the button. It is never cut mid-glyph.
+            theme::button(layout::kWhisperButtonX, 1, layout::kWhisperButtonW, 26,
+                          s.whisperTo ? theme::kScRollover : theme::kScFrame,
                           s.whisperTo ? theme::kGreenDark : theme::kScFrameEdge);
-            text(layout::kWhisperButtonX + 6, 5, 0.42f, theme::kScText, "To: %.12s", target);
+            char label[160];
+            snprintf(label, sizeof(label), "To: %s", target);
+            C2D_Text whisper;
+            textCache_.parse(&whisper, textBuf_, label, 1024);
+            theme::textFit(whisper, layout::kWhisperButtonX + layout::kWhisperPadX, 5.0f,
+                           layout::kWhisperTextScale, theme::kScText, layout::kWhisperTextMaxW);
         }
         theme::button(kFriendsButtonX, kFriendsButtonY, kFriendsButtonW, kFriendsButtonH,
                       theme::kScFrame, theme::kScFrameEdge);
@@ -640,6 +648,7 @@ float Ui::chatBottom() const { return layout::chatBottom(chatLogShown()); }
 // whispers in the whisper panel's purple). It starts right of the laff pocket.
 void Ui::drawChatLog(float y0, float y1) {
     const float x0 = kPocketW + 2;
+    // y0 is layout::chatLogPaperY() (174). The SpeedChat frame ends at chatBottom.
     theme::paper(x0, y0, kW - 4 - x0, y1 - y0 - 2, 6.0f, theme::kScFrame, theme::kScFrameEdge);
     for (int i = 0; i < chatLogCount_; i++) {
         const ChatLine& l = chatLog_[i];
