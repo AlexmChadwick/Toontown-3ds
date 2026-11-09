@@ -62,6 +62,7 @@
 #include "world/gs_blimp.h"
 #include "world/gs_leaderboard.h"
 #include "world/cashbot_trains.h"
+#include "world/br_snow.h"
 #include "world/butterflies.h"
 #include "world/dg_flower.h"
 #include "world/sky.h"
@@ -527,6 +528,7 @@ int main() {
     static tt::world::GsBlimp gsBlimp;
     static tt::world::GsLeaderBoards gsBoards;
     static tt::world::CashbotTrains cashbotTrains;
+    static tt::world::BrSnow brSnow;
     gsBoards.init();
     static tt::world::Butterflies butterflies;
     static tt::world::DGFlower dgFlower;
@@ -537,6 +539,7 @@ int main() {
     gsBlimp.setZone(kStartZone);
     gsBoards.setZone(kStartZone);
     cashbotTrains.setZone(kStartZone);
+    brSnow.setZone(kStartZone);
     butterflies.setZone(kStartZone);
     dgFlower.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
@@ -2441,6 +2444,7 @@ int main() {
                     gsBlimp.setZone(zoneDest);
                     gsBoards.setZone(zoneDest);
                     cashbotTrains.setZone(zoneDest);
+                    brSnow.setZone(zoneDest);
                     butterflies.setZone(zoneDest);
                     dgFlower.setZone(zoneDest);
                     cogBuildings.setZone(zoneDest);
@@ -3509,6 +3513,7 @@ int main() {
             waterfall.draw(renderer, tt::net::plat::nowMs());
             gsBlimp.draw(renderer, tt::net::plat::nowMs());
             cashbotTrains.draw(renderer);
+            brSnow.draw(renderer, player.cameraEye(), tt::net::plat::nowMs());
             if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
             dgFlower.draw(renderer, tt::net::plat::nowMs());
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
@@ -3994,6 +3999,7 @@ int main() {
     interiorLife.shutdown();
     gsBoards.shutdown();
     cashbotTrains.shutdown();
+    brSnow.shutdown();
     // [end interior life]
     battleFx.shutdown();
     TT_LOG("exit: world released");
