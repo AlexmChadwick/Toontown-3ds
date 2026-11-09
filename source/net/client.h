@@ -1355,6 +1355,10 @@ public:
     void setOwnWorldPos(float x, float y, float z) { ownX_ = x, ownY_ = y, ownZ_ = z; }
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
     bool sendAnimState(const char* name, float rate);
+    bool sendSquish(uint8_t damage);
+    // The network clock in seconds (ClockDelta.getRealNetworkTime(bits=32) / 100); meaningful
+    // once timeSynced().
+    double networkSeconds(uint32_t nowMs) const;
     // Zone change through the quiet zone (QuietZoneState): location + interest to zone 1,
     // drop the old zone's objects, then location + interest to `zoneId` (+ `visZones` for
     // streets: [branch] + visgroup vis list). Load the new zone's geometry BEFORE calling

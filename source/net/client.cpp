@@ -3248,6 +3248,21 @@ bool Client::sendAnimState(const char* name, float rate) {
     return finish(w);
 }
 
+// DistributedToon.b_squish(damage): a Cashbot HQ train ran us over (Train.__handleCollisionSphereEnter).
+bool Client::sendSquish(uint8_t damage) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, squish);
+    w.u8(damage);
+    return finish(w);
+}
+
+double Client::networkSeconds(uint32_t nowMs) const {
+    // globalClockDelta.getRealNetworkTime(bits=32) / NetworkTimePrecision
+    const int64_t ticks = ticksOf(int64_t(nowMs) - clockDeltaMs_);
+    return int32_t(uint32_t(uint64_t(ticks))) / 100.0;
+}
+
 bool Client::sendEmote(int id,float multiplier) {
     if (state_!=State::InZone || id < -1 || id>=25 || !std::isfinite(multiplier)) return false;
     if (id>=0 && (!ownStats_.hasEmotes || !ownStats_.emoteAccess[id])) return false;

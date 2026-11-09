@@ -61,6 +61,7 @@
 #include "world/waterfall.h"
 #include "world/gs_blimp.h"
 #include "world/gs_leaderboard.h"
+#include "world/cashbot_trains.h"
 #include "world/butterflies.h"
 #include "world/dg_flower.h"
 #include "world/sky.h"
@@ -525,6 +526,7 @@ int main() {
     static tt::world::Waterfall waterfall;
     static tt::world::GsBlimp gsBlimp;
     static tt::world::GsLeaderBoards gsBoards;
+    static tt::world::CashbotTrains cashbotTrains;
     gsBoards.init();
     static tt::world::Butterflies butterflies;
     static tt::world::DGFlower dgFlower;
@@ -534,6 +536,7 @@ int main() {
     waterfall.setZone(kStartZone);
     gsBlimp.setZone(kStartZone);
     gsBoards.setZone(kStartZone);
+    cashbotTrains.setZone(kStartZone);
     butterflies.setZone(kStartZone);
     dgFlower.setZone(kStartZone);
     static tt::game::MinigameSession minigame;
@@ -1899,13 +1902,20 @@ int main() {
             remoteToons.clear();
         }
         // Facility doors, buttons, lifts; Donald's Dock's pier ramps; Daisy Gardens' flower;
-        // nullptr elsewhere.
+        // Cashbot HQ's trains; nullptr elsewhere.
         if (netStarted) dgFlower.update(net, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
+        const bool trainSquish =
+            netStarted && cashbotTrains.update(net, player.x(), player.y(), player.z(), tt::net::plat::nowMs());
         player.setDynamic(level.solids()      ? level.solids()
                           : boat.pierSolids() ? boat.pierSolids()
-                                              : dgFlower.solids());
+                          : dgFlower.solids() ? dgFlower.solids()
+                                              : cashbotTrains.solids());
         {
             float floorZ;
+            if (trainSquish) { // DistributedToon.squish: the 'squished' state, setZ(z + 0.025)
+                squishAge = 0.0f;
+                player.reset(player.x(), player.y(), player.z() + 0.025f, player.headingDeg());
+            }
             if (level.active() && level.popSquish(&floorZ) > 0) {
                 squishAge = 0.0f;
                 player.reset(player.x(), player.y(), floorZ, player.headingDeg()); // setZ(stomper + 0.025)
@@ -2430,6 +2440,7 @@ int main() {
                     waterfall.setZone(zoneDest);
                     gsBlimp.setZone(zoneDest);
                     gsBoards.setZone(zoneDest);
+                    cashbotTrains.setZone(zoneDest);
                     butterflies.setZone(zoneDest);
                     dgFlower.setZone(zoneDest);
                     cogBuildings.setZone(zoneDest);
@@ -3497,6 +3508,7 @@ int main() {
             if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
             waterfall.draw(renderer, tt::net::plat::nowMs());
             gsBlimp.draw(renderer, tt::net::plat::nowMs());
+            cashbotTrains.draw(renderer);
             if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
             dgFlower.draw(renderer, tt::net::plat::nowMs());
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
@@ -3981,6 +3993,7 @@ int main() {
     // [interior life]
     interiorLife.shutdown();
     gsBoards.shutdown();
+    cashbotTrains.shutdown();
     // [end interior life]
     battleFx.shutdown();
     TT_LOG("exit: world released");

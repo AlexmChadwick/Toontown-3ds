@@ -78,6 +78,7 @@ WANTED = {
                               'clearSmoothing'],
     'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setEmoteState', 'setTalk', 'setSC',
                         'playSplashEffect',  # DDPlayground.__submergeToon (world/water.*)
+                        'squish',  # Cashbot HQ trains (world/cashbot_trains.*): b_squish
                         # Owner-view stats for the HUD (source/net/zone_objects.*).
                         'setHp', 'setMaxHp', 'toonUp', 'takeDamage', 'setMoney', 'setMaxMoney',
                         'setBankMoney', 'setMaxBankMoney', 'setExperience', 'setMaxCarry',
