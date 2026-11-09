@@ -111,21 +111,75 @@ SELLBOT_SIGNS = {
 }
 
 
-def sellbot_signs(zone_id, root, loader, resources):
-    """The Sellbot HQ / factory exterior signs the stock loader adds at run time."""
-    if zone_id not in SELLBOT_SIGNS:
-        return []
-    from panda3d.core import DecalEffect, DynamicTextFont, Filename, TextNode
-    import sign_text
-    card = loader.loadModel(str(Path(resources) / 'phase_4/models/props/sign_sellBotHeadHQ.bam'), noCache=True)
-    sign = card.find('**/sign_sellBotHeadHQ')
-    if sign.isEmpty():
-        raise ValueError('sign_sellBotHeadHQ missing')
+# Text the Cashbot / Bossbot loaders write on signs already in the HQ model (OnscreenText,
+# suit font): (sign node path, locator path, offset from the locator, text, scale, colour).
+# CashbotCogHQLoader: the Dreamland tunnel; BossbotCogHQLoader.makeSigns: GlobalStreetNames
+# upper-cased, setPosHpr(locator, 0, -0.1, -0.25).
+HQ_TEXT_SIGNS = {
+    12000: [('**/EntranceFrameFront', '**/sign_origin', (0, 0, 0), "Donald's Dreamland", 3,
+             (0.87, 0.87, 0.87, 1))],
+    10000: [('**/' + top + '/**/' + sign, '**/' + top + '/**/sign_origin', (0, -0.1, -0.25), text, 1.12,
+             (0, 0, 0, 1))
+            for top, sign, text in (('Gate_2', 'Sign_6', 'THE BACK NINE'), ('TunnelEntrance', 'Sign_2', 'PLAYGROUND'),
+                                    ('Gate_3', 'Sign_3', 'THE MIDDLE SIX'), ('Gate_4', 'Sign_4', 'THE FRONT THREE'),
+                                    ('GateHouse', 'Sign_5', 'THE CLUBHOUSE'))],
+}
+
+
+def _suit_font(resources):
     # ToontownGlobals.getSuitFont; a fresh font per zone keeps the bake order-independent.
+    from panda3d.core import DynamicTextFont, Filename
     font = DynamicTextFont(Filename.fromOsSpecific(str(Path(resources) / 'phase_3/models/fonts/vtRemingtonPortable.ttf')))
     font.setPixelsPerUnit(40)
     font.setSpaceAdvance(0.25)
     font.setLineHeight(1.0)
+    return font
+
+
+def _letters(parent, font, text, color):
+    from panda3d.core import TextNode
+    import sign_text
+    tn = TextNode('sign_letters')
+    tn.setFont(font)
+    tn.setAlign(TextNode.ACenter)
+    tn.setTextColor(*color)
+    tn.setText(text)
+    letters = parent.attachNewNode(tn.generate())
+    for tex in letters.findAllTextures():
+        sign_text._FONT_TEXTURES.add(int(tex.this))
+    letters.setDepthWrite(False)
+    letters.setTag('sign_text', '1')
+    return letters
+
+
+def hq_text_signs(zone_id, root, resources):
+    """Text the Cashbot / Bossbot HQ loaders write on the model's own signs at run time."""
+    from panda3d.core import DecalEffect
+    made = []
+    font = _suit_font(resources) if zone_id in HQ_TEXT_SIGNS else None
+    for sign_path, locator_path, offset, text, scale, color in HQ_TEXT_SIGNS.get(zone_id, ()):
+        sign, locator = root.find(sign_path), root.find(locator_path)
+        if sign.isEmpty() or locator.isEmpty():
+            raise ValueError(f'{zone_id}: sign {sign_path} / {locator_path} missing')
+        if zone_id == 12000:
+            sign.node().setEffect(DecalEffect.make())
+        letters = _letters(sign, font, text, color)
+        letters.setScale(scale)
+        letters.setPosHpr(locator, *offset, 0, 0, 0)
+        made.append(text)
+    return made
+
+
+def sellbot_signs(zone_id, root, loader, resources):
+    """The Sellbot HQ / factory exterior signs the stock loader adds at run time."""
+    if zone_id not in SELLBOT_SIGNS:
+        return hq_text_signs(zone_id, root, resources)
+    from panda3d.core import DecalEffect
+    card = loader.loadModel(str(Path(resources) / 'phase_4/models/props/sign_sellBotHeadHQ.bam'), noCache=True)
+    sign = card.find('**/sign_sellBotHeadHQ')
+    if sign.isEmpty():
+        raise ValueError('sign_sellBotHeadHQ missing')
+    font = _suit_font(resources)
     made = []
     for parent_name, pos, h, sf, lines in SELLBOT_SIGNS[zone_id]:
         parent = root.find('**/' + parent_name)
@@ -135,18 +189,9 @@ def sellbot_signs(zone_id, root, loader, resources):
         copy.setPosHprScale(*pos, h, 0, 0, sf, sf, sf * _SELLBOT_ASPECT)
         copy.node().setEffect(DecalEffect.make())
         for text, z, scale in lines:
-            tn = TextNode('sign_letters')
-            tn.setFont(font)
-            tn.setAlign(TextNode.ACenter)
-            tn.setTextColor(0, 0, 0, 1)
-            tn.setText(text)
-            letters = copy.attachNewNode(tn.generate())
-            for tex in letters.findAllTextures():
-                sign_text._FONT_TEXTURES.add(int(tex.this))
+            letters = _letters(copy, font, text, (0, 0, 0, 1))
             letters.setPos(0, 0, z)
             letters.setScale(scale)
-            letters.setDepthWrite(False)
-            letters.setTag('sign_text', '1')
         made.append(parent_name)
     card.removeNode()
     return made
