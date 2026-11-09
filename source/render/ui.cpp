@@ -62,7 +62,7 @@ constexpr float kFriendsButtonX = 244.0f, kFriendsButtonY = 2.0f, kFriendsButton
                 kFriendsButtonH = 24.0f;
 constexpr float kFriendsPanelX = 70.0f, kFriendsPanelY = 1.0f, kFriendsPanelW = 180.0f,
                 kFriendsPanelH = 204.0f;
-constexpr float kFriendsListX = 86.0f, kFriendsListY = 76.0f, kFriendsListW = 148.0f,
+constexpr float kFriendsListX = 102.0f, kFriendsListY = 76.0f, kFriendsListW = 124.0f,
                 kFriendsRowH = 11.0f;
 constexpr float kFriendsCloseX = 146.0f, kFriendsCloseY = 174.0f, kFriendsCloseW = 28.0f,
                 kFriendsCloseH = 26.0f;
@@ -938,7 +938,7 @@ void Ui::drawToon(const State& s, const Context& c) {
         theme::roundRect(x + 1, y + 1, kSwSize - 2, kSwSize - 2, 5, colorOf(i));
     }
     text(10, 152, 0.46f, theme::kInk, "Tap a color. Head, arms and legs share the body color.");
-    text(10, 172, 0.44f, theme::kInkSoft, "A: jump   B: walk   L/R: turn the camera");
+    text(kPocketW + 6, 172, 0.44f, theme::kInkSoft, "A: jump   B: walk   L/R: turn the camera");
 }
 
 // The Shtiker Book's cover: one button per page (upstream opens the book with its HUD button).
