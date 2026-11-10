@@ -172,7 +172,7 @@ kart's dummy node (scale 0.1, background bin, no depth), and loadFog sets TrackF
 
 Install the committed `sdmc-out/3ds/toontown3ds/data/racing/` tree at
 `sdmc:/3ds/toontown3ds/data/racing/`, including karts/lod0, lod1 and lod2.
-There are 634 generated binary assets: 36 track files, 594 kart parts, four props.
+There are 638 generated binary assets: 40 track files (incl. four urban skyline cards), 594 kart parts, four props.
 Keep the existing complete SD base installed: Speedway zone 8000, Kart Shop
 interior 8501 and toon sit/jump clips are prerequisites. The existing interior baker
 can produce the shop with `--resources ref/ref/resources --zone 8501 --no-preview`.

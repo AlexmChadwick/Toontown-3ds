@@ -980,7 +980,7 @@ emulator verification; host/build checks do not establish a live tutorial play-t
   frame fence. Hard asset/ToonCache budgets remain in effect.
 - The requested completed racing asset delivery is committed explicitly under
   `sdmc-out/3ds/toontown3ds/data/racing/`, following the Cogdo/clerk SD kit precedent.
-  Those 634 Disney-derived binaries are excluded from MIT; see
+  Those 638 Disney-derived binaries are excluded from MIT; see
   `THIRD_PARTY_NOTICES.md` and the per-file racing_assets.json SHA-256 manifest.
 - Full-frame Old 3DS 30 FPS, stereo, memory high-water marks and live stock-server
   payout are pending the main agent's Azahar/hardware pass. Rigid wheels, the

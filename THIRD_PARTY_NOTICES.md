@@ -141,7 +141,7 @@ are vendored. Generated seat/wheel/sound timing tables derive from those origina
 assets and specifications.
 
 The explicitly committed SD kit under
-`sdmc-out/3ds/toontown3ds/data/racing/` contains 634 converted Disney game assets:
+`sdmc-out/3ds/toontown3ds/data/racing/` contains 638 converted Disney game assets:
 12 tracks in model/collision/curve formats, 594 KartDNA component models across
 three LODs and four racing prop models. Its models, textures, curves, placement
 and collision data remain outside this project's MIT license. No Disney asset
