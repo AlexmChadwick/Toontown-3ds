@@ -58,7 +58,10 @@ public:
     void setEmoteAccess(const uint8_t* access) {
         for (int i=0;i<25;i++) emoteAccess_[i]=!access || access[i]!=0;
     }
+    // Autotest: jump to a menu and scroll without walking the tree.
+    void setView(int menu, float scroll, float panelBottom);
     int menu() const { return menu_; }
+    float scroll() const { return scroll_; }
 
 private:
     // One row of a menu: generated items, plus MY TASKS on top of TOONTASKS and its phrases.

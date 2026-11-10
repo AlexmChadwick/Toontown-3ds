@@ -261,6 +261,28 @@ int main(int argc, char** argv) {
            "the first page shows a down arrow on the scrollbar");
     expect(layout::chatHintUp(menuScroll) && !layout::chatHintDown(menuScroll, menuScroll),
            "the last page shows an up arrow");
+
+    const float chatPanel = layout::kChatFrameBottom;
+    const int kYouMenuItems = 4;
+    expect(layout::chatMaxScroll(kYouMenuItems, chatPanel) == 0.0f, "four phrases need no scroll");
+    expect(!layout::chatHintUp(0.0f) && !layout::chatHintDown(0.0f, 0.0f),
+           "four phrases show no scrollbar chevron");
+
+    const int kEmotionsMenuItems = 24;
+    const float emoMax = layout::chatMaxScroll(kEmotionsMenuItems, chatPanel);
+    expect(emoMax > layout::kChatRowH, "EMOTIONS scrolls by more than one row");
+    const float emoMid = layout::kChatRowH;
+    expect(layout::chatHintUp(emoMid) && layout::chatHintDown(emoMid, emoMax),
+           "a mid page shows both chevrons");
+    expect(layout::chatHintUp(emoMax) && !layout::chatHintDown(emoMax, emoMax),
+           "the EMOTIONS last page shows only an up chevron");
+    const int visRows = layout::chatWholeRows(chatPanel);
+    const int firstOnLast = static_cast<int>(emoMax / layout::kChatRowH);
+    const float frameBottom = layout::chatListBottom(chatPanel);
+    expect(layout::chatRowTop(firstOnLast + visRows - 1, emoMax) + layout::kChatRowH <= frameBottom + 0.01f,
+           "the last SpeedChat page keeps whole rows on the frame");
+    expect(layout::chatRowTop(firstOnLast + visRows, emoMax) >= frameBottom,
+           "the last page does not show a clipped row below the frame");
     const int last = layout::chatWholeRows(layout::kChatFrameBottom) - 1;
     const float clip = layout::chatListBottom(layout::kChatFrameBottom) - layout::kChatClipInset;
     expect(layout::chatRowTop(last) + layout::kChatRowH <= layout::chatListBottom(layout::kChatFrameBottom) + 0.01f,
