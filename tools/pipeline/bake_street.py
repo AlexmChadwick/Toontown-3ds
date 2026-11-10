@@ -1207,7 +1207,10 @@ def bake(zone_id, args, base):
         store.load(str(resources/s))
     warnings = []
     tree = dna.parse_file(resources/src,warnings)
+    import runtime_props
+    runtime_props.register(store, zone_id)  # models a playground object loads itself (6000)
     root,asm = assemble.assemble(tree,store,seed=1)
+    runtime_props.add_collision(root, zone_id)
     import bake_coghq
     if bake_coghq.hq_text_signs(zone_id, root, resources):  # loader-added sign text (17000)
         assemble.lift_decals(root)

@@ -1297,10 +1297,10 @@ int main() {
             if (!golf.active() && place.zoneId() != 17000 && !uiState.teleportRequest && transition.idle()) {
                 uiState.teleportRequest = 17000;
             }
-            const tt::net::GolfKart* kart = netStarted ? net.golfKart() : nullptr;
+            const tt::net::GolfKart* kart = netStarted ? net.golfKartAt(0) : nullptr;
             if (kart && !golf.active() && !strcmp(autotest.label(), "golf: board")) {
                 player.reset(kart->x, kart->y, kart->z, kart->h);
-                net.sendGolfKartBoard();
+                net.sendGolfKartBoard(kart->doId);
             }
         }
         if (autotest.active() && !strncmp(autotest.label(), "go speedway", 11) &&
@@ -3089,10 +3089,11 @@ int main() {
                 trolley.update(net, player.x(), player.y(), player.z(), net.ownStats().hp, nowMs);
             }
             if (!golf.active()) {
-                const tt::net::GolfKart* kart = net.golfKart();
-                if (kart) {
+                for (int i = 0; i < tt::net::kMaxGolfKarts; ++i) {
+                    const tt::net::GolfKart* kart = net.golfKartAt(i);
+                    if (!kart) continue;
                     const float dx = player.x() - kart->x, dy = player.y() - kart->y;
-                    if (dx * dx + dy * dy < 9.0f && (in.down & KEY_A)) net.sendGolfKartBoard();
+                    if (dx * dx + dy * dy < 9.0f && (in.down & KEY_A)) net.sendGolfKartBoard(kart->doId);
                 }
             }
             cogBuildings.update(net, player.x(), player.y(), player.z(), nowMs);

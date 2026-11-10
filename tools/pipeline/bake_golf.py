@@ -69,6 +69,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(OUT_DEFAULT))
     ap.add_argument("--resources", default=str(RESOURCES))
+    ap.add_argument("--equipment-only", action="store_true", help="only golf_cart3 / putter")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -78,7 +79,7 @@ def main():
     # GolfGlobals.HoleInfo: each of the 36 holes names its terrain model and the blocker
     # locators GolfHoleBase.loadBlockers keeps (the others are removed). Several holes share a
     # terrain with different blockers, so every hole bakes its own hole_<id>.ttm.
-    hole_info = load_hole_info(args.resources)
+    hole_info = {} if args.equipment_only else load_hole_info(args.resources)
     for hole_id in sorted(hole_info):
         info = hole_info[hole_id]
         model = base.loader.loadModel(Filename.fromOsSpecific(str(Path(args.resources) / info["terrainModel"])),
@@ -103,11 +104,15 @@ def main():
     for name in ("golf_cart3", "putter"):
         path = Path(args.resources) / "phase_6" / "models" / "golf" / (name + ".bam")
         model = base.loader.loadModel(Filename.fromOsSpecific(str(path)))
-        ex = extract.Extractor(max_tex=128)
+        # DistributedGolfKart.setColor: main_body takes the AI's colour (setColor replaces
+        # vertex colour: tint slot 1), cart_base a paler colour scale of it (slot 2).
+        tints = [("main_body", 1), ("cart_base", 2)] if name == "golf_cart3" else []
+        ex = extract.Extractor(max_tex=128, tint_rules=tints)
         ex.add(model)
         ttm.write(str(out / (name + ".ttm")), ex.textures, ex.batches())
         model.removeNode()
-    (out / "holes.json").write_text(json.dumps({"version": 1, "holes": records}, sort_keys=True, indent=2) + "\n")
+    if not args.equipment_only:
+        (out / "holes.json").write_text(json.dumps({"version": 1, "holes": records}, sort_keys=True, indent=2) + "\n")
     print(json.dumps({"holes": len(records), "equipment": 2, "out": str(out)}))
 
 

@@ -2,9 +2,12 @@
 #include "world/golf.h"
 
 #include <cmath>
+#include <algorithm>
 #include <cstdio>
+#include <cstring>
 
 #include "core/log.h"
+#include "net/net_platform.h"
 
 namespace tt::world {
 
@@ -140,14 +143,79 @@ void GolfSession::draw(render::Renderer& renderer) {
     renderer.drawModel(hole_, m);
 }
 
+namespace {
+
+// DistributedGolfKart.setColor: main_body takes the colour; cart_base a colour scale with the
+// same hue at a third of the saturation (its hand-rolled HSV round trip, quirks kept).
+void kartTints(const net::GolfKart& k, render::Tints* t) {
+    t->setAll(1, 1, 1);
+    const float red = k.color[0] / 255.0f, green = k.color[1] / 255.0f, blue = k.color[2] / 255.0f;
+    t->rgba[1][0] = red; t->rgba[1][1] = green; t->rgba[1][2] = blue;
+    float h = 0, s = 0, v = 0;
+    if (red >= green && red > blue) {
+        s = (red - blue) / red; v = red;
+        h = green > blue ? (green - blue) / (red - blue) : (green - blue) / (red - green);
+    } else if (green >= blue) {
+        if (green <= 0.0f) return; // black: Python divides by zero here; keep white
+        s = (green - blue) / green; v = green;
+        h = red > blue ? 2 + (blue - red) / (green - blue) : 2 + (blue - red) / (green - red);
+    } else {
+        s = red > green ? (blue - green) / blue : (blue - red) / blue;
+        h = red > green ? 4 + (red - green) / (blue - green) : 4 + (red - green) / (blue - red);
+        v = blue;
+    }
+    if (!std::isfinite(h)) return;
+    if (h < 0) h = (h * 60 + 360) / 60;
+    s /= 3;
+    float r = v, g = v, b = v;
+    if (s != 0) {
+        const int i = static_cast<int>(h);
+        const float f = h - i, p = v * (1 - s), q = v * (1 - s * f), u = v * (1 - s * (1 - f));
+        switch (i) {
+        case 0: r = v; g = u; b = p; break;
+        case 1: r = q; g = v; b = p; break;
+        case 2: r = p; g = v; b = u; break;
+        case 3: r = p; g = q; b = v; break;
+        case 4: r = u; g = p; b = v; break;
+        case 5: r = v; g = p; b = q; break;
+        default: break; // Python leaves the input colour for other sectors
+        }
+    }
+    t->rgba[2][0] = r; t->rgba[2][1] = g; t->rgba[2][2] = b;
+}
+
+// The kart's place on its parking spot: 'entering' rises from 10 below over 5 s, 'leaving'
+// drives 45 units along heading - 90 over 5 s and stays there (trolleyEnter/ExitTrack).
+void kartPos(const net::GolfKart& k, uint32_t nowMs, float* x, float* y, float* z) {
+    *x = k.x; *y = k.y; *z = k.z;
+    const float t = std::min(1.0f, static_cast<float>(nowMs - k.stateMs) / 5000.0f);
+    if (!strcmp(k.state, "entering")) {
+        *z = k.z - 10.0f * (1.0f - t);
+    } else if (!strcmp(k.state, "leaving")) {
+        const float a = (k.h - 90.0f) * 3.14159265f / 180.0f;
+        *x += cosf(a) * 45.0f * t;
+        *y += sinf(a) * 45.0f * t;
+    }
+}
+
+} // namespace
+
 void GolfSession::drawKart(render::Renderer& renderer, const net::Client& client) {
-    const net::GolfKart* k = client.golfKart();
-    if (!k || !kart_.loaded()) return;
-    C3D_Mtx m;
-    Mtx_Identity(&m);
-    Mtx_Translate(&m, k->x, k->y, k->z, true);
-    Mtx_RotateZ(&m, k->h * 3.14159265f / 180.0f, true);
-    renderer.drawModel(kart_, m);
+    if (!kart_.loaded()) return;
+    const uint32_t nowMs = net::plat::nowMs();
+    for (int i = 0; i < net::kMaxGolfKarts; ++i) {
+        const net::GolfKart* k = client.golfKartAt(i);
+        if (!k) continue;
+        float x, y, z;
+        kartPos(*k, nowMs, &x, &y, &z);
+        C3D_Mtx m;
+        Mtx_Identity(&m);
+        Mtx_Translate(&m, x, y, z, true);
+        Mtx_RotateZ(&m, k->h * 3.14159265f / 180.0f, true);
+        render::Tints tints;
+        kartTints(*k, &tints);
+        renderer.drawModel(kart_, m, &tints);
+    }
 }
 
 void GolfSession::camera(C3D_FVec* eye, C3D_FVec* target) const {

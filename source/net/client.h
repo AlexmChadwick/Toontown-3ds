@@ -830,10 +830,13 @@ struct Trolley {
 };
 constexpr int kGolfSeats = 4;
 constexpr int kGolfMaxGolfers = 4;
+// GZHoodDataAI makes one DistributedGolfKart per DNA golf_kart_<course>_<n> node (nine).
+constexpr int kMaxGolfKarts = 9;
 struct GolfKart {
     uint32_t doId = 0, golfZone = 0;
     int8_t courseId = -1;
     float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
+    int16_t color[3] = {255, 255, 255}; // setColor (required)
     uint32_t slots[kGolfSeats] = {};
     char state[20] = {};
     uint32_t stateMs = 0;
@@ -1646,10 +1649,15 @@ public:
     bool sendTrolleyBoard();
     bool sendTrolleyExit();
     // ---- golf (docs/design/golf.md) ----
-    const GolfKart* golfKart() const { return golfKart_.active ? &golfKart_ : nullptr; }
+    // The kart that sent our golf zone, else the one we sit in, else none.
+    const GolfKart* golfKart() const;
+    // Every generated kart, for drawing and boarding (nullptr for a free slot).
+    const GolfKart* golfKartAt(int i) const {
+        return (i >= 0 && i < kMaxGolfKarts && golfKarts_[i].active) ? &golfKarts_[i] : nullptr;
+    }
     const GolfCourse* golfCourse() const { return golfCourse_.active ? &golfCourse_ : nullptr; }
     const GolfHole* golfHole() const { return golfHole_.active ? &golfHole_ : nullptr; }
-    bool sendGolfKartBoard();
+    bool sendGolfKartBoard(uint32_t kartDoId);
     bool sendGolfKartExit();
     bool sendGolfReadyCourse();
     bool sendGolfJoined();
@@ -2081,7 +2089,8 @@ private:
     void clearBattles();
     // ---- trolley and minigames ----
     Trolley trolley_ = {};
-    GolfKart golfKart_ = {};
+    GolfKart golfKarts_[kMaxGolfKarts] = {};
+    uint32_t golfZoneKart_ = 0; // doId of the kart whose setGolfZone we followed
     GolfCourse golfCourse_ = {};
     GolfHole golfHole_ = {};
     Minigame minigame_ = {};
