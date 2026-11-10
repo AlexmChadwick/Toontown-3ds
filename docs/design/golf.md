@@ -2,10 +2,17 @@
 
 The golf path uses the stock Open Toontown `DistributedGolfKart`,
 `DistributedGolfCourse`, `DistributedGolfHole`, and `DistributedPhysicsWorld`
-objects. The kart is boarded in Acorn Acres (zone 6000); the AI assigns a
+objects. A kart is boarded in Chip 'n Dale's MiniGolf (zone 17000); the AI assigns a
 dynamic golf zone with `setGolfZone(zone, courseId)`. The client changes interest
-to that zone, answers the course/hole readiness barriers, and returns to Acorn
-Acres (17000) after `setCourseExit` or the local B exit request.
+to that zone, answers the course/hole readiness barriers, and returns to
+17000 after `setCourseExit` or the local B exit request.
+
+GZHoodDataAI makes nine karts, one per DNA `golf_kart_<course>_<n>` spot. The
+client keeps all of them (`Client::golfKartAt`), tints `main_body` with
+`setColor` and `cart_base` with the paler colour scale DistributedGolfKart
+derives from it (TTM tint slots 1 and 2), and replays the `entering` (rise 10
+units over 5 s) and `leaving` (drive 45 units along h - 90 over 5 s) tracks.
+Wheels stay rigid and seated Toons are not drawn in the kart.
 
 ## Swing contract
 
