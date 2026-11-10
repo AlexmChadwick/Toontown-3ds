@@ -113,7 +113,7 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat mid shot", "b_speedchat_mid"},
     {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat last"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat last shot", "b_speedchat_last"},
-    {0.3f, 0, 0, 0, KEY_START, -1, -1, 0, "gui polish: book open"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book open"},
     {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map page"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map settle"},
     {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map shot", "a_book_map_top"},
@@ -489,7 +489,7 @@ bool Runner::begin() {
     if (!f) return false;
     // Optional lines "from <label prefix>" (skip ahead to that step) and "until <label
     // prefix>" (finish before that step) for quicker iteration.
-    char from[64] = {}, until[64] = {};
+    char until[64] = {};
     char line[256];
     while (fgets(line, sizeof(line), f)) {
         if (char* nl = strchr(line, '\n')) *nl = 0;
@@ -500,7 +500,7 @@ bool Runner::begin() {
         else if (!strcmp(line, "skip"))
             game::FrontEnd::setTestSkipTutorial(true);  // the old stock path: Create! skips the Toontorial
         else if (!strncmp(line, "from ", 5))
-            snprintf(from, sizeof(from), "%.63s", line + 5);
+            snprintf(from_, sizeof(from_), "%.63s", line + 5);
         else if (!strncmp(line, "until ", 6)) snprintf(until, sizeof(until), "%.63s", line + 6);
         else if (!strncmp(line, "only ", 5)) snprintf(only_, sizeof(only_), "%.191s", line + 5);
         else if (!strncmp(line, "drop at ", 8)) snprintf(dropAt_, sizeof(dropAt_), "%.63s", line + 8);
@@ -517,9 +517,9 @@ bool Runner::begin() {
     active_ = true;
     script_ = frontEnd_ ? kFrontEndScript : kScript;
     numSteps_ = frontEnd_ ? kFrontEndSteps : kWorldSteps;
-    if (from[0]) {
+    if (from_[0]) {
         for (int i = 0; i < numSteps_; i++) {
-            if (!strncmp(script_[i].label, from, strlen(from))) {
+            if (!strncmp(script_[i].label, from_, strlen(from_))) {
                 step_ = i;
                 ready_ = false;
                 break;
@@ -553,6 +553,12 @@ bool Runner::selected(const char* label) const {
 
 bool Runner::skipped(const char* label) const {
     if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
+    // "gui polish:" shots are opt-in: they leave the book closed (KEY_B) while the padnav
+    // block after "book: options" expects it still open on Options. Only "only"/"from"
+    // prefixes that select those steps run them.
+    if (!only_[0] && !strncmp(label, "gui polish:", 11) &&
+        !(from_[0] && !strncmp(from_, "gui polish:", 11)))
+        return true;
     return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10);
 }
 

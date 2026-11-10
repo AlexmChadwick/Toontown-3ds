@@ -83,6 +83,7 @@ private:
     char seriesName_[40] = {};
     char dropAt_[64] = {};
     char only_[192] = {}; // "only" line: comma-separated label prefixes (empty = every step)
+    char from_[64] = {}; // "from" line: the label prefix the run started at (empty = step 0)
     Pose poses_[kMaxPoses] = {};
     int numPoses_ = 0;
     bool selected(const char* label) const;
