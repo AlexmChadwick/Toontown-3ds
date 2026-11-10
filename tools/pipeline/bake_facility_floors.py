@@ -248,6 +248,9 @@ def bake_connectors(base, args, keys):
     report = {}
     for path in sorted(paths):
         model = base.loader.loadModel(path)
+        # The country-club tunnels' tree cards are axial BillboardEffect sprites (frozen edge-on).
+        import assemble
+        assemble.cross_billboards(model)
         name = 'door_frame_%d' % DOOR_FRAME_STYLES[path] if path in DOOR_FRAME_STYLES else prop_name(path)
         report[name] = bake_level_props.write_part(model, None, out / f'{name}.ttm')
         model.removeNode()
