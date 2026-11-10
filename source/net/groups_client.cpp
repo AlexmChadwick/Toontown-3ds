@@ -63,7 +63,7 @@ void Client::groupsName(groups::GroupView& g) const {
         g.leaderName[0] = 0;
         return;
     }
-    std::snprintf(g.leaderName, sizeof(g.leaderName), "%s", name);
+    groups::copyPlainName(g.leaderName, int(sizeof(g.leaderName)), name);
 }
 
 void Client::groupsSendContext() {

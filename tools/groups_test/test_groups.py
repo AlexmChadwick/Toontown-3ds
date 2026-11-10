@@ -22,6 +22,37 @@ PLATFORM_DC = os.path.join(ROOT, 'tools', 'platform', 'platform.dc')
 CPP_LOGIC = os.path.join(ROOT, 'source', 'net', 'groups_logic.h')
 CPP_CLIENT = os.path.join(ROOT, 'source', 'net', 'groups_client.cpp')
 
+
+def _impress_width(text, scale):
+    """Pixel width of ASCII text in romfs impress.bcfnt at a citro2d scale.
+
+    citro2d multiplies the char-width sum by 30/cellHeight, then by the draw scale.
+    kTextSmall is 0.40. The empty line is wrapped at 288.
+    """
+    import struct
+    path = os.path.join(ROOT, 'romfs', 'baked', 'fonts', 'impress.bcfnt')
+    with open(path, 'rb') as f:
+        src = f.read()
+    header_size, = struct.unpack_from('<H', src, 6)
+    tglp_ptr, cwdh_ptr, cmap_ptr = struct.unpack_from('<III', src, header_size + 16)
+    cell_h = src[tglp_ptr - 8 + 9]
+    code_begin, _code_end, method, _, _nxt = struct.unpack_from('<HHHHI', src, cmap_ptr)
+    if method != 0:
+        raise AssertionError('impress cmap is not a direct map')
+    first, = struct.unpack_from('<H', src, cmap_ptr + 12)
+    start, end, _nxt = struct.unpack_from('<HHI', src, cwdh_ptr)
+    widths = {}
+    off = cwdh_ptr + 8
+    for glyph in range(start, end + 1):
+        _left, _gw, char_w = struct.unpack_from('<bBB', src, off)
+        off += 3
+        widths[glyph] = char_w
+    total = 0
+    for ch in text:
+        glyph = first + (ord(ch) - code_begin)
+        total += widths[glyph]
+    return total * (30.0 / cell_h) * scale
+
 # DCFile numbers for otp.dc + toon.dc + platform.dc + groups.dc.
 # The nine TTGroupInfo members sit between platform and the manager.
 GROUPS_FIELDS = (
@@ -696,6 +727,33 @@ class StringsTests(unittest.TestCase):
         for kind in G.KINDS:
             for target in range(G.MAX_TARGET[kind] + 1):
                 self.assertTrue(S.group_title(kind, target))
+
+    def test_empty_line_names_the_filters(self):
+        with open(CPP_LOGIC, encoding='utf-8') as f:
+            header = f.read()
+        found = re.search(r'kEmpty = "([^"]*)"', header)
+        self.assertIsNotNone(found)
+        text = found.group(1)
+        self.assertEqual(text, S.EmptyList)
+        for word in ('Boss', 'Building', 'Task'):
+            self.assertIn(word, text)
+            self.assertIn(word, S.EmptyList)
+        self.assertNotIn('press Create', text)
+        self.assertNotIn('press Create', S.EmptyList)
+        self.assertLessEqual(_impress_width(text, 0.40), 288.0)
+
+    def test_rejects_press_create(self):
+        needle = 'press Create'
+        paths = [
+            CPP_LOGIC,
+            os.path.join(ROOT, 'source', 'ui', 'book_pages', 'page_groups.cpp'),
+            os.path.join(PY, 'ttgroups', 'strings.py'),
+            os.path.join(ROOT, 'docs', 'design', 'groups.md'),
+            os.path.join(ROOT, 'tools', 'groups', 'render_3ds.py'),
+        ]
+        for path in paths:
+            with open(path, encoding='utf-8') as f:
+                self.assertNotIn(needle, f.read(), path)
 
     def test_user_strings_have_no_ellipsis(self):
         with open(os.path.join(PY, 'ttgroups', 'strings.py'), encoding='utf-8') as f:

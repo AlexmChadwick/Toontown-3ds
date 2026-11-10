@@ -33,6 +33,8 @@ The page builds its text cache the first time it is used. `init()` does not allo
 
 On the 320x240 sheet the three filters (Boss, Building, Task) and the row's Join or Leave are 48px tall. One group is on screen. D-pad Down and Up move between groups. D-pad Left and Right on the row turn the book page, because the row is full width. A activates the focused control. Touch does too.
 
+An empty board says "No groups yet. Start one with Boss, Building or Task." There is no Create button. Create is those three filters. At Impress scale 0.40 that line is about 211px, inside the 288px wrap. A disabled Join or Full uses ink-soft text on the grey button, the same pairing as a disabled filter. Leader and member names are copied through `copyPlainName` before they are drawn, so Panda colour codes, newlines and tags from another player do not reach citro2d.
+
 The picker asks for a department (four cells) or a task playground (six). It covers the tab bar so the six cells and Back (44px, y 190) fit on the 240px screen. B closes the picker. B closes the book when the picker is not open.
 
 After a successful join the client follows Android's `teleport_plan` through the travel path that already exists.

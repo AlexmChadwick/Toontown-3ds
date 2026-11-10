@@ -73,7 +73,7 @@ inline constexpr const char* kKindNames[3] = {"Boss Battle", "Cog Building", "To
 inline constexpr const char* kDepartments[4] = {"Sellbot", "Cashbot", "Lawbot", "Bossbot"};
 inline constexpr const char* kTaskNames[6] = {"Toontown Central", "Donald's Dock", "The Brrrgh",
                                               "Minnie's Melodyland", "Daisy Gardens", "Donald's Dreamland"};
-inline constexpr const char* kEmpty = "No groups right now. Be the first, press Create!";
+inline constexpr const char* kEmpty = "No groups yet. Start one with Boss, Building or Task.";
 inline constexpr const char* kConnecting = "Looking for groups.";
 inline constexpr const char* kUnavailable = "Groups are not available right now.";
 inline constexpr const char* kJoined = "You joined the group!";
@@ -283,6 +283,59 @@ inline const char* groupTitle(const GroupView& g, char* buf, int cap) {
     const char* kind = g.kind < 3 ? kKindNames[g.kind] : "Group";
     std::snprintf(buf, cap, "%s %s", dept, kind);
     return buf;
+}
+
+// Player names are drawn as citro2d text. Strip Panda text-property markup
+// (\1...\1 and \2), other controls, and <tag> / & so a remote name cannot
+// change colour, add a line, or look like UI markup. Letters, spaces and the
+// NameCheck punctuation (.,'-) are kept. Returns the number of bytes written,
+// not counting the terminator.
+inline int copyPlainName(char* dst, int cap, const char* src) {
+    if (!dst || cap <= 0) return 0;
+    int n = 0;
+    if (!src) {
+        dst[0] = 0;
+        return 0;
+    }
+    const auto* p = reinterpret_cast<const unsigned char*>(src);
+    while (*p && n + 1 < cap) {
+        if (*p == 0x01) {
+            ++p;
+            while (*p && *p != 0x01) ++p;
+            if (*p == 0x01) ++p;
+            continue;
+        }
+        if (*p == '\n' || *p == '\r' || *p == '\t') {
+            if (n > 0 && dst[n - 1] != ' ') dst[n++] = ' ';
+            ++p;
+            continue;
+        }
+        if (*p < 0x20 || *p == 0x7F || *p == 0x02) {
+            ++p;
+            continue;
+        }
+        if (*p == '<') {
+            const unsigned char* q = p + 1;
+            int span = 0;
+            while (*q && *q != '>' && span < 32) {
+                ++q;
+                ++span;
+            }
+            if (*q == '>') {
+                p = q + 1;
+                continue;
+            }
+            ++p;
+            continue;
+        }
+        if (*p == '>' || *p == '&') {
+            ++p;
+            continue;
+        }
+        dst[n++] = static_cast<char>(*p++);
+    }
+    dst[n] = 0;
+    return n;
 }
 
 inline const char* placeName(const GroupView& g) {

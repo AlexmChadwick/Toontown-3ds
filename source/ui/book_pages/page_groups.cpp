@@ -194,9 +194,11 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
                      theme::kPaperEdge);
         char base[80];
         groups::groupTitle(*g, base, sizeof(base));
+        char who[24];
+        groups::copyPlainName(who, int(sizeof(who)), g->leaderName);
         const char* suffix = nullptr;
         if (g->flags & groups::kFlagInProgress) suffix = groups::kInProgress;
-        else if (g->leaderName[0]) suffix = g->leaderName;
+        else if (who[0]) suffix = who;
         else if (mine) suffix = groups::kMine;
         char title[128];
         if (suffix) std::snprintf(title, sizeof(title), "%s (%s)", base, suffix);
@@ -210,8 +212,9 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
         const u32 face = !enabled ? theme::kGrey : leave ? theme::kRed : theme::kGreen;
         const u32 lip = !enabled ? theme::kGreyDark : leave ? theme::kRedDark : theme::kGreenDark;
         theme::button(groups::kRowBtnX, groups::kRowBtnY, groups::kRowBtnW, groups::kRowBtnH, face, lip, false, 8);
-        text_.centered(groups::kRowBtnX + groups::kRowBtnW * 0.5f, groups::kRowBtnY + 14, theme::kTextBody, theme::kWhite,
-                       groups::kRowBtnW - 12, "%s", actionLabel(*g, board->selfId, inGroup));
+        text_.centered(groups::kRowBtnX + groups::kRowBtnW * 0.5f, groups::kRowBtnY + 14, theme::kTextBody,
+                       enabled ? theme::kWhite : theme::kInkSoft, groups::kRowBtnW - 12, "%s",
+                       actionLabel(*g, board->selfId, inGroup));
     }
     focus_.drawHighlight();
 }

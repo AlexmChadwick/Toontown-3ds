@@ -138,6 +138,31 @@ void checkRules() {
     float x = 0, y = 0;
     tt::groups::pickCell(5, &x, &y);
     CHECK(y + tt::groups::kPickCellH <= tt::groups::kPickBackY);
+    CHECK(std::strstr(tt::groups::kEmpty, "press Create") == nullptr);
+    CHECK(std::strstr(tt::groups::kEmpty, "Boss") != nullptr);
+    CHECK(std::strstr(tt::groups::kEmpty, "Building") != nullptr);
+    CHECK(std::strstr(tt::groups::kEmpty, "Task") != nullptr);
+}
+
+void checkPlainName() {
+    char leader[24];
+    char member[24];
+    const char* markedLeader = "\x01red\x01Professor Pete\x02";
+    const char* markedMember = "Cool\n<b>Cat</b>&";
+    CHECK(tt::groups::copyPlainName(leader, int(sizeof(leader)), markedLeader) > 0);
+    CHECK(std::strcmp(leader, "Professor Pete") == 0);
+    CHECK(tt::groups::copyPlainName(member, int(sizeof(member)), markedMember) > 0);
+    CHECK(std::strcmp(member, "Cool Cat") == 0);
+    CHECK(tt::groups::copyPlainName(leader, int(sizeof(leader)), "Ladybug") == 7);
+    CHECK(std::strcmp(leader, "Ladybug") == 0);
+    CHECK(tt::groups::copyPlainName(leader, int(sizeof(leader)), "\x01red") == 0);
+    CHECK(leader[0] == 0);
+    CHECK(tt::groups::copyPlainName(leader, int(sizeof(leader)), nullptr) == 0);
+    char again[24];
+    tt::groups::copyPlainName(again, int(sizeof(again)), member);
+    CHECK(std::strcmp(again, member) == 0);
+    CHECK(std::strchr(leader, '<') == nullptr);
+    CHECK(std::strchr(member, '\n') == nullptr);
 }
 
 void checkAdopt() {
@@ -173,6 +198,7 @@ int main() {
     checkCache();
     checkRules();
     checkAdopt();
+    checkPlainName();
     std::printf("groups: sizeof(GroupsState)=%zu sizeof(GroupView)=%zu\n", sizeof(tt::groups::GroupsState),
                 sizeof(tt::groups::GroupView));
     if (gFailures) {

@@ -2151,3 +2151,18 @@ at 0 when it is not, which keeps the unavailable line.
 1.7.0 produced `toontown3ds.3dsx`. No warnings in `source/`. The linker still
 prints the existing `crtn.o` executable-stack note.
 
+## 2026-11-10 - Groups empty line, disabled label, plain names
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+
+The empty board names Boss, Building and Task. It does not mention a Create
+button. On `impress.bcfnt` at scale 0.40 the line is about 211px, under the
+288px wrap. A disabled Join or Full draws `kInkSoft` on `kGrey`, matching the
+filters.
+`copyPlainName` drops Panda `\1...\1` / `\2` markup, controls, and tags before
+a leader or member name is drawn.
+
+`kInkSoft` (#7A6650) on `kGrey` (#C8C2B6) measures 3.08:1. White on that grey
+was 1.77:1. `kInk` on the same grey is 9.47:1. The disabled label uses
+`kInkSoft` so it matches the filters.
+

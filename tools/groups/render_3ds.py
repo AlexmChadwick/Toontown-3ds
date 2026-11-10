@@ -160,7 +160,7 @@ def row_card(d, L, S, title, place, count, action, mine, enabled, focus=False):
     d.text((x + w - 8 - (bbox[2] - bbox[0]), y + 6), count, font=font(13, True), fill=INK)
     face, lip = (GREY, GREY_D) if not enabled else ((RED, RED_D) if action == S['kLeave'] else (GREEN, GREEN_D))
     box = (L['kRowBtnX'], L['kRowBtnY'], L['kRowBtnW'], L['kRowBtnH'])
-    button(d, box, face, lip, action, WHITE, 16)
+    button(d, box, face, lip, action, WHITE if enabled else SOFT, 16)
     if focus and enabled:
         ring(d, box)
 
