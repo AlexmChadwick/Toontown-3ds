@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """The Map tab cell is an arrow into a portal, not a solid well."""
+import re
 import struct
 import sys
 from pathlib import Path
@@ -66,6 +67,42 @@ def main():
     bright = (cell[:, :, 1] > 70) & (cell[:, :, 3] > 200)
     if bright.sum() < 40:
         raise SystemExit('map portal has no lighter interior')
+
+    # Fitted long side. drawBookTabIcon scales by the rect's max side, so a glyph
+    # whose ink fills its rect draws at the same size as the other tabs.
+    header = (ROOT / 'source' / 'ui' / 'book_tabs_atlas.h').read_text()
+    rects = []
+    for line in header.splitlines():
+        if not line.strip().startswith('{'):
+            continue
+        nums = [float(v) for v in re.findall(r'[-0-9.]+', line)]
+        if len(nums) >= 4:
+            rects.append(nums[:4])
+    if len(rects) != 9:
+        raise SystemExit(f'expected 9 tab rects, found {len(rects)}')
+
+    def fitted(rect):
+        x, y, w, h = rect
+        x0, y0 = int(np.floor(x)), int(np.floor(y))
+        x1, y1 = int(np.ceil(x + w)), int(np.ceil(y + h))
+        chip = px[y0:y1, x0:x1]
+        ink = chip[:, :, 3] > 30
+        ys, xs = np.where(ink)
+        if len(xs) == 0:
+            raise SystemExit('tab icon has no ink')
+        long = max(int(xs.max() - xs.min() + 1), int(ys.max() - ys.min() + 1))
+        return long / max(w, h)
+
+    ratios = [fitted(r) for r in rects]
+    others = sorted(ratios[:8])
+    median = 0.5 * (others[3] + others[4])
+    if ratios[8] < 0.90:
+        raise SystemExit(f'map tab fill {ratios[8]:.3f} is below 0.90')
+    if abs(ratios[8] - median) > 0.08:
+        raise SystemExit(f'map tab fill {ratios[8]:.3f} is not near the other icons ({median:.3f})')
+    # At the inactive tab size (21 px) the map's long side matches the others.
+    if abs(ratios[8] - median) * 21.0 > 2.0:
+        raise SystemExit('map tab glyph is more than 2 px off the other icons at 21 px')
     print('check_map_glyph: ok')
 
 

@@ -2098,3 +2098,32 @@ smaller power of two. Font sheets are already the minimum size that holds the ce
 `DEVKITPRO` make produced `toontown3ds.3dsx` with no warnings in `source/`.
 The linker still prints the existing `crtn.o` executable-stack note.
 
+## 2026-11-09 - bottom-screen polish after 5f761f2 (host only)
+
+No Azahar binary and no devkitARM on this machine. This entry is not an emulator
+or hardware pass, and it does not claim a frame budget. The three before frames
+are the Old 3DS bottom-screen captures taken at `5f761f2`. The after frames are
+composites of those pixels into the new layout. `tools/dev/gui_polish_frames.py`
+writes both.
+
+SpeedChat rows are 35 px, still above the old 30 px hit target. Four rows fill
+the list above the chat log (header 28, inset 2, frame 170), so the last visible
+row ends on the frame instead of running into the border. Scroll snaps to a row.
+A chevron on the scrollbar points toward more rows. The chat log stays at y 174.
+
+The book Map page and the pocket map draw a cream card with the book red border
+and a 3 px shadow. The card hugs the map and the 66 px legend (4 px gap) and is
+narrower than the old full-bleed paper. The shadow stays inside 320x240 and
+above the hood row at y 148. No new texture: the card is `theme::roundRect`.
+
+The Map tab glyph is the same arrow, painted so the ink fills its 48 px cell
+the way the other eight icons fill theirs. `romfs/baked/book_tabs.ttm` stays
+256x128 RGBA8 (131584 bytes, flags 0, the original relative quad). Only that
+cell changed.
+
+`tools/gui_layout_test/run.sh`: 161 layout checks ok, and `check_map_glyph.py`
+ok (arrow tip, portal interior, fill at least 0.90 and within 0.08 of the other
+icons). `tools/padnav_test/run.sh`: 154 checks, 0 failures. `tools/qafix_test/geometry.cpp`
+and the book host test passed under g++. `tools/book_test/run.sh` still calls
+clang++, which has no C++ headers in this VM.
+

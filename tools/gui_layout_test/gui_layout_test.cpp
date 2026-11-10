@@ -244,6 +244,69 @@ int main(int argc, char** argv) {
            "the paper y is 4 px below the SpeedChat frame");
     expect(layout::chatListContains(169.0f, true), "py 169 is inside the SpeedChat list");
     expect(!layout::chatListContains(170.0f, true), "py 170 is the first pixel of the gap");
+    expect(layout::kChatRowH >= 30.0f, "SpeedChat rows stay at least 30 px");
+    expect(layout::chatWholeRows(layout::kChatFrameBottom) == 4, "four whole rows fit above the chat log");
+    expect(layout::chatListBottom(layout::kChatFrameBottom) == 170.0f, "those four rows fill the frame");
+    expect(layout::chatListBottom(layout::kPocketTop) == 170.0f, "the pocket sliver is not a fifth row");
+    expect(!layout::chatListContains(171.0f, false), "py 171 is outside the list when the log is hidden");
+    expect(layout::chatListContains(169.0f, false), "py 169 is still inside the list when the log is hidden");
+    const int tracks = 7;
+    const float menuScroll = layout::chatMaxScroll(tracks, layout::kChatFrameBottom);
+    expect(menuScroll == 3.0f * layout::kChatRowH, "seven phrases scroll by three whole rows");
+    expect(layout::snapChatScroll(0.0f, menuScroll) == 0.0f, "scroll rests on a row");
+    expect(layout::snapChatScroll(10.0f, menuScroll) == 0.0f, "a short drag stays on the current row");
+    expect(layout::snapChatScroll(20.0f, menuScroll) == layout::kChatRowH, "a longer drag steps one row");
+    expect(layout::snapChatScroll(menuScroll, menuScroll) == menuScroll, "the last page is a whole row");
+    expect(!layout::chatHintUp(0.0f) && layout::chatHintDown(0.0f, menuScroll),
+           "the first page shows a down arrow on the scrollbar");
+    expect(layout::chatHintUp(menuScroll) && !layout::chatHintDown(menuScroll, menuScroll),
+           "the last page shows an up arrow");
+    const int last = layout::chatWholeRows(layout::kChatFrameBottom) - 1;
+    const float clip = layout::chatListBottom(layout::kChatFrameBottom) - layout::kChatClipInset;
+    expect(layout::chatRowTop(last) + layout::kChatRowH <= layout::chatListBottom(layout::kChatFrameBottom) + 0.01f,
+           "the last visible row ends on the frame");
+    expect(layout::chatRowTop(last + 1) >= layout::chatListBottom(layout::kChatFrameBottom),
+           "the next row is not partly visible");
+    expect(layout::chatRowTextBottom(last, float(font.lineFeed) * 0.5f) <= clip, "one line sits above the clip");
+    expect(layout::chatRowTextBottom(last, float(font.lineFeed) * 0.42f * 2.0f) <= clip,
+           "two lines sit above the clip");
+
+    const layout::MapCard book = layout::kBookMapCard;
+    const layout::MapCard pocket = layout::kPocketMapCard;
+    expect(book.legend && pocket.legend, "both maps keep the legend");
+    expect(book.legendW >= 66.0f && pocket.legendW >= 66.0f, "legend column stays 66 px");
+    expect(book.mapH + 0.1f >= layout::kMapLegendMax * layout::kMapLegendRow, "book legend rows fit");
+    expect(pocket.mapH + 0.1f >= layout::kMapLegendMax * layout::kMapLegendRow, "pocket legend rows fit");
+    expect(book.legendX >= book.mapX + book.mapW && pocket.legendX >= pocket.mapX + pocket.mapW,
+           "the legend sits beside the map");
+    expect(book.legendX - (book.mapX + book.mapW) == layout::kMapLegendGap, "book legend gap is 4 px");
+    expect(pocket.legendX - (pocket.mapX + pocket.mapW) == layout::kMapLegendGap, "pocket legend gap is 4 px");
+    const layout::MapCard wideMap =
+        layout::layoutMapCard(layout::kBookMapX, layout::kBookMapY, layout::kBookMapW, layout::kBookMapH, 3.0f, true);
+    expect(wideMap.legend, "a wide map still keeps the legend");
+    expect(wideMap.x >= 0.0f && wideMap.y >= 0.0f && wideMap.x + wideMap.w + wideMap.shadow <= 320.0f &&
+               wideMap.y + wideMap.h + wideMap.shadow <= 240.0f,
+           "a wide map card stays inside 320x240");
+    const layout::MapCard bare = layout::layoutMapCard(4.0f, 4.0f, 312.0f, 140.0f, 1.0f, false);
+    expect(!bare.legend, "a map without a legend does not reserve a column");
+    expect(bare.x >= 0.0f && bare.y >= 0.0f && bare.x + bare.w + bare.shadow <= 320.0f &&
+               bare.y + bare.h + bare.shadow <= 240.0f,
+           "a map without a legend stays inside 320x240");
+    expect(book.w <= layout::kBookMapW - 80.0f && pocket.w <= layout::kPocketMapW - 80.0f,
+           "the card is narrower than the old full-bleed paper");
+    const layout::MapCard cards[] = {book, pocket};
+    for (const layout::MapCard& card : cards) {
+        expect(card.x >= 0.0f && card.y >= 0.0f, "map card origin is on screen");
+        expect(card.x + card.w + card.shadow <= 320.0f, "map card shadow stays inside 320");
+        expect(card.y + card.h + card.shadow <= 240.0f, "map card shadow stays inside 240");
+        expect(card.y + card.h + card.shadow <= pad::hoods::kRowY, "map card shadow stays above the hood row");
+        expect(card.mapX >= card.x + layout::kMapBorder && card.mapY >= card.y + layout::kMapBorder,
+               "the map sits inside the card border");
+        expect(card.mapX + card.mapW <= card.x + card.w - layout::kMapBorder, "the map stays inside the card");
+        expect(card.legendX + card.legendW <= card.x + card.w - layout::kMapBorder, "the legend stays inside the card");
+    }
+    expect(layout::kBookMapH == pad::hoods::kRowY - 31.0f, "book map rect matches the hood row");
+    expect(layout::kPocketMapH == pad::hoods::kRowY - 8.0f, "pocket map rect matches the hood row");
 
     const float corner = layout::hintCorner(pad::battle::kHintW, pad::battle::kHintH);
     const float textBottom = pad::battle::kHintTextTop + pad::battle::kHintTextStep + 12.0f;

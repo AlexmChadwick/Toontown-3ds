@@ -16,6 +16,7 @@
 
 #include "net/quest_net.h"
 #include "quest/quest_text.h"
+#include "ui/panel_geometry.h"
 #include "ui/speedchat_data.h"
 
 namespace tt::ui {
@@ -24,7 +25,8 @@ class ChatMenu {
 public:
     static constexpr float kW = 320.0f;
     static constexpr float kHeaderH = 28.0f;
-    static constexpr float kRowH = 30.0f; // >= 28 px finger target
+    static constexpr float kRowH = layout::kChatRowH; // >= 30 px finger target
+    static_assert(kRowH >= 30.0f, "SpeedChat hit target");
     static constexpr float kTapSlop = 8.0f;
     static constexpr int kQueueLen = 4;
     // TOONTASKS > MY TASKS (TTSCToontaskMenu): phrases built from our current ToonTasks.
