@@ -1134,7 +1134,10 @@ class LayoutTests(unittest.TestCase):
         self.assertEqual(list_message(False, 0, ''), (S.Connecting, False))
         self.assertEqual(list_message(True, 0, S.Connecting), ('', True))
         self.assertEqual(list_message(True, 0, ''), ('', True))
-        self.assertEqual(list_message(True, 0, S.Errors[G.ERR_FULL]), (S.Errors[G.ERR_FULL], False))
+        # An empty board shows the empty line even with a status on it (left
+        # the last group), while a non-empty board keeps it off.
+        self.assertEqual(list_message(True, 0, S.Errors[G.ERR_FULL]), (S.Errors[G.ERR_FULL], True))
+        self.assertEqual(list_message(True, 2, 'x'), ('x', False))
         self.assertEqual(list_message(True, 2, ''), ('', False))
 
 

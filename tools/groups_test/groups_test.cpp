@@ -94,6 +94,12 @@ void checkCache() {
     s.count = 0;
     tt::groups::listMessage(s, &status, &empty);
     CHECK(empty);
+    // Leaving the last group: the board is received and empty, but the status
+    // line is still set. Both the status and the empty copy must draw.
+    s.hasBoard = true;
+    std::snprintf(s.status, sizeof(s.status), "%s", "x");
+    tt::groups::listMessage(s, &status, &empty);
+    CHECK(empty && status && status[0] == 'x');
     s.hasBoard = false;
     tt::groups::listMessage(s, &status, &empty);
     CHECK(!empty && std::strcmp(status, tt::groups::kConnecting) == 0);

@@ -72,14 +72,15 @@ def picker_back_z(m):
 def list_message(ready, group_count, status):
     """Status line and whether the empty-list line is shown.
 
-    Connecting and the empty line are never both shown. A result or error
-    replaces the empty line until the next quiet refresh.
+    Connecting excludes the empty line. Once the board is received, an empty
+    count shows the empty line even while a status line is set, so leaving the
+    last group does not blank the board.
     """
     if not ready:
         return S.Connecting, False
     if status == S.Connecting:
         status = ''
-    return status, group_count == 0 and not status
+    return status, group_count == 0
 
 
 class PageLayout(object):

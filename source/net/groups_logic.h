@@ -612,7 +612,10 @@ inline void listMessage(const GroupsState& g, const char** status, bool* empty) 
     }
     if (g.status[0]) {
         *status = g.status;
-        *empty = false;
+        // A received board can be empty even with a status line on it, so the
+        // status and the "No groups yet..." copy draw together. The manager and
+        // connecting paths above are not boards, so they keep empty false.
+        *empty = g.count == 0;
         return;
     }
     *status = "";

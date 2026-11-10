@@ -89,4 +89,4 @@ That runs `python3 tools/groups_test/test_groups.py` and `g++` on `tools/groups_
 
 `tools/padnav_test` still passes with the ten book-page buttons. The grid is `kY0 = 30`, `kBtnH = 32`, `kStepY = 36`, so the fourth row ends at y 170, above the tab bar.
 
-This commit was not run in Azahar and not run on hardware. `make` with devkitARM r68 produced `toontown3ds.3dsx` with no warnings in `source/`. `tools/ui_size/run.sh` compiles `source/render/ui.cpp` with `arm-none-eabi-g++` (`-Wall -Wextra`) and the 112 KiB assert. The host check `adoptGlobalManager` covers taking DoId 4722 without an ENTER.
+The QA pass QA-20261109-112 exercised the book page in Azahar (Old 3DS mode) against the local stock server; no hardware run has been made. The tip was built with `make` and devkitARM r68, with no warnings in `source/`. `tools/ui_size/run.sh` compiles `source/render/ui.cpp` with `arm-none-eabi-g++` (`-Wall -Wextra`) and the 112 KiB assert. The host check `adoptGlobalManager` covers taking DoId 4722 without an ENTER.
