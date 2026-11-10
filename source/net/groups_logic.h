@@ -1,10 +1,13 @@
 // Groups finder logic shared by the 3DS client and tools/groups_test.
 //
 // Wire ids are the DCFile numbers for otp.dc, toon.dc, platform.dc, groups.dc
-// in that order. avatarGone is field 2294 (class-local index 11, not the wire
-// id). The CLIENT_HELLO hash stays the stock otp+toon value. The UberDOG owns
-// the board; this header is the client cache, the datagram layout, and the
-// 320x240 sheet. See docs/design/groups.md.
+// in that order. TTPlatformManager is 2270 through 2273. The nine TTGroupInfo
+// struct members take 2274 through 2282, because Panda numbers struct fields.
+// TTGroupsManager therefore starts at 2283. avatarGone is field 2294, which is
+// class-local index 11, not the wire id. The CLIENT_HELLO hash stays the stock
+// otp+toon value. tools/groups_test pins every id below against DCFile.
+// The UberDOG owns the board; this header is the client cache, the datagram
+// layout, and the 320x240 sheet. See docs/design/groups.md.
 #pragma once
 
 #include <cstdint>
@@ -200,6 +203,48 @@ inline uint32_t hoodOfZone(uint32_t zone) {
     return publishHood(hood) ? hood : 0;
 }
 
+// Hoods of the Toon's current task targets. zones are NPCToons zones (quest toNpc).
+// Unknown, HQ and non-playground zones are dropped. The result is unique, sorted,
+// and capped at kMaxTaskHoods, which is what Android's clean_task_hoods keeps.
+inline int taskHoodsFromNpcZones(const int32_t* zones, int count, uint32_t* out, int cap) {
+    uint32_t found[8];
+    int n = 0;
+    if (count > 8) count = 8;
+    for (int i = 0; i < count; i++) {
+        if (zones[i] <= 0) continue;
+        const uint32_t hood = hoodOfZone(uint32_t(zones[i]));
+        bool task = false;
+        for (uint32_t h : kTaskHoods)
+            if (h == hood) task = true;
+        if (!task) continue;
+        bool seen = false;
+        for (int j = 0; j < n; j++)
+            if (found[j] == hood) seen = true;
+        if (seen || n >= 8) continue;
+        found[n++] = hood;
+    }
+    for (int i = 1; i < n; i++) {
+        const uint32_t key = found[i];
+        int j = i;
+        while (j > 0 && found[j - 1] > key) {
+            found[j] = found[j - 1];
+            j--;
+        }
+        found[j] = key;
+    }
+    if (cap > kMaxTaskHoods) cap = kMaxTaskHoods;
+    if (n > cap) n = cap;
+    for (int i = 0; i < n; i++) out[i] = found[i];
+    return n;
+}
+
+inline void writeTaskHoods(net::DatagramWriter& w, const uint32_t* hoods, int n) {
+    if (n < 0) n = 0;
+    if (n > kMaxTaskHoods) n = kMaxTaskHoods;
+    w.u16(uint16_t(n * 4));
+    for (int i = 0; i < n; i++) w.u32(hoods[i]);
+}
+
 inline int activityFor(uint32_t zone) {
     const uint32_t hood = hoodOfZone(zone);
     if (hood == 10000 || hood == 11000 || hood == 12000 || hood == 13000) return kActBossLobby;
@@ -361,6 +406,13 @@ struct GroupsState {
     GroupView groups[kMaxGroups]{};
     char status[96] = {};
     bool showEmpty = false;
+    // Join travel. The main loop consumes goZone through groupsTakeTravel.
+    // awaitFriend is a teleportQuery still waiting on teleportResponse.
+    // hoodFallback is the playground used when that query cannot complete.
+    uint32_t goZone = 0;
+    bool goFromMap = false;
+    uint32_t awaitFriend = 0;
+    uint32_t hoodFallback = 0;
 
     void touch() { revision++; }
 

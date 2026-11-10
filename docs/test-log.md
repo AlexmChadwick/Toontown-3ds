@@ -2116,3 +2116,17 @@ empty, loading, own, leave, error, picker. They read the rectangles from
 headers that are not installed) and reported `padnav_test: 156 checks, 0 failures`.
 The book page grid is 10 buttons. The fourth row ends at y 170.
 
+## 2026-11-10 - Groups wire ids, task hoods, join travel (host only)
+
+No Azahar binary and no devkitARM `make`. No groups server was started.
+
+`OTT=/tmp/ott-etc tools/groups_test/run.sh` passed with no skips: 65 Python tests,
+then `groups_test ok`. The DCFile check loaded `otp.dc`, `toon.dc`,
+`tools/platform/platform.dc` and `tools/groups/groups.dc`. otp+toon hash is
+547155168. Platform fields are 2270-2273, `TTGroupInfo` is 2274-2282, and
+`TTGroupsManager` is 2283-2294 (`avatarGone` 2294, class-local index 11).
+The C++ check printed `sizeof(GroupsState)=2700` and `sizeof(GroupView)=80`.
+
+`tools/ui_size/run.sh` compiled `source/render/ui.cpp` with `arm-none-eabi-g++`
+(`-Wall -Wextra`, no warnings) and printed `sizeof(Ui)=105056` (limit 114688).
+

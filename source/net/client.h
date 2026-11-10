@@ -1780,6 +1780,10 @@ public:
     const groups::GroupsState& groups() const { return groups_; }
     void groupsWatch(bool on);
     void groupsCommand(uint8_t cmd, uint8_t kind, uint8_t target, uint32_t id);
+    // Join asked the main loop to travel. fromMap sends checkTeleportAccess first.
+    bool groupsTakeTravel(uint32_t& zone, bool& fromMap);
+    // A teleportQuery started by a join got its teleportResponse.
+    void groupsOnTeleportResult();
 
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;

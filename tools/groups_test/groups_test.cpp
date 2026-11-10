@@ -121,6 +121,16 @@ void checkRules() {
     CHECK(tt::groups::teleportPlan(here, 3, 1000, true, true) == tt::groups::kGoFriend);
     CHECK(tt::groups::teleportPlan(here, 9, 2000, false, true) == tt::groups::kGoHoodAfterShard);
     CHECK(tt::groups::teleportPlan(here, 3, 1000, false, false) == tt::groups::kGoTell);
+    int32_t zones[] = {2100, 1100, 2105, 0, 7000, 1000, -1};
+    uint32_t hoods[4];
+    const int nHoods = tt::groups::taskHoodsFromNpcZones(zones, 7, hoods, 4);
+    CHECK(nHoods == 2);
+    CHECK(hoods[0] == 1000 && hoods[1] == 2000);
+    uint8_t packed[32];
+    tt::net::DatagramWriter hw(packed, sizeof(packed));
+    tt::groups::writeTaskHoods(hw, hoods, nHoods);
+    CHECK(hw.size() == 2 + 8);
+    CHECK(packed[0] == 8 && packed[1] == 0);
     CHECK(tt::groups::moveFocus(-1, 3, 1) == 0);
     CHECK(tt::groups::moveFocus(2, 3, 1) == 2);
     CHECK(tt::groups::kFilterH >= 48.0f && tt::groups::kRowBtnH >= 48.0f);

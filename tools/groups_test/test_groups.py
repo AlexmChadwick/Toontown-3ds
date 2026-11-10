@@ -18,8 +18,47 @@ from ttgroups import wire  # noqa: E402
 from ttgroups.office import Office  # noqa: E402
 
 DC = os.path.join(PY, 'groups.dc')
+PLATFORM_DC = os.path.join(ROOT, 'tools', 'platform', 'platform.dc')
 CPP_LOGIC = os.path.join(ROOT, 'source', 'net', 'groups_logic.h')
 CPP_CLIENT = os.path.join(ROOT, 'source', 'net', 'groups_client.cpp')
+
+# DCFile numbers for otp.dc + toon.dc + platform.dc + groups.dc.
+# The nine TTGroupInfo members sit between platform and the manager.
+GROUPS_FIELDS = (
+    'requestBoard', 'stopBoard', 'setContext', 'createGroup', 'joinGroup', 'leaveGroup',
+    'setBoard', 'groupChanged', 'groupGone', 'result', 'noteActivity', 'avatarGone',
+)
+GROUPS_BASE = 2283
+PLATFORM_FIELDS = (
+    ('setMyPlatform', 2270),
+    ('requestPlatforms', 2271),
+    ('setPlatforms', 2272),
+    ('clearPlatform', 2273),
+)
+STRUCT_FIELDS = (
+    ('groupId', 2274),
+    ('leaderId', 2275),
+    ('kind', 2276),
+    ('target', 2277),
+    ('hoodId', 2278),
+    ('shardId', 2279),
+    ('maxSize', 2280),
+    ('flags', 2281),
+    ('members', 2282),
+)
+CLSEND = {'requestBoard', 'stopBoard', 'setContext', 'createGroup', 'joinGroup', 'leaveGroup'}
+
+
+def ott_etc():
+    """Directory that holds otp.dc and toon.dc. OTT, then the pinned submodule."""
+    cands = []
+    if os.environ.get('OTT'):
+        cands.append(os.path.join(os.environ['OTT'], 'etc'))
+    cands.append(os.path.join(ROOT, 'ref', 'open-toontown', 'etc'))
+    for cand in cands:
+        if os.path.isfile(os.path.join(cand, 'otp.dc')) and os.path.isfile(os.path.join(cand, 'toon.dc')):
+            return cand
+    return None
 
 
 class Clock:
@@ -715,28 +754,61 @@ class DcTests(unittest.TestCase):
             self.assertIn(name, client)
 
     def test_avatar_gone_wire_id_is_2294(self):
-        # Same check as platform setMyPlatform at 2270: the id comes from DCFile, not the class index.
+        # Every id the 3DS hardcodes, from a real DCFile. No skip: a missing
+        # wheel or a missing otp.dc fails the suite.
         try:
             from panda3d.core import Filename
             from panda3d.direct import DCFile
-        except ImportError:
-            self.skipTest('Panda3D is not installed in this interpreter')
-        ott = os.environ.get('OTT', '')
-        otp = os.path.join(ott, 'etc', 'otp.dc')
-        toon = os.path.join(ott, 'etc', 'toon.dc')
-        platform = os.path.join(ROOT, 'tools', 'platform', 'platform.dc')
-        if not os.path.exists(otp):
-            self.skipTest('staged upstream DC files are unavailable')
+        except ImportError as exc:
+            self.fail('Panda3D is required (pip install panda3d==1.10.15): %s' % exc)
+        etc = ott_etc()
+        if etc is None:
+            self.fail('otp.dc and toon.dc not found. Set OTT= to the open-toontown checkout, '
+                      'or init ref/open-toontown.')
+        self.assertTrue(os.path.isfile(PLATFORM_DC), PLATFORM_DC)
+        otp = os.path.join(etc, 'otp.dc')
+        toon = os.path.join(etc, 'toon.dc')
+        stock = DCFile()
+        self.assertTrue(stock.read(Filename.fromOsSpecific(otp)), otp)
+        self.assertTrue(stock.read(Filename.fromOsSpecific(toon)), toon)
+        self.assertEqual(stock.getHash(), 547155168)
         dc = DCFile()
-        for path in (otp, toon, platform, DC):
+        for path in (otp, toon, PLATFORM_DC, DC):
             self.assertTrue(dc.read(Filename.fromOsSpecific(path)), path)
+        plat = dc.getClassByName('TTPlatformManager')
+        self.assertIsNotNone(plat)
+        self.assertEqual(plat.getNumFields(), len(PLATFORM_FIELDS))
+        for index, (name, number) in enumerate(PLATFORM_FIELDS):
+            field = plat.getFieldByName(name)
+            self.assertEqual(field.getNumber(), number, name)
+            self.assertEqual(plat.getField(index).getName(), name)
+        info = dc.getClassByName('TTGroupInfo')
+        self.assertIsNotNone(info)
+        for index, (name, number) in enumerate(STRUCT_FIELDS):
+            field = info.getFieldByName(name)
+            self.assertEqual(field.getNumber(), number, name)
+            self.assertEqual(info.getField(index).getName(), name)
         cls = dc.getClassByName('TTGroupsManager')
-        field = cls.getFieldByName('avatarGone')
-        self.assertEqual(field.getNumber(), 2294)
-        self.assertFalse(field.hasKeyword('clsend'))
-        self.assertEqual(dc.getClassByName('TTPlatformManager').getFieldByName('setMyPlatform').getNumber(), 2270)
+        self.assertEqual(cls.getNumFields(), len(GROUPS_FIELDS))
+        with open(CPP_LOGIC, encoding='utf-8') as f:
+            logic = f.read()
+        self.assertIn('kFieldBase = %d' % GROUPS_BASE, logic)
+        self.assertIn('kAvatarGoneField = 2294', logic)
+        for index, name in enumerate(GROUPS_FIELDS):
+            field = cls.getFieldByName(name)
+            number = GROUPS_BASE + index
+            self.assertEqual(field.getNumber(), number, name)
+            self.assertEqual(cls.getField(index).getName(), name)
+            self.assertEqual(cls.getField(index).getNumber(), number)
+            self.assertEqual(field.hasKeyword('clsend'), name in CLSEND, name)
+            self.assertIn('k%s = kFieldBase + %d' % (name[0].upper() + name[1:], index), logic)
+        self.assertEqual(cls.getFieldByName('avatarGone').getNumber(), 2294)
+        self.assertFalse(cls.getFieldByName('avatarGone').hasKeyword('clsend'))
         self.assertEqual(cls.getField(11).getName(), 'avatarGone')
         self.assertNotEqual(cls.getField(11).getNumber(), 11)
+        with open(os.path.join(ROOT, 'source', 'net', 'dc_generated.h'), encoding='utf-8') as f:
+            generated = f.read()
+        self.assertIn('kHash = 547155168u', generated)
         from ttgroups.postremove import add_groups_post_remove, send_groups_disconnect
         sent = []
         remembered = []

@@ -1,0 +1,8 @@
+from ttplatform import TTPlatformManager/AI/UD
+
+dclass TTPlatformManager : DistributedObject {
+  setMyPlatform(uint8) clsend;
+  requestPlatforms(uint32 []) clsend;
+  setPlatforms(uint32 [], uint8 []);
+  clearPlatform(uint32);
+};

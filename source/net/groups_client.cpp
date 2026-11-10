@@ -5,6 +5,7 @@
 #include "core/log.h"
 #include "net/client.h"
 #include "net/msg_types.h"
+#include "quest/quest_text.h"
 
 namespace tt::net {
 
@@ -16,6 +17,34 @@ namespace {
 
 bool canSend(const Client& c, const groups::GroupsState& g) {
     return g.managerId != 0 && c.inZone();
+}
+
+// Same gate the Map page uses: a publishable hood, and the teleport-access bit
+// once setTeleportAccess has arrived. Offline (no field yet) does not gate.
+bool hoodAllowed(const OwnStats& stats, uint32_t hood) {
+    if (!groups::publishHood(hood)) return false;
+    const unsigned bit = hood / 1000u;
+    if (bit >= 32) return false;
+    if (stats.hasTeleportAccess && (stats.teleportAccess & (1u << bit)) == 0) return false;
+    return true;
+}
+
+int taskHoodsOf(const OwnQuests& quests, uint32_t* out, int cap) {
+    int32_t zones[kMaxQuests];
+    int n = 0;
+    const int count = quests.count < kMaxQuests ? quests.count : kMaxQuests;
+    for (int i = 0; i < count; i++) {
+        const uint32_t to = quests.quests[i].toNpc;
+        if (to == 0 || to > 0xFFFF) continue;
+        const tt::quest::NpcDef* npc = tt::quest::findNpc(static_cast<uint16_t>(to));
+        if (!npc || npc->zone <= 0) continue;
+        zones[n++] = npc->zone;
+    }
+    return groups::taskHoodsFromNpcZones(zones, n, out, cap);
+}
+
+void sayGo(groups::GroupsState& g, const groups::GroupView& view) {
+    std::snprintf(g.status, sizeof(g.status), "Go to %s to meet your group.", groups::placeName(view));
 }
 
 } // namespace
@@ -48,7 +77,9 @@ void Client::groupsSendContext() {
     w.u32(hood);
     w.u32(shardId_);
     w.u8(uint8_t(activity));
-    w.u16(0); // task hoods: the client does not resolve NPC zones
+    uint32_t taskHoods[groups::kMaxTaskHoods];
+    const int n = taskHoodsOf(ownQuests_, taskHoods, groups::kMaxTaskHoods);
+    groups::writeTaskHoods(w, taskHoods, n);
     finish(w);
 }
 
@@ -136,6 +167,10 @@ void Client::groupsResult(uint8_t op, uint8_t code, uint32_t groupId) {
     } else if (op == groups::kOpLeave) {
         std::snprintf(groups_.status, sizeof(groups_.status), "%s", groups::kLeft);
     } else if (op == groups::kOpJoin) {
+        groups_.goZone = 0;
+        groups_.goFromMap = false;
+        groups_.awaitFriend = 0;
+        groups_.hoodFallback = 0;
         const groups::GroupView* g = nullptr;
         for (int i = 0; i < groups_.count; i++)
             if (groups_.groups[i].id == groupId) g = &groups_.groups[i];
@@ -143,19 +178,73 @@ void Client::groupsResult(uint8_t op, uint8_t code, uint32_t groupId) {
             std::snprintf(groups_.status, sizeof(groups_.status), "%s", groups::kJoined);
         } else {
             const uint32_t hood = groups::hoodOfZone(zoneId());
-            const bool allowed = !ownStats_.hasTeleportAccess || (ownStats_.teleportAccess & (1u << (g->hood / 1000))) != 0;
-            const int plan = groups::teleportPlan(*g, shardId_, hood, isFriend(g->leader),
-                                                  allowed && g->hood >= 1000 && g->hood <= 9000);
-            // This client does not teleport. Any plan that would move the toon becomes a line of text.
-            if (plan == groups::kGoNone)
+            const bool allowed = hoodAllowed(ownStats_, g->hood);
+            const int plan = groups::teleportPlan(*g, shardId_, hood, isFriend(g->leader), allowed);
+            if (plan == groups::kGoNone) {
                 std::snprintf(groups_.status, sizeof(groups_.status), "%s", groups::kAlreadyHere);
-            else
-                std::snprintf(groups_.status, sizeof(groups_.status), "Go to %s to meet your group.",
-                              groups::placeName(*g));
+            } else if (plan == groups::kGoFriend) {
+                // Android calls teleportQuery. This client can send it only to a
+                // toon already in interest. Otherwise the Map teleport to the
+                // group's hood is the path that actually moves us.
+                std::snprintf(groups_.status, sizeof(groups_.status), "%s", groups::kJoined);
+                if (sendTeleportQuery(g->leader)) {
+                    groups_.awaitFriend = g->leader;
+                    if (allowed) groups_.hoodFallback = g->hood;
+                } else if (allowed) {
+                    groups_.goZone = g->hood;
+                    groups_.goFromMap = true;
+                } else {
+                    sayGo(groups_, *g);
+                }
+            } else if (plan == groups::kGoHood) {
+                std::snprintf(groups_.status, sizeof(groups_.status), "%s", groups::kJoined);
+                groups_.goZone = g->hood;
+                groups_.goFromMap = true;
+            } else {
+                // kGoHoodAfterShard needs a district change this client does not
+                // have (the district list is display only). kGoTell is Android's
+                // "go to this place" line. Both stay a status line.
+                sayGo(groups_, *g);
+            }
         }
     }
     groups_.touch();
     TT_LOG("groups: result op %u code %u group %u", unsigned(op), unsigned(code), unsigned(groupId));
+}
+
+bool Client::groupsTakeTravel(uint32_t& zone, bool& fromMap) {
+    if (!groups_.goZone) return false;
+    zone = groups_.goZone;
+    fromMap = groups_.goFromMap;
+    groups_.goZone = 0;
+    groups_.goFromMap = false;
+    return true;
+}
+
+void Client::groupsOnTeleportResult() {
+    if (!groups_.awaitFriend) return;
+    const TeleportResult& t = friends_.teleport;
+    if (!t.valid || t.avId != groups_.awaitFriend) return;
+    const uint32_t fallback = groups_.hoodFallback;
+    groups_.awaitFriend = 0;
+    groups_.hoodFallback = 0;
+    if (t.available == 1 && t.shardId == shardId_ && t.zoneId != 0) {
+        groups_.goZone = t.zoneId;
+        groups_.goFromMap = false;
+        return;
+    }
+    if (fallback != 0 && t.shardId == shardId_) {
+        groups_.goZone = fallback;
+        groups_.goFromMap = true;
+        return;
+    }
+    for (int i = 0; i < groups_.count; i++) {
+        if (groups_.groups[i].leader == t.avId || groups_.groups[i].has(groups_.selfId)) {
+            sayGo(groups_, groups_.groups[i]);
+            groups_.touch();
+            return;
+        }
+    }
 }
 
 bool Client::groupsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {

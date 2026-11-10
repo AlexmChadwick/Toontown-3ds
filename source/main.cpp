@@ -1833,6 +1833,18 @@ int main() {
                 net.groupsCommand(uiState.groupsCmd, uiState.groupsKind, uiState.groupsTarget, uiState.groupsId);
                 uiState.groupsCmd = 0;
             }
+            uint32_t goZone = 0;
+            bool goFromMap = false;
+            if (net.groupsTakeTravel(goZone, goFromMap) && !uiState.teleportRequest) {
+                if (tt::world::Place::available(goZone)) {
+                    uiState.teleportRequest = goZone;
+                    uiState.teleportFromMap = goFromMap;
+                    if (ui.book().isOpen()) ui.book().close("groups");
+                    TT_LOG("groups: go to zone %u", unsigned(goZone));
+                } else {
+                    TT_LOG("groups: zone %u is not installed", unsigned(goZone));
+                }
+            }
         }
         if (uiState.infoButtonPressed) { // the info panel's Hop off / Leave button is B
             uiState.infoButtonPressed = false;
@@ -2778,6 +2790,8 @@ int main() {
                         toast = toastBuf;
                         toastAge = 0.0f;
                         ui.logChat(w.name[0] ? w.name : "A toon", said, true, false, static_cast<u32>(osGetTime()));
+                    } else if (fe.type == tt::net::FriendEventType::TeleportResult) {
+                        net.groupsOnTeleportResult();
                     } else if (fe.type == tt::net::FriendEventType::InviteIn && net.pendingInvite()) {
                         snprintf(toastBuf, sizeof(toastBuf), "%s wants to be friends!", net.pendingInvite()->name);
                         toast = toastBuf;
