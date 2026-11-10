@@ -2098,3 +2098,21 @@ smaller power of two. Font sheets are already the minimum size that holds the ce
 `DEVKITPRO` make produced `toontown3ds.3dsx` with no warnings in `source/`.
 The linker still prints the existing `crtn.o` executable-stack note.
 
+## 2026-11-09 - Groups page (host only)
+
+No Azahar binary and no devkitARM on this machine. This entry is not an emulator
+or hardware pass, and it does not claim a frame budget. No groups server was started.
+
+`tools/groups_test/run.sh` passed: 65 Python tests, 1 skipped (Panda DCFile, because
+Panda and platform.dc are not installed), then `groups_test ok`. The C++ check
+printed `sizeof(GroupsState)=2684` and `sizeof(GroupView)=80`. The Python package
+`tools/groups/ttgroups` is 37559 bytes and is not linked into the client.
+
+`python3 tools/groups/render_3ds.py` wrote six 320x240 sheets under `layouts/3ds/`:
+empty, loading, own, leave, error, picker. They read the rectangles from
+`source/net/groups_logic.h`. They are software drawings, not emulator captures.
+
+`tools/padnav_test` was rebuilt with g++ (this image's clang++ looks for GCC 14
+headers that are not installed) and reported `padnav_test: 156 checks, 0 failures`.
+The book page grid is 10 buttons. The fourth row ends at y 170.
+

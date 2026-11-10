@@ -149,8 +149,9 @@ void buildToonTab(FocusGroup& group, bool online);
 
 // ---- Book tab (render/ui.cpp): one button per Shtiker Book page (ids = Book::PageIndex) ----
 namespace booktab {
-constexpr int kCount = 9, kCols = 3;
-constexpr float kX0 = 14, kY0 = 42, kBtnW = 92, kBtnH = 36, kStepX = 100, kStepY = 44;
+constexpr int kCount = 10, kCols = 3;
+// Four rows stay above the tab bar (y 208) and above the hint at y 180.
+constexpr float kX0 = 14, kY0 = 30, kBtnW = 92, kBtnH = 32, kStepX = 100, kStepY = 36;
 } // namespace booktab
 void buildBookTab(FocusGroup& group);
 

@@ -72,7 +72,7 @@ const char* const kTabNames[kTabCount] = {"Map", "Chat", "Toon", "Gags", "Book",
 // Book tab buttons, in Book::PageIndex order.
 const char* const kBookPageNames[pad::booktab::kCount] = {"Gags",       "ToonTasks", "Cog Gallery",
                                                           "Cog Suits",  "Fish",      "Trophies",
-                                                          "SOS Toons",  "Options",   "Map"};
+                                                          "SOS Toons",  "Options",   "Map",       "Groups"};
 
 // The Debug panel and the plain info panel keep a dark, high-contrast look (developer data).
 const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
@@ -115,7 +115,7 @@ bool Ui::init() {
 
     textCache_.clear();
     textBuf_ = C2D_TextBufNew(1024);
-    staticBuf_ = C2D_TextBufNew(256);
+    staticBuf_ = C2D_TextBufNew(384);
     debugBuf_ = C2D_TextBufNew(1024);
     whisperBuf_ = C2D_TextBufNew(128);
     if (!gagText_.init(768) || !chatLogText_.init(512) || !toonText_.init(1024) || !laff_.init() || !timer_.init()) return false;
@@ -213,6 +213,8 @@ void Ui::syncContext(net::Client& client, unsigned zone, bool lost, bool exclusi
                      bool fishing, bool info) {
     const bool changed = contextZone_ && contextZone_ != zone;
     contextZone_ = zone;
+    contextGroups_ = &client.groups();
+    contextSelf_ = client.avatarId();
     contextFishing_ = fishing;
     contextInfo_ = info;
     if (changed || lost || exclusive) {
@@ -251,6 +253,8 @@ u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     if (owner == PanelOwner::Book) {
         BookDrawContext bdc;
         bdc.state = &s;
+        bdc.groups = contextGroups_;
+        bdc.selfId = contextSelf_;
         return book_.handleInput(down, held, t, bdc);
     }
     if (owner == PanelOwner::Shop) return shop_.handleInput(down, t);
@@ -420,6 +424,8 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
         bdc.numDistricts = c.numDistricts;
         bdc.state = const_cast<State*>(&s);
         bdc.ctx = &c;
+        bdc.groups = c.groups;
+        bdc.selfId = c.selfId;
         bdc.mapImage = hasMap_ ? &mapImage_ : nullptr;
         bdc.hasMap = hasMap_;
         bdc.mapMinX = mapMinX_;

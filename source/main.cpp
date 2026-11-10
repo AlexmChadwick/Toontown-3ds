@@ -1822,6 +1822,18 @@ int main() {
         }
         // ---- end visual ----
         in.down &= ~ui.handleInput(in.down, in.held, touch, uiState);
+        if (netStarted) {
+            static bool groupsPageOn = false;
+            const bool on = ui.book().isOpen() && ui.book().currentPage() == tt::ui::Book::kPageGroups;
+            if (on != groupsPageOn) {
+                net.groupsWatch(on);
+                groupsPageOn = on;
+            }
+            if (uiState.groupsCmd) {
+                net.groupsCommand(uiState.groupsCmd, uiState.groupsKind, uiState.groupsTarget, uiState.groupsId);
+                uiState.groupsCmd = 0;
+            }
+        }
         if (uiState.infoButtonPressed) { // the info panel's Hop off / Leave button is B
             uiState.infoButtonPressed = false;
             in.down |= KEY_B;
@@ -3871,6 +3883,8 @@ int main() {
             }
             ctx.homeAvailable = net.hasEstateManager();
             ctx.toonName = net.avatarName();
+            ctx.groups = &net.groups();
+            ctx.selfId = net.avatarId();
             {
                 tt::world::ToonDna tabDna;
                 if (tt::world::parseNetString(net.avatarDna(), tt::net::kDnaSize, &tabDna)) {

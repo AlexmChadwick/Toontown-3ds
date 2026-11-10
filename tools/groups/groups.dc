@@ -1,0 +1,28 @@
+from ttgroups import TTGroupsManager/AI/UD
+
+struct TTGroupInfo {
+  uint32 groupId;
+  uint32 leaderId;
+  uint8 kind;
+  uint8 target;
+  uint32 hoodId;
+  uint32 shardId;
+  uint8 maxSize;
+  uint8 flags;
+  uint32 members[];
+};
+
+dclass TTGroupsManager : DistributedObject {
+  requestBoard() clsend;
+  stopBoard() clsend;
+  setContext(uint32, uint32, uint8, uint32[]) clsend;
+  createGroup(uint8, uint8, uint8) clsend;
+  joinGroup(uint32) clsend;
+  leaveGroup() clsend;
+  setBoard(uint32, TTGroupInfo []);
+  groupChanged(uint32, TTGroupInfo);
+  groupGone(uint32, uint32);
+  result(uint8, uint8, uint32);
+  noteActivity(uint32, uint8, uint8) airecv;
+  avatarGone(uint32 avId, uint32 nonce);
+};

@@ -41,6 +41,7 @@ namespace tt::golf { struct Movie; }
 #include "net/datagram.h"
 #include "net/quest_net.h"
 #include "net/book_net.h"
+#include "net/groups_logic.h"
 #include "net/boss_state.h"
 #include "net/cj_state.h"
 // ---- cogdo protocol ----
@@ -1775,6 +1776,11 @@ public:
     bool pollFriendEvent(FriendEvent& out);
     // ===================== end friends API =====================
 
+    // Groups (docs/design/groups.md). Sends nothing until DoId 4722 is generated.
+    const groups::GroupsState& groups() const { return groups_; }
+    void groupsWatch(bool on);
+    void groupsCommand(uint8_t cmd, uint8_t kind, uint8_t target, uint32_t id);
+
     // Clock: 16-bit centisecond network time (direct ClockDelta, bits=16).
     int16_t networkTime(uint32_t nowMs) const;
     uint32_t networkToLocal(int16_t networkTime, uint32_t nowMs) const;
@@ -2108,6 +2114,14 @@ private:
 
     // ===================== friends (client_friends.cpp) =====================
     FriendsState friends_;
+    groups::GroupsState groups_;
+    void groupsReset();
+    void groupsNoteGenerate(uint32_t doId);
+    bool groupsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    void groupsSendContext();
+    void groupsSendBoardRequest();
+    void groupsName(groups::GroupView& g) const;
+    void groupsResult(uint8_t op, uint8_t code, uint32_t groupId);
     bool friendsHandleEnter(const dc::ClassDesc& cls, DatagramReader& r, uint32_t doId, const uint16_t* req,
                             uint16_t reqCount, bool other);
     bool friendsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId);

@@ -14,6 +14,7 @@
 #include "ui/book_pages/page_sos.h"
 #include "ui/book_pages/page_options.h"
 #include "ui/book_pages/page_map.h"
+#include "ui/book_pages/page_groups.h"
 
 namespace tt::ui {
 
@@ -29,6 +30,7 @@ public:
         kPageSos,
         kPageOptions,
         kPageMap,
+        kPageGroups,
         kPageCount
     };
 
@@ -80,6 +82,7 @@ private:
     PageSos pageSos_;
     PageOptions pageOptions_;
     PageMap pageMap_;
+    PageGroups pageGroups_;
 
     BookPage* pages_[kPageCount] = {
         &pageGags_,
@@ -90,7 +93,8 @@ private:
         &pageTrophies_,
         &pageSos_,
         &pageOptions_,
-        &pageMap_
+        &pageMap_,
+        &pageGroups_
     };
 
     C2D_TextBuf staticBuf_ = nullptr;

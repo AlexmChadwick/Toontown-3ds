@@ -587,6 +587,7 @@ void Client::resetWorld() {
     districtsDone_ = uberDone_ = zoneDone_ = false;
     zoneReadyMs_ = 0;
     friendsReset(); // friends hook (client_friends.cpp)
+    groupsReset();
 }
 
 void Client::onSessionStart() {
@@ -790,7 +791,11 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
     const bool other = type == msg::CLIENT_ENTER_OBJECT_REQUIRED_OTHER ||
                        type == msg::CLIENT_ENTER_OBJECT_REQUIRED_OTHER_OWNER;
     const dc::ClassDesc* cls = findClass(classId);
-    if (!cls) return; // a class we never look at: the whole message is dropped
+    if (!cls) {
+        // TTGroupsManager is not in the otp+toon tables. The global DoId is the contract.
+        if (doId == groups::kManagerDoId) groupsNoteGenerate(doId);
+        return;
+    }
     const uint16_t* req = owner ? requiredOwner(*cls) : requiredOther(*cls);
     const uint16_t reqCount = owner ? cls->ownerCount : cls->otherCount;
     // ---- clerks: fish-sale holiday multiplier comes from NewsManager ----
@@ -1076,6 +1081,7 @@ void Client::maybeSkipTutorial() {
 }
 
 void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (groupsHandleSetField(r, doId, fieldId)) return;
     // ---- clerks: dispatch only a matching service NPC class ----
     if (handleClerksField(r, doId, fieldId))
         return;
@@ -1226,6 +1232,13 @@ void Client::handleLeaving(uint32_t doId) {
     cogdoLeaving(doId); // cogdo lifecycle
     bossLeaving(doId); // boss lifecycle hook
     friendsHandleLeaving(doId); // friends hook (client_friends.cpp)
+    if (doId == groups_.managerId && groups_.managerId != 0) {
+        const bool want = groups_.watchWanted;
+        groups_ = groups::GroupsState{};
+        groups_.watchWanted = want;
+        groups_.selfId = avatarId_;
+        groups_.touch();
+    }
     // ---- racing2 ----
     for (auto& hazard : racingHazards_) if (hazard.active && hazard.doId == doId) { hazard = RacingHazard{}; return; }
     // ---- end racing2 ----

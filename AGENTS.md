@@ -946,3 +946,10 @@ emulator verification; host/build checks do not establish a live tutorial play-t
   payout are pending the main agent's Azahar/hardware pass. Rigid wheels, the
   unavailable-in-the-51-clip-catalog feedPet flourish and presentation/audio gaps
   are listed explicitly in racing.md; do not claim complete visual parity.
+
+### Groups page (2026-11-09)
+
+- The book has a tenth page, Groups, after Map. It is a group finder only: create, list, join, leave. The name is Groups. It does not start invasions or pick a district.
+- Wire ids live in `source/net/groups_logic.h`. `avatarGone` is 2294 when the server loads otp.dc, toon.dc, platform.dc, then groups.dc. The stock `CLIENT_HELLO` hash stays 547155168. Do not regenerate `dc_generated.h` to add this class. DoId 4722. Send nothing until that object is generated.
+- Subscribe only while the Groups page is the open book page. The page allocates its text cache on first use. `tools/groups/ttgroups` is host-test Python and is not linked. Contract, divergences from Android, and the memory numbers are in `docs/design/groups.md`.
+- Host check: `tools/groups_test/run.sh`. No Azahar or hardware claim follows from that script.
