@@ -4,6 +4,7 @@
 #include <cstdio>
 
 #include "core/log.h"
+#include "render/ui.h"
 #include "ui/theme.h"
 
 namespace tt::ui {
@@ -191,21 +192,15 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
         const bool mine = g->has(board->selfId);
         theme::paper(groups::kRowX, groups::kRowY, groups::kRowW, groups::kRowH, 8, mine ? theme::kYellow : theme::kPaper,
                      theme::kPaperEdge);
-        char title[80];
-        groups::groupTitle(*g, title, sizeof(title));
-        if (g->flags & groups::kFlagInProgress) {
-            char extra[96];
-            std::snprintf(extra, sizeof(extra), "%s (%s)", title, groups::kInProgress);
-            std::snprintf(title, sizeof(title), "%s", extra);
-        } else if (g->leaderName[0]) {
-            char extra[96];
-            std::snprintf(extra, sizeof(extra), "%s (%s)", title, g->leaderName);
-            std::snprintf(title, sizeof(title), "%s", extra);
-        } else if (mine) {
-            char extra[96];
-            std::snprintf(extra, sizeof(extra), "%s (%s)", title, groups::kMine);
-            std::snprintf(title, sizeof(title), "%s", extra);
-        }
+        char base[80];
+        groups::groupTitle(*g, base, sizeof(base));
+        const char* suffix = nullptr;
+        if (g->flags & groups::kFlagInProgress) suffix = groups::kInProgress;
+        else if (g->leaderName[0]) suffix = g->leaderName;
+        else if (mine) suffix = groups::kMine;
+        char title[128];
+        if (suffix) std::snprintf(title, sizeof(title), "%s (%s)", base, suffix);
+        else std::snprintf(title, sizeof(title), "%s", base);
         text_.fit(16, groups::kRowY + 4, theme::kTextSmall, theme::kInk, 220, "%s", title);
         text_.fit(16, groups::kRowY + 22, theme::kTextTiny, theme::kInkSoft, 200, "%s", groups::placeName(*g));
         text_.right(groups::kRowX + groups::kRowW - 8, groups::kRowY + 4, theme::kTextSmall, theme::kInk, 64, "%d/%d",

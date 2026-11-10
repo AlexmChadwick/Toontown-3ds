@@ -2130,3 +2130,24 @@ The C++ check printed `sizeof(GroupsState)=2700` and `sizeof(GroupView)=80`.
 `tools/ui_size/run.sh` compiled `source/render/ui.cpp` with `arm-none-eabi-g++`
 (`-Wall -Wextra`, no warnings) and printed `sizeof(Ui)=105056` (limit 114688).
 
+## 2026-11-10 - Groups uberdog adopt and a full make
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+The previous head `2e1c71e` was box-verified in Azahar against astrond. Two blockers
+showed up there: a virgin `make` failed because `page_groups.cpp` used `tt::ui::State`
+before it was complete, and the Groups page stayed on "Groups are not available right
+now." because Astron never ENTERs an uberdog.
+
+`page_groups.cpp` now includes `render/ui.h`. `groupsEnsure` adopts DoId 4722 once
+the session is logged in (district list through a zone change) or in a zone.
+`requestBoard` is still sent only while the page is open and the client is in a zone.
+
+`OTT=/tmp/ott-etc tools/groups_test/run.sh` passed: 65 Python tests, then
+`groups_test ok` (`sizeof(GroupsState)=2700`, `sizeof(GroupView)=80`). The new
+`adoptGlobalManager` check takes 4722 when the session is live and leaves the id
+at 0 when it is not, which keeps the unavailable line.
+
+`make` with devkitARM r68 (gcc 16.1.0), libctru 2.7.1, citro3d 1.7.1 and citro2d
+1.7.0 produced `toontown3ds.3dsx`. No warnings in `source/`. The linker still
+prints the existing `crtn.o` executable-stack note.
+

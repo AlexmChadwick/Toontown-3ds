@@ -494,6 +494,17 @@ private:
     }
 };
 
+// Astron never sends ENTER for an uberdog. Once the session is logged in or in a
+// zone, the client adopts DoId 4722 locally, the same way the Android client calls
+// generateGlobalObject. This does not send anything. A session that is not live
+// leaves the id at 0, so the page stays on the unavailable line.
+inline bool adoptGlobalManager(GroupsState& g, bool sessionLive) {
+    if (!sessionLive || g.managerId != 0) return false;
+    g.managerId = kManagerDoId;
+    g.touch();
+    return true;
+}
+
 inline void listMessage(const GroupsState& g, const char** status, bool* empty) {
     if (g.managerId == 0) {
         *status = kUnavailable;

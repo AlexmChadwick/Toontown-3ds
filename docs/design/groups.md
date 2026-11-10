@@ -4,7 +4,7 @@ Groups is a Shticker Book page: create a group, see the list, join with one pres
 
 The wire matches the Android client. `tools/groups/groups.dc` is the same file, and `tools/platform/platform.dc` is the Android platform file loaded ahead of it. Field numbers below are the Panda `DCFile` numbers when the server reads `otp.dc`, `toon.dc`, `platform.dc`, then `groups.dc`. `TTPlatformManager` is 2270 through 2273. The nine `TTGroupInfo` struct members take 2274 through 2282, because Panda numbers struct fields. `TTGroupsManager` therefore starts at 2283. `avatarGone` is field 2294. That is class-local index 11, not the wire id. `tools/groups_test/test_groups.py` loads those four files with `DCFile` and pins every id the 3DS hardcodes, including the struct numbers. The 3DS `CLIENT_HELLO` hash stays the stock otp+toon value **547155168** (`dc_generated.h` is not regenerated). The four-file hash is a different number and is not sent.
 
-The UberDOG object is DoId **4722**. A stock Open Toontown server never generates it. Until it does, the page shows "Groups are not available right now." and the client sends nothing. Sending a field to an object that was never generated gets the session ejected.
+The UberDOG object is DoId **4722**. Astron does not send an ENTER for an uberdog, so the client never learns that id from a generate. Once the session is logged in (district list through a zone change) the client adopts 4722 locally, the same way the Android client calls `generateGlobalObject(4722, 'TTGroupsManager')`. The page then leaves "Groups are not available right now." `requestBoard` is still sent only while the Groups page is open and the client is in a zone. A server with no object at 4722 can eject a client that opens the page, because that update is addressed to 4722.
 
 ## What the 3DS client sends
 
@@ -55,7 +55,7 @@ After a successful join the client follows Android's `teleport_plan` through the
 - The picker hides the book tab bar. Android's 320x240 overlay was a separate window. Back stays on screen, and Join, Leave and the filters are at least 48px.
 - B closes the picker first, then the book.
 - Groups is the last page. The tenth tab is text, not a baked glyph.
-- A stock server with no DoId 4722 shows the unavailable line and sends nothing.
+- DoId 4722 is adopted as a global object once the session is logged in or in a zone. The client does not wait for an ENTER. Opening the page on a server that has no object at 4722 can eject the session.
 
 ## Memory
 
@@ -87,4 +87,4 @@ That runs `python3 tools/groups_test/test_groups.py` and `g++` on `tools/groups_
 
 `tools/padnav_test` still passes with the ten book-page buttons. The grid is `kY0 = 30`, `kBtnH = 32`, `kStepY = 36`, so the fourth row ends at y 170, above the tab bar.
 
-This work was not run in Azahar and not run on hardware. `make` was not run. `tools/ui_size/run.sh` did compile `source/render/ui.cpp` with `arm-none-eabi-g++` (`-Wall -Wextra`, no warnings) and printed `sizeof(Ui)=105056`.
+This commit was not run in Azahar and not run on hardware. `make` with devkitARM r68 produced `toontown3ds.3dsx` with no warnings in `source/`. `tools/ui_size/run.sh` compiles `source/render/ui.cpp` with `arm-none-eabi-g++` (`-Wall -Wextra`) and the 112 KiB assert. The host check `adoptGlobalManager` covers taking DoId 4722 without an ENTER.

@@ -104,6 +104,40 @@ void Client::groupsNoteGenerate(uint32_t doId) {
     }
 }
 
+bool Client::groupsLive() const {
+    // Logged in (past the login response) through a zone change. Idle, the handshake
+    // and a dead session do not adopt the uberdog.
+    switch (state_) {
+    case State::Districts:
+    case State::AvatarList:
+    case State::ChooseAvatar:
+    case State::CreateAvatar:
+    case State::PlayAvatar:
+    case State::EnterZone:
+    case State::InZone:
+    case State::ChangingZone:
+        return true;
+    case State::Idle:
+    case State::Connecting:
+    case State::Hello:
+    case State::Login:
+    case State::Backoff:
+    case State::Failed:
+        return false;
+    }
+    return false;
+}
+
+void Client::groupsEnsure() {
+    if (groups::adoptGlobalManager(groups_, groupsLive())) {
+        groups_.selfId = avatarId_;
+        TT_LOG("groups: manager %u (global)", unsigned(groups::kManagerDoId));
+    }
+    if (!groups_.watchWanted || groups_.subscribed || !canSend(*this, groups_)) return;
+    groupsSendContext();
+    groupsSendBoardRequest();
+}
+
 void Client::groupsWatch(bool on) {
     groups_.watchWanted = on;
     groups_.selfId = avatarId_;
@@ -117,9 +151,7 @@ void Client::groupsWatch(bool on) {
         groups_.subscribed = false;
         return;
     }
-    if (groups_.managerId == 0 || groups_.subscribed) return;
-    groupsSendContext();
-    groupsSendBoardRequest();
+    groupsEnsure();
 }
 
 void Client::groupsCommand(uint8_t cmd, uint8_t kind, uint8_t target, uint32_t id) {

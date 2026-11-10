@@ -1776,7 +1776,9 @@ public:
     bool pollFriendEvent(FriendEvent& out);
     // ===================== end friends API =====================
 
-    // Groups (docs/design/groups.md). Sends nothing until DoId 4722 is generated.
+    // Groups (docs/design/groups.md). Adopts global DoId 4722 once logged in or in a
+    // zone. Astron does not ENTER uberdogs. Board traffic is sent only while the page
+    // is open and the client is in a zone.
     const groups::GroupsState& groups() const { return groups_; }
     void groupsWatch(bool on);
     void groupsCommand(uint8_t cmd, uint8_t kind, uint8_t target, uint32_t id);
@@ -2121,6 +2123,8 @@ private:
     groups::GroupsState groups_;
     void groupsReset();
     void groupsNoteGenerate(uint32_t doId);
+    bool groupsLive() const;
+    void groupsEnsure();
     bool groupsHandleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
     void groupsSendContext();
     void groupsSendBoardRequest();

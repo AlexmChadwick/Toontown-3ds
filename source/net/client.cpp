@@ -455,6 +455,7 @@ void Client::setState(State s) {
     TT_LOG("net: %s -> %s", stateName(state_), stateName(s));
     state_ = s;
     stateSince_ = now_;
+    groupsEnsure();
 }
 
 void Client::beginConnect() {

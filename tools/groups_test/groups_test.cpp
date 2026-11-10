@@ -140,6 +140,31 @@ void checkRules() {
     CHECK(y + tt::groups::kPickCellH <= tt::groups::kPickBackY);
 }
 
+void checkAdopt() {
+    // No ENTER is required. A live session takes DoId 4722. A session that is not
+    // logged in leaves the id at 0, and the page stays on the unavailable line.
+    tt::groups::GroupsState idle;
+    CHECK(!tt::groups::adoptGlobalManager(idle, false));
+    CHECK(idle.managerId == 0);
+    const char* status = nullptr;
+    bool empty = true;
+    tt::groups::listMessage(idle, &status, &empty);
+    CHECK(std::strcmp(status, tt::groups::kUnavailable) == 0);
+
+    tt::groups::GroupsState live;
+    CHECK(tt::groups::adoptGlobalManager(live, true));
+    CHECK(live.managerId == tt::groups::kManagerDoId);
+    CHECK(tt::groups::kManagerDoId == 4722);
+    CHECK(!tt::groups::adoptGlobalManager(live, true));
+    CHECK(live.managerId == 4722);
+    tt::groups::listMessage(live, &status, &empty);
+    CHECK(std::strcmp(status, tt::groups::kConnecting) == 0);
+
+    live.managerId = 99;
+    CHECK(!tt::groups::adoptGlobalManager(live, true));
+    CHECK(live.managerId == 99);
+}
+
 } // namespace
 
 int main() {
@@ -147,6 +172,7 @@ int main() {
     checkRoundTrip();
     checkCache();
     checkRules();
+    checkAdopt();
     std::printf("groups: sizeof(GroupsState)=%zu sizeof(GroupView)=%zu\n", sizeof(tt::groups::GroupsState),
                 sizeof(tt::groups::GroupView));
     if (gFailures) {
