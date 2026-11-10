@@ -117,6 +117,11 @@ u32 Book::handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDr
     }
 
     // ---- padnav: B closes the book like START (upstream's book has a close button only) ----
+    // A page may take B first (the Groups picker Back). Other pages ignore it.
+    if ((keysDown & KEY_B) && pages_[curPage_]->hideTabs()) {
+        const u32 used = pages_[curPage_]->handleInput(KEY_B, touch, bdc);
+        if (used & KEY_B) return KEY_B | touchKeys;
+    }
     if (keysDown & (KEY_START | KEY_B)) {
         if (closeEnabled_) close((keysDown & KEY_B) ? "B" : "START");
         return (keysDown & (KEY_START | KEY_B)) | touchKeys;
@@ -150,7 +155,7 @@ u32 Book::handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDr
             }
         }
         // Bottom tab bar buttons
-        else if (touch.py >= 214 && tabsEnabled_) {
+        else if (touch.py >= 214 && tabsEnabled_ && !pages_[curPage_]->hideTabs()) {
             const float tabW = 320.0f / kPageCount;
             const int t = static_cast<int>(touch.px / tabW);
             if (t >= 0 && t < kPageCount) {
@@ -165,7 +170,9 @@ u32 Book::handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDr
     // Pages get only touches between the top bar and the tab bar, as before.
     constexpr float kTopBarH = 24.0f;
     constexpr float kTabBarY = 214.0f;
-    const bool pageTouch = (keysDown & KEY_TOUCH) && touch.py >= kTopBarH && touch.py < kTabBarY;
+    // The Groups picker covers the tab bar, so its Back button (which crosses y 214) still hits.
+    const float pageBottom = pages_[curPage_]->hideTabs() ? 240.0f : kTabBarY;
+    const bool pageTouch = (keysDown & KEY_TOUCH) && touch.py >= kTopBarH && touch.py < pageBottom;
     u32 pageKeys = pageTouch ? keysDown : (keysDown & ~KEY_TOUCH);
     // A QuestScript's lesson (no page tabs): A dismisses the speaker's lines, so a page's focused
     // control never takes it and the lesson cannot stall behind the locked close button.
@@ -214,13 +221,17 @@ void Book::draw(const BookDrawContext& bdc) {
         theme::textCentered(titleText, 137, 4, 0.46f, kWhite, 160, 0.5f);
     }
 
-    // Main page parchment paper
-    C2D_DrawRectSolid(2, 24, 0.35f, 316, 188, kPaperBg);
+    // Main page parchment paper. The Groups picker covers the tab bar so its targets fit.
+    const bool cover = pages_[curPage_]->hideTabs();
+    const float paperH = cover ? 214.0f : 188.0f;
+    C2D_DrawRectSolid(2, 24, 0.35f, 316, paperH, kPaperBg);
     C2D_DrawRectSolid(2, 24, 0.36f, 316, 1, kPaperBorder);
-    C2D_DrawRectSolid(2, 211, 0.36f, 316, 1, kPaperBorder);
+    if (!cover) C2D_DrawRectSolid(2, 211, 0.36f, 316, 1, kPaperBorder);
 
     // Draw active page
-    pages_[curPage_]->draw(2, 24, 316, 188, bdc);
+    pages_[curPage_]->draw(2, 24, 316, cover ? 214.0f : 188.0f, bdc);
+
+    if (cover) return;
 
     // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold, each with its
     // page's icon as upstream's page tabs (the page's name is in the header). Text if the icon

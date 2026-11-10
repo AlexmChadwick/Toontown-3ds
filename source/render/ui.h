@@ -49,6 +49,11 @@ struct State {
     int musicVol = 80;
     int sfxVol = 100;
     bool quitRequested = false;
+    // Groups page commands, consumed once by the main loop. 0 means nothing to send.
+    uint8_t groupsCmd = 0;
+    uint8_t groupsKind = 0;
+    uint8_t groupsTarget = 0;
+    uint32_t groupsId = 0;
     bool infoButtonPressed = false; // the info panel's button (Context::infoButton) was pressed
 };
 
@@ -96,6 +101,8 @@ struct Context {
     bool friendOpenChat[8] = {};
     // Toon tab: our name and laff meter face (online only).
     const char* toonName = nullptr;
+    const groups::GroupsState* groups = nullptr;
+    uint32_t selfId = 0;
     float headRgb[3] = {0.7f, 0.7f, 0.8f};
     int species = 0;
     // Our ToonTasks (Toon tab task list); null = offline.
@@ -210,6 +217,8 @@ private:
     bool drawnInfo_ = false; // the last drawn frame showed an info panel (ctx.infoTitle)
     bool drawnInfoButton_ = false; // ...with its button (ctx.infoButton)
     unsigned contextZone_ = 0;
+    const groups::GroupsState* contextGroups_ = nullptr;
+    uint32_t contextSelf_ = 0;
     bool contextFishing_ = false, contextInfo_ = false;
     bool contextRacing_ = false; // ---- racing2 ----
     // ---- end qafix ----
@@ -277,7 +286,7 @@ private:
     float whisperScale_ = 0.42f;
     bool whisperValid_ = false;
     C2D_Text tabText_[kTabCount];
-    C2D_Text bookText_[9]; // Book tab page buttons
+    C2D_Text bookText_[Book::kPageCount]; // Book tab page buttons
     C2D_Text bookTitle_, bookHint_, bookOpen_;
     LaffDisplay laff_; // the tab bar's laff pocket
     ToontownTimer timer_; // minigame countdowns on the info card

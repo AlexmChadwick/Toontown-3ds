@@ -4,6 +4,7 @@
 #include <3ds.h>
 #include <citro2d.h>
 #include "net/book_net.h"
+#include "net/groups_logic.h"
 
 namespace tt::net {
     struct OwnStats;
@@ -26,6 +27,8 @@ struct BookDrawContext {
     int numDistricts = 0;
     State* state = nullptr;
     const Context* ctx = nullptr;
+    const groups::GroupsState* groups = nullptr;
+    uint32_t selfId = 0;
     const C2D_Image* mapImage = nullptr;
     bool hasMap = false;
     float mapMinX = 0, mapMinY = 0, mapMaxX = 1, mapMaxY = 1;
@@ -41,6 +44,8 @@ public:
     virtual void shutdown() {}
     virtual void enter() {}
     virtual void exit() {}
+    // The Groups picker covers the tab bar so its targets stay large enough to hit.
+    virtual bool hideTabs() const { return false; }
     virtual u32 handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
         (void)keysDown; (void)touch; (void)bdc; return 0;
     }

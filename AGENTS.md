@@ -946,3 +946,11 @@ emulator verification; host/build checks do not establish a live tutorial play-t
   payout are pending the main agent's Azahar/hardware pass. Rigid wheels, the
   unavailable-in-the-51-clip-catalog feedPet flourish and presentation/audio gaps
   are listed explicitly in racing.md; do not claim complete visual parity.
+
+### Groups page (2026-11-09)
+
+- The book has a tenth page, Groups, after Map. It is a group finder only: create, list, join, leave. The name is Groups. It does not start invasions or pick a district.
+- Wire ids live in `source/net/groups_logic.h` and are pinned by `DCFile` over otp.dc, toon.dc, `tools/platform/platform.dc`, then `tools/groups/groups.dc`. `TTGroupInfo` occupies 2274 through 2282. `requestBoard` is 2283 and `avatarGone` is 2294 (class-local index 11). The stock `CLIENT_HELLO` hash stays 547155168. Do not regenerate `dc_generated.h` to add this class. DoId 4722 is a global uberdog. Astron does not ENTER it. Adopt it once the session is logged in or in a zone. Send board traffic only while the Groups page is open and the client is in a zone.
+- `setContext` sends up to four task hoods from the baked NPC zone table. A successful join uses the existing teleport path on this district (friend `teleportQuery` when the leader is visible, otherwise the Map hood teleport). Another district stays a status line. There is no district switch.
+- Subscribe only while the Groups page is the open book page. The page allocates its text cache on first use. `tools/groups/ttgroups` is host-test Python and is not linked. Contract, divergences from Android, and the memory numbers are in `docs/design/groups.md`.
+- Host check: `tools/groups_test/run.sh`. No Azahar or hardware claim follows from that script.

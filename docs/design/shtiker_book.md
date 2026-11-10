@@ -17,13 +17,13 @@ The book is managed by `tt::ui::Book` (`source/ui/book.{h,cpp}`), integrated int
 - **L / R Bumpers**: Page turning (`KEY_L` for previous page, `KEY_R` for next page).
 - **D-Pad Left / Right**: `KEY_DLEFT` / `KEY_DRIGHT` for previous/next page.
 - **Top Header Buttons**: `< Prev` (top-left), `Next >` (top-right), and `[X] Close` (top-far-right).
-- **Bottom Tab Bar**: 9 touchable tabs across the bottom edge (height 28px, width ~35.5px each).
+- **Bottom Tab Bar**: 10 touchable tabs across the bottom edge (height 28px, width 32px each). The tenth tab is Groups and has no baked icon, so it draws the word. The book-open page grid is four rows (`pad::booktab`, buttons 32px tall) and stays above y 208.
 
 ---
 
 ## 2. Book Pages & Features
 
-The book implements 9 pages conforming to `tt::ui::BookPage` (`source/ui/book_pages/book_page.h`):
+The book implements 10 pages conforming to `tt::ui::BookPage` (`source/ui/book_pages/book_page.h`). Groups is appended after Map so pages 1 through 9 keep their indexes:
 
 | Page | Class | Tab Name | Contents & Server Data Sources |
 |---|---|---|---|
@@ -36,6 +36,7 @@ The book implements 9 pages conforming to `tt::ui::BookPage` (`source/ui/book_pa
 | **7. SOS Cards** | `PageSos` | SOS | SOS cards grid from `setNPCFriendsDict`. Displays 1..5 star ratings, track type badge (Toon-Up, Sound, Drop, Lure, Restock, etc.), NPC names from `sos_tables.h`, and remaining call counts. |
 | **8. Options** | `PageOptions` | Option | Stereo 3D toggle, LOD bias toggle, Music volume controls, Sound volume controls, the developer rows (Debug HUD toggle, stress toons; shown only after SELECT turns the Debug tab on), Quit Game button, and live District / Shard browser from `net.districts()`. |
 | **9. Map** | `PageMap` | Map | Full Toontown map with player orientation arrow, zone label, "Home" estate button, and 8 playground teleport pads (`kTeleportHoods`). Maintains 100% exact touch coordinate compatibility with existing autotest scripts. |
+| **10. Groups** | `PageGroups` | Groups | Group finder: create, list, one-tap join, leave. Bottom screen, D-pad and A/B as well as touch. See `docs/design/groups.md`. The text cache is built on first use. |
 
 ---
 

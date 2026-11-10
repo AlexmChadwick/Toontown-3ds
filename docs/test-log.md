@@ -2098,3 +2098,82 @@ smaller power of two. Font sheets are already the minimum size that holds the ce
 `DEVKITPRO` make produced `toontown3ds.3dsx` with no warnings in `source/`.
 The linker still prints the existing `crtn.o` executable-stack note.
 
+## 2026-11-09 - Groups page (host only)
+
+No Azahar binary and no devkitARM on this machine. This entry is not an emulator
+or hardware pass, and it does not claim a frame budget. No groups server was started.
+
+`tools/groups_test/run.sh` passed: 65 Python tests, 1 skipped (Panda DCFile, because
+Panda and platform.dc are not installed), then `groups_test ok`. The C++ check
+printed `sizeof(GroupsState)=2684` and `sizeof(GroupView)=80`. The Python package
+`tools/groups/ttgroups` is 37559 bytes and is not linked into the client.
+
+`python3 tools/groups/render_3ds.py` wrote six 320x240 sheets under `layouts/3ds/`:
+empty, loading, own, leave, error, picker. They read the rectangles from
+`source/net/groups_logic.h`. They are software drawings, not emulator captures.
+
+`tools/padnav_test` was rebuilt with g++ (this image's clang++ looks for GCC 14
+headers that are not installed) and reported `padnav_test: 156 checks, 0 failures`.
+The book page grid is 10 buttons. The fourth row ends at y 170.
+
+## 2026-11-10 - Groups wire ids, task hoods, join travel (host only)
+
+No Azahar binary and no devkitARM `make`. No groups server was started.
+
+`OTT=/tmp/ott-etc tools/groups_test/run.sh` passed with no skips: 65 Python tests,
+then `groups_test ok`. The DCFile check loaded `otp.dc`, `toon.dc`,
+`tools/platform/platform.dc` and `tools/groups/groups.dc`. otp+toon hash is
+547155168. Platform fields are 2270-2273, `TTGroupInfo` is 2274-2282, and
+`TTGroupsManager` is 2283-2294 (`avatarGone` 2294, class-local index 11).
+The C++ check printed `sizeof(GroupsState)=2700` and `sizeof(GroupView)=80`.
+
+`tools/ui_size/run.sh` compiled `source/render/ui.cpp` with `arm-none-eabi-g++`
+(`-Wall -Wextra`, no warnings) and printed `sizeof(Ui)=105056` (limit 114688).
+
+## 2026-11-10 - Groups uberdog adopt and a full make
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+The previous head `2e1c71e` was box-verified in Azahar against astrond. Two blockers
+showed up there: a virgin `make` failed because `page_groups.cpp` used `tt::ui::State`
+before it was complete, and the Groups page stayed on "Groups are not available right
+now." because Astron never ENTERs an uberdog.
+
+`page_groups.cpp` now includes `render/ui.h`. `groupsEnsure` adopts DoId 4722 once
+the session is logged in (district list through a zone change) or in a zone.
+`requestBoard` is still sent only while the page is open and the client is in a zone.
+
+`OTT=/tmp/ott-etc tools/groups_test/run.sh` passed: 65 Python tests, then
+`groups_test ok` (`sizeof(GroupsState)=2700`, `sizeof(GroupView)=80`). The new
+`adoptGlobalManager` check takes 4722 when the session is live and leaves the id
+at 0 when it is not, which keeps the unavailable line.
+
+`make` with devkitARM r68 (gcc 16.1.0), libctru 2.7.1, citro3d 1.7.1 and citro2d
+1.7.0 produced `toontown3ds.3dsx`. No warnings in `source/`. The linker still
+prints the existing `crtn.o` executable-stack note.
+
+## 2026-11-10 - Groups empty line, disabled label, plain names
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+
+The empty board names Boss, Building and Task. It does not mention a Create
+button. On `impress.bcfnt` at scale 0.40 the line is about 211px, under the
+288px wrap. A disabled Join or Full draws `kInkSoft` on `kGrey`, matching the
+filters.
+`copyPlainName` drops Panda `\1...\1` / `\2` markup, controls, and tags before
+a leader or member name is drawn.
+
+`kInkSoft` (#7A6650) on `kGrey` (#C8C2B6) measures 3.08:1. White on that grey
+was 1.77:1. `kInk` on the same grey is 9.47:1. The disabled label uses
+`kInkSoft` so it matches the filters.
+
+## 2026-11-10 - Groups button contrast
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+
+Disabled Join, Full, and the filters now draw `kInk` (`#2A1A0C`) on `kGrey`
+(`#C8C2B6`), 9.47:1. White on the bright green, blue, and red faces was 2.31,
+3.36, and 4.36, under 4.5:1, so enabled Join uses `kGreenDark`, enabled filters
+and the picker use `kBlueDark`, and Leave and Back use `kRedDark`. The host
+check reads those tokens from `theme.h` and fails any Groups button state below
+4.5:1.
+
