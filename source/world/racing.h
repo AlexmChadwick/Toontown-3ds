@@ -4,6 +4,7 @@
 #include "world/clerk_kart_preview.h"
 #include "world/player.h"
 #include "world/racing_track.h"
+#include "world/race_town.h"
 #include "world/remote_toons.h"
 
 namespace tt::world {
@@ -24,6 +25,9 @@ class Racing {
     void pumpAssets();
     bool loadingAssets() const { return assetBatch_.loading(); }
     bool active() const { return race_ != 0; }
+    bool urban() const { return town_.urban(); } // loadUrbanTrack: fog, far 650
+    // The urban track skyline after the sky, before the track (DistributedRace.loadUrbanTrack).
+    void drawBackground(render::Renderer &renderer) { town_.drawSkyline(renderer, physics_.position.x, physics_.position.y); }
     bool driving() const { return active() || seated_ != 0; }
     bool hudVisible() const { return driving() || refusalUntil_ > now_; }
     const CollisionWorld *collision() const { return collision_.loaded() ? &collision_ : nullptr; }
@@ -53,6 +57,7 @@ class Racing {
     void board(net::Client &client, const Input &input, float dt, float x, float y, float z);
     BasicAssetBatch<8> assetBatch_;
     render::Model track_;
+    RaceTown town_;
     render::Model gagBox_, banana_, anvil_, pie_;
     struct PieActor {
         racing::Pie physics;
@@ -76,6 +81,7 @@ class Racing {
     uint16_t acknowledged_[8] = {};
     int acknowledgedCount_ = 0;
     uint8_t phase_ = 255, place_ = 1, heldGag_ = 0;
+    uint8_t inBoost_ = 0; // boost arrow tubes the kart is inside (enter events)
     uint16_t loadedTrack_ = 0xffff;
     bool spawned_ = false, requestedKart_ = false, finished_ = false, left_ = false;
     uint8_t movie_ = 0;

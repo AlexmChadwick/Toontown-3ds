@@ -169,6 +169,13 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 12 belly flop", "emote_flop"},
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "emote: 9 applause", "emote_applause"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "grab treasure", "grab"},
+    // "treasure: <hood>": opt-in, stand 8 units from a treasure of that playground (its hood model).
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 1000", "treasure_1000"},
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 4000", "treasure_4000"},
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 3000", "treasure_3000"},
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 5000", "treasure_5000"},
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 9000", "treasure_9000"},
+    {40.0f, 0, 0, 0, 0, -1, -1, 0, "treasure: 6000", "treasure_6000"},
     {4.0f, 0, 0, 0, 0, -1, -1, 0, "meet mickey", "mickey"},
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "go fishing", "fish_sit"},
     {2.0f, 0, 0, KEY_DLEFT, 0, -1, -1, 0, "pad: fish aim", "pad_fish_aim"}, // padnav: D-Pad aims
@@ -322,6 +329,8 @@ const Step kScript[] = {
     // ---- racing2: bounded real purchase and solo Practice race ----
     {180.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: pads", "speedway_pads"},
     {600.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race", "speedway_race*"},
+    {1500.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race city", "speedway_city*"},
+    {1500.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race blizzard", "speedway_blizzard*"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: shop", "speedway_shop"},
     // ---- end racing2 ----
     // ---- cogdo: real local-server flow; series capture asynchronous phases ----
@@ -518,7 +527,8 @@ bool Runner::selected(const char* label) const {
 
 bool Runner::skipped(const char* label) const {
     if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
-    return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10);
+    return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10) || !strncmp(label, "speedway: race ", 15) ||
+                                     !strncmp(label, "treasure: ", 10); // urban race / treasure checks: opt-in
 }
 
 const Pose* Runner::pose() const {

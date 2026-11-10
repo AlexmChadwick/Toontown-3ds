@@ -87,6 +87,17 @@ u32 hoodOf(u32 zoneId) {
     return zoneId - zoneId % 1000;
 }
 
+u32 safeZoneOf(u32 zoneId) {
+    const u32 hood = hoodOf(zoneId);
+    switch (hood) {
+    case 11000: return 5000; // Sellbot HQ -> Daisy Gardens
+    case 12000: return 9000; // Cashbot HQ -> Donald's Dreamland
+    case 13000: return 3000; // Lawbot HQ -> The Brrrgh
+    case 10000: return 1000; // Bossbot HQ -> Donald's Dock
+    default: return hood;
+    }
+}
+
 bool Place::resolve(u32 zoneId, const char* ext, char* out, size_t outSize) const {
     if (zoneId == kTtcPlayground) {
         snprintf(out, outSize, "romfs:/baked/ttc_sz.%s", ext);

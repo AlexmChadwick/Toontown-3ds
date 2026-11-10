@@ -1006,7 +1006,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         return;
     }
     if (classHasField(*cls, dc::DistributedTreasure::k_requestGrab)) {
-        handleTreasureEnter(doId, r, req, reqCount, other);
+        handleTreasureEnter(doId, classId, r, req, reqCount, other);
         return;
     }
     if (classHasField(*cls, dc::DistributedCCharBase::k_setWalk)) {
@@ -1822,8 +1822,8 @@ bool Client::handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t cl
     return true;
 }
 
-bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
-                                 bool other) {
+bool Client::handleTreasureEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                 uint16_t reqCount, bool other) {
     Treasure* t = nullptr;
     for (Treasure& s : treasures_) {
         if (s.active && s.doId == doId) t = &s;
@@ -1834,6 +1834,7 @@ bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_
     if (!t) return false;
     Treasure tmp{};
     tmp.doId = doId;
+    tmp.classId = classId;
     bool ok = true;
     for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyTreasureField(tmp, r, req[i]);
     if (ok && other) {

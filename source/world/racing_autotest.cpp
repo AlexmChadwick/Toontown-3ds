@@ -77,7 +77,10 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
             nextRequest_ = now + 3000;
             return;
         }
-    } else if (!std::strcmp(label, "speedway: race")) {
+    } else if (!std::strncmp(label, "speedway: race", 14)) {
+        // "speedway: race" boards Screwball Stadium; "... city" / "... blizzard" wait for an
+        // urban Practice pad showing City Circuit (40/41) or Blizzard Boulevard (64/65).
+        const unsigned want = std::strstr(label, "city") ? 40 : std::strstr(label, "blizzard") ? 64 : 0;
         if (racing.active()) {
             sawRace_ = true;
             if (client.racingRace() && client.racingRace()->finished)
@@ -106,7 +109,7 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
                 const auto &candidate = client.racingPadSlot(j);
                 if (candidate.active && candidate.doId == block.padDoId &&
                     candidate.trackCount >= 2 && candidate.trackIds[1] == 0 &&
-                    candidate.trackIds[0] == 0)
+                    unsigned(candidate.trackIds[0]) / 2 == want / 2)
                     pad = &candidate;
             }
             if (!pad ||

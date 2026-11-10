@@ -320,6 +320,7 @@ constexpr int kMaxNpcs = 16;
 // Treasures (DistributedTreasure family): walk into one to grab it (+laff).
 struct Treasure {
     uint32_t doId;
+    uint16_t classId; // DistributedTTTreasure, DistributedDDTreasure, ... (picks the model)
     float x, y, z;
     bool active;
 };
@@ -1967,7 +1968,8 @@ private:
     void handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
     bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                         const uint16_t* req, uint16_t reqCount, bool other);
-    bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleTreasureEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                             bool other);
     void handleClerkMovie(DatagramReader& r, uint32_t doId);
     bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
     // quests section: see client.cpp

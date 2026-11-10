@@ -18,12 +18,28 @@ constexpr float kTreasureRadius = 2.0f; // DistributedTreasure.getSphereRadius
 constexpr float kTreasureFadeSec = 1.0f; // treasureFlyTrack: 0.8 s out + 0.2 s
 constexpr float kNametagMaxDistance = 60.0f; // far tags behind buildings are just clutter
 
+u8 treasureKind(u16 classId) {
+    switch (classId) {
+    case dc::DistributedDDTreasure::kClassId: return 1;
+    case dc::DistributedMMTreasure::kClassId: return 2;
+    case dc::DistributedBRTreasure::kClassId: return 3;
+    case dc::DistributedDGTreasure::kClassId: return 4;
+    case dc::DistributedDLTreasure::kClassId: return 5;
+    case dc::DistributedOZTreasure::kClassId: return 6;
+    default: return 0; // DistributedTTTreasure, DistributedETreasure: icecream
+    }
+}
+
 } // namespace
 
-bool ZoneActors::init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath) {
+bool ZoneActors::init(ToonCache* cache, const char* pointsPath) {
     cache_ = cache;
     loadPoints(pointsPath);
-    treasureModel_.load(treasureModelPath);
+    static const char* const kPaths[kTreasureKinds] = {
+        "romfs:/baked/icecream.ttm",       "romfs:/baked/treasure_dd.ttm", "romfs:/baked/treasure_mm.ttm",
+        "romfs:/baked/treasure_br.ttm",    "romfs:/baked/treasure_dg.ttm", "romfs:/baked/treasure_dl.ttm",
+        "romfs:/baked/treasure_oz.ttm"};
+    for (int i = 0; i < kTreasureKinds; i++) treasureModels_[i].load(kPaths[i]);
     return true;
 }
 
@@ -45,7 +61,7 @@ void ZoneActors::shutdown() {
         if (n.active && cache_) cache_->release(&n.look);
         n.active = false;
     }
-    treasureModel_.unload();
+    for (render::Model& model : treasureModels_) model.unload();
 }
 
 const ZoneActors::Point* ZoneActors::findPoint(const char* name) const {
@@ -121,6 +137,7 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
             t->x = src.x;
             t->y = src.y;
             t->z = src.z;
+            t->kind = treasureKind(src.classId);
         }
         break;
     }
@@ -165,13 +182,14 @@ void ZoneActors::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     for (Treasure& t : treasures_) {
         if (!t.active) continue;
         // Upstream treasures are camera-facing sprites (cards face -Y): turn -Y toward the eye.
+        // DistributedTreasure.makeNodePath: scale 0.9, resting at setPosition (no bob).
         const float heading = atan2f(eye.x - t.x, -(eye.y - t.y));
-        const float s = t.grabbed ? (t.fade > 0.0f ? t.fade : 0.0f) : 1.0f;
+        const float s = 0.9f * (t.grabbed ? (t.fade > 0.0f ? t.fade : 0.0f) : 1.0f);
         Mtx_Identity(&m);
-        Mtx_Translate(&m, t.x, t.y, t.z + 0.15f * sinf(time_ * 2.0f), true);
+        Mtx_Translate(&m, t.x, t.y, t.z, true);
         Mtx_RotateZ(&m, heading, true);
-        if (s < 1.0f) Mtx_Scale(&m, s, s, s);
-        renderer.drawModel(treasureModel_, m);
+        Mtx_Scale(&m, s, s, s);
+        renderer.drawModel(treasureModels_[t.kind], m);
     }
 }
 
@@ -286,6 +304,15 @@ int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
         xyzs[4 * n + 1] = s.y;
         xyzs[4 * n + 2] = s.z;
         xyzs[4 * n + 3] = s.look.valid() ? s.look.scale : 1.0f;
+        n++;
+    }
+    // DistributedTreasure's own drop shadow (0.4 under the 0.9 node), hidden while it flies.
+    for (const Treasure& t : treasures_) {
+        if (!t.active || t.grabbed || n >= maxOut) continue;
+        xyzs[4 * n] = t.x;
+        xyzs[4 * n + 1] = t.y;
+        xyzs[4 * n + 2] = t.z;
+        xyzs[4 * n + 3] = 0.9f;
         n++;
     }
     return n;

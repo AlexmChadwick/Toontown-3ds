@@ -146,7 +146,8 @@ void CjBattle::leave(BossFrame& frame, bool sad) {
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
-    uint32_t destination = sad ? 2000 : kHq;
+    // DistributedBossCog.localToonDied / localToonToSafeZone: ZoneUtil.getSafeZoneId(defaultZone).
+    uint32_t destination = sad ? safeZoneOf(frame.client.ownStats().defaultZone) : kHq;
     if (!frame.client.boss() && frame.client.inZone() && Place::available(frame.client.zoneId())) {
         destination = frame.client.zoneId();
     }

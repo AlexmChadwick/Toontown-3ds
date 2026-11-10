@@ -19,7 +19,7 @@ class ZoneActors {
 public:
     static constexpr int kMaxPoints = 256; // streets: every door and tunnel anchor (up to 177 so far)
 
-    bool init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath);
+    bool init(ToonCache* cache, const char* pointsPath);
     // New zone: reload anchor points (NPCs of the old zone are dropped by the client).
     void loadPoints(const char* pointsPath);
     void shutdown();
@@ -81,7 +81,11 @@ private:
         float x = 0, y = 0, z = 0;
         float fade = 1.0f; // grab fade-out (treasureFlyTrack)
         bool grabbed = false;
+        u8 kind = 0; // index into treasureModels_
     };
+    // The hood treasure models (Distributed<Hood>Treasure.modelPath): TT ice cream, DD starfish,
+    // MM music note, BR snowflake, DG flower, DL zzz, OZ acorn.
+    static constexpr int kTreasureKinds = 7;
     const Point* findPoint(const char* name) const;
     Npc* findNpc(u32 doId);
 
@@ -90,7 +94,7 @@ private:
     int numPoints_ = 0;
     Npc npcs_[net::kMaxNpcs];
     Treasure treasures_[net::kMaxTreasures];
-    render::Model treasureModel_;
+    render::Model treasureModels_[kTreasureKinds];
     float time_ = 0.0f;
     u32 speechNpc_ = 0;
     const char* speech_ = nullptr;

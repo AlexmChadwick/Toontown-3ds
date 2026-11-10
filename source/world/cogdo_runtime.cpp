@@ -115,7 +115,7 @@ void CogdoRuntime::leave(BossFrame &frame) {
     frame.remotes.clear();
     const bool sad = frame.client.ownStats().hp <= 0;
     if (sad)
-        exterior_ = hoodOf(frame.client.ownStats().defaultZone);
+        exterior_ = safeZoneOf(frame.client.ownStats().defaultZone);
     if (!Place::available(exterior_) || !frame.place.load(exterior_)) {
         exterior_ = 2000;
         frame.place.load(exterior_);

@@ -409,7 +409,7 @@ int main() {
     // NPCs and treasures of the playground (anchors from the zone's .pts sidecar).
     tt::boot::stage("Waking up the neighbors", 0.75f);
     static tt::world::ZoneActors zoneActors;
-    zoneActors.init(&toonCache, place.pointsPath(), "romfs:/baked/icecream.ttm");
+    zoneActors.init(&toonCache, place.pointsPath());
     // Mickey and friends (DistributedCCharBase), walking their playground's graph.
     static tt::world::CCharActors cchars;
     static tt::world::BoatActor boat; // Donald's Dock ship (DistributedBoat) with Donald aboard
@@ -559,6 +559,28 @@ int main() {
     player.setCollision(&place.collision());
     player.reset(kSpawnX, kSpawnY, 0.0f, 0.0f);
     player.setCameraHeight(tt::world::toonHeight(tt::world::defaultToonDna()));
+    // The per-zone systems follow whatever place is loaded. Transitions sync them on load; the
+    // boss / cogdo / level exits load their return place directly (a sad Toon leaving the VP
+    // reached Daisy Gardens with Sellbot's walk graphs: Daisy stood at 0,0,0).
+    u32 systemsZone = place.zoneId();
+    auto syncZoneSystems = [&]() {
+        const u32 zone = place.zoneId();
+        systemsZone = zone;
+        zoneActors.loadPoints(place.pointsPath());
+        cchars.setZone(zone);
+        fishing.setZone(zone, place.pointsPath());
+        trolley.setZone(zone);
+        waterfall.setZone(zone);
+        gsBlimp.setZone(zone);
+        gsBoards.setZone(zone);
+        cashbotTrains.setZone(zone);
+        brSnow.setZone(zone);
+        butterflies.setZone(zone);
+        dgFlower.setZone(zone);
+        cogBuildings.setZone(zone);
+        cogBuildings.syncAnchors(place);
+        suits.setZone(zone);
+    };
     // ---- tutorial ----
     // enterTutorial already moved our Astron interest to the dynamic shop zone.  Load its
     // canonical bake before that interest generates Tutorial Tom and the interior objects.
@@ -573,6 +595,7 @@ int main() {
         cchars.setZone(canonical);
         fishing.setZone(canonical, place.pointsPath());
         suits.setZone(canonical);
+        systemsZone = canonical; // the tutorial keeps its own subset
         float x, y, z, h;
         place.arrival(0, &x, &y, &z, &h);
         player.reset(x, y, z, h);
@@ -999,6 +1022,11 @@ int main() {
             if (netStarted && cogdo.frame(bossFrame)) continue;
             // ---- end cogdo ----
             if (netStarted && bossBattle.frame(bossFrame)) continue;
+        }
+        if (place.zoneId() != systemsZone) {
+            TT_LOG("place: zone %lu loaded outside a transition; syncing zone systems",
+                   static_cast<unsigned long>(place.zoneId()));
+            syncZoneSystems();
         }
         if (autotest.active() && !strncmp(autotest.label(), "book: ", 6)) {
             const char* page = autotest.label() + 6;
@@ -1613,6 +1641,28 @@ int main() {
             }
         }
 
+        if (autotest.active() && !strncmp(autotest.label(), "treasure: ", 10)) {
+            // Test-only: teleport to the playground, then stand 8 units from its nearest
+            // treasure, facing it (no grab), so the hood's treasure model is in view.
+            static bool treasureFramed = false;
+            if (autotest.stepBegan()) treasureFramed = false;
+            const u32 hood = static_cast<u32>(atoi(autotest.label() + 10));
+            float tx, ty, tz;
+            if (place.zoneId() != hood) {
+                if (!uiState.teleportRequest && transition.idle()) uiState.teleportRequest = hood;
+            } else if (!treasureFramed && transition.idle() &&
+                       zoneActors.nearestTreasure(player.x(), player.y(), &tx, &ty, &tz)) {
+                const float dx = player.x() - tx, dy = player.y() - ty, d = sqrtf(dx * dx + dy * dy);
+                const float px = d > 0.1f ? tx + dx / d * 8.0f : tx, py = d > 0.1f ? ty + dy / d * 8.0f : ty - 8.0f;
+                player.reset(px, py, tz, atan2f(-(tx - px), ty - py) * 57.29578f);
+                treasureFramed = true;
+                TT_LOG("autotest: treasure view in %lu at %.1f,%.1f", static_cast<unsigned long>(hood), double(tx),
+                       double(ty));
+            } else if (!treasureFramed && autotest.stepTime() > 35.0f) {
+                TT_LOG("autotest: FAIL no treasure in %lu", static_cast<unsigned long>(hood));
+                treasureFramed = true;
+            }
+        }
         const int prevTab = uiState.tab;
         // [interior life]
         if (autotest.active() && !strcmp(autotest.label(), "interior: hq board")) {
@@ -2436,20 +2486,7 @@ int main() {
                         TT_LOG("level: left for zone %u", unsigned(zoneDest));
                         level.shutdown();
                     }
-                    zoneActors.loadPoints(place.pointsPath());
-                    cchars.setZone(zoneDest);
-                    fishing.setZone(zoneDest, place.pointsPath());
-                    trolley.setZone(zoneDest);
-                    waterfall.setZone(zoneDest);
-                    gsBlimp.setZone(zoneDest);
-                    gsBoards.setZone(zoneDest);
-                    cashbotTrains.setZone(zoneDest);
-                    brSnow.setZone(zoneDest);
-                    butterflies.setZone(zoneDest);
-                    dgFlower.setZone(zoneDest);
-                    cogBuildings.setZone(zoneDest);
-                    cogBuildings.syncAnchors(place);
-                    suits.setZone(zoneDest);
+                    syncZoneSystems();
                     place.arrival(zoneFrom, &zoneAx, &zoneAy, &zoneAz, &zoneAh);
                     player.setCollision(&place.collision());
                     player.reset(zoneAx, zoneAy, zoneAz, zoneAh);
@@ -3284,11 +3321,7 @@ int main() {
             if (battle.popWentSad()) {
                 // DistributedToon.died: ZoneUtil.getSafeZoneId(defaultZone), the toon's own playground
                 // (a Cog HQ maps to its neighbour: HQToSafezone).
-                u32 hood = tt::world::hoodOf(net.ownStats().defaultZone);
-                if (hood == 11000) hood = 5000;       // Sellbot HQ -> Daisy Gardens
-                else if (hood == 12000) hood = 9000;  // Cashbot HQ -> Donald's Dreamland
-                else if (hood == 13000) hood = 3000;  // Lawbot HQ -> The Brrrgh
-                else if (hood == 10000) hood = 1000;  // Bossbot HQ -> Donald's Dock
+                const u32 hood = tt::world::safeZoneOf(net.ownStats().defaultZone);
                 transition.startDied(hood, player, &net);
             }
         }
@@ -3317,8 +3350,11 @@ int main() {
                                   FVec3_New(player.x() + 5, player.y() + 6, player.z() + 2));
         // ---- end clerks ----
         toonCache.pump(); // previous GPU frame is complete: publish streamed poses
-        sky.setZone(place.zoneId(), level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
-        tt::render::setPlaceFar(level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior
+        // DistributedRace.setup loads TT_sky for every track; urban tracks (loadFog) set camera far 650.
+        sky.setZone(racing.active() ? 8000u : place.zoneId(),
+                    !racing.active() && (level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior));
+        tt::render::setPlaceFar(racing.active() && racing.urban() ? 650.0f
+                                : level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior
                                     ? 0.0f : tt::world::cameraFar(place.zoneId()));
         if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
             sky.holdClouds();
@@ -3356,7 +3392,7 @@ int main() {
             const int eyeSign = stereoActive ? (e == 0 ? -1 : 1) : 0;
             // Indoors (interiors, facilities) gaps show OTPGlobals.DefaultBackgroundColor (0.3 grey),
             // not the playground sky blue.
-            const bool indoors = level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior;
+            const bool indoors = !racing.active() && (level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior);
             // Outdoors the clear and the draw-distance fog take the hood sky's horizon colour
             // (TT blue, BR grey, MM sunset, DL night), so distant chunks fade into the dome.
             const float* hz = sky.horizon();
@@ -3372,7 +3408,9 @@ int main() {
                 // Hoods with an upstream camera far (Cog HQs, Acorn Acres, Goofy Speedway) have no
                 // draw-distance fog; Acorn Acres' underwater fog stays.
                 const tt::render::Quality& q = tt::render::activeQuality();
-                if (indoors) renderer.clearFog();
+                if (racing.active() && racing.urban())
+                    renderer.setFog(0.6f, 0.7f, 0.8f, 200.0f, 650.0f); // DistributedRace.loadFog TrackFog
+                else if (indoors) renderer.clearFog();
                 else if (water.fogActive()) {
                 } else if (tt::render::fogDisabled(q)) renderer.clearFog();
                 else renderer.setFog(hz[0], hz[1], hz[2], q.fogStart, q.fogEnd); // no-op when unchanged
@@ -3414,6 +3452,8 @@ int main() {
             } else if (level.active()) {
                 level.draw(renderer, player.cameraEye());
             } else if (racing.active()) {
+                sky.draw(renderer, player.cameraEye(), false); // startCloudSky, setFogOff
+                racing.drawBackground(renderer);
                 racing.draw(renderer, net);
                 tt::prof::lap(tt::prof::kRacingDraw);
             } else if (estate.active()) {
@@ -3436,7 +3476,7 @@ int main() {
 
             // Drop shadows under every toon, on the ground just above it (FloorOffset 0.025).
             {
-                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + tt::net::kMaxCChars + tt::net::kMaxSuits + 1)];
+                float pos[4 * (tt::net::kMaxRemoteToons + tt::net::kMaxNpcs + tt::net::kMaxTreasures + tt::net::kMaxCChars + tt::net::kMaxSuits + 1)];
                 int n = 0;
                 pos[0] = player.x();
                 pos[1] = player.y();
@@ -3444,7 +3484,7 @@ int main() {
                 pos[3] = localLook.valid() ? localLook.scale : 1.0f;
                 n = 1;
                 n += remoteToons.shadowPositions(pos + 4 * n, tt::net::kMaxRemoteToons);
-                n += zoneActors.shadowPositions(pos + 4 * n, tt::net::kMaxNpcs);
+                n += zoneActors.shadowPositions(pos + 4 * n, tt::net::kMaxNpcs + tt::net::kMaxTreasures);
                 n += cchars.shadowPositions(pos + 4 * n, tt::net::kMaxCChars);
                 n += suits.shadowPositions(pos + 4 * n, tt::net::kMaxSuits);
                 renderer.setBaseTint(0.0f, 0.0f, 0.0f, kShadowGray);

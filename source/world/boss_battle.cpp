@@ -171,7 +171,8 @@ void BossBattle::leave(BossFrame& frame) {
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
-    if (frame.client.ownStats().hp <= 0) home_ = 5000;
+    // DistributedBossCog.localToonDied: ZoneUtil.getSafeZoneId(localAvatar.defaultZone).
+    if (frame.client.ownStats().hp <= 0) home_ = safeZoneOf(frame.client.ownStats().defaultZone);
     if (!frame.place.load(home_)) {
         home_ = cashbot_ ? 12000 : 11000;
         frame.place.load(home_);

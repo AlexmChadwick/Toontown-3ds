@@ -149,6 +149,27 @@ bash tools/racing_test/run.sh
 DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4
 ```
 
+### Urban track towns
+
+City Circuit (40/41) and Blizzard Boulevard (64/65) are mostly town:
+DistributedRace.loadUrbanTrack loads `urban_track_town.dna` / `urban_track_town_B.dna`
+(six storage files) over the track model, hangs the track's `polySurface8` skyline on the
+kart's dummy node (scale 0.1, background bin, no depth), and loadFog sets TrackFog
+(0.6, 0.7, 0.8, linear 200..650) and camera far 650. Every track loads TT_sky.
+
+- `bake_race_town.py` writes one `town_<A|B>_<n>.ttm` per stock building group (own
+  build_local atlas pages, at most 7 draws and 1.8k triangles each) and the `town_<A|B>.trt`
+  index (A: 75 groups, 43k triangles; B: 129 groups incl. side streets, 70k triangles).
+  These 206 files (37 MB) are ignored SD data, not part of the committed kit: bake them
+  into `data/racing/` with `bake_race_town.py`. Without them the race runs on the bare
+  road and logs `racetown: missing`.
+- `bake_racing.py` splits `polySurface8` into `<track>_bg.ttm` (committed). On Blizzard
+  Boulevard that node is a 4-triangle card; stock moves it the same way.
+- `world/race_town.*` keeps showBuildings' window: five groups per side around the kart's
+  curve fraction (reversed tracks count from the end), the side streets near the kart, and
+  one more group each side preloaded through the shared loader. Models publish at the
+  frame fence.
+
 Install the committed `sdmc-out/3ds/toontown3ds/data/racing/` tree at
 `sdmc:/3ds/toontown3ds/data/racing/`, including karts/lod0, lod1 and lod2.
 There are 634 generated binary assets: 36 track files, 594 kart parts, four props.

@@ -1,5 +1,6 @@
 #include "core/gpu_sync.h"
 #include "world/racing.h"
+#include "world/racing_boosts.h"
 #include "core/log.h"
 #include "world/racing_tables.h"
 #include <algorithm>
@@ -34,6 +35,7 @@ void Racing::loadAssets(uint16_t track) {
     assetBatch_.load(banana_, "sdmc:/3ds/toontown3ds/data/racing/banana.ttm");
     assetBatch_.load(anvil_, "sdmc:/3ds/toontown3ds/data/racing/anvil.ttm");
     assetBatch_.load(pie_, "sdmc:/3ds/toontown3ds/data/racing/creampie.ttm");
+    town_.load(track, name);
     TT_LOG("racing: load track %u metadata %d collision %d collision heap %lu", track, metadata,
            collision, static_cast<unsigned long>(collision_.heapBytes()));
 }
@@ -41,6 +43,7 @@ void Racing::unloadAssets() {
     if (track_.loaded())
         ::tt::gpu::frameSync();
     assetBatch_.clear();
+    town_.unload();
     track_.unload();
     gagBox_.unload();
     banana_.unload();
@@ -52,6 +55,7 @@ void Racing::unloadAssets() {
 }
 void Racing::pumpAssets() {
     assetBatch_.pump();
+    town_.pump();
     for (auto &racer : racers_)
         racer.kart.pump();
 }
@@ -311,6 +315,9 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         std::snprintf(hudLines_[0], sizeof(hudLines_[0]), "Loading race assets and racer links");
         return;
     }
+    // showBuildings(currT): the town window follows the kart's nearest curve point.
+    town_.update(physics_.position.x, physics_.position.y,
+                 metadata_.count ? float(progress_.pole) / float(metadata_.count) : 0.0f);
     for (const auto &shot : race->shots) {
         if (!shot.serial || shot.serial <= shotSerial_)
             continue;
@@ -493,6 +500,39 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                    hazard.type);
         }
     }
+    // DistributedRace.hitBoostArrow: entering an arrow's tube (the kart's lap sphere, r 3, against
+    // the CollisionTube, r 4.8) while facing along it (dot > 0.7) restarts startTurbo.
+    for (const auto &track : racing::kTrackBoosts) {
+        if (track.track != loadedTrack_)
+            continue;
+        const float h = physics_.heading * kRadians, p = physics_.pitch * kRadians;
+        const float forward[3] = {-std::sin(h) * std::cos(p), std::cos(h) * std::cos(p), std::sin(p)};
+        const float pos[3] = {physics_.position.x, physics_.position.y, physics_.position.z};
+        for (int i = 0; i < track.count; ++i) {
+            const auto &arrow = track.arrows[i];
+            float ab[3], ap[3], dd = 0, t = 0;
+            for (int k = 0; k < 3; ++k) {
+                ab[k] = arrow.b[k] - arrow.a[k];
+                ap[k] = pos[k] - arrow.a[k];
+                dd += ab[k] * ab[k];
+                t += ab[k] * ap[k];
+            }
+            t = std::clamp(t / dd, 0.0f, 1.0f);
+            float d2 = 0, dot = 0;
+            for (int k = 0; k < 3; ++k) {
+                const float e = ap[k] - ab[k] * t;
+                d2 += e * e;
+                dot += forward[k] * arrow.dir[k];
+            }
+            const float reach = racing::kBoostTubeRadius + 3.0f;
+            const bool inside = d2 < reach * reach;
+            if (inside && !(inBoost_ & (1u << i)) && dot > 0.7f) {
+                turboStart_ = now;
+                TT_LOG("racing: boost arrow %d", i);
+            }
+            inBoost_ = inside ? inBoost_ | (1u << i) : inBoost_ & ~(1u << i);
+        }
+    }
     if (heldGag_ && now - heldSince_ >= 2000 && (input.down & KEY_R)) {
         const bool positioned = heldGag_ == 1 || heldGag_ == 4;
         if (client.sendRacingThrow(race_, positioned ? displayed.x : 0,
@@ -588,6 +628,8 @@ void Racing::draw(render::Renderer &renderer, const net::Client &client) {
     Mtx_Identity(&matrix);
     if (active() && track_.loaded())
         renderer.drawModel(track_, matrix);
+    if (active())
+        town_.draw(renderer);
     for (auto &racer : racers_) {
         if (!racer.avatar)
             continue;
@@ -804,6 +846,7 @@ void Racing::shutdown() {
     phase_ = 255;
     heldGag_ = 0;
     hitStart_ = hitUntil_ = hitRevision_ = turboStart_ = shotSerial_ = 0;
+    inBoost_ = 0;
     for (auto &pie : pies_)
         pie.physics = racing::Pie{};
     for (auto &id : consumedHazards_)
