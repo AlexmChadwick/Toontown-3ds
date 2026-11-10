@@ -235,6 +235,12 @@ void ChatMenu::activate(int item) {
     enter(0, -1);
 }
 
+void ChatMenu::setView(int menu, float scroll, float panelBottom) {
+    enter(menu, -1);
+    const float listH = layout::chatListBottom(panelBottom) - kHeaderH;
+    scroll_ = layout::snapChatScroll(scroll, maxScroll(listH));
+}
+
 void ChatMenu::goBack(float listH) {
     const int parent = parentOf(menu_);
     if (parent < 0) {

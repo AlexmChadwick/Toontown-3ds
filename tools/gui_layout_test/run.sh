@@ -15,3 +15,4 @@ ${CXX:-g++} -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions \
 
 "$OUT/gui_layout_test" "$ROOT/romfs/baked/fonts/impress.bcfnt"
 python3 -I "$DIR/check_map_glyph.py"
+python3 -I "$DIR/capture_speedchat_page.py"

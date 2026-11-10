@@ -997,8 +997,36 @@ int main() {
             }
         } else if (autotest.active() && ui.book().isOpen() && strncmp(autotest.label(), "book", 4) != 0 &&
                    strncmp(autotest.label(), "pad: book", 9) != 0 && // padnav: those steps drive the book with buttons
+                   strncmp(autotest.label(), "gui polish: book", 16) != 0 &&
                    !autotest.tutorialPath()) { // Harry's lesson: the book stays open until his script closes it
             ui.book().close("autotest step");
+        }
+        if (autotest.active() && autotest.stepBegan() && !strncmp(autotest.label(), "gui polish: ", 12)) {
+            const char* step = autotest.label() + 12;
+            const float panelBottom = tt::ui::layout::chatBottom(true);
+            constexpr int kEmotions = 24;
+            constexpr int kYouMenu = 6;
+            if (!strcmp(step, "chat tab")) {
+                uiState.tab = tt::ui::kTabChat;
+                ui.chat().setView(0, 0.0f, panelBottom);
+            } else if (!strcmp(step, "speedchat four")) {
+                uiState.tab = tt::ui::kTabChat;
+                ui.chat().setView(kYouMenu, 0.0f, panelBottom);
+            } else if (!strcmp(step, "speedchat mid")) {
+                uiState.tab = tt::ui::kTabChat;
+                ui.chat().setView(kEmotions, tt::ui::layout::kChatRowH, panelBottom);
+            } else if (!strcmp(step, "speedchat last")) {
+                uiState.tab = tt::ui::kTabChat;
+                ui.chat().setView(kEmotions, 1e6f, panelBottom);
+            } else if (!strcmp(step, "book open")) {
+                ui.openBookPage(tt::ui::Book::kPageGags);
+            } else if (!strcmp(step, "book map page")) {
+                ui.openBookPage(tt::ui::Book::kPageMap);
+            } else if (!strcmp(step, "book gags page")) {
+                ui.openBookPage(tt::ui::Book::kPageGags);
+            } else if (!strcmp(step, "book close")) {
+                ui.book().close("gui polish autotest");
+            }
         }
         if (autotest.active() && (!strncmp(autotest.label(), "exit: ", 6) || !strncmp(autotest.label(), "move: ", 6))) {
             // Test-only: stand inside the named trigger (tunnel owner / door owner prefix).
@@ -3951,6 +3979,7 @@ int main() {
             }
         }
         if (autotest.active() && (!strncmp(autotest.label(), "gui: ", 5) ||
+                                  !strncmp(autotest.label(), "gui polish: book", 16) ||
                                   !strcmp(autotest.label(), "book: gags"))) {
             static tt::net::OwnStats demoStats;
             static tt::net::OwnQuests demoQuests;

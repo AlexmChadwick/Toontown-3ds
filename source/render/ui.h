@@ -148,6 +148,8 @@ public:
     void setChatTasks(const net::OwnQuests* quests) { chat_.setTasks(quests); }
     // A popSpeech value >= ChatMenu::kTaskCode is a ToonTask phrase.
     const ChatMenu::TaskPhrase* chatTaskPhrase(int code) const { return chat_.taskPhrase(code); }
+    ChatMenu& chat() { return chat_; }
+    const ChatMenu& chat() const { return chat_; }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ServiceClerkPanel& serviceClerks() { return serviceClerks_; } // clerks
     ShopPanel& shop() { return shop_; }

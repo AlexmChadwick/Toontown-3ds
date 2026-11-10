@@ -105,6 +105,23 @@ const Step kScript[] = {
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: trophies", "book_trophies"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: sos", "book_sos"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: options", "book_options"},
+    // ---- gui polish: SpeedChat paging and book page shots (AUTOTEST_ONLY="gui polish:") ----
+    {0.3f, 0, 0, 0, KEY_TOUCH, tabX(1), kTabY, 0, "gui polish: chat tab"},
+    {0.5f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat four"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat four shot", "b_speedchat_four"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat mid"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat mid shot", "b_speedchat_mid"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat last"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: speedchat last shot", "b_speedchat_last"},
+    {0.3f, 0, 0, 0, KEY_START, -1, -1, 0, "gui polish: book open"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map page"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map settle"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book map shot", "a_book_map_top"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book gags page"},
+    {1.0f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book gags settle"},
+    {0.3f, 0, 0, 0, 0, -1, -1, 0, "gui polish: book gags shot", "r_book_gags_top"},
+    {0.3f, 0, 0, 0, KEY_B, -1, -1, 0, "gui polish: book close"},
+    // ---- end gui polish ----
     // ---- padnav: the "book: options" step left the book open on Options ----
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book options focus"},
     {1.0f, 0, 0, 0, KEY_DDOWN, -1, -1, 0, "pad: book options down"},

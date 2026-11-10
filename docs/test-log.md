@@ -2098,6 +2098,22 @@ smaller power of two. Font sheets are already the minimum size that holds the ce
 `DEVKITPRO` make produced `toontown3ds.3dsx` with no warnings in `source/`.
 The linker still prints the existing `crtn.o` executable-stack note.
 
+## 2026-11-10 - GUI polish follow-up (host only)
+
+No devkitARM on this VM. This entry is not an emulator pass.
+
+`tools/gui_layout_test/run.sh`: 168 layout checks ok, `check_map_glyph.py` ok,
+`capture_speedchat_page.py` wrote `docs/shots/gui-polish/speedchat_last_page.ppm`.
+New checks cover a four-item SpeedChat menu with no chevron, a mid EMOTIONS page with
+both chevrons, and the last page with whole rows only.
+
+`CXX=g++ tools/padnav_test/run.sh`: 154 checks, 0 failures. Book and sc_test host
+suites passed under g++. `tools/qafix_test/geometry.cpp` passed.
+
+Autotest adds `gui polish:` steps with settle delays before `a_book_map_top` and
+`r_book_gags_top` top-screen shots, plus bottom SpeedChat captures for four/mid/last
+paging (`b_speedchat_*`).
+
 ## 2026-11-09 - bottom-screen polish after 5f761f2 (host only)
 
 No Azahar binary and no devkitARM on this machine. This entry is not an emulator
