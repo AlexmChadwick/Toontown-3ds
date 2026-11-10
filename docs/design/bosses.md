@@ -317,6 +317,13 @@ random suit/propeller sequence. Chair pitch animation and full seated toon clips
 are simplified; the indexed, moving chair positions and server seat outcomes are
 preserved.
 
+The courtroom floor (CR3_Floor) is 56% alpha marble in the ground bin, over the
+stock `Reflections` group (the mirrored room, ground bin -10). The bake keeps
+Reflections in `cj_arena.ttm` (stashed only for collision); its opaque batches draw
+before the blended floor, as the bin order does. Without it the floor showed the sky
+and skyline far below. The reflected jury box rides in `cj_jury_box.ttm` at its end
+pose, since loadJuryBox moves it by the same RelativeEndPos as the box.
+
 Scale damage is AI-owned (0..2700, initial 1350). CJS1 stores the actual beam and
 pan pivots; the beam tilts -40..40 degrees and pans counter-rotate. Evidence uses
 the existing physical pie release/charge/trajectory and swept impacts. A real
