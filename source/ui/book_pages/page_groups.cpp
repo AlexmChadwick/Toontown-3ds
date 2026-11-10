@@ -161,13 +161,14 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
         for (int i = 0; i < n; i++) {
             float cx, cy;
             groups::pickCell(i, &cx, &cy);
-            theme::button(cx, cy, groups::kPickCellW, groups::kPickCellH, theme::kBlue, theme::kBlueDark, false, 8);
+            theme::button(cx, cy, groups::kPickCellW, groups::kPickCellH, theme::kBlueDark,
+                          theme::shade(theme::kBlueDark, 0.72f), false, 8);
             const char* name = pickKind_ == groups::kTask ? groups::kTaskNames[i] : groups::kDepartments[i];
             text_.centered(cx + groups::kPickCellW * 0.5f, cy + 12, theme::kTextSmall, theme::kWhite,
                            groups::kPickCellW - 8, "%s", name);
         }
-        theme::button(groups::kPickBackX, groups::kPickBackY, groups::kPickBackW, groups::kPickBackH, theme::kRed,
-                      theme::kRedDark, false, 8);
+        theme::button(groups::kPickBackX, groups::kPickBackY, groups::kPickBackW, groups::kPickBackH, theme::kRedDark,
+                      theme::shade(theme::kRedDark, 0.72f), false, 8);
         text_.centered(groups::kPickBackX + groups::kPickBackW * 0.5f, groups::kPickBackY + 12, theme::kTextBody,
                        theme::kWhite, groups::kPickBackW - 8, "%s", groups::kBack);
         focus_.drawHighlight();
@@ -180,10 +181,10 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
     for (int i = 0; i < 3; i++) {
         const float fx = groups::kFilterX + i * (groups::kFilterW + groups::kFilterGap);
         const bool on = canCreate;
-        theme::button(fx, groups::kFilterY, groups::kFilterW, groups::kFilterH, on ? theme::kBlue : theme::kGrey,
-                      on ? theme::kBlueDark : theme::kGreyDark, false, 8);
+        theme::button(fx, groups::kFilterY, groups::kFilterW, groups::kFilterH, on ? theme::kBlueDark : theme::kGrey,
+                      on ? theme::shade(theme::kBlueDark, 0.72f) : theme::kGreyDark, false, 8);
         text_.centered(fx + groups::kFilterW * 0.5f, groups::kFilterY + 14, theme::kTextSmall,
-                       on ? theme::kWhite : theme::kInkSoft, groups::kFilterW - 6, "%s", groups::kKindShort[i]);
+                       on ? theme::kWhite : theme::kInk, groups::kFilterW - 6, "%s", groups::kKindShort[i]);
     }
 
     if (empty) {
@@ -209,11 +210,11 @@ void PageGroups::draw(float x, float y, float w, float h, const BookDrawContext&
                     g->memberCount, g->maxSize);
         const bool enabled = actionEnabled(*g, board->selfId, inGroup);
         const bool leave = g->has(board->selfId);
-        const u32 face = !enabled ? theme::kGrey : leave ? theme::kRed : theme::kGreen;
-        const u32 lip = !enabled ? theme::kGreyDark : leave ? theme::kRedDark : theme::kGreenDark;
+        const u32 face = !enabled ? theme::kGrey : leave ? theme::kRedDark : theme::kGreenDark;
+        const u32 lip = !enabled ? theme::kGreyDark : theme::shade(face, 0.72f);
         theme::button(groups::kRowBtnX, groups::kRowBtnY, groups::kRowBtnW, groups::kRowBtnH, face, lip, false, 8);
         text_.centered(groups::kRowBtnX + groups::kRowBtnW * 0.5f, groups::kRowBtnY + 14, theme::kTextBody,
-                       enabled ? theme::kWhite : theme::kInkSoft, groups::kRowBtnW - 12, "%s",
+                       enabled ? theme::kWhite : theme::kInk, groups::kRowBtnW - 12, "%s",
                        actionLabel(*g, board->selfId, inGroup));
     }
     focus_.drawHighlight();

@@ -2166,3 +2166,14 @@ a leader or member name is drawn.
 was 1.77:1. `kInk` on the same grey is 9.47:1. The disabled label uses
 `kInkSoft` so it matches the filters.
 
+## 2026-11-10 - Groups button contrast
+
+No Azahar binary on this machine. This entry is not an emulator or hardware pass.
+
+Disabled Join, Full, and the filters now draw `kInk` (`#2A1A0C`) on `kGrey`
+(`#C8C2B6`), 9.47:1. White on the bright green, blue, and red faces was 2.31,
+3.36, and 4.36, under 4.5:1, so enabled Join uses `kGreenDark`, enabled filters
+and the picker use `kBlueDark`, and Leave and Back use `kRedDark`. The host
+check reads those tokens from `theme.h` and fails any Groups button state below
+4.5:1.
+

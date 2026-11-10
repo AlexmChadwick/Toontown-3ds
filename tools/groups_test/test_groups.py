@@ -23,6 +23,42 @@ CPP_LOGIC = os.path.join(ROOT, 'source', 'net', 'groups_logic.h')
 CPP_CLIENT = os.path.join(ROOT, 'source', 'net', 'groups_client.cpp')
 
 
+def _srgb_linear(channel):
+    c = channel / 255.0
+    if c <= 0.04045:
+        return c / 12.92
+    return ((c + 0.055) / 1.055) ** 2.4
+
+
+def _contrast(text, face):
+    def lum(rgb):
+        return (0.2126 * _srgb_linear(rgb[0]) + 0.7152 * _srgb_linear(rgb[1]) +
+                0.0722 * _srgb_linear(rgb[2]))
+    hi, lo = lum(text), lum(face)
+    if hi < lo:
+        hi, lo = lo, hi
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _theme_colors():
+    path = os.path.join(ROOT, 'source', 'ui', 'theme.h')
+    with open(path, encoding='utf-8') as f:
+        text = f.read()
+    found = {}
+    for match in re.finditer(
+            r'constexpr u32 (k\w+) = rgb\(0x([0-9A-Fa-f]+), 0x([0-9A-Fa-f]+), 0x([0-9A-Fa-f]+)\)',
+            text):
+        found[match.group(1)] = tuple(int(part, 16) for part in match.groups()[1:])
+    return found
+
+
+def _hex_triple(src):
+    parts = [int(part, 16) for part in re.findall(r'0x([0-9A-Fa-f]+)', src)]
+    if len(parts) != 3:
+        raise AssertionError(src)
+    return tuple(parts)
+
+
 def _impress_width(text, scale):
     """Pixel width of ASCII text in romfs impress.bcfnt at a citro2d scale.
 
@@ -727,6 +763,37 @@ class StringsTests(unittest.TestCase):
         for kind in G.KINDS:
             for target in range(G.MAX_TARGET[kind] + 1):
                 self.assertTrue(S.group_title(kind, target))
+
+    def test_button_contrast(self):
+        theme = _theme_colors()
+        with open(os.path.join(ROOT, 'source', 'ui', 'book_pages', 'page_groups.cpp'),
+                  encoding='utf-8') as f:
+            page = f.read()
+        self.assertIn('on ? theme::kBlueDark : theme::kGrey', page)
+        self.assertIn('on ? theme::kWhite : theme::kInk', page)
+        self.assertIn('!enabled ? theme::kGrey : leave ? theme::kRedDark : theme::kGreenDark', page)
+        self.assertIn('enabled ? theme::kWhite : theme::kInk', page)
+        self.assertIn('theme::kBlueDark', page)
+        self.assertIn('theme::kRedDark', page)
+        states = (
+            ('enabled', 'kWhite', 'kGreenDark'),
+            ('disabled', 'kInk', 'kGrey'),
+            ('full', 'kInk', 'kGrey'),
+            ('own Leave', 'kWhite', 'kRedDark'),
+            ('enabled filter', 'kWhite', 'kBlueDark'),
+            ('disabled filter', 'kInk', 'kGrey'),
+        )
+        with open(CPP_LOGIC, encoding='utf-8') as f:
+            header = f.read()
+        rows = re.findall(r'\{"([^"]+)", \{([^}]+)\}, \{([^}]+)\}\}', header)
+        self.assertEqual([name for name, _text, _face in states], [row[0] for row in rows])
+        for (name, text_tok, face_tok), (_name, text_src, face_src) in zip(states, rows):
+            text = theme[text_tok]
+            face = theme[face_tok]
+            self.assertEqual(text, _hex_triple(text_src), name)
+            self.assertEqual(face, _hex_triple(face_src), name)
+            ratio = _contrast(text, face)
+            self.assertGreaterEqual(ratio, 4.5, '%s is %.2f' % (name, ratio))
 
     def test_empty_line_names_the_filters(self):
         with open(CPP_LOGIC, encoding='utf-8') as f:

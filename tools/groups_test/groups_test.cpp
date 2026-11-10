@@ -165,6 +165,16 @@ void checkPlainName() {
     CHECK(std::strchr(member, '\n') == nullptr);
 }
 
+void checkContrast() {
+    int seen = 0;
+    for (const tt::groups::ButtonInk& ink : tt::groups::kButtonInks) {
+        const double ratio = tt::groups::contrastRatio(ink.text, ink.face);
+        CHECK(ratio >= 4.5);
+        ++seen;
+    }
+    CHECK(seen == 6);
+}
+
 void checkAdopt() {
     // No ENTER is required. A live session takes DoId 4722. A session that is not
     // logged in leaves the id at 0, and the page stays on the unavailable line.
@@ -199,6 +209,7 @@ int main() {
     checkRules();
     checkAdopt();
     checkPlainName();
+    checkContrast();
     std::printf("groups: sizeof(GroupsState)=%zu sizeof(GroupView)=%zu\n", sizeof(tt::groups::GroupsState),
                 sizeof(tt::groups::GroupView));
     if (gFailures) {

@@ -104,6 +104,10 @@ def wrap_text(draw, text, max_w, size):
     return lines
 
 
+def darker(rgb, scale=0.72):
+    return tuple(int(c * scale) for c in rgb)
+
+
 def button(draw, box, face, lip, label, label_fill=WHITE, size=15):
     x, y, w, h = box
     draw.rounded_rectangle((x, y + 3, x + w, y + h), radius=8, fill=lip)
@@ -145,8 +149,8 @@ def filters(d, L, S, enabled, focus=0):
     for i, name in enumerate(S['shorts']):
         x = L['kFilterX'] + i * (L['kFilterW'] + L['kFilterGap'])
         box = (x, L['kFilterY'], L['kFilterW'], L['kFilterH'])
-        button(d, box, BLUE if enabled else GREY, BLUE_D if enabled else GREY_D, name,
-               WHITE if enabled else SOFT, 14)
+        button(d, box, BLUE_D if enabled else GREY, darker(BLUE_D) if enabled else GREY_D, name,
+               WHITE if enabled else INK, 14)
         if enabled and i == focus:
             ring(d, box)
 
@@ -158,9 +162,14 @@ def row_card(d, L, S, title, place, count, action, mine, enabled, focus=False):
     d.text((16, y + 26), place, font=font(11), fill=SOFT)
     bbox = d.textbbox((0, 0), count, font=font(13, True))
     d.text((x + w - 8 - (bbox[2] - bbox[0]), y + 6), count, font=font(13, True), fill=INK)
-    face, lip = (GREY, GREY_D) if not enabled else ((RED, RED_D) if action == S['kLeave'] else (GREEN, GREEN_D))
+    if not enabled:
+        face, lip, fill = GREY, GREY_D, INK
+    elif action == S['kLeave']:
+        face, lip, fill = RED_D, darker(RED_D), WHITE
+    else:
+        face, lip, fill = GREEN_D, darker(GREEN_D), WHITE
     box = (L['kRowBtnX'], L['kRowBtnY'], L['kRowBtnW'], L['kRowBtnH'])
-    button(d, box, face, lip, action, WHITE if enabled else SOFT, 16)
+    button(d, box, face, lip, action, fill, 16)
     if focus and enabled:
         ring(d, box)
 
@@ -174,11 +183,11 @@ def picker(d, L, S):
         x = L['kPickCellX'] + col * (L['kPickCellW'] + L['kPickCellGapX'])
         y = L['kPickCellY'] + row * (L['kPickCellH'] + L['kPickCellGapY'])
         box = (x, y, L['kPickCellW'], L['kPickCellH'])
-        button(d, box, BLUE, BLUE_D, name, WHITE, 13)
+        button(d, box, BLUE_D, darker(BLUE_D), name, WHITE, 13)
         if i == 0:
             ring(d, box)
     box = (L['kPickBackX'], L['kPickBackY'], L['kPickBackW'], L['kPickBackH'])
-    button(d, box, RED, RED_D, S['kBack'], WHITE, 15)
+    button(d, box, RED_D, darker(RED_D), S['kBack'], WHITE, 15)
 
 
 def status_line(d, L, text):

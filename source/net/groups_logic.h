@@ -10,6 +10,7 @@
 // layout, and the 320x240 sheet. See docs/design/groups.md.
 #pragma once
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -17,6 +18,46 @@
 #include "net/datagram.h"
 
 namespace tt::groups {
+
+// WCAG relative luminance. Groups button labels are checked against 4.5:1.
+struct Rgb8 {
+    uint8_t r, g, b;
+};
+
+inline double channelToLinear(double c) {
+    return c <= 0.04045 ? c / 12.92 : std::pow((c + 0.055) / 1.055, 2.4);
+}
+
+inline double relativeLuminance(Rgb8 c) {
+    return 0.2126 * channelToLinear(c.r / 255.0) + 0.7152 * channelToLinear(c.g / 255.0) +
+           0.0722 * channelToLinear(c.b / 255.0);
+}
+
+inline double contrastRatio(Rgb8 a, Rgb8 b) {
+    const double la = relativeLuminance(a);
+    const double lb = relativeLuminance(b);
+    const double hi = la > lb ? la : lb;
+    const double lo = la > lb ? lb : la;
+    return (hi + 0.05) / (lo + 0.05);
+}
+
+// Text on the button face. These are the theme.h tokens page_groups.cpp draws:
+// enabled Join is kWhite on kGreenDark, disabled and Full are kInk on kGrey,
+// own Leave is kWhite on kRedDark, filters are kWhite on kBlueDark or kInk on kGrey.
+struct ButtonInk {
+    const char* state;
+    Rgb8 text;
+    Rgb8 face;
+};
+
+inline constexpr ButtonInk kButtonInks[] = {
+    {"enabled", {0xFF, 0xFF, 0xFF}, {0x2E, 0x7E, 0x26}},
+    {"disabled", {0x2A, 0x1A, 0x0C}, {0xC8, 0xC2, 0xB6}},
+    {"full", {0x2A, 0x1A, 0x0C}, {0xC8, 0xC2, 0xB6}},
+    {"own Leave", {0xFF, 0xFF, 0xFF}, {0x9C, 0x1E, 0x16}},
+    {"enabled filter", {0xFF, 0xFF, 0xFF}, {0x2B, 0x58, 0xA8}},
+    {"disabled filter", {0x2A, 0x1A, 0x0C}, {0xC8, 0xC2, 0xB6}},
+};
 
 constexpr uint32_t kManagerDoId = 4722;
 constexpr uint16_t kAvatarGoneField = 2294;
