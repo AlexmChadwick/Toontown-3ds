@@ -534,6 +534,8 @@ bool Runner::begin() {
             }
         }
     }
+    while (step_ < numSteps_ && skipped(script_[step_].label))
+        step_++; // label() never names a skipped step (see apply)
     TT_LOG("autotest: start %s script (%d steps)", frontEnd_ ? "front-end" : "world", numSteps_);
     return true;
 }
@@ -646,6 +648,11 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
             step_ = 0;
             TT_LOG("tutorial: autotest selected Play it");
         }
+        // Skip ahead now, not on the next apply(): label() must never name a skipped step,
+        // or main.cpp reacts to it for a frame (a default run closed the book after
+        // "book: options" because the next label was the skipped "gui polish: chat tab").
+        while (step_ < numSteps_ && skipped(script_[step_].label))
+            step_++;
     } else if (series && t_ >= nextSeriesShot_ + interval) {
         nextSeriesShot_ += interval;
         snprintf(seriesName_, sizeof(seriesName_), "%.*s_%03d", int(shotLen), s.shot, ++seriesIndex_);
