@@ -239,8 +239,14 @@ def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
     preview_png = os.path.join(preview_dir, f'{zone_id}_compare.png')
 
     # 2. Extract geometry and write .ttm
+    # Lamps, coat racks, desk phones and Toon Hall's trophies are axial BillboardEffect cards;
+    # frozen they vanish edge-on. Crossed on a copy so collision and anchors see the original.
+    from panda3d.core import NodePath
+    visual = root.copyTo(NodePath('visual'))
+    assemble.cross_billboards(visual)
     ex = extract.Extractor(max_tex=max_tex, layer_rules=assemble.LAYER_RULES)
-    ex.add(root)
+    ex.add(visual)
+    visual.removeNode()
     batches = ex.batches()
     ttm_stats = ttm.write(ttm_path, ex.textures, batches)
 
