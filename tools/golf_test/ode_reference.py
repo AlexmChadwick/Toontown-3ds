@@ -177,7 +177,7 @@ def ode_movie(hole_id, case):
 
 
 def native_movie(binary, hole_id, case, reference):
-    gph = ROOT / "sdmc-out" / "3ds" / "toontown3ds" / "data" / "golf" / ("hole%d.gph" % hole_id)
+    gph = ROOT / "sdmc-out" / "3ds" / "toontown3ds" / "data" / "golf" / ("hole_%d.gph" % hole_id)
     args = [str(binary), "--record", str(gph)]
     args += ["%.9g" % value for value in reference["start"]]
     args += ["%.9g" % case["power"], "%.9g" % case["dir"][0], "%.9g" % case["dir"][1]]

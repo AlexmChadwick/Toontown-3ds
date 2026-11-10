@@ -32,8 +32,10 @@ course autotest as validated.
 ## Assets
 
 `tools/pipeline/bake_golf.py` reads `GolfGlobals.HoleInfo`, bakes the 18 source
-terrain models into `sdmc-out/3ds/toontown3ds/data/golf/holeN.ttm`, and writes all
-36 logical hole records to `holes.json` with par, max swings, tee, cup, and
+terrain models into one `sdmc-out/3ds/toontown3ds/data/golf/hole_<id>.ttm` per
+HoleInfo entry (holes that share a terrain keep different blockers; the rest are
+removed as `loadBlockers`, the `collision?` barriers hidden, the flower and tree
+BillboardEffect cards crossed), and writes all 36 logical hole records to `holes.json` with par, max swings, tee, cup, and
 physics-data names. Textures are emitted through the existing TTM pipeline and
 are ETC1-compatible under the repository texture configuration. The runtime
 loads only the selected hole model and keeps the existing Old 3DS linear-memory
@@ -41,8 +43,9 @@ budgets.
 
 `tools/pipeline/bake_golf_physics.py` reads the corresponding stock BAM nodes
 (`softSurface/grass*`, `softSurface/slick*`, `softSurface/hole*`, and
-`hardSurface`) and emits `holeN.gph`. The bake is deterministic; the 18 files
-contain 6,717 collision triangles in total.
+`hardSurface` after the same `bake_golf.apply_blockers`) and emits one
+`hole_<id>.gph` per HoleInfo entry, so the ball meets exactly the blockers that
+are drawn. The bake is deterministic.
 
 ## Autotest / Azahar
 

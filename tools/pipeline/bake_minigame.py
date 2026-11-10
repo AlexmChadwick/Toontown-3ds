@@ -20,6 +20,7 @@ loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level war
                 'textures-power-2 none')
 from direct.showbase.ShowBase import ShowBase  # noqa: E402
 
+import assemble  # noqa: E402
 import bake_audio  # noqa: E402
 import extract  # noqa: E402
 import ttm  # noqa: E402
@@ -94,7 +95,10 @@ MODELS = {
     'target_tramp': (MG + 'slingshot_game_tramp', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Cog Thief
-    'cogthief_ground': (MG + 'cogthief_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # cogthief_game holds six coplanar hood floors; DistributedCogThiefGame.load shows one, so
+    # each is baked alone as cogthief_ground_<hood> (bake_model stashes the other five).
+    **{'cogthief_ground_' + h: (MG + 'cogthief_game', None, (0, 0, 0), 1.0, (0, 0, 0))
+       for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL')},
     'cogthief_barrel': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'cogthief_tank': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
@@ -136,6 +140,13 @@ MODELS = {
     'photo_scene': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'photo_subject': (MG + 'photogame_camera', None, (0, 0, 0), 1.0, (0, 0, 0)),
 }
+
+# The game floors and terrain fill the screen: they keep up to 256 px (AGENTS.md section 4,
+# terrain), props stay at --max-tex.
+TERRAIN = {'catch_ground_2', 'catch_ground_3', 'catch_ground_4', 'cannon_gameground', 'cannon_hill',
+           'tug_dock', 'ring_game', 'maze_1player', 'target_ground', 'tag_arena', 'pattern_stage',
+           'ice_arena', 'race_track', 'diving_game', 'memory_room', 'vine_background',
+           *('cogthief_ground_' + h for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL'))}
 
 # (output name, upstream path, kind, loops)
 AUDIO = [
@@ -214,6 +225,13 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
         model.setScale(scale)
     model.setHpr(*hpr)
     model.setPos(*pos)
+    if name.startswith('cogthief_ground_'):
+        for floor in model.findAllMatches('**/floors/floor_*'):
+            if floor.getName() != 'floor_' + name[-2:]:
+                floor.stash()
+    # BillboardEffect sprites (the tug-of-war palm tops, the ring game's kelp, the tag arena's
+    # IT pointer) would bake frozen at their modelled heading, edge-on from most cameras.
+    assemble.cross_billboards(root)
     ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals
     # The anvil is a one-joint Character: apply its (bind pose) skinning.
     ex.add(root, animated=model.find('**/+Character').isEmpty() is False)
@@ -232,7 +250,10 @@ def literal_assignment(path, name):
 
 
 def bake_pairing(base, resources, out_dir, max_tex):
-    upstream = os.path.join(ROOT, 'ref', 'open-toontown', 'toontown')
+    # The open-toontown checkout next to --resources, else this tree's submodule.
+    upstream = os.path.join(os.path.dirname(os.path.abspath(resources)), 'open-toontown', 'toontown')
+    if not os.path.isdir(upstream):
+        upstream = os.path.join(ROOT, 'ref', 'open-toontown', 'toontown')
     if not os.path.isdir(upstream):  # linked worktrees reach the submodules through ref/ref
         upstream = os.path.join(ROOT, 'ref', 'ref', 'open-toontown', 'toontown')
     props = literal_assignment(os.path.join(upstream, 'toonbase', 'ToontownBattleGlobals.py'), 'AvPropsNew')
@@ -308,7 +329,8 @@ def main():
             needs_sky = args.only == 'cannon' and name == 'minigame_sky'
             if args.only and not (name.startswith(args.only) or needs_sky or args.only == 'pairing' and name == 'memory_room'):
                 continue
-            stats = bake_model(base, args.resources, name, spec, args.out, args.max_tex)
+            stats = bake_model(base, args.resources, name, spec, args.out,
+                               max(args.max_tex, 256) if name in TERRAIN else args.max_tex)
             report['models'].append(stats)
             print(json.dumps(stats))
 

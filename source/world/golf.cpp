@@ -32,10 +32,11 @@ void GolfSession::begin(net::Client&, uint32_t zone, int8_t courseId, uint32_t n
 
 void GolfSession::loadHole(int holeId) {
     char path[128];
-    const int model = holeId == 0 ? 18 : ((holeId - 1) % 18) + 1;
-    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.ttm", model);
+    // bake_golf / bake_golf_physics: each HoleInfo entry has its own terrain and physics bake
+    // with only its blockers.
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole_%d.ttm", holeId);
     assetBatch_.load(hole_, path);
-    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole%d.gph", model);
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/golf/hole_%d.gph", holeId);
     if (!physics_.load(path)) TT_LOG("golf: missing physics %s", path);
     ballX_ = 0.0f; ballY_ = 0.0f; ballZ_ = 0.25f; aim_ = 0.0f; power_ = 50.0f; swung_ = false;
     TT_LOG("golf: hole %d loaded", holeId);

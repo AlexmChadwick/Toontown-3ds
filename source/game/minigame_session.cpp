@@ -224,7 +224,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isCogThief_) {
-            cogThief_.init(kDir);
+            cogThief_.init(kDir, mg->trolleyZone - mg->trolleyZone % 1000, mg->numParticipants);
             cogThief_.chooseSuitTypes(mg->doId);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;

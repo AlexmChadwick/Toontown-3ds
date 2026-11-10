@@ -38,7 +38,11 @@ def main():
     import collide
     base = ShowBase()
     BamCache.getGlobalPtr().setActive(False)
-    spec = runpy.run_path(str(REF / 'open-toontown/toontown/racing/RaceGlobals.py'))
+    # The open-toontown checkout next to --resources, else this tree's submodule.
+    upstream = args.resources.resolve().parent / 'open-toontown'
+    if not upstream.is_dir():
+        upstream = REF / 'open-toontown'
+    spec = runpy.run_path(str(upstream / 'toontown/racing/RaceGlobals.py'))
     args.out.mkdir(parents=True, exist_ok=True)
     report = {'version': 1, 'tracks': [], 'sha256': {}}
     for track_id, name in zip(IDS, NAMES):
@@ -48,8 +52,13 @@ def main():
         model = base.loader.loadModel(str(args.resources / (info[0] + '.bam')))
         if model.isEmpty():
             raise FileNotFoundError(info[0])
+        # Cows, barns, flags and roadside cards are BillboardEffect sprites (frozen, edge-on).
+        # Crossed on a copy: the copy's collision solids must not reach the track collision.
+        import assemble
+        visual = model.copyTo(NodePath('visual'))
+        assemble.cross_billboards(visual)
         exporter = extract.Extractor(max_tex=128)
-        exporter.add(model)
+        exporter.add(visual)
         stats = ttm.write(str(args.out / (name + '.ttm')), exporter.textures, exporter.batches())
         if stats['triangles'] > 15000 or stats['batches'] > 150 or stats['geometry_bytes'] > 6*1024**2 or stats['texture_bytes'] > 8*1024**2:
             raise ValueError(f'{name} over budget: {stats}')

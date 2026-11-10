@@ -284,9 +284,12 @@ def bake_tz(level, ents, model, out, args):
     index = {z: i for i, z in enumerate(order)}
     whole = collide.extract(model, fallback_floor=False)
     collision, collision_stats = whole.pack()
+    # The country-club rooms' trees and shrub cards are BillboardEffect sprites; frozen they
+    # read as edge-on sticks. Crossed after the collision above, so the copies add no solids.
+    import assemble
+    assemble.cross_billboards(model)
     # Per-texture batches with native repeat (no 32 px atlas tiles: the interiors are close-up
     # and heavily tiled). Textures are shared; each chunk TTM copies the ones it uses.
-    import assemble
     ex = extract.Extractor(max_tex=128, layer_rules=assemble.LAYER_RULES)
     raw, chunks, floors = [], [], []
     stashed = [zones[z] for z in order if z != 0]

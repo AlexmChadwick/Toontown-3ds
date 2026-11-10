@@ -737,7 +737,7 @@ not strand the player.
   - Host test: `tools/cog_thief_test/` compares barrel theft tracking, pie hits, and scoring against `cog_thief_ref.py`.
   - Network: `source/net/client.{h,cpp}` handles `updateGoal`, `carryBarrel`, `dropBarrel`, `barrelStolen`, and sends `throwPie`, `hitBySuit`, `pieHitSuit`, `hitBarrel`, `atReturnPos`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
   - Runtime: `source/game/cog_thief_game.{h,cpp}`: Circle Pad toon navigation, A button pie throwing with cooldown, barrel defense, bottom-screen barrel status and score display.
-  - Assets: `cogthief_ground.ttm`, `cogthief_barrel.ttm`, `cogthief_tank.ttm`, and Cog Thief audio (`mg_slice`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+  - Assets: `cogthief_ground_<TT|DD|DG|MM|BR|DL>.ttm` (one hood floor each, as DistributedCogThiefGame.load shows), `cogthief_barrel.ttm`, `cogthief_tank.ttm`, and Cog Thief audio (`mg_slice`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
 - **What differs from upstream:** Dual-screen layout: top screen displays 3D court, bottom screen shows barrel defense status and time remaining.
 - **What to verify in Azahar:** Force `minigame-id 14`; board trolley; throw pies at incoming Cogs with A; defend gag barrels; verify jellybean reward and perfect bonus if all 4 barrels saved.
 
