@@ -492,7 +492,7 @@ void Ui::draw(C3D_RenderTarget* target, const State& s, const Context& c) {
             break;
         }
         chat_.draw(chatBottom(), layout::chatHeaderLimit(kFriendsButtonX, numNearby_ > 0, layout::kWhisperButtonX));
-        theme::skyBand(chatBottom(), kTabY); // rows scrolled past the bottom stay hidden
+        theme::skyBand(layout::chatListBottom(chatBottom()), kTabY); // rows past the last whole row stay hidden
         if (chatLogShown()) drawChatLog(layout::chatLogPaperY(), kTabY);
         if (numNearby_ > 0) {
             // SpeedChat's whisper target: green while whispering, like a rolled-over SC button.
@@ -918,7 +918,7 @@ void Ui::drawMap(const Context& c) {
         map.w = mapW_;
         map.h = mapH_;
     }
-    drawMapFrame(c, map, 4, 4, kW - 8, kHoodRowY - 8);
+    drawMapFrame(c, map, layout::kPocketMapX, layout::kPocketMapY, layout::kPocketMapW, layout::kPocketMapH);
     drawHoodControls(c, kHomeX, tabFocus_.focusedId());
 }
 

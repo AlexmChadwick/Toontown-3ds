@@ -285,9 +285,130 @@ constexpr float chatLogPaperY() { return kChatLogPaperY; }
 constexpr float chatBottom(bool logShown) {
     return logShown ? kChatFrameBottom : kPocketTop;
 }
-constexpr bool chatListContains(float y, bool logShown) {
-    return y >= kChatHeaderH && y < chatBottom(logShown);
+
+// SpeedChat rows. The hit box stays at least the old 30 px. Four rows of 35
+// fill the log window (header 28, inset 2, frame 170) with nothing left over,
+// so the last visible row is whole instead of running into the border.
+constexpr float kChatRowH = 35.0f;
+constexpr float kChatRowInset = 2.0f; // half of the 4 px frame pad
+constexpr float kChatClipInset = 2.0f;
+constexpr float kChatTextLine = 15.0f; // one Impress line at scale 0.5
+constexpr float kChatTextTwo = 26.0f;  // two lines at about 0.42, with slack
+
+constexpr int chatWholeRows(float panelBottom) {
+    const float room = panelBottom - kChatHeaderH - kChatRowInset;
+    if (room < kChatRowH) return 0;
+    return static_cast<int>(room / kChatRowH);
 }
+
+// The frame ends on a row boundary at or above panelBottom.
+constexpr float chatListBottom(float panelBottom) {
+    const float fitted = kChatHeaderH + kChatRowInset + chatWholeRows(panelBottom) * kChatRowH;
+    return fitted < panelBottom ? fitted : panelBottom;
+}
+
+constexpr bool chatListContains(float y, bool logShown) {
+    return y >= kChatHeaderH && y < chatListBottom(chatBottom(logShown));
+}
+
+constexpr float chatRowTop(int row, float scroll = 0.0f) {
+    return kChatHeaderH + kChatRowInset + row * kChatRowH - scroll;
+}
+
+// Text is centred in the row. A row that ends on the frame keeps this above the clip.
+constexpr float chatRowTextBottom(int row, float textH, float scroll = 0.0f) {
+    return chatRowTop(row, scroll) + (kChatRowH + textH) * 0.5f;
+}
+
+constexpr bool chatRowTextFits(float textH) {
+    return (kChatRowH - textH) * 0.5f >= kChatClipInset;
+}
+
+constexpr float chatMaxScroll(int rows, float panelBottom) {
+    if (rows <= 0) return 0.0f;
+    const int extra = rows - chatWholeRows(panelBottom);
+    return extra > 0 ? extra * kChatRowH : 0.0f;
+}
+
+constexpr float snapChatScroll(float scroll, float maxScroll) {
+    if (maxScroll < 0.0f) maxScroll = 0.0f;
+    if (scroll < 0.0f) scroll = 0.0f;
+    if (scroll > maxScroll) scroll = maxScroll;
+    const float step = kChatRowH;
+    const int n = static_cast<int>((scroll + step * 0.5f) / step);
+    float snapped = n * step;
+    if (snapped > maxScroll) snapped = maxScroll;
+    if (snapped < 0.0f) snapped = 0.0f;
+    return snapped;
+}
+
+constexpr bool chatHintUp(float scroll) { return scroll > 0.5f; }
+constexpr bool chatHintDown(float scroll, float maxScroll) { return scroll + 0.5f < maxScroll; }
+
+// Map card inside the rect the Map tab and the book Map page already pass.
+// The card hugs the map plus the legend, with a red border and a short shadow.
+// Callers: book (4, 27, 312, 117), pocket (4, 4, 312, 140). Hood row is y 148.
+constexpr float kBottomW = 320.0f, kBottomH = 240.0f;
+constexpr float kBookMapX = 4.0f, kBookMapY = 27.0f, kBookMapW = 312.0f, kBookMapH = 117.0f;
+constexpr float kPocketMapX = 4.0f, kPocketMapY = 4.0f, kPocketMapW = 312.0f, kPocketMapH = 140.0f;
+constexpr float kMapBorder = 2.0f, kMapPad = 3.0f, kMapShadow = 3.0f;
+constexpr float kMapInset = kMapBorder + kMapPad;
+constexpr float kMapLegendW = 66.0f, kMapLegendGap = 4.0f, kMapLegendRow = 15.0f;
+constexpr int kMapLegendMax = 7;
+
+struct MapCard {
+    float x, y, w, h;
+    float shadow;
+    float mapX, mapY, mapW, mapH;
+    float legendX, legendY, legendW;
+    bool legend;
+};
+
+constexpr MapCard layoutMapCard(float ox, float oy, float ow, float oh, float aspect, bool wantLegend) {
+    MapCard card{};
+    card.shadow = kMapShadow;
+    if (aspect < 0.25f) aspect = 0.25f;
+    if (aspect > 4.0f) aspect = 4.0f;
+    const float innerH = oh - 2.0f * kMapInset;
+    const float innerW = ow - 2.0f * kMapInset;
+    const float legendNeed = kMapLegendMax * kMapLegendRow;
+    const bool legend = wantLegend && innerW > kMapLegendW + kMapLegendGap + 48.0f && innerH + 0.01f >= legendNeed;
+    const float legendBlock = legend ? kMapLegendW + kMapLegendGap : 0.0f;
+    const float roomW = innerW - legendBlock;
+    float mapW = 1.0f, mapH = 1.0f;
+    if (roomW > 0.0f && innerH > 0.0f) {
+        if (roomW / innerH < aspect) {
+            mapW = roomW;
+            mapH = mapW / aspect;
+        } else {
+            mapH = innerH;
+            mapW = mapH * aspect;
+        }
+    }
+    float contentH = mapH;
+    if (legend && legendNeed > contentH) contentH = legendNeed < innerH ? legendNeed : innerH;
+    const float contentW = mapW + legendBlock;
+    card.w = contentW + 2.0f * kMapInset;
+    card.h = contentH + 2.0f * kMapInset;
+    card.x = ox + (ow - card.w) * 0.5f;
+    card.y = oy + (oh - card.h) * 0.5f;
+    if (card.x < 0.0f) card.x = 0.0f;
+    if (card.y < 0.0f) card.y = 0.0f;
+    if (card.x + card.w + card.shadow > kBottomW) card.x = kBottomW - card.shadow - card.w;
+    if (card.y + card.h + card.shadow > kBottomH) card.y = kBottomH - card.shadow - card.h;
+    card.mapW = mapW;
+    card.mapH = mapH;
+    card.mapX = card.x + kMapInset;
+    card.mapY = card.y + kMapInset + (contentH - mapH) * 0.5f;
+    card.legend = legend;
+    card.legendW = kMapLegendW;
+    card.legendX = card.mapX + card.mapW + kMapLegendGap;
+    card.legendY = card.y + kMapInset;
+    return card;
+}
+
+constexpr MapCard kBookMapCard = layoutMapCard(kBookMapX, kBookMapY, kBookMapW, kBookMapH, 1.0f, true);
+constexpr MapCard kPocketMapCard = layoutMapCard(kPocketMapX, kPocketMapY, kPocketMapW, kPocketMapH, 1.0f, true);
 
 constexpr float slashBold(float size) { return kLaffSlashBold * size / kLaffMeterRef; }
 constexpr float slashGap(float size) { return kLaffLabelGap * size; }
@@ -308,6 +429,26 @@ static_assert(kWhisperLineAt1 * kWhisperTextFloor * 2.0f <= kWhisperButtonH,
 static_assert(kChatLogPaperY == kTabY - kChatLogH, "paper y is the log strip top");
 static_assert(kChatFrameBottom + kChatLogGap == kChatLogPaperY, "four pixels of sky above the paper");
 static_assert(kChatLogGap == 4.0f, "four pixels of sky above the chat log");
+static_assert(kChatRowH >= 30.0f, "SpeedChat hit target stays at least 30 px");
+static_assert(chatWholeRows(kChatFrameBottom) == 4, "four whole rows beside the chat log");
+static_assert(chatListBottom(kChatFrameBottom) == kChatFrameBottom, "rows fill the log window");
+static_assert(chatListBottom(kPocketTop) == kChatFrameBottom, "without the log the extra sliver is not a row");
+static_assert(chatRowTextFits(kChatTextLine) && chatRowTextFits(kChatTextTwo), "row text stays above the clip");
+static_assert(chatRowTop(4) >= chatListBottom(kChatFrameBottom), "the fifth row starts at the frame");
+static_assert(chatRowTop(3) + kChatRowH <= chatListBottom(kChatFrameBottom) + 0.01f, "the fourth row ends on the frame");
+static_assert(kBookMapCard.legend && kPocketMapCard.legend, "both map views keep the legend");
+static_assert(kBookMapCard.w <= kBookMapW - 80.0f, "the book map card drops the empty side margins");
+static_assert(kPocketMapCard.w <= kPocketMapW - 80.0f, "the pocket map card drops the empty side margins");
+static_assert(kBookMapCard.mapH + 0.1f >= kMapLegendMax * kMapLegendRow, "book legend rows fit the map");
+static_assert(kPocketMapCard.mapH + 0.1f >= kMapLegendMax * kMapLegendRow, "pocket legend rows fit the map");
+static_assert(kBookMapCard.x >= 0.0f && kBookMapCard.y >= 0.0f, "book card on screen");
+static_assert(kPocketMapCard.x >= 0.0f && kPocketMapCard.y >= 0.0f, "pocket card on screen");
+static_assert(kBookMapCard.x + kBookMapCard.w + kBookMapCard.shadow <= kBottomW, "book card shadow inside 320");
+static_assert(kPocketMapCard.x + kPocketMapCard.w + kPocketMapCard.shadow <= kBottomW, "pocket card shadow inside 320");
+static_assert(kBookMapCard.y + kBookMapCard.h + kBookMapCard.shadow <= 148.0f, "book shadow stops above the hood row");
+static_assert(kPocketMapCard.y + kPocketMapCard.h + kPocketMapCard.shadow <= 148.0f, "pocket shadow stops above the hood row");
+static_assert(kBookMapCard.y + kBookMapCard.h + kBookMapCard.shadow <= kBottomH, "book card inside 240");
+static_assert(kPocketMapCard.y + kPocketMapCard.h + kPocketMapCard.shadow <= kBottomH, "pocket card inside 240");
 
 } // namespace layout
 

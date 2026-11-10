@@ -25,8 +25,8 @@ struct MapSource {
     unsigned w = 0, h = 0;
 };
 
-// Paper frame at (x, y, w, h) holding the map, markers and the player arrow; nothing is drawn
-// outside the frame.
+// Cream card inside (x, y, w, h): red border, short drop shadow, the map, markers and the
+// player arrow. The legend sits against the map. Nothing is drawn outside the screen.
 void drawMapFrame(const Context& c, const MapSource& map, float x, float y, float w, float h);
 // Go Home, the place label and the teleport row at the pad::hoods positions. focusedHood is a
 // hood control id (0..kNumTeleportHoods-1), or -1 when keyboard focus is outside the row. A

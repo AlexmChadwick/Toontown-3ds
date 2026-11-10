@@ -63,37 +63,36 @@ void drawArrow(float px, float py, float h, float big) {
 } // namespace
 
 void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, float fw, float fh) {
-    // Fit the map (baked image rectangle, else zone bounds) inside the frame, preserving
-    // aspect. Map +Y is up.
-    theme::paper(fx0, fy0, fw, fh, 6.0f, theme::kPaperShade);
-    const float areaX = fx0 + 5, areaY = fy0 + 5, areaW = fw - 10, areaH = fh - 10;
+    // A cream card with a red border and a short drop shadow, sized to the map and the
+    // legend. Map +Y is up. The card stays inside the caller's rect and on the 320x240 screen.
     const bool hasMap = map.image && map.w && map.h;
     const float minX = hasMap ? map.minX : c.zoneMinX, maxX = hasMap ? map.maxX : c.zoneMaxX;
     const float minY = hasMap ? map.minY : c.zoneMinY, maxY = hasMap ? map.maxY : c.zoneMaxY;
     const float zw = fmaxf(1.0f, maxX - minX), zh = fmaxf(1.0f, maxY - minY);
-    const float scale = hasMap ? fminf(areaW / map.w, areaH / map.h) * map.w / zw : fminf(areaW / zw, areaH / zh);
-    // A legend in the margin the (usually square) map leaves on the right, when it fits.
-    constexpr float kLegendW = 66.0f;
-    const bool legend = areaW - zw * scale >= kLegendW + 4.0f && !(c.mapNoArrow && c.numMarkers == 0) &&
-                        (c.mapOutside || world::placeKind(c.currentZone) != world::PlaceKind::Interior);
-    const float ox = legend ? areaX + (areaW - kLegendW - zw * scale) * 0.5f : areaX + (areaW - zw * scale) * 0.5f;
-    const float oy = areaY + (areaH - zh * scale) * 0.5f;
-    auto mx = [&](float x) { return ox + (x - minX) * scale; };
-    auto my = [&](float y) { return oy + (maxY - y) * scale; };
+    const bool wantLegend = !(c.mapNoArrow && c.numMarkers == 0) &&
+                            (c.mapOutside || world::placeKind(c.currentZone) != world::PlaceKind::Interior);
+    const layout::MapCard card = layout::layoutMapCard(fx0, fy0, fw, fh, zw / zh, wantLegend);
+    theme::roundRect(card.x + card.shadow, card.y + card.shadow, card.w, card.h, 8.0f, theme::kBinderDark, 0.42f);
+    theme::roundRect(card.x, card.y, card.w, card.h, 8.0f, theme::kBinder, 0.43f);
+    theme::roundRect(card.x + layout::kMapBorder, card.y + layout::kMapBorder, card.w - 2.0f * layout::kMapBorder,
+                     card.h - 2.0f * layout::kMapBorder, 6.0f, theme::kPaper, 0.44f);
+    auto mx = [&](float x) { return card.mapX + (x - minX) / zw * card.mapW; };
+    auto my = [&](float y) { return card.mapY + (maxY - y) / zh * card.mapH; };
 
     const bool indoors = !hasMap && world::placeKind(c.currentZone) == world::PlaceKind::Interior;
     if (hasMap) {
-        C2D_DrawImageAt(*map.image, ox, oy, 0.5f, nullptr, zw * scale / map.w, zh * scale / map.h);
+        C2D_DrawImageAt(*map.image, card.mapX, card.mapY, 0.5f, nullptr, card.mapW / map.w, card.mapH / map.h);
     } else if (indoors) {
         // No baked map indoors (upstream has none either): a plain floor plan of the room,
         // so the markers still read as "who is where" instead of sitting on grass.
-        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x8A, 0x63, 0x3E, 0xFF));
-        C2D_DrawRectSolid(ox + 2, oy + 2, 0.5f, zw * scale - 4, zh * scale - 4, C2D_Color32(0xB9, 0x8A, 0x5A, 0xFF));
+        C2D_DrawRectSolid(card.mapX, card.mapY, 0.5f, card.mapW, card.mapH, C2D_Color32(0x8A, 0x63, 0x3E, 0xFF));
+        C2D_DrawRectSolid(card.mapX + 2, card.mapY + 2, 0.5f, card.mapW - 4, card.mapH - 4,
+                          C2D_Color32(0xB9, 0x8A, 0x5A, 0xFF));
     } else {
-        C2D_DrawRectSolid(ox, oy, 0.5f, zw * scale, zh * scale, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
+        C2D_DrawRectSolid(card.mapX, card.mapY, 0.5f, card.mapW, card.mapH, C2D_Color32(0x4E, 0x9A, 0x3C, 0xFF));
     }
     // ---- qafix: all marker geometry stays inside the map, above Home ----
-    const MapRect rect{ox, oy, zw * scale, zh * scale};
+    const MapRect rect{card.mapX, card.mapY, card.mapW, card.mapH};
     // Squares, not C2D_DrawCircleSolid: citro2d circles use the procedural-texture
     // unit and did not render after the 3D pass in Azahar (unverified on hardware).
     for (int i = 0; i < c.numMarkers; i++) {
@@ -108,14 +107,16 @@ void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, 
     const float h = c.playerHeadingDeg * 3.14159265f / 180.0f;
     float px = mx(c.playerX), py = my(c.playerY);
     if (!c.mapNoArrow && rect.marker(&px, &py, 13)) drawArrow(px, py, h, 13.0f);
-    if (legend) {
+    if (card.legend) {
         initText();
-        const float lx = areaX + areaW - kLegendW + 2;
-        float ly = areaY + 2;
+        const float lx = card.legendX;
+        float ly = card.legendY;
+        const float legendBottom = card.y + card.h - layout::kMapBorder - layout::kMapPad;
         for (int r = 0; r < kLegendRows; r++) {
             bool present = r == 0 && !c.mapNoArrow;
             for (int i = 0; i < c.numMarkers && !present; i++) present = c.markers[i].color == kLegend[r].color;
             if (!present) continue;
+            if (ly + layout::kMapLegendRow > legendBottom + 0.5f) break;
             if (r == 0) {
                 drawArrow(lx + 5, ly + 7, 0.0f, 8.0f);
             } else {
@@ -123,7 +124,7 @@ void drawMapFrame(const Context& c, const MapSource& map, float fx0, float fy0, 
                 C2D_DrawRectSolid(lx + 2, ly + 4, 0.55f, 6, 6, kLegend[r].color);
             }
             C2D_DrawText(&gLegend[r], C2D_WithColor, lx + 13, ly, 0.5f, 0.42f, 0.42f, theme::kInk);
-            ly += 15.0f;
+            ly += layout::kMapLegendRow;
         }
     }
     // ---- end qafix ----

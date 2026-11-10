@@ -26,6 +26,8 @@ const u32 kRow = theme::kScFrame;
 // keeps rows off the outline.
 const u32 kFrameEdge = C2D_Color32(0x2A, 0x2A, 0x3C, 0xFF);
 constexpr float kFrameR = 7.0f, kFramePad = 4.0f;
+static_assert(kFramePad * 0.5f == layout::kChatRowInset, "rows start on the frame inset");
+static_assert(ChatMenu::kRowH == layout::kChatRowH, "row hit box is the layout row");
 const u32 kFocus = theme::kScRollover;
 const u32 kPressed = theme::kScPressed;
 const u32 kText = theme::kScText;
@@ -33,6 +35,12 @@ const u32 kTextLocked = C2D_Color32(0x66, 0x66, 0x66, 0xFF); // textDisabledColo
 const u32 kTitle = theme::kBlueDark;
 
 float rowTextW(bool isMenu) { return ChatMenu::kW - 2 * kMarginX - 12.0f - kScrollBarW - (isMenu ? kArrowW : 0.0f); }
+
+void scrollArrow(float cx, float y, bool down) {
+    const u32 c = theme::kScArrow;
+    if (down) C2D_DrawTriangle(cx - 5, y, c, cx + 5, y, c, cx, y + 6, c, kZ);
+    else C2D_DrawTriangle(cx - 5, y + 6, c, cx + 5, y + 6, c, cx, y, c, kZ);
+}
 
 } // namespace
 
@@ -164,7 +172,7 @@ void ChatMenu::enter(int menu, int focusItem) {
         float s = kLabelScale;
         if (w > avail) s = kLabelScale * avail / w;
         labelWrap_[i] = s < kMinLabelScale;
-        if (labelWrap_[i]) s = kMinLabelScale + 0.02f; // two lines at 0.42 fit a 30 px row
+        if (labelWrap_[i]) s = kMinLabelScale + 0.02f; // two lines at 0.42 fit a 35 px row
         labelScale_[i] = s;
         C2D_TextGetDimensions(&labels_[i], s, s, &w, &h);
         labelH_[i] = labelWrap_[i] ? h * 2.0f : h;
@@ -182,19 +190,20 @@ void ChatMenu::blur() {
 }
 
 float ChatMenu::maxScroll(float listH) const {
-    const float content = numRows(menu_) * kRowH + kFramePad; // the frame's inset under the last row
-    return content > listH ? content - listH : 0.0f;
+    return layout::chatMaxScroll(numRows(menu_), kHeaderH + listH);
 }
 
 void ChatMenu::ensureVisible(int item, float listH) {
-    const float top = item * kRowH, bottom = top + kRowH + kFramePad;
+    const float window = listH - layout::kChatRowInset;
+    const float top = item * kRowH, bottom = top + kRowH;
     if (top < scroll_) scroll_ = top;
-    if (bottom > scroll_ + listH) scroll_ = bottom - listH;
+    if (bottom > scroll_ + window) scroll_ = bottom - window;
+    scroll_ = layout::snapChatScroll(scroll_, maxScroll(listH));
 }
 
 int ChatMenu::rowAt(float y, float listH) const {
     if (y < kHeaderH || y >= kHeaderH + listH) return -1;
-    const int row = static_cast<int>((y - kHeaderH - kFramePad * 0.5f + scroll_) / kRowH);
+    const int row = static_cast<int>((y - kHeaderH - layout::kChatRowInset + scroll_) / kRowH);
     return row < numRows(menu_) ? row : -1;
 }
 
@@ -252,7 +261,7 @@ bool ChatMenu::popSpeech(int& msgIndex) {
 }
 
 u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float panelBottom) {
-    const float listH = panelBottom - kHeaderH;
+    const float listH = layout::chatListBottom(panelBottom) - kHeaderH;
     const int n = numRows(menu_);
     u32 consumed = 0;
 
@@ -299,10 +308,7 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
             pressedRow_ = -1;
         }
         if (dragged_) {
-            scroll_ = scrollStart_ - dy;
-            const float ms = maxScroll(listH);
-            if (scroll_ < 0) scroll_ = 0;
-            if (scroll_ > ms) scroll_ = ms;
+            scroll_ = layout::snapChatScroll(scrollStart_ - dy, maxScroll(listH));
         }
     }
     if (touching_ && !touchHeld) { // released (same frame as the press for scripted taps)
@@ -323,24 +329,27 @@ u32 ChatMenu::handleInput(u32 down, u32 held, const touchPosition& t, float pane
 }
 
 void ChatMenu::draw(float panelBottom, float headerRight) {
-    const float listH = panelBottom - kHeaderH;
+    const float listH = layout::chatListBottom(panelBottom) - kHeaderH;
     const int numItems = numRows(menu_);
 
     // SCMenu: one ChatPanel frame per menu (the white 9-slice panel with its dark outline, tinted
     // by the scheme's frameColor), its elements flat on it; only the rollover fills a row.
+    // The frame stops on a row boundary (chatListBottom), so the last row is whole.
     const float rowX = kMarginX, rowW = kW - 2 * kMarginX - kScrollBarW - 4.0f;
-    const float content = numItems * kRowH + kFramePad - scroll_;
+    const float content = numItems * kRowH + layout::kChatRowInset - scroll_;
     const float frameTop = kHeaderH, frameBot = kHeaderH + (content < listH ? content : listH);
     theme::roundRect(rowX, frameTop, rowW, frameBot - frameTop, kFrameR, kFrameEdge, kZ);
     theme::roundRect(rowX + 1.5f, frameTop + 1.5f, rowW - 3.0f, frameBot - frameTop - 3.0f, kFrameR - 1.5f, kRow, kZ);
 
     // Rows scrolled out of the frame are clipped to its inside.
-    theme::clip(rowX + 2.0f, frameTop + 2.0f, rowW - 4.0f, frameBot - frameTop - 4.0f);
+    theme::clip(rowX + kFramePad * 0.5f, frameTop + kFramePad * 0.5f, rowW - kFramePad,
+                frameBot - frameTop - kFramePad);
     const int firstRow = static_cast<int>(scroll_ / kRowH);
-    const int lastRow = static_cast<int>((scroll_ + listH) / kRowH);
+    const int visible = layout::chatWholeRows(kHeaderH + listH);
+    const int lastRow = firstRow + visible - 1;
     for (int i = firstRow; i <= lastRow && i < numItems && i < kMaxRows; i++) {
         const Row it = row(menu_, i);
-        const float y = kHeaderH + kFramePad * 0.5f + i * kRowH - scroll_;
+        const float y = layout::chatRowTop(i, scroll_);
         const bool focused = i == focus_;
         const bool pressed = i == pressedRow_;
         if (focused || pressed) {
@@ -366,11 +375,15 @@ void ChatMenu::draw(float panelBottom, float headerRight) {
     // Scroll indicator.
     const float ms = maxScroll(listH);
     if (ms > 0.0f) {
-        const float content = numItems * kRowH;
-        const float barH = listH * listH / content;
+        const float span = numItems * kRowH;
+        const float barH = listH * listH / span;
         const float barY = kHeaderH + (listH - barH) * (scroll_ / ms);
         theme::roundRect(kW - kMarginX - kScrollBarW, kHeaderH, kScrollBarW, listH, 2, kRow, kZ);
         theme::roundRect(kW - kMarginX - kScrollBarW, barY, kScrollBarW, barH, 2, theme::kScArrow, kZ);
+        // A chevron on the track, so a full last row still shows that the menu continues.
+        const float cx = kW - kMarginX - kScrollBarW * 0.5f;
+        if (layout::chatHintUp(scroll_)) scrollArrow(cx, frameTop + 2.0f, false);
+        if (layout::chatHintDown(scroll_, ms)) scrollArrow(cx, frameBot - 10.0f, true);
     }
 
     theme::skyBand(0, kHeaderH, kW, layout::kTabY, kZ);
