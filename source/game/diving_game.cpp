@@ -289,31 +289,23 @@ void DivingGame::toonPose(float* x, float* y, float* z, float* h) const {
     if (x) *x = swimmer_.x;
     if (y) *y = -1.0f;
     if (z) *z = swimmer_.z;
-    if (h) {
-        // Pitch/heading based on velocity
-        float angle = std::atan2(-swimmer_.xVel, -swimmer_.zVel) * 180.0f / 3.14159265f;
-        *h = angle;
-    }
+    if (h) *h = 0.0f; // the orientation is the body roll (toonRoll)
 }
 
-void DivingGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    // Camera follows swimmer vertically in 2D plane
-    float camZ = swimmer_.z + 2.0f;
-    if (camZ < -24.0f) camZ = -24.0f;
-    if (camZ > 34.0f) camZ = 34.0f;
+// __placeToon: hpr (180, 180, 0), i.e. head down with the back to the camera, then the arrow
+// keys roll it; the Toon swims head first. Here the head follows the swim velocity.
+float DivingGame::toonRoll() const {
+    return 180.0f + std::atan2(-swimmer_.xVel, -swimmer_.zVel) * 180.0f / 3.14159265f;
+}
 
-    if (target) {
-        target->x = swimmer_.x * 0.3f;
-        target->y = 0.0f;
-        target->z = camZ;
-        target->w = 1.0f;
-    }
-    if (eye) {
-        eye->x = 0.0f;
-        eye->y = -22.0f;
-        eye->z = camZ;
-        eye->w = 1.0f;
-    }
+// DistributedDivingGame: the camera stays at x 0, y -54, level, with camLens.setFov(45)
+// (MinigameSession::applyWorld); __updateLocalToonTask sets its z to the Toon's z + 3, at
+// least -25.
+void DivingGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
+    float camZ = swimmer_.z + 3.0f;
+    if (camZ < -25.0f) camZ = -25.0f;
+    if (target) *target = FVec4_New(0.0f, 0.0f, camZ, 1.0f);
+    if (eye) *eye = FVec4_New(0.0f, -54.0f, camZ, 1.0f);
 }
 
 } // namespace tt::game

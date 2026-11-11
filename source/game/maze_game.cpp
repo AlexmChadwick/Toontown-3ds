@@ -210,7 +210,7 @@ void MazeGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     if (target) {
         target->x = toonX_;
         target->y = toonY_;
-        target->z = toonZ_ + 1.5f;
+        target->z = toonZ_; // camera.lookAt(base.localAvatar): the Toon origin
         target->w = 1.0f;
     }
     if (eye) {

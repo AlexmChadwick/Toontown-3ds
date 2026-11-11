@@ -26,7 +26,7 @@ void ToonAvatar::cancel() {
     const ToonLook* l=look_&&look_->ready()?look_:fallback_;
     if (l && l->cache) l->cache->forget(this);
     if(emote_>=0) emoteFinished_=true;
-    emote_=-1; headOnly_=false;bodyPitch_=bodyZ_=0;
+    emote_=-1; headOnly_=false;bodyPitch_=bodyZ_=bodyRoll_=0;
     anim_=kAnimNeutral; playback_.begin(ClipMode::Loop,0,-1);
 }
 bool ToonAvatar::finished() const { return playback_.finished(toonDuration(anim_,torsoKey(look_))); }
@@ -103,6 +103,7 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
         textures[8]=lids_==Lids::Closed?nullptr:clear;
     }
     C3D_Mtx actorWorld=world;
+    if (bodyRoll_!=0) Mtx_RotateY(&actorWorld,bodyRoll_*0.01745329252f,true);
     Mtx_RotateX(&actorWorld,bodyPitch_*0.01745329252f,true);
     Mtx_Translate(&actorWorld,0,0,bodyZ_,true);
     C3D_Mtx partWorld=actorWorld;Mtx_Scale(&partWorld,look->scale,look->scale,look->scale);

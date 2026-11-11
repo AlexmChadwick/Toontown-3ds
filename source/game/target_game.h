@@ -13,6 +13,7 @@ namespace tt::game {
 
 class TargetGame {
 public:
+    targetgame::FlightMode flightMode() const { return flight_.mode; }
     void pumpAssets() {
         assetBatch_.pump();
     }

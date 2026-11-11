@@ -52,7 +52,8 @@ public:
     bool popEmoteFinished() { const bool done=emoteFinished_; emoteFinished_=false; return done; }
     void update(float dt);
     void setHeadOnly(bool on) { headOnly_=on; }
-    void setBodyPose(float pitch=0,float z=0) { bodyPitch_=pitch;bodyZ_=z; }
+    // The geometry's roll about y, then pitch about x, then z offset, in the toon's frame.
+    void setBodyPose(float pitch=0,float z=0,float roll=0) { bodyPitch_=pitch;bodyZ_=z;bodyRoll_=roll; }
     void setHeadPitch(float pitch) { headPitch_=pitch; }
     // ToonHead's eyelids FSM and blink task. Moods only pick the textures the next eyelid
     // change uses (sadEyes/angryEyes/normalEyes); blinkEyes() shows them at once.
@@ -87,7 +88,7 @@ private:
     int emote_ = -1;
     float emoteAge_ = 0;
     bool emoteFinished_ = false, headOnly_ = false;
-    float bodyPitch_=0,bodyZ_=0,headPitch_=-45;
+    float bodyPitch_=0,bodyZ_=0,bodyRoll_=0,headPitch_=-45;
     Lids lids_=Lids::Open;
     EyeMood eyeMood_=EyeMood::Normal;
     u8 lidTex_=ToonCache::kEyesOpen; // eyes.ttx texture shown, chosen when the lids changed

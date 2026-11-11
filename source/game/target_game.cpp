@@ -95,30 +95,24 @@ void TargetGame::draw(render::Renderer& renderer) {
     }
 }
 
+// The stock camera of each phase, without its 2.5 s blends: enterPrelaunch toon + (0, -25, 7)
+// at p -15, enterFly riding the Toon at (0, CAMERA_Y + 12, 5) p -15, enterFall (0, -10, 15)
+// p -68; camLens.setFov(80) throughout (MinigameSession::applyWorld).
 void TargetGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     if (!eye || !target) return;
-    if (flight_.mode == targetgame::FlightMode::Aim) {
-        eye->x = 0.0f;
-        eye->y = -40.0f;
-        eye->z = 15.0f;
-        target->x = flight_.aimLateral;
-        target->y = 30.0f;
-        target->z = 8.0f;
-    } else {
-        eye->x = flight_.x;
-        eye->y = flight_.y - 30.0f;
-        eye->z = flight_.z + 15.0f;
-        target->x = flight_.x;
-        target->y = flight_.y + 20.0f;
-        target->z = flight_.z;
-    }
+    float dy = -25.0f, dz = 7.0f, pitch = -15.0f;
+    if (flight_.mode == targetgame::FlightMode::Fly) dy = -13.0f, dz = 5.0f;
+    else if (flight_.mode != targetgame::FlightMode::Aim) dy = -10.0f, dz = 15.0f, pitch = -68.0f;
+    const float p = pitch * 0.0174532925f;
+    *eye = FVec4_New(flight_.x, flight_.y + dy, flight_.z + dz, 1.0f);
+    *target = FVec4_New(eye->x, eye->y + std::cos(p) * 20.0f, eye->z + std::sin(p) * 20.0f, 1.0f);
 }
 
 void TargetGame::toonPose(float* x, float* y, float* z, float* h) const {
     if (x) *x = flight_.x;
     if (y) *y = flight_.y;
     if (z) *z = flight_.z;
-    if (h) *h = flight_.lateral * 2.0f;
+    if (h) *h = 0.0f; // the stock Toon keeps heading 0 in every phase
 }
 
 const char* TargetGame::line(int i) const {

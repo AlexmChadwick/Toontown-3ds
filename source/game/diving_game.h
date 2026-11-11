@@ -24,6 +24,7 @@ public:
     void update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs);
     void draw(render::Renderer& renderer);
 
+    float toonRoll() const;
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool toonRunning() const { return true; } // swimming animation
     void camera(C3D_FVec* eye, C3D_FVec* target) const;

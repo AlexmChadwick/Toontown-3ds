@@ -3744,6 +3744,8 @@ int main() {
             }
             hv.laffOnBottom = ui.laffShown();
             hv.laffHidden = !tutorial.laffShown(); // enterTutorialHood: laffMeter.obscure(1)
+            // exitTrolley stops (hides) the laff meter and no minigame starts it while on stage.
+            if (minigame.inScene()) hv.laffHidden = true;
             {
                 int demoHp = -1, demoMax = 15;
                 float grow = 0.0f;

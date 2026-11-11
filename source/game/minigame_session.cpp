@@ -727,6 +727,8 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
     if (isPattern_) fov = 24.66f;                                  // DistributedPatternGame.onstage
     else if (isTug_) fov = 60.0f + 2.0f * float(tug_.numPlayers()); // DistributedTugOfWarGame.initCamera
     else if (isRing_) fov = 80.0f;                                 // DistributedRingGame.onstage
+    else if (isDiving_) fov = 45.0f;                               // DistributedDivingGame.onstage
+    else if (isTarget_) fov = 80.0f;                               // DistributedTargetGame.onstage / enterFly
     if (fov > 0.0f) {
         renderer.setFovY(pandaFovY(fov));
         worldFov_ = true;
@@ -1050,7 +1052,15 @@ void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
     // Ring: Toon.enterSwim loops 'swim' with the geometry at P -89 (lying flat, head forward).
     // Diving: DivingGameToonSD's 'dive' (Toon.enterDive) loops 'swim' upright, geometry at z -2.
     if(isRing_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(-89.0f);return; }
-    if(isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(0.0f,-2.0f);return; }
+    if(isTarget_) { // enterPrelaunch SitStart, enterFly swim, enterFall jumpAirborne, enterBouncing neutral
+        switch(target_.flightMode()) {
+        case targetgame::FlightMode::Aim: avatar.playAction(kAnimSit,ClipMode::Loop);return;
+        case targetgame::FlightMode::Fly: avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(-89.0f);return;
+        case targetgame::FlightMode::Fall: avatar.playAction(kAnimJumpIdle,ClipMode::Loop);return;
+        default: avatar.play(kAnimNeutral,1);return;
+        }
+    }
+    if(isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(0.0f,-2.0f,diving_.toonRoll());return; }
     if(isCatch_) {
         if(stunned_>0) {
             avatar.playAction(kAnimSlipForward,ClipMode::Once,42/24.0f,12/24.0f,55/24.0f);
