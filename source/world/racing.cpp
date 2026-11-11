@@ -3,6 +3,8 @@
 #include "world/racing_boosts.h"
 #include "core/log.h"
 #include "world/racing_tables.h"
+#include "ui/clerk_tables.h"
+#include "world/toon_dna.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -230,6 +232,8 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                               vehicle->engine,     vehicle->spoiler,   vehicle->frontWheels,
                               vehicle->backWheels, vehicle->rims,      vehicle->decal};
         displayed.body = std::clamp(int(vehicle->body), 0, 2);
+        displayed.bodyColor = vehicle->bodyColor;
+        displayed.accessoryColor = vehicle->accessoryColor;
         const float dx = displayed.x - physics_.position.x, dy = displayed.y - physics_.position.y;
         const float distance = std::sqrt(dx * dx + dy * dy);
         // LOD hysteresis prevents repeated streaming near the thresholds.
@@ -440,6 +444,28 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         TT_LOG("racing: lap %d t %.6f", progress_.laps, double(progress_.fraction));
     if (wrong != progress_.wrongWay)
         TT_LOG("racing: wrong way %d", progress_.wrongWay);
+    // RaceGUI.update: each lap's label times that lap; a new lap starts the next label.
+    if (!race->started || int32_t(now - race->startMs) < 0) {
+        maxLapHit_ = 0;
+        lapStartMs_ = race->startMs;
+        std::memset(lapSeconds_, 0, sizeof(lapSeconds_));
+        lapNotice_ = 0;
+        photoFinish_ = false;
+    } else if (!finished_) {
+        const int laps = std::clamp(int(race->laps), 1, ui::RaceHud::kMaxLaps);
+        if (progress_.laps > maxLapHit_ && maxLapHit_ < laps) {
+            lapSeconds_[maxLapHit_] = (now - lapStartMs_) / 1000.0f;
+            maxLapHit_ = std::min(progress_.laps, laps);
+            lapStartMs_ = now;
+            // lapNotice: "Lap n" / "Final Lap!" for 2 s when a lap that is not the last starts.
+            if (maxLapHit_ < laps) {
+                lapNotice_ = maxLapHit_ == laps - 1 ? -1 : maxLapHit_ + 1;
+                lapNoticeMs_ = now;
+            }
+        }
+        if (maxLapHit_ < laps)
+            lapSeconds_[maxLapHit_] = (now - lapStartMs_) / 1000.0f;
+    }
     place_ = 1;
     const float ownProgress = progress_.laps + progress_.fraction;
     for (int i = 0; i < race->numRacers; ++i) {
@@ -447,6 +473,29 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         if (i != local && !result.disconnected &&
             (result.finished || result.laps + result.fraction > ownProgress))
             ++place_;
+    }
+    // RaceGUI.update: once the local racer is within TrackDict[track][8] nearDiff of the end
+    // of the progress line while another unfinished racer is within farDiff, the place label
+    // becomes "Photo Finish!" for the rest of the race.
+    if (race->started && !finished_ && !photoFinish_) {
+        const unsigned t = race->track;
+        const float nearDiff = t == 0 || t == 1 || t == 60 || t == 61   ? 0.01f
+                               : t == 20 || t == 21 || t == 62 || t == 63 ? 0.003f
+                                                                         : 0.002f;
+        const float farDiff = nearDiff == 0.01f ? 0.015f : nearDiff == 0.003f ? 0.004f : 0.003f;
+        const float laps = float(std::max(1, int(race->laps)));
+        auto lineLeft = [&](float curvetime) { // faceEndPos.x - face.getX() on the -0.8..0.8 line
+            return 1.6f * (1.0f - std::clamp(curvetime / laps, 0.0f, 1.0f));
+        };
+        if (lineLeft(ownProgress) < nearDiff)
+            for (int i = 0; i < race->numRacers; ++i) {
+                const auto &result = race->results[i];
+                if (i == local || !result.avatar || result.disconnected || result.finished)
+                    continue;
+                const float left = lineLeft(result.laps + result.fraction);
+                if (left > 0 && left < farDiff)
+                    photoFinish_ = true;
+            }
     }
     if (race->started && !finished_) {
         if (now - lastPose_ >= kPoseInterval &&
@@ -619,7 +668,15 @@ void Racing::camera(C3D_FVec *eye, C3D_FVec *target) const {
               from.z + (to.z - from.z) * hit};
     }
     *eye = FVec3_New(to.x, to.y, to.z);
-    *target = FVec3_New(from.x, from.y, from.z);
+    if (!active()) {
+        *target = FVec3_New(from.x, from.y, from.z);
+        return;
+    }
+    // Racing: camera.setPosHpr(0, -33, 16, 0, -10, 0) on the kart's cameraNode, so it keeps
+    // the kart's heading and a fixed 10 degree down pitch instead of aiming at the kart.
+    const float cp = std::cos(10 * kRadians), sp = std::sin(10 * kRadians);
+    *target = FVec3_New(to.x - std::sin(h) * back * cp, to.y + std::cos(h) * back * cp,
+                        to.z - back * sp);
 }
 void Racing::draw(render::Renderer &renderer, const net::Client &client) {
     if (!driving())
@@ -814,6 +871,74 @@ void Racing::fillView(ui::RacingView *view, const net::Client &client) const {
                       racer.avatar == client.avatarId() ? "You"
                       : toon                            ? toon->name
                                                         : "Racer");
+    }
+}
+namespace {
+void kartColor(int index, float out[3]) {
+    // KartDNA.getAccessory; InvalidEntry and non-colours give getDefaultColor (white).
+    for (int i = 0; i < 3; ++i)
+        out[i] = index >= 65 && index < 92 ? clerks::kKartAccessories[index].color[i] : 1.0f;
+}
+} // namespace
+void Racing::fillHud(ui::RaceHud *hud, const net::Client &client) const {
+    *hud = ui::RaceHud{};
+    const auto *race = client.racingRace();
+    if (!active() || !race || !spawned_ || !metadata_.loaded())
+        return;
+    hud->active = true;
+    hud->started = race->started && int32_t(now_ - race->startMs) >= 0;
+    // DistributedVehicle: speedometer text int(curSpeed / 3), gauge setR(curSpeed / 3 / 120 * 110).
+    const float shown = speed() / 3;
+    hud->speed = int(shown);
+    hud->needle = std::clamp(shown / 120 * 110, 0.0f, 110.0f);
+    hud->laps = std::clamp(int(race->laps), 1, ui::RaceHud::kMaxLaps);
+    hud->lap = std::clamp(maxLapHit_ + 1, 1, hud->laps);
+    hud->lapsShown = std::min(maxLapHit_ + 1, hud->laps);
+    for (int i = 0; i < hud->lapsShown; ++i)
+        hud->lapSeconds[i] = lapSeconds_[i];
+    hud->place = std::clamp(int(place_), 1, 4);
+    hud->photoFinish = photoFinish_;
+    if (lapNotice_ && now_ - lapNoticeMs_ < 2000)
+        hud->lapNotice = lapNotice_;
+    hud->wrongWay = progress_.wrongWay;
+    hud->gag = heldGag_ <= 4 ? heldGag_ : 0;
+    const unsigned track = race->track;
+    hud->mapScale = track == 20 || track == 21 || track == 62 || track == 63 ? .75f : 1.0f;
+    hud->curveCount = metadata_.count > 1 ? 101 : 0;
+    for (int i = 0; i < hud->curveCount; ++i) {
+        const auto &point = metadata_.points[std::min(metadata_.count - 1, i * metadata_.count / 100)];
+        hud->curve[i][0] = point.x;
+        hud->curve[i][1] = point.y;
+    }
+    for (int i = 0; i < race->numRacers && hud->racerCount < ui::RaceHud::kMaxRacers; ++i) {
+        const auto &entry = race->results[i];
+        const auto &shownRacer = racers_[i];
+        if (!entry.avatar || entry.disconnected)
+            continue;
+        auto &r = hud->racers[hud->racerCount++];
+        r.local = entry.avatar == client.avatarId();
+        const float curvetime =
+            r.local ? progress_.laps + progress_.fraction : entry.laps + entry.fraction;
+        r.progress = entry.finished ? 1.0f : std::clamp(curvetime / hud->laps, 0.0f, 1.0f);
+        r.x = shownRacer.x;
+        r.y = shownRacer.y;
+        kartColor(shownRacer.bodyColor, r.body);
+        if (r.local) {
+            kartColor(shownRacer.bodyColor, hud->body);
+            kartColor(shownRacer.accessoryColor, hud->accessory);
+        }
+        world::ToonDna dna;
+        const uint8_t *net = nullptr;
+        if (r.local)
+            net = client.avatarDna();
+        else if (const auto *toon = client.findToon(entry.avatar); toon && toon->hasDna)
+            net = toon->dna;
+        if (net && world::parseNetString(net, net::kDnaSize, &dna)) {
+            r.species = int(world::species(dna));
+            const float *c = world::bodyColor(dna.headColor);
+            for (int k = 0; k < 3; ++k)
+                r.head[k] = c[k];
+        }
     }
 }
 void Racing::addBalloons(ui::Balloons &balloons, const C3D_Mtx &proj, const C3D_Mtx &view,

@@ -1,4 +1,5 @@
 #pragma once
+#include "ui/hud.h"
 #include "ui/racing_view.h"
 #include "world/asset_batch.h"
 #include "world/clerk_kart_preview.h"
@@ -19,6 +20,8 @@ class Racing {
     void animate(ToonAvatar &avatar) const;
     void camera(C3D_FVec *eye, C3D_FVec *target) const;
     void fillView(ui::RacingView *view, const net::Client &client) const;
+    // RaceGUI race mode + the speedometer for the top-screen HUD (inactive outside a race).
+    void fillHud(ui::RaceHud *hud, const net::Client &client) const;
     void addBalloons(ui::Balloons &balloons, const C3D_Mtx &proj, const C3D_Mtx &view,
                      const net::Client &client) const;
     void shutdown();
@@ -50,8 +53,16 @@ class Racing {
         float x = 0, y = 0, z = 0, h = 0;
         racing::Vector velocity;
         int body = 0, lod = 0;
+        int bodyColor = -1, accessoryColor = -1; // KartDNA colour indices
         bool initialized = false;
     } racers_[4];
+    // RaceGUI's lap timer: maxLapHit and the start of its lap (raceTimeDelta), per-lap times.
+    int maxLapHit_ = 0;
+    uint32_t lapStartMs_ = 0;
+    float lapSeconds_[ui::RaceHud::kMaxLaps] = {};
+    int lapNotice_ = 0; // last lap notice: n = "Lap n", -1 = "Final Lap!"
+    uint32_t lapNoticeMs_ = 0;
+    bool photoFinish_ = false;
     void loadAssets(uint16_t track);
     void unloadAssets();
     void board(net::Client &client, const Input &input, float dt, float x, float y, float z);

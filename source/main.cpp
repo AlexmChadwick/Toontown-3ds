@@ -3748,10 +3748,10 @@ int main() {
             hv.photoViewfinder = minigame.active() && minigame.photoScene() && !minigame.loadingAssets();
             if (racing.driving() || racing.active()) {
                 hv.racing = true;
-                hv.raceSpeed = int(racing.speed() + 0.5f);
-                hv.raceLap = racing.lap();
-                hv.raceLaps = net.racingRace() ? net.racingRace()->laps : 3;
-                hv.racePlace = racing.place();
+                racing.fillHud(&hv.race, net);
+                // The racetrack has no Place, so the laff meter is never started there; RaceGUI's
+                // place number sits in its corner.
+                if (hv.race.active) hv.laffHidden = true;
             }
             hud.draw(renderer.topLeft(), hv);
             transition.drawFade(renderer, stereoActive);
