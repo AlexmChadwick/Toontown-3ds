@@ -66,10 +66,18 @@ float swingAngle(const VineSpec& vine, float gameTime) {
     return deg * kDegToRad;
 }
 
+// SwingVine's Rope: an order 4 curve through its four links (a Bezier): the pivot, link0 a
+// third of the cable straight down (never moved), link1 two thirds out at two thirds of the
+// swing (positionLink1) and the bottom link at the swing angle.
 void cablePoint(int vineIndex, const VineSpec& vine, float angleRad, float t, float& outX, float& outZ) {
-    const float length = t * vine.length;
-    outX = vineIndex * kVineSpacing + length * std::cos(angleRad);
-    outZ = kVineTopZ + length * std::sin(angleRad);
+    const float L = vine.length;
+    const float a1 = -0.5f * kPi + (angleRad + 0.5f * kPi) * (2.0f / 3.0f);
+    const float px[4] = {0.0f, 0.0f, std::cos(a1) * L * (2.0f / 3.0f), std::cos(angleRad) * L};
+    const float pz[4] = {0.0f, -L / 3.0f, std::sin(a1) * L * (2.0f / 3.0f), std::sin(angleRad) * L};
+    const float u = 1.0f - t;
+    const float b[4] = {u * u * u, 3.0f * u * u * t, 3.0f * u * t * t, t * t * t};
+    outX = vineIndex * kVineSpacing + b[0] * px[0] + b[1] * px[1] + b[2] * px[2] + b[3] * px[3];
+    outZ = kVineTopZ + b[0] * pz[0] + b[1] * pz[1] + b[2] * pz[2] + b[3] * pz[3];
 }
 
 void attachToVine(VineToonState& s, int vineIndex, const VineSpec& vine, float angleRad, float t) {

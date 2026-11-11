@@ -21,8 +21,8 @@ constexpr float kBananaOffsetX = 15.0f;
 constexpr float kBananaZ = 17.5f;
 constexpr float kBananaScale = 0.25f; // VineTreasure: nodePath.setScale(0.25)
 // DistributedVineGame.makeCameraFollowJumpingToon: the side camera at (x, -63.2, 16.3), looking along +y.
-constexpr float kCamY = -63.2f;
-constexpr float kCamZ = 16.3f;
+constexpr float kCamY = -53.0f; // cameraTwoVineSidePos (TwoVineView)
+constexpr float kCamZ = 17.3f;
 constexpr float kCamLookDistance = 40.0f;
 // Climbing input (the Circle Pad, like the up/down arrows) and the autoplay's timing candidates.
 constexpr int kPadDeadzone = 20;
@@ -73,6 +73,10 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(startShelf_, path);
     std::snprintf(path, sizeof(path), "%svine_end.ttm", kDir);
     assetBatch_.load(endShelf_, path);
+    std::snprintf(path, sizeof(path), "%svine_segment.ttm", kDir);
+    assetBatch_.load(segmentModel_, path);
+    std::snprintf(path, sizeof(path), "%svine_static.ttm", kDir);
+    assetBatch_.load(staticModel_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Vine: 1 / 20");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Bananas: 0  (Time: 70 s)");
@@ -82,6 +86,8 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
 void VineGame::shutdown() {
     assetBatch_.clear();
     background_.unload();
+    segmentModel_.unload();
+    staticModel_.unload();
     bananaModel_.unload();
     startShelf_.unload();
     endShelf_.unload();
@@ -212,6 +218,37 @@ void VineGame::draw(render::Renderer& renderer) {
         Mtx_Scale(&m, 1.0f, 1.0f, kShelfScaleZ);
         renderer.drawModel(endShelf_, m);
     }
+    // SwingVine: the static card above each pivot and the swinging cable (its Rope, here
+    // kSegments straight pieces along vine::cablePoint), for the vines near the camera.
+    if (segmentModel_.loaded() && staticModel_.loaded()) {
+        C3D_FVec eye;
+        camera(&eye, nullptr);
+        for (int i = 0; i < vine::kNumVines; ++i) {
+            const float vx = i * vine::kVineSpacing;
+            if (std::fabs(vx - eye.x) > 75.0f) continue;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, vx, 0.0f, vine::kVineTopZ, true);
+            renderer.drawModel(staticModel_, m);
+            constexpr int kSegments = 6;
+            const float angle = vine::swingAngle(course_[i], gameTime_);
+            float ax = vx, az = vine::kVineTopZ;
+            for (int k = 1; k <= kSegments; ++k) {
+                float bx, bz;
+                vine::cablePoint(i, course_[i], angle, float(k) / kSegments, bx, bz);
+                const float dx = bx - ax, dz = bz - az, len = std::sqrt(dx * dx + dz * dz);
+                Mtx_Identity(&m);
+                Mtx_Translate(&m, ax, 0.0f, az, true);
+                // The card hangs along -z: turn it about y onto (dx, dz).
+                Mtx_RotateY(&m, std::atan2(-dx, -dz), true);
+                Mtx_Scale(&m, 1.0f, 1.0f, len);
+                renderer.setUvShift(0.0f, 0.5f * float(k - 1));
+                renderer.drawModel(segmentModel_, m);
+                ax = bx;
+                az = bz;
+            }
+            renderer.setUvShift(0.0f, 0.0f);
+        }
+    }
     if (bananaModel_.loaded()) {
         for (int i = 0; i < vine::kNumVines - 1; ++i) {
             if (bananaTaken_[i]) continue;
@@ -251,10 +288,18 @@ bool VineGame::remotePose(const net::Minigame::VineRemote& v, uint32_t nowMs, fl
     return true;
 }
 
+// TwoVineView: the camera at (x, -53, 17.3), level. On a vine, getFocusCameraPos centres it
+// between that vine and the next, cameraTwoVineAdj (5) back toward the held one (the last vine:
+// past it, 5 forward); in the air makeCameraFollowJumpingToon follows the Toon between the
+// vines either side of the last one jumped from.
 void VineGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    // The side view follows the toon along the course, between the start and the next vine.
-    const float maxX = (std::min(toon_.currentVine + 1, vine::kNumVines - 1)) * vine::kVineSpacing;
-    const float ex = std::clamp(toon_.posX, 0.0f, maxX);
+    const int last = vine::kNumVines - 1;
+    const int v = std::clamp(toon_.currentVine, 0, last);
+    float ex;
+    if (toon_.state == vine::State::Jumping)
+        ex = std::clamp(toon_.posX, std::max(v - 1, 0) * vine::kVineSpacing, std::min(v + 1, last) * vine::kVineSpacing);
+    else
+        ex = v * vine::kVineSpacing + (v == last ? 20.0f : 10.0f);
     if (eye) *eye = FVec3_New(ex, kCamY, kCamZ);
     if (target) *target = FVec3_New(ex, kCamY + kCamLookDistance, kCamZ);
 }

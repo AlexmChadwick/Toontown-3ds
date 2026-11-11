@@ -241,6 +241,32 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
     return stats
 
 
+def bake_vine_parts(base, resources, out_dir, max_tex):
+    """SwingVine's drawn parts with vine_game's vine1 texture: one cable segment (a 1-wide card
+    from z 0 down to z -1 facing -y, v 0..0.5 as UVDistance at texScale 0.15 over a 20 / 6 unit
+    segment) and setupStaticPart's card (-0.5..0.5 x -0.1..8) above the pivot."""
+    from panda3d.core import CardMaker
+    assets = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, MG + 'vine_game.bam')))
+    tex = assets.find('**/vine1').findTexture('*')
+    out = []
+    for name, frame, uv in (('vine_segment', (-0.5, 0.5, -1.0, 0.0), (0.0, 1.0, 0.0, 0.5)),
+                            ('vine_static', (-0.5, 0.5, -0.1, 8.0), (0.0, 1.0, 0.0, 1.0))):
+        cm = CardMaker(name)
+        cm.setFrame(*frame)
+        cm.setUvRange((uv[0], uv[2]), (uv[1], uv[3]))
+        root = NodePath('root')
+        card = root.attachNewNode(cm.generate())
+        card.setTexture(tex)
+        card.setTransparency(1)
+        card.setTwoSided(True)
+        ex = extract.Extractor(max_tex=max_tex)
+        ex.add(root)
+        stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+        stats['name'] = name
+        out.append(stats)
+    return out
+
+
 def literal_assignment(path, name):
     tree = ast.parse(open(path, encoding='utf-8').read())
     for node in ast.walk(tree):
@@ -333,6 +359,9 @@ def main():
                                max(args.max_tex, 256) if name in TERRAIN else args.max_tex)
             report['models'].append(stats)
             print(json.dumps(stats))
+
+        if args.only in (None, 'vine'):
+            report['models'].extend(bake_vine_parts(base, args.resources, args.out, args.max_tex))
 
         if args.only in (None, 'pairing'):
             report['models'].extend(bake_pairing(base, args.resources, args.out, args.max_tex))

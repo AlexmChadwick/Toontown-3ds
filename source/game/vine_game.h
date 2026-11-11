@@ -35,6 +35,8 @@ public:
 
 private:
     world::BasicAssetBatch<8> assetBatch_;
+    render::Model segmentModel_; // SwingVine cable piece (bake_minigame.bake_vine_parts)
+    render::Model staticModel_;  // SwingVine.setupStaticPart
     bool done_ = false;
     bool autoPlay_ = false;
     float gameTime_ = 0.0f; // seconds since the game started: the swings run on it
