@@ -14,8 +14,13 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
         return;
     const uint32_t now = net::plat::nowMs();
     if (runner.stepBegan()) {
-        bought_ = asked_ = boarded_ = sawRace_ = sawResult_ = false;
-        nextRequest_ = 0;
+        // A board request sent in the frame before this step began (a skipped step runs this
+        // handler once) is still unanswered: keep it, or the step boards a second block.
+        const bool pending = boarded_ && now < nextRequest_;
+        bought_ = asked_ = sawRace_ = sawResult_ = false;
+        boarded_ = pending;
+        if (!pending)
+            nextRequest_ = 0;
     }
     if (!std::strcmp(label, "speedway: pads")) {
         const bool owned = client.clerkProfile().kart[0] >= 0;
