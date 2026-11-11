@@ -111,6 +111,12 @@ MODELS = {
     'twod_pipe': (MG + 'toonblitz_game_start', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_elevator': (MG + 'toonblitz_game_elevator', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_stomper': (MG + 'toonblitz_game_stomper', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # TwoDStomper moves the head (setFluidZ), scales the shaft (z) and keeps the block at 1 / scale.
+    'twod_stomper_head': (MG + 'toonblitz_game_stomper', '**/head', (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_stomper_shaft': (MG + 'toonblitz_game_stomper', '**/shaft', (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_stomper_block': (MG + 'toonblitz_game_stomper', '**/block_geom', (0, 0, 0), 1.0, (0, 0, 0)),
+    # ToonBlitzAssetMgr.background: the factory backdrop at the world origin.
+    'twod_background': (MG + 'toonblitz_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_arrow': (MG + 'toonblitz_game_arrow', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_treasure': (MG + 'moneyIcon', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
@@ -145,7 +151,7 @@ MODELS = {
 # terrain), props stay at --max-tex.
 TERRAIN = {'catch_ground_2', 'catch_ground_3', 'catch_ground_4', 'cannon_gameground', 'cannon_hill',
            'tug_dock', 'ring_game', 'maze_1player', 'target_ground', 'tag_arena', 'pattern_stage',
-           'ice_arena', 'race_track', 'diving_game', 'memory_room', 'vine_background',
+           'ice_arena', 'race_track', 'diving_game', 'memory_room', 'vine_background', 'twod_background',
            *('cogthief_ground_' + h for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL'))}
 
 # (output name, upstream path, kind, loops)

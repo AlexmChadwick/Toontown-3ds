@@ -889,6 +889,7 @@ int MinigameSession::cogs(MinigameCog* out, int max) const {
     if (isMaze_) return maze_.cogs(out, max);
     if (isCogThief_) return cogThief_.cogs(out, max);
     if (isTug_) return tug_.cogs(out, max);
+    if (isTwoD_) return twoD_.cogs(out, max);
     return 0;
 }
 
