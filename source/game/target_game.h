@@ -39,7 +39,7 @@ public:
     const char* line(int i) const;
 
 private:
-    world::BasicAssetBatch<8> assetBatch_;
+    world::BasicAssetBatch<16> assetBatch_;
     targetgame::FlightState flight_;
     targetgame::TargetRing targets_[targetgame::kMaxTargets];
     int numTargets_ = 0;
@@ -48,9 +48,11 @@ private:
     bool isDone_ = false;
     bool scoreReported_ = false;
 
-    render::Model groundModel_;
-    render::Model slingModel_;
-    render::Model trampModel_;
+    static constexpr int kRingTypes = 5; // 4 target types, then the jump circle
+    render::Model skyModel_, sandModel_, mountModel_[2], cactusModel_[2], trampModel_;
+    render::Model ringModel_[kRingTypes];
+    targetgame::Field field_;
+    int targetTypes_[targetgame::kMaxTargets] = {};
 
     mutable char lines_[3][64] = {};
 };

@@ -20,23 +20,25 @@ struct Pattern {
     int values[4];
     float sizes[4];
     int subParts[4];
+    float jumpSize;
+    int jumpNum;
 };
 
 Pattern getPattern(uint32_t safezone) {
     switch (safezone) {
     case 1000: // DD
-        return {{7, 4, 2, 0}, {11, 18, 25, 32}, {29.0f, 13.0f, 6.5f, 3.2f}, {2, 2, 2, 1}};
+        return {{7, 4, 2, 0}, {11, 18, 25, 32}, {29.0f, 13.0f, 6.5f, 3.2f}, {2, 2, 2, 1}, 9.0f, 2};
     case 5000: // DG
-        return {{6, 4, 2, 0}, {11, 18, 25, 34}, {29.0f, 13.0f, 6.5f, 3.1f}, {2, 2, 2, 1}};
+        return {{6, 4, 2, 0}, {11, 18, 25, 34}, {29.0f, 13.0f, 6.5f, 3.1f}, {2, 2, 2, 1}, 8.0f, 2};
     case 4000: // MM
-        return {{6, 4, 2, 0}, {12, 19, 27, 37}, {28.0f, 12.0f, 6.0f, 3.0f}, {2, 2, 2, 1}};
+        return {{6, 4, 2, 0}, {12, 19, 27, 37}, {28.0f, 12.0f, 6.0f, 3.0f}, {2, 2, 2, 1}, 8.0f, 2};
     case 3000: // BR
-        return {{5, 4, 2, 0}, {12, 20, 29, 40}, {25.0f, 12.0f, 5.5f, 2.5f}, {2, 2, 2, 1}};
+        return {{5, 4, 2, 0}, {12, 20, 29, 40}, {25.0f, 12.0f, 5.5f, 2.5f}, {2, 2, 2, 1}, 7.0f, 2};
     case 9000: // DL
-        return {{4, 3, 1, 0}, {12, 21, 31, 42}, {20.0f, 10.0f, 4.5f, 2.0f}, {2, 2, 2, 1}};
+        return {{4, 3, 1, 0}, {12, 21, 31, 42}, {20.0f, 10.0f, 4.5f, 2.0f}, {2, 2, 2, 1}, 7.0f, 2};
     case 2000: // TTC
     default:
-        return {{8, 4, 2, 0}, {10, 16, 21, 28}, {31.0f, 15.0f, 7.0f, 3.5f}, {2, 2, 2, 1}};
+        return {{8, 4, 2, 0}, {10, 16, 21, 28}, {31.0f, 15.0f, 7.0f, 3.5f}, {2, 2, 2, 1}, 10.0f, 2};
     }
 }
 
@@ -94,7 +96,22 @@ double Random::random() {
     return (a * 67108864.0 + b) * (1.0 / 9007199254740992.0);
 }
 
+uint32_t Random::getrandbits(int k) { return gen32() >> (32 - k); }
+
+int Random::randbelow(int n) {
+    int k = 0;
+    while ((1 << k) <= n) ++k; // n.bit_length()
+    int r = int(getrandbits(k));
+    while (r >= n) r = int(getrandbits(k));
+    return r;
+}
+
 int setupTargets(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int maxTargets) {
+    return setupField(seed, safezoneId, outTargets, maxTargets, nullptr, nullptr);
+}
+
+int setupField(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int maxTargets, Field* field,
+               int* outTypes) {
     Random rng;
     rng.seed(seed);
 
@@ -142,6 +159,7 @@ int setupTargets(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int
             while (subIndex > 0) {
                 int combinedIndex = typeIndex + subIndex - 1;
                 if (targetCount < maxTargets) {
+                    if (outTypes) outTypes[targetCount] = typeIndex;
                     outTargets[targetCount].x = px;
                     outTargets[targetCount].y = py;
                     outTargets[targetCount].radius = pat.sizes[combinedIndex];
@@ -151,6 +169,39 @@ int setupTargets(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int
                 subIndex--;
             }
         }
+    }
+    if (!field) return targetCount;
+    // The jump trampolines, then the 30 cacti, from the same random stream.
+    field->numJumps = 0;
+    field->jumpSize = pat.jumpSize;
+    for (int jump = 0; jump < pat.jumpNum && jump < kMaxJumps; ++jump) {
+        float px = 0, py = 0;
+        bool good = false;
+        int attempts = 0;
+        while (!good && attempts++ < 1000) {
+            px = static_cast<float>(rng.random() * (fieldWidth * 0.6) - fieldWidth * 0.6 * 0.5);
+            py = static_cast<float>((rng.random() * 0.6 + (0.4 * (placeValue / float(highestValue)))) * fieldLength);
+            good = true;
+            for (int p = 0; p < numPlaced; p++) {
+                const float dx = placeList[p].x - px, dy = placeList[p].y - py;
+                if (std::sqrt(dx * dx + dy * dy) - (pat.jumpSize + placeList[p].size) <= 0.0f) {
+                    good = false;
+                    break;
+                }
+            }
+        }
+        if (numPlaced < 32) placeList[numPlaced++] = {px, py, pat.jumpSize};
+        field->jumps[field->numJumps].x = px;
+        field->jumps[field->numJumps].y = py;
+        ++field->numJumps;
+    }
+    for (int i = 0; i < kNumCacti; ++i) {
+        Cactus& c = field->cacti[i];
+        c.x = static_cast<float>(rng.random() * (fieldWidth * 0.75) - fieldWidth * 0.75 * 0.5);
+        c.y = static_cast<float>(5.0 + rng.random() * (fieldLength - 5.0));
+        c.kind = rng.randbelow(2); // random.choice([cactusA, cactusB])
+        c.h = static_cast<float>(rng.random() * 360.0);
+        c.scale = static_cast<float>(0.5 + rng.random());
     }
     return targetCount;
 }

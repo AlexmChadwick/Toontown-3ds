@@ -5,19 +5,31 @@
 #include <cstring>
 
 #include "core/log.h"
+#include "game/target_scene.h"
 
 namespace tt::game {
 
 bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
+    // tools/pipeline/bake_target_scene.py: DistributedTargetGame.load / onstage / setupTargets.
     char path[256];
-    std::snprintf(path, sizeof(path), "%starget_ground.ttm", root);
-    assetBatch_.load(groundModel_, path);
-    std::snprintf(path, sizeof(path), "%starget_sling.ttm", root);
-    assetBatch_.load(slingModel_, path);
-    std::snprintf(path, sizeof(path), "%starget_tramp.ttm", root);
-    assetBatch_.load(trampModel_, path);
+    const struct { render::Model* model; const char* name; } parts[] = {
+        {&skyModel_, "target_sky"},           {&sandModel_, "target_sand"},
+        {&mountModel_[0], "target_mount_left"}, {&mountModel_[1], "target_mount_right"},
+        {&cactusModel_[0], "target_cactus_a"},  {&cactusModel_[1], "target_cactus_b"},
+        {&trampModel_, "target_tramp"}};
+    for (const auto& part : parts) {
+        std::snprintf(path, sizeof(path), "%s%s.ttm", root, part.name);
+        assetBatch_.load(*part.model, path);
+    }
+    unsigned hood = 2000;
+    for (const auto& p : targetgame::scene::kPatterns)
+        if (p.hood == safezone) hood = safezone;
+    for (int t = 0; t < kRingTypes; ++t) {
+        std::snprintf(path, sizeof(path), "%starget_ring_%u_%d.ttm", root, hood, t);
+        assetBatch_.load(ringModel_[t], path);
+    }
 
-    numTargets_ = targetgame::setupTargets(seed, safezone, targets_, targetgame::kMaxTargets);
+    numTargets_ = targetgame::setupField(seed, safezone, targets_, targetgame::kMaxTargets, &field_, targetTypes_);
     flight_ = targetgame::FlightState{};
     flight_.mode = targetgame::FlightMode::Aim;
     score_ = 0;
@@ -39,9 +51,12 @@ void TargetGame::nextRound() {
 
 void TargetGame::shutdown() {
     assetBatch_.clear();
-    groundModel_.unload();
-    slingModel_.unload();
+    skyModel_.unload();
+    sandModel_.unload();
+    for (auto& m : mountModel_) m.unload();
+    for (auto& m : cactusModel_) m.unload();
     trampModel_.unload();
+    for (auto& m : ringModel_) m.unload();
     isDone_ = true;
 }
 
@@ -77,21 +92,60 @@ void TargetGame::update(net::Client& client, const circlePosition& pad, u32 keys
     }
 }
 
-void TargetGame::draw(render::Renderer& renderer) {
-    C3D_Mtx model;
-    Mtx_Identity(&model);
-    if (groundModel_.loaded()) renderer.drawModel(groundModel_, model);
-
-    if (slingModel_.loaded()) {
-        Mtx_Identity(&model);
-        Mtx_Translate(&model, 0.0f, 0.0f, 0.0f, false);
-        renderer.drawModel(slingModel_, model);
+namespace {
+// A baked placement (row vectors, column 3 the translation) as a world matrix.
+C3D_Mtx placed(const float* m) {
+    C3D_Mtx w;
+    Mtx_Identity(&w);
+    for (int r = 0; r < 3; ++r) {
+        w.r[r].x = m[r * 4 + 0];
+        w.r[r].y = m[r * 4 + 1];
+        w.r[r].z = m[r * 4 + 2];
+        w.r[r].w = m[r * 4 + 3];
     }
+    return w;
+}
+} // namespace
 
-    if (trampModel_.loaded()) {
-        Mtx_Identity(&model);
-        Mtx_Translate(&model, 0.0f, 20.0f, 0.0f, false);
-        renderer.drawModel(trampModel_, model);
+void TargetGame::draw(render::Renderer& renderer) {
+    // onstage: six rows of seven desert blocks (sand left out of the outer columns), a mountain
+    // in the second column out on each side; the renderer culls each copy.
+    for (const auto& b : targetgame::scene::kBlocks) {
+        const C3D_Mtx w = placed(b.m);
+        if (skyModel_.loaded()) renderer.drawModel(skyModel_, w);
+        if (b.kind && sandModel_.loaded()) renderer.drawModel(sandModel_, w);
+    }
+    for (const auto& m : targetgame::scene::kMountains) {
+        render::Model& model = mountModel_[m.kind];
+        if (model.loaded()) renderer.drawModel(model, placed(m.m));
+    }
+    C3D_Mtx w;
+    // setupTargets: each target's circle and rings, trampolines over their jump circles, cacti.
+    for (int i = 0; i < numTargets_; ++i) {
+        if (i > 0 && targets_[i].x == targets_[i - 1].x && targets_[i].y == targets_[i - 1].y) continue;
+        render::Model& ring = ringModel_[targetTypes_[i] < 4 ? targetTypes_[i] : 3];
+        if (!ring.loaded()) continue;
+        Mtx_Identity(&w);
+        Mtx_Translate(&w, targets_[i].x, targets_[i].y, 0.0f, true);
+        renderer.drawModel(ring, w);
+    }
+    const float latScale = field_.jumpSize / 6.8f; // normJumpSize
+    for (int i = 0; i < field_.numJumps; ++i) {
+        Mtx_Identity(&w);
+        Mtx_Translate(&w, field_.jumps[i].x, field_.jumps[i].y, 0.0f, true);
+        if (ringModel_[4].loaded()) renderer.drawModel(ringModel_[4], w);
+        Mtx_Translate(&w, 0.0f, 0.0f, 0.05f, true);
+        Mtx_Scale(&w, latScale, latScale, 1.0f);
+        if (trampModel_.loaded()) renderer.drawModel(trampModel_, w);
+    }
+    for (const auto& c : field_.cacti) {
+        render::Model& model = cactusModel_[c.kind];
+        if (!model.loaded()) continue;
+        Mtx_Identity(&w);
+        Mtx_Translate(&w, c.x, c.y, 0.0f, true);
+        Mtx_RotateZ(&w, c.h * 0.0174532925f, true);
+        Mtx_Scale(&w, c.scale, c.scale, c.scale);
+        renderer.drawModel(model, w);
     }
 }
 

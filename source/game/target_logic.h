@@ -37,10 +37,29 @@ struct Random {
     void seed(uint32_t s);
     uint32_t gen32();
     double random(); // 53-bit float in [0.0, 1.0)
+    uint32_t getrandbits(int k); // k <= 32
+    int randbelow(int n);        // random._randbelow, as random.choice uses
 };
 
 // Sets up target positions from the seed matching DistributedTargetGameAI.setupTargets.
 int setupTargets(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int maxTargets);
+
+// The client's setupTargets also places the jump trampolines and 30 cacti from the same seed.
+constexpr int kMaxJumps = 4;
+constexpr int kNumCacti = 30;
+struct Cactus {
+    float x, y, h, scale;
+    int kind; // 0 cactus_a, 1 cactus_b
+};
+struct Field {
+    struct { float x, y; } jumps[kMaxJumps];
+    int numJumps = 0;
+    float jumpSize = 0;
+    Cactus cacti[kNumCacti];
+};
+// As setupTargets, plus the field; outTypes (if set) gets each ring's target type.
+int setupField(uint32_t seed, uint32_t safezoneId, TargetRing* outTargets, int maxTargets, Field* field,
+               int* outTypes);
 
 // Evaluates landing position (x, y) against placed targets, returning top score (minimum 1).
 int evaluateScore(const TargetRing* targets, int numTargets, float scoreX, float scoreY);

@@ -733,7 +733,13 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
         renderer.setFovY(pandaFovY(fov));
         worldFov_ = true;
     }
-    if (isCannon_) {
+    if (isTarget_) {
+        // onstage: setFar(FOGDISTGROUND 600), background and linear fog AMB_COLOR (0.75, 0.8, 1).
+        renderer.setFarPlane(600.0f);
+        renderer.setBackground(0xBFCCFFFF);
+        renderer.setFog(0.75f, 0.8f, 1.0f, 0.1f, 600.0f);
+        worldFog_ = true;
+    } else if (isCannon_) {
         renderer.setFarPlane(CannonGame::kFarPlane);
     } else if (isRing_) {
         renderer.setFarPlane(RingGame::kFarPlane);
