@@ -116,6 +116,7 @@ void Racing::board(net::Client &client, const Input &input, float dt, float x, f
         }
         if (block.occupant == client.avatarId()) {
             seated_ = block.doId;
+            seatPad_ = pad ? pad->doId : 0;
             if (previousSeat != seated_)
                 boardingOrigin_ = {x, y, z};
             boardingSide_ = block.location % 2 ? 3 : -3;
@@ -166,6 +167,16 @@ void Racing::board(net::Client &client, const Input &input, float dt, float x, f
                 client.sendRacingEnter(block.doId, false);
             }
         }
+    }
+    if (previousSeat && !seated_) seatLeftMs_ = now_;
+    if (!seated_ && seatPad_) {
+        for (int j = 0; j < net::kMaxRacingPads; ++j) {
+            const auto &pad = client.racingPadSlot(j);
+            if (pad.active && pad.doId == seatPad_ && pad.raceZone && pad.raceZone != lastDestination_)
+                destination_ = pad.raceZone;
+        }
+        if (movie_ == 2 || destination_ || now_ - seatLeftMs_ > 5000)
+            seatPad_ = 0; // left the block ourselves, or too long ago
     }
     if (previousSeat && !seated_ && movie_ == 2) {
         const float angle = physics_.heading * kRadians;

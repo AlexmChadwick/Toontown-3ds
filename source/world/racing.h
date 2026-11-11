@@ -84,6 +84,9 @@ class Racing {
     racing::Progress progress_;
     uint32_t race_ = 0, vehicle_ = 0, destination_ = 0, seated_ = 0;
     uint32_t lastTickets_ = 0, lastDestination_ = 0;
+    // The pad of the last block we sat on: its setRaceZone can arrive in the same turn as the
+    // AI clearing our seat (the race launch), and still sends us to the race.
+    uint32_t seatPad_ = 0, seatLeftMs_ = 0;
     uint32_t now_ = 0, lastPose_ = 0, lastProgress_ = 0, phaseMs_ = 0;
     uint32_t hitStart_ = 0, hitUntil_ = 0;
     uint32_t consumedHazards_[32] = {};
