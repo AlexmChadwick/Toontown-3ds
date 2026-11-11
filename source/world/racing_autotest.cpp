@@ -96,7 +96,14 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
             runner.finishStep();
             return;
         }
-        if (boarded_ && now >= nextRequest_ && !racing.driving())
+        // Still seated on a block (its pad counting down): pressing A again would board a second
+        // block, and the AI kept that seat for the whole race.
+        bool seated = false;
+        for (int i = 0; i < net::kMaxRacingBlocks; ++i) {
+            const auto &block = client.racingBlockSlot(i);
+            seated |= block.active && block.occupant == client.avatarId();
+        }
+        if (boarded_ && now >= nextRequest_ && !racing.driving() && !seated)
             boarded_ = false;
         if (boarded_ || now < nextRequest_ || client.clerkProfile().kart[0] < 0)
             return;
@@ -112,7 +119,8 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
                     unsigned(candidate.trackIds[0]) / 2 == want / 2)
                     pad = &candidate;
             }
-            if (!pad ||
+            // raceZone set: this pad's race just launched (we are about to be sent into it).
+            if (!pad || pad->raceZone ||
                 (std::strcmp(pad->state, "WaitEmpty") && std::strcmp(pad->state, "WaitCountdown")))
                 continue;
             player.reset(block.x, block.y, block.z, block.h);
