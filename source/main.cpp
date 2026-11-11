@@ -3631,7 +3631,8 @@ int main() {
         {
             // Nametag + speech balloon over the head (toon height + 0.5, Avatar.py).
             C3D_Mtx proj, view;
-            Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(tt::render::Renderer::kFovYDeg), C3D_AspectRatioTop,
+            // The world pass's lens (a minigame may set its own, MinigameSession::applyWorld).
+            Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(renderer.fovY()), C3D_AspectRatioTop,
                           tt::render::Renderer::kNear, renderer.farPlane(), false);
             Mtx_LookAt(&view, player.cameraEye(), player.cameraTarget(), FVec3_New(0.0f, 0.0f, 1.0f), false);
             balloons.begin();

@@ -105,6 +105,7 @@ public:
     // Vertical field of view of the world pass in degrees (Panda base.camLens.setFov, e.g.
     // MakeAToonCameraFov). Zero restores kFovYDeg. Takes effect from the next beginWorld.
     void setFovY(float degrees) { fovYDeg_ = degrees > 0.0f ? degrees : kFovYDeg; }
+    float fovY() const { return fovYDeg_; }
 
 private:
     enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
