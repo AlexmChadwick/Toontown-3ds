@@ -71,6 +71,16 @@ const ZoneActors::Point* ZoneActors::findPoint(const char* name) const {
     return nullptr;
 }
 
+bool ZoneActors::anchor(const char* name, float* xyzh) const {
+    const Point* p = findPoint(name);
+    if (!p) return false;
+    xyzh[0] = p->x;
+    xyzh[1] = p->y;
+    xyzh[2] = p->z;
+    xyzh[3] = p->h;
+    return true;
+}
+
 void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
     using net::EventType;
     switch (ev.type) {
@@ -106,7 +116,9 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
         n->y = p->y;
         n->z = p->z;
         n->h = p->h;
-        n->hidden = false;
+        // DistributedNPCScientist: hidden unless the Silly Meter holiday runs; the Toon Hall
+        // interior shows the cardboard scientist flats at the same npc_origin anchors instead.
+        n->hidden = src->classId == dc::DistributedNPCScientist::kClassId && !client.sillyMeterHoliday();
         ToonDna dna;
         if (!src->hasDna || !parseNetString(src->dna, net::kDnaSize, &dna)) dna = defaultToonDna();
         cache_->acquire(dna, ToonLod::High, &n->look);

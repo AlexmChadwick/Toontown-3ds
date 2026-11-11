@@ -260,7 +260,7 @@ WANTED = {
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState', 'requestInteract', 'requestExit'],
     'DistributedButterfly': ['setArea', 'setState'],
     'DistributedDGFlower': ['setHeight', 'avatarEnter', 'avatarExit'],
-    'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
+    'DistributedToonInterior': ['setZoneIdAndBlock', 'setSavedBy', 'setState'],
     'DistributedHQInterior': ['setZoneIdAndBlock', 'setLeaderBoard', 'setTutorial'],
     'DistributedGagshopInterior': ['setZoneIdAndBlock'],
     'DistributedPetshopInterior': ['setZoneIdAndBlock'],

@@ -615,6 +615,10 @@ bool Runner::apply(float dt, circlePosition& pad, u32& held, u32& down, touchPos
             step_ = 0;
             TT_LOG("tutorial: autotest selected Play it");
         }
+        // Skip filtered steps now: label() must never show one for a frame, or a step handler
+        // acts on it (the racing steps boarded a second pad and finished the wrong step).
+        while (step_ < numSteps_ && skipped(script_[step_].label))
+            step_++;
     } else if (series && t_ >= nextSeriesShot_ + interval) {
         nextSeriesShot_ += interval;
         snprintf(seriesName_, sizeof(seriesName_), "%.*s_%03d", int(shotLen), s.shot, ++seriesIndex_);

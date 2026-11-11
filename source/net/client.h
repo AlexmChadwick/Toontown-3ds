@@ -381,6 +381,22 @@ struct GsLeaderBoard {
 };
 constexpr int kMaxLeaderBoards = 4;
 
+// DistributedToonInterior (and DistributedToonHallInterior): setSavedBy, the Toons who won the
+// building back (DistributedToonInterior.buildTrophy frames over the trophy_origin).
+struct ToonInteriorTrophies {
+    static constexpr int kMax = 8;
+    struct Saved {
+        uint32_t avId = 0;
+        char name[32] = {};
+        uint8_t dna[kDnaSize] = {};
+        bool hasDna = false;
+    } saved[kMax];
+    uint32_t doId = 0, zoneId = 0;
+    int count = 0;
+    uint32_t version = 0; // bumped on every setSavedBy
+    bool active = false;
+};
+
 // Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
 // cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
 enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
@@ -1396,6 +1412,7 @@ public:
     const Butterfly& butterflySlot(int i) const { return butterflies_[i]; }
     const DGFlower* dgFlower() const { return dgFlower_.active ? &dgFlower_ : nullptr; }
     const GsLeaderBoard& leaderBoardSlot(int i) const { return leaderBoards_[i]; }
+    const ToonInteriorTrophies* toonInterior() const { return toonInterior_.active ? &toonInterior_ : nullptr; }
     bool sendDGFlowerTouch(bool enter);
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
@@ -1578,6 +1595,8 @@ public:
     int clerkFishTotal() const;
     const ClerkSession& clerkSession() const { return clerkSession_; }
     const ClerkProfile& clerkProfile() const { return clerkProfile_; }
+    // DistributedNPCScientist shows only while the Silly Meter holiday runs (Toon Hall flats otherwise).
+    bool sillyMeterHoliday() const { return sillyMeterHoliday_; }
     // ---- end clerks ----
     // ---- shop (additive section; keep together) ----
     // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
@@ -1954,6 +1973,7 @@ private:
     Butterfly butterflies_[kMaxButterflies] = {};
     DGFlower dgFlower_ = {};
     GsLeaderBoard leaderBoards_[kMaxLeaderBoards] = {};
+    ToonInteriorTrophies toonInterior_ = {};
     bool handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                               uint16_t reqCount, bool other);
     bool handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
@@ -1992,6 +2012,7 @@ private:
                           const uint16_t* required, uint16_t count, bool other);
     uint32_t clerkNewsManager_ = 0;
     bool clerkFishHoliday_ = false;
+    bool sillyMeterHoliday_ = false; // NewsManager lists SILLYMETER(_EXT)_HOLIDAY
     bool clerksOwnField(DatagramReader& reader, uint16_t field);
     void resetClerks(bool owner = true);
     ClerkSession clerkSession_;

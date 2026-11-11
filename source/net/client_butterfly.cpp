@@ -21,6 +21,8 @@ static_assert(dc::sigEq(dc::DistributedDGFlower::sig_setHeight, "u8/10"), "setHe
 static_assert(dc::sigEq(dc::DistributedLeaderBoard::sig_setPosHpr, "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10"),
               "setPosHpr layout changed");
 static_assert(dc::sigEq(dc::DistributedLeaderBoard::sig_setDisplay, "blob"), "setDisplay layout changed");
+static_assert(dc::sigEq(dc::DistributedToonInterior::sig_setSavedBy, "{u32,string,blob}[]"),
+              "setSavedBy layout changed");
 
 namespace {
 
@@ -247,8 +249,58 @@ bool Client::applyButterflyField(Butterfly& b, DatagramReader& r, uint16_t field
     return r.ok();
 }
 
+namespace {
+// setSavedBy(savedBy[]): u16 byte count, then {u32 avId, string name, blob dna} per Toon
+// (DistributedToonInteriorAI.getSavedBy sends ToonDNA.makeNetString()).
+bool readSavedBy(DatagramReader& r, ToonInteriorTrophies& t) {
+    const uint16_t bytes = r.u16();
+    const uint32_t end = r.pos() + bytes;
+    t.count = 0;
+    while (r.ok() && r.pos() < end) {
+        ToonInteriorTrophies::Saved s;
+        s.avId = r.u32();
+        r.string(s.name, sizeof(s.name));
+        const Bytes dna = r.blob();
+        if (!r.ok() || r.pos() > end) break;
+        s.hasDna = dna.len == kDnaSize;
+        if (s.hasDna) std::memcpy(s.dna, dna.data, kDnaSize);
+        if (t.count < ToonInteriorTrophies::kMax) t.saved[t.count++] = s;
+    }
+    if (r.ok() && r.pos() != end) r.fail();
+    ++t.version;
+    return r.ok();
+}
+} // namespace
+
 bool Client::handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
                                   uint16_t reqCount, bool other) {
+    if (classId == dc::DistributedToonInterior::kClassId || classId == dc::DistributedToonHallInterior::kClassId) {
+        ToonInteriorTrophies t;
+        t.doId = doId;
+        t.version = toonInterior_.version;
+        bool ok = true;
+        auto apply = [&](uint16_t field) {
+            if (field == dc::DistributedToonInterior::k_setZoneIdAndBlock) {
+                t.zoneId = r.u32();
+                r.u16();
+                return r.ok();
+            }
+            if (field == dc::DistributedToonInterior::k_setSavedBy) return readSavedBy(r, t);
+            return skipField(r, field);
+        };
+        for (uint16_t i = 0; i < reqCount && ok; ++i) ok = apply(req[i]);
+        if (ok && other) {
+            const uint16_t count = r.u16();
+            for (uint16_t i = 0; i < count && ok && r.ok(); ++i) ok = apply(r.u16());
+        }
+        if (ok && r.ok()) {
+            t.active = true;
+            toonInterior_ = t;
+            TT_LOG("interior %lu: zone %lu saved by %d", static_cast<unsigned long>(doId),
+                   static_cast<unsigned long>(t.zoneId), t.count);
+        }
+        return true;
+    }
     if (classId == dc::DistributedDGFlower::kClassId) {
         DGFlower f;
         f.doId = doId;
@@ -329,6 +381,12 @@ bool Client::handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReade
 }
 
 bool Client::handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
+    if (fieldId == dc::DistributedToonInterior::k_setSavedBy) {
+        if (!toonInterior_.active || toonInterior_.doId != doId) return false;
+        ToonInteriorTrophies t = toonInterior_;
+        if (readSavedBy(r, t)) toonInterior_ = t;
+        return true;
+    }
     if (fieldId == dc::DistributedDGFlower::k_setHeight) {
         if (!dgFlower_.active || dgFlower_.doId != doId) return false;
         dgFlower_.height = r.u8() / 10.0f;
@@ -363,6 +421,10 @@ bool Client::sendDGFlowerTouch(bool enter) {
 }
 
 bool Client::butterflyLeft(uint32_t doId) {
+    if (toonInterior_.active && toonInterior_.doId == doId) {
+        toonInterior_.active = false;
+        return true;
+    }
     if (dgFlower_.active && dgFlower_.doId == doId) {
         dgFlower_.active = false;
         return true;
@@ -386,6 +448,7 @@ void Client::clearButterflies() {
     for (Butterfly& b : butterflies_) b.active = false;
     dgFlower_.active = false;
     for (GsLeaderBoard& b : leaderBoards_) b.active = false;
+    toonInterior_.active = false;
 }
 
 } // namespace tt::net

@@ -116,6 +116,7 @@ void flunkyPose(float seconds, float* x, float* y, float* h) {
 #include "world/zone_actors.h"
 // [interior life]
 #include "world/interior_life.h"
+#include "world/trophy_frames.h"
 #include "world/water.h"
 // [end interior life]
 
@@ -426,6 +427,8 @@ int main() {
     static tt::world::InteriorLife interiorLife;
     interiorLife.init();
     // [end interior life]
+    static tt::world::TrophyFrames trophies; // rescued buildings' trophy frames (setSavedBy)
+    trophies.init(&toonCache);
     Model dropShadow; // otp/avatar/ShadowCaster.py: drop_shadow at scale 0.4, black, gray level 0.5
     dropShadow.load("romfs:/baked/drop_shadow.ttm");
     u32 lastExitZone = 0;
@@ -2999,6 +3002,12 @@ int main() {
         // [interior life]
         if (place.zoneId() != interiorLife.zone()) interiorLife.setZone(place.zoneId());
         {
+            float o[4] = {};
+            const bool found = tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior &&
+                               zoneActors.anchor("trophy_origin", o);
+            trophies.update(net, found, o[0], o[1], o[2], o[3]);
+        }
+        {
             tt::world::InteriorLife::ToonLine line;
             if (interiorLife.update(dt, player.x(), player.y(), player.z(), net, tt::net::plat::nowMs(), &line)) {
                 // The toon's knock-knock lines go to its own chat balloon (setChatAbsolute).
@@ -3543,6 +3552,7 @@ int main() {
             // [interior life]
             interiorLife.draw(renderer);
             // [end interior life]
+            trophies.draw(renderer);
             boat.draw(renderer);
             cchars.draw(renderer);
             // ---- tutorial ----
@@ -3710,6 +3720,7 @@ int main() {
             if (stereoActive) balloons.draw(renderer.topRight());
             // [interior life]
             interiorLife.draw2D(proj, view);
+            trophies.draw2D(proj, view);
             // [end interior life]
             tt::prof::lap(tt::prof::kBalloons);
             tt::ui::HudValues hv;
@@ -4038,6 +4049,7 @@ int main() {
     suits.shutdown();
     // [interior life]
     interiorLife.shutdown();
+    trophies.shutdown();
     gsBoards.shutdown();
     cashbotTrains.shutdown();
     brSnow.shutdown();

@@ -1221,6 +1221,7 @@ void Client::handleLeaving(uint32_t doId) {
     if (clerkNewsManager_ == doId) {
         clerkNewsManager_ = 0;
         clerkFishHoliday_ = false;
+        sillyMeterHoliday_ = false;
         ++clerkProfile_.version;
     }
     if (clerkSession_.pending == doId || clerkSession_.movie.clerk == doId)

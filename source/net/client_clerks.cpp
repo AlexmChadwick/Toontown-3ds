@@ -16,20 +16,23 @@ constexpr uint32_t kClerkEnterRetryMs = 5000;
 // ToontownGlobals JELLYBEAN_FISHING_HOLIDAY / _MONTH; FishGlobals multiplier=2.
 constexpr uint32_t kFishingHoliday = 98;
 constexpr uint32_t kFishingHolidayMonth = 114;
-bool readFishingHolidays(DatagramReader &reader, bool &holiday) {
+constexpr uint32_t kSillyMeterHoliday = 60, kSillyMeterExtHoliday = 116; // ToontownGlobals
+bool readFishingHolidays(DatagramReader &reader, bool &holiday, bool &silly) {
     const uint16_t bytes = reader.u16();
     if (bytes % 4 || bytes > 1024) {
         reader.fail();
         return false;
     }
-    bool found = false;
+    bool found = false, sillyFound = false;
     for (int index = 0; index < bytes / 4; ++index) {
         const uint32_t id = reader.u32();
         found |= id == kFishingHoliday || id == kFishingHolidayMonth;
+        sillyFound |= id == kSillyMeterHoliday || id == kSillyMeterExtHoliday;
     }
     if (!reader.ok())
         return false;
     holiday = found;
+    silly = sillyFound;
     return true;
 }
 } // namespace
@@ -55,6 +58,7 @@ void Client::resetClerks(bool owner) {
         clerkProfile_ = ClerkProfile{};
         clerkNewsManager_ = 0;
         clerkFishHoliday_ = false;
+        sillyMeterHoliday_ = false;
     }
 }
 bool Client::pollClerkMovie(ClerkMovie &movie) {
@@ -74,10 +78,10 @@ bool Client::handleClerksEnter(uint32_t id, uint16_t classId, DatagramReader &re
                                uint16_t count, bool other) {
     if (classId != dc::NewsManager::kClassId)
         return false;
-    bool holiday = false;
+    bool holiday = false, silly = false;
     auto field = [&](uint16_t number) {
         if (number == dc::NewsManager::k_setHolidayIdList)
-            readFishingHolidays(reader, holiday);
+            readFishingHolidays(reader, holiday, silly);
         else
             skipField(reader, number);
     };
@@ -91,15 +95,17 @@ bool Client::handleClerksEnter(uint32_t id, uint16_t classId, DatagramReader &re
     if (reader.ok()) {
         clerkNewsManager_ = id;
         clerkFishHoliday_ = holiday;
+        sillyMeterHoliday_ = silly;
         ++clerkProfile_.version;
     }
     return true;
 }
 bool Client::handleClerksField(DatagramReader &reader, uint32_t id, uint16_t field) {
     if (id == clerkNewsManager_ && id && field == dc::NewsManager::k_setHolidayIdList) {
-        bool holiday = false;
-        if (readFishingHolidays(reader, holiday)) {
+        bool holiday = false, silly = false;
+        if (readFishingHolidays(reader, holiday, silly)) {
             clerkFishHoliday_ = holiday;
+            sillyMeterHoliday_ = silly;
             ++clerkProfile_.version;
             TT_LOG("clerks: recv setHolidayIdList fish multiplier %u", holiday ? 2 : 1);
         }

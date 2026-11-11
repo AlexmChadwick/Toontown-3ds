@@ -2656,10 +2656,13 @@ constexpr const char* sig_avatarExit = "";
 namespace DistributedToonInterior {
 constexpr uint16_t kClassId = 202;
 constexpr uint16_t k_setZoneIdAndBlock = 1196;
+constexpr uint16_t k_setSavedBy = 1197;
 constexpr uint16_t k_setState = 1198;
 constexpr uint16_t kw_setZoneIdAndBlock = 0x007;
+constexpr uint16_t kw_setSavedBy = 0x007;
 constexpr uint16_t kw_setState = 0x007;
 constexpr const char* sig_setZoneIdAndBlock = "u32,u16";
+constexpr const char* sig_setSavedBy = "{u32,string,blob}[]";
 constexpr const char* sig_setState = "string,i16";
 } // namespace DistributedToonInterior
 

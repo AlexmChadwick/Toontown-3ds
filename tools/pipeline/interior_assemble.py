@@ -749,6 +749,14 @@ def assemble_interior(zone_id, block, loader, store, spec=None, colors=None):
         if flat_sm is not None:
             flat_sm.reparentTo(interior)
 
+        # enterFlat (no Silly Meter holiday on the stock AI) also shows the cardboard
+        # scientists on npc_origin_1..3; the DistributedNPCScientist toons stay hidden.
+        for i, name in enumerate(('Duck', 'Monkey', 'Horse')):
+            flat = loader.loadModel(f'phase_3.5/models/modules/tt_m_ara_int_scientist{name}Flat')
+            loc = interior.find(f'**/npc_origin_{i + 1}')
+            if flat is not None and not loc.isEmpty():
+                flat.reparentTo(loc)
+
         replace_random_in_model(interior, zone_id, rng, store, colors)
 
         door_origin = interior.find('**/door_origin;+s')

@@ -58,6 +58,8 @@ public:
     bool spawnLocalNpc(u32 id, const char* name, const uint8_t* dna, float x, float y, float z, float h);
     void despawnLocalNpc(u32 id);
     int shadowPositions(float* xyzs, int maxOut) const; // NPC feet (x, y, z, scale)
+    // A named anchor of the zone's .pts sidecar (x, y, z, h). False when the zone has none.
+    bool anchor(const char* name, float* xyzh) const;
     // Nearest live treasure (autotest helper). False when there is none.
     bool nearestTreasure(float x, float y, float* tx, float* ty, float* tz) const;
 
