@@ -141,6 +141,9 @@ class Assembler:
         np_.setColorScale(d.vec('color', WHITE))
         if d.kind != 'prop':
             np_.setTag('DNAAnim', str(d.get('anim', '')))
+        if d.kind != 'prop' or np_.getName().startswith('animated_prop_'):
+            # anim_props: Dreamland's SleepingHydrantAnimatedProp node holds prop_DL_hydrant.
+            np_.setTag('DNACode', code)
         self._children(d, np_)
         return np_
 

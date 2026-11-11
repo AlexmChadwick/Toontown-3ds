@@ -1,7 +1,9 @@
 // Animated DNA props that move in the stock client on this server (no holidays run):
 // GenericAnimatedProp street props (Dreamland / Melodyland / Donald's Dock / Brrrgh / TTC
-// hydrants, mailboxes and trash cans that loop their DNA anim) and the TTC Toon HQ periscope
-// and telescope (HQPeriscopeAnimatedProp / HQTelescopeAnimatedProp frame-range tracks).
+// hydrants, mailboxes and trash cans that loop their DNA anim), the TTC Toon HQ periscope
+// and telescope (HQPeriscopeAnimatedProp / HQTelescopeAnimatedProp frame-range tracks), each
+// playground pet shop's window fish (PetShopFishAnimatedProp) and Dreamland's sleeping hydrant
+// (SleepingHydrantAnimatedProp's z-scale bob, baked as a loop).
 // tools/pipeline/anim_props.py takes their geometry out of the static zone and writes
 // data/animprops/<stem>.ttm + .tta and data/zones/<zone>.tap; the interactive props stay static
 // (posed at idle0 frame 0, as InteractiveAnimatedProp.enter does without a holiday).

@@ -96,6 +96,23 @@ void stepWalker(Walker& w, float throttle, float wantH, bool isIt, float dt) {
     }
 }
 
+void stepTank(Walker& w, float move, float turn, bool isIt, float dt) {
+    const float speedScale = isIt ? kItSpeedIncrease : 1.0f;
+    const float rotScale = isIt ? kItRotIncrease : 1.0f;
+    w.h = wrapHeading(w.h + turn * kToonRotateSpeed * rotScale * dt);
+    if (move != 0.0f) {
+        constexpr float kDegToRad = 0.0174532925f;
+        const float step = (move > 0.0f ? kToonForwardSpeed * speedScale : -kToonReverseSpeed) * dt;
+        w.x += -std::sin(w.h * kDegToRad) * step;
+        w.y += std::cos(w.h * kDegToRad) * step;
+    }
+    const float dist = std::sqrt(w.x * w.x + w.y * w.y);
+    if (dist > kArenaRadius) {
+        w.x = w.x / dist * kArenaRadius;
+        w.y = w.y / dist * kArenaRadius;
+    }
+}
+
 bool chooseAutoGoal(const Simulation& sim, uint32_t localAvId, const Walker& me, const Spot* others, int numOthers,
                     float& goalX, float& goalY) {
     const bool localIt = sim.itAvId == localAvId;

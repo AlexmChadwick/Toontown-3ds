@@ -2285,7 +2285,7 @@ int main() {
             battleClips.unload();
         }
         if(!battle.inBattle() && !clipTest) {
-            localToon.setHeadOnly(false);localToon.setBodyPose();
+            localToon.setHeadOnly(false);localToon.setBodyPose(swimming ? -89.0f : 0.0f); // Toon.enterSwim
             if(minigame.inScene()) minigame.applyAnimation(localToon);
             else if(trolley.seated()) trolley.applyAnimation(localToon,tt::net::plat::nowMs());
             else if(fishing.active()) fishing.applyAnimation(localToon);

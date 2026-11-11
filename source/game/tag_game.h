@@ -44,6 +44,7 @@ private:
     taggame::Simulation sim_;
     taggame::Walker me_;
     float tagSendCooldown_ = 0.0f;
+    float camHeight_ = 3.0f;
     bool isDone_ = false;
     bool autoPlay_ = false;
     char itName_[net::kNameLen] = {};

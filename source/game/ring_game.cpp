@@ -99,10 +99,8 @@ void RingGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         toonX_ += ax * ringgame::kToonSpeed * dt;
         if (toonX_ < -ringgame::kMaxToonXZ) toonX_ = -ringgame::kMaxToonXZ;
         if (toonX_ > ringgame::kMaxToonXZ) toonX_ = ringgame::kMaxToonXZ;
-        toonH_ = -ax * 20.0f;
-    } else {
-        toonH_ = 0.0f;
     }
+    toonH_ = 0.0f; // __placeToon: hpr (0, 0, 0); steering only moves the Toon in x / z
 
     if (std::abs(az) > 0.1f) {
         toonZ_ += az * ringgame::kToonSpeed * dt;
@@ -146,9 +144,11 @@ void RingGame::toonPose(float* x, float* y, float* z, float* h) const {
     *h = toonH_;
 }
 
+// DistributedRingGame.onstage: the camera rides the Toon at (0, CAMERA_Y -15, 0), level, with
+// camLens.setFov(80) (MinigameSession::applyWorld).
 void RingGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    *eye = FVec3_New(toonX_ * 0.3f, -15.0f, toonZ_ * 0.3f + 1.0f);
-    *target = FVec3_New(toonX_ * 0.5f, 40.0f, toonZ_ * 0.5f);
+    *eye = FVec3_New(toonX_, -15.0f, toonZ_);
+    *target = FVec3_New(toonX_, 40.0f, toonZ_);
 }
 
 void RingGame::draw(render::Renderer& renderer) {

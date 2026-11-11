@@ -10,7 +10,8 @@ Two cases, as the stock client runs them on this server (HolidayManagerAI runs n
   this DNA has any.
 * animated_prop_generic_* (GenericAnimatedProp: loops the DNA anim; under Python 3 its
   "type(self).__name__ == 'instance'" holiday test never matches) and the Toon HQ periscope /
-  telescope (HQPeriscopeAnimatedProp / HQTelescopeAnimatedProp: a frame-range Sequence) move.
+  telescope (HQPeriscopeAnimatedProp / HQTelescopeAnimatedProp: a frame-range Sequence) move,
+  and so does each playground pet shop's window fish (PetShopFishAnimatedProp loops 'swim').
   split() bakes each kind once to data/animprops/<stem>.ttm + <stem>.tta (12 fps vertex
   animation, tta.py; long clips at 8 / 6 / 4 fps
   to stay under CLIP_BYTES) and the zone's instances to <zone>.tap, then stashes the nodes so the
@@ -152,6 +153,28 @@ def _stem(code, anim):
     return (code.split('__')[-1] + '_' + anim.replace('tt_a_ara_', '')).replace('-', '_')
 
 
+def _bake_bob(holder, out_dir, stem):
+    """SleepingHydrantAnimatedProp.bobTask: node Sz = 1 + 0.08 sin(t), as a vertex loop."""
+    import numpy as np
+    import extract
+    import tta
+    import ttm
+    ex = extract.Extractor(max_tex=128, encode_textures=True)
+    ex.add(holder, animated=True)
+    ref = ex.batches()
+    stats = ttm.write(str(Path(out_dir) / f'{stem}.ttm'), ex.textures, ref)
+    base = np.concatenate([b.verts[:, :3] for b in ref])
+    frames = []
+    for i in range(BOB_FRAMES):
+        f = base.copy()
+        f[:, 2] *= 1.0 + 0.08 * math.sin(2 * math.pi * i / BOB_FRAMES)
+        frames.append(f)
+    fps = BOB_FRAMES / (2 * math.pi)
+    anim = tta.write(str(Path(out_dir) / f'{stem}.tta'), np.array(frames), fps)
+    holder.removeNode()
+    return {'model': stats, 'anim': anim, 'fps': fps, 'source_frames': BOB_FRAMES, 'source_fps': fps}
+
+
 def _bake_kind(resources, model_np, anim_file, out_dir, stem):
     """model_np: a fresh copy of the prop model (prop-local). Writes <stem>.ttm / .tta."""
     import numpy as np
@@ -162,6 +185,8 @@ def _bake_kind(resources, model_np, anim_file, out_dir, stem):
     holder = NodePath('anim_prop')
     model_np.reparentTo(holder)
     model_np.clearTransform()
+    if anim_file is None:
+        return _bake_bob(holder, out_dir, stem)
     control, bundle, _ = _bind(holder, anim_file)
     count, rate = control.getNumFrames(), control.getFrameRate()
 
@@ -201,6 +226,14 @@ def _bake_kind(resources, model_np, anim_file, out_dir, stem):
 HQ_PROPS = {'animated_prop_HQPeriscopeAnimatedProp': ('phase_3.5/models/props/HQ_periscope-chan', KIND_PERISCOPE, 'hq_periscope'),
             'animated_prop_HQTelescopeAnimatedProp': ('phase_3.5/models/props/HQ_telescope-chan', KIND_TELESCOPE, 'hq_telescope')}
 
+# Other AnimatedProp classes this DNA uses, by class name: (anim, stem). PetShopFishAnimatedProp,
+# the playground pet shop's window fish, loops 'swim' on enter. SleepingHydrantAnimatedProp (one
+# Dreamland 9200 hydrant) has no anim: its bobTask sets the node's Sz to 1 + 0.08 sin(t), baked
+# here as a 2 pi second vertex loop.
+LOOP_PROPS = {'PetShopFishAnimatedProp': ('phase_4/models/props/exteriorfish-swim', 'petshop_fish'),
+              'SleepingHydrantAnimatedProp': (None, 'sleeping_hydrant')}
+BOB_FRAMES = 75  # over the 2 pi s bob period
+
 
 def split(root, zone, store, resources, data_dir, write=True):
     """Stashes the zone's moving animated props; writes data/animprops/* and <zone>.tap lines.
@@ -216,7 +249,11 @@ def split(root, zone, store, resources, data_dir, write=True):
         code = np_.getTag('DNACode') or np_.getName()
         if code.endswith('_DNARoot'):
             code = code[:-len('_DNARoot')]
-        if code.startswith('animated_prop_generic_'):
+        # TownLoader.createAnimatedProps picks the class from the node name.
+        name = np_.getName()
+        cls = ('GenericAnimatedProp' if name.startswith('animated_prop_generic')
+               else name[len('animated_prop_'):].split('_')[0])
+        if cls == 'GenericAnimatedProp':
             anim = np_.getTag('DNAAnim')
             anim_file = Path(resources) / _model_dir(code) / (anim + '.bam')
             kind = KIND_LOOP
@@ -224,9 +261,14 @@ def split(root, zone, store, resources, data_dir, write=True):
             anim_file = Path(resources) / (HQ_PROPS[code][0] + '.bam')
             anim = Path(HQ_PROPS[code][0]).name
             kind = HQ_PROPS[code][1]
+        elif cls in LOOP_PROPS:
+            anim_file = (Path(resources) / (LOOP_PROPS[cls][0] + '.bam')) if LOOP_PROPS[cls][0] else None
+            anim = LOOP_PROPS[cls][1]
+            kind = KIND_LOOP
         else:
-            continue  # PetShopFishAnimatedProp etc.: interiors / handled elsewhere
-        stem = HQ_PROPS[code][2] if code in HQ_PROPS else _stem(code, anim)
+            raise ValueError(f'{zone}: unhandled animated prop {name}')
+        stem = (HQ_PROPS[code][2] if code in HQ_PROPS else LOOP_PROPS[cls][1] if cls in LOOP_PROPS
+                else _stem(code, anim))
         mat = np_.getMat(root)
         if write and stem not in baked:
             baked.add(stem)

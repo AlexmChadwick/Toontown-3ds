@@ -146,6 +146,7 @@ private:
     bool isTug_ = false;
     bool isRing_ = false;
     bool worldFog_ = false; // applyWorld set the fog, so releaseWorld must clear it
+    bool worldFov_ = false; // applyWorld set the field of view
     bool isMaze_ = false;
     bool isPairing_ = false;
     bool isDiving_ = false;

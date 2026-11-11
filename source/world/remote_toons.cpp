@@ -142,6 +142,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         snprintf(r->name, sizeof(r->name), "%s", t->name);
         applyDna(*r, *t);
         r->stateAnim = animFromState(t->animState, &r->locomotion);
+        r->swimPitch = !strcmp(t->animState, "swim");
         r->avatar.play(r->stateAnim, 1.0f);
         r->stateRate=t->animRate;
         if(t->emoteSerial) { r->emoteSerial=t->emoteSerial;r->avatar.playEmote(t->emoteId,clipElapsed(net::plat::nowMs(),t->emoteMs)); }
@@ -173,7 +174,8 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         }
         break;
     case EventType::Anim:
-        if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate; }
+        if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate;
+                      r->swimPitch = !strcmp(t->animState, "swim"); }
         break;
     case EventType::TunnelOut:
         if (r && t) {
@@ -355,6 +357,7 @@ void RemoteToons::update(float dt) {
                 r.stateAnim==kAnimSitStart || r.stateAnim==kAnimTeleport || r.stateAnim==kAnimJump;
             r.avatar.playAction(r.stateAnim,once?ClipMode::Once:ClipMode::Loop,r.stateRate);
         }
+        r.avatar.setBodyPose(r.swimPitch ? -89.0f : 0.0f);
         updateWorldPose(r);
         r.avatar.update(dt);
         r.phraseAge += dt;

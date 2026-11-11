@@ -61,6 +61,7 @@ private:
         ToonAvatar avatar;
         bool locomotion = true; // anim state "run"/"walk"/"Happy": clip follows speed
         ToonAnim stateAnim = kAnimNeutral;
+        bool swimPitch = false; // Toon.enterSwim: geomNode P -89 (not swimhold)
         float stateRate = 1;
         u32 emoteSerial = 0;
         float catchFallAge = 2;

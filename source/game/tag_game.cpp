@@ -95,6 +95,7 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
     // Where to walk: the autoplay follows the chase/flee rules, a player uses the Circle Pad.
     float throttle = 0.0f;
     float wantH = me_.h;
+    camHeight_ = std::fmax(toonHeightOf(client.avatarDna()), 3.0f);
     if (autoPlay_) {
         float goalX = 0.0f;
         float goalY = 0.0f;
@@ -107,13 +108,12 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
     } else {
         const float dx = static_cast<float>(pad.dx) / kPadFull;
         const float dy = static_cast<float>(pad.dy) / kPadFull;
-        if (std::fabs(dx) > kPadDeadzone || std::fabs(dy) > kPadDeadzone) {
-            // Full stick deflection walks at full speed, as upstream's held keys do.
-            throttle = 1.0f;
-            wantH = taggame::headingTo(0.0f, 0.0f, dx, dy);
-        }
+        // Held arrow keys: full speed, as upstream's walk.
+        const float move = dy > kPadDeadzone ? 1.0f : dy < -kPadDeadzone ? -1.0f : 0.0f;
+        const float turn = dx > kPadDeadzone ? -1.0f : dx < -kPadDeadzone ? 1.0f : 0.0f;
+        taggame::stepTank(me_, move, turn, localIt, dt);
     }
-    taggame::stepWalker(me_, throttle, wantH, localIt, dt);
+    if (autoPlay_) taggame::stepWalker(me_, throttle, wantH, localIt, dt);
 
     // Upstream sendTagIfIt: the IT toon that touches another toon tags it; the AI owns the cooldown.
     if (localIt && tagSendCooldown_ <= 0.0f) {
@@ -188,19 +188,20 @@ void TagGame::draw(render::Renderer& renderer) {
     }
 }
 
+// enterPlay: setIdealCameraPos(0, -24, 8) behind the Toon, with camera position 0's look-at
+// (0, 1.5, camHeight), so the arena's horizon and sky are in view.
 void TagGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    if (eye) {
-        eye->x = me_.x;
-        eye->y = me_.y - 30.0f;
-        eye->z = 25.0f;
-        eye->w = 1.0f;
-    }
-    if (target) {
-        target->x = me_.x;
-        target->y = me_.y;
-        target->z = 3.0f;
-        target->w = 1.0f;
-    }
+    constexpr float kDegToRad = 0.0174532925f;
+    const float s = std::sin(me_.h * kDegToRad), c = std::cos(me_.h * kDegToRad);
+    // Toon-space (x, y) to world: forward is (-sin h, cos h).
+    auto at = [&](float y, float z, C3D_FVec* out) {
+        out->x = me_.x - s * y;
+        out->y = me_.y + c * y;
+        out->z = z;
+        out->w = 1.0f;
+    };
+    if (eye) at(-24.0f, 8.0f, eye);
+    if (target) at(1.5f, camHeight_, target);
 }
 
 void TagGame::toonPose(float* x, float* y, float* z, float* h) const {

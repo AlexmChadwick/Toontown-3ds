@@ -711,8 +711,26 @@ u32 MinigameSession::popReturn() {
     return h;
 }
 
+namespace {
+// base.camLens.setFov(h) across the 4:3 window, as the vertical angle the top screen keeps
+// (DefaultCameraFov 52 -> Renderer::kFovYDeg 40.2).
+float pandaFovY(float horizontalDeg) {
+    constexpr float kDegToRad = 0.0174532925f;
+    return 2.0f * std::atan(std::tan(horizontalDeg * 0.5f * kDegToRad) * 0.75f) / kDegToRad;
+}
+} // namespace
+
 void MinigameSession::applyWorld(render::Renderer& renderer) {
     releaseWorld(renderer); // games that set nothing still get the renderer defaults
+    // The games whose onstage sets its own lens (and whose camera here is the stock one).
+    float fov = 0.0f;
+    if (isPattern_) fov = 24.66f;                                  // DistributedPatternGame.onstage
+    else if (isTug_) fov = 60.0f + 2.0f * float(tug_.numPlayers()); // DistributedTugOfWarGame.initCamera
+    else if (isRing_) fov = 80.0f;                                 // DistributedRingGame.onstage
+    if (fov > 0.0f) {
+        renderer.setFovY(pandaFovY(fov));
+        worldFov_ = true;
+    }
     if (isCannon_) {
         renderer.setFarPlane(CannonGame::kFarPlane);
     } else if (isRing_) {
@@ -726,6 +744,10 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
 
 void MinigameSession::releaseWorld(render::Renderer& renderer) {
     renderer.setFarPlane(0.0f);
+    if (worldFov_) {
+        renderer.setFovY(0.0f);
+        worldFov_ = false;
+    }
     if (worldFog_) {
         renderer.clearFog();
         worldFog_ = false;
@@ -1025,7 +1047,10 @@ void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
     avatar.setHeadOnly(false);avatar.setBodyPose();
     if(isCannon_) { cannon_.applyAnimation(avatar);return; }
     if(isTug_) { tug_.applyAnimation(avatar);return; }
-    if(isRing_ || isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);return; }
+    // Ring: Toon.enterSwim loops 'swim' with the geometry at P -89 (lying flat, head forward).
+    // Diving: DivingGameToonSD's 'dive' (Toon.enterDive) loops 'swim' upright, geometry at z -2.
+    if(isRing_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(-89.0f);return; }
+    if(isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(0.0f,-2.0f);return; }
     if(isCatch_) {
         if(stunned_>0) {
             avatar.playAction(kAnimSlipForward,ClipMode::Once,42/24.0f,12/24.0f,55/24.0f);
