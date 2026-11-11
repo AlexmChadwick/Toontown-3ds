@@ -242,7 +242,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isIce_) {
-            ice_.init(kDir, mg->numParticipants, mySlot(client));
+            ice_.init(kDir, mg->numParticipants, mySlot(client), mg->doId, mg->trolleyZone - mg->trolleyZone % 1000);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isRace_) {
@@ -361,6 +361,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::IceTireInputs:
     case EventType::IceFinalPositions:
     case EventType::IceScores:
+    case EventType::IceTreasureGrabbed:
+    case EventType::IcePenaltyGrabbed:
         if (isIce_ && mg) ice_.onServer(ev.type, *mg);
         break;
 

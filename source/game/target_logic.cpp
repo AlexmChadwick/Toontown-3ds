@@ -66,6 +66,12 @@ void Random::seed(uint32_t s) {
     index = N;
 }
 
+void Random::initGenrand(uint32_t s) {
+    state[0] = s;
+    for (int i = 1; i < N; i++) state[i] = 1812433253U * (state[i - 1] ^ (state[i - 1] >> 30)) + uint32_t(i);
+    index = N;
+}
+
 uint32_t Random::gen32() {
     if (index >= N) {
         static const uint32_t mag01[2] = {0x0U, MATRIX_A};

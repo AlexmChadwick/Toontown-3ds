@@ -136,6 +136,9 @@ MODELS = {
     'ice_backdrop': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_tire': (MG + 'ice_game_tire', None, (0, 0, 0), 1.0, (0, 0, 0)),
     # The score circle: setScale(0.01) then grown to each score's distance (scoreMovie).
+    # IceTreasure models: DistributedIceGame.load scales the penalty TNT (0.75, 0.75, 0.7).
+    'ice_barrel': (MG + 'ice_game_barrel', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_tnt': (MG + 'ice_game_tnt2', None, (0, 0, 0), (0.75, 0.75, 0.7), (0, 0, 0)),
     'ice_score_circle': (MG + 'ice_game_score_circle', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Race

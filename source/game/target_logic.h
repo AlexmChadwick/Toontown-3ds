@@ -35,6 +35,7 @@ struct Random {
     int index = 624;
 
     void seed(uint32_t s);
+    void initGenrand(uint32_t s); // MT init_genrand, as Panda's Mersenne(seed)
     uint32_t gen32();
     double random(); // 53-bit float in [0.0, 1.0)
     uint32_t getrandbits(int k); // k <= 32
