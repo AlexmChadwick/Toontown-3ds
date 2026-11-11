@@ -1222,6 +1222,12 @@ def bake(zone_id, args, base):
     wall_shadows = hide_wall_shadows(root)
     import bake_moving_props
     movers = bake_moving_props.split(root, zone_id, args.out)
+    import anim_props
+    posed = anim_props.freeze_all(root, zone_id, resources)  # interactive props at idle0 frame 0
+    anim_records = anim_props.split(root, zone_id, store, resources, Path(args.out).parent,
+                                    write=not args.points_only)
+    if anim_records and not args.points_only:
+        anim_props.write_tap(Path(args.out) / f'{zone_id}.tap', anim_records)
     if args.points_only:  # refresh the .pts anchors without re-encoding the zone
         from bake_zone import write_points
         num_points = write_points(root, str(Path(args.out) / f'{zone_id}.pts'))
@@ -1370,7 +1376,7 @@ def bake(zone_id, args, base):
     from bake_zone import write_points
     num_points=write_points(root,str(out/f'{zone_id}.pts'))
     num_points += bake_moving_props.append_points(out/f'{zone_id}.pts', movers)
-    report.update({'moving_props':movers,'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
+    report.update({'moving_props':movers,'interactive_posed':posed,'anim_props':len(anim_records),'version':3,'before':before['worst'],'low':low_report['worst'],'planned_worst':planned,
                    'lod':lod_report,'sign_views':sign_views,'points':num_points,'sign_baselines':asm.sign_baselines,'sign_letters':asm.sign_letters,'zone':zone_id,'floor_triangles':len(floors),'triggers':len(triggers),
                    'file_bytes':(out/f'{zone_id}.tz').stat().st_size,'storage_errors':store.errors,
                    'unresolved_codes':dict(asm.unresolved),'skipped':dict(asm.skipped),'lods_reduced':asm.lods_reduced,'wall_shadows':wall_shadows,

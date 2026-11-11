@@ -59,6 +59,7 @@
 #include "world/battle_fx.h"
 #include "world/trolley.h"
 #include "world/waterfall.h"
+#include "world/anim_props.h"
 #include "world/gs_blimp.h"
 #include "world/gs_leaderboard.h"
 #include "world/cashbot_trains.h"
@@ -528,6 +529,7 @@ int main() {
     // The playground trolley and the minigame it leads to (docs/design/trolley.md).
     static tt::world::TrolleyRide trolley;
     static tt::world::Waterfall waterfall;
+    static tt::world::AnimProps animProps; // looping street props, TTC HQ periscope / telescope
     static tt::world::GsBlimp gsBlimp;
     static tt::world::GsLeaderBoards gsBoards;
     static tt::world::CashbotTrains cashbotTrains;
@@ -539,6 +541,7 @@ int main() {
     static tt::world::Water water; // swimming in Donald's Dock / Acorn Acres (world/water.*)
     trolley.setZone(kStartZone);
     waterfall.setZone(kStartZone);
+    animProps.setZone(kStartZone);
     gsBlimp.setZone(kStartZone);
     gsBoards.setZone(kStartZone);
     cashbotTrains.setZone(kStartZone);
@@ -574,6 +577,7 @@ int main() {
         fishing.setZone(zone, place.pointsPath());
         trolley.setZone(zone);
         waterfall.setZone(zone);
+        animProps.setZone(zone);
         gsBlimp.setZone(zone);
         gsBoards.setZone(zone);
         cashbotTrains.setZone(zone);
@@ -3562,6 +3566,7 @@ int main() {
             // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
             if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
             waterfall.draw(renderer, tt::net::plat::nowMs());
+            animProps.draw(renderer, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
             gsBlimp.draw(renderer, tt::net::plat::nowMs());
             cashbotTrains.draw(renderer);
             brSnow.draw(renderer, player.cameraEye(), tt::net::plat::nowMs());
@@ -4053,6 +4058,7 @@ int main() {
     gsBoards.shutdown();
     cashbotTrains.shutdown();
     brSnow.shutdown();
+    animProps.shutdown();
     // [end interior life]
     battleFx.shutdown();
     TT_LOG("exit: world released");

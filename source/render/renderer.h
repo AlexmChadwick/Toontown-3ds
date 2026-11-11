@@ -42,6 +42,8 @@ public:
     void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr,
                    const C3D_Tex* const* slotTex = nullptr);
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
+    // The current frame's view frustum test (world-space sphere).
+    bool inView(const C3D_FVec& center, float radius) const { return sphereVisible(center, radius); }
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                    const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
     // Sky dome (Hood.sky: background bin, no depth test or write). Call first in the world
