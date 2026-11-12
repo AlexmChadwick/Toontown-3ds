@@ -43,6 +43,17 @@ bool ZoneActors::init(ToonCache* cache, const char* pointsPath) {
     return true;
 }
 
+render::Model& ZoneActors::hoodTreasure(uint16_t hoodId) {
+    switch (hoodId) {
+    case 1000: return treasureModels_[1]; // DonaldsDock: starfish_treasure
+    case 4000: return treasureModels_[2]; // MinniesMelodyland: music_treasure
+    case 3000: return treasureModels_[3]; // TheBrrrgh: snowflake_treasure
+    case 5000: return treasureModels_[4]; // DaisyGardens: flower_treasure
+    case 9000: return treasureModels_[5]; // DonaldsDreamland: zzz_treasure
+    default: return treasureModels_[0];   // ToontownCentral: icecream
+    }
+}
+
 void ZoneActors::loadPoints(const char* pointsPath) {
     numPoints_ = 0;
     if (FILE* f = pointsPath && pointsPath[0] ? fopen(pointsPath, "r") : nullptr) {

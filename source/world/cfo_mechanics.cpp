@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "world/boss_battle.h"
+#include "world/zone_actors.h"
 
 namespace tt::world {
 namespace {
@@ -471,7 +472,16 @@ void CfoMechanics::draw(BossFrame& frame, render::Model* models, uint32_t nowMs)
             (child.kind == net::CfoKind::Safe && child.index == 0 && child.state == 'I')) continue;
         C3D_Mtx world = matrix(object.position, object.heading, child.kind == net::CfoKind::Goon ? child.scale : 1);
         if (child.kind == net::CfoKind::Safe) frame.renderer.drawModel(models[9], world);
-        if (child.kind == net::CfoKind::Treasure) frame.renderer.drawModel(models[14], world);
+        if (child.kind == net::CfoKind::Treasure) {
+            // DistributedCashbotBossTreasure.setStyle picks the hood model, scaled 0.9 as
+            // DistributedTreasure; each model's card has a BillboardEffect (it faces -Y to the eye).
+            const C3D_FVec eye = frame.renderer.eye();
+            C3D_Mtx card = matrix(object.position);
+            Mtx_RotateZ(&card, std::atan2(eye.x - object.position.x, -(eye.y - object.position.y)), true);
+            Mtx_Scale(&card, 0.9f, 0.9f, 0.9f);
+            render::Model& model = child.style ? frame.zoneActors.hoodTreasure(child.style) : models[14];
+            frame.renderer.drawModel(model.loaded() ? model : models[14], card);
+        }
         if (child.kind == net::CfoKind::Goon) {
             const bool stunned = child.state == 'S' || child.state == 'G' || child.state == 'D';
             const int clipIndex = stunned ? 1 : child.state == 'R' ? 2 : 0;

@@ -20,6 +20,8 @@ public:
     static constexpr int kMaxPoints = 256; // streets: every door and tunnel anchor (up to 177 so far)
 
     bool init(ToonCache* cache, const char* pointsPath);
+    // A hood's treasure model by hood id (DistributedCashbotBossTreasure.Models); TT otherwise.
+    render::Model& hoodTreasure(uint16_t hoodId);
     // New zone: reload anchor points (NPCs of the old zone are dropped by the client).
     void loadPoints(const char* pointsPath);
     void shutdown();

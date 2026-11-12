@@ -1024,7 +1024,7 @@ int main() {
             static tt::world::BossBattle bossBattle;
             tt::world::BossFrame bossFrame{net, player, place, battle, battleFx, suits, remoteToons,
                 localToon, toonCache, renderer, ui, uiState, autotest, bottom, in, touch, dt,
-                shotName, lastStats, lastCmdBufUsage, stereoActive};
+                shotName, lastStats, lastCmdBufUsage, stereoActive, zoneActors};
             // ---- cogdo: own both displays while the interior is present ----
             static tt::world::CogdoRuntime cogdo;
             if (netStarted && cogdo.frame(bossFrame)) continue;

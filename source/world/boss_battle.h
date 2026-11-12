@@ -16,6 +16,8 @@
 
 namespace tt::world {
 
+class ZoneActors;
+
 struct BossFrame {
     net::Client& client;
     Player& player;
@@ -38,6 +40,7 @@ struct BossFrame {
     render::FrameStats& stats;
     float& commandUsage;
     bool& stereoActive;
+    ZoneActors& zoneActors; // the resident hood treasure models (Cashbot boss treasures)
 };
 
 class BossBattle {
