@@ -9,11 +9,13 @@ void Simulation::init(uint32_t initialIt) {
     tagBackTimer = 0.0f;
     localScore = 0;
     timeRemaining = kDuration;
-    numTreasures = 4;
-    treasures[0] = {10.0f, 10.0f, true};
-    treasures[1] = {-10.0f, 10.0f, true};
-    treasures[2] = {10.0f, -10.0f, true};
-    treasures[3] = {-10.0f, -10.0f, true};
+    numTreasures = 0; // the AI's DistributedTagTreasures (TagTreasurePlannerAI) arrive as objects
+}
+
+bool Simulation::addTreasure(float x, float y) {
+    if (numTreasures >= kMaxTreasures) return false;
+    treasures[numTreasures++] = {x, y, true};
+    return true;
 }
 
 void Simulation::step(float dt) {

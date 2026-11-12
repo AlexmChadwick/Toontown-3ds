@@ -38,8 +38,8 @@ bool TagGame::init(const char* root, uint32_t itAvId) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/tag_arena.ttm", root);
     assetBatch_.load(arenaModel_, path);
-    std::snprintf(path, sizeof(path), "%s/tag_treasure.ttm", root);
-    assetBatch_.load(treasureModel_, path);
+    // DistributedTagTreasure.modelPath: the playground ice cream cone.
+    assetBatch_.load(treasureModel_, "romfs:/baked/icecream.ttm");
     std::snprintf(path, sizeof(path), "%s/minigame_sky.ttm", root);
     assetBatch_.load(skyModel_, path);
     std::snprintf(path, sizeof(path), "%s/tag_pointer.ttm", root);
@@ -128,13 +128,23 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
         }
     }
 
-    // Treasures: grabbed by walking over them.
-    for (int i = 0; i < sim_.numTreasures; ++i) {
-        if (!sim_.treasures[i].active) continue;
-        const float tx = sim_.treasures[i].x - me_.x;
-        const float ty = sim_.treasures[i].y - me_.y;
-        if (tx * tx + ty * ty < kTreasureGrabSq) sim_.grabTreasure(i);
+    // Treasures: the AI's DistributedTagTreasures (TagTreasurePlannerAI regenerates them); entering
+    // one asks for it once (DistributedTreasure.requestGrab), and the score is the AI's.
+    sim_.numTreasures = 0;
+    uint32_t touching = 0;
+    for (int i = 0; i < net::kMaxTreasures; ++i) {
+        const net::Treasure& t = client.treasureSlot(i);
+        if (!t.active || t.classId != dc::DistributedTagTreasure::kClassId) continue;
+        if (!sim_.addTreasure(t.x, t.y)) break;
+        const float tx = t.x - me_.x;
+        const float ty = t.y - me_.y;
+        if (tx * tx + ty * ty < kTreasureGrabSq) touching = t.doId;
     }
+    if (touching && touching != lastTouched_) client.sendRequestGrab(touching);
+    lastTouched_ = touching;
+    if (const net::Minigame* mg = client.minigame())
+        for (int i = 0; i < mg->numParticipants && i < net::kMinigamePlayers; ++i)
+            if (mg->participants[i] == localAvId) sim_.localScore = mg->tagTreasureScores[i]; // setTreasureScore
 
     // The IT sign sits at the IT toon's height.
     itPointerValid_ = false;
@@ -174,7 +184,12 @@ void TagGame::draw(render::Renderer& renderer) {
             if (sim_.treasures[i].active) {
                 C3D_Mtx world;
                 Mtx_Identity(&world);
-                Mtx_Translate(&world, sim_.treasures[i].x, sim_.treasures[i].y, 0.5f, true);
+                // TagTreasurePlannerAI spawns at z 0.1; DistributedTreasure scales 0.9 and the
+                // model's card is a BillboardEffect (faces -Y to the eye).
+                const C3D_FVec eye = renderer.eye();
+                Mtx_Translate(&world, sim_.treasures[i].x, sim_.treasures[i].y, 0.1f, true);
+                Mtx_RotateZ(&world, std::atan2(eye.x - sim_.treasures[i].x, -(eye.y - sim_.treasures[i].y)), true);
+                Mtx_Scale(&world, 0.9f, 0.9f, 0.9f);
                 renderer.drawModel(treasureModel_, world);
             }
         }

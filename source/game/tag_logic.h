@@ -56,6 +56,7 @@ struct Simulation {
     // DistributedTagGame.setIt: the AI decides IT and broadcasts it, so the client adopts it.
     void setIt(uint32_t avId) { itAvId = avId; }
     bool grabTreasure(int index);
+    bool addTreasure(float x, float y);
 };
 
 // A walking toon in arena coordinates. Heading uses the port's convention: forward is (-sin h, cos h).
