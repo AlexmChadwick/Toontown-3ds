@@ -255,10 +255,43 @@ void RemoteToons::placeExternal(u32 doId, float x, float y, float z, float h) {
     r->gamePlaced = true;
 }
 
+void RemoteToons::setBattlePose(u32 doId, float x, float y, float z, float h, ToonAnim anim, bool once,
+                                u32 clipStartMs) {
+    Remote* r = find(doId);
+    if (!r) return;
+    r->x = r->tx = x;
+    r->y = r->ty = y;
+    r->z = r->tz = z;
+    r->h = r->th = h;
+    r->parent = net::kParentRender;
+    r->battlePosed = true;
+    r->battleAnim = anim;
+    r->battleOnce = once;
+    r->battleClipMs = clipStartMs;
+}
+
+void RemoteToons::clearBattlePoses() {
+    for (Remote& r : toons_) r.battlePosed = false;
+}
+
 void RemoteToons::update(float dt) {
     const float k = 1.0f - expf(-dt / kSmoothTau);
     for (Remote& r : toons_) {
         if (!r.active) continue;
+        if (r.battlePosed) {
+            r.speed = r.turnRate = 0.0f;
+            if (r.battleOnce) {
+                r.avatar.playAction(r.battleAnim, ClipMode::Once);
+                r.avatar.seek(float(int32_t(net::plat::nowMs() - r.battleClipMs)) / 1000.0f);
+            } else {
+                r.avatar.play(r.battleAnim, 1.0f);
+            }
+            r.avatar.setBodyPose(0.0f);
+            updateWorldPose(r);
+            r.avatar.update(dt);
+            r.phraseAge += dt;
+            continue;
+        }
         const float px=r.x,py=r.y,ph=r.h;
         if (r.inTunnelTrack) {
             r.tunnelAge += dt;

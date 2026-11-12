@@ -32,6 +32,10 @@ public:
     // A game that places players from its own state (Race lanes, Pattern rows): the toon walks
     // (smoothed, with the speed-chosen clip) to this pose instead of its last broadcast sample.
     void placeExternal(u32 doId, float x, float y, float z, float h);
+    // DistributedBattle runs the movie on every client: a Toon in our battle stands where the
+    // battle puts it and plays the movie's clip (once from clipStartMs, or looped), this frame.
+    void setBattlePose(u32 doId, float x, float y, float z, float h, ToonAnim anim, bool once, u32 clipStartMs);
+    void clearBattlePoses();
     // Draws the nearest kMax toons to (cx, cy).
     void draw(render::Renderer& renderer, float cx, float cy);
     // Adds nametags/balloons for toons in front of the camera.
@@ -70,6 +74,10 @@ private:
         float distSq = 0;
         // Tunnel transition playback (source/world/transition.*)
         bool gamePlaced = false; // placeExternal owns the pose; broadcast samples are ignored
+        bool battlePosed = false; // setBattlePose owns pose and clip this frame
+        ToonAnim battleAnim = kAnimNeutral;
+        bool battleOnce = false;
+        u32 battleClipMs = 0;
         bool inTunnelTrack = false;
         bool isTunnelOut = false;
         float tunnelAge = 0.0f;

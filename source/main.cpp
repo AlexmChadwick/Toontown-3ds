@@ -2153,9 +2153,22 @@ int main() {
             player.reset(sx, sy, sz, sh);
             player.overrideCamera(eye, target);
         }
+        remoteToons.clearBattlePoses();
         if (battle.inBattle()) {
             tt::world::BattleActorPose lp;
             if (battle.localPose(&lp)) player.reset(lp.x, lp.y, lp.z, lp.h);
+            // The other Toons in our battle follow the same movie (DistributedBattle on every client).
+            for (int i = 0; i < battle.numToonPoses(); ++i) {
+                const tt::world::BattleActorPose& tp = battle.toonPose(i);
+                if (tp.doId == net.avatarId() || tp.hidden) continue;
+                const bool clip = tp.anim >= tt::world::kBattleAnimClip0 &&
+                                  tp.anim < tt::world::kBattleAnimClip0 + tt::world::kNumBattleClips;
+                const int ci = tp.anim - tt::world::kBattleAnimClip0;
+                const tt::world::ToonAnim anim = clip ? tt::world::toonAnimByName(tt::world::kBattleClipNames[ci])
+                                                      : static_cast<tt::world::ToonAnim>(tp.anim);
+                remoteToons.setBattlePose(tp.doId, tp.x, tp.y, tp.z + tp.hop, tp.h, anim,
+                                          clip && ci != tt::world::kClipVictory, tp.clipStartMs);
+            }
             float ex, ey, ez, tx, ty, tz;
             battle.cameraEye(&ex, &ey, &ez);
             battle.cameraTarget(&tx, &ty, &tz);
