@@ -761,6 +761,11 @@ float pandaFovY(float horizontalDeg) {
     constexpr float kDegToRad = 0.0174532925f;
     return 2.0f * std::atan(std::tan(horizontalDeg * 0.5f * kDegToRad) * 0.75f) / kDegToRad;
 }
+// base.camLens.setFov(h) kept horizontal across the 400 x 240 top screen.
+float pandaFovYWide(float horizontalDeg) {
+    constexpr float kDegToRad = 0.0174532925f;
+    return 2.0f * std::atan(std::tan(horizontalDeg * 0.5f * kDegToRad) * (240.0f / 400.0f)) / kDegToRad;
+}
 } // namespace
 
 void MinigameSession::applyWorld(render::Renderer& renderer) {
@@ -782,7 +787,9 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
     else if (isDiving_) fov = 45.0f;                               // DistributedDivingGame.onstage
     else if (isTarget_) fov = 80.0f;                               // DistributedTargetGame.onstage / enterFly
     if (fov > 0.0f) {
-        renderer.setFovY(pandaFovY(fov));
+        // Treasure Dive's reef walls frame the 4:3 window edge to edge: on the wider top screen
+        // the same vertical angle showed past them, so it keeps the stock horizontal 45 instead.
+        renderer.setFovY(isDiving_ ? pandaFovYWide(fov) : pandaFovY(fov));
         worldFov_ = true;
     }
     if (isTarget_) {
