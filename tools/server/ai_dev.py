@@ -1,6 +1,6 @@
 """Local test server only (AI_DEV=1 tools/server/start.sh): relax the AI's entry checks so a
 fresh test toon can reach Cog buildings, facilities and boss elevators, and give it full laff
-and a full gag bag (AI_DEV_STRONG=1: 137 laff, every gag track and 6000 exp, for long fights such
+and a full gag bag (AI_DEV_FISH=1: a few fish in the album; AI_DEV_STRONG=1: 137 laff, every gag track and 6000 exp, for long fights such
 as the factory foreman; AI_DEV_WEAK_COGS=1: every cog spawns, and revives, with 1 HP, to reach the end of a facility).
 Never used unless AI_DEV is set; ref/ (upstream) stays untouched: this
 patches classes in memory, then runs the stock toontown.ai.AIStart."""
@@ -50,6 +50,10 @@ def _patch(name, mod):
                 self.b_setExperience(self.experience.makeNetString())
                 self.inventory.maxOutInv(filterUberGags=1)
                 self.b_setInventory(self.inventory.makeNetString())
+                if os.environ.get('AI_DEV_FISH') == '1' and self.fishCollection is not None and not len(self.fishCollection):
+                    # AI_DEV_FISH=1: a few album entries (two Balloon Fish species, a Cat Fish, a
+                    # Puppy Dog Fish, a Cutthroat Trout, a Devil Ray) for the Shtiker Book's album.
+                    self.b_setFishCollection([0, 0, 2, 12, 28, 34], [0, 1, 0, 0, 0, 0], [28, 40, 30, 26, 100, 200])
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate
