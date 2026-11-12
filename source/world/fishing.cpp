@@ -98,6 +98,8 @@ void Fishing::loadAssets(int rod) {
         bob_.load(path);
         snprintf(path, sizeof(path), "%sline.ttm", kDataDir);
         line_.load(path);
+        snprintf(path, sizeof(path), "%sripples.ttm", kDataDir);
+        if (!ripples_.load(path)) TT_LOG("fishing: no ripples.ttm (tools/pipeline/bake_fishing_ripples.py)");
         linesLoaded_ = true;
     }
     if (loadedRod_ != rod) {
@@ -119,10 +121,11 @@ void Fishing::loadAssets(int rod) {
 }
 
 void Fishing::unloadAssets() {
-    if (rod_.loaded() || bob_.loaded() || line_.loaded()) ::tt::gpu::frameSync();
+    if (rod_.loaded() || bob_.loaded() || line_.loaded() || ripples_.loaded()) ::tt::gpu::frameSync();
     rod_.unload();
     bob_.unload();
     line_.unload();
+    ripples_.unload();
     loadedRod_ = -1;
     linesLoaded_ = false;
     for (JntSlot& j : jnt_) {
@@ -403,11 +406,21 @@ void Fishing::releaseCast(u32 nowMs) {
 }
 
 void Fishing::landBob(u32 nowMs) {
-    (void)nowMs;
     setState(State::Waiting);
     waitTime_ = 0.0f;
     bobBob_ = 0.0f;
     gotResult_ = false;
+    // __showBob: Ripples under the angle node at the bob, on the water (waterLevel + 0.025), scale 0.4.
+    {
+        float rx, ry;
+        rotH(cur_.h + castAim_, 0.0f, landing_.y, &rx, &ry);
+        rippleX_ = cur_.x + rx;
+        rippleY_ = cur_.y + ry;
+        rippleZ_ = fish::waterLevel(currentArea()) + 0.025f;
+        rippleH_ = cur_.h + castAim_;
+        rippleStartMs_ = nowMs;
+        rippleOn_ = true;
+    }
     const int sfx = rng_.below(2);
     if (splash_[sfx] != audio::kInvalidSfx) audio::playSfx(splash_[sfx], 0.8f);
     if (!curLocal_) {
@@ -839,12 +852,31 @@ void Fishing::draw(render::Renderer& renderer) {
         rodMatrix(&m);
         renderer.drawModel(rod_, m);
     }
-    if (!bobVisible_) return;
+    if (!bobVisible_) {
+        rippleOn_ = false; // __hideBob stops them
+        return;
+    }
     if (bob_.loaded()) {
         C3D_Mtx m;
         Mtx_Identity(&m);
         Mtx_Translate(&m, bobX_, bobY_, bobZ_, true);
         renderer.drawModel(bob_, m);
+    }
+    if (rippleOn_ && ripples_.loaded()) {
+        const int frames = int(ripples_.numBatches());
+        const int frame = int((net::plat::nowMs() - rippleStartMs_) * 24u / 1000u);
+        if (frame >= frames) {
+            rippleOn_ = false; // the track hides them after one pass
+        } else {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, rippleX_, rippleY_, rippleZ_, true);
+            Mtx_RotateZ(&m, rippleH_ * kDegToRad, true);
+            Mtx_Scale(&m, 0.4f, 0.4f, 0.4f);
+            renderer.setOnlyBatch(frame);
+            renderer.drawModel(ripples_, m);
+            renderer.setOnlyBatch(-1);
+        }
     }
     if (line_.loaded()) {
         float tip[3];

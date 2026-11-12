@@ -152,6 +152,11 @@ private:
     int casts_ = 0;
 
     render::Model rod_, bob_, line_;
+    // Ripples (toontown/effects/Ripples) where the bob lands: 24 flipbook frames at 24 fps, once.
+    render::Model ripples_;
+    u32 rippleStartMs_ = 0;
+    bool rippleOn_ = false;
+    float rippleX_ = 0, rippleY_ = 0, rippleZ_ = 0, rippleH_ = 0;
     int loadedRod_ = -1;
     bool linesLoaded_ = false;
     audio::SfxId splash_[2] = {audio::kInvalidSfx, audio::kInvalidSfx};
