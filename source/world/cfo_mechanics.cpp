@@ -331,13 +331,24 @@ void CfoMechanics::update(BossFrame& frame, uint32_t nowMs) {
             object.position = {object.start.x + (child.targetX - object.start.x) * fraction,
                                object.start.y + (child.targetY - object.start.y) * fraction, 0};
             object.heading = child.targetH;
+        } else if (child.kind == net::CfoKind::Treasure && child.flyMs && nowMs - child.flyMs < 1000) {
+            // setFinalPosition: LerpPosInterval from the goon over 1 s, the treasure hopping on a
+            // ProjectileInterval (0 to 0, gravityMult 2: up at 32, a peak of 8).
+            const float t = float(nowMs - child.flyMs) / 1000.0f;
+            object.position = {child.flyFromX + (child.x - child.flyFromX) * t,
+                               child.flyFromY + (child.y - child.flyFromY) * t,
+                               child.flyFromZ + (child.z - child.flyFromZ) * t + 32.0f * t - 32.0f * t * t};
         } else if (child.revision != object.revision && child.state != 'S' && child.state != 'R' && child.state != 'B') {
             object.position = {child.x, child.y, child.z};
             object.heading = child.h;
+        } else if (child.kind == net::CfoKind::Treasure && child.flyMs) {
+            object.position = {child.x, child.y, child.z};
         }
         object.revision = child.revision;
         if (child.kind == net::CfoKind::Treasure) {
-            if (!child.grabbed && frame.client.ownStats().hp < frame.client.ownStats().maxHp &&
+            // The collision sphere is stashed for the flight.
+            if (!child.grabbed && (!child.flyMs || nowMs - child.flyMs >= 1000) &&
+                frame.client.ownStats().hp < frame.client.ownStats().maxHp &&
                 length(subtract(toon, object.position)) < 3 && nowMs - object.actionMs > 1000) {
                 frame.client.sendCfoObject(child.doId, Action::Treasure);
                 object.actionMs = nowMs;

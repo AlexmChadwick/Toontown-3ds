@@ -3,6 +3,7 @@
 #include "world/cj_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
+#include "world/py_random.h"
 
 #include <algorithm>
 #include <cmath>
@@ -308,7 +309,8 @@ void CjBattle::update(BossFrame& frame, const net::BossState& state, uint32_t no
         if (chair.state == 'S' || flying) {
             Vec3 position = cjChairPosition(chair.index, phaseIs(state, "BattleTwo") ? elapsed : kCjJurySeconds);
             if (flying) position.x += 75 * (1 - (nowMs - chair.flyingMs) / 10000.0f);
-            frame.suits.setExternal(chair.doId, "bw", 0, position.x, position.y, position.z, -90, false, true);
+            frame.suits.setExternal(chair.doId, jurorCode(chair.doId, chair.flyingRevision), 0, position.x,
+                                    position.y, position.z, -90, false, true);
         } else {
             frame.suits.removeExternal(chair.doId);
         }
@@ -815,6 +817,29 @@ bool CjBattle::frame(BossFrame& frame) {
     audio::update();
     prof::lap(prof::kAudio);
     return true;
+}
+
+const char* CjBattle::jurorCode(uint32_t chairDoId, uint32_t flights) {
+    // loadCogJuror: level = Random(doId).randrange(len(suitsPerLevel)), then newSuitRandom(level,
+    // 'l'); every level holds one suit (level 0 gives the first), so the juror is fixed by the
+    // chair's stream: one draw at announceGenerate, one more per showCogJurorFlying.
+    static const char* const kLawbots[8] = {"bf", "b", "dt", "ac", "bs", "sd", "le", "bw"};
+    JurorCode* slot = nullptr;
+    for (JurorCode& c : jurorCodes_)
+        if (c.doId == chairDoId) slot = &c;
+    if (!slot)
+        for (JurorCode& c : jurorCodes_)
+            if (!slot && !c.doId) slot = &c;
+    if (!slot) slot = &jurorCodes_[chairDoId % 16];
+    if (slot->doId != chairDoId || slot->revision != flights || !slot->code[0]) {
+        PyRandom rng(chairDoId);
+        int level = 0;
+        for (uint32_t i = 0; i <= flights; ++i) level = rng.randrange(0, 8);
+        std::snprintf(slot->code, sizeof(slot->code), "%s", kLawbots[level > 1 ? level - 1 : 0]);
+        slot->doId = chairDoId;
+        slot->revision = flights;
+    }
+    return slot->code;
 }
 
 } // namespace tt::world

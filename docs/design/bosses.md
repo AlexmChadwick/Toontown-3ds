@@ -279,8 +279,8 @@ fence and background loader. No extra thread or runtime format is introduced.
 
 Visual/physics limits requiring review: condensed dialogue/movies, ordinary Toon
 costumes, open vault doors, approximate gear/body/radar volumes, constrained-link
-physics rather than Panda's collision integrator, and simplified floor sliding. All treasure styles currently share the ice-cream
-visual and appear at their final position; style/healing authority stays on the AI.
+physics rather than Panda's collision integrator, and simplified floor sliding. Treasures draw their
+setStyle hood model and fly from the goon over 1 s as setFinalPosition; style/healing authority stays on the AI.
 The ending camera and Resistance UI present the essential sequence; full stock
 cinematography and audio are not reproduced. Host tests cannot establish a live
 victory or Old 3DS performance. The Azahar checklist below is mandatory.
@@ -311,8 +311,8 @@ checks guard all cannon requests. Each actual broadcast flight follows the stock
 80-unit/second ballistic trajectory with gravity 32, is swept against the moving
 chairs/static collision, reports one chair result, then sends setLanded once.
 The next shot waits for the AI's next LOAD. The NPC flies; the player remains at
-the cannon. Juror NPC DNA is stock 2001+index. Suit juror visuals use a shared
-Big Wig placeholder and a straight 10-second arrival rather than the upstream
+the cannon. Juror NPC DNA is stock 2001+index. Each chair's suit juror is the Lawbot its Random(doId)
+stream picks (loadCogJuror, re-rolled per showCogJurorFlying), with a straight 10-second arrival rather than the upstream
 random suit/propeller sequence. Chair pitch animation and full seated toon clips
 are simplified; the indexed, moving chair positions and server seat outcomes are
 preserved.

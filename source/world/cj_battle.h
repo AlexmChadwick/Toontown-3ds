@@ -79,6 +79,14 @@ private:
     ToonLook looks_[9];
     ToonAvatar npcs_[9];
     JurorFlight flights_[kCjMaxFlights];
+    // DistributedLawbotChair.loadCogJuror: each chair's Cog juror, re-rolled per flight.
+    struct JurorCode {
+        uint32_t doId = 0;
+        uint32_t revision = 0;
+        char code[4] = {};
+    };
+    JurorCode jurorCodes_[16];
+    const char* jurorCode(uint32_t chairDoId, uint32_t flights);
     Evidence evidence_[16];
     BattleView battleView_;
     char status_[112] = {};
