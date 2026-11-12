@@ -390,6 +390,17 @@ The client side exists: `safezone/DistributedFishingSpot.py:161-185, 253-265`. F
 So the pond generates with no spots. **Skip fishing.** Render the pond and the
 fisherman NPC, and handle the pond object with the skip table only.
 
+The client therefore runs practice fishing at the four DNA spot anchors (`world/fishing.*`,
+local catches that never reach the collection). What it draws follows `DistributedFishingSpot`:
+- the posed pole (`bake_fishing.py`) on the local Toon's `def_joint_right_hold` through each
+  fishing clip (`torso_<key>_<clip>.jnt` from `bake_toon_hands.py`), as `__holdPole`;
+- the line as a one-pixel Rope in (1, 1, 1, 0.4), sized from its distance to the eye;
+- Ripples (`bake_fishing_ripples.py`, 24 frames at 24 fps, scale 0.4) where the bob lands;
+- after a catch, `FishPanel` (species, `FishPhoto`, weight, value, New Species! / New Record!) or
+  `itemGui` (jar / boot) over the top screen, from `bake_fish_photos.py`'s atlas, at 1.25 times
+  the aspect2d scale with 1.5 times the text. The album (`PageFish`) shows all 18 genera with
+  `GenusPanel`'s photo and stock's ??? for uncaught entries.
+
 ## 6. Mickey (classic character)
 
 **DC.** `DistributedCCharBase` (toon.dc:624-634):
