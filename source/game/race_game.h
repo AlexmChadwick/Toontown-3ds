@@ -56,6 +56,11 @@ private:
     float moveDuration_ = 0.0f;
 
     render::Model trackModel_;
+    // setChancePositions: a question_mark per player on the board (all on posHprArray row 0, as
+    // upstream never advances its row), hidden by hideChanceMarker once that player's reward shows.
+    render::Model markerModel_;
+    int markerPos_[4] = {-1, -1, -1, -1};
+    float markerHideIn_[4] = {-1, -1, -1, -1};
 
     mutable char lines_[3][64] = {};
     int lane_ = 0; // our avIdList index: the lane we run in

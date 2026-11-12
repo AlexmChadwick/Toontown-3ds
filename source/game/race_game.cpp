@@ -41,6 +41,9 @@ bool RaceGame::init(const char* root) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/race_track.ttm", root);
     assetBatch_.load(trackModel_, path);
+    std::snprintf(path, sizeof(path), "%s/race_chance_marker.ttm", root);
+    assetBatch_.load(markerModel_, path);
+    for (int i = 0; i < 4; ++i) markerPos_[i] = -1, markerHideIn_[i] = -1.0f;
 
     return true;
 }
@@ -48,17 +51,19 @@ bool RaceGame::init(const char* root) {
 void RaceGame::shutdown() {
     assetBatch_.clear();
     trackModel_.unload();
+    markerModel_.unload();
 }
 
 void RaceGame::onSetChancePositions(const uint8_t* positions, int count) {
     for (int i = 0; i < count && i < 4; ++i) {
         sim_.setChance(i, positions[i], 19); // default reward
+        markerPos_[i] = positions[i] < racegame::kNumPlaces ? positions[i] : -1;
+        markerHideIn_[i] = -1.0f;
     }
 }
 
 void RaceGame::onSetServerChoices(const uint8_t* choices, const uint8_t* positions, const int16_t* rewards, int count) {
     (void)choices;
-    (void)rewards;
     const int oldPosition = sim_.positions[lane_];
     for (int i = 0; i < count && i < 4; ++i) {
         sim_.positions[i] = positions[i] > racegame::kNumberToWin ? racegame::kNumberToWin : positions[i];
@@ -73,6 +78,9 @@ void RaceGame::onSetServerChoices(const uint8_t* choices, const uint8_t* positio
     numRacers_ = count < 1 ? 1 : count;
     moveCamera();
     choiceSubmitted_ = false;
+    // showChanceRewards runs after the walk: the marker of each player with a reward goes then.
+    for (int i = 0; rewards && i < count && i < 4; ++i)
+        if (rewards[i] != -1 && markerPos_[i] >= 0) markerHideIn_[i] = moveDuration_;
 }
 
 void RaceGame::update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs) {
@@ -80,6 +88,11 @@ void RaceGame::update(net::Client& client, const circlePosition& pad, u32 keysDo
     (void)nowMs;
 
     if (moveTime_ < moveDuration_) moveTime_ += dt;
+    for (int i = 0; i < 4; ++i) {
+        if (markerHideIn_[i] < 0.0f) continue;
+        markerHideIn_[i] -= dt;
+        if (markerHideIn_[i] <= 0.0f) markerPos_[i] = -1, markerHideIn_[i] = -1.0f;
+    }
     if (camTime_ < kCameraMoveSeconds) camTime_ += dt;
 
     if (sim_.isDone) return;
@@ -109,6 +122,20 @@ void RaceGame::draw(render::Renderer& renderer) {
         // made the board sit outside the upstream camera framing.
         Mtx_Scale(&world, 0.8f, 0.8f, 0.8f);
         renderer.drawModel(trackModel_, world);
+    }
+    if (markerModel_.loaded()) {
+        // setPosHpr(raceBoard, x, y, z, h + 180, 0, 0.025), setScale(0.7), depth offset 1.
+        for (int i = 0; i < 4; ++i) {
+            if (markerPos_[i] < 0) continue;
+            const float* p = racegame::kLanePosHpr[0][markerPos_[i]];
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, p[0] * 0.8f, p[1] * 0.8f, p[2] * 0.8f + 0.02f, true);
+            Mtx_RotateZ(&m, (p[3] + 180.0f) * 0.0174532925f, true);
+            Mtx_RotateY(&m, 0.025f * 0.0174532925f, true);
+            Mtx_Scale(&m, 0.7f, 0.7f, 0.7f);
+            renderer.drawModel(markerModel_, m);
+        }
     }
 }
 

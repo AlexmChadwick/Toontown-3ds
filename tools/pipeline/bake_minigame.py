@@ -152,6 +152,8 @@ MODELS = {
 
     # Race
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # setChancePositions' question_mark (scale 0.7 and the board placement at run time).
+    'race_chance_marker': (MG + 'question_mark', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Photo Fun
     'photo_viewfinder': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
@@ -461,7 +463,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'purchase', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'purchase', 'race', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
