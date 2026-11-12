@@ -109,6 +109,8 @@ public:
     // pad: circle pad, moves the toon on the stage (OrthoWalk: screen up = +y).
     void update(net::Client& client, const circlePosition& pad, float dt, u32 nowMs);
     void draw(render::Renderer& renderer);
+    // Top-screen 2D over the game scene (Race Game's chance card text).
+    void draw2D(const net::Client& client, C3D_RenderTarget* target);
     // Test hook (autotest): steer toon / auto-play minigame.
     void setAutoPlay(bool on) { autoPlay_ = on; }
 
@@ -121,6 +123,8 @@ public:
     void drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon);
     // The purchase room: exitReward detaches the Toons.
     bool toonHidden() const { return onStage() && !rewardStage(); }
+    // Nametags sit behind a scene card that covers the view (Race Game's chance card).
+    bool nametagsCovered() const { return isRace_ && inScene() && race_.cardUp(); }
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;

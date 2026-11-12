@@ -184,6 +184,13 @@ const Step kScript[] = {
     {0.6f, 0, 0, 0, 0, -1, -1, 0, "fish: touch cast", "fish_touch_drag"}, // shot mid-drag
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "fish: touch wait", "fish_touch_cast"},
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
+    // "go zone <hood>": opt-in teleport to a playground before boarding its trolley (minigames
+    // with per-hood props, such as Ice Slide's obstacles).
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 1000", "go_1000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 3000", "go_3000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 4000", "go_4000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 5000", "go_5000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 9000", "go_9000"},
     // Board, then the panel's Hop off button by touch (Trolley's exitButton); then board for real.
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "trolley hop: board", "trolley_hop_wait"},
     {3.0f, 0, 0, 0, KEY_TOUCH, 160, 206, 0, "trolley hop: tap hop off", "trolley_hop"},
@@ -528,7 +535,8 @@ bool Runner::selected(const char* label) const {
 bool Runner::skipped(const char* label) const {
     if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
     return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10) || !strncmp(label, "speedway: race ", 15) ||
-                                     !strncmp(label, "treasure: ", 10); // urban race / treasure checks: opt-in
+                                     !strncmp(label, "treasure: ", 10) ||
+                                     !strncmp(label, "go zone ", 8); // urban race / treasure / hood checks: opt-in
 }
 
 const Pose* Runner::pose() const {

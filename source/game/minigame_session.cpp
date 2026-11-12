@@ -374,17 +374,9 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         break;
 
     case EventType::RaceServerChoices:
-        if (isRace_ && mg) {
-            uint8_t choices[4], positions[4];
-            int16_t rewards[4];
-            const int count = mg->numParticipants < 4 ? mg->numParticipants : 4;
-            for (int i = 0; i < count; ++i) {
-                choices[i] = uint8_t(mg->raceServerChoices[i]);
-                positions[i] = mg->raceServerPositions[i];
-                rewards[i] = mg->raceServerRewards[i];
-            }
-            race_.onSetServerChoices(choices, positions, rewards, count);
-        }
+        if (isRace_ && mg)
+            race_.onSetServerChoices(mg->raceServerChoices, mg->raceServerPositions, mg->raceServerRewards,
+                                     mg->raceServerChoiceCount, mg->numParticipants);
         break;
 
     case EventType::PatternSetPattern:
@@ -607,6 +599,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isRace_) {
+            race_.setAutoAim(autoPlay_);
             race_.update(client, pad, kDown, dt, nowMs);
             if (race_.isDone() && !doneSent_) {
                 doneSent_ = true;
@@ -1023,6 +1016,28 @@ const char* MinigameSession::line(int i) const {
     if (isRace_) return race_.line(i);
     if (isPhoto_) return photo_.line(i);
     return (i >= 0 && i < 3) ? lines_[i] : "";
+}
+
+void MinigameSession::draw2D(const net::Client& client, C3D_RenderTarget* target) {
+    if (isTarget_ && inScene()) {
+        // DistributedTargetGame's FogOverlay: a white screen card, opaque by fogVis * 0.5 in a cloud.
+        const float a = target_.fogOverlay();
+        if (a > 0.0f) C2D_DrawRectSolid(0.0f, 0.0f, 0.0f, 400.0f, 240.0f, C2D_Color32f(1.0f, 1.0f, 1.0f, a));
+        return;
+    }
+    if (!isRace_ || !inScene()) return;
+    struct Ctx {
+        const net::Client* client;
+        const net::Minigame* mg;
+    } ctx = {&client, client.minigame()};
+    race_.draw2D(
+        target,
+        [](int lane, void* p) -> const char* {
+            const Ctx* c = static_cast<const Ctx*>(p);
+            if (!c->mg || lane < 0 || lane >= c->mg->numParticipants) return nullptr;
+            return c->client->avatarName(c->mg->participants[lane]);
+        },
+        &ctx);
 }
 
 void MinigameSession::draw(render::Renderer& renderer) {

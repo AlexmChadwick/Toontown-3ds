@@ -154,6 +154,8 @@ MODELS = {
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
     # setChancePositions' question_mark (scale 0.7 and the board placement at run time).
     'race_chance_marker': (MG + 'question_mark', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # showChanceCard's chance_card: it lies on the board at render's origin until it flies to the camera.
+    'race_chance_card': (MG + 'chance_card', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Photo Fun
     'photo_viewfinder': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),

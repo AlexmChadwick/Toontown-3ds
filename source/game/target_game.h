@@ -41,9 +41,11 @@ public:
 
     const char* title() const { return "Toon Slingshot"; }
     const char* line(int i) const;
+    // FogOverlay's white screen opacity near a cloud layer (fogVis * 0.5).
+    float fogOverlay() const;
 
 private:
-    world::BasicAssetBatch<16> assetBatch_;
+    world::BasicAssetBatch<18> assetBatch_;
     targetgame::FlightState flight_;
     targetgame::TargetRing targets_[targetgame::kMaxTargets];
     int numTargets_ = 0;
@@ -56,6 +58,11 @@ private:
     render::Model skyModel_, sandModel_, mountModel_[2], cactusModel_[2], trampModel_;
     render::Model ringModel_[kRingTypes];
     render::Model slingModel_, bandModel_, umbrellaOpen_, umbrellaClosed_;
+    // The cloud_layer_alpha copies at z 126 (mid) and 100 (skyLow), 'fixed' bin, no depth write.
+    render::Model cloudModel_[2];
+    // __updateLocalToonTask: each layer's alpha fades out within 20 of the camera's height.
+    void cloudAlpha(float* mid, float* low) const;
+    void drawClouds(render::Renderer& renderer);
     void drawBand(render::Renderer& renderer);
     // Hand tracks of the clips the umbrella rides on (sit, swim, jump-idle) for the local torso.
     world::JntTrack hands_[3];

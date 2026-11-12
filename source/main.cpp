@@ -1393,6 +1393,11 @@ int main() {
                 if (!strcmp(autotest.label(), g.label) && place.zoneId() != g.zone && !uiState.teleportRequest &&
                     transition.idle())
                     uiState.teleportRequest = g.zone;
+            if (!strncmp(autotest.label(), "go zone ", 8)) {
+                const u32 zone = static_cast<u32>(strtoul(autotest.label() + 8, nullptr, 10));
+                if (zone && place.zoneId() != zone && !uiState.teleportRequest && transition.idle())
+                    uiState.teleportRequest = zone;
+            }
         }
         if (autotest.active() && !strcmp(autotest.label(), "meet mickey")) {
             float cx, cy, cz;
@@ -3772,8 +3777,11 @@ int main() {
             }
             if (netStarted) gsBoards.draw2D(net, proj, view, renderer.topLeft());
             if (netStarted && (!minigame.inScene() || minigame.photoScene())) trolley.draw2D(net, proj, view, tt::net::plat::nowMs());
-            balloons.draw(renderer.topLeft());
-            if (stereoActive) balloons.draw(renderer.topRight());
+            if (netStarted) minigame.draw2D(net, renderer.topLeft());
+            if (!minigame.nametagsCovered()) {
+                balloons.draw(renderer.topLeft());
+                if (stereoActive) balloons.draw(renderer.topRight());
+            }
             // [interior life]
             interiorLife.draw2D(proj, view);
             trophies.draw2D(proj, view);

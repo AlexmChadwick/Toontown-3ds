@@ -4285,13 +4285,25 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (!r.ok()) return false;
         if (announce) pushEvent(EventType::RaceChancePositions, m.doId);
     } else if (fieldId == dc::DistributedRaceGame::k_setServerChoices) {
+        // int8[] / uint8[] / int8[]: numPlayers entries per server turn (a chance reward adds a turn).
+        // Every byte is read; the first 16 (four turns of four) are kept.
+        constexpr uint16_t kKeep = sizeof(m.raceServerChoices);
         const uint16_t c1 = r.u16();
-        m.raceServerChoiceCount = c1;
-        for (uint16_t i = 0; i < c1 && i < 16 && r.ok(); ++i) m.raceServerChoices[i] = r.i8();
+        m.raceServerChoiceCount = c1 < kKeep ? c1 : kKeep;
+        for (uint16_t i = 0; i < c1 && r.ok(); ++i) {
+            const int8_t v = r.i8();
+            if (i < kKeep) m.raceServerChoices[i] = v;
+        }
         const uint16_t c2 = r.u16();
-        for (uint16_t i = 0; i < c2 && i < 16 && r.ok(); ++i) m.raceServerPositions[i] = r.u8();
+        for (uint16_t i = 0; i < c2 && r.ok(); ++i) {
+            const uint8_t v = r.u8();
+            if (i < kKeep) m.raceServerPositions[i] = v;
+        }
         const uint16_t c3 = r.u16();
-        for (uint16_t i = 0; i < c3 && i < 16 && r.ok(); ++i) m.raceServerRewards[i] = r.i8();
+        for (uint16_t i = 0; i < c3 && r.ok(); ++i) {
+            const int8_t v = r.i8();
+            if (i < kKeep) m.raceServerRewards[i] = v;
+        }
         if (!r.ok()) return false;
         if (announce) pushEvent(EventType::RaceServerChoices, m.doId);
 

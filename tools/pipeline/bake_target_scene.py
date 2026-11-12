@@ -11,7 +11,7 @@ the second column out on each side (sand hidden in the outer columns), and setup
 draws the score rings (a disc and rings, vertex colour times the pattern's colour at alpha 0.5),
 trampolines over black jump circles and 30 cacti from the AI's seed.
 
-Writes target_sky.ttm, target_sand.ttm, target_mount_left.ttm, target_mount_right.ttm (in the
+Writes target_sky.ttm, target_cloud_mid.ttm, target_cloud_low.ttm, target_sand.ttm, target_mount_left.ttm, target_mount_right.ttm (in the
 mountain node's frame), target_cactus_a.ttm, target_cactus_b.ttm, target_ring_<hood>_<t>.ttm
 (target type t; t 4 is the jump circle) and the header with every block and
 mountain matrix, the hood patterns and the jump sizes. onstage's mountain heights come from the
@@ -171,9 +171,13 @@ def main():
     low = env.attachNewNode('skyLow')
     cloud.copyTo(low)
     cloud.setZ(63.0)
+    cloud.setDepthWrite(0)
+    cloud.setTransparency(1)
     cloud.setTwoSided(True)
     cloud.setR(180)
     low.setZ(50.0)
+    low.setDepthWrite(0)
+    low.setTransparency(1)
     low.setTwoSided(True)
     env.setPos(0, -5.0, 0)
     env.flattenMedium()
@@ -181,13 +185,24 @@ def main():
 
     # ---- the drawn parts, each in its own frame ----
     # In the block's own frame: the kBlocks matrices carry its 15 x 15 x 2 scale.
-    holder = NodePath('h')
-    part = env.copyTo(holder)
-    part.clearTransform()
-    for n in ('**/sand_layer1', '**/mountain_set_b', '**/mountain_c', '**/cloud_layer1', '**/backdrop_layer1'):
-        part.find(n).removeNode()
-    write('target_sky', holder, args.out)
-    holder.removeNode()
+    # The sky ('ground' bin 2) and each cloud layer ('fixed' bins 3 / 4, no depth write) apart:
+    # every block's sky draws before any cloud, and each layer takes its own colour scale.
+    for name in ('target_sky', 'target_cloud_mid', 'target_cloud_low'):
+        holder = NodePath('h')
+        part = env.copyTo(NodePath('tmp'))
+        part.clearTransform()
+        low_layer = part.find('**/skyLow')
+        if name == 'target_sky':
+            keep = [part.find('**/blue_sky_layer1')]
+        elif name == 'target_cloud_low':
+            keep = [low_layer]
+        else:
+            keep = [n for n in part.findAllMatches('**/cloud_layer_alpha') if not low_layer.isAncestorOf(n)]
+        assert keep and not any(k.isEmpty() for k in keep), name
+        for k in keep:
+            k.wrtReparentTo(holder)
+        write(name, holder, args.out)
+        holder.removeNode()
     holder = NodePath('h')
     part = env.copyTo(holder)
     part.find('**/sand_layer1').reparentTo(holder)

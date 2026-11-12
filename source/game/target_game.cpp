@@ -15,6 +15,7 @@ bool TargetGame::init(const char* root, uint32_t seed, uint32_t safezone) {
     char path[256];
     const struct { render::Model* model; const char* name; } parts[] = {
         {&skyModel_, "target_sky"},           {&sandModel_, "target_sand"},
+        {&cloudModel_[0], "target_cloud_mid"},  {&cloudModel_[1], "target_cloud_low"},
         {&mountModel_[0], "target_mount_left"}, {&mountModel_[1], "target_mount_right"},
         {&cactusModel_[0], "target_cactus_a"},  {&cactusModel_[1], "target_cactus_b"},
         {&trampModel_, "target_tramp"}};
@@ -64,6 +65,7 @@ void TargetGame::shutdown() {
     assetBatch_.clear();
     skyModel_.unload();
     sandModel_.unload();
+    for (auto& m : cloudModel_) m.unload();
     for (auto& m : mountModel_) m.unload();
     for (auto& m : cactusModel_) m.unload();
     trampModel_.unload();
@@ -190,7 +192,45 @@ void TargetGame::draw(render::Renderer& renderer) {
         Mtx_Translate(&w, kBandX, kBandY, kBandZ - 1.0f, true);
         renderer.drawModel(slingModel_, w);
     }
+    drawClouds(renderer);
     drawBand(renderer);
+}
+
+void TargetGame::cloudAlpha(float* mid, float* low) const {
+    C3D_FVec eye, target;
+    camera(&eye, &target);
+    const auto trans = [&](float height) {
+        const float dif = std::fabs(eye.z - height);
+        return dif > 20.0f ? 1.0f : dif / 20.0f;
+    };
+    *low = trans(100.0f); // the layer's colour scale is trans * baseOpLow 0.6
+    *mid = trans(126.0f);
+}
+
+float TargetGame::fogOverlay() const {
+    float mid, low;
+    cloudAlpha(&mid, &low);
+    return (1.0f - std::min(1.0f, std::min(mid, low))) * 0.5f;
+}
+
+void TargetGame::drawClouds(render::Renderer& renderer) {
+    // cloudRendering: below 100 the mid layer (bin 3) draws before the low one (bin 4); above
+    // 126 the low layer first. Both blend over the opaque desert with depth test.
+    float mid, low;
+    cloudAlpha(&mid, &low);
+    C3D_FVec eye, target;
+    camera(&eye, &target);
+    const int order[2][2] = {{0, 1}, {1, 0}};
+    const int* o = order[eye.z > 126.0f ? 1 : 0];
+    for (int k = 0; k < 2; ++k) {
+        render::Model& model = cloudModel_[o[k]];
+        if (!model.loaded()) continue;
+        const float a = o[k] == 0 ? mid : low * 0.6f;
+        if (a <= 0.0f) continue;
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, a);
+        for (const auto& b : targetgame::scene::kBlocks) renderer.drawModel(model, placed(b.m));
+    }
+    renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
 }
 
 
