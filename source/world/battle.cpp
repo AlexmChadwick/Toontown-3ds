@@ -244,14 +244,12 @@ void Battle::handleEvent(const net::Event& ev, net::Client& client, uint32_t now
         if (phase_ == BattlePhase::Requested && !joining_) {
             phase_ = BattlePhase::Idle;
             cooldownUntilMs_ = nowMs + kRequestCooldownMs;
-            message_ = "That Cog is too busy to fight right now.";
         }
         break;
     case EventType::BattleJoinDenied:
         if (phase_ == BattlePhase::Requested && joining_) {
             phase_ = BattlePhase::Idle;
-            joinCooldownMs_ = nowMs + 5000;
-            message_ = "That battle is full.";
+            joinCooldownMs_ = nowMs + 5000; // DistributedBattle.denyLocalToonJoin: back to walking, no message
         }
         break;
     default:
