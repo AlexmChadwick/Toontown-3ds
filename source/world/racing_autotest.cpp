@@ -17,7 +17,7 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
         // A board request sent in the frame before this step began (a skipped step runs this
         // handler once) is still unanswered: keep it, or the step boards a second block.
         const bool pending = boarded_ && now < nextRequest_;
-        bought_ = asked_ = sawRace_ = sawResult_ = false;
+        bought_ = asked_ = sawRace_ = sawResult_ = left_ = false;
         boarded_ = pending;
         if (!pending)
             nextRequest_ = 0;
@@ -91,12 +91,21 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
             if (client.racingRace() && client.racingRace()->finished)
                 sawResult_ = true;
             racing.autopilot(input);
+            // "speedway: race leave": RaceGUI's Leave Race (START) 20 s into the race.
+            const auto *race = client.racingRace();
+            if (std::strstr(label, "leave") && !left_ && race && race->started &&
+                int32_t(now - race->startMs) > 20000) {
+                input->down |= KEY_START;
+                left_ = true;
+                TT_LOG("racing autotest: press Leave Race (START)");
+            }
             return;
         }
         if (sawRace_ && place.zoneId() == 8000) {
             TT_LOG("racing autotest: %s; tickets %lu",
-                   sawResult_ ? "authoritative result and return complete"
-                              : "FAIL returned without a server result",
+                   left_ ? "left the race and returned to the Speedway"
+                   : sawResult_ ? "authoritative result and return complete"
+                                : "FAIL returned without a server result",
                    static_cast<unsigned long>(client.ownBook().tickets));
             runner.finishStep();
             return;

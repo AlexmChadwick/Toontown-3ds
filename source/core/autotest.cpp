@@ -340,6 +340,7 @@ const Step kScript[] = {
     // ---- racing2: bounded real purchase and solo Practice race ----
     {180.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: pads", "speedway_pads"},
     {600.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race", "speedway_race*"},
+    {600.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race leave", "speedway_leave*"},
     {1500.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race city", "speedway_city*"},
     {1500.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: race blizzard", "speedway_blizzard*"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "speedway: shop", "speedway_shop"},

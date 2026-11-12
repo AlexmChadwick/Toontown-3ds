@@ -4,7 +4,8 @@
 RaceGUI.initRaceMode shows the gag panel (phase_6/models/karting/gag_panel) with the held gag on
 it (toon_interior_textures couch, the inventory banana peel / anvil / cream pie cards scaled 7.5,
 racing_textures boost_arrow), the map's race_mapspot, and one RaceHeadFrame per racer (phase_4
-racing_panel: bg, plus fg tinted with the kart body colour) along the race progress line. DistributedVehicle's speedometer
+racing_panel: bg, plus fg tinted with the kart body colour) along the race progress line, and the
+Leave Race button (avatar_panel_gui CloseBtn_UP). DistributedVehicle's speedometer
 stacks five unit cards of phase_6/models/karting/speedometer: gauge, spin (the needle, turned by
 setR), face, tics and ring; face / tics / ring are colour-scaled from the kart colours at run time,
 so every part is baked untinted. All of these are unit cards centred on their origin, so each
@@ -54,6 +55,8 @@ PARTS = [
     Part('PanelFg', 'phase_4/models/karting/racing_panel', ['racing_panel_fg'], (192, 192, 64, 64)),
     # The map's racer spot, tinted with the kart body colour (RaceGUI.racerEntered).
     Part('MapSpot', 'phase_6/models/karting/race_mapspot', ['racing_mapspot'], (256, 192, 64, 64)),
+    # RaceGUI.closeButton: avatar_panel_gui's CloseBtn_UP with the "Leave Race" label under it.
+    Part('CloseBtn', 'phase_3.5/models/gui/avatar_panel_gui', ['CloseBtn_UP'], (320, 192, 64, 64)),
 ]
 
 

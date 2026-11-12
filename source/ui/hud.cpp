@@ -211,6 +211,21 @@ void Hud::drawRace(const RaceHud& r) {
         sign("Wrong\nWay!", 1.1f, 0.85f, 0.1f, C2D_Color32f(0.95f, 0.0f, 0.0f, a), C2D_AlignCenter);
     }
 
+    // RaceGUI.closeButton at (-0.99, 0.925): CloseBtn_UP (0.1125 units, scale 1.05) with "Leave Race"
+    // (scale 0.04, white) 0.07 under it. 1.5 times stock so the 3DS pixels can read it (START leaves).
+    {
+        constexpr float kScale = 1.5f;
+        const float size = 0.1125f * 1.05f * kScale * 120.0f;
+        raceArt(RaceArt::CloseBtn, px(-0.99f), py(0.925f), size, size);
+        C2D_Text t;
+        tt::render::textParse(&t, raceBuf_, "Leave Race");
+        const float ts = 0.04f * kScale * 4.0f, ty = py(0.925f - 0.07f * 1.05f * kScale);
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | C2D_AlignCenter, px(-0.99f) + 0.75f, ty + 0.75f, 0.5f,
+                     ts, ts, C2D_Color32(0, 0, 0, 160));
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | C2D_AlignCenter, px(-0.99f), ty, 0.5f, ts, ts,
+                     C2D_Color32(255, 255, 255, 255));
+    }
+
     // Gag panel at (-1.13, -0.5), image scale 0.25; the gag at scale 0.2 on it.
     raceArt(RaceArt::GagPanel, px(-1.13f), py(-0.5f), 30.0f, 30.0f);
     if (r.gag > 0 && r.gag <= 4) raceArt(RaceArt(int(RaceArt::GagCouch) + r.gag), px(-1.13f), py(-0.5f), 24.0f, 24.0f);

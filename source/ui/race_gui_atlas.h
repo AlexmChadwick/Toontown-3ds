@@ -4,11 +4,11 @@
 namespace tt::ui {
 
 constexpr int kRaceGuiAtlasW = 512, kRaceGuiAtlasH = 256;
-enum class RaceArt : int { SpeedGauge, SpeedSpin, SpeedFace, SpeedTics, SpeedRing, GagPanel, GagCouch, GagBanana, GagTurbo, GagAnvil, GagPie, PanelBg, PanelFg, MapSpot, Count };
+enum class RaceArt : int { SpeedGauge, SpeedSpin, SpeedFace, SpeedTics, SpeedRing, GagPanel, GagCouch, GagBanana, GagTurbo, GagAnvil, GagPie, PanelBg, PanelFg, MapSpot, CloseBtn, Count };
 struct RaceArtRect {
     float x, y, w, h; // the part in the atlas (pixels, top-left origin)
 };
-constexpr RaceArtRect kRaceArtRects[14] = {
+constexpr RaceArtRect kRaceArtRects[15] = {
     {1.25f, 1.25f, 125.49f, 125.49f}, // SpeedGauge
     {129.25f, 1.25f, 125.49f, 125.49f}, // SpeedSpin
     {257.25f, 1.25f, 125.49f, 125.49f}, // SpeedFace
@@ -23,6 +23,7 @@ constexpr RaceArtRect kRaceArtRects[14] = {
     {128.63f, 192.63f, 62.75f, 62.75f}, // PanelBg
     {192.63f, 192.63f, 62.75f, 62.75f}, // PanelFg
     {256.63f, 192.63f, 62.75f, 62.75f}, // MapSpot
+    {320.63f, 192.63f, 62.75f, 62.75f}, // CloseBtn
 };
 
 } // namespace tt::ui

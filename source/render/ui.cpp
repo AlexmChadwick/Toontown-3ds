@@ -226,7 +226,7 @@ u32 Ui::handleInput(u32 down, const touchPosition& t, State& s) {
 
 u32 Ui::handleInput(u32 down, u32 held, const touchPosition& t, State& s) {
     // ---- racing2 ----
-    if (contextRacing_) return down & ~(KEY_A | KEY_B | KEY_R);
+    if (contextRacing_) return down & ~(KEY_A | KEY_B | KEY_R | KEY_START); // START: Leave Race
     // ---- end racing2 ----
     // ---- qafix: input and drawing share resolveOwner ----
     // An info panel drawn last frame (loading, streaming Cogs) owns input too: both calls must agree.

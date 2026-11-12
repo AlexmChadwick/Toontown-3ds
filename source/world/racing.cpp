@@ -626,7 +626,14 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                       race->started ? std::max(0.0, int32_t(now - race->startMs) / 1000.0) : 0,
                       countdown);
         std::snprintf(hudLines_[2], sizeof(hudLines_[2]),
-                      "Gag %u  R: use  A: accelerate  B: reverse", heldGag_);
+                      "R: gag  A: go  B: reverse  START: leave");
+    }
+    // RaceGUI's Leave Race button (DistributedRace.leaveRace -> enterLeave): racerLeft, then
+    // goToSpeedway's quiet zone to the playground. The button is a mouse click upstream; START here.
+    if (!left_ && !finished_ && (input.down & KEY_START) && client.sendRaceLeave()) {
+        left_ = true;
+        destination_ = 8000;
+        TT_LOG("racing: leave race requested");
     }
     if (!left_ && (race->returning || (finished_ && (input.down & KEY_A)))) {
         if (client.sendRaceLeave()) {

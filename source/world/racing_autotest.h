@@ -10,7 +10,7 @@ class RacingAutotest {
                 Player &player, Input *input, bool transitionIdle);
 
   private:
-    bool bought_ = false, asked_ = false, boarded_ = false, sawRace_ = false, sawResult_ = false;
+    bool bought_ = false, asked_ = false, boarded_ = false, sawRace_ = false, sawResult_ = false, left_ = false;
     uint32_t nextRequest_ = 0;
 };
 } // namespace tt::world
