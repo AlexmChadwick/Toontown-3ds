@@ -3583,7 +3583,7 @@ int main() {
             // Like upstream's camera-too-close fade: don't draw the toon around the camera.
             // The Toon tab colour picker is an offline preview; online the server's DNA wins.
             if (!racing.driving() && player.cameraDistance() > kHideToonCameraDistance && transition.isToonVisible() &&
-                !tutorial.toonHidden()) { // ---- racing2 ---- (tutorial_blocker: HIDE localToon)
+                !tutorial.toonHidden() && !minigame.toonHidden()) { // ---- racing2 ---- (tutorial_blocker: HIDE localToon)
                 if (transition.toonScale() != 1.0f) {
                     const float ts = transition.toonScale();
                     Mtx_Scale(&m, ts, ts, ts);
@@ -3686,7 +3686,7 @@ int main() {
             balloons.begin();
             float sx, sy, depth;
             // ---- tutorial ---- HIDE localToon (tutorial_blocker's close-up) hides the whole Toon, nametag too
-            if (!tutorial.toonHidden() &&
+            if (!tutorial.toonHidden() && !minigame.toonHidden() &&
                 tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
                                         &depth)) {
                 // Offline there is no server name: show the one the server gives an unnamed Toon

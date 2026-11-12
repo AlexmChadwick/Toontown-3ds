@@ -64,6 +64,9 @@ void MinigameSession::unloadCatch() {
 
 void MinigameSession::unloadCurrent() {
     ::tt::gpu::frameSync();
+    rewardStage_.unload();
+    roomStage_.unload();
+    stageTime_ = -1.0f;
     if (isCatch_) unloadCatch();
     if (isCannon_) cannon_.shutdown();
     if (isTug_) tug_.shutdown();
@@ -310,6 +313,10 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         snprintf(lines_[1], sizeof(lines_[1]), "Counting jellybeans...");
+        stageTime_ = -1.0f;
+        celebrate_ = false;
+        if (!rewardStage_.loaded()) assetBatch_.load(rewardStage_, "sdmc:/3ds/toontown3ds/data/minigames/purchase_reward.ttm");
+        if (!roomStage_.loaded()) assetBatch_.load(roomStage_, "sdmc:/3ds/toontown3ds/data/minigames/purchase_room.ttm");
         break;
 
     case EventType::PurchaseUp: {
@@ -322,6 +329,14 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
                     snprintf(lines_[1], sizeof(lines_[1]), "You earned %u jellybeans!", unsigned(earnedBeans));
                 }
             }
+        }
+        {
+            // enterReward's celebrate: the Toons with the winning points jump.
+            uint32_t best = 0;
+            for (int i = 0; p && i < net::kMinigamePlayers; i++)
+                if (p->playerIds[i] && p->minigamePoints[i] > best) best = p->minigamePoints[i];
+            celebrate_ = earnedBeans == best;
+            stageTime_ = 0.0f;
         }
         TT_LOG("mgpass: score id %u beans %lu (server)", unsigned(gameId_), static_cast<unsigned long>(earnedBeans));
         setPhase(Phase::Purchase);
@@ -436,6 +451,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         shutdown();
         return;
     }
+    if (onStage() && stageTime_ >= 0.0f) stageTime_ += dt;
     u32 kDown = hidKeysDown();
     // Test-only physical button presses: use each game's regular input/sender path.
     if (autoPlay_ && (isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isIce_ || isRace_ || isPhoto_) &&
@@ -747,6 +763,11 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
     // sky is gone with the place (Jungle Vines blends its half-alpha backdrop over it). Race Game's
     // onstage sets its board green.
     renderer.setBackground(isRace_ ? 0x30CA00FF : 0x4C4C4CFF);
+    if (onStage()) {
+        // enterPurchase: base.setBackgroundColor(0.05, 0.14, 0.4); the default lens throughout.
+        if (!rewardStage()) renderer.setBackground(0x0D2466FF);
+        return;
+    }
     // The games whose onstage sets its own lens (and whose camera here is the stock one).
     float fov = 0.0f;
     if (isPattern_) fov = 24.66f;                                  // DistributedPatternGame.onstage
@@ -788,6 +809,14 @@ void MinigameSession::releaseWorld(render::Renderer& renderer) {
 }
 
 void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
+    if (onStage()) {
+        // enterReward: toonPositions[toonLayouts[0][0]] = -0.25 for one Toon, at (x, 1, -2.5), hpr 0.
+        *x = -0.25f;
+        *y = 1.0f;
+        *z = -2.5f;
+        *h = 0.0f;
+        return;
+    }
     if (isCannon_) {
         cannon_.toonPose(x, y, z, h);
     } else if (isTug_) {
@@ -931,6 +960,12 @@ bool MinigameSession::toonRunning() const {
 }
 
 void MinigameSession::camera(C3D_FVec* eye, C3D_FVec* target) const {
+    if (onStage()) {
+        // enterReward: camera.setPos(0, 16, 2), lookAt(0, 0, 0.75); enterPurchase keeps it.
+        *eye = FVec3_New(0.0f, 16.0f, 2.0f);
+        *target = FVec3_New(0.0f, 0.0f, 0.75f);
+        return;
+    }
     if (isCannon_) {
         cannon_.camera(eye, target);
     } else if (isTug_) {
@@ -992,6 +1027,16 @@ const char* MinigameSession::line(int i) const {
 
 void MinigameSession::draw(render::Renderer& renderer) {
     if (!inScene()) return;
+    if (onStage()) {
+        // Purchase: the game's scene is gone (offstage); the reward street, then the purchase room.
+        render::Model& stage = rewardStage() ? rewardStage_ : roomStage_;
+        if (stage.loaded()) {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            renderer.drawModel(stage, m);
+        }
+        return;
+    }
 
     if (isCannon_) {
         cannon_.draw(renderer);
@@ -1083,6 +1128,11 @@ const char* MinigameSession::toonNetworkState() const {
 void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
     using namespace world;
     avatar.setHeadOnly(false);avatar.setBodyPose();
+    if(onStage()) { // enterReward: neutral, then the winners' 'jump' at the celebrate task
+        if(celebrate_ && stageTime_>=kCelebrateSeconds) avatar.playAction(kAnimJump,ClipMode::Once);
+        else avatar.play(kAnimNeutral,1);
+        return;
+    }
     if(isCannon_) { cannon_.applyAnimation(avatar);return; }
     if(isTug_) { tug_.applyAnimation(avatar);return; }
     // Ring: Toon.enterSwim loops 'swim' with the geometry at P -89 (lying flat, head forward).

@@ -346,6 +346,53 @@ def bake_target_props(base, resources, out_dir, max_tex):
     return out
 
 
+def bake_purchase_stages(base, resources, out_dir, max_tex):
+    """Purchase.load's two sets, in world space: the reward street (enterReward: TT_A1 in front at
+    (12.5, -20, -5.5) and twice behind at (-12.5 / 20, -25, -5), all h 180; the 40x40 sidewalk at
+    (-20, -25, -5.5) coloured (0.9, 0.6, 0.4); door_single_square_ur_door h 180 at (0, -16.75, -5.5),
+    scale (1.5, 1.5, 2), coloured (1, 0.8, 0)) and the purchase room (toon_interior at (0, 5, -1),
+    its wallpaper and border wall_paper_a5 tinted (0.8, 0.67, 0.549))."""
+    def load(rel):
+        return base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, rel + '.bam')))
+    out = []
+    root = NodePath('reward')
+    fg = load('phase_3.5/models/modules/TT_A1')
+    fg.reparentTo(root)
+    fg.setPosHpr(12.5, -20, -5.5, 180, 0, 0)
+    bl = load('phase_3.5/models/modules/TT_A1')
+    bl.reparentTo(root)
+    bl.setPosHpr(-12.5, -25, -5, 180, 0, 0)
+    br = bl.copyTo(root)
+    br.setPos(20, -25, -5)
+    sidewalk = load('phase_3.5/models/modules/street_modules').find('**/street_sidewalk_40x40').copyTo(root)
+    sidewalk.setPos(-20, -25, -5.5)
+    sidewalk.setColor(0.9, 0.6, 0.4)
+    door = load('phase_4/models/modules/doors').find('**/door_single_square_ur_door').copyTo(root)
+    door.setH(180)
+    door.setPos(0, -16.75, -5.5)
+    door.setScale(1.5, 1.5, 2.0)
+    door.setColor(1.0, 0.8, 0, 1)
+    room = NodePath('room')
+    bg = load('phase_3.5/models/modules/toon_interior')
+    bg.reparentTo(room)
+    bg.setPos(0.0, 5.0, -1.0)
+    tex = base.loader.loadTexture(Filename.fromOsSpecific(os.path.join(resources, 'phase_3.5/maps/wall_paper_a5.jpg')))
+    for node in ('**/random_tc1_TI_wallpaper', '**/random_tc1_TI_wallpaper_border'):
+        wall = bg.find(node)
+        if wall.isEmpty():
+            raise RuntimeError('toon_interior: no ' + node)
+        wall.setTexture(tex, 100)
+        wall.setColorScale(0.8, 0.67, 0.549, 1.0)
+    for name, holder in (('purchase_reward', root), ('purchase_room', room)):
+        ex = extract.Extractor(max_tex=max_tex, decals=True)  # TT_A1's window panes are decals
+        ex.add(holder)
+        stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+        stats['name'] = name
+        print(json.dumps(stats))
+        out.append(stats)
+    return out
+
+
 def literal_assignment(path, name):
     tree = ast.parse(open(path, encoding='utf-8').read())
     for node in ast.walk(tree):
@@ -414,7 +461,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'purchase', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
@@ -441,6 +488,9 @@ def main():
 
         if args.only in (None, 'vine'):
             report['models'].extend(bake_vine_parts(base, args.resources, args.out, args.max_tex))
+
+        if args.only in (None, 'purchase'):
+            report['models'].extend(bake_purchase_stages(base, args.resources, args.out, args.max_tex))
 
         if args.only in (None, 'target'):
             report['models'].extend(bake_target_props(base, args.resources, args.out, args.max_tex))

@@ -119,6 +119,8 @@ public:
     void releaseWorld(render::Renderer& renderer);
     // Props a game hangs on the local Toon's hands (Toon Slingshot's umbrella), after the Toon's draw.
     void drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon);
+    // The purchase room: exitReward detaches the Toons.
+    bool toonHidden() const { return onStage() && !rewardStage(); }
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;
@@ -178,6 +180,16 @@ private:
     float stunned_ = 0.0f, eating_ = 0.0f;
     float tx_ = 0, ty_ = 0, th_ = 0, speed_ = 0;
     render::Model ground_;
+    // Purchase.load's sets: the reward street (enterReward) and the purchase room (enterPurchase).
+    render::Model rewardStage_, roomStage_;
+    float stageTime_ = -1.0f; // seconds since the purchase screen came up (PurchaseUp), < 0 before
+    bool celebrate_ = false;  // ours were the winning points: the 'jump' at the celebrate task
+    bool onStage() const { return phase_ == Phase::Purchase || phase_ == Phase::Leaving; }
+    bool rewardStage() const { return stageTime_ < kRewardSeconds; }
+    // enterReward: DELAY_BEFORE_COUNT_UP 1 + COUNT_UP_DURATION 0.5 + DELAY_AFTER_COUNT_UP 1 +
+    // COUNT_DOWN_DURATION 0.5 (celebrate) + DELAY_AFTER_CELEBRATE 2.6, then 'purchase'.
+    static constexpr float kCelebrateSeconds = 3.0f;
+    static constexpr float kRewardSeconds = 5.6f;
     render::Model objects_[catchgame::kNumDropTypes];
 
     // Other minigames
