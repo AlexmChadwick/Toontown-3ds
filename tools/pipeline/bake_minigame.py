@@ -228,6 +228,30 @@ AUDIO = [
 ]
 
 
+def add_twod_exit_sign(base, resources, elevator):
+    """TwoDSectionMgr.setupEndSection: a sign_sellBotHeadHQ on the exit elevator's doorway2 at
+    (0, 1.9, 15), scale 15 x 15 x 15 * 0.7227, with OnscreenText TwoDGameElevatorExit ('EXIT', the
+    suit font, black, pos (0, -0.34), scale 0.15) on it. The sign is a DecalEffect: its letters are
+    pulled a hair towards the viewer instead."""
+    from panda3d.core import DynamicTextFont, TextNode
+    sign_model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, 'phase_4/models/props/sign_sellBotHeadHQ.bam')))
+    door = elevator.find('**/doorway2')
+    if door.isEmpty():
+        raise RuntimeError('toonblitz_game_elevator: no doorway2')
+    sign = sign_model.find('**/sign_sellBotHeadHQ').copyTo(door)
+    sign.setPosHprScale(0, 1.9, 15, 0, 0, 0, 15, 15, 15 * 0.7227)
+    font = DynamicTextFont(Filename.fromOsSpecific(os.path.join(resources, 'phase_3/models/fonts/vtRemingtonPortable.ttf')))
+    font.setPixelsPerUnit(40)
+    tn = TextNode('exit')
+    tn.setFont(font)
+    tn.setAlign(TextNode.ACenter)
+    tn.setTextColor(0, 0, 0, 1)
+    tn.setText('EXIT')
+    letters = sign.attachNewNode(tn.generate())
+    letters.setPos(0, -0.002, -0.34)
+    letters.setScale(0.15, 1, 0.15)
+
+
 def bake_model(base, resources, name, spec, out_dir, max_tex):
     bam, subnode, hpr, scale, pos = spec
     raw_model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, bam + '.bam')))
@@ -247,6 +271,8 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
         for floor in model.findAllMatches('**/floors/floor_*'):
             if floor.getName() != 'floor_' + name[-2:]:
                 floor.stash()
+    if name == 'twod_elevator':
+        add_twod_exit_sign(base, resources, model)
     # BillboardEffect sprites (the tug-of-war palm tops, the ring game's kelp, the tag arena's
     # IT pointer) would bake frozen at their modelled heading, edge-on from most cameras.
     assemble.cross_billboards(root)
