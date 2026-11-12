@@ -21,6 +21,8 @@ public:
     uint32_t clerkDoId() const {
         return clerk_;
     }
+    // The clerk's last setMovie line for its speech balloon (10 s), or null.
+    const char *clerkSpeech(uint32_t now, uint32_t *clerkDoId) const;
     // Diagnostic actions go through the same guarded, confirmed panel path.
     void diagnostic(const char *label);
     bool kartPreview(int8_t dna[9]) const;
@@ -33,6 +35,7 @@ private:
     void choose(int delta);
     void rebuild();
     void result(const char *message);
+    void speak(const net::ClerkMovie &movie);
     void refreshPet();
     net::Client *client_ = nullptr;
     bool active_ = false;
@@ -50,6 +53,8 @@ private:
     bool buyBody_ = false;
     bool diagnosticDone_ = false;
     char message_[128] = {};
+    char speech_[128] = {};
+    uint32_t speechClerk_ = 0, speechUntil_ = 0;
     char strings_[10][128] = {};
     C2D_Text texts_[10];
     C2D_Text btnText_[3]; // "< Prev", "Next >", "Back" (parsed with texts_)

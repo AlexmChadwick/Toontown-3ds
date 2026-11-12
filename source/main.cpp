@@ -3757,6 +3757,7 @@ int main() {
                 // ---- end tutorial ----
                 if (!said) said = shop.clerkSpeech(tt::net::plat::nowMs(), &talker);
                 if (!said) said = tailor.tailorSpeech(tt::net::plat::nowMs(), &talker);
+                if (!said) said = serviceClerks.clerkSpeech(tt::net::plat::nowMs(), &talker);
                 zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
                 // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
                 if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);

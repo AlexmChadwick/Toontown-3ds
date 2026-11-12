@@ -24,6 +24,64 @@ void ServiceClerkPanel::result(const char *message) {
     resultUntil_ = now_ + 5000;
     active_ = dirty_ = true;
 }
+// The NPC's setMovie line, said with setChatAbsolute(CFSpeech | CFTimeout) over it (TTLocalizer);
+// the clerk's GUI is gone by then, so the panel closes.
+void ServiceClerkPanel::speak(const net::ClerkMovie &movie) {
+    const char *said = nullptr;
+    if (movie.mode == 8) {
+        said = "Need more time to think?"; // STOREOWNER_TOOKTOOLONG
+    } else if (kind_ == net::ClerkKind::Party) {
+        switch (movie.mode) { // PARTY_MOVIE_*
+        case 2: said = "Have fun planning your party!"; break;
+        case 3: said = "You can only host one party at a time, sorry."; break;
+        case 4: said = "Maybe next time.  Have a good day!"; break;
+        case 5: said = "Only paid toons can host a party, sorry."; break;
+        case 6: said = "Parties are coming soon! Try again later."; break;
+        case 7: said = "It costs a minimum of 100 jellybeans to plan a party."; break; // MinimumPartyCost
+        default: break;
+        }
+    } else if (movie.mode == clerks::kSellTrophy) {
+        std::snprintf(speech_, sizeof(speech_),
+                      "Wow! You collected %u of %u fish. That deserves a trophy and a Laff boost!",
+                      unsigned(movie.extra[0]), unsigned(movie.extra[1]));
+    } else {
+        const bool pets = kind_ == net::ClerkKind::Pet, kart = kind_ == net::ClerkKind::Kart;
+        switch (movie.mode) { // SELL_MOVIE_*
+        case 2:
+            said = kart ? "See you later!"
+                 : pets ? "These are some fine specimens! Thanks."
+                        : "Thanks! The Pet Shop will love these. Bye!";
+            break;
+        case clerks::kSellNoFish:
+            said = "Come back here to sell fish to the Pet Shop for jellybeans.";
+            break;
+        case 9: said = "Don't worry.  We'll find a good home for your Doodle."; break;
+        case 10:
+            said = "Congratulations on purchasing a Doodle! You can play with your new friend at your estate.";
+            break;
+        case 11:
+            said = kart ? "See you later!"
+                        : "Remember, if you see a Doodle you like, make sure to adopt him before someone else does!";
+            break;
+        default: break; // NO_MONEY: "should not be called", no line
+        }
+    }
+    if (said)
+        std::snprintf(speech_, sizeof(speech_), "%s", said);
+    if (said || movie.mode == clerks::kSellTrophy) {
+        speechClerk_ = clerk_;
+        speechUntil_ = now_ + 10000;
+    }
+    active_ = false;
+}
+
+const char *ServiceClerkPanel::clerkSpeech(uint32_t now, uint32_t *clerkDoId) const {
+    if (!speech_[0] || int32_t(speechUntil_ - now) <= 0)
+        return nullptr;
+    *clerkDoId = speechClerk_;
+    return speech_;
+}
+
 void ServiceClerkPanel::update(net::Client &client, uint32_t now) {
     client_ = &client;
     now_ = now;
@@ -46,56 +104,8 @@ void ServiceClerkPanel::update(net::Client &client, uint32_t now) {
             dirty_ = true;
         } else if (movie.mode == 255)
             result("The clerk is busy. Please try again.");
-        else if (movie.mode == 8)
-            result("Need more time to think? Your session expired.");
-        else if (kind_ == net::ClerkKind::Party) {
-            switch (movie.mode) {
-            case 6:
-                result("Parties are not available yet.");
-                break;
-            case 7:
-                result("You need more jellybeans to plan a party.");
-                break;
-            case 3:
-                result("You are already hosting too many parties.");
-                break;
-            case 5:
-                result("Only paid accounts can host parties.");
-                break;
-            default:
-                result("Maybe next time! Party planning is unavailable here.");
-                break;
-            }
-        } else {
-            switch (movie.mode) {
-            case 2:
-                result(kind_ == net::ClerkKind::Kart ? "Thanks for visiting the kart shop!"
-                                                     : "Thank you for the fish!");
-                break;
-            case clerks::kSellNoFish:
-                result("Your fish tank is empty.");
-                break;
-            case clerks::kSellTrophy:
-                std::snprintf(message_, sizeof(message_), "Fishing trophy! %u of %u species collected.",
-                              unsigned(movie.extra[0]), unsigned(movie.extra[1]));
-                page_ = Page::Result;
-                resultUntil_ = now + 5000;
-                active_ = dirty_ = true;
-                break;
-            case 9:
-                result("Your Doodle has been returned.");
-                break;
-            case 10:
-                result("Enjoy your new Doodle!");
-                break;
-            case 11:
-                result("See you later! Adoption cancelled.");
-                break;
-            default:
-                result("The clerk ended the transaction.");
-                break;
-            }
-        }
+        else
+            speak(movie);
     }
     if (!active_)
         return;
