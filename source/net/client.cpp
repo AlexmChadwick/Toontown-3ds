@@ -3913,13 +3913,19 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (announce) pushEventArg(EventType::DivingFishSpawn, m.doId, int32_t((m.divingFishSpawnerId << 16) | (m.divingFishSpawnCode & 0xffff)));
     } else if (fieldId == dc::DistributedDivingGame::k_setCrabMoving) {
         m.divingCrabId = r.u32();
-        r.i16(); // ts
+        const int16_t ts = r.i16();
         m.divingCrabRand1 = r.i8();
         m.divingCrabRand2 = r.i8();
         m.divingCrabX = r.i16();
         m.divingCrabDir = r.i8();
         if (!r.ok()) return false;
-        if (announce) pushEventArg(EventType::DivingCrabMoving, m.doId, int32_t(m.divingCrabId));
+        // The whole update rides in the event (two crabs can move in one turn): doId = timestamp,
+        // arg = crabId | rand1 << 4 | rand2 << 8 | (dir < 0) << 12 | crabX << 16.
+        if (announce)
+            pushEventArg(EventType::DivingCrabMoving, uint32_t(uint16_t(ts)),
+                         int32_t((m.divingCrabId & 0xfu) | (uint32_t(m.divingCrabRand1) & 0xfu) << 4 |
+                                 (uint32_t(m.divingCrabRand2) & 0xfu) << 8 | uint32_t(m.divingCrabDir < 0) << 12 |
+                                 uint32_t(uint16_t(m.divingCrabX)) << 16));
     } else if (fieldId == dc::DistributedDivingGame::k_setTreasureDropped) {
         const uint32_t av = r.u32();
         const int16_t ts = r.i16();

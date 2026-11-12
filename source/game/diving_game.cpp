@@ -10,10 +10,14 @@ static constexpr const char* kDir = "sdmc:/3ds/toontown3ds/data/minigames/";
 
 namespace {
 constexpr float kPi = 3.14159265358979323846f;
-// DistributedDivingGame.LAG_COMP and SPEEDMULT (the AI's difficulty pattern; 1.0 when the
-// client has none).
+// DistributedDivingGame.LAG_COMP (SPEEDMULT comes from the hood's difficulty pattern).
 constexpr float kLagComp = 1.25f;
-constexpr float kSpeedMult = 1.0f;
+// CLerpInterval blend types.
+float easeIn(float t) { return (3.0f * t * t - t * t * t) * 0.5f; }
+float easeOut(float t) { return (3.0f * t - t * t * t) * 0.5f; }
+float easeInOut(float t) { return 3.0f * t * t - 2.0f * t * t * t; }
+constexpr float kCrabZ = -40.0f;
+constexpr float kCrabHitRadius = 1.3f; // CollisionSphere(0, 0, 1, 1.3) on the crab
 // DistributedDivingGame.spawnX = 24 * LAG_COMP; spawners sit at -spawnX (even ids) or +spawnX.
 constexpr float kSpawnX = 24.0f * kLagComp;
 constexpr float kFishSpawnY = 0.6f;   // spawnY
@@ -80,7 +84,6 @@ void DivingGame::spawnFish(uint32_t fishCode, uint32_t spawnerId, uint32_t offse
 }
 
 void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
-    (void)client;
     done_ = false;
     autoPlay_ = autoPlay;
     startMs_ = nowMs;
@@ -101,8 +104,25 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     for (Fish& f : fish_) f = Fish{};
     for (uint16_t& c : spawnCount_) c = 0;
 
-    crabX_ = 0.0f;
-    crabDir_ = 1;
+    // setGameReady's difficultyPatterns[hood]: NUMCRABS, SPEEDMULT.
+    const net::Minigame* mg = client.minigame();
+    const uint32_t hood = mg ? mg->trolleyZone - mg->trolleyZone % 1000 : 2000;
+    numCrabs_ = 1;
+    speedMult_ = 1.0f;
+    switch (hood) {
+    case 2000: numCrabs_ = 1, speedMult_ = 1.5f; break;
+    case 1000: numCrabs_ = 1, speedMult_ = 1.3f; break;
+    case 5000: numCrabs_ = 2, speedMult_ = 1.2f; break;
+    case 4000: numCrabs_ = 2; break;
+    case 3000: case 9000: numCrabs_ = 3; break;
+    default: break;
+    }
+    for (int i = 0; i < kMaxCrabs; ++i) {
+        crabs_[i] = Crab{};
+        crabs_[i].x = i % 2 == 0 ? 20.0f : -20.0f;
+        crabs_[i].direction = i % 2 == 0 ? -1 : 1;
+    }
+    animTime_ = 0.0f;
 
     char path[96];
     std::snprintf(path, sizeof(path), "%sdiving_game.ttm", kDir);
@@ -115,6 +135,10 @@ void DivingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
         std::snprintf(path, sizeof(path), "%s%s.ttm", kDir, kFishTypes[i].model);
         assetBatch_.load(fishModel_[i], path);
     }
+    std::snprintf(path, sizeof(path), "%sdiving_crab_full.ttm", kDir);
+    assetBatch_.load(crabModel_, path);
+    std::snprintf(path, sizeof(path), "%sdiving_crab_full_anim.tta", kDir);
+    assetBatch_.load(crabAnim_, path);
 
     std::snprintf(lines_[0], sizeof(lines_[0]), "Treasures: 0");
     std::snprintf(lines_[1], sizeof(lines_[1]), "Depth: 0.0 m  (Time: 65 s)");
@@ -127,6 +151,8 @@ void DivingGame::shutdown() {
     boatModel_.unload();
     chestModel_.unload();
     for (render::Model& m : fishModel_) m.unload();
+    crabModel_.unload();
+    crabAnim_.unload();
     done_ = true;
 }
 
@@ -174,7 +200,8 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
     // the fish id and spawner, as DistributedDivingGame.fishCollision does).
     for (Fish& f : fish_) {
         if (!f.active) continue;
-        const float duration = kFishTypes[f.type].duration * kLagComp * kSpeedMult;
+        // fishSpawn: bear and nurse cross in 20 * LAG_COMP, the rest scale with SPEEDMULT.
+        const float duration = kFishTypes[f.type].duration * kLagComp * (f.type == 2 || f.type == 4 ? 1.0f : speedMult_);
         f.elapsed += dt;
         if (f.elapsed >= duration) {
             f.active = false;
@@ -185,7 +212,7 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
         f.x = startX + float(f.dir) * kFishCrossDist * t;
         const float z0 = diving::kSpawnerZ[f.spawner];
         if (f.type == 1) {
-            const float wave = kFishWavePeriod * kLagComp * kSpeedMult;
+            const float wave = kFishWavePeriod * kLagComp * speedMult_;
             const float phase = 2.0f * kPi * std::fmod(f.elapsed / wave, 1.0f) + f.offset * 3.0f;
             f.z = z0 + std::sin(phase) * kFishWaveAmplitude;
         } else if (f.type == 0 || f.type == 3 || f.type == 5) {
@@ -205,19 +232,8 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
         }
     }
 
-    // Update crab movement along seabed
-    crabX_ += crabDir_ * 4.0f * dt;
-    if (crabX_ > 18.0f) { crabX_ = 18.0f; crabDir_ = -1; }
-    else if (crabX_ < -18.0f) { crabX_ = -18.0f; crabDir_ = 1; }
-
-    // Collision with crab
-    if (swimmer_.freezeTimer <= 0.0f && swimmer_.z <= diving::kSeabedZ + 2.0f) {
-        const float dx = swimmer_.x - crabX_;
-        if (std::abs(dx) < 2.0f) {
-            diving::applyObstacleHit(swimmer_);
-            client.sendDivingCrabCollision(client.avatarId(), "normal");
-        }
-    }
+    updateCrabs(client, nowMs);
+    animTime_ += dt;
 
     // Check chest pickup
     for (int i = 0; i < 3; ++i) {
@@ -251,6 +267,66 @@ void DivingGame::update(net::Client& client, const circlePosition& pad, u32 kDow
     std::snprintf(lines_[2], sizeof(lines_[2]), "Jellybeans: %d", score_);
 }
 
+void DivingGame::moveCrab(int crabId, uint32_t startMs, int rand1, int rand2, int crabX, int dir) {
+    if (crabId < 0 || crabId >= numCrabs_) return;
+    Crab& c = crabs_[crabId];
+    // setCrabMoving: aim past the treasures' mean x, then walk, leap and fall back.
+    float meanX = 0.0f;
+    for (const auto& chest : chests_) meanX += chest.x;
+    meanX /= 3.0f;
+    int goalX = int(meanX + float(dir) * (float(rand1) / 10.0f) * 12.0f + 4.0f);
+    if (goalX > 20) goalX = 20;
+    else if (goalX < -20) goalX = 20; // as stock
+    c.goalX = float(goalX);
+    c.goalZ = kCrabZ + 5.0f + 5.0f * (float(rand2) / 10.0f);
+    c.xTime = 1.0f + float(rand1) / 10.0f * 2.0f;
+    c.zTime = 0.5f + float(rand2) / 10.0f;
+    c.wait = float(rand1) / 10.0f + float(rand2) / 10.0f + 1.0f;
+    c.fromX = float(crabX);
+    c.direction = -c.direction;
+    c.startMs = startMs;
+    c.playing = true;
+    c.requested = false;
+}
+
+void DivingGame::updateCrabs(net::Client& client, uint32_t nowMs) {
+    for (int i = 0; i < numCrabs_; ++i) {
+        Crab& c = crabs_[i];
+        if (!c.playing) continue;
+        float t = float(int32_t(nowMs - c.startMs)) / 1000.0f;
+        if (t < 0.0f) t = 0.0f;
+        if (t < c.wait) {
+            c.x = c.fromX, c.z = kCrabZ;
+        } else if ((t -= c.wait) < c.xTime) {
+            c.x = c.fromX + (c.goalX - c.fromX) * easeIn(t / c.xTime), c.z = kCrabZ;
+        } else if ((t -= c.xTime) < c.zTime) {
+            c.x = c.goalX, c.z = kCrabZ + (c.goalZ - kCrabZ) * easeOut(t / c.zTime);
+        } else if ((t -= c.zTime) < c.zTime) {
+            c.x = c.goalX, c.z = c.goalZ + (kCrabZ - c.goalZ) * easeInOut(t / c.zTime);
+        } else {
+            c.x = c.goalX, c.z = kCrabZ;
+            c.playing = false;
+        }
+    }
+    // __crabTask: the first idle crab asks for its next move, one a frame.
+    for (int i = 0; i < numCrabs_; ++i) {
+        Crab& c = crabs_[i];
+        if (c.playing || c.requested) continue;
+        c.requested = client.sendDivingGetCrabMoving(uint32_t(i), int16_t(c.x), int8_t(c.direction));
+        break;
+    }
+    if (swimmer_.freezeTimer > 0.0f) return;
+    for (int i = 0; i < numCrabs_; ++i) {
+        const float dx = swimmer_.x - crabs_[i].x, dz = swimmer_.z - (crabs_[i].z + 1.0f);
+        const float reach = kCrabHitRadius + kReachMargin;
+        if (dx * dx + dz * dz < reach * reach) {
+            diving::applyObstacleHit(swimmer_);
+            client.sendDivingCrabCollision(client.avatarId(), "normal");
+            break;
+        }
+    }
+}
+
 void DivingGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     if (environModel_.loaded()) {
@@ -271,6 +347,21 @@ void DivingGame::draw(render::Renderer& renderer) {
                 Mtx_Translate(&m, chests_[i].x, kTreasureY, chests_[i].z, true);
                 Mtx_Scale(&m, kTreasureScale, kTreasureScale, kTreasureScale);
                 renderer.drawModel(chestModel_, m);
+            }
+        }
+    }
+    if (crabModel_.loaded()) {
+        for (int i = 0; i < numCrabs_; ++i) {
+            // setGameReady: crab.setScale(1, 0.3, 1), loop('anim'); no heading is set.
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, crabs_[i].x, 0.0f, crabs_[i].z, true);
+            Mtx_Scale(&m, 1.0f, 0.3f, 1.0f);
+            if (crabAnim_.loaded()) {
+                const float pos = std::fmod(animTime_ * crabAnim_.fps(), float(crabAnim_.numFrames()));
+                const u32 a = u32(pos), b = (a + 1) % crabAnim_.numFrames();
+                renderer.drawMorph(crabModel_, crabAnim_, a, b, pos - float(a), m);
+            } else {
+                renderer.drawModel(crabModel_, m);
             }
         }
     }

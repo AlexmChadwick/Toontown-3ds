@@ -31,6 +31,8 @@ public:
 
     // fishSpawn: the AI spawned fish `fishCode` at `spawnerId` with lane offset `offset`.
     void spawnFish(uint32_t fishCode, uint32_t spawnerId, uint32_t offset);
+    // setCrabMoving(crabId, timestamp, rand1, rand2, crabX, dir); startMs is the timestamp, local.
+    void moveCrab(int crabId, uint32_t startMs, int rand1, int rand2, int crabX, int dir);
 
     const char* line(int i) const { return (i >= 0 && i < 3) ? lines_[i] : ""; }
     bool isDone() const { return done_; }
@@ -39,7 +41,7 @@ private:
     static constexpr int kMaxFish = 24;
     static constexpr int kFishTypeCount = 6;
 
-    world::BasicAssetBatch<12> assetBatch_;
+    world::BasicAssetBatch<14> assetBatch_;
     // A fish the AI spawned with fishSpawn (DistributedDivingGameAI.spawnFish). It crosses the
     // tank from its spawner (DistributedDivingGame.fishSpawn) and is removed when its lerp ends.
     struct Fish {
@@ -66,8 +68,21 @@ private:
 
     Fish fish_[kMaxFish];
     uint16_t spawnCount_[diving::kNumSpawners] = {};
-    float crabX_ = 0.0f;
-    int crabDir_ = 1;
+    // setGameReady's King Crabs (NUMCRABS per hood) on the seabed at z -40; each asks the AI
+    // (getCrabMoving) for its next walk-and-leap Sequence once the last one ends.
+    static constexpr int kMaxCrabs = 3;
+    struct Crab {
+        float x = 0.0f, z = -40.0f;
+        int direction = 1;
+        bool playing = false;   // the setCrabMoving Sequence
+        bool requested = false; // getCrabMoving sent, Wait(1.0) looping until the answer
+        uint32_t startMs = 0;
+        float wait = 0, xTime = 0, zTime = 0, fromX = 0, goalX = 0, goalZ = -40.0f;
+    };
+    Crab crabs_[kMaxCrabs];
+    int numCrabs_ = 1;
+    float speedMult_ = 1.0f; // difficultyPatterns[hood][1]
+    void updateCrabs(net::Client& client, uint32_t nowMs);
 
     char lines_[3][48] = {};
 
@@ -75,6 +90,9 @@ private:
     render::Model boatModel_;
     render::Model chestModel_;
     render::Model fishModel_[kFishTypeCount];
+    render::Model crabModel_;
+    render::Anim crabAnim_; // kingCrab-swimLOOP, looped
+    float animTime_ = 0.0f;
 };
 
 } // namespace tt::game
