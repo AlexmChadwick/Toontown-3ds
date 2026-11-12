@@ -23,6 +23,7 @@
 #include "ui/fishing_panel.h"
 #include "world/fish_logic.h"
 #include "world/player.h"
+#include "world/battle_fx.h" // JntTrack
 
 namespace tt::world {
 
@@ -88,6 +89,14 @@ private:
     void updateRodPitch(float dt);
     void landBob(u32 nowMs);
     void rodMatrix(C3D_Mtx* out) const;
+    // The pole is parented to the Toon's right hands (DistributedFishingSpot.__holdPole): the
+    // local Toon's torso frame x its clip's def_joint_right_hold (torso_<key>_<clip>.jnt).
+    bool handMatrix(C3D_Mtx* out) const;
+    mutable const ToonAvatar* avatar_ = nullptr; // the Toon applyAnimation last posed
+    static constexpr int kJntSlots = 9; // pole, pole-neutral, castlong, cast, fish-neutral, reel, reel-neutral, fish-again, fish-end
+    struct JntSlot { char path[96]; JntTrack track; u32 used; bool failed; };
+    mutable JntSlot jnt_[kJntSlots] = {};
+    mutable u32 jntClock_ = 0;
     void rodTip(float* tip) const;
     void syncView();
     int currentRod() const;

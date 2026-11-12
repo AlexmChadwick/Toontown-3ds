@@ -125,6 +125,11 @@ void Fishing::unloadAssets() {
     line_.unload();
     loadedRod_ = -1;
     linesLoaded_ = false;
+    for (JntSlot& j : jnt_) {
+        j.track.unload();
+        j.path[0] = 0;
+        j.failed = false;
+    }
 }
 
 void Fishing::setZone(u32 zoneId, const char* pointsPath) {
@@ -715,11 +720,46 @@ void Fishing::updateRodPitch(float dt) {
     rodPitch_ += (target - rodPitch_) * (1.0f - expf(-rate * dt));
 }
 
+bool Fishing::handMatrix(C3D_Mtx* out) const {
+    ToonAvatar::TorsoFrame torso;
+    if (!avatar_ || !avatar_->torsoFrame(&torso) || !torso.torsoKey) return false;
+    switch (torso.anim) {
+    case kAnimPole: case kAnimPoleNeutral: case kAnimCastlong: case kAnimCast: case kAnimFishNeutral:
+    case kAnimReel: case kAnimReelNeutral: case kAnimFishAgain: case kAnimFishEnd: break;
+    default: return false; // not holding the pole yet (running to the spot)
+    }
+    char path[96];
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/toon/%s_%s.jnt", torso.torsoKey, kToonAnimNames[torso.anim]);
+    JntSlot* slot = nullptr;
+    for (JntSlot& j : jnt_) {
+        if (!strcmp(j.path, path)) { slot = &j; break; }
+    }
+    if (!slot) { // the least recently used slot, loaded once (a missing file is remembered)
+        slot = &jnt_[0];
+        for (JntSlot& j : jnt_) if (j.used < slot->used) slot = &j;
+        slot->track.unload();
+        snprintf(slot->path, sizeof(slot->path), "%s", path);
+        slot->failed = !slot->track.load(path);
+        if (slot->failed) TT_LOG("fishing: no hand track %s (tools/pipeline/bake_toon_hands.py)", path);
+    }
+    slot->used = ++jntClock_;
+    if (slot->failed) return false;
+    const int right = slot->track.joint("def_joint_right_hold");
+    C3D_Mtx hand;
+    if (right < 0 || !slot->track.sample(right, torso.time, &hand)) return false;
+    Mtx_Multiply(out, &torso.world, &hand);
+    return true;
+}
+
 void Fishing::rodMatrix(C3D_Mtx* out) const {
     float scale = 1.0f;
     if (state_ == State::Entering) scale = smooth(stateTime_ / 0.6f);
     else if (state_ == State::Leaving) scale = 1.0f - smooth(stateTime_ / kLeaveSec);
     if (scale < 0.01f) scale = 0.01f;
+    if (handMatrix(out)) {
+        Mtx_Scale(out, scale, scale, scale);
+        return;
+    }
     Mtx_Identity(out);
     Mtx_Translate(out, cur_.x, cur_.y, cur_.z, true);
     Mtx_RotateZ(out, (cur_.h + aim_) * kDegToRad, true);
@@ -826,6 +866,7 @@ void Fishing::draw(render::Renderer& renderer) {
 
 void Fishing::applyAnimation(ToonAvatar& avatar) const {
     if (!active()) return;
+    avatar_ = &avatar;
     ToonAnim clip=kAnimPoleNeutral;
     ClipMode mode=ClipMode::Loop;
     float age=toonTime_,start=0,rate=1;
