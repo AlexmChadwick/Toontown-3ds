@@ -91,7 +91,7 @@ const Step kScript[] = {
     {1.5f, 0, 0, 0, 0, -1, -1, 0, "book: tasks demo 3", "book_tasks_demo3"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: cogs", "book_cogs"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: disguise", "book_disguise"},
-    {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: fish", "book_fish"},
+    {3.0f, 0, 0, 0, 0, -1, -1, 0, "book: fish", "book_fish"}, // long enough for a 1 s grab
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: trophies", "book_trophies"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: sos", "book_sos"},
     {1.0f, 0, 0, 0, 0, -1, -1, 0, "book: options", "book_options"},
