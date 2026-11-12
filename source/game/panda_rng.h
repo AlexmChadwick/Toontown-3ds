@@ -9,6 +9,9 @@ class RandomNumGen {
 public:
     explicit RandomNumGen(uint32_t seed) { seedMt(seed); }
     explicit RandomNumGen(RandomNumGen& parent) { seedMt(parent.randint(0, 1 << 16)); }
+    RandomNumGen() { seedMt(0); }
+    void reseed(uint32_t seed) { seedMt(seed); }
+    void reseedFrom(RandomNumGen& parent) { seedMt(parent.randint(0, 1 << 16)); } // RandomNumGen(rng)
 
     uint32_t getUint31() {
         if (idx_ >= 624) generate();

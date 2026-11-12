@@ -373,6 +373,10 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         if (isPattern_) pattern_.onResults();
         break;
 
+    case EventType::MazeTreasureGrabbed:
+        if (isMaze_) maze_.onTreasureGrabbed(ev.doId, uint32_t(ev.arg)); // setTreasureGrabbed(avId, n)
+        break;
+
     case EventType::RaceServerChoices:
         if (isRace_ && mg)
             race_.onSetServerChoices(mg->raceServerChoices, mg->raceServerPositions, mg->raceServerRewards,

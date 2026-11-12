@@ -60,6 +60,10 @@ MODELS = {
 
     # Maze
     'maze_1player': (MG + 'maze_1player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # DistributedMazeGame.load: MazeData.mazeNames[numPlayers - 1]
+    'maze_2player': (MG + 'maze_2player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'maze_3player': (MG + 'maze_3player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'maze_4player': (MG + 'maze_4player', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'maze_treasure': ('phase_3.5/models/props/mickeySZ', '**/mickeySZ', (0, -90, 0), 1.6, (0, 0, 0)),
 
     # Match Minnie / Pairing
@@ -166,7 +170,7 @@ MODELS = {
 # The game floors and terrain fill the screen: they keep up to 256 px (AGENTS.md section 4,
 # terrain), props stay at --max-tex.
 TERRAIN = {'catch_ground_2', 'catch_ground_3', 'catch_ground_4', 'cannon_gameground', 'cannon_hill',
-           'tug_dock', 'ring_game', 'maze_1player', 'target_ground', 'tag_arena', 'pattern_stage',
+           'tug_dock', 'ring_game', 'maze_1player', 'maze_2player', 'maze_3player', 'maze_4player', 'target_ground', 'tag_arena', 'pattern_stage',
            'ice_arena', 'race_track', 'diving_game', 'memory_room', 'vine_background', 'twod_background',
            *('cogthief_ground_' + h for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL'))}
 
