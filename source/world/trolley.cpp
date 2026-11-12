@@ -182,7 +182,7 @@ void TrolleyRide::update(net::Client& client, float x, float y, float z, int hp,
     if (requested_ && nowMs - requestMs_ > 5000) requested_ = false; // no answer: allow another try
     if (inside && !inSphere_ && waiting && !requested_ && z >= pz_ + kCarZ) {
         if (hp <= 0) {
-            message_ = "You need more Laff points to ride the trolley.";
+            message_ = "You may not board the trolley until your Laff meter is smiling."; // TrolleyHFAMessage
         } else if (client.sendTrolleyBoard()) {
             requested_ = true;
             requestMs_ = nowMs;
@@ -205,8 +205,7 @@ void TrolleyRide::handleEvent(const net::Event& ev, net::Client& client, u32 now
         if (ev.doId == me) {
             seat_ = ev.arg;
             seatSinceMs_=nowMs;
-            requested_ = false;
-            message_ = "All aboard! B hops off the trolley.";
+            requested_ = false; // Trolley.enterBoarded shows only the Hop off button (bottom panel)
             TT_LOG("trolley: seated in %d", seat_);
         }
         break;
@@ -218,8 +217,7 @@ void TrolleyRide::handleEvent(const net::Event& ev, net::Client& client, u32 now
         }
         break;
     case EventType::TrolleyReject:
-        requested_ = false;
-        message_ = "The trolley is full.";
+        requested_ = false; // Trolley.handleRejectBoard: no message
         break;
     case EventType::TrolleyMinigameZone:
         if (seat_ >= 0) {
