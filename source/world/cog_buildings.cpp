@@ -741,9 +741,17 @@ bool CogBuildings::elevatorRows(const net::Client& client, const net::CogElevato
                                 float rows[12]) const {
     if (e.buildingDoId) {
         const net::CogBuilding* b = client.findCogBuilding(e.buildingDoId);
-        if (!b || b->state != net::CogBuildingState::Suit) return false; // field offices: not drawn here
+        if (!b) return false;
         const Block* bk = findBlock(b->block);
         if (!bk) return false;
+        if (b->state == net::CogBuildingState::Cogdo) {
+            // The field office's elevatorB, at its door along the suit origin (setupCogdo).
+            memcpy(rows, bk->landmark, sizeof(bk->landmark));
+            for (int j = 0; j < 3; ++j)
+                rows[9 + j] += cogdoDoor_[0] * rows[j] + cogdoDoor_[1] * rows[3 + j] + cogdoDoor_[2] * rows[6 + j];
+            return true;
+        }
+        if (b->state != net::CogBuildingState::Suit) return false;
         elevatorMatrix(*bk, deptIndex(b->track), rows);
         return true;
     }
