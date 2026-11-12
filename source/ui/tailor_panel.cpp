@@ -73,6 +73,19 @@ void TailorPanel::preview() {
 void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
     const net::TailorMovie& m = client.tailorMovie();
     if (m.avId != client.avatarId() && m.mode != net::kTailorMovieClear) return;
+    // TTLocalizer STOREOWNER_*; PURCHASE_MOVIE_NO_MONEY says nothing ("should not be called").
+    const char* said = m.mode == net::kTailorMovieStart        ? "Choose what you want to buy."
+                       : m.mode == net::kTailorMovieStartBrowse ? "You can browse, but you need a clothing ticket to buy."
+                       : m.mode == net::kTailorMovieStartNoRoom ? "Hmm...you might want to make room in your closet before you buy new clothes."
+                       : m.mode == net::kTailorMovieTimeout     ? "Need more time to think?"
+                       : m.mode == net::kTailorMovieComplete    ? "See you later!"
+                                                                : nullptr;
+    if (said) {
+        const bool start = m.mode != net::kTailorMovieTimeout && m.mode != net::kTailorMovieComplete;
+        speech_ = said;
+        speechTailor_ = m.tailorDoId;
+        speechUntilMs_ = nowMs + (start ? 3000u : 10000u);
+    }
     if (m.mode == net::kTailorMovieStart || m.mode == net::kTailorMovieStartBrowse ||
         m.mode == net::kTailorMovieStartNoRoom) {
         if (active_) return;
@@ -92,7 +105,6 @@ void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         changedTop_ = false;
         changedBottom_ = false;
         pendingSend_ = 0;
-        notice_ = nullptr;
         active_ = true;
         dirty_ = true;
         TT_LOG("tailor: open with NPC %u", unsigned(tailor_));
@@ -102,13 +114,10 @@ void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
             preview();
             close();
         }
-        notice_ = "The tailor needed more time.";
     } else if (m.mode == net::kTailorMovieComplete) {
         close();
-        notice_ = "Your new clothes look great!";
     } else if (m.mode == net::kTailorMovieNoMoney) {
         close();
-        notice_ = "You need a clothing ticket.";
     } else if (m.mode == net::kTailorMovieClear && m.tailorDoId == tailor_) {
         close();
     }

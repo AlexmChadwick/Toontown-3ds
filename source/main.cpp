@@ -2667,11 +2667,7 @@ int main() {
                     shop.onMovie(net, nowMs); // the clerk says its line in a balloon (shop.clerkSpeech)
                 }
                 if (ev.type == tt::net::EventType::TailorMovie) {
-                    tailor.onMovie(net, nowMs);
-                    if (const char* note = tailor.takeNotice()) {
-                        toast = note;
-                        toastAge = 0.0f;
-                    }
+                    tailor.onMovie(net, nowMs); // the tailor's lines go to its balloon (tailor.tailorSpeech)
                 }
                 if (ev.type == tt::net::EventType::TreasureGone && ev.doId == grabRequested) {
                     tt::audio::playSfx(sfxTreasure);
@@ -3760,6 +3756,7 @@ int main() {
                 }
                 // ---- end tutorial ----
                 if (!said) said = shop.clerkSpeech(tt::net::plat::nowMs(), &talker);
+                if (!said) said = tailor.tailorSpeech(tt::net::plat::nowMs(), &talker);
                 zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
                 // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
                 if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);

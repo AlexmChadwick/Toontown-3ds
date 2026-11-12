@@ -26,10 +26,12 @@ public:
     void update(net::Client& client, uint32_t nowMs);
     u32 handleInput(u32 keysDown, const touchPosition& touch);
     void draw();
-    const char* takeNotice() {
-        const char* n = notice_;
-        notice_ = nullptr;
-        return n;
+    // DistributedNPCTailor.setMovie's setChatAbsolute (CFSpeech | CFTimeout) over the tailor: the
+    // greeting / browsing / no-room line until the clothes GUI pops up (3 s), the others for 10 s.
+    const char* tailorSpeech(uint32_t nowMs, uint32_t* tailorDoId) const {
+        if (!speech_ || int32_t(speechUntilMs_ - nowMs) <= 0) return nullptr;
+        *tailorDoId = speechTailor_;
+        return speech_;
     }
 
 private:
@@ -55,7 +57,8 @@ private:
     world::ToonDna working_{};
     world::ToonCache* cache_ = nullptr;
     world::ToonLook* look_ = nullptr;
-    const char* notice_ = nullptr;
+    const char* speech_ = nullptr;
+    uint32_t speechTailor_ = 0, speechUntilMs_ = 0;
     bool dirty_ = true;
 
     C2D_TextBuf textBuf_ = nullptr;
