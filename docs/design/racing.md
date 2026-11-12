@@ -71,6 +71,8 @@ packet variants, interpolate continuously and receive kart-based nametags.
 The bottom panel contains the curve minimap, four racer dots/list, lap/place, time,
 wrong-way warning, gag slot and results. The existing top race HUD remains active.
 A/Circle Pad accelerates, B reverses, Circle Pad X steers, R uses a ready gag.
+START is RaceGUI's Leave Race button (drawn top left as avatar_panel_gui's CloseBtn,
+1.5 times stock size): racerLeft, then back to Goofy Speedway as DistributedRace.enterLeave.
 The kart chase camera uses the upstream (0,-33,16) offset and camera-wall pull-in.
 
 RaceGag pickup probability uses the original GagFreq[place][index], with the stock
