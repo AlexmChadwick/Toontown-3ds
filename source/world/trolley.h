@@ -73,6 +73,7 @@ private:
     // Car position in station space for the trolley's current state (DistributedTrolley tracks).
     void carPos(const net::Client& client, u32 nowMs, float* x, float* y, float* z, bool* visible) const;
 
+    float leaveSec_ = -1.0f; // seconds into the car's Leaving track (the camera follows), < 0 otherwise
     C2D_TextBuf clockBuf_ = nullptr;
     C2D_Text clockText_{};
     int clockShown_ = -1;
