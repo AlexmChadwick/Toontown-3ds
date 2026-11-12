@@ -231,7 +231,8 @@ void Fishing::setStatus(const char* text) {
 void Fishing::setResultNone() {
     view_.result = ui::FishingView::kNone;
     view_.itemName[0] = view_.itemWeight[0] = view_.itemValue[0] = 0;
-    view_.newEntry = false;
+    view_.newEntry = view_.newRecord = false;
+    view_.genus = -1;
     view_.revision++;
 }
 
@@ -434,7 +435,7 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
     // A late result from a previous cast cannot overwrite a new charge.
     if (state_ != State::Waiting && state_ != State::Casting) return;
     fish::Catch c;
-    pendingNewEntry_ = false;
+    pendingNewEntry_ = pendingNewRecord_ = false;
     switch (m.code) {
     case net::kFishItem:
     case net::kFishItemNewEntry:
@@ -445,6 +446,7 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
         c.weight = m.item3;
         c.value = static_cast<uint16_t>(fish::fishValue(c.genus, c.species, c.weight));
         pendingNewEntry_ = m.code != net::kFishItem;
+        pendingNewRecord_ = m.code == net::kFishItemNewRecord;
         break;
     case net::kFishJellybean:
         c.kind = fish::CatchKind::Jellybeans;
@@ -464,6 +466,8 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
 
 void Fishing::finishCatch(const fish::Catch& c, bool newEntry) {
     view_.newEntry = newEntry;
+    view_.newRecord = newEntry && pendingNewRecord_;
+    view_.genus = c.kind == fish::CatchKind::Fish ? c.genus : -1;
     view_.itemName[0] = view_.itemWeight[0] = view_.itemValue[0] = 0;
     switch (c.kind) {
     case fish::CatchKind::Fish: {
@@ -621,7 +625,7 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
         } else if (curLocal_) {
             if (biteIn_ >= 0.0f && waitTime_ >= biteIn_) {
                 pending_ = fish::rollCatch(currentArea(), currentRod(), rng_);
-                pendingNewEntry_ = false;
+                pendingNewEntry_ = pendingNewRecord_ = false;
                 gotResult_ = true;
                 reelTime_ = 0.0f;
                 setState(State::Reeling);

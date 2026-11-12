@@ -181,6 +181,10 @@ const Step kScript[] = {
     {2.0f, 0, 0, KEY_DLEFT, 0, -1, -1, 0, "pad: fish aim", "pad_fish_aim"}, // padnav: D-Pad aims
     {1.0f, 0, 0, KEY_A, KEY_A, -1, -1, 0, "fish: charge"},
     {8.0f, 0, 0, 0, 0, -1, -1, 0, "fish: wait", "fish_cast"},
+    // "fish: catch ...": opt-in, hold until the bite and reel end (FishPanel / itemGui shown), recast once.
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "fish: catch shown", "fish_catch"},
+    {1.0f, 0, 0, KEY_A, KEY_A, -1, -1, 0, "fish: catch recast"},
+    {22.0f, 0, 0, 0, 0, -1, -1, 0, "fish: catch again", "fish_catch2"},
     {0.6f, 0, 0, 0, 0, -1, -1, 0, "fish: touch cast", "fish_touch_drag"}, // shot mid-drag
     {6.0f, 0, 0, 0, 0, -1, -1, 0, "fish: touch wait", "fish_touch_cast"},
     {3.0f, 0, 0, 0, KEY_B, -1, -1, 0, "fish: leave"},
@@ -536,7 +540,8 @@ bool Runner::skipped(const char* label) const {
     if (!strncmp(label, "pose: ", 6) && atoi(label + 6) > numPoses_) return true;
     return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10) || !strncmp(label, "speedway: race ", 15) ||
                                      !strncmp(label, "treasure: ", 10) ||
-                                     !strncmp(label, "go zone ", 8); // urban race / treasure / hood checks: opt-in
+                                     !strncmp(label, "go zone ", 8) || // urban race / treasure / hood checks: opt-in
+                                     !strncmp(label, "fish: catch ", 12);
 }
 
 const Pose* Runner::pose() const {

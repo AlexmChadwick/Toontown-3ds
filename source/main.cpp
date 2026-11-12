@@ -3831,6 +3831,7 @@ int main() {
                 }
             }
             hv.toast = toast;
+            hv.fishing = fishing.view();
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())
                 hv.timerSeconds = buy->secondsLeft(tt::net::plat::nowMs());

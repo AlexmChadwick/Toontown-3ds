@@ -24,6 +24,8 @@ struct FishingView {
     int tank = 0, tankMax = 20;
     int beans = -1;          // jellybean jar; -1 = unknown (offline)
     bool newEntry = false;   // FishItemNewEntry / NewRecord
+    bool newRecord = false;  // FishItemNewRecord
+    int genus = -1;          // the caught fish's genus (FishPanel's photo), -1 for other results
     float timeoutFrac = 0.0f; // fraction of the cast timeout used while waiting for a bite (0..1)
     // Text. Bump `revision` whenever any of it changes (the panel re-parses only then).
     unsigned revision = 0;

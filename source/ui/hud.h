@@ -10,6 +10,8 @@
 
 namespace tt::ui {
 
+struct FishingView; // ui/fishing_panel.h
+
 // RaceGUI.initRaceMode and DistributedVehicle's speedometer, filled by world::Racing::fillHud.
 struct RaceHud {
     static constexpr int kMaxRacers = 4, kMaxLaps = 8;
@@ -54,6 +56,7 @@ struct HudValues {
     RaceHud race; // RaceGUI's race mode, while race.active
     bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
     int timerSeconds = -1;       // TownBattle's and Purchase's ToontownTimer, top right, -1 = hidden
+    const FishingView* fishing = nullptr; // the fishing spot's catch (FishPanel / itemGui over the world)
 };
 
 class Hud {
@@ -64,6 +67,7 @@ public:
 
 private:
     void drawRace(const RaceHud& r);
+    void drawFishCatch(const FishingView& f);
     C2D_TextBuf raceBuf_ = nullptr;
     C2D_Text toastText_{};
     LaffDisplay laff_;
@@ -71,6 +75,9 @@ private:
     const char* lastToast_ = nullptr;
     char lastToastText_[160] = {};
     C2D_TextBuf toastBuf_ = nullptr;
+    C2D_TextBuf fishBuf_ = nullptr;
+    C2D_Text fishText_[5]{};
+    unsigned fishRevision_ = ~0u;
 };
 
 } // namespace tt::ui

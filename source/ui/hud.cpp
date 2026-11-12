@@ -6,6 +6,9 @@
 
 #include "core/log.h"
 
+#include "ui/fish_photo.h"
+#include "ui/fish_photo_atlas.h"
+#include "ui/fishing_panel.h"
 #include "ui/laff_meter.h"
 #include "ui/race_gui_atlas.h"
 
@@ -26,7 +29,8 @@ constexpr float kBattleTimerSize = 48.0f, kBattleTimerX = 400.0f - 22.0f, kBattl
 bool Hud::init() {
     raceBuf_ = C2D_TextBufNew(256);
     toastBuf_ = C2D_TextBufNew(160);
-    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr;
+    fishBuf_ = C2D_TextBufNew(256);
+    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr && fishBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
@@ -34,7 +38,9 @@ void Hud::shutdown() {
     battleTimer_.shutdown();
     if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
-    raceBuf_ = toastBuf_ = nullptr;
+    if (fishBuf_) C2D_TextBufDelete(fishBuf_);
+    raceBuf_ = toastBuf_ = fishBuf_ = nullptr;
+    releaseFishPhotos();
 }
 
 namespace {
@@ -226,7 +232,76 @@ void Hud::drawRace(const RaceHud& r) {
          C2D_AlignCenter);
 }
 
+// DistributedFishingSpot's catch, over the world as upstream's aspect2d: FishPanel (species name,
+// FishPhoto on the swim colour, weight, value, "New Species!" / "New Record!") for a fish, itemGui
+// ("You caught:", the jar / boot picture, the item name) for jellybeans and the old boot. Both at
+// 1.6 times the aspect2d scale (192 px per unit instead of 120) so their 0.05-0.08 text stays
+// readable on the 240 px screen; the panel keeps its place near the top, clear of the Toon.
+void Hud::drawFishCatch(const FishingView& f) {
+    const bool fish = f.result == FishingView::kFish && f.genus >= 0;
+    const bool item = f.result == FishingView::kBeans || f.result == FishingView::kBoot;
+    if (!fish && !item) return;
+    enum { kName, kWeight, kValue, kExtra, kFound };
+    if (f.revision != fishRevision_) {
+        fishRevision_ = f.revision;
+        C2D_TextBufClear(fishBuf_);
+        const char* weight = f.itemWeight;
+        tt::render::textParse(&fishText_[kName], fishBuf_, f.itemName);
+        tt::render::textParse(&fishText_[kWeight], fishBuf_, weight);
+        tt::render::textParse(&fishText_[kValue], fishBuf_, fish ? f.itemValue : "");
+        tt::render::textParseSign(&fishText_[kExtra], fishBuf_, f.newRecord ? "New Record!" : "New Species!");
+        tt::render::textParse(&fishText_[kFound], fishBuf_, "You caught:");
+        for (C2D_Text& t : fishText_) C2D_TextOptimize(&t);
+    }
+    constexpr float k = 192.0f; // pixels per aspect2d unit
+    // C2D scale of an aspect2d text scale s: the fonts' em is about 30 px at C2D scale 1.
+    auto textAt = [&](int slot, float cx, float y, float s, u32 color) {
+        float w = 0, h = 0;
+        const float c = s * k / 30.0f;
+        C2D_TextGetDimensions(&fishText_[slot], c, c, &w, &h);
+        C2D_DrawText(&fishText_[slot], C2D_WithColor | C2D_AtBaseline, cx - w * 0.5f, y, 0.6f, c, c, color);
+    };
+    const u32 ink = C2D_Color32(0, 0, 0, 0xFF);
+    const u32 dialog = C2D_Color32(0xFF, 0xFF, 0xBF, 0xFF); // GlobalDialogColor (1, 1, 0.75)
+    const u32 edge = C2D_Color32(0x50, 0x50, 0x50, 0xFF);
+    const float cx = 200.0f;
+    if (fish) {
+        // getDefaultDialogGeom at image_scale (0.65, 0.85); the frame's top 8 px under the screen top.
+        const float w = 0.65f * k, h = 0.85f * k, top = 6.0f, cy = top + h * 0.5f;
+        C2D_DrawRectSolid(cx - w * 0.5f - 2, top - 2, 0.5f, w + 4, h + 4, edge);
+        C2D_DrawRectSolid(cx - w * 0.5f, top, 0.5f, w, h, dialog);
+        // setSwimBounds(-0.3, 0.3, -0.235, 0.25), setSwimColor(1, 1, 0.749)
+        const float rx = cx - 0.3f * k, ry = cy - 0.25f * k, rw = 0.6f * k, rh = 0.485f * k;
+        C2D_DrawRectSolid(rx, ry, 0.52f, rw, rh, C2D_Color32f(1.0f, 1.0f, 0.749f, 1.0f));
+        drawFishPhoto(f.genus, rx, ry, rw, rh, 0.55f);
+        textAt(kName, cx, cy - 0.35f * k, 0.06f, ink);       // text_pos (0, 0.35)
+        if (f.newEntry) textAt(kExtra, cx, cy - 0.26f * k, 0.08f, C2D_Color32f(0.2f, 0.8f, 0.4f, 1.0f));
+        textAt(kWeight, cx, cy + 0.28f * k, 0.05f, ink);
+        textAt(kValue, cx, cy + 0.35f * k, 0.05f, ink);
+    } else {
+        // itemFrame: geom_scale (1, 1, 0.6) at z 0.587, "You caught:" at 0.2, the label at -0.25.
+        const float w = 1.0f * k, h = 0.6f * k, top = 6.0f, cy = top + h * 0.5f;
+        C2D_DrawRectSolid(cx - w * 0.5f - 2, top - 2, 0.5f, w + 4, h + 4, edge);
+        C2D_DrawRectSolid(cx - w * 0.5f, top, 0.5f, w, h, dialog);
+        textAt(kFound, cx, cy - 0.2f * k, 0.08f, ink);
+        drawFishItemArt(f.result == FishingView::kBeans ? kFishItemJar : kFishItemBoot, cx, cy, k, 0.55f);
+        textAt(kName, cx, cy + 0.25f * k, 0.06f, ink);
+    }
+}
+
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
+    // The photo atlas is only resident while a catch is shown (this frame began after the GPU
+    // finished the last one that drew it).
+    const bool fishShown = v.fishing && (v.fishing->result == FishingView::kFish ||
+                                         v.fishing->result == FishingView::kBeans ||
+                                         v.fishing->result == FishingView::kBoot);
+    if (!fishShown) releaseFishPhotos();
+    if (fishShown) {
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        drawFishCatch(*v.fishing);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
     if (v.toast) {
         // By content: callers reuse one buffer for different messages (whispers, friend invites).
         if (v.toast != lastToast_ || std::strncmp(v.toast, lastToastText_, sizeof(lastToastText_) - 1)) {

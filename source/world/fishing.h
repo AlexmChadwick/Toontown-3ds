@@ -128,6 +128,7 @@ private:
     float reelTime_ = 0.0f;
     fish::Catch pending_{};
     bool pendingNewEntry_ = false;
+    bool pendingNewRecord_ = false; // FishItemNewRecord (pendingNewEntry_ covers both)
     bool gotResult_ = false;
     float rodPitch_ = 35.0f;
     float bobBob_ = 0.0f;
