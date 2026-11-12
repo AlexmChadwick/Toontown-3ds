@@ -10,8 +10,10 @@ namespace {
 
 render::Model gPhotos;
 bool gTried = false;
+bool gUsed = false; // drawn since the last fishPhotosFrame()
 
 C3D_Tex* atlas() {
+    gUsed = true;
     if (!gTried) {
         gTried = true;
         if (!gPhotos.load("romfs:/baked/fish_photos.ttm")) TT_LOG("fish photo: no fish_photos.ttm");
@@ -48,6 +50,11 @@ bool drawFishItemArt(int item, float cx, float cy, float pxPerUnit, float z) {
     const float x = cx + r.minX * pxPerUnit, y = cy - r.maxZ * pxPerUnit;
     drawCell(tex, r.x, r.y, r.w, r.h, x, y, w, h, z);
     return true;
+}
+
+void fishPhotosFrame() {
+    if (!gUsed) releaseFishPhotos();
+    gUsed = false;
 }
 
 void releaseFishPhotos() {

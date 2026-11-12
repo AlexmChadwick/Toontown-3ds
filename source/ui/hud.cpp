@@ -290,12 +290,11 @@ void Hud::drawFishCatch(const FishingView& f) {
 }
 
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
-    // The photo atlas is only resident while a catch is shown (this frame began after the GPU
-    // finished the last one that drew it).
+    // The photo atlas stays resident only while a catch or the book's album shows it.
+    fishPhotosFrame();
     const bool fishShown = v.fishing && (v.fishing->result == FishingView::kFish ||
                                          v.fishing->result == FishingView::kBeans ||
                                          v.fishing->result == FishingView::kBoot);
-    if (!fishShown) releaseFishPhotos();
     if (fishShown) {
         C2D_SceneBegin(top);
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);

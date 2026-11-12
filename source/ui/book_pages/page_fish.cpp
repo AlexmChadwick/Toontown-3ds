@@ -1,5 +1,7 @@
 #include "ui/book_pages/page_fish.h"
 
+#include "ui/fish_photo.h"
+
 #include "ui/pad_tables.h"
 #include "ui/theme.h"
 #include "world/fish_tables.h"
@@ -8,9 +10,10 @@ namespace tt::ui {
 
 namespace {
 
-constexpr int kNumGenera = 14;
-// The 14 genus ids in FishGlobals order.
-constexpr uint8_t kDistinctGenera[kNumGenera] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26};
+constexpr int kNumGenera = 18;
+// FishGlobals.getGenera(): the 18 genus ids in order (the album had stopped at 26, leaving the
+// Cutthroat Trout, Piano Tuna, PBJ Fish and Devil Ray pages out).
+constexpr uint8_t kDistinctGenera[kNumGenera] = {0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 34};
 // FishGlobals.TrophyDict: one fishing trophy per 10 species.
 constexpr int kTrophies = 7;
 
@@ -93,10 +96,9 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     text_.draw(x + 8, y + 3, theme::kTextBody, theme::kInk, "Species caught  %d / %d", caught, world::fish::kNumSpecies);
     text_.right(x + w - 8, y + 3, theme::kTextBody, theme::kInk, 0, "Trophies  %d / %d", trophies, kTrophies);
 
-    // Genus selector: < Balloon Fish  2 / 5 >
+    // Genus selector: < Balloon Fish  2 / 5 >. GenusPanel names the genus (and shows its photo)
+    // only once one of its fish is in the collection; until then it reads UnknownFish, '???'.
     const uint8_t genus = kDistinctGenera[activeGenusIdx_];
-    const char* genusName = genus <= world::fish::kMaxGenus && world::fish::kGenusNames[genus]
-                                ? world::fish::kGenusNames[genus] : "Fish";
     int total = 0, got = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {
         const auto& sp = world::fish::kSpecies[i];
@@ -104,6 +106,8 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
         total++;
         got += recordWeight(bdc.book, sp.genus, sp.species) > 0;
     }
+    const char* genusName = got && genus <= world::fish::kMaxGenus && world::fish::kGenusNames[genus]
+                                ? world::fish::kGenusNames[genus] : "???";
     theme::paper(kGenusPrevX + kGenusW + 3, kGenusY, kGenusNextX - kGenusPrevX - kGenusW - 6, kGenusH - 2, 6.0f,
                  theme::kPaperShade);
     arrowButton(kGenusPrevX, kGenusY, kGenusW, kGenusH, true);
@@ -111,27 +115,37 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
     const float midX = (kGenusPrevX + kGenusNextX + kGenusW) * 0.5f;
     text_.centered(midX, kGenusY + 3, theme::kTextBody, theme::kRedDark, 200, "%s   %d / %d", genusName, got, total);
 
-    // One card per species of the genus; rows shrink so the largest genus (8) still fits.
+    // GenusPanel: the FishPhoto on the left (swim colour (0.47, 1, 0.99), in photo_frame1's
+    // brown frame), the species names on the right, '???' until caught.
     const float listY = kGenusY + kGenusH + 3;
     const float trophyY = y + h - 24;
-    float rowH = total ? (trophyY - 3 - listY) / total : 20.0f;
+    const float boxH = trophyY - 3 - listY;
+    const float photoH = boxH - 6 < 96.0f ? boxH - 6 : 96.0f;
+    const float photoW = photoH * 1.02f; // setSwimBounds(-0.2461, 0.2367, -0.207, 0.2664): 0.483 x 0.474
+    const float px = x + 8, py = listY + (boxH - photoH) * 0.5f;
+    theme::roundRect(px - 3, py - 3, photoW + 6, photoH + 6, 4, theme::rgb(0x8A, 0x5A, 0x2E));
+    C2D_DrawRectSolid(px, py, 0.5f, photoW, photoH, C2D_Color32f(0.47f, 1.0f, 0.99f, 1.0f));
+    if (got) drawFishPhoto(genus, px, py, photoW, photoH, 0.52f);
+
+    const float lx = px + photoW + 8, lw = x + w - 6 - lx;
+    float rowH = total ? boxH / total : 20.0f;
     if (rowH > 22.0f) rowH = 22.0f;
     const float tScale = rowH >= 18.0f ? theme::kTextSmall : theme::kTextTiny;
     const float ty = (rowH - 1 - tScale * 30.0f) * 0.5f; // ImpressBT: ~30 px line at scale 1
+    const float listTop = listY + (boxH - rowH * total) * 0.5f; // centred like GenusPanel's labels
     int slot = 0;
     for (int i = 0; i < world::fish::kNumSpecies; i++) {
         const auto& sp = world::fish::kSpecies[i];
         if (sp.genus != genus) continue;
-        const float ry = listY + slot++ * rowH;
+        const float ry = listTop + slot++ * rowH;
         const uint16_t rec = recordWeight(bdc.book, sp.genus, sp.species);
-        theme::roundRect(x + 6, ry, w - 12, rowH - 1, 4, rec ? theme::kGreenDark : theme::kPaperShade);
-        theme::roundRect(x + 7, ry + 1, w - 14, rowH - 3, 3, rec ? theme::rgb(0xE6, 0xF8, 0xE0) : theme::kPaper);
-        text_.fit(x + 12, ry + ty, tScale, rec ? theme::kGreenDark : theme::kInk, 128, "%s", sp.name);
-        text_.draw(x + 146, ry + ty, theme::kTextTiny, theme::kInkSoft, "%d-%d lb", sp.minLb, sp.maxLb);
+        theme::roundRect(lx, ry, lw, rowH - 1, 4, rec ? theme::kGreenDark : theme::kPaperShade);
+        theme::roundRect(lx + 1, ry + 1, lw - 2, rowH - 3, 3, rec ? theme::rgb(0xE6, 0xF8, 0xE0) : theme::kPaper);
         if (rec) {
-            text_.right(x + w - 12, ry + ty, tScale, theme::kGreenDark, 100, "%d lb %d oz", rec / 16, rec % 16);
+            text_.fit(lx + 5, ry + ty, tScale, theme::kGreenDark, lw - 60, "%s", sp.name);
+            text_.right(lx + lw - 5, ry + ty, theme::kTextTiny, theme::kGreenDark, 56, "%d lb %d oz", rec / 16, rec % 16);
         } else {
-            text_.right(x + w - 12, ry + ty, theme::kTextTiny, theme::kGreyDark, 100, "Rarity %d", sp.rarity);
+            text_.draw(lx + 5, ry + ty, tScale, theme::kInkSoft, "???");
         }
     }
 
