@@ -66,6 +66,9 @@ public:
         return occupied_;
     }
     int ticPeriod() const { return ticPeriod_; }
+    int tileX() const { return TX_; }
+    int tileY() const { return TY_; }
+    int direction() const { return direction_; }
 
     float x = 0, y = 0, h = 180;
     bool walking = false;

@@ -6,10 +6,12 @@
 namespace tt::game::ringgame {
 
 constexpr int kNumRingGroups = 16;
-constexpr float kMaxToonXZ = 10.0f;
+constexpr int kMaxRings = 4;          // one per player
+constexpr float kMaxToonXZ = 10.0f;   // RingGameGlobals.MAX_TOONXZ
 constexpr float kToonSpeed = 10.0f; // units / sec in XZ plane
 constexpr float kRingRadius = 3.0f;
 constexpr float kRingRadiusSqrd = (3.0f * 1.025f) * (3.0f * 1.025f); // 9.455625f
+constexpr float kToonInitialSpacing = 4.0f; // TOON_INITIAL_SPACING
 // DistributedRingGame.defineConstants: FAR_PLANE_DIST 150 with CAMERA_Y -15 and TOON_Y 0.
 constexpr float kFarPlaneDist = 135.0f;
 constexpr float kRingGroupArrivalPeriod = 3.0f; // seconds between ring groups
@@ -33,17 +35,37 @@ constexpr RingColor kRingColors[7] = {
     {"Yellow", 1.0f, 1.0f, 0.2f, 1.0f},
 };
 
+// __generateRings: randomNumGen.choice(difficultyPatterns[hood]) (source/game/ring_tables.h).
 void getDifficultyPattern(uint32_t hood, RandomNumGen& rng, int* outPattern);
 bool checkCollision(float toonX, float toonZ, float ringX, float ringZ);
 int calcScore(int ringsCollected, bool perfect, int numPlayers);
 
-// Generates ring positions (x, z) for 16 groups for solo or multiplayer
-struct RingGroupData {
-    float x = 0.0f;
-    float z = 0.0f;
-    int colorIndex = 0;
+// RingTracks: the path one ring follows over a normalized t in [0, 1).
+struct RingTrack {
+    enum Kind : uint8_t {
+        Static, Circle, VertInfinity, HorizInfinity, VertSlot, HorizSlot, PlusUp, PlusDown, PlusLeft, PlusRight
+    };
+    Kind kind = Static;
+    double a = 0, b = 0; // Static: the position; slots: the fixed coordinate
+    void eval(double t, double* x, double* z) const;
 };
 
-void generateRings(uint32_t hood, RandomNumGen& rng, int colorIndex, RingGroupData* outGroups);
+// RingTrackGroup + RingGroup: one ring per player, ring i in colorIndices[i].
+struct RingTrackGroup {
+    int numRings = 1;
+    RingTrack tracks[kMaxRings];
+    double trackTOffsets[kMaxRings] = {};
+    double period = 1.0;
+    bool reverse = false;
+    double tOffset = 0.0;
+    // RingGroup.setT then Ring.setT: ring i's (x, z) at seconds t, scaled by MAX_TOONXZ.
+    void ringPos(int ring, double t, float* x, float* z) const;
+};
+
+// RingTrackGroups.getRandomRingTrackGroup(type, numRings, rng).
+void getRandomRingTrackGroup(int type, int numRings, RandomNumGen& rng, RingTrackGroup* out);
+
+// The 16 groups in __generateRings order.
+void generateRings(uint32_t hood, int numRings, RandomNumGen& rng, RingTrackGroup* outGroups);
 
 } // namespace tt::game::ringgame

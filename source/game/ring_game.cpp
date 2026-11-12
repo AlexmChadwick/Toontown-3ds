@@ -37,11 +37,13 @@ void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     }
 
     uint32_t seed = mg ? mg->doId : 1001;
-    RandomNumGen rng(seed);
+    RandomNumGen rng(seed); // DistributedMinigame.randomNumGen: __generateRings is its only user
     const uint32_t hood = mg ? (mg->trolleyZone - mg->trolleyZone % 1000) : 2000;
-    const int colorIdx = (mg && slot_ < 4 && mg->ringColorIndices[slot_] >= 0) ? mg->ringColorIndices[slot_] : 0;
-
-    ringgame::generateRings(hood, rng, colorIdx, rings_);
+    for (int i = 0; i < ringgame::kMaxRings; ++i)
+        colorIndices_[i] = (mg && mg->ringColorIndices[i] >= 0) ? mg->ringColorIndices[i] % 7 : i; // setColorIndices
+    const int colorIdx = colorIndices_[slot_ < ringgame::kMaxRings ? slot_ : 0];
+    ringgame::generateRings(hood, numPlayers_ < ringgame::kMaxRings ? numPlayers_ : ringgame::kMaxRings, rng, groups_);
+    gameStartMs_ = 0;
 
     for (int i = 0; i < ringgame::kNumRingGroups; ++i) {
         groupPassed_[i] = false;
@@ -55,7 +57,8 @@ void RingGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     perfect_ = true;
     nextGroup_ = 0;
 
-    toonX_ = 0.0f;
+    // __placeToon: lined up TOON_INITIAL_SPACING apart.
+    toonX_ = slot_ * ringgame::kToonInitialSpacing - ringgame::kToonInitialSpacing * (numPlayers_ - 1) / 2.0f;
     toonZ_ = 0.0f;
     toonH_ = 0.0f;
 
@@ -75,7 +78,14 @@ void RingGame::shutdown() {
 
 void RingGame::update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs) {
     (void)kDown;
-    const float t = static_cast<int>(nowMs - startMs_) / 1000.0f;
+    const net::Minigame* mg = client.minigame();
+    if (!gameStartMs_) {
+        if (!mg || !mg->gameStartMs) return; // enterSwim starts with setGameStart
+        gameStartMs_ = mg->gameStartMs;
+    }
+    const float t = ringT(nowMs);
+    float nextX = 0.0f, nextZ = 0.0f;
+    if (nextGroup_ < ringgame::kNumRingGroups) groups_[nextGroup_].ringPos(slot_, t, &nextX, &nextZ);
 
     // Toon movement
     float ax = pad.dx / 156.0f;
@@ -83,8 +93,8 @@ void RingGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
 
     // AutoPlay: steer towards upcoming ring
     if (autoPlay_ && nextGroup_ < ringgame::kNumRingGroups) {
-        const float dx = rings_[nextGroup_].x - toonX_;
-        const float dz = rings_[nextGroup_].z - toonZ_;
+        const float dx = nextX - toonX_;
+        const float dz = nextZ - toonZ_;
         const float dist = std::sqrt(dx * dx + dz * dz);
         if (dist > 0.2f) {
             ax = dx / dist;
@@ -115,7 +125,10 @@ void RingGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         if (ringY <= 0.0f) {
             groupPassed_[i] = true;
             nextGroup_ = i + 1;
-            const bool hit = ringgame::checkCollision(toonX_, toonZ_, rings_[i].x, rings_[i].z);
+            float rx, rz;
+            groups_[i].ringPos(slot_, t, &rx, &rz); // ourRing = getRing(avIdList.index(localAvId))
+            const bool hit = ringgame::checkCollision(toonX_, toonZ_, rx, rz);
+            passedMs_[i] = nowMs;
             groupHit_[i] = hit;
             if (hit) {
                 ringsCollected_++;
@@ -171,20 +184,25 @@ void RingGame::draw(render::Renderer& renderer) {
         }
     }
 
-    // Rings
-    if (ringModel_.loaded()) {
-        // DistributedRingGame colors its shared ring model from
-        // RingGameGlobals.ringColors[colorIndices[p]].
-        const ringgame::RingColor& color = ringgame::kRingColors[rings_[0].colorIndex % 7];
-        renderer.setBaseTint(color.r, color.g, color.b, color.a);
-        const float t = static_cast<int>(tt::net::plat::nowMs() - startMs_) / 1000.0f;
+    // Rings: each group's rings ride its RingTrackGroup, ring i in colorIndices[i]; our ring
+    // leaves 0.1 s after the group passes and fades over 0.5 s (__makeRingFadeAway).
+    if (ringModel_.loaded() && gameStartMs_) {
+        const uint32_t now = tt::net::plat::nowMs();
+        const float t = ringT(now);
         for (int i = 0; i < ringgame::kNumRingGroups; ++i) {
             const float ringY = kFirstOffset + i * kSpacing - ringgame::kRingSwimVel * t;
-            // Only draw rings in front of camera and within visible range
             if (ringY < -10.0f || ringY > 150.0f) continue;
-            Mtx_Identity(&m);
-            Mtx_Translate(&m, rings_[i].x, ringY, rings_[i].z, true);
-            renderer.drawModel(ringModel_, m);
+            const ringgame::RingTrackGroup& g = groups_[i];
+            for (int r = 0; r < g.numRings; ++r) {
+                if (r == slot_ && groupPassed_[i] && int32_t(now - passedMs_[i]) > 600) continue;
+                float x, z;
+                g.ringPos(r, t, &x, &z);
+                const ringgame::RingColor& color = ringgame::kRingColors[colorIndices_[r]];
+                renderer.setBaseTint(color.r, color.g, color.b, color.a);
+                Mtx_Identity(&m);
+                Mtx_Translate(&m, x, ringY, z, true);
+                renderer.drawModel(ringModel_, m);
+            }
         }
         renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
     }
