@@ -149,12 +149,13 @@ void PageFish::draw(float x, float y, float w, float h, const BookDrawContext& b
         }
     }
 
-    // The fishing trophies (one per 10 species), as gold cups.
+    // The fishing trophies (one per 10 species): FishingTrophy's statue or bowl for each level
+    // earned; the trophy case leaves the others empty.
     for (int t = 0; t < kTrophies; t++) {
         const float cx = x + 30 + t * ((w - 64) / (kTrophies - 1));
-        trophyCup(cx - 12, trophyY + 2, caught >= (t + 1) * 10);
-        text_.draw(cx - 1, trophyY + 3, theme::kTextTiny, caught >= (t + 1) * 10 ? theme::kInk : theme::kInkSoft,
-                   "%d", (t + 1) * 10);
+        const bool earned = caught >= (t + 1) * 10;
+        if (earned && !drawFishTrophy(t, cx - 6, trophyY + 22, 26.0f, 0.52f)) trophyCup(cx - 12, trophyY + 2, true);
+        text_.draw(cx + 6, trophyY + 3, theme::kTextTiny, earned ? theme::kInk : theme::kInkSoft, "%d", (t + 1) * 10);
     }
     focus_.drawHighlight(); // padnav
 }

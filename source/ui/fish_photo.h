@@ -13,6 +13,9 @@ namespace tt::ui {
 bool drawFishPhoto(int genus, float x, float y, float w, float h, float z);
 // An item picture (FishItemArt) centred on (cx, cy), at `pxPerUnit` pixels per itemFrame unit.
 bool drawFishItemArt(int item, float cx, float cy, float pxPerUnit, float z);
+// FishingTrophy at a level (0..6) standing on (cx, baseY), `height` px for the whole cell
+// (romfs:/baked/fish_trophies.ttm, bake_fish_trophies.py). Shares the photos' lifetime.
+bool drawFishTrophy(int level, float cx, float baseY, float height, float z);
 // Once per frame, after C3D_FrameBegin (the GPU is done with the previous frame).
 void fishPhotosFrame();
 void releaseFishPhotos();

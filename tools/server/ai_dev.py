@@ -51,9 +51,11 @@ def _patch(name, mod):
                 self.inventory.maxOutInv(filterUberGags=1)
                 self.b_setInventory(self.inventory.makeNetString())
                 if os.environ.get('AI_DEV_FISH') == '1' and self.fishCollection is not None and not len(self.fishCollection):
-                    # AI_DEV_FISH=1: a few album entries (two Balloon Fish species, a Cat Fish, a
-                    # Puppy Dog Fish, a Cutthroat Trout, a Devil Ray) for the Shtiker Book's album.
-                    self.b_setFishCollection([0, 0, 2, 12, 28, 34], [0, 1, 0, 0, 0, 0], [28, 40, 30, 26, 100, 200])
+                    # AI_DEV_FISH=1: 22 album entries (every species of the Balloon, Cat, Star and
+                    # Puppy Dog Fish, a Cutthroat Trout, a Devil Ray): two fishing trophy levels.
+                    genera = [0] * 5 + [2] * 5 + [8] * 5 + [12] * 5 + [28, 34]
+                    species = list(range(5)) * 4 + [0, 0]
+                    self.b_setFishCollection(genera, species, [20 + i for i in range(len(genera))])
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate
