@@ -156,9 +156,9 @@ the `addItem` result code per purchase attempt, and whole buy/sell visits. Run:
 
 ## 7. Not done / gaps
 
-* No door-to-counter camera lerp, clerk head-turn or clerk speech bubble on the NPC (toast only).
+* No clerk head-turn. The clerk says its STOREOWNER lines in a speech balloon (ShopPanel::clerkSpeech),
+  only for our own movies (the client drops other avatars' setMovie).
 * Throwing owned gags away (`storePurchaseDelete`) and the unpaid/velvet-rope handling.
-* The clerk chat toast is top-screen only and uses the existing 3 s toast slot.
 * Not run in Azahar yet. Verify: walk into the clerk in a Gag Shop interior (for example zone 2519 in
   TTC) with jellybeans; the bottom screen switches to the shop; buy a gag; Done; the Gags tab and laff/bean HUD
   update from the AI's resend. Try zero beans (toast), Cancel, waiting out the timer, and the carry limit.

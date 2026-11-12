@@ -2664,11 +2664,7 @@ int main() {
                     ui.closet().open(net, nowMs);
                 }
                 if (ev.type == tt::net::EventType::ShopMovie) {
-                    shop.onMovie(net, nowMs);
-                    if (const char* note = shop.takeNotice()) {
-                        toast = note;
-                        toastAge = 0.0f;
-                    }
+                    shop.onMovie(net, nowMs); // the clerk says its line in a balloon (shop.clerkSpeech)
                 }
                 if (ev.type == tt::net::EventType::TailorMovie) {
                     tailor.onMovie(net, nowMs);
@@ -3763,6 +3759,7 @@ int main() {
                     said = tutorial.text();
                 }
                 // ---- end tutorial ----
+                if (!said) said = shop.clerkSpeech(tt::net::plat::nowMs(), &talker);
                 zoneActors.setSpeech(talker, said, said && tutorial.reversed() && !strcmp(said, tutorial.text()));
                 // ---- tutorial ---- the reward movie's Tom (setLocalPageChat / setChatAbsolute)
                 if (const char* line = tutorialReward.tomLine()) zoneActors.setSpeech(tt::world::TutorialReward::kTomId, line);

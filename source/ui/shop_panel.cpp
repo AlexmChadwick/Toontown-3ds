@@ -39,6 +39,7 @@ bool inRect(const touchPosition& t, float x, float y, float w, float h) {
 const char* const kNoticeNoMoney = "You need to ride the Trolley to get some jellybeans.";
 const char* const kNoticeTimeout = "Need more time to think?";
 const char* const kNoticeGoodbye = "See you later!";
+const char* const kSpeechGreeting = "Choose what you want to buy.";
 
 } // namespace
 
@@ -87,6 +88,18 @@ void ShopPanel::setNote(const char* msg, uint32_t nowMs) {
 
 void ShopPanel::onMovie(const net::Client& client, uint32_t nowMs) {
     const net::ShopMovie& m = client.shopMovie();
+    const char* said = m.mode == net::kPurchaseMovieStart     ? kSpeechGreeting
+                       : m.mode == net::kPurchaseMovieTimeout  ? kNoticeTimeout
+                       : m.mode == net::kPurchaseMovieComplete ? kNoticeGoodbye
+                       : m.mode == net::kPurchaseMovieNoMoney  ? kNoticeNoMoney
+                                                               : nullptr;
+    if (said) {
+        speech_ = said;
+        speechClerk_ = m.clerkDoId;
+        // popupPurchaseGUI clears our clerk's greeting after 1 s; everything else times out.
+        const bool ours = m.mode == net::kPurchaseMovieStart && m.avId == client.avatarId();
+        speechUntilMs_ = nowMs + (ours ? 1000u : 10000u);
+    }
     switch (m.mode) {
     case net::kPurchaseMovieStart: {
         if (m.avId != client.avatarId() || active_) return;
@@ -119,22 +132,11 @@ void ShopPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         break;
     }
     case net::kPurchaseMovieTimeout:
-        if (m.avId == client.avatarId()) {
-            if (active_) close();
-            notice_ = kNoticeTimeout;
-        }
-        break;
     case net::kPurchaseMovieComplete:
-        if (m.avId == client.avatarId()) {
-            if (active_) close();
-            notice_ = kNoticeGoodbye;
-        }
-        break;
-    case net::kPurchaseMovieNoMoney:
-        if (m.avId == client.avatarId()) notice_ = kNoticeNoMoney;
+        if (m.avId == client.avatarId() && active_) close();
         break;
     default:
-        break; // CLEAR: nothing to show
+        break; // CLEAR, NO_MONEY: only the clerk's speech
     }
 }
 
