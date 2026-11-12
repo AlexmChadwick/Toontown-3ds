@@ -75,6 +75,7 @@
 #include "world/toon_avatar.h"
 #include "world/toon_cache.h"
 #include "world/toon_dna.h"
+#include "game/name_tables.h"
 #include "world/toon_dna_tables.h"
 #include "world/transition.h"
 // ---- tutorial ----
@@ -2998,6 +2999,52 @@ int main() {
                                                              player.headingDeg() + 180.0f);
                     TT_LOG("autotest: toon showcase %d: %s valid %d spawned %d", want, name, int(tt::world::isValidDna(d)), int(ok));
                 }
+            }
+        }
+        {
+            // Photo Fun (DistributedPhotoGame.__setupSubjects): a random Toon (newToonRandom, unseeded
+            // upstream) with a NameGenerator name on each of the hood's PATHS, walking it and posing.
+            static int photoSpawned = 0;
+            const int want = minigame.photoSubjects();
+            if (want != photoSpawned) {
+                for (int i = 0; i < photoSpawned; i++) zoneActors.despawnLocalNpc(0x7F00E000u + i);
+                photoSpawned = 0;
+                for (int i = 0; i < want && i < 8; i++) {
+                    tt::world::MakeAToonChoice c;
+                    c.species = tt::world::Species(rand() % int(tt::world::Species::Count));
+                    c.headVariant = uint8_t(rand() % tt::world::headVariantCount(c.species));
+                    c.torsoSize = uint8_t(rand() % 3);
+                    c.legSize = uint8_t(rand() % 3);
+                    c.gender = rand() % 2 ? tt::world::Gender::Male : tt::world::Gender::Female;
+                    c.headColor = c.armColor = c.legColor =
+                        tt::world::matColor(c.gender, uint8_t(rand() % tt::world::matColorCount(c.gender)));
+                    c.shirt = uint8_t(rand() % tt::world::matShirtCount(c.gender));
+                    c.bottom = uint8_t(rand() % tt::world::matBottomCount(c.gender));
+                    tt::world::ToonDna d;
+                    if (!tt::world::buildMakeAToon(c, &d)) d = tt::world::defaultToonDna();
+                    uint8_t dnaNet[tt::world::kDnaNetStringSize];
+                    tt::world::makeNetString(d, dnaNet);
+                    int16_t parts[4];
+                    uint8_t flags[4];
+                    tt::game::randomPattern(c.gender == tt::world::Gender::Male, parts, flags);
+                    char name[48];
+                    tt::game::buildPatternName(parts[0], flags[0], parts[1], flags[1], parts[2], flags[2], parts[3],
+                                               flags[3], name, sizeof name);
+                    float x = 0, y = 0, z = 0, h = 0;
+                    const char* clip = "neutral";
+                    minigame.photoSubjectPose(i, &x, &y, &z, &h, &clip);
+                    if (zoneActors.spawnLocalNpc(0x7F00E000u + i, name, dnaNet, x, y, z, h)) photoSpawned = i + 1;
+                }
+                TT_LOG("photo: %d subjects", photoSpawned);
+            }
+            for (int i = 0; i < photoSpawned; i++) {
+                float x, y, z, h;
+                const char* clip = "neutral";
+                if (!minigame.photoSubjectPose(i, &x, &y, &z, &h, &clip)) continue;
+                zoneActors.setNpcPose(0x7F00E000u + i, x, y, z, h);
+                tt::world::ToonAnim anim = tt::world::toonAnimByName(clip);
+                if (!strcmp(clip, "running-jump")) anim = tt::world::kAnimJump;
+                zoneActors.setNpcAnim(0x7F00E000u + i, anim, 1.0f);
             }
         }
         zoneActors.update(dt);

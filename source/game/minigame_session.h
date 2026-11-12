@@ -76,6 +76,10 @@ public:
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
     bool photoScene() const { return isPhoto_; }
+    int photoSubjects() const { return isPhoto_ && inScene() ? photo_.numSubjects() : 0; }
+    bool photoSubjectPose(int i, float* x, float* y, float* z, float* h, const char** clip) const {
+        return isPhoto_ && photo_.subjectPose(i, x, y, z, h, clip);
+    }
     // The Cogs to draw this frame; 0 when the game has none.
     int cogs(MinigameCog* out, int max) const;
     bool startedGame() const { return startedGame_; }

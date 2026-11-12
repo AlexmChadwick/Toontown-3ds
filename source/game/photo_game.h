@@ -32,6 +32,10 @@ public:
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     void toonPose(float* x, float* y, float* z, float* h) const;
     bool isDone() const { return sim_.isDone; }
+    // __setupSubjects: one Toon per PATHS entry walking its path (Simulation::getSubjectPose).
+    int numSubjects() const;
+    // The subject's pose and its clip name (walk / run / the waypoint emote).
+    bool subjectPose(int i, float* x, float* y, float* z, float* h, const char** clip) const;
     int score() const { return sim_.scores[0]; }
     void onAIScore(uint32_t avId, uint8_t assignment, float stars);
 
