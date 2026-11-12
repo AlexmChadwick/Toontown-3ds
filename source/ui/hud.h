@@ -69,6 +69,7 @@ private:
     LaffDisplay laff_;
     ToontownTimer battleTimer_;
     const char* lastToast_ = nullptr;
+    char lastToastText_[160] = {};
     C2D_TextBuf toastBuf_ = nullptr;
 };
 

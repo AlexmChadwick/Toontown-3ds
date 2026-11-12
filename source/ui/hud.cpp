@@ -1,3 +1,4 @@
+#include <cstring>
 #include "render/ui_font.h"
 #include "ui/hud.h"
 
@@ -227,11 +228,13 @@ void Hud::drawRace(const RaceHud& r) {
 
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (v.toast) {
-        if (v.toast != lastToast_) {
+        // By content: callers reuse one buffer for different messages (whispers, friend invites).
+        if (v.toast != lastToast_ || std::strncmp(v.toast, lastToastText_, sizeof(lastToastText_) - 1)) {
             C2D_TextBufClear(toastBuf_);
             tt::render::textParse(&toastText_, toastBuf_, v.toast);
             C2D_TextOptimize(&toastText_);
             lastToast_ = v.toast;
+            std::snprintf(lastToastText_, sizeof(lastToastText_), "%s", v.toast);
         }
         C2D_SceneBegin(top);
         float w, h;

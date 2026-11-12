@@ -3250,12 +3250,8 @@ int main() {
                     toast = m;
                     toastAge = 0.0f;
                 }
-                const int left = trolley.seated() ? trolley.countdown(net, nowMs) : -1;
-                if (left >= 0) {
-                    snprintf(toastBuf, sizeof(toastBuf), "The trolley leaves in %d...  (B: hop off)", left);
-                    toast = toastBuf;
-                    toastAge = 0.0f;
-                }
+                // The countdown is the stock 3D clock over the station (TrolleyRide::draw2D), Hop off
+                // the bottom panel's button.
                 tt::prof::lap(tt::prof::kNet);
                 golf.update(net, minigamePad, in.down, dt, nowMs);
                 tt::prof::lap(tt::prof::kGolf);
@@ -3775,6 +3771,7 @@ int main() {
                 }
             }
             if (netStarted) gsBoards.draw2D(net, proj, view, renderer.topLeft());
+            if (netStarted && (!minigame.inScene() || minigame.photoScene())) trolley.draw2D(net, proj, view, tt::net::plat::nowMs());
             balloons.draw(renderer.topLeft());
             if (stereoActive) balloons.draw(renderer.topRight());
             // [interior life]

@@ -1,5 +1,7 @@
 #include "core/gpu_sync.h"
 #include "world/trolley.h"
+#include "ui/balloons.h"
+#include "render/ui_font.h"
 #include "world/toon_avatar.h"
 
 #include <cmath>
@@ -117,6 +119,36 @@ void TrolleyRide::camera(C3D_FVec* eye, C3D_FVec* target) const {
     toWorld(carX_, carY_, carZ_ + 4.0f, &tx, &ty, &tz);
     *eye = FVec3_New(ex, ey, ez);
     *target = FVec3_New(tx, ty, tz);
+}
+
+void TrolleyRide::draw2D(const net::Client& client, const C3D_Mtx& proj, const C3D_Mtx& view, u32 nowMs) {
+    const net::Trolley* t = client.trolley();
+    if (!has_ || !t || t->state != net::TrolleyState::WaitCountdown) return;
+    // timerTask: str(int(duration - elapsed)), starting from '10'.
+    const float left = kCountdownSec - static_cast<s32>(nowMs - t->stateStartMs) / 1000.0f;
+    const int secs = left > 0.0f ? static_cast<int>(left) : 0;
+    if (!clockBuf_) clockBuf_ = C2D_TextBufNew(16);
+    if (!clockBuf_) return;
+    if (secs != clockShown_) {
+        char text[8];
+        snprintf(text, sizeof(text), "%d", secs);
+        C2D_TextBufClear(clockBuf_);
+        render::textParseSign(&clockText_, clockBuf_, text);
+        C2D_TextOptimize(&clockText_);
+        clockShown_ = secs;
+    }
+    constexpr float kScale = 3.02f, kFontLinePx = 30.0f, kBaseline = 0.8f; // render/ui_font.h line height
+    float wx, wy, wz, sx, sy, depth, ux, uy;
+    toWorld(15.86f, 13.82f, 11.68f, &wx, &wy, &wz);
+    if (!ui::projectToScreen(proj, view, wx, wy, wz, &sx, &sy, &depth, 300.0f) || depth <= 0.0f) return;
+    if (!ui::projectToScreen(proj, view, wx, wy, wz + kScale, &ux, &uy, nullptr, 400.0f)) return;
+    const float linePx = std::sqrt((ux - sx) * (ux - sx) + (uy - sy) * (uy - sy));
+    if (linePx < 2.0f) return;
+    const float scale = linePx / kFontLinePx;
+    float w = 0.0f;
+    C2D_TextGetDimensions(&clockText_, scale, scale, &w, nullptr);
+    C2D_DrawText(&clockText_, C2D_WithColor, sx - w * 0.5f, sy - kBaseline * kFontLinePx * scale, 0.5f, scale, scale,
+                 C2D_Color32f(0.9f, 0.1f, 0.1f, 1.0f));
 }
 
 int TrolleyRide::countdown(const net::Client& client, u32 nowMs) const {
