@@ -240,6 +240,10 @@ class Extractor:
             else:
                 verts[i, 5:9] = tuple(flat) if flat is not None else (1, 1, 1, 1)
         verts[:, 5:9] *= np.array(tuple(scale))
+        if mode == TransparencyAttrib.M_dual and not tint and n and verts[:, 8].max() < 0.5:
+            # Every fragment would fail the > 0.5 test, but Panda's dual pass blends them: a
+            # uniformly faint card (the Race Game chance card's 0.1 alpha logo) stays blended.
+            blend = ttm.BLEND_ALPHA
         if tint:
             # Tinted parts take their color from a runtime uniform (Panda setColor
             # *replaces* vertex color), so neutralize RGB here.
