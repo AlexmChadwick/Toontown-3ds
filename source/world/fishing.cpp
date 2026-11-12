@@ -890,8 +890,16 @@ void Fishing::draw(render::Renderer& renderer) {
             Mtx_Translate(&m, tip[0], tip[1], tip[2], true);
             Mtx_RotateZ(&m, atan2f(-dx, dy), true);              // heading: +Y toward the bob
             Mtx_RotateX(&m, atan2f(dz, horiz > 1e-4f ? horiz : 1e-4f), true); // pitch up toward it
-            Mtx_Scale(&m, 1.0f, len, 1.0f);
+            // Rope draws a one-pixel line: size the 0.04-unit ribbon to about 1.3 px at the
+            // line's middle (thinner, it broke into dashes), in the Rope's colour (1, 1, 1, 0.4).
+            const C3D_FVec& eye = renderer.eye();
+            const float mx = tip[0] + dx * 0.5f - eye.x, my = tip[1] + dy * 0.5f - eye.y, mz = tip[2] + dz * 0.5f - eye.z;
+            const float pixel = 2.0f * tanf(renderer.fovY() * 0.5f * kDegToRad) * sqrtf(mx * mx + my * my + mz * mz) / 240.0f;
+            const float w = 1.3f * pixel / 0.04f;
+            Mtx_Scale(&m, w, len, w);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 0.4f);
             renderer.drawModel(line_, m);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
         }
     }
 }
