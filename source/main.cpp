@@ -2380,7 +2380,12 @@ int main() {
             cogBuildings.blockOwned(net, static_cast<u32>(strtoul(exitHere.name + 2, nullptr, 10))))
             exitHere = {};
         u32 travelTarget = 0;
-        if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active()) {
+        // An elevator ride has moved us off this street (Cog building / facility zone) while the
+        // street stays loaded underneath: its door triggers are not ours to use.
+        const bool offPlaceZone = netStarted && net.inZone() && place.kind() == tt::world::PlaceKind::Street &&
+                                  net.zoneId() - net.zoneId() % 100 != place.zoneId() - place.zoneId() % 100;
+        if (transition.active() || minigame.active() || trolley.seated() || battle.active() || cogInterior.active() ||
+            offPlaceZone) {
             // A transition is running, we are on the trolley / away at a minigame, or in a battle or
             // a Cog building (DistributedSuitInterior has no doors; its elevator is the only way
             // out): no exits. The Cog floor shares the toon interior's zone id, not its doors.
