@@ -1,5 +1,6 @@
 #include "core/gpu_sync.h"
 #include "world/cog_interior.h"
+#include "world/elevator_text.h"
 
 #include <cstdio>
 #include <cstring>
@@ -174,7 +175,7 @@ void CogInterior::update(net::Client& client, float x, float y, float z, uint32_
             seenReject_ = e->rejectSerial;
             if (e->rejectAvatar == client.avatarId()) {
                 requestedBoard_ = false;
-                message_ = e->rejectReason == 2 ? "You need more Laff points for this elevator." : "This elevator is full.";
+                message_ = elevatorRejectText(*e, rejectText_, sizeof(rejectText_));
                 TT_LOG("cog_interior: rejectBoard elevator %lu reason %u", static_cast<unsigned long>(e->doId), unsigned(e->rejectReason));
             }
         }

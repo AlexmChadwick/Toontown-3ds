@@ -2704,6 +2704,10 @@ int main() {
                 toast = m;
                 toastAge = 0.0f;
             }
+            if (const char* m = cogBuildings.popMessage()) { // ElevatorNotifier's rejectBoard line
+                toast = m;
+                toastAge = 0.0f;
+            }
             tt::prof::lap(tt::prof::kNet);
             // ---- racing2 ----
             // Racing was already simulated once, before the player update.
@@ -3795,6 +3799,8 @@ int main() {
             }
             if (netStarted) gsBoards.draw2D(net, proj, view, renderer.topLeft());
             if (netStarted && (!minigame.inScene() || minigame.photoScene())) trolley.draw2D(net, proj, view, tt::net::plat::nowMs());
+            if (netStarted && !minigame.inScene() && !cogInterior.active())
+                cogBuildings.draw2D(net, proj, view, player.cameraEye(), tt::net::plat::nowMs());
             if (netStarted) minigame.draw2D(net, renderer.topLeft());
             if (!minigame.nametagsCovered()) {
                 balloons.draw(renderer.topLeft());
@@ -4056,9 +4062,6 @@ int main() {
                 snprintf(infoTimeBuf, sizeof(infoTimeBuf), "Time: %d", left);
                 ctx.infoLines[1] = infoTimeBuf;
                 ctx.infoButton = "Leave elevator"; // B as before
-                snprintf(toastBuf, sizeof(toastBuf), "Cog elevator leaves in %d...  (B: leave)", left);
-                toast = toastBuf;
-                toastAge = 0.0f;
             }
         }
         if (minigame.active()) {

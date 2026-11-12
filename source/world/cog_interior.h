@@ -68,6 +68,7 @@ private:
     bool metadataLoaded_ = false;
     CollisionWorld collision_;
     const char* message_ = nullptr;
+    char rejectText_[64] = {};
     bool spawned_ = false;
     uint32_t lastStateStartMs_ = 0;
     bool stateInitialized_ = false;

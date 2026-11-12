@@ -8,6 +8,9 @@
 
 #include "core/log.h"
 #include "net/net_platform.h"
+#include "render/ui_font.h"
+#include "ui/balloons.h"
+#include "world/elevator_text.h"
 #include "world/place.h"
 
 namespace tt::world {
@@ -156,6 +159,17 @@ void CogBuildings::update(net::Client& client, float x, float y, float z, uint32
     for (int n = 0; n < net::kMaxCogElevators; ++n) {
         const net::CogElevator& e = client.cogElevatorSlot(n);
         if (!e.active) continue;
+        // rejectBoard: ElevatorNotifier's line (the interior elevator's is CogInterior's).
+        if (rejectSeen_[n].doId != e.doId) {
+            rejectSeen_[n] = {e.doId, e.rejectSerial};
+        } else if (rejectSeen_[n].serial != e.rejectSerial) {
+            rejectSeen_[n].serial = e.rejectSerial;
+            if (e.rejectAvatar == client.avatarId() && e.classId != dc::DistributedElevatorInt::kClassId) {
+                if (const char* text = elevatorRejectText(e, rejectText_, sizeof(rejectText_))) message_ = text;
+                TT_LOG("cog buildings: rejectBoard elevator %lu reason %u", static_cast<unsigned long>(e.doId),
+                       unsigned(e.rejectReason));
+            }
+        }
         bool aboard = false;
         for (uint32_t s : e.slots) aboard |= s == me && me != 0;
         // Facility elevators send the riders their interior zone as they leave.
@@ -274,6 +288,8 @@ void CogBuildings::draw(render::Renderer& renderer, const net::Client& client) c
 }
 
 void CogBuildings::shutdown() {
+    if (clockBuf_) C2D_TextBufDelete(clockBuf_);
+    clockBuf_ = nullptr;
     cogdoShell_.unload(); // cogdo exterior
     unloadExterior();
     loadHqElevators(0);
@@ -698,6 +714,99 @@ void CogBuildings::loadHqElevators(uint32_t zone) {
     TT_LOG("cog buildings: zone %lu has %d HQ elevator spots", static_cast<unsigned long>(zone), numHq_);
 }
 
+// The HQ elevator spot an elevator object stands at: the facility elevators by entrance / mint
+// origin, a lobby's boss elevator by class.
+const CogBuildings::HqElevator* CogBuildings::hqFor(const net::CogElevator& e) const {
+    for (int i = 0; i < numHq_; ++i) {
+        const HqElevator& h = hq_[i];
+        bool match;
+        switch (h.type) {
+        case 0: match = e.classId == dc::DistributedFactoryElevatorExt::kClassId && e.origin == h.origin; break;
+        case 1:
+            match = (e.classId == dc::DistributedMintElevatorExt::kClassId ||
+                     e.classId == dc::DistributedLawOfficeElevatorExt::kClassId) && e.origin == h.origin;
+            break;
+        case 2: match = e.classId == dc::DistributedVPElevator::kClassId; break;
+        case 3: match = e.classId == dc::DistributedCFOElevator::kClassId; break;
+        case 4: match = e.classId == dc::DistributedCJElevator::kClassId; break;
+        default: match = e.classId == dc::DistributedBBElevator::kClassId; break;
+        }
+        if (match) return &h;
+    }
+    return nullptr;
+}
+
+// getElevatorModel's transform: a suit building's cab, an HQ elevator frame, or a golf kart.
+bool CogBuildings::elevatorRows(const net::Client& client, const net::CogElevator& e, uint32_t nowMs,
+                                float rows[12]) const {
+    if (e.buildingDoId) {
+        const net::CogBuilding* b = client.findCogBuilding(e.buildingDoId);
+        if (!b || b->state != net::CogBuildingState::Suit) return false; // field offices: not drawn here
+        const Block* bk = findBlock(b->block);
+        if (!bk) return false;
+        elevatorMatrix(*bk, deptIndex(b->track), rows);
+        return true;
+    }
+    if (e.hasPose) {
+        float x, y, z;
+        if (!kartPose(e, nowMs, &x, &y, &z)) return false;
+        const float a = e.h * kDegToRad, c = std::cos(a), s = std::sin(a);
+        const float r[12] = {c, s, 0, -s, c, 0, 0, 0, 1, x, y, z};
+        memcpy(rows, r, sizeof(r));
+        return true;
+    }
+    if (const HqElevator* h = hqFor(e)) {
+        memcpy(rows, h->rows, sizeof(h->rows));
+        return true;
+    }
+    return false;
+}
+
+void CogBuildings::draw2D(const net::Client& client, const C3D_Mtx& proj, const C3D_Mtx& view, C3D_FVec eye,
+                          uint32_t nowMs) {
+    constexpr float kFontLinePx = 30.0f, kBaseline = 0.8f, kMaxDist = 120.0f; // render/ui_font.h line height
+    bool cleared = false;
+    for (int n = 0; n < net::kMaxCogElevators; ++n) {
+        const net::CogElevator& e = client.cogElevatorSlot(n);
+        if (!e.active || strcmp(e.state, "waitCountdown") || e.classId == dc::DistributedElevatorInt::kClassId) continue;
+        float m[12];
+        if (!elevatorRows(client, e, nowMs, m)) continue;
+        // timerTask: str(int(duration - elapsed)).
+        const float left = elevatorCountdownSec(e) - int32_t(nowMs - e.stateStartMs) / 1000.0f;
+        const int secs = left > 0.0f ? int(left) : 0;
+        const float lx = 0.0f, ly = 2.0f, lz = 7.5f;
+        float p[3];
+        for (int j = 0; j < 3; ++j) p[j] = lx * m[j] + ly * m[3 + j] + lz * m[6 + j] + m[9 + j];
+        // TextNode faces -y (DistributedCogKart turns its clock H + 180, facing +y).
+        const float facing = e.hasPose ? 1.0f : -1.0f;
+        const float vx = eye.x - p[0], vy = eye.y - p[1], vz = eye.z - p[2];
+        if ((vx * m[3] + vy * m[4] + vz * m[5]) * facing <= 0.0f) continue;
+        if (vx * vx + vy * vy + vz * vz > kMaxDist * kMaxDist) continue;
+        const float zLen = std::sqrt(m[6] * m[6] + m[7] * m[7] + m[8] * m[8]);
+        const float height = 2.0f * zLen;
+        float sx, sy, depth, ux, uy;
+        if (!ui::projectToScreen(proj, view, p[0], p[1], p[2], &sx, &sy, &depth, 300.0f) || depth <= 0.0f) continue;
+        if (!ui::projectToScreen(proj, view, p[0], p[1], p[2] + height, &ux, &uy, nullptr, 400.0f)) continue;
+        const float linePx = std::sqrt((ux - sx) * (ux - sx) + (uy - sy) * (uy - sy));
+        if (linePx < 2.0f) continue;
+        if (!clockBuf_) clockBuf_ = C2D_TextBufNew(64);
+        if (!clockBuf_) return;
+        if (!cleared) {
+            C2D_TextBufClear(clockBuf_);
+            cleared = true;
+        }
+        char text[8];
+        snprintf(text, sizeof(text), "%d", secs);
+        C2D_Text t;
+        render::textParseSign(&t, clockBuf_, text);
+        const float scale = linePx / kFontLinePx;
+        float w = 0.0f;
+        C2D_TextGetDimensions(&t, scale, scale, &w, nullptr);
+        C2D_DrawText(&t, C2D_WithColor, sx - w * 0.5f, sy - kBaseline * kFontLinePx * scale, 0.5f, scale, scale,
+                     C2D_Color32f(0.5f, 0.5f, 0.5f, 1.0f));
+    }
+}
+
 // An HQ elevator model exists while its DistributedElevator does (setupElevator / delete):
 // the facility elevators by entrance / mint origin, a lobby's boss elevator by class.
 void CogBuildings::drawHqElevators(render::Renderer& renderer, const net::Client& client) const {
@@ -706,20 +815,7 @@ void CogBuildings::drawHqElevators(render::Renderer& renderer, const net::Client
         const net::CogElevator* found = nullptr;
         for (int n = 0; n < net::kMaxCogElevators && !found; ++n) {
             const net::CogElevator& e = client.cogElevatorSlot(n);
-            if (!e.active) continue;
-            bool match;
-            switch (h.type) {
-            case 0: match = e.classId == dc::DistributedFactoryElevatorExt::kClassId && e.origin == h.origin; break;
-            case 1:
-                match = (e.classId == dc::DistributedMintElevatorExt::kClassId ||
-                         e.classId == dc::DistributedLawOfficeElevatorExt::kClassId) && e.origin == h.origin;
-                break;
-            case 2: match = e.classId == dc::DistributedVPElevator::kClassId; break;
-            case 3: match = e.classId == dc::DistributedCFOElevator::kClassId; break;
-            case 4: match = e.classId == dc::DistributedCJElevator::kClassId; break;
-            default: match = e.classId == dc::DistributedBBElevator::kClassId; break;
-            }
-            if (match) found = &e;
+            if (e.active && hqFor(e) == &h) found = &e;
         }
         if (!found) continue;
         // ElevatorUtils: doors at (0, 0, 0) open, (+-width, 0, 0) closed; waitEmpty forces

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <3ds.h>
+#include <citro2d.h>
 
 #include "net/client.h"
 #include "render/model.h"
@@ -17,6 +18,10 @@ public:
     void handleEvent(const net::Event& ev, const net::Client& client);
     void update(net::Client& client, float x, float y, float z, uint32_t nowMs);
     void draw(render::Renderer& renderer, const net::Client& client) const;
+    // DistributedElevator.startCountdownClock: the grey sign-font seconds left inside each
+    // waiting elevator (elevator-model (0, 2, 7.5), scale 2), over the top screen like the
+    // trolley clock; eye is the camera position (the text is one-sided).
+    void draw2D(const net::Client& client, const C3D_Mtx& proj, const C3D_Mtx& view, C3D_FVec eye, uint32_t nowMs);
     void setAnchor(uint32_t block, float x, float y, float z, float h);
     void shutdown();
     const char* popMessage();
@@ -102,6 +107,8 @@ private:
     static constexpr int kHqTypes = 6;     // factory mint vp cfo cj bb
     static constexpr int kMaxHq = 8;
     void loadHqElevators(uint32_t zone);
+    const HqElevator* hqFor(const net::CogElevator& e) const;
+    bool elevatorRows(const net::Client& client, const net::CogElevator& e, uint32_t nowMs, float rows[12]) const;
     void drawHqElevators(render::Renderer& renderer, const net::Client& client) const;
     HqElevator hq_[kMaxHq] = {};
     int numHq_ = 0;
@@ -117,6 +124,10 @@ private:
     uint32_t pendingDest_ = 0, lastDest_ = 0;
     uint32_t requestMs_ = 0;
     const char* message_ = nullptr;
+    char rejectText_[64] = {};
+    C2D_TextBuf clockBuf_ = nullptr;
+    struct RejectSeen { uint32_t doId = 0, serial = 0; };
+    RejectSeen rejectSeen_[net::kMaxCogElevators] = {};
 };
 
 } // namespace tt::world
