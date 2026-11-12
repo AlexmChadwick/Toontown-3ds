@@ -191,8 +191,12 @@ class Extractor:
         tex_idx = None
         ta = state.getAttrib(TextureAttrib)
         tex_mat = None
+        uv_name = 'texcoord'
         if ta and ta.getNumOnStages():
             stage = ta.getOnStage(0)
+            # A stage may read a named UV set (egg <UV> name: "texcoord.uvSet1", the Toon Escape
+            # stomper); the default column alone left those UVs at 0, one texel per surface.
+            uv_name = stage.getTexcoordName().getName()
             tex_idx = self._texture(ta.getOnTexture(stage))
             tma = state.getAttrib(TexMatrixAttrib)
             if tma and tma.hasStage(stage):
@@ -222,8 +226,10 @@ class Extractor:
         n = vdata.getNumRows()
         verts = np.zeros((n, 9), dtype=np.float64)
         rv = GeomVertexReader(vdata, 'vertex')
-        has_uv = vdata.hasColumn('texcoord')
-        ruv = GeomVertexReader(vdata, 'texcoord') if has_uv else None
+        if not vdata.hasColumn(uv_name):
+            uv_name = 'texcoord'
+        has_uv = vdata.hasColumn(uv_name)
+        ruv = GeomVertexReader(vdata, uv_name) if has_uv else None
         has_col = vdata.hasColumn('color') and flat is None
         rc = GeomVertexReader(vdata, 'color') if has_col else None
         for i in range(n):
