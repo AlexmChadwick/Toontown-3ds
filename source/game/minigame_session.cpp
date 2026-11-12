@@ -1,5 +1,6 @@
 #include "core/gpu_sync.h"
 #include "game/minigame_session.h"
+#include "world/toon_dna.h"
 #include "world/toon_avatar.h"
 
 #include <cmath>
@@ -217,6 +218,24 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isVine_) {
             vine_.init(client, nowMs, autoPlay_);
+            {
+                // calcToonOffset: def_joint_left_hold in 'swing' frame 86 by legs x torso size (stock Actor,
+                // tools/pipeline/bake_toon.py's parts), times OTPGlobals.toonBodyScales.
+                static constexpr float kHold[3][3][3] = {
+                    {{-0.83f, 0.12f, 3.90f}, {-0.83f, 0.22f, 3.47f}, {-0.65f, 1.06f, 3.76f}},
+                    {{-0.78f, 0.12f, 4.35f}, {-0.78f, 0.22f, 3.92f}, {-0.60f, 1.06f, 4.20f}},
+                    {{-0.93f, -0.60f, 4.80f}, {-0.91f, -0.50f, 4.36f}, {-0.74f, 0.35f, 4.66f}}};
+                world::ToonDna dna;
+                int legs = 1, torso = 1;
+                float scale = 1.0f;
+                if (world::parseNetString(client.avatarDna(), net::kDnaSize, &dna)) {
+                    legs = dna.legs < 3 ? dna.legs : 1;
+                    torso = dna.torso < 6 ? dna.torso % 3 : (dna.torso < 9 ? dna.torso - 6 : 1);
+                    scale = world::bodyScale(dna);
+                }
+                const float* hold = kHold[legs][torso];
+                vine_.setHandOffset(hold[0] * scale, hold[1] * scale, hold[2] * scale);
+            }
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTarget_) {
@@ -1069,6 +1088,9 @@ void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
         default: avatar.play(kAnimNeutral,1);return;
         }
     }
+    // Jungle Vines: SwingVine.setupSwingAnim* plays 'swing' in step with the held vine; airborne
+    // Toons are posed at JumpingFrame.
+    if(isVine_) { avatar.hold(kAnimSwing,vine_.swingFrame()/24.0f);return; }
     if(isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(0.0f,-2.0f,diving_.toonRoll());return; }
     if(isCatch_) {
         if(stunned_>0) {

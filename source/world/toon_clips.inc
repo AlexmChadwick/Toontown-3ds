@@ -50,3 +50,4 @@ TT_TOON_CLIP(kAnimCatchRun, "catch-run") // 47
 TT_TOON_CLIP(kAnimCatchEatneutral, "catch-eatneutral") // 48
 TT_TOON_CLIP(kAnimCatchEatnrun, "catch-eatnrun") // 49
 TT_TOON_CLIP(kAnimBadPutt, "bad-putt") // 50
+TT_TOON_CLIP(kAnimSwing, "swing") // 51

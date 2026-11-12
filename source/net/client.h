@@ -1726,6 +1726,11 @@ public:
     bool sendVineNewVineT(uint32_t avId, float vineT, int8_t climbDir);
     bool sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
                                  float velX, float velZ);
+    // DistributedVineGame.d_setFallingFromVine / d_setFallingFromMidair: knocked off by a spider (2) or bat (3).
+    bool sendVineFallingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ, float velX,
+                                 float velZ, int8_t fallingInfo);
+    bool sendVineFallingFromMidair(uint32_t avId, int8_t facingRight, float posX, float posZ, float velX, float velZ,
+                                   int8_t fallingInfo);
     bool sendVineReachedEndVine(int8_t vineIndex);
     bool sendVineClaimTreasure(uint32_t treasureNum);
     // DistributedTargetGame.

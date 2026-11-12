@@ -4690,6 +4690,37 @@ bool Client::sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t fac
     return finish(w);
 }
 
+bool Client::sendVineFallingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
+                                     float velX, float velZ, int8_t fallingInfo) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setFallingFromVine);
+    w.u32(avId);
+    w.i8(vineIndex);
+    w.i8(facingRight);
+    w.i32(int32_t(posX * 100.0f));
+    w.i16(clampInt16(posZ * 100.0f));
+    w.i16(clampInt16(velX * 100.0f));
+    w.i16(clampInt16(velZ));
+    w.i8(fallingInfo);
+    return finish(w);
+}
+
+bool Client::sendVineFallingFromMidair(uint32_t avId, int8_t facingRight, float posX, float posZ, float velX, float velZ,
+                                       int8_t fallingInfo) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setFallingFromMidair);
+    w.u32(avId);
+    w.i8(facingRight);
+    w.i32(int32_t(posX * 100.0f));
+    w.i16(clampInt16(posZ * 100.0f));
+    w.i16(clampInt16(velX * 100.0f));
+    w.i16(clampInt16(velZ));
+    w.i8(fallingInfo);
+    return finish(w);
+}
+
 bool Client::sendVineReachedEndVine(int8_t vineIndex) {
     if (!minigame_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);

@@ -141,6 +141,8 @@ ANIMS.update({
     'catch-neutral': ('gameneutral', 4), 'catch-run': ('gamerun', 4),
     'catch-eatneutral': ('eat_neutral', 4), 'catch-eatnrun': ('eatnrun', 4),
     'bad-putt': ('bad-putt', 6),
+    # DistributedVineGame / SwingVine: the Toon hangs from the vine in 'swing' (Phase4AnimList).
+    'swing': ('swing', 4),
 })
 BAKE_FPS = 12.0
 LODS = ('500', '250')

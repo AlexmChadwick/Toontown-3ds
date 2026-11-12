@@ -14,7 +14,7 @@ inline constexpr const char* kToonAnimNames[kAnimCount] = {
 #include "world/toon_clips.inc"
 #undef TT_TOON_CLIP
 };
-static_assert(kAnimCount==51 && kAnimWave==4,"stable Toon clip IDs");
+static_assert(kAnimCount==52 && kAnimWave==4,"stable Toon clip IDs");
 inline ToonAnim toonAnimByName(const char* name) {
     if (name) for (int i=0;i<kAnimCount;i++) if (!std::strcmp(name,kToonAnimNames[i])) return static_cast<ToonAnim>(i);
     return kAnimNeutral;

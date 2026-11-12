@@ -15,10 +15,19 @@ constexpr float kStartShelfX = -16.0f;
 constexpr float kShelfZ = 15.0f;
 constexpr float kShelfScaleZ = 0.75f;
 constexpr float kEndShelfOffset = 20.0f;
-// DistributedVineGame.load: the treasures are placed at vine x + 15 with a random height in
-// randrange(10, 25) (per-client RNG upstream); the midpoint stands in for it here.
+// DistributedVineGame.onstage: the treasures are placed at vine x + 15 with a height of
+// randomNumGen.randrange(10, 25) (and an unused randrange(12, 18)).
 constexpr float kBananaOffsetX = 15.0f;
-constexpr float kBananaZ = 17.5f;
+// VineBat / VineSpider model scales; bats fly from VineXIncrement * NumVines to -VineXIncrement.
+constexpr float kSpiderScale = 0.2f;
+constexpr float kSpiderY = -0.5f;
+constexpr float kBatScale = 0.15f;
+constexpr float kBatStartX = vine::kVineSpacing * vine::kNumVines;
+constexpr float kBatEndX = -vine::kVineSpacing;
+constexpr int kBatMinHeight = 10, kBatMaxHeight = 28; // VineGameGlobals.BatMinHeight / BatMaxHeight
+// The local Toon's catch spheres (radius 0.7) on its legs, torso, head and hands: a column from the
+// feet to the hold joint stands in for them.
+constexpr float kToonSphereRadius = 0.7f;
 constexpr float kBananaScale = 0.25f; // VineTreasure: nodePath.setScale(0.25)
 // DistributedVineGame.makeCameraFollowJumpingToon: the side camera at (x, -63.2, 16.3), looking along +y.
 constexpr float kCamY = -53.0f; // cameraTwoVineSidePos (TwoVineView)
@@ -58,6 +67,15 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
         vine::buildCourse(fallback, 4, course_);
     }
 
+    // DistributedMinigame.randomNumGen = RandomNumGen(doId): load() draws the bat heights, then
+    // onstage() the banana heights, in that order.
+    game::RandomNumGen rng(mg ? mg->doId : 0);
+    loadBats(mg ? mg->trolleyZone - mg->trolleyZone % 1000 : 2000, rng);
+    for (int i = 0; i < vine::kNumVines - 1; ++i) {
+        bananaZ_[i] = float(rng.randrange(10, 25));
+        rng.randrange(12, 18);
+    }
+
     toon_ = {};
     vine::attachToVine(toon_, 0, course_[0], vine::swingAngle(course_[0], gameTime_), vine::kVineStartingT);
     for (bool& taken : bananaTaken_) taken = false;
@@ -73,6 +91,14 @@ void VineGame::init(net::Client& client, uint32_t nowMs, bool autoPlay) {
     assetBatch_.load(startShelf_, path);
     std::snprintf(path, sizeof(path), "%svine_end.ttm", kDir);
     assetBatch_.load(endShelf_, path);
+    for (int i = 0; i < 2; ++i) {
+        std::snprintf(path, sizeof(path), "%svine_spider%d.ttm", kDir, i + 1);
+        assetBatch_.load(spiderModel_[i], path);
+    }
+    for (int i = 0; i < 3; ++i) {
+        std::snprintf(path, sizeof(path), "%svine_bat%d.ttm", kDir, i + 1);
+        assetBatch_.load(batModel_[i], path);
+    }
     std::snprintf(path, sizeof(path), "%svine_segment.ttm", kDir);
     assetBatch_.load(segmentModel_, path);
     std::snprintf(path, sizeof(path), "%svine_static.ttm", kDir);
@@ -91,7 +117,92 @@ void VineGame::shutdown() {
     bananaModel_.unload();
     startShelf_.unload();
     endShelf_.unload();
+    for (render::Model& m : spiderModel_) m.unload();
+    for (render::Model& m : batModel_) m.unload();
     done_ = true;
+}
+
+void VineGame::loadBats(uint32_t hood, game::RandomNumGen& rng) {
+    // VineGameGlobals.BatInfo: (timeToTraverseField, initialDelay[, 0.25 first-lap start multiplier]).
+    struct Info { float traverse, delay, mult; };
+    static constexpr Info kTT[] = {{60, 0, 0.35f}}, kDD[] = {{60, 0, 0.25f}, {30, 30, 1}},
+                          kDG[] = {{60, 0, 0.25f}, {15, 30, 1}}, kMM[] = {{60, 0, 0.25f}, {10, 25, 1}},
+                          kBR[] = {{60, 0, 0.25f}, {30, 30, 1}, {30, 20, 1}},
+                          kDL[] = {{60, 0, 0.25f}, {30, 30, 1}, {10, 20, 1}};
+    const Info* info = kTT;
+    int n = 1;
+    switch (hood) {
+    case 1000: info = kDD; n = 2; break;
+    case 5000: info = kDG; n = 2; break;
+    case 4000: info = kMM; n = 2; break;
+    case 3000: info = kBR; n = 3; break;
+    case 9000: info = kDL; n = 3; break;
+    default: break;
+    }
+    numBats_ = n;
+    for (int b = 0; b < n; ++b) {
+        Bat& bat = bats_[b];
+        bat = {};
+        bat.traverse = info[b].traverse;
+        bat.delay = info[b].delay;
+        // createBatIval: a third tuple entry means startMultiplier 0.25, whatever its value.
+        bat.startMultiplier = info[b].mult < 1.0f ? 0.25f : 1.0f;
+        float duration = bat.delay;
+        while (duration < vine::kGameDuration && bat.laps < 8) {
+            bat.height[bat.laps] = float(rng.randrange(kBatMinHeight, kBatMaxHeight));
+            duration += bat.laps == 0 ? bat.traverse * bat.startMultiplier : bat.traverse;
+            ++bat.laps;
+        }
+    }
+}
+
+// The bat's LerpPosInterval laps: parked past the course until its delay, then from startX (times the
+// first lap's multiplier) to endX at the lap's height; it stays at endX after the last lap.
+bool VineGame::batPose(int i, float t, float* x, float* z) const {
+    const Bat& bat = bats_[i];
+    float at = t - bat.delay;
+    if (at < 0.0f || bat.laps == 0) return false;
+    for (int lap = 0; lap < bat.laps; ++lap) {
+        const float startX = lap == 0 ? kBatStartX * bat.startMultiplier : kBatStartX;
+        const float dur = lap == 0 ? bat.traverse * bat.startMultiplier : bat.traverse;
+        if (at <= dur || lap == bat.laps - 1) {
+            const float u = std::min(at / dur, 1.0f);
+            *x = startX + (kBatEndX - startX) * u;
+            *z = bat.height[lap];
+            return true;
+        }
+        at -= dur;
+    }
+    return false;
+}
+
+// localToonHitSpider / localToonHitBat: a hazard sphere meets the Toon's catch spheres.
+uint8_t VineGame::hazardHit(float t) const {
+    const float footX = toon_.posX - (toon_.facingRight ? hand_[1] : -hand_[1]);
+    const float footZ = toon_.posZ - hand_[2];
+    auto touches = [&](float hx, float hz) {
+        const float dx = toon_.posX - footX, dz = toon_.posZ - footZ, len2 = dx * dx + dz * dz;
+        float u = len2 > 0.0f ? ((hx - footX) * dx + (hz - footZ) * dz) / len2 : 0.0f;
+        u = std::clamp(u, 0.0f, 1.0f);
+        const float ex = footX + u * dx - hx, ez = footZ + u * dz - hz;
+        const float r = vine::kHazardRadius + kToonSphereRadius;
+        return ex * ex + ez * ez < r * r;
+    };
+    for (int i = 0; i < vine::kNumVines; ++i) {
+        float sx, sz;
+        if (vine::spiderPose(i, course_[i], t, &sx, &sz, nullptr) && touches(sx, sz)) return vine::kFallingSpider;
+    }
+    for (int i = 0; i < numBats_; ++i) {
+        float bx, bz;
+        if (batPose(i, t, &bx, &bz) && touches(bx, bz)) return vine::kFallingBat;
+    }
+    return 0;
+}
+
+float VineGame::swingFrame() const {
+    if (toon_.state != vine::State::OnVine) return vine::kJumpingFrame;
+    const int v = std::clamp(toon_.currentVine, 0, vine::kNumVines - 1);
+    return vine::swingFrame(course_[v], gameTime_, toon_.vineT, toon_.facingRight);
 }
 
 void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown, float dt, uint32_t nowMs) {
@@ -130,6 +241,22 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         float angle = vine::swingAngle(course_[cur], gameTime_);
         vine::attachToVine(toon_, cur, course_[cur], angle, toon_.vineT);
 
+        // makeLocalToonFallFromVine: a spider or bat knocks the Toon off (the end vine is safe: the game is won).
+        if (cur != last) {
+            if (const uint8_t hit = hazardHit(gameTime_)) {
+                toon_.state = vine::State::Jumping;
+                toon_.lastJumpVine = cur;
+                toon_.jumpTime = gameTime_;
+                toon_.velX = 0.0f;
+                toon_.velZ = -0.1f;
+                toon_.falling = hit;
+                sentClimbDir_ = 0;
+                client.sendVineFallingFromVine(client.avatarId(), int8_t(cur), toon_.facingRight ? 1 : 0, toon_.posX,
+                                               toon_.posZ, toon_.velX, toon_.velZ, int8_t(hit));
+                return;
+            }
+        }
+
         // Jumps: right (or A) leaves towards the next vine, left towards the previous one
         // (rightArrowKeyHandler / leftArrowKeyHandler: no forward jump from the end vine, no back jump from vine 0).
         bool jumpForward = (kDown & (KEY_A | KEY_DRIGHT)) != 0 && cur != last;
@@ -156,10 +283,23 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
         }
     } else if (toon_.state == vine::State::Jumping) {
         vine::updateJump(toon_, dt);
+        if (!toon_.falling) {
+            if (const uint8_t hit = hazardHit(gameTime_)) {
+                // makeLocalToonFallFromMidair: the velocity drops to (0, -0.1) and the Toon falls.
+                toon_.velX = 0.0f;
+                toon_.velZ = -0.1f;
+                toon_.falling = hit;
+                client.sendVineFallingFromMidair(client.avatarId(), toon_.facingRight ? 1 : 0, toon_.posX, toon_.posZ,
+                                                 toon_.velX, toon_.velZ, int8_t(hit));
+            }
+        }
 
         if (toon_.posZ < 0.0f) {
-            // handleLocalToonFellDown: back onto the vine we jumped from, near its top.
-            const int back = std::max(0, toon_.lastJumpVine);
+            // handleLocalToonFellDown: back onto the vine we jumped from, near its top (one vine further
+            // back when a spider on that vine knocked us off).
+            int back = toon_.lastJumpVine;
+            if (toon_.falling == vine::kFallingSpider && back >= 0 && course_[back].spiderPeriod > 0.0f) --back;
+            back = std::max(0, back);
             vine::attachToVine(toon_, back, course_[back], vine::swingAngle(course_[back], gameTime_),
                                vine::kVineFellDownT);
             client.sendVineNewVine(client.avatarId(), int8_t(back), toon_.vineT, toon_.facingRight ? 1 : 0);
@@ -168,7 +308,7 @@ void VineGame::update(net::Client& client, const circlePosition& pad, u32 kDown,
             const int between = toon_.lastJumpVine;
             if (between >= 0 && between < last && !bananaTaken_[between]) {
                 const float bananaX = between * vine::kVineSpacing + kBananaOffsetX;
-                if (std::abs(toon_.posX - bananaX) < kBananaGrabX && std::abs(toon_.posZ - kBananaZ) < kBananaGrabZ) {
+                if (std::abs(toon_.posX - bananaX) < kBananaGrabX && std::abs(toon_.posZ - bananaZ_[between]) < kBananaGrabZ) {
                     bananaTaken_[between] = true;
                     bananas_++;
                     client.sendVineClaimTreasure(between);
@@ -202,8 +342,11 @@ void VineGame::draw(render::Renderer& renderer) {
     C3D_Mtx m;
     // The backdrop is fixed at the origin (upstream gameBoard.setPosHpr(0, 0, 0, ...)).
     if (background_.loaded()) {
+        // load: gameBoard.setTransparency(1), setColorScale(1, 1, 1, 0.5) over the default grey clear.
         Mtx_Identity(&m);
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, 0.5f);
         renderer.drawModel(background_, m);
+        renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
     }
     if (startShelf_.loaded()) {
         Mtx_Identity(&m);
@@ -249,11 +392,40 @@ void VineGame::draw(render::Renderer& renderer) {
             renderer.setUvShift(0.0f, 0.0f);
         }
     }
+    // VineSpider: spider_2 / spider_3 alternate at 2 fps; VineBat: bat__1 / bat2 / bat3 ping-pong at 12 fps.
+    {
+        render::Model& spider = spiderModel_[int(gameTime_ * 2.0f) & 1];
+        static constexpr int kPingPong[4] = {0, 1, 2, 1};
+        render::Model& bat = batModel_[kPingPong[int(gameTime_ * 12.0f) & 3]];
+        C3D_FVec eye;
+        camera(&eye, nullptr);
+        if (spider.loaded()) {
+            for (int i = 0; i < vine::kNumVines; ++i) {
+                float sx, sz, roll;
+                if (!vine::spiderPose(i, course_[i], gameTime_, &sx, &sz, &roll) || std::fabs(sx - eye.x) > 75.0f) continue;
+                Mtx_Identity(&m);
+                Mtx_Translate(&m, sx, kSpiderY, sz, true);
+                Mtx_RotateY(&m, roll * vine::kPi / 180.0f, true);
+                Mtx_Scale(&m, kSpiderScale, kSpiderScale, kSpiderScale);
+                renderer.drawModel(spider, m);
+            }
+        }
+        if (bat.loaded()) {
+            for (int i = 0; i < numBats_; ++i) {
+                float bx, bz;
+                if (!batPose(i, gameTime_, &bx, &bz) || std::fabs(bx - eye.x) > 75.0f) continue;
+                Mtx_Identity(&m);
+                Mtx_Translate(&m, bx, 0.0f, bz, true);
+                Mtx_Scale(&m, kBatScale, kBatScale, kBatScale);
+                renderer.drawModel(bat, m);
+            }
+        }
+    }
     if (bananaModel_.loaded()) {
         for (int i = 0; i < vine::kNumVines - 1; ++i) {
             if (bananaTaken_[i]) continue;
             Mtx_Identity(&m);
-            Mtx_Translate(&m, i * vine::kVineSpacing + kBananaOffsetX, 0.0f, kBananaZ, true);
+            Mtx_Translate(&m, i * vine::kVineSpacing + kBananaOffsetX, 0.0f, bananaZ_[i], true);
             Mtx_Scale(&m, kBananaScale, kBananaScale, kBananaScale);
             renderer.drawModel(bananaModel_, m);
         }
@@ -261,9 +433,12 @@ void VineGame::draw(render::Renderer& renderer) {
 }
 
 void VineGame::toonPose(float* x, float* y, float* z, float* h) const {
-    if (x) *x = toon_.posX;
-    if (y) *y = 0.0f;
-    if (z) *z = toon_.posZ;
+    // The Toon hangs by its left hold joint: the attach / physics node sits on the cable point and the
+    // Toon at -offset, turned H -90 (facing right) or 90: Toon-local (x, y) maps to world (y, -x) / (-y, x).
+    const float sign = toon_.facingRight ? 1.0f : -1.0f;
+    if (x) *x = toon_.posX - sign * hand_[1];
+    if (y) *y = sign * hand_[0];
+    if (z) *z = toon_.posZ - hand_[2];
     if (h) *h = 90.0f; // facing right along the jungle track
 }
 
@@ -281,8 +456,9 @@ bool VineGame::remotePose(const net::Minigame::VineRemote& v, uint32_t nowMs, fl
     const float elapsed = static_cast<int32_t>(nowMs - v.arrivalMs) / 1000.0f;
     float px = 0.0f, pz = 0.0f;
     if (!vine::reportedPosition(r, course_, gameTime_, elapsed, px, pz)) return false;
+    // Hung by its hold joint like the local Toon; a medium Toon's offset (3.92) stands in for its own.
     if (x) *x = px;
-    if (z) *z = pz;
+    if (z) *z = pz - 3.92f;
     // The toon faces right along the track; a jump or fall heads with its velocity (makeOtherToonJump).
     if (h) *h = r.attached ? 90.0f : (v.velX >= 0.0f ? -90.0f : 90.0f);
     return true;

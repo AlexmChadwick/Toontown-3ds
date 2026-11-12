@@ -82,12 +82,17 @@ MODELS = {
     'diving_fish_piano': ('phase_4/models/char/pianoTuna-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Vine
-    # The whole vine_game.bam also holds the animated bats and spiders (they flew across the
-    # screen as static meshes), so bake only the parts DistributedVineGame places statically.
+    # vine_game.bam also holds the bats and spiders: each SequenceNode frame (VineSpider spider_2 /
+    # spider_3, VineBat bat__1 / bat2 / bat3) is its own model, posed and flipped at run time.
     'vine_background': (MG + 'vine_game', '**/background', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_bananas': (MG + 'vine_game', '**/bananas', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_start': (MG + 'vine_game_shelf', '**/start1', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_end': (MG + 'vine_game_shelf', '**/end1', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_spider1': (MG + 'vine_game', '**/spider_2', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_spider2': (MG + 'vine_game', '**/spider_3', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat1': (MG + 'vine_game', '**/bat__1', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat2': (MG + 'vine_game', '**/bat2', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat3': (MG + 'vine_game', '**/bat3', (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Target
     'target_ground': (MG + 'slingshot_game_desert4', None, (0, 0, 0), 1.0, (0, 0, 0)),
