@@ -15,7 +15,7 @@ constexpr float kCameraMoveSeconds = 0.75f; // moveCamera: posQuatInterval(0.75,
 constexpr float kTopView[5] = {-22.78f, -41.65f, 31.53f, -51.55f, -42.68f};
 constexpr float kDeg = 0.0174532925f;
 // showChanceRewards per reward: showChanceCard, 1 s, showChanceCardText, 3 s, resetChanceCard, 0.25 s.
-constexpr float kCardFly = 1.0f, kCardText = 3.0f, kCardEnd = 4.0f, kCardStep = 4.25f;
+constexpr float kCardFly = 1.0f, kCardText = 1.0f, kCardEnd = 4.0f, kCardStep = 4.25f;
 // RaceGameGlobals.ChanceRewards' TTLocalizer strings (-1: RaceGameCardTextHi1), and which use
 // RaceGameCardTextBeans (a bean bonus).
 const char* const kRewardText[racegame::kNumRewards] = {
