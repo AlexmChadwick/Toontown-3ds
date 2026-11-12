@@ -10,6 +10,7 @@
 #include "ui/fish_photo_atlas.h"
 #include "ui/fishing_panel.h"
 #include "ui/laff_meter.h"
+#include "ui/theme.h"
 #include "ui/race_gui_atlas.h"
 
 namespace tt::ui {
@@ -235,8 +236,8 @@ void Hud::drawRace(const RaceHud& r) {
 // DistributedFishingSpot's catch, over the world as upstream's aspect2d: FishPanel (species name,
 // FishPhoto on the swim colour, weight, value, "New Species!" / "New Record!") for a fish, itemGui
 // ("You caught:", the jar / boot picture, the item name) for jellybeans and the old boot. Both at
-// 1.6 times the aspect2d scale (192 px per unit instead of 120) so their 0.05-0.08 text stays
-// readable on the 240 px screen; the panel keeps its place near the top, clear of the Toon.
+// 1.25 times the aspect2d scale (150 px per unit instead of 120) and their 0.05-0.08 text half as
+// large again, so it reads on the 240 px screen; the panel stays at the top like stock's.
 void Hud::drawFishCatch(const FishingView& f) {
     const bool fish = f.result == FishingView::kFish && f.genus >= 0;
     const bool item = f.result == FishingView::kBeans || f.result == FishingView::kBoot;
@@ -253,12 +254,17 @@ void Hud::drawFishCatch(const FishingView& f) {
         tt::render::textParse(&fishText_[kFound], fishBuf_, "You caught:");
         for (C2D_Text& t : fishText_) C2D_TextOptimize(&t);
     }
-    constexpr float k = 192.0f; // pixels per aspect2d unit
-    // C2D scale of an aspect2d text scale s: the fonts' em is about 30 px at C2D scale 1.
+    constexpr float k = 150.0f; // pixels per aspect2d unit
+    // C2D scale of an aspect2d text scale s (the fonts' em is about 30 px at C2D scale 1), 1.5x.
+    float maxW = 0.0f; // the panel's inner width: longer lines shrink to fit
     auto textAt = [&](int slot, float cx, float y, float s, u32 color) {
         float w = 0, h = 0;
-        const float c = s * k / 30.0f;
+        float c = s * k * 1.5f / 30.0f;
         C2D_TextGetDimensions(&fishText_[slot], c, c, &w, &h);
+        if (w > maxW && w > 0.0f) {
+            c *= maxW / w;
+            w = maxW;
+        }
         C2D_DrawText(&fishText_[slot], C2D_WithColor | C2D_AtBaseline, cx - w * 0.5f, y, 0.6f, c, c, color);
     };
     const u32 ink = C2D_Color32(0, 0, 0, 0xFF);
@@ -268,8 +274,9 @@ void Hud::drawFishCatch(const FishingView& f) {
     if (fish) {
         // getDefaultDialogGeom at image_scale (0.65, 0.85); the frame's top 8 px under the screen top.
         const float w = 0.65f * k, h = 0.85f * k, top = 6.0f, cy = top + h * 0.5f;
-        C2D_DrawRectSolid(cx - w * 0.5f - 2, top - 2, 0.5f, w + 4, h + 4, edge);
-        C2D_DrawRectSolid(cx - w * 0.5f, top, 0.5f, w, h, dialog);
+        maxW = w - 10.0f;
+        theme::roundRect(cx - w * 0.5f - 2, top - 2, w + 4, h + 4, 9.0f, edge, 0.5f);
+        theme::roundRect(cx - w * 0.5f, top, w, h, 8.0f, dialog, 0.5f);
         // setSwimBounds(-0.3, 0.3, -0.235, 0.25), setSwimColor(1, 1, 0.749)
         const float rx = cx - 0.3f * k, ry = cy - 0.25f * k, rw = 0.6f * k, rh = 0.485f * k;
         C2D_DrawRectSolid(rx, ry, 0.52f, rw, rh, C2D_Color32f(1.0f, 1.0f, 0.749f, 1.0f));
@@ -281,8 +288,9 @@ void Hud::drawFishCatch(const FishingView& f) {
     } else {
         // itemFrame: geom_scale (1, 1, 0.6) at z 0.587, "You caught:" at 0.2, the label at -0.25.
         const float w = 1.0f * k, h = 0.6f * k, top = 6.0f, cy = top + h * 0.5f;
-        C2D_DrawRectSolid(cx - w * 0.5f - 2, top - 2, 0.5f, w + 4, h + 4, edge);
-        C2D_DrawRectSolid(cx - w * 0.5f, top, 0.5f, w, h, dialog);
+        maxW = w - 10.0f;
+        theme::roundRect(cx - w * 0.5f - 2, top - 2, w + 4, h + 4, 9.0f, edge, 0.5f);
+        theme::roundRect(cx - w * 0.5f, top, w, h, 8.0f, dialog, 0.5f);
         textAt(kFound, cx, cy - 0.2f * k, 0.08f, ink);
         drawFishItemArt(f.result == FishingView::kBeans ? kFishItemJar : kFishItemBoot, cx, cy, k, 0.55f);
         textAt(kName, cx, cy + 0.25f * k, 0.06f, ink);
