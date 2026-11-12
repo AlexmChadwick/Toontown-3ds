@@ -613,8 +613,34 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
 const char* const kBattleClipNames[kNumBattleClips] = {
     "throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose",
     // [cog attacks]
-    "conked", "sidestep-right", "duck", "slip-forward", "slip-backward"
+    "conked", "sidestep-right", "duck", "slip-forward", "slip-backward",
+    // gag clips
+    "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "toss", "battlecast",
+    "hold-magnet", "hypnotize", "sound", "spit", "water-gun", "hold-bottle", "firehose"
 };
+
+BattleClip toonAttackClip(int track, int level) {
+    switch (track) {
+    case kTrackHeal: { // MovieHeal: __healTickle, Joke, Smooch, Dance, Sprinkle, Juggle, Dive
+        static const BattleClip kHeal[7] = {kClipTickle, kClipSound, kClipSmooch, kClipHappyDance,
+                                            kClipSprinkleDust, kClipJuggle, kClipClimb};
+        return kHeal[level >= 0 && level < 7 ? level : 0];
+    }
+    case kTrackTrap: // MovieTrap: thrown traps toss, placed ones (quicksand, trapdoor, train) push a button
+        return level == 3 || level == 4 || level == 6 ? kClipPushButton : kClipToss;
+    case kTrackLure: // MovieLure: fishing poles cast, magnets, goggles; the slideshow's button
+        return level == 1 || level == 3 ? kClipHoldMagnet : level == 5 ? kClipHypnotize
+             : level == 6 ? kClipPushButton : kClipBattlecast;
+    case kTrackSound: return kClipSound;
+    case kTrackThrow: return kClipThrow;
+    case kTrackSquirt: { // MovieSquirt: flower, glass, gun, seltzer, hose, storm cloud, geyser
+        static const BattleClip kSquirt[7] = {kClipPushButton, kClipSpit, kClipWaterGun, kClipHoldBottle,
+                                              kClipFirehose, kClipPushButton, kClipPushButton};
+        return kSquirt[level >= 0 && level < 7 ? level : 0];
+    }
+    default: return kClipPushButton; // MovieDrop
+    }
+}
 
 void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track, int level) {
     if (numFx_ >= kMaxFx) return;
@@ -871,6 +897,7 @@ void Battle::runFx(uint32_t nowMs) {
             a->attackEnd = nowMs + uint32_t(f.value);
             // [cog attacks] Gag track (>=0) or suit attack index (0..5)
             a->attackTrack = f.track >= 0 ? f.track : f.level;
+            a->attackLevel = f.level;
             a->clipStartMs = nowMs;
             if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
@@ -1278,12 +1305,10 @@ void Battle::computePoses(uint32_t nowMs) {
         out->flash = flash;
         out->hidden = hidden;
         if (isToon) {
-            // MovieThrow: pie-throw; MovieSquirt (flower): press-button; others: wave for now.
+            // The gag's own clip (toonAttackClip: MovieHeal, MovieTrap, MovieLure, ...).
             uint8_t anim = a.moving ? kBattleAnimRun : kBattleAnimNeutral;
             if (attacking) {
-                anim = a.attackTrack == kTrackThrow    ? uint8_t(kBattleAnimClip0 + kClipThrow)
-                       : a.attackTrack == kTrackSquirt ? uint8_t(kBattleAnimClip0 + kClipPushButton)
-                                                       : kBattleAnimAttack;
+                anim = uint8_t(kBattleAnimClip0 + toonAttackClip(a.attackTrack, a.attackLevel));
             } else if (a.reactUntil && int32_t(a.reactUntil - nowMs) > 0) {
                 // [cog attacks] Reaction clip
                 const int clip = a.reactClip >= 0 ? a.reactClip : (a.reactHit ? int(kClipCringe) : int(kClipSidestep));

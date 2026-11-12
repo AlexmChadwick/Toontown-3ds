@@ -43,9 +43,27 @@ enum BattleClip : uint8_t {
     kClipDuck,
     kClipSlipForward,
     kClipSlipBackward,
+    // Gag clips (Movie*.py): Toon-Up, Trap, Lure, Sound, Squirt (toonAttackClip)
+    kClipTickle,
+    kClipSmooch,
+    kClipHappyDance,
+    kClipSprinkleDust,
+    kClipJuggle,
+    kClipClimb,
+    kClipToss,
+    kClipBattlecast,
+    kClipHoldMagnet,
+    kClipHypnotize,
+    kClipSound,
+    kClipSpit,
+    kClipWaterGun,
+    kClipHoldBottle,
+    kClipFirehose,
     kNumBattleClips
 };
 extern const char* const kBattleClipNames[kNumBattleClips];
+// The Toon's clip for a gag (track, level), as the stock movies play it.
+BattleClip toonAttackClip(int track, int level);
 // Cog battle clips (suit bake; BattleActorPose::clipArg = attack index for kSuitAnimAttack).
 constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAttack = 12, kSuitAnimLose = 13,
                   kSuitAnimDodge = 14;
@@ -288,6 +306,7 @@ private:
         // lowers suit.currHP locally; the AI only resends it after the battle).
         int damage = 0;
         int8_t attackTrack = -1;     // toons: gag of the current attack; cogs: attack index
+        int8_t attackLevel = 0;      // toons: the gag level (picks the Movie*.py clip)
         int8_t reactTrack = -1;      // cogs: the gag track that hit them (pie vs squirt react)
         uint32_t clipStartMs = 0;
         uint32_t reactUntil = 0;     // toons: cringe (hit) / sidestep (miss) until then

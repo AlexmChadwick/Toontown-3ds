@@ -143,6 +143,13 @@ ANIMS.update({
     'bad-putt': ('bad-putt', 6),
     # DistributedVineGame / SwingVine: the Toon hangs from the vine in 'swing' (Phase4AnimList).
     'swing': ('swing', 4),
+    # Battle gag clips (Movie*.py), in ToontownBattleGlobals track order: Toon-Up (MovieHeal),
+    # Trap toss, Lure (MovieLure), Sound, Squirt (MovieSquirt).
+    'tickle': ('tickle', 5), 'smooch': ('smooch', 5), 'happy-dance': ('happy-dance', 5),
+    'sprinkle-dust': ('sprinkle-dust', 5), 'juggle': ('juggle', 5), 'climb': ('climb', 5),
+    'toss': ('toss', 5), 'battlecast': ('fish', 4), 'hold-magnet': ('hold-magnet', 5),
+    'hypnotize': ('hypnotize', 5), 'sound': ('shout', 5), 'spit': ('spit', 5),
+    'water-gun': ('water-gun', 5), 'hold-bottle': ('hold-bottle', 5), 'firehose': ('firehose', 5),
 })
 BAKE_FPS = 12.0
 LODS = ('500', '250')

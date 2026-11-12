@@ -17,7 +17,7 @@ static_assert(kAnimCount == kToonAnimCount, "clip table size");
 // Extra clips for one toon's parts, loaded on demand (battle clips for the local toon) instead
 // of with every look: <part key>_<name>.tta from the SD set, one per part (legs, torso, head).
 struct ToonClipSet {
-    static constexpr int kMax = 8;
+    static constexpr int kMax = 32; // the battle set has 26 (it was 8, dropping duck / slip)
     ToonAnim clips[kMax] = {};
     int count = 0;
     const ToonLook* look = nullptr;

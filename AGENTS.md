@@ -277,7 +277,7 @@ Key decisions:
    - **"Draw in front"** (eyes over face, pupils over eyes) uses a per-batch `layer`
      that adds a depth bias (`kLayerDepthBias` in `render/renderer.cpp`).
 5. **Toons.**
-   - Runtime animation catalog: 51 stable clip IDs, shared model/clothing cache,
+   - Runtime animation catalog: 67 stable clip IDs (52-66 are the battle gag clips of the Movie*.py tracks), shared model/clothing cache,
      bounded two-frame active/staging windows (12 three-part groups, 576 KiB).
      The complete Toon cache has a hard 4 MiB admission limit. Call `ToonCache::pump`
      before GPU frame submission; it fences publication and retired-resource reuse.
