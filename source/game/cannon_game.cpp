@@ -172,13 +172,14 @@ void CannonGame::update(net::Client& client, const circlePosition& pad, u32 kDow
             }
             state_ = State::Flying;
             stateMs_ = nowMs;
+            camPullback_ = 20.0f; // info['maxCamPullback'] = CAMERA_PULLBACK_MIN
             TT_LOG("cannon_game: fired (rot=%.1f, ang=%.1f), impact in %.2fs (hit=%d)", zRot_, angle_, flight_.timeOfImpact, int(flight_.hitWhat));
         }
         break;
     }
 
     case State::Flying: {
-        const float t = static_cast<int>(nowMs - stateMs_) / 1000.0f;
+        const float t = std::fmin(static_cast<int>(nowMs - stateMs_) / 1000.0f, flight_.timeOfImpact);
         const cannongame::Vec3 pos = cannongame::trajectoryPos(flight_.startPos, flight_.startVel, t);
         const cannongame::Vec3 vel = cannongame::trajectoryVel(flight_.startVel, t);
 
@@ -188,13 +189,34 @@ void CannonGame::update(net::Client& client, const circlePosition& pad, u32 kDow
         toonH_ = std::atan2(-vel.x, vel.y) * 180.0f / kPi;
         toonPitch_=-90+std::atan2(vel.z,std::sqrt(vel.x*vel.x+vel.y*vel.y))*180/kPi;
 
-        // Camera follows toon from behind
-        camEyeX_ = toonX_;
-        camEyeY_ = toonY_ - 24.0f;
-        camEyeZ_ = toonZ_ + 10.0f;
-        camTgtX_ = toonX_;
-        camTgtY_ = toonY_ + 10.0f;
-        camTgtZ_ = toonZ_;
+        // __flyTask: the camera trails the Toon on the line from the tower's mid-height, pulled
+        // back CAMERA_PULLBACK_MIN 20 (up to MAX 40, kept) and swung aside as it nears the tower.
+        {
+            float lx = towerPos_.x, ly = towerPos_.y, lz = towerPos_.z - cannongame::kTowerHeight / 2.0f;
+            const float tx = pos.x - towerPos_.x, ty = pos.y - towerPos_.y, tz = pos.z - cannongame::kTowerHeight;
+            const float dist = std::sqrt(tx * tx + ty * ty + tz * tz);
+            float multiplier = 0.0f;
+            if (dist < 150.0f) { // TOON_TOWER_THRESHOLD
+                float px = -vel.y, py = vel.x; // up x vel
+                const float pl = std::sqrt(px * px + py * py);
+                if (pl > 1e-6f) px /= pl, py /= pl;
+                if (tx * px + ty * py > 0.0f) px = -px, py = -py;
+                const float a = 1.0f - dist / 150.0f;
+                multiplier = -2.0f * a * a * a + 3.0f * a * a;
+                lx += px * multiplier * 80.0f; // MAX_LOOKAT_OFFSET
+                ly += py * multiplier * 80.0f;
+            }
+            float fx = pos.x - lx, fy = pos.y - ly, fz = pos.z - lz;
+            const float fl = std::sqrt(fx * fx + fy * fy + fz * fz);
+            if (fl > 1e-6f) fx /= fl, fy /= fl, fz /= fl;
+            camPullback_ = std::fmax(camPullback_, 20.0f + multiplier * 20.0f);
+            camEyeX_ = pos.x + fx * camPullback_;
+            camEyeY_ = pos.y + fy * camPullback_;
+            camEyeZ_ = pos.z + fz * camPullback_;
+            camTgtX_ = toonX_;
+            camTgtY_ = toonY_;
+            camTgtZ_ = toonZ_;
+        }
 
         snprintf(lines_[0], sizeof(lines_[0]), "Weeee!");
         lines_[1][0] = 0;
