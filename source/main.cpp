@@ -3605,21 +3605,26 @@ int main() {
             interiorLife.draw(renderer);
             // [end interior life]
             trophies.draw(renderer);
-            boat.draw(renderer);
+            // A minigame's scene replaces the playground (only Photo Fun shoots the real hood): the
+            // place's own props and movers stay out of it (the TTC HQ telescope stood in the Ring Game).
+            const bool placeShown = !minigame.inScene() || minigame.photoScene();
+            if (placeShown) boat.draw(renderer);
             cchars.draw(renderer);
             // ---- tutorial ----
             if (tutorial.charShown() && tutorialChar.ensure(tutorial.femaleChar())) tutorialChar.draw(renderer, tutorial);
             else if (!tutorial.active() && tutorialChar.loaded()) tutorialChar.unload(); // UNLOAD_CHAR
             // ---- end tutorial ----
             // The car stands parked with no DistributedTrolley too (offline), as the playground shows it.
-            if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
-            waterfall.draw(renderer, tt::net::plat::nowMs());
-            animProps.draw(renderer, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
-            gsBlimp.draw(renderer, tt::net::plat::nowMs());
-            cashbotTrains.draw(renderer);
-            brSnow.draw(renderer, player.cameraEye(), tt::net::plat::nowMs());
-            if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
-            dgFlower.draw(renderer, tt::net::plat::nowMs());
+            if (placeShown) {
+                if (!golf.active()) trolley.draw(renderer, net, tt::net::plat::nowMs());
+                waterfall.draw(renderer, tt::net::plat::nowMs());
+                animProps.draw(renderer, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
+                gsBlimp.draw(renderer, tt::net::plat::nowMs());
+                cashbotTrains.draw(renderer);
+                brSnow.draw(renderer, player.cameraEye(), tt::net::plat::nowMs());
+                if (netStarted) butterflies.draw(renderer, net, player.cameraEye().x, player.cameraEye().y, tt::net::plat::nowMs());
+                dgFlower.draw(renderer, tt::net::plat::nowMs());
+            }
             if (netStarted && !golf.active()) golf.drawKart(renderer, net);
             fishing.draw(renderer);
             suits.draw(renderer);
