@@ -743,6 +743,10 @@ float pandaFovY(float horizontalDeg) {
 
 void MinigameSession::applyWorld(render::Renderer& renderer) {
     releaseWorld(renderer); // games that set nothing still get the renderer defaults
+    // ToonBase's DefaultBackgroundColor (0.3 grey) shows wherever a game draws nothing: the hood's
+    // sky is gone with the place (Jungle Vines blends its half-alpha backdrop over it). Race Game's
+    // onstage sets its board green.
+    renderer.setBackground(isRace_ ? 0x30CA00FF : 0x4C4C4CFF);
     // The games whose onstage sets its own lens (and whose camera here is the stock one).
     float fov = 0.0f;
     if (isPattern_) fov = 24.66f;                                  // DistributedPatternGame.onstage
