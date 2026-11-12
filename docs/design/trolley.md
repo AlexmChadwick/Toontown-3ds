@@ -839,3 +839,21 @@ Trolley Tracks (`DistributedTravelGame`, ID 100) is the trolley metagame played 
 4. **Destination Resolution:**
    - Branching paths lead to different target minigames or bonus playground exits.
    - Upon reaching the end of the line, the final minigame is launched, or bonus beans are awarded directly.
+
+## Native ports re-checked against stock (2026-11-12)
+
+- **Maze**: `MazeData.mazeNames[numPlayers - 1]` with its collision table and treasures
+  (`tools/gen_maze_tables.py` -> `source/game/maze_tables.h`); onstage's `RandomNumGen(doId)`
+  order (start spots, a RNG per Toon, then the suit period shuffle and one RNG per suit);
+  4 x numPlayers Flunkies on MazeSuit's tic schedule; the hit flight to a random walkable
+  tile. `tools/maze_test` stage 2 compares the suit tile walk with the stock MazeSuit.
+- **Ring**: the hood's `difficultyPatterns` (`tools/gen_ring_tables.py`) and
+  `RingTrackGroups.getRandomRingTrackGroup` per group, one ring per player in
+  `setColorIndices`' colours, timed from `setGameStart`. `tools/ring_test` stage 2 compares
+  3,840 ring paths with the stock modules.
+- **Tag**: the AI's `DistributedTagTreasure` objects (ice cream), `requestGrab` on contact,
+  the AI's `setTreasureScore`.
+- **Diving**: NUMCRABS King Crabs per hood moved by `setCrabMoving`, SPEEDMULT per hood.
+- **Cannon**: the `__flyTask` camera. **Race**: the chance card and its text.
+  **Slingshot**: the blended cloud layers and FogOverlay.
+- Not ported: the Maze pitch spin, goal bar and score panels; Ring's success / missed text.
