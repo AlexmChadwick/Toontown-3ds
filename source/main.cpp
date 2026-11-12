@@ -2336,7 +2336,12 @@ int main() {
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
         // its place loads, and the tutorial street is a single cell anyway. ----
+        // A Cog building / facility elevator moves us to a zone off this street while the street
+        // stays loaded underneath; a cell change there would pull us back out of the building.
         if (gStreetCell.pending && netStarted && net.tutorialZones().active()) {
+            gStreetCell.pending = false;
+        } else if (gStreetCell.pending && netStarted && net.inZone() &&
+                   net.zoneId() - net.zoneId() % 100 != u32(gStreetCell.cell - gStreetCell.cell % 100)) {
             gStreetCell.pending = false;
         } else if (gStreetCell.pending && netStarted && net.inZone() && gStreetCell.cell != net.zoneId()) {
             if (net.changeStreetCell(gStreetCell.cell, gStreetCell.zones, gStreetCell.count)) {
