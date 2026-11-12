@@ -139,6 +139,9 @@ MODELS = {
     # IceTreasure models: DistributedIceGame.load scales the penalty TNT (0.75, 0.75, 0.7).
     'ice_barrel': (MG + 'ice_game_barrel', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_tnt': (MG + 'ice_game_tnt2', None, (0, 0, 0), (0.75, 0.75, 0.7), (0, 0, 0)),
+    # DistributedIceWorld.createCubicObstacle / createCircularObstacle: the hood's obstacles.
+    'ice_crate': (MG + 'ice_game_crate', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_tirestack': (MG + 'ice_game_tirestack', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_score_circle': (MG + 'ice_game_score_circle', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Race

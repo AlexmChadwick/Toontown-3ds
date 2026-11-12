@@ -20,7 +20,7 @@ void Tire::launch(float force0to100, float headingDeg) {
     moving = (speed > 0.1f);
 }
 
-void Tire::step(float dt) {
+void Tire::step(float dt, const Obstacle* obstacles, int numObstacles) {
     if (!moving) return;
 
     x += vx * dt;
@@ -41,6 +41,30 @@ void Tire::step(float dt) {
     } else if (y < -kBoundY) {
         y = -kBoundY;
         vy = -vy * 0.75f;
+    }
+
+    // Obstacles: push the tire out of the tire stack / crate and reflect the normal velocity.
+    for (int i = 0; i < numObstacles; ++i) {
+        const Obstacle& o = obstacles[i];
+        float cx = o.x, cy = o.y, reach = kTireRadius * 2.0f;
+        if (o.cubic) {
+            cx = std::clamp(x, o.x - kTireRadius, o.x + kTireRadius);
+            cy = std::clamp(y, o.y - kTireRadius, o.y + kTireRadius);
+            reach = kTireRadius;
+        }
+        float nx = x - cx, ny = y - cy;
+        const float d = std::sqrt(nx * nx + ny * ny);
+        if (d >= reach) continue;
+        if (d > 1e-4f) { nx /= d; ny /= d; }
+        else { nx = (std::fabs(x - o.x) > std::fabs(y - o.y)) ? (x > o.x ? 1.0f : -1.0f) : 0.0f;
+               ny = nx == 0.0f ? (y > o.y ? 1.0f : -1.0f) : 0.0f; }
+        x = cx + nx * reach;
+        y = cy + ny * reach;
+        const float vn = vx * nx + vy * ny;
+        if (vn < 0.0f) {
+            vx -= 1.75f * vn * nx;
+            vy -= 1.75f * vn * ny;
+        }
     }
 
     // Ice friction
@@ -73,6 +97,7 @@ void Simulation::init(int players) {
     curMatch = 0;
     curRound = 0;
     isDone = false;
+    numObstacles = 0;
     for (int i = 0; i < 4; ++i) {
         scores[i] = 0;
     }
@@ -103,7 +128,7 @@ void Simulation::setChoice(int playerIndex, float force, float headingDeg) {
 
 void Simulation::stepPhysics(float dt) {
     for (int i = 0; i < 4; ++i) {
-        tires[i].step(dt);
+        tires[i].step(dt, obstacles, numObstacles);
     }
 }
 

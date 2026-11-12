@@ -43,6 +43,10 @@ bool IceGame::init(const char* root, int players, int slot, uint32_t doId, uint3
     assetBatch_.load(barrelModel_, path);
     std::snprintf(path, sizeof(path), "%s/ice_tnt.ttm", root);
     assetBatch_.load(tntModel_, path);
+    // IceGameGlobals.ObstacleShapes: crates in TTC / DD / DG / MM, tire stacks in BR / DL.
+    cubicObstacles_ = !(hood == 3000 || hood == 9000);
+    std::snprintf(path, sizeof(path), "%s/%s.ttm", root, cubicObstacles_ ? "ice_crate" : "ice_tirestack");
+    assetBatch_.load(obstacleModel_, path);
 
     return true;
 }
@@ -55,6 +59,7 @@ void IceGame::shutdown() {
     scoreCircleModel_.unload();
     barrelModel_.unload();
     tntModel_.unload();
+    obstacleModel_.unload();
 }
 
 void IceGame::setupStartOfMatch() {
@@ -97,6 +102,9 @@ void IceGame::setupStartOfMatch() {
             if (good) list[(*count)++] = {x, y, false};
         }
     };
+    sim_.numObstacles = numObstacles < icegame::kMaxObstacles ? numObstacles : icegame::kMaxObstacles;
+    for (int i = 0; i < sim_.numObstacles; ++i)
+        sim_.obstacles[i] = {obstacles[i].x, obstacles[i].y, cubicObstacles_};
     place(treasures_, &numTreasures_, nt);
     place(penalties_, &numPenalties_, np);
     setupMatch_ = sim_.curMatch;
@@ -200,6 +208,15 @@ void IceGame::draw(render::Renderer& renderer) {
     if (backdropModel_.loaded()) {
         Mtx_Identity(&world);
         renderer.drawModel(backdropModel_, world);
+    }
+
+    // The hood's obstacles: model at the spot with z 0 (createCubicObstacle / createCircularObstacle).
+    if (obstacleModel_.loaded()) {
+        for (int i = 0; i < sim_.numObstacles; ++i) {
+            Mtx_Identity(&world);
+            Mtx_Translate(&world, sim_.obstacles[i].x, sim_.obstacles[i].y, 0.0f, true);
+            renderer.drawModel(obstacleModel_, world);
+        }
     }
 
     // IceTreasure: the barrel / TNT copy at the spot, z 0, until grabbed (showGrab).

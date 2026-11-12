@@ -63,7 +63,8 @@ private:
     render::Model backdropModel_;
     render::Model tireModel_;
     render::Model scoreCircleModel_;
-    render::Model barrelModel_, tntModel_;
+    render::Model barrelModel_, tntModel_, obstacleModel_;
+    bool cubicObstacles_ = true;
 
     // setupStartOfMatch: treasures (barrels) and penalties (TNT) from RandomNumGen(doId).
     struct Item {
