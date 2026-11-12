@@ -1,5 +1,7 @@
 #include "game/target_logic.h"
 
+#include <algorithm>
+
 #include <cmath>
 #include <cstring>
 
@@ -226,65 +228,109 @@ int evaluateScore(const TargetRing* targets, int numTargets, float scoreX, float
 }
 
 void FlightState::launch() {
+    // exitLaunch: speedLaunch = power; enterFly: __placeToon, then speed, laterial and zVel.
     mode = FlightMode::Fly;
-    speedForward = kSpeedLaunch * (power / 60.0f);
+    x = kToonStartX;
+    y = 0.0f;
+    z = kToonStartZ;
+    speedForward = power;
     lateral = -aimLateral * 7.0f;
     zVel = speedForward * 0.5f;
-    z = kFlyZStart;
+    gravity = kGravityFly;
 }
 
 void FlightState::openUmbrella() {
+    // enterFall: half the forward speed, gravity 4, the lift of the umbrella from here on.
     if (mode == FlightMode::Fly) {
         mode = FlightMode::Fall;
         speedForward *= 0.5f;
+        gravity = kGravityFall;
     }
 }
 
-void FlightState::step(float inputSteerX, float inputSteerY, float dt) {
+void FlightState::step(float inputSteerX, float inputSteerY, float dt, bool onTramp) {
+    if (mode == FlightMode::Landed) return;
     if (mode == FlightMode::Aim) {
-        power += inputSteerY * 20.0f * dt;
+        power += inputSteerY * 40.0f * dt;
         if (power < 40.0f) power = 40.0f;
         if (power > 120.0f) power = 120.0f;
-        aimLateral += inputSteerX * 5.0f * dt;
+        aimLateral += inputSteerX * kMaxToonXZ * dt;
         if (aimLateral < -kMaxLateral) aimLateral = -kMaxLateral;
         if (aimLateral > kMaxLateral) aimLateral = kMaxLateral;
+        // __updatePowerBarTask: stretchY eases 10 % a frame towards the power (60 Hz frames).
+        const float keep = std::pow(0.9f, dt * 60.0f);
+        stretchY = keep * stretchY + (1.0f - keep) * power;
+        x = kToonStartX - aimLateral;
+        y = -stretchY * 0.12f;
+        z = kToonStartZ;
         return;
     }
-
-    if (mode == FlightMode::Fly) {
-        speedForward -= speedForward * kAirResistance * dt;
-        lateral -= lateral * kAirResistance * dt;
-        y += dt * speedForward;
-        x += dt * lateral;
-        float lift = (speedForward - kSpeedStall) / kSpeedStall;
-        if (lift < 0.0f) lift = 0.0f;
-        zVel += (lift * 2.0f - kGravityFly) * dt;
-        z += zVel * dt;
-        if (z <= 0.0f) {
-            z = 0.0f;
-            mode = FlightMode::Landed;
-        }
-    } else if (mode == FlightMode::Fall) {
+    const FlightMode state = mode;
+    if (state == FlightMode::Fall) {
         speedForward -= speedForward * kUmbrellaResistance * dt;
         lateral -= lateral * kUmbrellaResistance * dt;
-        driftX += inputSteerX * kMaxToonXZ * dt;
-        driftY += inputSteerY * kMaxToonXZ * dt;
-        if (driftX > kMaxToonXZ) driftX = kMaxToonXZ;
-        if (driftX < -kMaxToonXZ) driftX = -kMaxToonXZ;
-        if (driftY > kMaxToonXZ) driftY = kMaxToonXZ;
-        if (driftY < -kMaxToonXZ) driftY = -kMaxToonXZ;
-
-        x += (lateral + driftX) * dt;
-        y += (speedForward + driftY) * dt;
-        float lift = (speedForward - kSpeedStall) / kSpeedStall;
-        if (lift < 0.0f) lift = 0.0f;
-        zVel += (lift - kGravityFall) * dt;
-        z += zVel * dt;
-        if (z <= 0.0f) {
-            z = 0.0f;
+        if (z > 350.0f) speedForward += -(z - 350.0f) * dt * 0.05f;
+    } else {
+        speedForward -= speedForward * kAirResistance * dt;
+        lateral -= lateral * kAirResistance * dt;
+    }
+    float distance = y + dt * speedForward;
+    if (distance > kMaxDist) distance = kMaxDist;
+    if ((state == FlightMode::Fall || state == FlightMode::Bouncing) && distance < 15.0f) distance = 15.0f;
+    float px = x, py = distance, pz = z;
+    if (state == FlightMode::Fly || state == FlightMode::Fall) px += dt * lateral;
+    float liftMult = 0.0f;
+    if (state == FlightMode::Fall || state == FlightMode::Bouncing) {
+        if (state == FlightMode::Fall) {
+            driftX = std::clamp(driftX + inputSteerX * kMaxToonXZ * dt, -kMaxToonXZ, kMaxToonXZ);
+            driftY = std::clamp(driftY + inputSteerY * kMaxToonXZ * dt, -kMaxToonXZ, kMaxToonXZ);
+            liftMult = 1.0f;
+        }
+        px += driftX * dt;
+        py += driftY * dt;
+    }
+    float lift = (speedForward - kSpeedStall) / kSpeedStall * liftMult;
+    if (lift < 0.0f) lift = 0.0f;
+    zVel += (lift - gravity) * dt;
+    pz += zVel * dt;
+    auto rebound = [&](float r) {
+        const float sign = zVel != 0.0f ? (zVel > 0.0f ? 1.0f : -1.0f) : 1.0f;
+        zVel = -(zVel * r - sign * 1.0f);
+    };
+    if (pz < kTrampZ && onTramp) {
+        float r = 0.75f;
+        if (trampBounces >= 1) {
+            r = 0.5f;
+            mode = FlightMode::Bouncing;
+            gravity = kGravityFly;
+        }
+        pz = kTrampZ;
+        rebound(r);
+        ++trampBounces;
+        if (std::fabs(zVel) < 1.0f) {
+            zVel = 0.0f;
             mode = FlightMode::Landed;
         }
+    } else if (pz < 0.1f) {
+        if (state == FlightMode::Fall || state == FlightMode::Fly) {
+            mode = FlightMode::Bouncing;
+            gravity = kGravityFly; // enterBouncing
+        }
+        pz = 0.1f;
+        speedForward *= 0.5f;
+        driftX *= 0.5f;
+        driftY *= 0.5f;
+        rebound(0.5f);
+        if (std::fabs(zVel) < 1.0f) {
+            zVel = 0.0f;
+            if (state == FlightMode::Fly || state == FlightMode::Bouncing) mode = FlightMode::Landed;
+        }
     }
+    if (px > kMaxFieldSpan) { px = kMaxFieldSpan; lateral = 0.0f; }
+    if (px < -kMaxFieldSpan) { px = -kMaxFieldSpan; lateral = 0.0f; }
+    x = px;
+    y = py;
+    z = pz;
 }
 
 } // namespace tt::targetgame

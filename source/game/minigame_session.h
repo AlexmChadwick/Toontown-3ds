@@ -113,6 +113,8 @@ public:
     // before beginWorld while a game is active; releaseWorld restores the defaults after it.
     void applyWorld(render::Renderer& renderer);
     void releaseWorld(render::Renderer& renderer);
+    // Props a game hangs on the local Toon's hands (Toon Slingshot's umbrella), after the Toon's draw.
+    void drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon);
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;

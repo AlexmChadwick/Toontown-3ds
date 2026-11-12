@@ -1070,6 +1070,10 @@ void MinigameSession::draw(render::Renderer& renderer) {
     }
 }
 
+void MinigameSession::drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon) {
+    if (isTarget_) target_.drawHeld(renderer, toon);
+}
+
 const char* MinigameSession::toonNetworkState() const {
     if(isCatch_) return stunned_>0?"off":eating_>0?"CatchEating":"Catching";
     if(isRing_ || isDiving_ || (isCannon_ && cannon_.toonRunning())) return "swim";

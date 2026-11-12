@@ -3542,6 +3542,7 @@ int main() {
                     Mtx_Scale(&m, ts, ts, ts);
                 }
                 localToon.draw(renderer, m, localLookFromServer ? nullptr : &tints);
+                if (minigame.inScene()) minigame.drawHeld(renderer, localToon);
             }
             // ---- racing2 ----
             if (racing.driving() && !racing.active())

@@ -96,7 +96,8 @@ MODELS = {
 
     # Target
     'target_ground': (MG + 'slingshot_game_desert4', None, (0, 0, 0), 1.0, (0, 0, 0)),
-    'target_sling': (MG + 'slingshot_game_cacti', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # RubberBand.setup: the slingshot frame (its own drop shadow included), model z -1 at run time.
+    'target_sling': (MG + 'slingshot_game_sling', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'target_tramp': (MG + 'slingshot_game_tramp', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Cog Thief
@@ -284,6 +285,41 @@ def bake_vine_parts(base, resources, out_dir, max_tex):
     return out
 
 
+def bake_target_props(base, resources, out_dir, max_tex):
+    """DistributedTargetGame's umbrella in each UMBRELLA_TEXTURE_LIST colour (setTexture over the
+    model's own, open_umbrella and closed_umbrella apart in their node frames: the game poses them
+    on the Toon's right hand), and RubberBand's band as a white two-sided unit card (x 0..1,
+    z -0.5..0.5) that the runtime stretches and tints per segment."""
+    from panda3d.core import CardMaker
+    out = []
+    model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, MG + 'slingshot_game_umbrellas.bam')))
+    for i, colour in enumerate(('blue', 'purple', 'red', 'yellow')):
+        tex = base.loader.loadTexture(Filename.fromOsSpecific(
+            os.path.join(resources, 'phase_4/maps/mg_slingshot_umbrella_%s.jpg' % colour)))
+        for part in ('open', 'closed'):
+            root = NodePath('root')
+            node = model.find('**/%s_umbrella' % part).copyTo(root)
+            node.clearTransform()
+            node.setTexture(tex, 1)
+            ex = extract.Extractor(max_tex=max_tex)
+            ex.add(root)
+            name = 'target_umbrella_%s_%d' % (part, i)
+            stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+            stats['name'] = name
+            out.append(stats)
+    cm = CardMaker('band')
+    cm.setFrame(0.0, 1.0, -0.5, 0.5)
+    root = NodePath('root')
+    card = root.attachNewNode(cm.generate())
+    card.setTwoSided(True)
+    ex = extract.Extractor(max_tex=max_tex)
+    ex.add(root)
+    stats = ttm.write(os.path.join(out_dir, 'target_band.ttm'), ex.textures, ex.batches())
+    stats['name'] = 'target_band'
+    out.append(stats)
+    return out
+
+
 def literal_assignment(path, name):
     tree = ast.parse(open(path, encoding='utf-8').read())
     for node in ast.walk(tree):
@@ -352,7 +388,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
@@ -379,6 +415,9 @@ def main():
 
         if args.only in (None, 'vine'):
             report['models'].extend(bake_vine_parts(base, args.resources, args.out, args.max_tex))
+
+        if args.only in (None, 'target'):
+            report['models'].extend(bake_target_props(base, args.resources, args.out, args.max_tex))
 
         if args.only in (None, 'pairing'):
             report['models'].extend(bake_pairing(base, args.resources, args.out, args.max_tex))

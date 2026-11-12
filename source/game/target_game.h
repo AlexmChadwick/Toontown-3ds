@@ -5,6 +5,8 @@
 #include <citro3d.h>
 
 #include "game/target_logic.h"
+#include "world/battle_fx.h"
+#include "world/toon_avatar.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
@@ -28,6 +30,8 @@ public:
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
     void draw(render::Renderer& renderer);
+    // The umbrella on the local Toon's right hand (its torso frame from the latest draw).
+    void drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon);
 
     void camera(C3D_FVec* eye, C3D_FVec* target) const;
     void toonPose(float* x, float* y, float* z, float* h) const;
@@ -51,6 +55,11 @@ private:
     static constexpr int kRingTypes = 5; // 4 target types, then the jump circle
     render::Model skyModel_, sandModel_, mountModel_[2], cactusModel_[2], trampModel_;
     render::Model ringModel_[kRingTypes];
+    render::Model slingModel_, bandModel_, umbrellaOpen_, umbrellaClosed_;
+    void drawBand(render::Renderer& renderer);
+    // Hand tracks of the clips the umbrella rides on (sit, swim, jump-idle) for the local torso.
+    world::JntTrack hands_[3];
+    char handKey_[24] = {};
     targetgame::Field field_;
     int targetTypes_[targetgame::kMaxTargets] = {};
 
