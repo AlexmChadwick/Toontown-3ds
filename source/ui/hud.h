@@ -61,8 +61,8 @@ struct HudValues {
     // aspect2d (0, -0.5)) and its fade, 1 = opaque.
     const char* infoText = nullptr;
     float infoAlpha = 1.0f;
-    int molesLeft = -1;        // DistributedMoleField's frame2D "Moles Left: %d", -1 = hidden
-    int timerBelowSeconds = -1; // ToontownTimer.posBelowTopRightCorner (the mole game), -1 = hidden
+    const char* gameLabel = nullptr; // a room game's frame2D label (Moles Left: n, Maze Race!)
+    int timerBelowSeconds = -1; // ToontownTimer.posBelowTopRightCorner (mole field, maze), -1 = hidden
 };
 
 class Hud {
@@ -84,8 +84,7 @@ private:
     C2D_TextBuf fishBuf_ = nullptr;
     C2D_TextBuf infoBuf_ = nullptr; // info line and Moles Left, re-parsed when the text changes
     C2D_Text infoTextC2d_{}, molesTextC2d_{};
-    char infoLast_[64] = {};
-    int molesLast_ = -1;
+    char infoLast_[64] = {}, labelLast_[32] = {};
     C2D_Text fishText_[5]{};
     unsigned fishRevision_ = ~0u;
 };

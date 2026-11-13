@@ -1531,6 +1531,21 @@ int main() {
                     }
                 }
             }
+            if (!strcmp(autotest.label(), "club: maze") && level.active()) {
+                // Test-only: after the spec jump, stand on the maze's ENTRANCE (starts the race),
+                // then on a dead-end hint (raised camera), then in the finish sphere.
+                static int mazeStage = 0;
+                if (autotest.stepBegan()) mazeStage = 0;
+                const float t = autotest.stepTime();
+                const int want = t > 16.0f ? 3 : t > 10.0f ? 2 : t > 4.0f ? 1 : 0;
+                float p[3];
+                if (want > mazeStage && level.games().mazePoint(want == 1 ? 0 : want == 2 ? 2 : 1, p)) {
+                    mazeStage = want;
+                    player.reset(p[0], p[1], p[2] + 0.5f, player.headingDeg());
+                    TT_LOG("autotest: maze %s at %.1f,%.1f,%.1f", want == 1 ? "entrance" : want == 2 ? "hint" : "finish",
+                           double(p[0]), double(p[1]), double(p[2]));
+                }
+            }
             if (!strcmp(autotest.label(), "club: moles") && level.active()) {
                 // Test-only: once the game runs, step onto a raised Cog mole every 1.5 s (stomp it),
                 // and once, 12 s in, onto a plain mole (it throws the Toon).
@@ -2032,7 +2047,15 @@ int main() {
         tt::world::LevelGames& levelGames = level.games();
         const tt::world::LevelGames::MoleFlight& moleFlight = levelGames.moleFlight();
         const bool moleThrown = level.active() && moleFlight.active;
-        player.setIdealCameraRaise(level.active() && levelGames.moleCamera() ? 22.0f : 0.0f, 12.0f);
+        // The maze's dead-end hints raise it higher still (DistributedMaze.__handleToonEnterHint).
+        if (level.active() && levelGames.mazeHintCamera()) player.setIdealCameraRaise(22.0f, 54.0f);
+        else player.setIdealCameraRaise(level.active() && levelGames.moleCamera() ? 22.0f : 0.0f, 12.0f);
+        float mazeWarp[3];
+        if (level.active() && levelGames.popMazeWarp(mazeWarp)) { // setGameOver: to the finish, jumping
+            player.reset(mazeWarp[0], mazeWarp[1], mazeWarp[2] + 0.5f, player.headingDeg());
+            localToon.playAction(tt::world::kAnimJump, tt::world::ClipMode::Once, 1.0f, 0.0f);
+            TT_LOG("level_games: maze over before we finished: to the finish");
+        }
         if (moleThrown) {
             in.pad.dx = in.pad.dy = 0;
             in.down &= ~KEY_A;
@@ -3910,9 +3933,10 @@ int main() {
             if (level.active()) { // the country club's info line and the mole game's score and clock
                 const u32 now = tt::net::plat::nowMs();
                 hv.infoText = level.games().infoText(now, &hv.infoAlpha);
-                int left, secs;
-                if (level.games().moleHud(&left, &secs, now)) {
-                    hv.molesLeft = left;
+                const char* label;
+                int secs;
+                if (level.games().gameHud(&label, &secs, now)) {
+                    hv.gameLabel = label;
                     hv.timerBelowSeconds = secs;
                 }
             }

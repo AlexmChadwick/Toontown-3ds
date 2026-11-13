@@ -348,22 +348,21 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
     if (v.photoViewfinder) drawViewfinder(top);
-    if (v.infoText || v.molesLeft >= 0) {
+    if (v.infoText || v.gameLabel) {
         const char* info = v.infoText ? v.infoText : "";
-        if (std::strncmp(info, infoLast_, sizeof(infoLast_) - 1) || v.molesLeft != molesLast_) {
+        const char* label = v.gameLabel ? v.gameLabel : "";
+        if (std::strncmp(info, infoLast_, sizeof(infoLast_) - 1) || std::strncmp(label, labelLast_, sizeof(labelLast_) - 1)) {
             C2D_TextBufClear(infoBuf_);
             tt::render::textParseSign(&infoTextC2d_, infoBuf_, info);
             C2D_TextOptimize(&infoTextC2d_);
-            char moles[32];
-            std::snprintf(moles, sizeof(moles), "Moles Left: %d", v.molesLeft > 0 ? v.molesLeft : 0);
-            tt::render::textParseSign(&molesTextC2d_, infoBuf_, moles);
+            tt::render::textParseSign(&molesTextC2d_, infoBuf_, label);
             C2D_TextOptimize(&molesTextC2d_);
             std::snprintf(infoLast_, sizeof(infoLast_), "%s", info);
-            molesLast_ = v.molesLeft;
+            std::snprintf(labelLast_, sizeof(labelLast_), "%s", label);
         }
         C2D_SceneBegin(top);
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
-        if (v.molesLeft >= 0) {
+        if (v.gameLabel) {
             // frame2D: (0, 0.9), frameSize 0.6 x 0.1, frameColor (0.737, 0.573, 0.345, 0.3); the label at
             // text_pos (0, -0.02), scale 0.075. 1.5 x upstream's share, so the sign font reads on 400 px.
             constexpr float kS = 1.5f, kUnit = 120.0f;

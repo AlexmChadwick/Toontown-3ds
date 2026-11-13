@@ -22,6 +22,7 @@ setCogSpec). Deterministic; run with -I.
 """
 import argparse
 import json
+import struct
 import os
 from pathlib import Path
 import sys
@@ -463,6 +464,84 @@ def spin_props(level, ents, model, out, write=True):
     return found
 
 
+# DistributedMaze.RemoveBlocksDict's hedge blocks (the only ones a maze ever removes), in the
+# order of their collision variants 17.. (bake_facility_floors.maze_collision).
+MAZE_BLOCKS = ('HedgeBlock_0_1', 'HedgeBlock_0_2', 'HedgeBlock_1_3', 'HedgeBlock_2_3')
+TMZ = struct.Struct('<4sHBB')        # magic 'TMZ1', version, sections, blocks
+TMZ_POINT = struct.Struct('<3f')
+
+
+def maze_sections(model):
+    """The Maze_Inside_<i> nodes DistributedMaze.gotRoom turns, in index order."""
+    out = []
+    for i in range(4):
+        n = model.find('**/Maze_Inside_%d;+s' % i)
+        if not n.isEmpty():
+            out.append(n)
+    return out
+
+
+def maze_part_nodes(model):
+    """The maze sections and removable hedge blocks of a room model, stashed or not."""
+    blocks = [model.find('**/%s;+s' % name) for name in MAZE_BLOCKS]
+    return maze_sections(model) + [n for n in blocks if not n.isEmpty()]
+
+
+def maze_parts(level, ents, model, out, write=True):
+    """DistributedMaze.gotRoom / removeHedgeBlocks / addHints: a maze room's Maze_Inside_<i>
+    sections (each turned by 0 / 90 / 180 / 270 from random.Random(entId * doId)) and its
+    removable HedgeBlock_* leave the static room and become <level>_maze_<i>.ttm (in the
+    section's space) and <level>_hedge_<name>.ttm (room space), described by <level>.tmz:
+      header  4s 'TMZ1', u16 version 1, u8 numSections, u8 numBlocks
+      section f32 mat[12] (rows: x, y, z axes and pos, section -> room, H 0)
+      block   char name[16] (MAZE_BLOCKS), f32 mat[12]
+      points  f32 entrance[3], f32 finish[3], u16 numHints, u16 pad, f32 hint[numHints][3]
+              (the ENTRANCE, finish and dead* nodes, room space)
+    Their collision stays out of the room too: bake_facility_floors adds it per variant."""
+    if not any(spec['type'] == 'maze' for spec in ents.values()):
+        return None
+    import extract
+    import ttm
+    sections = maze_sections(model)
+    blocks = [(name, model.find('**/%s;+s' % name)) for name in MAZE_BLOCKS]
+    blocks = [(name, n) for name, n in blocks if not n.isEmpty()]
+    data = bytearray(TMZ.pack(b'TMZ1', 1, len(sections), len(blocks)))
+    files = []
+    for i, n in enumerate(sections):
+        name = f'{level}_maze_{i}.ttm'
+        if write:
+            ex = extract.Extractor(max_tex=128)
+            ex.add(n)
+            ttm.write(str(out / name), ex.textures, ex.batches())
+        data += struct.pack('<12f', *mat12(n, model))
+        files.append(name)
+    for block, n in blocks:
+        name = f'{level}_hedge_{block}.ttm'
+        if write:
+            ex = extract.Extractor(max_tex=128)
+            ex.add(n)
+            batches = ex.batches()
+            mat = n.getMat(model)
+            if not mat.isIdentity():
+                for b in batches:
+                    b.verts[:, :3] = [tuple(mat.xformPoint(tuple(p))) for p in b.verts[:, :3]]
+            ttm.write(str(out / name), ex.textures, batches)
+        data += struct.pack('<16s', block.encode()) + struct.pack('<12f', *mat12(n, model))
+        files.append(name)
+    entrance, finish = model.find('**/ENTRANCE'), model.find('**/finish')
+    hints = list(model.findAllMatches('**/dead*'))
+    for p in (entrance, finish):
+        data += TMZ_POINT.pack(*(p.getPos(model) if not p.isEmpty() else (0, 0, 0)))
+    data += struct.pack('<HH', len(hints), 0)
+    for h in hints:
+        data += TMZ_POINT.pack(*h.getPos(model))
+    for n in sections + [b for _, b in blocks]:
+        n.stash()
+    if write:
+        (out / f'{level}.tmz').write_bytes(bytes(data))
+    return {'tmz': f'{level}.tmz', 'files': files, 'hints': len(hints)}
+
+
 def load_level(level, args, base):
     """The spec, cogs and model of one level (LEVELS / room_levels names)."""
     import level_spec_load
@@ -491,6 +570,7 @@ def prepare_level(level, args, base, out, write=True):
     report['lift_guards'] = lift_guards(ents, model)
     spins = spin_props(level, ents, model, out, write)
     report['spin_props'] = [s['file'] for s in spins]
+    report['maze'] = maze_parts(level, ents, model, out, write)
     report['tlv'], nodes = build_tlv(ents, cogs, model, out / f'{level}.tlv' if write else None,
                                      path_family(level), spins)
     report['model_entities'] = attach_model_entities(ents, nodes, base.loader, args.resources)

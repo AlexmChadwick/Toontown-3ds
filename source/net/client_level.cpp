@@ -306,12 +306,18 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
     } else if (fieldId == dc::DistributedMaze::k_setGameStart) {
         const int16_t ts = r.i16();
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        e.gameStartSeq++;
         TT_LOG("net: maze %u setGameStart", unsigned(e.doId));
     } else if (fieldId == dc::DistributedMaze::k_setGameOver) {
         e.gameOver = true;
     } else if (fieldId == dc::DistributedMaze::k_toonFinished) {
-        r.u32(); r.u8(); const uint8_t last = r.u8();
-        if (last) e.gameOver = true;
+        // (avId, place, lastToon) on the mole event ring: index = place, status = lastToon.
+        LevelEntityObj::MoleEvent& m = e.moleEvents[e.moleEventSeq % 8];
+        m = LevelEntityObj::MoleEvent{};
+        m.avId = r.u32();
+        m.index = int8_t(r.u8());
+        m.status = int8_t(r.u8());
+        e.moleEventSeq++;
     } else if (fieldId == dc::DistributedMoleField::k_setGameStart) {
         const int16_t ts = r.i16();
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;

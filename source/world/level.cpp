@@ -1564,6 +1564,7 @@ bool Level::loadRoom(int room, const char* name, const float placement[12]) {
         if (spec_.entity(i).room == room) r.zoneNums[r.numZones++] = uint16_t(spec_.entity(i).entId);
     std::sort(r.zoneNums, r.zoneNums + r.numZones); // LevelMgr.privAssignZoneIds: sorted zone nums
     TT_LOG("level: room %d %s: %d zones, %d chunks", room, name, r.numZones, r.zone.numChunks());
+    games_.loadMaze(room, name); // a hedge maze room's turnable sections (level_games)
     return true;
 }
 
@@ -1583,6 +1584,7 @@ bool Level::loadFloor(const net::Facility& fac) {
               h.numPieces <= kMaxPieces && h.numPieces == 2 * fac.numRooms - 1 && fac.numRooms <= kMaxRooms;
     if (!ok) TT_LOG("level: %s: bad file, or %u pieces for %u rooms", file, unsigned(h.numPieces), unsigned(fac.numRooms));
     numPieces_ = 0;
+    games_.resetMaze();
     for (int i = 0; ok && i < h.numPieces; ++i) {
         FloorPiece fp;
         ok = readAt(f, long(h.piecesOffset + i * sizeof(fp)), &fp, sizeof(fp));
@@ -1636,6 +1638,7 @@ bool Level::loadFloor(const net::Facility& fac) {
         }
     }
     if (ok) ok = floorCollision_.loadFrom(f, h.collisionOffset, h.collisionSize, file);
+    floorCollision_.setVariantMask(CollisionWorld::kMazeDefaultVariants); // until the maze generates
     fclose(f);
     if (!ok) return false;
     TT_LOG("level: floor %s: %d rooms, %d pieces, %d door frames, %d floor tris", file, numRooms_, numPieces_,

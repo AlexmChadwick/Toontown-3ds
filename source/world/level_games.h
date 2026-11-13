@@ -155,7 +155,7 @@ public:
     bool nearestGolfGreen(const Level& level, float x, float y, float z, float* outX, float* outY, float* outZ) const;
 
 private:
-    BasicAssetBatch<16> assetBatch_;
+    BasicAssetBatch<24> assetBatch_;
     bool propsLoaded_ = false;
 
     // Models:
@@ -271,7 +271,40 @@ private:
     void moleInfo(const char* text, uint32_t nowMs);
     // ---- end mole field ----
 
+    // ---- DistributedMaze (bake_level.maze_parts: <level>.tmz + section / hedge models) ----
+    struct MazeRoom {
+        int room = -1;  // Level room index; -1 = no maze on this floor
+        int numSections = 0, numBlocks = 0;
+        float section[4][12] = {}; // section -> room, H 0
+        char blockName[4][16] = {};
+        float block[4][12] = {};
+        float entrance[3] = {}, finish[3] = {}; // room space
+        int numHints = 0;
+        float hints[16][3] = {};
+        int rotation[4] = {};        // degrees, from the maze's random.Random(entId * doId)
+        bool blockShown[4] = {true, true, true, true};
+        uint32_t mazeDoId = 0;       // the DistributedMaze the layout came from
+        uint8_t startSeq = 0;
+        uint16_t eventSeq = 0;
+        bool gameStarted = false, finished = false, timedOut = false, entered = false, inHint = false;
+        uint32_t timerEndMs = 0;
+    };
+    MazeRoom maze_;
+    render::Model mazeSectionModel_[4], mazeBlockModel_[4];
+    void applyMaze(Level& level, const net::LevelEntityObj& d);
+    // ---- end maze ----
+
 public:
+    // Level::loadRoom: a room with <level>.tmz is a hedge maze room.
+    void loadMaze(int room, const char* level);
+    void resetMaze();
+    // The maze's dead-end hint spheres (__handleToonEnterHint): the camera at (0, -22 h / 3, h + 54).
+    bool mazeHintCamera() const { return maze_.inHint; }
+    // Test-only: the maze's ENTRANCE (0), finish (1) or first dead-end hint (2) in world space.
+    bool mazePoint(int which, float out[3]) const;
+    // The game's frame2D label (Moles Left: n / Maze Race!) and its ToontownTimer; false = hidden.
+    bool gameHud(const char** label, int* timerSeconds, uint32_t nowMs) const;
+
     // The local Toon thrown by a mole (DistributedMoleField.__showToonHitByBomb): main.cpp plays
     // it while active and leaves the Toon at end.
     struct MoleFlight {
@@ -293,15 +326,26 @@ public:
     bool moleTarget(bool cog, float out[3]) const;
     // The country club's showInfoText (sign font, 3.1 s then a 0.5 s fade): text and alpha now.
     const char* infoText(uint32_t nowMs, float* alpha) const;
-    // DistributedMoleField's frame2D ("Moles Left: %d") and ToontownTimer below the top right
-    // corner; false while no mole game shows them.
-    bool moleHud(int* molesLeft, int* timerSeconds, uint32_t nowMs) const;
 
 private:
     MoleFlight moleFlight_;
     bool moleCamera_ = false;
     float cameraEye_[3] = {};
     char infoText_[64] = {};
+    mutable char hudLabel_[32] = {};
+    // A maze timeout (setGameOver while not finished): main.cpp puts the Toon at the finish.
+    bool hasMazeWarp_ = false;
+    float mazeWarp_[3] = {};
+
+public:
+    bool popMazeWarp(float out[3]) {
+        if (!hasMazeWarp_) return false;
+        hasMazeWarp_ = false;
+        std::memcpy(out, mazeWarp_, sizeof(mazeWarp_));
+        return true;
+    }
+
+private:
     uint32_t infoMs_ = 0;
 
     const net::Client* client_ = nullptr;

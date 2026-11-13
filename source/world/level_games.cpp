@@ -94,6 +94,8 @@ constexpr const char* kPropsDir = "sdmc:/3ds/toontown3ds/data/level/props/";
 constexpr const char* kAudioDir = "sdmc:/3ds/toontown3ds/data/audio/";
 constexpr float kPi = 3.14159265358979323846f;
 constexpr float kDegToRad = kPi / 180.0f;
+// GravityWalker's event sphere: centre avatarRadius - 0.1 up, radius avatarRadius * 1.04.
+constexpr float kToonEventZ = 1.3f, kToonEventR = 1.456f;
 
 // Math helpers
 inline void toMtxLocal(const float w[12], C3D_Mtx* m) {
@@ -197,6 +199,10 @@ void LevelGames::shutdown() {
     golfHole_.unload();
     golfBall_.unload();
     goonCone_.unload();
+    resetMaze();
+    for (MoleField& f : moleFields_) f.slot = -1;
+    moleFlight_.active = false;
+    infoMs_ = 0;
     for (auto& s : slots_) s = SlotState{};
 }
 
@@ -460,43 +466,177 @@ void LevelGames::updateCrates(net::Client& client, Level& level, float toonX, fl
     }
 }
 
+// ---- DistributedMaze ----
+namespace {
+// DistributedMaze.RemoveBlocksDict[4] in bake_level.MAZE_BLOCKS indices (0_1, 0_2, 1_3, 2_3). Its
+// 2-section entry is a bare string, so choice() returns it and removeHedgeBlocks looks up one
+// character at a time: nothing is removed there.
+constexpr uint8_t kRemoveBlocks4[3] = {0b1101, 0b1110, 0b1111};
+constexpr const char* kMazeBlockNames[4] = {"HedgeBlock_0_1", "HedgeBlock_0_2", "HedgeBlock_1_3", "HedgeBlock_2_3"};
+// TTLocalizer
+constexpr const char* kEnterHedgeMaze = "Race through the Hedge Maze\n for a laff bonus!";
+constexpr const char* kHedgeMazePlaces[4] = {"first", "second", "third", "fourth"};
+} // namespace
+
+void LevelGames::loadMaze(int room, const char* level) {
+    char path[128];
+    std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/level/%s.tmz", level);
+    FILE* f = std::fopen(path, "rb");
+    if (!f) return; // not a maze room
+    resetMaze();
+    MazeRoom& m = maze_;
+    struct {
+        char magic[4];
+        uint16_t version;
+        uint8_t sections, blocks;
+    } h;
+    bool ok = std::fread(&h, sizeof(h), 1, f) == 1 && !std::memcmp(h.magic, "TMZ1", 4) && h.version == 1 &&
+              h.sections <= 4 && h.blocks <= 4;
+    for (int i = 0; ok && i < h.sections; ++i) ok = std::fread(m.section[i], sizeof(m.section[i]), 1, f) == 1;
+    for (int i = 0; ok && i < h.blocks; ++i)
+        ok = std::fread(m.blockName[i], 16, 1, f) == 1 && std::fread(m.block[i], sizeof(m.block[i]), 1, f) == 1;
+    uint16_t hints[2] = {};
+    ok = ok && std::fread(m.entrance, sizeof(m.entrance), 1, f) == 1 && std::fread(m.finish, sizeof(m.finish), 1, f) == 1 &&
+         std::fread(hints, sizeof(hints), 1, f) == 1;
+    m.numHints = ok ? (hints[0] < 16 ? hints[0] : 16) : 0;
+    for (int i = 0; ok && i < m.numHints; ++i) ok = std::fread(m.hints[i], sizeof(m.hints[i]), 1, f) == 1;
+    std::fclose(f);
+    if (!ok) {
+        TT_LOG("level_games: bad %s", path);
+        m = MazeRoom{};
+        return;
+    }
+    m.room = room;
+    m.numSections = h.sections;
+    m.numBlocks = h.blocks;
+    for (int i = 0; i < m.numSections; ++i) {
+        std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/level/%s_maze_%d.ttm", level, i);
+        assetBatch_.load(mazeSectionModel_[i], path);
+    }
+    for (int i = 0; i < m.numBlocks; ++i) {
+        m.blockName[i][15] = 0;
+        std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/level/%s_hedge_%s.ttm", level, m.blockName[i]);
+        assetBatch_.load(mazeBlockModel_[i], path);
+    }
+    TT_LOG("level_games: room %d %s is a hedge maze: %d sections, %d hedge blocks, %d hints", room, level,
+           m.numSections, m.numBlocks, m.numHints);
+}
+
+void LevelGames::resetMaze() {
+    for (auto& mdl : mazeSectionModel_) mdl.unload();
+    for (auto& mdl : mazeBlockModel_) mdl.unload();
+    maze_ = MazeRoom{};
+}
+
+// DistributedMaze.gotRoom + removeHedgeBlocks for this maze object, and the matching collision.
+void LevelGames::applyMaze(Level& level, const net::LevelEntityObj& d) {
+    MazeRoom& m = maze_;
+    const uint64_t seed = uint64_t(d.entId) * d.doId;
+    int rot[4];
+    games_logic::shuffleMazeRotations(seed, rot);
+    uint8_t removed = 0;
+    if (m.numSections == 4) removed = kRemoveBlocks4[PyRandom(seed).choiceIndex(3)];
+    uint32_t mask = CollisionWorld::kMazeDefaultVariants & ~(0xFFFFu << 1) & ~(0xFu << 17);
+    for (int i = 0; i < 4; ++i) {
+        m.rotation[i] = i < m.numSections ? rot[i] : 0;
+        mask |= 1u << (1 + 4 * i + m.rotation[i] / 90);
+    }
+    for (int i = 0; i < m.numBlocks; ++i) {
+        int k = 0;
+        while (k < 4 && std::strcmp(m.blockName[i], kMazeBlockNames[k])) ++k;
+        m.blockShown[i] = k >= 4 || !(removed >> k & 1);
+        if (k < 4 && m.blockShown[i]) mask |= 1u << (17 + k);
+    }
+    level.floorCollision_.setVariantMask(mask);
+    m.mazeDoId = d.doId;
+    m.startSeq = d.gameStartSeq; // a game already running when we arrived is not ours to start
+    m.eventSeq = d.moleEventSeq;
+    m.gameStarted = m.finished = m.timedOut = m.entered = m.inHint = false;
+    m.timerEndMs = 0;
+    TT_LOG("level_games: maze %u: sections at %d / %d / %d / %d, hedge blocks removed 0x%x", unsigned(d.doId),
+           m.rotation[0], m.rotation[1], m.rotation[2], m.rotation[3], unsigned(removed));
+}
+
 void LevelGames::updateMazes(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs) {
-    (void)nowMs;
+    MazeRoom& m = maze_;
+    m.inHint = false;
+    if (m.room < 0) return;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         if (!d.active || d.classId != dc::DistributedMaze::kClassId) continue;
         const LevelEntity* e = level.specOf(d.levelDoId, d.entId);
-        if (!e || !level.shown(e->room)) continue;
-
-        SlotState& slot = slots_[i];
-        float localToon[3];
-        toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
-
-        // Entrance trigger: sphere radius 8.0 at entrance
-        const float distFromOrigin = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1]);
-        if (distFromOrigin < 8.0f && !slot.mazeTriggered) {
-            slot.mazeTriggered = true;
+        if (!e || e->room != m.room) continue;
+        if (d.doId != m.mazeDoId) applyMaze(level, d);
+        const float* place = level.rooms_[m.room].placement;
+        auto inSphere = [&](const float roomPos[3], float r) {
+            float w[3];
+            fromLocalLocal(place, roomPos, w);
+            const float dx = toonX - w[0], dy = toonY - w[1], dz = toonZ + kToonEventZ - w[2];
+            const float rr = r + kToonEventR;
+            return dx * dx + dy * dy + dz * dz < rr * rr;
+        };
+        // setGameStart: GameDuration = 35 + numSections * 15 on the timer below the corner.
+        if (d.gameStartSeq != m.startSeq && d.gameStartMs) {
+            m.startSeq = d.gameStartSeq;
+            m.gameStarted = true;
+            m.timerEndMs = d.gameStartMs + uint32_t((35 + m.numSections * 15) * 1000);
+        }
+        if (m.timerEndMs && int32_t(nowMs - m.timerEndMs) >= 0) m.timerEndMs = 0; // timerExpired
+        // __handleToonEnterance (radius 8 at ENTRANCE), __handleToonFinish (15 at finish).
+        const bool atEntrance = inSphere(m.entrance, 8.0f);
+        if (atEntrance && !m.entered && !m.gameStarted) {
             TT_LOG("level_games: toon entered maze %u (sending setClientTriggered)", unsigned(d.doId));
             client.sendMazeTriggered(d.doId);
+            moleInfo(kEnterHedgeMaze, nowMs);
         }
-
-        // Finish trigger: sphere radius 15.0 at exit (local Y ~ 100)
-        const float distFromExit = std::sqrt(localToon[0] * localToon[0] + (localToon[1] - 90.0f) * (localToon[1] - 90.0f));
-        if (distFromExit < 15.0f && slot.mazeTriggered && !slot.mazeFinished) {
-            slot.mazeFinished = true;
+        m.entered = atEntrance;
+        if (inSphere(m.finish, 15.0f) && !m.finished) {
+            m.finished = true;
             TT_LOG("level_games: toon finished maze %u (sending setFinishedMaze)", unsigned(d.doId));
             client.sendMazeFinished(d.doId);
         }
+        for (int h = 0; h < m.numHints && !m.inHint; ++h) m.inHint = inSphere(m.hints[h], 7.0f);
+        // toonFinished(avId, place, lastToon); lastToon -> setGameOver.
+        bool gameOver = d.gameOver && !m.timedOut;
+        while (m.eventSeq != d.moleEventSeq) {
+            if (uint16_t(d.moleEventSeq - m.eventSeq) > 8) m.eventSeq = uint16_t(d.moleEventSeq - 8);
+            const net::LevelEntityObj::MoleEvent& ev = d.moleEvents[m.eventSeq % 8];
+            m.eventSeq++;
+            const char* name = ev.avId == client.avatarId() ? client.avatarName() : client.avatarName(ev.avId);
+            if (!m.timedOut && name) {
+                char line[64];
+                std::snprintf(line, sizeof(line), "%s \n  finished in %s place!", name,
+                              kHedgeMazePlaces[ev.index >= 0 && ev.index < 4 ? ev.index : 3]);
+                moleInfo(line, nowMs);
+            }
+            if (ev.status) gameOver = !m.timedOut;
+        }
+        if (gameOver) { // setGameOver: a Toon still in the maze takes damage and teleports to the finish
+            m.timedOut = true;
+            if (!m.finished) {
+                client.sendMazeDamage(d.doId);
+                fromLocalLocal(place, m.finish, mazeWarp_);
+                hasMazeWarp_ = true;
+            }
+            m.timerEndMs = 0;
+        }
     }
 }
+
+bool LevelGames::mazePoint(int which, float out[3]) const {
+    if (!level_ || maze_.room < 0 || (which == 2 && maze_.numHints == 0)) return false;
+    const float* p = which == 0 ? maze_.entrance : which == 1 ? maze_.finish : maze_.hints[0];
+    fromLocalLocal(level_->rooms_[maze_.room].placement, p, out);
+    return true;
+}
+
+// ---- end maze ----
 
 // ---- DistributedMoleField / MoleHill ----
 namespace {
 
 constexpr float kMoleDownZ = -2.5f;
 constexpr float kMoleScale = 0.75f;
-// GravityWalker's event sphere: centre avatarRadius - 0.1 up, radius avatarRadius * 1.04.
-constexpr float kToonEventZ = 1.3f, kToonEventR = 1.456f;
 // MoleHill.setHillType's moleHead jitters (LerpPosInterval, 0.05 s each, from the head's place).
 constexpr float kWhackJitter[20][3] = {
     {0.18f, 0, 0}, {0, -0.13f, 0}, {0, 0, 0.18f}, {-0.15f, 0, 0}, {0, 0.18f, 0}, {0.11f, 0, 0}, {0, -0.12f, 0},
@@ -569,16 +709,25 @@ const char* LevelGames::infoText(uint32_t nowMs, float* alpha) const {
     return infoText_;
 }
 
-bool LevelGames::moleHud(int* molesLeft, int* timerSeconds, uint32_t nowMs) const {
+bool LevelGames::gameHud(const char** label, int* timerSeconds, uint32_t nowMs) const {
+    auto secondsTo = [nowMs](uint32_t endMs) {
+        const int32_t ms = int32_t(endMs - nowMs);
+        return endMs && ms > 0 ? int((ms + 999) / 1000) : -1;
+    };
     for (const MoleField& f : moleFields_) {
         if (f.slot < 0 || !f.gameStarted || f.won || !client_) continue;
         const net::LevelEntityObj& d = client_->levelEntitySlot(f.slot);
         if (!d.active || d.doId != f.doId) continue;
         const int left = int(d.molesWhackedTarget) - int(d.score);
         if (left < 0) continue;
-        *molesLeft = left;
-        const int32_t ms = int32_t(f.timerEndMs - nowMs);
-        *timerSeconds = f.timerEndMs && ms > 0 ? (ms + 999) / 1000 : -1;
+        std::snprintf(hudLabel_, sizeof(hudLabel_), "Moles Left: %d", left); // TTLocalizer.MolesLeft
+        *label = hudLabel_;
+        *timerSeconds = secondsTo(f.timerEndMs);
+        return true;
+    }
+    if (maze_.room >= 0 && maze_.gameStarted && maze_.timerEndMs) { // DistributedMaze.loadGui
+        *label = "Maze Race!"; // TTLocalizer.mazeLabel
+        *timerSeconds = secondsTo(maze_.timerEndMs);
         return true;
     }
     return false;
@@ -906,6 +1055,23 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
 
 void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
     if (!client_ || !level_) return;
+    if (maze_.room >= 0 && level_->shown(maze_.room)) {
+        // The hedge maze's sections at their H, and the hedge blocks it kept.
+        C3D_Mtx room;
+        toMtxLocal(level_->rooms_[maze_.room].placement, &room);
+        for (int i = 0; i < maze_.numSections; ++i) {
+            if (!mazeSectionModel_[i].loaded()) continue;
+            C3D_Mtx sec, m;
+            toMtxLocal(maze_.section[i], &sec);
+            Mtx_Multiply(&m, &room, &sec);
+            Mtx_RotateZ(&m, maze_.rotation[i] * kDegToRad, true);
+            renderer.drawModel(const_cast<render::Model&>(mazeSectionModel_[i]), m);
+        }
+        for (int i = 0; i < maze_.numBlocks; ++i) {
+            if (!maze_.blockShown[i] || !mazeBlockModel_[i].loaded()) continue;
+            renderer.drawModel(const_cast<render::Model&>(mazeBlockModel_[i]), room);
+        }
+    }
 
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client_->levelEntitySlot(i);

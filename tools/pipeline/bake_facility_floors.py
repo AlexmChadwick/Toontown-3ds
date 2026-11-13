@@ -135,7 +135,17 @@ class Rooms:
             model, _, _ = bake_level.prepare_level(level, self.args, self.base, out, write=False)
             model.detachNode()
             self.cache[level] = model
-        return self.cache[level].copyTo(self.base.render)
+        # copyTo leaves stashed children out: unstash the maze parts (bake_level.maze_parts
+        # stashed them) for the copy, then stash them again in both.
+        import bake_level
+        src = self.cache[level]
+        parts = bake_level.maze_part_nodes(src)
+        for n in parts:
+            n.unstash()
+        copy = src.copyTo(self.base.render)
+        for n in parts + bake_level.maze_part_nodes(copy):
+            n.stash()
+        return copy
 
 
 def mat12(np_, other):
@@ -153,6 +163,41 @@ def floor_tris(geom, root):
         if flags & collide.FLOOR and not flags & collide.TRIGGER:
             out.append([tuple(root_inv.xformPoint(tuple(map(float, p)))) for p in (a, b, c)])
     return out
+
+
+def maze_collision(geom, root, mesh):
+    """A maze room's turnable sections and removable hedge blocks (bake_level.maze_parts stashed
+    them): every section's walls once per rotation, tagged variant 1 + 4 * section + H / 90,
+    and each block as variant 17 + its MAZE_BLOCKS index, in flags bits 24-28. The runtime
+    turns on the variants the maze's random.Random(entId * doId) picks (CollisionWorld)."""
+    import bake_level
+    import collide
+    sections = bake_level.maze_sections(geom)
+    if not sections:
+        return 0
+    added = 0
+    def add(node, variant, h=0):
+        nonlocal added
+        tmp = root.attachNewNode('maze_variant')
+        c = node.copyTo(tmp)
+        c.unstash()
+        c.setMat(root, node.getMat(root))
+        c.setH(c, h)
+        m = collide.extract(tmp, fallback_floor=False)
+        for v0, v1, v2, n, flags in m.tris:
+            if not flags & collide.TRIGGER:
+                mesh.tris.append((v0, v1, v2, n, flags | (variant << 24)))
+                added += 1
+        assert not m.caps and not m.planes, 'maze collision is polygons only'
+        tmp.removeNode()
+    for i, n in enumerate(sections):
+        for r in range(4):
+            add(n, 1 + 4 * i + r, 90 * r)
+    for k, name in enumerate(bake_level.MAZE_BLOCKS):
+        n = geom.find('**/%s;+s' % name)
+        if not n.isEmpty():
+            add(n, 17 + k)
+    return added
 
 
 def bake_floor(key, rooms, base, args):
@@ -210,7 +255,9 @@ def bake_floor(key, rooms, base, args):
         owner = next(n for n, (p, _, _) in enumerate(pieces) if p.getGeom().isAncestorOf(np_))
         doors.append(DOOR.pack(owner, style, *mat12(np_, root)))
 
-    collision, stats = collide.extract(root, fallback_floor=False).pack()
+    mesh = collide.extract(root, fallback_floor=False)
+    maze_tris = sum(maze_collision(piece.getGeom(), root, mesh) for piece, _, _ in pieces)
+    collision, stats = mesh.pack()
     pieces_off = HEADER.size
     doors_off = pieces_off + PIECE.size * len(records)
     tris_off = doors_off + DOOR.size * len(doors)
@@ -233,7 +280,7 @@ def bake_floor(key, rooms, base, args):
     out.write_bytes(bytes(data))
     root.removeNode()
     return {'file': out.name, 'pieces': [p[1] for p in pieces], 'door_frames': len(doors),
-            'floor_tris': len(tris), 'collision_bytes': len(collision), 'bytes': size}
+            'floor_tris': len(tris), 'maze_tris': maze_tris, 'collision_bytes': len(collision), 'bytes': size}
 
 
 def bake_connectors(base, args, keys):

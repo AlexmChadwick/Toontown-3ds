@@ -426,6 +426,7 @@ float CollisionWorld::groundHeight(float x, float y, float zFrom, bool* found, f
         const uint16_t* idx = cl.idx;
         for (uint16_t i = 0; i < cl.counts[0]; ++i) {
             const CollTri& t = tris_[idx[i]];
+            if (!variantOn(t.flags)) continue;
             float nz = t.n[2];
             if (fabsf(nz) < 1e-4f) continue;
             // 2D point-in-triangle, either winding, edges inclusive.
@@ -490,6 +491,7 @@ bool CollisionWorld::gatherWalls(float x0, float y0, float x1, float y1, float z
                 if (stamps_[ti] == s) continue;
                 stamps_[ti] = s;
                 const CollTri& t = tris_[ti];
+                if (!variantOn(t.flags)) continue;
                 if (minf(t.v0[0], minf(t.v1[0], t.v2[0])) > x1 || maxf(t.v0[0], maxf(t.v1[0], t.v2[0])) < x0 ||
                     minf(t.v0[1], minf(t.v1[1], t.v2[1])) > y1 || maxf(t.v0[1], maxf(t.v1[1], t.v2[1])) < y0 ||
                     minf(t.v0[2], minf(t.v1[2], t.v2[2])) > z1 || maxf(t.v0[2], maxf(t.v1[2], t.v2[2])) < z0)
@@ -694,6 +696,7 @@ bool CollisionWorld::cameraRaycast(const Vec3& from, const Vec3& to, float* hitT
                 uint16_t ti = idx[i];
                 if (stamps_[ti] == s) continue;
                 stamps_[ti] = s;
+                if (!variantOn(tris_[ti].flags)) continue;
                 float t = rayTri(o, d, tris_[ti], 1.0f);
                 if (t >= 0.0f && t < best) best = t;
             }
@@ -767,6 +770,7 @@ bool CollisionWorld::cameraSphereCast(const Vec3& from, const Vec3& to, float ra
             const uint16_t ti = idx[i];
             if (stamps_[ti] == s) continue;
             stamps_[ti] = s;
+            if (!variantOn(tris_[ti].flags)) continue;
             const float t = sphereCastTri(o, d, radius, tris_[ti]);
             if (t >= 0.0f && t < best) best = t;
         }
