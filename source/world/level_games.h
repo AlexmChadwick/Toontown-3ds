@@ -172,8 +172,8 @@ private:
     render::Model moleNorm_;
     render::Model moleCog_;
     render::Model moleHit_;
-    render::Model golfHole_;
-    render::Model golfBall_;
+    render::Model golfGreen_;
+    render::Model golfFlag_;
     render::Model securityCamera_; // square_stomper, DistributedSecurityCamera's model
     render::Model gridFloor_;      // FloorWear, DistributedGrid's model
 
@@ -245,7 +245,8 @@ private:
 
         // Golf
         bool joinedGolf = false;
-        int currentSpot = -1;
+        bool golfEntered = false; // hasEntered: the instruction shows once
+        uint8_t golfJoinSeq = 0, golfDoneSeq = 0;
     };
     SlotState slots_[net::kMaxLevelEntities] = {};
 

@@ -1502,7 +1502,8 @@ int main() {
                      0.1f, 0},
                     {"club: maze", "maze", tt::dc::DistributedMaze::kClassId, 0, 2, 0.1f, 0},
                     {"club: moles", "moleField", tt::dc::DistributedMoleField::kClassId, 0, 0, 0.1f, 0},
-                    {"club: golf green", "golfGreenGame", tt::dc::DistributedGolfGreenGame::kClassId, 3, 13, 0.1f,
+                    // Inside the green's 11.5 join sphere, facing the flag.
+                    {"club: golf green", "golfGreenGame", tt::dc::DistributedGolfGreenGame::kClassId, 0, 9, 0.1f,
                      180},
                 };
                 static bool gameFound = false;

@@ -228,10 +228,10 @@ void LevelGames::loadProps() {
     snprintf(path, sizeof(path), "%smole_hit.ttm", kPropsDir);
     assetBatch_.load(moleHit_, path);
 
-    snprintf(path, sizeof(path), "%sgolf_hole.ttm", kPropsDir);
-    assetBatch_.load(golfHole_, path);
-    snprintf(path, sizeof(path), "%sgolf_ball.ttm", kPropsDir);
-    assetBatch_.load(golfBall_, path);
+    snprintf(path, sizeof(path), "%sgolf_green.ttm", kPropsDir);
+    assetBatch_.load(golfGreen_, path);
+    snprintf(path, sizeof(path), "%sgolf_flag.ttm", kPropsDir);
+    assetBatch_.load(golfFlag_, path);
     snprintf(path, sizeof(path), "%ssecurity_camera.ttm", kPropsDir);
     assetBatch_.load(securityCamera_, path);
 
@@ -280,8 +280,8 @@ void LevelGames::shutdown() {
     moleNorm_.unload();
     moleCog_.unload();
     moleHit_.unload();
-    golfHole_.unload();
-    golfBall_.unload();
+    golfGreen_.unload();
+    golfFlag_.unload();
     securityCamera_.unload();
     gridFloor_.unload();
     laserCamera_ = false;
@@ -1141,7 +1141,6 @@ void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, flo
 // ---- end mole field ----
 
 void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs) {
-    (void)nowMs;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         if (!d.active || d.classId != dc::DistributedGolfGreenGame::kClassId) continue;
@@ -1150,33 +1149,35 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
 
         SlotState& slot = slots_[i];
         float localToon[3];
-        toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
+        toLocalLocal(e->world, toonX, toonY, toonZ + kToonEventZ, localToon);
+        const float dist = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1] +
+                                     localToon[2] * localToon[2]);
 
-        // Check 4 tee spots:
-        int nearestSpot = -1;
-        float minDist = 1e30f;
-        for (int s = 0; s < 4; ++s) {
-            float spotPos[3];
-            games_logic::calcGolfSpot(s, spotPos);
-            const float dx = localToon[0] - spotPos[0];
-            const float dy = localToon[1] - spotPos[1];
-            const float dist = std::sqrt(dx * dx + dy * dy);
-            if (dist < minDist) {
-                minDist = dist;
-                nearestSpot = s;
+        // initCollisionGeom: entering the 11.5 sphere at the green sends requestJoin. The board
+        // (Bust-a-Cog) is not played here, so walking back out leaves (its Exit button).
+        constexpr float kJoinRadius = 11.5f;
+        if (dist < kJoinRadius + kToonEventR && !slot.joinedGolf) {
+            slot.joinedGolf = true;
+            TT_LOG("level_games: entered golf green %u (sending requestJoin)", unsigned(d.doId));
+            client.sendGolfJoin(d.doId);
+        } else if (dist > kJoinRadius + kToonEventR + 2.0f && slot.joinedGolf) {
+            slot.joinedGolf = false;
+            TT_LOG("level_games: left golf green %u (sending leaveGame)", unsigned(d.doId));
+            client.sendGolfLeave(d.doId);
+        }
+        // acceptJoin (first time with us in it) and signalDone: countryClub.showInfoText.
+        if (d.golfJoinSeq != slot.golfJoinSeq) {
+            slot.golfJoinSeq = d.golfJoinSeq;
+            bool us = false;
+            for (int k = 0; k < d.numJoinedToons; ++k) us |= d.joinedToons[k] == client.avatarId();
+            if (us && !slot.golfEntered) {
+                slot.golfEntered = true;
+                moleInfo("Remove the cog ball!", nowMs); // TTLocalizer.BustACogInstruction
             }
         }
-
-        if (minDist < 3.0f && !slot.joinedGolf) {
-            slot.joinedGolf = true;
-            slot.currentSpot = nearestSpot;
-            TT_LOG("level_games: entered golf spot %d on green %u (sending requestJoin)", nearestSpot, unsigned(d.doId));
-            client.sendGolfJoin(d.doId);
-        } else if (minDist > 6.0f && slot.joinedGolf) {
-            slot.joinedGolf = false;
-            slot.currentSpot = -1;
-            TT_LOG("level_games: left golf spot on green %u (sending leaveGame)", unsigned(d.doId));
-            client.sendGolfLeave(d.doId);
+        if (d.golfDoneSeq != slot.golfDoneSeq) {
+            slot.golfDoneSeq = d.golfDoneSeq;
+            moleInfo(d.golfSuccess ? "Success!" : "Out of Time!", nowMs); // BustACogSuccess / Failure
         }
     }
 }
@@ -1348,34 +1349,23 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 renderer.drawModel(const_cast<render::Model&>(*head), mm);
             }
         }
-        // 5. Golf greens
+        // 5. Golf greens: announceGenerate's bust_a_cog_golf_green (0.24) and its flag (0.5,
+        // H -45 at (3, 4, 0)). The green is a ground-bin decal with no depth write.
         else if (d.classId == dc::DistributedGolfGreenGame::kClassId) {
-            if (golfHole_.loaded()) {
-                for (int s = 0; s < 4; ++s) {
-                    float spot[3];
-                    games_logic::calcGolfSpot(s, spot);
-                    C3D_Mtx m;
-                    std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
-                    // Float slightly above green floor to avoid coplanar depth clipping
-                    Mtx_Translate(&m, spot[0], spot[1], spot[2] + 0.08f, true);
-                    Mtx_Scale(&m, 2.0f, 2.0f, 1.0f);
-                    renderer.drawModel(const_cast<render::Model&>(golfHole_), m);
-
-                    if (golfBall_.loaded()) {
-                        C3D_Mtx bm = m;
-                        Mtx_Translate(&bm, 0.0f, 0.0f, 0.35f, true);
-                        renderer.drawModel(const_cast<render::Model&>(golfBall_), bm);
-                    }
-                }
-                // Target cups on green
-                static const float kCups[3][2] = {{0.0f, 35.0f}, {-4.0f, 45.0f}, {4.0f, 45.0f}};
-                for (int c = 0; c < 3; ++c) {
-                    C3D_Mtx cm;
-                    std::memcpy(cm.m, slot.draw.matrix, sizeof(cm.m));
-                    Mtx_Translate(&cm, kCups[c][0], kCups[c][1], 0.08f, true);
-                    Mtx_Scale(&cm, 2.5f, 2.5f, 1.0f);
-                    renderer.drawModel(const_cast<render::Model&>(golfHole_), cm);
-                }
+            C3D_Mtx m;
+            std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+            if (golfGreen_.loaded()) {
+                C3D_Mtx gm = m;
+                Mtx_Translate(&gm, 0.0f, 0.0f, 0.03f, true);
+                Mtx_Scale(&gm, 0.24f, 0.24f, 0.24f);
+                renderer.drawModel(const_cast<render::Model&>(golfGreen_), gm);
+            }
+            if (golfFlag_.loaded()) {
+                C3D_Mtx fm = m;
+                Mtx_Translate(&fm, 3.0f, 4.0f, 0.0f, true);
+                Mtx_RotateZ(&fm, -45.0f * kDegToRad, true);
+                Mtx_Scale(&fm, 0.5f, 0.5f, 0.5f);
+                renderer.drawModel(const_cast<render::Model&>(golfFlag_), fm);
             }
         }
     }

@@ -396,8 +396,16 @@ def bake_moles(base, resources, out):
 
 
 def bake_golf(base, resources, out):
-    """DistributedGolfGreenGame: bust-a-cog hole and golf ball."""
+    """DistributedGolfGreenGame: bust-a-cog hole and golf ball, and the green and flag that
+    announceGenerate puts on the floor."""
     report = {}
+    green = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_golf_green.bam'),
+                                  noCache=True)
+    report['golf_green'] = write_part(green, None, out / 'golf_green.ttm')
+    green.removeNode()
+    flag = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_golf_flag.bam'), noCache=True)
+    report['golf_flag'] = write_part(flag, None, out / 'golf_flag.ttm')
+    flag.removeNode()
     hole = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_hole.bam'), noCache=True)
     report['golf_hole'] = write_part(hole, None, out / 'golf_hole.ttm')
     hole.removeNode()

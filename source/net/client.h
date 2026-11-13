@@ -601,6 +601,8 @@ struct LevelEntityObj {
     uint16_t moleEventSeq = 0;
 
     uint16_t boardsLeft = 0;
+    uint8_t golfJoinSeq = 0, golfDoneSeq = 0; // acceptJoin / signalDone counts
+    bool golfSuccess = false;
     uint32_t joinedToons[4] = {};
     uint8_t numJoinedToons = 0;
     // ---- end level games ----

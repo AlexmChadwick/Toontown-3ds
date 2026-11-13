@@ -348,6 +348,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.boardsLeft = r.u16();
         r.i32();
         e.numJoinedToons = uint8_t(readIds(r, e.joinedToons, 4));
+        e.golfJoinSeq++;
         TT_LOG("net: golf green %u acceptJoin (boardsLeft %u)", unsigned(e.doId), unsigned(e.boardsLeft));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_scoreData) {
         e.boardsLeft = r.u8();
@@ -355,7 +356,8 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         const uint16_t bytes = r.u16();
         r.skip(bytes);
     } else if (fieldId == dc::DistributedGolfGreenGame::k_signalDone) {
-        r.u8();
+        e.golfSuccess = r.u8() != 0;
+        e.golfDoneSeq++;
     } else if (fieldId == dc::BattleBlocker::k_setActive) {
         e.blockerActive = r.u8() != 0;
     } else if (fieldId == dc::BattleBlocker::k_setSuits) {
