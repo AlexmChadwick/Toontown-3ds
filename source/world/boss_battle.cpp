@@ -136,6 +136,32 @@ C3D_Mtx transform(Vec3 position, float heading = 0, float scale = 1) {
     Mtx_Scale(&matrix, scale, scale, scale);
     return matrix;
 }
+
+// SellbotBoss.__toonsToPromotionPosition: BattleBase.toonPoints + 10 forward of the side's
+// battle node (BossCogBattleA/BPosHpr on SellbotBossBattleOnePosHpr), then from 37 s
+// backupToonsToBattlePosition walks back to the battle point over 3 s.
+C3D_Mtx vpPromotionPose(const net::BossState& state, uint32_t avId, float t) {
+    static const float kPoints[4][4][3] = {
+        {{0, -6, 0}}, {{1.5f, -6.5f, 5}, {-1.5f, -6.5f, -5}}, {{3, -6.75f, 5}, {0, -7, 0}, {-3, -6.75f, -5}},
+        {{4.5f, -7, 10}, {1.5f, -7.5f, 5}, {-1.5f, -7.5f, -5}, {-4.5f, -7, -10}}};
+    bool sideB = false;
+    int index = 0, count = state.numA;
+    for (int i = 0; i < state.numA; ++i) {
+        if (state.sideA[i] == avId) index = i;
+    }
+    for (int i = 0; i < state.numB; ++i) {
+        if (state.sideB[i] == avId) sideB = true, index = i, count = state.numB;
+    }
+    count = std::clamp(count, 1, 4);
+    index = std::clamp(index, 0, count - 1);
+    const float* point = kPoints[count - 1][index];
+    const float back = 10 * (1 - std::clamp((t - 37) / 3, 0.0f, 1.0f));
+    // Battle node heading: the VP's -90 plus 0 (A) or 180 (B); its origin at (-+25, -35).
+    const float nodeHeading = sideB ? 90.0f : -90.0f;
+    const float c = std::cos(nodeHeading * kDegrees), s = std::sin(nodeHeading * kDegrees);
+    const float lx = point[0], ly = point[1] + back;
+    return transform({(sideB ? 25.0f : -25.0f) + c * lx - s * ly, -35 + s * lx + c * ly, 0}, nodeHeading + point[2]);
+}
 }
 
 BossBattle::~BossBattle() {
@@ -797,7 +823,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     VpIntroShot vpIntroShot{};
     const bool vpIntroMovie = !cashbot_ && phase == BossPhase::Intro;
     if (vpIntroMovie) {
-        vpIntro((nowMs - state.phaseMs) / 1000.0f, &vpIntroShot);
+        vpIntro((nowMs - state.phaseMs) / 1000.0f, state.numA > 0, state.numB > 0, &vpIntroShot);
         eye = FVec3_New(vpIntroShot.eye.x, vpIntroShot.eye.y, vpIntroShot.eye.z);
         target = FVec3_New(vpIntroShot.target.x, vpIntroShot.target.y, vpIntroShot.target.z);
     }
@@ -911,6 +937,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
         if (elevatorMovie) toon = transform(elevatorToon, elevatorToonHeading);
+        if (vpIntroMovie) toon = vpPromotionPose(state, frame.client.avatarId(), (nowMs - state.phaseMs) / 1000.0f);
         frame.toon.draw(frame.renderer, toon);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);

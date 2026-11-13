@@ -77,13 +77,14 @@ void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target) {
                position.y + std::cos(h * kDegrees) * std::cos(p * kDegrees) * 10, position.z + std::sin(p * kDegrees) * 10};
 }
 
-void vpIntro(float t, VpIntroShot* out) {
+void vpIntro(float t, bool toonsA, bool toonsB, VpIntroShot* out) {
     struct Cue {
         float at;
         Vec3 position;
         float h, p;
     };
-    // dialogTrack's camera.setPosHpr cues (the 34 s loseCogSuits shots stay on the 31 s one).
+    // dialogTrack's camera.setPosHpr cues; 34 s: loseCogSuits at battleANode / battleBNode
+    // (0, 18, 5) h -180, 1 s per side with Toons (world values for SellbotBossBattleOnePosHpr).
     static const Cue kCues[] = {{10, {-23.1f, 15.7f, 17.2f}, -160, -2.4f}, {16, {-25, -99, 10}, -14, 10},
                                 {25, {-12, -15, 27}, -151, -15}, {27, {-12, 48, 94}, -26, 20},
                                 {31, {-20, -35, 10}, -88, 25}, {37, {-23.4f, -145.6f, 44}, -10, -12.5f}};
@@ -97,6 +98,10 @@ void vpIntro(float t, VpIntroShot* out) {
             if (t >= c.at) cue = &c;
         }
         bossCameraAim(cue->position, cue->h, cue->p, &out->eye, &out->target);
+        if (t >= 34 && t < 37 && (toonsA || toonsB)) {
+            const bool sideB = !toonsA || (toonsB && t >= 35);
+            bossCameraAim(sideB ? Vec3{7, -35, 5} : Vec3{-7, -35, 5}, sideB ? -90.0f : 90.0f, 0, &out->eye, &out->target);
+        }
     }
     struct Line {
         float from, to;
