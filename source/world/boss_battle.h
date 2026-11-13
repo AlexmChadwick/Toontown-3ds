@@ -4,6 +4,7 @@
 
 #include "core/autotest.h"
 #include "render/ui.h"
+#include "ui/balloons.h"
 #include "world/asset_loader.h"
 #include "world/battle.h"
 #include "world/battle_fx.h"
@@ -41,6 +42,7 @@ struct BossFrame {
     float& commandUsage;
     bool& stereoActive;
     ZoneActors& zoneActors; // the resident hood treasure models (Cashbot boss treasures)
+    ui::Balloons& balloons; // nametags and speech over the top screen
 };
 
 class BossBattle {

@@ -16,6 +16,7 @@
 #include "core/memory.h"
 #include "core/screenshot.h"
 #include "net/net_platform.h"
+#include "ui/projection.h"
 #include "ui/sos_tables.h"
 
 namespace tt::world {
@@ -470,7 +471,13 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         if (file) std::fclose(file);
         rescuedToon_.setLook(&rescuedLook_, &frame.cache.fallback());
     }
-    rescuedToon_.play(phase == BossPhase::Epilogue ? kAnimWave : kAnimNeutral, 1);
+    ToonAnim rescuedAnim = phase == BossPhase::Epilogue ? kAnimWave : kAnimNeutral;
+    if (cashbot_ && phase == BossPhase::Intro) {
+        CfoIntroShot shot;
+        cfoIntro(elapsed, &shot);
+        if (shot.resistanceRunning) rescuedAnim = elapsed < 10 ? kAnimWalk : kAnimRun;
+    }
+    rescuedToon_.play(rescuedAnim, 1);
     rescuedToon_.update(frame.dt);
     if (!entered_) {
         frame.client.sendSetParent(net::kParentRender);
@@ -480,6 +487,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         const net::BossBarrier& barrier = state.barriers[index];
         float delay = bossBarrierDelay(barrier.name);
         if (cashbot_ && !std::strcmp(barrier.name, "Victory")) delay = 15;
+        if (cashbot_ && !std::strcmp(barrier.name, "Introduction")) delay = kCfoIntroSeconds;
         if (!barrier.waitingForUs || delay < 0 || elapsed < delay || std::strcmp(barrier.name, state.phase)) continue;
         if (!cashbot_ && !std::strcmp(barrier.name, "Victory") &&
             (std::strcmp(currentClip_, "Fb_fall") || clipTime_ < 5.8f)) continue;
@@ -747,6 +755,13 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             if (age >= 5.5f) position = {120, -280 + 30 * std::clamp((age - 5.5f) / 3, 0.0f, 1.0f), 0};
         }
     }
+    CfoIntroShot intro{};
+    const bool cfoIntroMovie = cashbot_ && phase == BossPhase::Intro;
+    if (cfoIntroMovie) {
+        cfoIntro((nowMs - state.phaseMs) / 1000.0f, &intro);
+        position = intro.boss;
+        heading = intro.bossHeading;
+    }
     C3D_FVec eye = frame.player.cameraEye();
     C3D_FVec target = frame.player.cameraTarget();
     if (frame.battle.inBattle()) {
@@ -759,6 +774,10 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     if (cashbot_ && cfo_.controlling(frame.client) && phase == BossPhase::Pies) {
         eye = FVec3_New(120, -375, 52);
         target = FVec3_New(120, -315, 8);
+    }
+    if (cfoIntroMovie) {
+        eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
+        target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
     }
     gfxSet3D(false); // One rendering pass preserves the Old 3DS boss budget.
     frame.stereoActive = false;
@@ -789,7 +808,8 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         } else {
             cfo_.draw(frame, models_, nowMs);
             if (phase == BossPhase::Intro || phase == BossPhase::Transition || phase == BossPhase::Epilogue) {
-                C3D_Mtx resistance = transform(phase == BossPhase::Intro ? Vec3{94, -220, 0} : Vec3{120, -315, 0}, 180);
+                C3D_Mtx resistance = cfoIntroMovie ? transform(intro.resistance, intro.resistanceHeading)
+                                                   : transform(Vec3{120, -315, 0}, 180);
                 rescuedToon_.draw(frame.renderer, resistance);
             }
         }
@@ -841,6 +861,25 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     }
     frame.renderer.endWorld();
     C2D_Prepare(); // citro2d state must be re-bound after the world shaders
+    { // Nametags and speech: the Cogs, the other Toons, and the CFO introduction's lines.
+        C3D_Mtx proj, view;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                      frame.renderer.farPlane(), false);
+        Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+        frame.balloons.begin();
+        float sx, sy, depth;
+        if (cfoIntroMovie && intro.bossChat &&
+            ui::projectToScreen(proj, view, position.x, position.y, position.z + 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "C. F. O.", intro.bossChat, intro.bossChatAge, depth);
+        if (cfoIntroMovie &&
+            ui::projectToScreen(proj, view, intro.resistance.x, intro.resistance.y,
+                                intro.resistance.z + rescuedLook_.nametagHeight, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Mata Hairy", intro.resistanceChat, intro.resistanceChatAge, depth,
+                                      ui::Balloons::kNameColorNpc);
+        frame.suits.addBalloons(frame.balloons, proj, view);
+        frame.remotes.addBalloons(frame.balloons, proj, view);
+        frame.balloons.draw(frame.renderer.topLeft());
+    }
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};

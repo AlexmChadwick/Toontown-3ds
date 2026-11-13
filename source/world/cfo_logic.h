@@ -29,4 +29,20 @@ struct CfoCable {
     Vec3 magnet(int index) const;
 };
 const char* cfoClip(const net::BossState& state, uint32_t nowMs);
+
+// DistributedCashbotBoss.makeIntroductionMovie at t seconds: camera, Mata Hairy (the resistance
+// Toon), the C.F.O. rolling in from CashbotBossOffstagePosHpr, and who is saying what.
+struct CfoIntroShot {
+    Vec3 eye, target;
+    Vec3 resistance;
+    float resistanceHeading;
+    bool resistanceRunning;
+    Vec3 boss;
+    float bossHeading;
+    const char* resistanceChat; // nullptr when silent
+    const char* bossChat;
+    float resistanceChatAge, bossChatAge; // seconds since the line was said
+};
+constexpr float kCfoIntroSeconds = 35.7f; // the movie's length (the Introduction barrier after it)
+void cfoIntro(float t, CfoIntroShot* out);
 } // namespace tt::world
