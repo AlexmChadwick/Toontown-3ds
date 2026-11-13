@@ -34,6 +34,11 @@ bool Hud::init() {
     toastBuf_ = C2D_TextBufNew(160);
     fishBuf_ = C2D_TextBufNew(256);
     infoBuf_ = C2D_TextBufNew(128);
+    golfBuf_ = C2D_TextBufNew(48);
+    if (golfBuf_) {
+        tt::render::textParseSign(&golfExit_, golfBuf_, "Exit for Now"); // TTLocalizer.BustACogExit
+        C2D_TextOptimize(&golfExit_);
+    }
     return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr && fishBuf_ != nullptr &&
            infoBuf_ != nullptr;
 }
@@ -45,6 +50,8 @@ void Hud::shutdown() {
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
     if (fishBuf_) C2D_TextBufDelete(fishBuf_);
     if (infoBuf_) C2D_TextBufDelete(infoBuf_);
+    if (golfBuf_) C2D_TextBufDelete(golfBuf_);
+    golfBuf_ = nullptr;
     raceBuf_ = toastBuf_ = fishBuf_ = infoBuf_ = nullptr;
     releaseFishPhotos();
 }
@@ -386,6 +393,17 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         }
         if (v.timerBelowSeconds >= 0)
             battleTimer_.draw(v.timerBelowSeconds, kBelowTimerX, kBelowTimerY, kBelowTimerSize);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
+    if (v.golfExit && golfBuf_) {
+        // frame2D (scale 1.1): the quit button at (0.95, -0.69), QuitBtn_UP with its sign-font label
+        // (white, black shadow). 1 aspect2d unit = 120 px.
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        const float bx = 200.0f + 0.95f * 1.1f * 120.0f, by = 120.0f + 0.69f * 1.1f * 120.0f;
+        theme::pill(bx - 38.0f, by - 9.0f, 76.0f, 18.0f, theme::Pill::Yellow);
+        theme::textCentered(golfExit_, bx + 0.75f, by - 6.25f, 0.42f, C2D_Color32(0, 0, 0, 0xFF), 70.0f);
+        theme::textCentered(golfExit_, bx, by - 7.0f, 0.42f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), 70.0f);
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
     if (!v.online) return; // stats come from the server

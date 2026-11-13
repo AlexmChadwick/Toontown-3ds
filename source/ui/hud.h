@@ -63,6 +63,8 @@ struct HudValues {
     float infoAlpha = 1.0f;
     const char* gameLabel = nullptr; // a room game's frame2D label (Moles Left: n, Maze Race!)
     int timerBelowSeconds = -1; // ToontownTimer.posBelowTopRightCorner (mole field, maze), -1 = hidden
+    // Bust-a-Cog's frame2D quit button (Exit for Now, B). Its timerLabel stays hidden in stock.
+    bool golfExit = false;
 };
 
 class Hud {
@@ -85,6 +87,8 @@ private:
     C2D_TextBuf infoBuf_ = nullptr; // info line and Moles Left, re-parsed when the text changes
     C2D_Text infoTextC2d_{}, molesTextC2d_{};
     char infoLast_[64] = {}, labelLast_[32] = {};
+    C2D_TextBuf golfBuf_ = nullptr;
+    C2D_Text golfExit_{};
     C2D_Text fishText_[5]{};
     unsigned fishRevision_ = ~0u;
 };

@@ -3979,6 +3979,7 @@ int main() {
                     hv.gameLabel = label;
                     hv.timerBelowSeconds = secs;
                 }
+                hv.golfExit = level.games().golfPlaying();
             }
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())
