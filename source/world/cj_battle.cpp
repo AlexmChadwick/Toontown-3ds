@@ -4,6 +4,7 @@
 #include "core/profile.h"
 #include "world/boss_battle.h"
 #include "world/py_random.h"
+#include "ui/projection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -144,6 +145,7 @@ void CjBattle::leave(BossFrame& frame, bool sad) {
     }
     npcsLoaded_ = false;
     assets_.release();
+    for (render::Model& door : elevatorDoors_) door.unload();
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
@@ -641,6 +643,19 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
             break;
         }
     }
+    CjArrivalShot arrival{};
+    const bool arrivalMovie = !frame.battle.inBattle() && (phaseIs(state, "WaitForToons") || phaseIs(state, "Elevator") ||
+                                                           phaseIs(state, "Introduction"));
+    if (arrivalMovie) {
+        cjArrival(state.phase, (nowMs - state.phaseMs) / 1000.0f, &arrival);
+        eye = FVec3_New(arrival.eye.x, arrival.eye.y, arrival.eye.z);
+        target = FVec3_New(arrival.target.x, arrival.target.y, arrival.target.z);
+        for (int side = 0; side < 2; ++side) {
+            char path[96];
+            std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/hqelev_cj_%s.ttm", side ? "right" : "left");
+            if (!elevatorDoors_[side].loaded() && !elevatorDoors_[side].load(path)) TT_LOG("CJ: cannot load %s", path);
+        }
+    }
     gfxSet3D(false);
     frame.stereoActive = false;
     frame.renderer.resetStats();
@@ -719,8 +734,17 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
             frame.renderer.drawModel(assets_.models[14], matrix);
         }
         drawBoss(frame, state);
+        if (arrivalMovie && arrival.doorOpen < 1) { // over the arena's baked open doors
+            for (int side = 0; side < 2; ++side) {
+                if (!elevatorDoors_[side].loaded()) continue;
+                C3D_Mtx door = transform(kCjElevatorOrigin, 180);
+                Mtx_Translate(&door, (side ? -1.0f : 1.0f) * 15.8f * (1 - arrival.doorOpen), 0, 0, true);
+                frame.renderer.drawModel(elevatorDoors_[side], door);
+            }
+        }
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
+        if (arrivalMovie) toon = transform(kCjElevatorToon); // placeToonInElevator, facing out
         frame.toon.draw(frame.renderer, toon);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);
@@ -729,6 +753,17 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
     frame.renderer.endWorld();
     C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     drawBossNametags(frame, eye, target);
+    if (arrivalMovie && arrival.chat) { // the C.J.'s line over his head (LawbotBossBattleOnePosHpr)
+        C3D_Mtx proj, view;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                      frame.renderer.farPlane(), false);
+        Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+        frame.balloons.begin();
+        float sx, sy, depth;
+        if (ui::projectToScreen(proj, view, -2.798f, -60, 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Chief Justice", arrival.chat, arrival.chatAge, depth);
+        frame.balloons.draw(frame.renderer.topLeft());
+    }
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};

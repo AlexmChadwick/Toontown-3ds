@@ -71,6 +71,17 @@ float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs) {
     return 90 * fraction;
 }
 
+float bossElevatorBob(float t) {
+    if (t < 0 || t >= 8) return 0;
+    const float r = std::fmod(t, 4.0f);
+    const auto easeOut = [](float u) { return 1 - (1 - u) * (1 - u); };
+    if (r >= 0.5f && r < 1.0f) return -0.2f * easeOut((r - 0.5f) * 2);
+    if (r >= 1.0f && r < 1.5f) return -0.2f * (1 - (r - 1.0f) * 2);
+    if (r >= 2.5f && r < 3.0f) return 0.2f * easeOut((r - 2.5f) * 2);
+    if (r >= 3.0f) return 0.2f * (1 - (r - 3.0f));
+    return 0;
+}
+
 void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target) {
     *eye = position;
     *target = {position.x - std::sin(h * kDegrees) * std::cos(p * kDegrees) * 10,

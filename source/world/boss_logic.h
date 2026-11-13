@@ -14,6 +14,8 @@ Vec3 vpPosition(float damage);
 float vpCageHeight(const net::BossState& state, uint32_t nowMs);
 float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs);
 const char* vpClip(const net::BossState& state, uint32_t nowMs);
+// ElevatorUtils.getRideElevatorInterval (boss elevators), played twice: camera z offset at t s.
+float bossElevatorBob(float t);
 // Panda camera pos / hpr (degrees) -> eye and a look-at point 10 units ahead.
 void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target);
 // DistributedSellbotBoss.makeIntroductionMovie at t seconds: camera cue and who says what.

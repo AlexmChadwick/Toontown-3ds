@@ -43,6 +43,7 @@ private:
     void loadNpcs(BossFrame& frame);
     Vec3 panCenter(int model, float damage) const;
     CjAssets assets_;
+    render::Model elevatorDoors_[2]; // data/cogbldg hqelev_cj_<left|right> (open at 0, closed at +-width)
     bool active_ = false;
     bool entered_ = false;
     bool defeated_ = false;

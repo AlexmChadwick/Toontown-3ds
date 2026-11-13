@@ -31,4 +31,18 @@ Vec3 cjRotate(Vec3 point, float heading, float pitch = 0);
 Vec3 cjScalePan(Vec3 beamPivot, Vec3 pan, float damage);
 float cjBarrierDelay(const char* phase);
 const char* cjClip(const net::BossState& state, uint32_t nowMs);
+
+// DistributedLawbotBoss arrival: enterElevator's shot from LB_Elevator (0, 30, 8) h 180 (two ride
+// bobs, then the doors over openTime 4), which the introduction keeps until loseCogSuits at
+// (-2.798, -70, 10) h 180 (24 s); the C.J.'s LawbotBossTempIntro lines and "Attack!!" (27 s).
+struct CjArrivalShot {
+    Vec3 eye, target;
+    float doorOpen;          // 0 closed .. 1 open
+    const char* chat;        // nullptr when silent
+    float chatAge;
+};
+constexpr float kCjIntroSeconds = 27.5f;
+constexpr Vec3 kCjElevatorOrigin{-2.864f, -117.204f, 0.094f}; // LawbotCourtroom3 elevator_origin, h 180
+constexpr Vec3 kCjElevatorToon{-0.364f, -126.204f, 0.194f};   // BigElevatorPoints[0], facing +y
+void cjArrival(const char* phase, float t, CjArrivalShot* out);
 } // namespace tt::world

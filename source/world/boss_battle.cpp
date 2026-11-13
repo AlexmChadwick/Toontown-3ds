@@ -848,15 +848,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     const float rideAge = std::strcmp(state.phase, "Elevator") ? 0.0f : (nowMs - state.phaseMs) / 1000.0f;
     const float doorOpen = std::clamp((rideAge - 8) / (cashbot_ ? 3.0f : 4.0f), 0.0f, 1.0f);
     if (elevatorMovie) {
-        float bob = 0;
-        if (rideAge < 8) {
-            const float r = std::fmod(rideAge, 4.0f);
-            const auto easeOut = [](float u) { return 1 - (1 - u) * (1 - u); };
-            if (r >= 0.5f && r < 1.0f) bob = -0.2f * easeOut((r - 0.5f) * 2);
-            else if (r >= 1.0f && r < 1.5f) bob = -0.2f * (1 - (r - 1.0f) * 2);
-            else if (r >= 2.5f && r < 3.0f) bob = 0.2f * easeOut((r - 2.5f) * 2);
-            else if (r >= 3.0f) bob = 0.2f * (1 - (r - 3.0f));
-        }
+        const float bob = std::strcmp(state.phase, "Elevator") ? 0.0f : bossElevatorBob(rideAge);
         eye = cashbot_ ? FVec3_New(37.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 116.0f, 26.009f + bob);
         target = cashbot_ ? FVec3_New(47.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 106.0f, 26.009f + bob);
     }
