@@ -334,7 +334,8 @@ void CeoBattle::update(BossFrame& frame, const net::BossState& state, uint32_t n
     }
 
     frame.battle.setAutoPlay(frame.test.active());
-    frame.battle.update(frame.client, nowMs, frame.dt, {SuitActors::poseThunk, &frame.suits});
+    float joinOrigin[3] = {bossPosition_.x, bossPosition_.y, bossPosition_.z};
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin});
     frame.suits.update(frame.dt, nowMs, &assets_.collision);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);

@@ -196,6 +196,13 @@ struct CogPoseSource {
     bool (*pose)(void* user, uint32_t doId, float* x, float* y, float* z, float* h) = nullptr;
     void* user = nullptr;
 };
+// DistributedBattleFinal.showSuitsJoining: a boss battle's joining Cogs walk out of the boss
+// cog (setPos(bossCog, 0, 0, 0)), not from where their actors stand. user: float[3] position.
+inline bool bossCogOrigin(void* user, uint32_t, float* x, float* y, float* z, float* h) {
+    const float* p = static_cast<const float*>(user);
+    *x = p[0], *y = p[1], *z = p[2], *h = 0.0f;
+    return true;
+}
 
 class Battle {
 public:

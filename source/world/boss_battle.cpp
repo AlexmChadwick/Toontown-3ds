@@ -511,7 +511,10 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         }
     }
     frame.battle.setAutoPlay(frame.test.active());
-    frame.battle.update(frame.client, nowMs, frame.dt, {SuitActors::poseThunk, &frame.suits});
+    // The CFO stands at CashbotBossBattleOnePosHpr for its Cog round (drawBoss), not BattleThree.
+    const Vec3 origin = cashbot_ && phase == BossPhase::Round ? Vec3{120, -230, 0} : bossPosition_;
+    float joinOrigin[3] = {origin.x, origin.y, origin.z};
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin});
     frame.suits.update(frame.dt, nowMs, &collision_);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
