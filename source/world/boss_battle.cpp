@@ -142,6 +142,17 @@ BossBattle::~BossBattle() {
     release();
 }
 
+// The arena bakes the elevator with its doors open; the ride shows them closed, then slides them
+// (the Cog HQ lobby elevator bake's door models). Missing doors only leave the doorway open.
+void BossBattle::loadElevatorDoors() {
+    for (int side = 0; side < 2; ++side) {
+        char path[96];
+        std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/hqelev_%s_%s.ttm", cashbot_ ? "cfo" : "vp",
+                      side ? "right" : "left");
+        if (!elevatorDoors_[side].loaded() && !elevatorDoors_[side].load(path)) TT_LOG("boss: cannot load %s", path);
+    }
+}
+
 void BossBattle::release() {
     cfo_.release();
     if (modelTicket_) AssetLoader::cancel(modelTicket_);
@@ -152,6 +163,7 @@ void BossBattle::release() {
         animations_[part].unload();
     }
     for (render::Model& model : models_) model.unload();
+    for (render::Model& door : elevatorDoors_) door.unload();
     collision_.unload();
     for (CollisionWorld& collision : rampCollision_) collision.unload();
     ready_ = false;
@@ -325,6 +337,7 @@ void BossBattle::loadAssets() {
             std::snprintf(path, sizeof(path), "%scfo_arena.ttc", kDirectory);
             ready_ = collision_.load(path);
             failed_ = !ready_;
+            if (ready_) loadElevatorDoors();
             solids_.floor = rampFloor;
             solids_.push = pushBoss;
             solids_.user = this;
@@ -337,6 +350,7 @@ void BossBattle::loadAssets() {
             std::snprintf(path, sizeof(path), "%svp_ramp_%c.ttc", kDirectory, 'a' + index);
             ready_ = rampCollision_[index].load(path) && ready_;
         }
+        if (ready_) loadElevatorDoors();
         std::snprintf(path, sizeof(path), "%svp_scene.bin", kDirectory);
         FILE* scene = std::fopen(path, "rb");
         char magic[4] = {};
@@ -488,6 +502,7 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         float delay = bossBarrierDelay(barrier.name);
         if (cashbot_ && !std::strcmp(barrier.name, "Victory")) delay = 15;
         if (cashbot_ && !std::strcmp(barrier.name, "Introduction")) delay = kCfoIntroSeconds;
+        if (!std::strcmp(barrier.name, "Elevator")) delay = cashbot_ ? 11 : 12; // two 4 s rides + openTime
         if (!barrier.waitingForUs || delay < 0 || elapsed < delay || std::strcmp(barrier.name, state.phase)) continue;
         if (!cashbot_ && !std::strcmp(barrier.name, "Victory") &&
             (std::strcmp(currentClip_, "Fb_fall") || clipTime_ < 5.8f)) continue;
@@ -791,9 +806,22 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     const bool elevatorMovie = phase == BossPhase::Arrival;
     const Vec3 elevatorToon = cashbot_ ? Vec3{58.627f, -232.917f, 0.129f} : Vec3{-2.580f, 95.0f, 18.109f};
     const float elevatorToonHeading = cashbot_ ? 270 : 180;
+    // enterElevator: two getRideElevatorInterval bobs (4 s each, camera z 8 -> 7.8 -> 8, 8 -> 8.2 -> 8),
+    // then the doors open over ElevatorData's openTime (CFO 3, VP 4). WaitForToons waits closed.
+    const float rideAge = std::strcmp(state.phase, "Elevator") ? 0.0f : (nowMs - state.phaseMs) / 1000.0f;
+    const float doorOpen = std::clamp((rideAge - 8) / (cashbot_ ? 3.0f : 4.0f), 0.0f, 1.0f);
     if (elevatorMovie) {
-        eye = cashbot_ ? FVec3_New(37.627f, -230.417f, 8.029f) : FVec3_New(-0.080f, 116.0f, 26.009f);
-        target = cashbot_ ? FVec3_New(47.627f, -230.417f, 8.029f) : FVec3_New(-0.080f, 106.0f, 26.009f);
+        float bob = 0;
+        if (rideAge < 8) {
+            const float r = std::fmod(rideAge, 4.0f);
+            const auto easeOut = [](float u) { return 1 - (1 - u) * (1 - u); };
+            if (r >= 0.5f && r < 1.0f) bob = -0.2f * easeOut((r - 0.5f) * 2);
+            else if (r >= 1.0f && r < 1.5f) bob = -0.2f * (1 - (r - 1.0f) * 2);
+            else if (r >= 2.5f && r < 3.0f) bob = 0.2f * easeOut((r - 2.5f) * 2);
+            else if (r >= 3.0f) bob = 0.2f * (1 - (r - 3.0f));
+        }
+        eye = cashbot_ ? FVec3_New(37.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 116.0f, 26.009f + bob);
+        target = cashbot_ ? FVec3_New(47.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 106.0f, 26.009f + bob);
     }
     gfxSet3D(false); // One rendering pass preserves the Old 3DS boss budget.
     frame.stereoActive = false;
@@ -868,6 +896,17 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             if (!gear.active || gear.age < 0) continue;
             C3D_Mtx matrix = transform(gear.previous, gear.age * 720, 0.1f);
             frame.renderer.drawModel(models_[10], matrix);
+        }
+        if (elevatorMovie && doorOpen < 1) { // over the baked open doors until they are fully open
+            const C3D_Mtx elevator = cashbot_ ? transform({67.627f, -230.417f, 0.029f}, 90)
+                                              : transform({-0.080f, 86.0f, 18.009f}, 0);
+            const float width = cashbot_ ? 8.166f : 11.5f;
+            for (int side = 0; side < 2; ++side) {
+                if (!elevatorDoors_[side].loaded()) continue;
+                C3D_Mtx door = elevator;
+                Mtx_Translate(&door, (side ? -1.0f : 1.0f) * width * (1 - doorOpen), 0, 0, true);
+                frame.renderer.drawModel(elevatorDoors_[side], door);
+            }
         }
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);

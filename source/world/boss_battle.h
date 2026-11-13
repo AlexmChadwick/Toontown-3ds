@@ -106,6 +106,8 @@ private:
     uint16_t acknowledged_[8] = {};
     bool haveAcknowledged_[8] = {};
     render::Model models_[kModels];
+    render::Model elevatorDoors_[2]; // data/cogbldg hqelev_<vp|cfo>_<left|right> (open at 0, closed at +-width)
+    void loadElevatorDoors();
     render::Anim animations_[kParts];
     LoadTicket modelTicket_ = 0;
     int modelIndex_ = 0;
