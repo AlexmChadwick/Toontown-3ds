@@ -995,13 +995,15 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         if (vpIntroMovie) toon = vpPromotionPose(state, frame.client.avatarId(), (nowMs - state.phaseMs) / 1000.0f);
         // Cog suits from the elevator until loseCogSuits (VP 34 s, CFO cfoIntro's cue).
         const float introAge = (nowMs - state.phaseMs) / 1000.0f;
-        if (elevatorMovie || vpIntroMovie || cfoIntroMovie)
-            suitLocalToon(frame, cashbot_ ? 2 : 3, elevatorMovie || (vpIntroMovie && introAge < 34.3f) ||
-                                                      (cfoIntroMovie && intro.toonsSuited));
+        const bool arrivalSuits = elevatorMovie || vpIntroMovie || cfoIntroMovie;
+        const bool suited = elevatorMovie || (vpIntroMovie && introAge < 34.3f) || (cfoIntroMovie && intro.toonsSuited);
+        if (arrivalSuits) suitLocalToon(frame, cashbot_ ? 2 : 3, suited);
         frame.toon.draw(frame.renderer, toon);
         if (vpIntroMovie) drawLoseSuitDust(frame, toon, introAge - 34);
         if (cfoIntroMovie) drawLoseSuitDust(frame, toon, introAge - intro.suitsOff);
+        if (arrivalSuits) frame.remotes.setSuitMode(suited ? (cashbot_ ? 2 : 3) : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
+        frame.remotes.setSuitMode(RemoteToons::kSuitNet);
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }

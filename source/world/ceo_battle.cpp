@@ -1002,7 +1002,9 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
             resistanceToon_.setDisguise(resistanceSuit(state.doId, 0)); // __showResistanceToon(True)
             resistanceToon_.draw(frame.renderer, resistance);
         }
+        if (arrivalMovie) frame.remotes.setSuitMode(!introMovie || (nowMs - state.phaseMs) / 1000.0f < 6.3f ? 0 : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
+        frame.remotes.setSuitMode(RemoteToons::kSuitNet);
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }

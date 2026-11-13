@@ -86,9 +86,9 @@ void RemoteToons::applyDna(Remote& r, const net::RemoteToon& t) {
 
 // DistributedToon.setCogIndex: Toon.putOnSuit / takeOffSuit.
 void RemoteToons::applyDisguise(Remote& r, const net::RemoteToon& t) {
-    bool rental;
-    const char* code = disguiseCode(t.cogIndex, t.cogTypes, t.cogParts, &rental);
-    r.avatar.setDisguise(code, rental);
+    memcpy(r.cogTypes, t.cogTypes, sizeof(r.cogTypes));
+    memcpy(r.cogParts, t.cogParts, sizeof(r.cogParts));
+    r.netSuit = disguiseCode(t.cogIndex, t.cogTypes, t.cogParts, &r.netRental);
 }
 
 void RemoteToons::refreshLook(Remote& r) {
@@ -430,6 +430,9 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         Mtx_Identity(&m);
         Mtx_Translate(&m, r.wx, r.wy, r.wz, true);
         Mtx_RotateZ(&m, r.wh * kDegToRad, true);
+        bool rental = r.netRental;
+        const char* suit = suitMode_ == kSuitNet ? r.netSuit : disguiseCode(suitMode_, r.cogTypes, r.cogParts, &rental);
+        r.avatar.setDisguise(suit, rental);
         r.avatar.draw(renderer, m);
     }
 }

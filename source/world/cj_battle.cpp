@@ -750,7 +750,10 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
             suitLocalToon(frame, 1, !phaseIs(state, "Introduction") || (nowMs - state.phaseMs) / 1000.0f < 24.3f);
         frame.toon.draw(frame.renderer, toon);
         if (arrivalMovie && phaseIs(state, "Introduction")) drawLoseSuitDust(frame, toon, (nowMs - state.phaseMs) / 1000.0f - 24);
+        if (arrivalMovie)
+            frame.remotes.setSuitMode(!phaseIs(state, "Introduction") || (nowMs - state.phaseMs) / 1000.0f < 24.3f ? 1 : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
+        frame.remotes.setSuitMode(RemoteToons::kSuitNet);
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
