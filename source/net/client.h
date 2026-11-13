@@ -553,6 +553,7 @@ struct LevelEntityObj {
     bool grabbedByUs = false;
     float pauseTime = 0;     // DistributedGoon.setMovie(mode -> movie, avId -> avatarId, pauseTime, ts -> movieMs)
     bool crushed = false;    // DistributedCrushableEntity.setCrushed
+    uint32_t crushedMs = 0;  // when the last setCrushed arrived
     // ---- level games (world/level_games.*) ----
     uint32_t battleId = 0;
     uint32_t suits[8] = {};

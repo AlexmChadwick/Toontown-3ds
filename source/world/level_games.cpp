@@ -1309,7 +1309,11 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
                 Mtx_Translate(&m, slot.curPos[0], slot.curPos[1], slot.curPos[2], true);
                 const float scale = slot.draw.scale;
-                Mtx_Scale(&m, scale, scale, scale * (d.crushed ? 0.1f : 1.0f));
+                // crushTask: squashed under the stomper to (1.2, 1.2, minHeight / maxHeight), and
+                // setScale(1) again 2 s later.
+                const bool squashed = d.crushedMs && nowMs_ - d.crushedMs < 2000;
+                if (squashed) Mtx_Scale(&m, 1.2f, 1.2f, 0.25f);
+                else Mtx_Scale(&m, scale, scale, scale);
                 renderer.drawModel(mdl, m);
             }
         }

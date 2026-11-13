@@ -250,6 +250,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         r.u32();
         r.u8();
         e.crushed = true;
+        e.crushedMs = now_ ? now_ : 1;
     } else if (fieldId == dc::DistributedStomper::k_setMovie) {
         e.movie = r.u8();
         const int16_t ts = r.i16();
