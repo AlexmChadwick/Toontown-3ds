@@ -57,6 +57,12 @@ struct HudValues {
     bool photoViewfinder = false; // Photo Fun: the tripod camera's viewfinder frame and sight
     int timerSeconds = -1;       // TownBattle's and Purchase's ToontownTimer, top right, -1 = hidden
     const FishingView* fishing = nullptr; // the fishing spot's catch (FishPanel / itemGui over the world)
+    // A facility's showInfoText (DistributedCountryClub: sign font, white, black shadow, at
+    // aspect2d (0, -0.5)) and its fade, 1 = opaque.
+    const char* infoText = nullptr;
+    float infoAlpha = 1.0f;
+    int molesLeft = -1;        // DistributedMoleField's frame2D "Moles Left: %d", -1 = hidden
+    int timerBelowSeconds = -1; // ToontownTimer.posBelowTopRightCorner (the mole game), -1 = hidden
 };
 
 class Hud {
@@ -76,6 +82,10 @@ private:
     char lastToastText_[160] = {};
     C2D_TextBuf toastBuf_ = nullptr;
     C2D_TextBuf fishBuf_ = nullptr;
+    C2D_TextBuf infoBuf_ = nullptr; // info line and Moles Left, re-parsed when the text changes
+    C2D_Text infoTextC2d_{}, molesTextC2d_{};
+    char infoLast_[64] = {};
+    int molesLast_ = -1;
     C2D_Text fishText_[5]{};
     unsigned fishRevision_ = ~0u;
 };

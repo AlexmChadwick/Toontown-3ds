@@ -80,6 +80,16 @@ public:
 
     // Follow camera height from the local Toon's DNA height (clamped to at least 3, as stock).
     void setCameraHeight(float toonHeight) { camHeight_ = toonHeight > 3.0f ? toonHeight : 3.0f; }
+    float cameraHeight() const { return camHeight_; }
+    // LocalAvatar.setIdealCameraPos(0, -back * h / 3, h + up) for clamped height h (a mole field:
+    // 22, 12); back 0 = the normal camera position. The look-at stays (0, 1.5, h).
+    void setIdealCameraRaise(float back, float up) { idealBack_ = back, idealUp_ = up; }
+    // Scripted motion (a mole throw): put the Toon here with no walk, gravity or collision.
+    void place(float x, float y, float z) {
+        x_ = x, y_ = y, z_ = z;
+        probeX_ = x, probeY_ = y;
+        speed_ = vz_ = 0;
+    }
     C3D_FVec cameraEye() const { return camEye_; }
     C3D_FVec cameraTarget() const { return camTarget_; }
     // Head-to-eye distance after wall avoidance; very small means the camera is inside the toon.
@@ -105,6 +115,7 @@ private:
     float camYawOffset_ = 0; // degrees relative to toon heading
     float camPitch_ = 0;     // degrees above horizontal (stock camera is level)
     float camHeight_ = 3.5f; // LocalAvatar.getClampedAvatarHeight: max(toon height, 3)
+    float idealBack_ = 0, idealUp_ = 0; // setIdealCameraRaise
     float camDist_ = 10.5f;  // smoothed boom length (3 camHeight until the first avoid)
     C3D_FVec camEye_{};
     C3D_FVec camTarget_{};

@@ -251,7 +251,7 @@ WANTED = {
     'DistributedMaze': ['setRoomDoId', 'setGameStart', 'setGameOver', 'setClientTriggered',
                         'setFinishedMaze', 'toonFinished', 'damageMe'],
     'DistributedMoleField': ['setGameStart', 'setClientTriggered', 'whackedMole', 'whackedBomb',
-                             'updateMole', 'setScore', 'damageMe', 'setPityWin'],
+                             'updateMole', 'reportToonHitByBomb', 'setScore', 'damageMe', 'setPityWin'],
     'DistributedGolfGreenGame': ['requestJoin', 'leaveGame', 'acceptJoin', 'requestBoard',
                                  'startBoard', 'signalDone', 'scoreData', 'setTimerStart'],
     'DistributedGrid': [],

@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "game/panda_rng.h"
+#include "world/py_random.h"
 
 #ifdef __3DS__
 #include "core/log.h"
@@ -15,78 +15,73 @@ namespace tt::world {
 
 namespace games_logic {
 
-void shuffleMazeRotations(uint32_t seed, int outRotations[4]) {
+void shuffleMazeRotations(uint64_t seed, int outRotations[4]) {
+    // DistributedMaze.gotRoom: getRng().shuffle(rotations), then each Maze_Inside_<i> found
+    // takes rotations.pop(), the end of the list.
     int rotations[8] = {0, 0, 90, 90, 180, 180, 270, 270};
-    game::RandomNumGen rng(seed);
+    PyRandom rng(seed);
     rng.shuffle(rotations, 8);
-    // Python list.pop() takes from the end of the array:
     outRotations[0] = rotations[7];
     outRotations[1] = rotations[6];
     outRotations[2] = rotations[5];
     outRotations[3] = rotations[4];
 }
 
-int calcMoleSchedule(uint32_t seed, float gameDuration, int numMoles,
-                     MolePopup* outSchedule, int maxSchedule) {
-    if (!outSchedule || maxSchedule <= 0 || numMoles <= 0) return 0;
-
-    game::RandomNumGen randOb(seed);
-    game::RandomNumGen rngEligible(seed);
-
-    float curMoveUpTime = 1.0f;
-    float curMoveDownTime = 1.0f;
-    float curStayUpTime = 7.0f;
-    float curTimeBetweenPopup = 1.5f;
-    float curTime = 3.0f;
-
-    uint8_t eligibleMoles[16];
-    const int totalMoles = numMoles > 16 ? 16 : numMoles;
-    for (int i = 0; i < totalMoles; ++i) eligibleMoles[i] = static_cast<uint8_t>(i);
-    int numEligible = totalMoles;
-    rngEligible.shuffle(eligibleMoles, numEligible);
-
-    uint8_t usedMoles[16];
-    int numUsed = 0;
-
+int calcMoleSchedule(uint64_t seed, double gameDuration, int numMoles, MolePopup* outSchedule, int maxSchedule,
+                     double* outEndingTime) {
+    // MoleFieldBase.scheduleMoles. getRng() is a fresh random.Random(entId * level.doId) on every
+    // call, so the first shuffle and each reshuffle of the used list restart that sequence;
+    // randOb, the mole type choice, is one more fresh copy that runs through the whole loop.
+    if (!outSchedule || maxSchedule <= 0 || numMoles <= 0 || numMoles > kMaxMoles) return 0;
+    uint8_t eligible[kMaxMoles], used[kMaxMoles];
+    int numEligible = numMoles, numUsed = 0;
+    for (int i = 0; i < numMoles; ++i) eligible[i] = uint8_t(i);
+    PyRandom(seed).shuffle(eligible, numEligible);
+    PyRandom randOb(seed);
+    double curMoveUpTime = 1, curMoveDownTime = 1, curTimeBetweenPopup = 1.5, curStayUpTime = 7, curTime = 3;
+    double endingTime = 0;
     int count = 0;
-    float endingTime = 0.0f;
-
-    while (endingTime < gameDuration && count < maxSchedule) {
+    while (endingTime < gameDuration) {
         if (numEligible == 0) {
-            for (int i = 0; i < numUsed; ++i) eligibleMoles[i] = usedMoles[i];
+            for (int i = 0; i < numUsed; ++i) eligible[i] = used[i];
             numEligible = numUsed;
             numUsed = 0;
-            rngEligible.shuffle(eligibleMoles, numEligible);
+            PyRandom(seed).shuffle(eligible, numEligible);
         }
-        if (numEligible == 0) break;
-
-        const uint8_t moleIndex = eligibleMoles[0];
-        for (int i = 0; i < numEligible - 1; ++i) eligibleMoles[i] = eligibleMoles[i + 1];
+        const uint8_t moleIndex = eligible[0];
+        for (int i = 1; i < numEligible; ++i) eligible[i - 1] = eligible[i];
         --numEligible;
-        usedMoles[numUsed++] = moleIndex;
-
-        // Ratio: 3 normal moles to 1 cog bomb (choice([0, 0, 0, 1]))
-        const uint8_t moleType = (randOb.choice(4) == 3) ? 1 : 0;
-
-        MolePopup& pop = outSchedule[count++];
-        pop.start = curTime;
-        pop.hole = moleIndex;
-        pop.upTime = curMoveUpTime;
-        pop.stayTime = curStayUpTime;
-        pop.downTime = curMoveDownTime;
-        pop.type = moleType;
-
+        used[numUsed++] = moleIndex;
+        static constexpr uint8_t kTypes[4] = {kHillMole, kHillMole, kHillMole, kHillBomb};
+        const uint8_t moleType = kTypes[randOb.choiceIndex(4)];
+        if (count >= maxSchedule) return 0; // the caller's table is too small for this game
+        outSchedule[count++] = MolePopup{float(curTime), moleIndex, float(curMoveUpTime), float(curStayUpTime),
+                                         float(curMoveDownTime), moleType};
         curTime += curTimeBetweenPopup;
-        curMoveUpTime = std::max(0.5f, curMoveUpTime * 0.95f);
-        curStayUpTime = std::max(3.0f, curStayUpTime * 0.95f);
-        curMoveDownTime = std::max(0.5f, curMoveDownTime * 0.95f);
-        curTimeBetweenPopup = std::max(0.25f, curTimeBetweenPopup * 0.95f);
+        // calcNextMoveUpTime clamps to MoveDownTimeMin; both minimums are 0.5.
+        curMoveUpTime = std::max(0.5, curMoveUpTime * 0.95);
+        curStayUpTime = std::max(3.0, curStayUpTime * 0.95);
+        curMoveDownTime = std::max(0.5, curMoveDownTime * 0.95);
+        curTimeBetweenPopup = std::max(0.25, curTimeBetweenPopup * 0.95);
         endingTime = curTime + curMoveUpTime + curStayUpTime + curMoveDownTime;
     }
-
-    // Upstream pops the trailing element (self.schedule.pop())
-    if (count > 1) --count;
+    --count; // self.schedule.pop()
+    if (outEndingTime && count > 0) {
+        const MolePopup& last = outSchedule[count - 1];
+        *outEndingTime = double(last.start) + last.upTime + last.stayTime + last.downTime;
+    }
     return count;
+}
+
+void moleFlightPick(int32_t ts, int numX, int numY, int* tileX, int* tileY, int* hRot, int* pRot) {
+    // random.Random(timestamp): the landing hill, then the H and P spins.
+    PyRandom rng(uint64_t(ts < 0 ? -int64_t(ts) : int64_t(ts)));
+    *tileX = rng.randint(0, numX - 1);
+    *tileY = rng.randint(0, numY - 1);
+    *hRot = rng.randrange(1, 8);
+    if (rng.choiceIndex(2)) *hRot = -*hRot;
+    *pRot = rng.randrange(1, 3);
+    if (rng.choiceIndex(2)) *pRot = -*pRot;
 }
 
 } // namespace games_logic
@@ -495,84 +490,378 @@ void LevelGames::updateMazes(net::Client& client, Level& level, float toonX, flo
     }
 }
 
-void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, float toonY, float toonZ, float dt, uint32_t nowMs) {
+// ---- DistributedMoleField / MoleHill ----
+namespace {
+
+constexpr float kMoleDownZ = -2.5f;
+constexpr float kMoleScale = 0.75f;
+// GravityWalker's event sphere: centre avatarRadius - 0.1 up, radius avatarRadius * 1.04.
+constexpr float kToonEventZ = 1.3f, kToonEventR = 1.456f;
+// MoleHill.setHillType's moleHead jitters (LerpPosInterval, 0.05 s each, from the head's place).
+constexpr float kWhackJitter[20][3] = {
+    {0.18f, 0, 0}, {0, -0.13f, 0}, {0, 0, 0.18f}, {-0.15f, 0, 0}, {0, 0.18f, 0}, {0.11f, 0, 0}, {0, -0.12f, 0},
+    {0, 0, 0.18f}, {-0.18f, 0, 0}, {0, 0.13f, 0}, {0.18f, 0, 0}, {0, -0.15f, 0}, {0, 0, 0.18f}, {-0.16f, 0, 0},
+    {0, 0.18f, 0}, {0.11f, 0, 0}, {0, -0.18f, 0}, {0, 0, 0.17f}, {-0.18f, 0, 0}, {0, 0, 0}};
+constexpr float kCogJitter[10][3] = {{0.28f, 0, 0}, {0, -0.23f, 0}, {0, 0, 0.28f}, {-0.35f, 0, 0}, {0, 0.28f, 0},
+                                     {0.31f, 0, 0}, {0, -0.32f, 0}, {0, 0, 0.48f}, {-0.28f, 0, 0}, {0, 0.29f, 0}};
+
+void jitter(const float (*pts)[3], int n, float e, float out[3]) {
+    int k = int(e / 0.05f);
+    if (k >= n) {
+        std::memcpy(out, pts[n - 1], sizeof(float) * 3);
+        return;
+    }
+    const float u = (e - k * 0.05f) / 0.05f;
+    static constexpr float kOrigin[3] = {0, 0, 0};
+    const float* a = k ? pts[k - 1] : kOrigin;
+    for (int c = 0; c < 3; ++c) out[c] = a[c] + (pts[k][c] - a[c]) * u;
+}
+
+// TTLocalizer
+constexpr const char* kMolesInstruction = "Mole Stomp!\nJump on the red moles!";
+constexpr const char* kMolesFinished = "Mole Stomp successful!";
+constexpr const char* kMolesPityWin = "Stomp Failed! But the moles left.";
+constexpr const char* kMolesRestarted = "Stomp Failed! Restarting...";
+
+} // namespace
+
+LevelGames::MoleField* LevelGames::moleFieldFor(int slot, const net::LevelEntityObj& d, const LevelEntity& e,
+                                                const Level& level) {
+    MoleField* freeField = nullptr;
+    for (MoleField& f : moleFields_) {
+        if (f.slot == slot && f.doId == d.doId) return &f;
+        if (!freeField && (f.slot < 0 || !client_->levelEntitySlot(f.slot).active ||
+                           client_->levelEntitySlot(f.slot).doId != f.doId))
+            freeField = &f;
+    }
+    if (!freeField) return nullptr;
+    MoleField& f = *freeField;
+    f = MoleField{};
+    f.slot = slot;
+    f.doId = d.doId;
+    f.numX = int(level.spec_.number(e, "numSquaresX", 5));
+    f.numY = int(level.spec_.number(e, "numSquaresY", 5));
+    f.spacingX = level.spec_.number(e, "spacingX", 5);
+    f.spacingY = level.spec_.number(e, "spacingY", 5);
+    f.numMoles = f.numX * f.numY;
+    if (f.numX <= 0 || f.numY <= 0 || f.numMoles > games_logic::kMaxMoles) {
+        TT_LOG("level_games: mole field %u has %d x %d hills (max %d), not shown", unsigned(d.doId), f.numX, f.numY,
+               games_logic::kMaxMoles);
+        f.numMoles = 0;
+    }
+    std::memcpy(f.world, e.world, sizeof(f.world));
+    f.eventSeq = d.moleEventSeq; // events from before we built the hills are history
+    TT_LOG("level_games: mole field %u: %d x %d hills, spacing %.1f x %.1f", unsigned(d.doId), f.numX, f.numY,
+           f.spacingX, f.spacingY);
+    return &f;
+}
+
+void LevelGames::moleInfo(const char* text, uint32_t nowMs) {
+    std::snprintf(infoText_, sizeof(infoText_), "%s", text);
+    infoMs_ = nowMs ? nowMs : 1;
+}
+
+const char* LevelGames::infoText(uint32_t nowMs, float* alpha) const {
+    if (!infoMs_ || !infoText_[0]) return nullptr;
+    const float e = int32_t(nowMs - infoMs_) / 1000.0f;
+    if (e >= 3.6f) return nullptr;
+    *alpha = e < 3.1f ? 1.0f : 1.0f - (e - 3.1f) / 0.5f;
+    return infoText_;
+}
+
+bool LevelGames::moleHud(int* molesLeft, int* timerSeconds, uint32_t nowMs) const {
+    for (const MoleField& f : moleFields_) {
+        if (f.slot < 0 || !f.gameStarted || f.won || !client_) continue;
+        const net::LevelEntityObj& d = client_->levelEntitySlot(f.slot);
+        if (!d.active || d.doId != f.doId) continue;
+        const int left = int(d.molesWhackedTarget) - int(d.score);
+        if (left < 0) continue;
+        *molesLeft = left;
+        const int32_t ms = int32_t(f.timerEndMs - nowMs);
+        *timerSeconds = f.timerEndMs && ms > 0 ? (ms + 999) / 1000 : -1;
+        return true;
+    }
+    return false;
+}
+
+bool LevelGames::moleTarget(bool cog, float out[3]) const {
+    for (const MoleField& f : moleFields_) {
+        if (f.slot < 0) continue;
+        for (int h = 0; h < f.numMoles; ++h) {
+            const MoleHill& hill = f.hills[h];
+            if (!hill.col || hill.z < -0.5f || hill.type != (cog ? games_logic::kHillBomb : games_logic::kHillMole))
+                continue;
+            const float hl[3] = {(h % f.numX) * f.spacingX, (h / f.numX) * f.spacingY, 0};
+            fromLocalLocal(f.world, hl, out);
+            return true;
+        }
+    }
+    return false;
+}
+
+// MoleHill.setHillType (models, collision scale) and the whack intervals it starts.
+void LevelGames::moleSetType(MoleHill& h, uint8_t type, uint32_t nowMs) {
+    using namespace games_logic;
+    // A raised hill keeps its kind: a pop never turns a HILL_MOLE into a HILL_BOMB or back.
+    if ((h.type == kHillMole && type == kHillBomb) || (h.type == kHillBomb && type == kHillMole)) return;
+    h.type = type;
+    h.headOff[0] = h.headOff[1] = h.headOff[2] = 0;
+    h.headScale = 1;
+    if (type == kHillMole) h.colRadius = 3.0f * kMoleScale;
+    if (type == kHillBomb || type == kHillCogWhacked) h.colRadius = 1.0f * kMoleScale;
+    if (type == kHillCogWhacked) {
+        // doMoleDown returns at once (the type is already COGWHACKED): jitter 0.5 s, then down.
+        h.ival = kIvalCogWhacked;
+        h.ivalMs = nowMs;
+        h.fromZ = h.z;
+    }
+    if (type == kHillWhacked) {
+        h.colRadius = 0;
+        h.col = false;
+        h.z = 0; // finish() of the running pop, then self.mole.setPos(0, 0, 0)
+        h.ival = kIvalWhacked;
+        h.ivalMs = nowMs;
+    }
+}
+
+void LevelGames::molePop(MoleHill& h, const games_logic::MolePopup& p, uint32_t startMs) {
+    using namespace games_logic;
+    if (h.type == kHillWhacked || h.type == kHillCogWhacked) return;
+    h.popupNum++;
+    h.bombBranch = h.type == kHillBomb; // decided before the sequence's setHillType runs
+    moleSetType(h, p.type, startMs);
+    h.ival = kIvalPop;
+    h.ivalMs = startMs;
+    h.fromZ = h.z;
+    h.up = p.upTime, h.stay = p.stayTime, h.down = p.downTime;
+    h.col = h.bombBranch;
+}
+
+void LevelGames::moleEval(MoleHill& h, uint32_t nowMs) {
+    using namespace games_logic;
+    const float e = int32_t(nowMs - h.ivalMs) / 1000.0f;
+    if (e < 0) return;
+    switch (h.ival) {
+    case kIvalPop:
+        if (e < h.up) {
+            h.z = h.fromZ + (0 - h.fromZ) * (e / h.up);
+        } else if (e < h.up + h.stay) {
+            if (!h.bombBranch && h.z != 0) h.col = true; // unstash once up
+            h.z = 0;
+        } else if (e < h.up + h.stay + h.down) {
+            if (!h.bombBranch) h.col = false; // stash before going down
+            h.z = kMoleDownZ * ((e - h.up - h.stay) / h.down);
+        } else {
+            h.z = kMoleDownZ;
+            h.col = false;
+            h.ival = kIvalNone;
+        }
+        break;
+    case kIvalDown:
+        h.col = false;
+        if (e < 1.0f) {
+            h.z = h.fromZ + (kMoleDownZ - h.fromZ) * e;
+        } else {
+            h.z = kMoleDownZ;
+            h.ival = kIvalNone;
+        }
+        break;
+    case kIvalWhacked:
+        if (e < 1.0f) {
+            jitter(kWhackJitter, 20, e, h.headOff);
+            h.headScale = e < 0.5f ? 1 + 2.5f * (e / 0.5f) : 3.5f - 2.5f * ((e - 0.5f) / 0.5f);
+            h.z = 0;
+        } else if (e < 1.5f) {
+            h.headOff[0] = h.headOff[1] = h.headOff[2] = 0;
+            h.headScale = 1;
+            h.z = kMoleDownZ * ((e - 1.0f) / 0.5f);
+        } else {
+            h.z = kMoleDownZ;
+            h.ival = kIvalNone;
+            moleSetType(h, kHillMole, nowMs);
+        }
+        break;
+    case kIvalCogWhacked:
+        h.col = false;
+        if (e < 0.5f) {
+            jitter(kCogJitter, 10, e, h.headOff);
+        } else if (e < 1.0f) {
+            h.z = h.fromZ + (kMoleDownZ - h.fromZ) * ((e - 0.5f) / 0.5f);
+        } else {
+            h.z = kMoleDownZ;
+            h.ival = kIvalNone;
+            moleSetType(h, kHillBomb, nowMs);
+        }
+        break;
+    default:
+        break;
+    }
+}
+
+// __showToonHitByBomb for the local Toon: up 50 units a second under gravity 32, spinning, to a
+// random hill picked by random.Random(timestamp), at the field's world x / y plus that hill's
+// offset (not rotated, as upstream).
+void LevelGames::moleHitByBomb(MoleField& f, int index, int32_t ts, uint32_t nowMs) {
+    (void)index;
+    int tileX, tileY, hRot, pRot;
+    games_logic::moleFlightPick(ts, f.numX, f.numY, &tileX, &tileY, &hRot, &pRot);
+    MoleFlight& fl = moleFlight_;
+    fl.active = true;
+    fl.startMs = nowMs;
+    fl.start[0] = toonX_, fl.start[1] = toonY_, fl.start[2] = f.world[11]; // toon.setZ(self.getZ())
+    fl.end[0] = f.world[9] + tileX * f.spacingX;
+    fl.end[1] = f.world[10] + tileY * f.spacingY;
+    fl.end[2] = fl.start[2];
+    fl.hRot = hRot, fl.pRot = pRot;
+    std::memcpy(fl.camEye, cameraEye_, sizeof(fl.camEye));
+    playAt(kSfxMoleSurprise, fl.start); // soundBomb (AV_pig_howl, soundBomb2, is not in the SD set)
+    playAt(kSfxTagC, fl.start);         // soundIUpDown: MG_Tag_C, then the cannon whizz
+    TT_LOG("level_games: mole %d threw us to hill (%d, %d), %d H / %d P turns", index, tileX, tileY, hRot, pRot);
+}
+
+void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, float toonY, float toonZ, float dt,
+                             uint32_t nowMs) {
+    using namespace games_logic;
     (void)dt;
+    moleCamera_ = false;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         if (!d.active || d.classId != dc::DistributedMoleField::kClassId) continue;
         const LevelEntity* e = level.specOf(d.levelDoId, d.entId);
         if (!e || !level.shown(e->room)) continue;
+        MoleField* fp = moleFieldFor(i, d, *e, level);
+        if (!fp || fp->numMoles == 0) continue;
+        MoleField& f = *fp;
+        std::memcpy(f.world, e->world, sizeof(f.world));
 
-        SlotState& slot = slots_[i];
-
-        // Initialize schedule if game started and not yet scheduled
-        if (!slot.scheduled && d.gameStartMs > 0) {
-            slot.scheduled = true;
-            slot.moleStartMs = d.gameStartMs;
-            const float duration = d.gameDuration > 0 ? float(d.gameDuration) : 60.0f;
-            slot.scheduleCount = games_logic::calcMoleSchedule(d.entId * d.levelDoId, duration, 16, slot.schedule, 64);
+        // setGameStart (a failed round restarts with another one).
+        if (d.gameStartSeq != f.startSeq && d.gameStartMs) {
+            f.startSeq = d.gameStartSeq;
+            f.count = calcMoleSchedule(uint64_t(d.entId) * d.levelDoId, double(d.gameDuration), f.numMoles,
+                                       f.schedule, kMaxMolePopups);
+            f.next = 0;
+            f.gameStartMs = d.gameStartMs;
+            f.gameStarted = true;
+            f.activeField = true;
+            f.inRange = false;
+            f.won = false;
+            f.timerEndMs = d.gameStartMs + uint32_t(d.gameDuration) * 1000u;
+            for (MoleHill& h : f.hills) h.popupNum = 0;
+            if (f.hasRestarted) {
+                moleInfo(kMolesRestarted, nowMs);
+                client.sendMoleDamage(d.doId);
+            } else {
+                f.hasRestarted = true;
+            }
+            TT_LOG("level_games: mole field %u game start: %d popups over %u s, target %u", unsigned(d.doId), f.count,
+                   unsigned(d.gameDuration), unsigned(d.molesWhackedTarget));
         }
-
-        const float elapsed = d.gameStartMs > 0 ? (int32_t(nowMs - d.gameStartMs) / 1000.0f) : 0.0f;
-
-        // Update mole elevations across 16 holes:
-        for (int h = 0; h < 16; ++h) {
-            slot.holeElevation[h] = 0.0f;
+        // scheduleTask
+        if (f.gameStarted) {
+            while (f.next < f.count && f.activeField) {
+                const MolePopup& p = f.schedule[f.next];
+                const uint32_t at = f.gameStartMs + uint32_t(p.start * 1000.0f);
+                if (int32_t(nowMs - at) < 0) break;
+                if (p.hole < f.numMoles) molePop(f.hills[p.hole], p, at);
+                f.next++;
+            }
         }
-
-        for (int s = 0; s < slot.scheduleCount; ++s) {
-            const games_logic::MolePopup& pop = slot.schedule[s];
-            if (pop.hole < 16) {
-                const float elev = games_logic::calcMoleElevation(elapsed, pop.start, pop.upTime, pop.stayTime, pop.downTime);
-                if (elev > slot.holeElevation[pop.hole]) {
-                    slot.holeElevation[pop.hole] = elev;
-                    slot.holeType[pop.hole] = pop.type;
+        // updateMole / reportToonHitByBomb
+        while (f.eventSeq != d.moleEventSeq) {
+            if (uint16_t(d.moleEventSeq - f.eventSeq) > 8) f.eventSeq = uint16_t(d.moleEventSeq - 8);
+            const net::LevelEntityObj::MoleEvent& m = d.moleEvents[f.eventSeq % 8];
+            f.eventSeq++;
+            if (m.index < 0 || m.index >= f.numMoles) continue;
+            MoleHill& h = f.hills[m.index];
+            if (m.avId == 0) {
+                if (m.status == 1 /* WHACKED */ && h.type != kHillCogWhacked) {
+                    moleSetType(h, kHillCogWhacked, nowMs);
+                    playAt(kSfxMoleStomp, e->world + 9);
+                }
+            } else if (m.avId != client.avatarId()) {
+                if (h.type != kHillWhacked) {
+                    moleSetType(h, kHillWhacked, nowMs);
+                    playAt(kSfxMoleStomp, e->world + 9);
                 }
             }
         }
-
-        // Check toon stepping on raised moles:
-        float localToon[3];
-        toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
-
-        // Trigger mole field when toon approaches
-        const float distToCenter = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1]);
-        if (distToCenter < 35.0f && d.gameStartMs == 0 && !slot.moleTriggered) {
-            slot.moleTriggered = true;
-            TT_LOG("level_games: toon entered mole field %u (sending setClientTriggered)", unsigned(d.doId));
-            client.sendMoleTriggered(d.doId);
+        for (int h = 0; h < f.numMoles; ++h) moleEval(f.hills[h], nowMs);
+        // setScore -> gameWon, setPityWin: every mole down, the frame hidden, the info line.
+        if (!f.won && f.gameStarted && (d.pityWin || (d.molesWhackedTarget && d.score >= d.molesWhackedTarget))) {
+            f.won = true;
+            for (int h = 0; h < f.numMoles; ++h) {
+                MoleHill& hill = f.hills[h];
+                hill.ival = kIvalNone;
+                hill.col = false;
+                hill.z = kMoleDownZ;
+            }
+            f.timerEndMs = 0;
+            moleInfo(d.pityWin ? kMolesPityWin : kMolesFinished, nowMs);
+            f.activeField = false;
+            f.inRange = false;
+        }
+        if (f.timerEndMs && int32_t(nowMs - f.timerEndMs) >= 0) { // timerExpired: cleanDetect
+            f.timerEndMs = 0;
+            f.activeField = false;
+            f.inRange = false;
         }
 
-        constexpr float kSpacing = 8.0f;
-        for (int h = 0; h < 16; ++h) {
-            const int col = h % 4;
-            const int row = h / 4;
-            const float hx = (col - 1.5f) * kSpacing;
-            const float hy = (row - 1.5f) * kSpacing;
-            const float dx = localToon[0] - hx;
-            const float dy = localToon[1] - hy;
-            const float dist2 = dx * dx + dy * dy;
-
-            if (dist2 < 2.5f * 2.5f && slot.holeElevation[h] > 0.4f && !slot.holeWhacked[h]) {
-                slot.holeWhacked[h] = true;
-                slot.whackedTimeMs[h] = nowMs;
-
-                if (slot.holeType[h] == 0) {
-                    playAt(kSfxMoleStomp, e->world + 9, 0.9f);
-                    TT_LOG("level_games: whacked mole hole %u on field %u (sending whackedMole)", unsigned(h), unsigned(d.doId));
-                    client.sendMoleWhacked(d.doId, static_cast<uint8_t>(h), 1);
-                } else {
-                    playAt(kSfxMoleSurprise, e->world + 9, 0.9f);
-                    TT_LOG("level_games: hit bomb mole hole %u on field %u (sending moleBomb)", unsigned(h), unsigned(d.doId));
-                    client.sendMoleBomb(d.doId, static_cast<uint8_t>(h), 1, nowMs);
+        // __detect every 0.1 s: within 0.75 of the field's larger side of its centre.
+        if (int32_t(nowMs - f.detectMs) >= 100) {
+            f.detectMs = nowMs;
+            const float dimX = f.numX * f.spacingX, dimY = f.numY * f.spacingY;
+            float c[3];
+            const float cl[3] = {dimX * 0.5f, dimY * 0.5f, 0};
+            fromLocalLocal(f.world, cl, c);
+            const float dx = toonX - c[0], dy = toonY - c[1], dz = toonZ - c[2];
+            const bool near = std::sqrt(dx * dx + dy * dy + dz * dz) < (dimY > dimX ? dimY : dimX) * 0.75f;
+            if (near && !f.inRange) {
+                if (!f.gameStarted) {
+                    TT_LOG("level_games: toon entered mole field %u (sending setClientTriggered)", unsigned(d.doId));
+                    client.sendMoleTriggered(d.doId);
                 }
+                f.inRange = true;
+                if (f.activeField && !f.hasEntered) {
+                    moleInfo(kMolesInstruction, nowMs);
+                    f.hasEntered = true;
+                }
+            } else if (!near && f.inRange) {
+                f.inRange = false;
             }
-            if (slot.holeElevation[h] <= 0.05f) {
-                slot.holeWhacked[h] = false;
+        }
+        if (f.inRange && f.activeField) moleCamera_ = true;
+
+        // handleEnterMole: the Toon's event sphere into a raised mole's sphere.
+        if (moleFlight_.active) continue;
+        for (int h = 0; h < f.numMoles; ++h) {
+            MoleHill& hill = f.hills[h];
+            if (!hill.col || hill.colRadius <= 0) continue;
+            const float hl[3] = {(h % f.numX) * f.spacingX, (h / f.numX) * f.spacingY, hill.z};
+            float hw[3];
+            fromLocalLocal(f.world, hl, hw);
+            const float dx = toonX - hw[0], dy = toonY - hw[1], dz = toonZ + kToonEventZ - hw[2];
+            const float r = hill.colRadius + kToonEventR;
+            if (dx * dx + dy * dy + dz * dz >= r * r) continue;
+            if (!f.gameStarted) client.sendMoleTriggered(d.doId);
+            hill.col = false; // stashMoleCollision
+            if (hill.type == kHillMole) {
+                const int32_t ts = client.networkTime(nowMs);
+                moleSetType(hill, kHillWhacked, nowMs);
+                TT_LOG("level_games: touched mole %d on field %u (sending whackedBomb)", h, unsigned(d.doId));
+                client.sendMoleBomb(d.doId, int8_t(h), hill.popupNum, ts);
+                moleHitByBomb(f, h, ts, nowMs);
+                break;
+            }
+            if (hill.type == kHillBomb) {
+                moleSetType(hill, kHillCogWhacked, nowMs);
+                playAt(kSfxMoleStomp, hw);
+                TT_LOG("level_games: stomped Cog mole %d on field %u (sending whackedMole)", h, unsigned(d.doId));
+                client.sendMoleWhacked(d.doId, int8_t(h), hill.popupNum);
             }
         }
     }
 }
+// ---- end mole field ----
 
 void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs) {
     (void)nowMs;
@@ -616,7 +905,6 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
 }
 
 void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
-    (void)eye;
     if (!client_ || !level_) return;
 
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
@@ -683,36 +971,40 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 renderer.drawModel(mdl, m);
             }
         }
-        // 4. Mole fields
+        // 4. Mole fields: MoleHill's mole_hole and its mole (0.75), which turns to face the Toon
+        // (setBillboardAxis(localAvatar)); a whacked one faces the camera.
         else if (d.classId == dc::DistributedMoleField::kClassId) {
-            if (moleHole_.loaded()) {
-                constexpr float kSpacing = 8.0f;
-                for (int h = 0; h < 16; ++h) {
-                    const int col = h % 4;
-                    const int row = h / 4;
-                    const float hx = (col - 1.5f) * kSpacing;
-                    const float hy = (row - 1.5f) * kSpacing;
-
-                    C3D_Mtx m;
-                    std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
-                    Mtx_Translate(&m, hx, hy, 0.08f, true);
-                    renderer.drawModel(const_cast<render::Model&>(moleHole_), m);
-
-                    const float elev = slot.holeElevation[h];
-                    if (elev > 0.05f) {
-                        render::Model* moleMdl = &const_cast<render::Model&>(moleNorm_);
-                        if (slot.holeWhacked[h] && moleHit_.loaded()) {
-                            moleMdl = &const_cast<render::Model&>(moleHit_);
-                        } else if (slot.holeType[h] == 1 && moleCog_.loaded()) {
-                            moleMdl = &const_cast<render::Model&>(moleCog_);
-                        }
-                        if (moleMdl->loaded()) {
-                            C3D_Mtx mm = m;
-                            Mtx_Translate(&mm, 0.0f, 0.0f, elev * 2.2f, true);
-                            renderer.drawModel(*moleMdl, mm);
-                        }
-                    }
-                }
+            const MoleField* f = nullptr;
+            for (const MoleField& mf : moleFields_)
+                if (mf.slot == i && mf.doId == d.doId) f = &mf;
+            if (!f || !moleHole_.loaded()) continue;
+            for (int h = 0; h < f->numMoles; ++h) {
+                const MoleHill& hill = f->hills[h];
+                C3D_Mtx m;
+                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+                Mtx_Translate(&m, (h % f->numX) * f->spacingX, (h / f->numX) * f->spacingY, 0.0f, true);
+                renderer.drawModel(const_cast<render::Model&>(moleHole_), m);
+                if (hill.z <= kMoleDownZ + 0.01f) continue; // under the floor
+                const render::Model* head = &moleNorm_;
+                if (hill.type == games_logic::kHillWhacked) head = &moleHit_;
+                else if (hill.type == games_logic::kHillBomb || hill.type == games_logic::kHillCogWhacked) head = &moleCog_;
+                if (!head->loaded()) continue;
+                const float hl[3] = {(h % f->numX) * f->spacingX, (h / f->numX) * f->spacingY, hill.z};
+                float hw[3];
+                fromLocalLocal(f->world, hl, hw);
+                const bool faceCamera = hill.type == games_logic::kHillWhacked;
+                const float tx = faceCamera ? eye.x : toonX_, ty = faceCamera ? eye.y : toonY_;
+                // Billboard about the mole's up axis: its -y (the model's front) toward the target.
+                const float heading = std::atan2(-(tx - hw[0]), ty - hw[1]) + kPi;
+                C3D_Mtx mm;
+                Mtx_Identity(&mm);
+                Mtx_Translate(&mm, hw[0], hw[1], hw[2], true);
+                Mtx_RotateZ(&mm, heading, true);
+                const float s = kMoleScale * hill.headScale;
+                Mtx_Translate(&mm, hill.headOff[0] * kMoleScale, hill.headOff[1] * kMoleScale,
+                              hill.headOff[2] * kMoleScale, true);
+                Mtx_Scale(&mm, s, s, s);
+                renderer.drawModel(const_cast<render::Model&>(*head), mm);
             }
         }
         // 5. Golf greens

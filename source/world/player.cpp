@@ -242,6 +242,10 @@ void Player::camera(const Input& in, float dt) {
     const C3D_FVec head = FVec3_New(x_, y_, z_ + camHeight_);
     camTarget_ = FVec3_New(x_ - sy * kCamLookAhead, y_ + cy * kCamLookAhead, z_ + camHeight_);
     camEye_ = FVec3_New(x_ + sy * cosf(pitch) * boom, y_ - cy * cosf(pitch) * boom, z_ + camHeight_ + sinf(pitch) * boom);
+    if (idealBack_ > 0.0f) {
+        const float back = idealBack_ * camHeight_ / 3.0f;
+        camEye_ = FVec3_New(x_ + sy * back, y_ - cy * back, z_ + camHeight_ + idealUp_);
+    }
     avoidCamera(head, dt);
 }
 

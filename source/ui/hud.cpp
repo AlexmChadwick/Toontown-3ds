@@ -24,6 +24,8 @@ constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 
 // TownBattle's timer: ToontownTimer at (1.182, 0.842) and scale 0.4 in aspect2d, i.e. a 48 px clock
 // about 19 px in from the top-right corner (1 aspect2d unit = 120 px of the 240 px screen).
 constexpr float kBattleTimerSize = 48.0f, kBattleTimerX = 400.0f - 22.0f, kBattleTimerY = 22.0f;
+// posBelowTopRightCorner: (1.16, 0.58) at the default scale 0.45.
+constexpr float kBelowTimerSize = 54.0f, kBelowTimerX = 400.0f - 21.0f, kBelowTimerY = 50.0f;
 
 } // namespace
 
@@ -31,7 +33,9 @@ bool Hud::init() {
     raceBuf_ = C2D_TextBufNew(256);
     toastBuf_ = C2D_TextBufNew(160);
     fishBuf_ = C2D_TextBufNew(256);
-    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr && fishBuf_ != nullptr;
+    infoBuf_ = C2D_TextBufNew(128);
+    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr && fishBuf_ != nullptr &&
+           infoBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
@@ -40,7 +44,8 @@ void Hud::shutdown() {
     if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
     if (fishBuf_) C2D_TextBufDelete(fishBuf_);
-    raceBuf_ = toastBuf_ = fishBuf_ = nullptr;
+    if (infoBuf_) C2D_TextBufDelete(infoBuf_);
+    raceBuf_ = toastBuf_ = fishBuf_ = infoBuf_ = nullptr;
     releaseFishPhotos();
 }
 
@@ -343,6 +348,47 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
     if (v.photoViewfinder) drawViewfinder(top);
+    if (v.infoText || v.molesLeft >= 0) {
+        const char* info = v.infoText ? v.infoText : "";
+        if (std::strncmp(info, infoLast_, sizeof(infoLast_) - 1) || v.molesLeft != molesLast_) {
+            C2D_TextBufClear(infoBuf_);
+            tt::render::textParseSign(&infoTextC2d_, infoBuf_, info);
+            C2D_TextOptimize(&infoTextC2d_);
+            char moles[32];
+            std::snprintf(moles, sizeof(moles), "Moles Left: %d", v.molesLeft > 0 ? v.molesLeft : 0);
+            tt::render::textParseSign(&molesTextC2d_, infoBuf_, moles);
+            C2D_TextOptimize(&molesTextC2d_);
+            std::snprintf(infoLast_, sizeof(infoLast_), "%s", info);
+            molesLast_ = v.molesLeft;
+        }
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        if (v.molesLeft >= 0) {
+            // frame2D: (0, 0.9), frameSize 0.6 x 0.1, frameColor (0.737, 0.573, 0.345, 0.3); the label at
+            // text_pos (0, -0.02), scale 0.075. 1.5 x upstream's share, so the sign font reads on 400 px.
+            constexpr float kS = 1.5f, kUnit = 120.0f;
+            const float fw = 0.6f * kUnit * kS, fh = 0.1f * kUnit * kS, cy = 120.0f - 0.9f * kUnit;
+            C2D_DrawRectSolid(200 - fw * 0.5f, cy - fh * 0.5f, 0.5f, fw, fh, C2D_Color32(188, 146, 88, 77));
+            const float sc = 0.075f * kUnit * kS / 30.0f;
+            float w, h;
+            C2D_TextGetDimensions(&molesTextC2d_, sc, sc, &w, &h);
+            C2D_DrawText(&molesTextC2d_, C2D_WithColor, 200 - w * 0.5f, cy - h * 0.5f + 0.02f * kUnit * kS * 0.5f, 0.5f,
+                         sc, sc, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        }
+        if (v.infoText && v.infoText[0]) {
+            // OnscreenText at (0, -0.5), scale 0.1, white on a black shadow; 1.25 x for the small screen.
+            const float sc = 0.1f * 120.0f * 1.25f / 30.0f;
+            const u8 a = u8(255.0f * (v.infoAlpha < 0 ? 0 : v.infoAlpha > 1 ? 1 : v.infoAlpha));
+            const float y = 120.0f + 0.5f * 120.0f - sc * 30.0f * 0.8f; // pos is the first baseline
+            C2D_DrawText(&infoTextC2d_, C2D_WithColor | C2D_AlignCenter, 200 + 1.5f, y + 1.5f, 0.5f, sc, sc,
+                         C2D_Color32(0, 0, 0, a));
+            C2D_DrawText(&infoTextC2d_, C2D_WithColor | C2D_AlignCenter, 200, y, 0.5f, sc, sc,
+                         C2D_Color32(0xFF, 0xFF, 0xFF, a));
+        }
+        if (v.timerBelowSeconds >= 0)
+            battleTimer_.draw(v.timerBelowSeconds, kBelowTimerX, kBelowTimerY, kBelowTimerSize);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
     if (!v.online) return; // stats come from the server
     C2D_SceneBegin(top);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); // overlay: never hidden by the world

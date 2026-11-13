@@ -587,6 +587,16 @@ struct LevelEntityObj {
     uint16_t gameDuration = 0;
     int16_t score = 0;
     bool pityWin = false;
+    uint8_t gameStartSeq = 0; // DistributedMoleField.setGameStart count (a restart resends it)
+    // updateMole(index, WHACKED) / reportToonHitByBomb(avId, index, ts), oldest first; the reader
+    // keeps its own count of moleEventSeq.
+    struct MoleEvent {
+        uint32_t avId; // 0: updateMole
+        int8_t index;
+        int8_t status;
+        int32_t ts;
+    } moleEvents[8] = {};
+    uint16_t moleEventSeq = 0;
 
     uint16_t boardsLeft = 0;
     uint32_t joinedToons[4] = {};

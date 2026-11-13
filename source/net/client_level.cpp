@@ -317,11 +317,24 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
         e.molesWhackedTarget = r.u8();
         e.gameDuration = r.u16();
+        e.gameStartSeq++;
+        e.pityWin = false;
         TT_LOG("net: mole field %u setGameStart (duration %u s, target %u)", unsigned(e.doId), unsigned(e.gameDuration), unsigned(e.molesWhackedTarget));
     } else if (fieldId == dc::DistributedMoleField::k_setScore) {
         e.score = r.i16();
-    } else if (fieldId == dc::DistributedMoleField::k_updateMole) {
-        r.i8(); r.i8();
+    } else if (fieldId == dc::DistributedMoleField::k_updateMole ||
+               fieldId == dc::DistributedMoleField::k_reportToonHitByBomb) {
+        LevelEntityObj::MoleEvent& m = e.moleEvents[e.moleEventSeq % 8];
+        m = LevelEntityObj::MoleEvent{};
+        if (fieldId == dc::DistributedMoleField::k_updateMole) {
+            m.index = r.i8();
+            m.status = r.i8();
+        } else {
+            m.avId = r.u32();
+            m.index = r.i8();
+            m.ts = r.i32();
+        }
+        e.moleEventSeq++;
     } else if (fieldId == dc::DistributedMoleField::k_setPityWin) {
         e.pityWin = true;
     } else if (fieldId == dc::DistributedGolfGreenGame::k_acceptJoin) {

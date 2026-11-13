@@ -1531,6 +1531,25 @@ int main() {
                     }
                 }
             }
+            if (!strcmp(autotest.label(), "club: moles") && level.active()) {
+                // Test-only: once the game runs, step onto a raised Cog mole every 1.5 s (stomp it),
+                // and once, 12 s in, onto a plain mole (it throws the Toon).
+                static float lastStomp = 0;
+                static bool thrown = false;
+                if (autotest.stepBegan()) lastStomp = 0, thrown = false;
+                float p[3];
+                const float t = autotest.stepTime();
+                if (t > 4.0f && t - lastStomp > 1.5f && !level.games().moleFlight().active) {
+                    const bool cog = thrown || t < 12.0f;
+                    if (level.games().moleTarget(cog, p)) {
+                        lastStomp = t;
+                        thrown |= !cog;
+                        player.reset(p[0] + 0.5f, p[1] - 0.5f, p[2] + 0.1f, player.headingDeg());
+                        TT_LOG("autotest: onto a %s mole at %.1f,%.1f", cog ? "Cog" : "plain", double(p[0]),
+                               double(p[1]));
+                    }
+                }
+            }
             if (!strcmp(autotest.label(), "factory: crates")) {
                 // Test-only: CrushableEntityGrid refuses a push into a blocked cell (setReject), so
                 // every 3 s without a setMoveTo try the next face, facing the crate.
@@ -2008,9 +2027,41 @@ int main() {
                 }
             }
         }
-        if (!racing.driving() && !((level.active() && level.loadingAssets()) ||
+        // DistributedMoleField: the raised camera over the field, and a mole's throw (stopped
+        // state: no walking; the flight's camera rides its x / y and looks at the Toon).
+        tt::world::LevelGames& levelGames = level.games();
+        const tt::world::LevelGames::MoleFlight& moleFlight = levelGames.moleFlight();
+        const bool moleThrown = level.active() && moleFlight.active;
+        player.setIdealCameraRaise(level.active() && levelGames.moleCamera() ? 22.0f : 0.0f, 12.0f);
+        if (moleThrown) {
+            in.pad.dx = in.pad.dy = 0;
+            in.down &= ~KEY_A;
+        }
+        if (!racing.driving() && !moleThrown && !((level.active() && level.loadingAssets()) ||
                                    (cogInterior.active() && cogInterior.loadingAssets())))
             player.update(in, dt);
+        if (moleThrown) {
+            using LG = tt::world::LevelGames;
+            const float t = int32_t(tt::net::plat::nowMs() - moleFlight.startMs) / 1000.0f - LG::kMoleFlightWait;
+            const float* a = moleFlight.start;
+            const float* b = moleFlight.end;
+            if (t >= LG::kMoleFlightDur) { // postFunc: at endPos, walking again
+                levelGames.endMoleFlight();
+                player.reset(b[0], b[1], b[2], player.headingDeg());
+            } else {
+                const float ft = t > 0.0f ? t : 0.0f, u = ft / LG::kMoleFlightDur;
+                const float x = a[0] + (b[0] - a[0]) * u, y = a[1] + (b[1] - a[1]) * u;
+                player.place(x, y, a[2] + 50.0f * ft - 16.0f * ft * ft);
+                const float* e = moleFlight.camEye;
+                player.overrideCamera(FVec3_New(e[0] + x - a[0], e[1] + y - a[1], e[2]),
+                                      FVec3_New(player.x(), player.y(), player.z()));
+            }
+        }
+        if (level.active()) {
+            const C3D_FVec eye = player.cameraEye();
+            const float eyeXyz[3] = {eye.x, eye.y, eye.z};
+            levelGames.setCameraEye(eyeXyz);
+        }
         fishing.applyCamera();
         // ---- qafix: upstream NPC talk camera, with normal collision pull-in ----
         static u32 talkCameraNpc = 0;
@@ -3579,6 +3630,19 @@ int main() {
             }
             tt::prof::lap(tt::prof::kDrawShadow);
             player.worldMatrix(&m);
+            if (level.active() && level.games().moleFlight().active) {
+                // The throw's spins: geomNode H turns inside rotNode, whose P turns about half height.
+                using LG = tt::world::LevelGames;
+                const LG::MoleFlight& fl = level.games().moleFlight();
+                float u = (int32_t(tt::net::plat::nowMs() - fl.startMs) / 1000.0f - LG::kMoleFlightWait) /
+                          LG::kMoleFlightDur;
+                u = u < 0.0f ? 0.0f : (u > 1.0f ? 1.0f : u);
+                const float half = player.cameraHeight() * 0.5f; // about toon.getHeight() / 2
+                Mtx_Translate(&m, 0.0f, 0.0f, half, true);
+                Mtx_RotateX(&m, fl.pRot * 2.0f * 3.14159265f * u, true);
+                Mtx_Translate(&m, 0.0f, 0.0f, -half, true);
+                Mtx_RotateZ(&m, fl.hRot * 2.0f * 3.14159265f * u, true);
+            }
             if (squishAge >= 0.0f && squishAge < 1.7f) {
                 // Toon.enterSquish: to (2, 2, 0.025) in 0.1 s, hold 1 s, then after 0.4 s pop
                 // 1.4 -> 0.8 -> 1 (0.1 / 0.05 / 0.033 s).
@@ -3843,6 +3907,15 @@ int main() {
             }
             hv.toast = toast;
             hv.fishing = fishing.view();
+            if (level.active()) { // the country club's info line and the mole game's score and clock
+                const u32 now = tt::net::plat::nowMs();
+                hv.infoText = level.games().infoText(now, &hv.infoAlpha);
+                int left, secs;
+                if (level.games().moleHud(&left, &secs, now)) {
+                    hv.molesLeft = left;
+                    hv.timerBelowSeconds = secs;
+                }
+            }
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())
                 hv.timerSeconds = buy->secondsLeft(tt::net::plat::nowMs());
