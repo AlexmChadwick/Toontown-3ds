@@ -514,12 +514,12 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
     // The CFO stands at CashbotBossBattleOnePosHpr for its Cog round (drawBoss), not BattleThree.
     const Vec3 origin = cashbot_ && phase == BossPhase::Round ? Vec3{120, -230, 0} : bossPosition_;
     float joinOrigin[3] = {origin.x, origin.y, origin.z};
-    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin});
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin, kBossJoinHeight});
     frame.suits.update(frame.dt, nowMs, &collision_);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
         frame.suits.overridePose(pose.doId, pose.x, pose.y, pose.z + pose.hop, pose.h,
-                                 pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs);
+                                 pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs, pose.joinScale);
     }
     const net::OwnStats& stats = frame.client.ownStats();
     const ui::BattleGags gags{stats.inventory, stats.experience, stats.trackAccess};

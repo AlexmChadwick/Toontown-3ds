@@ -83,6 +83,7 @@ struct BattleActorPose {
     float x, y, z, h;   // feet, heading (degrees)
     float hop;          // extra height while attacking (shadow stays on the ground)
     float scale;        // 1 = normal
+    float joinScale;    // cogs: boss battle entrance scale (showSuitsJoining), 1 once grown
     float flash;        // 0..1 hit tint
     uint8_t anim;       // kBattleAnim* (toons) or SuitAnim / kSuitAnim* (cogs)
     int8_t clipArg;     // cogs: the attack index for kSuitAnimAttack
@@ -195,9 +196,13 @@ struct BattleAction {
 struct CogPoseSource {
     bool (*pose)(void* user, uint32_t doId, float* x, float* y, float* z, float* h) = nullptr;
     void* user = nullptr;
+    // DistributedBattleFinal: a joiner leaves the boss at scale joinHeight / height and grows to 1
+    // over 1.5 s starting 1.5 s into its walk (0: no entrance scale).
+    float joinHeight = 0.0f;
 };
 // DistributedBattleFinal.showSuitsJoining: a boss battle's joining Cogs walk out of the boss
 // cog (setPos(bossCog, 0, 0, 0)), not from where their actors stand. user: float[3] position.
+constexpr float kBossJoinHeight = 3.8f; // suit.setScale(3.8 / suit.height)
 inline bool bossCogOrigin(void* user, uint32_t, float* x, float* y, float* z, float* h) {
     const float* p = static_cast<const float*>(user);
     *x = p[0], *y = p[1], *z = p[2], *h = 0.0f;
@@ -324,6 +329,8 @@ private:
         int baseHp = -1;
         uint32_t faceUntil = 0;
         float faceH = 0;
+        float joinScale = 1.0f;      // boss battle entrance: scale until joinGrowMs, then grows to 1
+        uint32_t joinGrowMs = 0;
     };
     // kFxSay: `value` indexes says_ (a line over `who`); kFxGesture: the throw clip toward `other`
     // with no gag prop (MovieFire's pink slip).

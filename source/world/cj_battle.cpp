@@ -250,12 +250,12 @@ void CjBattle::update(BossFrame& frame, const net::BossState& state, uint32_t no
     }
     frame.battle.setAutoPlay(frame.test.active());
     float joinOrigin[3] = {-2.798f, -60.0f, 0.0f};
-    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin});
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin, kBossJoinHeight});
     frame.suits.update(frame.dt, nowMs, &assets_.collision);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
         frame.suits.overridePose(pose.doId, pose.x, pose.y, pose.z + pose.hop, pose.h, pose.hidden, pose.flash,
-                                 pose.anim, pose.clipArg, pose.clipStartMs);
+                                 pose.anim, pose.clipArg, pose.clipStartMs, pose.joinScale);
     }
     const net::OwnStats& stats = frame.client.ownStats();
     frame.battle.fillView(frame.client, nowMs, &battleView_);

@@ -60,8 +60,9 @@ public:
     }
     // Battles place their cogs themselves: call after update() each frame while in battle.
     // anim: SuitAnim or a battle clip (world/battle.h kSuitAnim*), clipArg/clipStartMs with it.
+    // battleScale: a boss battle joiner's entrance scale (BattleActorPose::joinScale).
     void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim = 0,
-                      s8 clipArg = -1, u32 clipStartMs = 0);
+                      s8 clipArg = -1, u32 clipStartMs = 0, float battleScale = 1.0f);
     // Facility cogs (DistributedFactorySuit, world/level.*): the level runtime walks them and
     // sets their pose every frame; drawing, nametags, battles and overridePose work as above.
     // code: SuitDNA head code; levelDist: setLevelDist. False when no actor slot is free.
@@ -99,6 +100,7 @@ private:
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
         float externalScale = 1; // cogdo: per-maze suit scale; ordinary actors retain 1
+        float battleScale = 1;   // boss battle entrance (overridePose)
         bool skelecog = false; // DistributedSuitBase.setSkelecog: Suit.makeSkeleton
         float animTime = 0.0f;
         s8 clipArg = -1;

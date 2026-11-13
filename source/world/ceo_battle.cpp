@@ -337,14 +337,14 @@ void CeoBattle::update(BossFrame& frame, const net::BossState& state, uint32_t n
     // BattleOne is a DistributedBattleFinal (Cogs leave the boss); BattleThree's waiter battles
     // start their Cogs where they stand.
     float joinOrigin[3] = {bossPosition_.x, bossPosition_.y, bossPosition_.z};
-    const CogPoseSource joinFrom = phaseIs(state, "BattleOne") ? CogPoseSource{bossCogOrigin, joinOrigin}
+    const CogPoseSource joinFrom = phaseIs(state, "BattleOne") ? CogPoseSource{bossCogOrigin, joinOrigin, kBossJoinHeight}
                                                                : CogPoseSource{SuitActors::poseThunk, &frame.suits};
     frame.battle.update(frame.client, nowMs, frame.dt, joinFrom);
     frame.suits.update(frame.dt, nowMs, &assets_.collision);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
         frame.suits.overridePose(pose.doId, pose.x, pose.y, pose.z + pose.hop, pose.h,
-            pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs);
+            pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs, pose.joinScale);
     }
 
     const net::OwnStats& stats = frame.client.ownStats();

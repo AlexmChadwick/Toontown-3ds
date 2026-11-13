@@ -551,7 +551,8 @@ void SuitActors::draw(render::Renderer& renderer) {
             Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
             Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
             // ---- cogdo: model-space scale from CogdoMazeGameGlobals.SuitData ----
-            Mtx_Scale(&m, a.externalScale, a.externalScale, a.externalScale);
+            const float s = a.externalScale * a.battleScale;
+            Mtx_Scale(&m, s, s, s);
             // ---- end cogdo ----
             const float f = a.flash;
             renderer.setBaseTint(1.0f, 1.0f - f * 0.6f, 1.0f - f * 0.6f, 1.0f); // hit flash
@@ -565,7 +566,8 @@ void SuitActors::draw(render::Renderer& renderer) {
         Mtx_Identity(&m);
         Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
         Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
-        Mtx_Scale(&m, w * a.externalScale, w * a.externalScale, h * a.externalScale); // cogdo
+        const float s = a.externalScale * a.battleScale; // cogdo, boss battle entrance
+        Mtx_Scale(&m, w * s, w * s, h * s);
         renderer.drawModel(model_, m);
     }
     renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
@@ -661,7 +663,7 @@ bool SuitActors::pose(u32 doId, float* x, float* y, float* z, float* h) const {
 }
 
 void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim,
-                              s8 clipArg, u32 clipStartMs) {
+                              s8 clipArg, u32 clipStartMs, float battleScale) {
     for (Actor& a : actors_) {
         if (!a.active || a.doId != doId) continue;
         a.pose.x = x, a.pose.y = y, a.pose.z = a.pose.groundZ = z, a.pose.h = h;
@@ -673,6 +675,7 @@ void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool
         a.pose.anim = anim;
         a.clipArg = clipArg;
         a.clipStartMs = clipStartMs;
+        a.battleScale = battleScale;
         if (const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr)
             loadLose(info->body - 'a' + (a.skelecog ? 3 : 0)); // ready before the Cog is defeated
     }

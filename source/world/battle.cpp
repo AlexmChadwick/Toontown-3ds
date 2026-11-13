@@ -363,12 +363,12 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         a.isToon = false;
         a.doId = id;
         float x = bx_, y = by_, h = 0.0f, z = bz_;
-        bool placed = false;
+        bool placed = false, fromSource = false;
         if (i == 0 && nb.state == net::BattleStateId::FaceOff) {
             x = nb.sx, y = nb.sy; // the cog's pose at contact
             placed = true;
         } else if (cogs.pose && cogs.pose(cogs.user, id, &x, &y, &z, &h)) {
-            placed = true;
+            placed = fromSource = true;
         }
         if (!placed) toWorld(0.0f, 14.0f, &x, &y);
         a.x = x, a.y = y, a.z = bz_;
@@ -376,6 +376,10 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         net::Client::CogIdentity ns;
         const SuitInfo* info = client.cogIdentity(id, &ns) && ns.hasDna ? findSuitType(ns.name) : nullptr;
         a.height = info ? info->height : 5.0f;
+        if (fromSource && cogs.joinHeight > 0.0f) {
+            a.joinScale = cogs.joinHeight / a.height;
+            a.joinGrowMs = nowMs + 1500u;
+        }
         // [cog attacks]
         if (ns.hasDna && ns.name[0]) {
             snprintf(a.cogCode, sizeof(a.cogCode), "%s", ns.name);
@@ -1300,6 +1304,12 @@ void Battle::computePoses(uint32_t nowMs) {
         }
         out->hop = hop;
         out->scale = scale;
+        out->joinScale = 1.0f;
+        if (!isToon && a.joinScale != 1.0f) {
+            const float gu = clamp01(float(int32_t(nowMs - a.joinGrowMs)) / 1500.0f);
+            out->joinScale = a.joinScale + (1.0f - a.joinScale) * gu;
+            if (gu >= 1.0f) a.joinScale = 1.0f;
+        }
         out->flash = flash;
         out->hidden = hidden;
         if (isToon) {
