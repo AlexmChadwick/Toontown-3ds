@@ -548,14 +548,21 @@ Azahar verification steps (in Old 3DS mode):
   elevatorModel (0, 30, 8) h 180 with our Toon at `BigElevatorPoints[0]`, two
   `getRideElevatorInterval` bobs, then the doors slide over `ElevatorData` openTime. The arenas bake
   their elevator doors open, so the ride draws the Cog HQ lobby door models
-  (`data/cogbldg/hqelev_<vp|cfo|cj>_<left|right>`) over them until open. World placements of the
+  (`data/cogbldg/hqelev_<vp|cfo|cj|bb>_<left|right>`) over them until open. World placements of the
   elevator origins were computed from the stock arena models.
 - Introduction: VP (`vpIntro`, 40 s), CFO (`cfoIntro`, 35.7 s), CJ (`cjArrival`, 27.5 s) and CEO
   (`ceoIntro`, 18.5 s) port each `makeIntroductionMovie`'s camera cues, speech lines and clip timing.
   The Introduction / Elevator barriers go after the stock movie length (AI timeouts 45 / 30 s).
   Mata Hairy (CFO) and Good ol' Gil Giggles (CEO, DNA `newToonRandom(335933, 'm', 1)` head `sls`)
-  are drawn; the CFO stays offstage until its roll. Not drawn: Cog-suit disguises, doobers, goons
-  in the intro, the VP Toons' walk-in.
+  are drawn; the CFO stays offstage until its roll. Not drawn: doobers, goons in the intro, the VP
+  Toons' walk-in.
+- Cog suits (`Toon.putOnSuit`): every involved Toon wears the boss department's suit from the
+  elevator until its `loseCogSuits` (VP 34 s, CFO `CfoIntroShot::suitsOff`, CJ 24 s, CEO 6 s; off
+  0.3 s into the 19-frame `suit_explosion_dust` DustCloud). Mata Hairy and Gil Giggles wear the
+  suit `random.seed(boss doId)` picks (`resistanceSuit`); Mata Hairy loses hers 2 s after the Toons.
+  The suit is `cogTypes[dept]` for a complete suit, else the rental f / bf / sc / cc (Sellbot
+  rental cloth in `data/suit/rental.ttx`). Outside bosses, `setCogIndex` (a locked Cog HQ door)
+  drives the same disguise for our Toon and remote Toons.
 - Boss battle Cogs: `DistributedBattleFinal.showSuitsJoining` starts joiners at the boss cog
   (`bossCogOrigin`), scaled 3.8 / height growing to 1, and holds the (+-20, -4, 7) h +-60 camera
   during ReservesJoining. CEO battles are Waiters / Diners, whose Cogs start at the battle.
