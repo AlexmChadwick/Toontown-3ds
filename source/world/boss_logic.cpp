@@ -26,7 +26,7 @@ BossPhase bossPhase(const char* state) {
 float bossBarrierDelay(const char* name) {
     if (!std::strcmp(name, "WaitForToons")) return 0.5f;
     if (!std::strcmp(name, "Elevator")) return 6.0f;
-    if (!std::strcmp(name, "Introduction")) return 20.0f;
+    if (!std::strcmp(name, "Introduction")) return kVpIntroSeconds;
     if (!std::strcmp(name, "RollToBattleTwo")) return 8.0f;
     if (!std::strcmp(name, "PrepareBattleTwo")) return 4.0f;
     if (!std::strcmp(name, "PrepareBattleThree")) return 8.0f;
@@ -71,14 +71,65 @@ float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs) {
     return 90 * fraction;
 }
 
+void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target) {
+    *eye = position;
+    *target = {position.x - std::sin(h * kDegrees) * std::cos(p * kDegrees) * 10,
+               position.y + std::cos(h * kDegrees) * std::cos(p * kDegrees) * 10, position.z + std::sin(p * kDegrees) * 10};
+}
+
+void vpIntro(float t, VpIntroShot* out) {
+    struct Cue {
+        float at;
+        Vec3 position;
+        float h, p;
+    };
+    // dialogTrack's camera.setPosHpr cues (the 34 s loseCogSuits shots stay on the 31 s one).
+    static const Cue kCues[] = {{10, {-23.1f, 15.7f, 17.2f}, -160, -2.4f}, {16, {-25, -99, 10}, -14, 10},
+                                {25, {-12, -15, 27}, -151, -15}, {27, {-12, 48, 94}, -26, 20},
+                                {31, {-20, -35, 10}, -88, 25}, {37, {-23.4f, -145.6f, 44}, -10, -12.5f}};
+    if (t < 10) { // camera.posHprInterval(8, ..., blendType='easeInOut') from (0, 25, 30) h 0
+        float u = std::clamp(t / 8, 0.0f, 1.0f);
+        u = u * u * (3 - 2 * u);
+        bossCameraAim({-22 * u, 25 - 125 * u, 30 + 5 * u}, -10 * u, -13 * u, &out->eye, &out->target);
+    } else {
+        const Cue* cue = &kCues[0];
+        for (const Cue& c : kCues) {
+            if (t >= c.at) cue = &c;
+        }
+        bossCameraAim(cue->position, cue->h, cue->p, &out->eye, &out->target);
+    }
+    struct Line {
+        float from, to;
+        const char* text;
+    };
+    // BossCogPromoteDoobers / DoobersAway['s'] / WelcomeToons / PromoteToons / DiscoverToons / AttackToons.
+    static const Line kBoss[] = {
+        {5.6f, 10, "You are hereby promoted to full-fledged Sellbots.  Congratulations!"},
+        {12, 16, "Go!  And make that sale!"}, {18, 22, "Welcome, new Cogs!"},
+        {22, 25, "You are hereby promoted to full-fledged Sellbots.  Congratu--"},
+        {31, 34, "Huh?  Toons!  In disguise!"}, {39, 1e9f, "Attack!!"}};
+    static const Line kCaged[] = {{22.2f, 25, "Hey! Hiya! Hey over there!"}, {27, 31, "So, did you Toons come to rescue me?"}};
+    out->bossChat = out->cagedChat = nullptr;
+    out->bossChatAge = out->cagedChatAge = 0;
+    for (const Line& line : kBoss) {
+        if (t >= line.from && t < line.to) out->bossChat = line.text, out->bossChatAge = t - line.from;
+    }
+    for (const Line& line : kCaged) {
+        if (t >= line.from && t < line.to) out->cagedChat = line.text, out->cagedChatAge = t - line.from;
+    }
+}
+
 const char* vpClip(const net::BossState& state, uint32_t nowMs) {
     const BossPhase phase = bossPhase(state.phase);
-    if (phase == BossPhase::Intro) {
+    if (phase == BossPhase::Intro) { // bossAnimTrack, then the dialog track's Ff_lookRt / turn2Fb / Fb_neutral
         const float time = (nowMs - state.phaseMs) / 1000.0f;
         if (time < 10) return "Ff_speech";
         if (time < 12) return "ltTurn2Wave";
         if (time < 16) return "wave";
-        return "turn2Fb";
+        if (time < 25) return "Ff_speech"; // ltTurn2Wave played back to front, then Ff_speech
+        if (time < 31) return "Ff_lookRt";
+        if (time < 37) return "turn2Fb";
+        return "Fb_neutral";
     }
     if (phase == BossPhase::Victory) return "Fb_fall";
     if (phase != BossPhase::Pies && phase != BossPhase::FinalPie) return "Ff_neutral";

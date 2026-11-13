@@ -176,6 +176,7 @@ const char* cfoClip(const net::BossState& state, uint32_t nowMs) {
         return age < 2 ? "Fb_firstHit" : age < 5.5f ? "Fb_down2Up" : "Ff_neutral";
     }
     if (!std::strcmp(state.phase, "BattleThree") && state.attack == net::kBossDizzy) return "Fb_downNeutral";
+    if (!std::strcmp(state.phase, "Introduction")) return "Ff_neutral"; // the intro rolls in on Ff_neutral
     return vpClip(state, nowMs);
 }
 } // namespace tt::world

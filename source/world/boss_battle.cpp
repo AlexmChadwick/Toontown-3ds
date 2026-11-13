@@ -779,6 +779,13 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
         target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
     }
+    VpIntroShot vpIntroShot{};
+    const bool vpIntroMovie = !cashbot_ && phase == BossPhase::Intro;
+    if (vpIntroMovie) {
+        vpIntro((nowMs - state.phaseMs) / 1000.0f, &vpIntroShot);
+        eye = FVec3_New(vpIntroShot.eye.x, vpIntroShot.eye.y, vpIntroShot.eye.z);
+        target = FVec3_New(vpIntroShot.target.x, vpIntroShot.target.y, vpIntroShot.target.z);
+    }
     // DistributedBossCog.enterElevator: camera at elevatorModel (0, 30, 8) h 180, our Toon at
     // BigElevatorPoints[0] facing out (placeToonInElevator); world values from the stock vaults.
     const bool elevatorMovie = phase == BossPhase::Arrival;
@@ -881,6 +888,20 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         if (cfoIntroMovie && intro.bossChat &&
             ui::projectToScreen(proj, view, position.x, position.y, position.z + 24, &sx, &sy, &depth))
             frame.balloons.addSpeaker(sx, sy, "C. F. O.", intro.bossChat, intro.bossChatAge, depth);
+        if (vpIntroMovie && vpIntroShot.bossChat &&
+            ui::projectToScreen(proj, view, position.x, position.y, position.z + 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Senior V. P.", vpIntroShot.bossChat, vpIntroShot.bossChatAge, depth);
+        if (vpIntroMovie && vpIntroShot.cagedChat &&
+            ui::projectToScreen(proj, view, 0, 78, vpCageHeight(state, nowMs) + rescuedLook_.nametagHeight, &sx, &sy,
+                                &depth))
+        {
+            const char* caged = nullptr;
+            for (const ui::SosCardDef& card : ui::kSosCards) {
+                if (card.npcId == state.cagedNpc) caged = card.name;
+            }
+            frame.balloons.addSpeaker(sx, sy, caged, vpIntroShot.cagedChat, vpIntroShot.cagedChatAge, depth,
+                                      ui::Balloons::kNameColorNpc);
+        }
         if (cfoIntroMovie &&
             ui::projectToScreen(proj, view, intro.resistance.x, intro.resistance.y,
                                 intro.resistance.z + rescuedLook_.nametagHeight, &sx, &sy, &depth))

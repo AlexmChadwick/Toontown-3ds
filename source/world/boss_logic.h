@@ -14,6 +14,17 @@ Vec3 vpPosition(float damage);
 float vpCageHeight(const net::BossState& state, uint32_t nowMs);
 float vpCageDoorAngle(const net::BossState& state, uint32_t nowMs);
 const char* vpClip(const net::BossState& state, uint32_t nowMs);
+// Panda camera pos / hpr (degrees) -> eye and a look-at point 10 units ahead.
+void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target);
+// DistributedSellbotBoss.makeIntroductionMovie at t seconds: camera cue and who says what.
+struct VpIntroShot {
+    Vec3 eye, target;
+    const char* bossChat;  // nullptr when silent
+    const char* cagedChat; // the caged Toon
+    float bossChatAge, cagedChatAge;
+};
+constexpr float kVpIntroSeconds = 40; // the dialog track's last cue (37) + backupToonsToBattlePosition (3)
+void vpIntro(float t, VpIntroShot* out);
 float piePower(float heldSeconds);
 Vec3 piePosition(Vec3 origin, float heading, float pitch, float power, float seconds);
 bool segmentBox(Vec3 start, Vec3 end, Vec3 minimum, Vec3 maximum);
