@@ -321,6 +321,10 @@ def bake(zone_id, args, base):
     import hq_arrivals
     arrival = hq_arrivals.write_anchor(args.resources, zone_id, out/f'{zone_id}.pts', whole)
     num_points += int(arrival is not None)
+    import coghq_elevators
+    elevators = coghq_elevators.anchors(zone_id, cfg, args.resources, base.loader)
+    coghq_elevators.write(out / f'{zone_id}.pts', elevators)
+    num_points += len(elevators)
     report.update({
         'arrival': arrival, 'version': 3, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
         'before': before['worst'], 'low': low_report['worst'], 'planned_worst': planned, 'lod': lod_report,
