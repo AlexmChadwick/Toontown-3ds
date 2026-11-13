@@ -228,6 +228,7 @@ void LevelGames::loadProps() {
     snprintf(path, sizeof(path), "%smole_hit.ttm", kPropsDir);
     assetBatch_.load(moleHit_, path);
 
+    bac_.load(assetBatch_);
     snprintf(path, sizeof(path), "%sgolf_green.ttm", kPropsDir);
     assetBatch_.load(golfGreen_, path);
     snprintf(path, sizeof(path), "%sgolf_flag.ttm", kPropsDir);
@@ -282,6 +283,8 @@ void LevelGames::shutdown() {
     moleHit_.unload();
     golfGreen_.unload();
     golfFlag_.unload();
+    bac_.unload();
+    golfSlot_ = -1;
     securityCamera_.unload();
     gridFloor_.unload();
     laserCamera_ = false;
@@ -347,6 +350,7 @@ void LevelGames::update(net::Client& client, Level& level, float toonX, float to
     toonY_ = toonY;
     toonZ_ = toonZ;
     nowMs_ = nowMs;
+    dt_ = dt;
 
     for (int index = 0; index < net::kMaxLevelEntities; ++index) {
         const auto &object = client.levelEntitySlot(index);
@@ -853,6 +857,13 @@ bool LevelGames::gameHud(const char** label, int* timerSeconds, uint32_t nowMs) 
         *timerSeconds = secondsTo(f.timerEndMs);
         return true;
     }
+    if (golfSlot_ >= 0 && bac_.active() && client_) { // the scoreBoard and the ToontownTimer
+        const net::LevelEntityObj& d = client_->levelEntitySlot(golfSlot_);
+        std::snprintf(hudLabel_, sizeof(hudLabel_), "Puzzles Left: %d", int(d.boardsLeft)); // GolfGreenGameScoreString
+        *label = hudLabel_;
+        *timerSeconds = d.bacTimeTotal ? secondsTo(d.bacTimeStartMs + uint32_t(d.bacTimeTotal) * 1000u) : -1;
+        return true;
+    }
     if (maze_.room >= 0 && maze_.gameStarted && maze_.timerEndMs) { // DistributedMaze.loadGui
         *label = "Maze Race!"; // TTLocalizer.mazeLabel
         *timerSeconds = secondsTo(maze_.timerEndMs);
@@ -1141,6 +1152,7 @@ void LevelGames::updateMoles(net::Client& client, Level& level, float toonX, flo
 // ---- end mole field ----
 
 void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs) {
+    const float dt = dt_;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         if (!d.active || d.classId != dc::DistributedGolfGreenGame::kClassId) continue;
@@ -1153,33 +1165,94 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
         const float dist = std::sqrt(localToon[0] * localToon[0] + localToon[1] * localToon[1] +
                                      localToon[2] * localToon[2]);
 
-        // initCollisionGeom: entering the 11.5 sphere at the green sends requestJoin. The board
-        // (Bust-a-Cog) is not played here, so walking back out leaves (its Exit button).
+        // initCollisionGeom: entering the 11.5 sphere at the green sends requestJoin.
         constexpr float kJoinRadius = 11.5f;
-        if (dist < kJoinRadius + kToonEventR && !slot.joinedGolf) {
-            slot.joinedGolf = true;
+        const bool inSphere = dist < kJoinRadius + kToonEventR;
+        if (inSphere && !slot.golfInSphere && !bac_.active()) {
             TT_LOG("level_games: entered golf green %u (sending requestJoin)", unsigned(d.doId));
             client.sendGolfJoin(d.doId);
-        } else if (dist > kJoinRadius + kToonEventR + 2.0f && slot.joinedGolf) {
-            slot.joinedGolf = false;
-            TT_LOG("level_games: left golf green %u (sending leaveGame)", unsigned(d.doId));
-            client.sendGolfLeave(d.doId);
         }
-        // acceptJoin (first time with us in it) and signalDone: countryClub.showInfoText.
+        slot.golfInSphere = inSphere;
+
+        // acceptJoin with us newly in it: __startGame, then requestBoard(0); the instruction once.
         if (d.golfJoinSeq != slot.golfJoinSeq) {
             slot.golfJoinSeq = d.golfJoinSeq;
             bool us = false;
             for (int k = 0; k < d.numJoinedToons; ++k) us |= d.joinedToons[k] == client.avatarId();
-            if (us && !slot.golfEntered) {
-                slot.golfEntered = true;
-                moleInfo("Remove the cog ball!", nowMs); // TTLocalizer.BustACogInstruction
+            if (us && !bac_.active()) {
+                bac_.begin();
+                golfSlot_ = i;
+                slot.bacBoardSeq = d.bacBoardSeq;
+                slot.bacClearedSeq = d.bacClearedSeq;
+                slot.bacHelpSeq = d.bacHelpSeq;
+                client.sendGolfBoard(d.doId, 0);
+                if (!slot.golfEntered) {
+                    slot.golfEntered = true;
+                    moleInfo("Remove the cog ball!", nowMs); // TTLocalizer.BustACogInstruction
+                }
             }
         }
-        if (d.golfDoneSeq != slot.golfDoneSeq) {
+        if (d.golfDoneSeq != slot.golfDoneSeq) { // signalDone: leave, then the result
             slot.golfDoneSeq = d.golfDoneSeq;
+            if (golfSlot_ == i && bac_.active()) {
+                bac_.end();
+                golfSlot_ = -1;
+                client.sendGolfLeave(d.doId);
+            }
             moleInfo(d.golfSuccess ? "Success!" : "Out of Time!", nowMs); // BustACogSuccess / Failure
         }
+        if (golfSlot_ != i || !bac_.active()) continue;
+
+        if (d.bacBoardSeq != slot.bacBoardSeq) {
+            slot.bacBoardSeq = d.bacBoardSeq;
+            bac_.startBoard(d.bacBoard, d.bacBoardLen, d.bacPattern, d.bacPatternLen);
+        }
+        if (d.bacClearedSeq != slot.bacClearedSeq) {
+            slot.bacClearedSeq = d.bacClearedSeq;
+            bac_.boardCleared();
+        }
+        if (d.bacHelpSeq != slot.bacHelpSeq) {
+            slot.bacHelpSeq = d.bacHelpSeq;
+            if (d.bacHelpAvId != client.avatarId()) bac_.helpOthers();
+        }
+        if (golfExit_) { // Exit for Now
+            bac_.end();
+            golfSlot_ = -1;
+            TT_LOG("level_games: left golf green %u (sending leaveGame)", unsigned(d.doId));
+            client.sendGolfLeave(d.doId);
+            continue;
+        }
+        uint8_t success = 0;
+        if (bac_.update(dt, golfAim_, golfFire_, &success)) {
+            TT_LOG("level_games: golf green board %s (requestBoard)", success ? "solved" : "failed");
+            client.sendGolfBoard(d.doId, success);
+        }
     }
+    if (golfSlot_ >= 0 && !client.levelEntitySlot(golfSlot_).active) {
+        bac_.end();
+        golfSlot_ = -1;
+    }
+    golfFire_ = golfExit_ = false;
+}
+
+bool LevelGames::golfView(float eye[3], float target[3], float stand[3], float* heading) const {
+    if (!bac_.active() || golfSlot_ < 0 || !client_) return false;
+    const SlotState& slot = slots_[golfSlot_];
+    C3D_Mtx m;
+    std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+    BustACog::camera(m, eye, target);
+    // acceptJoin: the Toon runs to toonPoints[everJoinedToons.index(avId)] and faces H 180.
+    static const float kToonPoints[4][2] = {{3.0f, 13.0f}, {6.0f, 13.0f}, {-3.0f, 13.0f}, {-6.0f, 13.0f}};
+    const net::LevelEntityObj& d = client_->levelEntitySlot(golfSlot_);
+    int index = 0;
+    for (int k = 0; k < d.numJoinedToons && k < 4; ++k)
+        if (d.joinedToons[k] == client_->avatarId()) index = k;
+    for (int r = 0; r < 3; ++r) {
+        const C3D_FVec& row = m.r[r];
+        stand[r] = row.x * kToonPoints[index][0] + row.y * kToonPoints[index][1] + row.w;
+    }
+    *heading = std::atan2(-m.r[0].y, m.r[1].y) / kDegToRad + 180.0f;
+    return true;
 }
 
 void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
@@ -1364,7 +1437,8 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
                 Mtx_Scale(&gm, 0.24f, 0.24f, 0.24f);
                 renderer.drawModel(const_cast<render::Model&>(golfGreen_), gm);
             }
-            if (golfFlag_.loaded()) {
+            if (golfSlot_ == i && bac_.active()) bac_.draw(renderer, m);
+            else if (golfFlag_.loaded()) { // groundFlag hides while the board is up
                 C3D_Mtx fm = m;
                 Mtx_Translate(&fm, 3.0f, 4.0f, 0.0f, true);
                 Mtx_RotateZ(&fm, -45.0f * kDegToRad, true);

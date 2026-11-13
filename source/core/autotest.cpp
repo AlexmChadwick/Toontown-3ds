@@ -331,7 +331,7 @@ const Step kScript[] = {
     {150.0f, 0, 0, 0, 0, -1, -1, 0, "club: walk", "club_walk*"},
     {24.0f, 0, 0, 0, 0, -1, -1, 0, "club: maze", "club_maze**"},
     {70.0f, 0, 0, 0, 0, -1, -1, 0, "club: moles", "club_moles**"}, // the 60 s Mole Stomp
-    {15.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf green", "club_golf**"},
+    {50.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf green", "club_golf**"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "club: battle", "club_battle*"},
     {90.0f, 0, 0, 0, 0, -1, -1, 0, "club: next floor", "club_next"}, // the kart room's golf kart
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "club: boss", "club_boss*"},

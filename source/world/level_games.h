@@ -18,6 +18,7 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "world/asset_batch.h"
+#include "world/bust_a_cog.h"
 #include <3ds.h>
 #endif
 
@@ -162,7 +163,7 @@ public:
     bool nearestGolfGreen(const Level& level, float x, float y, float z, float* outX, float* outY, float* outZ) const;
 
 private:
-    BasicAssetBatch<24> assetBatch_;
+    BasicAssetBatch<32> assetBatch_; // room-game props and the Bust-a-Cog board
     bool propsLoaded_ = false;
 
     // Models:
@@ -244,9 +245,10 @@ private:
         bool mazeFinished = false;
 
         // Golf
-        bool joinedGolf = false;
+        bool golfInSphere = false; // inside the 11.5 sphere (requestJoin on entry)
         bool golfEntered = false; // hasEntered: the instruction shows once
         uint8_t golfJoinSeq = 0, golfDoneSeq = 0;
+        uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0;
     };
     SlotState slots_[net::kMaxLevelEntities] = {};
 
@@ -343,6 +345,13 @@ public:
     bool moleCamera() const { return moleCamera_; }
     // While the Toon is near an active laser field (doToonInRange): (0, -20 * h / 3, h + 8).
     bool laserCamera() const { return laserCamera_; }
+    // Bust-a-Cog (the golf green's board): the pad turns the aim, A shoots, B is Exit for Now.
+    // main.cpp passes the frame's input before update and, while playing, holds the Toon at
+    // its stand point (the 'stopped' state) and takes the board camera.
+    void setGolfInput(float aim, bool fire, bool exit) { golfAim_ = aim, golfFire_ = fire, golfExit_ = exit; }
+    bool golfPlaying() const { return bac_.active(); }
+    // The camera eye / target and the Toon's stand point (toonPoints[index], facing H 180).
+    bool golfView(float eye[3], float target[3], float stand[3], float* heading) const;
     void setCameraEye(const float eye[3]) { std::memcpy(cameraEye_, eye, sizeof(cameraEye_)); }
     // Autotest: the world position of a raised mole with its collision on; cog = a HILL_BOMB
     // (the one to stomp), else a HILL_MOLE (it throws the Toon).
@@ -354,6 +363,11 @@ private:
     MoleFlight moleFlight_;
     bool moleCamera_ = false;
     bool laserCamera_ = false;
+    BustACog bac_;
+    int golfSlot_ = -1;     // the green whose board we play
+    float golfAim_ = 0;
+    float dt_ = 1.0f / 30.0f;
+    bool golfFire_ = false, golfExit_ = false;
     float cameraEye_[3] = {};
     char infoText_[64] = {};
     mutable char hudLabel_[32] = {};

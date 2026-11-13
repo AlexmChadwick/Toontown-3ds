@@ -1017,6 +1017,14 @@ int main() {
                 in.pad.dy = 127;
             } else if (!strcmp(autotest.label(), "da office: lasers") && autotest.stepTime() > 3.0f) {
                 in.pad.dy = 60;
+            } else if (!strcmp(autotest.label(), "club: golf green") && autotest.stepTime() > 6.0f) {
+                // Test-only Bust-a-Cog play: every 1.5 s turn the aim a little (alternating
+                // sides, wider each time) and shoot.
+                const float t = autotest.stepTime() - 6.0f;
+                const int cycle = int(t / 1.5f);
+                const float phase = t - cycle * 1.5f;
+                if (phase < 0.08f * float(1 + cycle % 5)) in.pad.dx = (cycle % 2) ? 120 : -120;
+                if (phase >= 0.9f && phase < 0.9f + 1.5f * dt) in.down |= KEY_A;
             }
         }
         // Boss place: one grouped hook owns both screens until the VP encounter ends.
@@ -2064,6 +2072,18 @@ int main() {
             in.pad.dx = in.pad.dy = 0;
             in.down &= ~KEY_A;
         }
+        // Bust-a-Cog: the pad (or D-Pad) turns the aim, A shoots, B is Exit for Now; the Toon
+        // stands still ('stopped') at its stand point.
+        const bool golfBoard = level.active() && levelGames.golfPlaying();
+        if (golfBoard) {
+            float aim = std::abs(in.pad.dx) > 20 ? std::fmax(-1.0f, std::fmin(1.0f, in.pad.dx / 127.0f)) : 0.0f;
+            if (in.held & KEY_DLEFT) aim = -1.0f;
+            if (in.held & KEY_DRIGHT) aim = 1.0f;
+            levelGames.setGolfInput(aim, (in.down & KEY_A) != 0, (in.down & KEY_B) != 0);
+            in.pad.dx = in.pad.dy = 0;
+            in.down &= ~(KEY_A | KEY_B);
+            in.held &= ~(KEY_A | KEY_B);
+        }
         if (!racing.driving() && !moleThrown && !((level.active() && level.loadingAssets()) ||
                                    (cogInterior.active() && cogInterior.loadingAssets())))
             player.update(in, dt);
@@ -2082,6 +2102,14 @@ int main() {
                 const float* e = moleFlight.camEye;
                 player.overrideCamera(FVec3_New(e[0] + x - a[0], e[1] + y - a[1], e[2]),
                                       FVec3_New(player.x(), player.y(), player.z()));
+            }
+        }
+        if (golfBoard) { // __setCamera, and the Toon at toonPoints[index] facing H 180
+            float eye[3], target[3], stand[3], heading;
+            if (levelGames.golfView(eye, target, stand, &heading)) {
+                player.place(stand[0], stand[1], stand[2]);
+                player.setHeading(heading);
+                player.overrideCamera(FVec3_New(eye[0], eye[1], eye[2]), FVec3_New(target[0], target[1], target[2]));
             }
         }
         if (level.active()) {
@@ -3560,6 +3588,14 @@ int main() {
             if (minigame.active()) minigame.applyWorld(renderer);
             else {
                 minigame.releaseWorld(renderer); // far plane 0 restores the quality profile
+                static bool golfFov = false; // camLens.setFov(60, 46.8265) while the board is up
+                if (level.active() && level.games().golfPlaying()) {
+                    renderer.setFovY(tt::world::BustACog::kCameraFovY);
+                    golfFov = true;
+                } else if (golfFov) {
+                    renderer.setFovY(0.0f);
+                    golfFov = false;
+                }
                 // Outdoor sky fog fades the draw-distance cutoff. Donald's Dock white fog and
                 // underwater fog are already on (world/water.cpp); do not replace them. Indoors
                 // keep the flat grey clear. Stereo uses this same LUT for both eyes.

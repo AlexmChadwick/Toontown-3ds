@@ -346,16 +346,51 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
     } else if (fieldId == dc::DistributedMoleField::k_setPityWin) {
         e.pityWin = true;
     } else if (fieldId == dc::DistributedGolfGreenGame::k_acceptJoin) {
-        e.boardsLeft = r.u16();
+        r.u16(); // totalTime and startTime: setTimerStart carries them too
         r.i32();
         e.numJoinedToons = uint8_t(readIds(r, e.joinedToons, 4));
         e.golfJoinSeq++;
-        TT_LOG("net: golf green %u acceptJoin (boardsLeft %u)", unsigned(e.doId), unsigned(e.boardsLeft));
+        TT_LOG("net: golf green %u acceptJoin (%u toons)", unsigned(e.doId), unsigned(e.numJoinedToons));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_scoreData) {
-        e.boardsLeft = r.u8();
-        r.u8();
+        e.bacTotal = r.u8();
+        e.bacClosed = r.u8();
+        e.boardsLeft = uint16_t(e.bacTotal - e.bacClosed);
         const uint16_t bytes = r.u16();
         r.skip(bytes);
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_startBoard) {
+        const uint16_t bytes = r.u16();
+        e.bacBoardLen = 0;
+        for (uint16_t i = 0; i + 3 <= bytes && r.ok(); i += 3) {
+            const uint8_t x = r.u8(), z = r.u8(), t = r.u8();
+            if (e.bacBoardLen < 9 * 15) {
+                e.bacBoard[e.bacBoardLen][0] = x, e.bacBoard[e.bacBoardLen][1] = z, e.bacBoard[e.bacBoardLen][2] = t;
+                ++e.bacBoardLen;
+            }
+        }
+        const uint16_t n = r.u16();
+        e.bacPatternLen = 0;
+        for (uint16_t i = 0; i < n && r.ok(); ++i) {
+            const uint8_t v = r.u8();
+            if (e.bacPatternLen < sizeof(e.bacPattern)) e.bacPattern[e.bacPatternLen++] = v;
+        }
+        e.bacBoardSeq++;
+        TT_LOG("net: golf green %u startBoard (%u balls, pattern of %u)", unsigned(e.doId), unsigned(e.bacBoardLen),
+               unsigned(e.bacPatternLen));
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_boardCleared) {
+        r.u32();
+        e.bacClearedSeq++;
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_helpOthers) {
+        e.bacHelpAvId = r.u32();
+        e.bacHelpSeq++;
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_informGag) {
+        e.bacGagTrack = r.u8();
+        e.bacGagLevel = r.u8();
+        e.bacGagSeq++;
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_setTimerStart) {
+        e.bacTimeTotal = r.u16();
+        const int32_t ts = r.i32();
+        e.bacTimeStartMs = timeSynced_ ? networkToLocal(int16_t(uint32_t(ts) & 0xFFFF), now_) : now_;
+        e.bacTimerSeq++;
     } else if (fieldId == dc::DistributedGolfGreenGame::k_signalDone) {
         e.golfSuccess = r.u8() != 0;
         e.golfDoneSeq++;

@@ -604,6 +604,18 @@ struct LevelEntityObj {
     uint16_t boardsLeft = 0;
     uint8_t golfJoinSeq = 0, golfDoneSeq = 0; // acceptJoin / signalDone counts
     bool golfSuccess = false;
+    // Bust-a-Cog (world/bust_a_cog.*): startBoard (to us), boardCleared, helpOthers, informGag,
+    // setTimerStart. Each event bumps its count; the game keeps its own.
+    uint8_t bacBoard[9 * 15][3] = {}; // posX, posZ, typeIndex
+    uint8_t bacBoardLen = 0;
+    uint8_t bacPattern[16] = {};
+    uint8_t bacPatternLen = 0;
+    uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0, bacGagSeq = 0, bacTimerSeq = 0;
+    uint32_t bacHelpAvId = 0;
+    uint8_t bacGagTrack = 0, bacGagLevel = 0;
+    uint16_t bacTimeTotal = 0;
+    uint32_t bacTimeStartMs = 0;
+    uint8_t bacTotal = 0, bacClosed = 0; // scoreData
     uint32_t joinedToons[4] = {};
     uint8_t numJoinedToons = 0;
     // ---- end level games ----

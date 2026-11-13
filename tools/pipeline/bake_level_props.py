@@ -416,6 +416,46 @@ def bake_golf(base, resources, out):
     return report
 
 
+BUSTACOG_BALLS = ('white', 'red', 'blue', 'green', 'cog', 'purple', 'yello', 'steel', 'fire', 'unknown')
+
+
+def bake_bustacog(base, resources, out):
+    """DistributedGolfGreenGame's Bust-a-Cog board: bust_a_cog_background, the shooter (its
+    moving_part apart, in its own space, as the aimer turns it) and GameSprite3D's balls.
+    The board holes are golf_hole (bust_a_cog_hole)."""
+    report = {}
+    d = resources / 'phase_12/models/bossbotHQ'
+    bg = base.loader.loadModel(str(d / 'bust_a_cog_background.bam'), noCache=True)
+    report['bac_background'] = write_part(bg, None, out / 'bac_background.ttm')
+    bg.removeNode()
+    shooter = base.loader.loadModel(str(d / 'bust_a_cog_shooter.bam'), noCache=True)
+    moving = shooter.find('**/moving_part')
+    if moving.isEmpty():
+        raise ValueError('bust_a_cog_shooter: moving_part missing')
+    moving.detachNode()
+    report['bac_shooter'] = write_part(shooter, None, out / 'bac_shooter.ttm')
+    from panda3d.core import NodePath
+    holder = NodePath("moving")
+    moving.reparentTo(holder)
+    moving.clearTransform()
+    report['bac_shooter_moving'] = write_part(holder, None, out / 'bac_shooter_moving.ttm')
+    holder.removeNode()
+    shooter.removeNode()
+    for name in BUSTACOG_BALLS:
+        ball = base.loader.loadModel(str(d / f'bust_a_cog_ball_{name}.bam'), noCache=True)
+        report[f'bac_ball_{name}'] = write_part(ball, None, out / f'bac_ball_{name}.ttm')
+        ball.removeNode()
+    # DistributedGolfGreenGame.load's sounds, next to the models (bac_<stem>.tsnd).
+    import bake_audio
+    for src in ('phase_6/audio/sfx/Golf_Hit_Ball.ogg', 'phase_4/audio/sfx/MG_maze_pickup.ogg',
+                'phase_5/audio/sfx/Toon_bodyfall_synergy.ogg', 'phase_4/audio/sfx/MG_cannon_fire_alt.ogg',
+                'phase_11/audio/sfx/LB_capacitor_discharge_3.ogg',
+                'phase_4/audio/sfx/MG_pairing_match_bonus_both.ogg', 'phase_3.5/audio/sfx/SA_shred.ogg'):
+        dst = out / ('bac_' + Path(src).stem + '.tsnd')
+        report[dst.name] = bake_audio.bake_sfx_adpcm(str(resources / src), str(dst), False)[0]
+    return report
+
+
 # Facility entity sounds (paths as the upstream classes load them) -> data/audio/<stem>.tsnd.
 LEVEL_SFX = (
     'phase_4/audio/sfx/CHQ_FACT_stomper_small.ogg',      # DistributedStomper.stomperSounds
@@ -496,7 +536,8 @@ def main():
               'crates': bake_crates(base, resources, out),
               'moles': bake_moles(base, resources, out),
               'golf': bake_golf(base, resources, out),
-              'security_camera': bake_security_camera(base, resources, out)}
+              'security_camera': bake_security_camera(base, resources, out),
+              'bustacog': bake_bustacog(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}
