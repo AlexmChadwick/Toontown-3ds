@@ -69,6 +69,9 @@ void cfoIntro(float t, CfoIntroShot* out) {
     out->boss = lerp({120, -195, 0}, {120, -230, 0}, window(t, kRoll, kTurn - kRoll));
     out->bossHeading = 180 - 90 * window(t, kTurn, 4.5f);
     out->bossVisible = t >= kRoll;
+    out->toonsSuited = t < kSuitsOff + 0.3f;
+    out->suitsOff = kSuitsOff;
+    out->resistanceSuited = t < kSuitsOff + 2.3f;
 
     out->resistanceChat = nullptr, out->resistanceChatAge = 0;
     if (t < kWalk + 2) out->resistanceChat = "Hey, you made it!  Follow me to the main vault before the C.F.O. finds us!",

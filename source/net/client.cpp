@@ -830,6 +830,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
             }
             memset(t, 0, sizeof(*t));
             t->scIndex = -1;
+            t->cogIndex = -1;
             t->doId = doId;
             t->animRate = 1.0f;
             strcpy(t->animState, "neutral");
@@ -1651,6 +1652,9 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
+    } else if (fieldId == dc::DistributedToon::k_setCogIndex) {
+        ownCogIndex_ = r.i8();
+        TT_LOG("net: our cog index %d", int(ownCogIndex_));
     } else if (fieldId == dc::DistributedToon::k_setTutorialAck) {
         static_assert(dc::sigEq(dc::DistributedToon::sig_setTutorialAck, "u8"), "setTutorialAck layout changed");
         ownTutorialAck_ = r.u8();
@@ -2806,6 +2810,27 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
     case dc::DistributedToon::k_setMaxHp:
         t.maxHp = r.i16();
         break;
+    case dc::DistributedToon::k_setCogIndex:
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogIndex, "i8"), "setCogIndex layout changed");
+        t.cogIndex = r.i8();
+        if (t.active) pushEvent(EventType::Anim, t.doId); // RemoteToons re-reads the disguise
+        break;
+    case dc::DistributedToon::k_setCogTypes: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogTypes, "u8[]"), "setCogTypes layout changed");
+        const Bytes b = r.blob();
+        for (uint32_t i = 0; r.ok() && i < b.len && i < 4; i++) t.cogTypes[i] = b.data[i];
+        break;
+    }
+    case dc::DistributedToon::k_setCogParts: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogParts, "u32[]"), "setCogParts layout changed");
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 4 && r.ok(); i++) {
+            const uint32_t v = r.u32();
+            if (i < 4) t.cogParts[i] = v;
+        }
+        r.skip(bytes % 4);
+        break;
+    }
     case dc::DistributedToon::k_setTalk: {
         r.u32(); // from avatar
         r.u32(); // from account

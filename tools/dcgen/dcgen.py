@@ -94,7 +94,7 @@ WANTED = {
                         'setQuestHistory', 'setRewardHistory', 'requestDeleteQuest',
                         # Shtiker Book (source/ui/book*.cpp, docs/design/shtiker_book.md)
                         'setCogStatus', 'setCogCount', 'setCogRadar', 'setBuildingRadar',
-                        'setCogParts', 'setCogMerits', 'setCogTypes', 'setCogLevels',
+                        'setCogParts', 'setCogMerits', 'setCogTypes', 'setCogLevels', 'setCogIndex',
                         'setFishCollection', 'setFishingTrophies',
                         'setKartingTrophies', 'setKartingHistory',
                         'setGolfHistory', 'setPackedGolfHoleBest', 'setGolfCourseBest'],

@@ -425,6 +425,7 @@ int main() {
     static tt::world::SuitActors suits;
     suits.init();
     suits.setZone(kStartZone);
+    tt::world::ToonAvatar::disguiseSuits = &suits; // Cog-suit disguises draw their bodies here
     // [interior life]
     static tt::world::InteriorLife interiorLife;
     interiorLife.init();
@@ -1034,6 +1035,14 @@ int main() {
                 if (phase < 0.08f * float(1 + cycle % 5)) in.pad.dx = (cycle % 2) ? 120 : -120;
                 if (phase >= 0.9f && phase < 0.9f + 1.5f * dt) in.down |= KEY_A;
             }
+        }
+        // DistributedToon.setCogIndex on our toon (Cog HQ lobbies): Toon.putOnSuit. Boss scenes
+        // override this for their arrival (DistributedBossCog.putToonInCogSuit).
+        {
+            bool rental;
+            const tt::net::OwnBookStats& book = net.ownBook();
+            const char* code = tt::world::disguiseCode(net.ownCogIndex(), book.cogTypes, book.cogParts, &rental);
+            localToon.setDisguise(code, rental);
         }
         // Boss place: one grouped hook owns both screens until the VP encounter ends.
         {

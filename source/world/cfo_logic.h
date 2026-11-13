@@ -43,6 +43,8 @@ struct CfoIntroShot {
     const char* resistanceChat; // nullptr when silent
     const char* bossChat;
     float resistanceChatAge, bossChatAge; // seconds since the line was said
+    bool toonsSuited, resistanceSuited;   // before each loseCogSuits' takeOffSuit (0.3 s into it)
+    float suitsOff;                       // the Toons' loseCogSuits (s); Mata Hairy's is 2 s later
 };
 constexpr float kCfoIntroSeconds = 35.7f; // the movie's length (the Introduction barrier after it)
 void cfoIntro(float t, CfoIntroShot* out);

@@ -24,6 +24,11 @@
 
 namespace tt::world {
 
+// DistributedToon.setCogIndex -> Toon.putOnSuit: the Cog a Toon wears for department `index`
+// (0..3: c l m s), nullptr for -1. A complete suit (CogDisguiseGlobals.isPaidSuitComplete; every
+// account is paid here) is cogTypes[index]; otherwise the rental f / bf / sc / cc, *rental set.
+const char* disguiseCode(int index, const uint8_t types[4], const uint32_t parts[4], bool* rental);
+
 class SuitActors {
 public:
     void pumpAssets() { assetBatch_.pump(); }
@@ -69,6 +74,12 @@ public:
     bool setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h, bool walking,
                      bool visible, bool skelecog = false, float externalScale = 1); // cogdo: source maze actor scale
     void removeExternal(u32 doId);
+    // Toon.putOnSuit: the body of Cog `code` with its head hidden, posed by `world` (the Toon's
+    // feet). rental: Suit.makeRentalSuit (Sellbot rental cloth; other departments keep their own).
+    // *head: joint_head without the suit's scale, where the Toon's head goes. False until the
+    // body and its clips are resident (draw the Toon itself then).
+    bool drawDisguise(render::Renderer& renderer, const char* code, bool rental, const C3D_Mtx& world, bool walk,
+                      float t, C3D_Mtx* head);
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.
@@ -134,6 +145,7 @@ private:
         render::Anim loseClip;
     };
     bool loadLose(int body);
+    bool loadRental();
     const render::Anim* battleClip(int body, const char* name);
     struct Head {
         char code[4] = {};
@@ -157,6 +169,8 @@ private:
     Head heads_[kMaxHeads];
     C3D_Tex deptTex_[4][3] = {}; // [c l m s][blazer, sleeve, legs]
     bool deptLoaded_ = false;
+    C3D_Tex rentalTex_[3] = {}; // rental.ttx: Sellbot rental [blazer, sleeve, legs]
+    bool rentalTried_ = false, rentalLoaded_ = false;
     u32 nowMs_ = 0;
     u32 branch_ = 0;
     u32 graphBranch_ = 0;

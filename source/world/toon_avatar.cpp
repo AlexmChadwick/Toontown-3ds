@@ -1,4 +1,5 @@
 #include "world/toon_avatar.h"
+#include "world/suits.h"
 #include <cstdint>
 #include <cstring>
 namespace tt::world {
@@ -51,8 +52,10 @@ void ToonAvatar::setBlink(bool on) {
     setLids(Lids::Open);
     blinkIn_=on?blinkRandom()*4.0f+1.0f:-1;
 }
+SuitActors* ToonAvatar::disguiseSuits=nullptr;
 void ToonAvatar::update(float dt) {
     playback_.update(dt);
+    disguiseTime_+=dt;
     // ToonHead.__blinkCloseEyes / __blinkOpenEyes.
     if (blinking_ && blinkIn_<0) blinkIn_=blinkRandom()*4.0f+1.0f; // startBlink
     if (blinking_ && (blinkIn_-=dt)<=0) {
@@ -107,6 +110,13 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
     Mtx_RotateX(&actorWorld,bodyPitch_*0.01745329252f,true);
     Mtx_Translate(&actorWorld,0,0,bodyZ_,true);
     C3D_Mtx partWorld=actorWorld;Mtx_Scale(&partWorld,look->scale,look->scale,look->scale);
+    // Toon.putOnSuit: the head goes to headPosNode on the suit's joint_head at the head's world
+    // scale, raised 0.2 (in head units); the Toon's own body is hidden.
+    C3D_Mtx disguiseHead;
+    const bool walking=anim_==kAnimWalk||anim_==kAnimRun;
+    const bool disguised=disguise_ && disguiseSuits && !headOnly_ &&
+        disguiseSuits->drawDisguise(renderer,disguise_,disguiseRental_,actorWorld,walking,disguiseTime_,&disguiseHead);
+    if (disguised) { Mtx_Scale(&disguiseHead,look->scale,look->scale,look->scale); Mtx_Translate(&disguiseHead,0,0,0.2f,true); }
     ToonAnim anim=anim_;
     float time=playback_.sample(toonDuration(anim,torsoKey(look)));
     bool loop=playback_.mode==ClipMode::Loop;
@@ -124,11 +134,12 @@ void ToonAvatar::draw(render::Renderer& renderer,const C3D_Mtx& world,const rend
         if (p==2) {
             Mtx_RotateZ(&partWorld,emote.headH*0.01745329252f,true);
             Mtx_RotateX(&partWorld,emote.headP*0.01745329252f,true);
+            if (disguised) partWorld=disguiseHead;
             if (headOnly_) { partWorld=world; Mtx_Scale(&partWorld,look->scale,look->scale,look->scale); Mtx_RotateX(&partWorld,headPitch_*0.01745329252f,true); }
         }
         const render::Anim* clip=streamed && pose.parts[p]?pose.parts[p]:&parts[p]->neutral;
         const float blend=streamed?pose.blend[p]:0;
-        if (!headOnly_ || p==2) {
+        if ((!headOnly_ && !disguised) || p==2) {
             if (clip && clip->loaded()) renderer.drawMorph(parts[p]->model,*clip,0,1,blend,partWorld,tints,textures);
             else renderer.drawModel(parts[p]->model,partWorld,tints,textures);
         }

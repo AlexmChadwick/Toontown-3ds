@@ -47,6 +47,15 @@ struct BossFrame {
 
 // Cog and remote Toon nametags over a boss scene's top screen (after endWorld / C2D_Prepare).
 void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target);
+// DistributedBossCog.putToonInCogSuit (our Toon in the boss's department, 0..3: c l m s) during
+// the arrival until loseCogSuits takes it off (suited false).
+void suitLocalToon(BossFrame& frame, int dept, bool suited);
+// __makeResistanceToon's suitType: random.seed(boss doId); SuitDNA.getRandomSuitByDept.
+const char* resistanceSuit(uint32_t bossDoId, int dept);
+// loseCogSuits' DustCloud (suit_explosion_dust, 19 frames at 24 fps) at toon-local (0, 2, 3),
+// scale 0.5, turned to the camera; age: seconds since that toon's loseCogSuits began.
+void drawLoseSuitDust(BossFrame& frame, const C3D_Mtx& toon, float age);
+void releaseLoseSuitDust(); // the boss scene's leave
 
 class BossBattle {
 public:

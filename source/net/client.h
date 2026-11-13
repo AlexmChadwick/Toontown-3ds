@@ -86,6 +86,9 @@ struct RemoteToon {
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
     uint32_t chatMs;
     int16_t hp, maxHp;     // broadcast setHp/setMaxHp (friends detail panel); 0 until received
+    int8_t cogIndex;       // setCogIndex: the department of its Cog suit, -1 when not disguised
+    uint8_t cogTypes[4];   // setCogTypes / setCogParts (required broadcast): which suit it wears
+    uint32_t cogParts[4];
     // Transition fields (setTunnelIn / setTunnelOut)
     float tunnelStartX, tunnelStartY;
     float tunnelEndX;
@@ -1567,6 +1570,8 @@ public:
     const OwnStats& ownStats() const { return ownStats_; }
     bool hasEstateManager() const { return estateManagerDoId_ != 0; }
     const OwnBookStats& ownBook() const { return ownBook_; }
+    // DistributedToon.setCogIndex on our toon: the Cog suit's department, -1 when not disguised.
+    int8_t ownCogIndex() const { return ownCogIndex_; }
     const District* districts() const { return districts_; }
     int numDistricts() const { return kMaxDistricts; }
 
@@ -2207,6 +2212,7 @@ private:
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent
     int ownTutorialAck_ = -1;         // DistributedToon.setTutorialAck from the owner view (-1 = not yet)
+    int8_t ownCogIndex_ = -1;         // DistributedToon.setCogIndex (broadcast ram)
     world::TutorialZones tutorialZones_{};
     TutorialInterior tutorialInterior_{};
     uint32_t tutorialSuitId_ = 0;

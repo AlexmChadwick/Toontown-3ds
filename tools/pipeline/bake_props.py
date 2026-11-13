@@ -18,7 +18,8 @@ WANTED = (
     'tart', 'fruitpie-slice', 'creampie-slice',
     'squirting-flower', 'glass', 'water-gun', 'bottle',
     'flowerpot', 'sandbag', 'anvil', 'weight', 'safe', 'piano', 'ship',
-    'splat', 'button', 'propeller', 'kapow', 'splash', 'phone', 'receiver', 'explosion'
+    'splat', 'button', 'propeller', 'kapow', 'splash', 'phone', 'receiver', 'explosion',
+    'suit_explosion_dust'  # DustCloud (DistributedBossCog.loseCogSuits)
 )
 
 
@@ -77,19 +78,20 @@ def white_splat(actor):
 
 def bake_flipbook(base,out,name,model):
     """A SequenceNode flipbook (explosion.bam: 10 cards on one 256 px page, 24 fps): one batch
-    per frame in sequence order on the shared page at full size, so the runtime can show one
+    per frame in sequence order on its page (shared pages stored once) at full size, so the runtime can show one
     frame at a time. Flattened together the cards overlapped as a blocky blur."""
     prop=base.loader.loadModel(model)
     seq=prop.find('**/+SequenceNode')
     assert not seq.isEmpty(),model
-    textures=None;batches=[]
+    textures=[];batches=[]
     for frame in seq.getChildren():
         root=NodePath('frame');card=frame.copyTo(root);card.setMat(frame.getMat(prop))
         ex,b=capture(root,True,animated=False,max_tex=256)
         assert len(b)==1 and len(ex.textures)==1,(model,len(b))
-        if textures is None:textures=ex.textures
-        assert ex.textures[0].data==textures[0].data,model  # every card samples the same page
-        b[0].texture=0;batches+=b;root.removeNode()
+        # explosion: every card samples one page; dust_cloud's cards span three palettes.
+        found=[i for i,t in enumerate(textures) if t.data==ex.textures[0].data]
+        if not found:textures.append(ex.textures[0]);found=[len(textures)-1]
+        b[0].texture=found[0];batches+=b;root.removeNode()
     filename=name+'.ttm'
     info=dict(file=filename,source_model=model,clips={},frames=len(batches),
               frame_rate=seq.node().getFrameRate(),**ttm.write(out/filename,textures,batches))
@@ -99,6 +101,7 @@ def bake_flipbook(base,out,name,model):
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--out',type=Path,default=DATA/'props')
+    ap.add_argument('--only',help='bake this one prop and leave the manifest alone')
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
     preview=ROOT/'sdmc-out/previews/cogs';preview.mkdir(parents=True,exist_ok=True)
     base=ShowBase();rows=literal_table('toontown/battle/BattleProps.py','Props')
@@ -108,8 +111,9 @@ def main():
     entries['ship']=(5,'ship','ship')
     manifest=dict(version=1,props={})
     for name in WANTED:
+        if args.only and name!=args.only:continue
         row=entries[name];model=f'phase_{row[0]:g}/models/props/{row[2]}'
-        if name=='explosion':
+        if name in ('explosion','suit_explosion_dust'):
             info=bake_flipbook(base,args.out,name,model)
         elif len(row)==4:
             clip=f'phase_{row[0]:g}/models/props/{row[3]}'
@@ -125,6 +129,8 @@ def main():
             filename=name+'.ttm';info=dict(file=filename,source_model=model,clips={},**ttm.write(args.out/filename,ex.textures,batches))
             root.removeNode()
         manifest['props'][name]=info
+    if args.only:
+        print(manifest);base.destroy();return
     manifest['atlas']=atlas(base,args.out,preview)
     manifest['splat_variants']={
         'tart':dict(scale=.3,color=[55/255,40/255,148/255,1]),

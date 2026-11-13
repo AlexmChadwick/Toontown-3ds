@@ -286,6 +286,88 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     }
 }
 
+const char* disguiseCode(int index, const uint8_t types[4], const uint32_t parts[4], bool* rental) {
+    *rental = false;
+    if (index < 0 || index > 3) return nullptr;
+    static const uint32_t kPartsPerSuitBitmasks[4] = {131071, 130175, 56447, 56411};
+    if ((parts[index] & kPartsPerSuitBitmasks[index]) == kPartsPerSuitBitmasks[index] && types[index] < 8)
+        return kSuitTypes[types[index] + 8 * index].code;
+    *rental = true;
+    static const char* const kRental[4] = {"f", "bf", "sc", "cc"};
+    return kRental[index];
+}
+
+// rental.ttx (bake_suit.py rental): TTX1 with one table of three textures, slots as departments.ttx.
+bool SuitActors::loadRental() {
+    if (rentalTried_) return rentalLoaded_;
+    rentalTried_ = true;
+    char path[96];
+    snprintf(path, sizeof(path), "%srental.ttx", kSuitDir);
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        TT_LOG("suits: no rental.ttx, rental suits keep the Sellbot cloth");
+        return false;
+    }
+    struct {
+        char magic[4];
+        u16 version, numTextures, counts[4];
+        u32 mapOffset, texOffset, reserved[2];
+    } h;
+    static_assert(sizeof(h) == 32, "TTX1 header");
+    u16 map[3];
+    render::TexEntry entries[3];
+    bool ok = fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 && h.counts[0] == 3 &&
+              h.numTextures == 3 && fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, 2, 3, f) == 3 &&
+              fseek(f, h.texOffset, SEEK_SET) == 0 && fread(entries, sizeof(render::TexEntry), 3, f) == 3;
+    int loaded = 0;
+    for (; ok && loaded < 3; loaded++) ok = map[loaded] < 3 && render::loadTexture(f, entries[map[loaded]], &rentalTex_[loaded]);
+    fclose(f);
+    if (!ok) {
+        for (int i = 0; i + 1 < loaded; i++) {
+            tt::mem::LinearGuard g;
+            C3D_TexDelete(&rentalTex_[i]);
+        }
+    }
+    rentalLoaded_ = ok;
+    TT_LOG("suits: rental pack %s", ok ? "loaded" : "bad");
+    return ok;
+}
+
+bool SuitActors::drawDisguise(render::Renderer& renderer, const char* code, bool rental, const C3D_Mtx& world,
+                              bool walk, float t, C3D_Mtx* head) {
+    const SuitAsset* info = code ? findSuitAsset(code) : nullptr;
+    const SuitInfo* type = code ? findType(code) : nullptr;
+    if (!info || !type || !loadBody(info->body - 'a')) return false;
+    Body& body = bodies_[info->body - 'a'];
+    const render::Anim& clip = walk && body.walk.loaded() ? body.walk : body.neutral;
+    if (!clip.loaded() || clip.numVertices() != body.model.numVertices() || !clip.hasAttach()) return false;
+    const bool rentalCloth = rental && type->dept == 's' && loadRental();
+    render::Tints tints;
+    tints.setAll(1.0f, 1.0f, 1.0f);
+    // The rental glove texture is a flat grey (mean 209 / 255) over the hand colour.
+    const float glove = rentalCloth ? 209.0f / 255.0f : 1.0f;
+    for (int i = 0; i < 4; i++) tints.rgba[render::kTintLeg][i] = info->hand[i] * (i < 3 ? glove : 1.0f);
+    const int d = deptIndex(type->dept);
+    const C3D_Tex* const* cloth = nullptr;
+    const C3D_Tex* rentalSlots[3] = {&rentalTex_[0], &rentalTex_[1], &rentalTex_[2]};
+    const C3D_Tex* deptSlots[3] = {&deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2]};
+    if (rentalCloth) cloth = rentalSlots;
+    else if (deptLoaded_) cloth = deptSlots;
+    const C3D_Tex* slot[render::kTexSlotCount] = {};
+    if (cloth) slot[1] = cloth[0], slot[2] = cloth[1], slot[3] = cloth[2];
+    C3D_Mtx m = world;
+    Mtx_Scale(&m, info->scale, info->scale, info->scale);
+    u32 fa, fb;
+    float blend;
+    render::sampleClip(clip, t, &fa, &fb, &blend);
+    renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, cloth ? slot : nullptr);
+    C3D_Mtx attach;
+    clip.attach(fa, fb, blend, &attach);
+    Mtx_Multiply(head, &m, &attach);
+    Mtx_Scale(head, 1.0f / info->scale, 1.0f / info->scale, 1.0f / info->scale);
+    return true;
+}
+
 void SuitActors::shutdown() {
     assetBatch_.clear();
     for (Actor& a : actors_) {
@@ -322,6 +404,13 @@ void SuitActors::shutdown() {
             }
     }
     deptLoaded_ = false;
+    if (rentalLoaded_) {
+        for (C3D_Tex& t : rentalTex_) {
+            tt::mem::LinearGuard g;
+            C3D_TexDelete(&t);
+        }
+    }
+    rentalTried_ = rentalLoaded_ = false;
 }
 
 void SuitActors::setZone(u32 zoneId) {

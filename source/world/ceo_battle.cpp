@@ -225,6 +225,8 @@ void CeoBattle::leave(BossFrame& frame, bool sad) {
         id = 0;
     }
     assets_.release();
+    for (render::Model& door : elevatorDoors_) door.unload();
+    releaseLoseSuitDust();
     if (resistanceAcquired_) frame.cache.release(&resistanceLook_);
     resistanceToon_.setLook(nullptr);
     resistanceAcquired_ = false;
@@ -873,6 +875,19 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
         eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
         target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
     }
+    CeoElevatorShot ride{};
+    const bool riding = phaseIs(state, "Elevator");
+    const bool arrivalMovie = !frame.battle.inBattle() && (phaseIs(state, "WaitForToons") || riding || introMovie);
+    if (arrivalMovie) {
+        ceoElevator((nowMs - state.phaseMs) / 1000.0f, riding, &ride);
+        if (introMovie) ride.doorOpen = 1; // enterIntroduction opens them
+        else eye = FVec3_New(ride.eye.x, ride.eye.y, ride.eye.z), target = FVec3_New(ride.target.x, ride.target.y, ride.target.z);
+        for (int side = 0; side < 2 && ride.doorOpen < 1; ++side) {
+            char path[96];
+            std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/hqelev_bb_%s.ttm", side ? "right" : "left");
+            if (!elevatorDoors_[side].loaded() && !elevatorDoors_[side].load(path)) TT_LOG("CEO: cannot load %s", path);
+        }
+    }
 
     gfxSet3D(false);
     frame.stereoActive = false;
@@ -963,15 +978,28 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
         }
 
         drawBoss(frame, state);
+        if (arrivalMovie && ride.doorOpen < 1) { // over the arena's baked open doors
+            for (int side = 0; side < 2; ++side) {
+                if (!elevatorDoors_[side].loaded()) continue;
+                C3D_Mtx door = transform(kCeoElevatorOrigin, 180);
+                Mtx_Translate(&door, (side ? -1.0f : 1.0f) * kCeoElevatorDoorWidth * (1 - ride.doorOpen), 0, 0, true);
+                frame.renderer.drawModel(elevatorDoors_[side], door);
+            }
+        }
 
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
+        if (arrivalMovie) toon = transform(kCeoElevatorToon); // placeToonInElevator, facing the doors
+        if (arrivalMovie) // Cog suits until loseCogSuits (6 s into the introduction)
+            suitLocalToon(frame, 0, !introMovie || (nowMs - state.phaseMs) / 1000.0f < 6.3f);
         frame.toon.draw(frame.renderer, toon);
+        if (introMovie) drawLoseSuitDust(frame, toon, (nowMs - state.phaseMs) / 1000.0f - 6);
         if (introMovie && intro.resistanceVisible) {
             C3D_Mtx resistance;
             Mtx_Identity(&resistance);
             Mtx_Translate(&resistance, intro.resistance.x, intro.resistance.y, intro.resistance.z, true);
             Mtx_RotateZ(&resistance, intro.resistanceHeading * kDegrees, true);
+            resistanceToon_.setDisguise(resistanceSuit(state.doId, 0)); // __showResistanceToon(True)
             resistanceToon_.draw(frame.renderer, resistance);
         }
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());

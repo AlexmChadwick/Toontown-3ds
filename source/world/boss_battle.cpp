@@ -18,6 +18,9 @@
 #include "net/net_platform.h"
 #include "ui/projection.h"
 #include "ui/sos_tables.h"
+#include "world/py_random.h"
+#include "world/suit_tables.h"
+#include "world/suits.h"
 
 namespace tt::world {
 namespace {
@@ -179,6 +182,50 @@ void BossBattle::loadElevatorDoors() {
     }
 }
 
+void suitLocalToon(BossFrame& frame, int dept, bool suited) {
+    bool rental = false;
+    const net::OwnBookStats& book = frame.client.ownBook();
+    frame.toon.setDisguise(suited ? disguiseCode(dept, book.cogTypes, book.cogParts, &rental) : nullptr, rental);
+}
+
+const char* resistanceSuit(uint32_t bossDoId, int dept) {
+    PyRandom random(bossDoId);
+    return kSuitTypes[8 * dept + random.randint(0, 7)].code;
+}
+
+namespace {
+render::Model gLoseSuitDust;
+bool gLoseSuitDustTried = false;
+} // namespace
+
+void drawLoseSuitDust(BossFrame& frame, const C3D_Mtx& toon, float age) {
+    if (age < 0 || age >= 19 / 24.0f) return;
+    if (!gLoseSuitDustTried) {
+        gLoseSuitDustTried = true;
+        if (!gLoseSuitDust.load("sdmc:/3ds/toontown3ds/data/props/suit_explosion_dust.ttm"))
+            TT_LOG("boss: no suit_explosion_dust.ttm, loseCogSuits without its dust cloud");
+    }
+    if (!gLoseSuitDust.loaded()) return;
+    const C3D_FVec at = Mtx_MultiplyFVec4(&toon, FVec4_New(0, 2, 3, 1));
+    const C3D_FVec& eye = frame.renderer.eye();
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, at.x, at.y, at.z, true);
+    Mtx_RotateZ(&m, atan2f(-(at.x - eye.x), at.y - eye.y), true); // setBillboardAxis
+    Mtx_Scale(&m, 0.5f, 0.5f, 0.5f);
+    frame.renderer.setOnlyBatch(int(age * 24.0f) % int(gLoseSuitDust.numBatches()));
+    frame.renderer.drawModel(gLoseSuitDust, m);
+    frame.renderer.setOnlyBatch(-1);
+}
+
+void releaseLoseSuitDust() {
+    if (gLoseSuitDust.loaded()) {
+        ::tt::gpu::frameSync();
+        gLoseSuitDust.unload();
+    }
+    gLoseSuitDustTried = false;
+}
+
 void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target) {
     C3D_Mtx proj, view;
     Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
@@ -191,6 +238,7 @@ void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target) {
 }
 
 void BossBattle::release() {
+    releaseLoseSuitDust();
     cfo_.release();
     if (modelTicket_) AssetLoader::cancel(modelTicket_);
     modelTicket_ = 0;
@@ -873,6 +921,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             }
             frame.renderer.drawModel(models_[6], door);
             C3D_Mtx rescued = transform({0, 78, cageHeight}, 180);
+            rescuedToon_.setDisguise(nullptr);
             rescuedToon_.draw(frame.renderer, rescued);
             for (int index = 0; index < 3; ++index) {
                 C3D_Mtx ramp = transform(rampOffset_[index]);
@@ -883,7 +932,10 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             if (phase == BossPhase::Intro || phase == BossPhase::Transition || phase == BossPhase::Epilogue) {
                 C3D_Mtx resistance = cfoIntroMovie ? transform(intro.resistance, intro.resistanceHeading)
                                                    : transform(Vec3{120, -315, 0}, 180);
+                // __showResistanceToon(True) in a Cashbot suit until her own loseCogSuits.
+                rescuedToon_.setDisguise(cfoIntroMovie && intro.resistanceSuited ? resistanceSuit(state.doId, 2) : nullptr);
                 rescuedToon_.draw(frame.renderer, resistance);
+                if (cfoIntroMovie) drawLoseSuitDust(frame, resistance, (nowMs - state.phaseMs) / 1000.0f - intro.suitsOff - 2);
             }
         }
         C3D_Mtx world = transform(position, heading);
@@ -941,7 +993,14 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         frame.player.worldMatrix(&toon);
         if (elevatorMovie) toon = transform(elevatorToon, elevatorToonHeading);
         if (vpIntroMovie) toon = vpPromotionPose(state, frame.client.avatarId(), (nowMs - state.phaseMs) / 1000.0f);
+        // Cog suits from the elevator until loseCogSuits (VP 34 s, CFO cfoIntro's cue).
+        const float introAge = (nowMs - state.phaseMs) / 1000.0f;
+        if (elevatorMovie || vpIntroMovie || cfoIntroMovie)
+            suitLocalToon(frame, cashbot_ ? 2 : 3, elevatorMovie || (vpIntroMovie && introAge < 34.3f) ||
+                                                      (cfoIntroMovie && intro.toonsSuited));
         frame.toon.draw(frame.renderer, toon);
+        if (vpIntroMovie) drawLoseSuitDust(frame, toon, introAge - 34);
+        if (cfoIntroMovie) drawLoseSuitDust(frame, toon, introAge - intro.suitsOff);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());

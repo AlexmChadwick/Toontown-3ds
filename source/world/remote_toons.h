@@ -88,6 +88,7 @@ private:
         float tunnelOriginX = 0.0f, tunnelOriginY = 0.0f, tunnelOriginZ = 0.0f, tunnelOriginH = 0.0f;
     };
     Remote* find(u32 doId);
+    void applyDisguise(Remote& r, const net::RemoteToon& t);
     void applyDna(Remote& r, const net::RemoteToon& t);
     void refreshLook(Remote& r);
     void despawn(Remote& r);

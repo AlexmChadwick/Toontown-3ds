@@ -146,6 +146,7 @@ void CjBattle::leave(BossFrame& frame, bool sad) {
     npcsLoaded_ = false;
     assets_.release();
     for (render::Model& door : elevatorDoors_) door.unload();
+    releaseLoseSuitDust();
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
@@ -745,7 +746,10 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
         if (arrivalMovie) toon = transform(kCjElevatorToon); // placeToonInElevator, facing out
+        if (arrivalMovie) // Cog suits until loseCogSuits (24 s into the introduction)
+            suitLocalToon(frame, 1, !phaseIs(state, "Introduction") || (nowMs - state.phaseMs) / 1000.0f < 24.3f);
         frame.toon.draw(frame.renderer, toon);
+        if (arrivalMovie && phaseIs(state, "Introduction")) drawLoseSuitDust(frame, toon, (nowMs - state.phaseMs) / 1000.0f - 24);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());

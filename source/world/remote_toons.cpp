@@ -5,6 +5,7 @@
 #include <cstring>
 
 #include "ui/projection.h"
+#include "world/suits.h"
 #include "ui/speedchat_data.h"
 #include "net/net_platform.h"
 
@@ -83,6 +84,13 @@ void RemoteToons::applyDna(Remote& r, const net::RemoteToon& t) {
     refreshLook(r);
 }
 
+// DistributedToon.setCogIndex: Toon.putOnSuit / takeOffSuit.
+void RemoteToons::applyDisguise(Remote& r, const net::RemoteToon& t) {
+    bool rental;
+    const char* code = disguiseCode(t.cogIndex, t.cogTypes, t.cogParts, &rental);
+    r.avatar.setDisguise(code, rental);
+}
+
 void RemoteToons::refreshLook(Remote& r) {
     if (!cache_) return;
     if (!cache_->acquire(r.dna, r.lod, &r.look)) {
@@ -146,6 +154,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         r->avatar.play(r->stateAnim, 1.0f);
         r->stateRate=t->animRate;
         if(t->emoteSerial) { r->emoteSerial=t->emoteSerial;r->avatar.playEmote(t->emoteId,clipElapsed(net::plat::nowMs(),t->emoteMs)); }
+        applyDisguise(*r, *t);
         break;
     }
     case EventType::CatchHitBySuit:
@@ -175,7 +184,7 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         break;
     case EventType::Anim:
         if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate;
-                      r->swimPitch = !strcmp(t->animState, "swim"); }
+                      r->swimPitch = !strcmp(t->animState, "swim"); applyDisguise(*r, *t); }
         break;
     case EventType::TunnelOut:
         if (r && t) {

@@ -102,12 +102,17 @@ void ceoIntro(float t, CeoIntroShot* out) {
     else if (t >= 9) out->chat = "and then fight these waiters.", out->chatAge = t - 9;
 }
 
+void ceoElevator(float t, bool riding, CeoElevatorShot* out) {
+    bossCameraAim({-0.001f, -101.487f, 6.983f + (riding ? bossElevatorBob(t) : 0)}, 0, 0, &out->eye, &out->target);
+    out->doorOpen = riding ? std::clamp((t - 8) / 4, 0.0f, 1.0f) : 0;
+}
+
 float ceoBarrierDelay(const char* phase) {
     if (!std::strcmp(phase, "WaitForToons")) {
         return 0.5f;
     }
     if (!std::strcmp(phase, "Elevator")) {
-        return 6.0f;
+        return 12.0f; // two 4 s rides + ELEVATOR_BB openTime 4
     }
     if (!std::strcmp(phase, "Introduction")) {
         return kCeoIntroSeconds;
