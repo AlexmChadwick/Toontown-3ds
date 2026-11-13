@@ -137,6 +137,20 @@ void BattleCamera::startWaitForInput() {
     currentMode_ = BattleCamShotKind::WaitForInput;
 }
 
+void BattleCamera::startSuitsJoining(uint32_t startMs) {
+    reset();
+    const float side = rng_.choice(2) ? 1.0f : -1.0f; // random.choice([0, 1])
+    BattleCameraShot s;
+    s.kind = BattleCamShotKind::HeldBattle;
+    s.startMs = startMs;
+    s.durationMs = 60000; // until the next battle state replaces it
+    s.x = 20.0f * side;
+    s.y = -4.0f;
+    s.z = 7.0f;
+    s.h = 60.0f * side;
+    addShot(s);
+}
+
 void BattleCamera::startReward(uint32_t localToonId, uint32_t startMs, uint32_t durationMs) {
     reset();
     currentMode_ = BattleCamShotKind::Reward;

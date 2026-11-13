@@ -590,6 +590,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         break;
     default:
         if (phase_ != BattlePhase::Reward) phase_ = BattlePhase::Waiting;
+        if (finalBattle_ && !strcmp(nb.stateName, "ReservesJoining")) camera_.startSuitsJoining(nowMs);
         break;
     }
 }
@@ -1139,6 +1140,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
         }
         return;
     }
+    finalBattle_ = cogs.joinHeight > 0.0f; // boss battles (DistributedBattleFinal)
     if (battleId_ != nb->doId) begin(client, *nb, cogs, nowMs);
 
     if (nb->membersSeq != seenMembers_) {

@@ -426,6 +426,7 @@ private:
     uint32_t popupLifeMs_[kMaxPopups] = {};
     int numPopups_ = 0;
 
+    bool finalBattle_ = false;
     BattleActorPose suitPoses_[net::kBattleSuits];
     BattleActorPose toonPoses_[net::kBattleToons];
     int numSuitPoses_ = 0, numToonPoses_ = 0;
