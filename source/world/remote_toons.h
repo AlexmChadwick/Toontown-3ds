@@ -62,7 +62,9 @@ private:
         char name[32] = {};
         u8 cogTypes[4] = {};   // setCogTypes / setCogParts: the suit a boss scene puts on
         u32 cogParts[4] = {};
+        u8 cogLevels[4] = {};
         const char* netSuit = nullptr; // setCogIndex's disguise
+        const char* shownSuit = nullptr; // the suit draw() put on (nametag)
         bool netRental = false;
         const char* phrase = nullptr;
         float phraseAge = 99.0f;

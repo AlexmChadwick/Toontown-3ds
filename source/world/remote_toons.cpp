@@ -6,6 +6,7 @@
 
 #include "ui/projection.h"
 #include "world/suits.h"
+#include "world/suit_tables.h"
 #include "ui/speedchat_data.h"
 #include "net/net_platform.h"
 
@@ -88,6 +89,7 @@ void RemoteToons::applyDna(Remote& r, const net::RemoteToon& t) {
 void RemoteToons::applyDisguise(Remote& r, const net::RemoteToon& t) {
     memcpy(r.cogTypes, t.cogTypes, sizeof(r.cogTypes));
     memcpy(r.cogParts, t.cogParts, sizeof(r.cogParts));
+    memcpy(r.cogLevels, t.cogLevels, sizeof(r.cogLevels));
     r.netSuit = disguiseCode(t.cogIndex, t.cogTypes, t.cogParts, &r.netRental);
 }
 
@@ -433,6 +435,7 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         bool rental = r.netRental;
         const char* suit = suitMode_ == kSuitNet ? r.netSuit : disguiseCode(suitMode_, r.cogTypes, r.cogParts, &rental);
         r.avatar.setDisguise(suit, rental);
+        r.shownSuit = suit;
         r.avatar.draw(renderer, m);
     }
 }
@@ -465,8 +468,20 @@ void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;
         float sx, sy, depth;
-        if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + r.look.nametagHeight, &sx, &sy, &depth)) {
-            balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth);
+        // Toon.putOnSuit: SuitBaseNameWithLevel ("name / suit / Level n") at the suit's height + 1.3.
+        const SuitInfo* suit = nullptr;
+        for (const SuitInfo& info : kSuitTypes)
+            if (r.shownSuit && !strcmp(info.code, r.shownSuit)) suit = &info;
+        char label[96];
+        const char* name = r.name;
+        if (suit) {
+            const int dept = suit->dept == 'c' ? 0 : suit->dept == 'l' ? 1 : suit->dept == 'm' ? 2 : 3;
+            snprintf(label, sizeof(label), "%s\n%s\nLevel %d", r.name, suit->name, r.cogLevels[dept] + 1);
+            name = label;
+        }
+        const float tagZ = suit ? suit->height + 1.3f : r.look.nametagHeight;
+        if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + tagZ, &sx, &sy, &depth)) {
+            balloons.addSpeaker(sx, sy, name, r.phrase, r.phraseAge, depth);
         }
     }
 }

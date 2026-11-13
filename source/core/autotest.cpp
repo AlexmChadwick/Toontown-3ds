@@ -195,6 +195,11 @@ const Step kScript[] = {
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 4000", "go_4000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 5000", "go_5000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 9000", "go_9000"},
+    // Opt-in (AUTOTEST_ONLY="go zone 11000,move: cogdoor,cogdoor: lobby"): Sellbot HQ's courtyard,
+    // through a locked lobby door into Sellbot Towers' lobby in the Cog suit (setCogIndex).
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 11000", "go_11000"},
+    {25.0f, 0, 0, 0, 0, -1, -1, 0, "move: cogdoor", "cogdoor_walk"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "cogdoor: lobby", "cogdoor_lobby"},
     // Board, then the panel's Hop off button by touch (Trolley's exitButton); then board for real.
     {3.0f, 0, 0, 0, 0, -1, -1, 0, "trolley hop: board", "trolley_hop_wait"},
     {3.0f, 0, 0, 0, KEY_TOUCH, 160, 206, 0, "trolley hop: tap hop off", "trolley_hop"},
@@ -545,7 +550,8 @@ bool Runner::skipped(const char* label) const {
     return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10) || !strncmp(label, "speedway: race ", 15) ||
                                      !strncmp(label, "treasure: ", 10) ||
                                      !strncmp(label, "go zone ", 8) || // urban race / treasure / hood checks: opt-in
-                                     !strncmp(label, "fish: catch ", 12) || !strcmp(label, "club: golf solve");
+                                     !strncmp(label, "fish: catch ", 12) || !strcmp(label, "club: golf solve") ||
+                                     !strcmp(label, "move: cogdoor") || !strcmp(label, "cogdoor: lobby");
 }
 
 const Pose* Runner::pose() const {

@@ -19,6 +19,7 @@ constexpr float kRotateSpeed = 80.0f * 1.25f;
 constexpr float kForwardSlow = 6.0f;
 constexpr float kReverseSlow = 2.5f;
 constexpr float kRotateSlow = 33.0f;
+constexpr float kSuitWalkSpeed = 4.8f; // ToontownGlobals.SuitWalkSpeed (a Toon in a Cog suit)
 constexpr float kJumpVelocity = 24.0f;
 constexpr float kStepDown = 1.5f; // largest drop followed without falling (stairs, kerbs)
 constexpr float kGravity = 64.348f; // direct/controls/GravityWalker.py
@@ -150,21 +151,21 @@ void Player::locomote(const Input& in, float dt, const CollisionWorld* world) {
     const float turn = axis(in.pad.dx);
 
     const bool slow = (in.held & KEY_B) != 0;
-    turnRate_ = -turn * (slow ? kRotateSlow : kRotateSpeed);
+    turnRate_ = -turn * (slow || disguised_ ? kRotateSlow : kRotateSpeed);
     heading_ += turnRate_ * dt;
     if (heading_ > 180.0f) heading_ -= 360.0f;
     if (heading_ < -180.0f) heading_ += 360.0f;
 
     const float maxSpeed = fwd >= 0 ? (slow ? kForwardSlow : kForwardSpeed)
                                     : (slow ? kReverseSlow : kReverseSpeed);
-    speed_ = fwd * maxSpeed;
+    speed_ = fwd * (disguised_ ? kSuitWalkSpeed : maxSpeed);
 
     const float h = heading_ * kDegToRad;
     // Panda heading: H=0 faces +Y, positive H turns left (CCW seen from above).
     const float dx = -sinf(h) * speed_ * dt, dy = cosf(h) * speed_ * dt;
     probeX_ = x_ + dx, probeY_ = y_ + dy; // the unpushed move (Player::probeX)
     const bool grounded = !airborne();
-    const bool jumping = (in.down & KEY_A) && grounded;
+    const bool jumping = (in.down & KEY_A) && grounded && !disguised_;
     if (jumping) vz_ = kJumpVelocity;
     vz_ -= kGravity * dt;
 

@@ -2821,6 +2821,12 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         for (uint32_t i = 0; r.ok() && i < b.len && i < 4; i++) t.cogTypes[i] = b.data[i];
         break;
     }
+    case dc::DistributedToon::k_setCogLevels: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogLevels, "u8[]"), "setCogLevels layout changed");
+        const Bytes b = r.blob();
+        for (uint32_t i = 0; r.ok() && i < b.len && i < 4; i++) t.cogLevels[i] = b.data[i];
+        break;
+    }
     case dc::DistributedToon::k_setCogParts: {
         static_assert(dc::sigEq(dc::DistributedToon::sig_setCogParts, "u32[]"), "setCogParts layout changed");
         const uint16_t bytes = r.u16();

@@ -88,6 +88,7 @@ struct RemoteToon {
     int16_t hp, maxHp;     // broadcast setHp/setMaxHp (friends detail panel); 0 until received
     int8_t cogIndex;       // setCogIndex: the department of its Cog suit, -1 when not disguised
     uint8_t cogTypes[4];   // setCogTypes / setCogParts (required broadcast): which suit it wears
+    uint8_t cogLevels[4];  // setCogLevels: its disguise nametag's level - 1
     uint32_t cogParts[4];
     // Transition fields (setTunnelIn / setTunnelOut)
     float tunnelStartX, tunnelStartY;

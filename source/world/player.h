@@ -78,6 +78,9 @@ public:
     // World matrix for the toon model (Panda convention: toon faces +Y at H=0).
     void worldMatrix(C3D_Mtx* out) const;
 
+    // Toon.putOnSuit on the local Toon: SuitWalkSpeed 4.8 forward and back, ToonRotateSlowSpeed,
+    // and no jump (controlManager.disableAvatarJump) until takeOffSuit.
+    void setDisguised(bool on) { disguised_ = on; }
     // Follow camera height from the local Toon's DNA height (clamped to at least 3, as stock).
     void setCameraHeight(float toonHeight) { camHeight_ = toonHeight > 3.0f ? toonHeight : 3.0f; }
     float cameraHeight() const { return camHeight_; }
@@ -109,6 +112,7 @@ private:
     float probeX_ = 0, probeY_ = 0; // see probeX()
     float heading_ = 0; // degrees, CCW from +Y
     float speed_ = 0;
+    bool disguised_ = false;
     float turnRate_ = 0; // deg/s this frame
     float ground_ = 0;   // ground height under the toon (flat until collision lands)
     float vz_ = 0;

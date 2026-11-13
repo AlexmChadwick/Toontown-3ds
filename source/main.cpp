@@ -53,6 +53,7 @@
 #include "world/racing.h"
 #include "world/racing_autotest.h" // ---- racing2 ----
 #include "world/suits.h"
+#include "world/suit_tables.h"
 #include "game/minigame_session.h"
 #include "quest/quest_talk.h"
 #include "world/battle.h"
@@ -1043,6 +1044,7 @@ int main() {
             const tt::net::OwnBookStats& book = net.ownBook();
             const char* code = tt::world::disguiseCode(net.ownCogIndex(), book.cogTypes, book.cogParts, &rental);
             localToon.setDisguise(code, rental);
+            player.setDisguised(code != nullptr);
         }
         // Boss place: one grouped hook owns both screens until the VP encounter ends.
         {
@@ -1087,8 +1089,12 @@ int main() {
             const bool interiorDoor = !strcmp(autotest.label(), "exit: interior door");
             const bool streetDoor = !strcmp(autotest.label(), "exit: street door");
             const bool isTunnel = !strcmp(autotest.label(), "exit: tunnel 2132") || !strcmp(autotest.label(), "move: tunnel");
+            // move: cogdoor: a Cog HQ courtyard's locked lobby door (DistributedCogHQDoor), which
+            // puts the Toon in its Cog suit (setCogIndex).
+            const bool cogDoor = !strcmp(autotest.label(), "move: cogdoor");
             const char* want = isTunnel ? "linktunnel_tt_2132"
                                : streetDoor ? "tb"
+                               : cogDoor ? "cogdoor_"
                                : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
             for (int i = 0; i < cw.numTriggers(); i++) {
@@ -1099,7 +1105,7 @@ int main() {
                     continue;
                 }
                 const float cx = (t.min[0] + t.max[0]) * 0.5f, cy = (t.min[1] + t.max[1]) * 0.5f;
-                if (strcmp(autotest.label(), "move: door") != 0) {
+                if (strcmp(autotest.label(), "move: door") != 0 && !cogDoor) {
                     if (fabsf(player.x() - cx) > 0.5f || fabsf(player.y() - cy) > 0.5f) {
                         player.reset(cx, cy, t.min[2], player.headingDeg());
                         TT_LOG("autotest: moved into %s / %s", t.name, t.owner);
@@ -3855,9 +3861,13 @@ int main() {
             balloons.begin();
             float sx, sy, depth;
             // ---- tutorial ---- HIDE localToon (tutorial_blocker's close-up) hides the whole Toon, nametag too
+            // Toon.putOnSuit: SuitBaseNameWithLevel at the suit's height + 1.3.
+            const tt::world::SuitInfo* mySuit = nullptr;
+            for (const tt::world::SuitInfo& info : tt::world::kSuitTypes)
+                if (localToon.disguise() && !strcmp(info.code, localToon.disguise())) mySuit = &info;
+            const float myTagZ = mySuit ? mySuit->height + 1.3f : localLook.nametagHeight;
             if (!tutorial.toonHidden() && !minigame.toonHidden() &&
-                tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + localLook.nametagHeight, &sx, &sy,
-                                        &depth)) {
+                tt::ui::projectToScreen(proj, view, player.x(), player.y(), player.z() + myTagZ, &sx, &sy, &depth)) {
                 // Offline there is no server name: show the one the server gives an unnamed Toon
                 // of this look (the Toon tab's body colour is an allColorsList index).
                 static char offlineName[32];
@@ -3869,6 +3879,14 @@ int main() {
                     offlineColor = uiState.bodyColor;
                 }
                 const char* myName = netStarted && net.avatarName()[0] ? net.avatarName() : offlineName;
+                static char suitLabel[96];
+                if (mySuit) {
+                    const char d = mySuit->dept;
+                    const int dept = d == 'c' ? 0 : d == 'l' ? 1 : d == 'm' ? 2 : 3;
+                    snprintf(suitLabel, sizeof suitLabel, "%s\n%s\nLevel %d", myName, mySuit->name,
+                             net.ownBook().cogLevels[dept] + 1);
+                    myName = suitLabel;
+                }
                 balloons.addSpeaker(sx, sy, myName, myPhrase, myPhraseAge, depth);
             }
             // ---- tutorial ---- Mickey / Minnie's lines over their own head (CC_CHAT_CONFIRM classicChar)
