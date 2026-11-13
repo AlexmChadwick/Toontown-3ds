@@ -179,6 +179,17 @@ void BossBattle::loadElevatorDoors() {
     }
 }
 
+void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target) {
+    C3D_Mtx proj, view;
+    Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                  frame.renderer.farPlane(), false);
+    Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+    frame.balloons.begin();
+    frame.suits.addBalloons(frame.balloons, proj, view);
+    frame.remotes.addBalloons(frame.balloons, proj, view);
+    frame.balloons.draw(frame.renderer.topLeft());
+}
+
 void BossBattle::release() {
     cfo_.release();
     if (modelTicket_) AssetLoader::cancel(modelTicket_);

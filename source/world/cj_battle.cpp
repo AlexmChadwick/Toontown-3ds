@@ -728,6 +728,7 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
     }
     frame.renderer.endWorld();
     C2D_Prepare(); // citro2d state must be re-bound after the world shaders
+    drawBossNametags(frame, eye, target);
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};

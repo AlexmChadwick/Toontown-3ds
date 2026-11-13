@@ -45,6 +45,9 @@ struct BossFrame {
     ui::Balloons& balloons; // nametags and speech over the top screen
 };
 
+// Cog and remote Toon nametags over a boss scene's top screen (after endWorld / C2D_Prepare).
+void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target);
+
 class BossBattle {
 public:
     bool frame(BossFrame& frame);
