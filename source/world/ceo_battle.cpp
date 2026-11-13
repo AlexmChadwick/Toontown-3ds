@@ -3,6 +3,8 @@
 #include "world/ceo_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
+#include "ui/projection.h"
+#include "world/toon_dna.h"
 
 #include <algorithm>
 #include <cmath>
@@ -223,6 +225,9 @@ void CeoBattle::leave(BossFrame& frame, bool sad) {
         id = 0;
     }
     assets_.release();
+    if (resistanceAcquired_) frame.cache.release(&resistanceLook_);
+    resistanceToon_.setLook(nullptr);
+    resistanceAcquired_ = false;
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
@@ -293,6 +298,19 @@ void CeoBattle::update(BossFrame& frame, const net::BossState& state, uint32_t n
 
     if (!entered_) {
         entered_ = frame.client.sendBossEnter();
+    }
+    if (!resistanceAcquired_) {
+        ToonDna dna;
+        if (parseNetString(kCeoResistanceDna, sizeof(kCeoResistanceDna), &dna))
+            frame.cache.acquire(dna, ToonLod::Low, &resistanceLook_);
+        resistanceToon_.setLook(&resistanceLook_, &frame.cache.fallback());
+        resistanceAcquired_ = true;
+    }
+    if (phaseIs(state, "Introduction")) {
+        CeoIntroShot intro;
+        ceoIntro((nowMs - state.phaseMs) / 1000.0f, &intro);
+        resistanceToon_.play(intro.resistanceWalking ? kAnimWalk : kAnimNeutral, 1);
+        resistanceToon_.update(frame.dt);
     }
 
     const float elapsed = (nowMs - state.phaseMs) / 1000.0f;
@@ -844,9 +862,16 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
             eye = FVec3_New(position.x + behind.x, position.y + behind.y, position.z + behind.z);
             target = FVec3_New(bossPosition_.x, bossPosition_.y, bossPosition_.z + 12.0f);
         }
-    } else if (phaseIs(state, "Introduction") || phaseIs(state, "Victory")) {
+    } else if (phaseIs(state, "Victory")) {
         eye = FVec3_New(bossPosition_.x + 30.0f, bossPosition_.y - 55.0f, 25.0f);
         target = FVec3_New(bossPosition_.x, bossPosition_.y, 13.0f);
+    }
+    CeoIntroShot intro{};
+    const bool introMovie = phaseIs(state, "Introduction") && !frame.battle.inBattle();
+    if (introMovie) {
+        ceoIntro((nowMs - state.phaseMs) / 1000.0f, &intro);
+        eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
+        target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
     }
 
     gfxSet3D(false);
@@ -942,6 +967,13 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
         frame.toon.draw(frame.renderer, toon);
+        if (introMovie && intro.resistanceVisible) {
+            C3D_Mtx resistance;
+            Mtx_Identity(&resistance);
+            Mtx_Translate(&resistance, intro.resistance.x, intro.resistance.y, intro.resistance.z, true);
+            Mtx_RotateZ(&resistance, intro.resistanceHeading * kDegrees, true);
+            resistanceToon_.draw(frame.renderer, resistance);
+        }
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
@@ -949,7 +981,21 @@ void CeoBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t now
 
     frame.renderer.endWorld();
     C2D_Prepare(); // citro2d state must be re-bound after the world shaders
-    drawBossNametags(frame, eye, target);
+    if (introMovie && intro.resistanceVisible) {
+        C3D_Mtx proj, view;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                      frame.renderer.farPlane(), false);
+        Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+        frame.balloons.begin();
+        float sx, sy, depth;
+        if (ui::projectToScreen(proj, view, intro.resistance.x, intro.resistance.y,
+                                intro.resistance.z + resistanceLook_.nametagHeight, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Good ol' Gil Giggles", intro.chat, intro.chatAge, depth,
+                                      ui::Balloons::kNameColorNpc);
+        frame.balloons.draw(frame.renderer.topLeft());
+    } else {
+        drawBossNametags(frame, eye, target);
+    }
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
 

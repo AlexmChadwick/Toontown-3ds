@@ -59,6 +59,22 @@ float ceoRollSpeed(const net::BossState& state, uint32_t nowMs);
 
 float ceoBarrierDelay(const char* phase);
 
+// DistributedBossbotBoss.makeIntroductionMovie at t seconds: camera, Good ol' Gil Giggles (the
+// resistance Toon, BossbotRTIntroStartPosHpr) and his line.
+struct CeoIntroShot {
+    Vec3 eye, target;
+    Vec3 resistance;
+    float resistanceHeading;
+    bool resistanceVisible, resistanceWalking;
+    const char* chat; // nullptr when silent
+    float chatAge;
+};
+constexpr float kCeoIntroSeconds = 18.5f;
+// newToonRandom(335933, 'm', 1) with head 'sls' (__makeResistanceToon), as makeNetString bytes.
+constexpr uint8_t kCeoResistanceDna[15] = {0x74, 0x1e, 0x01, 0x02, 0x01, 0x00, 0x03, 0x00,
+                                           0x03, 0x01, 0x0b, 0x0f, 0x00, 0x0f, 0x0f};
+void ceoIntro(float t, CeoIntroShot* out);
+
 const char* ceoClip(const net::BossState& state, uint32_t nowMs);
 
 } // namespace tt::world

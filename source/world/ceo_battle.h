@@ -39,6 +39,9 @@ private:
     Vec3 pitcher(int table) const;
 
     CeoAssets assets_;
+    ToonLook resistanceLook_;   // Good ol' Gil Giggles (the introduction's resistance Toon)
+    ToonAvatar resistanceToon_;
+    bool resistanceAcquired_ = false;
     bool active_ = false;
     bool entered_ = false;
     uint32_t bossId_ = 0;
