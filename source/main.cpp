@@ -2049,7 +2049,10 @@ int main() {
         const bool moleThrown = level.active() && moleFlight.active;
         // The maze's dead-end hints raise it higher still (DistributedMaze.__handleToonEnterHint).
         if (level.active() && levelGames.mazeHintCamera()) player.setIdealCameraRaise(22.0f, 54.0f);
-        else player.setIdealCameraRaise(level.active() && levelGames.moleCamera() ? 22.0f : 0.0f, 12.0f);
+        else if (level.active() && levelGames.moleCamera()) player.setIdealCameraRaise(22.0f, 12.0f);
+        // A laser field's doToonInRange: (0, -20 * h / 3, h + 8).
+        else if (level.active() && levelGames.laserCamera()) player.setIdealCameraRaise(20.0f, 8.0f);
+        else player.setIdealCameraRaise(0.0f, 12.0f);
         float mazeWarp[3];
         if (level.active() && levelGames.popMazeWarp(mazeWarp)) { // setGameOver: to the finish, jumping
             player.reset(mazeWarp[0], mazeWarp[1], mazeWarp[2] + 0.5f, player.headingDeg());

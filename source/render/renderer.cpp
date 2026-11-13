@@ -3,8 +3,10 @@
 #include "render/quality.h"
 
 #include <cmath>
+#include <cstring>
 
 #include "core/log.h"
+#include "core/memory.h"
 #include "morph_shbin.h"
 #include "world_shbin.h"
 
@@ -19,6 +21,8 @@ constexpr u32 kMorphStride = 8; // tta frame vertex: s16 x, y, z, pad
 constexpr float kLayerDepthBias = 0.00005f;
 // Leave headroom in the command buffer: citro3d panics on overflow.
 constexpr float kCmdBufLimit = 0.9f;
+// drawAdditive's per-frame ring: a laser field of nine numbers is about 1,100 vertices.
+constexpr u32 kScratchBytes = 64 * 1024;
 
 constexpr u32 kDisplayTransferFlags =
     GX_TRANSFER_FLIP_VERT(0) | GX_TRANSFER_OUT_TILED(0) | GX_TRANSFER_RAW_COPY(0) |
@@ -48,6 +52,10 @@ bool Renderer::init() {
     C3D_RenderTargetSetOutput(topLeft_, GFX_TOP, GFX_LEFT, kDisplayTransferFlags);
     C3D_RenderTargetSetOutput(topRight_, GFX_TOP, GFX_RIGHT, kDisplayTransferFlags);
 
+    {
+        mem::LinearGuard g;
+        scratch_ = static_cast<u8*>(linearAlloc(kScratchBytes));
+    }
     if (!loadProgram(world_shbin, world_shbin_size, &programs_[kModeStatic])) return false;
     if (!loadProgram(morph_shbin, morph_shbin_size, &programs_[kModeMorph])) return false;
     return true;
@@ -72,6 +80,11 @@ void Renderer::shutdown() {
         shaderProgramFree(&p.program);
         DVLB_Free(p.dvlb);
         p.dvlb = nullptr;
+    }
+    if (scratch_) {
+        mem::LinearGuard g;
+        linearFree(scratch_);
+        scratch_ = nullptr;
     }
     if (topLeft_) C3D_RenderTargetDelete(topLeft_);
     if (topRight_) C3D_RenderTargetDelete(topRight_);
@@ -103,6 +116,7 @@ void Renderer::beginWorld(C3D_RenderTarget* target, const C3D_FVec& eye, const C
                           int eyeSign) {
     batchState_ = BatchState{};
     eye_ = eye;
+    if (eyeSign <= 0) scratchUsed_ = 0; // the right eye reuses the left eye's frame
     C3D_RenderTargetClear(target, C3D_CLEAR_ALL, fogOn_ ? fogClear_ : background_, 0);
     C3D_FrameDrawOn(target);
     if (fogOn_) {
@@ -293,6 +307,79 @@ void Renderer::drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB,
     BufInfo_Add(buf, anim.frame(frameA), kMorphStride, 1, 0x3);
     BufInfo_Add(buf, anim.frame(frameB), kMorphStride, 1, 0x4);
     drawBatches(model, tints, slotTex, false);
+}
+
+bool Renderer::drawAdditive(const C3D_Mtx& world, const float (*xyz)[3], const u8 (*rgba)[4], u32 numVertices,
+                            const u16* indices, u32 numIndices, bool twoSided) {
+    if (!scratch_ || numVertices == 0 || numIndices < 3) return true;
+    const u32 vertBytes = (numVertices * kVertexStride + 15) & ~15u;
+    const u32 indexBytes = (numIndices * 2 + 15) & ~15u;
+    if (scratchUsed_ + vertBytes + indexBytes > kScratchBytes) return false;
+    float lo[3], hi[3];
+    for (int c = 0; c < 3; c++) lo[c] = hi[c] = xyz[0][c];
+    for (u32 v = 1; v < numVertices; v++)
+        for (int c = 0; c < 3; c++) {
+            if (xyz[v][c] < lo[c]) lo[c] = xyz[v][c];
+            if (xyz[v][c] > hi[c]) hi[c] = xyz[v][c];
+        }
+    if (!beginDraw(lo, hi, world)) return true;
+    // Quantize like a baked model: world = q * scale + offset.
+    float scale[3], offset[3];
+    for (int c = 0; c < 3; c++) {
+        offset[c] = (lo[c] + hi[c]) * 0.5f;
+        const float half = (hi[c] - lo[c]) * 0.5f;
+        scale[c] = half > 0.0f ? half / 32767.0f : 1.0f;
+    }
+    u8* vdst = scratch_ + scratchUsed_;
+    for (u32 v = 0; v < numVertices; v++) {
+        s16* p = reinterpret_cast<s16*>(vdst + v * kVertexStride);
+        for (int c = 0; c < 3; c++) p[c] = s16(lrintf((xyz[v][c] - offset[c]) / scale[c]));
+        p[3] = 0;
+        p[4] = p[5] = 0; // uv
+        std::memcpy(p + 6, rgba[v], 4);
+    }
+    u16* idst = reinterpret_cast<u16*>(vdst + vertBytes);
+    std::memcpy(idst, indices, numIndices * 2);
+    GSPGPU_FlushDataCache(vdst, vertBytes + indexBytes);
+    scratchUsed_ += vertBytes + indexBytes;
+
+    bindMode(kModeStatic);
+    setModelView(world, scale, offset);
+    static const float kWhite[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    if (batchState_.uploadTint(kWhite)) {
+        ++stats_.uniformUploads;
+        C3D_FVUnifSet(GPU_VERTEX_SHADER, programs_[kModeStatic].uTint, 1.0f, 1.0f, 1.0f, 1.0f);
+    }
+    if (batchState_.bindTexture(nullptr)) {
+        C3D_TexEnv* env = C3D_GetTexEnv(0);
+        C3D_TexEnvInit(env);
+        C3D_TexEnvSrc(env, C3D_Both, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR, GPU_PRIMARY_COLOR);
+        C3D_TexEnvFunc(env, C3D_Both, GPU_REPLACE);
+    }
+    C3D_AlphaTest(false, GPU_ALWAYS, 0);
+    C3D_DepthTest(true, GPU_GREATER, GPU_WRITE_COLOR);
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_ONE, GPU_ONE, GPU_ZERO, GPU_ONE);
+    batchState_.blend = -1; // the next batch restores alpha test and depth write
+    if (batchState_.layer != 0) {
+        C3D_DepthMap(true, -1.0f, 0.0f);
+        batchState_.layer = 0;
+    }
+    const int cull = twoSided ? GPU_CULL_NONE : GPU_CULL_BACK_CCW;
+    if (cull != batchState_.cull) {
+        C3D_CullFace(static_cast<GPU_CULLMODE>(cull));
+        batchState_.cull = cull;
+    }
+    C3D_BufInfo* buf = C3D_GetBufInfo();
+    ++stats_.bufferBinds;
+    BufInfo_Init(buf);
+    BufInfo_Add(buf, vdst, kVertexStride, 3, 0x210);
+    batchState_.geometryValid = false;
+    C3D_DrawElements(GPU_TRIANGLES, numIndices, C3D_UNSIGNED_SHORT, idst);
+    stats_.drawCalls++;
+    stats_.triangles += numIndices / 3;
+    C3D_AlphaBlend(GPU_BLEND_ADD, GPU_BLEND_ADD, GPU_SRC_ALPHA, GPU_ONE_MINUS_SRC_ALPHA, GPU_SRC_ALPHA,
+                   GPU_ONE_MINUS_SRC_ALPHA);
+    return true;
 }
 
 void Renderer::drawBatches(Model& model, const Tints* tints, const C3D_Tex* const* slotTex, bool perBatchBuffer) {

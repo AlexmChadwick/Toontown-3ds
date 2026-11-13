@@ -568,6 +568,7 @@ struct LevelEntityObj {
     char gridGame[16] = {};
 
     uint8_t targetHash = 0;
+    bool targetSet = false; // DistributedSecurityCamera.setTarget arrived (no beam before it)
 
     uint8_t crateSide = 0;
     float movePos[6] = {};

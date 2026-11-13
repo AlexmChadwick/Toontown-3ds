@@ -50,6 +50,13 @@ public:
     // pass. fogged = false draws it without fog (Hood.load setFogOff); Donald's Dock fogs
     // its sky with the white / underwater fog (DDHood.setWhiteFog), so pass true there.
     void drawSky(Model& model, const C3D_Mtx& world, bool fogged);
+    // Untextured triangles built this frame, blended additively with no depth write (Panda
+    // ColorBlendAttrib MAdd + setDepthWrite(False): the Cog HQ laser field and security
+    // camera beams). xyz are in `world`'s space; rgba is per vertex. The data is copied into a
+    // linear scratch ring reset by the next mono / left-eye beginWorld (frames start with
+    // C3D_FRAME_SYNCDRAW, so the GPU is done with it). False when the ring is full.
+    bool drawAdditive(const C3D_Mtx& world, const float (*xyz)[3], const u8 (*rgba)[4], u32 numVertices,
+                      const u16* indices, u32 numIndices, bool twoSided);
     // Draw only batch `i` of the next drawModel calls (-1: all). Flipbook props such as the
     // Cog-death explosion keep one card per frame; set back to -1 after the draw.
     void setOnlyBatch(int i) { onlyBatch_ = i; }
@@ -138,6 +145,8 @@ private:
     float farPlane_ = kFar;
     float fovYDeg_ = kFovYDeg;
     C3D_FogLut fogLut_{};
+    u8* scratch_ = nullptr; // drawAdditive ring (linear memory)
+    u32 scratchUsed_ = 0;
     Program programs_[kModeCount];
     int mode_ = kModeNone;
 

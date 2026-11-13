@@ -8,6 +8,7 @@
 
 #ifdef __3DS__
 #include "core/log.h"
+#include "world/laser_symbols.h"
 #include "world/level.h"
 #endif
 
@@ -118,6 +119,89 @@ inline void fromLocalLocal(const float w[12], const float p[3], float out[3]) {
     for (int c = 0; c < 3; ++c) out[c] = p[0] * w[c] + p[1] * w[3 + c] + p[2] * w[6 + c] + w[9 + c];
 }
 
+// Vertex-coloured additive geometry for Renderer::drawAdditive, flushed when full (main thread).
+struct AddBuilder {
+    static constexpr int kVerts = 2048, kIndices = 6144;
+    float xyz[kVerts][3];
+    u8 rgba[kVerts][4];
+    u16 idx[kIndices];
+    int nv = 0, ni = 0;
+    render::Renderer* renderer = nullptr;
+    C3D_Mtx world;
+    bool twoSided = true;
+
+    void begin(render::Renderer& r, const C3D_Mtx& m, bool twoSidedDraw) {
+        renderer = &r;
+        world = m;
+        twoSided = twoSidedDraw;
+        nv = ni = 0;
+    }
+    void flush() {
+        if (ni) renderer->drawAdditive(world, xyz, rgba, nv, idx, ni, twoSided);
+        nv = ni = 0;
+    }
+    void reserve(int v, int i) {
+        if (nv + v > kVerts || ni + i > kIndices) flush();
+    }
+    u16 vert(float x, float y, float z, const float c[3]) {
+        xyz[nv][0] = x, xyz[nv][1] = y, xyz[nv][2] = z;
+        for (int k = 0; k < 3; ++k) rgba[nv][k] = u8(std::clamp(c[k], 0.0f, 1.0f) * 255.0f + 0.5f);
+        rgba[nv][3] = 255;
+        return u16(nv++);
+    }
+    void tri(u16 a, u16 b, u16 c) {
+        idx[ni++] = a, idx[ni++] = b, idx[ni++] = c;
+    }
+    // A wireframe line (setRenderModeWireframe) as a flat strip `w` wide at height z.
+    void line(float ax, float ay, float bx, float by, float z, float w, const float c[3]) {
+        float nx = ay - by, ny = bx - ax;
+        const float len = std::sqrt(nx * nx + ny * ny);
+        if (len < 1e-5f) return;
+        nx *= 0.5f * w / len, ny *= 0.5f * w / len;
+        reserve(4, 6);
+        const u16 i0 = vert(ax + nx, ay + ny, z, c), i1 = vert(ax - nx, ay - ny, z, c);
+        const u16 i2 = vert(bx - nx, by - ny, z, c), i3 = vert(bx + nx, by + ny, z, c);
+        tri(i0, i1, i2);
+        tri(i0, i2, i3);
+    }
+};
+AddBuilder gAdd;
+
+// DistributedLaserField.createGrid for one symbol outline in tile (x, y): the wire (gridColor *
+// 0.25) and the beams from the projector (black there, gridColor * 0.04 on the floor).
+void addLaserSymbol(const laser::Symbol& sym, float left, float bottom, float tileW, float tileH,
+                    const float projector[3], float wireW) {
+    constexpr float kZ = 0.05f; // zFloat
+    if (sym.count < 2) return;
+    const float wire[3] = {sym.color[0] * 0.25f, sym.color[1] * 0.25f, sym.color[2] * 0.25f};
+    const float beam[3] = {sym.color[0] * 0.04f, sym.color[1] * 0.04f, sym.color[2] * 0.04f};
+    static const float kBlack[3] = {0, 0, 0};
+    for (int i = 0; i + 1 < sym.count; ++i) {
+        const float* a = laser::kPoints[sym.first + i];
+        const float* b = laser::kPoints[sym.first + i + 1];
+        gAdd.line(left + a[0] * tileW, bottom + a[1] * tileH, left + b[0] * tileW, bottom + b[1] * tileH, kZ, wireW,
+                  wire);
+    }
+    for (int i = 0; i + 1 < sym.count; ++i) {
+        const float* a = laser::kPoints[sym.first + i];
+        const float* b = laser::kPoints[sym.first + i + 1];
+        gAdd.reserve(3, 3);
+        const u16 p = gAdd.vert(projector[0], projector[1], projector[2], kBlack);
+        const u16 ia = gAdd.vert(left + a[0] * tileW, bottom + a[1] * tileH, kZ, beam);
+        const u16 ib = gAdd.vert(left + b[0] * tileW, bottom + b[1] * tileH, kZ, beam);
+        gAdd.tri(p, ia, ib);
+    }
+}
+
+// TTLocalizer's LaserGame* for setGridGame's name (DistributedLaserField.setGridGame).
+const char* laserGameText(const char* game) {
+    if (!std::strcmp(game, "MineSweeper")) return "Skull Finder!";
+    if (!std::strcmp(game, "Roll")) return "Matching";
+    if (!std::strcmp(game, "Avoid")) return "Avoid the Skulls";
+    if (!std::strcmp(game, "Drag")) return "Drag three of a color in a row";
+    return "Unknown Game";
+}
+
 } // namespace
 
 void LevelGames::loadProps() {
@@ -131,6 +215,7 @@ void LevelGames::loadProps() {
     assetBatch_.load(crateWood_, path);
     snprintf(path, sizeof(path), "%scrate_cbwood.ttm", kPropsDir);
     assetBatch_.load(crateCbWood_, path);
+
     snprintf(path, sizeof(path), "%sgrid_floor.ttm", kPropsDir);
     assetBatch_.load(gridFloor_, path);
 
@@ -147,8 +232,8 @@ void LevelGames::loadProps() {
     assetBatch_.load(golfHole_, path);
     snprintf(path, sizeof(path), "%sgolf_ball.ttm", kPropsDir);
     assetBatch_.load(golfBall_, path);
-    snprintf(path, sizeof(path), "%sgoon_cone.ttm", kPropsDir);
-    assetBatch_.load(goonCone_, path);
+    snprintf(path, sizeof(path), "%ssecurity_camera.ttm", kPropsDir);
+    assetBatch_.load(securityCamera_, path);
 
     // Crate box
     snprintf(path, sizeof(path), "%scrate.box", kPropsDir);
@@ -191,14 +276,15 @@ void LevelGames::shutdown() {
     }
     crateWood_.unload();
     crateCbWood_.unload();
-    gridFloor_.unload();
     moleHole_.unload();
     moleNorm_.unload();
     moleCog_.unload();
     moleHit_.unload();
     golfHole_.unload();
     golfBall_.unload();
-    goonCone_.unload();
+    securityCamera_.unload();
+    gridFloor_.unload();
+    laserCamera_ = false;
     resetMaze();
     for (MoleField& f : moleFields_) f.slot = -1;
     moleFlight_.active = false;
@@ -284,6 +370,7 @@ void LevelGames::update(net::Client& client, Level& level, float toonX, float to
 }
 
 void LevelGames::updateLasers(net::Client& client, Level& level, float toonX, float toonY, float toonZ, uint32_t nowMs) {
+    bool camera = false;
     for (int i = 0; i < net::kMaxLevelEntities; ++i) {
         const net::LevelEntityObj& d = client.levelEntitySlot(i);
         if (!d.active || d.classId != dc::DistributedLaserField::kClassId) continue;
@@ -291,58 +378,84 @@ void LevelGames::updateLasers(net::Client& client, Level& level, float toonX, fl
         if (!e || !level.shown(e->room)) continue;
 
         SlotState& slot = slots_[i];
-        const float scaleX = level.spec_.number(*e, "gridScaleX", d.gridNumX > 0 ? float(d.gridNumX) : 8.0f);
-        const float scaleY = level.spec_.number(*e, "gridScaleY", d.gridNumY > 0 ? float(d.gridNumY) : 8.0f);
-        const uint8_t numX = d.gridNumX > 0 ? d.gridNumX : 8;
-        const uint8_t numY = d.gridNumY > 0 ? d.gridNumY : 8;
+        const float scaleX = level.spec_.number(*e, "gridScaleX", 2.0f);
+        const float scaleY = level.spec_.number(*e, "gridScaleY", 2.0f);
+        // setField carries the grid size too (it calls setGrid when it differs).
+        const int len = d.fieldDataLen;
+        const uint8_t numX = len >= 2 ? d.fieldData[0] : d.gridNumX;
+        const uint8_t numY = len >= 2 ? d.fieldData[1] : d.gridNumY;
 
         float local[3];
         toLocalLocal(e->world, toonX, toonY, toonZ, local);
 
-        int8_t tileX = -1, tileY = -1;
-        const bool inside = games_logic::calcLaserTile(local[0], local[1], scaleX, scaleY, numX, numY, &tileX, &tileY);
+        // __detect: within 0.75 of the larger side of the field's centre.
+        const float cx = local[0] - scaleX * 0.5f, cy = local[1] - scaleY * 0.5f;
+        const float greater = scaleX > scaleY ? scaleX : scaleY;
+        const bool inRange = std::sqrt(cx * cx + cy * cy + local[2] * local[2]) < greater * 0.75f;
+        if (inRange && !slot.laserInRange) {
+            slot.laserInRange = true;
+            slot.laserCam = d.activeLF;
+            if (d.activeLF) moleInfo(laserGameText(d.gridGame), nowMs); // stage.showInfoText
+        } else if (!inRange && slot.laserInRange) {
+            slot.laserInRange = false;
+            slot.laserCam = false;
+        }
+        if (slot.laserInRange && slot.laserCam) camera = true;
 
-        if (inside && d.activeLF) {
-            if (nowMs - slot.lastLaserHumMs > 3000) {
+        int8_t tileX = -1, tileY = -1;
+        const bool inside = inRange && games_logic::calcLaserTile(local[0], local[1], scaleX, scaleY, numX, numY,
+                                                                  &tileX, &tileY);
+        if (inside) {
+            if (d.activeLF && nowMs - slot.lastLaserHumMs > 3000) {
                 playAt(kSfxLBLaserHum, e->world + 9, 0.4f);
                 slot.lastLaserHumMs = nowMs;
             }
-
-            if (tileX != slot.lastTileX || tileY != slot.lastTileY || !slot.toonInLaser) {
+            // __toonHit: the tile's function (sendFail on a skull), then hit; setField's
+            // __testTile runs the function again when the field changes under the Toon.
+            const bool moved = tileX != slot.lastTileX || tileY != slot.lastTileY || !slot.toonInLaser;
+            const bool fieldChanged = len != slot.seenLen || std::memcmp(d.fieldData, slot.seenField, len);
+            if (moved || fieldChanged) {
+                if (games_logic::isLaserHazard(games_logic::laserSymbol(d.fieldData, len, tileX, tileY))) {
+                    playAt(kSfxLBSparks, e->world + 9, 0.9f);
+                    TT_LOG("level_games: laser field %u hazard on tile (%d, %d)", unsigned(d.doId), int(tileX),
+                           int(tileY));
+                    client.sendLaserTrapFire(d.doId);
+                }
+            }
+            if (moved) {
                 const int8_t oldX = slot.lastTileX;
                 const int8_t oldY = slot.lastTileY;
                 slot.lastTileX = tileX;
                 slot.lastTileY = tileY;
                 slot.toonInLaser = true;
-
-                TT_LOG("level_games: laser field %u stepped on tile (%d, %d) (sending hit)", unsigned(d.doId), int(tileX), int(tileY));
+                TT_LOG("level_games: laser field %u stepped on tile (%d, %d) (sending hit)", unsigned(d.doId),
+                       int(tileX), int(tileY));
                 client.sendLaserHit(d.doId, tileX, tileY, oldX, oldY);
+            }
+        } else if (slot.toonInLaser) {
+            slot.toonInLaser = false;
+            slot.lastTileX = -1;
+            slot.lastTileY = -1;
+        }
+        const int seen = len < int(sizeof(slot.seenField)) ? len : int(sizeof(slot.seenField));
+        std::memcpy(slot.seenField, d.fieldData, seen);
+        slot.seenLen = uint8_t(seen);
 
-                // Hazard symbol check in field data
-                const int symbolIdx = tileX + tileY * numX;
-                if (symbolIdx >= 0 && symbolIdx < d.fieldDataLen) {
-                    const uint8_t sym = d.fieldData[symbolIdx];
-                    if (games_logic::isLaserHazard(sym)) {
-                        playAt(kSfxLBSparks, e->world + 9, 0.9f);
-                        TT_LOG("level_games: laser field %u hazard fired on tile (%d, %d)", unsigned(d.doId), int(tileX), int(tileY));
-                        client.sendLaserTrapFire(d.doId);
-                    }
-                }
-            }
-        } else {
-            if (slot.toonInLaser) {
-                slot.toonInLaser = false;
-                slot.lastTileX = -1;
-                slot.lastTileY = -1;
-            }
+        // genGrid only while activeLF: the drawn field freezes when the AI turns it off.
+        if (d.activeLF) {
+            std::memcpy(slot.shownField, slot.seenField, seen);
+            slot.shownLen = uint8_t(seen);
+            slot.shownToonX = slot.toonInLaser ? slot.lastTileX : -1;
+            slot.shownToonY = slot.toonInLaser ? slot.lastTileY : -1;
         }
 
         // On puzzle solved
-        if (d.success == 1 && slot.lastTileX != -2) {
+        if (d.success == 1 && !slot.successPlayed) {
             playAt(kSfxLBCapacitor, e->world + 9, 0.9f);
-            slot.lastTileX = -2; // mark played
+            slot.successPlayed = true;
         }
     }
+    laserCamera_ = camera;
 }
 
 void LevelGames::updateCameras(net::Client& client, Level& level, float toonX, float toonY, float toonZ, float dt, uint32_t nowMs) {
@@ -356,17 +469,30 @@ void LevelGames::updateCameras(net::Client& client, Level& level, float toonX, f
         const float radius = level.spec_.number(*e, "radius", 5.0f);
         const float accel = level.spec_.number(*e, "accel", 0.5f);
         const float maxVel = level.spec_.number(*e, "maxVel", 1.0f);
+        if (level.spec_.getFloats(*e, "projector", slot.projector, 3) < 3) {
+            slot.projector[0] = slot.projector[1] = 0.0f;
+            slot.projector[2] = 25.0f;
+        }
+        slot.hideModel = level.spec_.integer(*e, "hideModel", 0) != 0;
 
-        // Smooth camera track target pursuit:
-        float targetX = 0.0f, targetY = 0.0f;
-        // Pursue toon if in room, or circle
-        float localToon[3];
-        toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
-        targetX = localToon[0];
-        targetY = localToon[1];
+        // setTarget: targetHash % 3 counts through the trackTarget1..3 that are set.
+        uint32_t targets[3];
+        int numTargets = 0;
+        static const char* const kTrack[3] = {"trackTarget1", "trackTarget2", "trackTarget3"};
+        for (const char* name : kTrack) {
+            const int32_t id = level.spec_.integer(*e, name, 0);
+            if (id) targets[numTargets++] = uint32_t(id);
+        }
+        // __updateTrack does nothing (and draws no beam) until there is a target.
+        if (!d.targetSet || numTargets == 0) continue;
+        const LevelEntity* t = level.specOf(d.levelDoId, targets[(d.targetHash % 3) % numTargets]);
+        if (!t) continue;
+        float target[3];
+        toLocalLocal(e->world, t->world[9], t->world[10], t->world[11], target);
+        slot.camTracking = true;
 
-        const float distX = targetX - slot.trackX;
-        const float distY = targetY - slot.trackY;
+        const float distX = target[0] - slot.trackX;
+        const float distY = target[1] - slot.trackY;
         const float trigDist = std::sqrt(distX * distX + distY * distY);
         const float totalDist = std::abs(distX) + std::abs(distY);
         const float propX = std::abs(distX) / (totalDist + 0.01f);
@@ -389,12 +515,14 @@ void LevelGames::updateCameras(net::Client& client, Level& level, float toonX, f
         slot.trackX += slot.vX * dt;
         slot.trackY += slot.vY * dt;
 
-        // Detection: distance from toon to spotlight center
+        // getDist: the Toon's distance from the spot in the camera's x / y.
+        float localToon[3];
+        toLocalLocal(e->world, toonX, toonY, toonZ, localToon);
         const float dx = localToon[0] - slot.trackX;
         const float dy = localToon[1] - slot.trackY;
-        const float distToSpot = std::sqrt(dx * dx + dy * dy);
+        slot.toonSpotDist = std::sqrt(dx * dx + dy * dy);
 
-        if (distToSpot < radius && (nowMs - slot.lastCameraAlarmMs > 2000)) {
+        if (slot.toonSpotDist < radius && (!slot.lastCameraAlarmMs || nowMs - slot.lastCameraAlarmMs > 2000)) {
             slot.lastCameraAlarmMs = nowMs;
             playAt(kSfxCameraAlarm, e->world + 9, 0.9f);
             playAt(kSfxLBCameraShutter, e->world + 9, 0.8f);
@@ -1081,47 +1209,94 @@ void LevelGames::draw(render::Renderer& renderer, const C3D_FVec& eye) const {
 
         const SlotState& slot = slots_[i];
 
-        // 1. Laser fields
+        // 1. Laser fields: createGrid's symbol outlines and their beams from the projector
+        // (additive, no depth write). Nothing else: the field has no floor model.
         if (d.classId == dc::DistributedLaserField::kClassId) {
-            if (d.activeLF && gridFloor_.loaded()) {
-                const float scaleX =
-                    slot.draw.hasGridX ? slot.draw.gridX : (d.gridNumX > 0 ? float(d.gridNumX) : 8.0f);
-                const float scaleY =
-                    slot.draw.hasGridY ? slot.draw.gridY : (d.gridNumY > 0 ? float(d.gridNumY) : 8.0f);
-                C3D_Mtx m;
-                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
-                // Float slightly above floor to prevent depth fighting (upstream DistributedLaserField: zFloat = 0.05)
-                Mtx_Translate(&m, scaleX * 0.5f, scaleY * 0.5f, 0.08f, true);
-                Mtx_Scale(&m, scaleX / 6.24f, scaleY / 6.24f, 1.0f);
-                renderer.drawModel(const_cast<render::Model&>(gridFloor_), m);
-
-                // Overhead laser hazard cones
-                if (goonCone_.loaded()) {
-                    C3D_Mtx cm;
-                    std::memcpy(cm.m, slot.draw.matrix, sizeof(cm.m));
-                    Mtx_Translate(&cm, scaleX * 0.5f, scaleY * 0.5f, 25.0f, true);
-                    Mtx_RotateX(&cm, 180.0f * kDegToRad, true);
-                    Mtx_Scale(&cm, scaleX * 0.25f, scaleY * 0.25f, 25.0f / 3.5f);
-                    renderer.setBaseTint(1.0f, 0.2f, 0.2f, 0.3f);
-                    renderer.drawModel(const_cast<render::Model&>(goonCone_), cm);
-                    renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+            const int len = slot.shownLen;
+            if (len < 2) continue;
+            const int numX = slot.shownField[0], numY = slot.shownField[1];
+            if (!numX || !numY) continue;
+            const float scaleX = slot.draw.hasGridX ? slot.draw.gridX : 2.0f;
+            const float scaleY = slot.draw.hasGridY ? slot.draw.gridY : 2.0f;
+            const float tileW = scaleX / numX, tileH = scaleY / numY;
+            float projector[3] = {0.0f, 0.0f, 25.0f};
+            level_->spec_.getFloats(*e, "projector", projector, 3);
+            // Panda draws the wire one pixel wide: about 1.5 top-screen pixels at the field.
+            const float ex = e->world[9] - eye.x, ey = e->world[10] - eye.y, ez = e->world[11] - eye.z;
+            const float wireW = std::clamp(std::sqrt(ex * ex + ey * ey + ez * ez) * 0.0045f, 0.03f, 0.4f);
+            C3D_Mtx m;
+            std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+            gAdd.begin(renderer, m, true);
+            for (int x = 0; x < numX; ++x)
+                for (int y = 0; y < numY; ++y) {
+                    const uint8_t sym = games_logic::laserSymbol(slot.shownField, len, x, y);
+                    if (!sym || sym >= laser::kNumSymbols) continue;
+                    addLaserSymbol(laser::kSymbols[sym], x * tileW, y * tileH, tileW, tileH, projector, wireW);
                 }
-            }
+            if (slot.shownToonX >= 0) // isToonIn: symbolSelect on the Toon's tile
+                addLaserSymbol(laser::kSelect, slot.shownToonX * tileW, slot.shownToonY * tileH, tileW, tileH,
+                               projector, wireW);
+            gAdd.flush();
         }
-        // 2. Security cameras
+        // 2. Security cameras: square_stomper at the projector looking at the spot, the beam
+        // fan (grey at the projector, black on the floor) and the floor disk (grey, red for 2 s
+        // after trapFire), additive with no depth write and one-sided.
         else if (d.classId == dc::DistributedSecurityCamera::kClassId) {
-            if (goonCone_.loaded()) {
-                C3D_Mtx m;
-                std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
-                Mtx_Translate(&m, slot.trackX, slot.trackY, 0.0f, true);
-                Mtx_Scale(&m, 0.5f, 0.5f, 1.0f);
-                // Like DistributedGoon's radar, the security camera's detection volume is a
-                // translucent overlay.  Drawing the cone with the default opaque tint hides
-                // the room whenever a large face crosses the camera.
-                renderer.setBaseTint(1.0f, 0.2f, 0.2f, 0.2f);
-                renderer.drawModel(const_cast<render::Model&>(goonCone_), m);
-                renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
+            C3D_Mtx m;
+            std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+            if (!slot.hideModel && securityCamera_.loaded()) {
+                C3D_Mtx cm = m;
+                if (slot.camTracking) {
+                    const float* p = slot.projector;
+                    const float fx = slot.trackX - p[0], fy = slot.trackY - p[1], fz = -p[2];
+                    Mtx_Translate(&cm, p[0], p[1], p[2], true);
+                    Mtx_RotateZ(&cm, std::atan2(-fx, fy), true);                       // lookAt heading
+                    Mtx_RotateX(&cm, std::atan2(fz, std::sqrt(fx * fx + fy * fy)), true); // and pitch
+                }
+                Mtx_Translate(&cm, 0.0f, 1.0f, 0.0f, true);
+                renderer.drawModel(const_cast<render::Model&>(securityCamera_), cm);
             }
+            if (!slot.camTracking) continue;
+            const float radius = level_->spec_.number(*e, "radius", 5.0f);
+            const bool alert = slot.lastCameraAlarmMs && nowMs_ - slot.lastCameraAlarmMs < 2000;
+            static const float kNorm[3] = {0.2f, 0.2f, 0.2f}, kAlert[3] = {1.0f, 0.0f, 0.0f}, kBlack[3] = {};
+            const float* origin = alert ? kAlert : kNorm;
+            const float draw = 1.0f / (0.01f + std::pow(slot.toonSpotDist, 0.4f));
+            const int beamSegs = std::clamp(int(5.0f + draw * 12.0f), 5, 64);
+            const int floorSegs = std::clamp(int(5.0f + draw * 50.0f), 5, 96);
+            constexpr float kZ = 0.05f; // zFloat
+            gAdd.begin(renderer, m, false);
+            gAdd.reserve(beamSegs + 2, beamSegs * 3);
+            const u16 apex = gAdd.vert(slot.projector[0], slot.projector[1], slot.projector[2], origin);
+            for (int k = 0; k <= beamSegs; ++k) {
+                const float a = 2.0f * kPi * float(k % beamSegs) / float(beamSegs);
+                gAdd.vert(slot.trackX + radius * std::cos(a), slot.trackY + radius * std::sin(a), kZ, kBlack);
+                if (k) gAdd.tri(apex, u16(apex + k), u16(apex + k + 1));
+            }
+            gAdd.reserve(floorSegs + 2, floorSegs * 3);
+            const u16 centre = gAdd.vert(slot.trackX, slot.trackY, kZ, origin);
+            for (int k = 0; k <= floorSegs; ++k) {
+                const float a = 2.0f * kPi * float(k % floorSegs) / float(floorSegs);
+                gAdd.vert(slot.trackX + radius * std::cos(a), slot.trackY + radius * std::sin(a), kZ, origin);
+                if (k) gAdd.tri(centre, u16(centre + k), u16(centre + k + 1));
+            }
+            gAdd.flush();
+        }
+        // DistributedGrid.loadModel: FloorWear over the crate grid, its long side along x.
+        else if (d.classId == dc::DistributedGrid::kClassId) {
+            if (!gridFloor_.loaded()) continue;
+            const float cell = level_->spec_.number(*e, "cellSize", 3.0f);
+            const int cols = level_->spec_.integer(*e, "numCol", 0), rows = level_->spec_.integer(*e, "numRow", 0);
+            if (cols <= 0 || rows <= 0) continue;
+            const float scale = cell / 6.0f; // texSize
+            const bool turn = cols < rows;
+            C3D_Mtx m;
+            std::memcpy(m.m, slot.draw.matrix, sizeof(m.m));
+            Mtx_Translate(&m, cell * cols * 0.5f, cell * rows * 0.5f, 0.025f, true);
+            if (turn) Mtx_RotateZ(&m, 90.0f * kDegToRad, true);
+            Mtx_RotateX(&m, kPi, true); // setHpr(h, 180, 0)
+            Mtx_Scale(&m, scale * (turn ? rows : cols), scale * (turn ? cols : rows), 1.0f);
+            renderer.drawModel(const_cast<render::Model&>(gridFloor_), m);
         }
         // 3. Crates
         else if (d.classId == dc::DistributedCrate::kClassId) {

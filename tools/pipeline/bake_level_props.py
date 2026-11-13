@@ -38,6 +38,8 @@ DOOR_PARTS = {
 
 
 def default_resources():
+    if os.environ.get('TT_RESOURCES'):
+        return Path(os.environ['TT_RESOURCES'])
     for c in (ROOT / 'ref/resources', ROOT / 'ref/ref/resources'):
         if (c / 'phase_9').exists():
             return c
@@ -351,6 +353,15 @@ def bake_stomper(base, resources, out, name, path):
     return report
 
 
+def bake_security_camera(base, resources, out):
+    """DistributedSecurityCamera.loadModel: the whole square_stomper (laserFieldModels[0]) at
+    (0, 1, 0) under a node at the projector that looks at the tracked floor spot."""
+    model = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/square_stomper.bam'), noCache=True)
+    report = {'security_camera': write_part(model, None, out / 'security_camera.ttm')}
+    model.removeNode()
+    return report
+
+
 def bake_crates(base, resources, out):
     """DistributedCrate: woodCrateB (factory) / CBWoodCrate (mint), plus grid floor wear."""
     report = {}
@@ -453,6 +464,16 @@ def main():
     resources = default_resources()
     out = ROOT / 'sdmc-out/3ds/toontown3ds/data/level/props'
     out.mkdir(parents=True, exist_ok=True)
+    only = sys.argv[1:]  # e.g. security_camera: bake just those parts into the existing set
+    if only:
+        manifest = out / 'manifest.json'
+        report = json.loads(manifest.read_text()) if manifest.exists() else {}
+        for name in only:
+            report[name] = globals()['bake_' + name](base, resources, out)
+        manifest.write_text(json.dumps(report, indent=2, default=str) + '\n')
+        print(json.dumps({k: report[k] for k in only}, indent=2, default=str))
+        base.destroy()
+        return
     report = {'door': bake_door(base, resources, out), 'button': bake_button(base, resources, out),
               'stomper': bake_stomper(base, resources, out, 'stomper', 'phase_9/models/cogHQ/square_stomper.bam'),
               'stomper_lb': bake_stomper(base, resources, out, 'stomper_lb',
@@ -466,7 +487,8 @@ def main():
               'stage_elevator': bake_stage_elevator(base, resources, out),
               'crates': bake_crates(base, resources, out),
               'moles': bake_moles(base, resources, out),
-              'golf': bake_golf(base, resources, out)}
+              'golf': bake_golf(base, resources, out),
+              'security_camera': bake_security_camera(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}

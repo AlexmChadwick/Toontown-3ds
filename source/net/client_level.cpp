@@ -282,6 +282,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         r.string(e.gridGame, sizeof(e.gridGame));
     } else if (fieldId == dc::DistributedSecurityCamera::k_setTarget) {
         e.targetHash = r.u8();
+        e.targetSet = true;
     } else if (fieldId == dc::DistributedCrate::k_setAccept) {
         e.pushAccepted = true;
         TT_LOG("net: crate %u setAccept", unsigned(e.doId));

@@ -54,9 +54,16 @@ inline bool calcLaserTile(float localX, float localY, float scaleX, float scaleY
     return true;
 }
 
-// Laser hazard tile check: symbols 12 (symbolHiddenBomb) and 13 (symbolBomb) trigger alarm & damage.
+// Laser hazard tile check: gridSymbols 11 (symbolHiddenBomb) and 12 (symbolSkull) call sendFail.
 inline bool isLaserHazard(uint8_t symbol) {
-    return symbol == 12 || symbol == 13;
+    return symbol == 11 || symbol == 12;
+}
+
+// setField's list: [gridNumX, gridNumY, then column-major tiles]. The symbol of tile (x, y), 0 if absent.
+inline uint8_t laserSymbol(const uint8_t* data, int len, int x, int y) {
+    if (len < 2) return 0;
+    const int i = 2 + x * data[1] + y;
+    return i < len ? data[i] : 0;
 }
 
 // Crate push side detection from contact normal in crate-local space:
@@ -161,14 +168,14 @@ private:
     // Models:
     render::Model crateWood_;
     render::Model crateCbWood_;
-    render::Model gridFloor_;
     render::Model moleHole_;
     render::Model moleNorm_;
     render::Model moleCog_;
     render::Model moleHit_;
     render::Model golfHole_;
     render::Model golfBall_;
-    render::Model goonCone_;
+    render::Model securityCamera_; // square_stomper, DistributedSecurityCamera's model
+    render::Model gridFloor_;      // FloorWear, DistributedGrid's model
 
     float crateBox_[6] = {-2.8f, -2.8f, 0.0f, 2.8f, 2.8f, 5.48f};
 
@@ -204,10 +211,23 @@ private:
         // Laser
         int8_t lastTileX = -1, lastTileY = -1;
         bool toonInLaser = false;
+        bool laserInRange = false; // __detect's doToonInRange
+        bool laserCam = false;     // ... with the field active then (setIdealCameraPos)
+        bool successPlayed = false;
+        uint8_t seenField[2 + 8 * 8] = {};
+        uint8_t seenLen = 0;
         uint32_t lastLaserHumMs = 0;
+        // genGrid only runs while activeLF: the drawn grid stays as it was when the field went off.
+        uint8_t shownField[2 + 8 * 8] = {};
+        uint8_t shownLen = 0;
+        int8_t shownToonX = -1, shownToonY = -1;
 
         // Camera
-        float trackX = 0, trackY = 0;
+        bool camTracking = false; // __updateTrack has run (it needs a target)
+        bool hideModel = false;
+        float projector[3] = {0.0f, 0.0f, 25.0f};
+        float toonSpotDist = 100.0f;
+        float trackX = 10.0f, trackY = -5.0f;
         float vX = 0, vY = 0;
         uint32_t lastCameraAlarmMs = 0;
 
@@ -320,6 +340,8 @@ public:
     // While the Toon is in a mole field's range (setUpCamera): the ideal camera is
     // (0, -22 * h / 3, h + 12) for clamped Toon height h.
     bool moleCamera() const { return moleCamera_; }
+    // While the Toon is near an active laser field (doToonInRange): (0, -20 * h / 3, h + 8).
+    bool laserCamera() const { return laserCamera_; }
     void setCameraEye(const float eye[3]) { std::memcpy(cameraEye_, eye, sizeof(cameraEye_)); }
     // Autotest: the world position of a raised mole with its collision on; cog = a HILL_BOMB
     // (the one to stomp), else a HILL_MOLE (it throws the Toon).
@@ -330,6 +352,7 @@ public:
 private:
     MoleFlight moleFlight_;
     bool moleCamera_ = false;
+    bool laserCamera_ = false;
     float cameraEye_[3] = {};
     char infoText_[64] = {};
     mutable char hudLabel_[32] = {};
