@@ -39,6 +39,7 @@ struct CfoIntroShot {
     bool resistanceRunning;
     Vec3 boss;
     float bossHeading;
+    bool bossVisible; // bossTrack reparents the C.F.O. to render when its roll starts
     const char* resistanceChat; // nullptr when silent
     const char* bossChat;
     float resistanceChatAge, bossChatAge; // seconds since the line was said

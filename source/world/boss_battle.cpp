@@ -833,7 +833,8 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         C3D_Mtx torso = world;
         C3D_Mtx head = world;
         for (int part = 0; part < kParts && phase != BossPhase::Reward && phase != BossPhase::Epilogue &&
-             !(cashbot_ && phase == BossPhase::Victory && nowMs - state.phaseMs > 9500); ++part) {
+             !(cashbot_ && phase == BossPhase::Victory && nowMs - state.phaseMs > 9500) &&
+             !(cashbot_ && (phase == BossPhase::Arrival || (cfoIntroMovie && !intro.bossVisible))); ++part) {
             C3D_Mtx partWorld = part == 1 ? torso : part == 2 ? head : world;
             render::Anim& animation = animations_[part];
             if (animation.loaded()) {
