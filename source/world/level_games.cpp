@@ -8,6 +8,7 @@
 
 #ifdef __3DS__
 #include "core/log.h"
+#include "ui/gag_data.h"
 #include "world/laser_symbols.h"
 #include "world/level.h"
 #endif
@@ -841,6 +842,26 @@ const char* LevelGames::infoText(uint32_t nowMs, float* alpha) const {
     return infoText_;
 }
 
+// TTLocalizer.BattleGlobalAvPropStringsSingular.
+constexpr const char* kGagNamesSingular[gags::kTracks][gags::kLevels] = {
+    {"a Feather", "a Megaphone", "a Lipstick", "a Bamboo Cane", "a Pixie Dust", "a set of Juggling Balls",
+     "a High Dive"},
+    {"a Banana Peel", "a Rake", "a set of Marbles", "a patch of Quicksand", "a Trapdoor", "a TNT", "a Railroad"},
+    {"a $1 bill", "a Small Magnet", "a $5 bill", "a Big Magnet", "a $10 bill", "a pair of Hypno-goggles",
+     "a Presentation"},
+    {"a Bike Horn", "a Whistle", "a Bugle", "an Aoogah", "an Elephant Trunk", "a Foghorn", "an Opera Singer"},
+    {"a Cupcake", "a Fruit Pie Slice", "a Cream Pie Slice", "a Whole Fruit Pie", "a Whole Cream Pie",
+     "a Birthday Cake", "a Wedding Cake"},
+    {"a Squirting Flower", "a Glass of Water", "a Squirt Gun", "a Seltzer Bottle", "a Fire Hose", "a Storm Cloud",
+     "a Geyser"},
+    {"a Flower Pot", "a Sandbag", "an Anvil", "a Big Weight", "a Safe", "a Grand Piano", "the Toontanic"}};
+
+const char* LevelGames::bonusBoard(uint32_t nowMs, int* track, int* level) const {
+    if (!bonusMs_ || int32_t(nowMs - bonusMs_) >= 4000 || !bac_.active()) return nullptr; // hideBonusBoard
+    *track = bonusTrack_, *level = bonusLevel_;
+    return bonusText_;
+}
+
 bool LevelGames::gameHud(const char** label, int* timerSeconds, uint32_t nowMs) const {
     auto secondsTo = [nowMs](uint32_t endMs) {
         const int32_t ms = int32_t(endMs - nowMs);
@@ -1185,6 +1206,8 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
                 slot.bacBoardSeq = d.bacBoardSeq;
                 slot.bacClearedSeq = d.bacClearedSeq;
                 slot.bacHelpSeq = d.bacHelpSeq;
+                slot.bacGagSeq = d.bacGagSeq;
+                bonusMs_ = 0;
                 client.sendGolfBoard(d.doId, 0);
                 if (!slot.golfEntered) {
                     slot.golfEntered = true;
@@ -1213,13 +1236,34 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
         }
         if (d.bacHelpSeq != slot.bacHelpSeq) {
             slot.bacHelpSeq = d.bacHelpSeq;
-            if (d.bacHelpAvId != client.avatarId()) bac_.helpOthers();
+            if (d.bacHelpAvId != client.avatarId() && bac_.running()) { // GolfGreenGameGotHelp
+                bac_.helpOthers();
+                const char* name = client.avatarName(d.bacHelpAvId);
+                std::snprintf(bonusText_, sizeof(bonusText_), "%s solved a Puzzle!", name ? name : "");
+                bonusTrack_ = -1;
+                bonusMs_ = nowMs ? nowMs : 1;
+            }
+        }
+        if (d.bacGagSeq != slot.bacGagSeq) { // informGag: GolfGreenGameBonusGag
+            slot.bacGagSeq = d.bacGagSeq;
+            if (d.bacGagTrack < gags::kTracks && d.bacGagLevel < gags::kLevels) {
+                std::snprintf(bonusText_, sizeof(bonusText_), "You won %s!",
+                              kGagNamesSingular[d.bacGagTrack][d.bacGagLevel]);
+                bonusTrack_ = d.bacGagTrack, bonusLevel_ = d.bacGagLevel;
+                bonusMs_ = nowMs ? nowMs : 1;
+            }
         }
         if (golfExit_) { // Exit for Now
             bac_.end();
             golfSlot_ = -1;
             TT_LOG("level_games: left golf green %u (sending leaveGame)", unsigned(d.doId));
             client.sendGolfLeave(d.doId);
+            continue;
+        }
+        if (golfSolve_ && bac_.running()) {
+            golfSolve_ = false;
+            TT_LOG("level_games: autotest reports golf green %u board solved (requestBoard)", unsigned(d.doId));
+            client.sendGolfBoard(d.doId, 1);
             continue;
         }
         uint8_t success = 0;
@@ -1232,7 +1276,7 @@ void LevelGames::updateGolf(net::Client& client, Level& level, float toonX, floa
         bac_.end();
         golfSlot_ = -1;
     }
-    golfFire_ = golfExit_ = false;
+    golfFire_ = golfExit_ = golfSolve_ = false;
 }
 
 bool LevelGames::golfView(float eye[3], float target[3], float stand[3], float* heading) const {

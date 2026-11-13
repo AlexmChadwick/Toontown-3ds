@@ -38,6 +38,7 @@ public:
     // startBoard: balls (posX, posZ, typeIndex) and the attack pattern.
     void startBoard(const uint8_t (*balls)[3], int numBalls, const uint8_t* pattern, int patternLen);
     void boardCleared() { if (running_) doFail(); } // another Toon cleared our board
+    bool running() const { return running_; }
     void helpOthers() { if (running_) giftId_ = 7; } // a bomb ball for the next shot
 
     // One frame: aim is -1..1 (left / right), fire = the shot button. Returns true once per

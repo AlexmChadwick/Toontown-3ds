@@ -1017,6 +1017,14 @@ int main() {
                 in.pad.dy = 127;
             } else if (!strcmp(autotest.label(), "da office: lasers") && autotest.stepTime() > 3.0f) {
                 in.pad.dy = 60;
+            } else if (!strcmp(autotest.label(), "club: golf solve")) {
+                // Test-only: one solved board 2 s in, so the AI's informGag bonusBoard shows.
+                static bool solved = false;
+                if (autotest.stepTime() < 1.0f) solved = false;
+                if (!solved && autotest.stepTime() > 2.0f) {
+                    solved = true;
+                    level.games().autotestSolveBoard();
+                }
             } else if (!strcmp(autotest.label(), "club: golf green") && autotest.stepTime() > 6.0f) {
                 // Test-only Bust-a-Cog play: every 1.5 s turn the aim a little (alternating
                 // sides, wider each time) and shoot.
@@ -3980,6 +3988,7 @@ int main() {
                     hv.timerBelowSeconds = secs;
                 }
                 hv.golfExit = level.games().golfPlaying();
+                hv.bonusText = level.games().bonusBoard(now, &hv.bonusTrack, &hv.bonusLevel);
             }
             if (battle.active() && netStarted) hv.timerSeconds = battleView.secondsLeft;
             if (const tt::ui::MinigamePurchasePanel* buy = tt::ui::MinigamePurchasePanel::activeInstance())

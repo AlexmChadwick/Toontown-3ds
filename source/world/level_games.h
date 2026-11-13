@@ -248,7 +248,7 @@ private:
         bool golfInSphere = false; // inside the 11.5 sphere (requestJoin on entry)
         bool golfEntered = false; // hasEntered: the instruction shows once
         uint8_t golfJoinSeq = 0, golfDoneSeq = 0;
-        uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0;
+        uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0, bacGagSeq = 0;
     };
     SlotState slots_[net::kMaxLevelEntities] = {};
 
@@ -350,6 +350,8 @@ public:
     // its stand point (the 'stopped' state) and takes the board camera.
     void setGolfInput(float aim, bool fire, bool exit) { golfAim_ = aim, golfFire_ = fire, golfExit_ = exit; }
     bool golfPlaying() const { return bac_.active(); }
+    // Autotest only: report the current board solved (requestBoard(1)) on the next update.
+    void autotestSolveBoard() { golfSolve_ = true; }
     // The camera eye / target and the Toon's stand point (toonPoints[index], facing H 180).
     bool golfView(float eye[3], float target[3], float stand[3], float* heading) const;
     void setCameraEye(const float eye[3]) { std::memcpy(cameraEye_, eye, sizeof(cameraEye_)); }
@@ -358,6 +360,9 @@ public:
     bool moleTarget(bool cog, float out[3]) const;
     // The country club's showInfoText (sign font, 3.1 s then a 0.5 s fade): text and alpha now.
     const char* infoText(uint32_t nowMs, float* alpha) const;
+    // Bust-a-Cog's bonusBoard for its 4 s: informGag ("You won a Cake!" over the gag icon, track /
+    // level) or helpOthers ("<name> solved a Puzzle!" over the fire ball, track -1).
+    const char* bonusBoard(uint32_t nowMs, int* track, int* level) const;
 
 private:
     MoleFlight moleFlight_;
@@ -367,7 +372,7 @@ private:
     int golfSlot_ = -1;     // the green whose board we play
     float golfAim_ = 0;
     float dt_ = 1.0f / 30.0f;
-    bool golfFire_ = false, golfExit_ = false;
+    bool golfFire_ = false, golfExit_ = false, golfSolve_ = false;
     float cameraEye_[3] = {};
     char infoText_[64] = {};
     mutable char hudLabel_[32] = {};
@@ -385,6 +390,9 @@ public:
 
 private:
     uint32_t infoMs_ = 0;
+    char bonusText_[64] = {};
+    int bonusTrack_ = -1, bonusLevel_ = 0;
+    uint32_t bonusMs_ = 0;
 
     const net::Client* client_ = nullptr;
     const Level* level_ = nullptr;

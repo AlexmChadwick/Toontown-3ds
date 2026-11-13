@@ -65,6 +65,10 @@ struct HudValues {
     int timerBelowSeconds = -1; // ToontownTimer.posBelowTopRightCorner (mole field, maze), -1 = hidden
     // Bust-a-Cog's frame2D quit button (Exit for Now, B). Its timerLabel stays hidden in stock.
     bool golfExit = false;
+    // Bust-a-Cog's bonusBoard (informGag / helpOthers): its text and, for a won gag, its icon
+    // (bonusTrack -1 = none).
+    const char* bonusText = nullptr;
+    int bonusTrack = -1, bonusLevel = 0;
 };
 
 class Hud {
@@ -89,6 +93,9 @@ private:
     char infoLast_[64] = {}, labelLast_[32] = {};
     C2D_TextBuf golfBuf_ = nullptr;
     C2D_Text golfExit_{};
+    C2D_TextBuf bonusBuf_ = nullptr; // the bonusBoard line, re-parsed when it changes
+    C2D_Text bonusC2d_{};
+    char bonusLast_[64] = {};
     C2D_Text fishText_[5]{};
     unsigned fishRevision_ = ~0u;
 };

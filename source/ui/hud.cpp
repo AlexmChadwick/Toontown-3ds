@@ -7,6 +7,7 @@
 #include "core/log.h"
 
 #include "ui/fish_photo.h"
+#include "world/battle_fx.h"
 #include "ui/fish_photo_atlas.h"
 #include "ui/fishing_panel.h"
 #include "ui/laff_meter.h"
@@ -34,6 +35,7 @@ bool Hud::init() {
     toastBuf_ = C2D_TextBufNew(160);
     fishBuf_ = C2D_TextBufNew(256);
     infoBuf_ = C2D_TextBufNew(128);
+    bonusBuf_ = C2D_TextBufNew(64);
     golfBuf_ = C2D_TextBufNew(48);
     if (golfBuf_) {
         tt::render::textParseSign(&golfExit_, golfBuf_, "Exit for Now"); // TTLocalizer.BustACogExit
@@ -50,6 +52,8 @@ void Hud::shutdown() {
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
     if (fishBuf_) C2D_TextBufDelete(fishBuf_);
     if (infoBuf_) C2D_TextBufDelete(infoBuf_);
+    if (bonusBuf_) C2D_TextBufDelete(bonusBuf_);
+    bonusBuf_ = nullptr;
     if (golfBuf_) C2D_TextBufDelete(golfBuf_);
     golfBuf_ = nullptr;
     raceBuf_ = toastBuf_ = fishBuf_ = infoBuf_ = nullptr;
@@ -404,6 +408,33 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
         theme::pill(bx - 38.0f, by - 9.0f, 76.0f, 18.0f, theme::Pill::Yellow);
         theme::textCentered(golfExit_, bx + 0.75f, by - 6.25f, 0.42f, C2D_Color32(0, 0, 0, 0xFF), 70.0f);
         theme::textCentered(golfExit_, bx, by - 7.0f, 0.42f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), 70.0f);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
+    if (v.bonusText && v.bonusText[0] && bonusBuf_) {
+        // bonusBoard on frame2D (scale 1.1) at (0, 0.67): the image (inventory icon 0.133 units,
+        // image_scale 1) and the sign-font text at text_pos (0, -0.1), scale 0.055, white on a black
+        // shadow. Sizes and offsets 1.5 x like the Puzzles Left label, centred just below that label.
+        if (std::strncmp(v.bonusText, bonusLast_, sizeof(bonusLast_) - 1)) {
+            C2D_TextBufClear(bonusBuf_);
+            tt::render::textParseSign(&bonusC2d_, bonusBuf_, v.bonusText);
+            C2D_TextOptimize(&bonusC2d_);
+            std::snprintf(bonusLast_, sizeof(bonusLast_), "%s", v.bonusText);
+        }
+        constexpr float kS = 1.5f, kUnit = 120.0f * 1.1f;
+        const float cy = 120.0f - 0.9f * 120.0f + 0.1f * 120.0f * kS * 0.5f + 0.0667f * kUnit * kS + 2.0f;
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        if (v.bonusTrack >= 0) {
+            const float icon = 0.1333f * kUnit * kS;
+            tt::world::GagAtlas::instance().init();
+            tt::world::GagAtlas::instance().drawIcon(v.bonusTrack, v.bonusLevel, 200.0f - icon * 0.5f, cy - icon * 0.5f,
+                                                     icon, 0.5f);
+        }
+        const float sc = 0.055f * kUnit * kS / 30.0f, y = cy + 0.1f * kUnit * kS - sc * 30.0f * 0.8f;
+        C2D_DrawText(&bonusC2d_, C2D_WithColor | C2D_AlignCenter, 200 + 1.5f, y + 1.5f, 0.5f, sc, sc,
+                     C2D_Color32(0, 0, 0, 0xFF));
+        C2D_DrawText(&bonusC2d_, C2D_WithColor | C2D_AlignCenter, 200, y, 0.5f, sc, sc,
+                     C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
     if (!v.online) return; // stats come from the server

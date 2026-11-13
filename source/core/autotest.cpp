@@ -332,6 +332,9 @@ const Step kScript[] = {
     {24.0f, 0, 0, 0, 0, -1, -1, 0, "club: maze", "club_maze**"},
     {70.0f, 0, 0, 0, 0, -1, -1, 0, "club: moles", "club_moles**"}, // the 60 s Mole Stomp
     {50.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf green", "club_golf**"},
+    // "club: golf solve": opt-in, after "club: golf green" reports the board solved (requestBoard(1))
+    // so the AI's informGag / helpOthers bonusBoard shows.
+    {20.0f, 0, 0, 0, 0, -1, -1, 0, "club: golf solve", "club_golf_solve*"},
     {45.0f, 0, 0, 0, 0, -1, -1, 0, "club: battle", "club_battle*"},
     {90.0f, 0, 0, 0, 0, -1, -1, 0, "club: next floor", "club_next"}, // the kart room's golf kart
     {300.0f, 0, 60, 0, 0, -1, -1, 0, "club: boss", "club_boss*"},
@@ -542,7 +545,7 @@ bool Runner::skipped(const char* label) const {
     return only_[0] ? !selected(label) : !strncmp(label, "returning:", 10) || !strncmp(label, "speedway: race ", 15) ||
                                      !strncmp(label, "treasure: ", 10) ||
                                      !strncmp(label, "go zone ", 8) || // urban race / treasure / hood checks: opt-in
-                                     !strncmp(label, "fish: catch ", 12);
+                                     !strncmp(label, "fish: catch ", 12) || !strcmp(label, "club: golf solve");
 }
 
 const Pose* Runner::pose() const {

@@ -382,10 +382,13 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
     } else if (fieldId == dc::DistributedGolfGreenGame::k_helpOthers) {
         e.bacHelpAvId = r.u32();
         e.bacHelpSeq++;
+        TT_LOG("net: golf green %u helpOthers %u", unsigned(e.doId), unsigned(e.bacHelpAvId));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_informGag) {
         e.bacGagTrack = r.u8();
         e.bacGagLevel = r.u8();
         e.bacGagSeq++;
+        TT_LOG("net: golf green %u informGag track %u level %u", unsigned(e.doId), unsigned(e.bacGagTrack),
+               unsigned(e.bacGagLevel));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_setTimerStart) {
         e.bacTimeTotal = r.u16();
         const int32_t ts = r.i32();
