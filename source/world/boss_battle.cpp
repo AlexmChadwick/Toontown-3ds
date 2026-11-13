@@ -779,6 +779,15 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
         target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
     }
+    // DistributedBossCog.enterElevator: camera at elevatorModel (0, 30, 8) h 180, our Toon at
+    // BigElevatorPoints[0] facing out (placeToonInElevator); world values from the stock vaults.
+    const bool elevatorMovie = phase == BossPhase::Arrival;
+    const Vec3 elevatorToon = cashbot_ ? Vec3{58.627f, -232.917f, 0.129f} : Vec3{-2.580f, 95.0f, 18.109f};
+    const float elevatorToonHeading = cashbot_ ? 270 : 180;
+    if (elevatorMovie) {
+        eye = cashbot_ ? FVec3_New(37.627f, -230.417f, 8.029f) : FVec3_New(-0.080f, 116.0f, 26.009f);
+        target = cashbot_ ? FVec3_New(47.627f, -230.417f, 8.029f) : FVec3_New(-0.080f, 106.0f, 26.009f);
+    }
     gfxSet3D(false); // One rendering pass preserves the Old 3DS boss budget.
     frame.stereoActive = false;
     frame.renderer.resetStats();
@@ -854,6 +863,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         }
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
+        if (elevatorMovie) toon = transform(elevatorToon, elevatorToonHeading);
         frame.toon.draw(frame.renderer, toon);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.suits.draw(frame.renderer);
