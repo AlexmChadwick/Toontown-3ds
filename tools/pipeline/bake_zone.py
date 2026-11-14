@@ -64,6 +64,7 @@ POINT_PATTERNS = ['**/npc_*origin_*', '**/party_person_*', '**/linktunnel_*', '*
 
 
 def write_points(root, path):
+    import door_colors
     lines = []
     for pattern in POINT_PATTERNS:
         for np_ in root.findAllMatches(pattern):
@@ -78,6 +79,7 @@ def write_points(root, path):
         p, h = origin.getPos(root), origin.getH(root)
         lines.append(f'{np_.getName()}_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
     # Building door origins: recorded from door collision triggers so door transitions start at the door
+    doors = []
     for np_ in list(root.findAllMatches('**/door_*_trigger')) + list(root.findAllMatches('**/door_trigger_*')):
         p, h = np_.getPos(root), np_.getH(root)
         parent = np_.getParent()
@@ -94,19 +96,39 @@ def write_points(root, path):
                 while not building.isEmpty() and not (building.getName()[:2] in ('sz', 'tb') and
                                                       ':' in building.getName()):
                     building = building.getParent()
-                if not building.isEmpty():
-                    name = f'{building.getName()}/{parent.getName()}'
-                    # Both door_N nodes sit at the model origin; each door is the midpoint of its
-                    # leftDoor_N / rightDoor_N leaves, facing away from the leaves' own heading.
-                    index = parent.getName().rsplit('_', 1)[-1]
-                    left = parent.find(f'**/leftDoor_{index}')
-                    right = parent.find(f'**/rightDoor_{index}')
-                    if not left.isEmpty() and not right.isEmpty():
+                if not building.isEmpty() and 'animated_building_' in building.getName():
+                    # The Sign Factory's trigger sits at the model origin; its door is door_origin.
+                    name = building.getName()
+                    origin = building.find('**/door_origin')
+                    if not origin.isEmpty():
+                        p, h = origin.getPos(root), origin.getH(root)
+                elif not building.isEmpty():
+                    # The index comes from the trigger (door_trigger_N): Donald's Dock's boat HQ
+                    # hangs its triggers under an unnamed node that flattening calls __decal1__,
+                    # which put both of its doors on the triggers under the wrong name.
+                    index = np_.getName().replace('_trigger', '').rsplit('_', 1)[-1]
+                    door = f'door_{index}' if index.isdigit() else parent.getName()
+                    name = f'{building.getName()}/{door}'
+                    # Both door_N nodes sit at the model origin. DistributedDoor's EXT_HQ door
+                    # path is the landmark's door_origin_N (hqTT: door_origin_0 faces 180,
+                    # door_origin_1 0). leftDoor_N has door_origin_N's heading; the old
+                    # h = leftDoor - 180 faced every HQ door inward, so the door movie walked
+                    # the toon out of the door and put the camera inside the building against
+                    # the closed leaves. assemble strips door_origin_N from landmarks the DNA
+                    # does not type "hq" (the Toontorial's), so the leaves stay the fallback.
+                    origin = building.find(f'**/door_origin_{index}')
+                    left = building.find(f'**/leftDoor_{index}')
+                    right = building.find(f'**/rightDoor_{index}')
+                    if not origin.isEmpty():
+                        p, h = origin.getPos(root), origin.getH(root)
+                    elif not left.isEmpty() and not right.isEmpty():
                         p = (left.getPos(root) + right.getPos(root)) * 0.5
-                        h = left.getH(root) - 180.0
+                        h = left.getH(root)
 
         lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
         lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+        doors.append((f'{name}_door_origin', p))
+    lines += door_colors.lines(root, doors)
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
     return len(lines)
@@ -151,8 +173,17 @@ def main():
 
     ex = extract.Extractor(max_tex=args.max_tex, layer_rules=assemble.LAYER_RULES)
     ex.add(root)
+    # Long ground edges vanish on the PICA200 when they cross the near plane.
+    # The monolithic playground keeps its 128px textures: the whole zone is one
+    # resident mesh, so 256px would blow the 8 MiB texture budget. Streamed zones
+    # (bake_street.py) are where the near tiles get larger.
+    # The whole playground is one mesh, so the 20-unit split has to loosen until
+    # the file stays under 15k triangles. Streamed zones keep the 20-unit cap.
+    import ground_split
+    batches, ground_stats = ground_split.split_under(ex.batches())
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    stats = ttm.write(args.out, ex.textures, ex.batches())
+    stats = ttm.write(args.out, ex.textures, batches)
+    stats['ground_split'] = ground_stats
     stats['points'] = write_points(root, os.path.splitext(args.out)[0] + '.pts')
     stats['collision_nodes'] = root.findAllMatches('**/+CollisionNode').getNumPaths()
     stats['visgroups'] = [np_.getTag(assemble.VISGROUP_TAG)

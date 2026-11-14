@@ -18,6 +18,15 @@ constexpr int kPointsInCorner = 1;
 constexpr int kNumMatches = 3;
 constexpr int kNumRounds = 2;
 
+// DistributedIceWorld.createCircularObstacle / createCubicObstacle: an ice_game_tirestack
+// (sphere of TireRadius) or ice_game_crate (cube of side 2 TireRadius) the tires bounce off.
+struct Obstacle {
+    float x = 0.0f;
+    float y = 0.0f;
+    bool cubic = true;
+};
+constexpr int kMaxObstacles = 4;
+
 struct Tire {
     float x = -17.5f;
     float y = -12.5f;
@@ -26,7 +35,7 @@ struct Tire {
     bool moving = false;
 
     void launch(float force0to100, float headingDeg);
-    void step(float dt);
+    void step(float dt, const Obstacle* obstacles = nullptr, int numObstacles = 0);
     float distanceToCenter() const {
         return std::sqrt(x * x + y * y);
     }
@@ -40,6 +49,8 @@ struct Simulation {
     int curMatch = 0;
     int curRound = 0;
     int scores[4] = {};
+    Obstacle obstacles[kMaxObstacles];
+    int numObstacles = 0;
     bool isDone = false;
 
     void init(int players);

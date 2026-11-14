@@ -49,7 +49,7 @@ class StableBossExtractor(extract.Extractor):
     """
     validated = set()
 
-    def _add_geom(self, geom, state, matrix, tint, layer, animated):
+    def _add_geom(self, geom, state, matrix, tint, layer, animated, sign=False):
         source = geom.getVertexData()
         blends = source.getTransformBlendTable() if animated else None
         if blends is not None:
@@ -90,7 +90,7 @@ class StableBossExtractor(extract.Extractor):
             geom = geom.makeCopy()
             geom.setVertexData(data)
             animated = False
-        super()._add_geom(geom, state, matrix, tint, layer, animated)
+        super()._add_geom(geom, state, matrix, tint, layer, animated, sign)
 
 
 def attachment(node, root):

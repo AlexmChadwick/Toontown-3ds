@@ -15,6 +15,8 @@ os.environ["TT_ETC1_THREADS"] = "3"
 os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["OMP_NUM_THREADS"] = "1"
 ROOT = Path(__file__).resolve().parents[2]
+# The main checkout has ref/<submodule>; linked worktrees reach it through ref/ref.
+REF = ROOT / "ref" if (ROOT / "ref/open-toontown/toontown").is_dir() else ROOT / "ref/ref"
 sys.path.insert(0, str(ROOT / "tools/pipeline"))
 sys.path.insert(0, str(ROOT / "tools/clerks_test"))
 from upstream import KartDNA
@@ -26,7 +28,7 @@ import panda3d.core as core
 loadPrcFileData(
     "",
     "window-type none\naudio-library-name null\nmodel-cache-dir\nnotify-level error\ntextures-power-2 none\nmodel-path "
-    + str(ROOT / "ref/ref/resources"),
+    + str(REF / "resources"),
 )
 from direct.showbase.ShowBase import ShowBase
 
@@ -37,7 +39,7 @@ def main():
     base = ShowBase()
     BamCache.getGlobalPtr().setActive(False)
     source = ast.parse(
-        (ROOT / "ref/ref/open-toontown/toontown/racing/Kart.py").read_text()
+        (REF / "open-toontown/toontown/racing/Kart.py").read_text()
     )
     cls = next(
         node
@@ -65,14 +67,14 @@ def main():
     class ResourceLoader:
         def loadModel(self, path):
             return base.loader.loadModel(
-                str(ROOT / "ref/ref/resources" / (path + ".bam"))
+                str(REF / "resources" / (path + ".bam"))
             )
 
         def loadTexture(self, path, alpha=None):
-            filename = str(ROOT / "ref/ref/resources" / path)
+            filename = str(REF / "resources" / path)
             if alpha:
                 return base.loader.loadTexture(
-                    filename, str(ROOT / "ref/ref/resources" / alpha)
+                    filename, str(REF / "resources" / alpha)
                 )
             return base.loader.loadTexture(filename)
 
@@ -92,8 +94,8 @@ def main():
         for accessory in [-1] + list(range(65)):
             root = NodePath("kart-preview")
             path = (
-                ROOT
-                / "ref/ref/resources"
+                REF
+                / "resources"
                 / (KartDNA.getKartModelPath(body, 1) + ".bam")
             )
             model = base.loader.loadModel(str(path))

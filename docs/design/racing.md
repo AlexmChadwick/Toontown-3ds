@@ -44,8 +44,11 @@ returns to 8000. Intermediate Circuit results wait for the AI's setRaceZone inst
 slide/lean, per-surface resistance, ice steering/acceleration and delayed three-second
 turbo. The declared upstream maxSpeed=200 is not the actual velocity clamp: the
 stock path clamps at 600. Four original wheel-base locators drive pitch/roll from
-floor rays. The native radius-four wall sphere removes blocked velocity and uses
-0.1 dynamic friction. Its bounded horizontal wall solver is an approximation of
+floor rays. The native radius-four wall sphere follows `apply_net_shove`
+(`racing::Vehicle::wallShove`): only a kart moving into the wall is in contact; the into-wall
+velocity goes and friction is 0.1 x the cosine between velocity and wall normal, so grazing a
+barrier costs almost nothing. (Until 2026-10-27 a flat 10% per contact frame held a
+wall-hugging kart to ~20 units/s and the AI kicked it as too slow.) Its bounded horizontal wall solver is an approximation of
 Panda's PhysicsCollisionHandler, not a claim of bit-exact Panda collision response.
 
 Each track retains its original identity transform and real floor/wall/camera solids.
@@ -68,6 +71,8 @@ packet variants, interpolate continuously and receive kart-based nametags.
 The bottom panel contains the curve minimap, four racer dots/list, lap/place, time,
 wrong-way warning, gag slot and results. The existing top race HUD remains active.
 A/Circle Pad accelerates, B reverses, Circle Pad X steers, R uses a ready gag.
+START is RaceGUI's Leave Race button (drawn top left as avatar_panel_gui's CloseBtn,
+1.5 times stock size): racerLeft, then back to Goofy Speedway as DistributedRace.enterLeave.
 The kart chase camera uses the upstream (0,-33,16) offset and camera-wall pull-in.
 
 RaceGag pickup probability uses the original GagFreq[place][index], with the stock
@@ -146,9 +151,30 @@ bash tools/racing_test/run.sh
 DEVKITPRO=$HOME/devkitpro DEVKITARM=$HOME/devkitpro/devkitARM make -j4
 ```
 
+### Urban track towns
+
+City Circuit (40/41) and Blizzard Boulevard (64/65) are mostly town:
+DistributedRace.loadUrbanTrack loads `urban_track_town.dna` / `urban_track_town_B.dna`
+(six storage files) over the track model, hangs the track's `polySurface8` skyline on the
+kart's dummy node (scale 0.1, background bin, no depth), and loadFog sets TrackFog
+(0.6, 0.7, 0.8, linear 200..650) and camera far 650. Every track loads TT_sky.
+
+- `bake_race_town.py` writes one `town_<A|B>_<n>.ttm` per stock building group (own
+  build_local atlas pages, at most 7 draws and 1.8k triangles each) and the `town_<A|B>.trt`
+  index (A: 75 groups, 43k triangles; B: 129 groups incl. side streets, 70k triangles).
+  These 206 files (37 MB) are ignored SD data, not part of the committed kit: bake them
+  into `data/racing/` with `bake_race_town.py`. Without them the race runs on the bare
+  road and logs `racetown: missing`.
+- `bake_racing.py` splits `polySurface8` into `<track>_bg.ttm` (committed). On Blizzard
+  Boulevard that node is a 4-triangle card; stock moves it the same way.
+- `world/race_town.*` keeps showBuildings' window: five groups per side around the kart's
+  curve fraction (reversed tracks count from the end), the side streets near the kart, and
+  one more group each side preloaded through the shared loader. Models publish at the
+  frame fence.
+
 Install the committed `sdmc-out/3ds/toontown3ds/data/racing/` tree at
 `sdmc:/3ds/toontown3ds/data/racing/`, including karts/lod0, lod1 and lod2.
-There are 634 generated binary assets: 36 track files, 594 kart parts, four props.
+There are 638 generated binary assets: 40 track files (incl. four urban skyline cards), 594 kart parts, four props.
 Keep the existing complete SD base installed: Speedway zone 8000, Kart Shop
 interior 8501 and toon sit/jump clips are prerequisites. The existing interior baker
 can produce the shop with `--resources ref/ref/resources --zone 8501 --no-preview`.

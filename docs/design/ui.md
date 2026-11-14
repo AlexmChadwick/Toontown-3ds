@@ -380,3 +380,15 @@ existing markers, our arrow and the teleport row. No picture means the old marke
 - **Runtime:** `Ui::setMapZone(fileZone)` (called from `main.cpp` every frame, a no-op while
   the id is unchanged) loads the texture with `render::loadTexture` into a `C3D_Tex`
   (about 32 KB linear) and `drawMap` places markers with the `.tmap` rectangle.
+- **Markers** (2026-10-28): built once per zone from the zone's `.pts` anchors by
+  `ui::placeMarkers` (`ui/map_view.*`): Toon HQ (white), landmark shops (yellow, playgrounds
+  only), trolley (purple; from `TrolleyRide` when the anchor set predates `trolley_station`),
+  fishing docks (blue, one per dock) and tunnels (orange), plus other players (cyan). A legend
+  in the map's right margin lists the kinds present. Interiors show toons only.
+- **Teleport row and back button** (MapPage rules): hoods are blue (in `setTeleportAccess`),
+  paper (in `setHoodsVisited` only: walk there) or grey (not visited / not installed); a
+  locked press shows a short reason in the place label. A map teleport sends
+  `checkTeleportAccess(hood)` first. The left button is "Playground" ("Cog HQ" in Cog HQ
+  lobbies) off a playground (`MapPage.backToSafeZone`), else "Go Home", greyed when the
+  server has no EstateManager. Offline, and in autotest runs (fresh test toons), every hood
+  stays open.

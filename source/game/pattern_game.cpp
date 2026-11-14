@@ -147,7 +147,8 @@ void PatternGame::draw(render::Renderer& renderer) {
         Mtx_Identity(&world);
         // DistributedPatternGame.setToonRefs puts Minnie at (-1.6, 20, 0).
         Mtx_Translate(&world, -1.6f, 20.0f, 0.0f, true);
-        Mtx_RotateZ(&world, 180.0f * 0.0174532925f, true);
+        // makeToonLookatCamera: headsUp the camera at (0, -14.59).
+        Mtx_RotateZ(&world, std::atan2(-1.6f, -14.59f - 20.0f), true);
         // Dancing: the current step's clip, one ping-pong per step; otherwise the first pose
         // of 'up' (enterShowServerPattern poses every clip at frame 0 between rounds).
         int clip = 0;
@@ -176,26 +177,20 @@ void PatternGame::draw(render::Renderer& renderer) {
     }
 }
 
+// DistributedPatternGame.onstage: camera.setPosHpr(0, -14.59, 10.56, 0, -16.39, 0) with
+// camLens.setFov(24.66) (MinigameSession::applyWorld).
 void PatternGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    if (eye) {
-        eye->x = 0.0f;
-        eye->y = -8.0f;
-        eye->z = 8.0f;
-        eye->w = 1.0f;
-    }
-    if (target) {
-        target->x = 0.0f;
-        target->y = 18.0f;
-        target->z = 3.0f;
-        target->w = 1.0f;
-    }
+    constexpr float kPitch = -16.39f * 0.0174532925f;
+    if (eye) *eye = FVec4_New(0.0f, -14.59f, 10.56f, 1.0f);
+    if (target) *target = FVec4_New(0.0f, -14.59f + std::cos(kPitch) * 20.0f, 10.56f + std::sin(kPitch) * 20.0f, 1.0f);
 }
 
+// onstage: lt.setPos(-3.5, 11, 0), then makeToonLookatCamera (headsUp the camera).
 void PatternGame::toonPose(float* x, float* y, float* z, float* h) const {
-    if (x) *x = 0.0f;
-    if (y) *y = 0.0f;
+    if (x) *x = -3.5f;
+    if (y) *y = 11.0f;
     if (z) *z = 0.0f;
-    if (h) *h = 180.0f;
+    if (h) *h = std::atan2(-(0.0f - -3.5f), -14.59f - 11.0f) * 57.2957795f;
 }
 
 const char* PatternGame::line(int i) const {

@@ -29,4 +29,23 @@ struct CfoCable {
     Vec3 magnet(int index) const;
 };
 const char* cfoClip(const net::BossState& state, uint32_t nowMs);
+
+// DistributedCashbotBoss.makeIntroductionMovie at t seconds: camera, Mata Hairy (the resistance
+// Toon), the C.F.O. rolling in from CashbotBossOffstagePosHpr, and who is saying what.
+struct CfoIntroShot {
+    Vec3 eye, target;
+    Vec3 resistance;
+    float resistanceHeading;
+    bool resistanceRunning;
+    Vec3 boss;
+    float bossHeading;
+    bool bossVisible; // bossTrack reparents the C.F.O. to render when its roll starts
+    const char* resistanceChat; // nullptr when silent
+    const char* bossChat;
+    float resistanceChatAge, bossChatAge; // seconds since the line was said
+    bool toonsSuited, resistanceSuited;   // before each loseCogSuits' takeOffSuit (0.3 s into it)
+    float suitsOff;                       // the Toons' loseCogSuits (s); Mata Hairy's is 2 s later
+};
+constexpr float kCfoIntroSeconds = 35.7f; // the movie's length (the Introduction barrier after it)
+void cfoIntro(float t, CfoIntroShot* out);
 } // namespace tt::world

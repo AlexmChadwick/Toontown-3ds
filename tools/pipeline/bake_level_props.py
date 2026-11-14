@@ -38,6 +38,8 @@ DOOR_PARTS = {
 
 
 def default_resources():
+    if os.environ.get('TT_RESOURCES'):
+        return Path(os.environ['TT_RESOURCES'])
     for c in (ROOT / 'ref/resources', ROOT / 'ref/ref/resources'):
         if (c / 'phase_9').exists():
             return c
@@ -351,6 +353,15 @@ def bake_stomper(base, resources, out, name, path):
     return report
 
 
+def bake_security_camera(base, resources, out):
+    """DistributedSecurityCamera.loadModel: the whole square_stomper (laserFieldModels[0]) at
+    (0, 1, 0) under a node at the projector that looks at the tracked floor spot."""
+    model = base.loader.loadModel(str(resources / 'phase_9/models/cogHQ/square_stomper.bam'), noCache=True)
+    report = {'security_camera': write_part(model, None, out / 'security_camera.ttm')}
+    model.removeNode()
+    return report
+
+
 def bake_crates(base, resources, out):
     """DistributedCrate: woodCrateB (factory) / CBWoodCrate (mint), plus grid floor wear."""
     report = {}
@@ -385,8 +396,16 @@ def bake_moles(base, resources, out):
 
 
 def bake_golf(base, resources, out):
-    """DistributedGolfGreenGame: bust-a-cog hole and golf ball."""
+    """DistributedGolfGreenGame: bust-a-cog hole and golf ball, and the green and flag that
+    announceGenerate puts on the floor."""
     report = {}
+    green = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_golf_green.bam'),
+                                  noCache=True)
+    report['golf_green'] = write_part(green, None, out / 'golf_green.ttm')
+    green.removeNode()
+    flag = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_golf_flag.bam'), noCache=True)
+    report['golf_flag'] = write_part(flag, None, out / 'golf_flag.ttm')
+    flag.removeNode()
     hole = base.loader.loadModel(str(resources / 'phase_12/models/bossbotHQ/bust_a_cog_hole.bam'), noCache=True)
     report['golf_hole'] = write_part(hole, None, out / 'golf_hole.ttm')
     hole.removeNode()
@@ -394,6 +413,46 @@ def bake_golf(base, resources, out):
     ball = base.loader.loadModel(str(resources / 'phase_6/models/golf/golf_ball.bam'), noCache=True)
     report['golf_ball'] = write_part(ball, None, out / 'golf_ball.ttm')
     ball.removeNode()
+    return report
+
+
+BUSTACOG_BALLS = ('white', 'red', 'blue', 'green', 'cog', 'purple', 'yello', 'steel', 'fire', 'unknown')
+
+
+def bake_bustacog(base, resources, out):
+    """DistributedGolfGreenGame's Bust-a-Cog board: bust_a_cog_background, the shooter (its
+    moving_part apart, in its own space, as the aimer turns it) and GameSprite3D's balls.
+    The board holes are golf_hole (bust_a_cog_hole)."""
+    report = {}
+    d = resources / 'phase_12/models/bossbotHQ'
+    bg = base.loader.loadModel(str(d / 'bust_a_cog_background.bam'), noCache=True)
+    report['bac_background'] = write_part(bg, None, out / 'bac_background.ttm')
+    bg.removeNode()
+    shooter = base.loader.loadModel(str(d / 'bust_a_cog_shooter.bam'), noCache=True)
+    moving = shooter.find('**/moving_part')
+    if moving.isEmpty():
+        raise ValueError('bust_a_cog_shooter: moving_part missing')
+    moving.detachNode()
+    report['bac_shooter'] = write_part(shooter, None, out / 'bac_shooter.ttm')
+    from panda3d.core import NodePath
+    holder = NodePath("moving")
+    moving.reparentTo(holder)
+    moving.clearTransform()
+    report['bac_shooter_moving'] = write_part(holder, None, out / 'bac_shooter_moving.ttm')
+    holder.removeNode()
+    shooter.removeNode()
+    for name in BUSTACOG_BALLS:
+        ball = base.loader.loadModel(str(d / f'bust_a_cog_ball_{name}.bam'), noCache=True)
+        report[f'bac_ball_{name}'] = write_part(ball, None, out / f'bac_ball_{name}.ttm')
+        ball.removeNode()
+    # DistributedGolfGreenGame.load's sounds, next to the models (bac_<stem>.tsnd).
+    import bake_audio
+    for src in ('phase_6/audio/sfx/Golf_Hit_Ball.ogg', 'phase_4/audio/sfx/MG_maze_pickup.ogg',
+                'phase_5/audio/sfx/Toon_bodyfall_synergy.ogg', 'phase_4/audio/sfx/MG_cannon_fire_alt.ogg',
+                'phase_11/audio/sfx/LB_capacitor_discharge_3.ogg',
+                'phase_4/audio/sfx/MG_pairing_match_bonus_both.ogg', 'phase_3.5/audio/sfx/SA_shred.ogg'):
+        dst = out / ('bac_' + Path(src).stem + '.tsnd')
+        report[dst.name] = bake_audio.bake_sfx_adpcm(str(resources / src), str(dst), False)[0]
     return report
 
 
@@ -453,6 +512,16 @@ def main():
     resources = default_resources()
     out = ROOT / 'sdmc-out/3ds/toontown3ds/data/level/props'
     out.mkdir(parents=True, exist_ok=True)
+    only = sys.argv[1:]  # e.g. security_camera: bake just those parts into the existing set
+    if only:
+        manifest = out / 'manifest.json'
+        report = json.loads(manifest.read_text()) if manifest.exists() else {}
+        for name in only:
+            report[name] = globals()['bake_' + name](base, resources, out)
+        manifest.write_text(json.dumps(report, indent=2, default=str) + '\n')
+        print(json.dumps({k: report[k] for k in only}, indent=2, default=str))
+        base.destroy()
+        return
     report = {'door': bake_door(base, resources, out), 'button': bake_button(base, resources, out),
               'stomper': bake_stomper(base, resources, out, 'stomper', 'phase_9/models/cogHQ/square_stomper.bam'),
               'stomper_lb': bake_stomper(base, resources, out, 'stomper_lb',
@@ -466,7 +535,9 @@ def main():
               'stage_elevator': bake_stage_elevator(base, resources, out),
               'crates': bake_crates(base, resources, out),
               'moles': bake_moles(base, resources, out),
-              'golf': bake_golf(base, resources, out)}
+              'golf': bake_golf(base, resources, out),
+              'security_camera': bake_security_camera(base, resources, out),
+              'bustacog': bake_bustacog(base, resources, out)}
     report['sfx'] = bake_sfx(resources, out.parent.parent / 'audio')
     (out / 'manifest.json').write_text(json.dumps(report, indent=2, default=str) + '\n')
     print(json.dumps({k: {p: (v.get('triangles') if isinstance(v, dict) else v) for p, v in r.items()}

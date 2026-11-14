@@ -38,8 +38,8 @@ bool TagGame::init(const char* root, uint32_t itAvId) {
     char path[256];
     std::snprintf(path, sizeof(path), "%s/tag_arena.ttm", root);
     assetBatch_.load(arenaModel_, path);
-    std::snprintf(path, sizeof(path), "%s/tag_treasure.ttm", root);
-    assetBatch_.load(treasureModel_, path);
+    // DistributedTagTreasure.modelPath: the playground ice cream cone.
+    assetBatch_.load(treasureModel_, "romfs:/baked/icecream.ttm");
     std::snprintf(path, sizeof(path), "%s/minigame_sky.ttm", root);
     assetBatch_.load(skyModel_, path);
     std::snprintf(path, sizeof(path), "%s/tag_pointer.ttm", root);
@@ -95,6 +95,7 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
     // Where to walk: the autoplay follows the chase/flee rules, a player uses the Circle Pad.
     float throttle = 0.0f;
     float wantH = me_.h;
+    camHeight_ = std::fmax(toonHeightOf(client.avatarDna()), 3.0f);
     if (autoPlay_) {
         float goalX = 0.0f;
         float goalY = 0.0f;
@@ -107,13 +108,12 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
     } else {
         const float dx = static_cast<float>(pad.dx) / kPadFull;
         const float dy = static_cast<float>(pad.dy) / kPadFull;
-        if (std::fabs(dx) > kPadDeadzone || std::fabs(dy) > kPadDeadzone) {
-            // Full stick deflection walks at full speed, as upstream's held keys do.
-            throttle = 1.0f;
-            wantH = taggame::headingTo(0.0f, 0.0f, dx, dy);
-        }
+        // Held arrow keys: full speed, as upstream's walk.
+        const float move = dy > kPadDeadzone ? 1.0f : dy < -kPadDeadzone ? -1.0f : 0.0f;
+        const float turn = dx > kPadDeadzone ? -1.0f : dx < -kPadDeadzone ? 1.0f : 0.0f;
+        taggame::stepTank(me_, move, turn, localIt, dt);
     }
-    taggame::stepWalker(me_, throttle, wantH, localIt, dt);
+    if (autoPlay_) taggame::stepWalker(me_, throttle, wantH, localIt, dt);
 
     // Upstream sendTagIfIt: the IT toon that touches another toon tags it; the AI owns the cooldown.
     if (localIt && tagSendCooldown_ <= 0.0f) {
@@ -128,13 +128,23 @@ void TagGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
         }
     }
 
-    // Treasures: grabbed by walking over them.
-    for (int i = 0; i < sim_.numTreasures; ++i) {
-        if (!sim_.treasures[i].active) continue;
-        const float tx = sim_.treasures[i].x - me_.x;
-        const float ty = sim_.treasures[i].y - me_.y;
-        if (tx * tx + ty * ty < kTreasureGrabSq) sim_.grabTreasure(i);
+    // Treasures: the AI's DistributedTagTreasures (TagTreasurePlannerAI regenerates them); entering
+    // one asks for it once (DistributedTreasure.requestGrab), and the score is the AI's.
+    sim_.numTreasures = 0;
+    uint32_t touching = 0;
+    for (int i = 0; i < net::kMaxTreasures; ++i) {
+        const net::Treasure& t = client.treasureSlot(i);
+        if (!t.active || t.classId != dc::DistributedTagTreasure::kClassId) continue;
+        if (!sim_.addTreasure(t.x, t.y)) break;
+        const float tx = t.x - me_.x;
+        const float ty = t.y - me_.y;
+        if (tx * tx + ty * ty < kTreasureGrabSq) touching = t.doId;
     }
+    if (touching && touching != lastTouched_) client.sendRequestGrab(touching);
+    lastTouched_ = touching;
+    if (const net::Minigame* mg = client.minigame())
+        for (int i = 0; i < mg->numParticipants && i < net::kMinigamePlayers; ++i)
+            if (mg->participants[i] == localAvId) sim_.localScore = mg->tagTreasureScores[i]; // setTreasureScore
 
     // The IT sign sits at the IT toon's height.
     itPointerValid_ = false;
@@ -174,7 +184,12 @@ void TagGame::draw(render::Renderer& renderer) {
             if (sim_.treasures[i].active) {
                 C3D_Mtx world;
                 Mtx_Identity(&world);
-                Mtx_Translate(&world, sim_.treasures[i].x, sim_.treasures[i].y, 0.5f, true);
+                // TagTreasurePlannerAI spawns at z 0.1; DistributedTreasure scales 0.9 and the
+                // model's card is a BillboardEffect (faces -Y to the eye).
+                const C3D_FVec eye = renderer.eye();
+                Mtx_Translate(&world, sim_.treasures[i].x, sim_.treasures[i].y, 0.1f, true);
+                Mtx_RotateZ(&world, std::atan2(eye.x - sim_.treasures[i].x, -(eye.y - sim_.treasures[i].y)), true);
+                Mtx_Scale(&world, 0.9f, 0.9f, 0.9f);
                 renderer.drawModel(treasureModel_, world);
             }
         }
@@ -188,19 +203,20 @@ void TagGame::draw(render::Renderer& renderer) {
     }
 }
 
+// enterPlay: setIdealCameraPos(0, -24, 8) behind the Toon, with camera position 0's look-at
+// (0, 1.5, camHeight), so the arena's horizon and sky are in view.
 void TagGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    if (eye) {
-        eye->x = me_.x;
-        eye->y = me_.y - 30.0f;
-        eye->z = 25.0f;
-        eye->w = 1.0f;
-    }
-    if (target) {
-        target->x = me_.x;
-        target->y = me_.y;
-        target->z = 3.0f;
-        target->w = 1.0f;
-    }
+    constexpr float kDegToRad = 0.0174532925f;
+    const float s = std::sin(me_.h * kDegToRad), c = std::cos(me_.h * kDegToRad);
+    // Toon-space (x, y) to world: forward is (-sin h, cos h).
+    auto at = [&](float y, float z, C3D_FVec* out) {
+        out->x = me_.x - s * y;
+        out->y = me_.y + c * y;
+        out->z = z;
+        out->w = 1.0f;
+    };
+    if (eye) at(-24.0f, 8.0f, eye);
+    if (target) at(1.5f, camHeight_, target);
 }
 
 void TagGame::toonPose(float* x, float* y, float* z, float* h) const {

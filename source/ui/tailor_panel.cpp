@@ -1,9 +1,12 @@
+#include "render/ui_font.h"
 #include "ui/tailor_panel.h"
 
 #include <cstdio>
 
 #include "core/log.h"
+#include "ui/mat_art.h"
 #include "ui/pad_tables.h"
+#include "ui/theme.h"
 
 namespace tt::ui {
 
@@ -12,13 +15,9 @@ namespace {
 constexpr float kTopY = pad::tailor::kTopY;
 constexpr float kBottomY = pad::tailor::kBottomY;
 constexpr float kButtonY = pad::tailor::kBtnY;
+constexpr float kRowH = pad::tailor::kRowH;
 constexpr uint32_t kAutoSubmitMarginMs = 2000;
-const u32 kBg = C2D_Color32(0x1E, 0x2A, 0x44, 0xFF);
-const u32 kPanel = C2D_Color32(0x2C, 0x3C, 0x60, 0xFF);
-const u32 kAccent = C2D_Color32(0xF5, 0xB8, 0x1A, 0xFF);
 const u32 kWhite = C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF);
-const u32 kDim = C2D_Color32(0xA8, 0xB4, 0xCC, 0xFF);
-const u32 kGood = C2D_Color32(0x8C, 0xF0, 0x8C, 0xFF);
 
 bool inRect(const touchPosition& t, float x, float y, float w, float h) {
     return t.px >= x && t.px < x + w && t.py >= y && t.py < y + h;
@@ -74,6 +73,19 @@ void TailorPanel::preview() {
 void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
     const net::TailorMovie& m = client.tailorMovie();
     if (m.avId != client.avatarId() && m.mode != net::kTailorMovieClear) return;
+    // TTLocalizer STOREOWNER_*; PURCHASE_MOVIE_NO_MONEY says nothing ("should not be called").
+    const char* said = m.mode == net::kTailorMovieStart        ? "Choose what you want to buy."
+                       : m.mode == net::kTailorMovieStartBrowse ? "You can browse, but you need a clothing ticket to buy."
+                       : m.mode == net::kTailorMovieStartNoRoom ? "Hmm...you might want to make room in your closet before you buy new clothes."
+                       : m.mode == net::kTailorMovieTimeout     ? "Need more time to think?"
+                       : m.mode == net::kTailorMovieComplete    ? "See you later!"
+                                                                : nullptr;
+    if (said) {
+        const bool start = m.mode != net::kTailorMovieTimeout && m.mode != net::kTailorMovieComplete;
+        speech_ = said;
+        speechTailor_ = m.tailorDoId;
+        speechUntilMs_ = nowMs + (start ? 3000u : 10000u);
+    }
     if (m.mode == net::kTailorMovieStart || m.mode == net::kTailorMovieStartBrowse ||
         m.mode == net::kTailorMovieStartNoRoom) {
         if (active_) return;
@@ -93,7 +105,6 @@ void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
         changedTop_ = false;
         changedBottom_ = false;
         pendingSend_ = 0;
-        notice_ = nullptr;
         active_ = true;
         dirty_ = true;
         TT_LOG("tailor: open with NPC %u", unsigned(tailor_));
@@ -103,13 +114,10 @@ void TailorPanel::onMovie(const net::Client& client, uint32_t nowMs) {
             preview();
             close();
         }
-        notice_ = "The tailor needed more time.";
     } else if (m.mode == net::kTailorMovieComplete) {
         close();
-        notice_ = "Your new clothes look great!";
     } else if (m.mode == net::kTailorMovieNoMoney) {
         close();
-        notice_ = "You need a clothing ticket.";
     } else if (m.mode == net::kTailorMovieClear && m.tailorDoId == tailor_) {
         close();
     }
@@ -147,6 +155,11 @@ void TailorPanel::update(net::Client& client, uint32_t nowMs) {
         return;
     }
     if (!pendingSend_ && int32_t(deadlineMs_ - nowMs) <= int32_t(kAutoSubmitMarginMs)) pendingSend_ = 2;
+    const int32_t remain = int32_t(deadlineMs_ - nowMs);
+    if (remain < 30000 && remain / 1000 != shownSecond_) { // the "Hurry!" countdown ticks
+        shownSecond_ = remain / 1000;
+        dirty_ = true;
+    }
     if (!pendingSend_) return;
     const bool cancel = pendingSend_ == 2;
     const world::ToonDna& dna = cancel ? original_ : working_;
@@ -196,11 +209,11 @@ u32 TailorPanel::handleInput(u32 down, const touchPosition& touch) {
     if (down & KEY_START) pendingSend_ = 1;
     if (down & KEY_B) pendingSend_ = 2;
     if (down & KEY_TOUCH) {
-        if (inRect(touch, 0, kTopY, 320, 48)) {
+        if (inRect(touch, 0, kTopY, 320, kRowH)) {
             section_ = 0;
             focus_.setFocusById(pad::tailor::kIdShirt); // padnav
             choose(touch.px < 160 ? -1 : 1);
-        } else if (inRect(touch, 0, kBottomY, 320, 48)) {
+        } else if (inRect(touch, 0, kBottomY, 320, kRowH)) {
             section_ = 1;
             focus_.setFocusById(pad::tailor::kIdShorts); // padnav
             choose(touch.px < 160 ? -1 : 1);
@@ -218,23 +231,24 @@ u32 TailorPanel::handleInput(u32 down, const touchPosition& touch) {
 void TailorPanel::rebuildText() {
     C2D_TextBufClear(textBuf_);
     char buf[96];
-    C2D_TextParse(&titleText_, textBuf_, "Clothing Store");
-    const world::MatShirtChoice shirt = world::matShirt(working_.gender, static_cast<uint8_t>(topChoice_));
-    snprintf(buf, sizeof(buf), "Shirt  style %u  colour %u/%u", unsigned(shirt.topTex), unsigned(shirt.topTexColor),
-             unsigned(shirt.sleeveTexColor));
-    C2D_TextParse(&topText_, textBuf_, buf);
-    const world::MatBottomChoice bottom = world::matBottom(working_.gender, static_cast<uint8_t>(bottomChoice_));
-    snprintf(buf, sizeof(buf), "%s  style %u  colour %u", working_.gender == world::Gender::Male ? "Shorts" : "Bottoms",
-             unsigned(bottom.botTex), unsigned(bottom.botTexColor));
-    C2D_TextParse(&bottomText_, textBuf_, buf);
-    C2D_TextParse(&hintText_, textBuf_, "Left/Right changes the selected style and colour");
+    tt::render::textParse(&titleText_, textBuf_, "Clothing Store");
+    // ClothesGUI's frames: the frame's name (ClothesShopShirt / Shorts / Bottoms), and which of the
+    // tailor's choices is on the toon under it.
+    tt::render::textParse(&topText_, textBuf_, "Shirts");
+    snprintf(buf, sizeof(buf), "%u of %u", unsigned(topChoice_ + 1), unsigned(world::matShirtCount(working_.gender)));
+    tt::render::textParse(&topCount_, textBuf_, buf);
+    tt::render::textParse(&bottomText_, textBuf_, working_.gender == world::Gender::Male ? "Shorts" : "Bottoms");
+    snprintf(buf, sizeof(buf), "%u of %u", unsigned(bottomChoice_ + 1), unsigned(world::matBottomCount(working_.gender)));
+    tt::render::textParse(&bottomCount_, textBuf_, buf);
+    tt::render::textParse(&hintText_, textBuf_, "Up/Down picks shirt or bottoms; Left/Right changes it.");
     const int32_t remain = int32_t(deadlineMs_ - nowMs_);
-    snprintf(buf, sizeof(buf), "Time %d:%02d", remain > 0 ? int(remain / 60000) : 0,
+    snprintf(buf, sizeof(buf), "Hurry! %d:%02d", remain > 0 ? int(remain / 60000) : 0,
              remain > 0 ? int((remain / 1000) % 60) : 0);
-    C2D_TextParse(&timerText_, textBuf_, buf);
-    C2D_TextParse(&doneText_, textBuf_, "Done");
-    C2D_TextParse(&cancelText_, textBuf_, "Cancel");
-    C2D_Text* all[] = {&titleText_, &topText_, &bottomText_, &hintText_, &timerText_, &doneText_, &cancelText_};
+    tt::render::textParse(&timerText_, textBuf_, buf);
+    tt::render::textParse(&doneText_, textBuf_, "Done");
+    tt::render::textParse(&cancelText_, textBuf_, "Cancel");
+    C2D_Text* all[] = {&titleText_, &topText_, &bottomText_, &topCount_, &bottomCount_, &hintText_, &timerText_,
+                       &doneText_, &cancelText_};
     for (C2D_Text* t : all) C2D_TextOptimize(t);
 }
 
@@ -244,17 +258,36 @@ void TailorPanel::draw() {
         rebuildText();
         dirty_ = false;
     }
-    C2D_DrawText(&titleText_, C2D_WithColor, 8, 8, 0.5f, 0.6f, 0.6f, kAccent);
-    C2D_DrawText(&timerText_, C2D_WithColor, 238, 10, 0.5f, 0.42f, 0.42f, kDim);
-    C2D_DrawRectSolid(4, kTopY, 0.5f, 312, 48, section_ == 0 ? kAccent : kPanel);
-    C2D_DrawRectSolid(4, kBottomY, 0.5f, 312, 48, section_ == 1 ? kAccent : kPanel);
-    C2D_DrawText(&topText_, C2D_WithColor, 12, kTopY + 14, 0.5f, 0.48f, 0.48f, kWhite);
-    C2D_DrawText(&bottomText_, C2D_WithColor, 12, kBottomY + 14, 0.5f, 0.5f, 0.5f, kWhite);
-    C2D_DrawText(&hintText_, C2D_WithColor, 8, 154, 0.5f, 0.38f, 0.38f, kDim);
-    C2D_DrawRectSolid(160, kButtonY, 0.5f, 76, 36, kAccent);
-    C2D_DrawRectSolid(240, kButtonY, 0.5f, 76, 36, kPanel);
-    C2D_DrawText(&doneText_, C2D_WithColor, 180, kButtonY + 11, 0.5f, 0.52f, 0.52f, kBg);
-    C2D_DrawText(&cancelText_, C2D_WithColor, 248, kButtonY + 11, 0.5f, 0.46f, 0.46f, kGood);
+    // TailorClothesGUI (ClothesGUI): a shuffle frame per row with its gold arrows at the ends;
+    // touching a row's left / right half steps back / forward (handleInput). Done / Cancel.
+    namespace th = theme;
+    th::sky();
+    th::paper(4, 3, 312, 30, 7.0f);
+    C2D_DrawText(&titleText_, C2D_WithColor, 12, 7, 0.5f, 0.58f, 0.58f, th::kRedDark);
+    // Upstream shows no clock here; the AI's deadline only shows in its last 30 seconds.
+    const int32_t remain = int32_t(deadlineMs_ - nowMs_);
+    if (remain < 30000) {
+        th::roundRect(212, 8, 100, 20, 7, th::kRed);
+        th::textCentered(timerText_, 262, 10, 0.42f, th::kWhite, 94);
+    }
+    const float frameW = 140, frameH = frameW / matArtAspect(MatArt::ShuffleFrame);
+    const float arrowH = 46, arrowW = arrowH * matArtAspect(MatArt::ArrowUp);
+    for (int sec = 0; sec < 2; ++sec) {
+        const float y = sec == 0 ? kTopY : kBottomY, cy = y + kRowH * 0.5f;
+        const float fx = 160 - frameW * 0.5f, fy = cy - frameH * 0.5f;
+        if (!drawMatArt(MatArt::ShuffleFrame, fx, fy, frameW, frameH)) th::paper(fx, fy, frameW, frameH, 8.0f);
+        th::textCentered(sec == 0 ? topText_ : bottomText_, 160, fy + frameH * 0.5f - 15, 0.55f, th::kWhite, frameW - 50);
+        th::textCentered(sec == 0 ? topCount_ : bottomCount_, 160, fy + frameH * 0.5f + 1, 0.42f,
+                         th::rgb(0xC8, 0xEC, 0xFF), frameW - 50);
+        drawMatArt(MatArt::ArrowUp, 50 - arrowW * 0.5f, cy - arrowH * 0.5f, arrowW, arrowH, 0.52f);
+        drawMatArt(MatArt::ArrowUp, 270 - arrowW * 0.5f, cy - arrowH * 0.5f, arrowW, arrowH, 0.52f, true);
+    }
+    th::roundRect(4, 172, 312, 20, 6, th::mix(th::kPaper, th::kSkyBottom, 0.3f));
+    C2D_DrawText(&hintText_, C2D_WithColor, 10, 175, 0.5f, 0.4f, 0.4f, th::kInkSoft);
+    th::button(160, kButtonY, 76, 36, th::kGreen, th::kGreenDark, false, 7.0f);
+    th::button(240, kButtonY, 76, 36, th::kRed, th::kRedDark, false, 7.0f);
+    th::textCentered(doneText_, 198, kButtonY + 8, 0.52f, th::kWhite, 70);
+    th::textCentered(cancelText_, 278, kButtonY + 8, 0.5f, th::kWhite, 70);
     focus_.drawHighlight(); // padnav
 }
 

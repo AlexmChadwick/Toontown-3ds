@@ -1074,3 +1074,961 @@ exceed the provisional 15k/150 frame envelope; validate actual culling and Old 3
 performance before accepting that target. Exact install, expected log lines,
 manual multiplayer/gag/Circuit checks and remaining visual gaps are in
 `docs/design/racing.md`'s Azahar checklist.
+
+## 2026-10-27 — Linux rig: front end and Toontorial against the live server (Azahar)
+
+Build: `claude/work` at the commit containing this entry, devkitARM 16.1.0 (devkitpro/devkitarm
+image layers), zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb,
+**Old 3DS mode**, 1x, software GL. Server: local stock Open Toontown (`setup_linux.sh`; astrond
+built from Astron master, Panda fork 0661574). SD data: fresh `bake_sd_all.sh` (992 MB).
+Not hardware; GPU timing is not representative. Audio silent (no DSP firmware).
+
+- **Front end** (`autotest_fe`): title (original logo), connect, Pick-a-Toon, Make-a-Toon
+  species/body/colour/clothes/Pick-a-Name/typed name, create, Skip, TTC.
+  TTC after entry: 29.9 fps, cpu 4.8 ms, 88–94 draws, 10.5–12.1k tris, heap 3.5 MB,
+  linear free 15.4–15.7 MB, VRAM free 4.2 MB.
+- **Server unreachable**: Backoff screen now reads "Can't reach the server"; title shows
+  `127.0.0.1:7198`. 30 fps.
+- **Toontorial** (`autotest_fe` + `tutorial`): Tom's interior and Mickey's intro, Tom's quest,
+  door to the street, Flunky battle (throw, squirt, reward), HQ Harry, HQ back door, tunnel,
+  `allDone`, Toontown Central. Three stalls were found and fixed on the way (reward
+  acknowledgement, Flunky id not cleared, tunnel target 0 vs the exit guard). Street:
+  27–30 fps, 25 draws, 7.3k tris. TTC after: 29.9–30 fps, 83 draws, 11.2k tris, cmdbuf 12%.
+- **Offline world script** (no server): moves, tabs, padnav: 27–30 fps, 172 draws,
+  13.3k tris, heap 3.3 MB, linear free 18.8 MB, VRAM free 4.2 MB.
+- **Online world script** (`autotest`, `AI_MINIGAME_ID=8`), steps 0–163 in three chunks:
+  every step ran; teleports arrived in 2519, 1000 (boat + swim), 5000, 3000, 11000–13000,
+  10000; factory boarded (`elevator: riding to zone 61001`) after restoring the elevator
+  anchors, and every factory entity step logged its action. The test toon (15 laff, no
+  gags) went sad in the street battle and the factory battle. TTC 29.9 fps / 156 draws /
+  14.6k tris; 64 stress toons 29.9 fps / 955 draws / 57.8k tris; factory 21–30 fps with
+  screenshots on. Heap ≤ 4.0 MB, linear free ≥ 13.8 MB, VRAM free 4.2 MB.
+- Issues left: none blocking in these flows; see docs/PROGRESS.md "Known issues".
+
+## 2026-10-27 (later) — Linux rig: SD v3 zones/pooled interiors, factory, Cog building win
+
+Build: `claude/work` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, 1x, OpenGL (llvmpipe).
+Server: local stock Open Toontown with `AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1
+AI_MINIGAME_ID=8`. SD data: the 2026-10-27 bake, repacked to TZ v3 + pooled interiors
+(603 MB). Not hardware; GPU timing is not representative. Audio silent.
+
+- **TZ v3 / pooled interiors**: 2000, 1000, 5000, 3000, 1100, 2100-2300 stream from v3 files;
+  interiors 2519, 2521, 2522, 8501, 2625 load from `textures.ttp` (2519: 21 textures,
+  262 KB linear, 267-284 ms load vs ~200 ms before; inside the door fade). Screenshots of
+  DG, the Gag Shop, pet shop, kart shop and tailor show correct textures. Host zone_test
+  (C++ loader) passes on 2100/2000 as v2 and v3, including the new pool corruption cases.
+- **Factory** (`go factory` .. `factory: exit`, shots off): every entity step, room battle,
+  foreman won (`level: 11500 defeated -> zone 11000`), back in Sellbot HQ. 26-30 fps,
+  heap 4.0 MB, linear free 11.9-13.4 MB, VRAM free 4.2 MB. Before the fix, each Cog death
+  hitched 275-292 ms (`largest dact`, lose model loaded on the main thread).
+- **Cog building** (1100, 3 floors): three battles, two interior elevator rides, reward,
+  back on 1108, `cog building 401000063: victor ready`. 29.9 fps in the interior, cpu 4 ms,
+  heap 3.3 MB, linear free 17.7 MB. No hitch in any battle (before: ~140 ms at every
+  face-off). Three earlier runs were stuck on floor 1 (elevator never matched / never
+  boarded / boarded while opening) and were then ejected for heartbeat timeouts (345).
+- **Clerk camera**: Gag Shop and tailor sessions frame the clerk over the toon's shoulder
+  (screenshots); the kart session in the script closes too quickly to show it.
+- Host suites rerun: nettest (all), zone_test (2100, 2000, unit), cog_attacks_test,
+  padnav_test (118 checks), battle_validate (3.94 MB of 4 MiB).
+- **Cashbot mint** (`go mint` .. `mint: boss`, after a Cog building chunk): boarded
+  (`elevator: riding to zone 61000`), all 12 pieces walked, room battle, boss won
+  (`level: 12500 defeated -> zone 12000`). 29.9-30.6 fps walking and fighting (dips to 14
+  at entry and 5.5 for one second in the post-win zone load, both behind the loading
+  fade); heap 3.6 MB, linear free 9.5-16.1 MB, VRAM free 4.2 MB.
+- **Heartbeat ejections (345)**: five runs. Log clock vs wall clock: in the facilities the
+  emulator averaged ~35% of real time (DA office: 182 emulated s in ~520 real s), so the
+  client's 10 s (emulated) heartbeats arrived more than 60 real seconds apart. Rig limit, not
+  a client bug; the local server now takes `ASTRON_HEARTBEAT_TIMEOUT_MS` for such runs.
+- **DA office** (`go da office` ..): boarded (`elevator: riding to zone 61000`), floor walked,
+  laser field (3 tile hits, hazard fired), security camera, room battle. 30 fps, 87 draws,
+  10.4k tris, heap 3.5 MB, linear free 9.2 MB. The next-floor step found no floor elevator
+  (the toon never moved), then the run was ejected (345) at the boss step with a 300 s
+  heartbeat timeout: emulated time had stopped for over 5 minutes.
+- A street load still takes 1.0-1.3 s on the main thread (inside the teleport fade).
+
+## 2026-10-27 (round 4) — DA office won, dynamic-zone reconnect (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Build `20d4701`, live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8`,
+`ASTRON_HEARTBEAT_TIMEOUT_MS=300000`).
+
+- **Last round's DA office result was invalid.** Its log shows `connection closed by server`
+  8 s after boarding (Astron 345, the rig's emulated-time stall), then a reconnect *into zone
+  61000*: the AI had already deleted that stage, so the "floor" had no Cogs, no elevator and
+  incoming bytes stayed flat (8902 B) for the rest of the run. The "missing floor elevator"
+  was this, not an elevator bug.
+- **Forced drop** (`drop at da office: lasers`): `zone 61024 is dynamic and dies with us;
+  rejoining at zone 13200`, reconnect in 2 s, `rejoined at zone 13200`, teleport into the
+  Lawbot courtyard, controllable (screenshot). No crash or PARSE line.
+- **DA office end to end** (`go da office` .. `da office: boss`): floor 1 walked, lasers,
+  security camera, room battle won, `requestBoard floor elevator` → seat 0 → `riding to the
+  next floor, zone 61048` → floor 2's elevator → zone 61054 → boss battle (Legal Eagles) won
+  in two rounds → `StageReward` → `level: 13300 defeated -> zone 13000`. 26-30 fps
+  (10 fps for one second at a floor load, behind the elevator fade), 15-68 draws, ≤ 8.0k
+  tris, heap 3.4-4.0 MB, linear free 9.5-16 MB, VRAM free 4.2 MB. No PARSE/EJECT lines.
+- Found there: the Lawbot HQ arrival started 68 units up and fell (the reset used the DA
+  office's collision); fixed in `20d4701`.
+- nettest: all pass, with a new dynamic-zone drop case.
+
+## 2026-10-27 (round 5) — country club, Cogdominium, Speedway race (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Live local server (`AI_DEV=1 AI_DEV_STRONG=1 AI_DEV_WEAK_COGS=1 AI_MINIGAME_ID=8`,
+`ASTRON_HEARTBEAT_TIMEOUT_MS=300000`), SD data from the 2026-10-27 bake (TZ v3), `shots off`.
+
+- **Country club** (build `2189004`, `go country club` .. `club: exit`): kart to zone 61000,
+  floor 1 walked (maze, moles, golf green), room battle won, floor elevators 61018 → 61024 →
+  61030 → 61036 (floor 5), president-room battle won in three movies, `CountryClubReward`,
+  `level: 10600 defeated -> zone 10000`. About 30 fps; up to 177 draws / 14.2k tris; heap
+  3.9 MB, linear free >= 11.0 MB, VRAM free 4.2 MB. Floor changes: 0.2 s + 0.4 s main-thread
+  hitches (`.tlf` and rooms), inside the elevator panel. The driver rode floors 2-4 without
+  walking them (elevators are never locked); now explicit in `8db542f`.
+- **Cogdominium** (build `8db542f`): field office 2103 block 3 → maze (seed 14 Cogs, 9 coolers;
+  throws, Cog hits, exit) → suite battle won → `BuildingReward` → `victor ready` →
+  `becomingToonFromCogdo`. 30 fps, 57 draws, 9.3k tris, heap 3.6 MB, linear free 14.5 MB.
+  Then a 345 (emulated time ~9 min behind wall time); the reconnect rejoined street 2103.
+- **Speedway, before the fix** (build `8db542f`): Practice race on Screwball Stadium, the kart
+  averaged ~20 u/s, never finished a lap; the AI ended the race after ~5 min (kickSlowRacers).
+  Cause: flat 10% wall friction per contact frame (fixed in `7c1eae7`).
+- **Speedway, a drop mid-race** (build `7c1eae7`): a 345 in the rules phase; after the reconnect
+  the client rebuilt the dead race and acked its barrier → Astron 117 eject. Fixed in `183e02b`.
+- **Speedway, after both fixes** (build `183e02b`): owned kart → Practice block → barriers →
+  laps at 41.7 s and 41.8 s (lap 1 includes the grid) → lap 3 → authoritative result → back in
+  8000 with 20 tickets. 29.9 fps average, 25.0 minimum; ≤ 55 draws / 9.0k tris; heap 3.4-3.5 MB,
+  linear free 17.3 MB. No PARSE/EJECT lines.
+- Host: racing_test (all parts, now with wall-contact vectors and the disconnect reset),
+  nettest (all 5 groups) pass.
+- **Sellbot VP, three attempts** (builds `bfafa3f`, `17438b9` (Null audio sink), `9252e56`): every
+  one hit the rig's emulated-clock stall within seconds of the lobby or of `boss: phase Elevator`
+  in office 61049 (one: boarding ≈ 20:07, Astron 345 at 20:20:07, ~5 s of emulated time between).
+  Boss assets loaded (388 KB linear, 28.6 KB collision heap; 0.34 s load hitch at office entry).
+  No boss round was reached; VP/CFO/CJ/CEO stay unverified in an emulator.
+
+## 2026-10-28 — bottom-screen UI pass (Azahar 2126.2, Old 3DS, Linux/Xvfb)
+
+Shared local server on 7198 (another agent's, `AI_DEV_STRONG`), fresh accounts per run. SD data:
+the perf tree's 2026-10-27 set (no `interiors/`), plus `.tmap` minimaps baked for this pass
+(`bake_minimap.py`, all 26 exterior zones) into a private overlay dir. Bottom screens decoded
+from render-target dumps.
+
+- **Map tab / book Map page** (builds `aa9c67e`..`25910eb`): TTC, Silly Street, Donald's Dock
+  and Daisy Gardens show the baked map, the anchor markers (HQ, shops, trolley, fishing,
+  tunnels) and the legend; Silly Street shows "Playground". A fresh toon (no
+  `setTeleportAccess` entries) saw every other hood greyed and Go Home greyed (no
+  EstateManager on the stock server). Autotest runs keep hoods open: `move: teleport` (DD) and
+  `teleport DG` worked. Map tab 29.9 fps, 115 draws, 11.9k tris, heap 3.2 MB, linear free
+  15.6 MB, VRAM free 4.2 MB.
+- **Toon tab**: a finished task reads "COMPLETE!  Ride on the trolley / Return to: HQ Officer /
+  Toon HQ, Any Street, Any Neighborhood".
+- **Options page**: Stereo, Detail, Music, Sound, Quit; the Debug/Test-toon rows are hidden
+  until SELECT. padnav_test 137 checks pass (GCC 12 host build).
+- **Street battle** (Silly Street, Telemarketer / Penny Pincher): the battle panel through
+  FaceOff, input and trap/lure movies; 26.7 fps, 85 draws.
+- **Trolley gag purchase** (Catching game, 18/18): gag icons in every cell, full-bag shading.
+- **Front end** (`AUTOTEST_FE=1`): title, Pick-a-Toon, all five Make-a-Toon steps, Name Shop
+  check boxes, typed name accepted (`nameTypedResponse status=1`), Toontorial choice, world.
+- Two of nine runs hit the rig's known emulated-clock stall (log stops mid-script under host
+  load); both reruns completed. The gag-shop door step could not enter because this data set
+  has no `interiors/`.
+
+## 2026-10-28 (round 8) — Linux rig: SpeedChat MY TASKS, battle Cog cards / reward, front-end pills
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, software GL. Server: the
+shared stock Open Toontown on 7198 (runs `AI_DEV_WEAK_COGS`). SD data: the claude/Toontown-3ds
+full bake. Not hardware.
+
+- TTC, SpeedChat steps: 29.9 fps idle/run, heap 3.2 MB, linear free 16.0 MB, VRAM free 4.2 MB.
+  `net: chat tx sc 100`, `net: chat tx sctask 110/1000/1000/0`.
+- Silly Street battle: 18-22 fps while shooting every 0.25 s (about 109 ms per shot); draws
+  61-68, tris 8.7-9.4k, cmdbuf 12%. Reward panel and Cog cards seen.
+- Front end (fresh account): all screens. No PARSE/EJECT/crash lines in any run.
+
+## 2026-10-29 (UI round 13) — Linux rig: battle Fire/SOS panels, ToontownTimer, indoor Map
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0, zero warnings in source/.
+Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**, software GL. Server: the
+shared stock Open Toontown on 7198 (`AI_DEV_WEAK_COGS`, every toon strong). SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots every second cost ~109 ms each, so the fps
+below are with shots on.
+
+- Street battle (`AUTOTEST_FROM="see cog" AUTOTEST_ONLY="see cog,pad: battle"`): Fire/Pass/Run/SOS
+  block, SOS panel (empty and with demo cards, page 2), Fire panel, B back, pad attack sent.
+  27 fps, 55 draws, 7.5k tris, cmdbuf 5-12%, heap 3.4 MB, linear free 15.6 MB, VRAM free 4.2 MB.
+- Trolley / Catching game: ToontownTimer clock 54 → 0 (red under 6). 27 fps, heap 3.2 MB, linear
+  free 15.6 MB. Purchase, return, Gag Shop door entered, shop opened and cancelled.
+- Gag Shop interior: Map tab shows the TTC map, legend and the arrow at the shop door.
+- Toon HQ: quest dialog pages, fitted balloons; HQ choice; Toon tab task card.
+- Front end (`AUTOTEST_FE=1`): all screens. No PARSE / EJECT / crash lines in any run.
+- Host: padnav_test 154 checks, battle_cam_test (GCC 12).
+- Fishing (TTC practice spot): fishingGui dock / jar / bucket / Cast / Exit; pad cast (hold A) and
+  a touch drag cast (`fish: touch cast`, power 0.73, angle 32, landed in the pond, fish caught).
+
+## 2026-10-29 (UI round 14) — Linux rig: SpeedChat frame, book icons, corner timers, Hop off
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/rootfs/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198. SD data: the claude/Toontown-3ds full
+bake. Not hardware. Shots on (about 100 ms each), so fps dips on shot frames.
+
+- TTC tabs / SpeedChat / book by pad: 29.8-30.0 fps, cpu 3.6-5.6 ms, draws 123, tris 12.7k,
+  heap 3.2 MB, linear free 15.6 MB, VRAM free 4.2 MB.
+- Book pages, emotes, treasure, Mickey, fishing, trolley, Catching game, purchase, Gag Shop door,
+  shop, clerks (one 420 s run): no PARSE / EJECT / crash.
+- Trolley: `padnav: info activate button` → `trolley: requestExit` → `trolley: off`; re-board OK.
+  Purchase: 28.2 fps, draws 32, clock on the top screen.
+- Street battle: clock top-right, SOS / Fire demo panels, round played out.
+- Gag Shop: clock top-right (116 s), shop panel header without the timer label.
+- Front end: all screens. Host padnav_test 154 checks.
+
+## 2026-10-29 (UI round 15) — Linux rig: Pick-A-Toon / Make-A-Toon art, purchase sign and jar
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/rootfs/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198, fresh tokens. SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots on.
+
+- Front end, fresh account: title, Pick-A-Toon (six empty squares), tap square 1 -> Make-A-Toon,
+  species / body / colour / clothes (shuffle arrow) / name shop / typed name, create, Toontorial
+  skip, TTC. 29.9 fps in the front end (27.0 on shot frames), heap 3.3 MB, linear free 19.1 MB in
+  the front end, 15.4 MB in TTC after entry (14.7 MB before the art was freed).
+- Front end, account with a Toon: head, name, Name Your Toon!, trashcan; Y -> delete dialog ->
+  Delete (`padnav: pick activate delete 0`); then the empty-square path.
+- Trolley -> Catching game -> purchase panel; Gag Shop -> clerk -> shop panel by pad: plank, jar,
+  PurchScrn buttons. Toon / Gags tab and book Gags page jar icons. No PARSE / EJECT / crash.
+- Host padnav_test 154 checks (GCC 12).
+
+## 2026-10-29 (UI round 21) — Linux rig: Make-A-Toon room, loading screen, BodyShop / ColorShop frames
+
+Build: `claude/work-ui` at the commits of this entry, devkitARM 16.1.0 (`/tmp/dkp/root/opt/devkitpro`),
+zero warnings in source/. Emulator: Azahar 2126.2 Linux AppImage under Xvfb, **Old 3DS mode**,
+software GL. Server: the shared stock Open Toontown on 7198, fresh tokens. SD data: the
+claude/Toontown-3ds full bake. Not hardware. Shots on.
+
+- Front end, fresh account: all 22 FE steps; every Make-A-Toon step in its room (room load 160-294
+  ms emulated, first frame of the step). Colour step: 30 fps, 26 draws, 982 tris, heap 3.3 MB, linear
+  free 18.2 MB. TTC after entry: 29.9 fps, 95 draws, 12.1k tris, heap 3.3 MB, linear free 15.5 MB,
+  VRAM free 4.2 MB.
+- Closed port: retry dialog shows the error and countdown; Back is reachable.
+- World: clerks + tailor by pad (`clerk:`, `tailor visit`, `pad: tailor`), steps 0-69 UI tour,
+  `see cog` + `pad: battle` picker, `grab treasure` .. `trolley: purchase`. No PARSE / EJECT / crash.
+
+## 2026-10-30 — render quality: near tiles, far colour meshes, ground split
+
+Build: `cursor/render-quality-2097`, devkitARM r68 / gcc 16.1.0, libctru 2.7.0, citro3d 1.7.1.
+`make -j6` produced `toontown3ds.3dsx` with no warnings in `source/`. Host `g++ -Werror`
+compiled `source/world/zone.cpp` (it includes `render/quality.h`). **No Azahar run and no
+hardware run.** Azahar 2127.0-alpha3's AppImage does not start on this Ubuntu 24.04 image:
+it needs Qt 6.8 and FFmpeg 7 (`libavcodec.so.61`); the image has Qt 6.4 and FFmpeg 6.
+Do not read the bake numbers below as frame times.
+
+- Ground split unit test: 80-unit ground cut to edges ≤ 20, vertical wall kept, a 609-unit
+  ground triangle cut under the cap. `rewrite_ground_ttm.py` on `romfs/baked/ttc_sz.ttm`:
+  411 ground triangles split, longest ground edge 608.8 → 19.99, textures byte-identical,
+  `validate_ttm` passed. The fallback mesh is now 16,649 triangles (the whole playground is
+  one model). Streamed zones stay inside the 15k plan.
+- `bake_street.py` for 2000, 2100, and 1000 (`--separate-boat`). Far meshes are vertex
+  coloured (0 texture bytes). Planned resident maxima, sampling Old near 160 and New near
+  260, all sit on the 150-draw cap and under 15k triangles / 6 MiB geometry / 8 MiB
+  textures. Zone 2000 near ground edges after quantization are ≤ 19.99. Figures are in
+  `docs/design/streets.md`. Output is under gitignored `sdmc-out/`.
+- Host `zone_test` (g++ -Werror, the real `zone.cpp`) on those three `.tz` files: every
+  floor sample, PVS transition, geometry/texture budget, trigger and 30,000 `cellAt`
+  queries passed. `c++` on this image is clang without libc++ headers, so the stock
+  `tools/zone_test/run.py` driver did not compile; the same sources were built with g++.
+
+## 2026-10-30 — far hill cards, 130-draw cap, Cog HQ rebake
+
+Build: `cursor/render-quality-2097`. Host only. No Azahar and no hardware. The
+earlier Azahar soak (29.9 fps, 12 minutes, stereo) was on the parent of this
+follow-up. `python -m unittest tools/pipeline/test_far_color.py
+tools/pipeline/test_ground_split.py`: 8 tests OK.
+
+- TTC far hills: `BG5_*` cards stay textured. A Panda preview of `2000.tz` `--lod low`
+  shows painted hill silhouettes behind the gag shop and past the speedway tunnel.
+  Zone 2000 far mesh is 78 draws / 11,525 tris (26 hill-card tris); planned view
+  130 draws / 14,898 tris.
+- All 37 street, playground, tutorial and Cog HQ zones rebaked. Maxima: far mesh
+  126 draws (zone 6000) and 11,964 tris (zone 11200); planned view 130 draws and
+  15,000 tris (zones 10000 and 10100). Donald's Dock planned view is 130 draws /
+  12,872 tris. Zone 17000 landed on grid 192 (116 far draws; it was 197 at grid 128).
+  None exceed 130 draws, 15,000 tris, 6 MiB geometry or 8 MiB textures. Figures are
+  in `docs/design/streets.md`. Output stays under gitignored `sdmc-out/`.
+- RomFS `ttc_sz.ttm` rewritten from the pre-split blob: 14,609 triangles, longest
+  ground edge cap 30, 37,297 verts, 157 batches. The streamed edge cap is still 20.
+
+## 2026-10-30 — render overhaul verified in Azahar; near chunks first (`d57dfd4`, `89df721`)
+
+Azahar 2126.2, Linux/Xvfb, Old 3DS (and `NEW3DS=1`), 3DSX + this tree's bake of all 37 zones
+(`bake_street.py` / `bake_coghq.py`, data in `/workspace/toontown/claude-x/render-data`).
+Shots, logs and the full report: `/workspace/shots/3ds-render-1030/` (`REPORT.md`).
+
+- `AUTOTEST_ONLY=view:` (8 fixed spots, offline): 29.9 fps in every view on both models,
+  CPU 3.3–4.1 ms (before 2.7–3.5), 85–149 draws, 4.7–13k tris, linear free ≥ 14,433K
+  (before ≥ 16,201K), VRAM free 4,194K unchanged. Profile logged:
+  `render: Old 3DS profile far 520 draw 440 lod 160/185 must 48 fog 110-400` /
+  `New 3DS ... 900 740 260/290 must 64 180-680`.
+- Found on `ef52035`: at `ttc_mid` the chunk under the toon was refused by the 130-draw upgrade
+  cap (it counts chunks behind the camera) while chunks 114+ units away went high, so Toon Hall
+  drew half as the bloated far mesh. Fixed by `Quality::lodMust` (upgrade first, 150 draws).
+  Host planner over all 37 zones: worst plan 150 draws / 15,000 tris / 5.9 MB textures.
+- Soak, online (2.25.74.62:7198, token alex-3ds, existing toon "Peach Dog"), stereo slider 1.0,
+  shots on, 655 s emulated: tabs, book, trolley → Toon Slingshot → purchase, doors, tunnel,
+  Cog battle, teleport, swim, views. 0 crash / PANIC / EJECT / PARSE, linear free min 9,821K
+  (≈4 MB held after the battle, as in the r4 soak). Its fps is dominated by screenshot dumps.
+- Soak, offline, mono, `shots off`, 463 s emulated (same route minus the trolley): fps ≥ 29.5 in
+  90% of seconds and ≥ 25 in 97%. The dips are zone entries (first chunks now ~1.0–1.1 s,
+  bigger near chunks). Linear free min 13,289K. No crash.
+- A later online mono soak was blocked by the server: login, then districts, timed out on every
+  reconnect.
+- `make`: zero warnings in source/. `test_far_color` + `test_ground_split`: 8 OK. `zone_test` not
+  run (no host C++ compiler on this box).
+- Not done: real hardware (frame time on PICA200, the ground-split fix for missing near ground,
+  stereo fps, SD load time).
+
+## 2026-10-30 — view budget, upload slices, Donald's Dock sign letters
+
+Build: rebased onto `render/overhaul-1030` (which already had `d57dfd4`'s 150-draw
+near envelope). Host only. No Azahar and no hardware. The numbers below that name
+a frame, a hitch, or an fps are the user's Azahar soak of `ef52035` (the before).
+The 147–149 draw samples are that same soak's reading of the 150-draw envelope.
+The after column is this host's `Zone::update` plan plus a cone the same width as
+`Zone::draw`, a few degrees wider than the real frustum, so an Azahar draw count
+should come out lower. `make -j6` linked `toontown3ds.3dsx` with no warnings in
+`source/` (the pre-existing GNU-stack linker note only). `python -m unittest
+tools/pipeline/test_far_color.py tools/pipeline/test_ground_split.py`: 9 tests OK.
+Host `g++ -Werror` of `tools/zone_test/zone_test.cpp` plus `zone.cpp` on zones
+2000, 1000 and 2100: floor samples, PVS, budgets, triggers and 30,000 `cellAt`
+queries passed, and both Toon Hall halves stay at the near mesh on Old and New.
+
+| View | Before (`ef52035`, Azahar) | After (host plan) |
+|---|---|---|
+| ttc_mid | About 69 draws submitted. Toon Hall split: one half far (no MICKEY TOON sign, no door, untextured columns). 29.9 fps. | Both hall chunks (g10, g11) near, Old and New. Cone submits 90 draws / 7,409 tris. 50 more draws stay resident behind the camera and are not submitted. |
+| dd_near | One sample at 133 draws while loading. Hitch 54 ms (was 38). | Plan submits 126 draws / 9,146 tris, Old and New. `draw` stops at 130 so the overlap sample cannot add the next chunk. |
+| dd_far | Far-right building's sign texture gone. An earlier nearest-first plan reached 147–149 draws. | Plan submits 128 draws / 12,968 tris. g6 stays far and keeps 14 letter triangles on `phase_3_palette_2tmlc_1`. |
+| street_near | Hitch 183 ms (was 137). fps 7.9 Old / 4.8 New during that frame. | Plan submits 95 draws / 6,313 tris. Arrival no longer blocks in `finishLoading`. |
+
+Uploads: the loader thread only reads. The main thread pumps about 10 ms of
+GPU upload per `Zone::update`. Boss and cogdo still call `finishLoading`, which
+still blocks. A street or playground arrival keeps the black frame up and
+presents each slice. `Place::load` (header and collision) is still one frame,
+so this does not claim the arrival frame is under 33 ms until Azahar times it.
+Zone 1000 rebake: far worst 50 draws / 11,443 tris, planned 129 / 12,968,
+`sign_triangles` 268, file 3,537,536 bytes, under the memory caps. Output stays
+gitignored. The other 36 zones were not rebaked; their far meshes still drop
+letters until the next full bake.
+
+CPU: no separate 0.5 ms trim. The extra time on `ef52035` is the nearer meshes.
+This change stops submitting chunks outside the cone (50 draws on ttc_mid).
+## 2026-10-30 — fast streaming: retain cache, one-shot loads, loading screen
+
+Build: `cursor/fast-streaming-0b72` off `cursor/render-quality-2097`. Host `g++ -std=c++17
+-Wall -Wextra -Werror -fsanitize=address,undefined` compiled `source/world/zone.cpp` and
+`source/world/collision.cpp` with `tools/zone_test/retain_test.cpp`. **No Azahar run and no
+hardware run.** This image has no devkitARM, so `make` of the `.3dsx` was not run, and
+Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Do not read the host timings as 3DS frame times.
+There are no before/after screenshots.
+
+- Retain test (`retain: hidden chunks stay resident...`): two visgroups 600 units apart.
+  Walking from one to the other kept both resident (54 + 54 geometry bytes) and
+  `detailReloads` did not increase on the way back. `triangles()` stayed 1 (the hidden
+  chunk is not submitted). With the retain budget cut to one chunk (54 bytes), the older
+  chunk was evicted and the return trip did reload (`detailReloads` 2 → 3). A v2 chunk
+  with an empty far mesh: standing at the origin kept LOD 0; stepping to 200 units
+  (past `lodKeep` 185, inside the 440 draw distance) kept LOD 0. The far mesh was
+  not loaded over it (`highParked` stayed false, `loadsQueued` unchanged,
+  `triangles()` stayed 1). Stepping back did not reload. `warmAround` of the neighbour then loaded it on the
+  next `update` without counting it in `triangles()`.
+- Host I/O profile of the rewritten `romfs/baked/ttc_sz.ttm` (`python3 -I tools/dev/profile_load.py`),
+  page cache warm, 30 repeats, after the 130-draw hill-card rebake:
+
+  | Path | Reads | Bytes | Time |
+  |---|---|---|---|
+  | Per texture (header, batches, tex table, verts, indices, 114 textures) | 119 | 2,219,726 | 182 µs |
+  | One GPU span | 1 | 2,219,008 | 194 µs |
+
+  On a warm page cache the microseconds are noise (about 1×). The SD-relevant result
+  is 119 reads collapsing to one.
+
+  The file is 2,228,352 bytes, 157 batches, 14,609 triangles, 37,297 vertices,
+  684,406 geometry bytes, 1,526,016 texture bytes, flags 0 (batch-relative indices;
+  this RomFS mesh is not rewritten). Warm cache hides seek latency. On an SD card
+  the 119 reads are the stall; the loader now issues one read of that span. Textures
+  in the file are already Morton-tiled. `ttm.write` now sets header flags bit 0 and
+  stores absolute indices when the model has ≤ 65,535 vertices (checked on a
+  one-triangle bake: flags 1, indices 0,1,2).
+- On device, `Model::loadFrom` and `Zone::load` add to `tt::loadprof` and the zone
+  transition writes `sdmc:/3ds/toontown3ds/load_profile.txt` plus a `load: zone ...
+  stream N ms, playable N ms` line. Those numbers are not available from this host.
+
+## 2026-10-30 — hardware-bug fixes, devkitARM compile
+
+Build: `cursor/fast-streaming-0b72` rebased on `ef52035` (`cursor/render-quality-2097`).
+Draw cap stays `Zone::kDrawBudget` 130. **No Azahar and no hardware.** Azahar 2127
+still needs Qt 6.8 and FFmpeg 7 on this Ubuntu image. Do not read the compile as a
+frame-time or a play-through. The streaming entry above said this image had no
+devkitARM; that is superseded here.
+
+Toolchain: devkitARM gcc 16.1.0, libctru 2.7.0, citro3d 1.7.1, citro2d 1.7.0, installed
+under `/opt/devkitpro` (the official CDN returned 403; packages came from the
+Leseratte mirror, and crtls were built from devkitPro commit `1c0c102`). `makerom`
+0.18.4 and `bannertool` 1.2.0 (linux-x86_64) are on `$(DEVKITPRO)/tools/bin`.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+Both succeeded. `toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB,
+`toontown3ds.cia` is 9.8 MB. Zero warnings in `source/`. The linker still prints the
+existing devkitARM `crtn.o` note about a missing `.note.GNU-stack` section. The
+loading screen's `Models` type was a nested class in the header and a different
+type in an anonymous namespace, so `zone_load_screen.cpp` did not compile;
+`ZoneLoadScreen::Models` is now the nested class, and `<new>` supplies `std::nothrow`.
+`uint32_t` is `unsigned long` in this newlib, so the load-profile `printf`s cast to
+`unsigned`. The host retain test was rebuilt with the same `g++ -Werror` line and
+printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+
+Checked against the pinned Open Toontown sources (commit `2b366a23`, fetched read-only;
+`ref/open-toontown` is an empty gitlink here):
+
+- Squirt: `DistributedBattleBaseAI.__makeMovie` sends `setMovie` then
+  `setState('PlayMovie')`. `movieDone` is ignored unless the FSM is already in
+  PlayMovie, and a failed send used to be marked delivered. The client now rebuilds
+  the movie if `setMovie` arrives late and resends `movieDone` once a second until
+  the phase changes. A squirt with no resolved suit still shows a miss. The spray
+  cue (`squirt_flower_hit` / `squirt_glass_hit` / `squirt_gun_hit`) plays when the
+  projectile leaves, and a miss plays the miss cue. Suit attacks announce
+  `CogAttackInfo.name`. `encntr_general_bg` starts with the battle and the place
+  track returns when it ends. Those `.tsnd` files are the SD bake
+  (`bake_audio.py` `BATTLE_ASSETS`); this tree does not contain them.
+- Run: `OTPGlobals.ToonForwardSlowSpeed` is 6, not `0.4 * 20`. B at full stick was
+  exactly `RunCutOff` (8) and `Toon.setSpeed` uses `>=`, so walk played the run cycle.
+- Tunnel: exits use the collided feet. The unpushed probe is used only when it does
+  not cross a camera wall. Ending a battle inside a trigger does not zone-change
+  until the toon has walked clear of it.
+- Toon HQ exit: the walk-out is local -Y. If that camera ray hits within 6 units and
+  +Y is open, the door heading is flipped 180 degrees before the toon is placed.
+- Doors: both baked leaves swing about the origin. The old hinge offsets
+  (3.591, 0, 3.913) and (-3.577, 0, 3.073) are gone.
+- Desk: `TTLocalizer.LeaderboardTitle` is `Toon Platoon` with no question mark
+  (`DistributedHQInterior.buildTitleRow`, SignFont / MickeyFont). The client string
+  was already that. MickeyFont is not in the RomFS font set (only ImpressBT), so the
+  title is still ImpressBT. No extra character was added.
+- LOD: remote toons inside 120 units stay at LOD 500. The local DNA look is pinned
+  and is not released when `inZone()` goes false.
+
+## 2026-10-30 — rebase onto the view budget, MickeyFont in RomFS
+
+Build: `cursor/fast-streaming-0b72` rebased onto `a6f33b0` (`cursor/view-budget-2097`).
+Parent of the streaming commit is that view-budget commit. Draw cap stays 130.
+**No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and FFmpeg 7. Host
+microseconds are not 3DS frame times. There are no baked `.tz` files in this tree,
+so `tools/zone_test/zone_test.cpp` was compiled with `g++ -Werror` but not run on
+2000/1000/2100.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+The retain test printed `retain: hidden chunks stay resident, parked detail returns without a reload`.
+A v2 chunk that already has its near mesh stays at LOD 0 past `lodKeep`; the far
+mesh is not loaded over it. `make -j4` and `make cia` succeeded. `toontown3ds.3dsx`
+is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB. Zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+How the two branches meet:
+
+- A chunk that already has its near mesh keeps that mesh when it leaves the cone.
+  `Zone::draw` submits the cone, nearest first, and stops at 130 draws and 15k
+  triangles. Culled near meshes count toward the retain budget (Old 3DS 6/8 MiB)
+  and are evicted only when that budget is full; the far mesh is then allowed to
+  load. They are not swapped in while the near mesh is still resident.
+- The loader thread calls `ModelStaging::read` (one span of vertices, indices and
+  inline textures). The main thread `pump`s about 10 ms of GPU upload per
+  `Zone::update`. Zone jobs do not call `Model::loadFrom`, so a chunk is not
+  uploaded twice. Street and playground arrival keeps the loading card and does
+  not call `finishLoading`. Boss and cogdo still call `finishLoading`; each
+  `update` inside it only uploads a slice.
+- The gameplay fixes from `ce06773` are still in the tree (squirt `movieDone`
+  retry, battle music hook, LOD pin, B walk speeds, tunnel latch, HQ heading
+  flip, door swing).
+
+MickeyFont: `tools/pipeline/bake_mickey_font.py` rasterized
+`phase_3/models/fonts/MickeyFont.bam` (resources `d00df01`) through the palette
+`phase_3_palette_2tmlc_1.rgb` into `romfs/baked/fonts/mickey.bcfnt` (33,276 bytes,
+49 glyphs, 256×256 A4, cell 31×31, baseline 23). The bam has no lowercase.
+`a-z` map onto `A-Z`, which is what Panda's TextNode does with this StaticTextFont,
+so the desk string `Toon Platoon` is drawn in the sign letters. The sheet is A4,
+so the fill and the dark outline are one silhouette tinted by the title colour
+`(0.5, 0.75, 0.7)`. The stock two-tone stroke is the texture luminance and is
+not a separate pass. The HQ title uses this font; other UI text stays ImpressBT.
+`ref/resources` is an empty gitlink here, so the bake was run from a temporary
+copy of those two files. The earlier desk note in this log (ImpressBT only) is
+superseded by this entry.
+
+## 2026-10-30 — warm ring, in-cone far meshes, 12 MB headroom
+
+Integrated Azahar of #2 + #5 + #7 + #6 at `7e4b6dd` failed on Old and New 3DS
+(street card never finished, distant scenery dropped, card held for the warm
+ring, New street free memory 6.2–6.7 MB). This entry is the host and devkitARM
+check of the fix on top of that commit. **No Azahar and no hardware.** Azahar
+2127 still needs Qt 6.8 and FFmpeg 7. The 8f1ca83 / 2f40267 SHAs are not in this
+clone; the same two rules are implemented here.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make cia
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+```
+
+The host loader no longer marks a chunk resident inside `queueLoad`. `completeLoads()`
+publishes the queued read, which is what `update()` does on device when a job
+finishes. A warm upload stays resident, `warming()` stays true until that publish,
+and shrinking the retain cap during preload does not evict the warm hold. The next
+update evicts it and does not queue it again. A 130-draw hall plus a one-draw shop
+in the cone submits 131 draws (the shop is not skipped). Walking onto the shop
+demotes the hall to its far mesh (2 draws). There are no baked `.tz` files here, so
+`tools/zone_test/zone_test.cpp` was compiled with `-Werror` and not run on
+2000/1000/2100.
+
+`make -j4` and `make cia` succeeded with zero warnings in `source/`.
+`toontown3ds.3dsx` is 11 MB, `toontown3ds.elf` is 33 MB, `toontown3ds.cia` is 9.8 MB.
+The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section.
+
+What changed:
+
+- A finished warm-ring upload is kept. `makeRoom` does not evict a warm hold while
+  preload is in progress, and `warmAround` only queues chunks that fit in the
+  retain budget including bytes already in flight.
+- `Place::streamReady` is the cone plan (`!loading()`). The card drops then. The
+  per-frame `Place::update` keeps warming the ring. `finishLoading` (boss / cogdo)
+  also waits for the cone only.
+- Inside the cone, `Zone::draw` submits every resident chunk. The 130-draw / 15k
+  cap still decides near upgrades. A resident near mesh inside `lodKeep` stays.
+  Past `lodKeep`, it is demoted to the far mesh when it no longer fits, and that
+  far read is allowed to replace it. A near mesh outside the cone is still not
+  replaced by the far blob.
+- Retain is 4 MiB geometry / 4 MiB textures on Old 3DS and 5 / 5 MiB on New 3DS.
+  On device, non-cone chunks are evicted while `linearSpaceFree()` is under 12 MB.
+  In-cone chunks are not evicted to make that floor. Not measured on Azahar.
+## 2026-10-30 — follow-camera sphere cast (host only)
+
+- **Target:** host `g++` (Ubuntu 13.3.0), `tools/collision_test/run_camera_sphere.sh`.
+  Not Azahar and not hardware. This VM has no `DEVKITARM`, so `source/world/player.cpp`
+  was not cross-compiled and no frame, heap, or VRAM numbers exist for this change.
+- **Result:** PASS, 0 failures. A 1.75-radius sphere stops short of a camera wall
+  (`t=0.325` on a 10-unit segment; the centre ray still reports `t=0.5`). A prop beside
+  the ray and a wall in the next 8-unit cell, both misses for the centre ray, are hits
+  (`t=0.40373` and `t=0.21870`). A WALL-flag slab is ignored. An infinite camera plane
+  matches the wall, including a start already inside the solid half (`t=0`). Approach
+  from outside the grid is `t=0.43750`.
+- **Not claimed:** the follow camera on a 3DS or in Azahar. `Renderer::kNear` is still
+  1.0 (comment only). The zone baker and terrain meshes were not touched.
+- **How to verify in Azahar (Old 3DS) or on hardware:**
+  1. `make` with devkitARM. Expect zero warnings in `source/`.
+  2. Stand against a TTC building and an interior wall. Orbit with L/R. The lens should
+     stop short of the surface, then ease back out once the way is clear. A blurry
+     solid should not fill one side of the view.
+  3. Raise the 3D slider. Both eyes share `kNear` through `Mtx_PerspStereoTilt`. The
+     wall should stay outside the frustum corners.
+  4. Talk to an NPC. The shot should still look at the NPC; the lens pulls in only
+     when a camera solid lies between the head and the desired eye.
+
+## 2026-10-30 — card reads the far mesh, dock signs stay near
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6` (`929719b`). Host `g++` and
+devkitARM only. **No Azahar and no hardware.** Azahar 2127 still needs Qt 6.8 and
+FFmpeg 7. There are no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp`
+was compiled with `g++ -Werror` and not run on 2000/1000/2100. The 3.17 s / 1.8 s
+card times are the user's Azahar numbers for `929719b`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- The profiled cost is the SD read (~330 ms per ~500 KB near chunk). Upload is
+  4–6 ms/frame. Packing cone chunks together would only remove seeks. Another
+  compressor needs a decoder this runtime does not have, and the textures are
+  already ETC1. Splitting textures off the geometry would drop the card onto an
+  untextured frame, and sign letters are a texture. The v2 file already stores a
+  vertex-coloured far mesh. The card (`Place::streamReady` / `Zone::cardPending`)
+  now waits for that far mesh of each in-cone chunk. The loader does not start a
+  near read until those far meshes are resident, so a 500 KB near job cannot
+  occupy a slot the card still needs. Near upgrades, including sign letters,
+  continue on the loader thread after the card, in the same upload slices.
+  `finishLoading` (boss / cogdo) still waits for the full plan. This host cannot
+  say the 2100 card is now ≤2 s or the 1000 card ≤1.5 s; that needs the baked
+  zones and Azahar.
+- Donald's Dock letters. A chunk with a decal on `palette_2tmlc` (MickeyFont) is
+  a sign. On Old 3DS `lodNear` is 160, which left the far-right building on the
+  far mesh (14 faint triangles). A sign inside the cone and inside twice
+  `lodNear` (320 Old / 520 New) now takes a near slot ahead of a generic chunk.
+  It still stops at 130 draws, 15k triangles and the retain cap. The host fixture
+  puts the sign at 200 (past 160) and a 120-draw filler at 80: the sign stays at
+  lod 0, the filler at lod 1, 17 draws. Toon Hall is still both halves near
+  (the earlier cone lines: hall lod 0, 131 draws with the shop).
+- `zone_test.cpp:52` is a real host failure, not a new cone limit. With no camera
+  the points loop counts the whole cell. Near upgrades stop at 130 draws / 15k
+  triangles, then the remaining far meshes were added with no ceiling, so the
+  cell could pass the file's 150-draw / 15k-triangle far-set cap. The device
+  calls `setCamera` before `update`, and that path still draws every in-cone
+  chunk. The no-camera plan now leaves out a chunk whose far mesh would pass
+  15k triangles or 150 draws. The assert is unchanged. The host fixture is three
+  chunks of 80 near / 40 far: resident lods 0, 1, and not loaded, 120 draws and
+  120 triangles.
+
+## 2026-10-31 — near reads overlap the far card, dock signs fit the cap
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `aa080b2`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The 2.47 s / 1.57 s
+card times and the faint Old 3DS dock sign are the user's Azahar notes for
+`aa080b2`; this host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: far mesh drops the card, near streams after
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 0 queued 2 lod 1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. `make cia` stops in
+`tools/banner/build.sh` because `ref/resources` is an empty gitlink here. The
+CIA was packed with the makefile's `makerom` line from that elf and the committed
+`meta/banner.bnr`. `toontown3ds.cia` is 11 MB.
+
+What changed, and why this default:
+
+- Near reads are no longer gated on every in-cone far mesh. The walk is the cell
+  underfoot, then `lodMust`, then screen-space size, then distance. A chunk that
+  already has its far mesh queues its near read before a smaller chunk's far
+  read. One new near read is started per frame, and one near upload is published
+  per frame, so four far-to-near swaps do not land on the frame the card drops.
+  The card-drop frame also laps the place section before it returns; that tail
+  was what the profiler called `other`. `finishLoading` still waits for the full
+  plan. This host cannot say full detail is back to r6's ~6.1 s, or that the
+  ~133 ms hitch is gone; that needs Azahar.
+- The card waits for the in-cone prefix whose projected area is 80% of the cone,
+  always including the cell and `lodMust`, plus any chunk at least 20% of the
+  largest. That is the byte cut for the 2 s / 1.5 s targets: the tail of small
+  props is not on the critical path. Prefetching the destination during the
+  teleport would read it in the departure zone, and packing far meshes together
+  only removes seeks; the measured cost is sequential SD throughput. The host
+  fixture is a large chunk with an empty far mesh in front of a small one: the
+  large chunk's near read is queued in the same update as the small chunk's far
+  read, and the card does not wait on the small chunk.
+- Donald's Dock letters. Sign priority already skipped `lodNear`; it still had
+  to pass `fits`, and the running texture total included out-of-cone far meshes
+  plus generic near upgrades (Old retain is 4 MiB, the draw cap is 130). Those
+  out-of-cone far textures are no longer charged against the upgrade. If a sign
+  still does not fit, the smallest generic near mesh (not the cell, not
+  `lodMust`, not a sign already taken) is demoted until it does. The host
+  fixture sets retain textures to 5,500 bytes, puts a 5,440-byte texture behind
+  the camera, and a 120-draw filler inside `lodNear`: the sign stays at lod 0,
+  the filler at lod 1, the hidden chunk is not loaded, 17 draws and 64 bytes of
+  texture. Toon Hall is still the cone lines above (hall lod 0, 131 draws).
+- `kLinearHeadroom` (12 MiB) now lives next to the device upload budget, which
+  is the only code that reads it. Host `clang++ -Wunused-const-variable -Werror`
+  compiles `zone.cpp` clean. The 12 MiB floor is unchanged.
+- `zone_test.cpp:52` still cannot be run here (no `1000.tz`). The failure mode
+  after the first sample is a near mesh already resident inside `lodKeep`: the
+  points loop does not unload, and `keepNear` bypassed the 15k / 150 ceiling.
+  With no camera that ceiling now applies to `keepNear` too. The camera path is
+  unchanged, so Toon Hall can still sit past 130 draws. The host fixture walks
+  from a 90-draw near mesh to a chunk 100 units away and lands at lods 1/0,
+  100 draws, 100 triangles. The assert in `zone_test.cpp` is unchanged.
+
+## 2026-10-31 — close chunks read near, in-view meshes stay up
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `22a83f5`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100. The Round 8 Azahar
+notes for `22a83f5` (Old 2100 card 1969 ms, 1000 cards 1366/1367 ms, crisp Old
+DD sign, and the six failures below) are the user's measurements. This host
+does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` (11 MB) and `toontown3ds.elf` (33 MB) with
+zero warnings in `source/`. The linker still prints the existing `crtn.o` note
+about a missing `.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/1/1/0 draws 18
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+```
+
+What changed, and why this default:
+
+- An in-view mesh is not evicted and not swapped for an empty lod. `makeRoom`
+  and the 12 MiB loop skip a chunk `draw` can submit. A demotion to the far
+  mesh queues that read and keeps the shown mesh (`keepHigh`) until the upload
+  is published. The Old 2100 drop from 73 draws to 28 was that hole. This host
+  cannot say the street no longer blobs.
+- The cell and any chunk inside `lodMust` whose plan is the near mesh skip the
+  far read. Distant chunks still read far first, and those far reads take
+  loader slots before the close near reads, so the card is not stuck behind a
+  500 KB near mesh. One distant near upgrade is still started per frame.
+- The card prefix is the distant in-cone chunks walked by projected area until
+  80% of that area, plus a chunk at least 20% of the largest. `lodMust` is not
+  forced in. New's larger lod radius was the extra card bytes. This host cannot
+  say the New 2100 card is now ≤2 s.
+- `ModelStaging::pump` copies and flushes each texture in 64 KB slices inside
+  the 10 ms budget. The 133 ms hitch was one 566 KB near upload finishing in a
+  single pump. This host cannot time that on Azahar.
+- Sign demotion runs for the one letter chunk with the largest projected area.
+  The host crowd is ground plus three signs past `lodNear`: only the large one
+  is near (lods 0/1/1/0, 18 draws). Donald's Dock's single on-screen building
+  is still the sign fixture (lods 0/1/0, 17 draws).
+- Near upgrades still stop at 130 draws. The running total, far meshes
+  included, now stops at 150 draws and 15k triangles on the camera path as
+  well. `keepNear` bypasses 130 only for a resident mesh inside `lodMust`, and
+  only up to 150. The host cap fixture is eight chunks of 20 near / 16 far:
+  lods end `…/1/-1`, 136 draws on Old and on New. `zone_test.cpp:144` is
+  unchanged and was not run (no `1000.tz`). Toon Hall is still the cone line
+  above (hall lod 0, 131 draws with the shop far mesh).
+
+## 2026-10-31 — shown meshes stay up, uploads slice, two signs
+
+Build: `cursor/cone-card-bytes-0b72` on `integ/r6`, on top of `85d5d9d`. Host
+`g++` / `clang++` and devkitARM only. **No Azahar and no hardware.** There are
+no baked `.tz` files in this tree, so `tools/zone_test/zone_test.cpp` was
+compiled with `g++ -Werror` and not run on 1000/2000/2100/12000. The Round 9
+Azahar notes for `85d5d9d` (2100 card 1568 ms Old / 1233 ms New, 1000 card
+731 ms, dd_far host draws 67, and the five failures below) are the user's
+measurements. This host does not remeasure them.
+
+```
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+clang++ -std=c++17 -stdlib=libstdc++ -Wall -Wextra -Werror -Wunused-const-variable \
+  -fno-rtti -fno-exceptions -I source -c -o /tmp/zone_clang.o source/world/zone.cpp
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -I source \
+  -c -o /tmp/zone_test.o tools/zone_test/zone_test.cpp
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM make -j4
+```
+
+`make -j4` linked `toontown3ds.3dsx` and `toontown3ds.elf` with zero warnings in
+`source/`. The linker still prints the existing `crtn.o` note about a missing
+`.note.GNU-stack` section. No CIA was packed in this pass.
+
+`/tmp/retain_test` printed:
+
+```
+cone: at hall lod 0/1 draws 131 tris 131
+cone: at shop lod 1/0 draws 2 tris 2
+retain: hidden chunks stay resident, parked detail returns without a reload
+retain: warm uploads publish, in-cone far meshes are not dropped
+card: cell reads near, distant far still drops the card
+sign: lod ground/filler/letters 0/1/0 draws 17 tris 17
+cell: no camera lod 0/1/-1 draws 120 tris 120
+overlap: card 1 queued 2 lod -1/-1
+sign: room lod 0/1/0/-1 draws 17 tex 64
+keep: walked lod 1/0 draws 100 tris 100
+cap: old lod 1/-1 draws 136 tris 136
+cap: new draws 136 tris 136
+sign: crowd lod 0/0/1/0 draws 32
+hold: shown lod 0 queued 4
+hold: published lod 0/1 draws 41
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+sign: landmark lod 0/1/0 draws 17 tex 64
+once: queued 3
+tri: lod 0/1 draws 11 tris 12001
+```
+
+What changed, and why this default:
+
+- The cap was booking the planned near cost. After the card, walking into
+  `lodNear` cleared published fars from the cone while those nears were still
+  queued, and `draw` / `recount` then submitted only the chunks that remained.
+  The live total is the mesh on screen. A published far stays in the cone, and
+  is not evicted, until its near replacement is published. The host street is
+  eight chunks: 96 draws at the card, still 96 after the walk, with a near read
+  queued and every lod unchanged (`blob:` lines). This host cannot say the
+  Azahar 2100 view stays at 70 draws.
+- `ModelStaging::pump` copies and flushes vertices and indices in 64 KB slices,
+  same as textures, and returns after allocating the buffers so the copy is not
+  in that call. A tick that does not move during memcpy still ends the pump
+  after one 64 KB slice; `Zone::update` then spends no more of the 10 ms budget
+  that frame. The hitch log threshold is 50 ms (`prof: hitch`). This host cannot
+  time the post-card frame on Azahar.
+- Sign rank is letter-batch count times projected area, divided by draws. The
+  denser sign is upgraded first; a second sign is upgraded only if it still
+  fits 130 draws and the retain cap. The host crowd is now lods 0/0/1/0 (32
+  draws): the large sign and the closer small sign, not only the large one.
+  The landmark fixture is a close building with one decal and a farther
+  all-letter sign under an 80-byte texture cap: lods 0/1/0, the far sign near,
+  17 draws, 64 bytes of texture. Donald's Dock was not remeasured.
+- Both caps apply to the submitted set. `keepNear` requires the 15k triangle
+  cap as well as 150 draws. `recount` and `draw` skip a chunk that would pass
+  either cap, and they do not submit a v2 chunk the plan dropped. The host tri
+  fixture is 10 draws / 12,000 tris near: the second chunk stays far (lods
+  0/1, 11 draws, 12,001 tris). `zone_test` matches `2000.tz`, `1000.tz` and
+  `2100.tz` by path suffix, so `12000.tz` no longer takes the hall camera, and
+  the 2100 check includes `street_far`. Those files are not in this tree.
+- A choice-0 chunk outside the card reads its near mesh only. A chunk that
+  already has a read in flight is not queued at the other lod. The host once
+  fixture queues 3 reads (cell near, tail near, card far) and one more after
+  the card far publishes (the card's near). The overlap fixture is unchanged:
+  the distant card chunk still reads far first (`queued 2`).
+
+## 2026-10-31 — Round 11 streaming (host / devkitARM only)
+
+Branch `cursor/cone-card-bytes-0b72`. **No Azahar run** in this pass.
+
+```
+DEVKITPRO=/opt/devkitpro DEVKITARM=/opt/devkitpro/devkitARM nice -n 19 make -j4
+g++ -std=c++17 -Wall -Wextra -Werror -fno-rtti -fno-exceptions -fsanitize=address,undefined -I source \
+  -o /tmp/retain_test tools/zone_test/retain_test.cpp source/world/zone.cpp \
+  source/world/collision.cpp && /tmp/retain_test
+```
+
+`make -j4` linked `toontown3ds.3dsx` with zero warnings in `source/`.
+
+`/tmp/retain_test` (when built on a host with libstdc++):
+
+```
+jump: card draws 128 floor 102
+jump: min draws 128 after replan
+once: queued 3
+blob: card draws 96 resident 8
+blob: after walk draws 96 queued 12
+```
+
+Round 11 changes: far stand-ins stay in-cone through replan until near publish;
+choice-0 reads far-first outside cell/`lodMust`; ~2 s eviction pin on planned
+chunks and in-flight reads; recount/draw admit near before far (stand-ins before
+generic far under 150 draws); Old signPick chunks get `setTextureLodBias(-1)`;
+8 ms upload budget and two publishes per update; `run.py` no longer requires
+three floor walk points.
+
+
+## 2026-11-02 - 3ds-toons lane round 3 (Azahar headless, Old + New 3DS)
+
+Branch `claude/3ds-toons-interiors` (PR #11). Local server on port 31300. Azahar via
+the lane's headless scripts (Xvfb, null audio). Emulator timing only; no hardware run.
+
+| Run | Model | Result | fps (last stats) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Full Make-a-Toon, Toontorial, TTC (tut3_old) | Old | flow complete, no faults or PARSE lines | 29.9 | 3329K / 15778K / 4194K |
+| Same (tut3_new) | New | flow complete; Tom's angry, sad and surprised eyes seen | 29.9 | 3328K / 15778K / 4194K |
+| Interiors, 47 poses (int1/int2_new) | New | every room type matches the Old sweep; sign lettering correct | 29.9 | 1819K / 18849K / 4194K |
+| GUI sweep, 59 steps (gui_new) | New | tabs, SpeedChat, every book page, quest posters | 29.9 | 3451K / 14125K / 4194K |
+| Cog showcase, 32 types + splats (cogs_new) | New | splat colours right; most heads missing (cache bug, fixed in 772cb18) | 29.9 | 2195K / 14571K / 4194K |
+| Cog showcase after 772cb18 (cogs2_old) | Old | all 32 types with heads, eviction logged | 29.9 | 2195K / 14679K / 4194K |
+| Toon showcase, 34 heads (toons_old/new, toons2_old) | Old + New | every species with its DNA clothes | 25-27 while loading | 2207K / 14669K / 4194K |
+
+Fixed this round: QuestPoster art, Cog-death explosion flipbook, squirt hit splat, white
+splat bake, Cog head and clip cache eviction. The Cog showcase draws 141-150 draws and
+16.5k triangles with 4 Cogs plus all splats in view (test-only load above the envelope).
+
+## 2026-11-02 - 3ds-toons lane round 4 (Azahar headless, Old + New 3DS)
+
+Branch `claude/3ds-toons-interiors` (PR #11) at 7a9e1b5 (merge of origin/feature/3ds-visual-fixes 3433d79).
+Local server on port 31300, zone data from lane B's current bake. Emulator timing only; no hardware run.
+
+| Run | Model | Result | fps (last stats) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Online interiors with the AI's NPCs, 20 poses (npc_old) | Old | every TTC room type plus MM, DL and DD rooms; every clerk, HQ officer and Toon Hall NPC present with nametag, DNA colours and clothes | 29.9 | 3098K / 16844K / 4194K |
+| Same (npc_new) | New | matches Old view for view | 29.9 | |
+| Full Make-a-Toon, Toontorial, TTC (tut5_old) | Old | flow complete, no faults or PARSE lines | 29.9 | 3329K / 14835K / 4194K |
+| Same (tut5_new) | New | flow complete, no faults | 29.9 | 3330K / 14835K / 4194K |
+| Cog showcase, 32 types (cogs3_new, r3w build) | New | every type with its head after 772cb18 | 29.9 | 2195K / 14678K / 4194K |
+| Fishing (fish2_old / fish2_new, r3w build) | Old + New | cast, bite, catch card, bucket and jar art | 29.0 | 3451K / 13672K / 4194K |
+| Toon showcase close, 34 heads (toons2_new) | New | every species with DNA colours and clothes; grey default body only for about 1 s while parts load | 29.9 | |
+
+Not changed this round: no code fix was needed. Open: no hardware run; expression muzzles are not swapped (no QuestScript uses them).

@@ -2,10 +2,11 @@
 """Bake Chip 'n Dale golf holes into compact TTM models and a runtime manifest.
 
 The stock game has 36 HoleInfo entries but reuses the 18 terrain models for
-alternate layouts. Each entry gets its own manifest record so the runtime can
-honor par/max-swing/blocker selection without parsing Panda assets.
+alternate layouts with different blockers. Each entry bakes its own hole_<id>.ttm
+(only its blockers, the barrier geoms hidden, as GolfHoleBase) and manifest record.
 """
 import argparse
+import ast
 import json
 import os
 import sys
@@ -16,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from panda3d.core import Filename, loadPrcFileData, Point3
 from direct.showbase.ShowBase import ShowBase
 
+import assemble
 import extract
 import ttm
 
@@ -24,18 +26,6 @@ ROOT = Path(__file__).resolve().parents[2]
 RESOURCES = next((p for p in (ROOT / "ref" / "resources", ROOT / "ref" / "ref" / "resources")
                   if (p / "phase_6").exists()), ROOT / "ref" / "resources")
 OUT_DEFAULT = ROOT / "sdmc-out" / "3ds" / "toontown3ds" / "data" / "golf"
-
-HOLES = [
-    (0, 3, 6, 18), (1, 3, 6, 1), (2, 3, 6, 2), (3, 2, 6, 3),
-    (4, 3, 6, 4), (5, 3, 6, 2), (6, 3, 6, 6), (7, 3, 6, 7),
-    (8, 3, 6, 8), (9, 3, 6, 9), (10, 3, 6, 10), (11, 3, 6, 11),
-    (12, 3, 6, 12), (13, 3, 6, 13), (14, 3, 6, 14), (15, 3, 6, 15),
-    (16, 3, 6, 16), (17, 3, 6, 17), (18, 3, 6, 18), (19, 3, 6, 1),
-    (20, 3, 6, 2), (21, 3, 6, 3), (22, 3, 6, 4), (23, 3, 6, 5),
-    (24, 3, 6, 6), (25, 3, 6, 7), (26, 3, 6, 8), (27, 3, 6, 9),
-    (28, 3, 6, 10), (29, 3, 6, 11), (30, 3, 6, 12), (31, 4, 7, 13),
-    (32, 3, 6, 14), (33, 3, 6, 15), (34, 3, 6, 16), (35, 4, 7, 17),
-]
 
 
 def locator(model, name, fallback):
@@ -46,40 +36,84 @@ def locator(model, name, fallback):
     return [round(float(p.x), 3), round(float(p.y), 3), round(float(p.z), 3)]
 
 
+def load_hole_info(resources):
+    """GolfGlobals.HoleInfo, read from the pinned upstream source."""
+    golf_globals = Path(resources).parent / "open-toontown" / "toontown" / "golf" / "GolfGlobals.py"
+    for node in ast.walk(ast.parse(golf_globals.read_text())):
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "HoleInfo" for t in node.targets):
+            return ast.literal_eval(node.value)
+    raise ValueError("HoleInfo not found in %s" % golf_globals)
+
+
+def apply_blockers(model, info):
+    """DistributedGolfHole.loadBlockers without golf-all-blockers: hardSurface's locator1,
+    locator2, ... (up to the first gap) keep their children when the hole lists them and are
+    removed otherwise. Returns the kept numbers."""
+    keep = info.get("blockers", ())
+    keep = {keep} if isinstance(keep, int) else set(keep)
+    hard = model.find("**/hardSurface")
+    num = 1
+    while not hard.isEmpty():
+        loc = hard.find("**/locator%d" % num)
+        if loc.isEmpty():
+            break
+        if num in keep:
+            loc.getChildren().wrtReparentTo(loc.getParent())
+        else:
+            loc.removeNode()
+        num += 1
+    return sorted(keep)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(OUT_DEFAULT))
     ap.add_argument("--resources", default=str(RESOURCES))
+    ap.add_argument("--equipment-only", action="store_true", help="only golf_cart3 / putter")
     args = ap.parse_args()
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     loadPrcFileData("", "window-type none\naudio-library-name null\ntextures-power-2 none")
     base = ShowBase()
     records = []
-    baked = {}
-    for hole_id, par, max_swing, model_id in HOLES:
-        if model_id not in baked:
-            path = Path(args.resources) / "phase_6" / "models" / "golf" / ("hole%d.bam" % model_id)
-            model = base.loader.loadModel(Filename.fromOsSpecific(str(path)))
-            ex = extract.Extractor(max_tex=128)
-            ex.add(model)
-            stats = ttm.write(str(out / ("hole%d.ttm" % model_id)), ex.textures, ex.batches())
-            baked[model_id] = {"stats": stats, "tee": locator(model, "tee0", [0, 0, 0.25]),
-                               "cup": locator(model, "holebottom0", [0, 15, 0.25])}
-            model.removeNode()
-        rec = {"id": hole_id, "par": par, "maxSwing": max_swing, "model": "hole%d.ttm" % model_id,
-               "physics": "golfGreen%d" % model_id, "tee": baked[model_id]["tee"],
-               "cup": baked[model_id]["cup"], "blockers": []}
-        records.append(rec)
+    # GolfGlobals.HoleInfo: each of the 36 holes names its terrain model and the blocker
+    # locators GolfHoleBase.loadBlockers keeps (the others are removed). Several holes share a
+    # terrain with different blockers, so every hole bakes its own hole_<id>.ttm.
+    hole_info = {} if args.equipment_only else load_hole_info(args.resources)
+    for hole_id in sorted(hole_info):
+        info = hole_info[hole_id]
+        model = base.loader.loadModel(Filename.fromOsSpecific(str(Path(args.resources) / info["terrainModel"])),
+                                      noCache=True)
+        keep = apply_blockers(model, info)
+        # GolfHoleBase: the collision? barrier geoms are hidden (golfBarrier.hide()).
+        for barrier in model.findAllMatches("**/collision?"):
+            barrier.stash()
+        # The holes' golf_flowers and tree sprites are BillboardEffect cards (frozen, edge-on sticks).
+        assemble.cross_billboards(model)
+        ex = extract.Extractor(max_tex=128)
+        ex.add(model)
+        name = "hole_%d.ttm" % hole_id
+        stats = ttm.write(str(out / name), ex.textures, ex.batches())
+        model_id = int(Path(info["terrainModel"]).stem[len("hole"):])
+        records.append({"id": hole_id, "par": info["par"], "maxSwing": info["maxSwing"], "model": name,
+                        "physics": info["physicsData"], "terrain": model_id,
+                        "tee": locator(model, "tee0", [0, 0, 0.25]),
+                        "cup": locator(model, "holebottom0", [0, 15, 0.25]),
+                        "blockers": keep, "triangles": stats["triangles"]})
+        model.removeNode()
     for name in ("golf_cart3", "putter"):
         path = Path(args.resources) / "phase_6" / "models" / "golf" / (name + ".bam")
         model = base.loader.loadModel(Filename.fromOsSpecific(str(path)))
-        ex = extract.Extractor(max_tex=128)
+        # DistributedGolfKart.setColor: main_body takes the AI's colour (setColor replaces
+        # vertex colour: tint slot 1), cart_base a paler colour scale of it (slot 2).
+        tints = [("main_body", 1), ("cart_base", 2)] if name == "golf_cart3" else []
+        ex = extract.Extractor(max_tex=128, tint_rules=tints)
         ex.add(model)
         ttm.write(str(out / (name + ".ttm")), ex.textures, ex.batches())
         model.removeNode()
-    (out / "holes.json").write_text(json.dumps({"version": 1, "holes": records}, sort_keys=True, indent=2) + "\n")
-    print(json.dumps({"holes": len(records), "models": len(baked), "equipment": 2, "out": str(out)}))
+    if not args.equipment_only:
+        (out / "holes.json").write_text(json.dumps({"version": 1, "holes": records}, sort_keys=True, indent=2) + "\n")
+    print(json.dumps({"holes": len(records), "equipment": 2, "out": str(out)}))
 
 
 if __name__ == "__main__":

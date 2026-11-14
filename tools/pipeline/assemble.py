@@ -72,6 +72,7 @@ class Assembler:
         self.skipped = Counter()      # feature -> count
         self.wall_height = 0.0
         self.billboards_crossed = 0
+        self.lods_reduced = 0
         self.sign_letters = 0
         self.sign_baselines = 0
 
@@ -140,6 +141,9 @@ class Assembler:
         np_.setColorScale(d.vec('color', WHITE))
         if d.kind != 'prop':
             np_.setTag('DNAAnim', str(d.get('anim', '')))
+        if d.kind != 'prop' or np_.getName().startswith('animated_prop_'):
+            # anim_props: Dreamland's SleepingHydrantAnimatedProp node holds prop_DL_hydrant.
+            np_.setTag('DNACode', code)
         self._children(d, np_)
         return np_
 
@@ -186,11 +190,33 @@ class Assembler:
         o = np_.find('**/*sign_origin')
         if not o.isEmpty():
             o.removeNode()
+        # Toon HQs carry their own doors (door_N: leftDoor_N, rightDoor_N, door_flat_N with the
+        # doorFrameHole decals). Closed, DistributedDoor shows only the flat's painted doors:
+        # hideIfHasFlat hides the leaves and the black holes appear only while a door is open.
+        # Baking them visible gave every Toon HQ two black doorways.
+        for h in np_.findAllMatches('**/doorFrameHole*'):
+            h.hide()
+        for flat in np_.findAllMatches('**/door_flat_*'):
+            for leaf in flat.getParent().findAllMatches('leftDoor_*') + flat.getParent().findAllMatches('rightDoor_*'):
+                leaf.hide()
         return np_
 
     def _t_anim_building(self, d, parent):
-        self.skipped['anim_building'] += 1
-        return None
+        # Silly Street's Toontown Sign Factory (tt_r_ara_ttc_B2): a landmark whose model is a
+        # Character. GenericAnimatedBuilding only poses it ('buildings-animate' is off), so it
+        # stands still; the bind pose is what the static model shows. Its door is part of the
+        # model (no DNA door), and write_points takes the door anchor from its door_origin.
+        src = self._find(d.get('code', ''))
+        if src is None:
+            return None
+        np_ = src.copyTo(parent)
+        np_.setName(d.name or 'anim_building')
+        np_.setPosHprScale(d.vec('pos', (0, 0, 0)), _hpr(d), d.vec('scale', (1, 1, 1)))
+        self._children(d, np_)
+        o = np_.find('**/*sign_origin')
+        if not o.isEmpty():
+            o.removeNode()
+        return np_
 
     @staticmethod
     def _decal_base(parent, patterns):
@@ -460,17 +486,51 @@ def cross_billboards(root):
 
     The extra copy is named ``<name>__bbx`` and both are tagged ``billboard=1`` so a
     future runtime billboard path can find them. Returns the number converted.
+
+    The effect may sit on any node, not only a GeomNode: Acorn Acres' 121 golf_flowers
+    sprites carry it on a PandaNode above their card, so they baked frozen at one
+    heading and read as edge-on sticks. The topmost billboard node of a subtree is
+    crossed (a nested one, like each gag shop's chimney inside o26, goes with it).
     """
+    kind = BillboardEffect.getClassType()
     count = 0
-    for gnp in root.findAllMatches('**/+GeomNode'):
-        if not gnp.node().getEffect(BillboardEffect.getClassType()):
+    done = []
+    for gnp in root.findAllMatches('**'):
+        if not gnp.node().getEffect(kind) or any(d.isAncestorOf(gnp) for d in done):
             continue
-        gnp.node().clearEffect(BillboardEffect.getClassType())
+        gnp.node().clearEffect(kind)
+        for sub in gnp.findAllMatches('**'):
+            sub.node().clearEffect(kind)
         gnp.setTwoSided(True)
         gnp.setTag('billboard', '1')
         x = gnp.copyTo(gnp.getParent())
         x.setName(gnp.getName() + '__bbx')
         x.setMat(Mat4.rotateMat(90, Vec3(0, 0, 1)) * gnp.getMat())
+        done.append(gnp)
+        count += 1
+    return count
+
+
+def keep_near_lod(root):
+    """Stashes every LODNode child except the highest-detail one (the switch nearest the camera).
+
+    The bake walks every GeomNode, so a model with a LODNode baked all of its levels on top of
+    each other: the trolley station in every playground and each TTC street's animated
+    hydrant, mailbox and trash can (tt_r_ara_ttc_*: high/med/low, each with its own 0.5 alpha
+    drop shadow, so the shadows stacked to a near-black blob three times the triangles).
+    Upstream shows the high level up close; the far mesh is simplified from it anyway.
+    Returns the number of LODNodes reduced.
+    """
+    count = 0
+    for lnp in root.findAllMatches('**/+LODNode'):
+        lod = lnp.node()
+        n = min(lod.getNumSwitches(), lnp.getNumChildren())
+        if n < 2:
+            continue
+        keep = min(range(n), key=lambda i: lod.getOut(i))
+        for i, child in enumerate(list(lnp.getChildren())):
+            if i != keep:
+                child.stash()
         count += 1
     return count
 
@@ -480,6 +540,7 @@ def assemble(dna_root, storage, seed=1, name='dna', billboards='cross'):
     root = NodePath(PandaNode(name))
     asm = Assembler(storage, seed)
     asm.traverse(dna_root, root)
+    asm.lods_reduced = keep_near_lod(root)
     lift_decals(root)
     if billboards == 'cross':
         asm.billboards_crossed = cross_billboards(root)

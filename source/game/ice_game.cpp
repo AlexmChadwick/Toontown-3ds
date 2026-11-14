@@ -18,8 +18,12 @@ constexpr float kCameraPitchDeg = 62.89f;   // hpr P -62.89: looking down
 constexpr float kLookDistance = 50.0f;
 } // namespace
 
-bool IceGame::init(const char* root, int players, int slot) {
+bool IceGame::init(const char* root, int players, int slot, uint32_t doId, uint32_t hood) {
     sim_.init(players);
+    rng_.initGenrand(doId); // DistributedMinigame.randomNumGen = RandomNumGen(self.doId)
+    hood_ = hood;
+    numTreasures_ = numPenalties_ = 0;
+    setupMatch_ = -1;
     slot_ = (slot >= 0 && slot < 4) ? slot : 0;
     state_ = State::Aiming;
     aimAngle_ = 45.0f;
@@ -35,6 +39,14 @@ bool IceGame::init(const char* root, int players, int slot) {
     assetBatch_.load(tireModel_, path);
     std::snprintf(path, sizeof(path), "%s/ice_score_circle.ttm", root);
     assetBatch_.load(scoreCircleModel_, path);
+    std::snprintf(path, sizeof(path), "%s/ice_barrel.ttm", root);
+    assetBatch_.load(barrelModel_, path);
+    std::snprintf(path, sizeof(path), "%s/ice_tnt.ttm", root);
+    assetBatch_.load(tntModel_, path);
+    // IceGameGlobals.ObstacleShapes: crates in TTC / DD / DG / MM, tire stacks in BR / DL.
+    cubicObstacles_ = !(hood == 3000 || hood == 9000);
+    std::snprintf(path, sizeof(path), "%s/%s.ttm", root, cubicObstacles_ ? "ice_crate" : "ice_tirestack");
+    assetBatch_.load(obstacleModel_, path);
 
     return true;
 }
@@ -45,6 +57,57 @@ void IceGame::shutdown() {
     backdropModel_.unload();
     tireModel_.unload();
     scoreCircleModel_.unload();
+    barrelModel_.unload();
+    tntModel_.unload();
+    obstacleModel_.unload();
+}
+
+void IceGame::setupStartOfMatch() {
+    // IceGameGlobals.NumTreasures / NumPenalties / Obstacles by hood (MinWall -20, -15; MaxWall 20, 15).
+    int nt = 2, np = 0;
+    struct P { float x, y; };
+    static constexpr P kDD[] = {{0, 0}}, kDG[] = {{-10, 0}, {10, 0}}, kMM[] = {{0, -7.5f}, {0, 7.5f}},
+                       kBR[] = {{-10, 0}, {10, 0}, {0, -7.5f}, {0, 7.5f}},
+                       kDL[] = {{-10, -7.5f}, {-10, 7.5f}, {10, -7.5f}, {10, 7.5f}};
+    const P* obstacles = nullptr;
+    int numObstacles = 0;
+    switch (hood_) {
+    case 1000: np = 1; obstacles = kDD; numObstacles = 1; break;
+    case 5000: np = 1; obstacles = kDG; numObstacles = 2; break;
+    case 4000: np = 1; obstacles = kMM; numObstacles = 2; break;
+    case 3000: nt = 1; np = 2; obstacles = kBR; numObstacles = 4; break;
+    case 9000: nt = 1; np = 2; obstacles = kDL; numObstacles = 4; break;
+    default: break;
+    }
+    // RandomNumGen.randrange(start, stop) = start + __rand(stop - start), __rand(N) =
+    // (Mersenne.getUint31() * N) >> 31.
+    auto randrange = [this](int start, int stop) {
+        const uint64_t u31 = rng_.gen32() >> 1;
+        return start + int((u31 * uint64_t(stop - start)) >> 31);
+    };
+    constexpr float kMargin = icegame::kTireRadius + 1.0f; // treasureMargin
+    auto clear = [&](float x, float y, const Item* list, int n) {
+        for (int i = 0; i < n; ++i)
+            if (std::hypot(x - list[i].x, y - list[i].y) < kMargin) return false;
+        return true;
+    };
+    auto place = [&](Item* list, int* count, int want) {
+        *count = 0;
+        while (*count < want && *count < kMaxItems) {
+            const float x = float(randrange(-15, 15)), y = float(randrange(-10, 10));
+            bool good = true;
+            for (int i = 0; i < numObstacles && good; ++i)
+                good = std::hypot(x - obstacles[i].x, y - obstacles[i].y) >= kMargin;
+            good = good && clear(x, y, treasures_, numTreasures_) && clear(x, y, list, *count);
+            if (good) list[(*count)++] = {x, y, false};
+        }
+    };
+    sim_.numObstacles = numObstacles < icegame::kMaxObstacles ? numObstacles : icegame::kMaxObstacles;
+    for (int i = 0; i < sim_.numObstacles; ++i)
+        sim_.obstacles[i] = {obstacles[i].x, obstacles[i].y, cubicObstacles_};
+    place(treasures_, &numTreasures_, nt);
+    place(penalties_, &numPenalties_, np);
+    setupMatch_ = sim_.curMatch;
 }
 
 void IceGame::onSetMatchAndRound(uint8_t match, uint8_t round) {
@@ -52,6 +115,7 @@ void IceGame::onSetMatchAndRound(uint8_t match, uint8_t round) {
     sim_.curMatch = match;
     sim_.curRound = round;
     state_ = State::Aiming;
+    if (round == 0 && setupMatch_ != match) setupStartOfMatch(); // enterInputChoice, curRound 0
 }
 
 void IceGame::onServer(net::EventType event, const net::Minigame& game) {
@@ -67,8 +131,15 @@ void IceGame::onServer(net::EventType event, const net::Minigame& game) {
         }
     } else if (event == net::EventType::IceScores) {
         for (int i = 0; i < game.iceScoreCount; ++i) sim_.scores[i] = game.iceScores[i];
+    } else if (event == net::EventType::IceTreasureGrabbed) {
+        if (game.iceGrabbedItem < uint32_t(numTreasures_)) treasures_[game.iceGrabbedItem].grabbed = true;
+    } else if (event == net::EventType::IcePenaltyGrabbed) {
+        if (game.iceGrabbedItem < uint32_t(numPenalties_)) penalties_[game.iceGrabbedItem].grabbed = true;
     } else if (event == net::EventType::IceNewState) {
-        if (!std::strcmp(game.iceState, "inputChoice")) state_ = State::Aiming;
+        if (!std::strcmp(game.iceState, "inputChoice")) {
+            state_ = State::Aiming;
+            if (sim_.curRound == 0 && setupMatch_ != sim_.curMatch) setupStartOfMatch();
+        }
         else if (!std::strcmp(game.iceState, "scoring")) {
             state_ = State::Scoring;
             scoreTimer_ = 0;
@@ -98,6 +169,19 @@ void IceGame::update(net::Client& client, const circlePosition& pad, u32 keysDow
         }
     } else if (state_ == State::Sliding) {
         sim_.stepPhysics(dt);
+        // toonHitSomething: our tire's sphere (TireRadius) meets an IceTreasure sphere (radius 1).
+        const icegame::Tire& mine = sim_.tires[slot_];
+        for (int pass = 0; pass < 2; ++pass) {
+            Item* list = pass ? penalties_ : treasures_;
+            const int n = pass ? numPenalties_ : numTreasures_;
+            for (int i = 0; i < n; ++i) {
+                if (list[i].grabbed || std::hypot(mine.x - list[i].x, mine.y - list[i].y) >= icegame::kTireRadius + 1.0f)
+                    continue;
+                list[i].grabbed = true;
+                if (pass) client.sendIceClaimPenalty(uint8_t(i));
+                else client.sendIceClaimTreasure(uint8_t(i));
+            }
+        }
         if (sim_.allTiresStopped()) {
             float positions[12] = {};
             for (int i = 0; i < sim_.numPlayers; ++i) {
@@ -124,6 +208,29 @@ void IceGame::draw(render::Renderer& renderer) {
     if (backdropModel_.loaded()) {
         Mtx_Identity(&world);
         renderer.drawModel(backdropModel_, world);
+    }
+
+    // The hood's obstacles: model at the spot with z 0 (createCubicObstacle / createCircularObstacle).
+    if (obstacleModel_.loaded()) {
+        for (int i = 0; i < sim_.numObstacles; ++i) {
+            Mtx_Identity(&world);
+            Mtx_Translate(&world, sim_.obstacles[i].x, sim_.obstacles[i].y, 0.0f, true);
+            renderer.drawModel(obstacleModel_, world);
+        }
+    }
+
+    // IceTreasure: the barrel / TNT copy at the spot, z 0, until grabbed (showGrab).
+    for (int pass = 0; pass < 2; ++pass) {
+        render::Model& m = pass ? tntModel_ : barrelModel_;
+        const Item* list = pass ? penalties_ : treasures_;
+        const int n = pass ? numPenalties_ : numTreasures_;
+        if (!m.loaded()) continue;
+        for (int i = 0; i < n; ++i) {
+            if (list[i].grabbed) continue;
+            Mtx_Identity(&world);
+            Mtx_Translate(&world, list[i].x, list[i].y, 0.0f, true);
+            renderer.drawModel(m, world);
+        }
     }
 
     // Every player's tire: the model's base sits on the rink (DistributedIceWorld.createTire

@@ -1,4 +1,6 @@
+#include "core/gpu_sync.h"
 #include "world/cog_interior.h"
+#include "world/elevator_text.h"
 
 #include <cstdio>
 #include <cstring>
@@ -46,7 +48,12 @@ void CogInterior::handleEvent(const net::Event& ev, net::Client& client, uint32_
     state_[sizeof(state_) - 1] = 0;
     if (newState) {
         TT_LOG("cog_interior: state %s floor %d", state_, floor_ + 1);
-        if (!strcmp(state_, "Reward")) TT_LOG("cog_interior: reward");
+        if (!strcmp(state_, "Reward")) {
+            victoryZone_ = i->extZoneId;
+            victoryBuilding_ = i->buildingDoId;
+            TT_LOG("cog_interior: reward, back to zone %u (building %u)", unsigned(victoryZone_),
+                   unsigned(victoryBuilding_));
+        }
         sentElevatorDone_ = false;
         sentReserveDone_ = false;
         elevatorRidePending_ = !strcmp(state_, "Elevator");
@@ -116,17 +123,19 @@ const net::CogElevator* CogInterior::elevator(const net::Client& client) const {
     const net::CogInterior* interior = client.cogInterior();
     for (int n = 0; n < net::kMaxCogElevators; ++n) {
         const net::CogElevator& e = client.cogElevatorSlot(n);
+        // DistributedElevatorIntAI(air, bldg=the interior): its setBldgDoId is the interior's doId.
         if (e.active && e.classId == dc::DistributedElevatorInt::kClassId &&
-            (!interior || !interior->buildingDoId || e.buildingDoId == interior->buildingDoId)) return &e;
+            (!interior || e.buildingDoId == interior->doId || e.buildingDoId == interior->buildingDoId))
+            return &e;
     }
     return nullptr;
 }
 
 bool CogInterior::accepting(const net::CogElevator& e) const {
-    // Elevator.py accepts only while its doors are open: waitEmpty or its
-    // countdown.  The server owns the slot limit and final transition.
-    return stateIs(e.state, "waitEmpty") || stateIs(e.state, "waitCountdown") ||
-           stateIs(e.state, "opening");
+    // DistributedElevator accepts its sphere only in waitEmpty and waitCountdown. Boarding
+    // while it is still opening leaves the AI unable to go opening -> allAboard, and the
+    // floor never starts. The server owns the slot limit and final transition.
+    return stateIs(e.state, "waitEmpty") || stateIs(e.state, "waitCountdown");
 }
 
 int CogInterior::countdown(const net::Client& client, uint32_t nowMs) const {
@@ -157,6 +166,8 @@ void CogInterior::update(net::Client& client, float x, float y, float z, uint32_
     const net::CogElevator* e = elevator(client);
     if (e) {
         elevatorDoId_ = e->doId;
+        if (strcmp(elevatorState_, e->state) != 0)
+            TT_LOG("cog_interior: elevator %lu state %s", static_cast<unsigned long>(e->doId), e->state);
         memcpy(elevatorState_, e->state, sizeof(elevatorState_) - 1);
         elevatorState_[sizeof(elevatorState_) - 1] = 0;
         elevatorStateStartMs_ = e->stateStartMs;
@@ -164,7 +175,7 @@ void CogInterior::update(net::Client& client, float x, float y, float z, uint32_
             seenReject_ = e->rejectSerial;
             if (e->rejectAvatar == client.avatarId()) {
                 requestedBoard_ = false;
-                message_ = e->rejectReason == 2 ? "You need more Laff points for this elevator." : "This elevator is full.";
+                message_ = elevatorRejectText(*e, rejectText_, sizeof(rejectText_));
                 TT_LOG("cog_interior: rejectBoard elevator %lu reason %u", static_cast<unsigned long>(e->doId), unsigned(e->rejectReason));
             }
         }
@@ -187,8 +198,10 @@ void CogInterior::update(net::Client& client, float x, float y, float z, uint32_
             const float cy = elevatorOut_.y + 5.0f * c;
             const float r = kSphereRadius + kToonRadius * 1.04f;
             const float dx = x - cx, dy = y - cy, dz = z + kToonRadius - 0.1f - elevatorOut_.z;
-            const bool inside = dx * dx + dy * dy + dz * dz < r * r;
-            if (inside && !inElevatorSphere_ && accepting(*e) && !requestedBoard_ &&
+            // The sphere only collides while the doors are open, so a toon already standing in
+            // it "enters" when the elevator starts accepting (Panda fires the enter event then).
+            const bool inside = dx * dx + dy * dy + dz * dz < r * r && accepting(*e);
+            if (inside && !inElevatorSphere_ && !requestedBoard_ &&
                 client.sendCogElevatorBoard(e->doId)) {
                 requestedBoard_ = true;
                 requestedBoardMs_ = nowMs;
@@ -338,7 +351,7 @@ void CogInterior::shutdown() {
     assetBatch_.clear();
     loadedFloor_ = -1;
     if (room_.loaded())
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     active_ = false;
     sentElevatorDone_ = false;
     sentReserveDone_ = false;

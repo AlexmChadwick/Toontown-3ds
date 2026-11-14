@@ -224,3 +224,13 @@ The boat assets/path header are unchanged by this task; retain the existing
 `1000_boat.ttm/.ttc`, boat path tables and Donald assets. See `streets.md` for
 combined mover memory/draw reservations. Only offline/host checks were run here;
 no make or Azahar run was permitted.
+
+## Pier runtime (2026-11-03)
+
+`BoatActor::setZone` loads both pier models and collision whenever the place is zone 1000
+(also with no DistributedBoat), and draws them at `T(pivot) * Rz(world H) * Rx(pitch)` with the
+table above: flat 0.25 at the docked side, raised -44.2601 otherwise, 5 s lerps seeked by the
+boat state clock; both raised with no boat. The six triangles of each pier are transformed with
+the full HPR into zone space when the pitch changes and reach the Player as `DynamicSolids`
+floor and wall callbacks (`pierSolids()`, used when no facility level supplies solids). Riders are
+not carried by a pitching ramp; the floor query re-snaps them each frame.

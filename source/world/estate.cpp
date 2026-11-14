@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/estate.h"
 #include <cstdio>
 namespace tt::world {
@@ -11,7 +12,7 @@ void Estate::unload() {
     bool resident=terrain_.loaded() || interior_.loaded();
     for(const auto& model:houses_) resident |= model.loaded();
     for(const auto& model:furniture_) resident |= model.loaded();
-    if(resident) C3D_FrameSync();
+    if(resident) ::tt::gpu::frameSync();
     assetBatch_.clear();
     terrain_.unload(); interior_.unload();
     for (auto& m : houses_) m.unload();

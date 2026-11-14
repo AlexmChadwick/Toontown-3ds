@@ -55,7 +55,12 @@ private:
     float toonZ_ = 0.0f;
     float toonH_ = 0.0f;
 
-    ringgame::RingGroupData rings_[ringgame::kNumRingGroups];
+    // __generateRings at the game start: one RingGroup per 16, a ring per player.
+    ringgame::RingTrackGroup groups_[ringgame::kNumRingGroups];
+    int colorIndices_[ringgame::kMaxRings] = {0, 1, 2, 3};
+    uint32_t gameStartMs_ = 0; // __ringTimeBase (0 until setGameStart)
+    uint32_t passedMs_[ringgame::kNumRingGroups] = {};
+    float ringT(uint32_t nowMs) const { return float(int32_t(nowMs - gameStartMs_)) / 1000.0f; }
     bool groupPassed_[ringgame::kNumRingGroups] = {};
     bool groupHit_[ringgame::kNumRingGroups] = {};
 

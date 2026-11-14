@@ -1,6 +1,6 @@
 """Local test server only (AI_DEV=1 tools/server/start.sh): relax the AI's entry checks so a
 fresh test toon can reach Cog buildings, facilities and boss elevators, and give it full laff
-and a full gag bag (AI_DEV_STRONG=1: 137 laff, every gag track and 6000 exp, for long fights such
+and a full gag bag (AI_DEV_FISH=1: a few fish in the album; AI_DEV_STRONG=1: 137 laff, every gag track and 6000 exp, for long fights such
 as the factory foreman; AI_DEV_WEAK_COGS=1: every cog spawns, and revives, with 1 HP, to reach the end of a facility).
 Never used unless AI_DEV is set; ref/ (upstream) stays untouched: this
 patches classes in memory, then runs the stock toontown.ai.AIStart."""
@@ -50,6 +50,19 @@ def _patch(name, mod):
                 self.b_setExperience(self.experience.makeNetString())
                 self.inventory.maxOutInv(filterUberGags=1)
                 self.b_setInventory(self.inventory.makeNetString())
+                if os.environ.get('AI_DEV_SUITS') == '1':
+                    # AI_DEV_SUITS=1 (none: no parts): every department's Cog disguise complete, so the locked Cog HQ
+                    # lobby doors let the Toon in (DistributedCogHQDoorAI.requestEnter).
+                    from toontown.coghq import CogDisguiseGlobals
+                    self.b_setCogParts(list(CogDisguiseGlobals.PartsPerSuitBitmasks))
+                elif os.environ.get('AI_DEV_SUITS') == 'none':  # no disguise parts (locked lobby doors)
+                    self.b_setCogParts([0, 0, 0, 0])
+                if os.environ.get('AI_DEV_FISH') == '1' and self.fishCollection is not None and not len(self.fishCollection):
+                    # AI_DEV_FISH=1: 22 album entries (every species of the Balloon, Cat, Star and
+                    # Puppy Dog Fish, a Cutthroat Trout, a Devil Ray): two fishing trophy levels.
+                    genera = [0] * 5 + [2] * 5 + [8] * 5 + [12] * 5 + [28, 34]
+                    species = list(range(5)) * 4 + [0, 0]
+                    self.b_setFishCollection(genera, species, [20 + i for i in range(len(genera))])
             except Exception as e:  # never break the district for a test convenience
                 print('ai_dev: could not top up toon %s: %s' % (self.doId, e))
         mod.DistributedToonAI.announceGenerate = announceGenerate
@@ -84,6 +97,11 @@ def _patch(name, mod):
             # Boss rounds generate both active and deferred reserve Cogs. Clamp
             # at this boundary, after planner setup, and include maxHP: battle
             # reserve thresholds and revives also consult it, not just currHP.
+            # In AI_DEV_WEAK_COGS mode, clear deferred reserves so test runs
+            # can smoothly reach the later boss battle phases (Pie round, Crane round).
+            for entry in result['reserveSuits']:
+                entry[0].requestDelete()
+            result['reserveSuits'] = []
             suits = list(result['activeSuits'])
             suits.extend(entry[0] for entry in result['reserveSuits'])
             for suit in suits:
@@ -95,6 +113,35 @@ def _patch(name, mod):
         cls.generateSuits = generateSuits
     # ---- cogdo local test switches; production AI remains unchanged ----
     elif name == 'toontown.building.DistributedBuildingAI':
+        # AI_DEV_SUITBLDG="2100:69:s:2,2100:10:c,2100:59:f": take these blocks over for Cog
+        # buildings (zone:block:dept[:floors]; dept f: a Sellbot field office) 5 s after they
+        # start, to look at the street exterior.
+        takeovers = {}
+        for item in filter(None, os.environ.get('AI_DEV_SUITBLDG', '').split(',')):
+            fields = item.split(':')
+            takeovers[(int(fields[0]), int(fields[1]))] = (fields[2], int(fields[3]) - 1 if len(fields) > 3 else None)
+        if takeovers:
+            plain = mod.DistributedBuildingAI.enterToon
+
+            def enterToonSuit(self, *args):
+                plain(self, *args)
+                spec = takeovers.pop((self.canonicalZoneId - self.canonicalZoneId % 100, self.block), None)
+                if spec is None:
+                    return
+
+                def takeOver(task):
+                    if not self.isDeleted() and self.isToonBlock() and spec[0] == 'f':
+                        self.cogdoTakeOver('s', 0, 1)
+                        print('ai_dev: field office takeover zone %s block %s' % (self.zoneId, self.block), flush=True)
+                    elif not self.isDeleted() and self.isToonBlock():
+                        self.suitTakeOver(spec[0], 0, spec[1])
+                        print('ai_dev: suit takeover zone %s block %s dept %s' % (self.zoneId, self.block, spec[0]), flush=True)
+                    return task.done
+                import builtins
+                manager = getattr(mod, 'taskMgr', getattr(builtins, 'taskMgr', None))
+                if manager is not None:
+                    manager.doMethodLater(5, takeOver, self.uniqueName('suit-dev-takeover'))
+            mod.DistributedBuildingAI.enterToon = enterToonSuit
         if os.environ.get('AI_DEV_COGDO') != '1':
             return
         original = mod.DistributedBuildingAI.enterToon

@@ -15,6 +15,8 @@ constexpr int kMaxTreasures = 16;
 // OTPGlobals.ToonForwardSpeed (16) and ToonRotateSpeed (80 degrees per second), ToonSpeedFactor 1.
 constexpr float kToonForwardSpeed = 16.0f;
 constexpr float kToonRotateSpeed = 80.0f;
+// OTPGlobals.ToonReverseSpeed: DistributedTagGame raises only the forward and rotate speeds.
+constexpr float kToonReverseSpeed = 8.0f;
 // DistributedTagGame.IT_SPEED_INCREASE and IT_ROT_INCREASE, applied while the local toon is IT.
 constexpr float kItSpeedIncrease = 1.3f;
 constexpr float kItRotIncrease = 1.3f;
@@ -54,6 +56,7 @@ struct Simulation {
     // DistributedTagGame.setIt: the AI decides IT and broadcasts it, so the client adopts it.
     void setIt(uint32_t avId) { itAvId = avId; }
     bool grabTreasure(int index);
+    bool addTreasure(float x, float y);
 };
 
 // A walking toon in arena coordinates. Heading uses the port's convention: forward is (-sin h, cos h).
@@ -70,6 +73,9 @@ float headingTo(float fromX, float fromY, float toX, float toY);
 // the forward speed times throttle (0 to 1, the stick magnitude) while facing within 90 degrees of
 // wantH. IT scales both speeds. Stays in the arena.
 void stepWalker(Walker& w, float throttle, float wantH, bool isIt, float dt);
+// One frame of the player's walk (walkStateData, tank controls as everywhere else): move is +1
+// forward / -1 reverse, turn is +1 left / -1 right (0 for neither).
+void stepTank(Walker& w, float move, float turn, bool isIt, float dt);
 
 // Autoplay throttle: eases off near the goal and while the toon still faces away from it
 // (cos of the heading error), so it turns onto the goal instead of orbiting past it.

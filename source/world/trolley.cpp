@@ -1,4 +1,7 @@
+#include "core/gpu_sync.h"
 #include "world/trolley.h"
+#include "ui/balloons.h"
+#include "render/ui_font.h"
 #include "world/toon_avatar.h"
 
 #include <cmath>
@@ -41,7 +44,7 @@ void TrolleyRide::setZone(u32 zoneId) {
         px_ = s.x, py_ = s.y, pz_ = s.z, ph_ = s.h;
         sphereY_ = s.hood == 5000 ? 13.88f : 14.88f;
     }
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     car_.unload();
     if (has_) {
         char path[80];
@@ -77,6 +80,8 @@ void TrolleyRide::draw(render::Renderer& renderer, const net::Client& client, u3
     if (!has_ || !car_.loaded()) return;
     bool visible;
     carPos(client, nowMs, &carX_, &carY_, &carZ_, &visible);
+    const net::Trolley* t = client.trolley();
+    leaveSec_ = t && t->state == net::TrolleyState::Leaving ? static_cast<s32>(nowMs - t->stateStartMs) / 1000.0f : -1.0f;
     if (!visible) return;
     float wx, wy, wz;
     toWorld(carX_, carY_, carZ_, &wx, &wy, &wz);
@@ -109,13 +114,52 @@ void TrolleyRide::exitPose(int seat, float* x, float* y, float* z, float* h) con
 }
 
 void TrolleyRide::camera(C3D_FVec* eye, C3D_FVec* target) const {
-    // Trolley.py enterTrolley: camera at (-35, 0, 8) relative to the car, H -90 (looking at it).
+    // Trolley.py: enterBoarding puts the camera (parented to the car) at (-35, 0, 8), H -90, level;
+    // enterTrolleyLeaving eases it to (0, 18.55, 3.75), H -180, over 3 s while the car pulls out.
+    float cx = -35.0f, cy = 0.0f, cz = 8.0f, h = -90.0f;
+    if (leaveSec_ >= 0.0f) {
+        float f = leaveSec_ / 3.0f;
+        f = f < 0 ? 0 : f > 1 ? 1 : f;
+        f = f * f * (3.0f - 2.0f * f); // easeInOut
+        cx += (0.0f - cx) * f, cy += (18.55f - cy) * f, cz += (3.75f - cz) * f, h += (-180.0f - h) * f;
+    }
+    const float fx = -sinf(h * kDegToRad), fy = cosf(h * kDegToRad); // Panda H forward, car space
+    // Car space is rotated H 90 in the station: car-space (x, y) is station (-y, x) from the car.
     float ex, ey, ez, tx, ty, tz;
-    // Car-space (-35, 0, 8) is station (0, -35, 8) from the car (car H 90).
-    toWorld(carX_, carY_ - 35.0f, carZ_ + 8.0f, &ex, &ey, &ez);
-    toWorld(carX_, carY_, carZ_ + 4.0f, &tx, &ty, &tz);
+    toWorld(carX_ - cy, carY_ + cx, carZ_ + cz, &ex, &ey, &ez);
+    toWorld(carX_ - (cy + fy * 10.0f), carY_ + (cx + fx * 10.0f), carZ_ + cz, &tx, &ty, &tz);
     *eye = FVec3_New(ex, ey, ez);
     *target = FVec3_New(tx, ty, tz);
+}
+
+void TrolleyRide::draw2D(const net::Client& client, const C3D_Mtx& proj, const C3D_Mtx& view, u32 nowMs) {
+    const net::Trolley* t = client.trolley();
+    if (!has_ || !t || t->state != net::TrolleyState::WaitCountdown) return;
+    // timerTask: str(int(duration - elapsed)), starting from '10'.
+    const float left = kCountdownSec - static_cast<s32>(nowMs - t->stateStartMs) / 1000.0f;
+    const int secs = left > 0.0f ? static_cast<int>(left) : 0;
+    if (!clockBuf_) clockBuf_ = C2D_TextBufNew(16);
+    if (!clockBuf_) return;
+    if (secs != clockShown_) {
+        char text[8];
+        snprintf(text, sizeof(text), "%d", secs);
+        C2D_TextBufClear(clockBuf_);
+        render::textParseSign(&clockText_, clockBuf_, text);
+        C2D_TextOptimize(&clockText_);
+        clockShown_ = secs;
+    }
+    constexpr float kScale = 3.02f, kFontLinePx = 30.0f, kBaseline = 0.8f; // render/ui_font.h line height
+    float wx, wy, wz, sx, sy, depth, ux, uy;
+    toWorld(15.86f, 13.82f, 11.68f, &wx, &wy, &wz);
+    if (!ui::projectToScreen(proj, view, wx, wy, wz, &sx, &sy, &depth, 300.0f) || depth <= 0.0f) return;
+    if (!ui::projectToScreen(proj, view, wx, wy, wz + kScale, &ux, &uy, nullptr, 400.0f)) return;
+    const float linePx = std::sqrt((ux - sx) * (ux - sx) + (uy - sy) * (uy - sy));
+    if (linePx < 2.0f) return;
+    const float scale = linePx / kFontLinePx;
+    float w = 0.0f;
+    C2D_TextGetDimensions(&clockText_, scale, scale, &w, nullptr);
+    C2D_DrawText(&clockText_, C2D_WithColor, sx - w * 0.5f, sy - kBaseline * kFontLinePx * scale, 0.5f, scale, scale,
+                 C2D_Color32f(0.9f, 0.1f, 0.1f, 1.0f));
 }
 
 int TrolleyRide::countdown(const net::Client& client, u32 nowMs) const {
@@ -138,7 +182,7 @@ void TrolleyRide::update(net::Client& client, float x, float y, float z, int hp,
     if (requested_ && nowMs - requestMs_ > 5000) requested_ = false; // no answer: allow another try
     if (inside && !inSphere_ && waiting && !requested_ && z >= pz_ + kCarZ) {
         if (hp <= 0) {
-            message_ = "You need more Laff points to ride the trolley.";
+            message_ = "You may not board the trolley until your Laff meter is smiling."; // TrolleyHFAMessage
         } else if (client.sendTrolleyBoard()) {
             requested_ = true;
             requestMs_ = nowMs;
@@ -161,8 +205,7 @@ void TrolleyRide::handleEvent(const net::Event& ev, net::Client& client, u32 now
         if (ev.doId == me) {
             seat_ = ev.arg;
             seatSinceMs_=nowMs;
-            requested_ = false;
-            message_ = "All aboard! B hops off the trolley.";
+            requested_ = false; // Trolley.enterBoarded shows only the Hop off button (bottom panel)
             TT_LOG("trolley: seated in %d", seat_);
         }
         break;
@@ -174,8 +217,7 @@ void TrolleyRide::handleEvent(const net::Event& ev, net::Client& client, u32 now
         }
         break;
     case EventType::TrolleyReject:
-        requested_ = false;
-        message_ = "The trolley is full.";
+        requested_ = false; // Trolley.handleRejectBoard: no message
         break;
     case EventType::TrolleyMinigameZone:
         if (seat_ >= 0) {

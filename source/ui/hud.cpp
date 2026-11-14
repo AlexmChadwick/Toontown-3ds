@@ -1,10 +1,19 @@
+#include <cstdlib>
+#include <cstring>
+#include "render/ui_font.h"
 #include "ui/hud.h"
 
 #include <cstdio>
 
 #include "core/log.h"
 
-#include "ui/laff_meter_atlas.h"
+#include "ui/fish_photo.h"
+#include "world/battle_fx.h"
+#include "ui/fish_photo_atlas.h"
+#include "ui/fishing_panel.h"
+#include "ui/laff_meter.h"
+#include "ui/theme.h"
+#include "ui/race_gui_atlas.h"
 
 namespace tt::ui {
 
@@ -14,31 +23,42 @@ namespace {
 // unreadable on the 400x240 top screen. The bottom-left margin stays 6 px.
 constexpr float kLaffSize = 88.0f; // on-screen size of one atlas cell (the whole meter)
 constexpr float kLaffX = 6.0f + kLaffSize * 0.5f, kLaffY = 234.0f - kLaffSize * 0.5f;
-// Each label may fill this fraction of the cell's width (the eye whites span ~0.30..0.70).
-constexpr float kLaffLabelMaxW = 0.19f;
-constexpr float kLaffLabelMinScale = 0.34f, kLaffLabelMaxScale = 0.46f;
-constexpr float kPulseChange = 0.333f;      // ToontownIntervals.PULSE_GUI_CHANGE
-constexpr float kPulseSeconds = 0.2f;       // PULSE_GUI_DURATION, each half
-// LaffMeter.fractions: tooth i shows while hp > maxHp * fraction (teeth listed 6 .. 1).
-constexpr float kToothFractions[6] = {0.0f, 0.166666f, 0.333333f, 0.5f, 0.666666f, 0.833333f};
-constexpr LaffPart kTeeth[6] = {kLaffTooth6, kLaffTooth5, kLaffTooth4, kLaffTooth3, kLaffTooth2, kLaffTooth1};
-// LaffMeter.deathColor: the head at 0 laff.
-constexpr float kDeathColor[3] = {0.58039216f, 0.80392157f, 0.34117647f};
+// TownBattle's timer: ToontownTimer at (1.182, 0.842) and scale 0.4 in aspect2d, i.e. a 48 px clock
+// about 19 px in from the top-right corner (1 aspect2d unit = 120 px of the 240 px screen).
+constexpr float kBattleTimerSize = 48.0f, kBattleTimerX = 400.0f - 22.0f, kBattleTimerY = 22.0f;
+// posBelowTopRightCorner: (1.16, 0.58) at the default scale 0.45.
+constexpr float kBelowTimerSize = 54.0f, kBelowTimerX = 400.0f - 21.0f, kBelowTimerY = 50.0f;
 
 } // namespace
 
 bool Hud::init() {
-    buf_ = C2D_TextBufNew(64);
-    raceBuf_ = C2D_TextBufNew(96);
+    raceBuf_ = C2D_TextBufNew(256);
     toastBuf_ = C2D_TextBufNew(160);
-    return buf_ != nullptr && raceBuf_ != nullptr && toastBuf_ != nullptr;
+    fishBuf_ = C2D_TextBufNew(256);
+    infoBuf_ = C2D_TextBufNew(128);
+    bonusBuf_ = C2D_TextBufNew(64);
+    golfBuf_ = C2D_TextBufNew(48);
+    if (golfBuf_) {
+        tt::render::textParseSign(&golfExit_, golfBuf_, "Exit for Now"); // TTLocalizer.BustACogExit
+        C2D_TextOptimize(&golfExit_);
+    }
+    return laff_.init() && battleTimer_.init() && raceBuf_ != nullptr && toastBuf_ != nullptr && fishBuf_ != nullptr &&
+           infoBuf_ != nullptr;
 }
 
 void Hud::shutdown() {
-    if (buf_) C2D_TextBufDelete(buf_);
+    laff_.shutdown();
+    battleTimer_.shutdown();
     if (raceBuf_) C2D_TextBufDelete(raceBuf_);
     if (toastBuf_) C2D_TextBufDelete(toastBuf_);
-    buf_ = raceBuf_ = toastBuf_ = nullptr;
+    if (fishBuf_) C2D_TextBufDelete(fishBuf_);
+    if (infoBuf_) C2D_TextBufDelete(infoBuf_);
+    if (bonusBuf_) C2D_TextBufDelete(bonusBuf_);
+    bonusBuf_ = nullptr;
+    if (golfBuf_) C2D_TextBufDelete(golfBuf_);
+    golfBuf_ = nullptr;
+    raceBuf_ = toastBuf_ = fishBuf_ = infoBuf_ = nullptr;
+    releaseFishPhotos();
 }
 
 namespace {
@@ -74,135 +94,400 @@ void drawViewfinder(C3D_RenderTarget* top) {
 
 } // namespace
 
+namespace {
+
+render::Model gRaceArt;
+bool gRaceArtTried = false;
+
+// aspect2d -> top screen pixels (120 px per unit, origin at the centre).
+float px(float x) { return 200.0f + x * 120.0f; }
+float py(float z) { return 120.0f - z * 120.0f; }
+
+// One race_gui.ttm part centred on (cx, cy), w x h pixels, turned clockwise by deg, tinted rgb.
+void raceArt(RaceArt art, float cx, float cy, float w, float h, const float* rgb = nullptr,
+             float deg = 0.0f) {
+    C3D_Tex* tex = gRaceArt.loaded() ? gRaceArt.texture(0) : nullptr;
+    if (!tex) return;
+    const RaceArtRect& r = kRaceArtRects[int(art)];
+    Tex3DS_SubTexture sub{uint16_t(r.w + 0.5f), uint16_t(r.h + 0.5f), r.x / kRaceGuiAtlasW,
+                          1.0f - r.y / kRaceGuiAtlasH, (r.x + r.w) / kRaceGuiAtlasW,
+                          1.0f - (r.y + r.h) / kRaceGuiAtlasH};
+    C2D_Image img{tex, &sub};
+    C2D_ImageTint tint;
+    if (rgb) {
+        C2D_PlainImageTint(&tint, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f), 1.0f);
+        C2D_SetTintMode(C2D_TintMult);
+    }
+    C2D_DrawImageAtRotated(img, cx, cy, 0.5f, deg * 0.01745329252f, rgb ? &tint : nullptr, w / r.w, h / r.h);
+    if (rgb) C2D_SetTintMode(C2D_TintSolid);
+}
+
+} // namespace
+
+// RaceGUI.initRaceMode / update and DistributedVehicle's speedometer, at their aspect2d places.
+// Sizes are upstream's except where 3DS pixels make them unreadable: the head frames are drawn
+// at twice their share (18 px) and the lap times at 0.075 instead of 0.06.
+void Hud::drawRace(const RaceHud& r) {
+    if (!gRaceArtTried) {
+        gRaceArtTried = true;
+        if (!gRaceArt.load("romfs:/baked/race_gui.ttm")) TT_LOG("hud: no race_gui.ttm");
+    }
+    C2D_TextBufClear(raceBuf_);
+    // SignFont at TextNode scale s: the font's em is ~30 px at C2D scale 1, so C2D scale = s * 4.
+    auto sign = [&](const char* str, float x, float z, float s, u32 color, u32 flags) {
+        C2D_Text t;
+        tt::render::textParseSign(&t, raceBuf_, str);
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | flags, px(x), py(z), 0.5f, s * 4, s * 4, color);
+    };
+    const u32 yellow = C2D_Color32f(0.95f, 0.95f, 0.0f, 1.0f);
+    char text[32];
+
+    // The map: the curve in white, mapScene at (1.1, 0.75) scale 0.25, mapLines 0.00025 x the
+    // track's map scale, setP(90) so world y is screen up.
+    const float k = 0.25f * 0.00025f * r.mapScale * 120.0f;
+    for (int i = 1; i < r.curveCount; i++) {
+        C2D_DrawLine(px(1.1f) + r.curve[i - 1][0] * k, py(0.75f) - r.curve[i - 1][1] * k, C2D_Color32(255, 255, 255, 255),
+                     px(1.1f) + r.curve[i][0] * k, py(0.75f) - r.curve[i][1] * k, C2D_Color32(255, 255, 255, 255),
+                     1.5f, 0.5f);
+    }
+    for (int pass = 0; pass < 2; pass++) { // the local spot last (on top) and 1.25 times larger
+        for (int i = 0; i < r.racerCount; i++) {
+            const RaceHud::Racer& q = r.racers[i];
+            if (q.local != (pass == 1)) continue;
+            const float size = 0.15f * 0.25f * 120.0f * (q.local ? 1.25f : 1.0f);
+            raceArt(RaceArt::MapSpot, px(1.1f) + q.x * k, py(0.75f) - q.y * k, size, size, q.body);
+        }
+    }
+
+    // Progress line (-0.8 .. 0.8 at z 0.93) with a hash per lap, the racers' head frames on it and
+    // each lap's time under its stretch.
+    const float x0 = -0.8f, x1 = 0.8f, lineZ = 0.93f;
+    C2D_DrawRectSolid(px(x0), py(lineZ) - 0.6f, 0.5f, (x1 - x0) * 120.0f, 1.2f, C2D_Color32(255, 255, 255, 255));
+    for (int n = 0; n <= r.laps; n++) {
+        const float t = float(n) / r.laps;
+        C2D_DrawRectSolid(px(x0 + (x1 - x0) * t) - 0.6f, py(lineZ) - 3.0f, 0.5f, 1.2f, 6.0f,
+                          C2D_Color32(255, 255, 255, 255));
+    }
+    for (int lap = 0; lap < r.lapsShown && lap < RaceHud::kMaxLaps; lap++) {
+        const float fx = x0 + (x1 - x0) * (2.0f * lap + 1) / (r.laps * 2.0f);
+        float t = r.lapSeconds[lap];
+        const int minutes = int(t / 60);
+        t -= minutes * 60;
+        const int seconds = int(t);
+        const int fraction = int((t - seconds) * 100);
+        snprintf(text, sizeof(text), "%d'", minutes);
+        sign(text, fx - 0.06f, 0.84f, 0.075f, yellow, C2D_AlignRight);
+        snprintf(text, sizeof(text), "%02d''", seconds);
+        sign(text, fx + 0.06f, 0.84f, 0.075f, yellow, C2D_AlignRight);
+        snprintf(text, sizeof(text), "%02d", fraction);
+        sign(text, fx + 0.14f, 0.84f, 0.075f, yellow, C2D_AlignRight);
+    }
+    for (int pass = 0; pass < 2; pass++) {
+        for (int i = 0; i < r.racerCount; i++) {
+            const RaceHud::Racer& q = r.racers[i];
+            if (q.local != (pass == 1)) continue;
+            const float w = 18.0f * (q.local ? 1.25f : 1.0f);
+            const float cx = px(x0 + (x1 - x0) * q.progress), cy = py(lineZ);
+            raceArt(RaceArt::PanelBg, cx, cy, w, w);
+            raceArt(RaceArt::PanelFg, cx, cy, w, w, q.body);
+            LaffFace face;
+            face.maxHp = face.hp = 1;
+            for (int c = 0; c < 3; c++) face.rgb[c] = q.head[c];
+            face.species = q.species;
+            const float head = w * 0.8f;
+            drawLaffMeter(face, cx - head * 0.5f, cy - head * 0.5f + w * 0.09f, head, nullptr, nullptr);
+        }
+    }
+
+    // Place (bottom left), lap (right), wrong way (flashing, top right).
+    static const char* const kSuffix[5] = {"", "st", "    nd", "  rd", "   th"};
+    if (r.photoFinish) {
+        sign("Photo Finish!", 0.0f, -0.1f, 0.25f, yellow, C2D_AlignCenter);
+    } else {
+        snprintf(text, sizeof(text), "%d", r.place);
+        sign(text, -1.2f, -0.97f, 0.35f, yellow, C2D_AlignCenter);
+        sign(kSuffix[r.place >= 1 && r.place <= 4 ? r.place : 1], -1.05f, -0.8f, 0.1f, yellow, C2D_AlignCenter);
+    }
+    if (r.lapNotice) {
+        // lapNotice: a default DirectLabel (interface font, black) at scale 0.1 in the centre.
+        if (r.lapNotice < 0)
+            snprintf(text, sizeof(text), "Final Lap!");
+        else
+            snprintf(text, sizeof(text), "Lap %d", r.lapNotice);
+        C2D_Text t;
+        tt::render::textParse(&t, raceBuf_, text);
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | C2D_AlignCenter, px(0), py(0), 0.5f, 0.4f, 0.4f,
+                     C2D_Color32(0, 0, 0, 255));
+    }
+    snprintf(text, sizeof(text), "%d/%d", r.lap, r.laps);
+    sign(text, 1.1f, 0.45f, 0.1f, yellow, C2D_AlignCenter);
+    if (r.wrongWay) {
+        // wrongWaySeq: alpha 0 -> 1 over 0.25 s, back to 0 over 0.25 s, looped.
+        const float phase = float(osGetTime() % 500) / 250.0f;
+        const float a = phase < 1.0f ? phase : 2.0f - phase;
+        sign("Wrong\nWay!", 1.1f, 0.85f, 0.1f, C2D_Color32f(0.95f, 0.0f, 0.0f, a), C2D_AlignCenter);
+    }
+
+    // RaceGUI.closeButton at (-0.99, 0.925): CloseBtn_UP (0.1125 units, scale 1.05) with "Leave Race"
+    // (scale 0.04, white) 0.07 under it. 1.5 times stock so the 3DS pixels can read it (START leaves).
+    {
+        constexpr float kScale = 1.5f;
+        const float size = 0.1125f * 1.05f * kScale * 120.0f;
+        raceArt(RaceArt::CloseBtn, px(-0.99f), py(0.925f), size, size);
+        C2D_Text t;
+        tt::render::textParse(&t, raceBuf_, "Leave Race");
+        const float ts = 0.04f * kScale * 4.0f, ty = py(0.925f - 0.07f * 1.05f * kScale);
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | C2D_AlignCenter, px(-0.99f) + 0.75f, ty + 0.75f, 0.5f,
+                     ts, ts, C2D_Color32(0, 0, 0, 160));
+        C2D_DrawText(&t, C2D_WithColor | C2D_AtBaseline | C2D_AlignCenter, px(-0.99f), ty, 0.5f, ts, ts,
+                     C2D_Color32(255, 255, 255, 255));
+    }
+
+    // Gag panel at (-1.13, -0.5), image scale 0.25; the gag at scale 0.2 on it.
+    raceArt(RaceArt::GagPanel, px(-1.13f), py(-0.5f), 30.0f, 30.0f);
+    if (r.gag > 0 && r.gag <= 4) raceArt(RaceArt(int(RaceArt::GagCouch) + r.gag), px(-1.13f), py(-0.5f), 24.0f, 24.0f);
+
+    // Speedometer at (1.24, -0.98), scale 0.75: gauge, spin (setR), face (1 + accessory) / 2,
+    // tics and ring (body + 1) / 2, then the speed in the body colour.
+    const float sx = px(1.24f), sy = py(-0.98f), ss = 0.75f * 120.0f;
+    float face[3], trim[3];
+    for (int c = 0; c < 3; c++) {
+        face[c] = (1.0f + r.accessory[c]) * 0.5f;
+        trim[c] = (r.body[c] + 1.0f) * 0.5f;
+    }
+    raceArt(RaceArt::SpeedGauge, sx, sy, ss, ss);
+    raceArt(RaceArt::SpeedSpin, sx, sy, ss, ss, nullptr, r.needle);
+    raceArt(RaceArt::SpeedFace, sx, sy, ss, ss, face);
+    raceArt(RaceArt::SpeedTics, sx, sy, ss, ss, trim);
+    raceArt(RaceArt::SpeedRing, sx, sy, ss, ss, trim);
+    snprintf(text, sizeof(text), "%d", r.speed);
+    sign(text, 1.24f - 0.04f, -0.98f + 0.02f, 0.18f, C2D_Color32f(r.body[0], r.body[1], r.body[2], 1.0f),
+         C2D_AlignCenter);
+}
+
+// DistributedFishingSpot's catch, over the world as upstream's aspect2d: FishPanel (species name,
+// FishPhoto on the swim colour, weight, value, "New Species!" / "New Record!") for a fish, itemGui
+// ("You caught:", the jar / boot picture, the item name) for jellybeans and the old boot. Both at
+// 1.25 times the aspect2d scale (150 px per unit instead of 120) and their 0.05-0.08 text half as
+// large again, so it reads on the 240 px screen; the panel stays at the top like stock's.
+void Hud::drawFishCatch(const FishingView& f) {
+    const bool fish = f.result == FishingView::kFish && f.genus >= 0;
+    const bool item = f.result == FishingView::kBeans || f.result == FishingView::kBoot;
+    if (!fish && !item) return;
+    enum { kName, kWeight, kValue, kExtra, kFound };
+    if (f.revision != fishRevision_) {
+        fishRevision_ = f.revision;
+        C2D_TextBufClear(fishBuf_);
+        const char* weight = f.itemWeight;
+        tt::render::textParse(&fishText_[kName], fishBuf_, f.itemName);
+        tt::render::textParse(&fishText_[kWeight], fishBuf_, weight);
+        tt::render::textParse(&fishText_[kValue], fishBuf_, fish ? f.itemValue : "");
+        tt::render::textParseSign(&fishText_[kExtra], fishBuf_, f.newRecord ? "New Record!" : "New Species!");
+        tt::render::textParse(&fishText_[kFound], fishBuf_, "You caught:");
+        for (C2D_Text& t : fishText_) C2D_TextOptimize(&t);
+    }
+    constexpr float k = 150.0f; // pixels per aspect2d unit
+    // C2D scale of an aspect2d text scale s (the fonts' em is about 30 px at C2D scale 1), 1.5x.
+    float maxW = 0.0f; // the panel's inner width: longer lines shrink to fit
+    auto textAt = [&](int slot, float cx, float y, float s, u32 color) {
+        float w = 0, h = 0;
+        float c = s * k * 1.5f / 30.0f;
+        C2D_TextGetDimensions(&fishText_[slot], c, c, &w, &h);
+        if (w > maxW && w > 0.0f) {
+            c *= maxW / w;
+            w = maxW;
+        }
+        C2D_DrawText(&fishText_[slot], C2D_WithColor | C2D_AtBaseline, cx - w * 0.5f, y, 0.6f, c, c, color);
+    };
+    const u32 ink = C2D_Color32(0, 0, 0, 0xFF);
+    const u32 dialog = C2D_Color32(0xFF, 0xFF, 0xBF, 0xFF); // GlobalDialogColor (1, 1, 0.75)
+    const u32 edge = C2D_Color32(0x50, 0x50, 0x50, 0xFF);
+    const float cx = 200.0f;
+    if (fish) {
+        // getDefaultDialogGeom at image_scale (0.65, 0.85); the frame's top 8 px under the screen top.
+        const float w = 0.65f * k, h = 0.85f * k, top = 6.0f, cy = top + h * 0.5f;
+        maxW = w - 10.0f;
+        theme::roundRect(cx - w * 0.5f - 2, top - 2, w + 4, h + 4, 9.0f, edge, 0.5f);
+        theme::roundRect(cx - w * 0.5f, top, w, h, 8.0f, dialog, 0.5f);
+        // setSwimBounds(-0.3, 0.3, -0.235, 0.25), setSwimColor(1, 1, 0.749)
+        const float rx = cx - 0.3f * k, ry = cy - 0.25f * k, rw = 0.6f * k, rh = 0.485f * k;
+        C2D_DrawRectSolid(rx, ry, 0.52f, rw, rh, C2D_Color32f(1.0f, 1.0f, 0.749f, 1.0f));
+        drawFishPhoto(f.genus, rx, ry, rw, rh, 0.55f);
+        textAt(kName, cx, cy - 0.35f * k, 0.06f, ink);       // text_pos (0, 0.35)
+        if (f.newEntry) textAt(kExtra, cx, cy - 0.26f * k, 0.08f, C2D_Color32f(0.2f, 0.8f, 0.4f, 1.0f));
+        textAt(kWeight, cx, cy + 0.28f * k, 0.05f, ink);
+        textAt(kValue, cx, cy + 0.35f * k, 0.05f, ink);
+    } else {
+        // itemFrame: geom_scale (1, 1, 0.6) at z 0.587, "You caught:" at 0.2, the label at -0.25.
+        const float w = 1.0f * k, h = 0.6f * k, top = 6.0f, cy = top + h * 0.5f;
+        maxW = w - 10.0f;
+        theme::roundRect(cx - w * 0.5f - 2, top - 2, w + 4, h + 4, 9.0f, edge, 0.5f);
+        theme::roundRect(cx - w * 0.5f, top, w, h, 8.0f, dialog, 0.5f);
+        textAt(kFound, cx, cy - 0.2f * k, 0.08f, ink);
+        drawFishItemArt(f.result == FishingView::kBeans ? kFishItemJar : kFishItemBoot, cx, cy, k, 0.55f);
+        textAt(kName, cx, cy + 0.25f * k, 0.06f, ink);
+    }
+}
+
 void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
+    // The photo atlas stays resident only while a catch or the book's album shows it.
+    fishPhotosFrame();
+    const bool fishShown = v.fishing && (v.fishing->result == FishingView::kFish ||
+                                         v.fishing->result == FishingView::kBeans ||
+                                         v.fishing->result == FishingView::kBoot);
+    if (fishShown) {
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        drawFishCatch(*v.fishing);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
     if (v.toast) {
-        if (v.toast != lastToast_) {
-            C2D_TextBufClear(toastBuf_);
-            C2D_TextParse(&toastText_, toastBuf_, v.toast);
-            C2D_TextOptimize(&toastText_);
+        // By content: callers reuse one buffer for different messages (whispers, friend invites).
+        if (v.toast != lastToast_ || std::strncmp(v.toast, lastToastText_, sizeof(lastToastText_) - 1)) {
             lastToast_ = v.toast;
+            std::snprintf(lastToastText_, sizeof(lastToastText_), "%s", v.toast);
+            // Long messages (FADoorCodes' disguise lines) wrap like the stock dialog: split the
+            // widest line at the space nearest its middle until it fits the top screen.
+            char wrapped[sizeof(lastToastText_)];
+            std::snprintf(wrapped, sizeof(wrapped), "%s", v.toast);
+            for (int pass = 0;; ++pass) {
+                C2D_TextBufClear(toastBuf_);
+                tt::render::textParse(&toastText_, toastBuf_, wrapped);
+                float tw;
+                C2D_TextGetDimensions(&toastText_, 0.6f, 0.6f, &tw, nullptr);
+                if (tw <= 370.0f || pass >= 3) break;
+                char* start = wrapped;
+                size_t longest = 0;
+                for (char* line = wrapped; *line;) {
+                    char* end = std::strchr(line, '\n');
+                    const size_t len = end ? size_t(end - line) : std::strlen(line);
+                    if (len > longest) longest = len, start = line;
+                    if (!end) break;
+                    line = end + 1;
+                }
+                char* best = nullptr;
+                for (size_t i = 0; i < longest; ++i) {
+                    if (start[i] == ' ' && (!best || std::abs(int(i) - int(longest / 2)) < std::abs(int(best - start) - int(longest / 2)))) {
+                        best = start + i;
+                    }
+                }
+                if (!best) break;
+                *best = '\n';
+            }
+            C2D_TextOptimize(&toastText_);
         }
         C2D_SceneBegin(top);
         float w, h;
         C2D_TextGetDimensions(&toastText_, 0.6f, 0.6f, &w, &h);
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
         C2D_DrawRectSolid(200 - w * 0.5f - 10, 70, 0.5f, w + 20, h + 12, C2D_Color32(0x10, 0x18, 0x30, 0xD0));
-        C2D_DrawText(&toastText_, C2D_WithColor, 200 - w * 0.5f, 76, 0.5f, 0.6f, 0.6f,
+        C2D_DrawText(&toastText_, C2D_WithColor | C2D_AlignCenter, 200, 76, 0.5f, 0.6f, 0.6f,
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
     if (v.photoViewfinder) drawViewfinder(top);
+    if (v.infoText || v.gameLabel) {
+        const char* info = v.infoText ? v.infoText : "";
+        const char* label = v.gameLabel ? v.gameLabel : "";
+        if (std::strncmp(info, infoLast_, sizeof(infoLast_) - 1) || std::strncmp(label, labelLast_, sizeof(labelLast_) - 1)) {
+            C2D_TextBufClear(infoBuf_);
+            tt::render::textParseSign(&infoTextC2d_, infoBuf_, info);
+            C2D_TextOptimize(&infoTextC2d_);
+            tt::render::textParseSign(&molesTextC2d_, infoBuf_, label);
+            C2D_TextOptimize(&molesTextC2d_);
+            std::snprintf(infoLast_, sizeof(infoLast_), "%s", info);
+            std::snprintf(labelLast_, sizeof(labelLast_), "%s", label);
+        }
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        if (v.gameLabel) {
+            // frame2D: (0, 0.9), frameSize 0.6 x 0.1, frameColor (0.737, 0.573, 0.345, 0.3); the label at
+            // text_pos (0, -0.02), scale 0.075. 1.5 x upstream's share, so the sign font reads on 400 px.
+            constexpr float kS = 1.5f, kUnit = 120.0f;
+            const float fw = 0.6f * kUnit * kS, fh = 0.1f * kUnit * kS, cy = 120.0f - 0.9f * kUnit;
+            C2D_DrawRectSolid(200 - fw * 0.5f, cy - fh * 0.5f, 0.5f, fw, fh, C2D_Color32(188, 146, 88, 77));
+            const float sc = 0.075f * kUnit * kS / 30.0f;
+            float w, h;
+            C2D_TextGetDimensions(&molesTextC2d_, sc, sc, &w, &h);
+            C2D_DrawText(&molesTextC2d_, C2D_WithColor, 200 - w * 0.5f, cy - h * 0.5f + 0.02f * kUnit * kS * 0.5f, 0.5f,
+                         sc, sc, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        }
+        if (v.infoText && v.infoText[0]) {
+            // OnscreenText at (0, -0.5), scale 0.1, white on a black shadow; 1.25 x for the small screen.
+            const float sc = 0.1f * 120.0f * 1.25f / 30.0f;
+            const u8 a = u8(255.0f * (v.infoAlpha < 0 ? 0 : v.infoAlpha > 1 ? 1 : v.infoAlpha));
+            const float y = 120.0f + 0.5f * 120.0f - sc * 30.0f * 0.8f; // pos is the first baseline
+            C2D_DrawText(&infoTextC2d_, C2D_WithColor | C2D_AlignCenter, 200 + 1.5f, y + 1.5f, 0.5f, sc, sc,
+                         C2D_Color32(0, 0, 0, a));
+            C2D_DrawText(&infoTextC2d_, C2D_WithColor | C2D_AlignCenter, 200, y, 0.5f, sc, sc,
+                         C2D_Color32(0xFF, 0xFF, 0xFF, a));
+        }
+        if (v.timerBelowSeconds >= 0)
+            battleTimer_.draw(v.timerBelowSeconds, kBelowTimerX, kBelowTimerY, kBelowTimerSize);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
+    if (v.golfExit && golfBuf_) {
+        // frame2D (scale 1.1): the quit button at (0.95, -0.69), QuitBtn_UP with its sign-font label
+        // (white, black shadow). 1 aspect2d unit = 120 px.
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        const float bx = 200.0f + 0.95f * 1.1f * 120.0f, by = 120.0f + 0.69f * 1.1f * 120.0f;
+        theme::pill(bx - 38.0f, by - 9.0f, 76.0f, 18.0f, theme::Pill::Yellow);
+        theme::textCentered(golfExit_, bx + 0.75f, by - 6.25f, 0.42f, C2D_Color32(0, 0, 0, 0xFF), 70.0f);
+        theme::textCentered(golfExit_, bx, by - 7.0f, 0.42f, C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF), 70.0f);
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
+    if (v.bonusText && v.bonusText[0] && bonusBuf_) {
+        // bonusBoard on frame2D (scale 1.1) at (0, 0.67): the image (inventory icon 0.133 units,
+        // image_scale 1) and the sign-font text at text_pos (0, -0.1), scale 0.055, white on a black
+        // shadow. Sizes and offsets 1.5 x like the Puzzles Left label, centred just below that label.
+        if (std::strncmp(v.bonusText, bonusLast_, sizeof(bonusLast_) - 1)) {
+            C2D_TextBufClear(bonusBuf_);
+            tt::render::textParseSign(&bonusC2d_, bonusBuf_, v.bonusText);
+            C2D_TextOptimize(&bonusC2d_);
+            std::snprintf(bonusLast_, sizeof(bonusLast_), "%s", v.bonusText);
+        }
+        constexpr float kS = 1.5f, kUnit = 120.0f * 1.1f;
+        const float cy = 120.0f - 0.9f * 120.0f + 0.1f * 120.0f * kS * 0.5f + 0.0667f * kUnit * kS + 2.0f;
+        C2D_SceneBegin(top);
+        C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
+        if (v.bonusTrack >= 0) {
+            const float icon = 0.1333f * kUnit * kS;
+            tt::world::GagAtlas::instance().init();
+            tt::world::GagAtlas::instance().drawIcon(v.bonusTrack, v.bonusLevel, 200.0f - icon * 0.5f, cy - icon * 0.5f,
+                                                     icon, 0.5f);
+        }
+        const float sc = 0.055f * kUnit * kS / 30.0f, y = cy + 0.1f * kUnit * kS - sc * 30.0f * 0.8f;
+        C2D_DrawText(&bonusC2d_, C2D_WithColor | C2D_AlignCenter, 200 + 1.5f, y + 1.5f, 0.5f, sc, sc,
+                     C2D_Color32(0, 0, 0, 0xFF));
+        C2D_DrawText(&bonusC2d_, C2D_WithColor | C2D_AlignCenter, 200, y, 0.5f, sc, sc,
+                     C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
+        C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
+    }
     if (!v.online) return; // stats come from the server
-    // Re-parse text only when the numbers change (citro2d parsing is expensive).
-    if (v.hp != lastHp_ && lastHp_ >= 0) {
-        // ToontownIntervals.getPulseLargerIval / getPulseSmallerIval (PULSE_GUI_CHANGE 0.333).
-        pulseChange_ = v.hp > lastHp_ ? 1.0f + kPulseChange : 1.0f - kPulseChange;
-        pulseStartMs_ = osGetTime();
-    }
-    if (v.hp != lastHp_ || v.maxHp != lastMaxHp_) {
-        C2D_TextBufClear(buf_); // hp, max and money live in buf_ (the race line in raceBuf_)
-        char s[32];
-        snprintf(s, sizeof(s), "%d", v.hp > 0 ? v.hp : 0); // LaffMeter never shows a negative laff
-        C2D_TextParse(&hpText_, buf_, s);
-        C2D_TextOptimize(&hpText_);
-        snprintf(s, sizeof(s), "%d", v.maxHp);
-        C2D_TextParse(&maxText_, buf_, s);
-        C2D_TextOptimize(&maxText_);
-        lastHp_ = v.hp;
-        lastMaxHp_ = v.maxHp;
-    }
     C2D_SceneBegin(top);
     C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR); // overlay: never hidden by the world
-    if (v.racing) {
-        C2D_TextBufClear(raceBuf_);
-        char race[96];
-        snprintf(race, sizeof(race), "SPEED %d   LAP %d/%d   PLACE %d", v.raceSpeed, v.raceLap, v.raceLaps, v.racePlace);
-        C2D_TextParse(&raceText_, raceBuf_, race);
-        C2D_TextOptimize(&raceText_);
-        C2D_DrawText(&raceText_, C2D_WithColor, 42, 16, 0.5f, 0.65f, 0.65f, C2D_Color32(0xFF, 0xF0, 0x70, 0xFF));
-    }
+    if (v.racing && v.race.active) drawRace(v.race);
 
     // Upstream's HUD is the laff meter alone; jellybeans show on the book's Gags page and the
-    // Toon tab (InventoryPage.moneyDisplay), not over the world.
-    drawLaffMeter(v);
+    // Toon tab (InventoryPage.moneyDisplay), not over the world. While the bottom screen shows
+    // our laff (its tab bar pocket, the battle panel's Toon cards) the world stays clear.
+    if (!v.laffOnBottom && !v.laffHidden) {
+        LaffFace face;
+        face.hp = v.hp;
+        face.maxHp = v.maxHp;
+        for (int i = 0; i < 3; i++) face.rgb[i] = v.headRgb[i];
+        face.species = v.species;
+        // quest_assign_101 flies the meter from (-1.18, -0.87) scale 0.075 to (-0.25, -0.15) scale 0.2
+        // (aspect2d: 120 px per unit on the 400 x 240 top screen)
+        const float k = v.laffGrow;
+        const float bigSize = kLaffSize * (0.2f / 0.075f) * 0.75f; // keeps the whole meter on the 240 px screen
+        const float cx = kLaffX + (200.0f - 0.25f * 120.0f - kLaffX) * k;
+        const float cy = kLaffY + (120.0f + 0.15f * 120.0f - kLaffY) * k;
+        laff_.draw(face, cx, cy, kLaffSize + (bigSize - kLaffSize) * k);
+    }
+    if (v.timerSeconds >= 0) battleTimer_.draw(v.timerSeconds, kBattleTimerX, kBattleTimerY, kBattleTimerSize);
     C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL); // citro2d's default
-}
-
-// LaffMeter: the species head in the toon's head colour; at 0 laff the frown on deathColor, at
-// full laff the smile with eyes, otherwise the open smile, eyes and adjustTeeth's teeth; the
-// laff and max numbers sit in the eyes (hpLabel / maxLabel).
-void Hud::drawLaffMeter(const HudValues& v) {
-    if (!laffTried_) {
-        laffTried_ = true;
-        if (!laffAtlas_.load("romfs:/baked/laff_meter.ttm")) TT_LOG("hud: no laff_meter.ttm");
-    }
-    C3D_Tex* tex = laffAtlas_.loaded() ? laffAtlas_.texture(0) : nullptr;
-    if (!tex) return;
-    // The pulse: scale to pulseChange_ (easeOut), then back to 1 (easeIn), 0.2 s each.
-    float pulse = 1.0f;
-    const float t = (osGetTime() - pulseStartMs_) / 1000.0f;
-    if (pulseStartMs_ && t < 2 * kPulseSeconds) {
-        if (t < kPulseSeconds) {
-            const float u = t / kPulseSeconds;
-            pulse = 1.0f + (pulseChange_ - 1.0f) * (1.0f - (1.0f - u) * (1.0f - u));
-        } else {
-            const float u = (t - kPulseSeconds) / kPulseSeconds;
-            pulse = pulseChange_ + (1.0f - pulseChange_) * (u * u);
-        }
-    }
-    const float size = kLaffSize * pulse;
-    const float x0 = kLaffX - size * 0.5f;
-    const float y0 = kLaffY - size * 0.5f;
-    auto part = [&](int index, const C2D_ImageTint* tint) {
-        Tex3DS_SubTexture sub;
-        sub.width = kLaffCell;
-        sub.height = kLaffCell;
-        sub.left = kLaffCellXY[index][0] / float(kLaffAtlasW);
-        sub.right = (kLaffCellXY[index][0] + kLaffCell) / float(kLaffAtlasW);
-        sub.top = 1.0f - kLaffCellXY[index][1] / float(kLaffAtlasH);
-        sub.bottom = 1.0f - (kLaffCellXY[index][1] + kLaffCell) / float(kLaffAtlasH);
-        C2D_Image img{tex, &sub};
-        C2D_DrawImageAt(img, x0, y0, 0.5f, tint, size / kLaffCell, size / kLaffCell);
-    };
-    const bool dead = v.hp < 1;
-    const bool full = v.hp >= v.maxHp;
-    const float* rgb = dead ? kDeathColor : v.headRgb;
-    C2D_ImageTint headTint;
-    C2D_PlainImageTint(&headTint, C2D_Color32f(rgb[0], rgb[1], rgb[2], 1.0f), 1.0f);
-    C2D_SetTintMode(C2D_TintMult);
-    const int species = v.species >= 0 && v.species < 9 ? v.species : 0;
-    part(kLaffDoghead + species, &headTint);
-    C2D_SetTintMode(C2D_TintSolid);
-    if (dead) {
-        part(kLaffFrown, nullptr);
-        return;
-    }
-    part(full ? kLaffSmile : kLaffOpenSmile, nullptr);
-    if (!full) {
-        for (int i = 0; i < 6; i++) {
-            if (v.hp > v.maxHp * kToothFractions[i]) part(kTeeth[i], nullptr);
-        }
-    }
-    part(kLaffEyes, nullptr);
-    // Labels: upstream text_scale 0.4 is only ~8 px here, so draw them as large as the eye whites
-    // allow. Both labels share one scale, shrunk until the wider one fits its eye.
-    float scale = kLaffLabelHeight * size / 30.0f;
-    if (scale < kLaffLabelMinScale) scale = kLaffLabelMinScale;
-    if (scale > kLaffLabelMaxScale) scale = kLaffLabelMaxScale;
-    float w = 0.0f, h = 0.0f, wMax = 0.0f;
-    C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
-    wMax = w;
-    C2D_TextGetDimensions(&maxText_, scale, scale, &w, &h);
-    if (w > wMax) wMax = w;
-    const float fitW = kLaffLabelMaxW * size;
-    if (wMax > fitW && wMax > 0.0f) scale *= fitW / wMax;
-    const u32 ink = C2D_Color32(0x10, 0x10, 0x10, 0xFF);
-    C2D_TextGetDimensions(&hpText_, scale, scale, &w, &h);
-    C2D_DrawText(&hpText_, C2D_WithColor, x0 + kLaffHpLabel[0] * size - w * 0.5f,
-                 y0 + kLaffHpLabel[1] * size - h * 0.5f, 0.5f, scale, scale, ink);
-    C2D_TextGetDimensions(&maxText_, scale, scale, &w, &h);
-    C2D_DrawText(&maxText_, C2D_WithColor, x0 + kLaffMaxLabel[0] * size - w * 0.5f,
-                 y0 + kLaffMaxLabel[1] * size - h * 0.5f, 0.5f, scale, scale, ink);
 }
 
 } // namespace tt::ui

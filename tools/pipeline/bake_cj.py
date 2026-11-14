@@ -37,10 +37,13 @@ def main(baker):
     entrance.getChildren().detach()
     entrance.setScale(1)
     load('phase_11/models/lawbotHQ/LB_Elevator').reparentTo(entrance)
-    # Reflections duplicate the room and its collision; native rendering uses one scene.
-    for pattern in ('Reflections', 'interiorrefl'):
-        for node in courtroom.findAllMatches('**/' + pattern):
-            node.stash()
+    # Reflections is the mirrored room under the semi-transparent CR3_Floor (stock draws it
+    # first, in the ground bin). It is stashed for collision only: without it the floor showed
+    # the skyline far below as upside-down columns and dark patches.
+    reflections = courtroom.find('**/Reflections')
+    if reflections.isEmpty():
+        raise ValueError('CJ courtroom reflections missing')
+    reflections.stash()
     # Open the travel doors; retain their frames and static collision elsewhere.
     for pattern in ('SlidingDoor1', 'CR3_Door', 'Door_1'):
         for door in courtroom.findAllMatches('**/' + pattern):
@@ -53,10 +56,20 @@ def main(baker):
         raise ValueError('CJ jury box missing')
     holder = NodePath('jury_box')
     jury.wrtReparentTo(holder)
+    # loadJuryBox: the reflection starts at its pos - RelativeEndPos + (0, 0, RelativeEndPos.z)
+    # and moves by the same RelativeEndPos as the box, so its end pose rides in this model.
+    reflected_jury = reflections.find('**/JuryBox_Geo_Reflect')
+    if reflected_jury.isEmpty():
+        raise ValueError('CJ reflected jury box missing')
+    reflected_jury.setZ(reflected_jury.getZ() + 12.645)
+    reflected_jury.wrtReparentTo(holder)
     model('cj_jury_box', holder)  # End pose; runtime subtracts moving offset.
     holder.removeNode()
     collision = baker.collide.extract(scene, fallback_floor='auto')
     collision.write(str(out / 'cj_arena.ttc'), max_bytes=1024 * 1024)
+    # Stock unstashes the reflected main door (interiorrefl/CR3_Door with Reflections/Door_1)
+    # after the introduction; the reflected podium keeps its model pose (loadPodium).
+    reflections.unstash()
     model('cj_arena', scene)
     scene.removeNode()
     lobby = load('phase_11/models/lawbotHQ/LB_CH_Lobby')

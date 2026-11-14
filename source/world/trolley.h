@@ -6,6 +6,7 @@
 #pragma once
 
 #include <3ds.h>
+#include <citro2d.h>
 #include <citro3d.h>
 
 #include "net/client.h"
@@ -27,7 +28,15 @@ public:
     void applyAnimation(ToonAvatar& avatar,u32 nowMs) const;
     // The car (zones/<hood>_trolley.ttm), driving in and out with the trolley's setState.
     void draw(render::Renderer& renderer, const net::Client& client, u32 nowMs);
-    void shutdown() { car_.unload(); }
+    // enterWaitCountdown's clock: the seconds left in red sign-font text, billboarded over the station
+    // at (15.86, 13.82, 11.68), scale 3.02, for everyone in the playground while it counts down.
+    void draw2D(const net::Client& client, const C3D_Mtx& proj, const C3D_Mtx& view, u32 nowMs);
+    void shutdown() {
+        car_.unload();
+        if (clockBuf_) C2D_TextBufDelete(clockBuf_);
+        clockBuf_ = nullptr;
+        clockShown_ = -1;
+    }
 
     const char* toonNetworkState(u32 nowMs) const { return static_cast<s32>(nowMs-seatSinceMs_)<917?"SitStart":"Sit"; }
     bool seated() const { return seat_ >= 0; }
@@ -54,6 +63,8 @@ public:
     }
     u32 hood() const { return hood_; }
     bool hasStation() const { return has_; }
+    float stationX() const { return px_; }
+    float stationY() const { return py_; }
     // Test helper: a point on the station platform inside the trolley sphere.
     void boardingPoint(float* x, float* y, float* z) const { toWorld(16.19f, sphereY_ - 6.0f, 0.6f, x, y, z); }
 
@@ -62,6 +73,10 @@ private:
     // Car position in station space for the trolley's current state (DistributedTrolley tracks).
     void carPos(const net::Client& client, u32 nowMs, float* x, float* y, float* z, bool* visible) const;
 
+    float leaveSec_ = -1.0f; // seconds into the car's Leaving track (the camera follows), < 0 otherwise
+    C2D_TextBuf clockBuf_ = nullptr;
+    C2D_Text clockText_{};
+    int clockShown_ = -1;
     bool has_ = false;
     u32 hood_ = 0;
     float px_ = 0, py_ = 0, pz_ = 0, ph_ = 0; // station node (DNA pos / H)

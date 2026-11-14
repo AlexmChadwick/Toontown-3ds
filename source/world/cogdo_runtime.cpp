@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/cogdo_runtime.h"
 #include "audio/audio.h"
 #include "core/log.h"
@@ -102,7 +103,7 @@ void CogdoRuntime::board(BossFrame &frame) {
     }
 }
 void CogdoRuntime::leave(BossFrame &frame) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.cache.release(&ownerLook_);
     ownerToon_.setLook(nullptr);
     ownerNpc_ = 0;
@@ -114,7 +115,7 @@ void CogdoRuntime::leave(BossFrame &frame) {
     frame.remotes.clear();
     const bool sad = frame.client.ownStats().hp <= 0;
     if (sad)
-        exterior_ = hoodOf(frame.client.ownStats().defaultZone);
+        exterior_ = safeZoneOf(frame.client.ownStats().defaultZone);
     if (!Place::available(exterior_) || !frame.place.load(exterior_)) {
         exterior_ = 2000;
         frame.place.load(exterior_);
@@ -704,6 +705,7 @@ void CogdoRuntime::draw(BossFrame &frame, const net::CogdoState &interior, const
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
     prof::lap(prof::kCogdoDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
@@ -794,12 +796,12 @@ bool CogdoRuntime::frame(BossFrame &frame) {
                 exitValid_ = true;
             }
         }
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.place.unload();
         frame.battle.reset();
         frame.remotes.clear();
         frame.suits.setZone(frame.client.zoneId());
-        frame.ui.book().close();
+        frame.ui.book().close("cogdo_runtime");
         TT_LOG("cogdo: entered interior %u exterior %u", unsigned(interior_), unsigned(exterior_));
     }
     frame.client.update(now);
@@ -823,7 +825,7 @@ bool CogdoRuntime::frame(BossFrame &frame) {
     }
     const CogdoScene scene = select(*interior, game);
     if (scene != assets_.scene()) {
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.player.setCollision(nullptr);
         assets_.select(scene);
         spawned_ = false;

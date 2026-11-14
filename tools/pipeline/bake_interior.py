@@ -163,6 +163,7 @@ def _setup_texture_caching():
     import hashlib
     import extract
     import ttm
+    from panda3d.core import Texture
     if getattr(extract.Extractor, '_cached_texture_installed', False):
         return
     global_cache = {}
@@ -175,6 +176,12 @@ def _setup_texture_caching():
         if not self.encode_textures:
             return orig_texture(self, tex)
         px, ncomp, pfmt = extract.texture_pixels(tex, self.max_tex)
+        if pfmt == Texture.F_alpha:
+            # Texture.store gives an alpha-only texture (sign lettering fonts) as grayscale:
+            # move the mask to alpha over white, as Panda samples it. Kept as alpha 255 it
+            # baked every letter as a solid block.
+            px[:, :, 3] = px[:, :, 0]
+            px[:, :, :3] = 255
         wrap_u = extract._WRAP.get(tex.getWrapU(), ttm.GPU_REPEAT)
         wrap_v = extract._WRAP.get(tex.getWrapV(), ttm.GPU_REPEAT)
         content = (tex.getName(), wrap_u, wrap_v, self.max_tex, self.etc1, ncomp, str(pfmt), px.shape,
@@ -190,6 +197,20 @@ def _setup_texture_caching():
 
     extract.Extractor._texture = cached_texture
     extract.Extractor._cached_texture_installed = True
+
+
+def write_pts(root, pts_path):
+    """The interior's anchors, then each door's leaf colour (door_colors.py). Returns the anchors."""
+    import door_colors
+    import interior_assemble
+    from panda3d.core import LPoint3
+    anchors = interior_assemble.extract_anchors(root)
+    pts_lines = [f'{name} {x:.3f} {y:.3f} {z:.3f} {h:.2f}' for name, x, y, z, h in anchors]
+    doors = [(name, LPoint3(x, y, z)) for name, x, y, z, h in anchors if name.startswith('door_origin')]
+    pts_lines += door_colors.lines(root, doors)
+    with open(pts_path, 'w') as f:
+        f.write('\n'.join(pts_lines) + ('\n' if pts_lines else ''))
+    return anchors
 
 
 def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
@@ -218,8 +239,14 @@ def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
     preview_png = os.path.join(preview_dir, f'{zone_id}_compare.png')
 
     # 2. Extract geometry and write .ttm
+    # Lamps, coat racks, desk phones and Toon Hall's trophies are axial BillboardEffect cards;
+    # frozen they vanish edge-on. Crossed on a copy so collision and anchors see the original.
+    from panda3d.core import NodePath
+    visual = root.copyTo(NodePath('visual'))
+    assemble.cross_billboards(visual)
     ex = extract.Extractor(max_tex=max_tex, layer_rules=assemble.LAYER_RULES)
-    ex.add(root)
+    ex.add(visual)
+    visual.removeNode()
     batches = ex.batches()
     ttm_stats = ttm.write(ttm_path, ex.textures, batches)
 
@@ -235,10 +262,7 @@ def bake_one(zone_id, block, base, store, resources, out_dir, preview_dir,
     ttc_stats = mesh.write(ttc_path, cell_size=8.0, max_bytes=1024 * 1024)
 
     # 4. Extract anchors and write .pts
-    anchors = interior_assemble.extract_anchors(root)
-    pts_lines = [f'{name} {x:.3f} {y:.3f} {z:.3f} {h:.2f}' for name, x, y, z, h in anchors]
-    with open(pts_path, 'w') as f:
-        f.write('\n'.join(pts_lines) + ('\n' if pts_lines else ''))
+    anchors = write_pts(root, pts_path)
 
     # 5. Compute spawn & sidecar metadata and write .json
     meta = interior_assemble.compute_spawn_data(root, zone_id, block, spec)
@@ -313,6 +337,7 @@ def main():
     ap.add_argument('--max-tex', type=int, default=128, help='Max texture dimension (default 128)')
     ap.add_argument('--resources', default=DEFAULT_RESOURCES, help='Resources directory path')
     ap.add_argument('--no-preview', action='store_true', help='Skip preview PNG generation')
+    ap.add_argument('--points-only', action='store_true', help='only rewrite the .pts anchor sidecars')
     args = ap.parse_args()
 
     import interior_assemble
@@ -404,6 +429,11 @@ def main():
         if len(targets) > 1 and (i % 25 == 0 or i == len(targets) - 1 or len(targets) <= 10):
             print(f'  [{i + 1}/{len(targets)}] Baking Zone {zone_id} (Block {block_num}: {sp["name"] if sp else "Building"})...', flush=True)
 
+        if args.points_only:  # refresh the .pts anchors without re-encoding the interior
+            root, _, _ = interior_assemble.assemble_interior(zone_id, block_num, base.loader, store, spec=sp)
+            write_pts(root, os.path.join(args.out_dir, f'{zone_id}.pts'))
+            root.removeNode()
+            continue
         res = bake_one(
             zone_id=zone_id,
             block=block_num,

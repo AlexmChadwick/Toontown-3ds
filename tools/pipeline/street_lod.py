@@ -1,7 +1,8 @@
 """Deterministic far LOD and conservative per-PVS model selection.
 
-Near meshes are untouched. Far meshes omit decal layers and snap world positions
-to a shared voxel lattice, removing collapsed and duplicate triangles. Keeping UVs
+Near meshes are untouched. Far meshes omit decal layers and collapse world positions
+per voxel of a shared lattice (to the voxel's mean), removing collapsed and duplicate
+triangles. Keeping UVs
 and colours per corner preserves material seams. Adjacent chunks use the same
 lattice. Collision is never simplified. Runtime uses the same budgeted plan.
 """
@@ -9,17 +10,116 @@ import numpy as np
 import ttm
 
 TRI_BUDGET = 15000
+# World meshes stop here. The frame still has a 150-draw ceiling; the remainder
+# is toons, the boat and other actors. A view that fills 150 has no headroom.
+DRAW_CAP = 130
+# Chunks within `must` of the toon are considered first. They use the same 130-draw
+# cap as the rest of the cell. A 150-draw near envelope counted chunks behind the
+# camera and reached 147-149 draws in Donald's Dock.
+NEAR_DRAW_CAP = DRAW_CAP
 LOW_TARGET = 12000
 
 
-def simplify(batches, spacing):
+def position_keys(points):
+    """Exact-match keys for world positions (1/1024 unit), one void scalar per row."""
+    q=np.ascontiguousarray(np.round(np.asarray(points,dtype=np.float64)[:,:3]*1024.0).astype(np.int64))
+    return q.view(np.dtype((np.void,24))).ravel()
+
+
+def shared_positions(chunks):
+    """Keys of the vertex positions used by more than one chunk's batches.
+
+    Chunks own whole triangles (split_grid bins them by centroid), so the seam
+    between two chunks is a run of original edges whose corners both chunks use.
+    """
+    per=[np.unique(position_keys(np.concatenate([b.verts[b.indices] for b in bs])))
+         for bs in chunks if any(len(b.indices) for b in bs)]
+    if len(per)<2:
+        return per[0][:0] if per else position_keys(np.zeros((0,3)))
+    keys,counts=np.unique(np.concatenate(per),return_counts=True)
+    return keys[counts>1]
+
+
+# A triangle at least this upward (normal z) is ground for ground_spacing; ground_split
+# uses the same test for what it splits.
+GROUND_UP = 0.5
+
+
+def cluster_points(batches, spacing, fixed=None, ground_spacing=None, moves=None):
+    """Vertex clustering of one chunk: the new position of every corner, batch by batch.
+
+    Every corner in a voxel (round(p / spacing)) collapses to the mean of the distinct
+    positions in it, not to the voxel centre. The merges are the same, so triangle
+    counts match; the shape does not. A centre moved flat ground and rock tops up to
+    half a voxel in height: at Acorn Acres' 16 unit far voxels the round rock behind
+    the Donald's Dock tunnel became a spike, and the ground stepped. A mean stays on a
+    flat or gently curved surface. `fixed` positions are not moved and do not count.
+
+    With `ground_spacing`, corners whose every triangle faces up (ground and the middle
+    of roofs: what ground_split cut into 20 unit pieces) use that coarser lattice; a
+    corner on any wall or slope keeps `spacing`. Split ground filled the far budget,
+    so Cashbot and Lawbot HQ walls collapsed at 48 units while their flat yards did not
+    need the triangles.
+
+    `moves` (seam_line_moves) maps seam corners to positions shared by every chunk.
+    """
+    corners=[b.verts[b.indices][:,:3] for b in batches]
+    if not corners:
+        return []
+    pts=np.concatenate(corners).astype(np.float64)
+    keys,first,inverse=np.unique(position_keys(pts),return_index=True,return_inverse=True)
+    pos=pts[first]
+    rep=pos.copy()
+    free=~np.isin(keys,fixed) if fixed is not None and len(fixed) else np.ones(len(keys),bool)
+    if moves:
+        for i,k in enumerate(keys):
+            target=moves.get(k.tobytes())
+            if target is not None:
+                rep[i]=target
+                free[i]=False
+    if free.any():
+        step=np.full(len(keys),float(spacing))
+        if ground_spacing:
+            tri=pts.reshape(-1,3,3)
+            n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+            ln=np.linalg.norm(n,axis=1)
+            up=np.where(ln>1e-8,n[:,2]/np.maximum(ln,1e-8),0.0)>=GROUND_UP
+            ground=np.ones(len(keys),bool)
+            np.logical_and.at(ground,inverse.ravel(),np.repeat(up,3))
+            step[ground]=ground_spacing
+        lattice=np.round(pos/step[:,None]).astype(np.int64)
+        cells=np.concatenate([lattice,(step!=spacing)[:,None].astype(np.int64)],axis=1)[free]
+        _,group=np.unique(cells,axis=0,return_inverse=True)
+        group=group.ravel()
+        sums=np.zeros((group.max()+1,3))
+        np.add.at(sums,group,pos[free])
+        rep[free]=(sums/np.bincount(group)[:,None])[group]
+    moved=rep[inverse.ravel()]
+    return np.split(moved,np.cumsum([len(c) for c in corners])[:-1])
+
+
+def simplify(batches, spacing, keep_layers=False, fixed=None, ground=None, moves=None):
+    """Far mesh of one chunk at a voxel spacing.
+
+    `fixed` (shared_positions) are seam corners that stay where they are. Snapped,
+    a far chunk pulled its edge off its near neighbour's and the sky showed through
+    the TTC hills on Old 3DS, which draws the far mesh from 160. Other corners
+    collapse per voxel (cluster_points); `ground` is its ground_spacing.
+    """
     result=[]
+    snapped=[b for b in batches if not b.layer] if spacing else []
+    moved=dict(zip(map(id,snapped),cluster_points(snapped,spacing,fixed,ground,moves)))
     for b in batches:
-        if b.layer:
+        if b.layer and not keep_layers:
             continue  # windows, letters and other overlaid details disappear only far away
         verts=b.verts[b.indices].copy()
-        if spacing:
-            verts[:,:3]=np.round(verts[:,:3]/spacing)*spacing
+        # A kept decal is not snapped: snapped, it cuts through its wall at an angle and
+        # z-fights. It is lifted off its collapsed wall instead (lift); the TTC tunnel signs were buried in their snapped rock.
+        if spacing and not b.layer:
+            verts[:,:3]=moved[id(b)]
+            verts[:,5:9]=_merged_colors(b.verts[b.indices],verts)
+        elif spacing:
+            verts=lift(verts,spacing)
         tri=verts.reshape(-1,3,9)
         area=np.linalg.norm(np.cross(tri[:,1,:3]-tri[:,0,:3],tri[:,2,:3]-tri[:,0,:3]),axis=1)
         tri=tri[area>1e-6]
@@ -31,6 +131,121 @@ def simplify(batches, spacing):
         verts=tri[np.sort(unique)].reshape(-1,9)
         result.append(ttm.Batch(b.texture,b.blend,b.two_sided,b.tint,b.layer,verts,np.arange(len(verts))))
     return result
+
+
+def _merged_colors(before, after):
+    """Vertex colours after a collapse: each merged corner takes the area-weighted mean
+    of the corners that landed on it (in this batch, degenerate triangles included).
+
+    Survivors otherwise keep only their own colours. Cashbot HQ's vault stairs bake
+    their lighting into vertex colour (treads 1.0, risers 0.24 to 0.43); the risers
+    collapsed and the far stairs were a white band across the entrance."""
+    tri=before[:,:3].reshape(-1,3,3)
+    area=np.linalg.norm(np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0]),axis=1)
+    weight=np.repeat(area,3)[:,None]+1e-12
+    _,group=np.unique(np.round(after[:,:3],6),axis=0,return_inverse=True)
+    group=group.reshape(-1)
+    total=np.zeros((group.max()+1,4))
+    norm=np.zeros((group.max()+1,1))
+    np.add.at(total,group,before[:,5:9]*weight)
+    np.add.at(norm,group,weight)
+    return total[group]/norm[group]
+
+
+def lift(verts, spacing):
+    """Move each triangle of unsnapped decal corners off its wall along the face normal.
+
+    `verts` are non-indexed corners (3 per triangle). A voxel mean of a flat wall stays
+    on its plane, and at an outside corner it moves into the building, away from the
+    decal; a lift of half a voxel diagonal covers the rest. Past lodNear the gap does
+    not show.
+    """
+    out=np.asarray(verts,dtype=np.float64).copy()
+    tri=out[:,:3].reshape(-1,3,3)
+    n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+    length=np.linalg.norm(n,axis=1,keepdims=True)
+    n=np.where(length>1e-9,n/np.maximum(length,1e-9),0.0)
+    tri+=n[:,None,:]*(spacing*3**.5/2+0.05)
+    out[:,:3]=tri.reshape(-1,3)
+    return out
+
+
+# Seam corners on one chunk-grid line at one height closer than this are one run.
+SEAM_RUN_GAP = 40.0
+
+
+def seam_line_moves(chunks, fixed, size, spacing, flat=0.01):
+    """Shared far positions for seam corners on straight chunk-grid lines.
+
+    split_grid(straight=True) clips ground at the grid lines, so a seam between two
+    chunks is a straight line. Its corners were fixed, and on Cashbot HQ's 256 unit
+    grid those seam strips were half the far triangles (the vault stairs were then a
+    16 unit voxel slab). A corner whose triangles all face up, on exactly one grid
+    line, merges with its neighbours along that line and at the same height into the
+    mean of a `spacing` bucket, for every chunk alike: the far edge stays on the line
+    the near neighbour draws. Runs stop at fixed corners and grid corners; a run end
+    with no corner beyond it within SEAM_RUN_GAP stays put. Returns {key bytes: xyz}.
+    """
+    if not spacing or fixed is None or not len(fixed):
+        return {}
+    corners=[b.verts[b.indices][:,:3] for bs in chunks for b in bs if not b.layer and len(b.indices)]
+    if not corners:
+        return {}
+    pts=np.concatenate(corners).astype(np.float64)
+    keys,first,inverse=np.unique(position_keys(pts),return_index=True,return_inverse=True)
+    tri=pts.reshape(-1,3,3)
+    n=np.cross(tri[:,1]-tri[:,0],tri[:,2]-tri[:,0])
+    ln=np.linalg.norm(n,axis=1)
+    up=np.where(ln>1e-8,n[:,2]/np.maximum(ln,1e-8),0.0)>=GROUND_UP
+    ground=np.ones(len(keys),bool)
+    np.logical_and.at(ground,inverse.ravel(),np.repeat(up,3))
+    seam=np.isin(keys,fixed)
+    pos=pts[first]
+    on=np.abs(pos[:,:2]/size-np.round(pos[:,:2]/size))<1e-7
+    lines={}
+    for i in np.nonzero(seam&(on[:,0]^on[:,1]))[0]:
+        axis=0 if on[i,0] else 1
+        line=(axis,int(round(pos[i,axis]/size)),round(float(pos[i,2])/flat))
+        lines.setdefault(line,[]).append(i)
+    # Grid corners and other fixed corners on a line break its runs.
+    for i in np.nonzero(seam&on[:,0]&on[:,1])[0]:
+        for axis in (0,1):
+            line=(axis,int(round(pos[i,axis]/size)),round(float(pos[i,2])/flat))
+            if line in lines:
+                lines[line].append(i)
+    moves={}
+    for (axis,_,_),members in sorted(lines.items()):
+        along=1-axis
+        members=sorted(set(members),key=lambda i:pos[i,along])
+        runs,run,prev=[],[],None
+        for i in members:
+            mergeable=ground[i] and not (on[i,0] and on[i,1])
+            gap=prev is not None and pos[i,along]-pos[prev,along]>SEAM_RUN_GAP
+            if gap or not mergeable:
+                if run:
+                    runs.append((run,run_open,gap))
+                run=[]
+            if mergeable:
+                if not run:
+                    run_open=prev is None or gap
+                run.append(i)
+            prev=i
+        if run:
+            runs.append((run,run_open,True))
+        for run,open_start,open_end in runs:
+            if open_start:
+                run=run[1:]
+            if open_end:
+                run=run[:-1]
+            buckets={}
+            for i in run:
+                buckets.setdefault(int(np.floor(pos[i,along]/spacing)),[]).append(i)
+            for members_b in buckets.values():
+                target=pos[members_b[0]].copy()
+                target[along]=float(np.mean(pos[members_b,along]))
+                for i in members_b:
+                    moves[keys[i].tobytes()]=target
+    return moves
 
 
 def count(batches):
@@ -56,21 +271,32 @@ def distance2(point,bounds):
     return float(d@d)
 
 
-def plan(chunks,cell,point,near=65):
-    """Low baseline, then nearest-first near upgrades, never removing a PVS cell."""
+def plan(chunks,cell,point,near=65,must=0):
+    """Low baseline, then nearest-first near upgrades, never removing a PVS cell.
+
+    Mirrors Zone::update with no camera: chunks within `must` first, then the rest
+    within `near`. Both passes stop at DRAW_CAP. A camera at runtime counts only
+    the submitted view, which is a tighter set than this whole-cell plan."""
     ids=chunks[cell]['vis']
     choice={i:1 for i in ids}
     keys=('triangles','batches','geometry_bytes','texture_bytes')
-    limits=(15000,150,6*1024*1024,8*1024*1024)
+    limits=(TRI_BUDGET, DRAW_CAP, 6*1024*1024, 8*1024*1024)
     total=[sum(chunks[i]['low_stats'][k] for i in ids) for k in keys]
     if any(x>limit for x,limit in zip(total,limits)):
         raise ValueError('far baseline exceeds runtime budget')
-    for i in sorted(ids,key=lambda j:(distance2(point,(chunks[j].get('bounds') or chunks[j]['stats']['bounds'])),j)):
-        c=chunks[i]
-        if distance2(point,(c.get('bounds') or c['stats']['bounds']))>near*near:
+    def d2(c):
+        return distance2(point,(c.get('bounds') or c['stats']['bounds']))
+    order=sorted(ids,key=lambda j:(d2(chunks[j]),j))
+    for radius,cap in ((must,NEAR_DRAW_CAP),(near,DRAW_CAP)):
+        if radius<=0:
             continue
-        trial=[value+c['stats'][k]-c['low_stats'][k] for value,k in zip(total,keys)]
-        if all(x<=limit for x,limit in zip(trial,limits)):
-            total=trial
-            choice[i]=0
+        caps=(TRI_BUDGET,cap)+limits[2:]
+        for i in order:
+            c=chunks[i]
+            if choice[i]==0 or d2(c)>radius*radius:
+                continue
+            trial=[value+c['stats'][k]-c['low_stats'][k] for value,k in zip(total,keys)]
+            if all(x<=limit for x,limit in zip(trial,caps)):
+                total=trial
+                choice[i]=0
     return choice,dict(zip(keys,total))

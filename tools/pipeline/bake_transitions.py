@@ -3,7 +3,9 @@
 
 Outputs:
   romfs/baked/portal.ttm         Portable hole prop for teleport in/out
-  romfs/baked/door_right.ttm     Swinging right door leaf for building/interior doors
+  romfs/baked/door_right.ttm     Swinging right door leaf for building/interior doors (hinge at origin)
+  romfs/baked/door_left.ttm      Swinging left door leaf (hinge at origin)
+  romfs/baked/door_hole_*.ttm    The black frame hole behind each open leaf (door space)
   romfs/baked/audio/enc_lose.tsnd Sad/death sound effect (ENC_Lose.ogg)
 
 Usage:
@@ -93,6 +95,23 @@ def bake_door_leaf(base, res_dir, node_name, out_path):
     print(f"Baked door leaf ({node_name}): {stats['file_bytes']} bytes, {stats['triangles']} tris -> {out_path}")
 
 
+def bake_door_hole(base, res_dir, node_name, out_path):
+    """Bake a door frame hole (black, door space). DistributedDoor shows doorFrameHole{Right,Left}
+    while that leaf is open, covering the closed leaf the door's flat paints. The hole sits on the
+    flat's plane, so it is moved 0.02 toward the side the toon walks out of (-y) to win depth."""
+    bam_path = os.path.join(res_dir, 'phase_3.5', 'models', 'modules', 'doors_practical.bam')
+    m = base.loader.loadModel(Filename.fromOsSpecific(bam_path))
+    d = m.find(f'**/{node_name}')
+    d.setPos(0, -0.02, 0)
+
+    ex = extract.Extractor(max_tex=128)
+    ex.add(d)
+
+    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+    stats = ttm.write(out_path, ex.textures, ex.batches())
+    print(f"Baked door hole ({node_name}): {stats['file_bytes']} bytes, {stats['triangles']} tris -> {out_path}")
+
+
 def bake_death_sfx(res_dir, out_path):
     """Bake death/sadness sound effect (phase_5/audio/sfx/ENC_Lose.ogg) as ADPCM .tsnd."""
     src = os.path.join(res_dir, 'phase_5', 'audio', 'sfx', 'ENC_Lose.ogg')
@@ -114,6 +133,8 @@ def main():
     bake_portal(base, res, portal_out)
     bake_door_leaf(base, res, 'door_double_round_ur_right', door_right_out)
     bake_door_leaf(base, res, 'door_double_round_ur_left', door_left_out)
+    bake_door_hole(base, res, 'door_double_round_ur_hole_right', os.path.join(ROOT, 'romfs', 'baked', 'door_hole_right.ttm'))
+    bake_door_hole(base, res, 'door_double_round_ur_hole_left', os.path.join(ROOT, 'romfs', 'baked', 'door_hole_left.ttm'))
     bake_death_sfx(res, lose_out)
     print("All transition assets baked successfully.")
 

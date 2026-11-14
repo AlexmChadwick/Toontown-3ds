@@ -24,13 +24,18 @@
 
 namespace tt::world {
 
+// DistributedToon.setCogIndex -> Toon.putOnSuit: the Cog a Toon wears for department `index`
+// (0..3: c l m s), nullptr for -1. A complete suit (CogDisguiseGlobals.isPaidSuitComplete; every
+// account is paid here) is cogTypes[index]; otherwise the rental f / bf / sc / cc, *rental set.
+const char* disguiseCode(int index, const uint8_t types[4], const uint32_t parts[4], bool* rental);
+
 class SuitActors {
 public:
     void pumpAssets() { assetBatch_.pump(); }
     bool loadingAssets() const { return assetBatch_.loading(); }
 
     // Street cogs (net::kMaxSuits) plus the facility cogs of the visible level zones.
-    static constexpr int kMax = 32;
+    static constexpr int kMax = 96;
 
     bool init(); // loads the placeholder model; false leaves suits invisible (never fatal)
     void shutdown();
@@ -60,14 +65,21 @@ public:
     }
     // Battles place their cogs themselves: call after update() each frame while in battle.
     // anim: SuitAnim or a battle clip (world/battle.h kSuitAnim*), clipArg/clipStartMs with it.
+    // battleScale: a boss battle joiner's entrance scale (BattleActorPose::joinScale).
     void overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim = 0,
-                      s8 clipArg = -1, u32 clipStartMs = 0);
+                      s8 clipArg = -1, u32 clipStartMs = 0, float battleScale = 1.0f);
     // Facility cogs (DistributedFactorySuit, world/level.*): the level runtime walks them and
     // sets their pose every frame; drawing, nametags, battles and overridePose work as above.
     // code: SuitDNA head code; levelDist: setLevelDist. False when no actor slot is free.
     bool setExternal(u32 doId, const char* code, int levelDist, float x, float y, float z, float h, bool walking,
                      bool visible, bool skelecog = false, float externalScale = 1); // cogdo: source maze actor scale
     void removeExternal(u32 doId);
+    // Toon.putOnSuit: the body of Cog `code` with its head hidden, posed by `world` (the Toon's
+    // feet). rental: Suit.makeRentalSuit (Sellbot rental cloth; other departments keep their own).
+    // *head: joint_head without the suit's scale, where the Toon's head goes. False until the
+    // body and its clips are resident (draw the Toon itself then).
+    bool drawDisguise(render::Renderer& renderer, const char* code, bool rental, const C3D_Mtx& world, bool walk,
+                      float t, C3D_Mtx* head);
 
 private:
     // What the cog is doing: Walk replays the leg list; the others hold or fly from a pose.
@@ -99,6 +111,7 @@ private:
         u8 legType = kLegOff;
         float flash = 0.0f; // battle hit tint, set by overridePose for one frame
         float externalScale = 1; // cogdo: per-maze suit scale; ordinary actors retain 1
+        float battleScale = 1;   // boss battle entrance (overridePose)
         bool skelecog = false; // DistributedSuitBase.setSkelecog: Suit.makeSkeleton
         float animTime = 0.0f;
         s8 clipArg = -1;
@@ -123,17 +136,22 @@ private:
         static constexpr int kClips = 10;
         char clipName[kClips][24] = {};
         render::Anim clips[kClips];
+        u32 clipUsedMs[kClips] = {};    // last frame a Cog played the clip
+        bool clipEvicting[kClips] = {}; // re-pointed: held back until the old clip is freed
         // Suit.getLoseActor: a defeated Cog swaps to its lose-mod model with its own 'lose'
         // animation (the head is instanced onto its joint_head); loaded the first time.
-        bool loseTried = false;
+        bool loseTried = false, loseBad = false;
         render::Model loseModel;
         render::Anim loseClip;
     };
     bool loadLose(int body);
+    bool loadRental();
     const render::Anim* battleClip(int body, const char* name);
     struct Head {
         char code[4] = {};
         bool tried = false;
+        bool evicting = false; // re-pointed at another head: hidden until the old one is freed
+        u32 usedMs = 0;        // last frame a Cog asked for this head
         render::Model model;
     };
     static constexpr int kMaxHeads = 12;
@@ -142,8 +160,8 @@ private:
     Head* head(const char* code);
     void loadDepartments();
     void drawReal(render::Renderer& renderer, const Actor& a, const C3D_Mtx& world);
-    // 6 bodies * (model + neutral + walk + 10 clips) + 12 heads = 90.
-    BasicAssetBatch<96> assetBatch_;
+    // 6 bodies * (model + neutral + walk + 10 clips + lose model + lose clip) + 12 heads = 102.
+    BasicAssetBatch<104> assetBatch_;
     Body bodies_[6];
     C3D_Tex tieTex_[4] = {}; // skeleton_ties.ttx: a skelecog's tie per department (c l m s)
     bool tiesLoaded_ = false;
@@ -151,6 +169,8 @@ private:
     Head heads_[kMaxHeads];
     C3D_Tex deptTex_[4][3] = {}; // [c l m s][blazer, sleeve, legs]
     bool deptLoaded_ = false;
+    C3D_Tex rentalTex_[3] = {}; // rental.ttx: Sellbot rental [blazer, sleeve, legs]
+    bool rentalTried_ = false, rentalLoaded_ = false;
     u32 nowMs_ = 0;
     u32 branch_ = 0;
     u32 graphBranch_ = 0;

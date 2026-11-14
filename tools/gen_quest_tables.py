@@ -234,6 +234,19 @@ STRING_NAMES = [
     'QuestMovieTrackChoice', 'QuestChoiceGuiCancel', 'TrackChoiceGuiChoose', 'TrackChoiceGuiCancel',
     'TrackChoiceGuiHEAL', 'TrackChoiceGuiTRAP', 'TrackChoiceGuiLURE', 'TrackChoiceGuiSOUND',
     'TrackChoiceGuiDROP',
+    # SpeedChat ToonTask phrases (Quest.getSCStrings, getVisitSCStrings, getFinishToonTaskSCStrings)
+    'TheFish', 'QuestsGenericFinishSCString', 'QuestsTailorQuestSCString', 'QuestsVisitQuestSeeSCString',
+    'QuestsCogQuestSCStringS', 'QuestsCogQuestSCStringP', 'QuestsCogTrackQuestSCStringS',
+    'QuestsCogTrackQuestSCStringP', 'QuestsCogLevelQuestDescI', 'QuestsCogLevelQuestSCString',
+    'QuestsBuildingQuestDescI', 'QuestsBuildingQuestDescIF', 'QuestsBuildingQuestSCString',
+    'QuestsDeliverGagQuestToSCStringS', 'QuestsDeliverGagQuestToSCStringP', 'QuestsDeliverGagQuestSCString',
+    'QuestsDeliverItemQuestSCString', 'QuestsRecoverItemQuestSeeHQSCString',
+    'QuestsRecoverItemQuestReturnToHQSCString', 'QuestsRecoverItemQuestReturnToSCString',
+    'QuestsRecoverItemQuestGoToHQSCString', 'QuestsRecoverItemQuestGoToPlaygroundSCString',
+    'QuestsRecoverItemQuestGoToStreetSCString', 'QuestsRecoverItemQuestVisitBuildingSCString',
+    'QuestsRecoverItemQuestWhereIsBuildingSCString', 'QuestsRecoverItemQuestRecoverFromSCString',
+    'QuestsTrackChoiceQuestSCString', 'QuestsTrackChoiceQuestMaybeSCString', 'QuestsFriendQuestSCString',
+    'QuestsMailboxQuestSCString', 'QuestsPhoneQuestSCString', 'QuestsTrolleyQuestSCString',
 ]
 # Tuples of strings: the default NPC lines (random.choice in upstream).
 TUPLE_NAMES = ['QuestsDefaultGreeting', 'QuestsDefaultIncomplete', 'QuestsDefaultIncompleteProgress',

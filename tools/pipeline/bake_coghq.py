@@ -7,8 +7,10 @@
 Each zone is one scene model (see coghq_catalog.py), not DNA. The baker applies the same node
 renames the upstream CogHQLoader subclasses apply at load time, extracts collision, tunnel and
 door triggers with collide.py, then chunks the visible geometry into a uniform XY grid exactly
-like the playgrounds of bake_street.py (PVS = cells within --distance, far LOD from
-street_lod.py, atlases from street_atlas.py) and writes TZ v2 with tz.py.
+like the playgrounds of bake_street.py (near atlas, ground split, vertex-coloured far
+LOD with hill cards kept textured, PVS out to the New 3DS draw distance) and writes
+TZ v3 with tz.py. --grid-size is a floor: the baker raises it until the far view
+fits the draw cap.
 
 Outputs per zone: <zone>.tz, <zone>.pts (tunnel/door anchors) and <zone>.json (budget report).
 --audio also bakes the HQ music to <out>/../audio/<hood>.tsnd for the four HQ hoods.
@@ -16,7 +18,6 @@ At most 3 ETC1 encoder threads; no source asset is modified.
 """
 import argparse
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
@@ -86,9 +87,117 @@ def build_scene(zone_id, cfg, loader, resources):
             origin = top.find('**/tunnel_origin')
             if not origin.isEmpty():
                 origin.setH(-33.33)
+    info['signs'] = sellbot_signs(zone_id, root, loader, resources)
     assemble.lift_decals(root)
     info['billboards_crossed'] = assemble.cross_billboards(root)
     return root, info
+
+
+# SellbotCogHQLoader.loadPlaceGeom copies sign_sellBotHeadHQ onto the tunnels and factory
+# doorways and writes OnscreenText (suit font, default black, centred) on it. Per zone:
+# (parent node, pos, hpr, sign scale, [(text, z, text scale)]).
+_SELLBOT_SIGN_SF, _SELLBOT_ELEVATOR_SF, _SELLBOT_ASPECT = 23, 15, 0.7227
+SELLBOT_SIGNS = {
+    11000: [('linktunnel_dg_5316_DNARoot', (0.0, -291.5, 29), 180.0, _SELLBOT_SIGN_SF,
+             [('Daisy Gardens', -0.3, 0.1)]),
+            ('linktunnel_sellhq_11200_DNARoot', (148.625, -155, 27), -90.0, _SELLBOT_SIGN_SF,
+             [('Sellbot', -0.25, 0.075), ('Factory', -0.34, 0.12)])],
+    11200: [('linktunnel_sellhq_11000_DNARoot', (0.0, -353, 27.5), -180.0, _SELLBOT_SIGN_SF,
+             [('Sellbot', -0.25, 0.075), ('Headquarters', -0.34, 0.1)]),
+            ('doorway1', (62.74, -87.99, 17.26), 2.72, _SELLBOT_ELEVATOR_SF,
+             [('Factory', -0.25, 0.075), ('Front Entrance', -0.34, 0.1)]),
+            ('doorway2', (-164.78, 26.28, 17.25), -89.89, _SELLBOT_ELEVATOR_SF,
+             [('Factory', -0.25, 0.075), ('Side Entrance', -0.34, 0.1)])],
+}
+
+
+# Text the loaders write on signs already in the model (OnscreenText, suit font): (sign node
+# path, locator path, offset from the locator, text, scale, colour, sign made a decal).
+# CashbotCogHQLoader: the Dreamland tunnel; BossbotCogHQLoader.makeSigns: GlobalStreetNames
+# upper-cased, setPosHpr(locator, 0, -0.1, -0.25); GZSafeZoneLoader.enterPlayground: the
+# Bossbot HQ tunnel of Chip 'n Dale's MiniGolf (bake_street.py applies that one).
+HQ_TEXT_SIGNS = {
+    12000: [('**/EntranceFrameFront', '**/sign_origin', (0, 0, 0), "Donald's Dreamland", 3,
+             (0.87, 0.87, 0.87, 1), True)],
+    17000: [('**/linktunnel_bosshq_10000_DNARoot/**/Sign_5', '**/linktunnel_bosshq_10000_DNARoot/**/sign_origin',
+             (0, 0, -0.3), 'BOSSBOT HQ', 1.5, (0, 0, 0, 1), True)],
+    10000: [('**/' + top + '/**/' + sign, '**/' + top + '/**/sign_origin', (0, -0.1, -0.25), text, 1.12,
+             (0, 0, 0, 1), False)
+            for top, sign, text in (('Gate_2', 'Sign_6', 'THE BACK NINE'), ('TunnelEntrance', 'Sign_2', 'PLAYGROUND'),
+                                    ('Gate_3', 'Sign_3', 'THE MIDDLE SIX'), ('Gate_4', 'Sign_4', 'THE FRONT THREE'),
+                                    ('GateHouse', 'Sign_5', 'THE CLUBHOUSE'))],
+}
+
+
+def _suit_font(resources):
+    # ToontownGlobals.getSuitFont; a fresh font per zone keeps the bake order-independent.
+    from panda3d.core import DynamicTextFont, Filename
+    font = DynamicTextFont(Filename.fromOsSpecific(str(Path(resources) / 'phase_3/models/fonts/vtRemingtonPortable.ttf')))
+    font.setPixelsPerUnit(40)
+    font.setSpaceAdvance(0.25)
+    font.setLineHeight(1.0)
+    return font
+
+
+def _letters(parent, font, text, color):
+    from panda3d.core import TextNode
+    import sign_text
+    tn = TextNode('sign_letters')
+    tn.setFont(font)
+    tn.setAlign(TextNode.ACenter)
+    tn.setTextColor(*color)
+    tn.setText(text)
+    letters = parent.attachNewNode(tn.generate())
+    for tex in letters.findAllTextures():
+        sign_text._FONT_TEXTURES.add(int(tex.this))
+    letters.setDepthWrite(False)
+    letters.setTag('sign_text', '1')
+    return letters
+
+
+def hq_text_signs(zone_id, root, resources):
+    """Text the Cashbot / Bossbot HQ loaders write on the model's own signs at run time."""
+    from panda3d.core import DecalEffect
+    made = []
+    font = _suit_font(resources) if zone_id in HQ_TEXT_SIGNS else None
+    for sign_path, locator_path, offset, text, scale, color, decal in HQ_TEXT_SIGNS.get(zone_id, ()):
+        sign, locator = root.find(sign_path), root.find(locator_path)
+        if sign.isEmpty() or locator.isEmpty():
+            raise ValueError(f'{zone_id}: sign {sign_path} / {locator_path} missing')
+        if decal:
+            sign.node().setEffect(DecalEffect.make())
+        letters = _letters(sign, font, text, color)
+        letters.setScale(scale)
+        letters.setPosHpr(locator, *offset, 0, 0, 0)
+        made.append(text)
+    return made
+
+
+def sellbot_signs(zone_id, root, loader, resources):
+    """The Sellbot HQ / factory exterior signs the stock loader adds at run time."""
+    if zone_id not in SELLBOT_SIGNS:
+        return hq_text_signs(zone_id, root, resources)
+    from panda3d.core import DecalEffect
+    card = loader.loadModel(str(Path(resources) / 'phase_4/models/props/sign_sellBotHeadHQ.bam'), noCache=True)
+    sign = card.find('**/sign_sellBotHeadHQ')
+    if sign.isEmpty():
+        raise ValueError('sign_sellBotHeadHQ missing')
+    font = _suit_font(resources)
+    made = []
+    for parent_name, pos, h, sf, lines in SELLBOT_SIGNS[zone_id]:
+        parent = root.find('**/' + parent_name)
+        if parent.isEmpty():
+            raise ValueError(f'{zone_id}: sign parent {parent_name} missing')
+        copy = sign.copyTo(parent)
+        copy.setPosHprScale(*pos, h, 0, 0, sf, sf, sf * _SELLBOT_ASPECT)
+        copy.node().setEffect(DecalEffect.make())
+        for text, z, scale in lines:
+            letters = _letters(copy, font, text, (0, 0, 0, 1))
+            letters.setPos(0, 0, z)
+            letters.setScale(scale)
+        made.append(parent_name)
+    card.removeNode()
+    return made
 
 
 def write_points(root, cfg, path):
@@ -117,62 +226,56 @@ def bake(zone_id, args, base):
     import collide
     import coghq_catalog
     import street_atlas
+    import extract
     import street_lod
     import ttm
     import tz
-    from bake_street import split_grid
+    from bake_street import (FAR_BODY, LOD_MUST, SHARED_NEAR_ATLAS as NEAR_ATLAS, NEW_LOD_NEAR, OLD_LOD_NEAR, FarBudgetError,
+                             choose_far, grid_ladder, lower_draw_bound, prefer_far, split_zone_grid,
+                             straighter_far)
     cfg = coghq_catalog.CATALOG[zone_id]
     root, info = build_scene(zone_id, cfg, base.loader, args.resources)
     ex = street_atlas.Extractor()
     whole = collide.extract(root, fallback_floor=False)
     collision, collision_stats = whole.pack()
     ex.add(root)
-    raw_batches = ex.batches()
-    groups = split_grid(raw_batches, args.grid_size)
-    size = args.grid_size
-    floor_tris = [(np.array([a, b, c]), normal) for a, b, c, normal, flags in whole.tris
+    raw_batches, ground_stats = extract.subdivide_ground(ex.batches())
+    floor_tris = [np.array([a, b, c]) for a, b, c, normal, flags in whole.tris
                   if flags & collide.FLOOR and not flags & collide.TRIGGER and normal[2] >= 0.707]
     if not floor_tris:
         raise ValueError(f'{zone_id}: no floor collision')
-
-    def cells_of(p):
-        return [(cx, cy)
-                for cy in range(math.floor(p[:, 1].min() / size), math.floor(p[:, 1].max() / size) + 1)
-                for cx in range(math.floor(p[:, 0].min() / size), math.floor(p[:, 0].max() / size) + 1)]
-
-    def clip_cell(p, cx, cy):
-        poly = list(np.pad(p, ((0, 0), (0, 6))))
-        for axis, key in ((0, cx), (1, cy)):
-            poly = street_atlas.clip(street_atlas.clip(poly, axis, key * size, True), axis, (key + 1) * size, False) if poly else []
-        return poly
-    # Grid cells crossed by floor triangles exist even when they own no render triangles.
-    for p, _ in floor_tris:
-        for cx, cy in cells_of(p):
-            if len(clip_cell(p, cx, cy)) >= 3:
-                groups.setdefault((cx, cy), [])
-    keys = sorted(groups)
-    index_of = {k: i for i, k in enumerate(keys)}
-    if len(keys) > 256:
-        raise ValueError(f'{zone_id}: {len(keys)} grid cells exceed the TZ limit of 256; raise --grid-size')
-    raw, chunks, floors = [], [], []
-    for i, key in enumerate(keys):
-        raw.append(groups[key])
-        chunks.append({'name': f'g{i}', 'zone': zone_id, 'vis': [], 'grid': key})
-    for p, _ in floor_tris:
-        for cx, cy in cells_of(p):
-            poly = clip_cell(p, cx, cy)
-            i = index_of[(cx, cy)]
-            for j in range(1, len(poly) - 1):
-                tri = np.array([poly[k][:3] for k in (0, j, j + 1)])
-                if np.linalg.norm(np.cross(tri[1] - tri[0], tri[2] - tri[0])) > 1e-6:
-                    floors.append((tri, i, zone_id))
-    floors.sort(key=lambda f: f[1])
-    textures, batches = street_atlas.build(ex.sources, raw)
+    # Same far path as playgrounds. --grid-size is the floor. Coarser rungs are
+    # tried until the far view fits the draw cap, and a fit that voxel-deleted
+    # the mesh (under FAR_BODY triangles) does not stop the search. The vis
+    # reaches the New 3DS draw distance (distance plus the 78-unit margin).
+    chosen = None
+    for size in grid_ladder(args.grid_size):
+        trial_raw, trial_chunks, trial_floors = split_zone_grid(
+            raw_batches, floor_tris, zone_id, size, args.distance)
+        if len(trial_chunks) > 256 or lower_draw_bound(trial_raw, trial_chunks) > street_lod.DRAW_CAP:
+            continue
+        try:
+            trial_low, trial_tex, trial_lod = choose_far(ex.sources, trial_raw, trial_chunks)
+        except FarBudgetError:
+            continue
+        if chosen is not None and not prefer_far(trial_lod, chosen[6]):
+            continue
+        chosen = (size, trial_raw, trial_chunks, trial_floors, trial_low, trial_tex, trial_lod)
+        if trial_lod['low_worst_triangles'] >= FAR_BODY:
+            break
+    if chosen is None:
+        raise ValueError(f'{zone_id}: no grid size keeps the far LOD within {street_lod.DRAW_CAP} draws')
+    size, raw, chunks, floors, low, far_textures, lod_report = chosen
+    better = straighter_far(ex.sources, raw_batches, floor_tris, zone_id, size, args.distance, lod_report)
+    if better is not None:
+        raw, chunks, floors, low, far_textures, lod_report = better
+        lod_report = dict(lod_report, straight_seams=True)
+    textures, batches = street_atlas.build(ex.sources, raw, **NEAR_ATLAS)
     batches = [[street_atlas.rebase_large_uvs(b, textures) for b in bs] for bs in batches]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    def pack(bs, tmp):
+    def pack(bs, tmp, tex_list):
         if not bs:
             return b'', {'batches': 0, 'triangles': 0, 'geometry_bytes': 0, 'texture_bytes': 0,
                          'bounds': [[0, 0, 0], [0, 0, 0]]}
@@ -181,29 +284,16 @@ def bake(zone_id, args, base):
         copies = [ttm.Batch(mapping[b.texture] if b.texture is not None else None,
                             b.blend, b.two_sided, b.tint, b.layer, b.verts, b.indices) for b in bs]
         path = Path(tmp) / 'chunk.ttm'
-        stats = ttm.write(path, [textures[j] for j in used], copies)
+        stats = ttm.write(path, [tex_list[j] for j in used], copies)
         if stats['uv_clamped']:
             raise ValueError('UV overflow')
         return path.read_bytes(), stats
     with tempfile.TemporaryDirectory() as tmp:
         for chunk, bs in zip(chunks, batches):
-            chunk['model'], chunk['stats'] = pack(bs, tmp)
-    # Triangle ownership uses centroids, not clipping. A long triangle can cross
-    # the camera's cell while belonging several cells away. A fixed 3x3 PVS
-    # discarded such geometry, leaving exposed stair edges and missing surfaces.
-    # Match playground PVS: full chunk bounds against the cell plus camera reach.
-    for i, c in enumerate(chunks):
-        lo = np.array(c['grid']) * args.grid_size
-        hi = lo + args.grid_size
-        for j, d in enumerate(chunks):
-            bmin,bmax = map(np.array,d['stats']['bounds'])
-            delta = np.maximum(np.maximum(bmin[:2]-hi,lo-bmax[:2]),0)
-            if i==j or np.linalg.norm(delta)<=args.distance+38:
-                c['vis'].append(j)
-    low, lod_report = street_lod.make_low(chunks, batches)
+            chunk['model'], chunk['stats'] = pack(bs, tmp, textures)
     with tempfile.TemporaryDirectory() as tmp:
         for chunk, bs in zip(chunks, low):
-            chunk['low_model'], chunk['low_stats'] = pack(bs, tmp)
+            chunk['low_model'], chunk['low_stats'] = pack(bs, tmp, far_textures)
             if chunk['low_model']:
                 chunk['stats']['bounds'] = [
                     np.minimum(chunk['stats']['bounds'][0], chunk['low_stats']['bounds'][0]).tolist(),
@@ -216,8 +306,9 @@ def bake(zone_id, args, base):
         if not points:
             points = [np.mean(c['stats']['bounds'], axis=0)]
         for p in points[::max(1, len(points) // 8)]:
-            _, metrics = street_lod.plan(chunks, i, p)
-            samples.append(metrics)
+            for near in (OLD_LOD_NEAR, NEW_LOD_NEAR):
+                _, metrics = street_lod.plan(chunks, i, p, near=near, must=LOD_MUST[near])
+                samples.append(metrics)
     planned = {k: max(row[k] for row in samples) for k in ('batches', 'triangles', 'geometry_bytes', 'texture_bytes')}
     triggers = []
     for t in whole.triggers:
@@ -230,13 +321,18 @@ def bake(zone_id, args, base):
     import hq_arrivals
     arrival = hq_arrivals.write_anchor(args.resources, zone_id, out/f'{zone_id}.pts', whole)
     num_points += int(arrival is not None)
+    import coghq_elevators
+    elevators = coghq_elevators.anchors(zone_id, cfg, args.resources, base.loader)
+    coghq_elevators.write(out / f'{zone_id}.pts', elevators)
+    num_points += len(elevators)
     report.update({
-        'arrival': arrival, 'version': 2, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
+        'arrival': arrival, 'version': 3, 'zone': zone_id, 'name': cfg['name'], 'model': cfg['model'],
         'before': before['worst'], 'low': low_report['worst'], 'planned_worst': planned, 'lod': lod_report,
         'points': num_points, 'floor_triangles': len(floors), 'triggers': len(triggers),
         'trigger_list': [{k: t[k] for k in ('kind', 'name', 'owner')} for t in triggers],
         'file_bytes': (out / f'{zone_id}.tz').stat().st_size, 'atlas_pages': len(textures),
-        'grid_size': size, 'distance': args.distance, 'collision': collision_stats, **info,
+        'grid_size': size, 'distance': args.distance, 'draw_cap': street_lod.DRAW_CAP,
+        'near_atlas': NEAR_ATLAS, 'ground_split': ground_stats, 'collision': collision_stats, **info,
         'source_triangles': sum(len(b.indices) // 3 for b in raw_batches),
         'source_batches': len(raw_batches)})
     (out / f'{zone_id}.json').write_text(json.dumps(report, indent=2) + '\n')
@@ -270,8 +366,10 @@ def main():
     ap.add_argument('--resources', default=default_resources())
     ap.add_argument('--out', default=str(ROOT / 'sdmc-out/3ds/toontown3ds/data/zones'))
     ap.add_argument('--grid-size', type=float, default=None,
-                    help='cell size (Cashbot 12000: 192; other HQ zones: 96)')
-    ap.add_argument('--distance', type=float, default=120)
+                    help='minimum cell size; the baker raises it until the far draw cap fits '
+                         '(Cashbot 12000 starts at 192, other HQ zones at 96)')
+    ap.add_argument('--distance', type=float, default=760,
+                    help='cell vis radius; plus 78 covers the New 3DS draw distance')
     ap.add_argument('--preview', action='store_true')
     ap.add_argument('--audio', action='store_true', help='also bake the four HQ music tracks')
     args = ap.parse_args()

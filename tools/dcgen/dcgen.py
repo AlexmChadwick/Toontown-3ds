@@ -78,6 +78,7 @@ WANTED = {
                               'clearSmoothing'],
     'DistributedToon': ['setName', 'setDNAString', 'setAnimState', 'setEmoteState', 'setTalk', 'setSC',
                         'playSplashEffect',  # DDPlayground.__submergeToon (world/water.*)
+                        'squish',  # Cashbot HQ trains (world/cashbot_trains.*): b_squish
                         # Owner-view stats for the HUD (source/net/zone_objects.*).
                         'setHp', 'setMaxHp', 'toonUp', 'takeDamage', 'setMoney', 'setMaxMoney',
                         'setBankMoney', 'setMaxBankMoney', 'setExperience', 'setMaxCarry',
@@ -93,7 +94,7 @@ WANTED = {
                         'setQuestHistory', 'setRewardHistory', 'requestDeleteQuest',
                         # Shtiker Book (source/ui/book*.cpp, docs/design/shtiker_book.md)
                         'setCogStatus', 'setCogCount', 'setCogRadar', 'setBuildingRadar',
-                        'setCogParts', 'setCogMerits', 'setCogTypes', 'setCogLevels',
+                        'setCogParts', 'setCogMerits', 'setCogTypes', 'setCogLevels', 'setCogIndex',
                         'setFishCollection', 'setFishingTrophies',
                         'setKartingTrophies', 'setKartingHistory',
                         'setGolfHistory', 'setPackedGolfHoleBest', 'setGolfCourseBest'],
@@ -250,15 +251,17 @@ WANTED = {
     'DistributedMaze': ['setRoomDoId', 'setGameStart', 'setGameOver', 'setClientTriggered',
                         'setFinishedMaze', 'toonFinished', 'damageMe'],
     'DistributedMoleField': ['setGameStart', 'setClientTriggered', 'whackedMole', 'whackedBomb',
-                             'updateMole', 'setScore', 'damageMe', 'setPityWin'],
+                             'updateMole', 'reportToonHitByBomb', 'setScore', 'damageMe', 'setPityWin'],
     'DistributedGolfGreenGame': ['requestJoin', 'leaveGame', 'acceptJoin', 'requestBoard',
-                                 'startBoard', 'signalDone', 'scoreData', 'setTimerStart'],
+                                 'startBoard', 'signalDone', 'boardCleared', 'scoreData', 'informGag',
+                                 'helpOthers', 'setTimerStart'],
     'DistributedGrid': [],
     'DistributedGridGoon': ['setPathPts'],
     'DistributedCrusherEntity': [],
     'DistributedAnimatedProp': ['setPropId', 'setAvatarInteract', 'setState', 'requestInteract', 'requestExit'],
     'DistributedButterfly': ['setArea', 'setState'],
-    'DistributedToonInterior': ['setZoneIdAndBlock', 'setState'],
+    'DistributedDGFlower': ['setHeight', 'avatarEnter', 'avatarExit'],
+    'DistributedToonInterior': ['setZoneIdAndBlock', 'setSavedBy', 'setState'],
     'DistributedHQInterior': ['setZoneIdAndBlock', 'setLeaderBoard', 'setTutorial'],
     'DistributedGagshopInterior': ['setZoneIdAndBlock'],
     'DistributedPetshopInterior': ['setZoneIdAndBlock'],
@@ -284,7 +287,7 @@ WANTED = {
     'DistributedStartingBlock': ['setPadDoId', 'setPosHpr', 'setPadLocationId',
                                  'requestEnter', 'rejectEnter', 'requestExit', 'setOccupied', 'setMovie',
                                  'movieFinished'],
-    'DistributedLeaderBoard': ['setPosHpr'],
+    'DistributedLeaderBoard': ['setPosHpr', 'setDisplay'],
 }
 
 # Class families whose every subclass gets a table (and a kClassId namespace).
@@ -306,7 +309,7 @@ TABLE_CLASSES = ['DistributedDistrict', 'ToontownDistrict', 'ToontownDistrictSta
                  'DistributedTrophyMgr', 'NewsManager', 'SafeZoneManager',
                  'ToontownMagicWordManager', 'WelcomeValleyManager',
                  # (shard, 2000) playground objects
-                 'DistributedTrolley', 'DistributedBoat', 'DistributedButterfly', 'DistributedFishingPond',
+                 'DistributedTrolley', 'DistributedBoat', 'DistributedButterfly', 'DistributedDGFlower', 'DistributedFishingPond',
                  'DistributedFishingSpot', 'DistributedFishingTarget',
                  'DistributedPondBingoManager', 'DistributedPartyGate',
                  # interiors (2513-2522), reached through DistributedDoor
@@ -482,6 +485,10 @@ TABLE_CLASSES.append('FriendManager')
 # ---- transitions (source/world/transition.*, docs/design/transitions.md) ----
 WANTED['DistributedToon'] += ['setTunnelIn', 'setTunnelOut']
 # ---- end transitions ----
+# Map page teleports (MapPage.__buttonCallback)
+WANTED['DistributedToon'] += ['setTeleportAccess', 'checkTeleportAccess']
+# SpeedChat ToonTask phrases (TTSCToontaskMenu)
+WANTED['DistributedToon'] += ['setSCToontask', 'setWhisperSCToontaskFrom']
 
 # DCSubatomicType values (panda/src/dcparser/dcSubatomicType.h).
 ST = dict(int8=0, int16=1, int32=2, int64=3, uint8=4, uint16=5, uint32=6, uint64=7,

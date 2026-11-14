@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import numpy as np  # noqa: E402
 from panda3d.core import (AlphaTestAttrib, ColorBlendAttrib, CullFaceAttrib, Geom,  # noqa: E402
                           GeomNode, GeomTriangles, GeomVertexData, GeomVertexFormat,
-                          GeomVertexWriter, NodePath, PNMImage, RenderAttrib, Texture,
+                          GeomVertexWriter, NodePath, PNMImage, PTA_uchar, RenderAttrib, SamplerState, Texture,
                           TransparencyAttrib, loadPrcFileData)
 
 loadPrcFileData('', 'window-type offscreen\naudio-library-name null\nnotify-level warning\n'
@@ -74,7 +74,11 @@ def untile(data, w, h, fmt):
 
 def load(path, tints):
     buf = open(path, 'rb').read()
-    (magic, ver, _, ntex, nbatch, nv, ni, sx, sy, sz, ox, oy, oz,
+    if struct.unpack_from('<H', buf, 4)[0] == 2:  # pooled (tools/pipeline/ttm_pool.py)
+        import ttm_pool
+        from pathlib import Path
+        buf = ttm_pool.standalone(buf, ttm_pool.read_pool(Path(path).parent))
+    (magic, ver, hdr_flags, ntex, nbatch, nv, ni, sx, sy, sz, ox, oy, oz,
      tex_off, batch_off, v_off, i_off, _) = struct.unpack_from('<4sHHHHII3f3fIIIII', buf, 0)
     assert magic == ttm.MAGIC and ver == ttm.VERSION
     textures = []
@@ -92,6 +96,23 @@ def load(path, tints):
                 img.setXelA(x, y, r, g, b, a)
         tex = Texture(name.rstrip(b'\0').decode())
         tex.load(img)
+        if os.environ.get('PREVIEW_MIPS') and mips > 1:
+            # The stored chain, as the GPU samples it (linear mip, no levels past the last).
+            tex.setMinfilter(Texture.FT_linear_mipmap_linear)
+            off, lw, lh = doff, w, h
+            for lv in range(mips):
+                n = ttm.BITS_PER_PIXEL[fmt] * lw * lh // 8
+                if lv:
+                    lp = untile(buf[off:off + n], lw, lh, fmt)
+                    raw = np.ascontiguousarray(lp[::-1, :, [2, 1, 0, 3]]).tobytes()
+                    arr = PTA_uchar.emptyArray(len(raw))
+                    memoryview(arr)[:] = raw
+                    tex.setRamMipmapImage(lv, arr)
+                off += n
+                lw, lh = lw // 2, lh // 2
+            smp = SamplerState(tex.getDefaultSampler())
+            smp.setMaxLod(mips - 1)
+            tex.setDefaultSampler(smp)
         tex.setWrapU(Texture.WM_repeat if ws == ttm.GPU_REPEAT else Texture.WM_clamp)
         tex.setWrapV(Texture.WM_repeat if wt == ttm.GPU_REPEAT else Texture.WM_clamp)
         textures.append(tex)
@@ -113,7 +134,7 @@ def load(path, tints):
             wt.addData2(v['uv'][0] / ttm.UV_SCALE, v['uv'][1] / ttm.UV_SCALE)
         tris = GeomTriangles(Geom.UHStatic)
         for k in idx[fi:fi + icnt]:
-            tris.addVertex(int(k))
+            tris.addVertex(int(k) - (int(fv) if hdr_flags & 1 else 0))
         g = Geom(vd)
         g.addPrimitive(tris)
         gn = GeomNode(f'batch{b}')
@@ -125,6 +146,9 @@ def load(path, tints):
             np_.setAttrib(AlphaTestAttrib.make(RenderAttrib.M_greater, 0.5))
         elif blend == ttm.BLEND_ALPHA:
             np_.setTransparency(TransparencyAttrib.M_alpha)
+            # Renderer::drawModel: blended batches test depth but write colour only, so
+            # coplanar sign shadows and letters keep their draw order.
+            np_.setDepthWrite(False)
         if flags & 1:
             np_.setTwoSided(True)
         if layer:

@@ -25,6 +25,8 @@ struct FrameStats {
 class Renderer {
 public:
     bool init();
+    // Point the screens back at the game targets (the loading screen borrows them during boot).
+    void linkOutputs(C3D_RenderTarget* bottom);
     void shutdown();
 
     C3D_RenderTarget* topLeft() const { return topLeft_; }
@@ -40,8 +42,24 @@ public:
     void drawModel(Model& model, const C3D_Mtx& world, const Tints* tints = nullptr,
                    const C3D_Tex* const* slotTex = nullptr);
     // Vertex-animated part: blends anim frames a and b (weight `blend` on b).
+    // The current frame's view frustum test (world-space sphere).
+    bool inView(const C3D_FVec& center, float radius) const { return sphereVisible(center, radius); }
     void drawMorph(Model& model, const Anim& anim, u32 frameA, u32 frameB, float blend, const C3D_Mtx& world,
                    const Tints* tints = nullptr, const C3D_Tex* const* slotTex = nullptr);
+    // Sky dome (Hood.sky: background bin, no depth test or write). Call first in the world
+    // pass. fogged = false draws it without fog (Hood.load setFogOff); Donald's Dock fogs
+    // its sky with the white / underwater fog (DDHood.setWhiteFog), so pass true there.
+    void drawSky(Model& model, const C3D_Mtx& world, bool fogged);
+    // Untextured triangles built this frame, blended additively with no depth write (Panda
+    // ColorBlendAttrib MAdd + setDepthWrite(False): the Cog HQ laser field and security
+    // camera beams). xyz are in `world`'s space; rgba is per vertex. The data is copied into a
+    // linear scratch ring reset by the next mono / left-eye beginWorld (frames start with
+    // C3D_FRAME_SYNCDRAW, so the GPU is done with it). False when the ring is full.
+    bool drawAdditive(const C3D_Mtx& world, const float (*xyz)[3], const u8 (*rgba)[4], u32 numVertices,
+                      const u16* indices, u32 numIndices, bool twoSided);
+    // Draw only batch `i` of the next drawModel calls (-1: all). Flipbook props such as the
+    // Cog-death explosion keep one card per frame; set back to -1 after the draw.
+    void setOnlyBatch(int i) { onlyBatch_ = i; }
     // Colour multiplier for batches without a tint slot (default white). Used e.g. to draw
     // the drop shadow card black and translucent.
     void setBaseTint(float r, float g, float b, float a) {
@@ -49,6 +67,15 @@ public:
         baseTint_[1] = g;
         baseTint_[2] = b;
         baseTint_[3] = a;
+    }
+    // 0 draws every batch. 1 skips alpha-blended batches, 2 draws only those: a caller
+    // whose models overlap (zone chunks) draws all opaque first, so a blended decal
+    // (no depth write) is not painted over by a later model's opaque surface.
+    void setBlendPass(int pass) { blendPass_ = pass; }
+    // Added to the texture coordinates of static models (scrolling water); reset to 0 after use.
+    void setUvShift(float u, float v) {
+        uvShift_[0] = u;
+        uvShift_[1] = v;
     }
     // Restores GPU state citro2d's C2D_Prepare does not reset (alpha test, depth map, fog).
     void endWorld();
@@ -64,21 +91,35 @@ public:
     const FrameStats& stats() const { return stats_; }
     void resetStats() { stats_ = FrameStats{}; }
 
+    // Closest the near plane may sit. Any closer and triangles that pass the lens
+    // shatter: the PICA200 clipper drops or explodes polygons that cross the near
+    // plane, and w near 0 blows up perspective-correct depth. Do not lower this.
+    // Raising it clips the toon (hidden only inside 2.5 units) unless the follow
+    // camera's clearance grows with it. Both stereo eyes use this same distance
+    // (Mtx_PerspStereoTilt); the eye shift is a projection skew, not a second near.
     static constexpr float kNear = 1.0f;
     static constexpr float kFar = 300.0f;
-    static constexpr float kFovYDeg = 55.0f;
+    // ToonBase: camLens.setFov(DefaultCameraFov = 52) across a 4:3 window, so 40.2 degrees
+    // vertically; the wider top screen shows a little more at the sides (as MakeAToon's room).
+    static constexpr float kFovYDeg = 40.2f;
     // Far plane of the world pass (Panda base.camLens.setFar). Minigames raise it, as upstream
-    // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores kFar.
-    // Takes effect from the next beginWorld.
-    void setFarPlane(float far) { farPlane_ = far > 0.0f ? far : kFar; }
+    // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores the active
+    // quality profile (render/quality.h), which is past the fog so the sky is not a clip edge.
+    // Takes effect from the next beginWorld. Rebuilds the fog LUT when fog is on.
+    void setFarPlane(float far);
     float farPlane() const { return farPlane_; }
+    bool fogEnabled() const { return fogOn_; }
+    // Vertical field of view of the world pass in degrees (Panda base.camLens.setFov, e.g.
+    // MakeAToonCameraFov). Zero restores kFovYDeg. Takes effect from the next beginWorld.
+    void setFovY(float degrees) { fovYDeg_ = degrees > 0.0f ? degrees : kFovYDeg; }
+    float fovY() const { return fovYDeg_; }
 
 private:
     enum Mode : int { kModeStatic = 0, kModeMorph = 1, kModeCount = 2, kModeNone = -1 };
     struct Program {
         DVLB_s* dvlb = nullptr;
         shaderProgram_s program{};
-        int uProjection = -1, uModelView = -1, uTint = -1, uBlend = -1;
+        int uProjection = -1, uModelView = -1, uTint = -1, uBlend = -1, uUvShift = -1;
     };
 
     static bool loadProgram(const u8* shbin, u32 size, Program* out);
@@ -91,13 +132,21 @@ private:
     bool sphereVisible(const C3D_FVec& center, float radius) const;
 
     float baseTint_[4] = {1.0f, 1.0f, 1.0f, 1.0f};
+    int onlyBatch_ = -1;
+    int blendPass_ = 0; // setBlendPass
+    bool skyPass_ = false; // drawSky: batches skip the depth test and write colour only
     u32 background_ = 0x6AB0D9FF; // RGBA8 clear colour without fog (setBackground)
     bool fogOn_ = false;
+    float uvShift_[2] = {};
     u32 fogColor_ = 0;      // 0x00BBGGRR (GPUREG_FOG_COLOR)
     u32 fogClear_ = 0;      // the same colour as an RGBA8 clear value
     float fogStart_ = 0.0f, fogEnd_ = 0.0f, fogFar_ = 0.0f;
+    float fogRgb_[3] = {};
     float farPlane_ = kFar;
+    float fovYDeg_ = kFovYDeg;
     C3D_FogLut fogLut_{};
+    u8* scratch_ = nullptr; // drawAdditive ring (linear memory)
+    u32 scratchUsed_ = 0;
     Program programs_[kModeCount];
     int mode_ = kModeNone;
 

@@ -40,9 +40,21 @@ int CogThiefGame::cogs(MinigameCog* out, int max) const {
 }
 
 
-bool CogThiefGame::init(const char* root, int numCogs, float cogSpeed) {
+bool CogThiefGame::init(const char* root, u32 hood, int numPlayers) {
+    // DistributedCogThiefGame.load shows one of the board's six stacked floors (floor_TT for
+    // any other zone); bake_minigame writes each as cogthief_ground_<hood>.ttm.
+    static const struct { u32 zone; const char* code; float speed; } kHoods[6] = {
+        {2000, "TT", 6.0f}, {1000, "DD", 6.4f}, {5000, "DG", 6.8f},
+        {4000, "MM", 7.2f}, {3000, "BR", 7.6f}, {9000, "DL", 8.0f}};
+    int h = 0;
+    for (int i = 0; i < 6; ++i)
+        if (kHoods[i].zone == hood) h = i;
+    // CogThiefGameGlobals.calculateCogs / calculateCogSpeed: 5, 7, 9, 11 cogs for 1-4 players
+    // (5 past the table); the speed table is the same for every player count.
+    const int numCogs = numPlayers >= 1 && numPlayers <= 4 ? 3 + 2 * numPlayers : 5;
+    const float cogSpeed = numPlayers <= 4 && kHoods[h].zone == hood ? kHoods[h].speed : 6.0f;
     char path[256];
-    std::snprintf(path, sizeof(path), "%scogthief_ground.ttm", root);
+    std::snprintf(path, sizeof(path), "%scogthief_ground_%s.ttm", root, kHoods[h].code);
     assetBatch_.load(groundModel_, path);
     std::snprintf(path, sizeof(path), "%scogthief_barrel.ttm", root);
     assetBatch_.load(barrelModel_, path);

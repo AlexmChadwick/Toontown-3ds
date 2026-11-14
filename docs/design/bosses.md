@@ -279,8 +279,8 @@ fence and background loader. No extra thread or runtime format is introduced.
 
 Visual/physics limits requiring review: condensed dialogue/movies, ordinary Toon
 costumes, open vault doors, approximate gear/body/radar volumes, constrained-link
-physics rather than Panda's collision integrator, and simplified floor sliding. All treasure styles currently share the ice-cream
-visual and appear at their final position; style/healing authority stays on the AI.
+physics rather than Panda's collision integrator, and simplified floor sliding. Treasures draw their
+setStyle hood model and fly from the goon over 1 s as setFinalPosition; style/healing authority stays on the AI.
 The ending camera and Resistance UI present the essential sequence; full stock
 cinematography and audio are not reproduced. Host tests cannot establish a live
 victory or Old 3DS performance. The Azahar checklist below is mandatory.
@@ -311,11 +311,18 @@ checks guard all cannon requests. Each actual broadcast flight follows the stock
 80-unit/second ballistic trajectory with gravity 32, is swept against the moving
 chairs/static collision, reports one chair result, then sends setLanded once.
 The next shot waits for the AI's next LOAD. The NPC flies; the player remains at
-the cannon. Juror NPC DNA is stock 2001+index. Suit juror visuals use a shared
-Big Wig placeholder and a straight 10-second arrival rather than the upstream
+the cannon. Juror NPC DNA is stock 2001+index. Each chair's suit juror is the Lawbot its Random(doId)
+stream picks (loadCogJuror, re-rolled per showCogJurorFlying), with a straight 10-second arrival rather than the upstream
 random suit/propeller sequence. Chair pitch animation and full seated toon clips
 are simplified; the indexed, moving chair positions and server seat outcomes are
 preserved.
+
+The courtroom floor (CR3_Floor) is 56% alpha marble in the ground bin, over the
+stock `Reflections` group (the mirrored room, ground bin -10). The bake keeps
+Reflections in `cj_arena.ttm` (stashed only for collision); its opaque batches draw
+before the blended floor, as the bin order does. Without it the floor showed the sky
+and skyline far below. The reflected jury box rides in `cj_jury_box.ttm` at its end
+pose, since loadJuryBox moves it by the same RelativeEndPos as the box.
 
 Scale damage is AI-owned (0..2700, initial 1350). CJS1 stores the actual beam and
 pan pivots; the beam tilts -40..40 degrees and pans counter-rotate. Evidence uses
@@ -534,6 +541,33 @@ Azahar verification steps (in Old 3DS mode):
    at CEO; aim golf spots and charge swing power to slow down CEO; dodge CEO gear/stomp attacks.
 5. **ceo: end** (30 s): CEO defeat/fall animation, victory barrier, pink slip reward sequence,
    and elevator exit back to Bossbot HQ.
+
+## Arrival movies and battle Cogs (2026-11-13, Azahar Old + New)
+
+- Elevator: every boss films its riders as `DistributedBossCog.enterElevator` does, from
+  elevatorModel (0, 30, 8) h 180 with our Toon at `BigElevatorPoints[0]`, two
+  `getRideElevatorInterval` bobs, then the doors slide over `ElevatorData` openTime. The arenas bake
+  their elevator doors open, so the ride draws the Cog HQ lobby door models
+  (`data/cogbldg/hqelev_<vp|cfo|cj|bb>_<left|right>`) over them until open. World placements of the
+  elevator origins were computed from the stock arena models.
+- Introduction: VP (`vpIntro`, 40 s), CFO (`cfoIntro`, 35.7 s), CJ (`cjArrival`, 27.5 s) and CEO
+  (`ceoIntro`, 18.5 s) port each `makeIntroductionMovie`'s camera cues, speech lines and clip timing.
+  The Introduction / Elevator barriers go after the stock movie length (AI timeouts 45 / 30 s).
+  Mata Hairy (CFO) and Good ol' Gil Giggles (CEO, DNA `newToonRandom(335933, 'm', 1)` head `sls`)
+  are drawn; the CFO stays offstage until its roll. Not drawn: doobers, goons in the intro, the VP
+  Toons' walk-in.
+- Cog suits (`Toon.putOnSuit`): every involved Toon wears the boss department's suit from the
+  elevator until its `loseCogSuits` (VP 34 s, CFO `CfoIntroShot::suitsOff`, CJ 24 s, CEO 6 s; off
+  0.3 s into the 19-frame `suit_explosion_dust` DustCloud). Mata Hairy and Gil Giggles wear the
+  suit `random.seed(boss doId)` picks (`resistanceSuit`); Mata Hairy loses hers 2 s after the Toons.
+  The suit is `cogTypes[dept]` for a complete suit, else the rental f / bf / sc / cc (Sellbot
+  rental cloth in `data/suit/rental.ttx`). Outside bosses, `setCogIndex` (a locked Cog HQ door)
+  drives the same disguise for our Toon and remote Toons.
+- Boss battle Cogs: `DistributedBattleFinal.showSuitsJoining` starts joiners at the boss cog
+  (`bossCogOrigin`), scaled 3.8 / height growing to 1, and holds the (+-20, -4, 7) h +-60 camera
+  during ReservesJoining. CEO battles are Waiters / Diners, whose Cogs start at the battle.
+  `net::kMaxSuits` is 96: the CFO arena generates 75 Cogs.
+- Boss scenes draw Cog and remote Toon nametags and the intro speech through `BossFrame::balloons`.
 
 ## Verification and integration
 

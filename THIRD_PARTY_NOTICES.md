@@ -10,6 +10,11 @@ does **not** cover:
   `ref/resources` submodule. They were extracted from Disney's
   Toontown Online (sv1.0.47.38) and remain the property of The Walt Disney Company.
   They are included as-is, with no license granted by this project.
+  This includes `romfs/baked/fonts/impress.bcfnt`, a conversion of the game's
+  `phase_3/models/fonts/ImpressBT.ttf` (Bitstream's Impress typeface as shipped with
+  Toontown), and `romfs/baked/fonts/mickey.bcfnt`, a conversion of
+  `phase_3/models/fonts/MickeyFont.bam` (the sign font). No font license is granted
+  by this project either.
 - **The `ref/open-toontown` submodule.** It is Open Toontown, BSD 3-Clause; see its
   own `LICENSE`.
 
@@ -136,7 +141,7 @@ are vendored. Generated seat/wheel/sound timing tables derive from those origina
 assets and specifications.
 
 The explicitly committed SD kit under
-`sdmc-out/3ds/toontown3ds/data/racing/` contains 634 converted Disney game assets:
+`sdmc-out/3ds/toontown3ds/data/racing/` contains 638 converted Disney game assets:
 12 tracks in model/collision/curve formats, 594 KartDNA component models across
 three LODs and four racing prop models. Its models, textures, curves, placement
 and collision data remain outside this project's MIT license. No Disney asset

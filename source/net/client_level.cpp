@@ -250,6 +250,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         r.u32();
         r.u8();
         e.crushed = true;
+        e.crushedMs = now_ ? now_ : 1;
     } else if (fieldId == dc::DistributedStomper::k_setMovie) {
         e.movie = r.u8();
         const int16_t ts = r.i16();
@@ -282,6 +283,7 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
         r.string(e.gridGame, sizeof(e.gridGame));
     } else if (fieldId == dc::DistributedSecurityCamera::k_setTarget) {
         e.targetHash = r.u8();
+        e.targetSet = true;
     } else if (fieldId == dc::DistributedCrate::k_setAccept) {
         e.pushAccepted = true;
         TT_LOG("net: crate %u setAccept", unsigned(e.doId));
@@ -306,36 +308,95 @@ bool Client::applyLevelEntityField(LevelEntityObj& e, DatagramReader& r, uint16_
     } else if (fieldId == dc::DistributedMaze::k_setGameStart) {
         const int16_t ts = r.i16();
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
+        e.gameStartSeq++;
         TT_LOG("net: maze %u setGameStart", unsigned(e.doId));
     } else if (fieldId == dc::DistributedMaze::k_setGameOver) {
         e.gameOver = true;
     } else if (fieldId == dc::DistributedMaze::k_toonFinished) {
-        r.u32(); r.u8(); const uint8_t last = r.u8();
-        if (last) e.gameOver = true;
+        // (avId, place, lastToon) on the mole event ring: index = place, status = lastToon.
+        LevelEntityObj::MoleEvent& m = e.moleEvents[e.moleEventSeq % 8];
+        m = LevelEntityObj::MoleEvent{};
+        m.avId = r.u32();
+        m.index = int8_t(r.u8());
+        m.status = int8_t(r.u8());
+        e.moleEventSeq++;
     } else if (fieldId == dc::DistributedMoleField::k_setGameStart) {
         const int16_t ts = r.i16();
         e.gameStartMs = timeSynced_ ? networkToLocal(ts, now_) : now_;
         e.molesWhackedTarget = r.u8();
         e.gameDuration = r.u16();
+        e.gameStartSeq++;
+        e.pityWin = false;
         TT_LOG("net: mole field %u setGameStart (duration %u s, target %u)", unsigned(e.doId), unsigned(e.gameDuration), unsigned(e.molesWhackedTarget));
     } else if (fieldId == dc::DistributedMoleField::k_setScore) {
         e.score = r.i16();
-    } else if (fieldId == dc::DistributedMoleField::k_updateMole) {
-        r.i8(); r.i8();
+    } else if (fieldId == dc::DistributedMoleField::k_updateMole ||
+               fieldId == dc::DistributedMoleField::k_reportToonHitByBomb) {
+        LevelEntityObj::MoleEvent& m = e.moleEvents[e.moleEventSeq % 8];
+        m = LevelEntityObj::MoleEvent{};
+        if (fieldId == dc::DistributedMoleField::k_updateMole) {
+            m.index = r.i8();
+            m.status = r.i8();
+        } else {
+            m.avId = r.u32();
+            m.index = r.i8();
+            m.ts = r.i32();
+        }
+        e.moleEventSeq++;
     } else if (fieldId == dc::DistributedMoleField::k_setPityWin) {
         e.pityWin = true;
     } else if (fieldId == dc::DistributedGolfGreenGame::k_acceptJoin) {
-        e.boardsLeft = r.u16();
+        r.u16(); // totalTime and startTime: setTimerStart carries them too
         r.i32();
         e.numJoinedToons = uint8_t(readIds(r, e.joinedToons, 4));
-        TT_LOG("net: golf green %u acceptJoin (boardsLeft %u)", unsigned(e.doId), unsigned(e.boardsLeft));
+        e.golfJoinSeq++;
+        TT_LOG("net: golf green %u acceptJoin (%u toons)", unsigned(e.doId), unsigned(e.numJoinedToons));
     } else if (fieldId == dc::DistributedGolfGreenGame::k_scoreData) {
-        e.boardsLeft = r.u8();
-        r.u8();
+        e.bacTotal = r.u8();
+        e.bacClosed = r.u8();
+        e.boardsLeft = uint16_t(e.bacTotal - e.bacClosed);
         const uint16_t bytes = r.u16();
         r.skip(bytes);
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_startBoard) {
+        const uint16_t bytes = r.u16();
+        e.bacBoardLen = 0;
+        for (uint16_t i = 0; i + 3 <= bytes && r.ok(); i += 3) {
+            const uint8_t x = r.u8(), z = r.u8(), t = r.u8();
+            if (e.bacBoardLen < 9 * 15) {
+                e.bacBoard[e.bacBoardLen][0] = x, e.bacBoard[e.bacBoardLen][1] = z, e.bacBoard[e.bacBoardLen][2] = t;
+                ++e.bacBoardLen;
+            }
+        }
+        const uint16_t n = r.u16();
+        e.bacPatternLen = 0;
+        for (uint16_t i = 0; i < n && r.ok(); ++i) {
+            const uint8_t v = r.u8();
+            if (e.bacPatternLen < sizeof(e.bacPattern)) e.bacPattern[e.bacPatternLen++] = v;
+        }
+        e.bacBoardSeq++;
+        TT_LOG("net: golf green %u startBoard (%u balls, pattern of %u)", unsigned(e.doId), unsigned(e.bacBoardLen),
+               unsigned(e.bacPatternLen));
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_boardCleared) {
+        r.u32();
+        e.bacClearedSeq++;
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_helpOthers) {
+        e.bacHelpAvId = r.u32();
+        e.bacHelpSeq++;
+        TT_LOG("net: golf green %u helpOthers %u", unsigned(e.doId), unsigned(e.bacHelpAvId));
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_informGag) {
+        e.bacGagTrack = r.u8();
+        e.bacGagLevel = r.u8();
+        e.bacGagSeq++;
+        TT_LOG("net: golf green %u informGag track %u level %u", unsigned(e.doId), unsigned(e.bacGagTrack),
+               unsigned(e.bacGagLevel));
+    } else if (fieldId == dc::DistributedGolfGreenGame::k_setTimerStart) {
+        e.bacTimeTotal = r.u16();
+        const int32_t ts = r.i32();
+        e.bacTimeStartMs = timeSynced_ ? networkToLocal(int16_t(uint32_t(ts) & 0xFFFF), now_) : now_;
+        e.bacTimerSeq++;
     } else if (fieldId == dc::DistributedGolfGreenGame::k_signalDone) {
-        r.u8();
+        e.golfSuccess = r.u8() != 0;
+        e.golfDoneSeq++;
     } else if (fieldId == dc::BattleBlocker::k_setActive) {
         e.blockerActive = r.u8() != 0;
     } else if (fieldId == dc::BattleBlocker::k_setSuits) {

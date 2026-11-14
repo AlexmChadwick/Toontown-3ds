@@ -12,12 +12,14 @@
 
 namespace tt::world {
 
+class SuitActors;
+
 static_assert(kAnimCount == kToonAnimCount, "clip table size");
 
 // Extra clips for one toon's parts, loaded on demand (battle clips for the local toon) instead
 // of with every look: <part key>_<name>.tta from the SD set, one per part (legs, torso, head).
 struct ToonClipSet {
-    static constexpr int kMax = 8;
+    static constexpr int kMax = 32; // the battle set has 26 (it was 8, dropping duck / slip)
     ToonAnim clips[kMax] = {};
     int count = 0;
     const ToonLook* look = nullptr;
@@ -52,8 +54,24 @@ public:
     bool popEmoteFinished() { const bool done=emoteFinished_; emoteFinished_=false; return done; }
     void update(float dt);
     void setHeadOnly(bool on) { headOnly_=on; }
-    void setBodyPose(float pitch=0,float z=0) { bodyPitch_=pitch;bodyZ_=z; }
+    // Toon.putOnSuit (DistributedToon.setCogIndex, DistributedBossCog.putToonInCogSuit): drawn as
+    // the body of Cog `code` (nullptr: the Toon itself) with this Toon's head on its joint_head.
+    void setDisguise(const char* code, bool rental=false) { disguise_=code; disguiseRental_=rental; }
+    const char* disguise() const { return disguise_; }
+    bool disguiseRental() const { return disguiseRental_; }
+    static SuitActors* disguiseSuits; // the Cog bodies disguises draw with (main.cpp)
+    // The geometry's roll about y, then pitch about x, then z offset, in the toon's frame.
+    void setBodyPose(float pitch=0,float z=0,float roll=0) { bodyPitch_=pitch;bodyZ_=z;bodyRoll_=roll; }
     void setHeadPitch(float pitch) { headPitch_=pitch; }
+    // ToonHead's eyelids FSM and blink task. Moods only pick the textures the next eyelid
+    // change uses (sadEyes/angryEyes/normalEyes); blinkEyes() shows them at once.
+    enum class EyeMood : u8 { Normal, Sad, Angry };
+    void setEyeMood(EyeMood mood) { eyeMood_=mood; }
+    void openEyes() { setLids(Lids::Open); }
+    void closeEyes() { setLids(Lids::Closed); }
+    void surpriseEyes() { setLids(Lids::Surprised); }
+    void blinkEyes(); // closed now, open after 0.1 s, then the regular blink cycle
+    void setBlink(bool on); // startBlink / stopBlink (stop leaves the eyes open)
     // `world` places the toon's feet; body scale and clothing come from the look.
     // tintOverride (optional) replaces the look's DNA colours (offline colour picker).
     void draw(render::Renderer& renderer, const C3D_Mtx& world, const render::Tints* tintOverride = nullptr) const;
@@ -65,6 +83,9 @@ public:
     float rate() const { return rate_; }
 
 private:
+    enum class Lids : u8 { Open, Closed, Surprised };
+    void setLids(Lids lids);
+    float blinkRandom();
     const ToonLook* look_ = nullptr;
     const ToonLook* fallback_ = nullptr;
     ToonAnim anim_ = kAnimNeutral;
@@ -75,8 +96,16 @@ private:
     int emote_ = -1;
     float emoteAge_ = 0;
     bool emoteFinished_ = false, headOnly_ = false;
-    float bodyPitch_=0,bodyZ_=0,headPitch_=-45;
-
+    const char* disguise_ = nullptr;
+    bool disguiseRental_ = false;
+    float disguiseTime_ = 0; // the suit's neutral / walk loop clock
+    float bodyPitch_=0,bodyZ_=0,bodyRoll_=0,headPitch_=-45;
+    Lids lids_=Lids::Open;
+    EyeMood eyeMood_=EyeMood::Normal;
+    u8 lidTex_=ToonCache::kEyesOpen; // eyes.ttx texture shown, chosen when the lids changed
+    bool blinking_=true;
+    float blinkIn_=-1; // seconds to the next blink task step (<0: not scheduled yet)
+    u32 blinkSeed_=0;
 };
 
 } // namespace tt::world

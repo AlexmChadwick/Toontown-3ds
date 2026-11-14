@@ -1,3 +1,5 @@
+#include "core/gpu_sync.h"
+#include "ui/boss_titles.h"
 #include "world/boss_battle.h"
 #include "core/profile.h"
 #include "world/ceo_battle.h"
@@ -14,7 +16,11 @@
 #include "core/memory.h"
 #include "core/screenshot.h"
 #include "net/net_platform.h"
+#include "ui/projection.h"
 #include "ui/sos_tables.h"
+#include "world/py_random.h"
+#include "world/suit_tables.h"
+#include "world/suits.h"
 
 namespace tt::world {
 namespace {
@@ -133,13 +139,106 @@ C3D_Mtx transform(Vec3 position, float heading = 0, float scale = 1) {
     Mtx_Scale(&matrix, scale, scale, scale);
     return matrix;
 }
+
+// SellbotBoss.__toonsToPromotionPosition: BattleBase.toonPoints + 10 forward of the side's
+// battle node (BossCogBattleA/BPosHpr on SellbotBossBattleOnePosHpr), then from 37 s
+// backupToonsToBattlePosition walks back to the battle point over 3 s.
+C3D_Mtx vpPromotionPose(const net::BossState& state, uint32_t avId, float t) {
+    static const float kPoints[4][4][3] = {
+        {{0, -6, 0}}, {{1.5f, -6.5f, 5}, {-1.5f, -6.5f, -5}}, {{3, -6.75f, 5}, {0, -7, 0}, {-3, -6.75f, -5}},
+        {{4.5f, -7, 10}, {1.5f, -7.5f, 5}, {-1.5f, -7.5f, -5}, {-4.5f, -7, -10}}};
+    bool sideB = false;
+    int index = 0, count = state.numA;
+    for (int i = 0; i < state.numA; ++i) {
+        if (state.sideA[i] == avId) index = i;
+    }
+    for (int i = 0; i < state.numB; ++i) {
+        if (state.sideB[i] == avId) sideB = true, index = i, count = state.numB;
+    }
+    count = std::clamp(count, 1, 4);
+    index = std::clamp(index, 0, count - 1);
+    const float* point = kPoints[count - 1][index];
+    const float back = 10 * (1 - std::clamp((t - 37) / 3, 0.0f, 1.0f));
+    // Battle node heading: the VP's -90 plus 0 (A) or 180 (B); its origin at (-+25, -35).
+    const float nodeHeading = sideB ? 90.0f : -90.0f;
+    const float c = std::cos(nodeHeading * kDegrees), s = std::sin(nodeHeading * kDegrees);
+    const float lx = point[0], ly = point[1] + back;
+    return transform({(sideB ? 25.0f : -25.0f) + c * lx - s * ly, -35 + s * lx + c * ly, 0}, nodeHeading + point[2]);
+}
 }
 
 BossBattle::~BossBattle() {
     release();
 }
 
+// The arena bakes the elevator with its doors open; the ride shows them closed, then slides them
+// (the Cog HQ lobby elevator bake's door models). Missing doors only leave the doorway open.
+void BossBattle::loadElevatorDoors() {
+    for (int side = 0; side < 2; ++side) {
+        char path[96];
+        std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/hqelev_%s_%s.ttm", cashbot_ ? "cfo" : "vp",
+                      side ? "right" : "left");
+        if (!elevatorDoors_[side].loaded() && !elevatorDoors_[side].load(path)) TT_LOG("boss: cannot load %s", path);
+    }
+}
+
+void suitLocalToon(BossFrame& frame, int dept, bool suited) {
+    bool rental = false;
+    const net::OwnBookStats& book = frame.client.ownBook();
+    frame.toon.setDisguise(suited ? disguiseCode(dept, book.cogTypes, book.cogParts, &rental) : nullptr, rental);
+}
+
+const char* resistanceSuit(uint32_t bossDoId, int dept) {
+    PyRandom random(bossDoId);
+    return kSuitTypes[8 * dept + random.randint(0, 7)].code;
+}
+
+namespace {
+render::Model gLoseSuitDust;
+bool gLoseSuitDustTried = false;
+} // namespace
+
+void drawLoseSuitDust(BossFrame& frame, const C3D_Mtx& toon, float age) {
+    if (age < 0 || age >= 19 / 24.0f) return;
+    if (!gLoseSuitDustTried) {
+        gLoseSuitDustTried = true;
+        if (!gLoseSuitDust.load("sdmc:/3ds/toontown3ds/data/props/suit_explosion_dust.ttm"))
+            TT_LOG("boss: no suit_explosion_dust.ttm, loseCogSuits without its dust cloud");
+    }
+    if (!gLoseSuitDust.loaded()) return;
+    const C3D_FVec at = Mtx_MultiplyFVec4(&toon, FVec4_New(0, 2, 3, 1));
+    const C3D_FVec& eye = frame.renderer.eye();
+    C3D_Mtx m;
+    Mtx_Identity(&m);
+    Mtx_Translate(&m, at.x, at.y, at.z, true);
+    Mtx_RotateZ(&m, atan2f(-(at.x - eye.x), at.y - eye.y), true); // setBillboardAxis
+    Mtx_Scale(&m, 0.5f, 0.5f, 0.5f);
+    frame.renderer.setOnlyBatch(int(age * 24.0f) % int(gLoseSuitDust.numBatches()));
+    frame.renderer.drawModel(gLoseSuitDust, m);
+    frame.renderer.setOnlyBatch(-1);
+}
+
+void releaseLoseSuitDust() {
+    if (gLoseSuitDust.loaded()) {
+        ::tt::gpu::frameSync();
+        gLoseSuitDust.unload();
+    }
+    gLoseSuitDustTried = false;
+}
+
+void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target) {
+    C3D_Mtx proj, view;
+    Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                  frame.renderer.farPlane(), false);
+    Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+    frame.balloons.begin();
+    frame.suits.addBalloons(frame.balloons, proj, view);
+    frame.remotes.addBalloons(frame.balloons, proj, view);
+    frame.balloons.draw(frame.renderer.topLeft());
+}
+
 void BossBattle::release() {
+    releaseLoseSuitDust();
     cfo_.release();
     if (modelTicket_) AssetLoader::cancel(modelTicket_);
     modelTicket_ = 0;
@@ -149,6 +248,7 @@ void BossBattle::release() {
         animations_[part].unload();
     }
     for (render::Model& model : models_) model.unload();
+    for (render::Model& door : elevatorDoors_) door.unload();
     collision_.unload();
     for (CollisionWorld& collision : rampCollision_) collision.unload();
     ready_ = false;
@@ -159,7 +259,7 @@ void BossBattle::release() {
 
 void BossBattle::leave(BossFrame& frame) {
     // All GPU users have completed before resources or the underlying place change.
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossNear(false);
     frame.client.sendBossExit();
     frame.cache.release(&rescuedLook_);
@@ -169,7 +269,8 @@ void BossBattle::leave(BossFrame& frame) {
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
-    if (frame.client.ownStats().hp <= 0) home_ = 5000;
+    // DistributedBossCog.localToonDied: ZoneUtil.getSafeZoneId(localAvatar.defaultZone).
+    if (frame.client.ownStats().hp <= 0) home_ = safeZoneOf(frame.client.ownStats().defaultZone);
     if (!frame.place.load(home_)) {
         home_ = cashbot_ ? 12000 : 11000;
         frame.place.load(home_);
@@ -200,12 +301,17 @@ void BossBattle::board(BossFrame& frame, uint32_t nowMs) {
         frame.remotes.clear();
         return;
     }
-    const bool cfoScript = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: board");
-    const bool scripted = cfoScript || (frame.test.active() && !std::strcmp(frame.test.label(), "boss: board"));
+    // The rounds steps board again from the lobby: a reconnect returns the toon there (the boss
+    // office dies with the session). They never teleport: board() also runs on the ride into the
+    // office, before the boss object exists.
+    const char* step = frame.test.active() ? frame.test.label() : "";
+    const bool rejoin = !std::strcmp(step, "boss: rounds") || !std::strcmp(step, "cfo: rounds");
+    const bool cfoScript = !std::strcmp(step, "cfo: board") || !std::strcmp(step, "cfo: rounds");
+    const bool scripted = cfoScript || rejoin || !std::strcmp(step, "boss: board");
     const bool cashbot = cfoScript || frame.place.zoneId() == 12100;
     const uint32_t lobby = cashbot ? 12100 : 11100;
     const uint16_t elevatorClass = cashbot ? dc::DistributedCFOElevator::kClassId : dc::DistributedVPElevator::kClassId;
-    if (scripted && frame.place.zoneId() != lobby) {
+    if (scripted && !rejoin && frame.place.zoneId() != lobby) {
         frame.uiState.teleportRequest = lobby;
         return;
     }
@@ -316,6 +422,7 @@ void BossBattle::loadAssets() {
             std::snprintf(path, sizeof(path), "%scfo_arena.ttc", kDirectory);
             ready_ = collision_.load(path);
             failed_ = !ready_;
+            if (ready_) loadElevatorDoors();
             solids_.floor = rampFloor;
             solids_.push = pushBoss;
             solids_.user = this;
@@ -328,6 +435,7 @@ void BossBattle::loadAssets() {
             std::snprintf(path, sizeof(path), "%svp_ramp_%c.ttc", kDirectory, 'a' + index);
             ready_ = rampCollision_[index].load(path) && ready_;
         }
+        if (ready_) loadElevatorDoors();
         std::snprintf(path, sizeof(path), "%svp_scene.bin", kDirectory);
         FILE* scene = std::fopen(path, "rb");
         char magic[4] = {};
@@ -429,6 +537,9 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
     if (std::strcmp(phase_, state.phase)) {
         std::snprintf(phase_, sizeof(phase_), "%s", state.phase);
         for (bool& acknowledged : haveAcknowledged_) acknowledged = false;
+        reserveAcknowledged_ = false;
+        reserveBattle_ = 0;
+        reserveContext_ = 0;
         charging_ = false;
         for (Projectile& pie : pies_) pie.active = false;
         for (Projectile& gear : gears_) gear.active = false;
@@ -462,7 +573,13 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         if (file) std::fclose(file);
         rescuedToon_.setLook(&rescuedLook_, &frame.cache.fallback());
     }
-    rescuedToon_.play(phase == BossPhase::Epilogue ? kAnimWave : kAnimNeutral, 1);
+    ToonAnim rescuedAnim = phase == BossPhase::Epilogue ? kAnimWave : kAnimNeutral;
+    if (cashbot_ && phase == BossPhase::Intro) {
+        CfoIntroShot shot;
+        cfoIntro(elapsed, &shot);
+        if (shot.resistanceRunning) rescuedAnim = elapsed < 10 ? kAnimWalk : kAnimRun;
+    }
+    rescuedToon_.play(rescuedAnim, 1);
     rescuedToon_.update(frame.dt);
     if (!entered_) {
         frame.client.sendSetParent(net::kParentRender);
@@ -472,6 +589,8 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         const net::BossBarrier& barrier = state.barriers[index];
         float delay = bossBarrierDelay(barrier.name);
         if (cashbot_ && !std::strcmp(barrier.name, "Victory")) delay = 15;
+        if (cashbot_ && !std::strcmp(barrier.name, "Introduction")) delay = kCfoIntroSeconds;
+        if (!std::strcmp(barrier.name, "Elevator")) delay = cashbot_ ? 11 : 12; // two 4 s rides + openTime
         if (!barrier.waitingForUs || delay < 0 || elapsed < delay || std::strcmp(barrier.name, state.phase)) continue;
         if (!cashbot_ && !std::strcmp(barrier.name, "Victory") &&
             (std::strcmp(currentClip_, "Fb_fall") || clipTime_ < 5.8f)) continue;
@@ -503,12 +622,15 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
         }
     }
     frame.battle.setAutoPlay(frame.test.active());
-    frame.battle.update(frame.client, nowMs, frame.dt, {SuitActors::poseThunk, &frame.suits});
+    // The CFO stands at CashbotBossBattleOnePosHpr for its Cog round (drawBoss), not BattleThree.
+    const Vec3 origin = cashbot_ && phase == BossPhase::Round ? Vec3{120, -230, 0} : bossPosition_;
+    float joinOrigin[3] = {origin.x, origin.y, origin.z};
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin, kBossJoinHeight});
     frame.suits.update(frame.dt, nowMs, &collision_);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
         frame.suits.overridePose(pose.doId, pose.x, pose.y, pose.z + pose.hop, pose.h,
-                                 pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs);
+                                 pose.hidden, pose.flash, pose.anim, pose.clipArg, pose.clipStartMs, pose.joinScale);
     }
     const net::OwnStats& stats = frame.client.ownStats();
     const ui::BattleGags gags{stats.inventory, stats.experience, stats.trackAccess};
@@ -736,6 +858,13 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             if (age >= 5.5f) position = {120, -280 + 30 * std::clamp((age - 5.5f) / 3, 0.0f, 1.0f), 0};
         }
     }
+    CfoIntroShot intro{};
+    const bool cfoIntroMovie = cashbot_ && phase == BossPhase::Intro;
+    if (cfoIntroMovie) {
+        cfoIntro((nowMs - state.phaseMs) / 1000.0f, &intro);
+        position = intro.boss;
+        heading = intro.bossHeading;
+    }
     C3D_FVec eye = frame.player.cameraEye();
     C3D_FVec target = frame.player.cameraTarget();
     if (frame.battle.inBattle()) {
@@ -748,6 +877,31 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
     if (cashbot_ && cfo_.controlling(frame.client) && phase == BossPhase::Pies) {
         eye = FVec3_New(120, -375, 52);
         target = FVec3_New(120, -315, 8);
+    }
+    if (cfoIntroMovie) {
+        eye = FVec3_New(intro.eye.x, intro.eye.y, intro.eye.z);
+        target = FVec3_New(intro.target.x, intro.target.y, intro.target.z);
+    }
+    VpIntroShot vpIntroShot{};
+    const bool vpIntroMovie = !cashbot_ && phase == BossPhase::Intro;
+    if (vpIntroMovie) {
+        vpIntro((nowMs - state.phaseMs) / 1000.0f, state.numA > 0, state.numB > 0, &vpIntroShot);
+        eye = FVec3_New(vpIntroShot.eye.x, vpIntroShot.eye.y, vpIntroShot.eye.z);
+        target = FVec3_New(vpIntroShot.target.x, vpIntroShot.target.y, vpIntroShot.target.z);
+    }
+    // DistributedBossCog.enterElevator: camera at elevatorModel (0, 30, 8) h 180, our Toon at
+    // BigElevatorPoints[0] facing out (placeToonInElevator); world values from the stock vaults.
+    const bool elevatorMovie = phase == BossPhase::Arrival;
+    const Vec3 elevatorToon = cashbot_ ? Vec3{58.627f, -232.917f, 0.129f} : Vec3{-2.580f, 95.0f, 18.109f};
+    const float elevatorToonHeading = cashbot_ ? 270 : 180;
+    // enterElevator: two getRideElevatorInterval bobs (4 s each, camera z 8 -> 7.8 -> 8, 8 -> 8.2 -> 8),
+    // then the doors open over ElevatorData's openTime (CFO 3, VP 4). WaitForToons waits closed.
+    const float rideAge = std::strcmp(state.phase, "Elevator") ? 0.0f : (nowMs - state.phaseMs) / 1000.0f;
+    const float doorOpen = std::clamp((rideAge - 8) / (cashbot_ ? 3.0f : 4.0f), 0.0f, 1.0f);
+    if (elevatorMovie) {
+        const float bob = std::strcmp(state.phase, "Elevator") ? 0.0f : bossElevatorBob(rideAge);
+        eye = cashbot_ ? FVec3_New(37.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 116.0f, 26.009f + bob);
+        target = cashbot_ ? FVec3_New(47.627f, -230.417f, 8.029f + bob) : FVec3_New(-0.080f, 106.0f, 26.009f + bob);
     }
     gfxSet3D(false); // One rendering pass preserves the Old 3DS boss budget.
     frame.stereoActive = false;
@@ -770,6 +924,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             }
             frame.renderer.drawModel(models_[6], door);
             C3D_Mtx rescued = transform({0, 78, cageHeight}, 180);
+            rescuedToon_.setDisguise(nullptr);
             rescuedToon_.draw(frame.renderer, rescued);
             for (int index = 0; index < 3; ++index) {
                 C3D_Mtx ramp = transform(rampOffset_[index]);
@@ -778,15 +933,20 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         } else {
             cfo_.draw(frame, models_, nowMs);
             if (phase == BossPhase::Intro || phase == BossPhase::Transition || phase == BossPhase::Epilogue) {
-                C3D_Mtx resistance = transform(phase == BossPhase::Intro ? Vec3{94, -220, 0} : Vec3{120, -315, 0}, 180);
+                C3D_Mtx resistance = cfoIntroMovie ? transform(intro.resistance, intro.resistanceHeading)
+                                                   : transform(Vec3{120, -315, 0}, 180);
+                // __showResistanceToon(True) in a Cashbot suit until her own loseCogSuits.
+                rescuedToon_.setDisguise(cfoIntroMovie && intro.resistanceSuited ? resistanceSuit(state.doId, 2) : nullptr);
                 rescuedToon_.draw(frame.renderer, resistance);
+                if (cfoIntroMovie) drawLoseSuitDust(frame, resistance, (nowMs - state.phaseMs) / 1000.0f - intro.suitsOff - 2);
             }
         }
         C3D_Mtx world = transform(position, heading);
         C3D_Mtx torso = world;
         C3D_Mtx head = world;
         for (int part = 0; part < kParts && phase != BossPhase::Reward && phase != BossPhase::Epilogue &&
-             !(cashbot_ && phase == BossPhase::Victory && nowMs - state.phaseMs > 9500); ++part) {
+             !(cashbot_ && phase == BossPhase::Victory && nowMs - state.phaseMs > 9500) &&
+             !(cashbot_ && (phase == BossPhase::Arrival || (cfoIntroMovie && !intro.bossVisible))); ++part) {
             C3D_Mtx partWorld = part == 1 ? torso : part == 2 ? head : world;
             render::Anim& animation = animations_[part];
             if (animation.loaded()) {
@@ -821,19 +981,82 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
             C3D_Mtx matrix = transform(gear.previous, gear.age * 720, 0.1f);
             frame.renderer.drawModel(models_[10], matrix);
         }
+        if (elevatorMovie && doorOpen < 1) { // over the baked open doors until they are fully open
+            const C3D_Mtx elevator = cashbot_ ? transform({67.627f, -230.417f, 0.029f}, 90)
+                                              : transform({-0.080f, 86.0f, 18.009f}, 0);
+            const float width = cashbot_ ? 8.166f : 11.5f;
+            for (int side = 0; side < 2; ++side) {
+                if (!elevatorDoors_[side].loaded()) continue;
+                C3D_Mtx door = elevator;
+                Mtx_Translate(&door, (side ? -1.0f : 1.0f) * width * (1 - doorOpen), 0, 0, true);
+                frame.renderer.drawModel(elevatorDoors_[side], door);
+            }
+        }
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
+        if (elevatorMovie) toon = transform(elevatorToon, elevatorToonHeading);
+        if (vpIntroMovie) toon = vpPromotionPose(state, frame.client.avatarId(), (nowMs - state.phaseMs) / 1000.0f);
+        // Cog suits from the elevator until loseCogSuits (VP 34 s, CFO cfoIntro's cue).
+        const float introAge = (nowMs - state.phaseMs) / 1000.0f;
+        const bool arrivalSuits = elevatorMovie || vpIntroMovie || cfoIntroMovie;
+        const bool suited = elevatorMovie || (vpIntroMovie && introAge < 34.3f) || (cfoIntroMovie && intro.toonsSuited);
+        if (arrivalSuits) suitLocalToon(frame, cashbot_ ? 2 : 3, suited);
         frame.toon.draw(frame.renderer, toon);
+        if (vpIntroMovie) drawLoseSuitDust(frame, toon, introAge - 34);
+        if (cfoIntroMovie) drawLoseSuitDust(frame, toon, introAge - intro.suitsOff);
+        if (arrivalSuits) frame.remotes.setSuitMode(suited ? (cashbot_ ? 2 : 3) : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
+        frame.remotes.setSuitMode(RemoteToons::kSuitNet);
+        for (int index = 0; vpIntroMovie && index < state.numDoobers; ++index) {
+            Vec3 at;
+            float h;
+            bool walking;
+            const bool shown = vpDoober(index, introAge, &at, &h, &walking);
+            frame.suits.overridePose(state.doobers[index], at.x, at.y, at.z, h, !shown, 0, walking ? kSuitWalk : kSuitNeutral);
+        }
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
+    { // Nametags and speech: the Cogs, the other Toons, and the CFO introduction's lines.
+        C3D_Mtx proj, view;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                      frame.renderer.farPlane(), false);
+        Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+        frame.balloons.begin();
+        float sx, sy, depth;
+        if (cfoIntroMovie && intro.bossChat &&
+            ui::projectToScreen(proj, view, position.x, position.y, position.z + 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "C. F. O.", intro.bossChat, intro.bossChatAge, depth);
+        if (vpIntroMovie && vpIntroShot.bossChat &&
+            ui::projectToScreen(proj, view, position.x, position.y, position.z + 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Senior V. P.", vpIntroShot.bossChat, vpIntroShot.bossChatAge, depth);
+        if (vpIntroMovie && vpIntroShot.cagedChat &&
+            ui::projectToScreen(proj, view, 0, 78, vpCageHeight(state, nowMs) + rescuedLook_.nametagHeight, &sx, &sy,
+                                &depth))
+        {
+            const char* caged = nullptr;
+            for (const ui::SosCardDef& card : ui::kSosCards) {
+                if (card.npcId == state.cagedNpc) caged = card.name;
+            }
+            frame.balloons.addSpeaker(sx, sy, caged, vpIntroShot.cagedChat, vpIntroShot.cagedChatAge, depth,
+                                      ui::Balloons::kNameColorNpc);
+        }
+        if (cfoIntroMovie &&
+            ui::projectToScreen(proj, view, intro.resistance.x, intro.resistance.y,
+                                intro.resistance.z + rescuedLook_.nametagHeight, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Mata Hairy", intro.resistanceChat, intro.resistanceChatAge, depth,
+                                      ui::Balloons::kNameColorNpc);
+        frame.suits.addBalloons(frame.balloons, proj, view);
+        frame.remotes.addBalloons(frame.balloons, proj, view);
+        frame.balloons.draw(frame.renderer.topLeft());
+    }
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : state.phase;
+    context.infoTitle = failed_ ? "VP assets missing / over budget" : !ready_ ? "Loading the VP arena" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "VP %.0f / 100  %s  Laff %d", damage,
                   state.attack == net::kBossDizzyNow ? "STUNNED" : vpHatchOpen(state, nowMs) ? "HATCH OPEN" : "", frame.client.ownStats().hp);
     std::snprintf(details_, sizeof(details_), "Pies %u  Power %.0f%%  Aim %.0f", unsigned(frame.client.bossPies()),
@@ -851,7 +1074,7 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
                            failed_ ? "Copy data/boss from the bake. B: return" :
                            "A jump; B hold/release pie; D-pad aim; cage refills";
     if (cashbot_) {
-        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : state.phase;
+        context.infoTitle = failed_ ? "CFO assets missing / over budget" : !ready_ ? "Loading CFO arena and goons" : ui::bossPhaseTitle(state.phase);
         std::snprintf(status_, sizeof(status_), "CFO %.0f / 500  Laff %d", damage, frame.client.ownStats().hp);
         std::snprintf(details_, sizeof(details_), "Magnet %s   %s", cfo_.magnetOn() ? "ON" : "OFF",
                       state.attack == net::kBossDizzy ? "STUNNED: throw safes" : "Jump on goons; knock helmet off");
@@ -899,11 +1122,11 @@ bool BossBattle::frame(BossFrame& frame) {
         frame.ui.setBattle(nullptr, {});
         frame.remotes.clear();
         frame.suits.setZone(frame.client.zoneId());
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         frame.place.unload(); // The lobby and arena never consume the zone pools together.
         if (cashbot_) frame.player.reset(88, -214, 0, 210);
         else frame.player.reset(-10, -80, 0, 0);
-        frame.ui.book().close();
+        frame.ui.book().close("boss_battle");
     }
     frame.client.update(nowMs);
     net::Event event;

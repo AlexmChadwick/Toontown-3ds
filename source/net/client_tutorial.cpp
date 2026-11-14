@@ -43,9 +43,14 @@ void Client::setTutorialChoice(TutorialChoice choice) {
 
 // ToontownClientRepository.enterTutorialQuestion: a new toon that plays the Toontorial asks for it
 // before entering any zone, and goes where enterTutorial says (playGame [Tutorial, shopZone]).
+//
+// OTPClientRepository.moveOnFromUberZone: any Toon whose tutorialAck is still 0 goes to the
+// Toontorial (force-tutorial), not only one made this session; a new Toon follows the NameShop
+// choice (Skip sends requestSkipTutorial instead).
 bool Client::tutorialHoldsZone() const {
-    return tutorialChoice_ == TutorialChoice::Play && playingNewAvatar() && !tutorialDone_ &&
-           !tutorialZones_.active();
+    if (tutorialDone_ || tutorialZones_.active()) return false;
+    if (playingNewAvatar()) return tutorialChoice_ == TutorialChoice::Play;
+    return ownTutorialAck_ == 0;
 }
 
 void Client::maybeRequestTutorial() {

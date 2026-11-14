@@ -18,7 +18,8 @@ WANTED = (
     'tart', 'fruitpie-slice', 'creampie-slice',
     'squirting-flower', 'glass', 'water-gun', 'bottle',
     'flowerpot', 'sandbag', 'anvil', 'weight', 'safe', 'piano', 'ship',
-    'splat', 'button', 'propeller', 'kapow', 'splash', 'phone', 'receiver', 'explosion'
+    'splat', 'button', 'propeller', 'kapow', 'splash', 'phone', 'receiver', 'explosion',
+    'suit_explosion_dust'  # DustCloud (DistributedBossCog.loseCogSuits)
 )
 
 
@@ -64,8 +65,43 @@ def atlas(base,out,preview):
     return metadata
 
 
+def white_splat(actor):
+    """splat-mod's splatter carries a dark navy ColorAttrib that every user replaces with
+    prop.setColor (the pie colours, splash-from-splat's (0.75, 0.75, 1)). The runtime
+    multiplies its tint into the vertex colour, so bake the splatter white."""
+    from panda3d.core import ColorAttrib
+    for node in actor.findAllMatches('**/+GeomNode'):
+        geom_node=node.node()
+        for i in range(geom_node.getNumGeoms()):
+            geom_node.setGeomState(i,geom_node.getGeomState(i).removeAttrib(ColorAttrib))
+
+
+def bake_flipbook(base,out,name,model):
+    """A SequenceNode flipbook (explosion.bam: 10 cards on one 256 px page, 24 fps): one batch
+    per frame in sequence order on its page (shared pages stored once) at full size, so the runtime can show one
+    frame at a time. Flattened together the cards overlapped as a blocky blur."""
+    prop=base.loader.loadModel(model)
+    seq=prop.find('**/+SequenceNode')
+    assert not seq.isEmpty(),model
+    textures=[];batches=[]
+    for frame in seq.getChildren():
+        root=NodePath('frame');card=frame.copyTo(root);card.setMat(frame.getMat(prop))
+        ex,b=capture(root,True,animated=False,max_tex=256)
+        assert len(b)==1 and len(ex.textures)==1,(model,len(b))
+        # explosion: every card samples one page; dust_cloud's cards span three palettes.
+        found=[i for i,t in enumerate(textures) if t.data==ex.textures[0].data]
+        if not found:textures.append(ex.textures[0]);found=[len(textures)-1]
+        b[0].texture=found[0];batches+=b;root.removeNode()
+    filename=name+'.ttm'
+    info=dict(file=filename,source_model=model,clips={},frames=len(batches),
+              frame_rate=seq.node().getFrameRate(),**ttm.write(out/filename,textures,batches))
+    prop.removeNode()
+    return info
+
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__);ap.add_argument('--out',type=Path,default=DATA/'props')
+    ap.add_argument('--only',help='bake this one prop and leave the manifest alone')
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
     preview=ROOT/'sdmc-out/previews/cogs';preview.mkdir(parents=True,exist_ok=True)
     base=ShowBase();rows=literal_table('toontown/battle/BattleProps.py','Props')
@@ -75,10 +111,16 @@ def main():
     entries['ship']=(5,'ship','ship')
     manifest=dict(version=1,props={})
     for name in WANTED:
+        if args.only and name!=args.only:continue
         row=entries[name];model=f'phase_{row[0]:g}/models/props/{row[2]}'
-        if len(row)==4:
+        if name in ('explosion','suit_explosion_dust'):
+            info=bake_flipbook(base,args.out,name,model)
+        elif len(row)==4:
             clip=f'phase_{row[0]:g}/models/props/{row[3]}'
-            info=bake_actor(base,args.out,name,model,{'action':clip},{'full':4000})['full']
+            prepare=white_splat if name=='splat' else None
+            # The splat shows on every pie and squirt hit: keep its 128 px pages.
+            info=bake_actor(base,args.out,name,model,{'action':clip},{'full':4000},prepare=prepare,
+                            max_tex=128 if name=='splat' else 64)['full']
         else:
             prop=base.loader.loadModel(model);root=NodePath('prop_root');prop.reparentTo(root)
             if name=='tart':prop.setScale(.5)
@@ -87,6 +129,8 @@ def main():
             filename=name+'.ttm';info=dict(file=filename,source_model=model,clips={},**ttm.write(args.out/filename,ex.textures,batches))
             root.removeNode()
         manifest['props'][name]=info
+    if args.only:
+        print(manifest);base.destroy();return
     manifest['atlas']=atlas(base,args.out,preview)
     manifest['splat_variants']={
         'tart':dict(scale=.3,color=[55/255,40/255,148/255,1]),

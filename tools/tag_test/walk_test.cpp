@@ -42,6 +42,11 @@ int main() {
     // Chase and flee goals.
     Simulation sim;
     sim.init(7);
+    // Four treasures where the AI might place them (the TagTreasurePlannerAI objects in game).
+    sim.addTreasure(10.0f, 10.0f);
+    sim.addTreasure(-10.0f, 10.0f);
+    sim.addTreasure(10.0f, -10.0f);
+    sim.addTreasure(-10.0f, -10.0f);
     Walker me;
     me.x = 0.0f;
     me.y = 0.0f;
@@ -63,6 +68,10 @@ int main() {
     // Autoplay run: from the start the toon must reach treasures, not stand still.
     Simulation run;
     run.init(8); // a remote toon is IT, and the local toon is not
+    run.addTreasure(10.0f, 10.0f);
+    run.addTreasure(-10.0f, 10.0f);
+    run.addTreasure(10.0f, -10.0f);
+    run.addTreasure(-10.0f, -10.0f);
     Walker w;
     w.y = -15.0f;
     const Spot far[1] = {{8, 0.0f, 30.0f}};

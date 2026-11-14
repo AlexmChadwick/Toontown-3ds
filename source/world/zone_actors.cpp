@@ -18,13 +18,40 @@ constexpr float kTreasureRadius = 2.0f; // DistributedTreasure.getSphereRadius
 constexpr float kTreasureFadeSec = 1.0f; // treasureFlyTrack: 0.8 s out + 0.2 s
 constexpr float kNametagMaxDistance = 60.0f; // far tags behind buildings are just clutter
 
+u8 treasureKind(u16 classId) {
+    switch (classId) {
+    case dc::DistributedDDTreasure::kClassId: return 1;
+    case dc::DistributedMMTreasure::kClassId: return 2;
+    case dc::DistributedBRTreasure::kClassId: return 3;
+    case dc::DistributedDGTreasure::kClassId: return 4;
+    case dc::DistributedDLTreasure::kClassId: return 5;
+    case dc::DistributedOZTreasure::kClassId: return 6;
+    default: return 0; // DistributedTTTreasure, DistributedETreasure: icecream
+    }
+}
+
 } // namespace
 
-bool ZoneActors::init(ToonCache* cache, const char* pointsPath, const char* treasureModelPath) {
+bool ZoneActors::init(ToonCache* cache, const char* pointsPath) {
     cache_ = cache;
     loadPoints(pointsPath);
-    treasureModel_.load(treasureModelPath);
+    static const char* const kPaths[kTreasureKinds] = {
+        "romfs:/baked/icecream.ttm",       "romfs:/baked/treasure_dd.ttm", "romfs:/baked/treasure_mm.ttm",
+        "romfs:/baked/treasure_br.ttm",    "romfs:/baked/treasure_dg.ttm", "romfs:/baked/treasure_dl.ttm",
+        "romfs:/baked/treasure_oz.ttm"};
+    for (int i = 0; i < kTreasureKinds; i++) treasureModels_[i].load(kPaths[i]);
     return true;
+}
+
+render::Model& ZoneActors::hoodTreasure(uint16_t hoodId) {
+    switch (hoodId) {
+    case 1000: return treasureModels_[1]; // DonaldsDock: starfish_treasure
+    case 4000: return treasureModels_[2]; // MinniesMelodyland: music_treasure
+    case 3000: return treasureModels_[3]; // TheBrrrgh: snowflake_treasure
+    case 5000: return treasureModels_[4]; // DaisyGardens: flower_treasure
+    case 9000: return treasureModels_[5]; // DonaldsDreamland: zzz_treasure
+    default: return treasureModels_[0];   // ToontownCentral: icecream
+    }
 }
 
 void ZoneActors::loadPoints(const char* pointsPath) {
@@ -45,7 +72,7 @@ void ZoneActors::shutdown() {
         if (n.active && cache_) cache_->release(&n.look);
         n.active = false;
     }
-    treasureModel_.unload();
+    for (render::Model& model : treasureModels_) model.unload();
 }
 
 const ZoneActors::Point* ZoneActors::findPoint(const char* name) const {
@@ -53,6 +80,16 @@ const ZoneActors::Point* ZoneActors::findPoint(const char* name) const {
         if (!strcmp(points_[i].name, name)) return &points_[i];
     }
     return nullptr;
+}
+
+bool ZoneActors::anchor(const char* name, float* xyzh) const {
+    const Point* p = findPoint(name);
+    if (!p) return false;
+    xyzh[0] = p->x;
+    xyzh[1] = p->y;
+    xyzh[2] = p->z;
+    xyzh[3] = p->h;
+    return true;
 }
 
 void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
@@ -71,6 +108,9 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
             snprintf(anchor, sizeof(anchor), "npc_origin_%u", unsigned(src->posIndex));
         }
         const Point* p = findPoint(anchor);
+        // DistributedNPCBlocker.initToonState: NPCToons.BlockerPositions, not a DNA anchor.
+        static const Point kFlippyBlocker = {"flippy_blocker", 207.4f, 18.81f, -0.475f, 90.0f};
+        if (src->classId == dc::DistributedNPCBlocker::kClassId) p = &kFlippyBlocker;
         if (!p) {
             TT_LOG("zone: NPC %s has no anchor %s (interior NPC?)", src->name, anchor);
             return;
@@ -87,6 +127,9 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
         n->y = p->y;
         n->z = p->z;
         n->h = p->h;
+        // DistributedNPCScientist: hidden unless the Silly Meter holiday runs; the Toon Hall
+        // interior shows the cardboard scientist flats at the same npc_origin anchors instead.
+        n->hidden = src->classId == dc::DistributedNPCScientist::kClassId && !client.sillyMeterHoliday();
         ToonDna dna;
         if (!src->hasDna || !parseNetString(src->dna, net::kDnaSize, &dna)) dna = defaultToonDna();
         cache_->acquire(dna, ToonLod::High, &n->look);
@@ -117,6 +160,7 @@ void ZoneActors::handleEvent(const net::Event& ev, const net::Client& client) {
             t->x = src.x;
             t->y = src.y;
             t->z = src.z;
+            t->kind = treasureKind(src.classId);
         }
         break;
     }
@@ -152,7 +196,7 @@ void ZoneActors::update(float dt) {
 void ZoneActors::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     C3D_Mtx m;
     for (Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue;
         Mtx_Identity(&m);
         Mtx_Translate(&m, n.x, n.y, n.z, true);
         Mtx_RotateZ(&m, n.h * kDegToRad, true);
@@ -161,24 +205,26 @@ void ZoneActors::draw(render::Renderer& renderer, const C3D_FVec& eye) {
     for (Treasure& t : treasures_) {
         if (!t.active) continue;
         // Upstream treasures are camera-facing sprites (cards face -Y): turn -Y toward the eye.
+        // DistributedTreasure.makeNodePath: scale 0.9, resting at setPosition (no bob).
         const float heading = atan2f(eye.x - t.x, -(eye.y - t.y));
-        const float s = t.grabbed ? (t.fade > 0.0f ? t.fade : 0.0f) : 1.0f;
+        const float s = 0.9f * (t.grabbed ? (t.fade > 0.0f ? t.fade : 0.0f) : 1.0f);
         Mtx_Identity(&m);
-        Mtx_Translate(&m, t.x, t.y, t.z + 0.15f * sinf(time_ * 2.0f), true);
+        Mtx_Translate(&m, t.x, t.y, t.z, true);
         Mtx_RotateZ(&m, heading, true);
-        if (s < 1.0f) Mtx_Scale(&m, s, s, s);
-        renderer.drawModel(treasureModel_, m);
+        Mtx_Scale(&m, s, s, s);
+        renderer.drawModel(treasureModels_[t.kind], m);
     }
 }
 
 void ZoneActors::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const C3D_Mtx& view) const {
     for (const Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue;
         float sx, sy, depth;
         if (ui::projectToScreen(proj, view, n.x, n.y, n.z + n.look.nametagHeight, &sx, &sy, &depth) &&
             depth < kNametagMaxDistance) {
             const bool talking = speechNpc_ == n.doId && speech_;
-            balloons.addSpeaker(sx, sy, n.name, talking ? speech_ : nullptr, talking ? 0.0f : 99.0f, depth);
+            balloons.addSpeaker(sx, sy, n.name, talking ? speech_ : nullptr, talking ? 0.0f : 99.0f, depth,
+                                ui::Balloons::kNameColorNpc, talking && speechReversed_);
         }
     }
 }
@@ -214,10 +260,18 @@ u32 ZoneActors::touchingNpc(float x, float y, float z, const net::Client& client
     const float reach = tubeRadius + kToonRadius * 1.04f;
     const float cz = z + kToonRadius - 0.1f;
     for (const Npc& n : npcs_) {
-        if (!n.active) continue;
+        if (!n.active || n.hidden) continue; // resetBlocker clears the collision mask
         const net::NpcToon* src = client.findNpc(n.doId);
         if (!src || src->classId != classId) continue;
         const float h = n.h * kDegToRad;
+        if (classId == dc::DistributedNPCBlocker::kClassId) {
+            // The blocker's tube is scaled (4.5, 1, 6): a wide wall across the tunnel mouth.
+            const float wx = x - n.x, wy = y - n.y;
+            const float lx = wx * cosf(h) + wy * sinf(h), ly = -wx * sinf(h) + wy * cosf(h) - 1.0f;
+            const float rx = tubeRadius * 4.5f + kToonRadius, ry = tubeRadius + kToonRadius;
+            if (cz < n.z + kTubeLength * 6.0f && (lx * lx) / (rx * rx) + (ly * ly) / (ry * ry) < 1.0f) return n.doId;
+            continue;
+        }
         const float ax = n.x - sinf(h), ay = n.y + cosf(h); // tube axis: local (0, 1) rotated by heading
         const float dz = cz < n.z ? n.z - cz : cz > n.z + kTubeLength ? cz - (n.z + kTubeLength) : 0.0f;
         const float dx = x - ax, dy = y - ay;
@@ -244,7 +298,7 @@ bool ZoneActors::nearestTreasure(float x, float y, float* tx, float* ty, float* 
     return true;
 }
 
-bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target) const {
+bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* target, float nametagHeight) const {
     for (const Npc& n : npcs_) {
         if (!n.active || n.doId != npc) continue;
         // DistributedNPCToon.setupCamera: (-5,9,height-.5), H=-150 P=-2;
@@ -254,7 +308,7 @@ bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* targe
         const float x = choice ? 5.0f : -5.0f;
         *eye = FVec3_New(n.x + x * cosf(heading) - 9 * sinf(heading),
                         n.y + x * sinf(heading) + 9 * cosf(heading),
-                        n.z + n.look.nametagHeight - 1.0f);
+                        n.z + (nametagHeight < 0 ? n.look.nametagHeight : nametagHeight) - 1.0f);
         const float cameraHeading = (n.h + (choice ? 155.0f : -150.0f)) * kRadians;
         constexpr float kPitch = -2 * kRadians;
         *target = FVec3_New(eye->x - sinf(cameraHeading) * cosf(kPitch) * 30,
@@ -268,14 +322,107 @@ bool ZoneActors::talkCamera(u32 npc, bool choice, C3D_FVec* eye, C3D_FVec* targe
 int ZoneActors::shadowPositions(float* xyzs, int maxOut) const {
     int n = 0;
     for (const Npc& s : npcs_) {
-        if (!s.active || n >= maxOut) continue;
+        if (!s.active || s.hidden || n >= maxOut) continue;
         xyzs[4 * n] = s.x;
         xyzs[4 * n + 1] = s.y;
         xyzs[4 * n + 2] = s.z;
         xyzs[4 * n + 3] = s.look.valid() ? s.look.scale : 1.0f;
         n++;
     }
+    // DistributedTreasure's own drop shadow (0.4 under the 0.9 node), hidden while it flies.
+    for (const Treasure& t : treasures_) {
+        if (!t.active || t.grabbed || n >= maxOut) continue;
+        xyzs[4 * n] = t.x;
+        xyzs[4 * n + 1] = t.y;
+        xyzs[4 * n + 2] = t.z;
+        xyzs[4 * n + 3] = 0.9f;
+        n++;
+    }
     return n;
+}
+
+ToonAvatar* ZoneActors::npcAvatar(u32 doId) {
+    for (Npc& s : npcs_)
+        if (s.active && s.doId == doId) return &s.avatar;
+    return nullptr;
+}
+
+ZoneActors::Npc* ZoneActors::findNpc(u32 doId) {
+    for (Npc& n : npcs_) {
+        if (n.active && n.doId == doId) return &n;
+    }
+    return nullptr;
+}
+
+bool ZoneActors::npcPose(u32 npc, float* x, float* y, float* z, float* h) const {
+    for (const Npc& n : npcs_) {
+        if (!n.active || n.doId != npc) continue;
+        *x = n.x;
+        *y = n.y;
+        *z = n.z;
+        *h = n.h;
+        return true;
+    }
+    return false;
+}
+
+void ZoneActors::setNpcPose(u32 npc, float x, float y, float z, float h) {
+    if (Npc* n = findNpc(npc)) {
+        n->x = x;
+        n->y = y;
+        n->z = z;
+        n->h = h;
+    }
+}
+
+void ZoneActors::setNpcAnim(u32 npc, ToonAnim anim, float rate) {
+    if (Npc* n = findNpc(npc)) n->avatar.play(anim, rate);
+}
+
+void ZoneActors::setNpcHidden(u32 npc, bool hidden) {
+    if (Npc* n = findNpc(npc)) {
+        if (n->hidden != hidden) TT_LOG("zone: NPC %s %s", n->name, hidden ? "hidden" : "shown");
+        n->hidden = hidden;
+    }
+}
+
+bool ZoneActors::spawnLocalNpc(u32 id, const char* name, const uint8_t* dna, float x, float y, float z, float h) {
+    if (findNpc(id)) return true;
+    Npc* n = nullptr;
+    for (Npc& s : npcs_) {
+        if (!s.active && !n) n = &s;
+    }
+    if (!n) return false;
+    n->active = true;
+    n->doId = id;
+    snprintf(n->name, sizeof(n->name), "%s", name ? name : "");
+    n->x = x;
+    n->y = y;
+    n->z = z;
+    n->h = h;
+    n->hidden = false;
+    ToonDna d;
+    if (!parseNetString(dna, net::kDnaSize, &d)) d = defaultToonDna();
+    cache_->acquire(d, ToonLod::High, &n->look);
+    n->avatar.setLook(&n->look, &cache_->fallback());
+    n->avatar.play(kAnimNeutral, 1.0f);
+    return true;
+}
+
+void ZoneActors::despawnLocalNpc(u32 id) {
+    for (Npc& n : npcs_) {
+        if (n.active && n.doId == id) {
+            cache_->release(&n.look);
+            n.active = false;
+        }
+    }
+    if (speechNpc_ == id) speechNpc_ = 0, speech_ = nullptr;
+}
+
+const char* ZoneActors::npcName(u32 npc) const {
+    for (const Npc& s : npcs_)
+        if (s.active && s.doId == npc && s.name[0]) return s.name;
+    return nullptr;
 }
 
 int ZoneActors::npcCount() const {

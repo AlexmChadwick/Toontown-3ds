@@ -152,7 +152,7 @@ void testBattleTable() {
     usable[4 * b::kLevels + 1] = true; // throw 2
     usable[5 * b::kLevels + 0] = true; // squirt 1
     pad::buildBattleInput(group, 4, cogs, usable, false);
-    CHECK(group.count() == 4 + 49 + 2);
+    CHECK(group.count() == 4 + 49 + 4); // the cogs, the grid, Fire / Pass / Run / SOS
     group.setFocusById(b::gagId(4, 0));
     group.move(1, 0);
     CHECK(group.focusedId() == b::gagId(4, 1));
@@ -161,23 +161,55 @@ void testBattleTable() {
     group.move(0, 1);
     CHECK(group.focusedId() == b::gagId(5, 0));
     group.move(0, 1);
-    CHECK(group.focusedId() == b::kIdPass); // Run is disabled: Pass sits under the grid
+    CHECK(group.focusedId() == b::kIdPass); // Pass sits under the first gag column
     group.move(1, 0);
     CHECK(group.focusedId() == b::kIdPass); // nothing else on that row
+    group.move(-1, 0);
+    CHECK(group.focusedId() == b::kIdPass); // Fire is disabled without pink slips
+    group.move(0, 1);
+    CHECK(group.focusedId() != b::kIdRun && group.focusedId() != b::kIdSos); // disabled too: wraps past them
     group.setFocusById(b::gagId(4, 0));
     group.move(0, -1);
     CHECK(group.focusedId() >= b::kIdCog0 && group.focusedId() < b::kIdCog0 + b::kMaxCogs);
     CHECK(group.focusedId() != b::kIdCog0 + 1); // the defeated cog is skipped
-    // A tap on the old touch rectangles still lands on the same controls.
+    // A tap on the touch rectangles lands on the same controls.
     CHECK(tap(group, int(b::kCogX + 2 * (b::kCogW + b::kCogGap)) + 5, int(b::kCogY) + 5) == b::kIdCog0 + 2);
     CHECK(tap(group, int(b::kPassX) + 5, int(b::kBtnY) + 5) == b::kIdPass);
     // Every frame rebuilds the table; the focus stays.
     group.setFocusById(b::gagId(5, 0));
-    pad::buildBattleInput(group, 4, cogs, usable, true);
+    pad::buildBattleInput(group, 4, cogs, usable, true, true, true);
     CHECK(group.focusedId() == b::gagId(5, 0));
+    // InventoryNew's 2 x 2 block: Fire | Pass over Run | SOS.
     group.setFocusById(b::kIdPass);
-    group.move(1, 0);
+    group.move(-1, 0);
+    CHECK(group.focusedId() == b::kIdFire);
+    group.move(0, 1);
     CHECK(group.focusedId() == b::kIdRun);
+    group.move(1, 0);
+    CHECK(group.focusedId() == b::kIdSos);
+    group.move(0, -1);
+    CHECK(group.focusedId() == b::kIdPass);
+    CHECK(tap(group, int(b::kSosX) + 5, int(b::kRow2Y) + 5) == b::kIdSos);
+    CHECK(tap(group, int(b::kFireX) + 5, int(b::kBtnY) + 5) == b::kIdFire);
+    // The SOS panel: eight cards a view, Back, and the page button when there are more.
+    bool callable[b::kSosPerView] = {true, false, true, true, true};
+    pad::buildBattleSos(group, 5, callable, true);
+    CHECK(group.count() == 5 + 2);
+    group.setFocusById(b::kIdSosCard0);
+    group.move(1, 0);
+    CHECK(group.focusedId() == b::kIdSosCard0 + 2); // a card with no calls left is skipped
+    group.move(0, 1);
+    CHECK(group.focusedId() == b::kIdSosCard0 + 4 || group.focusedId() == b::kIdBack);
+    CHECK(tap(group, int(b::kBackX) + 5, int(b::kRow2Y) + 5) == b::kIdSosPage);
+    // The Fire panel: the Cog cards and Back.
+    const bool fire[b::kMaxCogs] = {true, false, true, false};
+    pad::buildBattleFire(group, 4, fire);
+    CHECK(group.count() == 4 + 1);
+    group.setFocusById(b::kIdCog0);
+    group.move(1, 0);
+    CHECK(group.focusedId() == b::kIdCog0 + 2);
+    group.move(0, 1);
+    CHECK(group.focusedId() == b::kIdBack);
     pad::buildBattleReward(group);
     CHECK(group.count() == 1 && group.item(0).id == b::kIdContinue);
 }
@@ -246,17 +278,21 @@ void testCounterButtons() {
 void testHoodRow() {
     namespace h = pad::hoods;
     FocusGroup group("map");
-    pad::buildHoodRow(group);
+    pad::buildHoodRow(group, h::kTabHomeX);
     CHECK(group.count() == 1 + h::kCount);
     group.move(0, 1);
-    CHECK(group.focusedId() == h::kIdHome);
+    CHECK(group.focusedId() == 0); // the row first
     group.move(0, 1);
-    CHECK(group.focusedId() >= 0 && group.focusedId() < 2); // the hood under Home
+    CHECK(group.focusedId() == h::kIdHome); // Home is the row below
+    group.move(0, -1);
+    CHECK(group.focusedId() >= 1 && group.focusedId() <= 3); // the hood above Home
     group.setFocusById(h::kCount - 1);
     group.move(1, 0);
     CHECK(group.focusedId() == 0);
-    group.move(0, -1);
-    CHECK(group.focusedId() == h::kIdHome);
+    // Home clears the laff pocket on the tab; the tab bar's tabs start after it.
+    CHECK(h::kTabHomeX >= pad::kLaffPocketW);
+    CHECK(h::kHomeY + h::kHomeH <= pad::kTabBarY);
+    CHECK(pad::tabX(0, 5) == pad::kLaffPocketW && pad::tabX(5, 5) == pad::kScreenW);
     // A touch anywhere in a hood's column hits it, as the old px / width test did.
     for (int i = 0; i < h::kCount; ++i) {
         CHECK(tap(group, int(i * h::kHoodW), int(h::kRowY)) == i);
@@ -264,7 +300,7 @@ void testHoodRow() {
     }
 }
 
-void testToonAndSetupTabs() {
+void testToonAndBookTabs() {
     namespace t = pad::toon;
     FocusGroup group("tab_toon");
     pad::buildToonTab(group, true);
@@ -289,17 +325,24 @@ void testToonAndSetupTabs() {
     group.move(1, 0);
     CHECK(group.focusedId() == 0); // rows wrap
 
-    namespace s = pad::setup;
-    FocusGroup setup("tab_setup");
-    pad::buildSetupTab(setup);
-    setup.move(0, 1);
-    CHECK(setup.focusedId() == s::kIdStereo);
-    setup.move(0, 1);
-    CHECK(setup.focusedId() == s::kIdStressMinus);
-    setup.move(1, 0);
-    CHECK(setup.focusedId() == s::kIdStressPlus);
-    setup.move(0, -1);
-    CHECK(setup.focusedId() == s::kIdStereo);
+    namespace b = pad::booktab;
+    FocusGroup book("tab_book");
+    pad::buildBookTab(book);
+    CHECK(book.count() == b::kCount);
+    book.move(0, 1);
+    CHECK(book.focusedId() == 0);
+    book.move(1, 0);
+    CHECK(book.focusedId() == 1);
+    book.move(0, 1);
+    CHECK(book.focusedId() == 1 + b::kCols); // straight down a column
+    book.move(0, 1);
+    CHECK(book.focusedId() == 1 + 2 * b::kCols);
+    // Every button sits inside the content area, above the tab bar (y 208).
+    for (int i = 0; i < b::kCount; ++i) {
+        const float x = b::kX0 + (i % b::kCols) * b::kStepX, y = b::kY0 + (i / b::kCols) * b::kStepY;
+        CHECK(x >= 0 && x + b::kBtnW <= pad::kScreenW && y + b::kBtnH <= 208.0f);
+        CHECK(tap(book, int(x + b::kBtnW / 2), int(y + b::kBtnH / 2)) == i);
+    }
 }
 
 void testBookTables() {
@@ -308,8 +351,6 @@ void testBookTables() {
     pad::buildBookOptions(options);
     CHECK(options.count() == 10);
     options.setFocusById(k::kIdStereo);
-    options.move(0, 1);
-    CHECK(options.focusedId() == k::kIdDebugHud);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdLodBias);
     options.move(0, 1);
@@ -321,13 +362,15 @@ void testBookTables() {
     options.move(-1, 0);
     CHECK(options.focusedId() == k::kIdSfxMinus);
     options.move(0, 1);
+    CHECK(options.focusedId() == k::kIdDebugHud);
+    options.move(0, 1);
     CHECK(options.focusedId() == k::kIdStressMinus);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdQuit);
     options.move(0, 1);
     CHECK(options.focusedId() == k::kIdStereo);
     // The old touch rectangles (24 px wide steppers) still hit.
-    CHECK(tap(options, 80 + 23, 102 + 10) == k::kIdMusicMinus);
+    CHECK(tap(options, 80 + 23, 78 + 10) == k::kIdMusicMinus);
 
     FocusGroup depts("book_cogs");
     pad::buildBookDepartments(depts);
@@ -358,7 +401,7 @@ int main() {
     testClosetAndTailor();
     testCounterButtons();
     testHoodRow();
-    testToonAndSetupTabs();
+    testToonAndBookTabs();
     testBookTables();
     std::printf("padnav_test: %d checks, %d failures\n", gChecks, gFailures);
     return gFailures == 0 ? 0 : 1;

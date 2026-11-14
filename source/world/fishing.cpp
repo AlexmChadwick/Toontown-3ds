@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/fishing.h"
 #include "world/toon_avatar.h"
 
@@ -97,11 +98,13 @@ void Fishing::loadAssets(int rod) {
         bob_.load(path);
         snprintf(path, sizeof(path), "%sline.ttm", kDataDir);
         line_.load(path);
+        snprintf(path, sizeof(path), "%sripples.ttm", kDataDir);
+        if (!ripples_.load(path)) TT_LOG("fishing: no ripples.ttm (tools/pipeline/bake_fishing_ripples.py)");
         linesLoaded_ = true;
     }
     if (loadedRod_ != rod) {
         if (rod_.loaded()) {
-            C3D_FrameSync();
+            ::tt::gpu::frameSync();
             rod_.unload();
         }
         snprintf(path, sizeof(path), "%srod_%d.ttm", kDataDir, rod);
@@ -118,12 +121,18 @@ void Fishing::loadAssets(int rod) {
 }
 
 void Fishing::unloadAssets() {
-    if (rod_.loaded() || bob_.loaded() || line_.loaded()) C3D_FrameSync();
+    if (rod_.loaded() || bob_.loaded() || line_.loaded() || ripples_.loaded()) ::tt::gpu::frameSync();
     rod_.unload();
     bob_.unload();
     line_.unload();
+    ripples_.unload();
     loadedRod_ = -1;
     linesLoaded_ = false;
+    for (JntSlot& j : jnt_) {
+        j.track.unload();
+        j.path[0] = 0;
+        j.failed = false;
+    }
 }
 
 void Fishing::setZone(u32 zoneId, const char* pointsPath) {
@@ -230,7 +239,8 @@ void Fishing::setStatus(const char* text) {
 void Fishing::setResultNone() {
     view_.result = ui::FishingView::kNone;
     view_.itemName[0] = view_.itemWeight[0] = view_.itemValue[0] = 0;
-    view_.newEntry = false;
+    view_.newEntry = view_.newRecord = false;
+    view_.genus = -1;
     view_.revision++;
 }
 
@@ -396,11 +406,21 @@ void Fishing::releaseCast(u32 nowMs) {
 }
 
 void Fishing::landBob(u32 nowMs) {
-    (void)nowMs;
     setState(State::Waiting);
     waitTime_ = 0.0f;
     bobBob_ = 0.0f;
     gotResult_ = false;
+    // __showBob: Ripples under the angle node at the bob, on the water (waterLevel + 0.025), scale 0.4.
+    {
+        float rx, ry;
+        rotH(cur_.h + castAim_, 0.0f, landing_.y, &rx, &ry);
+        rippleX_ = cur_.x + rx;
+        rippleY_ = cur_.y + ry;
+        rippleZ_ = fish::waterLevel(currentArea()) + 0.025f;
+        rippleH_ = cur_.h + castAim_;
+        rippleStartMs_ = nowMs;
+        rippleOn_ = true;
+    }
     const int sfx = rng_.below(2);
     if (splash_[sfx] != audio::kInvalidSfx) audio::playSfx(splash_[sfx], 0.8f);
     if (!curLocal_) {
@@ -433,7 +453,7 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
     // A late result from a previous cast cannot overwrite a new charge.
     if (state_ != State::Waiting && state_ != State::Casting) return;
     fish::Catch c;
-    pendingNewEntry_ = false;
+    pendingNewEntry_ = pendingNewRecord_ = false;
     switch (m.code) {
     case net::kFishItem:
     case net::kFishItemNewEntry:
@@ -444,6 +464,7 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
         c.weight = m.item3;
         c.value = static_cast<uint16_t>(fish::fishValue(c.genus, c.species, c.weight));
         pendingNewEntry_ = m.code != net::kFishItem;
+        pendingNewRecord_ = m.code == net::kFishItemNewRecord;
         break;
     case net::kFishJellybean:
         c.kind = fish::CatchKind::Jellybeans;
@@ -463,6 +484,8 @@ void Fishing::onPullIn(const net::FishMovieMsg& m) {
 
 void Fishing::finishCatch(const fish::Catch& c, bool newEntry) {
     view_.newEntry = newEntry;
+    view_.newRecord = newEntry && pendingNewRecord_;
+    view_.genus = c.kind == fish::CatchKind::Fish ? c.genus : -1;
     view_.itemName[0] = view_.itemWeight[0] = view_.itemValue[0] = 0;
     switch (c.kind) {
     case fish::CatchKind::Fish: {
@@ -539,7 +562,17 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
     }
     dpadAimHeld_ = dpadAim;
     // ---- end padnav ----
-    const bool aDown = (in.down & KEY_A) != 0, aHeld = (in.held & KEY_A) != 0, bDown = (in.down & KEY_B) != 0;
+    bool aDown = (in.down & KEY_A) != 0, aHeld = (in.held & KEY_A) != 0, bDown = (in.down & KEY_B) != 0;
+    // The touch screen's cast button (DistributedFishingSpot: press it and drag down; the drag
+    // sets power and angle, letting go casts) and its Exit button.
+    const ui::FishingTouch touch = touch_;
+    touch_.started = touch_.released = touch_.exit = false;
+    if (touch.exit) bDown = true;
+    if (touch.started && (state_ == State::Ready || state_ == State::Result || state_ == State::Waiting)) {
+        startCharge();
+        touchCharge_ = true;
+        setStatus("Drag down, then let go to cast!");
+    }
     in.pad = circlePosition{};
     in.cstick = circlePosition{};
     in.held = 0;
@@ -549,7 +582,7 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
 
     const bool canAim = state_ == State::Ready || state_ == State::Charging || state_ == State::Waiting ||
                         state_ == State::Result;
-    if (canAim) {
+    if (canAim && !touchCharge_) {
         aim_ -= aimAxis * kAimRate * dt; // pad right = clockwise = negative Panda heading
         const float lim = fish::kFishingAngleMax;
         aim_ = aim_ < -lim ? -lim : (aim_ > lim ? lim : aim_);
@@ -571,7 +604,21 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
         else if (bDown) beginLeave();
         break;
     case State::Charging:
-        if (bDown) {
+        if (touchCharge_) {
+            // FishingSpot.localAdjustingCastTask: the drag is the power and the angle.
+            power_ = touch.power;
+            const float lim = fish::kFishingAngleMax;
+            aim_ = -touch.angle < -lim ? -lim : (-touch.angle > lim ? lim : -touch.angle);
+            if (!touch.dragging) {
+                touchCharge_ = false;
+                if (power_ > 0.0f) {
+                    releaseCast(nowMs);
+                } else {
+                    setState(State::Ready);
+                    setStatus("Drag down from Cast, then let go!");
+                }
+            }
+        } else if (bDown) {
             power_ = 0.0f;
             setState(State::Ready);
             setStatus("Hold A, then let go to cast!");
@@ -596,7 +643,7 @@ void Fishing::handleInput(Input& in, float dt, u32 nowMs, bool canEnter) {
         } else if (curLocal_) {
             if (biteIn_ >= 0.0f && waitTime_ >= biteIn_) {
                 pending_ = fish::rollCatch(currentArea(), currentRod(), rng_);
-                pendingNewEntry_ = false;
+                pendingNewEntry_ = pendingNewRecord_ = false;
                 gotResult_ = true;
                 reelTime_ = 0.0f;
                 setState(State::Reeling);
@@ -686,11 +733,46 @@ void Fishing::updateRodPitch(float dt) {
     rodPitch_ += (target - rodPitch_) * (1.0f - expf(-rate * dt));
 }
 
+bool Fishing::handMatrix(C3D_Mtx* out) const {
+    ToonAvatar::TorsoFrame torso;
+    if (!avatar_ || !avatar_->torsoFrame(&torso) || !torso.torsoKey) return false;
+    switch (torso.anim) {
+    case kAnimPole: case kAnimPoleNeutral: case kAnimCastlong: case kAnimCast: case kAnimFishNeutral:
+    case kAnimReel: case kAnimReelNeutral: case kAnimFishAgain: case kAnimFishEnd: break;
+    default: return false; // not holding the pole yet (running to the spot)
+    }
+    char path[96];
+    snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/toon/%s_%s.jnt", torso.torsoKey, kToonAnimNames[torso.anim]);
+    JntSlot* slot = nullptr;
+    for (JntSlot& j : jnt_) {
+        if (!strcmp(j.path, path)) { slot = &j; break; }
+    }
+    if (!slot) { // the least recently used slot, loaded once (a missing file is remembered)
+        slot = &jnt_[0];
+        for (JntSlot& j : jnt_) if (j.used < slot->used) slot = &j;
+        slot->track.unload();
+        snprintf(slot->path, sizeof(slot->path), "%s", path);
+        slot->failed = !slot->track.load(path);
+        if (slot->failed) TT_LOG("fishing: no hand track %s (tools/pipeline/bake_toon_hands.py)", path);
+    }
+    slot->used = ++jntClock_;
+    if (slot->failed) return false;
+    const int right = slot->track.joint("def_joint_right_hold");
+    C3D_Mtx hand;
+    if (right < 0 || !slot->track.sample(right, torso.time, &hand)) return false;
+    Mtx_Multiply(out, &torso.world, &hand);
+    return true;
+}
+
 void Fishing::rodMatrix(C3D_Mtx* out) const {
     float scale = 1.0f;
     if (state_ == State::Entering) scale = smooth(stateTime_ / 0.6f);
     else if (state_ == State::Leaving) scale = 1.0f - smooth(stateTime_ / kLeaveSec);
     if (scale < 0.01f) scale = 0.01f;
+    if (handMatrix(out)) {
+        Mtx_Scale(out, scale, scale, scale);
+        return;
+    }
     Mtx_Identity(out);
     Mtx_Translate(out, cur_.x, cur_.y, cur_.z, true);
     Mtx_RotateZ(out, (cur_.h + aim_) * kDegToRad, true);
@@ -770,12 +852,31 @@ void Fishing::draw(render::Renderer& renderer) {
         rodMatrix(&m);
         renderer.drawModel(rod_, m);
     }
-    if (!bobVisible_) return;
+    if (!bobVisible_) {
+        rippleOn_ = false; // __hideBob stops them
+        return;
+    }
     if (bob_.loaded()) {
         C3D_Mtx m;
         Mtx_Identity(&m);
         Mtx_Translate(&m, bobX_, bobY_, bobZ_, true);
         renderer.drawModel(bob_, m);
+    }
+    if (rippleOn_ && ripples_.loaded()) {
+        const int frames = int(ripples_.numBatches());
+        const int frame = int((net::plat::nowMs() - rippleStartMs_) * 24u / 1000u);
+        if (frame >= frames) {
+            rippleOn_ = false; // the track hides them after one pass
+        } else {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            Mtx_Translate(&m, rippleX_, rippleY_, rippleZ_, true);
+            Mtx_RotateZ(&m, rippleH_ * kDegToRad, true);
+            Mtx_Scale(&m, 0.4f, 0.4f, 0.4f);
+            renderer.setOnlyBatch(frame);
+            renderer.drawModel(ripples_, m);
+            renderer.setOnlyBatch(-1);
+        }
     }
     if (line_.loaded()) {
         float tip[3];
@@ -789,14 +890,23 @@ void Fishing::draw(render::Renderer& renderer) {
             Mtx_Translate(&m, tip[0], tip[1], tip[2], true);
             Mtx_RotateZ(&m, atan2f(-dx, dy), true);              // heading: +Y toward the bob
             Mtx_RotateX(&m, atan2f(dz, horiz > 1e-4f ? horiz : 1e-4f), true); // pitch up toward it
-            Mtx_Scale(&m, 1.0f, len, 1.0f);
+            // Rope draws a one-pixel line: size the 0.04-unit ribbon to about 1.3 px at the
+            // line's middle (thinner, it broke into dashes), in the Rope's colour (1, 1, 1, 0.4).
+            const C3D_FVec& eye = renderer.eye();
+            const float mx = tip[0] + dx * 0.5f - eye.x, my = tip[1] + dy * 0.5f - eye.y, mz = tip[2] + dz * 0.5f - eye.z;
+            const float pixel = 2.0f * tanf(renderer.fovY() * 0.5f * kDegToRad) * sqrtf(mx * mx + my * my + mz * mz) / 240.0f;
+            const float w = 1.3f * pixel / 0.04f;
+            Mtx_Scale(&m, w, len, w);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 0.4f);
             renderer.drawModel(line_, m);
+            renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
         }
     }
 }
 
 void Fishing::applyAnimation(ToonAvatar& avatar) const {
     if (!active()) return;
+    avatar_ = &avatar;
     ToonAnim clip=kAnimPoleNeutral;
     ClipMode mode=ClipMode::Loop;
     float age=toonTime_,start=0,rate=1;

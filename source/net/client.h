@@ -86,6 +86,10 @@ struct RemoteToon {
     int32_t scIndex;       // last setSC phrase index, or -1 when the last chat was typed
     uint32_t chatMs;
     int16_t hp, maxHp;     // broadcast setHp/setMaxHp (friends detail panel); 0 until received
+    int8_t cogIndex;       // setCogIndex: the department of its Cog suit, -1 when not disguised
+    uint8_t cogTypes[4];   // setCogTypes / setCogParts (required broadcast): which suit it wears
+    uint8_t cogLevels[4];  // setCogLevels: its disguise nametag's level - 1
+    uint32_t cogParts[4];
     // Transition fields (setTunnelIn / setTunnelOut)
     float tunnelStartX, tunnelStartY;
     float tunnelEndX;
@@ -320,6 +324,7 @@ constexpr int kMaxNpcs = 16;
 // Treasures (DistributedTreasure family): walk into one to grab it (+laff).
 struct Treasure {
     uint32_t doId;
+    uint16_t classId; // DistributedTTTreasure, DistributedDDTreasure, ... (picks the model)
     float x, y, z;
     bool active;
 };
@@ -342,6 +347,60 @@ struct CChar {
 };
 constexpr int kMaxCChars = 4;
 
+// Playground butterflies (DistributedButterfly; the AI spawns 24 in TTC, 36 in DG). setArea
+// names the ButterflyGlobals point table; setState(state, cur, dest, flight seconds, ts):
+// 1 flying cur -> dest from startMs, 2 landed on cur, 0 off.
+struct Butterfly {
+    uint32_t doId = 0;
+    int16_t playground = 0, area = 0;
+    int8_t state = 0;
+    uint8_t cur = 0, dest = 0;
+    float seconds = 0;
+    uint32_t startMs = 0;
+    bool active = false;
+};
+constexpr int kMaxButterflies = 40;
+
+// Daisy Gardens' big flower (DistributedDGFlower): setHeight(z) raises it; avatarEnter /
+// avatarExit (clsend) as our toon enters or leaves its trigger sphere.
+struct DGFlower {
+    uint32_t doId = 0;
+    float height = 2.0f; // DistributedDGFlowerAI.MIN_HEIGHT, the model's start z
+    uint32_t heightMs = 0;
+    bool active = false;
+};
+
+// Goofy Speedway's race leader boards (DistributedLeaderBoard): setPosHpr places the text
+// surface; setDisplay (a pickled (track, period, [(time, name), ...])) fills its rows.
+struct GsLeaderBoard {
+    static constexpr int kRows = 10;
+    uint32_t doId = 0;
+    float pos[3] = {}, hpr[3] = {};
+    char track[48] = "Track Title";
+    char period[32] = "Period Title";
+    char names[kRows][72] = {};
+    char times[kRows][40] = {};
+    uint32_t version = 0; // bumped on every setDisplay
+    bool active = false;
+};
+constexpr int kMaxLeaderBoards = 4;
+
+// DistributedToonInterior (and DistributedToonHallInterior): setSavedBy, the Toons who won the
+// building back (DistributedToonInterior.buildTrophy frames over the trophy_origin).
+struct ToonInteriorTrophies {
+    static constexpr int kMax = 8;
+    struct Saved {
+        uint32_t avId = 0;
+        char name[32] = {};
+        uint8_t dna[kDnaSize] = {};
+        bool hasDna = false;
+    } saved[kMax];
+    uint32_t doId = 0, zoneId = 0;
+    int count = 0;
+    uint32_t version = 0; // bumped on every setSavedBy
+    bool active = false;
+};
+
 // Donald's Dock boat (DistributedBoat, zone 1000). setState(string, int16 ts): the AI
 // cycles DockedEast -10s-> SailingWest -20s-> DockedWest -10s-> SailingEast -20s-> ...
 enum class BoatState : uint8_t { Off, DockedEast, SailingWest, DockedWest, SailingEast };
@@ -355,6 +414,7 @@ struct Boat {
 enum class CogBuildingState : uint8_t { Unknown, Toon, Suit, BecomingSuit, BecomingToon, Other, Cogdo };
 struct CogBuilding {
     bool cogdoVictory = false; // ---- cogdo: actual waitForVictorsFromCogdo state ----
+    bool suitVictory = false;  // waitForVictors: a won Cog building waits for its victors
     uint32_t doId = 0, block = 0, interiorZoneId = 0;
     int8_t track = -1, difficulty = -1, numFloors = -1;
     CogBuildingState state = CogBuildingState::Unknown;
@@ -497,6 +557,7 @@ struct LevelEntityObj {
     bool grabbedByUs = false;
     float pauseTime = 0;     // DistributedGoon.setMovie(mode -> movie, avId -> avatarId, pauseTime, ts -> movieMs)
     bool crushed = false;    // DistributedCrushableEntity.setCrushed
+    uint32_t crushedMs = 0;  // when the last setCrushed arrived
     // ---- level games (world/level_games.*) ----
     uint32_t battleId = 0;
     uint32_t suits[8] = {};
@@ -512,6 +573,7 @@ struct LevelEntityObj {
     char gridGame[16] = {};
 
     uint8_t targetHash = 0;
+    bool targetSet = false; // DistributedSecurityCamera.setTarget arrived (no beam before it)
 
     uint8_t crateSide = 0;
     float movePos[6] = {};
@@ -531,8 +593,33 @@ struct LevelEntityObj {
     uint16_t gameDuration = 0;
     int16_t score = 0;
     bool pityWin = false;
+    uint8_t gameStartSeq = 0; // setGameStart count (mole field, maze; a mole restart resends it)
+    // updateMole(index, WHACKED) / reportToonHitByBomb(avId, index, ts) (DistributedMaze:
+    // toonFinished(avId, place -> index, lastToon -> status)), oldest first; the reader
+    // keeps its own count of moleEventSeq.
+    struct MoleEvent {
+        uint32_t avId; // 0: updateMole
+        int8_t index;
+        int8_t status;
+        int32_t ts;
+    } moleEvents[8] = {};
+    uint16_t moleEventSeq = 0;
 
     uint16_t boardsLeft = 0;
+    uint8_t golfJoinSeq = 0, golfDoneSeq = 0; // acceptJoin / signalDone counts
+    bool golfSuccess = false;
+    // Bust-a-Cog (world/bust_a_cog.*): startBoard (to us), boardCleared, helpOthers, informGag,
+    // setTimerStart. Each event bumps its count; the game keeps its own.
+    uint8_t bacBoard[9 * 15][3] = {}; // posX, posZ, typeIndex
+    uint8_t bacBoardLen = 0;
+    uint8_t bacPattern[16] = {};
+    uint8_t bacPatternLen = 0;
+    uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0, bacGagSeq = 0, bacTimerSeq = 0;
+    uint32_t bacHelpAvId = 0;
+    uint8_t bacGagTrack = 0, bacGagLevel = 0;
+    uint16_t bacTimeTotal = 0;
+    uint32_t bacTimeStartMs = 0;
+    uint8_t bacTotal = 0, bacClosed = 0; // scoreData
     uint32_t joinedToons[4] = {};
     uint8_t numJoinedToons = 0;
     // ---- end level games ----
@@ -602,7 +689,7 @@ struct Suit {
     bool tutorial;          // DistributedTutorialSuit: walks its own loop (world/tutorial.*), no path
     // ---- end tutorial ----
 };
-constexpr int kMaxSuits = 16;
+constexpr int kMaxSuits = 96; // the VP generates ~36 at once, the CFO 75 (cogs and skelecogs per round plus reserves)
 struct SuitPlanner {
     uint32_t doId;
     uint32_t zoneId;        // DistributedSuitPlanner.setZoneId: the street branch (2100, ...)
@@ -765,6 +852,13 @@ struct Battle {
     uint32_t movieSeq;         // bumped whenever setMovie arrives with an active movie
     BattleExperience exp;
     uint32_t expSeq;
+    // setChosenToonAttacks (sent after every requestAttack while choosing): each active toon's
+    // pick, for TownBattleToonPanel. Track as the AI sends it: -1 none, -2 un-chose, 0..6 a gag,
+    // 98 PASS, 99 / 97 / 96 SOS, 100 FIRE. chosenStateSeq = stateSeq it arrived under.
+    uint8_t numChosen;
+    uint32_t chosenIds[kBattleToons];
+    int16_t chosenTrack[kBattleToons], chosenLevel[kBattleToons];
+    uint32_t chosenStateSeq;
     uint32_t adjustSeq;
     uint32_t adjustMs;         // local time of the last adjust(ts)
     bool active;
@@ -784,10 +878,13 @@ struct Trolley {
 };
 constexpr int kGolfSeats = 4;
 constexpr int kGolfMaxGolfers = 4;
+// GZHoodDataAI makes one DistributedGolfKart per DNA golf_kart_<course>_<n> node (nine).
+constexpr int kMaxGolfKarts = 9;
 struct GolfKart {
     uint32_t doId = 0, golfZone = 0;
     int8_t courseId = -1;
     float x = 0, y = 0, z = 0, h = 0, p = 0, r = 0;
+    int16_t color[3] = {255, 255, 255}; // setColor (required)
     uint32_t slots[kGolfSeats] = {};
     char state[20] = {};
     uint32_t stateMs = 0;
@@ -1029,6 +1126,10 @@ struct OwnStats {
     int16_t hp = 15, maxHp = 15;
     int16_t money = 0, maxMoney = 40, bankMoney = 0;
     uint32_t defaultZone = 2000; // setDefaultZone: the playground a sad toon returns to
+    // toonUp / takeDamage (DistributedToon.showHpText): the clamped change and when it came; the world
+    // floats "+n" / "-n" over our Toon for 1.95 s
+    int16_t hpTextValue = 0;
+    uint32_t hpTextMs = 0;
     // Gags (owner-only DistributedToon fields; tracks in ToontownBattleGlobals order).
     uint16_t experience[7] = {};
     uint8_t inventory[7][7] = {}; // count per track, level
@@ -1037,6 +1138,11 @@ struct OwnStats {
     uint8_t emoteAccess[25] = {};
     bool hasEmotes = false;
     bool hasGags = false; // setInventory received
+    // setTeleportAccess / setHoodsVisited, one bit per hood id / 1000 (2000 TTC = bit 2, the Cog
+    // HQs 10000-13000 = bits 10-13). The Map page teleports only to hoods in teleportAccess.
+    uint32_t teleportAccess = 0;
+    uint32_t hoodsVisited = 1u << 2; // toon.dc default [2000]
+    bool hasTeleportAccess = false;  // setTeleportAccess received (offline: no gating)
 };
 
 // ===================== friends / whispers (docs/design/friends.md) =====================
@@ -1081,14 +1187,14 @@ struct FriendInvite {
     int32_t context = 0;
     uint32_t sinceMs = 0;
 };
-enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing };
+enum class WhisperKind : uint8_t { SpeedChat, Custom, Emote, Typed, System, Outgoing, ToonTask };
 struct Whisper {
     uint32_t fromId;       // sender (ourselves for Outgoing)
     uint32_t toId;         // recipient (ourselves for incoming)
     WhisperKind kind;
     uint16_t index;        // SpeedChat/custom/emote index (the UI decodes it); 0 for Typed/System
     char name[kNameLen];   // the other party
-    char text[kWhisperTextLen]; // Typed and System text; empty for index-only kinds
+    char text[kWhisperTextLen]; // Typed, System and ToonTask text; empty for index-only kinds
     uint32_t ms;
 };
 struct TeleportResult {
@@ -1217,6 +1323,11 @@ public:
     // Drop the connection and go through the normal retry path, keeping the chosen toon
     // and zone (after sleep, when the socket is known to be dead).
     void forceReconnect(const char* why);
+    // ToontownGlobals.DynamicZonesBegin: zones allocated per facility floor / minigame / estate.
+    static constexpr uint32_t kDynamicZonesBegin = 61000;
+    // Once, after a reconnect that could not rejoin a dynamic zone: the static zone the session
+    // is now in, so the world can follow (the old place is gone on the server).
+    bool takeRelocation(uint32_t* zone);
     // True when the toon being played was created in this session.
     bool playingNewAvatar() const { return newAvatarId_ != 0 && newAvatarId_ == avatarId_; }
     bool tutorialSkipSent() const { return skipTutorialSent_; }
@@ -1290,10 +1401,15 @@ public:
     // DistributedNode.setParent on our avatar: kParentRender or kParentDonaldsBoat. The pose sent
     // afterwards must be in that parent's frame (DistributedSmoothNode).
     void sendSetParent(uint32_t token);
+    void sendCheckTeleportAccess(uint32_t hoodId); // MapPage.__buttonCallback, before a teleport
     // Our world position for chat targeting when the pose we send is parent-local.
     void setOwnWorldPos(float x, float y, float z) { ownX_ = x, ownY_ = y, ownZ_ = z; }
     // name must be a ToontownGlobals.ToonAnimStates state (e.g. "run", "jumpAirborne"), not a clip.
     bool sendAnimState(const char* name, float rate);
+    bool sendSquish(uint8_t damage);
+    // The network clock in seconds (ClockDelta.getRealNetworkTime(bits=32) / 100); meaningful
+    // once timeSynced().
+    double networkSeconds(uint32_t nowMs) const;
     // Zone change through the quiet zone (QuietZoneState): location + interest to zone 1,
     // drop the old zone's objects, then location + interest to `zoneId` (+ `visZones` for
     // streets: [branch] + visgroup vis list). Load the new zone's geometry BEFORE calling
@@ -1309,6 +1425,7 @@ public:
 
     // SpeedChat phrase (DistributedPlayer.setSC, ownsend broadcast).
     bool sendSpeedChat(uint16_t msgIndex);
+    bool sendSCToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex);
     bool sendEmote(int id, float multiplier=1);
     bool sendSplashEffect(float x, float y, float z);
     // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
@@ -1323,6 +1440,11 @@ public:
     const NpcToon& npcSlot(int i) const { return npcs_[i]; }
     const NpcToon* findNpc(uint32_t doId) const;
     const CChar* findCChar(uint32_t doId) const;
+    const Butterfly& butterflySlot(int i) const { return butterflies_[i]; }
+    const DGFlower* dgFlower() const { return dgFlower_.active ? &dgFlower_ : nullptr; }
+    const GsLeaderBoard& leaderBoardSlot(int i) const { return leaderBoards_[i]; }
+    const ToonInteriorTrophies* toonInterior() const { return toonInterior_.active ? &toonInterior_ : nullptr; }
+    bool sendDGFlowerTouch(bool enter);
     const Boat* boat() const { return boat_.active ? &boat_ : nullptr; }
     // ---- cogdo protocol ----
     bool cogdoParticipant() const;
@@ -1334,6 +1456,8 @@ public:
     bool sendCogdoInterior(CogdoInteriorAction action);
     bool sendCogdoReady();
     bool sendCogdoVictor(uint32_t building);
+    // DistributedBuilding.setVictorReady while a won Cog building waits for us (waitForVictors).
+    bool sendVictorReady(uint32_t building);
     bool sendCogdoAction(uint8_t action, uint32_t data = 0);
     bool sendCogdoGag(float x, float y, float heading);
     bool sendCogdoSuit(uint8_t type, uint8_t serial, bool hitByGag);
@@ -1431,6 +1555,10 @@ public:
     };
     static constexpr size_t kMaxDoors = 32;
     uint32_t findDoor(uint32_t block, uint8_t doorIndex = 0) const;
+    // A Cog HQ door of this zone (DistributedCogHQDoor / SellbotHQDoor, trigger owner
+    // cogdoor_<dest>_<doorIndex>): matched by door index, as their blocks are 0 or the index.
+    uint32_t findCogDoor(uint8_t doorIndex) const;
+    bool knowsDoor(uint32_t doId) const;
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);
@@ -1445,7 +1573,10 @@ public:
     uint32_t suitPlannerZone(uint32_t doId) const;
     const Treasure& treasureSlot(int i) const { return treasures_[i]; }
     const OwnStats& ownStats() const { return ownStats_; }
+    bool hasEstateManager() const { return estateManagerDoId_ != 0; }
     const OwnBookStats& ownBook() const { return ownBook_; }
+    // DistributedToon.setCogIndex on our toon: the Cog suit's department, -1 when not disguised.
+    int8_t ownCogIndex() const { return ownCogIndex_; }
     const District* districts() const { return districts_; }
     int numDistricts() const { return kMaxDistricts; }
 
@@ -1501,6 +1632,8 @@ public:
     int clerkFishTotal() const;
     const ClerkSession& clerkSession() const { return clerkSession_; }
     const ClerkProfile& clerkProfile() const { return clerkProfile_; }
+    // DistributedNPCScientist shows only while the Silly Meter holiday runs (Toon Hall flats otherwise).
+    bool sillyMeterHoliday() const { return sillyMeterHoliday_; }
     // ---- end clerks ----
     // ---- shop (additive section; keep together) ----
     // DistributedNPCToonBase.avatarEnter (clsend) at a clerk: the AI answers setMovie START (we
@@ -1573,10 +1706,15 @@ public:
     bool sendTrolleyBoard();
     bool sendTrolleyExit();
     // ---- golf (docs/design/golf.md) ----
-    const GolfKart* golfKart() const { return golfKart_.active ? &golfKart_ : nullptr; }
+    // The kart that sent our golf zone, else the one we sit in, else none.
+    const GolfKart* golfKart() const;
+    // Every generated kart, for drawing and boarding (nullptr for a free slot).
+    const GolfKart* golfKartAt(int i) const {
+        return (i >= 0 && i < kMaxGolfKarts && golfKarts_[i].active) ? &golfKarts_[i] : nullptr;
+    }
     const GolfCourse* golfCourse() const { return golfCourse_.active ? &golfCourse_ : nullptr; }
     const GolfHole* golfHole() const { return golfHole_.active ? &golfHole_ : nullptr; }
-    bool sendGolfKartBoard();
+    bool sendGolfKartBoard(uint32_t kartDoId);
     bool sendGolfKartExit();
     bool sendGolfReadyCourse();
     bool sendGolfJoined();
@@ -1625,6 +1763,11 @@ public:
     bool sendVineNewVineT(uint32_t avId, float vineT, int8_t climbDir);
     bool sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
                                  float velX, float velZ);
+    // DistributedVineGame.d_setFallingFromVine / d_setFallingFromMidair: knocked off by a spider (2) or bat (3).
+    bool sendVineFallingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ, float velX,
+                                 float velZ, int8_t fallingInfo);
+    bool sendVineFallingFromMidair(uint32_t avId, int8_t facingRight, float posX, float posZ, float velX, float velZ,
+                                   int8_t fallingInfo);
     bool sendVineReachedEndVine(int8_t vineIndex);
     bool sendVineClaimTreasure(uint32_t treasureNum);
     // DistributedTargetGame.
@@ -1729,6 +1872,9 @@ public:
     const FriendInfo* findFriend(uint32_t doId) const;
     bool isFriend(uint32_t doId) const { return findFriend(doId) != nullptr; }
     bool sendWhisperSC(uint32_t toDoId, uint16_t msgIndex);
+    // setWhisperSCToontaskFrom; `text` is our decoded phrase for the outgoing log line.
+    bool sendWhisperSCToontask(uint32_t toDoId, uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex,
+                               const char* text);
     bool requestFriend(uint32_t avId);
     void cancelFriendRequest();          // cancelFriendQuery when in flight, then back to Idle
     void clearFriendRequest() { friends_.request = FriendRequest(); }
@@ -1808,6 +1954,8 @@ private:
     void sendAddInterestMultiple(uint16_t handle, uint32_t parent, const uint32_t* zones, int n);
     void dropZoneObjects();
     uint32_t targetZone_ = 0;
+    uint32_t lastStaticZone_ = 0; // the latest zone below kDynamicZonesBegin we were in
+    uint32_t relocatedZone_ = 0;  // see takeRelocation
     uint32_t visZones_[kMaxVisZones] = {};
     int numVisZones_ = 0;
     uint32_t quietCtx_ = 0;
@@ -1833,6 +1981,7 @@ private:
     uint32_t session_ = 0;
     uint32_t backoffUntil_ = 0;
     uint32_t backoffMs_ = 0;
+    bool everConnected_ = false; // a session started since start()/connect(): Backoff wording
     bool fatal_ = false;
 
     RacingPad racingPads_[kMaxRacingPads] = {};
@@ -1862,6 +2011,17 @@ private:
     NpcToon npcs_[kMaxNpcs] = {};
     Treasure treasures_[kMaxTreasures] = {};
     CChar cchars_[kMaxCChars] = {};
+    // client_butterfly.cpp
+    Butterfly butterflies_[kMaxButterflies] = {};
+    DGFlower dgFlower_ = {};
+    GsLeaderBoard leaderBoards_[kMaxLeaderBoards] = {};
+    ToonInteriorTrophies toonInterior_ = {};
+    bool handleButterflyEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                              uint16_t reqCount, bool other);
+    bool handleButterflyField(DatagramReader& r, uint32_t doId, uint16_t fieldId);
+    bool applyButterflyField(Butterfly& b, DatagramReader& r, uint16_t fieldId);
+    bool butterflyLeft(uint32_t doId);
+    void clearButterflies();
     bool handleCCharEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
                           bool other);
     bool applyCCharField(CChar& c, DatagramReader& r, uint16_t fieldId);
@@ -1870,7 +2030,8 @@ private:
     void handleBoatEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
     bool handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t classId, DatagramReader& r,
                         const uint16_t* req, uint16_t reqCount, bool other);
-    bool handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount, bool other);
+    bool handleTreasureEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
+                             bool other);
     void handleClerkMovie(DatagramReader& r, uint32_t doId);
     bool applyNpcField(NpcToon& n, DatagramReader& r, uint16_t fieldId);
     // quests section: see client.cpp
@@ -1893,6 +2054,7 @@ private:
                           const uint16_t* required, uint16_t count, bool other);
     uint32_t clerkNewsManager_ = 0;
     bool clerkFishHoliday_ = false;
+    bool sillyMeterHoliday_ = false; // NewsManager lists SILLYMETER(_EXT)_HOLIDAY
     bool clerksOwnField(DatagramReader& reader, uint16_t field);
     void resetClerks(bool owner = true);
     ClerkSession clerkSession_;
@@ -1988,10 +2150,12 @@ private:
     bool parseBattleMembers(Battle& b, DatagramReader& r);
     bool parseBattleMovie(Battle& b, DatagramReader& r);
     bool parseBattleExperience(Battle& b, DatagramReader& r);
+    bool parseChosenToonAttacks(Battle& b, DatagramReader& r);
     void clearBattles();
     // ---- trolley and minigames ----
     Trolley trolley_ = {};
-    GolfKart golfKart_ = {};
+    GolfKart golfKarts_[kMaxGolfKarts] = {};
+    uint32_t golfZoneKart_ = 0; // doId of the kart whose setGolfZone we followed
     GolfCourse golfCourse_ = {};
     GolfHole golfHole_ = {};
     Minigame minigame_ = {};
@@ -2047,10 +2211,13 @@ private:
     bool skipTutorialSent_ = false;
     int skipTutorialResult_ = -1;
     // ---- tutorial (survives reconnects with the new toon, like skipTutorialSent_) ----
-    TutorialChoice tutorialChoice_ = TutorialChoice::Skip;
+    // NameShop / OTPClientRepository: a new Toon plays the Toontorial unless the player skips it
+    TutorialChoice tutorialChoice_ = TutorialChoice::Play;
     bool tutorialRequested_ = false;  // requestTutorial sent this session
     bool tutorialArrivedSent_ = false; // toonArrived sent for these zones
     bool tutorialDone_ = false;       // allDone sent
+    int ownTutorialAck_ = -1;         // DistributedToon.setTutorialAck from the owner view (-1 = not yet)
+    int8_t ownCogIndex_ = -1;         // DistributedToon.setCogIndex (broadcast ram)
     world::TutorialZones tutorialZones_{};
     TutorialInterior tutorialInterior_{};
     uint32_t tutorialSuitId_ = 0;

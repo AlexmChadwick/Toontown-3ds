@@ -7,7 +7,7 @@
 namespace tt::cogthief {
 
 constexpr int kNumBarrels = 4;
-constexpr int kMaxCogs = 8;
+constexpr int kMaxCogs = 12; // CogThiefGameGlobals.CogStartingPositions (11 cogs for 4 players)
 constexpr float kGameDuration = 60.0f;
 constexpr float kToonSpeed = 9.0f;
 constexpr float kCogSpeedTTC = 6.0f;
@@ -38,7 +38,11 @@ const Vec3 kCogStart[kMaxCogs] = {
     {-35.0f, 0.0f, 0.0f},
     {-35.0f, -18.0f, 0.0f},
     {0.0f, 27.0f, 0.0f},
-    {0.0f, -27.0f, 0.0f}
+    {0.0f, -27.0f, 0.0f},
+    {35.0f, 9.0f, 0.0f},
+    {-35.0f, 9.0f, 0.0f},
+    {35.0f, -9.0f, 0.0f},
+    {-35.0f, -9.0f, 0.0f}
 };
 
 const Vec3 kCogReturn[6] = {

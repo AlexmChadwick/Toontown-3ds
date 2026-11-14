@@ -19,8 +19,12 @@ public:
 
     void dismiss(); // zone/disconnect/exclusive-context cleanup
     bool active() const { return active_; }
-    // EventType::ShopMovie handler: opens on START for us, closes on TIMEOUT, queues a
-    // clerk-speech notice for NO_MONEY / TIMEOUT / COMPLETE (takeNotice).
+    // ClerkPurchase's countdown in whole seconds (ToontownTimer rounds up), -1 when closed.
+    int secondsLeft(uint32_t nowMs) const {
+        return !active_ ? -1 : int32_t(deadlineMs_ - nowMs) > 0 ? int((deadlineMs_ - nowMs + 999) / 1000) : 0;
+    }
+    // EventType::ShopMovie handler: opens on START for us, closes on TIMEOUT, and sets the clerk's
+    // speech (clerkSpeech) for every avatar's START / NO_MONEY / TIMEOUT / COMPLETE.
     void onMovie(const net::Client& client, uint32_t nowMs);
     // Every frame (main thread): countdown, auto-submit when the AI is about to time out,
     // sends the purchase when Done/Cancel was pressed, closes if the session is lost.
@@ -28,11 +32,13 @@ public:
     // Returns the buttons consumed (everything while active).
     u32 handleInput(u32 keysDown, const touchPosition& touch);
     void draw();
-    // A short message for the top-screen toast (static string), once; null when none.
-    const char* takeNotice() {
-        const char* n = notice_;
-        notice_ = nullptr;
-        return n;
+
+    // DistributedNPCClerk.setMovie's setChatAbsolute (CFSpeech | CFTimeout) over the clerk, for
+    // anyone's movie: the greeting until our panel pops up (1 s), the others for the balloon's 10 s.
+    const char* clerkSpeech(uint32_t nowMs, uint32_t* clerkDoId) const {
+        if (!speech_ || int32_t(speechUntilMs_ - nowMs) <= 0) return nullptr;
+        *clerkDoId = speechClerk_;
+        return speech_;
     }
 
     // Test/autotest hooks.
@@ -44,12 +50,14 @@ public:
 private:
     static constexpr int kCols = shop::kRegularLevels;
     void rebuildGrid();
-    void rebuildInfo(uint32_t nowMs);
+    void rebuildInfo();
     void close();
     void setNote(const char* msg, uint32_t nowMs);
 
     bool active_ = false;
     uint32_t clerk_ = 0;
+    const char* speech_ = nullptr;
+    uint32_t speechClerk_ = 0, speechUntilMs_ = 0;
     uint32_t deadlineMs_ = 0;
     uint32_t nowMs_ = 0;
     shop::Profile profile_{};
@@ -63,10 +71,8 @@ private:
     // ---- end padnav ----
     int pendingSend_ = 0; // 0 none, 1 Done, 2 Cancel
     bool dirty_ = true;
-    int lastSecond_ = -1;
     char note_[64] = {};
     uint32_t noteUntilMs_ = 0;
-    const char* notice_ = nullptr;
 
     C2D_TextBuf staticBuf_ = nullptr; // track names, button labels, "-" (parsed once)
     C2D_TextBuf gridBuf_ = nullptr;   // cell counts (re-parsed when the cart changes)
@@ -75,7 +81,7 @@ private:
     C2D_Text btnText_[4]; // -, +, Done, Cancel
     C2D_Text dashText_;
     C2D_Text cellText_[gags::kTracks][kCols];
-    C2D_Text titleText_, beansText_, carryText_, timerText_, infoText_;
+    C2D_Text titleText_, beansText_, carryText_, infoText_;
 };
 
 } // namespace tt::ui

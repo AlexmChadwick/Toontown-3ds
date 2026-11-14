@@ -37,21 +37,38 @@ public:
 
     bool isOpen() const { return isOpen_; }
     void open(int page = -1);
-    void close();
+    void close(const char* why = "code"); // every close is logged with its reason
     void toggle();
+
+    // A QuestScript driving the book (Harry's quest_assign_110): SHOW_BOOK disables the close
+    // button until ENABLE_CLOSE_BOOK, HIDE / SHOW bookNextArrow / bookPrevArrow gate the page
+    // turns, and the page tabs stay hidden (the Toontorial's safe mode). Call every frame; all
+    // true when no script owns the book.
+    void setScriptLock(bool closeEnabled, bool nextEnabled, bool prevEnabled, bool tabsEnabled) {
+        closeEnabled_ = closeEnabled;
+        nextEnabled_ = nextEnabled;
+        prevEnabled_ = prevEnabled;
+        tabsEnabled_ = tabsEnabled;
+    }
+    bool closeEnabled() const { return closeEnabled_; }
+    bool nextEnabled() const { return nextEnabled_; }
 
     void setPage(int page);
     void nextPage();
     void prevPage();
     int currentPage() const { return curPage_; }
 
-    u32 handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc);
+    // held: hidKeysHeld this frame. A touch only acts on its touch-down frame, with a point on
+    // the screen, and never while the stylus that was down when the book opened is still down.
+    u32 handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDrawContext& bdc);
     void draw(const BookDrawContext& bdc);
 
 private:
     void rebuildTabs();
 
     bool isOpen_ = false;
+    bool touchBlocked_ = false; // the stylus has not been lifted since the book opened
+    bool closeEnabled_ = true, nextEnabled_ = true, prevEnabled_ = true, tabsEnabled_ = true;
     int curPage_ = kPageGags;
 
     PageInventory pageGags_;

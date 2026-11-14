@@ -1,4 +1,6 @@
+#include "core/gpu_sync.h"
 #include "game/minigame_session.h"
+#include "world/toon_dna.h"
 #include "world/toon_avatar.h"
 
 #include <cmath>
@@ -55,13 +57,16 @@ void MinigameSession::setPhase(Phase p) {
 
 void MinigameSession::unloadCatch() {
     assetBatch_.clear();
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     ground_.unload();
     for (auto& o : objects_) o.unload();
 }
 
 void MinigameSession::unloadCurrent() {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
+    rewardStage_.unload();
+    roomStage_.unload();
+    stageTime_ = -1.0f;
     if (isCatch_) unloadCatch();
     if (isCannon_) cannon_.shutdown();
     if (isTug_) tug_.shutdown();
@@ -126,8 +131,8 @@ void MinigameSession::begin(net::Client& client, u32 zone, u16 gameId, u32 homeH
                       : isTug_ ? "Tug-of-War"
                       : isRing_ ? "Ring Game"
                       : isMaze_ ? "Maze Game"
-                      : isPairing_ ? "Match Minnie"
-                      : isDiving_ ? "Diving Game"
+                      : isPairing_ ? "Toon Memory Game"
+                      : isDiving_ ? "Treasure Dive"
                       : isVine_ ? "Jungle Vines"
                       : isTarget_ ? "Toon Slingshot"
                       : isCogThief_ ? "Cog Thief"
@@ -216,6 +221,24 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             phaseMs_ = nowMs;
         } else if (isVine_) {
             vine_.init(client, nowMs, autoPlay_);
+            {
+                // calcToonOffset: def_joint_left_hold in 'swing' frame 86 by legs x torso size (stock Actor,
+                // tools/pipeline/bake_toon.py's parts), times OTPGlobals.toonBodyScales.
+                static constexpr float kHold[3][3][3] = {
+                    {{-0.83f, 0.12f, 3.90f}, {-0.83f, 0.22f, 3.47f}, {-0.65f, 1.06f, 3.76f}},
+                    {{-0.78f, 0.12f, 4.35f}, {-0.78f, 0.22f, 3.92f}, {-0.60f, 1.06f, 4.20f}},
+                    {{-0.93f, -0.60f, 4.80f}, {-0.91f, -0.50f, 4.36f}, {-0.74f, 0.35f, 4.66f}}};
+                world::ToonDna dna;
+                int legs = 1, torso = 1;
+                float scale = 1.0f;
+                if (world::parseNetString(client.avatarDna(), net::kDnaSize, &dna)) {
+                    legs = dna.legs < 3 ? dna.legs : 1;
+                    torso = dna.torso < 6 ? dna.torso % 3 : (dna.torso < 9 ? dna.torso - 6 : 1);
+                    scale = world::bodyScale(dna);
+                }
+                const float* hold = kHold[legs][torso];
+                vine_.setHandOffset(hold[0] * scale, hold[1] * scale, hold[2] * scale);
+            }
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isTarget_) {
@@ -223,7 +246,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isCogThief_) {
-            cogThief_.init(kDir);
+            cogThief_.init(kDir, mg->trolleyZone - mg->trolleyZone % 1000, mg->numParticipants);
             cogThief_.chooseSuitTypes(mg->doId);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
@@ -241,7 +264,7 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isIce_) {
-            ice_.init(kDir, mg->numParticipants, mySlot(client));
+            ice_.init(kDir, mg->numParticipants, mySlot(client), mg->doId, mg->trolleyZone - mg->trolleyZone % 1000);
             setPhase(Phase::Rules);
             phaseMs_ = nowMs;
         } else if (isRace_) {
@@ -290,6 +313,10 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         setPhase(Phase::Purchase);
         phaseMs_ = nowMs;
         snprintf(lines_[1], sizeof(lines_[1]), "Counting jellybeans...");
+        stageTime_ = -1.0f;
+        celebrate_ = false;
+        if (!rewardStage_.loaded()) assetBatch_.load(rewardStage_, "sdmc:/3ds/toontown3ds/data/minigames/purchase_reward.ttm");
+        if (!roomStage_.loaded()) assetBatch_.load(roomStage_, "sdmc:/3ds/toontown3ds/data/minigames/purchase_room.ttm");
         break;
 
     case EventType::PurchaseUp: {
@@ -302,6 +329,14 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
                     snprintf(lines_[1], sizeof(lines_[1]), "You earned %u jellybeans!", unsigned(earnedBeans));
                 }
             }
+        }
+        {
+            // enterReward's celebrate: the Toons with the winning points jump.
+            uint32_t best = 0;
+            for (int i = 0; p && i < net::kMinigamePlayers; i++)
+                if (p->playerIds[i] && p->minigamePoints[i] > best) best = p->minigamePoints[i];
+            celebrate_ = earnedBeans == best;
+            stageTime_ = 0.0f;
         }
         TT_LOG("mgpass: score id %u beans %lu (server)", unsigned(gameId_), static_cast<unsigned long>(earnedBeans));
         setPhase(Phase::Purchase);
@@ -338,18 +373,14 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
         if (isPattern_) pattern_.onResults();
         break;
 
+    case EventType::MazeTreasureGrabbed:
+        if (isMaze_) maze_.onTreasureGrabbed(ev.doId, uint32_t(ev.arg)); // setTreasureGrabbed(avId, n)
+        break;
+
     case EventType::RaceServerChoices:
-        if (isRace_ && mg) {
-            uint8_t choices[4], positions[4];
-            int16_t rewards[4];
-            const int count = mg->numParticipants < 4 ? mg->numParticipants : 4;
-            for (int i = 0; i < count; ++i) {
-                choices[i] = uint8_t(mg->raceServerChoices[i]);
-                positions[i] = mg->raceServerPositions[i];
-                rewards[i] = mg->raceServerRewards[i];
-            }
-            race_.onSetServerChoices(choices, positions, rewards, count);
-        }
+        if (isRace_ && mg)
+            race_.onSetServerChoices(mg->raceServerChoices, mg->raceServerPositions, mg->raceServerRewards,
+                                     mg->raceServerChoiceCount, mg->numParticipants);
         break;
 
     case EventType::PatternSetPattern:
@@ -360,6 +391,8 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::IceTireInputs:
     case EventType::IceFinalPositions:
     case EventType::IceScores:
+    case EventType::IceTreasureGrabbed:
+    case EventType::IcePenaltyGrabbed:
         if (isIce_ && mg) ice_.onServer(ev.type, *mg);
         break;
 
@@ -390,6 +423,15 @@ void MinigameSession::handleEvent(const net::Event& ev, net::Client& client, u32
     case EventType::PhotoNewAIScore:
         if (isPhoto_) photo_.onAIScore(ev.doId, uint8_t(ev.arg >> 24), float(ev.arg & 0xffffff) / 100.0f);
         break;
+    case EventType::DivingCrabMoving:
+        // doId = the setCrabMoving timestamp, arg packed by net/client.cpp.
+        if (isDiving_) {
+            const uint32_t a = uint32_t(ev.arg);
+            diving_.moveCrab(int(a & 0xfu), client.networkToLocal(int16_t(uint16_t(ev.doId)), nowMs),
+                             int((a >> 4) & 0xfu), int((a >> 8) & 0xfu), int(int16_t(uint16_t(a >> 16))),
+                             (a >> 12) & 1u ? -1 : 1);
+        }
+        break;
     case EventType::DivingFishSpawn:
         // arg = spawnerId << 16 | fishcode (net/client.cpp). The lane offset is only in the latest
         // minigame state, which is the spawn that just arrived unless two land in one frame.
@@ -414,6 +456,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         shutdown();
         return;
     }
+    if (onStage() && stageTime_ >= 0.0f) stageTime_ += dt;
     u32 kDown = hidKeysDown();
     // Test-only physical button presses: use each game's regular input/sender path.
     if (autoPlay_ && (isTarget_ || isCogThief_ || isTwoD_ || isTag_ || isIce_ || isRace_ || isPhoto_) &&
@@ -569,6 +612,7 @@ void MinigameSession::update(net::Client& client, const circlePosition& pad, flo
         }
 
         if (isRace_) {
+            race_.setAutoAim(autoPlay_);
             race_.update(client, pad, kDown, dt, nowMs);
             if (race_.isDone() && !doneSent_) {
                 doneSent_ = true;
@@ -710,9 +754,51 @@ u32 MinigameSession::popReturn() {
     return h;
 }
 
+namespace {
+// base.camLens.setFov(h) across the 4:3 window, as the vertical angle the top screen keeps
+// (DefaultCameraFov 52 -> Renderer::kFovYDeg 40.2).
+float pandaFovY(float horizontalDeg) {
+    constexpr float kDegToRad = 0.0174532925f;
+    return 2.0f * std::atan(std::tan(horizontalDeg * 0.5f * kDegToRad) * 0.75f) / kDegToRad;
+}
+// base.camLens.setFov(h) kept horizontal across the 400 x 240 top screen.
+float pandaFovYWide(float horizontalDeg) {
+    constexpr float kDegToRad = 0.0174532925f;
+    return 2.0f * std::atan(std::tan(horizontalDeg * 0.5f * kDegToRad) * (240.0f / 400.0f)) / kDegToRad;
+}
+} // namespace
+
 void MinigameSession::applyWorld(render::Renderer& renderer) {
     releaseWorld(renderer); // games that set nothing still get the renderer defaults
-    if (isCannon_) {
+    // ToonBase's DefaultBackgroundColor (0.3 grey) shows wherever a game draws nothing: the hood's
+    // sky is gone with the place (Jungle Vines blends its half-alpha backdrop over it). Race Game's
+    // onstage sets its board green.
+    renderer.setBackground(isRace_ ? 0x30CA00FF : 0x4C4C4CFF);
+    if (onStage()) {
+        // enterPurchase: base.setBackgroundColor(0.05, 0.14, 0.4); the default lens throughout.
+        if (!rewardStage()) renderer.setBackground(0x0D2466FF);
+        return;
+    }
+    // The games whose onstage sets its own lens (and whose camera here is the stock one).
+    float fov = 0.0f;
+    if (isPattern_) fov = 24.66f;                                  // DistributedPatternGame.onstage
+    else if (isTug_) fov = 60.0f + 2.0f * float(tug_.numPlayers()); // DistributedTugOfWarGame.initCamera
+    else if (isRing_) fov = 80.0f;                                 // DistributedRingGame.onstage
+    else if (isDiving_) fov = 45.0f;                               // DistributedDivingGame.onstage
+    else if (isTarget_) fov = 80.0f;                               // DistributedTargetGame.onstage / enterFly
+    if (fov > 0.0f) {
+        // Treasure Dive's reef walls frame the 4:3 window edge to edge: on the wider top screen
+        // the same vertical angle showed past them, so it keeps the stock horizontal 45 instead.
+        renderer.setFovY(isDiving_ ? pandaFovYWide(fov) : pandaFovY(fov));
+        worldFov_ = true;
+    }
+    if (isTarget_) {
+        // onstage: setFar(FOGDISTGROUND 600), background and linear fog AMB_COLOR (0.75, 0.8, 1).
+        renderer.setFarPlane(600.0f);
+        renderer.setBackground(0xBFCCFFFF);
+        renderer.setFog(0.75f, 0.8f, 1.0f, 0.1f, 600.0f);
+        worldFog_ = true;
+    } else if (isCannon_) {
         renderer.setFarPlane(CannonGame::kFarPlane);
     } else if (isRing_) {
         renderer.setFarPlane(RingGame::kFarPlane);
@@ -725,6 +811,10 @@ void MinigameSession::applyWorld(render::Renderer& renderer) {
 
 void MinigameSession::releaseWorld(render::Renderer& renderer) {
     renderer.setFarPlane(0.0f);
+    if (worldFov_) {
+        renderer.setFovY(0.0f);
+        worldFov_ = false;
+    }
     if (worldFog_) {
         renderer.clearFog();
         worldFog_ = false;
@@ -732,6 +822,14 @@ void MinigameSession::releaseWorld(render::Renderer& renderer) {
 }
 
 void MinigameSession::toonPose(float* x, float* y, float* z, float* h) const {
+    if (onStage()) {
+        // enterReward: toonPositions[toonLayouts[0][0]] = -0.25 for one Toon, at (x, 1, -2.5), hpr 0.
+        *x = -0.25f;
+        *y = 1.0f;
+        *z = -2.5f;
+        *h = 0.0f;
+        return;
+    }
     if (isCannon_) {
         cannon_.toonPose(x, y, z, h);
     } else if (isTug_) {
@@ -858,6 +956,7 @@ int MinigameSession::cogs(MinigameCog* out, int max) const {
     if (isMaze_) return maze_.cogs(out, max);
     if (isCogThief_) return cogThief_.cogs(out, max);
     if (isTug_) return tug_.cogs(out, max);
+    if (isTwoD_) return twoD_.cogs(out, max);
     return 0;
 }
 
@@ -874,6 +973,12 @@ bool MinigameSession::toonRunning() const {
 }
 
 void MinigameSession::camera(C3D_FVec* eye, C3D_FVec* target) const {
+    if (onStage()) {
+        // enterReward: camera.setPos(0, 16, 2), lookAt(0, 0, 0.75); enterPurchase keeps it.
+        *eye = FVec3_New(0.0f, 16.0f, 2.0f);
+        *target = FVec3_New(0.0f, 0.0f, 0.75f);
+        return;
+    }
     if (isCannon_) {
         cannon_.camera(eye, target);
     } else if (isTug_) {
@@ -933,8 +1038,40 @@ const char* MinigameSession::line(int i) const {
     return (i >= 0 && i < 3) ? lines_[i] : "";
 }
 
+void MinigameSession::draw2D(const net::Client& client, C3D_RenderTarget* target) {
+    if (isTarget_ && inScene()) {
+        // DistributedTargetGame's FogOverlay: a white screen card, opaque by fogVis * 0.5 in a cloud.
+        const float a = target_.fogOverlay();
+        if (a > 0.0f) C2D_DrawRectSolid(0.0f, 0.0f, 0.0f, 400.0f, 240.0f, C2D_Color32f(1.0f, 1.0f, 1.0f, a));
+        return;
+    }
+    if (!isRace_ || !inScene()) return;
+    struct Ctx {
+        const net::Client* client;
+        const net::Minigame* mg;
+    } ctx = {&client, client.minigame()};
+    race_.draw2D(
+        target,
+        [](int lane, void* p) -> const char* {
+            const Ctx* c = static_cast<const Ctx*>(p);
+            if (!c->mg || lane < 0 || lane >= c->mg->numParticipants) return nullptr;
+            return c->client->avatarName(c->mg->participants[lane]);
+        },
+        &ctx);
+}
+
 void MinigameSession::draw(render::Renderer& renderer) {
     if (!inScene()) return;
+    if (onStage()) {
+        // Purchase: the game's scene is gone (offstage); the reward street, then the purchase room.
+        render::Model& stage = rewardStage() ? rewardStage_ : roomStage_;
+        if (stage.loaded()) {
+            C3D_Mtx m;
+            Mtx_Identity(&m);
+            renderer.drawModel(stage, m);
+        }
+        return;
+    }
 
     if (isCannon_) {
         cannon_.draw(renderer);
@@ -1013,6 +1150,10 @@ void MinigameSession::draw(render::Renderer& renderer) {
     }
 }
 
+void MinigameSession::drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon) {
+    if (isTarget_) target_.drawHeld(renderer, toon);
+}
+
 const char* MinigameSession::toonNetworkState() const {
     if(isCatch_) return stunned_>0?"off":eating_>0?"CatchEating":"Catching";
     if(isRing_ || isDiving_ || (isCannon_ && cannon_.toonRunning())) return "swim";
@@ -1022,9 +1163,28 @@ const char* MinigameSession::toonNetworkState() const {
 void MinigameSession::applyAnimation(world::ToonAvatar& avatar) const {
     using namespace world;
     avatar.setHeadOnly(false);avatar.setBodyPose();
+    if(onStage()) { // enterReward: neutral, then the winners' 'jump' at the celebrate task
+        if(celebrate_ && stageTime_>=kCelebrateSeconds) avatar.playAction(kAnimJump,ClipMode::Once);
+        else avatar.play(kAnimNeutral,1);
+        return;
+    }
     if(isCannon_) { cannon_.applyAnimation(avatar);return; }
     if(isTug_) { tug_.applyAnimation(avatar);return; }
-    if(isRing_ || isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);return; }
+    // Ring: Toon.enterSwim loops 'swim' with the geometry at P -89 (lying flat, head forward).
+    // Diving: DivingGameToonSD's 'dive' (Toon.enterDive) loops 'swim' upright, geometry at z -2.
+    if(isRing_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(-89.0f);return; }
+    if(isTarget_) { // enterPrelaunch SitStart, enterFly swim, enterFall jumpAirborne, enterBouncing neutral
+        switch(target_.flightMode()) {
+        case targetgame::FlightMode::Aim: avatar.playAction(kAnimSit,ClipMode::Loop);return;
+        case targetgame::FlightMode::Fly: avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(-89.0f);return;
+        case targetgame::FlightMode::Fall: avatar.playAction(kAnimJumpIdle,ClipMode::Loop);return;
+        default: avatar.play(kAnimNeutral,1);return;
+        }
+    }
+    // Jungle Vines: SwingVine.setupSwingAnim* plays 'swing' in step with the held vine; airborne
+    // Toons are posed at JumpingFrame.
+    if(isVine_) { avatar.hold(kAnimSwing,vine_.swingFrame()/24.0f);return; }
+    if(isDiving_) { avatar.playAction(kAnimSwim,ClipMode::Loop);avatar.setBodyPose(0.0f,-2.0f,diving_.toonRoll());return; }
     if(isCatch_) {
         if(stunned_>0) {
             avatar.playAction(kAnimSlipForward,ClipMode::Once,42/24.0f,12/24.0f,55/24.0f);

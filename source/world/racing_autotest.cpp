@@ -14,8 +14,13 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
         return;
     const uint32_t now = net::plat::nowMs();
     if (runner.stepBegan()) {
-        bought_ = asked_ = boarded_ = sawRace_ = sawResult_ = false;
-        nextRequest_ = 0;
+        // A board request sent in the frame before this step began (a skipped step runs this
+        // handler once) is still unanswered: keep it, or the step boards a second block.
+        const bool pending = boarded_ && now < nextRequest_;
+        bought_ = asked_ = sawRace_ = sawResult_ = left_ = false;
+        boarded_ = pending;
+        if (!pending)
+            nextRequest_ = 0;
     }
     if (!std::strcmp(label, "speedway: pads")) {
         const bool owned = client.clerkProfile().kart[0] >= 0;
@@ -77,23 +82,42 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
             nextRequest_ = now + 3000;
             return;
         }
-    } else if (!std::strcmp(label, "speedway: race")) {
+    } else if (!std::strncmp(label, "speedway: race", 14)) {
+        // "speedway: race" boards Screwball Stadium; "... city" / "... blizzard" wait for an
+        // urban Practice pad showing City Circuit (40/41) or Blizzard Boulevard (64/65).
+        const unsigned want = std::strstr(label, "city") ? 40 : std::strstr(label, "blizzard") ? 64 : 0;
         if (racing.active()) {
             sawRace_ = true;
             if (client.racingRace() && client.racingRace()->finished)
                 sawResult_ = true;
             racing.autopilot(input);
+            // "speedway: race leave": RaceGUI's Leave Race (START) 20 s into the race.
+            const auto *race = client.racingRace();
+            if (std::strstr(label, "leave") && !left_ && race && race->started &&
+                int32_t(now - race->startMs) > 20000) {
+                input->down |= KEY_START;
+                left_ = true;
+                TT_LOG("racing autotest: press Leave Race (START)");
+            }
             return;
         }
         if (sawRace_ && place.zoneId() == 8000) {
             TT_LOG("racing autotest: %s; tickets %lu",
-                   sawResult_ ? "authoritative result and return complete"
-                              : "FAIL returned without a server result",
+                   left_ ? "left the race and returned to the Speedway"
+                   : sawResult_ ? "authoritative result and return complete"
+                                : "FAIL returned without a server result",
                    static_cast<unsigned long>(client.ownBook().tickets));
             runner.finishStep();
             return;
         }
-        if (boarded_ && now >= nextRequest_ && !racing.driving())
+        // Still seated on a block (its pad counting down): pressing A again would board a second
+        // block, and the AI kept that seat for the whole race.
+        bool seated = false;
+        for (int i = 0; i < net::kMaxRacingBlocks; ++i) {
+            const auto &block = client.racingBlockSlot(i);
+            seated |= block.active && block.occupant == client.avatarId();
+        }
+        if (boarded_ && now >= nextRequest_ && !racing.driving() && !seated)
             boarded_ = false;
         if (boarded_ || now < nextRequest_ || client.clerkProfile().kart[0] < 0)
             return;
@@ -106,10 +130,11 @@ void RacingAutotest::update(autotest::Runner &runner, net::Client &client, Racin
                 const auto &candidate = client.racingPadSlot(j);
                 if (candidate.active && candidate.doId == block.padDoId &&
                     candidate.trackCount >= 2 && candidate.trackIds[1] == 0 &&
-                    candidate.trackIds[0] == 0)
+                    unsigned(candidate.trackIds[0]) / 2 == want / 2)
                     pad = &candidate;
             }
-            if (!pad ||
+            // raceZone set: this pad's race just launched (we are about to be sent into it).
+            if (!pad || pad->raceZone ||
                 (std::strcmp(pad->state, "WaitEmpty") && std::strcmp(pad->state, "WaitCountdown")))
                 continue;
             player.reset(block.x, block.y, block.z, block.h);

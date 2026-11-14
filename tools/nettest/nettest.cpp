@@ -176,6 +176,7 @@ struct Options {
     int seconds = 15;
     bool expectZone = false;
     bool expectReconnect = false;
+    bool dynamicHop = false; // after entering, move into dynamic zone 61000 (a facility floor)
 };
 
 int runClient(const Options& o) {
@@ -198,6 +199,8 @@ int runClient(const Options& o) {
     int emotes=0;bool sentEmote=false;
     float angle = 0.0f;
     uint32_t maxUpdateUs = 0;
+    bool hopped = false;
+    uint32_t relocatedTo = 0;
     while (plat::nowMs() - start < uint32_t(o.seconds) * 1000u) {
         uint32_t now = plat::nowMs();
         uint32_t t0 = now;
@@ -209,6 +212,13 @@ int runClient(const Options& o) {
             CHECK(!client.sendEmote(25));CHECK(!client.sendEmote(-2));
             CHECK(!client.sendEmote(0,NAN));
             CHECK(client.sendEmote(0));CHECK(client.sendEmote(-1));sentEmote=true;
+        }
+        if (o.dynamicHop && !hopped && client.inZone() && zoneEntries == 1 && client.zoneId() == 2000)
+            hopped = client.changeZone(61000);
+        uint32_t relocated = 0;
+        if (client.takeRelocation(&relocated)) {
+            relocatedTo = relocated;
+            TT_LOG("test: RELOCATED to zone %u", unsigned(relocated));
         }
         Event ev;
         while (client.pollEvent(ev)) {
@@ -304,6 +314,11 @@ int runClient(const Options& o) {
         printf("FAIL: expected to enter the zone and see a moving toon\n");
         rc = 1;
     }
+    if (o.dynamicHop && (!hopped || relocatedTo != 2000)) {
+        printf("FAIL: a drop in dynamic zone 61000 should rejoin at 2000 (hopped %d, relocated %u)\n", int(hopped),
+               unsigned(relocatedTo));
+        rc = 1;
+    }
     if (o.expectReconnect && (zoneEntries < 2 || leftZone < 1)) {
         printf("FAIL: expected a drop and a successful re-entry\n");
         rc = 1;
@@ -331,6 +346,7 @@ int main(int argc, char** argv) {
             else if (!strcmp(argv[i], "--seconds") && i + 1 < argc) o.seconds = atoi(argv[++i]);
             else if (!strcmp(argv[i], "--expect-zone")) o.expectZone = true;
             else if (!strcmp(argv[i], "--expect-reconnect")) o.expectReconnect = true;
+            else if (!strcmp(argv[i], "--dynamic-hop")) o.dynamicHop = true;
         }
         int rc = runClient(o);
         printf("client test: %s\n", rc ? "FAIL" : "PASS");

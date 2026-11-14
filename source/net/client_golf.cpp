@@ -20,6 +20,7 @@ namespace {
     static_assert(dc::sigEq(dc::cls::sig_##field, expect), #cls "." #field " layout changed")
 TT_GSIG(DistributedGolfKart, setGolfCourse, "i8");
 TT_GSIG(DistributedGolfKart, setPosHpr, "i16/10,i16/10,i16/10,i16/10,i16/10,i16/10");
+TT_GSIG(DistributedGolfKart, setColor, "i16,i16,i16");
 TT_GSIG(DistributedGolfKart, setState, "string,i16");
 TT_GSIG(DistributedGolfKart, fillSlot0, "u32");
 TT_GSIG(DistributedGolfKart, fillSlot3, "u32");
@@ -84,11 +85,16 @@ bool Client::applyGolfKartField(GolfKart& k, DatagramReader& r, uint16_t fieldId
     } else if (fieldId >= G::k_emptySlot0 && fieldId <= G::k_emptySlot3) {
         k.slots[fieldId - G::k_emptySlot0] = 0;
         r.u32(); r.i16();
+    } else if (fieldId == G::k_setColor) {
+        for (int16_t& c : k.color) c = r.i16();
     } else if (fieldId == G::k_setGolfZone) {
         k.golfZone = r.u32();
         const uint16_t course = r.u16();
         k.courseId = static_cast<int8_t>(course);
-        if (announce) pushEvent(EventType::GolfZone, k.golfZone);
+        if (announce) {
+            golfZoneKart_ = k.doId;
+            pushEvent(EventType::GolfZone, k.golfZone);
+        }
     } else {
         skipField(r, fieldId);
     }
@@ -192,7 +198,13 @@ bool Client::handleGolfEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
         for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyGolfKartField(tmp, r, req[i], false);
         if (ok && other) { const uint16_t n = r.u16(); for (uint16_t i = 0; i < n && ok; ++i) ok = applyGolfKartField(tmp, r, r.u16(), false); }
         if (!ok) return false;
-        tmp.active = true; golfKart_ = tmp; pushEvent(EventType::GolfKartUp, doId); return true;
+        int slot = -1;
+        for (int i = 0; i < kMaxGolfKarts && slot < 0; ++i)
+            if (golfKarts_[i].active && golfKarts_[i].doId == doId) slot = i;
+        for (int i = 0; i < kMaxGolfKarts && slot < 0; ++i)
+            if (!golfKarts_[i].active) slot = i;
+        if (slot < 0) { TT_LOG("golf: kart pool full, %u dropped", unsigned(doId)); return true; }
+        tmp.active = true; golfKarts_[slot] = tmp; pushEvent(EventType::GolfKartUp, doId); return true;
     }
     if (classId == dc::DistributedGolfCourse::kClassId) {
         GolfCourse tmp{}; tmp.doId = doId;
@@ -211,36 +223,54 @@ bool Client::handleGolfEnter(uint32_t doId, uint16_t classId, DatagramReader& r,
 }
 
 bool Client::handleGolfField(DatagramReader& r, uint32_t doId, uint16_t fieldId) {
-    if (golfKart_.active && golfKart_.doId == doId) return applyGolfKartField(golfKart_, r, fieldId, true);
+    for (GolfKart& k : golfKarts_)
+        if (k.active && k.doId == doId) return applyGolfKartField(k, r, fieldId, true);
     if (golfCourse_.active && golfCourse_.doId == doId) return applyGolfCourseField(golfCourse_, r, fieldId, true);
     if (golfHole_.active && golfHole_.doId == doId) return applyGolfHoleField(golfHole_, r, fieldId, true);
     return false;
 }
 
 bool Client::handleGolfLeaving(uint32_t doId) {
-    if (golfKart_.active && golfKart_.doId == doId) { golfKart_ = GolfKart{}; pushEvent(EventType::GolfKartState, doId); return true; }
+    for (GolfKart& k : golfKarts_) {
+        if (k.active && k.doId == doId) { k = GolfKart{}; pushEvent(EventType::GolfKartState, doId); return true; }
+    }
     if (golfCourse_.active && golfCourse_.doId == doId) { golfCourse_ = GolfCourse{}; pushEvent(EventType::GolfCourseState, doId); return true; }
     if (golfHole_.active && golfHole_.doId == doId) { golfHole_ = GolfHole{}; pushEvent(EventType::GolfHoleState, doId); return true; }
     return false;
 }
 
+const GolfKart* Client::golfKart() const {
+    const GolfKart* seated = nullptr;
+    for (const GolfKart& k : golfKarts_) {
+        if (!k.active) continue;
+        if (golfZoneKart_ && k.doId == golfZoneKart_) return &k;
+        for (uint32_t av : k.slots)
+            if (av && av == avatarId_) seated = &k;
+    }
+    return seated;
+}
+
 void Client::clearGolfObjects() {
-    golfKart_ = GolfKart{};
+    for (GolfKart& k : golfKarts_) k = GolfKart{};
+    golfZoneKart_ = 0;
     golfCourse_ = GolfCourse{};
     golfHole_ = GolfHole{};
 }
 
-bool Client::sendGolfKartBoard() {
-    if (!golfKart_.active || state_ != State::InZone) return false;
+bool Client::sendGolfKartBoard(uint32_t kartDoId) {
+    bool known = false;
+    for (const GolfKart& k : golfKarts_) known = known || (k.active && k.doId == kartDoId);
+    if (!known || state_ != State::InZone) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
-    TT_NET_UPDATE(w, golfKart_.doId, DistributedGolfKart, requestBoard);
+    TT_NET_UPDATE(w, kartDoId, DistributedGolfKart, requestBoard);
     return finish(w);
 }
 
 bool Client::sendGolfKartExit() {
-    if (!golfKart_.active || state_ != State::InZone) return false;
+    const GolfKart* k = golfKart();
+    if (!k || state_ != State::InZone) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
-    TT_NET_UPDATE(w, golfKart_.doId, DistributedGolfKart, requestExit);
+    TT_NET_UPDATE(w, k->doId, DistributedGolfKart, requestExit);
     return finish(w);
 }
 

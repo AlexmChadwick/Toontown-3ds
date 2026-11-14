@@ -6,6 +6,7 @@
 #include <cstring>
 
 #include "world/boss_battle.h"
+#include "world/zone_actors.h"
 
 namespace tt::world {
 namespace {
@@ -143,7 +144,8 @@ void CfoMechanics::update(BossFrame& frame, uint32_t nowMs) {
         attackActive_ = false;
         return;
     }
-    const bool scripted = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: cranes");
+    const bool scripted = frame.test.active() && (!std::strcmp(frame.test.label(), "cfo: cranes") ||
+                                                   !std::strcmp(frame.test.label(), "cfo: rounds"));
     const Vec3 toon{frame.player.x(), frame.player.y(), frame.player.z()};
     const float dt = std::clamp(frame.dt, .0001f, 1.0f / 15);
     for (int slot = 0; slot < net::kMaxCfoChildren; ++slot) {
@@ -330,13 +332,24 @@ void CfoMechanics::update(BossFrame& frame, uint32_t nowMs) {
             object.position = {object.start.x + (child.targetX - object.start.x) * fraction,
                                object.start.y + (child.targetY - object.start.y) * fraction, 0};
             object.heading = child.targetH;
+        } else if (child.kind == net::CfoKind::Treasure && child.flyMs && nowMs - child.flyMs < 1000) {
+            // setFinalPosition: LerpPosInterval from the goon over 1 s, the treasure hopping on a
+            // ProjectileInterval (0 to 0, gravityMult 2: up at 32, a peak of 8).
+            const float t = float(nowMs - child.flyMs) / 1000.0f;
+            object.position = {child.flyFromX + (child.x - child.flyFromX) * t,
+                               child.flyFromY + (child.y - child.flyFromY) * t,
+                               child.flyFromZ + (child.z - child.flyFromZ) * t + 32.0f * t - 32.0f * t * t};
         } else if (child.revision != object.revision && child.state != 'S' && child.state != 'R' && child.state != 'B') {
             object.position = {child.x, child.y, child.z};
             object.heading = child.h;
+        } else if (child.kind == net::CfoKind::Treasure && child.flyMs) {
+            object.position = {child.x, child.y, child.z};
         }
         object.revision = child.revision;
         if (child.kind == net::CfoKind::Treasure) {
-            if (!child.grabbed && frame.client.ownStats().hp < frame.client.ownStats().maxHp &&
+            // The collision sphere is stashed for the flight.
+            if (!child.grabbed && (!child.flyMs || nowMs - child.flyMs >= 1000) &&
+                frame.client.ownStats().hp < frame.client.ownStats().maxHp &&
                 length(subtract(toon, object.position)) < 3 && nowMs - object.actionMs > 1000) {
                 frame.client.sendCfoObject(child.doId, Action::Treasure);
                 object.actionMs = nowMs;
@@ -471,7 +484,16 @@ void CfoMechanics::draw(BossFrame& frame, render::Model* models, uint32_t nowMs)
             (child.kind == net::CfoKind::Safe && child.index == 0 && child.state == 'I')) continue;
         C3D_Mtx world = matrix(object.position, object.heading, child.kind == net::CfoKind::Goon ? child.scale : 1);
         if (child.kind == net::CfoKind::Safe) frame.renderer.drawModel(models[9], world);
-        if (child.kind == net::CfoKind::Treasure) frame.renderer.drawModel(models[14], world);
+        if (child.kind == net::CfoKind::Treasure) {
+            // DistributedCashbotBossTreasure.setStyle picks the hood model, scaled 0.9 as
+            // DistributedTreasure; each model's card has a BillboardEffect (it faces -Y to the eye).
+            const C3D_FVec eye = frame.renderer.eye();
+            C3D_Mtx card = matrix(object.position);
+            Mtx_RotateZ(&card, std::atan2(eye.x - object.position.x, -(eye.y - object.position.y)), true);
+            Mtx_Scale(&card, 0.9f, 0.9f, 0.9f);
+            render::Model& model = child.style ? frame.zoneActors.hoodTreasure(child.style) : models[14];
+            frame.renderer.drawModel(model.loaded() ? model : models[14], card);
+        }
         if (child.kind == net::CfoKind::Goon) {
             const bool stunned = child.state == 'S' || child.state == 'G' || child.state == 'D';
             const int clipIndex = stunned ? 1 : child.state == 'R' ? 2 : 0;

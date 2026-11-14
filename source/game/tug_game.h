@@ -16,6 +16,7 @@ namespace tt::game {
 
 class TugGame {
 public:
+    int numPlayers() const { return numPlayers_; }
     void pumpAssets() {
         assetBatch_.pump();
     }

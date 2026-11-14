@@ -28,9 +28,10 @@ public:
     }
     // getrandbits(k), 0 < k <= 32
     uint32_t getrandbits(int k) { return next() >> (32 - k); }
-    // _randbelow(n): getrandbits(n.bit_length()) until below n.
+    // _randbelow(n): getrandbits(n.bit_length()) until below n. Like CPython 3.9 (the
+    // server's), only n == 0 skips the draw: n == 1 still consumes one getrandbits(1).
     uint32_t randbelow(uint32_t n) {
-        if (n <= 1) return 0;
+        if (n == 0) return 0;
         int bits = 0;
         for (uint32_t v = n; v; v >>= 1) ++bits;
         uint32_t r;
@@ -39,6 +40,18 @@ public:
         return r;
     }
     int32_t randrange(int32_t start, int32_t stop) { return start + int32_t(randbelow(uint32_t(stop - start))); }
+    int32_t randint(int32_t a, int32_t b) { return randrange(a, b + 1); }
+    // choice(seq): the index seq[_randbelow(len(seq))] picks.
+    uint32_t choiceIndex(uint32_t n) { return randbelow(n); }
+    // shuffle(x): for i in reversed(range(1, len(x))): swap x[i], x[_randbelow(i + 1)].
+    template <typename T> void shuffle(T* x, int n) {
+        for (int i = n - 1; i > 0; --i) {
+            const int j = int(randbelow(uint32_t(i + 1)));
+            const T t = x[i];
+            x[i] = x[j];
+            x[j] = t;
+        }
+    }
 
 private:
     static constexpr int kN = 624;

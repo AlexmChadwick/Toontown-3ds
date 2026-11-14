@@ -20,6 +20,7 @@ loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level war
                 'textures-power-2 none')
 from direct.showbase.ShowBase import ShowBase  # noqa: E402
 
+import assemble  # noqa: E402
 import bake_audio  # noqa: E402
 import extract  # noqa: E402
 import ttm  # noqa: E402
@@ -59,6 +60,10 @@ MODELS = {
 
     # Maze
     'maze_1player': (MG + 'maze_1player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # DistributedMazeGame.load: MazeData.mazeNames[numPlayers - 1]
+    'maze_2player': (MG + 'maze_2player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'maze_3player': (MG + 'maze_3player', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'maze_4player': (MG + 'maze_4player', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'maze_treasure': ('phase_3.5/models/props/mickeySZ', '**/mickeySZ', (0, -90, 0), 1.6, (0, 0, 0)),
 
     # Match Minnie / Pairing
@@ -81,20 +86,29 @@ MODELS = {
     'diving_fish_piano': ('phase_4/models/char/pianoTuna-zero', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Vine
-    # The whole vine_game.bam also holds the animated bats and spiders (they flew across the
-    # screen as static meshes), so bake only the parts DistributedVineGame places statically.
+    # vine_game.bam also holds the bats and spiders: each SequenceNode frame (VineSpider spider_2 /
+    # spider_3, VineBat bat__1 / bat2 / bat3) is its own model, posed and flipped at run time.
     'vine_background': (MG + 'vine_game', '**/background', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_bananas': (MG + 'vine_game', '**/bananas', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_start': (MG + 'vine_game_shelf', '**/start1', (0, 0, 0), 1.0, (0, 0, 0)),
     'vine_end': (MG + 'vine_game_shelf', '**/end1', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_spider1': (MG + 'vine_game', '**/spider_2', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_spider2': (MG + 'vine_game', '**/spider_3', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat1': (MG + 'vine_game', '**/bat__1', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat2': (MG + 'vine_game', '**/bat2', (0, 0, 0), 1.0, (0, 0, 0)),
+    'vine_bat3': (MG + 'vine_game', '**/bat3', (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Target
     'target_ground': (MG + 'slingshot_game_desert4', None, (0, 0, 0), 1.0, (0, 0, 0)),
-    'target_sling': (MG + 'slingshot_game_cacti', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # RubberBand.setup: the slingshot frame (its own drop shadow included), model z -1 at run time.
+    'target_sling': (MG + 'slingshot_game_sling', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'target_tramp': (MG + 'slingshot_game_tramp', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Cog Thief
-    'cogthief_ground': (MG + 'cogthief_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # cogthief_game holds six coplanar hood floors; DistributedCogThiefGame.load shows one, so
+    # each is baked alone as cogthief_ground_<hood> (bake_model stashes the other five).
+    **{'cogthief_ground_' + h: (MG + 'cogthief_game', None, (0, 0, 0), 1.0, (0, 0, 0))
+       for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL')},
     'cogthief_barrel': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'cogthief_tank': (MG + 'cogthief_game_gagTank', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
@@ -107,6 +121,12 @@ MODELS = {
     'twod_pipe': (MG + 'toonblitz_game_start', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_elevator': (MG + 'toonblitz_game_elevator', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_stomper': (MG + 'toonblitz_game_stomper', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # TwoDStomper moves the head (setFluidZ), scales the shaft (z) and keeps the block at 1 / scale.
+    'twod_stomper_head': (MG + 'toonblitz_game_stomper', '**/head', (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_stomper_shaft': (MG + 'toonblitz_game_stomper', '**/shaft', (0, 0, 0), 1.0, (0, 0, 0)),
+    'twod_stomper_block': (MG + 'toonblitz_game_stomper', '**/block_geom', (0, 0, 0), 1.0, (0, 0, 0)),
+    # ToonBlitzAssetMgr.background: the factory backdrop at the world origin.
+    'twod_background': (MG + 'toonblitz_game', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_arrow': (MG + 'toonblitz_game_arrow', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'twod_treasure': (MG + 'moneyIcon', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
@@ -126,16 +146,33 @@ MODELS = {
     'ice_backdrop': (MG + 'ice_game_2d', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_tire': (MG + 'ice_game_tire', None, (0, 0, 0), 1.0, (0, 0, 0)),
     # The score circle: setScale(0.01) then grown to each score's distance (scoreMovie).
+    # IceTreasure models: DistributedIceGame.load scales the penalty TNT (0.75, 0.75, 0.7).
+    'ice_barrel': (MG + 'ice_game_barrel', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_tnt': (MG + 'ice_game_tnt2', None, (0, 0, 0), (0.75, 0.75, 0.7), (0, 0, 0)),
+    # DistributedIceWorld.createCubicObstacle / createCircularObstacle: the hood's obstacles.
+    'ice_crate': (MG + 'ice_game_crate', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    'ice_tirestack': (MG + 'ice_game_tirestack', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'ice_score_circle': (MG + 'ice_game_score_circle', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Race
     'race_track': (MG + 'race', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # setChancePositions' question_mark (scale 0.7 and the board placement at run time).
+    'race_chance_marker': (MG + 'question_mark', None, (0, 0, 0), 1.0, (0, 0, 0)),
+    # showChanceCard's chance_card: it lies on the board at render's origin until it flies to the camera.
+    'race_chance_card': (MG + 'chance_card', None, (0, 0, 0), 1.0, (0, 0, 0)),
 
     # Photo Fun
     'photo_viewfinder': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'photo_scene': (MG + 'photo_game_viewfinder', None, (0, 0, 0), 1.0, (0, 0, 0)),
     'photo_subject': (MG + 'photogame_camera', None, (0, 0, 0), 1.0, (0, 0, 0)),
 }
+
+# The game floors and terrain fill the screen: they keep up to 256 px (AGENTS.md section 4,
+# terrain), props stay at --max-tex.
+TERRAIN = {'catch_ground_2', 'catch_ground_3', 'catch_ground_4', 'cannon_gameground', 'cannon_hill',
+           'tug_dock', 'ring_game', 'maze_1player', 'maze_2player', 'maze_3player', 'maze_4player', 'target_ground', 'tag_arena', 'pattern_stage',
+           'ice_arena', 'race_track', 'diving_game', 'memory_room', 'vine_background', 'twod_background',
+           *('cogthief_ground_' + h for h in ('TT', 'DD', 'DG', 'MM', 'BR', 'DL'))}
 
 # (output name, upstream path, kind, loops)
 AUDIO = [
@@ -199,6 +236,30 @@ AUDIO = [
 ]
 
 
+def add_twod_exit_sign(base, resources, elevator):
+    """TwoDSectionMgr.setupEndSection: a sign_sellBotHeadHQ on the exit elevator's doorway2 at
+    (0, 1.9, 15), scale 15 x 15 x 15 * 0.7227, with OnscreenText TwoDGameElevatorExit ('EXIT', the
+    suit font, black, pos (0, -0.34), scale 0.15) on it. The sign is a DecalEffect: its letters are
+    pulled a hair towards the viewer instead."""
+    from panda3d.core import DynamicTextFont, TextNode
+    sign_model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, 'phase_4/models/props/sign_sellBotHeadHQ.bam')))
+    door = elevator.find('**/doorway2')
+    if door.isEmpty():
+        raise RuntimeError('toonblitz_game_elevator: no doorway2')
+    sign = sign_model.find('**/sign_sellBotHeadHQ').copyTo(door)
+    sign.setPosHprScale(0, 1.9, 15, 0, 0, 0, 15, 15, 15 * 0.7227)
+    font = DynamicTextFont(Filename.fromOsSpecific(os.path.join(resources, 'phase_3/models/fonts/vtRemingtonPortable.ttf')))
+    font.setPixelsPerUnit(40)
+    tn = TextNode('exit')
+    tn.setFont(font)
+    tn.setAlign(TextNode.ACenter)
+    tn.setTextColor(0, 0, 0, 1)
+    tn.setText('EXIT')
+    letters = sign.attachNewNode(tn.generate())
+    letters.setPos(0, -0.002, -0.34)
+    letters.setScale(0.15, 1, 0.15)
+
+
 def bake_model(base, resources, name, spec, out_dir, max_tex):
     bam, subnode, hpr, scale, pos = spec
     raw_model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, bam + '.bam')))
@@ -214,6 +275,15 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
         model.setScale(scale)
     model.setHpr(*hpr)
     model.setPos(*pos)
+    if name.startswith('cogthief_ground_'):
+        for floor in model.findAllMatches('**/floors/floor_*'):
+            if floor.getName() != 'floor_' + name[-2:]:
+                floor.stash()
+    if name == 'twod_elevator':
+        add_twod_exit_sign(base, resources, model)
+    # BillboardEffect sprites (the tug-of-war palm tops, the ring game's kelp, the tag arena's
+    # IT pointer) would bake frozen at their modelled heading, edge-on from most cameras.
+    assemble.cross_billboards(root)
     ex = extract.Extractor(max_tex=max_tex, decals=True)  # race board track/lettering are decals
     # The anvil is a one-joint Character: apply its (bind pose) skinning.
     ex.add(root, animated=model.find('**/+Character').isEmpty() is False)
@@ -221,6 +291,114 @@ def bake_model(base, resources, name, spec, out_dir, max_tex):
     stats = ttm.write(path, ex.textures, ex.batches())
     stats['name'] = name
     return stats
+
+
+def bake_vine_parts(base, resources, out_dir, max_tex):
+    """SwingVine's drawn parts with vine_game's vine1 texture: one cable segment (a 1-wide card
+    from z 0 down to z -1 facing -y, v 0..0.5 as UVDistance at texScale 0.15 over a 20 / 6 unit
+    segment) and setupStaticPart's card (-0.5..0.5 x -0.1..8) above the pivot."""
+    from panda3d.core import CardMaker
+    assets = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, MG + 'vine_game.bam')))
+    tex = assets.find('**/vine1').findTexture('*')
+    out = []
+    for name, frame, uv in (('vine_segment', (-0.5, 0.5, -1.0, 0.0), (0.0, 1.0, 0.0, 0.5)),
+                            ('vine_static', (-0.5, 0.5, -0.1, 8.0), (0.0, 1.0, 0.0, 1.0))):
+        cm = CardMaker(name)
+        cm.setFrame(*frame)
+        cm.setUvRange((uv[0], uv[2]), (uv[1], uv[3]))
+        root = NodePath('root')
+        card = root.attachNewNode(cm.generate())
+        card.setTexture(tex)
+        card.setTransparency(1)
+        card.setTwoSided(True)
+        ex = extract.Extractor(max_tex=max_tex)
+        ex.add(root)
+        stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+        stats['name'] = name
+        out.append(stats)
+    return out
+
+
+def bake_target_props(base, resources, out_dir, max_tex):
+    """DistributedTargetGame's umbrella in each UMBRELLA_TEXTURE_LIST colour (setTexture over the
+    model's own, open_umbrella and closed_umbrella apart in their node frames: the game poses them
+    on the Toon's right hand), and RubberBand's band as a white two-sided unit card (x 0..1,
+    z -0.5..0.5) that the runtime stretches and tints per segment."""
+    from panda3d.core import CardMaker
+    out = []
+    model = base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, MG + 'slingshot_game_umbrellas.bam')))
+    for i, colour in enumerate(('blue', 'purple', 'red', 'yellow')):
+        tex = base.loader.loadTexture(Filename.fromOsSpecific(
+            os.path.join(resources, 'phase_4/maps/mg_slingshot_umbrella_%s.jpg' % colour)))
+        for part in ('open', 'closed'):
+            root = NodePath('root')
+            node = model.find('**/%s_umbrella' % part).copyTo(root)
+            node.clearTransform()
+            node.setTexture(tex, 1)
+            ex = extract.Extractor(max_tex=max_tex)
+            ex.add(root)
+            name = 'target_umbrella_%s_%d' % (part, i)
+            stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+            stats['name'] = name
+            out.append(stats)
+    cm = CardMaker('band')
+    cm.setFrame(0.0, 1.0, -0.5, 0.5)
+    root = NodePath('root')
+    card = root.attachNewNode(cm.generate())
+    card.setTwoSided(True)
+    ex = extract.Extractor(max_tex=max_tex)
+    ex.add(root)
+    stats = ttm.write(os.path.join(out_dir, 'target_band.ttm'), ex.textures, ex.batches())
+    stats['name'] = 'target_band'
+    out.append(stats)
+    return out
+
+
+def bake_purchase_stages(base, resources, out_dir, max_tex):
+    """Purchase.load's two sets, in world space: the reward street (enterReward: TT_A1 in front at
+    (12.5, -20, -5.5) and twice behind at (-12.5 / 20, -25, -5), all h 180; the 40x40 sidewalk at
+    (-20, -25, -5.5) coloured (0.9, 0.6, 0.4); door_single_square_ur_door h 180 at (0, -16.75, -5.5),
+    scale (1.5, 1.5, 2), coloured (1, 0.8, 0)) and the purchase room (toon_interior at (0, 5, -1),
+    its wallpaper and border wall_paper_a5 tinted (0.8, 0.67, 0.549))."""
+    def load(rel):
+        return base.loader.loadModel(Filename.fromOsSpecific(os.path.join(resources, rel + '.bam')))
+    out = []
+    root = NodePath('reward')
+    fg = load('phase_3.5/models/modules/TT_A1')
+    fg.reparentTo(root)
+    fg.setPosHpr(12.5, -20, -5.5, 180, 0, 0)
+    bl = load('phase_3.5/models/modules/TT_A1')
+    bl.reparentTo(root)
+    bl.setPosHpr(-12.5, -25, -5, 180, 0, 0)
+    br = bl.copyTo(root)
+    br.setPos(20, -25, -5)
+    sidewalk = load('phase_3.5/models/modules/street_modules').find('**/street_sidewalk_40x40').copyTo(root)
+    sidewalk.setPos(-20, -25, -5.5)
+    sidewalk.setColor(0.9, 0.6, 0.4)
+    door = load('phase_4/models/modules/doors').find('**/door_single_square_ur_door').copyTo(root)
+    door.setH(180)
+    door.setPos(0, -16.75, -5.5)
+    door.setScale(1.5, 1.5, 2.0)
+    door.setColor(1.0, 0.8, 0, 1)
+    room = NodePath('room')
+    bg = load('phase_3.5/models/modules/toon_interior')
+    bg.reparentTo(room)
+    bg.setPos(0.0, 5.0, -1.0)
+    tex = base.loader.loadTexture(Filename.fromOsSpecific(os.path.join(resources, 'phase_3.5/maps/wall_paper_a5.jpg')))
+    for node in ('**/random_tc1_TI_wallpaper', '**/random_tc1_TI_wallpaper_border'):
+        wall = bg.find(node)
+        if wall.isEmpty():
+            raise RuntimeError('toon_interior: no ' + node)
+        wall.setTexture(tex, 100)
+        wall.setColorScale(0.8, 0.67, 0.549, 1.0)
+    for name, holder in (('purchase_reward', root), ('purchase_room', room)):
+        ex = extract.Extractor(max_tex=max_tex, decals=True)  # TT_A1's window panes are decals
+        ex.add(holder)
+        stats = ttm.write(os.path.join(out_dir, name + '.ttm'), ex.textures, ex.batches())
+        stats['name'] = name
+        print(json.dumps(stats))
+        out.append(stats)
+    return out
 
 
 def literal_assignment(path, name):
@@ -232,7 +410,10 @@ def literal_assignment(path, name):
 
 
 def bake_pairing(base, resources, out_dir, max_tex):
-    upstream = os.path.join(ROOT, 'ref', 'open-toontown', 'toontown')
+    # The open-toontown checkout next to --resources, else this tree's submodule.
+    upstream = os.path.join(os.path.dirname(os.path.abspath(resources)), 'open-toontown', 'toontown')
+    if not os.path.isdir(upstream):
+        upstream = os.path.join(ROOT, 'ref', 'open-toontown', 'toontown')
     if not os.path.isdir(upstream):  # linked worktrees reach the submodules through ref/ref
         upstream = os.path.join(ROOT, 'ref', 'ref', 'open-toontown', 'toontown')
     props = literal_assignment(os.path.join(upstream, 'toonbase', 'ToontownBattleGlobals.py'), 'AvPropsNew')
@@ -288,7 +469,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--resources', default=os.path.join(ROOT, 'ref', 'resources'))
     ap.add_argument('--out', default=os.path.join(ROOT, 'sdmc-out', '3ds', 'toontown3ds', 'data', 'minigames'))
-    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'audio'), help='filter bake targets')
+    ap.add_argument('--only', choices=('catch', 'cannon', 'tug', 'ring', 'maze', 'pairing', 'memory', 'playing', 'diving', 'vine', 'twod', 'photo', 'tag', 'ice', 'target', 'purchase', 'race', 'audio'), help='filter bake targets')
     ap.add_argument('--max-tex', type=int, default=128)
     args = ap.parse_args()
 
@@ -308,9 +489,19 @@ def main():
             needs_sky = args.only == 'cannon' and name == 'minigame_sky'
             if args.only and not (name.startswith(args.only) or needs_sky or args.only == 'pairing' and name == 'memory_room'):
                 continue
-            stats = bake_model(base, args.resources, name, spec, args.out, args.max_tex)
+            stats = bake_model(base, args.resources, name, spec, args.out,
+                               max(args.max_tex, 256) if name in TERRAIN else args.max_tex)
             report['models'].append(stats)
             print(json.dumps(stats))
+
+        if args.only in (None, 'vine'):
+            report['models'].extend(bake_vine_parts(base, args.resources, args.out, args.max_tex))
+
+        if args.only in (None, 'purchase'):
+            report['models'].extend(bake_purchase_stages(base, args.resources, args.out, args.max_tex))
+
+        if args.only in (None, 'target'):
+            report['models'].extend(bake_target_props(base, args.resources, args.out, args.max_tex))
 
         if args.only in (None, 'pairing'):
             report['models'].extend(bake_pairing(base, args.resources, args.out, args.max_tex))

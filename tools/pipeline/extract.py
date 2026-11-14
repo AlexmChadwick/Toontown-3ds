@@ -8,7 +8,8 @@ import fnmatch
 import os
 
 import numpy as np
-from panda3d.core import (ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
+import ground_split
+from panda3d.core import (LPoint3f, ColorAttrib, DecalEffect, GeomNode, ColorScaleAttrib, CullFaceAttrib, GeomVertexReader,
                           PNMImage, SamplerState, Texture, TextureAttrib, TexMatrixAttrib,
                           Thread, TransparencyAttrib)
 
@@ -47,6 +48,12 @@ def texture_pixels(tex, max_size):
                 g = img.getGray(x, y) * 255
                 px[y, x, :3] = (g, g, g)
             px[y, x, 3] = img.getAlpha(x, y) * 255 if img.hasAlpha() else 255
+    if tex.getFormat() == Texture.F_alpha:
+        # Texture.store gives an alpha-only texture (dynamic font pages) as one grey
+        # channel; that grey is the mask. Alpha 255 baked every glyph as a solid block
+        # (the Cog building signs). RGB keeps the grey, so the bakers that move channel 0
+        # into alpha themselves (street_atlas, bake_interior, bake_char) read the same.
+        px[:, :, 3] = px[:, :, 0]
     return px, n, tex.getFormat()
 
 
@@ -150,10 +157,19 @@ class Extractor:
             gn = gnp.node()
             decal_depth = self._decal_depth(gnp, root) if self.decals else 0
             own_decal = self.decals and gn.getEffect(DecalEffect.getClassType()) is not None
+            sign = False
+            p = gnp
+            while not p.isEmpty():
+                if p.getTag('sign_text') == '1':
+                    sign = True
+                    break
+                if p == root:
+                    break
+                p = p.getParent()
             for gi in range(gn.getNumGeoms()):
                 geom_layer = max(layer, decal_depth + (1 if own_decal and gi > 0 else 0))
                 self._add_geom(gn.getGeom(gi), net_state.compose(gn.getGeomState(gi)),
-                               mat, tint, geom_layer, animated)
+                               mat, tint, geom_layer, animated, sign)
 
     def _decal_depth(self, node_path, root):
         """How many DecalEffect ancestors (strictly above node_path, below or at root) it has."""
@@ -167,7 +183,7 @@ class Extractor:
             p = p.getParent()
         return depth
 
-    def _add_geom(self, geom, state, mat, tint, layer, animated):
+    def _add_geom(self, geom, state, mat, tint, layer, animated, sign=False):
         vdata = geom.getVertexData()
         if animated:
             vdata = vdata.animateVertices(True, Thread.getCurrentThread())
@@ -175,8 +191,12 @@ class Extractor:
         tex_idx = None
         ta = state.getAttrib(TextureAttrib)
         tex_mat = None
+        uv_name = 'texcoord'
         if ta and ta.getNumOnStages():
             stage = ta.getOnStage(0)
+            # A stage may read a named UV set (egg <UV> name: "texcoord.uvSet1", the Toon Escape
+            # stomper); the default column alone left those UVs at 0, one texel per surface.
+            uv_name = stage.getTexcoordName().getName()
             tex_idx = self._texture(ta.getOnTexture(stage))
             tma = state.getAttrib(TexMatrixAttrib)
             if tma and tma.hasStage(stage):
@@ -206,8 +226,10 @@ class Extractor:
         n = vdata.getNumRows()
         verts = np.zeros((n, 9), dtype=np.float64)
         rv = GeomVertexReader(vdata, 'vertex')
-        has_uv = vdata.hasColumn('texcoord')
-        ruv = GeomVertexReader(vdata, 'texcoord') if has_uv else None
+        if not vdata.hasColumn(uv_name):
+            uv_name = 'texcoord'
+        has_uv = vdata.hasColumn(uv_name)
+        ruv = GeomVertexReader(vdata, uv_name) if has_uv else None
         has_col = vdata.hasColumn('color') and flat is None
         rc = GeomVertexReader(vdata, 'color') if has_col else None
         for i in range(n):
@@ -216,7 +238,7 @@ class Extractor:
             if ruv:
                 uv = ruv.getData2()
                 if tex_mat is not None:
-                    uv = tex_mat.xformPoint(uv)
+                    uv = tex_mat.xformPoint(LPoint3f(uv[0], uv[1], 0))
                 verts[i, 3:5] = (uv[0], uv[1])
             if rc:
                 c = rc.getData4()
@@ -224,6 +246,10 @@ class Extractor:
             else:
                 verts[i, 5:9] = tuple(flat) if flat is not None else (1, 1, 1, 1)
         verts[:, 5:9] *= np.array(tuple(scale))
+        if mode == TransparencyAttrib.M_dual and not tint and n and verts[:, 8].max() < 0.5:
+            # Every fragment would fail the > 0.5 test, but Panda's dual pass blends them: a
+            # uniformly faint card (the Race Game chance card's 0.1 alpha logo) stays blended.
+            blend = ttm.BLEND_ALPHA
         if tint:
             # Tinted parts take their color from a runtime uniform (Panda setColor
             # *replaces* vertex color), so neutralize RGB here.
@@ -241,12 +267,12 @@ class Extractor:
             return
         if mat.getUpper3().determinant() < 0:
             tris = [(a, c, b) for a, b, c in tris]
-        key = (tex_idx, blend, two_sided, tint, layer)
+        key = (tex_idx, blend, two_sided, tint, layer, bool(sign))
         self._groups.setdefault(key, []).append((verts, np.array(tris, dtype=np.int64).reshape(-1)))
 
     def batches(self):
         out = []
-        for (tex, blend, two_sided, tint, layer), parts in sorted(
+        for (tex, blend, two_sided, tint, layer, sign), parts in sorted(
                 self._groups.items(), key=lambda kv: (kv[0][1], kv[0][4], str(kv[0]))):
             # Blend mode first (opaque, alpha test, blended), then decal layer: blended
             # batches that write depth must not hide layered decals drawn after them.
@@ -254,11 +280,16 @@ class Extractor:
             for verts, idx in parts:
                 if base + len(verts) > ttm.MAX_BATCH_VERTS:
                     out.append(ttm.Batch(tex, blend, two_sided, tint, layer,
-                                         np.concatenate(vs), np.concatenate(ids)))
+                                         np.concatenate(vs), np.concatenate(ids), sign))
                     vs, ids, base = [], [], 0
                 vs.append(verts)
                 ids.append(idx + base)
                 base += len(verts)
             out.append(ttm.Batch(tex, blend, two_sided, tint, layer,
-                                 np.concatenate(vs), np.concatenate(ids)))
+                                 np.concatenate(vs), np.concatenate(ids), sign))
         return out
+
+
+def subdivide_ground(batches, max_edge=ground_split.MAX_EDGE):
+    """Zone baker: split terrain edges the PICA200 clipper would drop. See ground_split.py."""
+    return ground_split.split_batches(batches, max_edge=max_edge)

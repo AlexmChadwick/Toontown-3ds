@@ -9,7 +9,9 @@
 //       quest choice                                 -> phase QuestChoice (20 s, then cancel)
 //       track choice                                 -> phase TrackChoice (20 s, then cancel)
 //       reject / tier not done                       -> one line over the NPC, toon is free at once
+//       assign 101 / 110 (quest_assign_* QuestScript) -> phase Script: takeScript() names it
 //   advance()       past the last page               -> MovieDone, phase Idle
+//   scriptDone()    the QuestScript finished            -> MovieDone, phase Idle
 //   chooseQuest(i)                                   -> ChooseQuest(id or 0), phase Waiting
 //   chooseTrack(i)                                   -> ChooseTrack(track or -1), phase Waiting
 #pragma once
@@ -33,7 +35,7 @@ struct Choice {
 
 class Talk {
 public:
-    enum class Phase : uint8_t { Idle, Waiting, Pages, QuestChoice, TrackChoice };
+    enum class Phase : uint8_t { Idle, Waiting, Pages, QuestChoice, TrackChoice, Script };
 
     static constexpr int kMaxPages = 16;
     static constexpr int kPageChars = 200; // a page fits a speech balloon and the bottom panel
@@ -58,11 +60,33 @@ public:
     void advance();
     void chooseQuest(int index); // -1 = cancel
     void chooseTrack(int index); // -1 = cancel
+    // DistributedNPCToon.setMovie: an assign movie whose quest_assign_<id> script is defined plays
+    // that QuestScript instead of the dialog pages.  takeScript() returns the quest id once (0 =
+    // none); the line being said is fed back for the panel, and scriptDone() ends the movie.
+    uint16_t takeScript();
+    void setScriptLine(const char* text);
+    const char* scriptLine() const { return scriptLine_; }
+    int scriptSerial() const { return scriptSerial_; } // bumps on every new line
+    void scriptAdvance() { scriptAdvance_ = phase_ == Phase::Script; } // the player dismissed the line
+    bool takeScriptAdvance() {
+        const bool a = scriptAdvance_;
+        scriptAdvance_ = false;
+        return a;
+    }
+    // The QuestScript's WAIT_EVENT (nullptr = none): Harry's lesson waits for the player to open
+    // the Shticker Book, which then owns the bottom screen until he says to close it.
+    void setScriptWait(const char* event) { scriptWait_ = event; }
+    const char* scriptWait() const { return phase_ == Phase::Script ? scriptWait_ : nullptr; }
+    void setScriptCard(int card) { scriptCard_ = card; } // ui::TutorialCard, -1 = none
+    int scriptCard() const { return phase_ == Phase::Script ? scriptCard_ : -1; }
+    void scriptDone();
     bool locked() const { return phase_ != Phase::Idle; }
     Phase phase() const { return phase_; }
     uint32_t npcDoId() const { return npcDoId_; }
     uint16_t npcId() const { return npcId_; }
     const char* npcName() const;
+    // DistributedNPCToonBase.setName of the NPC in this talk: wins over the quest tables' name.
+    void setServerName(const char* name);
     int numPages() const { return numPages_; }
     int page() const { return page_; }
     const char* pageText() const { return page_ < numPages_ ? pages_[page_] : ""; }
@@ -103,6 +127,14 @@ private:
     int numChoices_ = 0;
     int8_t tracks_[kMaxTracks] = {};
     int numTracks_ = 0;
+    uint16_t scriptQuest_ = 0;
+    bool scriptPending_ = false;
+    char scriptLine_[kPageChars * 2] = {};
+    char serverName_[32] = {};
+    int scriptSerial_ = 0;
+    int scriptCard_ = -1;
+    const char* scriptWait_ = nullptr;
+    bool scriptAdvance_ = false;
 
     // A one-off line (reject, tier not done) shown without freezing the toon.
     char line_[kPageChars + 1] = {};
