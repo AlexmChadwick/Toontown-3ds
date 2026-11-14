@@ -1,3 +1,4 @@
+#include <cstdlib>
 #include <cstring>
 #include "render/ui_font.h"
 #include "ui/hud.h"
@@ -343,18 +344,44 @@ void Hud::draw(C3D_RenderTarget* top, const HudValues& v) {
     if (v.toast) {
         // By content: callers reuse one buffer for different messages (whispers, friend invites).
         if (v.toast != lastToast_ || std::strncmp(v.toast, lastToastText_, sizeof(lastToastText_) - 1)) {
-            C2D_TextBufClear(toastBuf_);
-            tt::render::textParse(&toastText_, toastBuf_, v.toast);
-            C2D_TextOptimize(&toastText_);
             lastToast_ = v.toast;
             std::snprintf(lastToastText_, sizeof(lastToastText_), "%s", v.toast);
+            // Long messages (FADoorCodes' disguise lines) wrap like the stock dialog: split the
+            // widest line at the space nearest its middle until it fits the top screen.
+            char wrapped[sizeof(lastToastText_)];
+            std::snprintf(wrapped, sizeof(wrapped), "%s", v.toast);
+            for (int pass = 0;; ++pass) {
+                C2D_TextBufClear(toastBuf_);
+                tt::render::textParse(&toastText_, toastBuf_, wrapped);
+                float tw;
+                C2D_TextGetDimensions(&toastText_, 0.6f, 0.6f, &tw, nullptr);
+                if (tw <= 370.0f || pass >= 3) break;
+                char* start = wrapped;
+                size_t longest = 0;
+                for (char* line = wrapped; *line;) {
+                    char* end = std::strchr(line, '\n');
+                    const size_t len = end ? size_t(end - line) : std::strlen(line);
+                    if (len > longest) longest = len, start = line;
+                    if (!end) break;
+                    line = end + 1;
+                }
+                char* best = nullptr;
+                for (size_t i = 0; i < longest; ++i) {
+                    if (start[i] == ' ' && (!best || std::abs(int(i) - int(longest / 2)) < std::abs(int(best - start) - int(longest / 2)))) {
+                        best = start + i;
+                    }
+                }
+                if (!best) break;
+                *best = '\n';
+            }
+            C2D_TextOptimize(&toastText_);
         }
         C2D_SceneBegin(top);
         float w, h;
         C2D_TextGetDimensions(&toastText_, 0.6f, 0.6f, &w, &h);
         C3D_DepthTest(false, GPU_ALWAYS, GPU_WRITE_COLOR);
         C2D_DrawRectSolid(200 - w * 0.5f - 10, 70, 0.5f, w + 20, h + 12, C2D_Color32(0x10, 0x18, 0x30, 0xD0));
-        C2D_DrawText(&toastText_, C2D_WithColor, 200 - w * 0.5f, 76, 0.5f, 0.6f, 0.6f,
+        C2D_DrawText(&toastText_, C2D_WithColor | C2D_AlignCenter, 200, 76, 0.5f, 0.6f, 0.6f,
                      C2D_Color32(0xFF, 0xFF, 0xFF, 0xFF));
         C3D_DepthTest(true, GPU_GEQUAL, GPU_WRITE_ALL);
     }
