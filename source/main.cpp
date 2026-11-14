@@ -1044,7 +1044,11 @@ int main() {
             const tt::net::OwnBookStats& book = net.ownBook();
             const char* code = tt::world::disguiseCode(net.ownCogIndex(), book.cogTypes, book.cogParts, &rental);
             localToon.setDisguise(code, rental);
-            player.setDisguised(code != nullptr);
+            float suitHeight = 0.0f;
+            for (int i = 0; code && i < tt::world::kNumSuitTypes; ++i) {
+                if (!strcmp(tt::world::kSuitTypes[i].code, code)) suitHeight = tt::world::kSuitTypes[i].height;
+            }
+            player.setDisguised(code != nullptr, suitHeight);
         }
         // Boss place: one grouped hook owns both screens until the VP encounter ends.
         {

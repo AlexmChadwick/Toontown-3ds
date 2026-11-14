@@ -80,9 +80,18 @@ public:
 
     // Toon.putOnSuit on the local Toon: SuitWalkSpeed 4.8 forward and back, ToonRotateSlowSpeed,
     // and no jump (controlManager.disableAvatarJump) until takeOffSuit.
-    void setDisguised(bool on) { disguised_ = on; }
+    // putOnSuit also sets the Toon's height to the suit's, which the next startUpdateSmartCamera
+    // (initCameraPositions) uses: suitHeight > 0 raises the follow camera to it.
+    void setDisguised(bool on, float suitHeight = 0.0f) {
+        disguised_ = on;
+        suitHeight_ = on ? suitHeight : 0.0f;
+        updateCameraHeight();
+    }
     // Follow camera height from the local Toon's DNA height (clamped to at least 3, as stock).
-    void setCameraHeight(float toonHeight) { camHeight_ = toonHeight > 3.0f ? toonHeight : 3.0f; }
+    void setCameraHeight(float toonHeight) {
+        toonHeight_ = toonHeight;
+        updateCameraHeight();
+    }
     float cameraHeight() const { return camHeight_; }
     // LocalAvatar.setIdealCameraPos(0, -back * h / 3, h + up) for clamped height h (a mole field:
     // 22, 12); back 0 = the normal camera position. The look-at stays (0, 1.5, h).
@@ -113,6 +122,11 @@ private:
     float heading_ = 0; // degrees, CCW from +Y
     float speed_ = 0;
     bool disguised_ = false;
+    float toonHeight_ = 3.5f, suitHeight_ = 0.0f;
+    void updateCameraHeight() {
+        const float h = suitHeight_ > 0.0f ? suitHeight_ : toonHeight_;
+        camHeight_ = h > 3.0f ? h : 3.0f;
+    }
     float turnRate_ = 0; // deg/s this frame
     float ground_ = 0;   // ground height under the toon (flat until collision lands)
     float vz_ = 0;
