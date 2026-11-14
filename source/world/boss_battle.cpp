@@ -537,6 +537,9 @@ void BossBattle::updateFight(BossFrame& frame, const net::BossState& state, uint
     if (std::strcmp(phase_, state.phase)) {
         std::snprintf(phase_, sizeof(phase_), "%s", state.phase);
         for (bool& acknowledged : haveAcknowledged_) acknowledged = false;
+        reserveAcknowledged_ = false;
+        reserveBattle_ = 0;
+        reserveContext_ = 0;
         charging_ = false;
         for (Projectile& pie : pies_) pie.active = false;
         for (Projectile& gear : gears_) gear.active = false;
