@@ -1004,6 +1004,13 @@ void BossBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t no
         if (arrivalSuits) frame.remotes.setSuitMode(suited ? (cashbot_ ? 2 : 3) : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
         frame.remotes.setSuitMode(RemoteToons::kSuitNet);
+        for (int index = 0; vpIntroMovie && index < state.numDoobers; ++index) {
+            Vec3 at;
+            float h;
+            bool walking;
+            const bool shown = vpDoober(index, introAge, &at, &h, &walking);
+            frame.suits.overridePose(state.doobers[index], at.x, at.y, at.z, h, !shown, 0, walking ? kSuitWalk : kSuitNeutral);
+        }
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }

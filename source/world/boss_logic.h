@@ -28,6 +28,11 @@ struct VpIntroShot {
 constexpr float kVpIntroSeconds = 40; // the dialog track's last cue (37) + backupToonsToBattlePosition (3)
 // toonsA / toonsB: whether each battle side has Toons (loseCogSuits skips an empty side's shot).
 void vpIntro(float t, bool toonsA, bool toonsB, VpIntroShot* out);
+// The introduction's eight doobers (setDooberIds; 0-3 at battle A, 4-7 at battle B):
+// __doobersToPromotionPosition, then __walkDoober's walk past the turn points down the ramp at
+// SuitWalkSpeed * 1.8 (dooberTrack 0..9 from 9 s, from 14 at 16 s). False once at the fly-away
+// point (flyAway leaves through the floor behind the camera).
+bool vpDoober(int index, float t, Vec3* position, float* heading, bool* walking);
 float piePower(float heldSeconds);
 Vec3 piePosition(Vec3 origin, float heading, float pitch, float power, float seconds);
 bool segmentBox(Vec3 start, Vec3 end, Vec3 minimum, Vec3 maximum);

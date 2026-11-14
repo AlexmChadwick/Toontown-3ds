@@ -88,6 +88,39 @@ void bossCameraAim(Vec3 position, float h, float p, Vec3* eye, Vec3* target) {
                position.y + std::cos(h * kDegrees) * std::cos(p * kDegrees) * 10, position.z + std::sin(p * kDegrees) * 10};
 }
 
+bool vpDoober(int index, float t, Vec3* position, float* heading, bool* walking) {
+    if (index < 0 || index > 7) return false;
+    static const float kPoints[4][3] = {{4.5f, -7, 10}, {1.5f, -7.5f, 5}, {-1.5f, -7.5f, -5}, {-4.5f, -7, -10}};
+    static const float kDelay[8] = {0, 4, 8, 12, 14, 10, 6, 2}; // doobers[7] walks at 2, [4] at 14
+    const bool sideB = index >= 4;
+    const float* point = kPoints[index % 4];
+    // Battle nodes: (-+25, -35) facing -+90; the promotion spot is the toon point 10 units back.
+    const float nodeHeading = sideB ? 90.0f : -90.0f;
+    const float c = std::cos(nodeHeading * kDegrees), s = std::sin(nodeHeading * kDegrees);
+    const float lx = point[0], ly = point[1] + 10;
+    const Vec3 legs[4] = {{(sideB ? 25.0f : -25.0f) + c * lx - s * ly, -35 + s * lx + c * ly, 0},
+                          {sideB ? 20.0f : -20.0f, -50, 0}, {0, -50, 0}, {0, -135, -6.5f}};
+    const auto headsUp = [](Vec3 from, Vec3 to) { return std::atan2(-(to.x - from.x), to.y - from.y) / kDegrees; };
+    *position = legs[0], *heading = nodeHeading + point[2], *walking = false;
+    if (t < 9) return true;
+    float clock = (t < 16 ? t - 9 : 14 + (t - 16)) - kDelay[index];
+    *heading = headsUp(legs[0], legs[1]);
+    if (clock < 0) return true;
+    for (int leg = 0; leg < 3; ++leg) {
+        const Vec3 a = legs[leg], b = legs[leg + 1];
+        const float dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+        const float time = std::sqrt(dx * dx + dy * dy + dz * dz) / (4.8f * 1.8f);
+        if (clock < time) {
+            const float u = clock / time;
+            *position = {a.x + dx * u, a.y + dy * u, a.z + dz * u};
+            *heading = headsUp(a, b), *walking = true;
+            return true;
+        }
+        clock -= time;
+    }
+    return false;
+}
+
 void vpIntro(float t, bool toonsA, bool toonsB, VpIntroShot* out) {
     struct Cue {
         float at;
