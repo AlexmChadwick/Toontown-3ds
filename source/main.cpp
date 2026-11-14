@@ -1094,13 +1094,22 @@ int main() {
             const bool streetDoor = !strcmp(autotest.label(), "exit: street door");
             const bool isTunnel = !strcmp(autotest.label(), "exit: tunnel 2132") || !strcmp(autotest.label(), "move: tunnel");
             // move: cogdoor: a Cog HQ courtyard's locked lobby door (DistributedCogHQDoor), which
-            // puts the Toon in its Cog suit (setCogIndex).
-            const bool cogDoor = !strcmp(autotest.label(), "move: cogdoor");
+            // puts the Toon in its Cog suit (setCogIndex). Courtyard zone Z's lobby is Z + 100
+            // (e.g. 11100, 12100, 13100, 10100; Lawbot lobby is door index 1).
+            char cogDoorWant[32] = "cogdoor_";
+            const bool cogDoor = !strncmp(autotest.label(), "move: cogdoor", 13);
+            if (cogDoor) {
+                if (autotest.label()[13] == ' ' && autotest.label()[14] != '\0') {
+                    snprintf(cogDoorWant, sizeof(cogDoorWant), "cogdoor_%s", autotest.label() + 14);
+                } else if (place.zoneId() % 1000 == 0) {
+                    snprintf(cogDoorWant, sizeof(cogDoorWant), "cogdoor_%lu", static_cast<unsigned long>(place.zoneId() + 100));
+                }
+            }
             // Through it, stay in the lobby (its own cogdoor_ leads back out).
             const bool throughCogDoor = cogDoor && place.zoneId() % 1000 != 0;
             const char* want = isTunnel ? "linktunnel_tt_2132"
                                : streetDoor ? "tb"
-                               : cogDoor ? "cogdoor_"
+                               : cogDoor ? cogDoorWant
                                : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
             for (int i = 0; !throughCogDoor && i < cw.numTriggers(); i++) {
@@ -1129,11 +1138,24 @@ int main() {
                 const tt::world::Exit probe = place.exitAt(player.probeX(), player.probeY(), player.z());
                 const float dx = cx - player.x(), dy = cy - player.y(), d2 = dx * dx + dy * dy;
                 const float c = sqrtf(cx * cx + cy * cy), ux = c > 1.0f ? cx / c : 0.0f, uy = c > 1.0f ? cy / c : 1.0f;
+                char stem[64];
+                snprintf(stem, sizeof(stem), "%s", t.owner);
+                char* root = strstr(stem, "_DNARoot");
+                if (root) *root = '\0';
+                const auto* pt = place.point(stem);
+                float standX = cx - ux * 4.0f, standY = cy - uy * 4.0f, standZ = t.min[2], standH = atan2f(-ux, uy) / kDegToRad;
+                if (pt) {
+                    const float rad = pt->h * kDegToRad;
+                    standX = pt->x - sinf(rad) * 4.0f;
+                    standY = pt->y + cosf(rad) * 4.0f;
+                    standZ = pt->z;
+                    standH = pt->h + 180.0f;
+                }
                 if (probe.kind != tt::world::Exit::None && probe.targetZone == target && lastExitZone != target) {
                     // The exit code takes it from here this frame.
                 } else if (d2 > 36.0f || lastExitZone == target) {
                     // Far away, or the no-bounce guard holds this door: start over from outside.
-                    player.reset(cx - ux * 4.0f, cy - uy * 4.0f, t.min[2], atan2f(-ux, uy) / kDegToRad);
+                    player.reset(standX, standY, standZ, standH);
                     TT_LOG("autotest: moved to %s / %s", t.name, t.owner);
                 } else {
                     player.reset(player.x(), player.y(), player.z(), atan2f(-dx, dy) / kDegToRad);

@@ -196,9 +196,12 @@ const Step kScript[] = {
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 5000", "go_5000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 2000", "go_2000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 9000", "go_9000"},
-    // Opt-in (AUTOTEST_ONLY="go zone 11000,move: cogdoor,cogdoor: lobby"): Sellbot HQ's courtyard,
-    // through a locked lobby door into Sellbot Towers' lobby in the Cog suit (setCogIndex).
+    // Opt-in (AUTOTEST_ONLY="go zone <hq>,move: cogdoor,cogdoor: lobby"): Cog HQ courtyard,
+    // through a locked lobby door into the lobby in the Cog suit (setCogIndex).
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 11000", "go_11000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 12000", "go_12000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 13000", "go_13000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 10000", "go_10000"},
     {25.0f, 0, 0, 0, 0, -1, -1, 0, "move: cogdoor", "cogdoor_walk"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "cogdoor: lobby", "cogdoor_lobby"},
     // Board, then the panel's Hop off button by touch (Trolley's exitButton); then board for real.
@@ -552,7 +555,7 @@ bool Runner::skipped(const char* label) const {
                                      !strncmp(label, "treasure: ", 10) ||
                                      !strncmp(label, "go zone ", 8) || // urban race / treasure / hood checks: opt-in
                                      !strncmp(label, "fish: catch ", 12) || !strcmp(label, "club: golf solve") ||
-                                     !strcmp(label, "move: cogdoor") || !strcmp(label, "cogdoor: lobby");
+                                     !strncmp(label, "move: cogdoor", 13) || !strcmp(label, "cogdoor: lobby");
 }
 
 const Pose* Runner::pose() const {
