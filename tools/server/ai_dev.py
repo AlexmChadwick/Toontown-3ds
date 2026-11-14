@@ -97,10 +97,11 @@ def _patch(name, mod):
             # Boss rounds generate both active and deferred reserve Cogs. Clamp
             # at this boundary, after planner setup, and include maxHP: battle
             # reserve thresholds and revives also consult it, not just currHP.
-            if len(result['reserveSuits']) > 4:
-                for entry in result['reserveSuits'][4:]:
-                    entry[0].requestDelete()
-                result['reserveSuits'] = result['reserveSuits'][:4]
+            # In AI_DEV_WEAK_COGS mode, clear deferred reserves so test runs
+            # can smoothly reach the later boss battle phases (Pie round, Crane round).
+            for entry in result['reserveSuits']:
+                entry[0].requestDelete()
+            result['reserveSuits'] = []
             suits = list(result['activeSuits'])
             suits.extend(entry[0] for entry in result['reserveSuits'])
             for suit in suits:
