@@ -116,6 +116,8 @@ void Transition::init() {
     sfxTeleport_ = tt::audio::loadSfx("romfs:/baked/audio/teleport.tsnd");
     sfxDoorOpen_ = tt::audio::loadSfx("romfs:/baked/audio/door_open.tsnd");
     sfxDoorClose_ = tt::audio::loadSfx("romfs:/baked/audio/door_close.tsnd");
+    sfxChqDoorOpen_ = tt::audio::loadSfx("romfs:/baked/audio/chq_door_open.tsnd");   // DistributedCogHQDoor
+    sfxChqDoorClose_ = tt::audio::loadSfx("romfs:/baked/audio/chq_door_close.tsnd");
     sfxLose_ = tt::audio::loadSfx("romfs:/baked/audio/enc_lose.tsnd");
 }
 
@@ -418,6 +420,7 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
 
     doorAwaitReply_ = false;
     exitDoorDoId_ = 0;
+    cogHqDoor_ = !strncmp(exit.name, "cogdoor_", 8);
     doorFromX_ = player.x();
     doorFromY_ = player.y();
     doorFromZ_ = player.z();
@@ -433,7 +436,7 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
     if (net) {
         net->sendAnimState("walk", 1.0f);
     }
-    tt::audio::playSfx(sfxDoorOpen_);
+    tt::audio::playSfx(cogHqDoor_ ? sfxChqDoorOpen_ : sfxDoorOpen_);
 }
 
 void Transition::startTeleportOut(u32 targetZone, const Player& player, net::Client* net) {
@@ -582,6 +585,13 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
         const bool leavingInterior = fromZone_ % 1000 >= 500 && loadedZone % 1000 < 500;
         if (leavingInterior && fromDoor_ >= 0) pt = place.buildingDoorPoint(fromZone_ % 100, fromDoor_);
         if (leavingInterior && !pt) pt = place.buildingPoint(fromZone_ % 100);
+        if (!pt) {
+            // Cog HQ: door_origin_<i> of the door back to fromZone (bake_coghq names it
+            // cogdoor_<fromZone>_<i>; the Sellbot courtyard's four lobby doors pair with door 0).
+            char prefix[24];
+            snprintf(prefix, sizeof(prefix), "cogdoor_%lu_", static_cast<unsigned long>(fromZone_));
+            pt = place.pointWithPrefix(prefix);
+        }
         if (!pt) pt = place.point("door_origin");
         if (!pt) pt = place.point("door_origin_0");
         if (pt) {
@@ -601,7 +611,7 @@ void Transition::notifyLoaded(u32 loadedZone, Place& place, Player& player, net:
         pickDoorTint(place);
         doorActive_ = true;
         doorSwing_ = 100.0f; // Closes as toon walks out
-        tt::audio::playSfx(sfxDoorClose_);
+        tt::audio::playSfx(cogHqDoor_ ? sfxChqDoorClose_ : sfxDoorClose_);
 
         if (net) {
             net->sendAnimState("walk", 1.0f);

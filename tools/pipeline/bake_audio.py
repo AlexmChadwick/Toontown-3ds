@@ -88,6 +88,8 @@ SOUNDSCAPE = [
     # --- global SFX (RomFS) ---
     ('door_open', _SFX + 'Door_Open_1.ogg', 'sfx', False, 'romfs'),            # DistributedDoor.py:44
     ('door_close', _SFX + 'Door_Close_1.ogg', 'sfx', False, 'romfs'),          # DistributedDoor.py:45
+    ('chq_door_open', 'phase_9/audio/sfx/CHQ_door_open.ogg', 'sfx_adpcm', False, 'romfs'),   # DistributedCogHQDoor.py:18
+    ('chq_door_close', 'phase_9/audio/sfx/CHQ_door_close.ogg', 'sfx_adpcm', False, 'romfs'),  # DistributedCogHQDoor.py:19
     ('teleport', _SFX + 'AV_teleport.ogg', 'sfx_adpcm', False, 'romfs'),       # Toon.py:1763
     ('sc_open', _SFX + 'GUI_quicktalker.ogg', 'sfx', False, 'romfs'),          # ToontownChatManager.py:37
     ('treasure_reject', 'phase_4/audio/sfx/ring_miss.ogg', 'sfx', False, 'romfs'),  # DistributedTreasure.py:20

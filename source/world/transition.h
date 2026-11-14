@@ -107,6 +107,9 @@ private:
     tt::audio::SfxId sfxTeleport_ = tt::audio::kInvalidSfx;
     tt::audio::SfxId sfxDoorOpen_ = tt::audio::kInvalidSfx;
     tt::audio::SfxId sfxDoorClose_ = tt::audio::kInvalidSfx;
+    tt::audio::SfxId sfxChqDoorOpen_ = tt::audio::kInvalidSfx;
+    tt::audio::SfxId sfxChqDoorClose_ = tt::audio::kInvalidSfx;
+    bool cogHqDoor_ = false; // this door movie is a Cog HQ door's (CHQ_door_open / _close)
     tt::audio::SfxId sfxLose_ = tt::audio::kInvalidSfx;
 
     // Tunnel kinematics (upstream DistributedToon.py)
