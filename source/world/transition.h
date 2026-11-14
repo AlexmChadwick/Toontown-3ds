@@ -131,6 +131,10 @@ private:
     bool doorAwaitReply_ = false;
     bool doorRejected_ = false;
     u8 doorRejectCode_ = 0;
+    // The other door from setOtherZoneIdAndDoId. Place.enterDoorIn calls its readyToExit
+    // (requestExit) once we arrive: avatarExit for the other clients, and a locked Cog HQ door's
+    // setCogIndex (the lobby's Cog suit on, the courtyard's off). Outlives reset() until sent.
+    u32 exitDoorDoId_ = 0;
     float doorFromX_ = 0.0f, doorFromY_ = 0.0f, doorFromZ_ = 0.0f, doorFromH_ = 0.0f;
 
     // Portal hole kinematics (upstream Toon.py)

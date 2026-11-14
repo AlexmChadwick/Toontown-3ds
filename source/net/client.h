@@ -1555,6 +1555,10 @@ public:
     };
     static constexpr size_t kMaxDoors = 32;
     uint32_t findDoor(uint32_t block, uint8_t doorIndex = 0) const;
+    // A Cog HQ door of this zone (DistributedCogHQDoor / SellbotHQDoor, trigger owner
+    // cogdoor_<dest>_<doorIndex>): matched by door index, as their blocks are 0 or the index.
+    uint32_t findCogDoor(uint8_t doorIndex) const;
+    bool knowsDoor(uint32_t doId) const;
     const CogBuilding* findCogBuilding(uint32_t doId) const;
     const CogElevator* findCogElevator(uint32_t doId) const;
     bool sendCogElevatorBoard(uint32_t doId);

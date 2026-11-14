@@ -259,6 +259,14 @@ void Transition::computeDoorOrigin(const Exit& exit, const Place& place, const P
         snprintf(originName, sizeof(originName), "%s_door_origin", exit.name);
         pt = place.point(originName);
     }
+    if (!pt && !strncmp(exit.name, "cogdoor_", 8)) {
+        // Cog HQ doors: bake_coghq names door_origin_<i> after its root without "_DNARoot".
+        char stem[64];
+        snprintf(stem, sizeof(stem), "%s", exit.name);
+        char* root = strstr(stem, "_DNARoot");
+        if (root) *root = '\0';
+        pt = place.point(stem);
+    }
     if (!pt) {
         // Try matching by block prefix: e.g. exit.name "sz19:..." -> search prefix "sz19:"
         const char* colon = strchr(exit.name, ':');
@@ -409,6 +417,7 @@ void Transition::startDoorOut(u32 targetZone, const Exit& exit, const Player& pl
            doorStartX_, doorStartY_);
 
     doorAwaitReply_ = false;
+    exitDoorDoId_ = 0;
     doorFromX_ = player.x();
     doorFromY_ = player.y();
     doorFromZ_ = player.z();
@@ -700,6 +709,7 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
                         doorRejectCode_ = code;
                         return;
                     }
+                    exitDoorDoId_ = reply.otherDoId;
                 }
                 if (age_ >= kDoorReplyTimeout) {
                     TT_LOG("transition: no door reply after %.1f s, entering", double(kDoorReplyTimeout));
@@ -827,6 +837,10 @@ void Transition::update(float dt, Player& player, Place& place, net::Client* net
         }
 
         case TransitionType::Door: {
+            if (exitDoorDoId_ && net && net->knowsDoor(exitDoorDoId_) && net->sendDoorRequestExit(exitDoorDoId_)) {
+                TT_LOG("transition: requestExit on door %lu", static_cast<unsigned long>(exitDoorDoId_));
+                exitDoorDoId_ = 0;
+            }
             // Door swings closed from 100 to 0 degrees over 1.0s
             if (age_ < 1.0f) {
                 doorSwing_ = (1.0f - easeInOut(age_ / 1.0f)) * 100.0f;

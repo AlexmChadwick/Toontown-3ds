@@ -1092,12 +1092,14 @@ int main() {
             // move: cogdoor: a Cog HQ courtyard's locked lobby door (DistributedCogHQDoor), which
             // puts the Toon in its Cog suit (setCogIndex).
             const bool cogDoor = !strcmp(autotest.label(), "move: cogdoor");
+            // Through it, stay in the lobby (its own cogdoor_ leads back out).
+            const bool throughCogDoor = cogDoor && place.zoneId() % 1000 != 0;
             const char* want = isTunnel ? "linktunnel_tt_2132"
                                : streetDoor ? "tb"
                                : cogDoor ? "cogdoor_"
                                : "sz19:";
             const tt::world::CollisionWorld& cw = place.collision();
-            for (int i = 0; i < cw.numTriggers(); i++) {
+            for (int i = 0; !throughCogDoor && i < cw.numTriggers(); i++) {
                 const tt::world::CollTrigger& t = cw.trigger(i);
                 if (interiorDoor ? !strstr(t.name, "door_trigger")
                                  : (strncmp(t.owner, want, strlen(want)) || !strstr(t.name, "trigger") ||
@@ -2577,6 +2579,11 @@ int main() {
                         }
                         if (block > 0) {
                             doorDoId = net.findDoor(block, doorIndex);
+                        } else if (!strncmp(exitHere.name, "cogdoor_", 8)) {
+                            // DistributedCogHQDoor.requestEnter: a locked courtyard door rejects a
+                            // Toon without the department's complete Cog disguise.
+                            const char* index = strchr(exitHere.name + 8, '_');
+                            if (index) doorDoId = net.findCogDoor(static_cast<u8>(strtoul(index + 1, nullptr, 10)));
                         }
                     }
                     transition.startDoorOut(travelTarget, exitHere, player, place, doorDoId, netStarted ? &net : nullptr);

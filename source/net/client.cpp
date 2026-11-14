@@ -5105,6 +5105,23 @@ uint32_t Client::findDoor(uint32_t block, uint8_t doorIndex) const {
     return 0;
 }
 
+uint32_t Client::findCogDoor(uint8_t doorIndex) const {
+    constexpr uint8_t kDoorExtCogHq = 7, kDoorIntCogHq = 8; // DoorTypes.EXT_COGHQ / INT_COGHQ
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if ((doors_[i].doorType == kDoorExtCogHq || doors_[i].doorType == kDoorIntCogHq) && doors_[i].doorIndex == doorIndex) {
+            return doors_[i].doId;
+        }
+    }
+    return 0;
+}
+
+bool Client::knowsDoor(uint32_t doId) const {
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if (doors_[i].doId == doId) return true;
+    }
+    return false;
+}
+
 const CogBuilding* Client::findCogBuilding(uint32_t doId) const {
     for (const CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) return &b;
     return nullptr;
