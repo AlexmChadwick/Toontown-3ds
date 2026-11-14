@@ -1146,10 +1146,11 @@ int main() {
                 float standX = cx - ux * 4.0f, standY = cy - uy * 4.0f, standZ = t.min[2], standH = atan2f(-ux, uy) / kDegToRad;
                 if (pt) {
                     const float rad = pt->h * kDegToRad;
-                    standX = pt->x - sinf(rad) * 4.0f;
-                    standY = pt->y + cosf(rad) * 4.0f;
+                    const float inX = -sinf(rad), inY = cosf(rad);
+                    standX = cx - inX * 4.0f;
+                    standY = cy - inY * 4.0f;
                     standZ = pt->z;
-                    standH = pt->h + 180.0f;
+                    standH = pt->h;
                 }
                 if (probe.kind != tt::world::Exit::None && probe.targetZone == target && lastExitZone != target) {
                     // The exit code takes it from here this frame.
