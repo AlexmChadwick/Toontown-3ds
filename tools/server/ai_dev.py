@@ -51,10 +51,12 @@ def _patch(name, mod):
                 self.inventory.maxOutInv(filterUberGags=1)
                 self.b_setInventory(self.inventory.makeNetString())
                 if os.environ.get('AI_DEV_SUITS') == '1':
-                    # AI_DEV_SUITS=1: every department's Cog disguise complete, so the locked Cog HQ
+                    # AI_DEV_SUITS=1 (none: no parts): every department's Cog disguise complete, so the locked Cog HQ
                     # lobby doors let the Toon in (DistributedCogHQDoorAI.requestEnter).
                     from toontown.coghq import CogDisguiseGlobals
                     self.b_setCogParts(list(CogDisguiseGlobals.PartsPerSuitBitmasks))
+                elif os.environ.get('AI_DEV_SUITS') == 'none':  # no disguise parts (locked lobby doors)
+                    self.b_setCogParts([0, 0, 0, 0])
                 if os.environ.get('AI_DEV_FISH') == '1' and self.fishCollection is not None and not len(self.fishCollection):
                     # AI_DEV_FISH=1: 22 album entries (every species of the Balloon, Cat, Star and
                     # Puppy Dog Fish, a Cutthroat Trout, a Devil Ray): two fishing trophy levels.
