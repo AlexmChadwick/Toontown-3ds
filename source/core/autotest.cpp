@@ -194,6 +194,7 @@ const Step kScript[] = {
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 3000", "go_3000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 4000", "go_4000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 5000", "go_5000"},
+    {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 2000", "go_2000"},
     {12.0f, 0, 0, 0, 0, -1, -1, 0, "go zone 9000", "go_9000"},
     // Opt-in (AUTOTEST_ONLY="go zone 11000,move: cogdoor,cogdoor: lobby"): Sellbot HQ's courtyard,
     // through a locked lobby door into Sellbot Towers' lobby in the Cog suit (setCogIndex).
