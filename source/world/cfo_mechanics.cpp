@@ -144,7 +144,8 @@ void CfoMechanics::update(BossFrame& frame, uint32_t nowMs) {
         attackActive_ = false;
         return;
     }
-    const bool scripted = frame.test.active() && !std::strcmp(frame.test.label(), "cfo: cranes");
+    const bool scripted = frame.test.active() && (!std::strcmp(frame.test.label(), "cfo: cranes") ||
+                                                   !std::strcmp(frame.test.label(), "cfo: rounds"));
     const Vec3 toon{frame.player.x(), frame.player.y(), frame.player.z()};
     const float dt = std::clamp(frame.dt, .0001f, 1.0f / 15);
     for (int slot = 0; slot < net::kMaxCfoChildren; ++slot) {
