@@ -700,10 +700,13 @@ void recountZone(Zone::Impl& z) {
         admitMesh(i);
     }
     memset(seen, 0, sizeof(seen));
+    // Largest on screen first: when the caps bite, the small distant fars drop,
+    // not the big one beside the camera (Silly Street showed sky through it).
     auto farPriority=[&](uint16_t a, uint16_t b) {
         const bool standA=z.choice[a]==0, standB=z.choice[b]==0;
         if (standA!=standB) return standA;
-        return screenRank(z.chunks[a], z.camEye) < screenRank(z.chunks[b], z.camEye);
+        const float ra=screenRank(z.chunks[a], z.camEye), rb=screenRank(z.chunks[b], z.camEye);
+        return ra != rb ? ra > rb : a < b;
     };
     uint16_t farIds[Zone::kMaxChunks];
     uint32_t nfar = 0;
@@ -1779,7 +1782,8 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
     auto farPri=[&](uint16_t a, uint16_t b) {
         const bool standA=z.choice[a]==0, standB=z.choice[b]==0;
         if (standA!=standB) return standA;
-        return screenRank(z.chunks[a], eye) < screenRank(z.chunks[b], eye);
+        const float ra=screenRank(z.chunks[a], eye), rb=screenRank(z.chunks[b], eye);
+        return ra != rb ? ra > rb : a < b;
     };
     for (uint32_t a=1;a<nfar;++a) {
         const uint16_t id=farIds[a];

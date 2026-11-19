@@ -2431,6 +2431,11 @@ int main() {
         const bool featureAnimation = fishing.active() || trolley.seated() || minigame.inScene() ||
             transition.active();
         if (!racing.driving() && !battle.inBattle() && !clipTest && !featureAnimation && !localToon.actionActive()) localToon.play(anim,animRate);
+        // Fixed-camera autotest steps pin the same neutral frame, so Old and New grabs
+        // (and before/after shots) do not catch different points of the idle cycle.
+        if (autotest.active() && !battle.inBattle() &&
+            (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
+            localToon.hold(tt::world::kAnimNeutral, 0.0f);
         // ---- racing2 ----
         if (racing.driving())
             racing.animate(localToon);
