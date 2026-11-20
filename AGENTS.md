@@ -551,7 +551,10 @@ server.
   (`Client::changeStreetCell`).
   Chunks outside the camera cone keep a resident near mesh until the retain
   budget evicts them. That mesh is not replaced by the far blob, and it is not
-  submitted. Inside the cone every chunk that fits is drawn, at least at its
+  submitted. Only the cell's visible set (its vis list plus extra-visible zones) is
+  drawn: a warm-ring or previous-cell far mesh that happens to be in view is not (Old
+  3DS once showed a house floating over Silly Street's fence that New had evicted).
+  Inside the cone every chunk that fits is drawn, at least at its
   far mesh. Near upgrades stop at 130 draws (`Zone::kDrawBudget`). The submitted
   set also stops at 150 draws and 15,000 triangles. A resident near mesh inside
   `lodMust` may stay up to that 150 (Toon Hall). `lodKeep` does not bypass the
@@ -791,6 +794,8 @@ ref/resources/*.jpg ─┘      ├─ dna.py        DNA text parser + storage r
 | `tools/pipeline/bake_quest_poster.py` | QuestPoster's art (stickerbook_gui questCard / questPictureFrame, the trolley, package, building and cog icons) → `romfs/baked/quest_poster.ttm` + `source/ui/quest_poster_atlas.h`, and each quest NPC's species and head colour from NPCToons DNA → `source/ui/quest_npc_heads.h` (drawn with the laff-meter heads) |
 | `tools/pipeline/bake_loading_screen.py` | ToontownLoadingScreen's art: progress-background's radial `bg` as a 3D quad (`loading_bg.ttm`, drawn behind the front-end Toon) and toon_council's scroll for the TOON TIP (`loading_gui.ttm` + `source/ui/loading_atlas.h`); tips in `source/game/loading_tips.h` |
 | `tools/pipeline/bake_mat_room.py` | Make-A-Toon's room (`tt_m_ara_mat_room`): floor / background / spotlight plus each shop's walls and props → pooled `romfs/baked/mat_room/` (TTM v2 + `textures.ttp`), and the roomDrop / roomSquish / propSquish joint tracks → `source/ui/mat_room_tracks.h`; drawn behind the Toon with MakeAToon's camera |
+| `tools/fidelity/` | the Old vs New 3DS gate (`run_gate.sh` -> `views_run.sh` + `az_grab_wrapper.sh` + `view_grabs.py` in Azahar, scored by `compare_views.py`, copied unchanged from Codex af25ec7), `stock_detail.py` (near-view texture detail of the stock assets at the game camera), and the offline facility / boss sweeps (`levelsweep.py`, `bosssweep.py`: stock scene vs bake, `sweep-manifest.json` with per-frame void / black / white / flat checks from `sweep_check.py`, exit 1 on a failing frame) |
+| `tools/zone_test/view_plan.cpp` | host dump of what Old and New 3DS plan and draw at each autotest `view:` camera (one view, or several walked in order on one zone) |
 | `tools/pipeline/bake_golf_physics.py` | golf BAM collision nodes → versioned `.gph` meshes (grass, slick, cup, hard) |
 | `tools/gen_suit_tables.py` | upstream cog tables → `source/world/suit_tables.h` |
 | `tools/shop_test/` | gag shop rules and inventory blob vs the real upstream `InventoryBase` (`docs/design/shop.md`) |

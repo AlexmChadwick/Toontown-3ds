@@ -2374,6 +2374,16 @@ int main() {
                 }
                 player.overrideCamera(FVec3_New(v.eye[0], v.eye[1], v.eye[2]),
                                       FVec3_New(v.target[0], v.target[1], v.target[2]));
+                // The zone plan every 8 s (chunk:lod/choice, '*' drawn), to compare Old and New.
+                static u64 viewPlanAt = 0;
+                if (osGetTime() >= viewPlanAt && place.streamed()) {
+                    char plan[768];
+                    const int len = std::min<int>(place.zone().describePlan(plan, sizeof(plan)),
+                                                  static_cast<int>(sizeof(plan)) - 1);
+                    for (int at = 0; at < len; at += 200)
+                        TT_LOG("view: %s plan%s %.200s", v.name, at ? "+" : ":", plan + at);
+                    viewPlanAt = osGetTime() + 8000;
+                }
                 break;
             }
         }

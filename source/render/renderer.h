@@ -8,6 +8,7 @@
 #include "render/anim.h"
 #include "render/hot_paths.h"
 #include "render/model.h"
+#include "render/quality.h"
 
 namespace tt::render {
 
@@ -99,9 +100,9 @@ public:
     // (Mtx_PerspStereoTilt); the eye shift is a projection skew, not a second near.
     static constexpr float kNear = 1.0f;
     static constexpr float kFar = 300.0f;
-    // ToonBase: camLens.setFov(DefaultCameraFov = 52) across a 4:3 window, so 40.2 degrees
-    // vertically; the wider top screen shows a little more at the sides (as MakeAToon's room).
-    static constexpr float kFovYDeg = 40.2f;
+    // kTopFovYDeg (render/quality.h); the wider top screen shows a little more at the sides
+    // (as MakeAToon's room).
+    static constexpr float kFovYDeg = kTopFovYDeg;
     // Far plane of the world pass (Panda base.camLens.setFar). Minigames raise it, as upstream
     // does (DistributedCannonGame FAR_PLANE_DIST = 600 * WORLD_SCALE). Zero restores the active
     // quality profile (render/quality.h), which is past the fog so the sky is not a clip edge.

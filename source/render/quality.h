@@ -7,6 +7,10 @@
 
 namespace tt::render {
 
+// ToonBase: camLens.setFov(DefaultCameraFov = 52) across a 4:3 window, so 40.2 degrees
+// vertically (Renderer::kFovYDeg; here so host-built streaming code can use it).
+constexpr float kTopFovYDeg = 40.2f;
+
 struct Quality {
     float farPlane;
     float drawDistance;

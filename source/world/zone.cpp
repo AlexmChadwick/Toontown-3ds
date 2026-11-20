@@ -3,7 +3,6 @@
 #include "core/crash.h"
 #include "core/load_profile.h"
 #include "render/quality.h"
-#include "render/renderer.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -543,7 +542,7 @@ uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
     return cell<0 ? 0 : static_cast<uint16_t>(impl_->chunks[cell].zone);
 }
 // Top-screen vertical FOV (Renderer::kFovYDeg) at 400x240.
-constexpr float kHalfFovV = render::Renderer::kFovYDeg * 0.5f * 3.14159265f / 180.0f;
+constexpr float kHalfFovV = render::kTopFovYDeg * 0.5f * 3.14159265f / 180.0f;
 constexpr float kConeMargin = 4.0f * 3.14159265f / 180.0f;
 constexpr float kCamMove2 = 64.0f;          // replan after the eye moves 8 units
 constexpr float kCamTurnDot = 0.984807753f; // cos(10 deg)
@@ -1752,7 +1751,10 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         const bool viewed=static_cast<int>(i)==z.cell || inView(z.chunks[i], eye, fwd, right, up, distance);
         if (!viewed) return false;
         if (cap && z.h.version>=2 && static_cast<int>(i)!=z.cell && !z.inCone[i] && z.lod[i]!=1) return false;
-        if (!cap && !z.desired[i]) return false;
+        // Only the cell's visible set draws (Street.doEnterZone shows just the vis list).
+        // A warm-ring or previous-cell far mesh that happens to be in view stays hidden:
+        // Old 3DS showed a house floating over Silly Street's fence that New had evicted.
+        if (static_cast<int>(i)!=z.cell && !z.desired[i]) return false;
         return true;
     };
     // Opaque and alpha-test batches of every admitted chunk first, blended ones
@@ -1792,9 +1794,9 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         farIds[at]=id;
     }
     for (uint32_t j=0;j<nfar;++j) submitId(farIds[j]);
+#ifdef __3DS__
     if (drawHook_)
         for (uint32_t j=0;j<ndrawn;++j) drawHook_(drawHookUser_, z.models[drawn[j]], z.lod[drawn[j]]==1);
-#ifdef __3DS__
     for (int pass=1;pass<=2;++pass) {
         renderer.setBlendPass(pass);
         for (uint32_t j=0;j<ndrawn;++j) renderer.drawModel(z.models[drawn[j]], identity);
