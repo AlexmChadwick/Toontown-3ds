@@ -24,8 +24,8 @@ void drawInvArt(InvArt art, float x, float y, float w, float h, float z, u32 tin
 // InventoryRow tinted with the track colour: the label end is drawn over [x, slotX), the seven
 // button slots over [slotX, x + w), so the slots sit under the gag buttons.
 void drawInvRow(float x, float y, float w, float h, float slotX, float z, u32 tint);
-// BATTLE_Menu's red frame and dark panel as a nine-slice (inside invTintBegin / invTintEnd) (its left end, mirrored for the right;
-// the gag detail panel is not part of this layout).
+// Draws BATTLE_Menu's red frame and dark panel as a nine-slice within invTintBegin / invTintEnd
+// (left end mirrored for the right; the gag detail panel is not part of this layout).
 void drawInvMenu(float x, float y, float w, float h, float z);
 // Bold text with a one-pixel outline in `outline` (both cached C2D_Text, nothing parsed here).
 // flags: C2D_AlignLeft / C2D_AlignRight / C2D_AlignCenter.

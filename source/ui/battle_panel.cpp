@@ -763,7 +763,11 @@ void BattlePanel::drawToons(const world::BattleView& v, float x0, float w) {
             snprintf(num, sizeof num, "%d", t.hp > 0 ? t.hp : 0);
         }
         const bool low = t.maxHp > 0 && t.hp * 4 <= t.maxHp;
-        centered(mx, kBtnY + ch * 0.68f, 0.34f, gone ? kInkSoft : low ? theme::kRedDark : kInk, cw * 0.62f, num);
+        // Over the card art (z 0.55): at the default text depth the readout was hidden behind it.
+        C2D_Text hpText;
+        textCache_.parse(&hpText, buf_, num, 1024);
+        theme::textCentered(hpText, mx, kBtnY + ch * 0.68f, 0.34f, gone ? kInkSoft : low ? theme::kRedDark : kInk,
+                            cw * 0.62f, 0.6f);
         // TownBattleToonPanel.setValues while choosing: the chosen gag, Pass, SOS or Fire ("?" until then).
         const bool picking = !gone && (v.phase == world::BattlePhase::Input || v.phase == world::BattlePhase::Chosen);
         const char* pick = nullptr;
