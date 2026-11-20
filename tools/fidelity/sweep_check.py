@@ -27,15 +27,30 @@ STOCK_FLAT_MAX = .75
 PITCH = 0
 
 
+def erode(mask):
+    """3x3 erosion: drops background specks and gaps under 3 px wide."""
+    out = mask.copy()
+    for dy in (-1, 0, 1):
+        for dx in (-1, 0, 1):
+            out &= np.roll(np.roll(mask, dy, 0), dx, 1)
+    return out
+
+
 def stats(image):
     """Fractions of the frame that are background, near black, near white, and flat (within 8
-    of the median colour on every channel, background excluded)."""
+    of the median colour on every channel, background excluded).
+
+    'void' counts background only where it is at least 3 px across. Stock Panda blends M_dual
+    foliage over the background, so the gaps between leaves come out tinted, while the bake
+    alpha-tests them (AGENTS.md 4) and they come out exact background: the Bossbot hedges and
+    trees read 5-7% more void with no geometry missing."""
     px = np.asarray(image.convert('RGB')).astype(np.int16)
     total = px.shape[0] * px.shape[1]
-    void = (np.abs(px - np.array(BG)).max(axis=2) <= 3)
-    black = (px.max(axis=2) < 12) & ~void
-    white = (px.min(axis=2) > 243) & ~void
-    rest = px[~void]
+    bg = (np.abs(px - np.array(BG)).max(axis=2) <= 3)
+    void = erode(bg)
+    black = (px.max(axis=2) < 12) & ~bg
+    white = (px.min(axis=2) > 243) & ~bg
+    rest = px[~bg]
     flat = 0.0
     if len(rest):
         median = np.median(rest, axis=0)

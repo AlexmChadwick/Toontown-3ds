@@ -2032,3 +2032,27 @@ Local server on port 31300, zone data from lane B's current bake. Emulator timin
 | Toon showcase close, 34 heads (toons2_new) | New | every species with DNA colours and clothes; grey default body only for about 1 s while parts load | 29.9 | |
 
 Not changed this round: no code fix was needed. Open: no hardware run; expression muzzles are not swapped (no QuestScript uses them).
+
+## 2026-11-20 - 3ds-visual QA-20261119-19 fixes (Azahar headless, Old + New 3DS)
+
+Branch `feature/3ds-visual-fixes`, app built at 8dc7ff5 (C++ unchanged after it). Azahar on
+Xvfb (software GL), offline autotest `view:` / `pose:` steps, no server. Emulator timing only;
+no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
+
+| Run | Model | Result | fps (settled) | heap / linear free / VRAM free |
+|---|---|---|---|---|
+| Fidelity gate, 8 views (gate3, `tools/fidelity/run_gate.sh`) | Old + New | compare_views exit 1: 5 PASS; ttc_near / street_near / dd_near texture detail 635 / 468 / 411 < 1.3x r11 (785 / 482 / 471); street_near Old 74 draws < 0.9 x New 84 | 29.9 | 2.4-2.6 MB / 11.5-13.6 MB / 4194K (Old) |
+| Tunnel + DG/DL HQ sign poses (`tools/fidelity/poses/tunnels_hq_signs.txt`) | Old + New | all 10 poses shot | 29.9 | |
+| Gag tab, no server (gagmem) | Old | `inventory_gui.ttm` 384 KB linear, resident from boot; 17.9 MB linear free after boot, 14.75 MB in the playground (2.75 MB over the 12 MiB street floor) | 27.9 | 3.6 MB / 14.75 MB / 4194K |
+
+- Near detail: the stock assets rendered at the same camera and lens
+  (`tools/fidelity/stock_detail.py --fovy 55`) score 382 / 205 / 225, so the captures already
+  hold 1.66x / 2.28x / 1.83x the stock Laplacian detail and match the stock frames by eye.
+  The 1.3x r11 bar asks for more detail than the source textures have; not claimed.
+- street_near draws: Old keeps chunks 6 and 54 at their far mesh (past Old's lodNear 160;
+  their near atlases would pass Old's 6 MiB texture retain), New draws them near. Frames are
+  identical (SSIM 1.000, 0.0% pixels differ). Not claimed.
+- Facility (31 rooms) and boss (4) sweeps: every frame passes `sweep_check.py`. The void
+  measure ignores background gaps under 3 px: stock Panda blends M_dual foliage edges over the
+  background while the bake alpha-tests them, which had failed 9 Bossbot hedge / tree frames
+  at +5-7% void with no geometry missing.

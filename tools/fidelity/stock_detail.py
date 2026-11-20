@@ -1,4 +1,4 @@
-"""stock_detail.py <views_dir> [<views_dir> ...] [--out <dir>]
+"""stock_detail.py <views_dir> [<views_dir> ...] [--out <dir>] [--fovy <degrees>]
 
 Texture detail of the near fidelity views against the stock game. Renders each near view
 (compare_views.DETAIL_R11) from the original assets, assembled from the zone DNA as upstream does
@@ -6,7 +6,8 @@ Texture detail of the near fidelity views against the stock game. Renders each n
 400x240), and prints the Laplacian variance compare_views.py scores, for the stock render and for
 each views_dir's shot_view_<view>_top.png. Exit 1 when a capture has less detail than stock.
 
-compare_views.py asks for 1.3x its round-11 baseline. This shows what the source textures allow
+--fovy sets the vertical lens (the near autotest views use main.cpp kViewFovYDeg, 55, the lens
+r11 was shot with). compare_views.py asks for 1.3x its round-11 baseline. This shows what the source textures allow
 at the same camera: a capture cannot hold more real detail than the original assets have.
 
     TT_RESOURCES=<ref/resources> xvfb-run -a .venv/bin/python -I tools/fidelity/stock_detail.py \\
@@ -52,10 +53,16 @@ def main():
         i = args.index('--out')
         out = Path(args[i + 1])
         del args[i:i + 2]
+    fovy = 40.2
+    if '--fovy' in args:
+        i = args.index('--fovy')
+        fovy = float(args[i + 1])
+        del args[i:i + 2]
     out.mkdir(parents=True, exist_ok=True)
     base = ShowBase()
     base.setBackgroundColor(0.55, 0.75, 1, 1)
-    base.camLens.setFov(2 * math.degrees(math.atan(math.tan(math.radians(20.1)) * 400 / 240)), 40.2)
+    half = math.radians(fovy / 2)
+    base.camLens.setFov(2 * math.degrees(math.atan(math.tan(half) * 400 / 240)), fovy)
     base.camLens.setNearFar(1, 1500)
     bad = 0
     for name, zone, eye, target in VIEWS:
