@@ -60,7 +60,14 @@ void ZoneActors::loadPoints(const char* pointsPath) {
         char line[128];
         while (numPoints_ < kMaxPoints && fgets(line, sizeof(line), f)) {
             Point& p = points_[numPoints_];
-            if (sscanf(line, "%63s %f %f %f %f", p.name, &p.x, &p.y, &p.z, &p.h) == 5) numPoints_++;
+            // A name longer than Point::name is skipped whole: "%63s" would leave its tail for
+            // the first "%f" (a tail starting with a digit read as x).
+            char name[128];
+            if (sscanf(line, "%127s %f %f %f %f", name, &p.x, &p.y, &p.z, &p.h) == 5 &&
+                strlen(name) < sizeof(p.name)) {
+                memcpy(p.name, name, strlen(name) + 1);
+                numPoints_++;
+            }
         }
         fclose(f);
     }

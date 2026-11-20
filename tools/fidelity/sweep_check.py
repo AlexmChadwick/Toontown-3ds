@@ -22,6 +22,9 @@ WHITE_MARGIN = .10
 FLAT_MAX = .85              # one flat colour covering 85% of the frame
 STOCK_VOID_MAX = .5         # a stock frame past these is not a view of the room
 STOCK_FLAT_MAX = .75
+# Level camera: at -8 the floor filled two thirds of an open yard's frame (the Sellbot factory
+# sheet read as a grey void although stock and bake matched).
+PITCH = 0
 
 
 def stats(image):
@@ -64,7 +67,7 @@ def frame_entry(sheet, row, eye, heading, columns):
     """columns: [(name, stats)], stock first. Returns the manifest entry for one sheet row."""
     stock = columns[0][1]
     entry = {'sheet': sheet, 'row': row, 'eye': [round(v, 2) for v in eye], 'heading': heading,
-             'pitch': -8, 'stock_ok': stock_ok(stock), 'columns': {}}
+             'pitch': PITCH, 'stock_ok': stock_ok(stock), 'columns': {}}
     fails = []
     for name, s in columns:
         col = dict(s)

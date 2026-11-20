@@ -15,7 +15,8 @@ namespace tt::log { void write(const char*, ...) {} }
 
 namespace {
 struct View { const char* name; unsigned zone; float eye[3], target[3], toon[3]; };
-// Same values as main.cpp's kViews.
+// Same values and lens as main.cpp's kViews / kViewFovYDeg.
+constexpr float kViewFovYDeg = 55.0f;
 const View kViews[] = {
     {"ttc_near", 2000, {-79.2f, -78.1f, 5.5f}, {-82.8f, -91.6f, 5.0f}, {-81.5f, -86.8f, 1.0f}},
     {"ttc_mid", 2000, {68.7f, 1.0f, 12.5f}, {113.7f, 1.0f, 10.0f}, {75.7f, 1.0f, 5.0f}},
@@ -30,7 +31,7 @@ const View kViews[] = {
 void show(tt::world::Zone& zone, const View& v, bool new3ds) {
     const tt::world::Vec3 eye{v.eye[0], v.eye[1], v.eye[2]}, at{v.target[0], v.target[1], v.target[2]};
     const tt::world::Vec3 feet{v.toon[0], v.toon[1], v.toon[2]};
-    zone.setCamera(eye, at);
+    zone.setCamera(eye, at, kViewFovYDeg);
     zone.update(feet);
     zone.warmAround(feet, tt::render::baseQuality().drawDistance * 1.35f);
     for (int i = 0; i < 4000; ++i) {

@@ -74,7 +74,7 @@ def load_tz(path, mode, eye):
 def shot(np_, eye, h):
     np_.reparentTo(base.render)
     base.camera.setPos(*eye)
-    base.camera.setHpr(h, -8, 0)
+    base.camera.setHpr(h, sweep_check.PITCH, 0)
     base.graphicsEngine.renderFrame()
     base.graphicsEngine.renderFrame()
     img = PNMImage()
@@ -142,7 +142,7 @@ def stock_scene(level, model):
 
 
 manifest = {'kind': 'facility', 'background': list(sweep_check.BG), 'columns': ['stock', 'near', 'auto_old'],
-            'camera': 'fov 70x46, pitch -8, eye 5 above the floor, headings 0/90/180/270',
+            'camera': f'fov 70x46, pitch {sweep_check.PITCH}, eye 5 above the floor, headings 0/90/180/270',
             'items': []}
 for model, level in models.items():
     if subs and not any(s in model or s in level for s in subs):

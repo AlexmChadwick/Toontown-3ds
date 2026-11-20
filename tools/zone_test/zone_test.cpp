@@ -83,8 +83,10 @@ int main(int argc,char** argv) {
         assert(hits>0);
         printf("cellAt grid == full scan on %d random queries (%d with a floor)\n",total,hits);
     }
-    const int current=zone.currentCell();
-    assert(zone.update({1e9f,1e9f,0}) && zone.currentCell()==current);
+    // No floor underfoot: a street keeps its cell; a one-zone playground grid may move to the
+    // nearest cell (Zone::update). Neither changes the server zone.
+    const uint16_t current=zone.currentZone();
+    assert(zone.update({1e9f,1e9f,0}) && zone.currentZone()==current);
     for (int i=0;i<zone.numTriggers();++i) {
         const auto* t=zone.trigger(i);
         assert(t);

@@ -118,9 +118,16 @@ def run_real(out, zones=None):
             path=out/f'{zid}.tz'
             anchor=path.with_suffix('.pts')
             assert anchor.exists()
+            anchors={}
             for line in anchor.read_text().splitlines():
                 fields=line.split()
-                assert len(fields)==5 and len(fields[0])<=63 and all(np.isfinite(float(x)) for x in fields[1:])
+                assert len(fields)==5 and all(np.isfinite(float(x)) for x in fields[1:])
+                anchors[fields[0]]=fields[1:]
+            # Place::Point names hold 63 characters; the runtime skips longer ones. Only a
+            # "_door_origin" alias of a root with the same pose (older bake_zone) may be skipped.
+            for key,values in anchors.items():
+                root=key[:-len('_door_origin')]
+                assert len(key)<=63 or (key.endswith('_door_origin') and anchors.get(root)==values),key
             data=path.read_bytes()
             zone=tz.validate(data)
             points=[]; covered=set()

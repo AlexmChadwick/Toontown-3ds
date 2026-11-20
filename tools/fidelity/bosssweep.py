@@ -91,7 +91,7 @@ def stock(name):
 def shot(np_, eye, h):
     np_.reparentTo(base.render)
     base.camera.setPos(*eye)
-    base.camera.setHpr(h, -8, 0)
+    base.camera.setHpr(h, sweep_check.PITCH, 0)
     base.graphicsEngine.renderFrame()
     base.graphicsEngine.renderFrame()
     img = PNMImage()
@@ -148,7 +148,7 @@ def pick_spots(orig, cands, span, n=4):
 
 
 manifest = {'kind': 'boss', 'background': list(sweep_check.BG), 'columns': ['stock', 'baked'],
-            'camera': 'fov 70x46, pitch -8, eye 6 above the floor, headings 0/90/180/270',
+            'camera': f'fov 70x46, pitch {sweep_check.PITCH}, eye 6 above the floor, headings 0/90/180/270',
             'items': []}
 for name in want:
     tag = name.split('=')[0].split('/')[-1]

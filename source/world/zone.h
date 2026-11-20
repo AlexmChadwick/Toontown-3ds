@@ -1,6 +1,7 @@
 // TZ01 v1/v2 streaming container. See tools/pipeline/tz.py and docs/design/streets.md.
 #pragma once
 #include <cstdint>
+#include "render/quality.h"
 #include "world/collision.h"
 
 namespace tt::render { class Renderer; class Model; }
@@ -38,8 +39,9 @@ public:
     const char* error() const { return error_; }
     // Eye and look-at for the frame about to be drawn. The next update() spends the
     // 130-draw and 15k-triangle caps on chunks that frame will submit, nearest to the
-    // view first. No call keeps the whole-cell budget (host tests).
-    void setCamera(const Vec3& eye, const Vec3& target);
+    // view first. No call keeps the whole-cell budget (host tests). fovYDeg is the
+    // world pass's vertical lens (Renderer::fovY); the view cone follows it.
+    void setCamera(const Vec3& eye, const Vec3& target, float fovYDeg = render::kTopFovYDeg);
     // Call once before FrameBegin, never per eye.
     // No floor hit keeps the previous PVS (jumping/outside floor cannot unload it).
     // Chunk reads happen on a loader thread; update() swaps finished chunks in, so call

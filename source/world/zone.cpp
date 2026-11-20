@@ -232,6 +232,8 @@ struct Zone::Impl {
     bool haveCamera = false;
     bool plannedCam = false;
     Vec3 camEye{}, camTarget{}, planEye{}, planFwd{};
+    float halfFovV = render::kTopFovYDeg * 0.5f * 3.14159265f / 180.0f; // setCamera's lens, vertical half angle (radians)
+    float planHalfFovV = halfFovV;
     float planDist = 0.0f; // draw distance of the last plan (render::setPlaceFar may change it)
     int cell = -1;
     uint32_t geom = 0, tex = 0, tris = 0, draws = 0;
@@ -541,7 +543,7 @@ uint16_t Zone::zoneAt(const Vec3& p,float reach) const {
     const int cell=cellAt(p,reach);
     return cell<0 ? 0 : static_cast<uint16_t>(impl_->chunks[cell].zone);
 }
-// Top-screen vertical FOV (Renderer::kFovYDeg) at 400x240.
+// Top-screen vertical FOV (Renderer::kFovYDeg) at 400x240, unless setCamera names another lens.
 constexpr float kHalfFovV = render::kTopFovYDeg * 0.5f * 3.14159265f / 180.0f;
 constexpr float kConeMargin = 4.0f * 3.14159265f / 180.0f;
 constexpr float kCamMove2 = 64.0f;          // replan after the eye moves 8 units
@@ -580,7 +582,8 @@ void cameraBasis(const Vec3& eye, const Vec3& target, Vec3& fwd, Vec3& right, Ve
 
 // True when the chunk's bounding sphere can meet the view cone. The cone is a few
 // degrees wider than the frustum, so a chunk this accepts is the one draw() may submit.
-bool inView(const Chunk& c, const Vec3& eye, const Vec3& fwd, const Vec3& right, const Vec3& up, float drawDist) {
+bool inView(const Chunk& c, const Vec3& eye, const Vec3& fwd, const Vec3& right, const Vec3& up, float drawDist,
+            float halfFovV) {
     if (distance2(eye, c) > drawDist * drawDist) return false;
     const float cx = (c.min[0] + c.max[0]) * 0.5f;
     const float cy = (c.min[1] + c.max[1]) * 0.5f;
@@ -592,12 +595,12 @@ bool inView(const Chunk& c, const Vec3& eye, const Vec3& fwd, const Vec3& right,
     if (dist <= rad + 0.5f) return true;
     const float along = vx * fwd.x + vy * fwd.y + vz * fwd.z;
     if (along < -rad) return false;
-    const float halfH = atanf(tanf(kHalfFovV) * (400.0f / 240.0f));
+    const float halfH = atanf(tanf(halfFovV) * (400.0f / 240.0f));
     const float extra = asinf(rad / dist > 1.0f ? 1.0f : rad / dist);
     const float denom = along > 1e-3f ? along : 1e-3f;
     const float angH = atan2f(fabsf(vx * right.x + vy * right.y + vz * right.z), denom);
     const float angV = atan2f(fabsf(vx * up.x + vy * up.y + vz * up.z), denom);
-    return angH <= halfH + extra + kConeMargin && angV <= kHalfFovV + extra + kConeMargin;
+    return angH <= halfH + extra + kConeMargin && angV <= halfFovV + extra + kConeMargin;
 }
 
 // A far read of an in-cone chunk that does not already show its near mesh is the
@@ -671,7 +674,7 @@ void recountZone(Zone::Impl& z) {
         const Chunk mesh = modelInfo(z.chunks[i], z.lod[i]);
         if (!mesh.size || distance2(z.camEye, z.chunks[i]) > dist * dist) return false;
         const bool viewed = static_cast<int>(i) == z.cell ||
-                            inView(z.chunks[i], z.camEye, fwd, right, up, dist);
+                            inView(z.chunks[i], z.camEye, fwd, right, up, dist, z.halfFovV);
         if (!viewed) return false;
         if (z.h.version >= 2 && static_cast<int>(i) != z.cell && !z.inCone[i] && z.lod[i] != 1)
             return false;
@@ -763,7 +766,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
     if (next>=0 && !replan && z.haveCamera && z.plannedCam) {
         const float dx=z.camEye.x-z.planEye.x, dy=z.camEye.y-z.planEye.y, dz=z.camEye.z-z.planEye.z;
         const float facing=fwd.x*z.planFwd.x+fwd.y*z.planFwd.y+fwd.z*z.planFwd.z;
-        replan=dx*dx+dy*dy+dz*dz>=kCamMove2 || facing<kCamTurnDot;
+        replan=dx*dx+dy*dy+dz*dz>=kCamMove2 || facing<kCamTurnDot || z.halfFovV!=z.planHalfFovV;
     }
     if (replan) {
         const Chunk& c=z.chunks[next];
@@ -793,7 +796,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         // out to the place far join too; the frame caps below keep the nearest first.
         if (z.haveCamera && z.h.version>=2 && quality.drawDistance > tt::render::baseQuality().drawDistance)
             for (uint32_t i=0;i<z.h.chunks;++i)
-                if (z.chunks[i].numVis && inView(z.chunks[i], z.camEye, fwd, right, up, quality.drawDistance))
+                if (z.chunks[i].numVis && inView(z.chunks[i], z.camEye, fwd, right, up, quality.drawDistance, z.halfFovV))
                     want(static_cast<uint16_t>(i));
         z.extraDirty=false;
         z.numOrder=count;
@@ -814,7 +817,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
                 const float vx=cx-z.camEye.x, vy=cy-z.camEye.y, vz=cz-z.camEye.z;
                 const float dist=sqrtf(vx*vx+vy*vy+vz*vz)+1e-3f;
                 rankDot[id]=(vx*fwd.x+vy*fwd.y+vz*fwd.z)/dist;
-                seenView[id]= id==static_cast<uint16_t>(next) || inView(chunk, z.camEye, fwd, right, up, quality.drawDistance);
+                seenView[id]= id==static_cast<uint16_t>(next) || inView(chunk, z.camEye, fwd, right, up, quality.drawDistance, z.halfFovV);
             }
         }
         const float must2 = quality.lodMust * quality.lodMust;
@@ -1172,7 +1175,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         z.lastPlan=feet;
         z.planDist=quality.drawDistance;
         z.plannedCam=z.haveCamera;
-        if (z.haveCamera) { z.planEye=z.camEye; z.planFwd=fwd; }
+        if (z.haveCamera) { z.planEye=z.camEye; z.planFwd=fwd; z.planHalfFovV=z.halfFovV; }
         z.planned=true;
         error_[0]=0;
         const uint16_t previous=currentZone();
@@ -1307,7 +1310,7 @@ bool Zone::update(const Vec3& feet,CellChanged callback,void* user,float reach) 
         if (static_cast<int>(i)==z.cell) return true;
         if (z.inCone[i]) return true; // the plan is still drawing this mesh
         if (!z.haveCamera) return z.desired[i];
-        return inView(z.chunks[i], z.camEye, fwd, right, up, shownDist);
+        return inView(z.chunks[i], z.camEye, fwd, right, up, shownDist, z.halfFovV);
     };
     auto readInFlight=[&](uint16_t i, int* otherLod) {
         *otherLod=-1;
@@ -1614,12 +1617,14 @@ bool Zone::cardPending() const {
     }
     return false;
 }
-void Zone::setCamera(const Vec3& eye, const Vec3& target) {
+void Zone::setCamera(const Vec3& eye, const Vec3& target, float fovYDeg) {
     if (!impl_) return;
     if (!std::isfinite(eye.x) || !std::isfinite(eye.y) || !std::isfinite(eye.z) ||
         !std::isfinite(target.x) || !std::isfinite(target.y) || !std::isfinite(target.z)) return;
     impl_->camEye=eye;
     impl_->camTarget=target;
+    impl_->halfFovV=std::isfinite(fovYDeg) && fovYDeg>1.0f && fovYDeg<170.0f
+        ? fovYDeg*0.5f*3.14159265f/180.0f : kHalfFovV;
     impl_->haveCamera=true;
 }
 void Zone::finishLoading(const Vec3& feet,CellChanged callback,void* user) {
@@ -1748,7 +1753,7 @@ void Zone::draw(render::Renderer& renderer,const Vec3& eye,float distance,const 
         if (i>=z.h.chunks || !z.resident[i] || z.parked[i]) return false;
         const Chunk mesh=modelInfo(z.chunks[i], z.lod[i]);
         if (!mesh.size || distance2(eye, z.chunks[i])>distance*distance) return false;
-        const bool viewed=static_cast<int>(i)==z.cell || inView(z.chunks[i], eye, fwd, right, up, distance);
+        const bool viewed=static_cast<int>(i)==z.cell || inView(z.chunks[i], eye, fwd, right, up, distance, z.halfFovV);
         if (!viewed) return false;
         if (cap && z.h.version>=2 && static_cast<int>(i)!=z.cell && !z.inCone[i] && z.lod[i]!=1) return false;
         // Only the cell's visible set draws (Street.doEnterZone shows just the vis list).

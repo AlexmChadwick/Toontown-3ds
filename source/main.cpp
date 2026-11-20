@@ -171,6 +171,7 @@ struct Prop {
 };
 
 constexpr float kDegToRad = 3.14159265f / 180.0f;
+constexpr float kViewFovYDeg = 55.0f; // autotest "view:" lens (Renderer FOV until 7311b93)
 constexpr float kSpawnX = 0.0f, kSpawnY = -20.0f; // TTC ground is z=0 here (plaza is raised)
 constexpr int kStressCols = 8;
 constexpr int kMaxStressToons = 64;
@@ -2343,7 +2344,15 @@ int main() {
                                                  eye.z + sinf(p) * 10.0f));
         }
         // ---- render: fixed views for before/after comparisons (autotest "view: <name>") ----
-        if (autotest.active() && !strncmp(autotest.label(), "view: ", 6) && transition.idle()) {
+        // The views keep the lens they were framed with (55 degrees vertical, before the stock
+        // 40.2 of 7311b93), so the gate's r11 texture-detail baseline sees the same frame.
+        static bool viewLens = false;
+        const bool viewStep = autotest.active() && !strncmp(autotest.label(), "view: ", 6);
+        if (viewStep != viewLens) {
+            renderer.setFovY(viewStep ? kViewFovYDeg : 0.0f);
+            viewLens = viewStep;
+        }
+        if (viewStep && transition.idle()) {
             // Test-only: teleport to the view's zone, stand the toon at a fixed pose, and pin the
             // camera to a fixed eye/target so every build shoots exactly the same frame.
             struct View { const char* name; u32 zone; float eye[3], target[3], toon[4]; };
@@ -2504,7 +2513,7 @@ int main() {
 
         // Streets stream per visgroup; crossing into another server cell changes interest.
         // The draw cap follows this camera, so chunks behind the toon do not spend it.
-        place.setCamera(player.cameraEye(), player.cameraTarget());
+        place.setCamera(player.cameraEye(), player.cameraTarget(), renderer.fovY());
         place.update(player.x(), player.y(), player.z(), onStreetCell, nullptr);
         // ---- tutorial: the server owns our tutorial zones (enterTutorial). A street-cell change
         // from the start zone's playground would move us out of Tutorial Tom's interior before
@@ -2706,7 +2715,7 @@ int main() {
                     player.reset(zoneAx, zoneAy, zoneAz, zoneAh);
                     if (netStarted) net.changeZone(zoneDest);
                     zoneStreamT0 = osGetTime();
-                    place.setCamera(player.cameraEye(), player.cameraTarget());
+                    place.setCamera(player.cameraEye(), player.cameraTarget(), renderer.fovY());
                     place.beginStreaming(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
                     if (place.streamReady()) {
                         finishZoneStream();
@@ -2721,7 +2730,7 @@ int main() {
                     zonePhase = ZonePhase::Idle;
                 }
             } else if (place.streamReady() || zonePhase == ZonePhase::Streaming) {
-                place.setCamera(player.cameraEye(), player.cameraTarget());
+                place.setCamera(player.cameraEye(), player.cameraTarget(), renderer.fovY());
                 place.update(zoneAx, zoneAy, zoneAz, onStreetCell, nullptr);
                 if (place.streamReady()) {
                     finishZoneStream();

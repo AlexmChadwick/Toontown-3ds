@@ -126,8 +126,12 @@ def write_points(root, path):
                         h = left.getH(root)
 
         lines.append(f'{name} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
-        lines.append(f'{name}_door_origin {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
-        doors.append((f'{name}_door_origin', p))
+        # Runtime point names hold 63 characters (Place::Point). The alias has the root's pose
+        # and Transition::computeDoorOrigin tries the root first, so a longer alias is left out.
+        alias = f'{name}_door_origin' if len(name) + 12 <= 63 else name
+        if alias != name:
+            lines.append(f'{alias} {p[0]:.3f} {p[1]:.3f} {p[2]:.3f} {h:.2f}')
+        doors.append((alias, p))
     lines += door_colors.lines(root, doors)
     with open(path, 'w') as f:
         f.write('\n'.join(lines) + '\n')
