@@ -7,9 +7,13 @@ exactly. A frame is judged against its stock render: an opening that is in the s
 only the bake has is. Stock frames that are themselves mostly background or one flat colour do
 not show the room, so sweeps pick another camera spot instead of shooting them.
 
-    python3 -I tools/fidelity/sweep_check.py <sweep-manifest.json>   # re-check, exit 1 on FAIL
+    python3 -I tools/fidelity/sweep_check.py <sweep-manifest.json>   # re-score, exit 1 on FAIL
+
+The re-check re-scores each frame from the sheet PNGs next to the manifest (stats, judge), and
+fails when a sheet is missing or its pixels no longer give the stored stats.
 """
 import json
+from pathlib import Path
 import sys
 
 import numpy as np
@@ -97,20 +101,57 @@ def frame_entry(sheet, row, eye, heading, columns):
     return entry
 
 
-def recheck(manifest):
+def rescore(manifest, base):
+    """Recomputes every frame entry from the saved sheet PNGs (row = 240 px, one 400 px column
+    per manifest column), so the verdict comes from pixels, not from stored 'result' fields.
+    Returns (frames by item name, mismatches between the stored and recomputed stats)."""
+    from PIL import Image
+    columns = manifest['columns']
+    out, mismatch = {}, []
+    for item in manifest['items']:
+        frames = []
+        path = Path(base) / item['sheet']
+        if not path.is_file():
+            mismatch.append(f"{item['name']}: sheet {item['sheet']} missing")
+            out[item['name']] = frames
+            continue
+        with Image.open(path) as sheet:
+            sheet = sheet.convert('RGB')
+            for f in item['frames']:
+                y = 240 * f['row']
+                cols = [(name, stats(sheet.crop((400 * k, y, 400 * k + 400, y + 240))))
+                        for k, name in enumerate(columns)]
+                entry = frame_entry(item['sheet'], f['row'], f['eye'], f['heading'], cols)
+                for name, _ in cols:
+                    old = {k: v for k, v in f['columns'][name].items() if k != 'why'}
+                    new = {k: v for k, v in entry['columns'][name].items() if k != 'why'}
+                    if old != new:
+                        mismatch.append(f"{item['name']} row {f['row']} {name}: stored {old} != frame {new}")
+                frames.append(entry)
+        out[item['name']] = frames
+    return out, mismatch
+
+
+def recheck(manifest, base):
+    """Re-scores the frames in base (the manifest's directory). Exit status counts failing items,
+    plus one for any stored stat the frames no longer reproduce."""
+    frames, mismatch = rescore(manifest, base)
     bad = 0
     for item in manifest['items']:
-        status = 'PASS' if item['frames'] and all(f['result'] == 'PASS' for f in item['frames']) else 'FAIL'
+        got = frames[item['name']]
+        status = 'PASS' if got and all(f['result'] == 'PASS' for f in got) else 'FAIL'
         bad += status != 'PASS'
-        print(f"{status} {item['name']}: {len(item['frames'])} frames, sheet {item['sheet']}")
-        for f in item['frames']:
+        print(f"{status} {item['name']}: {len(got)} frames re-scored from {item['sheet']}")
+        for f in got:
             if f['result'] != 'PASS':
                 print(f"    row {f['row']} eye {f['eye']} h {f['heading']}: {'; '.join(f['why'])}")
-    return bad
+    for m in mismatch:
+        print(f'MISMATCH {m}')
+    return bad + bool(mismatch)
 
 
 if __name__ == '__main__':
     total = 0
     for path in sys.argv[1:]:
-        total += recheck(json.load(open(path)))
+        total += recheck(json.load(open(path)), Path(path).parent)
     sys.exit(1 if total else 0)

@@ -188,4 +188,4 @@ for name in want:
 
 with open(f'{out}/sweep-manifest.json', 'w') as f:
     json.dump(manifest, f, indent=1)
-sys.exit(1 if sweep_check.recheck(manifest) else 0)
+sys.exit(1 if sweep_check.recheck(manifest, out) else 0)
