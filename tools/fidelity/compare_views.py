@@ -10,9 +10,19 @@ From Codex af25ec7 tools/fidelity/compare_views.py, with the QA-20261119-19 ruli
 2026-11-20 and QA-20261119-74:
 - near texture detail (near_views.detail: stock and 3DS frames both scored without the toon and
   nametag column x 165-245) needs >= 1.3x the stock render's and >= 1.0x r11's;
+- near_views.detail can be bought with sharpening halos, so QA-20261119-84 added three guards; a
+  near view passes only with all four (each column printed with stock / old / new):
+  (a) texture detail >= 1.3x stock and >= 1.0x r11 (masked Laplacian variance),
+  (b) off-edge detail >= 1.0x stock (Laplacian variance >= 3 px from the strong edges of stock, Old
+      and New),
+  (c) high-pass amplitude (sigma 1.5) <= 1.2x stock,
+  (d) mean edge overshoot <= 1.5x stock;
 - the stock render counts only with a stock_meta.json whose lens is main.cpp kViewFovYDeg (55),
   whose poses equal main.cpp kViews and whose PNG hashes match the files (a wrong-lens, wrong-pose
-  or swapped stock fails);
+  or swapped stock fails). The meta is written by the renderer, so it is also held to STOCK_PIN:
+  TT_RESOURCES must be at the pinned commit (rechecked with git), the render scripts must hash to
+  the pinned render_sha256, and the PNGs must be the pinned bytes (the render is byte-deterministic;
+  a blurred stock re-hashed into its meta fails here). Changing the render means re-pinning here;
 - the Old >= 0.9x New draw check is waived only for street_near, only when the Old and New frames
   are byte-identical, and only with --plan naming the chunks Old keeps far; the waiver is printed
   with those chunks.
@@ -24,6 +34,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import subprocess
 import numpy as np
 from PIL import Image
 from scipy import ndimage
@@ -35,6 +46,19 @@ SKY_BOX = {'ttc_far': (0, 0, 180, 30), 'ttc_tree': (110, 0, 260, 10),
 # r11 (/workspace/shots/3ds-integ-r11/r11_views_new) under near_views.detail's mask; unmasked these
 # frames score the ruling's 604 / 371 / 362.
 DETAIL_R11 = {'ttc_near': 491, 'street_near': 167, 'dd_near': 281}
+# The stock render (stock_detail.py, 400x240, 55 degree lens) is byte-identical run to run (r59 gate4 =
+# r60 gate5); these are its inputs and outputs. Re-pin only after rendering from a reviewed tree.
+STOCK_PIN = {
+    'tt_resources_commit': 'd00df01af876cc9c5d1a22329f394a9a50245e9c',
+    'render_sha256': 'ab9c41e3223032c2a9d87b238b835981b0d60c9ebfca1d068f02ffefcfe96be2',
+    'png': {'ttc_near': '8e36898c2721c2bd165acedb25e88f30ccd49e978b8bdb0797a5a19026eef9ba',
+            'street_near': 'c7b9cba8d39bd3d98587a19d854fd9dbdc7d57d762e09824dbbac71d79ee62d9',
+            'dd_near': '0f8388874adb414c8a7d20bd6ba2de3c74a8c5c04473fb426d47cb4a4747b14c'},
+}
+# QA-20261119-84 near bar, besides (a) 1.3x stock / 1.0x r11.
+OFF_EDGE_MIN = 1.0
+HIGHPASS_MAX = 1.2
+OVERSHOOT_MAX = 1.5
 # Old draws fewer than New here because Old's lodNear (160) and 6 MiB texture retain keep chunks
 # 6 and 54 at their far mesh; the QA ruling waives only this view, only for identical frames.
 DRAW_WAIVER_VIEWS = {'street_near'}
@@ -86,10 +110,21 @@ def detail(grey):
     return near_views.detail(grey)
 
 
-def check_stock(directory, main=near_views.MAIN):
+def resources_commit(path):
+    """git HEAD of a TT_RESOURCES checkout, or None."""
+    try:
+        out = subprocess.run(['git', '-C', str(path), 'rev-parse', 'HEAD'], capture_output=True, text=True)
+    except OSError:
+        return None
+    return out.stdout.strip() or None
+
+
+def check_stock(directory, main=near_views.MAIN, pin=None):
     """Problems with a stock_detail.py output dir (empty list = usable): stock_meta.json must
     exist, use main.cpp's near lens, match main.cpp kViews' zone / eye / target for every near view
-    and hash each stock PNG it names."""
+    and hash each stock PNG it names; its resources commit (rechecked with git), render_sha256 (and
+    the tree's render scripts) and PNG hashes must equal `pin` (STOCK_PIN)."""
+    pin = STOCK_PIN if pin is None else pin
     path = Path(directory) / 'stock_meta.json'
     if not path.is_file():
         return [f'no stock_meta.json in {directory} (rerun stock_detail.py)']
@@ -103,6 +138,15 @@ def check_stock(directory, main=near_views.MAIN):
         why.append(f"stock lens {meta.get('fovy')} != main.cpp kViewFovYDeg {lens}")
     if meta.get('size') != [400, 240]:
         why.append(f"stock size {meta.get('size')} != [400, 240]")
+    if meta.get('tt_resources_commit') != pin['tt_resources_commit']:
+        why.append(f"stock TT_RESOURCES commit {meta.get('tt_resources_commit')} != pinned {pin['tt_resources_commit']}")
+    else:
+        live = resources_commit(meta.get('tt_resources', ''))
+        if live != pin['tt_resources_commit']:
+            why.append(f"stock TT_RESOURCES {meta.get('tt_resources')} is at {live}, not the pinned commit")
+    tree = near_views.render_sha256(Path(main).parents[1])
+    if meta.get('render_sha256') != pin['render_sha256'] or tree != pin['render_sha256']:
+        why.append(f"stock render scripts: meta {meta.get('render_sha256')}, tree {tree}, pinned {pin['render_sha256']}")
     for name, view in near_views.views(main).items():
         if not view['r11_lens']:
             continue
@@ -114,9 +158,16 @@ def check_stock(directory, main=near_views.MAIN):
             if got.get(key) != view[key]:
                 why.append(f'{name} stock {key} {got.get(key)} != main.cpp kViews {view[key]}')
         png = Path(directory) / f'stock_{name}.png'
-        if png.is_file() and hashlib.sha256(png.read_bytes()).hexdigest() != got.get('sha256'):
+        digest = hashlib.sha256(png.read_bytes()).hexdigest() if png.is_file() else None
+        if png.is_file() and digest != got.get('sha256'):
             why.append(f'{name} stock_{name}.png does not hash to stock_meta.json')
+        if digest != pin['png'].get(name):
+            why.append(f'{name} stock_{name}.png is not the pinned stock render')
     return why
+
+
+def ratio(value, stock):
+    return f'{value/stock:.2f}x' if stock else 'stock 0'
 
 
 def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chunks=None):
@@ -139,14 +190,30 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
     if view in DETAIL_R11:
         lo, ln = detail(ol), detail(nl)
         r11 = DETAIL_R11[view]
+        bars = ('texture detail', 'off-edge detail', 'high-pass', 'overshoot')
         if stock is None:
-            columns['texture detail'] = (False, 'missing or unverified stock render (see the stock line)')
+            for name in bars:
+                columns[name] = (False, 'missing or unverified stock render (see the stock line)')
         else:
-            ls = detail(stock.mean(2))
+            sl = stock.mean(2)
+            ls = detail(sl)
             bar = max(1.3*ls, r11)
             columns['texture detail'] = (min(lo, ln) >= bar,
-                                 f'masked old {lo:.0f} new {ln:.0f} vs 1.3x stock {1.3*ls:.0f} (stock {ls:.0f}), '
+                                 f'(a) masked stock {ls:.0f} old {lo:.0f} new {ln:.0f} vs 1.3x stock {1.3*ls:.0f}, '
                                  f'1.0x r11 {r11}')
+            edges = near_views.edge_map(sl) | near_views.edge_map(ol) | near_views.edge_map(nl)
+            es, eo, en = (near_views.off_edge(g, edges) for g in (sl, ol, nl))
+            columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
+                                  f'(b) 3 px off-edge stock {es:.1f} old {eo:.1f} new {en:.1f} '
+                                  f'({ratio(min(eo, en), es)}, min {OFF_EDGE_MIN}x)')
+            hs, ho, hn = (near_views.highpass(g) for g in (sl, ol, nl))
+            columns['high-pass'] = (max(ho, hn) <= HIGHPASS_MAX*hs,
+                            f'(c) sigma 1.5 amplitude stock {hs:.2f} old {ho:.2f} new {hn:.2f} '
+                            f'({ratio(max(ho, hn), hs)}, max {HIGHPASS_MAX}x)')
+            vs, vo, vn = (near_views.overshoot(g) for g in (sl, ol, nl))
+            columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
+                            f'(d) mean edge overshoot stock {vs:.3f} old {vo:.3f} new {vn:.3f} '
+                            f'({ratio(max(vo, vn), vs)}, max {OVERSHOOT_MAX}x)')
         columns['old/new detail'] = (lo >= .9*ln, f'old {lo:.0f} new {ln:.0f} (old >= 0.9x new)')
     if old_draws is None or new_draws is None:
         columns['draws'] = (False, 'missing shot-time draws (both logs required)')

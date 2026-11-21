@@ -14,15 +14,41 @@ from compare_views import check_stock, compare
 import near_views
 
 
+COMMIT = '0' * 40
+
+
+def scene():
+    """A frame with real texture (smoothed noise) and clean step edges (vertical bands)."""
+    rng = np.random.default_rng(12)
+    tex = ndimage.gaussian_filter(rng.normal(0, 1, (240, 400)), 1.0)
+    bands = np.where((np.arange(400) // 20) % 2, 70.0, 180.0)[None, :].repeat(240, 0)
+    grey = ndimage.gaussian_filter(bands, 0.7) + tex / tex.std() * 16
+    return np.repeat(grey[:, :, None], 3, axis=2)
+
+
+def halo(image, amount=2.0):
+    """Unsharp mask: the ringing QA-20261119-84 found."""
+    return image + amount * (image - ndimage.gaussian_filter(image, (1, 1, 0)))
+
+
+def pin_for(directory):
+    """STOCK_PIN for a write_stock dir as it stands (the tree's render hash, its PNG hashes)."""
+    return {'tt_resources_commit': COMMIT, 'render_sha256': near_views.render_sha256(),
+            'png': {n: hashlib.sha256((Path(directory) / f'stock_{n}.png').read_bytes()).hexdigest()
+                    for n, v in near_views.views().items() if v['r11_lens']}}
+
+
 def write_stock(directory, image, meta_fovy=None, eye_shift=0.0, meta=True):
     """A stock_detail.py-style dir: stock_<view>.png per near view and, unless meta is False,
     a stock_meta.json (lens main.cpp's unless meta_fovy, eyes shifted by eye_shift)."""
-    out = {'fovy': near_views.fovy() if meta_fovy is None else meta_fovy, 'size': [400, 240], 'views': {}}
+    out = {'fovy': near_views.fovy() if meta_fovy is None else meta_fovy, 'size': [400, 240],
+           'tt_resources': '/res', 'tt_resources_commit': COMMIT, 'render_sha256': near_views.render_sha256(),
+           'views': {}}
     for name, view in near_views.views().items():
         if not view['r11_lens']:
             continue
         png = Path(directory) / f'stock_{name}.png'
-        Image.fromarray(image.astype(np.uint8)).save(png)
+        Image.fromarray(np.clip(image, 0, 255).astype(np.uint8)).save(png)
         out['views'][name] = {'zone': view['zone'], 'eye': [v + eye_shift for v in view['eye']],
                               'target': view['target'], 'sha256': hashlib.sha256(png.read_bytes()).hexdigest()}
     if meta:
@@ -32,9 +58,39 @@ def write_stock(directory, image, meta_fovy=None, eye_shift=0.0, meta=True):
 class Gates(unittest.TestCase):
     def setUp(self):
         self.image = np.random.default_rng(12).integers(0, 256, (240, 400, 3)).astype(float)
+        self.scene = scene()
+        self.stock = ndimage.gaussian_filter(self.scene, (.5, .5, 0))
+        patch = mock.patch.object(compare_views, 'resources_commit', return_value=COMMIT)
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def test_identical_detail(self):
-        self.assertFalse(compare('ttc_near', self.image, self.image, 120, 120, self.image*.5)[0])
+        # Sharper than a softer stock, no halo: all four near bars pass.
+        why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
+        self.assertFalse(why)
+        for name in ('texture detail', 'off-edge detail', 'high-pass', 'overshoot'):
+            self.assertTrue(columns[name][0], name)
+
+    def test_halo_fails_highpass_and_overshoot(self):
+        # QA-20261119-84: a 200% unsharp mask clears (a) and (b) but rings.
+        ringing = halo(self.stock)
+        why, columns = compare('ttc_near', ringing, ringing, 120, 120, self.stock)[:2]
+        self.assertTrue(columns['texture detail'][0])
+        self.assertTrue(columns['off-edge detail'][0])
+        self.assertFalse(columns['high-pass'][0])
+        self.assertFalse(columns['overshoot'][0])
+
+    def test_off_edge_detail(self):
+        # Sharp edges over flat texture: the off-edge column fails though (a) may pass.
+        bands = ndimage.gaussian_filter(np.where((np.arange(400) // 20) % 2, 70.0, 180.0)[None, :].repeat(240, 0), .3)
+        flat = np.repeat(bands[:, :, None], 3, axis=2)
+        columns = compare('ttc_near', flat, flat, 120, 120, self.stock)[1]
+        self.assertFalse(columns['off-edge detail'][0])
+
+    def test_near_columns_all_printed_without_stock(self):
+        columns = compare('dd_near', self.scene, self.scene, 120, 120)[1]
+        for name in ('texture detail', 'off-edge detail', 'high-pass', 'overshoot'):
+            self.assertFalse(columns[name][0], name)
 
     def test_missing_stock(self):
         self.assertTrue(any('stock' in s for s in compare('ttc_near', self.image, self.image, 120, 120)[0]))
@@ -51,7 +107,7 @@ class Gates(unittest.TestCase):
         self.assertTrue(any('r11' in s for s in why))
 
     def test_draw_waiver_identical(self):
-        why, columns = compare('street_near', self.image, self.image, 74, 84, self.image*.5, ['6', '54'])[:2]
+        why, columns = compare('street_near', self.scene, self.scene, 74, 84, self.stock, ['6', '54'])[:2]
         self.assertFalse(why)
         self.assertIn('draw ratio waived: frames identical (0 px differ), Old far LOD chunks 6/54',
                       columns['draws'][1])
@@ -80,7 +136,41 @@ class Gates(unittest.TestCase):
     def test_stock_meta_ok(self):
         with tempfile.TemporaryDirectory() as d:
             write_stock(d, self.image)
-            self.assertEqual(check_stock(d), [])
+            self.assertEqual(check_stock(d, pin=pin_for(d)), [])
+
+    def test_stock_rehashed_blurred_fails_pin(self):
+        # QA-20261119-84 finding 2: blur the stock PNGs and re-hash them into the meta (lens and
+        # poses unchanged). The meta is self-consistent, but the PNGs are not the pinned render.
+        with tempfile.TemporaryDirectory() as d:
+            write_stock(d, self.image)
+            pin = pin_for(d)
+            write_stock(d, ndimage.gaussian_filter(self.image, (2, 2, 0)))
+            why = check_stock(d, pin=pin)
+            self.assertFalse(any('does not hash' in s for s in why))
+            self.assertTrue(any('not the pinned stock render' in s for s in why))
+
+    def test_stock_wrong_resources_commit(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_stock(d, self.image)
+            pin = dict(pin_for(d), tt_resources_commit='1' * 40)
+            self.assertTrue(any('TT_RESOURCES commit' in s for s in check_stock(d, pin=pin)))
+
+    def test_stock_resources_checkout_moved(self):
+        # The meta names the pinned commit, but the checkout it names is somewhere else now.
+        with tempfile.TemporaryDirectory() as d:
+            write_stock(d, self.image)
+            with mock.patch.object(compare_views, 'resources_commit', return_value='2' * 40):
+                self.assertTrue(any('not the pinned commit' in s for s in check_stock(d, pin=pin_for(d))))
+
+    def test_stock_render_script_changed(self):
+        with tempfile.TemporaryDirectory() as d:
+            write_stock(d, self.image)
+            pin = dict(pin_for(d), render_sha256='3' * 64)
+            self.assertTrue(any('render scripts' in s for s in check_stock(d, pin=pin)))
+
+    def test_stock_pin_matches_tree(self):
+        # STOCK_PIN's render hash is the tree's: editing the stock render scripts needs a re-pin.
+        self.assertEqual(compare_views.STOCK_PIN['render_sha256'], near_views.render_sha256())
 
     def test_stock_without_meta(self):
         with tempfile.TemporaryDirectory() as d:

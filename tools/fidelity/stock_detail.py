@@ -8,9 +8,10 @@ DNA as upstream does (dna.py / assemble.py), at 400x240 with main.cpp's eye, tar
 Exit 1 when a capture has less detail than stock.
 
 Writes <out>/stock_<view>.png and <out>/stock_meta.json (lens, size, each view's zone / eye /
-target / PNG sha256, TT_RESOURCES and its git commit). compare_views.py refuses a stock dir whose
-meta is missing, whose lens is not main.cpp's near lens, whose poses differ from kViews, or whose
-PNGs do not hash to the meta. --fovy is for experiments only: anything but kViewFovYDeg fails there.
+target / PNG sha256, TT_RESOURCES and its git commit, render_sha256 of near_views.RENDER_FILES).
+compare_views.py refuses a stock dir whose meta is missing, whose lens is not main.cpp's near lens,
+whose poses differ from kViews, whose PNGs do not hash to the meta, or whose commit, render hash or
+PNG hashes differ from its STOCK_PIN (the render is byte-deterministic). --fovy is for experiments only: anything but kViewFovYDeg fails there.
 
     TT_RESOURCES=<ref/resources> xvfb-run -a .venv/bin/python -I tools/fidelity/stock_detail.py \\
         <gate>/vold/views <gate>/vnew/views --out <dir>
@@ -71,7 +72,7 @@ def main():
     commit = subprocess.run(['git', '-C', str(RES), 'rev-parse', 'HEAD'], capture_output=True,
                             text=True).stdout.strip() or None
     meta = {'fovy': fovy, 'size': [400, 240], 'tt_resources': str(RES), 'tt_resources_commit': commit,
-            'views': {}}
+            'render_sha256': near_views.render_sha256(ROOT), 'views': {}}
     for name, zone, eye, target in VIEWS:
         _, storages, src = street_catalog.paths(zone)
         store = dna.Storage(base.loader, str(RES))
