@@ -594,10 +594,18 @@ def _texel_need(parts, density):
     return out[0], out[1]
 
 
-def _sharpen(image, radius, percent):
-    """Unsharp mask on a tile's colour; alpha (cutout edges) is left as resampled."""
-    from PIL import ImageFilter
-    rgb = image.convert('RGB').filter(ImageFilter.UnsharpMask(radius=radius, percent=int(percent), threshold=0))
+def _sharpen(image, radius, percent, threshold=0, clamp=0, bound=None):
+    """Unsharp mask on a tile's colour; alpha (cutout edges) is left as resampled.
+    With clamp, each colour is kept inside the 3x3 range of `bound` (a ringing-free resample of
+    the same box, else the tile), so step edges get steeper but never overshoot (QA-20261119-84)."""
+    from PIL import Image, ImageFilter
+    rgb = image.convert('RGB').filter(ImageFilter.UnsharpMask(radius=radius, percent=int(percent),
+                                                              threshold=int(threshold)))
+    if clamp:
+        ref = (bound or image).convert('RGB')
+        lo = np.asarray(ref.filter(ImageFilter.MinFilter(3)))
+        hi = np.asarray(ref.filter(ImageFilter.MaxFilter(3)))
+        rgb = Image.fromarray(np.clip(np.asarray(rgb), lo, hi), 'RGB')
     rgb.putalpha(image.getchannel('A'))
     return rgb
 
@@ -772,7 +780,8 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
             image = Image.fromarray(src, 'RGBA').resize((tw, th), Image.BOX if shrink else Image.BICUBIC, box=box)
             if sharpen and sharpen[1]:
-                image = _sharpen(image, *sharpen)
+                bound = None if shrink else Image.fromarray(src, 'RGBA').resize((tw, th), Image.BILINEAR, box=box)
+                image = _sharpen(image, *sharpen, bound=bound)
             image = np.asarray(image)
             # By the crop, not the source: a palette page mixes opaque art and
             # cutouts, and an opaque crop belongs on a 4 bpp ETC1 page.

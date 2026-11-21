@@ -227,10 +227,13 @@ Key decisions:
      A tile holds only the UV rectangle that chunk samples, sized by screen need:
      0.5 texel per top-screen pixel at the closest walkable floor point (eye height,
      distance clamped 12..160), capped by the source, multiples of 16 up to 240,
-     8px gutter, four per-tile mips, skyline packed. Each near tile gets an unsharp mask
-     (radius 1, 200%, colour only) after resampling (`NEAR_ATLAS['sharpen']`): Azahar drew
-     the magnified tiles softer than Panda does with the same bytes, and the near views
-     scored only 1.09-1.21x the stock render with the toon masked (QA-20261119-74). Ground textures stay standalone
+     8px gutter, four per-tile mips, skyline packed. Near tiles are not sharpened by default;
+     `bake_street.NEAR_SHARPEN` opts a zone in to an unsharp mask after resampling (radius,
+     percent, threshold, clamp; clamp keeps each texel inside its 3x3 range in a bilinear
+     resample, so edges get no halo). Azahar draws the magnified tiles softer than Panda does
+     with the same bytes (unsharpened near views score 1.09-1.21x the stock render with the
+     toon masked), but QA-20261119-84 rejected the 200% unclamped mask for ringing; the sweep
+     is in the qa19 lane's qa/sharpen-sweep.md and no zone is opted in until QA rules. Ground textures stay standalone
      at 256 only where atlasing their repeats would multiply triangles. PICA mips
      stop at 8x8 and clamp there, so a repeating standalone texture's last level is
      its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a
