@@ -594,6 +594,14 @@ def _texel_need(parts, density):
     return out[0], out[1]
 
 
+def _sharpen(image, radius, percent):
+    """Unsharp mask on a tile's colour; alpha (cutout edges) is left as resampled."""
+    from PIL import ImageFilter
+    rgb = image.convert('RGB').filter(ImageFilter.UnsharpMask(radius=radius, percent=int(percent), threshold=0))
+    rgb.putalpha(image.getchannel('A'))
+    return rgb
+
+
 def _skyline_fit(skyline, w, h, pw, ph):
     """Bottom-left position for a w x h rect on the skyline [(x, y, width)], or None."""
     best = None
@@ -664,7 +672,7 @@ def _shelf_pack(rects, page_sizes):
 
 def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_levels=3, standalone_size=256,
                 large_ground=True, pages=LOCAL_PAGES, view_near=12.0, view_far=160.0, name='local_atlas',
-                white=False):
+                white=False, sharpen=None):
     """Per-chunk textures and batches: chunk-local pages (see the note above).
 
     Returns (per-chunk texture lists, per-chunk batches indexing that chunk's list,
@@ -762,8 +770,10 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             tw, th = size
             box = (lo[0] * sw, (1 - hi[1]) * sh, hi[0] * sw, (1 - lo[1]) * sh)
             shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
-            image = np.asarray(Image.fromarray(src, 'RGBA').resize(
-                (tw, th), Image.BOX if shrink else Image.BICUBIC, box=box))
+            image = Image.fromarray(src, 'RGBA').resize((tw, th), Image.BOX if shrink else Image.BICUBIC, box=box)
+            if sharpen and sharpen[1]:
+                image = _sharpen(image, *sharpen)
+            image = np.asarray(image)
             # By the crop, not the source: a palette page mixes opaque art and
             # cutouts, and an opaque crop belongs on a 4 bpp ETC1 page.
             alpha_of[idx] = bool(np.any(src[int(box[1]):max(int(box[1]) + 1, math.ceil(box[3])),

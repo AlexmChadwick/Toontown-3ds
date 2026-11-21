@@ -32,7 +32,11 @@ import sign_text
 # --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
 # Cog HQs still use the shared 64px atlas (street_atlas.build).
 SHARED_NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
-NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=4, large_ground=True)
+# sharpen: unsharp mask (radius px, percent) on each near tile after resampling. Azahar draws the
+# magnified near tiles softer than Panda does with the same bytes; without it the near views scored
+# 1.09x / 1.21x / 1.12x the stock render with the toon masked (QA-20261119-74). TT_ATLAS_SHARPEN=r,p
+# overrides it, TT_ATLAS_SHARPEN=0,0 turns it off.
+NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=4, large_ground=True, sharpen=(1.0, 200))
 OLD_LOD_NEAR = 160.0
 NEW_LOD_NEAR = 260.0
 # render/quality.h lodMust (Old, New): upgraded first, still inside DRAW_CAP.
@@ -1304,7 +1308,9 @@ def bake(zone_id, args, base):
             raw, chunks, floors, low, far_textures, lod_report = better
             lod_report = dict(lod_report, straight_seams=True)
     chunk_textures, batches, atlas_stats=street_atlas.build_local(ex.sources, raw, view_points=view_points(floors),
-        **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density']))))
+        **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density'])),
+               sharpen=tuple(map(float, os.environ['TT_ATLAS_SHARPEN'].split(','))) if os.environ.get('TT_ATLAS_SHARPEN')
+               else NEAR_ATLAS['sharpen']))
     batches=[[street_atlas.rebase_large_uvs(b,t) for b in bs] for bs,t in zip(batches,chunk_textures)]
     if os.environ.get('TT_ATLAS_DEBUG'):
         Path(os.environ['TT_ATLAS_DEBUG']).write_text(json.dumps(atlas_stats,indent=1))
