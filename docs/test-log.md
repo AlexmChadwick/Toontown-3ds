@@ -2056,3 +2056,16 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
   measure ignores background gaps under 3 px: stock Panda blends M_dual foliage edges over the
   background while the bake alpha-tests them, which had failed 9 Bossbot hedge / tree frames
   at +5-7% void with no geometry missing.
+
+## 2026-11-22 QA-20261119-84 ruling (a): zone 2100 c150, ttc/dd KNOWN GAP (Azahar Old + New, emulator)
+
+- Build: toontown3ds.3dsx c74217ac (source unchanged since 04560e4). Data: 2100.tz rebaked with c150
+  (r1.0, 150%, t0, clamped); 2000 / 1000 unsharpened. Old 3DS and New 3DS modes, emulator, fresh views.
+- fps / heap / linear / VRAM at the view steps (gate4 logs): ~29-30 fps, heap ~8089K, linfree ~11361K,
+  vramfree ~4194K (ttc_tree step, Old log line); full logs in the lane QA pack.
+- street_near: (a) 271 = 1.39x stock, (b) 1.16x, (c) 1.11x, (d) 0.92x: all four pass.
+- ttc_near (1.09x / 0.62x / 1.01x / 1.49x) and dd_near (1.12x / 0.66x / 1.03x / 1.11x) are held at their
+  KNOWN GAP floors, not waived (`docs/3ds-near-detail.md`).
+- Issue: ttc_tree tile ssim 0.786 (min 0.85): Old and New sampled different phases of the pet shop window
+  fish loop. Not caused by this change (2100 only); gate exit 1. Open.
+- Facility (31 rooms) and boss (4) sweeps re-run fresh: all pass. groups.dc hash unchanged.
