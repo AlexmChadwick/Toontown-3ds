@@ -15,6 +15,7 @@ import near_views
 
 
 COMMIT = '0' * 40
+REAL_KNOWN_GAP = dict(compare_views.KNOWN_GAP)
 
 
 def scene():
@@ -63,6 +64,10 @@ class Gates(unittest.TestCase):
         patch = mock.patch.object(compare_views, 'resources_commit', return_value=COMMIT)
         patch.start()
         self.addCleanup(patch.stop)
+        # The numeric gate fixtures run with no KNOWN GAP views; Known tests set their own floors.
+        gap = mock.patch.object(compare_views, 'KNOWN_GAP', {})
+        gap.start()
+        self.addCleanup(gap.stop)
 
     def test_identical_detail(self):
         # Sharper than a softer stock, no halo: all four near bars pass.
@@ -211,6 +216,61 @@ class Gates(unittest.TestCase):
                     '--stock', str(stock)]
             with mock.patch.object(sys, 'argv', argv), mock.patch('builtins.print'):
                 self.assertEqual(compare_views.main(), 1)
+
+    def floors_from(self, view, frame):
+        """KNOWN_GAP floors measured on `frame` the way the sweep off-rows were."""
+        sl, g = self.stock.mean(2), frame.mean(2)
+        edges = near_views.edge_map(sl) | near_views.edge_map(g)
+        return {view: {'a': round(near_views.detail(g)),
+                       'b': round(near_views.off_edge(g, edges)/near_views.off_edge(sl, edges), 2),
+                       'd': round(near_views.overshoot(g)/near_views.overshoot(sl), 2)}}
+
+    def test_known_gap_holds_floor(self):
+        gap = self.floors_from('ttc_near', self.scene)
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
+        self.assertFalse(why)
+        self.assertEqual(columns['known gap'][1].split(':')[0].split(' (a)')[0], 'KNOWN GAP ttc_near')
+        self.assertTrue(columns['known gap'][1].endswith(': source-limited, QA-84 ruling'))
+
+    def test_known_gap_fails_below_floor(self):
+        gap = self.floors_from('dd_near', self.scene)
+        soft = ndimage.gaussian_filter(self.scene, (.8, .8, 0))
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            why, columns = compare('dd_near', soft, soft, 120, 120, self.stock)[:2]
+        self.assertFalse(columns['known gap'][0])
+        self.assertTrue(why)
+
+    def test_gate_fails_when_sharpen_applied_to_zone_not_opted_in(self):
+        # Floors from the unsharpened frame; sharpening that zone raises overshoot past the ceiling.
+        gap = self.floors_from('ttc_near', self.scene)
+        ringing = halo(self.scene)
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            why, columns = compare('ttc_near', ringing, ringing, 120, 120, self.stock)[:2]
+        self.assertFalse(columns['overshoot'][0])
+        self.assertFalse(columns['known gap'][0])
+        self.assertTrue(why)
+
+    def test_real_known_gap_zones(self):
+        self.assertEqual(REAL_KNOWN_GAP, {'ttc_near': {'a': 442, 'b': 0.62, 'd': 1.49},
+                                          'dd_near': {'a': 258, 'b': 0.66, 'd': 1.11}})
+
+    def test_street_near_fails_below_1_3x(self):
+        # street_near is not a known gap: as sharp as stock (1.0x) must fail (a).
+        why, columns = compare('street_near', self.stock, self.stock, 84, 84, self.stock)[:2]
+        self.assertFalse(columns['texture detail'][0])
+        self.assertTrue(any('texture detail' in s for s in why))
+
+    def test_street_near_not_known_gap(self):
+        self.assertNotIn('street_near', compare_views.KNOWN_GAP)
+
+    def test_baker_opts_in_only_street_2100(self):
+        # bake_street imports panda3d (not in the gate's python), so read the literal from source.
+        import ast
+        tree = ast.parse((Path(__file__).parents[1]/'pipeline'/'bake_street.py').read_text())
+        found = [ast.literal_eval(n.value) for n in tree.body
+                 if isinstance(n, ast.Assign) and any(getattr(t, 'id', '') == 'NEAR_SHARPEN' for t in n.targets)]
+        self.assertEqual(found, [{2100: (1.0, 150.0, 0.0, 1.0)}])
 
     def test_flat_sky(self):
         flat = np.full_like(self.image, 140)

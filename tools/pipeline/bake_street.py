@@ -39,8 +39,12 @@ SHARED_NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, l
 # texel inside its 3x3 range in a bilinear resample, so edges get no halo (QA-20261119-84 rejected
 # 200% unclamped for ringing). TT_ATLAS_SHARPEN=r,p[,t[,c]] overrides it for every zone baked;
 # TT_ATLAS_SHARPEN=0,0 turns it off.
+# QA-20261119-84 ruling (a): only zone 2100 (Toontown Central street) is opted in, at c150 (radius 1.0,
+# 150%, threshold 0, clamped): it passes all four near-bar columns there. The TTC and Donald's Dock
+# playgrounds stay unsharpened: no setting passes their bar (docs/3ds-near-detail.md, KNOWN GAP in
+# tools/fidelity/compare_views.py).
 NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=4, large_ground=True)
-NEAR_SHARPEN = {}
+NEAR_SHARPEN = {2100: (1.0, 150.0, 0.0, 1.0)}
 
 
 def near_sharpen(zone_id):

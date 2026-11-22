@@ -59,6 +59,14 @@ STOCK_PIN = {
 OFF_EDGE_MIN = 1.0
 HIGHPASS_MAX = 1.2
 OVERSHOOT_MAX = 1.5
+# QA-20261119-84 ruling (a): ttc_near and dd_near stay unsharpened. Their stock-relative detail is
+# source-limited (no sharpen setting passes all four columns, docs/3ds-near-detail.md), so they are
+# a KNOWN GAP held to floors taken from the unsharpened sweep rows, not waived: (a) masked Laplacian
+# detail, (b) off-edge ratio to stock, (d) overshoot ratio to stock. (c) keeps HIGHPASS_MAX. A build
+# that drops below any floor, or sharpens one of these zones (the overshoot ceiling trips first),
+# FAILs. Values are compared at the precision the gate prints (a: integer, b / d: 2 decimals).
+KNOWN_GAP = {'ttc_near': {'a': 442, 'b': 0.62, 'd': 1.49},
+             'dd_near': {'a': 258, 'b': 0.66, 'd': 1.11}}
 # Old draws fewer than New here because Old's lodNear (160) and 6 MiB texture retain keep chunks
 # 6 and 54 at their far mesh; the QA ruling waives only this view, only for identical frames.
 DRAW_WAIVER_VIEWS = {'street_near'}
@@ -198,22 +206,43 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
             sl = stock.mean(2)
             ls = detail(sl)
             bar = max(1.3*ls, r11)
-            columns['texture detail'] = (min(lo, ln) >= bar,
+            gap = KNOWN_GAP.get(view)
+            if gap:
+                got = round(min(lo, ln))
+                columns['texture detail'] = (got >= gap['a'],
+                                     f'(a) masked stock {ls:.0f} old {lo:.0f} new {ln:.0f} ({ratio(min(lo, ln), ls)}); '
+                                     f'KNOWN GAP floor {gap["a"]}')
+            else:
+                columns['texture detail'] = (min(lo, ln) >= bar,
                                  f'(a) masked stock {ls:.0f} old {lo:.0f} new {ln:.0f} vs 1.3x stock {1.3*ls:.0f}, '
                                  f'1.0x r11 {r11}')
             edges = near_views.edge_map(sl) | near_views.edge_map(ol) | near_views.edge_map(nl)
             es, eo, en = (near_views.off_edge(g, edges) for g in (sl, ol, nl))
-            columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
-                                  f'(b) 3 px off-edge stock {es:.1f} old {eo:.1f} new {en:.1f} '
-                                  f'({ratio(min(eo, en), es)}, min {OFF_EDGE_MIN}x)')
+            if gap:
+                columns['off-edge detail'] = (round(min(eo, en)/es, 2) >= gap['b'],
+                                      f'(b) 3 px off-edge stock {es:.1f} old {eo:.1f} new {en:.1f} '
+                                      f'({ratio(min(eo, en), es)}, KNOWN GAP floor {gap["b"]:.2f}x)')
+            else:
+                columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
+                                      f'(b) 3 px off-edge stock {es:.1f} old {eo:.1f} new {en:.1f} '
+                                      f'({ratio(min(eo, en), es)}, min {OFF_EDGE_MIN}x)')
             hs, ho, hn = (near_views.highpass(g) for g in (sl, ol, nl))
             columns['high-pass'] = (max(ho, hn) <= HIGHPASS_MAX*hs,
                             f'(c) sigma 1.5 amplitude stock {hs:.2f} old {ho:.2f} new {hn:.2f} '
                             f'({ratio(max(ho, hn), hs)}, max {HIGHPASS_MAX}x)')
             vs, vo, vn = (near_views.overshoot(g) for g in (sl, ol, nl))
-            columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
-                            f'(d) mean edge overshoot stock {vs:.3f} old {vo:.3f} new {vn:.3f} '
-                            f'({ratio(max(vo, vn), vs)}, max {OVERSHOOT_MAX}x)')
+            if gap:
+                columns['overshoot'] = (round(max(vo, vn)/vs, 2) <= gap['d'],
+                                f'(d) mean edge overshoot stock {vs:.3f} old {vo:.3f} new {vn:.3f} '
+                                f'({ratio(max(vo, vn), vs)}, KNOWN GAP ceiling {gap["d"]:.2f}x)')
+            else:
+                columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
+                                f'(d) mean edge overshoot stock {vs:.3f} old {vo:.3f} new {vn:.3f} '
+                                f'({ratio(max(vo, vn), vs)}, max {OVERSHOOT_MAX}x)')
+            if gap:
+                columns['known gap'] = (all(columns[k][0] for k in ('texture detail', 'off-edge detail', 'overshoot')),
+                                f'KNOWN GAP {view} (a) {ratio(min(lo, ln), ls)} (b) {ratio(min(eo, en), es)}: '
+                                f'source-limited, QA-84 ruling')
         columns['old/new detail'] = (lo >= .9*ln, f'old {lo:.0f} new {ln:.0f} (old >= 0.9x new)')
     if old_draws is None or new_draws is None:
         columns['draws'] = (False, 'missing shot-time draws (both logs required)')
@@ -261,7 +290,10 @@ def main():
             print(f"{'FAIL' if why else 'PASS'} {view}: ssim {sim:.3f} mintile {tile:.3f} "
                   f"diff {diff:.1f}% draws {od}/{nd}  {'; '.join(why)}")
             for name, (ok, text) in columns.items():
-                print(f"    {'PASS' if ok else 'FAIL'} {name}: {text}")
+                if name == 'known gap' and ok:
+                    print(f'    {text}')
+                else:
+                    print(f"    {'PASS' if ok else 'FAIL'} {name}: {text}")
             fail |= bool(why)
         except (OSError, ValueError) as error:
             print(f'FAIL {view}: {error}')
