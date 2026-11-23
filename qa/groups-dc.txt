@@ -1,0 +1,11 @@
+groups.dc hash check
+source 581360cbf15751fe595b98a114abc8086544fea7
+requested sha256 7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039
+
+The file is not in this tree. ref/open-toontown at 2b366a23c8535573b24ce1b77474b5700f474630
+contains only:
+  etc/otp.dc  sha256 0b5b7331220368f838926b8d98c8413590661e2367b336633355f45d0932e8f7
+  etc/toon.dc sha256 8a62ac4aac07ead376f0159d32ea54db9229b87af369204ed5c1822003a74daf
+Concatenating those two does not produce 7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039.
+No groups.dc was found on the VM, in the panda3d 1.10.15 wheel, or in that submodule tree.
+This change does not edit either DC file. The requested hash is not confirmed.

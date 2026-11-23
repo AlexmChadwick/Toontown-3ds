@@ -2069,3 +2069,38 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
 - Issue: ttc_tree tile ssim 0.786 (min 0.85): Old and New sampled different phases of the pet shop window
   fish loop. Not caused by this change (2100 only); gate exit 1. Open.
 - Facility (31 rooms) and boss (4) sweeps re-run fresh: all pass. groups.dc hash unchanged.
+
+## 2026-11-23 ttc_tree fish phase pinned on view/pose steps (Azahar Old + New, emulator)
+
+- Build: toontown3ds.3dsx sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+  (source 581360c). `AnimProps::holdTime(0)` on autotest labels `view:` and `pose:` only.
+  Logs show one `animprops: autotest hold 0.000s` per view step. Audio null (no /dev/snd, volume 0).
+  Emulator only. No hardware numbers.
+- Cause, unfixed binary 742653b0caa37684, same zone 2000: official ttc_tree grabs (both 7993 ms
+  into the step) ssim 0.994, min tile 0.823 (tile 5), px>30 0.36%. Masking the differing box
+  (local analysis only) makes ssim 1.000 and min tile 1.000. The differing pixels are the
+  pet-shop fish bowl and the sign under it. Numbers in `qa/ttc-tree-cause.txt`.
+- Pinned ttc_tree, three captures: oldp1 vs newp1 and oldp2 vs newp1 both ssim 0.999227,
+  min tile 0.970837 (tile 13), px>30 0.028%. oldp1 vs oldp2 is identical. The fish bowl has
+  0 px >8. Residual 80 px are the pet-shop sign (x 262-289, y 69-77) plus one pixel at
+  (220, 162); the same residual on both Old runs.
+- Full gate run 1 (`tools/fidelity/run_gate.sh`, 550 s, logs in `qa/gate1/`): compare_views
+  exit 1. ttc_tree PASS ssim 0.999 min tile 0.971 draws 115/115. street_near frames are
+  identical and the draw waiver applies (Old far chunks 6/54, 74/84 draws). The stock check
+  fails: street_near PNG matches STOCK_PIN, ttc_near and dd_near do not (llvmpipe, two
+  renders byte-identical to each other, clock and extra frames do not change them). Because
+  the stock dir is rejected, the official log does not score the near columns and does not
+  print the KNOWN GAP lines.
+- Scoring the same shots against that local stock anyway (not the official result, see
+  `qa/gate1/columns-stock-pin-bypassed.txt`): street_near (a) 271 = 1.39x stock and above r11
+  167, (b) 1.16x, (c) 1.11x, (d) 0.92x, all four pass. ttc_near (a) 442 holds the floor,
+  (b) 0.58x fails 0.62, (d) 1.50x fails 1.49. dd_near (a) rounds to 257 and fails floor 258
+  (raw 256.877, stable across the last six grabs, Old and New equal); (b) 0.66x and (d) 1.11x
+  hold. The KNOWN GAP lines do print in that bypassed score, and the view fails.
+- fps at the view steps ~28-30 after the first hitch. ttc_near Old: heap 5869K, linfree 14395K,
+  vramfree 4194K once streaming settled. Not a hardware measurement.
+- Facility sweep: 31 rooms, 340 frames, all PASS. Boss sweep: vp/cfo/cj/ceo, 64 frames, all PASS.
+  `qa/sweeps.txt`. groups.dc is not in the pinned open-toontown tree, so
+  7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039 was not confirmed
+  (`qa/groups-dc.txt`).
+- The overall gate is not green. Runs 2 and 3 were still in progress when this entry was written.

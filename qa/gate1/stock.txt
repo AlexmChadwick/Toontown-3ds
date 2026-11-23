@@ -1,0 +1,18 @@
+# source 581360cbf15751fe595b98a114abc8086544fea7
+# app sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+# resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+# TT_DATA sdmc-out/3ds/toontown3ds/data zones 2000 2100 1000
+# Azahar 2126.2 Xvfb audio null (volume 0, null sink). run_gate.sh 550s. compare_views exit 1
+# started 2026-11-23T04:33:25Z
+
+
+stock: TT_RESOURCES /agent/repos/Toontown-3ds/ref/resources (d00df01af876cc9c5d1a22329f394a9a50245e9c)
+Known pipe types:
+  glxGraphicsPipe
+(1 aux display modules not yet loaded.)
+Xlib:  extension "XFree86-DGA" missing on display ":113".
+:device(error): Error adding inotify watch on /dev/input: No such file or directory
+:device(error): Error opening directory /dev/input: No such file or directory
+ttc_near: stock 413; /tmp/gate/run1/vold/views 442 (1.07x stock); /tmp/gate/run1/vnew/views 443 (1.07x stock)
+street_near: stock 195; /tmp/gate/run1/vold/views 271 (1.39x stock); /tmp/gate/run1/vnew/views 271 (1.39x stock)
+dd_near: stock 231; /tmp/gate/run1/vold/views 257 (1.11x stock); /tmp/gate/run1/vnew/views 257 (1.11x stock)

@@ -1,0 +1,66 @@
+# NOT the official compare_views result. check_stock rejects ttc_near and dd_near PNGs,
+# so the official gate never scores these columns. Numbers below call compare() with the
+# local stock images anyway, so the floors can be read.
+# source 581360cbf15751fe595b98a114abc8086544fea7
+# app a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+FAIL ttc_near: ssim 1.000 mintile 1.000
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 0)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS texture detail: (a) masked stock 413 old 442 new 443 (1.07x); KNOWN GAP floor 442
+    FAIL off-edge detail: (b) 3 px off-edge stock 121.1 old 70.7 new 70.7 (0.58x, KNOWN GAP floor 0.62x)
+    PASS high-pass: (c) sigma 1.5 amplitude stock 8.34 old 8.42 new 8.42 (1.01x, max 1.2x)
+    FAIL overshoot: (d) mean edge overshoot stock 0.060 old 0.090 new 0.090 (1.50x, KNOWN GAP ceiling 1.49x)
+    FAIL known gap: KNOWN GAP ttc_near (a) 1.07x (b) 0.58x: source-limited, QA-84 ruling
+    PASS old/new detail: old 442 new 443 (old >= 0.9x new)
+    PASS draws: 77/77 (old >= 0.9x new)
+PASS ttc_mid: ssim 1.000 mintile 1.000
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 15)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS draws: 65/65 (old >= 0.9x new)
+PASS ttc_far: ssim 1.000 mintile 0.999
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 0.999 (min 0.85, tile 33)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 38.8 new std 38.8 (min 4)
+    PASS draws: 130/129 (old >= 0.9x new)
+PASS ttc_tree: ssim 0.999 mintile 0.971
+    PASS ssim: 0.999 (min 0.97)
+    PASS tile ssim: 0.971 (min 0.85, tile 13)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 38.9 new std 38.9 (min 4)
+    PASS draws: 115/115 (old >= 0.9x new)
+PASS street_near: ssim 1.000 mintile 1.000
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 0)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS texture detail: (a) masked stock 195 old 271 new 271 vs 1.3x stock 254, 1.0x r11 167
+    PASS off-edge detail: (b) 3 px off-edge stock 36.8 old 42.6 new 42.6 (1.16x, min 1.0x)
+    PASS high-pass: (c) sigma 1.5 amplitude stock 6.51 old 7.24 new 7.24 (1.11x, max 1.2x)
+    PASS overshoot: (d) mean edge overshoot stock 0.117 old 0.107 new 0.107 (0.92x, max 1.5x)
+    PASS old/new detail: old 271 new 271 (old >= 0.9x new)
+    PASS draws: 74/84: draw ratio waived: frames identical (0 px differ), Old far LOD chunks 6/54
+PASS street_far: ssim 1.000 mintile 1.000
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 13)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 28.4 new std 28.4 (min 4)
+    PASS draws: 40/40 (old >= 0.9x new)
+FAIL dd_near: ssim 1.000 mintile 1.000
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 36)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    FAIL texture detail: (a) masked stock 231 old 257 new 257 (1.11x); KNOWN GAP floor 258
+    PASS off-edge detail: (b) 3 px off-edge stock 52.8 old 34.9 new 34.9 (0.66x, KNOWN GAP floor 0.66x)
+    PASS high-pass: (c) sigma 1.5 amplitude stock 6.41 old 6.59 new 6.59 (1.03x, max 1.2x)
+    PASS overshoot: (d) mean edge overshoot stock 0.040 old 0.044 new 0.044 (1.11x, KNOWN GAP ceiling 1.11x)
+    FAIL known gap: KNOWN GAP dd_near (a) 1.11x (b) 0.66x: source-limited, QA-84 ruling
+    PASS old/new detail: old 257 new 257 (old >= 0.9x new)
+    PASS draws: 74/74 (old >= 0.9x new)
+PASS dd_far: ssim 1.000 mintile 0.999
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 0.999 (min 0.85, tile 16)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 12.0 new std 12.0 (min 4)
+    PASS draws: 88/88 (old >= 0.9x new)
