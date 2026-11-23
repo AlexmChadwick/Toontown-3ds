@@ -2106,3 +2106,22 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
 - The overall gate is not green. Runs 2 and 3 were still in progress when this entry was written.
 
 - Gate 2 (WIP, stopped for usage cap): compare_views exit 1, same stock-pin failure. ttc_tree ssim 0.999 min tile 0.971. Logs in qa/gate2/. Gate 3 was still running and is not in this commit.
+
+## 2026-11-23 box gates and sweeps on 53b7805 (Azahar Old and New 3DS mode, Linux/Xvfb, emulator)
+- Source 53b780561562657a7f4f0efe05f6f3425fa59906, app sha256 d29e005392b6520e4fa69ce7e5ff364ca4fa1017efc141314fa43a470a41f33c,
+  TT_RESOURCES d00df01af876cc9c5d1a22329f394a9a50245e9c. No code change since 53b7805.
+- Stock on this box matches STOCK_PIN (ttc_near, street_near, dd_near PNGs and render_sha256), so the
+  official scorer accepts it. The cloud llvmpipe stock mismatch is a rig difference.
+- Full gate three times (`tools/fidelity/run_gate.sh`): run_gate.sh exit 0 and compare_views exit 0 each
+  time, every view PASS. Old and New ttc_near / dd_near frames were byte-identical across the three runs.
+  ttc_near (a) 442.5 (b) 0.617 (d) 1.494; dd_near (a) 257.7 (b) 0.656 (d) 1.111; street_near (a) 270.5
+  (b) 1.16x (c) 1.11x (d) 0.92x. Both KNOWN GAP lines printed. The cloud misses (ttc b 0.58, ttc d 1.50,
+  dd a 257) were scored against the cloud's own stock and do not reproduce here. Margin to the QA-84
+  floors is near zero by construction (the floors are these sweep values).
+- Facility sweep (levelsweep.py, data baked on the box from this source): 31 rooms, 0 failing frames,
+  sweep_check re-score exit 0. Boss sweep (bosssweep.py): vp / cfo / cj / ceo 16 frames each, PASS,
+  re-score exit 0.
+- groups.dc: not part of this build (DC hash 547155168 is otp.dc + toon.dc). Reference
+  /workspace/toontown/dc-ref/groups.dc is 7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039.
+- fps / heap / linear / VRAM: not captured this time; the Azahar logs were lost when the box restarted
+  and wiped /tmp. Not a hardware measurement.
