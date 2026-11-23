@@ -2104,3 +2104,5 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
   7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039 was not confirmed
   (`qa/groups-dc.txt`).
 - The overall gate is not green. Runs 2 and 3 were still in progress when this entry was written.
+
+- Gate 2 (WIP, stopped for usage cap): compare_views exit 1, same stock-pin failure. ttc_tree ssim 0.999 min tile 0.971. Logs in qa/gate2/. Gate 3 was still running and is not in this commit.

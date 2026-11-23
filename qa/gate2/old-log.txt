@@ -1,0 +1,1464 @@
+# source at gate start 581360cbf15751fe595b98a114abc8086544fea7
+# source now f5fd165afb748f55f0a1743e71af0452f2afb33f
+# app sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+# resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+# run_gate.sh 280s. compare_views exit 1. Same stock-pin failure as gate 1.
+# GATE2_START 2026-11-23T05:11:44Z GATE2_EXIT 1 2026-11-23T05:21:40Z
+
+
+[4004399527547] boot: heaps 24576 KB + linear 24576 KB (commit free at start 94476 KB, 0 retries)
+[4004399527547] render: Old 3DS profile far 520 draw 440 lod 160/185 must 48 fog 110-400
+[4004399527547] boot: Old 3DS, romfs 00000000
+[4004399527581] font: ImpressBT loaded
+[4004399527581] font: MickeyFont loaded
+[4004399527581] boot: Starting up
+[4004399527589] boot: Tuning up the sound
+[4004399527647] audio: ndspInit failed 0xD880A7FA (missing sdmc:/3ds/dspfirm.cdc?) - silent mode
+[4004399527647] boot: Painting the scenery
+[4004399527682] model: romfs:/baked/suit_heads.ttm: 2 tris, 1 batches, 1 tex, 32 KB linear
+[4004399527682] boot: Building Toontown Central
+[4004399528111] collision: tz collision: 1220 tris, 76 caps, 14 triggers, 40x51 grid, 114 KB heap
+[4004399528116] place: zone 2000 streamed from sdmc:/3ds/toontown3ds/data/zones/2000.tz (18 chunks) in 368 ms
+[4004399528116] boot: Dressing up the toons
+[4004399528182] shot: sdmc:/3ds/toontown3ds/shot_boot_top.bin ok
+[4004399528232] shot: sdmc:/3ds/toontown3ds/shot_boot_bottom.bin ok
+[4004399528251] toon: clothes pack romfs:/baked/toon/clothes.ttx (7 textures)
+[4004399528384] toon: eyes pack romfs:/baked/toon/eyes.ttx loaded (76224 bytes)
+[4004399528417] model: romfs:/baked/toon/legs_m_500.ttm: 118 tris, 2 batches, 2 tex, 26 KB linear
+[4004399528436] toon: loaded legs_m_500 in 52 ms (36 KB)
+[4004399528467] model: romfs:/baked/toon/torso_ms_500.ttm: 280 tris, 6 batches, 6 tex, 20 KB linear
+[4004399528489] toon: loaded torso_ms_500 in 52 ms (30 KB)
+[4004399528550] model: romfs:/baked/toon/head_dls_500.ttm: 213 tris, 6 batches, 5 tex, 55 KB linear
+[4004399528569] toon: loaded head_dls_500 in 79 ms (76 KB)
+[4004399528575] toon: default toon ready in 190 ms
+[4004399528575] boot: Waking up the neighbors
+[4004399528595] zone: 34 anchor points from romfs:/baked/ttc_sz.pts
+[4004399528617] model: romfs:/baked/icecream.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528634] model: romfs:/baked/treasure_dd.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528650] model: romfs:/baked/treasure_mm.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528667] model: romfs:/baked/treasure_br.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528684] model: romfs:/baked/treasure_dg.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528700] model: romfs:/baked/treasure_dl.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528717] model: romfs:/baked/treasure_oz.ttm: 2 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528734] model: romfs:/baked/suit_placeholder.ttm: 36 tris, 1 batches, 0 tex, 1 KB linear
+[4004399528750] model: romfs:/baked/drop_shadow.ttm: 2 tris, 1 batches, 1 tex, 8 KB linear
+[4004399528767] model: romfs:/baked/portal.ttm: 4 tris, 1 batches, 1 tex, 8 KB linear
+[4004399528784] model: romfs:/baked/door_right.ttm: 50 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528801] model: romfs:/baked/door_left.ttm: 50 tris, 1 batches, 1 tex, 16 KB linear
+[4004399528802] model: romfs:/baked/door_hole_right.ttm: 12 tris, 1 batches, 0 tex, 0 KB linear
+[4004399528803] model: romfs:/baked/door_hole_left.ttm: 12 tris, 1 batches, 0 tex, 0 KB linear
+[4004399529068] boot: Almost there!
+[4004399529118] config: server 2.25.74.62:7198 token 'perf-49530' (offline)
+[4004399529186] model: romfs:/baked/inventory_gui.ttm: 2 tris, 1 batches, 2 tex, 384 KB linear
+[4004399529201] model: cannot open sdmc:/3ds/toontown3ds/data/props/tart.ttm
+[4004399529202] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/tart.ttm
+[4004399529218] model: cannot open sdmc:/3ds/toontown3ds/data/props/fruitpie-slice.ttm
+[4004399529218] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/fruitpie-slice.ttm
+[4004399529235] model: cannot open sdmc:/3ds/toontown3ds/data/props/creampie-slice.ttm
+[4004399529235] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/creampie-slice.ttm
+[4004399529252] model: cannot open sdmc:/3ds/toontown3ds/data/props/splat_full.ttm
+[4004399529252] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/splat_full.ttm
+[4004399529268] model: cannot open sdmc:/3ds/toontown3ds/data/props/squirting-flower.ttm
+[4004399529268] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/squirting-flower.ttm
+[4004399529285] model: cannot open sdmc:/3ds/toontown3ds/data/props/water-gun.ttm
+[4004399529285] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/water-gun.ttm
+[4004399529302] model: cannot open sdmc:/3ds/toontown3ds/data/props/bottle.ttm
+[4004399529302] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/bottle.ttm
+[4004399529318] model: cannot open sdmc:/3ds/toontown3ds/data/props/megaphone.ttm
+[4004399529319] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/megaphone.ttm
+[4004399529335] model: cannot open sdmc:/3ds/toontown3ds/data/props/button.ttm
+[4004399529335] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/button.ttm
+[4004399529352] model: cannot open sdmc:/3ds/toontown3ds/data/props/feather_full.ttm
+[4004399529352] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/feather_full.ttm
+[4004399529369] model: cannot open sdmc:/3ds/toontown3ds/data/props/lipstick.ttm
+[4004399529369] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/lipstick.ttm
+[4004399529385] model: cannot open sdmc:/3ds/toontown3ds/data/props/phone.ttm
+[4004399529385] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/phone.ttm
+[4004399529402] model: cannot open sdmc:/3ds/toontown3ds/data/props/receiver.ttm
+[4004399529402] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/receiver.ttm
+[4004399529419] model: cannot open sdmc:/3ds/toontown3ds/data/props/explosion.ttm
+[4004399529419] battle_fx: could not load sdmc:/3ds/toontown3ds/data/props/explosion.ttm
+[4004399529435] anim: cannot open sdmc:/3ds/toontown3ds/data/props/splat_full_action.tta
+[4004399529452] anim: cannot open sdmc:/3ds/toontown3ds/data/props/feather_full_action.tta
+[4004399529469] model: cannot open sdmc:/3ds/toontown3ds/data/props/banana_full.ttm
+[4004399529486] model: cannot open sdmc:/3ds/toontown3ds/data/props/rake_full.ttm
+[4004399529502] model: cannot open sdmc:/3ds/toontown3ds/data/props/marbles_full.ttm
+[4004399529519] model: cannot open sdmc:/3ds/toontown3ds/data/props/quicksand.ttm
+[4004399529536] model: cannot open sdmc:/3ds/toontown3ds/data/props/trapdoor.ttm
+[4004399529552] model: cannot open sdmc:/3ds/toontown3ds/data/props/tnt_full.ttm
+[4004399529569] model: cannot open sdmc:/3ds/toontown3ds/data/props/traintrack.ttm
+[4004399529586] model: cannot open sdmc:/3ds/toontown3ds/data/props/1dollar_full.ttm
+[4004399529603] model: cannot open sdmc:/3ds/toontown3ds/data/props/big-magnet.ttm
+[4004399529619] model: cannot open sdmc:/3ds/toontown3ds/data/props/hypno-goggles_full.ttm
+[4004399529636] model: cannot open sdmc:/3ds/toontown3ds/data/props/slideshow.ttm
+[4004399529653] model: cannot open sdmc:/3ds/toontown3ds/data/props/bikehorn.ttm
+[4004399529669] model: cannot open sdmc:/3ds/toontown3ds/data/props/whistle.ttm
+[4004399529686] model: cannot open sdmc:/3ds/toontown3ds/data/props/bugle.ttm
+[4004399529703] model: cannot open sdmc:/3ds/toontown3ds/data/props/aoogah.ttm
+[4004399529720] model: cannot open sdmc:/3ds/toontown3ds/data/props/elephant.ttm
+[4004399529736] model: cannot open sdmc:/3ds/toontown3ds/data/props/fog_horn.ttm
+[4004399529753] model: cannot open sdmc:/3ds/toontown3ds/data/props/singing.ttm
+[4004399529770] model: cannot open sdmc:/3ds/toontown3ds/data/props/flowerpot_full.ttm
+[4004399529786] model: cannot open sdmc:/3ds/toontown3ds/data/props/sandbag_full.ttm
+[4004399529803] model: cannot open sdmc:/3ds/toontown3ds/data/props/anvil_full.ttm
+[4004399529820] model: cannot open sdmc:/3ds/toontown3ds/data/props/weight_full.ttm
+[4004399529837] model: cannot open sdmc:/3ds/toontown3ds/data/props/safe_full.ttm
+[4004399529853] model: cannot open sdmc:/3ds/toontown3ds/data/props/piano_full.ttm
+[4004399529870] model: cannot open sdmc:/3ds/toontown3ds/data/props/ship.ttm
+[4004399529887] model: romfs:/baked/drop_shadow.ttm: 2 tris, 1 batches, 1 tex, 8 KB linear
+[4004399529903] model: cannot open sdmc:/3ds/toontown3ds/data/props/feather_full.ttm
+[4004399529920] model: cannot open sdmc:/3ds/toontown3ds/data/props/megaphone.ttm
+[4004399529937] model: cannot open sdmc:/3ds/toontown3ds/data/props/lipstick.ttm
+[4004399529954] model: cannot open sdmc:/3ds/toontown3ds/data/props/cane.ttm
+[4004399529970] model: cannot open sdmc:/3ds/toontown3ds/data/props/hat.ttm
+[4004399529987] model: cannot open sdmc:/3ds/toontown3ds/data/props/cubes_full.ttm
+[4004399530004] model: cannot open sdmc:/3ds/toontown3ds/data/props/ladder.ttm
+[4004399530020] model: cannot open sdmc:/3ds/toontown3ds/data/props/phone.ttm
+[4004399530037] model: cannot open sdmc:/3ds/toontown3ds/data/props/receiver.ttm
+[4004399530134] model: sdmc:/3ds/toontown3ds/data/zones/2000_trolley.ttm: 816 tris, 12 batches, 11 tex, 196 KB linear
+[4004399530195] model: sdmc:/3ds/toontown3ds/data/animprops/hq_telescope.ttm: 67 tris, 3 batches, 2 tex, 9 KB linear
+[4004399530278] model: sdmc:/3ds/toontown3ds/data/animprops/hq_periscope.ttm: 149 tris, 3 batches, 2 tex, 11 KB linear
+[4004399530368] model: sdmc:/3ds/toontown3ds/data/animprops/petshop_fish.ttm: 164 tris, 2 batches, 2 tex, 28 KB linear
+[4004399530472] animprops: zone 2000, 3 props of 3 kinds
+[4004399530488] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_0.ttm
+[4004399530505] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_0_flutter.tta
+[4004399530522] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_0_land.tta
+[4004399530522] butterflies: wing set 0 missing
+[4004399530539] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_1.ttm
+[4004399530555] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_1_flutter.tta
+[4004399530572] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_1_land.tta
+[4004399530572] butterflies: wing set 1 missing
+[4004399530589] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_2.ttm
+[4004399530605] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_2_flutter.tta
+[4004399530622] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_2_land.tta
+[4004399530622] butterflies: wing set 2 missing
+[4004399530639] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_3.ttm
+[4004399530656] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_3_flutter.tta
+[4004399530672] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_3_land.tta
+[4004399530672] butterflies: wing set 3 missing
+[4004399530689] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_4.ttm
+[4004399530706] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_4_flutter.tta
+[4004399530722] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_4_land.tta
+[4004399530722] butterflies: wing set 4 missing
+[4004399530739] model: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_5.ttm
+[4004399530756] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_5_flutter.tta
+[4004399530773] anim: cannot open sdmc:/3ds/toontown3ds/data/butterfly/wing_5_land.tta
+[4004399530773] butterflies: wing set 5 missing
+[4004399530831] fishing: zone 2000 has 4 local spot anchors
+[4004399530873] autotest: start world script (354 steps)
+[4004399530924] model: romfs:/baked/title_logo.ttm: 2 tris, 1 batches, 1 tex, 128 KB linear
+[4004399530940] model: romfs:/baked/loading_bg.ttm: 2 tris, 1 batches, 1 tex, 8 KB linear
+[4004399530940] boot: heap 2387 KB used, linear 19634 KB free, vram 3181 KB free
+[4004399530940] boot: Here we go!
+[4004399530998] autotest: step 321 'view: ttc_near'
+[4004399531000] view: ttc_near in zone 2000
+[4004399531000] view: ttc_near plan: cell -1
+[4004399531090] model: romfs:/baked/sky/tt.ttm: 18 tris, 2 batches, 2 tex, 8 KB linear
+[4004399531141] model: romfs:/baked/sky/tt_cloud1.ttm: 12 tris, 1 batches, 1 tex, 64 KB linear
+[4004399531191] model: romfs:/baked/sky/tt_cloud2.ttm: 12 tris, 1 batches, 1 tex, 64 KB linear
+[4004399531191] animprops: autotest hold 0.000s
+[4004399531207] map: no sdmc:/3ds/toontown3ds/data/zones/2000.tmap (errno 2): markers only
+[4004399531275] model: romfs:/baked/laff_meter.ttm: 2 tris, 1 batches, 1 tex, 256 KB linear
+[4004399531276] prof: [view: ttc_near] hitch total 277.66 busy 246.42 ms largest loads 159.58
+[4004399531970] stats: [view: ttc_near] fps 22.3 cpu 0.00 gpu 0.50 cmdbuf 4% skipped 0 draws 19 tris 655 uniforms 23 texbinds 18 vbo 7
+[4004399531970] stats: [view: ttc_near] heap 8348K linfree 19194K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399532106] model: staged 1003 tris, 6 batches, 5 tex, 260 KB linear
+[4004399532170] prof: [view: ttc_near] hitch total 66.96 busy 33.67 ms largest wait 33.29
+[4004399532913] model: staged 2983 tris, 25 batches, 17 tex, 1006 KB linear
+[4004399532973] prof: [view: ttc_near] hitch total 67.19 busy 33.89 ms largest wait 33.30
+[4004399532973] stats: [view: ttc_near] fps 27.9 cpu 13.32 gpu 0.50 cmdbuf 4% skipped 0 draws 50 tris 4641 uniforms 27 texbinds 46 vbo 11
+[4004399532973] stats: [view: ttc_near] heap 5961K linfree 17581K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399533576] model: staged 101 tris, 2 batches, 2 tex, 135 KB linear
+[4004399533642] prof: [view: ttc_near] hitch total 66.89 busy 33.61 ms largest wait 33.29
+[4004399533976] stats: [view: ttc_near] fps 28.9 cpu 5.09 gpu 0.50 cmdbuf 6% skipped 0 draws 52 tris 4742 uniforms 29 texbinds 48 vbo 13
+[4004399533976] stats: [view: ttc_near] heap 5691K linfree 17403K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399534047] model: staged 438 tris, 17 batches, 12 tex, 578 KB linear
+[4004399534110] prof: [view: ttc_near] hitch total 67.10 busy 33.83 ms largest wait 33.27
+[4004399534378] model: staged 45 tris, 2 batches, 2 tex, 68 KB linear
+[4004399534444] prof: [view: ttc_near] hitch total 66.90 busy 33.68 ms largest wait 33.22
+[4004399534979] stats: [view: ttc_near] fps 27.9 cpu 4.30 gpu 0.50 cmdbuf 7% skipped 0 draws 71 tris 5225 uniforms 33 texbinds 64 vbo 17
+[4004399534979] stats: [view: ttc_near] heap 9219K linfree 16551K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399535453] model: staged 1979 tris, 12 batches, 7 tex, 890 KB linear
+[4004399535514] prof: [view: ttc_near] hitch total 66.94 busy 33.77 ms largest wait 33.17
+[4004399535650] model: staged 1774 tris, 7 batches, 4 tex, 365 KB linear
+[4004399535714] prof: [view: ttc_near] hitch total 66.86 busy 33.70 ms largest wait 33.16
+[4004399535982] stats: [view: ttc_near] fps 27.9 cpu 5.76 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399535982] stats: [view: ttc_near] heap 7516K linfree 15282K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399536015] prof: [view: ttc_near] frames 28 total 35.82 busy 5.85 ms avg: input 0.05 player 0.28 place 2.35 net 0.01 remote 0.00 actors 0.01
+[4004399536016] prof: [view: ttc_near] avg: dplace 0.94 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399536016] prof: [view: ttc_near] avg: ui 1.46 audio 0.00 wait 29.97 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399536016] prof: [view: ttc_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399536016] prof: [view: ttc_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.04 golf 0.00 estate 0.00
+[4004399536016] prof: [view: ttc_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399536016] prof: [view: ttc_near] avg: shot 0.00
+[4004399536016] prof: [view: ttc_near] max: input 0.5 player 0.3 place 30.2 net 0.0 remote 0.0 actors 0.0
+[4004399536016] prof: [view: ttc_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399536016] prof: [view: ttc_near] max: ui 1.5 audio 0.0 wait 33.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399536016] prof: [view: ttc_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399536017] prof: [view: ttc_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399536017] prof: [view: ttc_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399536017] prof: [view: ttc_near] max: shot 0.0
+[4004399536553] model: staged 1535 tris, 10 batches, 5 tex, 305 KB linear
+[4004399536617] prof: [view: ttc_near] hitch total 66.86 busy 33.69 ms largest wait 33.17
+[4004399536687] model: staged 2290 tris, 7 batches, 5 tex, 425 KB linear
+[4004399536751] prof: [view: ttc_near] hitch total 66.86 busy 33.70 ms largest wait 33.15
+[4004399536985] stats: [view: ttc_near] fps 27.9 cpu 5.85 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399536985] stats: [view: ttc_near] heap 5869K linfree 14395K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399537254] model: staged 539 tris, 6 batches, 5 tex, 256 KB linear
+[4004399537319] prof: [view: ttc_near] hitch total 66.86 busy 33.71 ms largest wait 33.14
+[4004399537988] stats: [view: ttc_near] fps 28.9 cpu 5.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399537988] stats: [view: ttc_near] heap 7294K linfree 14068K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399538189] model: staged 203 tris, 3 batches, 3 tex, 46 KB linear
+[4004399538255] prof: [view: ttc_near] hitch total 66.86 busy 33.73 ms largest wait 33.13
+[4004399538289] model: staged 214 tris, 4 batches, 4 tex, 51 KB linear
+[4004399538355] prof: [view: ttc_near] hitch total 66.86 busy 33.74 ms largest wait 33.12
+[4004399538390] model: staged 175 tris, 4 batches, 4 tex, 49 KB linear
+[4004399538456] prof: [view: ttc_near] hitch total 66.86 busy 33.78 ms largest wait 33.08
+[4004399538525] model: staged 1700 tris, 9 batches, 7 tex, 349 KB linear
+[4004399538589] prof: [view: ttc_near] hitch total 66.86 busy 33.78 ms largest wait 33.07
+[4004399538624] model: staged 77 tris, 3 batches, 3 tex, 28 KB linear
+[4004399538690] prof: [view: ttc_near] hitch total 66.86 busy 33.82 ms largest wait 33.04
+[4004399538990] stats: [view: ttc_near] fps 24.9 cpu 4.84 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399538991] stats: [view: ttc_near] heap 5643K linfree 13418K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399539024] view: ttc_near plan: cell 5 5:0/0* 4:0/0* 1:0/0* 0:0/0* 9:0/0*
+[4004399539192] model: staged 27 tris, 2 batches, 1 tex, 17 KB linear
+[4004399539258] prof: [view: ttc_near] hitch total 66.86 busy 33.83 ms largest wait 33.03
+[4004399539292] model: staged 104 tris, 3 batches, 3 tex, 27 KB linear
+[4004399539358] prof: [view: ttc_near] hitch total 66.86 busy 33.84 ms largest wait 33.02
+[4004399539359] model: staged 18 tris, 1 batches, 0 tex, 0 KB linear
+[4004399539425] prof: [view: ttc_near] hitch total 66.86 busy 33.85 ms largest wait 33.01
+[4004399539425] model: staged 8 tris, 1 batches, 0 tex, 0 KB linear
+[4004399539492] prof: [view: ttc_near] hitch total 66.85 busy 33.86 ms largest wait 32.99
+[4004399539993] stats: [view: ttc_near] fps 25.9 cpu 9.88 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399539994] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399540996] stats: [view: ttc_near] fps 29.9 cpu 8.57 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399540996] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399541030] prof: [view: ttc_near] frames 30 total 33.43 busy 3.97 ms avg: input 0.04 player 0.28 place 0.42 net 0.01 remote 0.00 actors 0.01
+[4004399541030] prof: [view: ttc_near] avg: dplace 0.99 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399541030] prof: [view: ttc_near] avg: ui 1.46 audio 0.00 wait 29.46 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399541030] prof: [view: ttc_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399541030] prof: [view: ttc_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399541030] prof: [view: ttc_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399541030] prof: [view: ttc_near] avg: shot 0.00
+[4004399541030] prof: [view: ttc_near] max: input 0.5 player 0.3 place 0.4 net 0.0 remote 0.0 actors 0.0
+[4004399541030] prof: [view: ttc_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399541031] prof: [view: ttc_near] max: ui 1.5 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399541031] prof: [view: ttc_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399541031] prof: [view: ttc_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399541031] prof: [view: ttc_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399541031] prof: [view: ttc_near] max: shot 0.0
+[4004399541999] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399541999] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399543002] stats: [view: ttc_near] fps 29.9 cpu 4.01 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399543002] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399544005] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399544005] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399545007] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399545008] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399546010] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399546010] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399546044] prof: [view: ttc_near] frames 30 total 33.43 busy 3.97 ms avg: input 0.04 player 0.28 place 0.42 net 0.01 remote 0.00 actors 0.01
+[4004399546044] prof: [view: ttc_near] avg: dplace 0.99 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399546044] prof: [view: ttc_near] avg: ui 1.46 audio 0.00 wait 29.46 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399546044] prof: [view: ttc_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399546044] prof: [view: ttc_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399546044] prof: [view: ttc_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399546044] prof: [view: ttc_near] avg: shot 0.00
+[4004399546044] prof: [view: ttc_near] max: input 0.5 player 0.3 place 0.4 net 0.0 remote 0.0 actors 0.0
+[4004399546044] prof: [view: ttc_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399546045] prof: [view: ttc_near] max: ui 1.5 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399546045] prof: [view: ttc_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399546045] prof: [view: ttc_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399546045] prof: [view: ttc_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399546045] prof: [view: ttc_near] max: shot 0.0
+[4004399547013] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399547013] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399547047] view: ttc_near plan: cell 5 5:0/0* 4:0/0* 1:0/0* 0:0/0* 9:0/0*
+[4004399548016] stats: [view: ttc_near] fps 29.9 cpu 4.01 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399548016] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399549019] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399549019] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399550021] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399550022] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399551024] stats: [view: ttc_near] fps 29.9 cpu 3.97 gpu 0.50 cmdbuf 7% skipped 0 draws 77 tris 6201 uniforms 33 texbinds 67 vbo 17
+[4004399551025] stats: [view: ttc_near] heap 2396K linfree 13359K vramfree 4194K toons 0 remote 0 pos -81.5,-86.8,0.5 h 165
+[4004399551058] prof: [view: ttc_near] frames 30 total 33.43 busy 3.97 ms avg: input 0.04 player 0.28 place 0.42 net 0.01 remote 0.00 actors 0.01
+[4004399551058] prof: [view: ttc_near] avg: dplace 0.99 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399551058] prof: [view: ttc_near] avg: ui 1.46 audio 0.00 wait 29.46 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399551058] prof: [view: ttc_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399551058] prof: [view: ttc_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399551058] prof: [view: ttc_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399551058] prof: [view: ttc_near] avg: shot 0.00
+[4004399551058] prof: [view: ttc_near] max: input 0.5 player 0.3 place 0.4 net 0.0 remote 0.0 actors 0.0
+[4004399551059] prof: [view: ttc_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399551059] prof: [view: ttc_near] max: ui 1.5 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399551059] prof: [view: ttc_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399551059] prof: [view: ttc_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399551059] prof: [view: ttc_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399551059] prof: [view: ttc_near] max: shot 0.0
+[4004399551125] view: ttc_mid in zone 2000
+[4004399551125] player: anim 3 at 75.7,1.0,5.00 (ground 4.00)
+[4004399551191] prof: [view: ttc_mid] hitch total 66.37 busy 34.28 ms largest wait 32.09
+[4004399551191] autotest: step 322 'view: ttc_mid'
+[4004399551291] player: anim 0 at 75.7,1.0,4.00 (ground 4.00)
+[4004399551598] model: staged 3808 tris, 20 batches, 13 tex, 955 KB linear
+[4004399551659] prof: [view: ttc_mid] hitch total 67.01 busy 33.99 ms largest wait 33.02
+[4004399551932] model: staged 2344 tris, 22 batches, 14 tex, 758 KB linear
+[4004399551993] prof: [view: ttc_mid] hitch total 67.04 busy 33.97 ms largest wait 33.07
+[4004399552027] stats: [view: ttc_mid] fps 26.9 cpu 3.97 gpu 0.50 cmdbuf 6% skipped 0 draws 59 tris 6697 uniforms 20 texbinds 53 vbo 16
+[4004399552027] stats: [view: ttc_mid] heap 2821K linfree 13394K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399552096] model: staged 346 tris, 6 batches, 5 tex, 324 KB linear
+[4004399552161] prof: [view: ttc_mid] hitch total 66.87 busy 33.80 ms largest wait 33.07
+[4004399552263] model: staged 345 tris, 6 batches, 5 tex, 332 KB linear
+[4004399552328] prof: [view: ttc_mid] hitch total 66.88 busy 33.80 ms largest wait 33.08
+[4004399552362] model: staged 175 tris, 5 batches, 4 tex, 91 KB linear
+[4004399552428] prof: [view: ttc_mid] hitch total 66.88 busy 33.87 ms largest wait 33.01
+[4004399553030] stats: [view: ttc_mid] fps 26.9 cpu 6.82 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399553030] stats: [view: ttc_mid] heap 7296K linfree 12575K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399553365] model: staged 203 tris, 3 batches, 3 tex, 46 KB linear
+[4004399553431] prof: [view: ttc_mid] hitch total 66.86 busy 33.82 ms largest wait 33.04
+[4004399553465] model: staged 77 tris, 3 batches, 3 tex, 28 KB linear
+[4004399553531] prof: [view: ttc_mid] hitch total 66.86 busy 33.86 ms largest wait 33.00
+[4004399554033] stats: [view: ttc_mid] fps 27.9 cpu 6.95 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399554033] stats: [view: ttc_mid] heap 2421K linfree 12479K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399554033] model: staged 27 tris, 2 batches, 1 tex, 17 KB linear
+[4004399554099] prof: [view: ttc_mid] hitch total 66.86 busy 33.87 ms largest wait 32.99
+[4004399554100] model: staged 18 tris, 1 batches, 0 tex, 0 KB linear
+[4004399554166] prof: [view: ttc_mid] hitch total 66.86 busy 33.88 ms largest wait 32.97
+[4004399555035] stats: [view: ttc_mid] fps 27.9 cpu 6.87 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399555036] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399555069] view: ttc_mid plan: cell 11 11:0/0* 10:0/0* 15:0/0* 14:0/0* 16:0/0* 17:1/1*
+[4004399556038] stats: [view: ttc_mid] fps 29.9 cpu 4.73 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399556038] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399556105] prof: [view: ttc_mid] frames 30 total 33.43 busy 3.68 ms avg: input 0.04 player 0.02 place 0.60 net 0.01 remote 0.00 actors 0.01
+[4004399556105] prof: [view: ttc_mid] avg: dplace 1.04 dshadow 0.03 dtoons 0.02 dact 0.02 balln 0.02 hud 0.00
+[4004399556105] prof: [view: ttc_mid] avg: ui 1.47 audio 0.00 wait 29.75 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399556105] prof: [view: ttc_mid] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399556106] prof: [view: ttc_mid] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399556106] prof: [view: ttc_mid] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399556106] prof: [view: ttc_mid] avg: shot 0.00
+[4004399556106] prof: [view: ttc_mid] max: input 0.5 player 0.1 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399556106] prof: [view: ttc_mid] max: dplace 1.0 dshadow 0.0 dtoons 0.0 dact 0.0 balln 0.0 hud 0.0
+[4004399556106] prof: [view: ttc_mid] max: ui 1.5 audio 0.0 wait 29.8 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399556106] prof: [view: ttc_mid] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399556106] prof: [view: ttc_mid] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399556106] prof: [view: ttc_mid] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399556106] prof: [view: ttc_mid] max: shot 0.0
+[4004399557041] stats: [view: ttc_mid] fps 29.9 cpu 3.68 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399557041] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399558044] stats: [view: ttc_mid] fps 29.9 cpu 3.72 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399558044] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399559047] stats: [view: ttc_mid] fps 29.9 cpu 3.68 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399559047] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399560049] stats: [view: ttc_mid] fps 29.9 cpu 3.68 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399560050] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399561052] stats: [view: ttc_mid] fps 29.9 cpu 3.68 gpu 0.50 cmdbuf 6% skipped 0 draws 65 tris 7070 uniforms 20 texbinds 59 vbo 16
+[4004399561053] stats: [view: ttc_mid] heap 2397K linfree 12457K vramfree 4194K toons 0 remote 0 pos 75.7,1.0,4.0 h -90
+[4004399561119] prof: [view: ttc_mid] frames 30 total 33.43 busy 3.68 ms avg: input 0.04 player 0.02 place 0.60 net 0.01 remote 0.00 actors 0.01
+[4004399561119] prof: [view: ttc_mid] avg: dplace 1.04 dshadow 0.03 dtoons 0.02 dact 0.02 balln 0.02 hud 0.00
+[4004399561120] prof: [view: ttc_mid] avg: ui 1.47 audio 0.00 wait 29.75 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399561120] prof: [view: ttc_mid] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399561120] prof: [view: ttc_mid] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399561120] prof: [view: ttc_mid] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399561120] prof: [view: ttc_mid] avg: shot 0.00
+[4004399561120] prof: [view: ttc_mid] max: input 0.5 player 0.1 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399561120] prof: [view: ttc_mid] max: dplace 1.0 dshadow 0.0 dtoons 0.0 dact 0.0 balln 0.0 hud 0.0
+[4004399561120] prof: [view: ttc_mid] max: ui 1.5 audio 0.0 wait 29.8 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399561120] prof: [view: ttc_mid] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399561120] prof: [view: ttc_mid] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399561120] prof: [view: ttc_mid] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399561120] prof: [view: ttc_mid] max: shot 0.0
+[4004399561153] view: ttc_far in zone 2000
+[4004399561153] player: anim 3 at 101.0,-117.0,5.00 (ground 3.26)
+[4004399561220] prof: [view: ttc_far] hitch total 67.66 busy 34.71 ms largest wait 32.95
+[4004399561220] autotest: step 323 'view: ttc_far'
+[4004399561388] player: anim 0 at 101.0,-117.0,3.26 (ground 3.26)
+[4004399562056] stats: [view: ttc_far] fps 28.9 cpu 3.68 gpu 0.50 cmdbuf 9% skipped 0 draws 117 tris 12727 uniforms 36 texbinds 102 vbo 28
+[4004399562056] stats: [view: ttc_far] heap 7520K linfree 12458K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399562125] model: staged 1535 tris, 10 batches, 5 tex, 305 KB linear
+[4004399562190] prof: [view: ttc_far] hitch total 67.01 busy 34.29 ms largest wait 32.72
+[4004399562224] model: staged 119 tris, 4 batches, 4 tex, 96 KB linear
+[4004399562290] prof: [view: ttc_far] hitch total 66.87 busy 34.12 ms largest wait 32.74
+[4004399562360] model: staged 2290 tris, 7 batches, 5 tex, 425 KB linear
+[4004399562424] prof: [view: ttc_far] hitch total 66.70 busy 33.97 ms largest wait 32.73
+[4004399562527] model: staged 1700 tris, 9 batches, 7 tex, 349 KB linear
+[4004399562591] prof: [view: ttc_far] hitch total 67.01 busy 34.31 ms largest wait 32.70
+[4004399563059] stats: [view: ttc_far] fps 25.9 cpu 5.71 gpu 0.50 cmdbuf 10% skipped 0 draws 124 tris 14486 uniforms 40 texbinds 104 vbo 32
+[4004399563059] stats: [view: ttc_far] heap 6128K linfree 12235K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399563061] model: staged 369 tris, 8 batches, 6 tex, 197 KB linear
+[4004399563126] prof: [view: ttc_far] hitch total 66.86 busy 34.19 ms largest wait 32.67
+[4004399563126] view: ttc_far plan: cell 10 10:0/0* 9:0/0* 13:0/0* 14:0/0* 15:0/0* 5:0/0* 11:1/1* 6:1/1* 12:1/1* 7:1/1* 1:1/1* 16:0/0* 2:x/1  3:1/1* 8:1/1*
+[4004399563629] model: staged 539 tris, 6 batches, 5 tex, 256 KB linear
+[4004399563694] prof: [view: ttc_far] hitch total 66.97 busy 34.35 ms largest wait 32.62
+[4004399563728] model: staged 8 tris, 1 batches, 0 tex, 0 KB linear
+[4004399563794] prof: [view: ttc_far] hitch total 66.86 busy 34.25 ms largest wait 32.61
+[4004399564062] stats: [view: ttc_far] fps 26.9 cpu 10.77 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399564062] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399565065] stats: [view: ttc_far] fps 29.9 cpu 7.14 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399565065] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399566068] stats: [view: ttc_far] fps 29.9 cpu 5.16 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399566068] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399566134] prof: [view: ttc_far] frames 30 total 33.43 busy 5.16 ms avg: input 0.04 player 0.08 place 0.92 net 0.01 remote 0.00 actors 0.01
+[4004399566135] prof: [view: ttc_far] avg: dplace 2.02 dshadow 0.01 dtoons 0.02 dact 0.16 balln 0.02 hud 0.00
+[4004399566135] prof: [view: ttc_far] avg: ui 1.47 audio 0.00 wait 28.27 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399566135] prof: [view: ttc_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399566135] prof: [view: ttc_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399566135] prof: [view: ttc_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399566135] prof: [view: ttc_far] avg: shot 0.00
+[4004399566135] prof: [view: ttc_far] max: input 0.5 player 0.1 place 0.9 net 0.0 remote 0.0 actors 0.0
+[4004399566135] prof: [view: ttc_far] max: dplace 2.0 dshadow 0.0 dtoons 0.0 dact 0.2 balln 0.0 hud 0.0
+[4004399566135] prof: [view: ttc_far] max: ui 1.5 audio 0.0 wait 28.3 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399566135] prof: [view: ttc_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399566136] prof: [view: ttc_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399566136] prof: [view: ttc_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399566136] prof: [view: ttc_far] max: shot 0.0
+[4004399567070] stats: [view: ttc_far] fps 29.9 cpu 5.16 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399567071] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399568073] stats: [view: ttc_far] fps 29.9 cpu 5.20 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399568073] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399569076] stats: [view: ttc_far] fps 29.9 cpu 5.16 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399569076] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399570079] stats: [view: ttc_far] fps 29.9 cpu 5.16 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399570079] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399571082] stats: [view: ttc_far] fps 29.9 cpu 5.16 gpu 0.50 cmdbuf 10% skipped 0 draws 130 tris 15025 uniforms 42 texbinds 109 vbo 34
+[4004399571082] stats: [view: ttc_far] heap 2397K linfree 12435K vramfree 4194K toons 0 remote 0 pos 101.0,-117.0,3.3 h 19
+[4004399571149] prof: [view: ttc_far] frames 30 total 33.43 busy 5.16 ms avg: input 0.04 player 0.08 place 0.92 net 0.01 remote 0.00 actors 0.01
+[4004399571149] prof: [view: ttc_far] avg: dplace 2.02 dshadow 0.01 dtoons 0.02 dact 0.16 balln 0.02 hud 0.00
+[4004399571149] prof: [view: ttc_far] avg: ui 1.47 audio 0.00 wait 28.27 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399571149] prof: [view: ttc_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399571149] prof: [view: ttc_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399571149] prof: [view: ttc_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399571149] prof: [view: ttc_far] avg: shot 0.00
+[4004399571149] prof: [view: ttc_far] max: input 0.5 player 0.1 place 0.9 net 0.0 remote 0.0 actors 0.0
+[4004399571149] prof: [view: ttc_far] max: dplace 2.0 dshadow 0.0 dtoons 0.0 dact 0.2 balln 0.0 hud 0.0
+[4004399571149] prof: [view: ttc_far] max: ui 1.5 audio 0.0 wait 28.3 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399571150] prof: [view: ttc_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399571150] prof: [view: ttc_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399571150] prof: [view: ttc_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399571150] prof: [view: ttc_far] max: shot 0.0
+[4004399571150] view: ttc_far plan: cell 10 10:0/0* 9:0/0* 13:0/0* 14:0/0* 15:0/0* 5:0/0* 11:1/1* 6:1/1* 12:1/1* 7:1/1* 1:1/1* 16:0/0* 2:1/1* 3:1/1* 8:1/1*
+[4004399571182] view: ttc_tree in zone 2000
+[4004399571182] player: anim 3 at -38.0,31.6,1.00 (ground -0.70)
+[4004399571248] prof: [view: ttc_tree] hitch total 66.15 busy 33.59 ms largest wait 32.55
+[4004399571248] autotest: step 324 'view: ttc_tree'
+[4004399571415] player: anim 0 at -38.0,31.6,-0.70 (ground -0.70)
+[4004399572084] stats: [view: ttc_tree] fps 28.9 cpu 5.16 gpu 0.50 cmdbuf 8% skipped 0 draws 80 tris 8647 uniforms 36 texbinds 67 vbo 21
+[4004399572084] stats: [view: ttc_tree] heap 8060K linfree 12866K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399572155] model: staged 2081 tris, 17 batches, 9 tex, 706 KB linear
+[4004399572217] prof: [view: ttc_tree] hitch total 66.93 busy 34.09 ms largest wait 32.85
+[4004399572592] model: staged 3808 tris, 20 batches, 13 tex, 955 KB linear
+[4004399572652] prof: [view: ttc_tree] hitch total 67.02 busy 34.19 ms largest wait 32.83
+[4004399573087] stats: [view: ttc_tree] fps 27.9 cpu 5.28 gpu 0.50 cmdbuf 9% skipped 0 draws 100 tris 10711 uniforms 36 texbinds 84 vbo 21
+[4004399573087] stats: [view: ttc_tree] heap 7440K linfree 11645K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399573321] prof: [view: ttc_tree] hitch total 66.82 busy 34.18 ms largest wait 32.63
+[4004399573489] model: staged 207 tris, 4 batches, 3 tex, 148 KB linear
+[4004399573555] prof: [view: ttc_tree] hitch total 66.87 busy 33.82 ms largest wait 33.05
+[4004399573960] model: staged 438 tris, 17 batches, 12 tex, 578 KB linear
+[4004399574023] prof: [view: ttc_tree] hitch total 66.97 busy 33.92 ms largest wait 33.05
+[4004399574090] stats: [view: ttc_tree] fps 26.9 cpu 6.46 gpu 0.50 cmdbuf 9% skipped 0 draws 110 tris 10784 uniforms 36 texbinds 93 vbo 21
+[4004399574090] stats: [view: ttc_tree] heap 6049K linfree 13387K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399574561] model: staged 697 tris, 11 batches, 7 tex, 439 KB linear
+[4004399574624] prof: [view: ttc_tree] hitch total 66.91 busy 33.86 ms largest wait 33.06
+[4004399575093] stats: [view: ttc_tree] fps 28.9 cpu 7.53 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 96 vbo 21
+[4004399575093] stats: [view: ttc_tree] heap 5690K linfree 13141K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399575160] model: staged 27 tris, 2 batches, 2 tex, 67 KB linear
+[4004399575226] prof: [view: ttc_tree] hitch total 66.86 busy 33.84 ms largest wait 33.02
+[4004399575363] model: staged 1774 tris, 7 batches, 4 tex, 365 KB linear
+[4004399575427] prof: [view: ttc_tree] hitch total 66.86 busy 33.87 ms largest wait 32.99
+[4004399575829] model: staged 101 tris, 3 batches, 2 tex, 37 KB linear
+[4004399575895] prof: [view: ttc_tree] hitch total 66.86 busy 33.89 ms largest wait 32.97
+[4004399576095] stats: [view: ttc_tree] fps 26.9 cpu 5.33 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399576096] stats: [view: ttc_tree] heap 4226K linfree 12581K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399576162] prof: [view: ttc_tree] frames 27 total 37.14 busy 7.69 ms avg: input 0.06 player 0.04 place 3.83 net 0.01 remote 0.00 actors 0.01
+[4004399576162] prof: [view: ttc_tree] avg: dplace 1.53 dshadow 0.03 dtoons 0.20 dact 0.06 balln 0.08 hud 0.00
+[4004399576163] prof: [view: ttc_tree] avg: ui 1.46 audio 0.00 wait 29.45 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399576163] prof: [view: ttc_tree] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399576163] prof: [view: ttc_tree] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.04 golf 0.00 estate 0.00
+[4004399576163] prof: [view: ttc_tree] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399576163] prof: [view: ttc_tree] avg: shot 0.00
+[4004399576163] prof: [view: ttc_tree] max: input 0.5 player 0.1 place 30.1 net 0.0 remote 0.0 actors 0.0
+[4004399576163] prof: [view: ttc_tree] max: dplace 1.5 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399576163] prof: [view: ttc_tree] max: ui 1.5 audio 0.0 wait 33.0 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399576163] prof: [view: ttc_tree] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399576163] prof: [view: ttc_tree] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399576163] prof: [view: ttc_tree] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399576164] prof: [view: ttc_tree] max: shot 0.0
+[4004399576164] model: staged 45 tris, 2 batches, 1 tex, 18 KB linear
+[4004399576229] prof: [view: ttc_tree] hitch total 66.86 busy 33.93 ms largest wait 32.93
+[4004399576229] model: staged 18 tris, 1 batches, 0 tex, 0 KB linear
+[4004399576296] prof: [view: ttc_tree] hitch total 66.86 busy 33.96 ms largest wait 32.89
+[4004399576296] model: staged 8 tris, 1 batches, 0 tex, 0 KB linear
+[4004399576363] prof: [view: ttc_tree] hitch total 66.85 busy 33.97 ms largest wait 32.88
+[4004399577098] stats: [view: ttc_tree] fps 26.9 cpu 7.69 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399577098] stats: [view: ttc_tree] heap 2397K linfree 12555K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399578101] stats: [view: ttc_tree] fps 29.9 cpu 7.82 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399578101] stats: [view: ttc_tree] heap 2397K linfree 12555K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399579104] stats: [view: ttc_tree] fps 29.9 cpu 4.54 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399579104] stats: [view: ttc_tree] heap 2397K linfree 12555K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399579171] view: ttc_tree plan: cell 6 6:0/0* 5:0/0* 11:0/0* 7:0/0* 1:0/0* 2:0/0* 3:0/0*
+[4004399580107] stats: [view: ttc_tree] fps 29.9 cpu 4.54 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399580107] stats: [view: ttc_tree] heap 2397K linfree 12555K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399581109] stats: [view: ttc_tree] fps 29.9 cpu 4.55 gpu 0.50 cmdbuf 9% skipped 0 draws 115 tris 10942 uniforms 36 texbinds 97 vbo 21
+[4004399581110] stats: [view: ttc_tree] heap 2397K linfree 12555K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399581176] prof: [view: ttc_tree] frames 30 total 33.43 busy 4.54 ms avg: input 0.04 player 0.03 place 0.69 net 0.01 remote 0.00 actors 0.01
+[4004399581177] prof: [view: ttc_tree] avg: dplace 1.54 dshadow 0.03 dtoons 0.20 dact 0.06 balln 0.08 hud 0.00
+[4004399581177] prof: [view: ttc_tree] avg: ui 1.46 audio 0.00 wait 28.88 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399581177] prof: [view: ttc_tree] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399581177] prof: [view: ttc_tree] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399581177] prof: [view: ttc_tree] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399581177] prof: [view: ttc_tree] avg: shot 0.00
+[4004399581177] prof: [view: ttc_tree] max: input 0.5 player 0.1 place 0.7 net 0.0 remote 0.0 actors 0.0
+[4004399581177] prof: [view: ttc_tree] max: dplace 1.5 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399581177] prof: [view: ttc_tree] max: ui 1.5 audio 0.0 wait 28.9 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399581177] prof: [view: ttc_tree] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399581178] prof: [view: ttc_tree] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399581178] prof: [view: ttc_tree] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399581178] prof: [view: ttc_tree] max: shot 0.0
+[4004399581274] transition: teleport out start -> zone 2100
+[4004399581310] prof: [view: street_near] hitch total 100.60 busy 68.01 ms largest place 63.86
+[4004399581310] autotest: step 325 'view: street_near'
+[4004399581352] toon: clip legs_m_500_teleport.tta missing, using neutral
+[4004399581382] toon: clip torso_ms_500_teleport.tta missing, using neutral
+[4004399581415] toon: clip head_dls_500_teleport.tta missing, using neutral
+[4004399581650] model: staged 2344 tris, 22 batches, 14 tex, 758 KB linear
+[4004399581711] prof: [view: street_near] hitch total 66.85 busy 33.97 ms largest wait 32.88
+[4004399582113] stats: [view: street_near] fps 26.9 cpu 4.54 gpu 0.50 cmdbuf 11% skipped 0 draws 134 tris 12022 uniforms 49 texbinds 113 vbo 27
+[4004399582113] stats: [view: street_near] heap 5968K linfree 12035K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399582281] model: staged 101 tris, 2 batches, 2 tex, 135 KB linear
+[4004399582347] prof: [view: street_near] hitch total 66.84 busy 33.95 ms largest wait 32.89
+[4004399582615] model: staged 45 tris, 2 batches, 2 tex, 68 KB linear
+[4004399582681] prof: [view: street_near] hitch total 66.86 busy 33.99 ms largest wait 32.87
+[4004399583115] stats: [view: street_near] fps 27.9 cpu 8.30 gpu 0.50 cmdbuf 11% skipped 0 draws 134 tris 12026 uniforms 53 texbinds 115 vbo 28
+[4004399583116] stats: [view: street_near] heap 2398K linfree 11838K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399583416] prof: [view: street_near] hitch total 66.85 busy 33.99 ms largest wait 32.85
+[4004399583517] model: staged 175 tris, 4 batches, 4 tex, 49 KB linear
+[4004399583518] model: staged 18 tris, 1 batches, 0 tex, 0 KB linear
+[4004399583583] prof: [view: street_near] hitch total 66.86 busy 33.99 ms largest wait 32.87
+[4004399583584] model: staged 8 tris, 1 batches, 0 tex, 0 KB linear
+[4004399583650] prof: [view: street_near] hitch total 66.86 busy 34.00 ms largest wait 32.86
+[4004399584118] stats: [view: street_near] fps 26.9 cpu 6.93 gpu 0.50 cmdbuf 11% skipped 0 draws 134 tris 12026 uniforms 53 texbinds 115 vbo 28
+[4004399584119] stats: [view: street_near] heap 2398K linfree 12337K vramfree 4194K toons 0 remote 0 pos -38.0,31.6,-0.7 h 100
+[4004399584587] transition: ready to load zone 2100
+[4004399584587] load: cover zone 2100
+[4004399584641] model: romfs:/baked/loading_bg.ttm: 2 tris, 1 batches, 1 tex, 8 KB linear
+[4004399584692] model: romfs:/baked/title_logo.ttm: 2 tris, 1 batches, 1 tex, 128 KB linear
+[4004399584742] model: romfs:/baked/loading_gui.ttm: 2 tris, 1 batches, 1 tex, 128 KB linear
+[4004399584743] prof: [view: street_near] hitch total 156.72 busy 128.05 ms largest fend 127.08
+[4004399585651] collision: tz collision: 2193 tris, 176 caps, 45 triggers, 59x83 grid, 212 KB heap
+[4004399585744] place: zone 2100 streamed from sdmc:/3ds/toontown3ds/data/zones/2100.tz (56 chunks) in 902 ms
+[4004399585794] zone: 134 anchor points from sdmc:/3ds/toontown3ds/data/zones/2100.pts
+[4004399585844] fishing: zone 2100 has 4 local spot anchors
+[4004399585878] cog buildings: sdmc:/3ds/toontown3ds/data/cogbldg/suit_exterior.bin missing or bad
+[4004399585894] cog buildings: no sdmc:/3ds/toontown3ds/data/zones/2100.tsb (Cog buildings keep the Toon look)
+[4004399585925] model: sdmc:/3ds/toontown3ds/data/cogdo/shell.ttm: 650 tris, 4 batches, 4 tex, 51 KB linear
+[4004399586028] interior_life: no knock-knock spheres (sdmc:/3ds/toontown3ds/data/zones/2100.kkd)
+[4004399586053] animprops: autotest hold 0.000s
+[4004399586112] shot: sdmc:/3ds/toontown3ds/shot_zone_load_top.bin ok
+[4004399586162] shot: sdmc:/3ds/toontown3ds/shot_zone_load_bottom.bin ok
+[4004399586162] prof: [view: street_near] hitch total 1419.77 busy 1394.89 ms largest place 1262.51
+[4004399586163] stats: [view: street_near] fps 7.8 cpu 112.78 gpu 0.50 cmdbuf 10% skipped 0 draws 120 tris 11415 uniforms 36 texbinds 102 vbo 25
+[4004399586163] stats: [view: street_near] heap 2882K linfree 19184K vramfree 4194K toons 0 remote 0 pos -148.3,-410.4,-0.5 h 0
+[4004399586164] model: staged 637 tris, 4 batches, 3 tex, 129 KB linear
+[4004399586221] prof: [view: street_near] hitch total 58.38 busy 25.11 ms largest wait 33.27
+[4004399586222] model: staged 571 tris, 5 batches, 4 tex, 142 KB linear
+[4004399586288] prof: [view: street_near] hitch total 66.82 busy 33.57 ms largest wait 33.25
+[4004399586289] model: staged 138 tris, 3 batches, 2 tex, 19 KB linear
+[4004399586346] transition: loaded zone 2100 (arriving)
+[4004399586346] load: zone 2100 stream 341 ms, playable 1759 ms
+load profile
+zone: sdmc:/3ds/toontown3ds/data/zones/2100.tz
+sd/romfs read: 66 calls, 89932376 bytes, 15938351 us
+parse/index rebase: 837 us
+texture upload: 59 textures, 9609 us
+zone metadata: 1174474 us
+stre
+[4004399586421] prof: [view: street_near] hitch total 133.02 busy 133.02 ms largest place 132.68
+[4004399586479] map: no sdmc:/3ds/toontown3ds/data/zones/2100.tmap (errno 2): markers only
+[4004399586481] prof: [view: street_near] hitch total 60.36 busy 27.40 ms largest wait 32.96
+[4004399586494] model: staged 1068 tris, 11 batches, 8 tex, 646 KB linear
+[4004399586557] prof: [view: street_near] hitch total 67.01 busy 33.84 ms largest wait 33.17
+[4004399586694] model: staged 539 tris, 9 batches, 6 tex, 482 KB linear
+[4004399586699] toon: clip legs_m_500_jump.tta missing, using neutral
+[4004399586730] toon: clip torso_ms_500_jump.tta missing, using neutral
+[4004399586758] prof: [view: street_near] hitch total 66.99 busy 33.83 ms largest wait 33.15
+[4004399586763] toon: clip head_dls_500_jump.tta missing, using neutral
+[4004399586861] model: staged 911 tris, 9 batches, 6 tex, 374 KB linear
+[4004399586925] prof: [view: street_near] hitch total 66.87 busy 33.76 ms largest wait 33.10
+[4004399586960] model: staged 418 tris, 8 batches, 5 tex, 220 KB linear
+[4004399587025] prof: [view: street_near] hitch total 66.99 busy 33.93 ms largest wait 33.06
+[4004399587129] model: staged 773 tris, 9 batches, 6 tex, 494 KB linear
+[4004399587192] prof: [view: street_near] hitch total 66.92 busy 33.87 ms largest wait 33.05
+[4004399587193] prof: [view: street_near] frames 21 total 49.05 busy 20.37 ms avg: input 0.11 player 0.06 place 16.59 net 0.01 remote 0.00 actors 0.01
+[4004399587193] prof: [view: street_near] avg: dplace 0.54 dshadow 0.02 dtoons 0.14 dact 0.02 balln 0.09 hud 0.00
+[4004399587193] prof: [view: street_near] avg: ui 2.37 audio 0.00 wait 28.67 fend 0.33 feupd 0.00 fedraw 0.00
+[4004399587193] prof: [view: street_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399587193] prof: [view: street_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.03 golf 0.00 estate 0.00
+[4004399587193] prof: [view: street_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399587193] prof: [view: street_near] avg: shot 0.00
+[4004399587193] prof: [view: street_near] max: input 0.6 player 0.1 place 132.7 net 0.0 remote 0.0 actors 0.0
+[4004399587194] prof: [view: street_near] max: dplace 0.9 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399587194] prof: [view: street_near] max: ui 26.1 audio 0.0 wait 33.3 fend 0.7 feupd 0.0 fedraw 0.0
+[4004399587194] prof: [view: street_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399587194] prof: [view: street_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399587194] prof: [view: street_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399587194] prof: [view: street_near] max: shot 0.0
+[4004399587194] stats: [view: street_near] fps 20.4 cpu 20.37 gpu 0.50 cmdbuf 7% skipped 0 draws 65 tris 4166 uniforms 39 texbinds 54 vbo 20
+[4004399587194] stats: [view: street_near] heap 3067K linfree 16367K vramfree 4194K toons 0 remote 0 pos -148.3,-410.4,-0.5 h 0
+[4004399587330] model: staged 585 tris, 11 batches, 8 tex, 432 KB linear
+[4004399587393] prof: [view: street_near] hitch total 66.93 busy 33.87 ms largest wait 33.05
+[4004399587428] model: staged 166 tris, 6 batches, 4 tex, 204 KB linear
+[4004399587493] prof: [view: street_near] hitch total 66.90 busy 33.87 ms largest wait 33.02
+[4004399587561] model: staged 292 tris, 3 batches, 2 tex, 47 KB linear
+[4004399587627] prof: [view: street_near] hitch total 66.86 busy 33.83 ms largest wait 33.03
+[4004399587628] transition: teleport in complete in zone 2100
+[4004399587661] view: street_near in zone 2100
+[4004399587661] view: street_near plan: cell 49 49:0/0* 20:0/0* 21:0/0* 19:0/0* 18:0/0* 53:0/0* 17:0/0*
+[4004399587661] player: anim 3 at -130.0,-115.0,0.50 (ground 0.00)
+[4004399587662] model: staged 590 tris, 5 batches, 3 tex, 127 KB linear
+[4004399587794] player: anim 0 at -130.0,-115.0,0.00 (ground 0.00)
+[4004399587796] model: staged 795 tris, 7 batches, 5 tex, 266 KB linear
+[4004399587860] prof: [view: street_near] hitch total 66.85 busy 33.60 ms largest wait 33.25
+[4004399587998] model: staged 1124 tris, 11 batches, 7 tex, 529 KB linear
+[4004399588061] prof: [view: street_near] hitch total 66.86 busy 33.80 ms largest wait 33.05
+[4004399588097] model: staged 315 tris, 8 batches, 6 tex, 278 KB linear
+[4004399588161] prof: [view: street_near] hitch total 66.85 busy 33.81 ms largest wait 33.05
+[4004399588195] stats: [view: street_near] fps 24.0 cpu 10.99 gpu 0.50 cmdbuf 4% skipped 0 draws 19 tris 655 uniforms 23 texbinds 18 vbo 7
+[4004399588195] stats: [view: street_near] heap 8459K linfree 15825K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399589197] stats: [view: street_near] fps 29.9 cpu 2.82 gpu 0.50 cmdbuf 4% skipped 0 draws 19 tris 655 uniforms 23 texbinds 18 vbo 7
+[4004399589198] stats: [view: street_near] heap 3614K linfree 15786K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399589199] model: staged 738 tris, 6 batches, 4 tex, 150 KB linear
+[4004399589264] prof: [view: street_near] hitch total 66.95 busy 33.93 ms largest wait 33.02
+[4004399589470] model: staged 1052 tris, 17 batches, 9 tex, 709 KB linear
+[4004399589532] prof: [view: street_near] hitch total 67.10 busy 33.94 ms largest wait 33.16
+[4004399590201] stats: [view: street_near] fps 27.9 cpu 5.34 gpu 0.50 cmdbuf 5% skipped 0 draws 42 tris 2445 uniforms 27 texbinds 37 vbo 11
+[4004399590201] stats: [view: street_near] heap 8428K linfree 15346K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399590439] model: staged 1021 tris, 11 batches, 7 tex, 635 KB linear
+[4004399590502] prof: [view: street_near] hitch total 67.02 busy 33.92 ms largest wait 33.11
+[4004399590571] model: staged 486 tris, 8 batches, 5 tex, 415 KB linear
+[4004399590635] prof: [view: street_near] hitch total 66.98 busy 33.92 ms largest wait 33.06
+[4004399591204] stats: [view: street_near] fps 27.9 cpu 5.65 gpu 0.50 cmdbuf 6% skipped 0 draws 61 tris 3952 uniforms 31 texbinds 51 vbo 15
+[4004399591204] stats: [view: street_near] heap 8980K linfree 13974K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399591675] model: staged 1135 tris, 11 batches, 7 tex, 545 KB linear
+[4004399591739] prof: [view: street_near] hitch total 66.93 busy 33.88 ms largest wait 33.05
+[4004399591774] model: staged 878 tris, 5 batches, 4 tex, 258 KB linear
+[4004399591839] prof: [view: street_near] hitch total 66.94 busy 33.92 ms largest wait 33.02
+[4004399591873] model: staged 192 tris, 3 batches, 2 tex, 22 KB linear
+[4004399591939] prof: [view: street_near] hitch total 66.92 busy 34.27 ms largest wait 32.65
+[4004399592207] prof: [view: street_near] frames 27 total 37.15 busy 7.09 ms avg: input 0.06 player 0.11 place 3.86 net 0.01 remote 0.00 actors 0.01
+[4004399592207] prof: [view: street_near] avg: dplace 0.90 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399592207] prof: [view: street_near] avg: ui 1.39 audio 0.00 wait 30.06 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399592207] prof: [view: street_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399592207] prof: [view: street_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.04 golf 0.00 estate 0.00
+[4004399592207] prof: [view: street_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399592208] prof: [view: street_near] avg: shot 0.00
+[4004399592208] prof: [view: street_near] max: input 0.5 player 0.2 place 30.9 net 0.0 remote 0.0 actors 0.0
+[4004399592208] prof: [view: street_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399592208] prof: [view: street_near] max: ui 1.4 audio 0.0 wait 33.0 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399592208] prof: [view: street_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399592208] prof: [view: street_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399592208] prof: [view: street_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399592208] prof: [view: street_near] max: shot 0.0
+[4004399592208] stats: [view: street_near] fps 26.9 cpu 7.09 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399592208] stats: [view: street_near] heap 6887K linfree 13101K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399592776] model: staged 288 tris, 4 batches, 3 tex, 31 KB linear
+[4004399592842] prof: [view: street_near] hitch total 66.86 busy 33.93 ms largest wait 32.93
+[4004399592877] model: staged 104 tris, 7 batches, 5 tex, 107 KB linear
+[4004399593210] stats: [view: street_near] fps 29.0 cpu 5.05 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399593210] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399594212] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399594213] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399595215] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399595216] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399595683] view: street_near plan: cell 31 31:0/0* 1:0/0* 43:0/0* 2:0/0* 6:1/1* 54:1/1*
+[4004399596218] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399596218] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399597221] prof: [view: street_near] frames 30 total 33.43 busy 3.95 ms avg: input 0.04 player 0.11 place 0.61 net 0.01 remote 0.00 actors 0.01
+[4004399597221] prof: [view: street_near] avg: dplace 1.03 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399597221] prof: [view: street_near] avg: ui 1.39 audio 0.00 wait 29.48 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399597221] prof: [view: street_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399597221] prof: [view: street_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399597222] prof: [view: street_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399597222] prof: [view: street_near] avg: shot 0.00
+[4004399597222] prof: [view: street_near] max: input 0.5 player 0.1 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399597222] prof: [view: street_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399597222] prof: [view: street_near] max: ui 1.4 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399597222] prof: [view: street_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399597222] prof: [view: street_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399597222] prof: [view: street_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399597222] prof: [view: street_near] max: shot 0.0
+[4004399597222] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399597222] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399598224] stats: [view: street_near] fps 30.0 cpu 3.99 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399598224] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399599227] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399599227] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399600229] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399600230] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399601232] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399601232] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399602235] prof: [view: street_near] frames 30 total 33.43 busy 3.95 ms avg: input 0.04 player 0.11 place 0.61 net 0.01 remote 0.00 actors 0.01
+[4004399602235] prof: [view: street_near] avg: dplace 1.03 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399602235] prof: [view: street_near] avg: ui 1.39 audio 0.00 wait 29.48 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399602235] prof: [view: street_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399602236] prof: [view: street_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399602236] prof: [view: street_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399602236] prof: [view: street_near] avg: shot 0.00
+[4004399602236] prof: [view: street_near] max: input 0.5 player 0.1 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399602236] prof: [view: street_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399602236] prof: [view: street_near] max: ui 1.4 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399602236] prof: [view: street_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399602236] prof: [view: street_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399602236] prof: [view: street_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399602236] prof: [view: street_near] max: shot 0.0
+[4004399602236] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399602237] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399603238] stats: [view: street_near] fps 30.0 cpu 3.99 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399603238] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399603706] view: street_near plan: cell 31 31:0/0* 1:0/0* 43:0/0* 2:0/0* 6:1/1* 54:1/1*
+[4004399604241] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399604241] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399605243] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399605244] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399606246] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399606247] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399607249] prof: [view: street_near] frames 30 total 33.43 busy 3.95 ms avg: input 0.04 player 0.11 place 0.61 net 0.01 remote 0.00 actors 0.01
+[4004399607249] prof: [view: street_near] avg: dplace 1.03 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399607250] prof: [view: street_near] avg: ui 1.39 audio 0.00 wait 29.48 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399607250] prof: [view: street_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399607250] prof: [view: street_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399607250] prof: [view: street_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399607250] prof: [view: street_near] avg: shot 0.00
+[4004399607250] prof: [view: street_near] max: input 0.5 player 0.1 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399607250] prof: [view: street_near] max: dplace 1.0 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399607250] prof: [view: street_near] max: ui 1.4 audio 0.0 wait 29.5 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399607250] prof: [view: street_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399607250] prof: [view: street_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399607250] prof: [view: street_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399607250] prof: [view: street_near] max: shot 0.0
+[4004399607251] stats: [view: street_near] fps 29.9 cpu 3.95 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 5419 uniforms 35 texbinds 63 vbo 19
+[4004399607251] stats: [view: street_near] heap 2505K linfree 13066K vramfree 4194K toons 0 remote 0 pos -130.0,-115.0,0.0 h 90
+[4004399607650] view: street_far in zone 2100
+[4004399607650] player: anim 3 at -112.0,-112.0,0.50 (ground -0.50)
+[4004399607716] prof: [view: street_far] hitch total 66.21 busy 33.52 ms largest wait 32.70
+[4004399607716] autotest: step 326 'view: street_far'
+[4004399607817] player: anim 0 at -112.0,-112.0,-0.50 (ground -0.50)
+[4004399608251] stats: [view: street_far] fps 29.0 cpu 4.62 gpu 0.50 cmdbuf 5% skipped 0 draws 36 tris 2403 uniforms 12 texbinds 30 vbo 9
+[4004399608252] stats: [view: street_far] heap 7307K linfree 13393K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399608555] model: staged 392 tris, 8 batches, 5 tex, 346 KB linear
+[4004399608619] prof: [view: street_far] hitch total 66.91 busy 33.99 ms largest wait 32.93
+[4004399609254] stats: [view: street_far] fps 28.9 cpu 4.35 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399609254] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399610257] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399610257] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399611260] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399611260] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399611728] view: street_far plan: cell 31 31:0/0* 1:0/0* 0:0/0* 43:0/0*
+[4004399612263] prof: [view: street_far] frames 30 total 33.43 busy 3.32 ms avg: input 0.04 player 0.03 place 0.63 net 0.01 remote 0.00 actors 0.01
+[4004399612263] prof: [view: street_far] avg: dplace 0.73 dshadow 0.01 dtoons 0.02 dact 0.02 balln 0.02 hud 0.00
+[4004399612263] prof: [view: street_far] avg: ui 1.40 audio 0.00 wait 30.11 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399612263] prof: [view: street_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399612263] prof: [view: street_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399612263] prof: [view: street_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399612263] prof: [view: street_far] avg: shot 0.00
+[4004399612263] prof: [view: street_far] max: input 0.5 player 0.3 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399612264] prof: [view: street_far] max: dplace 0.7 dshadow 0.0 dtoons 0.0 dact 0.0 balln 0.0 hud 0.0
+[4004399612264] prof: [view: street_far] max: ui 1.4 audio 0.0 wait 30.1 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399612264] prof: [view: street_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399612264] prof: [view: street_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399612264] prof: [view: street_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399612264] prof: [view: street_far] max: shot 0.0
+[4004399612264] stats: [view: street_far] fps 29.9 cpu 3.32 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399612264] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399613265] stats: [view: street_far] fps 30.0 cpu 3.35 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399613266] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399614268] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399614269] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399615271] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399615271] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399616274] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399616274] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399617277] prof: [view: street_far] frames 30 total 33.43 busy 3.31 ms avg: input 0.04 player 0.02 place 0.63 net 0.01 remote 0.00 actors 0.01
+[4004399617277] prof: [view: street_far] avg: dplace 0.73 dshadow 0.01 dtoons 0.02 dact 0.02 balln 0.02 hud 0.00
+[4004399617277] prof: [view: street_far] avg: ui 1.40 audio 0.00 wait 30.11 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399617277] prof: [view: street_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399617277] prof: [view: street_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399617277] prof: [view: street_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399617277] prof: [view: street_far] avg: shot 0.00
+[4004399617278] prof: [view: street_far] max: input 0.5 player 0.0 place 0.6 net 0.0 remote 0.0 actors 0.0
+[4004399617278] prof: [view: street_far] max: dplace 0.7 dshadow 0.0 dtoons 0.0 dact 0.0 balln 0.0 hud 0.0
+[4004399617278] prof: [view: street_far] max: ui 1.4 audio 0.0 wait 30.1 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399617278] prof: [view: street_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399617278] prof: [view: street_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399617278] prof: [view: street_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399617278] prof: [view: street_far] max: shot 0.0
+[4004399617278] stats: [view: street_far] fps 29.9 cpu 3.31 gpu 0.50 cmdbuf 5% skipped 0 draws 40 tris 2507 uniforms 12 texbinds 33 vbo 9
+[4004399617278] stats: [view: street_far] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399617717] transition: teleport out start -> zone 1000
+[4004399617745] prof: [view: dd_near] hitch total 67.25 busy 42.39 ms largest place 39.33
+[4004399617745] autotest: step 327 'view: dd_near'
+[4004399617787] toon: clip legs_m_500_teleport.tta missing, using neutral
+[4004399617817] toon: clip torso_ms_500_teleport.tta missing, using neutral
+[4004399617851] toon: clip head_dls_500_teleport.tta missing, using neutral
+[4004399618280] stats: [view: dd_near] fps 29.0 cpu 4.93 gpu 0.50 cmdbuf 6% skipped 0 draws 63 tris 3606 uniforms 31 texbinds 53 vbo 15
+[4004399618280] stats: [view: dd_near] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399619283] stats: [view: dd_near] fps 29.9 cpu 3.71 gpu 0.50 cmdbuf 6% skipped 0 draws 63 tris 3606 uniforms 31 texbinds 53 vbo 15
+[4004399619283] stats: [view: dd_near] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399620286] stats: [view: dd_near] fps 29.9 cpu 3.74 gpu 0.50 cmdbuf 7% skipped 0 draws 64 tris 3610 uniforms 35 texbinds 54 vbo 16
+[4004399620286] stats: [view: dd_near] heap 2505K linfree 12975K vramfree 4194K toons 0 remote 0 pos -112.0,-112.0,-0.5 h 180
+[4004399621055] transition: ready to load zone 1000
+[4004399621055] load: cover zone 1000
+[4004399621110] model: romfs:/baked/loading_bg.ttm: 2 tris, 1 batches, 1 tex, 8 KB linear
+[4004399621161] model: romfs:/baked/title_logo.ttm: 2 tris, 1 batches, 1 tex, 128 KB linear
+[4004399621211] model: romfs:/baked/loading_gui.ttm: 2 tris, 1 batches, 1 tex, 128 KB linear
+[4004399621212] prof: [view: dd_near] hitch total 157.70 busy 127.88 ms largest fend 126.99
+[4004399621591] collision: tz collision: 1338 tris, 64 caps, 73 triggers, 33x41 grid, 120 KB heap
+[4004399621662] place: zone 1000 streamed from sdmc:/3ds/toontown3ds/data/zones/1000.tz (9 chunks) in 384 ms
+[4004399621695] zone: 31 anchor points from sdmc:/3ds/toontown3ds/data/zones/1000.pts
+[4004399621728] fishing: zone 1000 has 4 local spot anchors
+[4004399621825] model: sdmc:/3ds/toontown3ds/data/zones/1000_trolley.ttm: 816 tris, 12 batches, 11 tex, 196 KB linear
+[4004399621893] model: sdmc:/3ds/toontown3ds/data/animprops/petshop_fish.ttm: 164 tris, 2 batches, 2 tex, 28 KB linear
+[4004399621996] animprops: zone 1000, 1 props of 1 kinds
+[4004399622130] model: romfs:/baked/sky/br.ttm: 18 tris, 2 batches, 2 tex, 32 KB linear
+[4004399622130] animprops: autotest hold 0.000s
+[4004399622131] prof: [view: dd_near] hitch total 918.94 busy 915.73 ms largest place 838.81
+[4004399622131] stats: [view: dd_near] fps 13.5 cpu 45.08 gpu 0.50 cmdbuf 6% skipped 0 draws 50 tris 2999 uniforms 18 texbinds 41 vbo 13
+[4004399622131] stats: [view: dd_near] heap 4252K linfree 19221K vramfree 4194K toons 0 remote 0 pos -28.0,-2.5,5.8 h 120
+[4004399622148] collision: sdmc:/3ds/toontown3ds/data/zones/1000_pier_east.ttc: 6 tris, 0 caps, 0 triggers, 4x8 grid, 1 KB heap
+[4004399622181] collision: sdmc:/3ds/toontown3ds/data/zones/1000_pier_west.ttc: 6 tris, 0 caps, 0 triggers, 4x8 grid, 1 KB heap
+[4004399622187] model: sdmc:/3ds/toontown3ds/data/zones/1000_pier_east.ttm: 188 tris, 3 batches, 3 tex, 23 KB linear
+[4004399622222] prof: [view: dd_near] hitch total 91.24 busy 66.57 ms largest net 65.13
+[4004399622237] model: sdmc:/3ds/toontown3ds/data/zones/1000_pier_west.ttm: 188 tris, 3 batches, 3 tex, 22 KB linear
+[4004399622390] model: staged 107 tris, 4 batches, 4 tex, 58 KB linear
+[4004399622456] prof: [view: dd_near] hitch total 66.85 busy 33.55 ms largest wait 33.31
+[4004399622691] model: staged 57 tris, 1 batches, 1 tex, 11 KB linear
+[4004399622723] transition: loaded zone 1000 (arriving)
+[4004399622723] load: zone 1000 stream 672 ms, playable 1668 ms
+load profile
+zone: sdmc:/3ds/toontown3ds/data/zones/1000.tz
+sd/romfs read: 81 calls, 119872216 bytes, 21276276 us
+parse/index rebase: 1360 us
+texture upload: 83 textures, 12814 us
+zone metadata: 1488361 us
+s
+[4004399622790] prof: [view: dd_near] hitch total 99.65 busy 99.65 ms largest place 99.53
+[4004399622848] map: no sdmc:/3ds/toontown3ds/data/zones/1000.tmap (errno 2): markers only
+[4004399622850] prof: [view: dd_near] hitch total 60.42 busy 27.33 ms largest wait 33.08
+[4004399623068] toon: clip legs_m_500_jump.tta missing, using neutral
+[4004399623099] toon: clip torso_ms_500_jump.tta missing, using neutral
+[4004399623132] toon: clip head_dls_500_jump.tta missing, using neutral
+[4004399623160] prof: [view: dd_near] frames 26 total 39.58 busy 10.38 ms avg: input 0.07 player 0.05 place 5.34 net 2.51 remote 0.00 actors 0.01
+[4004399623160] prof: [view: dd_near] avg: dplace 0.07 dshadow 0.01 dtoons 0.05 dact 0.10 balln 0.04 hud 0.00
+[4004399623160] prof: [view: dd_near] avg: ui 1.57 audio 0.00 wait 29.20 fend 0.47 feupd 0.00 fedraw 0.00
+[4004399623160] prof: [view: dd_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399623161] prof: [view: dd_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.04 golf 0.00 estate 0.00
+[4004399623161] prof: [view: dd_near] avg: loads 0.02 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399623161] prof: [view: dd_near] avg: shot 0.00
+[4004399623161] prof: [view: dd_near] max: input 0.6 player 0.2 place 99.5 net 65.1 remote 0.0 actors 0.0
+[4004399623161] prof: [view: dd_near] max: dplace 0.2 dshadow 0.0 dtoons 0.2 dact 0.2 balln 0.1 hud 0.0
+[4004399623161] prof: [view: dd_near] max: ui 26.1 audio 0.0 wait 33.3 fend 0.6 feupd 0.0 fedraw 0.0
+[4004399623161] prof: [view: dd_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399623161] prof: [view: dd_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399623161] prof: [view: dd_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399623161] prof: [view: dd_near] max: shot 0.0
+[4004399623161] stats: [view: dd_near] fps 25.2 cpu 10.38 gpu 0.50 cmdbuf 5% skipped 0 draws 38 tris 1803 uniforms 31 texbinds 36 vbo 12
+[4004399623162] stats: [view: dd_near] heap 6843K linfree 19343K vramfree 4194K toons 0 remote 0 pos -28.0,-2.5,5.7 h 120
+[4004399623301] model: staged 2600 tris, 22 batches, 13 tex, 1107 KB linear
+[4004399623361] prof: [view: dd_near] hitch total 67.16 busy 33.91 ms largest wait 33.26
+[4004399623996] transition: teleport in complete in zone 1000
+[4004399624030] view: dd_near in zone 1000
+[4004399624030] view: dd_near plan: cell 3 3:0/0* 7:x/0  4:x/0  6:x/0  1:1/0* 0:1/0*
+[4004399624030] player: anim 3 at -115.0,-28.0,6.00 (ground 5.67)
+[4004399624130] player: anim 0 at -115.0,-28.0,5.67 (ground 5.67)
+[4004399624163] stats: [view: dd_near] fps 29.0 cpu 4.41 gpu 0.50 cmdbuf 5% skipped 0 draws 44 tris 3395 uniforms 27 texbinds 41 vbo 11
+[4004399624163] stats: [view: dd_near] heap 9305K linfree 17916K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399624403] model: staged 2213 tris, 11 batches, 7 tex, 896 KB linear
+[4004399624464] prof: [view: dd_near] hitch total 67.02 busy 33.78 ms largest wait 33.24
+[4004399625166] stats: [view: dd_near] fps 28.9 cpu 4.42 gpu 0.50 cmdbuf 6% skipped 0 draws 55 tris 5608 uniforms 29 texbinds 49 vbo 13
+[4004399625166] stats: [view: dd_near] heap 9504K linfree 16529K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399625173] model: staged 4436 tris, 16 batches, 8 tex, 1013 KB linear
+[4004399625233] prof: [view: dd_near] hitch total 67.08 busy 33.86 ms largest wait 33.22
+[4004399626074] model: staged 1904 tris, 10 batches, 6 tex, 744 KB linear
+[4004399626169] stats: [view: dd_near] fps 28.9 cpu 4.86 gpu 0.50 cmdbuf 7% skipped 0 draws 71 tris 10044 uniforms 31 texbinds 61 vbo 15
+[4004399626169] stats: [view: dd_near] heap 4258K linfree 15492K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399626404] model: staged 120 tris, 6 batches, 4 tex, 138 KB linear
+[4004399626470] prof: [view: dd_near] hitch total 66.87 busy 33.66 ms largest wait 33.21
+[4004399626672] model: staged 102 tris, 2 batches, 1 tex, 133 KB linear
+[4004399626737] prof: [view: dd_near] hitch total 66.86 busy 33.67 ms largest wait 33.19
+[4004399627172] stats: [view: dd_near] fps 27.9 cpu 5.82 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399627172] stats: [view: dd_near] heap 7910K linfree 15221K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399627710] model: staged 1661 tris, 10 batches, 8 tex, 419 KB linear
+[4004399627773] prof: [view: dd_near] hitch total 66.86 busy 33.64 ms largest wait 33.21
+[4004399628175] prof: [view: dd_near] frames 29 total 34.58 busy 4.72 ms avg: input 0.05 player 0.31 place 1.23 net 0.01 remote 0.00 actors 0.01
+[4004399628175] prof: [view: dd_near] avg: dplace 0.91 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399628175] prof: [view: dd_near] avg: ui 1.45 audio 0.00 wait 29.86 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399628175] prof: [view: dd_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399628175] prof: [view: dd_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399628175] prof: [view: dd_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399628175] prof: [view: dd_near] avg: shot 0.00
+[4004399628175] prof: [view: dd_near] max: input 0.5 player 0.3 place 30.2 net 0.0 remote 0.0 actors 0.0
+[4004399628175] prof: [view: dd_near] max: dplace 0.9 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399628176] prof: [view: dd_near] max: ui 1.4 audio 0.0 wait 33.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399628176] prof: [view: dd_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399628176] prof: [view: dd_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399628176] prof: [view: dd_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399628176] prof: [view: dd_near] max: shot 0.0
+[4004399628176] stats: [view: dd_near] fps 28.9 cpu 4.72 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399628176] stats: [view: dd_near] heap 8284K linfree 14703K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399628777] model: staged 141 tris, 4 batches, 4 tex, 60 KB linear
+[4004399628843] prof: [view: dd_near] hitch total 66.86 busy 33.68 ms largest wait 33.18
+[4004399629177] stats: [view: dd_near] fps 29.0 cpu 4.79 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399629178] stats: [view: dd_near] heap 7032K linfree 14628K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399629614] model: staged 1958 tris, 5 batches, 5 tex, 279 KB linear
+[4004399629679] prof: [view: dd_near] hitch total 66.86 busy 33.71 ms largest wait 33.15
+[4004399629947] model: staged 2 tris, 1 batches, 1 tex, 2 KB linear
+[4004399630013] prof: [view: dd_near] hitch total 66.86 busy 33.74 ms largest wait 33.11
+[4004399630180] stats: [view: dd_near] fps 27.9 cpu 5.90 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399630181] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399631183] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399631183] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399632052] view: dd_near plan: cell 3 3:0/0* 4:0/0* 7:0/0* 0:0/0* 1:0/0*
+[4004399632186] stats: [view: dd_near] fps 29.9 cpu 3.81 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399632186] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399633189] prof: [view: dd_near] frames 30 total 33.43 busy 3.80 ms avg: input 0.04 player 0.32 place 0.30 net 0.01 remote 0.00 actors 0.01
+[4004399633189] prof: [view: dd_near] avg: dplace 0.92 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399633189] prof: [view: dd_near] avg: ui 1.45 audio 0.00 wait 29.62 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399633189] prof: [view: dd_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399633189] prof: [view: dd_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399633189] prof: [view: dd_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399633189] prof: [view: dd_near] avg: shot 0.00
+[4004399633189] prof: [view: dd_near] max: input 0.5 player 0.3 place 0.3 net 0.0 remote 0.0 actors 0.0
+[4004399633190] prof: [view: dd_near] max: dplace 0.9 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399633190] prof: [view: dd_near] max: ui 1.4 audio 0.0 wait 29.6 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399633190] prof: [view: dd_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399633190] prof: [view: dd_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399633190] prof: [view: dd_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399633190] prof: [view: dd_near] max: shot 0.0
+[4004399633190] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399633190] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399634192] stats: [view: dd_near] fps 30.0 cpu 3.85 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399634192] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399635194] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399635195] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399636197] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399636197] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399637200] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399637200] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399638203] prof: [view: dd_near] frames 30 total 33.43 busy 3.80 ms avg: input 0.04 player 0.32 place 0.30 net 0.01 remote 0.00 actors 0.01
+[4004399638203] prof: [view: dd_near] avg: dplace 0.92 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399638203] prof: [view: dd_near] avg: ui 1.45 audio 0.00 wait 29.62 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399638203] prof: [view: dd_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399638203] prof: [view: dd_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399638203] prof: [view: dd_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399638204] prof: [view: dd_near] avg: shot 0.00
+[4004399638204] prof: [view: dd_near] max: input 0.5 player 0.3 place 0.3 net 0.0 remote 0.0 actors 0.0
+[4004399638204] prof: [view: dd_near] max: dplace 0.9 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399638204] prof: [view: dd_near] max: ui 1.4 audio 0.0 wait 29.6 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399638204] prof: [view: dd_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399638204] prof: [view: dd_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399638204] prof: [view: dd_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399638204] prof: [view: dd_near] max: shot 0.0
+[4004399638204] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399638204] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399639206] stats: [view: dd_near] fps 30.0 cpu 3.85 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399639206] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399640075] view: dd_near plan: cell 3 3:0/0* 4:0/0* 7:0/0* 0:0/0* 1:0/0*
+[4004399640208] stats: [view: dd_near] fps 29.9 cpu 3.81 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399640209] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399641211] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399641212] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399642214] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399642214] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399643217] prof: [view: dd_near] frames 30 total 33.43 busy 3.80 ms avg: input 0.04 player 0.32 place 0.30 net 0.01 remote 0.00 actors 0.01
+[4004399643217] prof: [view: dd_near] avg: dplace 0.92 dshadow 0.03 dtoons 0.23 dact 0.02 balln 0.08 hud 0.00
+[4004399643217] prof: [view: dd_near] avg: ui 1.45 audio 0.00 wait 29.62 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399643217] prof: [view: dd_near] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399643217] prof: [view: dd_near] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399643218] prof: [view: dd_near] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399643218] prof: [view: dd_near] avg: shot 0.00
+[4004399643218] prof: [view: dd_near] max: input 0.5 player 0.3 place 0.3 net 0.0 remote 0.0 actors 0.0
+[4004399643218] prof: [view: dd_near] max: dplace 0.9 dshadow 0.0 dtoons 0.2 dact 0.0 balln 0.1 hud 0.0
+[4004399643218] prof: [view: dd_near] max: ui 1.4 audio 0.0 wait 29.6 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399643218] prof: [view: dd_near] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399643218] prof: [view: dd_near] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399643218] prof: [view: dd_near] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399643218] prof: [view: dd_near] max: shot 0.0
+[4004399643218] stats: [view: dd_near] fps 29.9 cpu 3.80 gpu 0.50 cmdbuf 7% skipped 0 draws 74 tris 10102 uniforms 31 texbinds 61 vbo 15
+[4004399643218] stats: [view: dd_near] heap 2388K linfree 14294K vramfree 4194K toons 0 remote 0 pos -115.0,-28.0,5.7 h 90
+[4004399643585] view: dd_far in zone 1000
+[4004399643585] player: anim 3 at -112.0,-33.0,6.00 (ground 5.67)
+[4004399643618] autotest: step 328 'view: dd_far'
+[4004399643685] player: anim 0 at -112.0,-33.0,5.67 (ground 5.67)
+[4004399644220] stats: [view: dd_far] fps 30.0 cpu 4.00 gpu 0.50 cmdbuf 7% skipped 0 draws 84 tris 13625 uniforms 22 texbinds 71 vbo 19
+[4004399644220] stats: [view: dd_far] heap 8234K linfree 14294K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399644559] model: staged 1904 tris, 10 batches, 6 tex, 744 KB linear
+[4004399644621] prof: [view: dd_far] hitch total 66.85 busy 33.83 ms largest wait 33.02
+[4004399645223] stats: [view: dd_far] fps 28.9 cpu 5.05 gpu 0.50 cmdbuf 7% skipped 0 draws 84 tris 13868 uniforms 22 texbinds 69 vbo 19
+[4004399645223] stats: [view: dd_far] heap 8321K linfree 13855K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399645658] model: staged 251 tris, 3 batches, 3 tex, 111 KB linear
+[4004399645724] prof: [view: dd_far] hitch total 66.83 busy 33.80 ms largest wait 33.03
+[4004399646225] stats: [view: dd_far] fps 28.9 cpu 5.03 gpu 0.50 cmdbuf 7% skipped 0 draws 83 tris 13978 uniforms 22 texbinds 68 vbo 19
+[4004399646226] stats: [view: dd_far] heap 7293K linfree 13787K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399646463] model: staged 2163 tris, 10 batches, 7 tex, 478 KB linear
+[4004399646526] prof: [view: dd_far] hitch total 66.92 busy 33.89 ms largest wait 33.03
+[4004399647228] stats: [view: dd_far] fps 28.9 cpu 5.06 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399647229] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399648098] view: dd_far plan: cell 3 3:0/0* 4:0/0* 7:0/0* 0:0/0* 1:0/0* 6:0/0* 8:0/0* 5:0/0*
+[4004399648231] prof: [view: dd_far] frames 30 total 33.43 busy 4.05 ms avg: input 0.04 player 0.31 place 0.36 net 0.01 remote 0.00 actors 0.01
+[4004399648231] prof: [view: dd_far] avg: dplace 1.28 dshadow 0.01 dtoons 0.02 dact 0.12 balln 0.02 hud 0.00
+[4004399648232] prof: [view: dd_far] avg: ui 1.46 audio 0.00 wait 29.38 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399648232] prof: [view: dd_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399648232] prof: [view: dd_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399648232] prof: [view: dd_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399648232] prof: [view: dd_far] avg: shot 0.00
+[4004399648232] prof: [view: dd_far] max: input 0.5 player 0.4 place 0.4 net 0.0 remote 0.0 actors 0.0
+[4004399648232] prof: [view: dd_far] max: dplace 1.3 dshadow 0.0 dtoons 0.0 dact 0.1 balln 0.0 hud 0.0
+[4004399648232] prof: [view: dd_far] max: ui 1.5 audio 0.0 wait 29.4 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399648232] prof: [view: dd_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399648232] prof: [view: dd_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399648233] prof: [view: dd_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399648233] prof: [view: dd_far] max: shot 0.0
+[4004399648233] stats: [view: dd_far] fps 29.9 cpu 4.05 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399648233] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399649234] stats: [view: dd_far] fps 30.0 cpu 4.08 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399649234] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399650237] stats: [view: dd_far] fps 29.9 cpu 4.04 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399650237] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399651240] stats: [view: dd_far] fps 29.9 cpu 4.04 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399651240] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399652242] stats: [view: dd_far] fps 29.9 cpu 4.04 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399652243] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399653245] prof: [view: dd_far] frames 30 total 33.43 busy 4.04 ms avg: input 0.04 player 0.31 place 0.36 net 0.01 remote 0.00 actors 0.01
+[4004399653246] prof: [view: dd_far] avg: dplace 1.28 dshadow 0.01 dtoons 0.02 dact 0.12 balln 0.02 hud 0.00
+[4004399653246] prof: [view: dd_far] avg: ui 1.46 audio 0.00 wait 29.39 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399653246] prof: [view: dd_far] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399653246] prof: [view: dd_far] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.05 golf 0.00 estate 0.00
+[4004399653246] prof: [view: dd_far] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399653246] prof: [view: dd_far] avg: shot 0.00
+[4004399653246] prof: [view: dd_far] max: input 0.5 player 0.3 place 0.4 net 0.0 remote 0.0 actors 0.0
+[4004399653246] prof: [view: dd_far] max: dplace 1.3 dshadow 0.0 dtoons 0.0 dact 0.1 balln 0.0 hud 0.0
+[4004399653246] prof: [view: dd_far] max: ui 1.5 audio 0.0 wait 29.4 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399653246] prof: [view: dd_far] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399653247] prof: [view: dd_far] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.1 golf 0.0 estate 0.0
+[4004399653247] prof: [view: dd_far] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399653247] prof: [view: dd_far] max: shot 0.0
+[4004399653247] stats: [view: dd_far] fps 29.9 cpu 4.04 gpu 0.50 cmdbuf 8% skipped 0 draws 88 tris 14183 uniforms 22 texbinds 71 vbo 19
+[4004399653247] stats: [view: dd_far] heap 2388K linfree 13520K vramfree 4194K toons 0 remote 0 pos -112.0,-33.0,5.7 h -40
+[4004399653647] autotest: finished
+[4004399658260] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399658260] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399658260] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399658260] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399658260] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399658260] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399658260] prof: [play] avg: shot 0.00
+[4004399658260] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399658261] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399658261] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399658261] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399658261] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399658261] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399658261] prof: [play] max: shot 0.0
+[4004399663274] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399663274] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399663274] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399663274] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399663274] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399663274] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399663274] prof: [play] avg: shot 0.00
+[4004399663275] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399663275] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399663275] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399663275] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399663275] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399663275] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399663275] prof: [play] max: shot 0.0
+[4004399668288] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399668288] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399668288] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399668288] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399668288] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399668289] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399668289] prof: [play] avg: shot 0.00
+[4004399668289] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399668289] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399668289] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399668289] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399668289] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399668289] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399668289] prof: [play] max: shot 0.0
+[4004399673302] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399673302] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399673302] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399673302] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399673303] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399673303] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399673303] prof: [play] avg: shot 0.00
+[4004399673303] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399673303] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399673303] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399673303] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399673303] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399673303] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399673303] prof: [play] max: shot 0.0
+[4004399678316] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399678316] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399678316] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399678317] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399678317] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399678317] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399678317] prof: [play] avg: shot 0.00
+[4004399678317] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399678317] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399678317] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399678317] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399678317] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399678317] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399678317] prof: [play] max: shot 0.0
+[4004399683330] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399683330] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399683331] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399683331] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399683331] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399683331] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399683331] prof: [play] avg: shot 0.00
+[4004399683331] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399683331] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399683331] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399683331] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399683331] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399683331] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399683332] prof: [play] max: shot 0.0
+[4004399688344] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399688345] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399688345] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399688345] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399688345] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399688345] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399688345] prof: [play] avg: shot 0.00
+[4004399688345] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399688345] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399688345] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399688345] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399688345] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399688346] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399688346] prof: [play] max: shot 0.0
+[4004399693358] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399693359] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399693359] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399693359] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399693359] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399693359] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399693359] prof: [play] avg: shot 0.00
+[4004399693359] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399693359] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399693359] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399693359] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399693360] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399693360] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399693360] prof: [play] max: shot 0.0
+[4004399698373] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399698373] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399698373] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399698373] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399698373] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399698373] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399698373] prof: [play] avg: shot 0.00
+[4004399698373] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399698373] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399698373] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399698374] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399698374] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399698374] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399698374] prof: [play] max: shot 0.0
+[4004399703387] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399703387] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399703387] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399703387] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399703387] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399703387] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399703387] prof: [play] avg: shot 0.00
+[4004399703387] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399703387] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399703388] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399703388] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399703388] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399703388] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399703388] prof: [play] max: shot 0.0
+[4004399708401] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399708401] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399708401] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399708401] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399708401] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399708401] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399708401] prof: [play] avg: shot 0.00
+[4004399708401] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399708402] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399708402] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399708402] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399708402] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399708402] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399708402] prof: [play] max: shot 0.0
+[4004399713415] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399713415] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399713415] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399713415] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399713415] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399713415] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399713416] prof: [play] avg: shot 0.00
+[4004399713416] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399713416] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399713416] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399713416] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399713416] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399713416] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399713416] prof: [play] max: shot 0.0
+[4004399718429] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399718429] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399718429] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399718429] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399718429] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399718430] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399718430] prof: [play] avg: shot 0.00
+[4004399718430] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399718430] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399718430] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399718430] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399718430] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399718430] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399718430] prof: [play] max: shot 0.0
+[4004399723443] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399723443] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399723443] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399723443] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399723444] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399723444] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399723444] prof: [play] avg: shot 0.00
+[4004399723444] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399723444] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399723444] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399723444] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399723444] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399723444] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399723444] prof: [play] max: shot 0.0
+[4004399728457] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399728457] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399728458] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399728458] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399728458] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399728458] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399728458] prof: [play] avg: shot 0.00
+[4004399728458] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399728458] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399728458] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399728458] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399728458] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399728458] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399728458] prof: [play] max: shot 0.0
+[4004399733471] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399733472] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399733472] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399733472] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399733472] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399733472] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399733472] prof: [play] avg: shot 0.00
+[4004399733472] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399733472] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399733472] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399733472] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399733472] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399733473] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399733473] prof: [play] max: shot 0.0
+[4004399738485] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399738486] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399738486] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399738486] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399738486] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399738486] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399738486] prof: [play] avg: shot 0.00
+[4004399738486] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399738486] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399738486] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399738486] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399738486] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399738487] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399738487] prof: [play] max: shot 0.0
+[4004399743499] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399743500] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399743500] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399743500] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399743500] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399743500] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399743500] prof: [play] avg: shot 0.00
+[4004399743500] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399743500] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399743500] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399743500] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399743501] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399743501] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399743501] prof: [play] max: shot 0.0
+[4004399748514] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399748514] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399748514] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399748514] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399748514] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399748514] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399748514] prof: [play] avg: shot 0.00
+[4004399748514] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399748514] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399748515] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399748515] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399748515] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399748515] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399748515] prof: [play] max: shot 0.0
+[4004399753528] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399753528] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399753528] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399753528] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399753528] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399753528] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399753528] prof: [play] avg: shot 0.00
+[4004399753528] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399753529] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399753529] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399753529] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399753529] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399753529] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399753529] prof: [play] max: shot 0.0
+[4004399758542] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399758542] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399758542] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399758542] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399758542] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399758542] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399758542] prof: [play] avg: shot 0.00
+[4004399758543] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399758543] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399758543] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399758543] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399758543] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399758543] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399758543] prof: [play] max: shot 0.0
+[4004399763556] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399763556] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399763556] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399763556] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399763556] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399763556] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399763557] prof: [play] avg: shot 0.00
+[4004399763557] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399763557] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399763557] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399763557] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399763557] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399763557] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399763557] prof: [play] max: shot 0.0
+[4004399768570] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399768570] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399768570] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399768570] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399768571] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399768571] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399768571] prof: [play] avg: shot 0.00
+[4004399768571] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399768571] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399768571] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399768571] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399768571] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399768571] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399768571] prof: [play] max: shot 0.0
+[4004399773584] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399773584] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399773584] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399773585] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399773585] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399773585] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399773585] prof: [play] avg: shot 0.00
+[4004399773585] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399773585] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399773585] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399773585] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399773585] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399773585] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399773585] prof: [play] max: shot 0.0
+[4004399778598] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399778598] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399778599] prof: [play] avg: ui 1.45 audio 0.00 wait 29.18 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399778599] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399778599] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399778599] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399778599] prof: [play] avg: shot 0.00
+[4004399778599] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399778599] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399778599] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399778599] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399778599] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399778599] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399778600] prof: [play] max: shot 0.0
+[4004399783612] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399783613] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399783613] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399783613] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399783613] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399783613] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399783613] prof: [play] avg: shot 0.00
+[4004399783613] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399783613] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399783613] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399783613] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399783613] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399783614] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399783614] prof: [play] max: shot 0.0
+[4004399788626] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399788627] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399788627] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399788627] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399788627] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399788627] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399788627] prof: [play] avg: shot 0.00
+[4004399788627] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399788627] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399788627] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399788627] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399788628] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399788628] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399788628] prof: [play] max: shot 0.0
+[4004399793640] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399793641] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399793641] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399793641] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399793641] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399793641] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399793641] prof: [play] avg: shot 0.00
+[4004399793641] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399793641] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399793641] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399793642] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399793642] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399793642] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399793642] prof: [play] max: shot 0.0
+[4004399798655] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399798655] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399798655] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399798655] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399798655] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399798655] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399798655] prof: [play] avg: shot 0.00
+[4004399798655] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399798655] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399798656] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399798656] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399798656] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 racing 0.0 golf 0.0 estate 0.0
+[4004399798656] prof: [play] max: loads 0.0 other 0.0 dmini 0.0 dracing 0.0 dgolf 0.0 destate 0.0
+[4004399798656] prof: [play] max: shot 0.0
+[4004399803669] prof: [play] frames 30 total 33.43 busy 4.24 ms avg: input 0.02 player 0.35 place 0.33 net 0.01 remote 0.00 actors 0.01
+[4004399803669] prof: [play] avg: dplace 1.28 dshadow 0.03 dtoons 0.21 dact 0.13 balln 0.08 hud 0.00
+[4004399803669] prof: [play] avg: ui 1.45 audio 0.00 wait 29.19 fend 0.31 feupd 0.00 fedraw 0.00
+[4004399803669] prof: [play] avg: bossupd 0.00 bossdraw 0.00 cogdoupd 0.00 cogdodraw 0.00 levupd 0.00 rooms 0.00
+[4004399803669] prof: [play] avg: props 0.00 levgames 0.00 minigame 0.00 racing 0.01 golf 0.00 estate 0.00
+[4004399803669] prof: [play] avg: loads 0.03 other 0.00 dmini 0.00 dracing 0.00 dgolf 0.00 destate 0.00
+[4004399803669] prof: [play] avg: shot 0.00
+[4004399803669] prof: [play] max: input 0.0 player 0.4 place 0.3 net 0.1 remote 0.0 actors 0.0
+[4004399803670] prof: [play] max: dplace 1.3 dshadow 0.0 dtoons 0.2 dact 0.1 balln 0.1 hud 0.0
+[4004399803670] prof: [play] max: ui 1.4 audio 0.0 wait 29.2 fend 0.3 feupd 0.0 fedraw 0.0
+[4004399803670] prof: [play] max: bossupd 0.0 bossdraw 0.0 cogdoupd 0.0 cogdodraw 0.0 levupd 0.0 rooms 0.0
+[4004399803670] prof: [play] max: props 0.0 levgames 0.0 minigame 0.0 

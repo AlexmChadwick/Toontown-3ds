@@ -1,0 +1,7 @@
+# source at gate start 581360cbf15751fe595b98a114abc8086544fea7
+# source now f5fd165afb748f55f0a1743e71af0452f2afb33f
+# app sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+# resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+# run_gate.sh 280s. compare_views exit 1. Same stock-pin failure as gate 1.
+# GATE2_START 2026-11-23T05:11:44Z GATE2_EXIT 1 2026-11-23T05:21:40Z
+
