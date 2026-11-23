@@ -27,7 +27,12 @@ public:
     void setZone(uint32_t zoneId);
     // Draws the nearest in-view props inside the profile draw distance, at most kMaxDrawn and
     // kTriangleBudget triangles (a Dreamland trash can is 1,368; the chunks no longer hold them).
+    // The phase comes from nowMs, except while holdTime is set (fixed-camera autotest steps).
     void draw(render::Renderer& renderer, float eyeX, float eyeY, uint32_t nowMs);
+    // Pin every prop to one clock. Fixed-camera autotest steps use this so Old and New grabs
+    // share a frame: the pet-shop fish loop otherwise drifts between runs (ttc_tree tile SSIM).
+    void holdTime(float seconds);
+    void releaseTime();
     void shutdown();
 
 private:
@@ -52,6 +57,8 @@ private:
     Instance instances_[kMaxInstances];
     int count_ = 0;
     uint32_t zone_ = 0;
+    bool hold_ = false;
+    float holdSeconds_ = 0.0f;
 };
 
 } // namespace tt::world

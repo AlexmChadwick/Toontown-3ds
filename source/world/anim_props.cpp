@@ -66,7 +66,18 @@ void AnimProps::shutdown() {
     }
     numKinds_ = count_ = 0;
     zone_ = 0;
+    hold_ = false;
+    holdSeconds_ = 0.0f;
 }
+
+void AnimProps::holdTime(float seconds) {
+    if (!hold_ || holdSeconds_ != seconds)
+        TT_LOG("animprops: autotest hold %.3fs", double(seconds));
+    hold_ = true;
+    holdSeconds_ = seconds;
+}
+
+void AnimProps::releaseTime() { hold_ = false; }
 
 void AnimProps::setZone(uint32_t zoneId) {
     if (zoneId == zone_) return;
@@ -162,7 +173,9 @@ void AnimProps::draw(render::Renderer& renderer, float eyeX, float eyeY, uint32_
         dist[at] = d2;
         order[at] = i;
     }
-    const float t = float(nowMs % 3600000u) * 0.001f;
+    // holdTime pins the phase. nowMs is the 3DS system tick, which does not stay locked to the
+    // autotest step's log clock, so Old and New grabs of one view otherwise sample different frames.
+    const float t = hold_ ? holdSeconds_ : float(nowMs % 3600000u) * 0.001f;
     u32 triangles = 0;
     for (int j = 0; j < n; ++j) {
         const Instance& in = instances_[order[j]];

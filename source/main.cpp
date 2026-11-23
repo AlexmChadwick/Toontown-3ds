@@ -3626,10 +3626,13 @@ int main() {
         tt::render::setPlaceFar(racing.active() && racing.urban() ? 650.0f
                                 : level.active() || tt::world::placeKind(place.zoneId()) == tt::world::PlaceKind::Interior
                                     ? 0.0f : tt::world::cameraFar(place.zoneId()));
-        if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6)))
+        if (autotest.active() && (!strncmp(autotest.label(), "view: ", 6) || !strncmp(autotest.label(), "pose: ", 6))) {
             sky.holdClouds();
-        else
+            animProps.holdTime(0.0f); // one frame of every looping prop, including the pet-shop fish
+        } else {
             sky.update(dt);
+            animProps.releaseTime();
+        }
         level.pumpAssets();
         pets.pumpAssets();
         cogInterior.pumpAssets();
