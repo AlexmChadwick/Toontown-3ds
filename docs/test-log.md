@@ -2139,3 +2139,15 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
   (d) 1.493757x; dd_near (a) 257.717437 (1.116648x stock 230.795694) vs 300.034402 / r11 281, (b) 0.655692x
   vs 1.0x, (d) 1.110967x. Every other view PASS, street_near (a) 270.526130 (b) 1.159746x (c) 1.112548x
   (d) 0.915739x. The 2026-11-23 entry above rounded these; the raw values here supersede it.
+
+## 2026-11-24 box gates x3 on 38d16d1 (anisotropic ground LOD bias), Azahar Old and New 3DS mode, Linux/Xvfb, emulator
+- Source 38d16d1004c01b5099ff6d1af94f302304050506, app sha256 12fad941186dc1f7c606195db4278d74b4b0159983d30aaf464332611abae44d,
+  TT_RESOURCES d00df01af876cc9c5d1a22329f394a9a50245e9c, zones rebaked from this source: 2000 a857e452, 1000 45ba5e7f, 2100 d4df25be.
+- Three full runs of `tools/fidelity/run_gate.sh`: exit 1 each, frames identical across runs. Gate is RED.
+  ttc_near FAIL (a) 471.100549 (1.155202x stock 407.808092) vs 530.150520 / r11 491, (b) 0.950467x vs 1.0x;
+  (c) 1.032209x, (d) 1.486996x pass. dd_near FAIL (a) 257.717437 (1.116648x stock 230.795694) vs 300.034402 / r11 281,
+  (b) 0.655692x vs 1.0x. Every other view PASS. Cause of the remaining gap: the gates lane's qa/r6/cause.md
+  (gag shop awning edge-on mean mip; (a) at 1.3x stock needs sharpening).
+- Old and New, every view: 29.9 fps, heap, linear free and VRAM free unchanged from the 2307354 runs
+  (cpu ms within 0.01). Facility sweep 31 rooms and boss sweep vp / cfo / cj / ceo PASS, re-score exit 0.
+- Not a hardware measurement.
