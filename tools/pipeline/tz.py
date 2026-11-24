@@ -307,7 +307,7 @@ def validate_ttm(data, geom, tex, draws, tris):
     for i in range(nb):
         b=struct.unpack_from('<H6B4I',data,bt+i*24)
         tid,blend,flags,tint,layer,slot,pad,fv,nverts,fi,nidx=b
-        check((tid==65535 or tid<nt) and blend<=2 and flags<=1 and tint==0 and layer<=4 and slot==0 and pad==0)
+        check((tid==65535 or tid<nt) and blend<=2 and flags<=3 and tint==0 and layer<=4 and slot==0 and pad==0)
         check(fv<=nv and nverts<=nv-fv and fi<=ni and nidx<=ni-fi and nidx%3==0)
         ids=struct.unpack_from(f'<{nidx}H',data,ib+fi*2)
         if absolute:

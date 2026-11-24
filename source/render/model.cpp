@@ -233,6 +233,16 @@ void Model::setSignLodBias(float bias) {
 #endif
 }
 
+void Model::applyAnisoLodBias() {
+#ifdef __3DS__
+    for (u16 b = 0; b < numBatches_; ++b) {
+        const Batch& bt = batches_[b];
+        if ((bt.flags & 2) && bt.texture < numTextures_ && textures_[bt.texture].data)
+            C3D_TexSetLodBias(&textures_[bt.texture], kAnisoLodBias);
+    }
+#endif
+}
+
 bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
     unload();
     const char* path = label ? label : "(embedded)";
@@ -394,6 +404,7 @@ bool Model::loadFrom(FILE* f, u32 base, const char* label, FILE* pool) {
         unload();
         return false;
     }
+    applyAnisoLodBias();
     TT_LOG("model: %s: %lu tris, %u batches, %u tex, %lu KB linear", path, (unsigned long)numTriangles(),
            numBatches_, numTextures_, (unsigned long)(linearBytes_ / 1024));
     return true;
@@ -707,6 +718,7 @@ ModelStaging::Result ModelStaging::pump(Model& dst, u32 budgetUs) {
         TT_LOG("model: staged %lu tris, %u batches, %u tex, %lu KB linear",
                (unsigned long)(numIndices_ / 3), numBatches_, numTextures_,
                (unsigned long)(dst.linearBytes_ / 1024));
+        dst.applyAnisoLodBias();
         reset(); // heap copy is in the model now
         stage_ = Stage::Done;
         return Result::Complete;

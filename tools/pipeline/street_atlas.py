@@ -730,8 +730,15 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             _, image, nc, pf, ws, wt = source_pixels(idx)
             if k > 1:
                 image = np.tile(image, (k, k, 1))
-            shared[(idx, k)] = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
-                                           ws, wt, levels=_repeat_mips(image, ws, wt))
+            tex = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
+                              ws, wt, levels=_repeat_mips(image, ws, wt))
+            # Panda draws the hood ground set (toontown_central.bam's toonrockroad_newToontown2,
+            # grassTT, trollly_pave_tile; donalds_dock.bam's boardwalk_floor, grassDD) at
+            # anisotropic_degree 4. PICA has none, and plain trilinear blurred the oblique TTC
+            # cobbles to about two thirds of the stock detail (qa/r6/cause.md); the runtime
+            # samples these one mip finer instead (ttm batch flags bit1, kAnisoLodBias).
+            tex.aniso = _anisotropic(sources[idx]) and idx not in wall_like
+            shared[(idx, k)] = tex
         return shared[(idx, k)]
     need = ViewDensity(view_points, density, near=view_near, far=view_far)
     cache = _SourceCache(sources)
@@ -909,6 +916,11 @@ def _pretile_factor(image, wrap_s, wrap_t, uv_range, limit=256):
     while max(image.shape[:2]) * k * 2 <= limit and k < 2:
         k *= 2
     return k
+
+
+def _anisotropic(tex):
+    """The source texture asks for anisotropic filtering."""
+    return tex.getAnisotropicDegree() > 1
 
 
 def _repeat_mips(image, wrap_s, wrap_t):

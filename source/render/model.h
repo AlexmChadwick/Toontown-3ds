@@ -30,10 +30,14 @@ constexpr u32 kTexSlotCount = 9;
 
 enum BlendMode : u8 { kBlendOpaque = 0, kBlendAlphaTest = 1, kBlendAlpha = 2 };
 
+// PICA200 has no anisotropic filtering. Ground textures the source draws at anisotropic_degree
+// > 1 (the hood ground set) sample one mip finer instead (batch flags bit1, street_atlas.py).
+constexpr float kAnisoLodBias = -1.0f;
+
 struct Batch {
     u16 texture; // 0xFFFF = untextured
     u8 blend;
-    u8 flags; // bit0: two-sided
+    u8 flags; // bit0: two-sided; bit1: the source asked for anisotropic filtering (kAnisoLodBias)
     u8 tint;
     u8 layer;
     u8 texSlot; // 0 = own texture; 1 shirt/blazer, 2 sleeve, 3 bottom/legs, 4 tie, 5..8 eyelids (Renderer slotTex override). Older files: 0.
@@ -111,6 +115,8 @@ public:
     // (MickeyFont's palette_2tmlc) toward the sharper tier New 3DS gets. The chunk's
     // other textures keep their mips: biased, Toon Hall's plaza tiles aliased on Old only.
     void setSignLodBias(float bias);
+    // Applies kAnisoLodBias to the textures of batches with flags bit1 (done by both loads).
+    void applyAnisoLodBias();
 
     // Street Cog buildings (world/cog_buildings.*): collapse every triangle `hide` accepts
     // into a degenerate one, after restoring the set a previous call collapsed. The test

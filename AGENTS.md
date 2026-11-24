@@ -260,7 +260,12 @@ Key decisions:
      used by cog HQs. The RomFS playground mesh stays at 128 because the whole
      playground is one resident model and a 256px set does not fit the 8 MiB
      texture budget. Runtime filtering is linear,
-     plus a linear mip when the texture has more than one level.
+     plus a linear mip when the texture has more than one level. PICA has no anisotropic
+     filtering: a streamed-zone standalone ground texture whose source asks for
+     anisotropic_degree > 1 (the hood ground set: TTC cobbles, grass, trolley paving; DD
+     boardwalk) sets batch flags bit1, and the runtime samples it one mip finer
+     (`kAnisoLodBias` -1, `Model::applyAnisoLodBias`). An extra 2x level 0 does not do this:
+     mip choice is measured against level 0, so it only renumbers the same texels.
    - Format by use:
      - **ETC1** for opaque textures.
      - **ETC1A4** when there is alpha.

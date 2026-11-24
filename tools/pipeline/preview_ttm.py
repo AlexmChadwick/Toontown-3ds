@@ -142,6 +142,11 @@ def load(path, tints):
         np_ = root.attachNewNode(gn)
         if tex != 0xFFFF:
             np_.setTexture(textures[tex])
+            if flags & 2:
+                # kAnisoLodBias: the runtime samples an anisotropic source one mip finer.
+                smp = SamplerState(textures[tex].getDefaultSampler())
+                smp.setLodBias(-1.0)
+                textures[tex].setDefaultSampler(smp)
         if blend == ttm.BLEND_ALPHA_TEST:
             np_.setAttrib(AlphaTestAttrib.make(RenderAttrib.M_greater, 0.5))
         elif blend == ttm.BLEND_ALPHA:

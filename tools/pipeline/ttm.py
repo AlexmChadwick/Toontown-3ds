@@ -13,7 +13,8 @@ section pointers straight to the GPU after copying into linear memory):
       u8 wrapS; u8 wrapT (GPU_TEXTURE_WRAP_PARAM); u32 dataOffset; u32 dataSize; char[32] name
     Batch entry (24 bytes)
       u16 texture (0xFFFF = none); u8 blend (0 opaque, 1 alpha test, 2 alpha blend)
-      u8 flags (bit0 two-sided); u8 tintSlot (0 = none); u8 layer (draw-in-front order)
+      u8 flags (bit0 two-sided; bit1 the texture's source is anisotropic: the runtime
+      samples it one mip finer, kAnisoLodBias); u8 tintSlot (0 = none); u8 layer (draw-in-front order)
       u8 texSlot (0 = own texture; 1 shirt, 2 sleeve, 3 bottom: the runtime binds the
       toon's DNA clothing texture instead, see bake_toon.py); u8 pad
       u32 firstVertex; u32 numVertices; u32 firstIndex; u32 numIndices
@@ -200,6 +201,9 @@ def write(path, textures, batches):
     offset = (lo + hi) / 2
     scale = np.maximum((hi - lo) / 2 / 32767.0, 1e-6)
 
+    def aniso(b):
+        return b.texture is not None and getattr(textures[b.texture], 'aniso', False)
+
     vert_chunks, idx_chunks, batch_entries, bases = [], [], [], []
     first_v = first_i = 0
     uv_clamped = 0
@@ -219,7 +223,8 @@ def write(path, textures, batches):
         bases.append(first_v)
         idx_chunks.append(b.indices.astype('<u2').tobytes())
         batch_entries.append(struct.pack('<HBBBBBBIIII', 0xFFFF if b.texture is None else b.texture,
-                                         b.blend, 1 if b.two_sided else 0, b.tint, b.layer,
+                                         b.blend, (1 if b.two_sided else 0) | (2 if aniso(b) else 0),
+                                         b.tint, b.layer,
                                          getattr(b, 'tex_slot', 0), 0,
                                          first_v, n, first_i, len(b.indices)))
         first_v += n

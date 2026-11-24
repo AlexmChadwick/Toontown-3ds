@@ -132,7 +132,7 @@ bool validModel(FILE* f, const Chunk& c, uint32_t poolOff, uint32_t poolSize, bo
     for (uint32_t i=0;i<h.batches;++i) {
         if (i%16==0 && !readAt(f,c.offset+h.batchOff+i*24,batchBlock,std::min<uint32_t>(16,h.batches-i)*24)) return false;
         const Batch& b=batchBlock[i%16];
-        if ((b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>1 || b.tint ||
+        if ((b.texture!=65535 && b.texture>=h.textures) || b.blend>2 || b.flags>3 || b.tint ||
             b.layer>4 || b.slot || b.pad || b.fv>h.vertices || b.nv>h.vertices-b.fv ||
             b.fi>h.indices || b.ni>h.indices-b.fi || b.ni%3) return false;
         if (b.layer && b.texture<256 && fontTex[b.texture]) {
