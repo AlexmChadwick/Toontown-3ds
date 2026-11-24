@@ -57,7 +57,7 @@ They are the "off" rows of the qa19 sharpen sweep, rounded to the nearest step:
   1000.tz 9cbbae17938d029431fe66666834e42809739297990926de72a53c009c4603df.
   The box gates of 2026-11-23 ran on the same 2000 / 1000 bytes.
 - Box gates (source 53b780561562657a7f4f0efe05f6f3425fa59906, three runs, frames byte-identical):
-  raw ttc_near a 442.5, b 0.6173, d 1.4938; dd_near a 257.72, b 0.6557, d 1.1110. Rounded to the
+  raw ttc_near a 442.499893, b 0.617313, d 1.493757; dd_near a 257.717437, b 0.655692, d 1.110967. Rounded to the
   nearest step these are the floors exactly, so the floors were set at zero margin and passed only
   because the gate rounded the measurement too (fixed in 399eced).
 - Crops (stock / Old / New): `claude-3ds-qa19/qa-r4/crops/{ttc,dd}_near_stock_old_new_4x.png`,

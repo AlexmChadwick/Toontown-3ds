@@ -2125,3 +2125,17 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
   /workspace/toontown/dc-ref/groups.dc is 7430afc3ffd9cd9beb9ef1b8e7e135fccf16b4a283200ca19601551eabbd5039.
 - fps / heap / linear / VRAM: not captured this time; the Azahar logs were lost when the box restarted
   and wiped /tmp. Not a hardware measurement.
+
+## 2026-11-24 box gates x3 on 2307354 and QA-20261119-145 (Azahar Old and New 3DS mode, Linux/Xvfb, emulator)
+- Source 2307354d79e7e2038d80f940dda26a4c5a33bf76, app sha256 c02a4ff228925c711c6c3fe832d2bd00b2fe11628c0610b528ba0c99f92a2bb8,
+  TT_RESOURCES d00df01af876cc9c5d1a22329f394a9a50245e9c, zones 2000 3dec9118, 2100 e8044019, 1000 9cbbae17.
+- Three full runs of `tools/fidelity/run_gate.sh` (23:45, 00:50, 02:14 EST): exit 0 under the scorer of
+  that tip, which still let the KNOWN GAP floors pass ttc_near / dd_near. Frames byte-identical across runs.
+- Old and New, every view: 29.9 fps, cpu 3.4 to 5.1 ms, heap 2420K to 2605K, linear free 11455K to 13631K,
+  VRAM free 4194K. ttc_far Old shows 130 draws / 15025 tris at shot time (the gates lane's qa/r4/stats-table.md).
+- QA-20261119-145: the floors are unratified, so the scorer now scores ttc_near and dd_near on the full QA-19
+  bar and they FAIL. Rescored on the same frames (no source/ change, same app binary): compare_views exit 1.
+  ttc_near (a) 442.499893 (1.085069x stock 407.808092) vs 530.150520 / r11 491, (b) 0.617313x vs 1.0x,
+  (d) 1.493757x; dd_near (a) 257.717437 (1.116648x stock 230.795694) vs 300.034402 / r11 281, (b) 0.655692x
+  vs 1.0x, (d) 1.110967x. Every other view PASS, street_near (a) 270.526130 (b) 1.159746x (c) 1.112548x
+  (d) 0.915739x. The 2026-11-23 entry above rounded these; the raw values here supersede it.

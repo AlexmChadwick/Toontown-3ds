@@ -59,14 +59,15 @@ STOCK_PIN = {
 OFF_EDGE_MIN = 1.0
 HIGHPASS_MAX = 1.2
 OVERSHOOT_MAX = 1.5
-# QA-20261119-84 ruling (a): ttc_near and dd_near stay unsharpened. Their stock-relative detail is
-# source-limited (no sharpen setting passes all four columns, docs/3ds-near-detail.md), so they are
-# a KNOWN GAP held to floors taken from the unsharpened sweep rows, not waived: (a) masked Laplacian
-# detail, (b) off-edge ratio to stock, (d) overshoot ratio to stock. (c) keeps HIGHPASS_MAX. A build
-# that drops below any floor, or sharpens one of these zones (the overshoot ceiling trips first),
-# FAILs. QA ruling of 2026-11-23: every measured value is compared raw, never rounded, and the
-# gate prints it unrounded next to its bar. The bars are the raw box gate values (ttc a 442.5 b 0.6173
-# d 1.4938, dd a 257.72 b 0.6557 d 1.1110, gates 1-3 on 53b7805) rounded the safe way: floors down,
+# ttc_near and dd_near stay unsharpened (QA-20261119-84 rejected the 200% mask) and miss the
+# QA-19 near bar: (a) 1.3x stock and 1.0x r11, (b) off-edge 1.0x stock. QA-20261119-145: these
+# KNOWN GAP floors are unratified (QA-84 set no floors, the cause is not isolated, see
+# qa/known-gap-provenance.md), so they do not pass the view. Both views are scored on the full
+# QA-19 / QA-84 bars like street_near and stay FAIL (gate red) until the bar is met or Alex rules
+# on lowering it. The floors are only a regression check printed beside the result: (a) masked
+# Laplacian detail, (b) off-edge ratio to stock, (d) overshoot ratio to stock, compared raw (QA
+# ruling of 2026-11-23). They are the raw box gate values (ttc a 442.499893 b 0.617313 d 1.493757,
+# dd a 257.717437 b 0.655692 d 1.110967, gates 1-3 on 53b7805) rounded the safe way: floors down,
 # ceilings up.
 KNOWN_GAP = {'ttc_near': {'a': 442, 'b': 0.61, 'd': 1.50},
              'dd_near': {'a': 257, 'b': 0.65, 'd': 1.12}}
@@ -177,10 +178,6 @@ def check_stock(directory, main=near_views.MAIN, pin=None):
     return why
 
 
-def ratio(value, stock):
-    return f'{value/stock:.2f}x' if stock else 'stock 0'
-
-
 def raw(value):
     """A measured value as the gate compares it (unrounded, 6 decimals)."""
     return f'{value:.6f}'
@@ -220,42 +217,32 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
             ls = detail(sl)
             bar = max(1.3*ls, r11)
             gap = KNOWN_GAP.get(view)
-            if gap:
-                columns['texture detail'] = (min(lo, ln) >= gap['a'],
-                                     f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)} ({ratio(min(lo, ln), ls)}); '
-                                     f'raw {raw(min(lo, ln))} vs KNOWN GAP floor {gap["a"]}')
-            else:
-                columns['texture detail'] = (min(lo, ln) >= bar,
-                                 f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)}: raw {raw(min(lo, ln))} '
-                                 f'vs 1.3x stock {raw(1.3*ls)}, 1.0x r11 {r11}')
+            columns['texture detail'] = (min(lo, ln) >= bar,
+                             f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)}: raw {raw(min(lo, ln))} '
+                             f'({rawx(min(lo, ln), ls)} stock) vs 1.3x stock {raw(1.3*ls)}, 1.0x r11 {r11}')
             edges = near_views.edge_map(sl) | near_views.edge_map(ol) | near_views.edge_map(nl)
             es, eo, en = (near_views.off_edge(g, edges) for g in (sl, ol, nl))
-            if gap:
-                columns['off-edge detail'] = (bool(es) and min(eo, en)/es >= gap['b'],
-                                      f'(b) 3 px off-edge stock {raw(es)} old {raw(eo)} new {raw(en)}: '
-                                      f'raw {rawx(min(eo, en), es)} vs KNOWN GAP floor {gap["b"]}x')
-            else:
-                columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
-                                      f'(b) 3 px off-edge stock {raw(es)} old {raw(eo)} new {raw(en)}: '
-                                      f'raw {rawx(min(eo, en), es)} vs min {OFF_EDGE_MIN}x')
+            columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
+                                  f'(b) 3 px off-edge stock {raw(es)} old {raw(eo)} new {raw(en)}: '
+                                  f'raw {rawx(min(eo, en), es)} vs min {OFF_EDGE_MIN}x')
             hs, ho, hn = (near_views.highpass(g) for g in (sl, ol, nl))
             columns['high-pass'] = (max(ho, hn) <= HIGHPASS_MAX*hs,
                             f'(c) sigma 1.5 amplitude stock {raw(hs)} old {raw(ho)} new {raw(hn)}: '
                             f'raw {rawx(max(ho, hn), hs)} vs max {HIGHPASS_MAX}x')
             vs, vo, vn = (near_views.overshoot(g) for g in (sl, ol, nl))
+            columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
+                            f'(d) mean edge overshoot stock {raw(vs)} old {raw(vo)} new {raw(vn)}: '
+                            f'raw {rawx(max(vo, vn), vs)} vs max {OVERSHOOT_MAX}x')
             if gap:
-                columns['overshoot'] = (bool(vs) and max(vo, vn)/vs <= gap['d'],
-                                f'(d) mean edge overshoot stock {raw(vs)} old {raw(vo)} new {raw(vn)}: '
-                                f'raw {rawx(max(vo, vn), vs)} vs KNOWN GAP ceiling {gap["d"]}x')
-            else:
-                columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
-                                f'(d) mean edge overshoot stock {raw(vs)} old {raw(vo)} new {raw(vn)}: '
-                                f'raw {rawx(max(vo, vn), vs)} vs max {OVERSHOOT_MAX}x')
-            if gap:
-                columns['known gap'] = (all(columns[k][0] for k in ('texture detail', 'off-edge detail', 'overshoot')),
-                                f'KNOWN GAP {view} (a) {raw(min(lo, ln))} ({ratio(min(lo, ln), ls)} stock) '
-                                f'(b) {rawx(min(eo, en), es)} (d) {rawx(max(vo, vn), vs)}: '
-                                f'source-limited, QA-84 ruling')
+                held = {'a': min(lo, ln) >= gap['a'],
+                        'b': bool(es) and min(eo, en)/es >= gap['b'],
+                        'd': bool(vs) and max(vo, vn)/vs <= gap['d']}
+                mark = {k: 'held' if v else 'BROKEN' for k, v in held.items()}
+                columns['known gap'] = (all(held.values()),
+                                f'KNOWN GAP {view}, unratified floors, gate red vs QA-19: '
+                                f'(a) raw {raw(min(lo, ln))} vs floor {gap["a"]} {mark["a"]}, '
+                                f'(b) raw {rawx(min(eo, en), es)} vs floor {gap["b"]}x {mark["b"]}, '
+                                f'(d) raw {rawx(max(vo, vn), vs)} vs ceiling {gap["d"]}x {mark["d"]}')
         columns['old/new detail'] = (lo >= .9*ln, f'old {raw(lo)} new {raw(ln)}: raw {rawx(lo, ln)} '
                                                    f'(old >= 0.9x new)')
     if old_draws is None or new_draws is None:
@@ -304,8 +291,8 @@ def main():
             print(f"{'FAIL' if why else 'PASS'} {view}: ssim {sim:.3f} mintile {tile:.3f} "
                   f"diff {diff:.1f}% draws {od}/{nd}  {'; '.join(why)}")
             for name, (ok, text) in columns.items():
-                if name == 'known gap' and ok:
-                    print(f'    {text}')
+                if name == 'known gap':
+                    print(f"    {'' if ok else 'FAIL '}{text}")
                 else:
                     print(f"    {'PASS' if ok else 'FAIL'} {name}: {text}")
             fail |= bool(why)

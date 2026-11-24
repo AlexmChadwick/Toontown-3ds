@@ -225,55 +225,70 @@ class Gates(unittest.TestCase):
                        'b': near_views.off_edge(g, edges)/near_views.off_edge(sl, edges),
                        'd': near_views.overshoot(g)/near_views.overshoot(sl)}}
 
-    def test_known_gap_exactly_at_bars_passes(self):
+    def test_known_gap_exactly_at_floors_holds(self):
+        # Floors exactly at the raw values hold; the view is still scored on the QA-19 bar.
         gap = self.floors_from('ttc_near', self.scene)
         with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
             why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
+        self.assertTrue(columns['known gap'][0])
+        self.assertEqual(columns['known gap'][1].count(' held'), 3)
         self.assertFalse(why)
-        for name in ('texture detail', 'off-edge detail', 'overshoot', 'known gap'):
-            self.assertTrue(columns[name][0], name)
 
-    def test_known_gap_0_001_past_each_bar_fails(self):
-        # Floors (a) (b) 0.001 above the raw value, ceiling (d) 0.001 below it: each fails alone.
-        for key, column, step in (('a', 'texture detail', .001), ('b', 'off-edge detail', .001),
-                                  ('d', 'overshoot', -.001)):
+    def test_known_gap_0_001_past_each_floor_breaks(self):
+        # Floors (a) (b) 0.001 above the raw value, ceiling (d) 0.001 below it: each breaks alone.
+        for key, step in (('a', .001), ('b', .001), ('d', -.001)):
             gap = self.floors_from('ttc_near', self.scene)
             gap['ttc_near'][key] += step
             with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
                 why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
-            self.assertFalse(columns[column][0], key)
             self.assertFalse(columns['known gap'][0], key)
-            self.assertEqual([w.split(' ')[0] for w in why if not w.startswith('known')],
-                             [column.split(' ')[0]], key)
+            self.assertIn(f'({key}) raw', columns['known gap'][1])
+            self.assertEqual(columns['known gap'][1].count('BROKEN'), 1, key)
+            self.assertEqual([w.split(' ')[0] for w in why], ['known'], key)
 
-    def test_known_gap_box_values_no_rounding(self):
-        # The 2026-11-23 box values that passed only through rounding against the old bars.
-        old_bars = {'a': 258, 'b': 0.62, 'd': 1.49}
-        self.assertLess(257.72, old_bars['a'])
-        self.assertLess(0.6173, old_bars['b'])
-        self.assertGreater(1.4938, old_bars['d'])
-        self.assertGreaterEqual(442.5, REAL_KNOWN_GAP['ttc_near']['a'])
-        self.assertGreaterEqual(0.6173, REAL_KNOWN_GAP['ttc_near']['b'])
-        self.assertLessEqual(1.4938, REAL_KNOWN_GAP['ttc_near']['d'])
-        self.assertGreaterEqual(257.72, REAL_KNOWN_GAP['dd_near']['a'])
-        self.assertGreaterEqual(0.6557, REAL_KNOWN_GAP['dd_near']['b'])
-        self.assertLessEqual(1.1110, REAL_KNOWN_GAP['dd_near']['d'])
+    def test_known_gap_floors_do_not_pass_qa19(self):
+        # QA-20261119-145: a frame as sharp as stock holds floors set from it but fails (a) and (b).
+        gap = self.floors_from('ttc_near', self.stock)
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            why, columns = compare('ttc_near', self.stock, self.stock, 120, 120, self.stock)[:2]
+        self.assertTrue(columns['known gap'][0])
+        self.assertFalse(columns['texture detail'][0])
+        self.assertIn('vs 1.3x stock', columns['texture detail'][1])
+        self.assertTrue(any(w.startswith('texture detail') for w in why))
+
+    def test_box_values_fail_qa19_and_hold_floors(self):
+        # The 2026-11-23 box gate values: red vs QA-19 (a) 1.3x stock and r11, (b) 1.0x; floors hold raw.
+        box = {'ttc_near': {'a': 442.499893, 'stock_a': 407.808092, 'b': 0.617313, 'd': 1.493757},
+               'dd_near': {'a': 257.717437, 'stock_a': 230.795694, 'b': 0.655692, 'd': 1.110967}}
+        for view, v in box.items():
+            self.assertLess(v['a'], 1.3*v['stock_a'], view)
+            self.assertLess(v['a'], compare_views.DETAIL_R11[view], view)
+            self.assertLess(v['b'], compare_views.OFF_EDGE_MIN, view)
+            self.assertGreaterEqual(v['a'], REAL_KNOWN_GAP[view]['a'])
+            self.assertGreaterEqual(v['b'], REAL_KNOWN_GAP[view]['b'])
+            self.assertLessEqual(v['d'], REAL_KNOWN_GAP[view]['d'])
+        # Old bars these values passed only through rounding.
+        self.assertLess(257.717437, 258)
+        self.assertLess(0.617313, 0.62)
+        self.assertGreater(1.493757, 1.49)
 
     def test_known_gap_prints_raw_values(self):
         gap = self.floors_from('ttc_near', self.scene)
         with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
             columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[1]
-        self.assertIn(f"raw {gap['ttc_near']['b']:.6f}x vs KNOWN GAP floor", columns['off-edge detail'][1])
-        self.assertIn(f"raw {gap['ttc_near']['d']:.6f}x vs KNOWN GAP ceiling", columns['overshoot'][1])
-        self.assertIn(f"raw {gap['ttc_near']['a']:.6f} vs KNOWN GAP floor", columns['texture detail'][1])
+        text = columns['known gap'][1]
+        self.assertIn(f"(a) raw {gap['ttc_near']['a']:.6f} vs floor", text)
+        self.assertIn(f"(b) raw {gap['ttc_near']['b']:.6f}x vs floor", text)
+        self.assertIn(f"(d) raw {gap['ttc_near']['d']:.6f}x vs ceiling", text)
 
-    def test_known_gap_holds_floor(self):
+    def test_known_gap_wording(self):
         gap = self.floors_from('ttc_near', self.scene)
         with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
-        self.assertFalse(why)
-        self.assertEqual(columns['known gap'][1].split(':')[0].split(' (a)')[0], 'KNOWN GAP ttc_near')
-        self.assertTrue(columns['known gap'][1].endswith(': source-limited, QA-84 ruling'))
+            columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[1]
+        self.assertTrue(columns['known gap'][1].startswith(
+            'KNOWN GAP ttc_near, unratified floors, gate red vs QA-19: '))
+        src = (Path(__file__).parent / 'compare_views.py').read_text()
+        self.assertNotIn('source-limited, QA-84 ruling', src)
 
     def test_known_gap_fails_below_floor(self):
         gap = self.floors_from('dd_near', self.scene)
