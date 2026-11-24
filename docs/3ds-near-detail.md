@@ -8,6 +8,12 @@ Gate: `tools/fidelity/compare_views.py` (run by `run_gate.sh`). Each near view (
 - (c) sigma 1.5 high-pass amplitude <= 1.2x stock
 - (d) mean edge overshoot <= 1.5x stock
 
+QA-20261119-168: on `ttc_near` and `dd_near` only, the gag shop awning cell (x 280-320, y 0-40) is
+masked out of every frame for the r11 floor (r11 under the same mask: 375 / 212) and for (b). The
+anti-strobe rule keeps that edge-on sliver at its mean last mip, where stock and r11 alias it into a
+hatch. The 1.3x stock part of (a) stays unmasked. The gate prints the mask, the cell, and both the
+masked and unmasked values.
+
 ## Sharpen sweep (HEAD 04560e4, Azahar Old; Old = New frames)
 
 Settings: u120 = r0.7 120% t2 unclamped; c150 = r1.0 150% t0 clamped; c250 = r1.0 250% t0 clamped;

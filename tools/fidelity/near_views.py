@@ -25,12 +25,9 @@ import numpy as np
 MASK_X = (165, 245)
 
 
-def detail(grey):
-    p = np.pad(grey, 1, mode='symmetric')
-    lap = p[:-2, 1:-1] + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:] - 4 * grey
-    keep = np.ones(grey.shape, bool)
-    keep[:, MASK_X[0]:MASK_X[1]] = False
-    return float(lap[keep].var())
+def detail(grey, cell=None):
+    """Laplacian variance outside MASK_X and, when given, the (x0, y0, x1, y1) `cell`."""
+    return float(_laplace(grey)[_keep(grey.shape, cell)].var())
 
 
 def _laplace(grey):
@@ -38,9 +35,12 @@ def _laplace(grey):
     return p[:-2, 1:-1] + p[2:, 1:-1] + p[1:-1, :-2] + p[1:-1, 2:] - 4 * grey
 
 
-def _keep(shape):
+def _keep(shape, cell=None):
     keep = np.ones(shape, bool)
     keep[:, MASK_X[0]:MASK_X[1]] = False
+    if cell:
+        x0, y0, x1, y1 = cell
+        keep[y0:y1, x0:x1] = False
     return keep
 
 
@@ -51,11 +51,11 @@ def edge_map(grey, q=90):
     return mag > np.percentile(mag[_keep(grey.shape)], q)
 
 
-def off_edge(grey, edges, exclude=3):
+def off_edge(grey, edges, exclude=3, cell=None):
     """Laplacian variance at least `exclude` px from `edges` (the union of edge_map over the
-    frames compared), outside the mask."""
+    frames compared), outside the mask (and `cell`, as detail)."""
     from scipy import ndimage
-    far = _keep(grey.shape) & ~ndimage.binary_dilation(edges, iterations=exclude)
+    far = _keep(grey.shape, cell) & ~ndimage.binary_dilation(edges, iterations=exclude)
     return float(_laplace(grey)[far].var())
 
 

@@ -107,7 +107,7 @@ class Gates(unittest.TestCase):
 
     def test_detail_vs_r11(self):
         soft = np.full_like(self.image, 140)
-        soft[::2] += 8
+        soft[::2] += 6
         why = compare('dd_near', soft, soft, 120, 120, np.full_like(soft, 140))[0]
         self.assertTrue(any('r11' in s for s in why))
 
@@ -329,6 +329,62 @@ class Gates(unittest.TestCase):
         found = [ast.literal_eval(n.value) for n in tree.body
                  if isinstance(n, ast.Assign) and any(getattr(t, 'id', '') == 'NEAR_SHARPEN' for t in n.targets)]
         self.assertEqual(found, [{2100: (1.0, 150.0, 0.0, 1.0)}])
+
+    def awning_fixture(self):
+        """Stock with fine noise only in the awning cell; 3DS frames sharp elsewhere, flat there."""
+        x0, y0, x1, y1 = compare_views.AWNING_CELL
+        stock = self.stock.copy()
+        noise = np.random.default_rng(3).normal(0, 40, (y1 - y0, x1 - x0))
+        stock[y0:y1, x0:x1] = 125 + noise[:, :, None]
+        frame = self.scene.copy()
+        frame[y0:y1, x0:x1] = 125
+        return stock, frame
+
+    def test_awning_mask_only_ttc_dd_near(self):
+        # QA-20261119-168: the cell is masked for (b) on ttc_near and dd_near only.
+        stock, frame = self.awning_fixture()
+        self.assertEqual(compare_views.AWNING_CELL, (280, 0, 320, 40))
+        self.assertEqual(compare_views.AWNING_MASK_VIEWS, {'ttc_near', 'dd_near'})
+        for view in ('ttc_near', 'dd_near'):
+            columns = compare(view, frame, frame, 120, 120, stock)[1]
+            self.assertTrue(columns['awning mask'][0], view)
+            self.assertIn('awning cell x 280-320 y 0-40 masked', columns['awning mask'][1])
+            self.assertTrue(columns['off-edge detail'][0], view)
+            self.assertIn('awning-masked', columns['off-edge detail'][1])
+        columns = compare('street_near', frame, frame, 84, 84, stock)[1]
+        self.assertNotIn('awning mask', columns)
+        self.assertFalse(columns['off-edge detail'][0])
+        self.assertNotIn('awning', columns['off-edge detail'][1])
+        self.assertNotIn('awning', columns['texture detail'][1])
+        for view in ('ttc_mid', 'ttc_far', 'ttc_tree', 'street_far', 'dd_far'):
+            self.assertNotIn('awning mask', compare(view, frame, frame, 120, 120)[1], view)
+
+    def test_awning_mask_leaves_1_3x_stock_unmasked(self):
+        # The 1.3x stock part of (a) scores the cell: stock's noisy cell raises that bar.
+        stock, frame = self.awning_fixture()
+        sl = stock.mean(2)
+        cell = compare_views.AWNING_CELL
+        self.assertGreater(near_views.detail(sl), near_views.detail(sl, cell))
+        text = compare('ttc_near', frame, frame, 120, 120, stock)[1]['texture detail'][1]
+        self.assertIn(f'vs 1.3x stock {1.3*near_views.detail(sl):.6f}', text)
+        self.assertIn('vs 1.0x r11 awning-masked 375 (unmasked r11 491)', text)
+
+    def test_awning_mask_r11_floor(self):
+        # The r11 floor is r11's score under the same mask, compared with the masked frame.
+        self.assertEqual(compare_views.AWNING_R11, {'ttc_near': 375, 'dd_near': 212})
+        soft = np.full_like(self.image, 140)
+        soft[::2] += 8
+        with mock.patch.object(compare_views, 'AWNING_R11', {'ttc_near': 1e9, 'dd_near': 1e9}):
+            why = compare('dd_near', soft, soft, 120, 120, np.full_like(soft, 140))[0]
+        self.assertTrue(any('r11 awning-masked' in s for s in why))
+
+    def test_awning_mask_cell_excluded(self):
+        flat = np.full((240, 400), 140.0)
+        busy = flat.copy()
+        busy[0:38:2, 282:318] = 0
+        cell = compare_views.AWNING_CELL
+        self.assertEqual(near_views.detail(flat, cell), near_views.detail(busy, cell))
+        self.assertGreater(near_views.detail(busy), near_views.detail(flat))
 
     def test_flat_sky(self):
         flat = np.full_like(self.image, 140)

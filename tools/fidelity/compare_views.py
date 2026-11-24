@@ -23,6 +23,10 @@ From Codex af25ec7 tools/fidelity/compare_views.py, with the QA-20261119-19 ruli
   TT_RESOURCES must be at the pinned commit (rechecked with git), the render scripts must hash to
   the pinned render_sha256, and the PNGs must be the pinned bytes (the render is byte-deterministic;
   a blurred stock re-hashed into its meta fails here). Changing the render means re-pinning here;
+- QA-20261119-168: for ttc_near and dd_near only, the gag shop awning cell (x 280-320, y 0-40) is
+  masked out of every frame for the 1.0x r11 floor (against r11's score under the same mask) and
+  for (b); the 1.3x stock part of (a) stays unmasked. The gate prints the mask and the cell, and
+  prints both masked and unmasked values;
 - the Old >= 0.9x New draw check is waived only for street_near, only when the Old and New frames
   are byte-identical, and only with --plan naming the chunks Old keeps far; the waiver is printed
   with those chunks.
@@ -46,6 +50,14 @@ SKY_BOX = {'ttc_far': (0, 0, 180, 30), 'ttc_tree': (110, 0, 260, 10),
 # r11 (/workspace/shots/3ds-integ-r11/r11_views_new) under near_views.detail's mask; unmasked these
 # frames score the ruling's 604 / 371 / 362.
 DETAIL_R11 = {'ttc_near': 491, 'street_near': 167, 'dd_near': 281}
+# QA-20261119-168: the anti-strobe rule (AGENTS.md section 4) keeps the gag shop awning's edge-on
+# sliver at its mean last mip, where stock and r11 alias it into a hatch. For these two views only,
+# that cell (x0, y0, x1, y1) is masked out of every frame for the r11 floor and for (b). The 1.3x
+# stock part of (a) stays unmasked. AWNING_R11 is r11's masked detail under that cell too
+# (375.502334 / 212.312703, floored like DETAIL_R11).
+AWNING_CELL = (280, 0, 320, 40)
+AWNING_MASK_VIEWS = {'ttc_near', 'dd_near'}
+AWNING_R11 = {'ttc_near': 375, 'dd_near': 212}
 # The stock render (stock_detail.py, 400x240, 55 degree lens) is byte-identical run to run (r59 gate4 =
 # r60 gate5); these are its inputs and outputs. Re-pin only after rendering from a reviewed tree.
 STOCK_PIN = {
@@ -207,7 +219,13 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
                           ' '.join(f'{t} std {raw(v)}' for t, v in stds.items()) + ' (min 4)')
     if view in DETAIL_R11:
         lo, ln = detail(ol), detail(nl)
-        r11 = DETAIL_R11[view]
+        cell = AWNING_CELL if view in AWNING_MASK_VIEWS else None
+        mo, mn = (near_views.detail(g, cell) for g in (ol, nl)) if cell else (lo, ln)
+        r11 = AWNING_R11[view] if cell else DETAIL_R11[view]
+        if cell:
+            columns['awning mask'] = (True, f'awning cell x {cell[0]}-{cell[2]} y {cell[1]}-{cell[3]} masked '
+                                            f'in every frame for the r11 floor and (b) (QA-20261119-168); '
+                                            f'1.3x stock stays unmasked')
         bars = ('texture detail', 'off-edge detail', 'high-pass', 'overshoot')
         if stock is None:
             for name in bars:
@@ -215,16 +233,26 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
         else:
             sl = stock.mean(2)
             ls = detail(sl)
-            bar = max(1.3*ls, r11)
             gap = KNOWN_GAP.get(view)
-            columns['texture detail'] = (min(lo, ln) >= bar,
-                             f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)}: raw {raw(min(lo, ln))} '
-                             f'({rawx(min(lo, ln), ls)} stock) vs 1.3x stock {raw(1.3*ls)}, 1.0x r11 {r11}')
+            text = (f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)}: raw {raw(min(lo, ln))} '
+                    f'({rawx(min(lo, ln), ls)} stock) vs 1.3x stock {raw(1.3*ls)}')
+            if cell:
+                text += (f'; awning-masked old {raw(mo)} new {raw(mn)}: raw {raw(min(mo, mn))} '
+                         f'vs 1.0x r11 awning-masked {r11} (unmasked r11 {DETAIL_R11[view]})')
+            else:
+                text += f', 1.0x r11 {r11}'
+            columns['texture detail'] = (min(lo, ln) >= 1.3*ls and min(mo, mn) >= r11, text)
             edges = near_views.edge_map(sl) | near_views.edge_map(ol) | near_views.edge_map(nl)
             es, eo, en = (near_views.off_edge(g, edges) for g in (sl, ol, nl))
-            columns['off-edge detail'] = (min(eo, en) >= OFF_EDGE_MIN*es,
-                                  f'(b) 3 px off-edge stock {raw(es)} old {raw(eo)} new {raw(en)}: '
-                                  f'raw {rawx(min(eo, en), es)} vs min {OFF_EDGE_MIN}x')
+            text = f'(b) 3 px off-edge stock {raw(es)} old {raw(eo)} new {raw(en)}: '
+            if cell:
+                bs, bo, bn = (near_views.off_edge(g, edges, cell=cell) for g in (sl, ol, nl))
+                text += (f'unmasked raw {rawx(min(eo, en), es)}; awning-masked stock {raw(bs)} old {raw(bo)} '
+                         f'new {raw(bn)}: raw {rawx(min(bo, bn), bs)} vs min {OFF_EDGE_MIN}x')
+            else:
+                bs, bo, bn = es, eo, en
+                text += f'raw {rawx(min(eo, en), es)} vs min {OFF_EDGE_MIN}x'
+            columns['off-edge detail'] = (min(bo, bn) >= OFF_EDGE_MIN*bs, text)
             hs, ho, hn = (near_views.highpass(g) for g in (sl, ol, nl))
             columns['high-pass'] = (max(ho, hn) <= HIGHPASS_MAX*hs,
                             f'(c) sigma 1.5 amplitude stock {raw(hs)} old {raw(ho)} new {raw(hn)}: '
@@ -291,7 +319,7 @@ def main():
             print(f"{'FAIL' if why else 'PASS'} {view}: ssim {sim:.3f} mintile {tile:.3f} "
                   f"diff {diff:.1f}% draws {od}/{nd}  {'; '.join(why)}")
             for name, (ok, text) in columns.items():
-                if name == 'known gap':
+                if name in ('known gap', 'awning mask'):
                     print(f"    {'' if ok else 'FAIL '}{text}")
                 else:
                     print(f"    {'PASS' if ok else 'FAIL'} {name}: {text}")
