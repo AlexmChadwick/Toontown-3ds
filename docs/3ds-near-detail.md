@@ -45,11 +45,16 @@ Thresholds are unchanged and nothing is waived.
 
    | view | (a) floor | (b) floor | (d) ceiling | (c) |
    |---|---|---|---|---|
-   | ttc_near | 442 | 0.62x | 1.49x | <= 1.2x |
-   | dd_near | 258 | 0.66x | 1.11x | <= 1.2x |
+   | ttc_near | 442 | 0.61x | 1.50x | <= 1.2x |
+   | dd_near | 257 | 0.65x | 1.12x | <= 1.2x |
 
    The gate prints `KNOWN GAP <view> (a) Nx (b) Nx: source-limited, QA-84 ruling` while the floors hold and
    FAILs when a build drops below any floor, including a build that sharpens one of these zones
-   (the (d) ceiling trips). Values are compared at printed precision.
+   (the (d) ceiling trips). QA ruling of 2026-11-23: measured values are compared raw, never rounded,
+   and printed unrounded next to each bar. The bars are the raw box gate values of 2026-11-23 (ttc_near a 442.5, b 0.6173,
+   d 1.4938; dd_near a 257.72, b 0.6557, d 1.1110) rounded the safe way: floors down, ceilings up. The
+   earlier 258 / 0.62 / 0.66 floors and 1.49 / 1.11 ceilings were those values rounded to the nearest
+   step, so they passed only by rounding the measurement too. Where the floors came from:
+   the gates lane's `qa/known-gap-provenance.md`.
 3. Tests (`tools/fidelity/test_compare_views.py`): the gate fails on sharpening a zone that is not opted in,
    fails street_near below 1.3x, and pins the opt-in to zone 2100 only.

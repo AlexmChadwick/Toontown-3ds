@@ -218,12 +218,54 @@ class Gates(unittest.TestCase):
                 self.assertEqual(compare_views.main(), 1)
 
     def floors_from(self, view, frame):
-        """KNOWN_GAP floors measured on `frame` the way the sweep off-rows were."""
+        """KNOWN_GAP bars measured raw on `frame` (old = new = frame), exactly as compare() scores it."""
         sl, g = self.stock.mean(2), frame.mean(2)
         edges = near_views.edge_map(sl) | near_views.edge_map(g)
-        return {view: {'a': round(near_views.detail(g)),
-                       'b': round(near_views.off_edge(g, edges)/near_views.off_edge(sl, edges), 2),
-                       'd': round(near_views.overshoot(g)/near_views.overshoot(sl), 2)}}
+        return {view: {'a': near_views.detail(g),
+                       'b': near_views.off_edge(g, edges)/near_views.off_edge(sl, edges),
+                       'd': near_views.overshoot(g)/near_views.overshoot(sl)}}
+
+    def test_known_gap_exactly_at_bars_passes(self):
+        gap = self.floors_from('ttc_near', self.scene)
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
+        self.assertFalse(why)
+        for name in ('texture detail', 'off-edge detail', 'overshoot', 'known gap'):
+            self.assertTrue(columns[name][0], name)
+
+    def test_known_gap_0_001_past_each_bar_fails(self):
+        # Floors (a) (b) 0.001 above the raw value, ceiling (d) 0.001 below it: each fails alone.
+        for key, column, step in (('a', 'texture detail', .001), ('b', 'off-edge detail', .001),
+                                  ('d', 'overshoot', -.001)):
+            gap = self.floors_from('ttc_near', self.scene)
+            gap['ttc_near'][key] += step
+            with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+                why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
+            self.assertFalse(columns[column][0], key)
+            self.assertFalse(columns['known gap'][0], key)
+            self.assertEqual([w.split(' ')[0] for w in why if not w.startswith('known')],
+                             [column.split(' ')[0]], key)
+
+    def test_known_gap_box_values_no_rounding(self):
+        # The 2026-11-23 box values that passed only through rounding against the old bars.
+        old_bars = {'a': 258, 'b': 0.62, 'd': 1.49}
+        self.assertLess(257.72, old_bars['a'])
+        self.assertLess(0.6173, old_bars['b'])
+        self.assertGreater(1.4938, old_bars['d'])
+        self.assertGreaterEqual(442.5, REAL_KNOWN_GAP['ttc_near']['a'])
+        self.assertGreaterEqual(0.6173, REAL_KNOWN_GAP['ttc_near']['b'])
+        self.assertLessEqual(1.4938, REAL_KNOWN_GAP['ttc_near']['d'])
+        self.assertGreaterEqual(257.72, REAL_KNOWN_GAP['dd_near']['a'])
+        self.assertGreaterEqual(0.6557, REAL_KNOWN_GAP['dd_near']['b'])
+        self.assertLessEqual(1.1110, REAL_KNOWN_GAP['dd_near']['d'])
+
+    def test_known_gap_prints_raw_values(self):
+        gap = self.floors_from('ttc_near', self.scene)
+        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
+            columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[1]
+        self.assertIn(f"raw {gap['ttc_near']['b']:.6f}x vs KNOWN GAP floor", columns['off-edge detail'][1])
+        self.assertIn(f"raw {gap['ttc_near']['d']:.6f}x vs KNOWN GAP ceiling", columns['overshoot'][1])
+        self.assertIn(f"raw {gap['ttc_near']['a']:.6f} vs KNOWN GAP floor", columns['texture detail'][1])
 
     def test_known_gap_holds_floor(self):
         gap = self.floors_from('ttc_near', self.scene)
@@ -252,8 +294,9 @@ class Gates(unittest.TestCase):
         self.assertTrue(why)
 
     def test_real_known_gap_zones(self):
-        self.assertEqual(REAL_KNOWN_GAP, {'ttc_near': {'a': 442, 'b': 0.62, 'd': 1.49},
-                                          'dd_near': {'a': 258, 'b': 0.66, 'd': 1.11}})
+        # Box sweep values rounded the safe way (floors down, ceilings up), QA ruling 2026-11-23.
+        self.assertEqual(REAL_KNOWN_GAP, {'ttc_near': {'a': 442, 'b': 0.61, 'd': 1.50},
+                                          'dd_near': {'a': 257, 'b': 0.65, 'd': 1.12}})
 
     def test_street_near_fails_below_1_3x(self):
         # street_near is not a known gap: as sharp as stock (1.0x) must fail (a).
