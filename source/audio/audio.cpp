@@ -408,6 +408,18 @@ void voiceMix(int v, float volume, float pan) {
 
 bool init() {
     if (gOk) return true;
+    // A CIA whose exheader lacks the DSP IO mapping has 0x1ff50000 unmapped, and ndspInit
+    // then data-aborts inside ndspInitialize (Old 3DS, pc in ndspSetCounter, addr 0x1ff57ffe).
+    // Check the mapping first and stay silent instead of crashing.
+    {
+        MemInfo mi;
+        PageInfo pi;
+        if (R_FAILED(svcQueryMemory(&mi, &pi, 0x1FF50000)) || mi.state == MEMSTATE_FREE) {
+            TT_LOG("audio: DSP memory 0x1ff50000 not mapped (state %lu) - silent mode", (unsigned long)mi.state);
+            return false;
+        }
+        TT_LOG("audio: DSP memory mapped (state %lu perm %lu)", (unsigned long)mi.state, (unsigned long)mi.perm);
+    }
     Result rc = ndspInit();
     if (R_FAILED(rc)) {
         TT_LOG("audio: ndspInit failed 0x%08lX (missing sdmc:/3ds/dspfirm.cdc?) - silent mode",

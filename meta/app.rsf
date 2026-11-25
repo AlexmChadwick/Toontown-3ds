@@ -28,6 +28,11 @@ AccessControlInfo:
     - DirectSdmc
     - DirectSdmcWrite
   IoAccessControl:
+  # DSP memory (ndsp writes the 0x1ff50000 pipe area) and VRAM, as in the devkitPro template.
+  IORegisterMapping:
+    - 1ff00000-1ff7ffff
+  MemoryMapping:
+    - 1f000000-1f5fffff:r
   IdealProcessor                : 0
   AffinityMask                  : 1
   Priority                      : 16
