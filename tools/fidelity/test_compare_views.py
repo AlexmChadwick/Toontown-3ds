@@ -15,7 +15,6 @@ import near_views
 
 
 COMMIT = '0' * 40
-REAL_KNOWN_GAP = dict(compare_views.KNOWN_GAP)
 
 
 def scene():
@@ -64,17 +63,15 @@ class Gates(unittest.TestCase):
         patch = mock.patch.object(compare_views, 'resources_commit', return_value=COMMIT)
         patch.start()
         self.addCleanup(patch.stop)
-        # The numeric gate fixtures run with no KNOWN GAP views; Known tests set their own floors.
-        gap = mock.patch.object(compare_views, 'KNOWN_GAP', {})
-        gap.start()
-        self.addCleanup(gap.stop)
 
     def test_identical_detail(self):
         # Sharper than a softer stock, no halo: all four near bars pass.
-        why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
-        self.assertFalse(why)
-        for name in ('texture detail', 'off-edge detail', 'high-pass', 'overshoot'):
-            self.assertTrue(columns[name][0], name)
+        for view in compare_views.DETAIL_R11:
+            with self.subTest(view=view):
+                why, columns = compare(view, self.scene, self.scene, 120, 120, self.stock)[:2]
+                self.assertFalse(why)
+                for name in ('texture detail', 'off-edge detail', 'high-pass', 'overshoot'):
+                    self.assertTrue(columns[name][0], name)
 
     def test_halo_fails_highpass_and_overshoot(self):
         # QA-20261119-84: a 200% unsharp mask clears (a) and (b) but rings.
@@ -217,118 +214,23 @@ class Gates(unittest.TestCase):
             with mock.patch.object(sys, 'argv', argv), mock.patch('builtins.print'):
                 self.assertEqual(compare_views.main(), 1)
 
-    def floors_from(self, view, frame):
-        """KNOWN_GAP bars measured raw on `frame` (old = new = frame), exactly as compare() scores it."""
-        sl, g = self.stock.mean(2), frame.mean(2)
-        edges = near_views.edge_map(sl) | near_views.edge_map(g)
-        return {view: {'a': near_views.detail(g),
-                       'b': near_views.off_edge(g, edges)/near_views.off_edge(sl, edges),
-                       'd': near_views.overshoot(g)/near_views.overshoot(sl)}}
-
-    def test_known_gap_exactly_at_floors_holds(self):
-        # Floors exactly at the raw values hold; the view is still scored on the QA-19 bar.
-        gap = self.floors_from('ttc_near', self.scene)
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
-        self.assertTrue(columns['known gap'][0])
-        self.assertEqual(columns['known gap'][1].count(' held'), 3)
-        self.assertFalse(why)
-
-    def test_known_gap_0_001_past_each_floor_breaks(self):
-        # Floors (a) (b) 0.001 above the raw value, ceiling (d) 0.001 below it: each breaks alone.
-        for key, step in (('a', .001), ('b', .001), ('d', -.001)):
-            gap = self.floors_from('ttc_near', self.scene)
-            gap['ttc_near'][key] += step
-            with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-                why, columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[:2]
-            self.assertFalse(columns['known gap'][0], key)
-            self.assertIn(f'({key}) raw', columns['known gap'][1])
-            self.assertEqual(columns['known gap'][1].count('BROKEN'), 1, key)
-            self.assertEqual([w.split(' ')[0] for w in why], ['known'], key)
-
-    def test_known_gap_floors_do_not_pass_qa19(self):
-        # QA-20261119-145: a frame as sharp as stock holds floors set from it but fails (a) and (b).
-        gap = self.floors_from('ttc_near', self.stock)
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            why, columns = compare('ttc_near', self.stock, self.stock, 120, 120, self.stock)[:2]
-        self.assertTrue(columns['known gap'][0])
-        self.assertFalse(columns['texture detail'][0])
-        self.assertIn('vs 1.3x stock', columns['texture detail'][1])
-        self.assertTrue(any(w.startswith('texture detail') for w in why))
-
-    def test_box_values_fail_qa19_and_hold_floors(self):
-        # The 2026-11-23 box gate values: red vs QA-19 (a) 1.3x stock and r11, (b) 1.0x; floors hold raw.
-        box = {'ttc_near': {'a': 442.499893, 'stock_a': 407.808092, 'b': 0.617313, 'd': 1.493757},
-               'dd_near': {'a': 257.717437, 'stock_a': 230.795694, 'b': 0.655692, 'd': 1.110967}}
-        for view, v in box.items():
-            self.assertLess(v['a'], 1.3*v['stock_a'], view)
-            self.assertLess(v['a'], compare_views.DETAIL_R11[view], view)
-            self.assertLess(v['b'], compare_views.OFF_EDGE_MIN, view)
-            self.assertGreaterEqual(v['a'], REAL_KNOWN_GAP[view]['a'])
-            self.assertGreaterEqual(v['b'], REAL_KNOWN_GAP[view]['b'])
-            self.assertLessEqual(v['d'], REAL_KNOWN_GAP[view]['d'])
-        # Old bars these values passed only through rounding.
-        self.assertLess(257.717437, 258)
-        self.assertLess(0.617313, 0.62)
-        self.assertGreater(1.493757, 1.49)
-
-    def test_known_gap_prints_raw_values(self):
-        gap = self.floors_from('ttc_near', self.scene)
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[1]
-        text = columns['known gap'][1]
-        self.assertIn(f"(a) raw {gap['ttc_near']['a']:.6f} vs floor", text)
-        self.assertIn(f"(b) raw {gap['ttc_near']['b']:.6f}x vs floor", text)
-        self.assertIn(f"(d) raw {gap['ttc_near']['d']:.6f}x vs ceiling", text)
-
-    def test_known_gap_wording(self):
-        gap = self.floors_from('ttc_near', self.scene)
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            columns = compare('ttc_near', self.scene, self.scene, 120, 120, self.stock)[1]
-        self.assertTrue(columns['known gap'][1].startswith(
-            'KNOWN GAP ttc_near, unratified floors, gate red vs QA-19: '))
-        src = (Path(__file__).parent / 'compare_views.py').read_text()
-        self.assertNotIn('source-limited, QA-84 ruling', src)
-
-    def test_known_gap_fails_below_floor(self):
-        gap = self.floors_from('dd_near', self.scene)
-        soft = ndimage.gaussian_filter(self.scene, (.8, .8, 0))
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            why, columns = compare('dd_near', soft, soft, 120, 120, self.stock)[:2]
-        self.assertFalse(columns['known gap'][0])
-        self.assertTrue(why)
-
-    def test_gate_fails_when_sharpen_applied_to_zone_not_opted_in(self):
-        # Floors from the unsharpened frame; sharpening that zone raises overshoot past the ceiling.
-        gap = self.floors_from('ttc_near', self.scene)
-        ringing = halo(self.scene)
-        with mock.patch.object(compare_views, 'KNOWN_GAP', gap):
-            why, columns = compare('ttc_near', ringing, ringing, 120, 120, self.stock)[:2]
-        self.assertFalse(columns['overshoot'][0])
-        self.assertFalse(columns['known gap'][0])
-        self.assertTrue(why)
-
-    def test_real_known_gap_zones(self):
-        # Box sweep values rounded the safe way (floors down, ceilings up), QA ruling 2026-11-23.
-        self.assertEqual(REAL_KNOWN_GAP, {'ttc_near': {'a': 442, 'b': 0.61, 'd': 1.50},
-                                          'dd_near': {'a': 257, 'b': 0.65, 'd': 1.12}})
-
     def test_street_near_fails_below_1_3x(self):
-        # street_near is not a known gap: as sharp as stock (1.0x) must fail (a).
+        # As sharp as stock (1.0x) must fail (a).
         why, columns = compare('street_near', self.stock, self.stock, 84, 84, self.stock)[:2]
         self.assertFalse(columns['texture detail'][0])
         self.assertTrue(any('texture detail' in s for s in why))
 
-    def test_street_near_not_known_gap(self):
-        self.assertNotIn('street_near', compare_views.KNOWN_GAP)
-
-    def test_baker_opts_in_only_street_2100(self):
+    def test_baker_opts_in_only_profiled_zones(self):
         # bake_street imports panda3d (not in the gate's python), so read the literal from source.
         import ast
         tree = ast.parse((Path(__file__).parents[1]/'pipeline'/'bake_street.py').read_text())
-        found = [ast.literal_eval(n.value) for n in tree.body
-                 if isinstance(n, ast.Assign) and any(getattr(t, 'id', '') == 'NEAR_SHARPEN' for t in n.targets)]
-        self.assertEqual(found, [{2100: (1.0, 150.0, 0.0, 1.0)}])
+        names = {'NEAR_SHARPEN', 'NEAR_GROUND_SHARPEN'}
+        found = {t.id: ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                 for t in n.targets if getattr(t, 'id', '') in names}
+        self.assertEqual(found['NEAR_SHARPEN'], {1000: (1.0, 400.0, 0.0, 1.0),
+                                                 2000: (1.0, 400.0, 0.0, 1.0, 2),
+                                                 2100: (1.0, 150.0, 0.0, 1.0)})
+        self.assertEqual(found['NEAR_GROUND_SHARPEN'], {2000: (1.0, 150.0, 0.0, 1.0)})
 
     def awning_fixture(self):
         """Stock with fine noise only in the awning cell; 3DS frames sharp elsewhere, flat there."""

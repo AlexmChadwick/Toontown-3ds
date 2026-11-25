@@ -32,19 +32,17 @@ import sign_text
 # --grid-size is a floor; the baker raises it until the far view fits DRAW_CAP.
 # Cog HQs still use the shared 64px atlas (street_atlas.build).
 SHARED_NEAR_ATLAS = dict(tile=64, gutter=8, standalone_size=256, mip_levels=3, large_ground=True)
-# Near tiles are not sharpened by default. NEAR_SHARPEN opts a zone in: (radius px, percent, threshold,
-# clamp) for an unsharp mask on each near tile after resampling (street_atlas._sharpen). Azahar draws the
-# magnified near tiles softer than Panda does with the same bytes (unsharpened, the near views scored
-# 1.09x / 1.21x / 1.12x the stock render with the toon masked, QA-20261119-74). clamp keeps every
-# texel inside its 3x3 range in a bilinear resample, so edges get no halo (QA-20261119-84 rejected
-# 200% unclamped for ringing). TT_ATLAS_SHARPEN=r,p[,t[,c]] overrides it for every zone baked;
-# TT_ATLAS_SHARPEN=0,0 turns it off.
-# QA-20261119-84 ruling (a): only zone 2100 (Toontown Central street) is opted in, at c150 (radius 1.0,
-# 150%, threshold 0, clamped): it passes all four near-bar columns there. The TTC and Donald's Dock
-# playgrounds stay unsharpened: no setting passes their bar (docs/3ds-near-detail.md, KNOWN GAP in
-# tools/fidelity/compare_views.py).
+# NEAR_SHARPEN opts a zone into a bounded unsharp mask on resampled near tiles
+# (radius px, percent, threshold, clamp). The clamp uses the local range of a
+# bilinear resample (QA-20261119-84). TTC keeps a two-texel margin around cutout
+# edges. Donald's Dock and TTC recover prop detail under QA-20261119-168.
+# TT_ATLAS_SHARPEN=r,p[,t[,c[,cutout]]] overrides the per-zone tile setting.
+# 0,0 turns off both the tile and standalone ground filters.
 NEAR_ATLAS = dict(density=0.5, gutter=8, standalone_size=256, mip_levels=4, large_ground=True)
-NEAR_SHARPEN = {2100: (1.0, 150.0, 0.0, 1.0)}
+NEAR_SHARPEN = {1000: (1.0, 400.0, 0.0, 1.0),
+                2000: (1.0, 400.0, 0.0, 1.0, 2),
+                2100: (1.0, 150.0, 0.0, 1.0)}
+NEAR_GROUND_SHARPEN = {2000: (1.0, 150.0, 0.0, 1.0)}
 
 
 def near_sharpen(zone_id):
@@ -1323,9 +1321,12 @@ def bake(zone_id, args, base):
         if better is not None:
             raw, chunks, floors, low, far_textures, lod_report = better
             lod_report = dict(lod_report, straight_seams=True)
+    sharpen = near_sharpen(zone_id)
+    sharpen_exclude = ('awning', 'awning_edge') if zone_id in (1000, 2000) else ()
+    ground_sharpen = NEAR_GROUND_SHARPEN.get(zone_id) if sharpen and sharpen[1] else None
     chunk_textures, batches, atlas_stats=street_atlas.build_local(ex.sources, raw, view_points=view_points(floors),
         **dict(NEAR_ATLAS, density=float(os.environ.get('TT_ATLAS_DENSITY', NEAR_ATLAS['density'])),
-               sharpen=near_sharpen(zone_id)))
+               sharpen=sharpen, sharpen_exclude=sharpen_exclude, ground_sharpen=ground_sharpen))
     batches=[[street_atlas.rebase_large_uvs(b,t) for b in bs] for bs,t in zip(batches,chunk_textures)]
     if os.environ.get('TT_ATLAS_DEBUG'):
         Path(os.environ['TT_ATLAS_DEBUG']).write_text(json.dumps(atlas_stats,indent=1))

@@ -228,12 +228,13 @@ Key decisions:
      0.5 texel per top-screen pixel at the closest walkable floor point (eye height,
      distance clamped 12..160), capped by the source, multiples of 16 up to 240,
      8px gutter, four per-tile mips, skyline packed. Near tiles are not sharpened by default;
-     `bake_street.NEAR_SHARPEN` opts a zone in to an unsharp mask after resampling (radius,
-     percent, threshold, clamp; clamp keeps each texel inside its 3x3 range in a bilinear
-     resample, so edges get no halo). Azahar draws the magnified tiles softer than Panda does
-     with the same bytes (unsharpened near views score 1.09-1.21x the stock render with the
-     toon masked), but QA-20261119-84 rejected the 200% unclamped mask for ringing; the sweep
-     is in the qa19 lane's qa/sharpen-sweep.md and no zone is opted in until QA rules. Ground textures stay standalone
+     `bake_street.NEAR_SHARPEN` opts a zone into a clamped unsharp mask after resampling.
+     The clamp uses the 3x3 local range of the bilinear resample (QA-20261119-84).
+     Zone 2100 uses 150%; Donald's Dock and TTC use 400% within the existing
+     high-pass and overshoot ceilings (QA-20261119-168). TTC preserves the
+     resampled colours within two texels of cutout edges. Its standalone ground
+     textures with upstream anisotropy apply a 150% clamped mask to each detailed
+     mip with wrapped borders, keeping the terminal mean level. Ground textures stay standalone
      at 256 only where atlasing their repeats would multiply triangles. PICA mips
      stop at 8x8 and clamp there, so a repeating standalone texture's last level is
      its mean colour (alpha keeps its pattern): otherwise a pattern repeated along a

@@ -71,18 +71,6 @@ STOCK_PIN = {
 OFF_EDGE_MIN = 1.0
 HIGHPASS_MAX = 1.2
 OVERSHOOT_MAX = 1.5
-# ttc_near and dd_near stay unsharpened (QA-20261119-84 rejected the 200% mask) and miss the
-# QA-19 near bar: (a) 1.3x stock and 1.0x r11, (b) off-edge 1.0x stock. QA-20261119-145: these
-# KNOWN GAP floors are unratified (QA-84 set no floors, the cause is not isolated, see
-# qa/known-gap-provenance.md), so they do not pass the view. Both views are scored on the full
-# QA-19 / QA-84 bars like street_near and stay FAIL (gate red) until the bar is met or Alex rules
-# on lowering it. The floors are only a regression check printed beside the result: (a) masked
-# Laplacian detail, (b) off-edge ratio to stock, (d) overshoot ratio to stock, compared raw (QA
-# ruling of 2026-11-23). They are the raw box gate values (ttc a 442.499893 b 0.617313 d 1.493757,
-# dd a 257.717437 b 0.655692 d 1.110967, gates 1-3 on 53b7805) rounded the safe way: floors down,
-# ceilings up.
-KNOWN_GAP = {'ttc_near': {'a': 442, 'b': 0.61, 'd': 1.50},
-             'dd_near': {'a': 257, 'b': 0.65, 'd': 1.12}}
 # Old draws fewer than New here because Old's lodNear (160) and 6 MiB texture retain keep chunks
 # 6 and 54 at their far mesh; the QA ruling waives only this view, only for identical frames.
 DRAW_WAIVER_VIEWS = {'street_near'}
@@ -233,7 +221,6 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
         else:
             sl = stock.mean(2)
             ls = detail(sl)
-            gap = KNOWN_GAP.get(view)
             text = (f'(a) masked stock {raw(ls)} old {raw(lo)} new {raw(ln)}: raw {raw(min(lo, ln))} '
                     f'({rawx(min(lo, ln), ls)} stock) vs 1.3x stock {raw(1.3*ls)}')
             if cell:
@@ -261,16 +248,6 @@ def compare(view, old, new, old_draws=None, new_draws=None, stock=None, far_chun
             columns['overshoot'] = (max(vo, vn) <= OVERSHOOT_MAX*vs,
                             f'(d) mean edge overshoot stock {raw(vs)} old {raw(vo)} new {raw(vn)}: '
                             f'raw {rawx(max(vo, vn), vs)} vs max {OVERSHOOT_MAX}x')
-            if gap:
-                held = {'a': min(lo, ln) >= gap['a'],
-                        'b': bool(es) and min(eo, en)/es >= gap['b'],
-                        'd': bool(vs) and max(vo, vn)/vs <= gap['d']}
-                mark = {k: 'held' if v else 'BROKEN' for k, v in held.items()}
-                columns['known gap'] = (all(held.values()),
-                                f'KNOWN GAP {view}, unratified floors, gate red vs QA-19: '
-                                f'(a) raw {raw(min(lo, ln))} vs floor {gap["a"]} {mark["a"]}, '
-                                f'(b) raw {rawx(min(eo, en), es)} vs floor {gap["b"]}x {mark["b"]}, '
-                                f'(d) raw {rawx(max(vo, vn), vs)} vs ceiling {gap["d"]}x {mark["d"]}')
         columns['old/new detail'] = (lo >= .9*ln, f'old {raw(lo)} new {raw(ln)}: raw {rawx(lo, ln)} '
                                                    f'(old >= 0.9x new)')
     if old_draws is None or new_draws is None:
@@ -319,7 +296,7 @@ def main():
             print(f"{'FAIL' if why else 'PASS'} {view}: ssim {sim:.3f} mintile {tile:.3f} "
                   f"diff {diff:.1f}% draws {od}/{nd}  {'; '.join(why)}")
             for name, (ok, text) in columns.items():
-                if name in ('known gap', 'awning mask'):
+                if name == 'awning mask':
                     print(f"    {'' if ok else 'FAIL '}{text}")
                 else:
                     print(f"    {'PASS' if ok else 'FAIL'} {name}: {text}")

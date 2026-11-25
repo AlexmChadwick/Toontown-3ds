@@ -2151,3 +2151,20 @@ no hardware run. Evidence: `/workspace/shots/3ds-visual/r59-qa/`.
 - Old and New, every view: 29.9 fps, heap, linear free and VRAM free unchanged from the 2307354 runs
   (cpu ms within 0.01). Facility sweep 31 rooms and boss sweep vp / cfo / cj / ceo PASS, re-score exit 0.
 - Not a hardware measurement.
+
+## 2026-11-25 QA-20261119-168 playground bake trials (Azahar Old 3DS, Linux/Xvfb)
+
+- App sha256 `12fad941186dc1f7c606195db4278d74b4b0159983d30aaf464332611abae44d`.
+  Stock resources `d00df01af876cc9c5d1a22329f394a9a50245e9c`. The regular baker
+  reproduced both trial assets byte for byte. TTC `2000.tz` sha256
+  `fa4469ed0e74da66be84f40bbf900d4a079bf30c2278c6f8e8d52d264bda5c51`.
+  Donald's Dock `1000.tz` sha256
+  `1966565bad01dc6c513e7bee83c50956ce6db7f854fa2458cc4228c1f44e3390`.
+- TTC near candidate scored (a) 544.638032, 1.335525x stock, (b) 1.683675x
+  with the awning-cell mask, (c) 1.112454x and (d) 1.484834x. At 29.9 fps,
+  heap used 2425K, linear free was 12540K and VRAM free was 4194K.
+- Donald's Dock near candidate scored (a) 308.579908, 1.337026x stock, (b)
+  1.259791x with the awning-cell mask, (c) 1.128516x and (d) 1.466600x. At
+  29.9 fps, heap used 2420K, linear free was 13631K and VRAM free was 4194K.
+- These isolated trials checked the near-view texture columns. The lane's
+  `qa/QA-R7-PACK.md` records the full Old/New gate, sweeps and comparison crops.

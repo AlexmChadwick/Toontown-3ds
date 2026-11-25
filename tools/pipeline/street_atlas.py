@@ -594,10 +594,13 @@ def _texel_need(parts, density):
     return out[0], out[1]
 
 
-def _sharpen(image, radius, percent, threshold=0, clamp=0, bound=None):
+def _sharpen(image, radius, percent, threshold=0, clamp=0, cutout=0, bound=None):
     """Unsharp mask on a tile's colour; alpha (cutout edges) is left as resampled.
     With clamp, each colour is kept inside the 3x3 range of `bound` (a ringing-free resample of
-    the same box, else the tile), so step edges get steeper but never overshoot (QA-20261119-84)."""
+    the same box, else the tile), so step edges get steeper but never overshoot (QA-20261119-84).
+    With cutout = n, texels within n px of a not fully opaque texel keep their resampled colour:
+    the alpha test already draws a cutout's outline as a hard edge (the TTC door frame), and a
+    sharper outline there is overshoot, not texture detail."""
     from PIL import Image, ImageFilter
     rgb = image.convert('RGB').filter(ImageFilter.UnsharpMask(radius=radius, percent=int(percent),
                                                               threshold=int(threshold)))
@@ -606,6 +609,10 @@ def _sharpen(image, radius, percent, threshold=0, clamp=0, bound=None):
         lo = np.asarray(ref.filter(ImageFilter.MinFilter(3)))
         hi = np.asarray(ref.filter(ImageFilter.MaxFilter(3)))
         rgb = Image.fromarray(np.clip(np.asarray(rgb), lo, hi), 'RGB')
+    if cutout:
+        alpha = image.getchannel('A').filter(ImageFilter.MinFilter(2 * int(cutout) + 1))
+        near = (np.asarray(alpha) < 255)[:, :, None]
+        rgb = Image.fromarray(np.where(near, np.asarray(image.convert('RGB')), np.asarray(rgb)), 'RGB')
     rgb.putalpha(image.getchannel('A'))
     return rgb
 
@@ -680,7 +687,7 @@ def _shelf_pack(rects, page_sizes):
 
 def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_levels=3, standalone_size=256,
                 large_ground=True, pages=LOCAL_PAGES, view_near=12.0, view_far=160.0, name='local_atlas',
-                white=False, sharpen=None):
+                white=False, sharpen=None, sharpen_exclude=(), ground_sharpen=None):
     """Per-chunk textures and batches: chunk-local pages (see the note above).
 
     Returns (per-chunk texture lists, per-chunk batches indexing that chunk's list,
@@ -730,14 +737,24 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             _, image, nc, pf, ws, wt = source_pixels(idx)
             if k > 1:
                 image = np.tile(image, (k, k, 1))
+            aniso = _anisotropic(sources[idx]) and idx not in wall_like
+            levels = _repeat_mips(image, ws, wt)
+            if ground_sharpen and idx in ground and aniso and ws == wt == ttm.GPU_REPEAT:
+                # The local filter needs neighbouring texels across each repeat seam.
+                # Keep the terminal mean mip from the original chain.
+                pad = math.ceil(4 * ground_sharpen[0])
+                for i, level in enumerate(levels[:-1]):
+                    wrapped = np.pad(level, ((pad, pad), (pad, pad), (0, 0)), mode='wrap')
+                    sharp = _sharpen(Image.fromarray(wrapped), *ground_sharpen)
+                    levels[i] = np.asarray(sharp)[pad:-pad, pad:-pad].copy()
             tex = ttm.Texture(sources[idx].getName(), image, extract.choose_format(image, nc, pf),
-                              ws, wt, levels=_repeat_mips(image, ws, wt))
+                              ws, wt, levels=levels)
             # Panda draws the hood ground set (toontown_central.bam's toonrockroad_newToontown2,
             # grassTT, trollly_pave_tile; donalds_dock.bam's boardwalk_floor, grassDD) at
             # anisotropic_degree 4. PICA has none, and plain trilinear blurred the oblique TTC
             # cobbles to about two thirds of the stock detail (qa/r6/cause.md); the runtime
             # samples these one mip finer instead (ttm batch flags bit1, kAnisoLodBias).
-            tex.aniso = _anisotropic(sources[idx]) and idx not in wall_like
+            tex.aniso = aniso
             shared[(idx, k)] = tex
         return shared[(idx, k)]
     need = ViewDensity(view_points, density, near=view_near, far=view_far)
@@ -786,7 +803,7 @@ def build_local(sources, chunks, *, density=0.5, view_points=(), gutter=8, mip_l
             box = (lo[0] * sw, (1 - hi[1]) * sh, hi[0] * sw, (1 - lo[1]) * sh)
             shrink = (box[2] - box[0]) > tw * 1.5 or (box[3] - box[1]) > th * 1.5
             image = Image.fromarray(src, 'RGBA').resize((tw, th), Image.BOX if shrink else Image.BICUBIC, box=box)
-            if sharpen and sharpen[1]:
+            if sharpen and sharpen[1] and sources[idx].getName() not in sharpen_exclude:
                 bound = None if shrink else Image.fromarray(src, 'RGBA').resize((tw, th), Image.BILINEAR, box=box)
                 image = _sharpen(image, *sharpen, bound=bound)
             image = np.asarray(image)
