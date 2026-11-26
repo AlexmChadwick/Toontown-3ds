@@ -4,6 +4,7 @@
 
 #include "core/autotest.h"
 #include "render/ui.h"
+#include "ui/balloons.h"
 #include "world/asset_loader.h"
 #include "world/battle.h"
 #include "world/battle_fx.h"
@@ -15,6 +16,8 @@
 #include "world/suits.h"
 
 namespace tt::world {
+
+class ZoneActors;
 
 struct BossFrame {
     net::Client& client;
@@ -38,7 +41,21 @@ struct BossFrame {
     render::FrameStats& stats;
     float& commandUsage;
     bool& stereoActive;
+    ZoneActors& zoneActors; // the resident hood treasure models (Cashbot boss treasures)
+    ui::Balloons& balloons; // nametags and speech over the top screen
 };
+
+// Cog and remote Toon nametags over a boss scene's top screen (after endWorld / C2D_Prepare).
+void drawBossNametags(BossFrame& frame, C3D_FVec eye, C3D_FVec target);
+// DistributedBossCog.putToonInCogSuit (our Toon in the boss's department, 0..3: c l m s) during
+// the arrival until loseCogSuits takes it off (suited false).
+void suitLocalToon(BossFrame& frame, int dept, bool suited);
+// __makeResistanceToon's suitType: random.seed(boss doId); SuitDNA.getRandomSuitByDept.
+const char* resistanceSuit(uint32_t bossDoId, int dept);
+// loseCogSuits' DustCloud (suit_explosion_dust, 19 frames at 24 fps) at toon-local (0, 2, 3),
+// scale 0.5, turned to the camera; age: seconds since that toon's loseCogSuits began.
+void drawLoseSuitDust(BossFrame& frame, const C3D_Mtx& toon, float age);
+void releaseLoseSuitDust(); // the boss scene's leave
 
 class BossBattle {
 public:
@@ -101,6 +118,8 @@ private:
     uint16_t acknowledged_[8] = {};
     bool haveAcknowledged_[8] = {};
     render::Model models_[kModels];
+    render::Model elevatorDoors_[2]; // data/cogbldg hqelev_<vp|cfo>_<left|right> (open at 0, closed at +-width)
+    void loadElevatorDoors();
     render::Anim animations_[kParts];
     LoadTicket modelTicket_ = 0;
     int modelIndex_ = 0;

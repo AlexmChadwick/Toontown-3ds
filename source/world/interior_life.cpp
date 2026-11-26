@@ -1,3 +1,5 @@
+#include "core/gpu_sync.h"
+#include "render/ui_font.h"
 #include "world/interior_life.h"
 
 #include <cmath>
@@ -115,7 +117,7 @@ void InteriorLife::setHqResident(bool resident) {
     if (resident && !starModel_.loaded()) {
         starModel_.load(kStarModel);
     } else if (!resident && starModel_.loaded()) {
-        C3D_FrameSync(); // the GPU may still read last frame's star
+        ::tt::gpu::frameSync(); // the GPU may still read last frame's star
         starModel_.unload();
     }
 }
@@ -126,7 +128,7 @@ void InteriorLife::setPetshopResident(bool resident) {
         fishAnim_.load(kFishAnim);
         fishTime_ = 0.0f;
     } else if (!resident && fishModel_.loaded()) {
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
         fishModel_.unload();
         fishAnim_.unload();
     }
@@ -179,7 +181,8 @@ void InteriorLife::loadKnockSpheres(uint32_t zoneId) {
 void InteriorLife::updateLeaderboardText(const net::Client::HQLeaderboardState& hq) {
     if (!textBuf_) return;
     C2D_TextBufClear(textBuf_);
-    C2D_TextParse(&titleText_, textBuf_, "Toon Platoon"); // TTLocalizer.LeaderboardTitle
+    // SignFont is MickeyFont. The string stays mixed case; the font draws a-z as A-Z.
+    tt::render::textParseSign(&titleText_, textBuf_, "Toon Platoon"); // TTLocalizer.LeaderboardTitle
     C2D_TextOptimize(&titleText_);
     for (int i = 0; i < kNumLeaders; ++i) {
         RowText& row = rows_[i];
@@ -210,9 +213,9 @@ void InteriorLife::updateLeaderboardText(const net::Client::HQLeaderboardState& 
                 if (level % 2 == 1) row.spinRate = gold ? 15.0f : silver ? 10.0f : 8.0f;
             }
         }
-        C2D_TextParse(&row.nameText, textBuf_, name);
+        tt::render::textParse(&row.nameText, textBuf_, name);
         C2D_TextOptimize(&row.nameText);
-        C2D_TextParse(&row.scoreText, textBuf_, score);
+        tt::render::textParse(&row.scoreText, textBuf_, score);
         C2D_TextOptimize(&row.scoreText);
     }
     textValid_ = true;

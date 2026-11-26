@@ -96,11 +96,29 @@ public:
     // [0, 1] (fraction along the segment of the first hit).
     bool cameraRaycast(const Vec3& from, const Vec3& to, float* hitT) const;
 
+    // Swept sphere of `radius` from -> to against the same camera-mask solids. *hitT is
+    // the fraction along the segment where the sphere first touches, in [0, 1]; a centre
+    // that already overlaps returns 0. One grid walk (the centre segment, plus a
+    // neighbourhood of floor(radius / cell) + 1 so a prop beside the ray still counts).
+    // Queries stay allocation-free. radius is a world distance and must stay under a
+    // few cells; the follow camera uses ~1.75.
+    bool cameraSphereCast(const Vec3& from, const Vec3& to, float radius, float* hitT) const;
+
     // Trigger volumes overlapped by a sphere (centre p, radius). Writes up to maxOut
     // trigger indices, returns how many overlap in total.
     int triggersAt(const Vec3& p, float radius, int* out, int maxOut) const;
     int numTriggers() const { return static_cast<int>(numTriggers_); }
     const CollTrigger& trigger(int i) const { return triggers_[i]; }
+
+    // Baked alternatives (bits 24-28 of a solid's flags, 0 = always there): a country club
+    // maze section has one copy per rotation and each removable hedge block one of its own
+    // (bake_facility_floors.py maze_collision). Only solids whose variant bit is set collide.
+    static constexpr uint32_t kMazeDefaultVariants = (1u << 1) | (1u << 5) | (1u << 9) | (1u << 13) | (0xFu << 17);
+    void setVariantMask(uint32_t mask) { variantMask_ = mask; }
+    bool variantOn(uint32_t flags) const {
+        const uint32_t v = (flags >> 24) & 31u;
+        return v == 0 || ((variantMask_ >> v) & 1u);
+    }
 
     uint32_t numTris() const { return numTris_; }
     uint32_t numCaps() const { return numCaps_; }
@@ -125,6 +143,7 @@ private:
 
     uint8_t* blob_ = nullptr;
     uint32_t heapBytes_ = 0;
+    uint32_t variantMask_ = kMazeDefaultVariants;
     float originX_ = 0, originY_ = 0, cellSize_ = 8, invCell_ = 0.125f;
     int gridW_ = 0, gridH_ = 0;
     uint32_t numTris_ = 0, numCaps_ = 0, numPlanes_ = 0, numTriggers_ = 0;

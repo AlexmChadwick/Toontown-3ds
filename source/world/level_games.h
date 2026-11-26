@@ -18,6 +18,7 @@
 #include "render/model.h"
 #include "render/renderer.h"
 #include "world/asset_batch.h"
+#include "world/bust_a_cog.h"
 #include <3ds.h>
 #endif
 
@@ -54,9 +55,16 @@ inline bool calcLaserTile(float localX, float localY, float scaleX, float scaleY
     return true;
 }
 
-// Laser hazard tile check: symbols 12 (symbolHiddenBomb) and 13 (symbolBomb) trigger alarm & damage.
+// Laser hazard tile check: gridSymbols 11 (symbolHiddenBomb) and 12 (symbolSkull) call sendFail.
 inline bool isLaserHazard(uint8_t symbol) {
-    return symbol == 12 || symbol == 13;
+    return symbol == 11 || symbol == 12;
+}
+
+// setField's list: [gridNumX, gridNumY, then column-major tiles]. The symbol of tile (x, y), 0 if absent.
+inline uint8_t laserSymbol(const uint8_t* data, int len, int x, int y) {
+    if (len < 2) return 0;
+    const int i = 2 + x * data[1] + y;
+    return i < len ? data[i] : 0;
 }
 
 // Crate push side detection from contact normal in crate-local space:
@@ -83,38 +91,30 @@ inline void calcCrateLerp(const float start[3], const float end[3], float t, flo
     out[2] = start[2] + (end[2] - start[2]) * u;
 }
 
-// Maze section rotation determinism from RNG seed (entId * roomDoId).
-void shuffleMazeRotations(uint32_t seed, int outRotations[4]);
+// DistributedMaze.gotRoom: the H of Maze_Inside_0..3 from random.Random(entId * doId).
+void shuffleMazeRotations(uint64_t seed, int outRotations[4]);
 
-// Mole schedule generation:
+// MoleFieldBase hill types. The names are upstream's: a HILL_MOLE (mole_norm) throws the Toon
+// that touches it (whackedBomb), a HILL_BOMB (mole_cog, the red Cog mole) is the one to stomp
+// (whackedMole).
+enum : uint8_t { kHillMole = 0, kHillBomb = 1, kHillWhacked = 2, kHillCogWhacked = 3, kHillNone = 255 };
+constexpr int kMaxMoles = 64;     // numSquaresX * numSquaresY (the stock specs use 6 x 6)
+constexpr int kMaxMolePopups = 320; // a 60 s game schedules about 230
+
 struct MolePopup {
-    float start;
-    uint8_t hole;
-    float upTime;
-    float stayTime;
-    float downTime;
-    uint8_t type; // 0 = normal mole, 1 = cog bomb
+    float start;    // game seconds
+    uint8_t hole;   // mole index, x fastest
+    float upTime, stayTime, downTime;
+    uint8_t type;   // kHillMole / kHillBomb
 };
 
-int calcMoleSchedule(uint32_t seed, float gameDuration, int numMoles,
-                     MolePopup* outSchedule, int maxSchedule);
+// MoleFieldBase.scheduleMoles for seed entId * level.doId; returns the popup count (0 when
+// maxSchedule is too small). *outEndingTime: the last popup's end, in game seconds.
+int calcMoleSchedule(uint64_t seed, double gameDuration, int numMoles, MolePopup* outSchedule, int maxSchedule,
+                     double* outEndingTime = nullptr);
 
-// Mole elevation (0.0 underground, 1.0 fully raised).
-inline float calcMoleElevation(float t, float start, float upTime, float stayTime, float downTime) {
-    if (t < start) return 0.0f;
-    const float elapsed = t - start;
-    if (elapsed < upTime) {
-        return upTime > 0.0f ? (elapsed / upTime) : 1.0f;
-    }
-    if (elapsed < upTime + stayTime) {
-        return 1.0f;
-    }
-    if (elapsed < upTime + stayTime + downTime) {
-        const float downElapsed = elapsed - (upTime + stayTime);
-        return downTime > 0.0f ? (1.0f - (downElapsed / downTime)) : 0.0f;
-    }
-    return 0.0f;
-}
+// __showToonHitByBomb's random.Random(timestamp) picks: the landing hill and the spin turns.
+void moleFlightPick(int32_t ts, int numX, int numY, int* tileX, int* tileY, int* hRot, int* pRot);
 
 // Golf tee-off spots in green space.
 inline void calcGolfSpot(int spotIndex, float outPos[3]) {
@@ -163,20 +163,20 @@ public:
     bool nearestGolfGreen(const Level& level, float x, float y, float z, float* outX, float* outY, float* outZ) const;
 
 private:
-    BasicAssetBatch<16> assetBatch_;
+    BasicAssetBatch<32> assetBatch_; // room-game props and the Bust-a-Cog board
     bool propsLoaded_ = false;
 
     // Models:
     render::Model crateWood_;
     render::Model crateCbWood_;
-    render::Model gridFloor_;
     render::Model moleHole_;
     render::Model moleNorm_;
     render::Model moleCog_;
     render::Model moleHit_;
-    render::Model golfHole_;
-    render::Model golfBall_;
-    render::Model goonCone_;
+    render::Model golfGreen_;
+    render::Model golfFlag_;
+    render::Model securityCamera_; // square_stomper, DistributedSecurityCamera's model
+    render::Model gridFloor_;      // FloorWear, DistributedGrid's model
 
     float crateBox_[6] = {-2.8f, -2.8f, 0.0f, 2.8f, 2.8f, 5.48f};
 
@@ -212,10 +212,23 @@ private:
         // Laser
         int8_t lastTileX = -1, lastTileY = -1;
         bool toonInLaser = false;
+        bool laserInRange = false; // __detect's doToonInRange
+        bool laserCam = false;     // ... with the field active then (setIdealCameraPos)
+        bool successPlayed = false;
+        uint8_t seenField[2 + 8 * 8] = {};
+        uint8_t seenLen = 0;
         uint32_t lastLaserHumMs = 0;
+        // genGrid only runs while activeLF: the drawn grid stays as it was when the field went off.
+        uint8_t shownField[2 + 8 * 8] = {};
+        uint8_t shownLen = 0;
+        int8_t shownToonX = -1, shownToonY = -1;
 
         // Camera
-        float trackX = 0, trackY = 0;
+        bool camTracking = false; // __updateTrack has run (it needs a target)
+        bool hideModel = false;
+        float projector[3] = {0.0f, 0.0f, 25.0f};
+        float toonSpotDist = 100.0f;
+        float trackX = 10.0f, trackY = -5.0f;
         float vX = 0, vY = 0;
         uint32_t lastCameraAlarmMs = 0;
 
@@ -231,22 +244,155 @@ private:
         bool mazeTriggered = false;
         bool mazeFinished = false;
 
-        // Mole
-        games_logic::MolePopup schedule[64];
-        int scheduleCount = 0;
-        uint32_t moleStartMs = 0;
-        bool scheduled = false;
-        bool moleTriggered = false;
-        float holeElevation[16] = {};
-        uint8_t holeType[16] = {};
-        bool holeWhacked[16] = {};
-        uint32_t whackedTimeMs[16] = {};
-
         // Golf
-        bool joinedGolf = false;
-        int currentSpot = -1;
+        bool golfInSphere = false; // inside the 11.5 sphere (requestJoin on entry)
+        bool golfEntered = false; // hasEntered: the instruction shows once
+        uint8_t golfJoinSeq = 0, golfDoneSeq = 0;
+        uint8_t bacBoardSeq = 0, bacClearedSeq = 0, bacHelpSeq = 0, bacGagSeq = 0;
     };
     SlotState slots_[net::kMaxLevelEntities] = {};
+
+    // ---- DistributedMoleField / MoleHill ----
+    // A hill's running interval (MoleHill.popIval / downIval), evaluated from its start time.
+    enum MoleIval : uint8_t { kIvalNone, kIvalPop, kIvalDown, kIvalWhacked, kIvalCogWhacked };
+    struct MoleHill {
+        uint8_t type = games_logic::kHillNone; // hillType
+        uint8_t ival = kIvalNone;
+        bool bombBranch = false; // doMolePop's HILL_BOMB sequence: collision for the whole pop
+        bool col = false;        // moleColNodePath unstashed
+        int16_t popupNum = 0;
+        uint32_t ivalMs = 0;
+        float up = 0, stay = 0, down = 0;
+        float fromZ = -2.5f; // the mole's Z when the interval began
+        float z = -2.5f;     // self.mole Z (hill space)
+        float headOff[3] = {}, headScale = 1;
+        float colRadius = 0.75f; // the 1.0 sphere x moleColNodePath scale x the mole's 0.75
+    };
+    struct MoleField {
+        int slot = -1; // levelEntitySlot index; -1 = free
+        uint32_t doId = 0;
+        int numX = 0, numY = 0, numMoles = 0;
+        float spacingX = 0, spacingY = 0;
+        float world[12] = {};
+        uint8_t startSeq = 0;
+        uint16_t eventSeq = 0;
+        bool gameStarted = false, hasRestarted = false, hasEntered = false, activeField = true;
+        bool inRange = false, won = false;
+        uint32_t gameStartMs = 0, detectMs = 0, timerEndMs = 0;
+        int16_t lastScore = -1;
+        int count = 0, next = 0;
+        games_logic::MolePopup schedule[games_logic::kMaxMolePopups];
+        MoleHill hills[games_logic::kMaxMoles];
+    };
+    static constexpr int kMaxMoleFields = 3;
+    MoleField moleFields_[kMaxMoleFields];
+    MoleField* moleFieldFor(int slot, const net::LevelEntityObj& d, const LevelEntity& e, const Level& level);
+    void molePop(MoleHill& h, const games_logic::MolePopup& p, uint32_t startMs);
+    void moleSetType(MoleHill& h, uint8_t type, uint32_t nowMs);
+    void moleEval(MoleHill& h, uint32_t nowMs);
+    void moleHitByBomb(MoleField& f, int index, int32_t ts, uint32_t nowMs);
+    void moleInfo(const char* text, uint32_t nowMs);
+    // ---- end mole field ----
+
+    // ---- DistributedMaze (bake_level.maze_parts: <level>.tmz + section / hedge models) ----
+    struct MazeRoom {
+        int room = -1;  // Level room index; -1 = no maze on this floor
+        int numSections = 0, numBlocks = 0;
+        float section[4][12] = {}; // section -> room, H 0
+        char blockName[4][16] = {};
+        float block[4][12] = {};
+        float entrance[3] = {}, finish[3] = {}; // room space
+        int numHints = 0;
+        float hints[16][3] = {};
+        int rotation[4] = {};        // degrees, from the maze's random.Random(entId * doId)
+        bool blockShown[4] = {true, true, true, true};
+        uint32_t mazeDoId = 0;       // the DistributedMaze the layout came from
+        uint8_t startSeq = 0;
+        uint16_t eventSeq = 0;
+        bool gameStarted = false, finished = false, timedOut = false, entered = false, inHint = false;
+        uint32_t timerEndMs = 0;
+    };
+    MazeRoom maze_;
+    render::Model mazeSectionModel_[4], mazeBlockModel_[4];
+    void applyMaze(Level& level, const net::LevelEntityObj& d);
+    // ---- end maze ----
+
+public:
+    // Level::loadRoom: a room with <level>.tmz is a hedge maze room.
+    void loadMaze(int room, const char* level);
+    void resetMaze();
+    // The maze's dead-end hint spheres (__handleToonEnterHint): the camera at (0, -22 h / 3, h + 54).
+    bool mazeHintCamera() const { return maze_.inHint; }
+    // Test-only: the maze's ENTRANCE (0), finish (1) or first dead-end hint (2) in world space.
+    bool mazePoint(int which, float out[3]) const;
+    // The game's frame2D label (Moles Left: n / Maze Race!) and its ToontownTimer; false = hidden.
+    bool gameHud(const char** label, int* timerSeconds, uint32_t nowMs) const;
+
+    // The local Toon thrown by a mole (DistributedMoleField.__showToonHitByBomb): main.cpp plays
+    // it while active and leaves the Toon at end.
+    struct MoleFlight {
+        bool active = false;
+        uint32_t startMs = 0;
+        float start[3] = {}, end[3] = {};
+        int hRot = 0, pRot = 0; // whole turns about H and P over the flight
+        float camEye[3] = {};   // the camera, which rides the flight's x / y and looks at the Toon
+    };
+    static constexpr float kMoleFlightWait = 0.25f, kMoleFlightDur = 3.125f; // Trajectory(0, 0, 50), g 32
+    const MoleFlight& moleFlight() const { return moleFlight_; }
+    void endMoleFlight() { moleFlight_.active = false; }
+    // While the Toon is in a mole field's range (setUpCamera): the ideal camera is
+    // (0, -22 * h / 3, h + 12) for clamped Toon height h.
+    bool moleCamera() const { return moleCamera_; }
+    // While the Toon is near an active laser field (doToonInRange): (0, -20 * h / 3, h + 8).
+    bool laserCamera() const { return laserCamera_; }
+    // Bust-a-Cog (the golf green's board): the pad turns the aim, A shoots, B is Exit for Now.
+    // main.cpp passes the frame's input before update and, while playing, holds the Toon at
+    // its stand point (the 'stopped' state) and takes the board camera.
+    void setGolfInput(float aim, bool fire, bool exit) { golfAim_ = aim, golfFire_ = fire, golfExit_ = exit; }
+    bool golfPlaying() const { return bac_.active(); }
+    // Autotest only: report the current board solved (requestBoard(1)) on the next update.
+    void autotestSolveBoard() { golfSolve_ = true; }
+    // The camera eye / target and the Toon's stand point (toonPoints[index], facing H 180).
+    bool golfView(float eye[3], float target[3], float stand[3], float* heading) const;
+    void setCameraEye(const float eye[3]) { std::memcpy(cameraEye_, eye, sizeof(cameraEye_)); }
+    // Autotest: the world position of a raised mole with its collision on; cog = a HILL_BOMB
+    // (the one to stomp), else a HILL_MOLE (it throws the Toon).
+    bool moleTarget(bool cog, float out[3]) const;
+    // The country club's showInfoText (sign font, 3.1 s then a 0.5 s fade): text and alpha now.
+    const char* infoText(uint32_t nowMs, float* alpha) const;
+    // Bust-a-Cog's bonusBoard for its 4 s: informGag ("You won a Cake!" over the gag icon, track /
+    // level) or helpOthers ("<name> solved a Puzzle!" over the fire ball, track -1).
+    const char* bonusBoard(uint32_t nowMs, int* track, int* level) const;
+
+private:
+    MoleFlight moleFlight_;
+    bool moleCamera_ = false;
+    bool laserCamera_ = false;
+    BustACog bac_;
+    int golfSlot_ = -1;     // the green whose board we play
+    float golfAim_ = 0;
+    float dt_ = 1.0f / 30.0f;
+    bool golfFire_ = false, golfExit_ = false, golfSolve_ = false;
+    float cameraEye_[3] = {};
+    char infoText_[64] = {};
+    mutable char hudLabel_[32] = {};
+    // A maze timeout (setGameOver while not finished): main.cpp puts the Toon at the finish.
+    bool hasMazeWarp_ = false;
+    float mazeWarp_[3] = {};
+
+public:
+    bool popMazeWarp(float out[3]) {
+        if (!hasMazeWarp_) return false;
+        hasMazeWarp_ = false;
+        std::memcpy(out, mazeWarp_, sizeof(mazeWarp_));
+        return true;
+    }
+
+private:
+    uint32_t infoMs_ = 0;
+    char bonusText_[64] = {};
+    int bonusTrack_ = -1, bonusLevel_ = 0;
+    uint32_t bonusMs_ = 0;
 
     const net::Client* client_ = nullptr;
     const Level* level_ = nullptr;

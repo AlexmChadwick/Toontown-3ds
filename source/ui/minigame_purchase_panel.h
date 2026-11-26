@@ -20,6 +20,10 @@ public:
     void shutdown();
 
     bool active() const { return active_; }
+    // Purchase's countdown in whole seconds (ToontownTimer rounds up), -1 when closed.
+    int secondsLeft(uint32_t nowMs) const {
+        return !active_ ? -1 : deadlineMs_ > nowMs ? int((deadlineMs_ - nowMs + 999) / 1000) : 0;
+    }
     void open(const net::Client& client, uint32_t beansWon, uint32_t deadlineMs, uint32_t nowMs);
     void close();
 
@@ -35,7 +39,7 @@ public:
 private:
     static constexpr int kCols = shop::kRegularLevels;
     void rebuildGrid();
-    void rebuildInfo(uint32_t nowMs);
+    void rebuildInfo();
     void setNote(const char* msg, uint32_t nowMs);
 
     static MinigamePurchasePanel* activeInstance_;
@@ -56,7 +60,6 @@ private:
     // ---- end padnav ----
     int pendingSend_ = 0; // 0 none, 1 Done, 2 Cancel
     bool dirty_ = true;
-    int lastSecond_ = -1;
     char note_[64] = {};
     uint32_t noteUntilMs_ = 0;
 
@@ -67,7 +70,7 @@ private:
     C2D_Text btnText_[4]; // -, +, Done, Cancel
     C2D_Text dashText_;
     C2D_Text cellText_[gags::kTracks][kCols];
-    C2D_Text titleText_, beansText_, carryText_, timerText_, infoText_;
+    C2D_Text titleText_, beansText_, carryText_, infoText_;
 };
 
 } // namespace tt::ui

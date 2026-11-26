@@ -1,4 +1,8 @@
+#include "render/ui_font.h"
 #include "ui/book.h"
+#include "ui/book_tab_icons.h"
+#include "core/log.h"
+#include "ui/theme.h"
 #include <cstdio>
 
 namespace tt::ui {
@@ -23,12 +27,12 @@ bool Book::init() {
     dynamicBuf_ = C2D_TextBufNew(512);
     if (!staticBuf_ || !dynamicBuf_) return false;
 
-    C2D_TextParse(&prevText_, staticBuf_, "< Prev");
-    C2D_TextParse(&nextText_, staticBuf_, "Next >");
-    C2D_TextParse(&closeText_, staticBuf_, "[X]");
+    tt::render::textParse(&prevText_, staticBuf_, "< Prev");
+    tt::render::textParse(&nextText_, staticBuf_, "Next >");
+    tt::render::textParse(&closeText_, staticBuf_, "X");
 
     for (int i = 0; i < kPageCount; i++) {
-        C2D_TextParse(&tabTexts_[i], staticBuf_, pages_[i]->tabName());
+        tt::render::textParse(&tabTexts_[i], staticBuf_, pages_[i]->tabName());
         pages_[i]->init();
     }
 
@@ -50,6 +54,9 @@ void Book::shutdown() {
 }
 
 void Book::open(int page) {
+    if (!isOpen_) TT_LOG("book: open on page %d", page >= 0 ? page : curPage_);
+    // The tap (or button) that opened the book must not also act inside it.
+    if (!isOpen_) touchBlocked_ = true;
     isOpen_ = true;
     if (page >= 0 && page < kPageCount) {
         setPage(page);
@@ -58,15 +65,16 @@ void Book::open(int page) {
     }
 }
 
-void Book::close() {
+void Book::close(const char* why) {
     if (isOpen_) {
+        TT_LOG("book: close (%s) on page %d", why, curPage_);
         pages_[curPage_]->exit();
         isOpen_ = false;
     }
 }
 
 void Book::toggle() {
-    if (isOpen_) close();
+    if (isOpen_) close("toggle");
     else open();
 }
 
@@ -88,23 +96,40 @@ void Book::prevPage() {
     setPage((curPage_ + kPageCount - 1) % kPageCount);
 }
 
-u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext& bdc) {
+u32 Book::handleInput(u32 keysDown, u32 held, const touchPosition& touch, BookDrawContext& bdc) {
     if (!isOpen_) return 0;
+    // The whole bottom screen is the book: no touch reaches the tab bar or the world under it.
+    const u32 touchKeys = keysDown & KEY_TOUCH;
+    if (!(held & KEY_TOUCH) && !touchKeys) touchBlocked_ = false;
+    if (touchKeys) {
+        // Only a fresh touch-down with a real point acts: the opening stylus (still down), and
+        // the (0,0) / off-screen point some hardware reports on a touch's first or last frame,
+        // are dropped.
+        const bool valid = (touch.px != 0 || touch.py != 0) && touch.px < 320 && touch.py < 240;
+        if (touchBlocked_ || !valid) {
+            TT_LOG("book: ignored touch at %u,%u (%s)", unsigned(touch.px), unsigned(touch.py),
+                   touchBlocked_ ? "stylus down since open" : "no point");
+            keysDown &= ~KEY_TOUCH;
+        }
+        touchBlocked_ = false;
+        if (keysDown & KEY_TOUCH)
+            TT_LOG("book: touch %u,%u on page %d", unsigned(touch.px), unsigned(touch.py), curPage_);
+    }
 
     // ---- padnav: B closes the book like START (upstream's book has a close button only) ----
     if (keysDown & (KEY_START | KEY_B)) {
-        close();
-        return keysDown & (KEY_START | KEY_B);
+        if (closeEnabled_) close((keysDown & KEY_B) ? "B" : "START");
+        return (keysDown & (KEY_START | KEY_B)) | touchKeys;
     }
 
     if (keysDown & KEY_L) {
-        prevPage();
-        return KEY_L;
+        if (prevEnabled_) prevPage();
+        return KEY_L | touchKeys;
     }
 
     if (keysDown & KEY_R) {
-        nextPage();
-        return KEY_R;
+        if (nextEnabled_) nextPage();
+        return KEY_R | touchKeys;
     }
     // ---- end padnav ----
 
@@ -112,20 +137,20 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
         // Top bar buttons
         if (touch.py < 24) {
             if (touch.px < 55) {
-                prevPage();
+                if (prevEnabled_) prevPage();
                 return KEY_TOUCH;
             }
             if (touch.px >= 220 && touch.px < 275) {
-                nextPage();
+                if (nextEnabled_) nextPage();
                 return KEY_TOUCH;
             }
             if (touch.px >= 280) {
-                close();
+                if (closeEnabled_) close("close button");
                 return KEY_TOUCH;
             }
         }
         // Bottom tab bar buttons
-        else if (touch.py >= 214) {
+        else if (touch.py >= 214 && tabsEnabled_) {
             const float tabW = 320.0f / kPageCount;
             const int t = static_cast<int>(touch.px / tabW);
             if (t >= 0 && t < kPageCount) {
@@ -141,30 +166,43 @@ u32 Book::handleInput(u32 keysDown, const touchPosition& touch, BookDrawContext&
     constexpr float kTopBarH = 24.0f;
     constexpr float kTabBarY = 214.0f;
     const bool pageTouch = (keysDown & KEY_TOUCH) && touch.py >= kTopBarH && touch.py < kTabBarY;
-    const u32 pageKeys = pageTouch ? keysDown : (keysDown & ~KEY_TOUCH);
+    u32 pageKeys = pageTouch ? keysDown : (keysDown & ~KEY_TOUCH);
+    // A QuestScript's lesson (no page tabs): A dismisses the speaker's lines, so a page's focused
+    // control never takes it and the lesson cannot stall behind the locked close button.
+    if (!tabsEnabled_) pageKeys &= ~KEY_A;
     u32 consumed = pages_[curPage_]->handleInput(pageKeys, touch, bdc);
     if (pageTouch) consumed |= KEY_TOUCH; // a touch on the page never reaches the world
     if ((keysDown & KEY_DLEFT) && !(consumed & KEY_DLEFT)) {
-        prevPage();
+        if (prevEnabled_) prevPage();
         consumed |= KEY_DLEFT;
     } else if ((keysDown & KEY_DRIGHT) && !(consumed & KEY_DRIGHT)) {
-        nextPage();
+        if (nextEnabled_) nextPage();
         consumed |= KEY_DRIGHT;
     }
-    return consumed;
+    return consumed | touchKeys;
     // ---- end padnav ----
 }
 
 void Book::draw(const BookDrawContext& bdc) {
     if (!isOpen_) return;
 
-    // Binder cover header
+    // Binder cover header: Prev / Next as paper tabs, a red close button (touch areas in
+    // handleInput: x < 55, 220..275, >= 280).
+    // A QuestScript hides the arrows and the close button it has turned off (setScriptLock).
     C2D_DrawRectSolid(0, 0, 0.40f, 320, 24, kCoverHeader);
-
-    // Prev / Next / Close
-    C2D_DrawText(&prevText_, C2D_WithColor, 8, 5, 0.5f, 0.42f, 0.42f, kGoldText);
-    C2D_DrawText(&nextText_, C2D_WithColor, 226, 5, 0.5f, 0.42f, 0.42f, kGoldText);
-    C2D_DrawText(&closeText_, C2D_WithColor, 290, 5, 0.5f, 0.42f, 0.42f, kCloseText);
+    if (prevEnabled_) {
+        theme::roundRect(3, 3, 50, 18, 5, kTabInactive, 0.41f);
+        theme::textCentered(prevText_, 28, 4, 0.42f, kGoldText, 46, 0.5f);
+    }
+    if (nextEnabled_) {
+        theme::roundRect(222, 3, 52, 18, 5, kTabInactive, 0.41f);
+        theme::textCentered(nextText_, 248, 4, 0.42f, kGoldText, 48, 0.5f);
+    }
+    if (closeEnabled_) {
+        theme::roundRect(284, 2, 32, 20, 6, theme::kRedDark, 0.41f);
+        theme::roundRect(285, 2, 30, 18, 5, theme::kRed, 0.41f);
+        theme::textCentered(closeText_, 300, 3, 0.5f, kWhite, 26, 0.5f);
+    }
 
     // Title & page number in center
     if (dynamicBuf_) {
@@ -172,8 +210,8 @@ void Book::draw(const BookDrawContext& bdc) {
         char titleBuf[64];
         snprintf(titleBuf, sizeof(titleBuf), "%s (%d/%d)", pages_[curPage_]->title(), curPage_ + 1, kPageCount);
         C2D_Text titleText;
-        C2D_TextParse(&titleText, dynamicBuf_, titleBuf);
-        C2D_DrawText(&titleText, C2D_WithColor, 70, 5, 0.5f, 0.42f, 0.42f, kWhite);
+        tt::render::textParse(&titleText, dynamicBuf_, titleBuf);
+        theme::textCentered(titleText, 137, 4, 0.46f, kWhite, 160, 0.5f);
     }
 
     // Main page parchment paper
@@ -184,20 +222,20 @@ void Book::draw(const BookDrawContext& bdc) {
     // Draw active page
     pages_[curPage_]->draw(2, 24, 316, 188, bdc);
 
-    // Bottom tab bar
+    // Bottom tab bar: rounded page tabs hanging off the paper, the open one in gold, each with its
+    // page's icon as upstream's page tabs (the page's name is in the header). Text if the icon
+    // atlas is missing.
     C2D_DrawRectSolid(0, 212, 0.40f, 320, 28, kCoverBottom);
     const float tabW = 320.0f / kPageCount;
-    for (int i = 0; i < kPageCount; i++) {
+    for (int i = 0; i < kPageCount && tabsEnabled_; i++) {
         const float tx = i * tabW;
         const bool active = (i == curPage_);
-        C2D_DrawRectSolid(tx + 1, active ? 212 : 215, 0.42f, tabW - 2, active ? 28 : 25, active ? kTabActive : kTabInactive);
-        // Shrink a label that would not fit its tab ("Trophies"), and centre it.
-        float labelW = 0.0f;
-        C2D_TextGetDimensions(&tabTexts_[i], 0.36f, 0.36f, &labelW, nullptr);
-        const float fit = labelW > tabW - 4 ? 0.36f * (tabW - 4) / labelW : 0.36f;
-        C2D_TextGetDimensions(&tabTexts_[i], fit, fit, &labelW, nullptr);
-        C2D_DrawText(&tabTexts_[i], C2D_WithColor, tx + (tabW - labelW) * 0.5f, 218, 0.5f, fit, fit,
-                     active ? kInk : kWhite);
+        const float ty = active ? 211.0f : 214.0f;
+        theme::roundRect(tx + 1, ty, tabW - 2, 240 - ty + 6, 5, active ? kTabActive : kTabInactive, 0.42f);
+        if (!drawBookTabIcon(i, tx + tabW * 0.5f, active ? 225.0f : 227.0f, active ? 24.0f : 21.0f, 0.5f)) {
+            theme::textCentered(tabTexts_[i], tx + tabW * 0.5f, active ? 218.0f : 220.0f, 0.4f, active ? kInk : kWhite,
+                                tabW - 4, 0.5f);
+        }
     }
 }
 

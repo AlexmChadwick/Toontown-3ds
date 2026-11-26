@@ -1,6 +1,10 @@
+#include "core/gpu_sync.h"
+#include "ui/boss_titles.h"
 #include "world/cj_battle.h"
 #include "core/profile.h"
 #include "world/boss_battle.h"
+#include "world/py_random.h"
+#include "ui/projection.h"
 
 #include <algorithm>
 #include <cmath>
@@ -115,7 +119,7 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     for (JurorFlight& flight : flights_) flight = {};
     for (Evidence& evidence : evidence_) evidence = {};
     for (bool& ack : acknowledged_) ack = false;
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.battle.reset();
     frame.ui.setBattle(nullptr, {});
     frame.remotes.clear();
@@ -123,11 +127,11 @@ void CjBattle::begin(BossFrame& frame, const net::BossState& state) {
     frame.place.unload();
     frame.player.setDynamic(nullptr);
     frame.player.reset(-2.84f, -99.47f, 0, 0); // LawbotHQBossBattle teleportInPosHpr.
-    frame.ui.book().close();
+    frame.ui.book().close("cj_battle");
 }
 
 void CjBattle::leave(BossFrame& frame, bool sad) {
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     frame.client.sendBossExit();
     // Network deletion can clear a child before this frame observes the exit.
     // Keep the published actor IDs independently so no ghost survives departure.
@@ -141,10 +145,13 @@ void CjBattle::leave(BossFrame& frame, bool sad) {
     }
     npcsLoaded_ = false;
     assets_.release();
+    for (render::Model& door : elevatorDoors_) door.unload();
+    releaseLoseSuitDust();
     frame.battle.reset();
     frame.remotes.clear();
     frame.ui.setBattle(nullptr, {});
-    uint32_t destination = sad ? 2000 : kHq;
+    // DistributedBossCog.localToonDied / localToonToSafeZone: ZoneUtil.getSafeZoneId(defaultZone).
+    uint32_t destination = sad ? safeZoneOf(frame.client.ownStats().defaultZone) : kHq;
     if (!frame.client.boss() && frame.client.inZone() && Place::available(frame.client.zoneId())) {
         destination = frame.client.zoneId();
     }
@@ -245,12 +252,13 @@ void CjBattle::update(BossFrame& frame, const net::BossState& state, uint32_t no
         }
     }
     frame.battle.setAutoPlay(frame.test.active());
-    frame.battle.update(frame.client, nowMs, frame.dt, {SuitActors::poseThunk, &frame.suits});
+    float joinOrigin[3] = {-2.798f, -60.0f, 0.0f};
+    frame.battle.update(frame.client, nowMs, frame.dt, {bossCogOrigin, joinOrigin, kBossJoinHeight});
     frame.suits.update(frame.dt, nowMs, &assets_.collision);
     for (int index = 0; index < frame.battle.numSuitPoses(); ++index) {
         const BattleActorPose& pose = frame.battle.suitPose(index);
         frame.suits.overridePose(pose.doId, pose.x, pose.y, pose.z + pose.hop, pose.h, pose.hidden, pose.flash,
-                                 pose.anim, pose.clipArg, pose.clipStartMs);
+                                 pose.anim, pose.clipArg, pose.clipStartMs, pose.joinScale);
     }
     const net::OwnStats& stats = frame.client.ownStats();
     frame.battle.fillView(frame.client, nowMs, &battleView_);
@@ -305,7 +313,8 @@ void CjBattle::update(BossFrame& frame, const net::BossState& state, uint32_t no
         if (chair.state == 'S' || flying) {
             Vec3 position = cjChairPosition(chair.index, phaseIs(state, "BattleTwo") ? elapsed : kCjJurySeconds);
             if (flying) position.x += 75 * (1 - (nowMs - chair.flyingMs) / 10000.0f);
-            frame.suits.setExternal(chair.doId, "bw", 0, position.x, position.y, position.z, -90, false, true);
+            frame.suits.setExternal(chair.doId, jurorCode(chair.doId, chair.flyingRevision), 0, position.x,
+                                    position.y, position.z, -90, false, true);
         } else {
             frame.suits.removeExternal(chair.doId);
         }
@@ -635,6 +644,19 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
             break;
         }
     }
+    CjArrivalShot arrival{};
+    const bool arrivalMovie = !frame.battle.inBattle() && (phaseIs(state, "WaitForToons") || phaseIs(state, "Elevator") ||
+                                                           phaseIs(state, "Introduction"));
+    if (arrivalMovie) {
+        cjArrival(state.phase, (nowMs - state.phaseMs) / 1000.0f, &arrival);
+        eye = FVec3_New(arrival.eye.x, arrival.eye.y, arrival.eye.z);
+        target = FVec3_New(arrival.target.x, arrival.target.y, arrival.target.z);
+        for (int side = 0; side < 2; ++side) {
+            char path[96];
+            std::snprintf(path, sizeof(path), "sdmc:/3ds/toontown3ds/data/cogbldg/hqelev_cj_%s.ttm", side ? "right" : "left");
+            if (!elevatorDoors_[side].loaded() && !elevatorDoors_[side].load(path)) TT_LOG("CJ: cannot load %s", path);
+        }
+    }
     gfxSet3D(false);
     frame.stereoActive = false;
     frame.renderer.resetStats();
@@ -713,19 +735,47 @@ void CjBattle::draw(BossFrame& frame, const net::BossState& state, uint32_t nowM
             frame.renderer.drawModel(assets_.models[14], matrix);
         }
         drawBoss(frame, state);
+        if (arrivalMovie && arrival.doorOpen < 1) { // over the arena's baked open doors
+            for (int side = 0; side < 2; ++side) {
+                if (!elevatorDoors_[side].loaded()) continue;
+                C3D_Mtx door = transform(kCjElevatorOrigin, 180);
+                Mtx_Translate(&door, (side ? -1.0f : 1.0f) * 15.8f * (1 - arrival.doorOpen), 0, 0, true);
+                frame.renderer.drawModel(elevatorDoors_[side], door);
+            }
+        }
         C3D_Mtx toon;
         frame.player.worldMatrix(&toon);
+        if (arrivalMovie) toon = transform(kCjElevatorToon); // placeToonInElevator, facing out
+        if (arrivalMovie) // Cog suits until loseCogSuits (24 s into the introduction)
+            suitLocalToon(frame, 1, !phaseIs(state, "Introduction") || (nowMs - state.phaseMs) / 1000.0f < 24.3f);
         frame.toon.draw(frame.renderer, toon);
+        if (arrivalMovie && phaseIs(state, "Introduction")) drawLoseSuitDust(frame, toon, (nowMs - state.phaseMs) / 1000.0f - 24);
+        if (arrivalMovie)
+            frame.remotes.setSuitMode(!phaseIs(state, "Introduction") || (nowMs - state.phaseMs) / 1000.0f < 24.3f ? 1 : -1);
         frame.remotes.draw(frame.renderer, frame.player.x(), frame.player.y());
+        frame.remotes.setSuitMode(RemoteToons::kSuitNet);
         frame.suits.draw(frame.renderer);
         frame.effects.draw(frame.renderer, &frame.battle, frame.toon.look());
     }
     frame.renderer.endWorld();
+    C2D_Prepare(); // citro2d state must be re-bound after the world shaders
+    drawBossNametags(frame, eye, target);
+    if (arrivalMovie && arrival.chat) { // the C.J.'s line over his head (LawbotBossBattleOnePosHpr)
+        C3D_Mtx proj, view;
+        Mtx_PerspTilt(&proj, C3D_AngleFromDegrees(frame.renderer.fovY()), C3D_AspectRatioTop, render::Renderer::kNear,
+                      frame.renderer.farPlane(), false);
+        Mtx_LookAt(&view, eye, target, FVec3_New(0.0f, 0.0f, 1.0f), false);
+        frame.balloons.begin();
+        float sx, sy, depth;
+        if (ui::projectToScreen(proj, view, -2.798f, -60, 24, &sx, &sy, &depth))
+            frame.balloons.addSpeaker(sx, sy, "Chief Justice", arrival.chat, arrival.chatAge, depth);
+        frame.balloons.draw(frame.renderer.topLeft());
+    }
     prof::lap(prof::kBossDraw);
     frame.stats = frame.renderer.stats();
     ui::Context context{};
     context.stats = &frame.client.ownStats();
-    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : state.phase;
+    context.infoTitle = assets_.failed() ? "CJ assets missing / over budget" : !assets_.ready() ? "Loading CJ courtroom" : ui::bossPhaseTitle(state.phase);
     std::snprintf(status_, sizeof(status_), "Scales %.0f / 2700  Laff %d%s", damage, frame.client.ownStats().hp,
                   state.bonusRevision && nowMs - state.bonusMs < 20000 ? "  BONUS" : "");
     std::snprintf(details_, sizeof(details_), "Evidence %u  Cannon %.0f / %.0f  Aim %.0f", unsigned(frame.client.bossPies()), rotation_, elevation_, pitch_);
@@ -811,6 +861,29 @@ bool CjBattle::frame(BossFrame& frame) {
     audio::update();
     prof::lap(prof::kAudio);
     return true;
+}
+
+const char* CjBattle::jurorCode(uint32_t chairDoId, uint32_t flights) {
+    // loadCogJuror: level = Random(doId).randrange(len(suitsPerLevel)), then newSuitRandom(level,
+    // 'l'); every level holds one suit (level 0 gives the first), so the juror is fixed by the
+    // chair's stream: one draw at announceGenerate, one more per showCogJurorFlying.
+    static const char* const kLawbots[8] = {"bf", "b", "dt", "ac", "bs", "sd", "le", "bw"};
+    JurorCode* slot = nullptr;
+    for (JurorCode& c : jurorCodes_)
+        if (c.doId == chairDoId) slot = &c;
+    if (!slot)
+        for (JurorCode& c : jurorCodes_)
+            if (!slot && !c.doId) slot = &c;
+    if (!slot) slot = &jurorCodes_[chairDoId % 16];
+    if (slot->doId != chairDoId || slot->revision != flights || !slot->code[0]) {
+        PyRandom rng(chairDoId);
+        int level = 0;
+        for (uint32_t i = 0; i <= flights; ++i) level = rng.randrange(0, 8);
+        std::snprintf(slot->code, sizeof(slot->code), "%s", kLawbots[level > 1 ? level - 1 : 0]);
+        slot->doId = chairDoId;
+        slot->revision = flights;
+    }
+    return slot->code;
 }
 
 } // namespace tt::world

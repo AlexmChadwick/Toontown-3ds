@@ -1,0 +1,22 @@
+Facility and boss sweeps
+source 581360cbf15751fe595b98a114abc8086544fea7
+resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+Panda 1.10.15, offscreen, audio-library-name null. Fresh bakes into sdmc-out (gitignored).
+
+bake_level.py --level all --resources <that checkout>
+  BAKE_LEVEL_EXIT:0  (2026-11-23T05:01:21Z to 05:03:43Z)
+  59 .tz files written under sdmc-out/3ds/toontown3ds/data/level
+
+bake_boss.py, then --cfo, --cj, --ceo
+  BAKE_VP:0 BAKE_CFO:0 BAKE_CJ:0 BAKE_CEO:0  (done 2026-11-23T05:05:08Z)
+  461 files under sdmc-out/3ds/toontown3ds/data/boss
+
+levelsweep.py /tmp/sweep/level
+  LEVELSWEEP_EXIT:0
+  31 rooms, 340 frames, every frame result PASS (sweep-manifest.json)
+
+bosssweep.py /tmp/sweep/boss
+  BOSSSWEEP_EXIT:0
+  vp, cfo, cj, ceo: 64 frames, every frame result PASS
+
+No frame in either manifest has result other than PASS or a non-empty why.

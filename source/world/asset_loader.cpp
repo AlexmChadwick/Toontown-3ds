@@ -1,4 +1,7 @@
+#include "core/gpu_sync.h"
 #include "world/asset_loader.h"
+
+#include "core/crash.h"
 
 #include <cstdio>
 #include <cstring>
@@ -73,6 +76,7 @@ bool step() {
 }
 
 void loaderMain(void*) {
+    tt::crash::installForThisThread(); // a fault here shows the crash screen, not a silent exit
     while (!gQuit) {
         if (!step()) LightEvent_Wait(&gWake);
     }
@@ -115,9 +119,9 @@ void AssetLoader::shutdown() {
     if (gThread) {
         gQuit = true;
         LightEvent_Signal(&gWake);
-        threadJoin(gThread, U64_MAX);
-        threadFree(gThread);
+        const bool joined = ::tt::gpu::joinBounded(gThread, "asset loader", 2000ULL * 1000 * 1000);
         gThread = nullptr;
+        if (!joined) return; // still loading into a slot: leave the slots to the process exit
     }
     for (Slot& s : gSlots) {
         s.model.unload();

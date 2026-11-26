@@ -32,6 +32,17 @@ Every single one of the 536 interiors comfortably fits well within Old 3DS limit
 
 ---
 
+### Shared texture pool (2026-10-27)
+
+Interiors reuse the same wallpaper, floor, moulding and furniture textures: the 538
+`.ttm` files held 120 MB of texture copies for about 2 MB of distinct payloads.
+`tools/pipeline/ttm_pool.py <dir>` (the last step of `bake_sd_all.sh`'s interiors lane)
+stores each payload once in `interiors/textures.ttp` and rewrites the models as TTM v2:
+the v1 layout with version 2, texture data removed and `dataOffset` pointing into the
+pool. `Model::load` opens the pool next to a v2 model; v1 models load as before, so a
+single interior rebaked as v1 still works and is pooled by the next pass. The pass is
+deterministic and idempotent; `--unpool` restores the exact v1 bytes. 170 MB -> 42 MB.
+
 ## 2. Safezone (Playground) Building Interiors (31 Buildings)
 
 ### Donald's Dock (DD 1000)

@@ -4,6 +4,10 @@
 GPH1 is little-endian: <4sHHI header (magic, version, reserved, triangles), then
 triangle records <9fB3x.  Surface values mirror GolfGlobals: grass=0, hard=2,
 cup=3, slick=4.  The runtime has no Panda or ODE dependency.
+
+One hole_<id>.gph per GolfGlobals.HoleInfo entry: holes that share a terrain keep different
+blockers, and GolfHoleBase builds the hard-surface mesh after loadBlockers removed the others
+(bake_golf.apply_blockers, the same rule as the drawn hole_<id>.ttm).
 """
 import argparse
 import struct
@@ -12,6 +16,9 @@ from pathlib import Path
 
 from panda3d.core import GeomNode, GeomVertexReader, Filename, loadPrcFileData
 from direct.showbase.ShowBase import ShowBase
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import bake_golf  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 RESOURCES = next((p for p in (ROOT / "ref" / "resources", ROOT / "ref" / "ref" / "resources")
@@ -49,13 +56,15 @@ def main():
     loadPrcFileData("", "window-type none\naudio-library-name null")
     base = ShowBase()
     report = []
-    for hole in range(1, 19):
-        path = Path(args.resources) / ("phase_6/models/golf/hole%d.bam" % hole)
-        model = base.loader.loadModel(Filename.fromOsSpecific(str(path)))
+    hole_info = bake_golf.load_hole_info(args.resources)
+    for hole in sorted(hole_info):
+        path = Path(args.resources) / hole_info[hole]["terrainModel"]
+        model = base.loader.loadModel(Filename.fromOsSpecific(str(path)), noCache=True)
+        bake_golf.apply_blockers(model, hole_info[hole])
         data = []
         for pattern, surface in SURFACES:
             data.extend(triangles(model, pattern, surface))
-        target = out / ("hole%d.gph" % hole)
+        target = out / ("hole_%d.gph" % hole)
         with target.open("wb") as f:
             f.write(struct.pack("<4sHHI", b"GPH1", 1, 0, len(data)))
             for tri in data:

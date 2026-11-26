@@ -9,11 +9,13 @@ void Simulation::init(uint32_t initialIt) {
     tagBackTimer = 0.0f;
     localScore = 0;
     timeRemaining = kDuration;
-    numTreasures = 4;
-    treasures[0] = {10.0f, 10.0f, true};
-    treasures[1] = {-10.0f, 10.0f, true};
-    treasures[2] = {10.0f, -10.0f, true};
-    treasures[3] = {-10.0f, -10.0f, true};
+    numTreasures = 0; // the AI's DistributedTagTreasures (TagTreasurePlannerAI) arrive as objects
+}
+
+bool Simulation::addTreasure(float x, float y) {
+    if (numTreasures >= kMaxTreasures) return false;
+    treasures[numTreasures++] = {x, y, true};
+    return true;
 }
 
 void Simulation::step(float dt) {
@@ -89,6 +91,23 @@ void stepWalker(Walker& w, float throttle, float wantH, bool isIt, float dt) {
         w.y += std::cos(w.h * kDegToRad) * step;
     }
 
+    const float dist = std::sqrt(w.x * w.x + w.y * w.y);
+    if (dist > kArenaRadius) {
+        w.x = w.x / dist * kArenaRadius;
+        w.y = w.y / dist * kArenaRadius;
+    }
+}
+
+void stepTank(Walker& w, float move, float turn, bool isIt, float dt) {
+    const float speedScale = isIt ? kItSpeedIncrease : 1.0f;
+    const float rotScale = isIt ? kItRotIncrease : 1.0f;
+    w.h = wrapHeading(w.h + turn * kToonRotateSpeed * rotScale * dt);
+    if (move != 0.0f) {
+        constexpr float kDegToRad = 0.0174532925f;
+        const float step = (move > 0.0f ? kToonForwardSpeed * speedScale : -kToonReverseSpeed) * dt;
+        w.x += -std::sin(w.h * kDegToRad) * step;
+        w.y += std::cos(w.h * kDegToRad) * step;
+    }
     const float dist = std::sqrt(w.x * w.x + w.y * w.y);
     if (dist > kArenaRadius) {
         w.x = w.x / dist * kArenaRadius;

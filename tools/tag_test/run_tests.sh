@@ -6,8 +6,8 @@ ROOT="$DIR/../.."
 mkdir -p "$DIR/out"
 python3 -I "$DIR/tag_ref.py" > "$DIR/out/ref.txt"
 
-clang++ -std=c++17 -I"$ROOT/source" "$DIR/tag_test.cpp" "$ROOT/source/game/tag_logic.cpp" -o "$DIR/out/tag_test"
-clang++ -std=c++17 -Wall -Wextra -I"$ROOT/source" "$DIR/walk_test.cpp" "$ROOT/source/game/tag_logic.cpp" -o "$DIR/out/walk_test"
+"${CXX:-clang++}" -std=c++17 -I"$ROOT/source" "$DIR/tag_test.cpp" "$ROOT/source/game/tag_logic.cpp" -o "$DIR/out/tag_test"
+"${CXX:-clang++}" -std=c++17 -Wall -Wextra -I"$ROOT/source" "$DIR/walk_test.cpp" "$ROOT/source/game/tag_logic.cpp" -o "$DIR/out/walk_test"
 "$DIR/out/walk_test"
 "$DIR/out/tag_test" > "$DIR/out/cpp.txt"
 

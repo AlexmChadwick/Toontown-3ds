@@ -76,6 +76,10 @@ public:
     // setMinigameZone: go there (no vis list) and remember the playground to return to.
     void begin(net::Client& client, u32 zone, u16 gameId, u32 homeHood, u32 nowMs);
     bool photoScene() const { return isPhoto_; }
+    int photoSubjects() const { return isPhoto_ && inScene() ? photo_.numSubjects() : 0; }
+    bool photoSubjectPose(int i, float* x, float* y, float* z, float* h, const char** clip) const {
+        return isPhoto_ && photo_.subjectPose(i, x, y, z, h, clip);
+    }
     // The Cogs to draw this frame; 0 when the game has none.
     int cogs(MinigameCog* out, int max) const;
     bool startedGame() const { return startedGame_; }
@@ -105,6 +109,8 @@ public:
     // pad: circle pad, moves the toon on the stage (OrthoWalk: screen up = +y).
     void update(net::Client& client, const circlePosition& pad, float dt, u32 nowMs);
     void draw(render::Renderer& renderer);
+    // Top-screen 2D over the game scene (Race Game's chance card text).
+    void draw2D(const net::Client& client, C3D_RenderTarget* target);
     // Test hook (autotest): steer toon / auto-play minigame.
     void setAutoPlay(bool on) { autoPlay_ = on; }
 
@@ -113,6 +119,12 @@ public:
     // before beginWorld while a game is active; releaseWorld restores the defaults after it.
     void applyWorld(render::Renderer& renderer);
     void releaseWorld(render::Renderer& renderer);
+    // Props a game hangs on the local Toon's hands (Toon Slingshot's umbrella), after the Toon's draw.
+    void drawHeld(render::Renderer& renderer, const world::ToonAvatar& toon);
+    // The purchase room: exitReward detaches the Toons.
+    bool toonHidden() const { return onStage() && !rewardStage(); }
+    // Nametags sit behind a scene card that covers the view (Race Game's chance card).
+    bool nametagsCovered() const { return isRace_ && inScene() && race_.cardUp(); }
     void applyAnimation(world::ToonAvatar& avatar) const;
     bool toonRunning() const;
     const char* toonNetworkState() const;
@@ -146,6 +158,7 @@ private:
     bool isTug_ = false;
     bool isRing_ = false;
     bool worldFog_ = false; // applyWorld set the fog, so releaseWorld must clear it
+    bool worldFov_ = false; // applyWorld set the field of view
     bool isMaze_ = false;
     bool isPairing_ = false;
     bool isDiving_ = false;
@@ -171,6 +184,16 @@ private:
     float stunned_ = 0.0f, eating_ = 0.0f;
     float tx_ = 0, ty_ = 0, th_ = 0, speed_ = 0;
     render::Model ground_;
+    // Purchase.load's sets: the reward street (enterReward) and the purchase room (enterPurchase).
+    render::Model rewardStage_, roomStage_;
+    float stageTime_ = -1.0f; // seconds since the purchase screen came up (PurchaseUp), < 0 before
+    bool celebrate_ = false;  // ours were the winning points: the 'jump' at the celebrate task
+    bool onStage() const { return phase_ == Phase::Purchase || phase_ == Phase::Leaving; }
+    bool rewardStage() const { return stageTime_ < kRewardSeconds; }
+    // enterReward: DELAY_BEFORE_COUNT_UP 1 + COUNT_UP_DURATION 0.5 + DELAY_AFTER_COUNT_UP 1 +
+    // COUNT_DOWN_DURATION 0.5 (celebrate) + DELAY_AFTER_CELEBRATE 2.6, then 'purchase'.
+    static constexpr float kCelebrateSeconds = 3.0f;
+    static constexpr float kRewardSeconds = 5.6f;
     render::Model objects_[catchgame::kNumDropTypes];
 
     // Other minigames

@@ -91,10 +91,33 @@ Vec3 cjScalePan(Vec3 beamPivot, Vec3 pan, float damage) {
             kCjScalePosition.y + (beamPivot.x + moving.x) * 1.75f,
             kCjScalePosition.z + (beamPivot.z + moving.z) * 1.5f};
 }
+void cjArrival(const char* phase, float t, CjArrivalShot* out) {
+    const bool riding = !std::strcmp(phase, "Elevator");
+    const bool intro = !std::strcmp(phase, "Introduction");
+    const float bob = riding ? bossElevatorBob(t) : 0;
+    bossCameraAim({-2.864f, -147.204f, 8.094f + bob}, 0, 0, &out->eye, &out->target);
+    if (intro && t >= 24) bossCameraAim({-2.798f, -70, 10}, 180, 0, &out->eye, &out->target);
+    out->doorOpen = intro ? 1 : riding ? std::clamp((t - 8) / 4, 0.0f, 1.0f) : 0;
+    struct Line {
+        float from, to;
+        const char* text;
+    };
+    static const Line kLines[] = {{0, 5.6f, "Hmmm what's on the docket today?"},
+                                  {5.6f, 12, "Aha, we have a Toon on trial!"},
+                                  {12, 18, "The prosecution's case is strong."},
+                                  {18, 22, "And here are the public defenders."},
+                                  {22, 24, "Wait a minute... You're Toons!"},
+                                  {27, 1e9f, "Attack!!"}};
+    out->chat = nullptr, out->chatAge = 0;
+    for (const Line& line : kLines) {
+        if (intro && t >= line.from && t < line.to) out->chat = line.text, out->chatAge = t - line.from;
+    }
+}
+
 float cjBarrierDelay(const char* phase) {
     if (!std::strcmp(phase, "WaitForToons")) return .5f;
-    if (!std::strcmp(phase, "Elevator")) return 6;
-    if (!std::strcmp(phase, "Introduction")) return 20;
+    if (!std::strcmp(phase, "Elevator")) return 12; // two 4 s rides + ELEVATOR_CJ openTime 4
+    if (!std::strcmp(phase, "Introduction")) return kCjIntroSeconds;
     if (!std::strcmp(phase, "RollToBattleTwo")) return 10;
     if (!std::strcmp(phase, "PrepareBattleTwo")) return 10;
     if (!std::strcmp(phase, "BattleTwo")) return 70.5f;
@@ -107,6 +130,14 @@ float cjBarrierDelay(const char* phase) {
 }
 const char* cjClip(const net::BossState& state, uint32_t nowMs) {
     if (!std::strcmp(state.phase, "Defeat")) return "Ff_speech";
+    if (!std::strcmp(state.phase, "Introduction")) { // makeIntroductionMovie's bossAnimTrack
+        const float time = (nowMs - state.phaseMs) / 1000.0f;
+        if (time < 10) return "Ff_speech";
+        if (time < 13) return "Ff_lookRt";
+        if (time < 18) return "Ff_neutral"; // Ff_lookRt back to front, then Ff_neutral
+        if (time < 25) return "Ff_speech";
+        return "Ff_neutral";
+    }
     if (!std::strcmp(state.phase, "Victory")) return "Fb_fall";
     return vpClip(state, nowMs);
 }

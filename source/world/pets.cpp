@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/pets.h"
 #include "ui/clerk_rules.h"
 namespace tt::world {
@@ -28,7 +29,7 @@ void Pets::draw(render::Renderer &renderer, const net::Client &c) const {
 void Pets::shutdown() {
     assetBatch_.clear();
     if (doodle_.loaded())
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     doodle_.unload();
     loaded_ = false;
 }

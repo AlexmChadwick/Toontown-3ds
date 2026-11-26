@@ -64,6 +64,11 @@ def split(root, zone, output):
             movers[-1]['raised_pitch'] = -44.2601
             movers[-1]['flat_pitch'] = .25
             movers[-1]['travel_seconds'] = 5
+    if zone == 8000:
+        # GSPlayground.enter flies GS_blimp in a 360 s circle (source/world/gs_blimp.cpp);
+        # baked in the blimp node's own space, as the playground reparents it.
+        node = root.find('**/GS_blimp')
+        bake(node, '8000_blimp', 'gs_blimp', node)
     if movers:
         (output/f'{zone}_moving.json').write_text(json.dumps(movers, indent=2)+'\n')
     return movers

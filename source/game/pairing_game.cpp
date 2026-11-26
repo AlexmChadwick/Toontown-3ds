@@ -142,11 +142,13 @@ void PairingGame::draw(render::Renderer& renderer) {
         renderer.drawModel(model, m);
     }
 }
+// Upstream walks the Toon over the board (OrthoWalk) to the card it flips; here it stands at
+// the near edge of the card under the cursor.
 void PairingGame::toonPose(float* x, float* y, float* z, float* h) const {
-    if (x) *x = 0;
-    if (y) *y = 0;
+    if (x) *x = (cursor_ % 8) * 4.0f;
+    if (y) *y = (cursor_ / 8) * (totalCards_ <= 32 ? 5.0f : 4.0f) - 2.2f;
     if (z) *z = 0;
-    if (h) *h = -45;
+    if (h) *h = 0;
 }
 void PairingGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     // DistributedPairingGame.cameraThreeQuarterView; H=0, P=-62.89.

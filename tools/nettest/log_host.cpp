@@ -16,6 +16,8 @@ int gHead = 0;
 
 void init() {}
 void shutdown() {}
+void flush() {}
+void setFlushEveryLine(bool) {}
 
 void write(const char* fmt, ...) {
     char line[256];
@@ -31,7 +33,8 @@ void write(const char* fmt, ...) {
     printf("[%02d:%02d:%02d.%03ld] %s\n", t.tm_hour, t.tm_min, t.tm_sec, ts.tv_nsec / 1000000, line);
     fflush(stdout);
     gHead = (gHead + kRingLines - 1) % kRingLines;
-    snprintf(gRing[gHead], kLineLength, "%s", line);
+    memcpy(gRing[gHead], line, kLineLength - 1); // the ring keeps a prefix, like core/log.cpp
+    gRing[gHead][kLineLength - 1] = 0;
 }
 
 const char* recent(int i) {

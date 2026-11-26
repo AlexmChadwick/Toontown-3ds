@@ -43,6 +43,7 @@ private:
     void loadNpcs(BossFrame& frame);
     Vec3 panCenter(int model, float damage) const;
     CjAssets assets_;
+    render::Model elevatorDoors_[2]; // data/cogbldg hqelev_cj_<left|right> (open at 0, closed at +-width)
     bool active_ = false;
     bool entered_ = false;
     bool defeated_ = false;
@@ -79,6 +80,14 @@ private:
     ToonLook looks_[9];
     ToonAvatar npcs_[9];
     JurorFlight flights_[kCjMaxFlights];
+    // DistributedLawbotChair.loadCogJuror: each chair's Cog juror, re-rolled per flight.
+    struct JurorCode {
+        uint32_t doId = 0;
+        uint32_t revision = 0;
+        char code[4] = {};
+    };
+    JurorCode jurorCodes_[16];
+    const char* jurorCode(uint32_t chairDoId, uint32_t flights);
     Evidence evidence_[16];
     BattleView battleView_;
     char status_[112] = {};

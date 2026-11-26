@@ -5,6 +5,7 @@
 #include <3ds.h>
 #include <citro3d.h>
 
+#include "game/minigame_cog.h"
 #include "game/two_d_logic.h"
 #include "net/client.h"
 #include "render/model.h"
@@ -32,6 +33,8 @@ public:
     void handleEveryoneDone();
     void handleEnemyShot(uint8_t section, uint8_t enemy, uint32_t health);
     void handleVictoryScore(uint8_t score);
+    // TwoDEnemy: each living enemy is a real Suit of its section's type.
+    int cogs(MinigameCog* out, int max) const;
 
 private:
     world::BasicAssetBatch<16> assetBatch_;
@@ -53,10 +56,10 @@ private:
     render::Model wallModel_;
     render::Model pipeModel_;
     render::Model elevatorModel_;
-    render::Model stomperModel_;
+    render::Model stomperHead_, stomperShaft_, stomperBlock_;
     render::Model arrowModel_;
     render::Model treasureModel_;
-    render::Model suitPlaceholder_;
+    render::Model backgroundModel_;
     mutable char lines_[3][64] = {};
 };
 

@@ -183,6 +183,19 @@ bool Client::sendCogdoVictor(uint32_t id) {
     TT_NET_UPDATE(writer, id, DistributedBuilding, setVictorReady);
     return finish(writer);
 }
+bool Client::sendVictorReady(uint32_t id) {
+    const CogBuilding *building = findCogBuilding(id);
+    if (state_ != State::InZone || !building || !building->suitVictory)
+        return false;
+    bool victor = false;
+    for (int index = 0; index < building->numVictors; ++index)
+        victor |= building->victors[index] == avatarId_;
+    if (!victor)
+        return false;
+    DatagramWriter writer = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(writer, id, DistributedBuilding, setVictorReady);
+    return finish(writer);
+}
 bool Client::sendCogdoReady() {
     const CogdoState *game = cogdoGame();
     if (!cogdoParticipant() || !game || game->phase != CogdoGamePhase::Intro)

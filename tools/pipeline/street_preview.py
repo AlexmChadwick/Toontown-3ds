@@ -21,6 +21,7 @@ def load_model(data, cache):
     from panda3d.core import (Texture,NodePath,Geom,GeomNode,GeomVertexData,GeomVertexFormat,
                               GeomTriangles,AlphaTestAttrib,RenderAttrib,TransparencyAttrib)
     h=struct.unpack_from('<4sHHHHII6f5I',data)
+    absolute=bool(h[2] & 1)
     nt,nb,nv,ni=h[3:7]
     sx,sy,sz,ox,oy,oz=h[7:13]
     tt,bt,vb,ib=h[13:17]
@@ -52,7 +53,10 @@ def load_model(data, cache):
         tex,blend,flags,tint,layer,slot,pad,fv,nverts,fi,nidx=struct.unpack_from('<H6B4I',data,bt+i*24)
         primitive=GeomTriangles(Geom.UHStatic)
         primitive.setIndexType(Geom.NTUint32)
-        primitive.modifyVertices().modifyHandle().setData((indices[fi:fi+nidx].astype('<u4')+fv).tobytes())
+        raw=indices[fi:fi+nidx].astype('<u4')
+        if not absolute:
+            raw=raw+fv
+        primitive.modifyVertices().modifyHandle().setData(raw.tobytes())
         geom=Geom(vd)
         geom.addPrimitive(primitive)
         node=GeomNode('batch')
@@ -139,12 +143,12 @@ def main():
     models={}
     cache={}
     for i,c in enumerate(zone['chunks']):
-        for lod in (0,1) if zone['version']==2 else (0,):
+        for lod in (0,1) if zone['version']>=2 else (0,):
             offset=c['low_offset'] if lod else c['offset']
             size=c['low_size'] if lod else c['size']
             if not size:
                 continue
-            model=load_model(data[offset:offset+size],cache)
+            model=load_model(tz.model_bytes(data,offset,size),cache)
             model.reparentTo(group)
             models[i,lod]=model
     lo,hi=group.getTightBounds()
@@ -179,11 +183,11 @@ def main():
     out.mkdir(parents=True,exist_ok=True)
     for name,pos,look,floor in views:
         choices=None
-        if args.lod=='planned' and floor is not None and zone['version']==2:
+        if args.lod=='planned' and floor is not None and zone['version']>=2:
             feet=np.array(floor[:9]).reshape(3,3).mean(axis=0)
             choices,_=street_lod.plan(zone['chunks'],floor[9],feet)
         for (i,lod),model in models.items():
-            want=(choices.get(i,-1) if choices is not None else (1 if args.lod=='low' and zone['version']==2 else 0))
+            want=(choices.get(i,-1) if choices is not None else (1 if args.lod=='low' and zone['version']>=2 else 0))
             model.show() if lod==want else model.hide()
         base.camera.setPos(*map(float,pos))
         base.camera.lookAt(*map(float,look))

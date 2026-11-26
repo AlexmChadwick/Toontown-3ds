@@ -5,6 +5,7 @@
 #include <citro3d.h>
 
 #include "game/ice_logic.h"
+#include "game/target_logic.h"
 #include "net/client.h"
 #include "render/model.h"
 #include "render/renderer.h"
@@ -21,7 +22,7 @@ public:
     }
     IceGame() = default;
 
-    bool init(const char* root, int players = 1, int slot = 0);
+    bool init(const char* root, int players = 1, int slot = 0, uint32_t doId = 0, uint32_t hood = 2000);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);
@@ -62,6 +63,21 @@ private:
     render::Model backdropModel_;
     render::Model tireModel_;
     render::Model scoreCircleModel_;
+    render::Model barrelModel_, tntModel_, obstacleModel_;
+    bool cubicObstacles_ = true;
+
+    // setupStartOfMatch: treasures (barrels) and penalties (TNT) from RandomNumGen(doId).
+    struct Item {
+        float x, y;
+        bool grabbed;
+    };
+    static constexpr int kMaxItems = 4;
+    Item treasures_[kMaxItems] = {}, penalties_[kMaxItems] = {};
+    int numTreasures_ = 0, numPenalties_ = 0;
+    targetgame::Random rng_;
+    uint32_t hood_ = 2000;
+    int setupMatch_ = -1;
+    void setupStartOfMatch();
 
     mutable char lines_[3][64] = {};
 };

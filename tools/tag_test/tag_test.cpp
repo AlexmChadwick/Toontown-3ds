@@ -4,6 +4,10 @@
 int main() {
     tt::taggame::Simulation sim;
     sim.init(1001);
+    sim.addTreasure(10.0f, 10.0f);
+    sim.addTreasure(-10.0f, 10.0f);
+    sim.addTreasure(10.0f, -10.0f);
+    sim.addTreasure(-10.0f, -10.0f);
     std::printf("init: it=%u\n", sim.itAvId);
 
     bool t1 = sim.attemptTag(1001, 1002);

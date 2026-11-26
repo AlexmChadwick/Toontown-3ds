@@ -1,6 +1,10 @@
+#include "core/gpu_sync.h"
 #include "world/racing.h"
+#include "world/racing_boosts.h"
 #include "core/log.h"
 #include "world/racing_tables.h"
+#include "ui/clerk_tables.h"
+#include "world/toon_dna.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -33,13 +37,15 @@ void Racing::loadAssets(uint16_t track) {
     assetBatch_.load(banana_, "sdmc:/3ds/toontown3ds/data/racing/banana.ttm");
     assetBatch_.load(anvil_, "sdmc:/3ds/toontown3ds/data/racing/anvil.ttm");
     assetBatch_.load(pie_, "sdmc:/3ds/toontown3ds/data/racing/creampie.ttm");
+    town_.load(track, name);
     TT_LOG("racing: load track %u metadata %d collision %d collision heap %lu", track, metadata,
            collision, static_cast<unsigned long>(collision_.heapBytes()));
 }
 void Racing::unloadAssets() {
     if (track_.loaded())
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     assetBatch_.clear();
+    town_.unload();
     track_.unload();
     gagBox_.unload();
     banana_.unload();
@@ -51,6 +57,7 @@ void Racing::unloadAssets() {
 }
 void Racing::pumpAssets() {
     assetBatch_.pump();
+    town_.pump();
     for (auto &racer : racers_)
         racer.kart.pump();
 }
@@ -109,6 +116,7 @@ void Racing::board(net::Client &client, const Input &input, float dt, float x, f
         }
         if (block.occupant == client.avatarId()) {
             seated_ = block.doId;
+            seatPad_ = pad ? pad->doId : 0;
             if (previousSeat != seated_)
                 boardingOrigin_ = {x, y, z};
             boardingSide_ = block.location % 2 ? 3 : -3;
@@ -159,6 +167,16 @@ void Racing::board(net::Client &client, const Input &input, float dt, float x, f
                 client.sendRacingEnter(block.doId, false);
             }
         }
+    }
+    if (previousSeat && !seated_) seatLeftMs_ = now_;
+    if (!seated_ && seatPad_) {
+        for (int j = 0; j < net::kMaxRacingPads; ++j) {
+            const auto &pad = client.racingPadSlot(j);
+            if (pad.active && pad.doId == seatPad_ && pad.raceZone && pad.raceZone != lastDestination_)
+                destination_ = pad.raceZone;
+        }
+        if (movie_ == 2 || destination_ || now_ - seatLeftMs_ > 5000)
+            seatPad_ = 0; // left the block ourselves, or too long ago
     }
     if (previousSeat && !seated_ && movie_ == 2) {
         const float angle = physics_.heading * kRadians;
@@ -225,6 +243,8 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                               vehicle->engine,     vehicle->spoiler,   vehicle->frontWheels,
                               vehicle->backWheels, vehicle->rims,      vehicle->decal};
         displayed.body = std::clamp(int(vehicle->body), 0, 2);
+        displayed.bodyColor = vehicle->bodyColor;
+        displayed.accessoryColor = vehicle->accessoryColor;
         const float dx = displayed.x - physics_.position.x, dy = displayed.y - physics_.position.y;
         const float distance = std::sqrt(dx * dx + dy * dy);
         // LOD hysteresis prevents repeated streaming near the thresholds.
@@ -310,6 +330,9 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         std::snprintf(hudLines_[0], sizeof(hudLines_[0]), "Loading race assets and racer links");
         return;
     }
+    // showBuildings(currT): the town window follows the kart's nearest curve point.
+    town_.update(physics_.position.x, physics_.position.y,
+                 metadata_.count ? float(progress_.pole) / float(metadata_.count) : 0.0f);
     for (const auto &shot : race->shots) {
         if (!shot.serial || shot.serial <= shotSerial_)
             continue;
@@ -387,16 +410,7 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         collision_.slideCapsule({old.x, old.y, old.z}, kKartRadius, kKartRadius * 2,
                                 {desired.x - old.x, desired.y - old.y, desired.z - old.z});
     // The native collision solver resolves the same sphere with bounded substeps.
-    // Remove the blocked velocity component and apply Panda's dynamic friction (.1).
-    float nx = resolved.x - desired.x, ny = resolved.y - desired.y;
-    const float length = std::sqrt(nx * nx + ny * ny);
-    if (length > .001f) {
-        nx /= length;
-        ny /= length;
-        const float normal = std::min(0.0f, physics_.velocity.x * nx + physics_.velocity.y * ny);
-        physics_.velocity.x = (physics_.velocity.x - nx * normal) * .9f;
-        physics_.velocity.y = (physics_.velocity.y - ny * normal) * .9f;
-    }
+    physics_.wallShove(resolved.x - desired.x, resolved.y - desired.y);
     physics_.position = {resolved.x, resolved.y, resolved.z};
     bool ground = false;
     const float height = collision_.groundHeight(resolved.x, resolved.y, 40000, &ground);
@@ -441,6 +455,28 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         TT_LOG("racing: lap %d t %.6f", progress_.laps, double(progress_.fraction));
     if (wrong != progress_.wrongWay)
         TT_LOG("racing: wrong way %d", progress_.wrongWay);
+    // RaceGUI.update: each lap's label times that lap; a new lap starts the next label.
+    if (!race->started || int32_t(now - race->startMs) < 0) {
+        maxLapHit_ = 0;
+        lapStartMs_ = race->startMs;
+        std::memset(lapSeconds_, 0, sizeof(lapSeconds_));
+        lapNotice_ = 0;
+        photoFinish_ = false;
+    } else if (!finished_) {
+        const int laps = std::clamp(int(race->laps), 1, ui::RaceHud::kMaxLaps);
+        if (progress_.laps > maxLapHit_ && maxLapHit_ < laps) {
+            lapSeconds_[maxLapHit_] = (now - lapStartMs_) / 1000.0f;
+            maxLapHit_ = std::min(progress_.laps, laps);
+            lapStartMs_ = now;
+            // lapNotice: "Lap n" / "Final Lap!" for 2 s when a lap that is not the last starts.
+            if (maxLapHit_ < laps) {
+                lapNotice_ = maxLapHit_ == laps - 1 ? -1 : maxLapHit_ + 1;
+                lapNoticeMs_ = now;
+            }
+        }
+        if (maxLapHit_ < laps)
+            lapSeconds_[maxLapHit_] = (now - lapStartMs_) / 1000.0f;
+    }
     place_ = 1;
     const float ownProgress = progress_.laps + progress_.fraction;
     for (int i = 0; i < race->numRacers; ++i) {
@@ -448,6 +484,29 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
         if (i != local && !result.disconnected &&
             (result.finished || result.laps + result.fraction > ownProgress))
             ++place_;
+    }
+    // RaceGUI.update: once the local racer is within TrackDict[track][8] nearDiff of the end
+    // of the progress line while another unfinished racer is within farDiff, the place label
+    // becomes "Photo Finish!" for the rest of the race.
+    if (race->started && !finished_ && !photoFinish_) {
+        const unsigned t = race->track;
+        const float nearDiff = t == 0 || t == 1 || t == 60 || t == 61   ? 0.01f
+                               : t == 20 || t == 21 || t == 62 || t == 63 ? 0.003f
+                                                                         : 0.002f;
+        const float farDiff = nearDiff == 0.01f ? 0.015f : nearDiff == 0.003f ? 0.004f : 0.003f;
+        const float laps = float(std::max(1, int(race->laps)));
+        auto lineLeft = [&](float curvetime) { // faceEndPos.x - face.getX() on the -0.8..0.8 line
+            return 1.6f * (1.0f - std::clamp(curvetime / laps, 0.0f, 1.0f));
+        };
+        if (lineLeft(ownProgress) < nearDiff)
+            for (int i = 0; i < race->numRacers; ++i) {
+                const auto &result = race->results[i];
+                if (i == local || !result.avatar || result.disconnected || result.finished)
+                    continue;
+                const float left = lineLeft(result.laps + result.fraction);
+                if (left > 0 && left < farDiff)
+                    photoFinish_ = true;
+            }
     }
     if (race->started && !finished_) {
         if (now - lastPose_ >= kPoseInterval &&
@@ -501,6 +560,39 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                    hazard.type);
         }
     }
+    // DistributedRace.hitBoostArrow: entering an arrow's tube (the kart's lap sphere, r 3, against
+    // the CollisionTube, r 4.8) while facing along it (dot > 0.7) restarts startTurbo.
+    for (const auto &track : racing::kTrackBoosts) {
+        if (track.track != loadedTrack_)
+            continue;
+        const float h = physics_.heading * kRadians, p = physics_.pitch * kRadians;
+        const float forward[3] = {-std::sin(h) * std::cos(p), std::cos(h) * std::cos(p), std::sin(p)};
+        const float pos[3] = {physics_.position.x, physics_.position.y, physics_.position.z};
+        for (int i = 0; i < track.count; ++i) {
+            const auto &arrow = track.arrows[i];
+            float ab[3], ap[3], dd = 0, t = 0;
+            for (int k = 0; k < 3; ++k) {
+                ab[k] = arrow.b[k] - arrow.a[k];
+                ap[k] = pos[k] - arrow.a[k];
+                dd += ab[k] * ab[k];
+                t += ab[k] * ap[k];
+            }
+            t = std::clamp(t / dd, 0.0f, 1.0f);
+            float d2 = 0, dot = 0;
+            for (int k = 0; k < 3; ++k) {
+                const float e = ap[k] - ab[k] * t;
+                d2 += e * e;
+                dot += forward[k] * arrow.dir[k];
+            }
+            const float reach = racing::kBoostTubeRadius + 3.0f;
+            const bool inside = d2 < reach * reach;
+            if (inside && !(inBoost_ & (1u << i)) && dot > 0.7f) {
+                turboStart_ = now;
+                TT_LOG("racing: boost arrow %d", i);
+            }
+            inBoost_ = inside ? inBoost_ | (1u << i) : inBoost_ & ~(1u << i);
+        }
+    }
     if (heldGag_ && now - heldSince_ >= 2000 && (input.down & KEY_R)) {
         const bool positioned = heldGag_ == 1 || heldGag_ == 4;
         if (client.sendRacingThrow(race_, positioned ? displayed.x : 0,
@@ -534,7 +626,14 @@ void Racing::update(net::Client &client, const Input &input, float dt, float x, 
                       race->started ? std::max(0.0, int32_t(now - race->startMs) / 1000.0) : 0,
                       countdown);
         std::snprintf(hudLines_[2], sizeof(hudLines_[2]),
-                      "Gag %u  R: use  A: accelerate  B: reverse", heldGag_);
+                      "R: gag  A: go  B: reverse  START: leave");
+    }
+    // RaceGUI's Leave Race button (DistributedRace.leaveRace -> enterLeave): racerLeft, then
+    // goToSpeedway's quiet zone to the playground. The button is a mouse click upstream; START here.
+    if (!left_ && !finished_ && (input.down & KEY_START) && client.sendRaceLeave()) {
+        left_ = true;
+        destination_ = 8000;
+        TT_LOG("racing: leave race requested");
     }
     if (!left_ && (race->returning || (finished_ && (input.down & KEY_A)))) {
         if (client.sendRaceLeave()) {
@@ -587,7 +686,15 @@ void Racing::camera(C3D_FVec *eye, C3D_FVec *target) const {
               from.z + (to.z - from.z) * hit};
     }
     *eye = FVec3_New(to.x, to.y, to.z);
-    *target = FVec3_New(from.x, from.y, from.z);
+    if (!active()) {
+        *target = FVec3_New(from.x, from.y, from.z);
+        return;
+    }
+    // Racing: camera.setPosHpr(0, -33, 16, 0, -10, 0) on the kart's cameraNode, so it keeps
+    // the kart's heading and a fixed 10 degree down pitch instead of aiming at the kart.
+    const float cp = std::cos(10 * kRadians), sp = std::sin(10 * kRadians);
+    *target = FVec3_New(to.x - std::sin(h) * back * cp, to.y + std::cos(h) * back * cp,
+                        to.z - back * sp);
 }
 void Racing::draw(render::Renderer &renderer, const net::Client &client) {
     if (!driving())
@@ -596,6 +703,8 @@ void Racing::draw(render::Renderer &renderer, const net::Client &client) {
     Mtx_Identity(&matrix);
     if (active() && track_.loaded())
         renderer.drawModel(track_, matrix);
+    if (active())
+        town_.draw(renderer);
     for (auto &racer : racers_) {
         if (!racer.avatar)
             continue;
@@ -782,6 +891,74 @@ void Racing::fillView(ui::RacingView *view, const net::Client &client) const {
                                                         : "Racer");
     }
 }
+namespace {
+void kartColor(int index, float out[3]) {
+    // KartDNA.getAccessory; InvalidEntry and non-colours give getDefaultColor (white).
+    for (int i = 0; i < 3; ++i)
+        out[i] = index >= 65 && index < 92 ? clerks::kKartAccessories[index].color[i] : 1.0f;
+}
+} // namespace
+void Racing::fillHud(ui::RaceHud *hud, const net::Client &client) const {
+    *hud = ui::RaceHud{};
+    const auto *race = client.racingRace();
+    if (!active() || !race || !spawned_ || !metadata_.loaded())
+        return;
+    hud->active = true;
+    hud->started = race->started && int32_t(now_ - race->startMs) >= 0;
+    // DistributedVehicle: speedometer text int(curSpeed / 3), gauge setR(curSpeed / 3 / 120 * 110).
+    const float shown = speed() / 3;
+    hud->speed = int(shown);
+    hud->needle = std::clamp(shown / 120 * 110, 0.0f, 110.0f);
+    hud->laps = std::clamp(int(race->laps), 1, ui::RaceHud::kMaxLaps);
+    hud->lap = std::clamp(maxLapHit_ + 1, 1, hud->laps);
+    hud->lapsShown = std::min(maxLapHit_ + 1, hud->laps);
+    for (int i = 0; i < hud->lapsShown; ++i)
+        hud->lapSeconds[i] = lapSeconds_[i];
+    hud->place = std::clamp(int(place_), 1, 4);
+    hud->photoFinish = photoFinish_;
+    if (lapNotice_ && now_ - lapNoticeMs_ < 2000)
+        hud->lapNotice = lapNotice_;
+    hud->wrongWay = progress_.wrongWay;
+    hud->gag = heldGag_ <= 4 ? heldGag_ : 0;
+    const unsigned track = race->track;
+    hud->mapScale = track == 20 || track == 21 || track == 62 || track == 63 ? .75f : 1.0f;
+    hud->curveCount = metadata_.count > 1 ? 101 : 0;
+    for (int i = 0; i < hud->curveCount; ++i) {
+        const auto &point = metadata_.points[std::min(metadata_.count - 1, i * metadata_.count / 100)];
+        hud->curve[i][0] = point.x;
+        hud->curve[i][1] = point.y;
+    }
+    for (int i = 0; i < race->numRacers && hud->racerCount < ui::RaceHud::kMaxRacers; ++i) {
+        const auto &entry = race->results[i];
+        const auto &shownRacer = racers_[i];
+        if (!entry.avatar || entry.disconnected)
+            continue;
+        auto &r = hud->racers[hud->racerCount++];
+        r.local = entry.avatar == client.avatarId();
+        const float curvetime =
+            r.local ? progress_.laps + progress_.fraction : entry.laps + entry.fraction;
+        r.progress = entry.finished ? 1.0f : std::clamp(curvetime / hud->laps, 0.0f, 1.0f);
+        r.x = shownRacer.x;
+        r.y = shownRacer.y;
+        kartColor(shownRacer.bodyColor, r.body);
+        if (r.local) {
+            kartColor(shownRacer.bodyColor, hud->body);
+            kartColor(shownRacer.accessoryColor, hud->accessory);
+        }
+        world::ToonDna dna;
+        const uint8_t *net = nullptr;
+        if (r.local)
+            net = client.avatarDna();
+        else if (const auto *toon = client.findToon(entry.avatar); toon && toon->hasDna)
+            net = toon->dna;
+        if (net && world::parseNetString(net, net::kDnaSize, &dna)) {
+            r.species = int(world::species(dna));
+            const float *c = world::bodyColor(dna.headColor);
+            for (int k = 0; k < 3; ++k)
+                r.head[k] = c[k];
+        }
+    }
+}
 void Racing::addBalloons(ui::Balloons &balloons, const C3D_Mtx &proj, const C3D_Mtx &view,
                          const net::Client &client) const {
     for (const auto &racer : racers_) {
@@ -798,7 +975,7 @@ void Racing::shutdown() {
     for (const auto &racer : racers_)
         resident |= racer.kart.active();
     if (resident)
-        C3D_FrameSync();
+        ::tt::gpu::frameSync();
     for (auto &racer : racers_) {
         racer.kart.shutdown();
         racer.avatar = racer.vehicle = 0;
@@ -812,6 +989,7 @@ void Racing::shutdown() {
     phase_ = 255;
     heldGag_ = 0;
     hitStart_ = hitUntil_ = hitRevision_ = turboStart_ = shotSerial_ = 0;
+    inBoost_ = 0;
     for (auto &pie : pies_)
         pie.physics = racing::Pie{};
     for (auto &id : consumedHazards_)

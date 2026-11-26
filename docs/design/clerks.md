@@ -72,8 +72,11 @@ FishermanAI and PartyPersonAI schedule **30 s** after START. The upstream Python
 clients display NPCToons.CLERK_COUNTDOWN_TIME (**120 s**) regardless of those AI
 limits. Native deadlines follow the actual AI windows and subtract synchronized
 movie age; the panel attempts the valid cancel/done action two seconds before
-expiry. AI timeout sends TIMEOUT then CLEAR. Terminal notices persist for five
-seconds, with B/A to dismiss. HOME, disconnect, NPC removal or zone change closes
+expiry. AI timeout sends TIMEOUT then CLEAR. Every terminal mode closes the panel
+and the NPC says its stock line (setChatAbsolute CFSpeech | CFTimeout: the
+STOREOWNER_* / PartyPlanner* strings) in its speech balloon for 10 s
+(`ServiceClerkPanel::clerkSpeech`); only local panel states (busy, waiting) keep
+the five second result page, with B/A to dismiss. HOME, disconnect, NPC removal or zone change closes
 the interaction rather than leaving valid sends available.
 
 ## Pet shop

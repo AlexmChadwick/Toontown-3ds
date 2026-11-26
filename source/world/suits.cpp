@@ -1,3 +1,4 @@
+#include "core/gpu_sync.h"
 #include "world/suits.h"
 
 #include "core/memory.h"
@@ -141,55 +142,92 @@ void SuitActors::loadTies() {
 }
 
 SuitActors::Head* SuitActors::head(const char* code) {
-    for (Head& h : heads_)
-        if (h.tried && !strcmp(h.code, code)) return h.model.loaded() ? &h : nullptr;
     for (Head& h : heads_) {
-        if (h.tried) continue;
-        h.tried = true;
-        snprintf(h.code, sizeof(h.code), "%s", code);
-        char path[96];
-        snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
-        assetBatch_.load(h.model, path);
-        return nullptr;
+        if (!h.tried || strcmp(h.code, code)) continue;
+        h.usedMs = nowMs_;
+        if (h.evicting) {
+            // The batch frees the previous head at the frame fence, then loads this one.
+            if (h.model.loaded()) return nullptr;
+            h.evicting = false;
+        }
+        return h.model.loaded() ? &h : nullptr;
     }
-    return nullptr; // cache full (a street rarely shows more than a dozen head types)
+    // A free slot, else the head no Cog has drawn for the longest (at least 1 s): one session
+    // meets far more than a dozen head types (TTC's streets alone show twelve).
+    Head* slot = nullptr;
+    for (Head& h : heads_) {
+        if (!h.tried) {
+            slot = &h;
+            break;
+        }
+        if (nowMs_ - h.usedMs >= 1000 && (!slot || h.usedMs < slot->usedMs)) slot = &h;
+    }
+    if (!slot) return nullptr; // every head drawn within the last second
+    char path[96];
+    snprintf(path, sizeof(path), "%shead_%s.ttm", kSuitDir, code);
+    if (slot->tried) TT_LOG("suits: head cache full, %s replaces %s", code, slot->code);
+    slot->evicting = slot->tried;
+    slot->tried = true;
+    slot->usedMs = nowMs_;
+    snprintf(slot->code, sizeof(slot->code), "%s", code);
+    assetBatch_.load(slot->model, path);
+    return nullptr;
 }
 
 const render::Anim* SuitActors::battleClip(int b, const char* name) {
     if (!name || !*name || b < 0 || b >= 6) return nullptr;
     Body& body = bodies_[b];
-    for (int i = 0; i < Body::kClips; i++)
-        if (body.clipName[i][0] && !strcmp(body.clipName[i], name)) return body.clips[i].loaded() ? &body.clips[i] : nullptr;
     for (int i = 0; i < Body::kClips; i++) {
-        if (body.clipName[i][0]) continue;
-        snprintf(body.clipName[i], sizeof(body.clipName[i]), "%s", name);
-        char stem[24], path[112];
-        bodyStem(b, stem, sizeof(stem));
-        snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
-        assetBatch_.load(body.clips[i], path);
-        return nullptr;
+        if (!body.clipName[i][0] || strcmp(body.clipName[i], name)) continue;
+        body.clipUsedMs[i] = nowMs_;
+        if (body.clipEvicting[i]) {
+            if (body.clips[i].loaded()) return nullptr; // the previous clip, until the fence frees it
+            body.clipEvicting[i] = false;
+        }
+        return body.clips[i].loaded() ? &body.clips[i] : nullptr;
     }
+    // A free slot, else the clip unplayed for the longest (at least 1 s): reactions and every
+    // Cog type's attacks add up to more than ten clips per body over a session.
+    int slot = -1;
+    for (int i = 0; i < Body::kClips; i++) {
+        if (!body.clipName[i][0]) {
+            slot = i;
+            break;
+        }
+        if (nowMs_ - body.clipUsedMs[i] >= 1000 && (slot < 0 || body.clipUsedMs[i] < body.clipUsedMs[slot])) slot = i;
+    }
+    if (slot < 0) return nullptr;
+    if (body.clipName[slot][0]) TT_LOG("suits: body %d clips full, %s replaces %s", b, name, body.clipName[slot]);
+    body.clipEvicting[slot] = body.clipName[slot][0] != 0;
+    body.clipUsedMs[slot] = nowMs_;
+    snprintf(body.clipName[slot], sizeof(body.clipName[slot]), "%s", name);
+    char stem[24], path[112];
+    bodyStem(b, stem, sizeof(stem));
+    snprintf(path, sizeof(path), "%s%s_full_%s.tta", kSuitDir, stem, name);
+    assetBatch_.load(body.clips[slot], path);
     return nullptr;
 }
 
 bool SuitActors::loadLose(int b) {
     if (b < 0 || b >= 6) return false;
     Body& body = bodies_[b];
+    // Background loader (a synchronous load here froze the battle movie ~0.3 s per body at
+    // the moment the Cog died); overridePose requests it as soon as the Cog joins a fight.
     if (!body.loseTried) {
         body.loseTried = true;
         char stem[24], path[112];
         bodyStem(b, stem, sizeof(stem));
         snprintf(path, sizeof(path), "%s%s_lose_full.ttm", kSuitDir, stem);
-        body.loseModel.load(path);
+        assetBatch_.load(body.loseModel, path);
         snprintf(path, sizeof(path), "%s%s_lose_full_lose.tta", kSuitDir, stem);
-        body.loseClip.load(path);
-        if (!body.loseModel.loaded() || !body.loseClip.loaded() ||
-            body.loseClip.numVertices() != body.loseModel.numVertices()) {
-            TT_LOG("suits: no usable lose model for %s", stem);
-        }
+        assetBatch_.load(body.loseClip, path);
     }
-    return body.loseModel.loaded() && body.loseClip.loaded() &&
-           body.loseClip.numVertices() == body.loseModel.numVertices();
+    const bool ready = body.loseModel.loaded() && body.loseClip.loaded();
+    if (ready && body.loseClip.numVertices() != body.loseModel.numVertices() && !body.loseBad) {
+        body.loseBad = true;
+        TT_LOG("suits: lose clip does not match the lose model for body %d", b);
+    }
+    return ready && !body.loseBad;
 }
 
 // actor transform * species scale * body morph; head at the body clip's attach matrix.
@@ -220,7 +258,9 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     // A defeated Cog plays 'lose' on its lose model (Suit.getLoseActor), never on the body.
     const bool losing = a.pose.anim == 13 && loadLose(b < 0 ? 0 : b);
     render::Model& model = losing ? body.loseModel : body.model;
-    const render::Anim* battle = losing ? &body.loseClip : battleName ? battleClip(b, battleName) : nullptr;
+    // Still streaming: hold the body's neutral pose rather than ask for a body 'lose' clip.
+    const render::Anim* battle = losing ? &body.loseClip
+                                 : battleName && a.pose.anim != 13 ? battleClip(b, battleName) : nullptr;
     const render::Anim& clip = battle ? *battle : a.pose.anim == kSuitWalk && body.walk.loaded() ? body.walk : body.neutral;
     float t = a.animTime;
     if (battle) {
@@ -246,6 +286,88 @@ void SuitActors::drawReal(render::Renderer& renderer, const Actor& a, const C3D_
     }
 }
 
+const char* disguiseCode(int index, const uint8_t types[4], const uint32_t parts[4], bool* rental) {
+    *rental = false;
+    if (index < 0 || index > 3) return nullptr;
+    static const uint32_t kPartsPerSuitBitmasks[4] = {131071, 130175, 56447, 56411};
+    if ((parts[index] & kPartsPerSuitBitmasks[index]) == kPartsPerSuitBitmasks[index] && types[index] < 8)
+        return kSuitTypes[types[index] + 8 * index].code;
+    *rental = true;
+    static const char* const kRental[4] = {"f", "bf", "sc", "cc"};
+    return kRental[index];
+}
+
+// rental.ttx (bake_suit.py rental): TTX1 with one table of three textures, slots as departments.ttx.
+bool SuitActors::loadRental() {
+    if (rentalTried_) return rentalLoaded_;
+    rentalTried_ = true;
+    char path[96];
+    snprintf(path, sizeof(path), "%srental.ttx", kSuitDir);
+    FILE* f = fopen(path, "rb");
+    if (!f) {
+        TT_LOG("suits: no rental.ttx, rental suits keep the Sellbot cloth");
+        return false;
+    }
+    struct {
+        char magic[4];
+        u16 version, numTextures, counts[4];
+        u32 mapOffset, texOffset, reserved[2];
+    } h;
+    static_assert(sizeof(h) == 32, "TTX1 header");
+    u16 map[3];
+    render::TexEntry entries[3];
+    bool ok = fread(&h, sizeof(h), 1, f) == 1 && !memcmp(h.magic, "TTX1", 4) && h.version == 1 && h.counts[0] == 3 &&
+              h.numTextures == 3 && fseek(f, h.mapOffset, SEEK_SET) == 0 && fread(map, 2, 3, f) == 3 &&
+              fseek(f, h.texOffset, SEEK_SET) == 0 && fread(entries, sizeof(render::TexEntry), 3, f) == 3;
+    int loaded = 0;
+    for (; ok && loaded < 3; loaded++) ok = map[loaded] < 3 && render::loadTexture(f, entries[map[loaded]], &rentalTex_[loaded]);
+    fclose(f);
+    if (!ok) {
+        for (int i = 0; i + 1 < loaded; i++) {
+            tt::mem::LinearGuard g;
+            C3D_TexDelete(&rentalTex_[i]);
+        }
+    }
+    rentalLoaded_ = ok;
+    TT_LOG("suits: rental pack %s", ok ? "loaded" : "bad");
+    return ok;
+}
+
+bool SuitActors::drawDisguise(render::Renderer& renderer, const char* code, bool rental, const C3D_Mtx& world,
+                              bool walk, float t, C3D_Mtx* head) {
+    const SuitAsset* info = code ? findSuitAsset(code) : nullptr;
+    const SuitInfo* type = code ? findType(code) : nullptr;
+    if (!info || !type || !loadBody(info->body - 'a')) return false;
+    Body& body = bodies_[info->body - 'a'];
+    const render::Anim& clip = walk && body.walk.loaded() ? body.walk : body.neutral;
+    if (!clip.loaded() || clip.numVertices() != body.model.numVertices() || !clip.hasAttach()) return false;
+    const bool rentalCloth = rental && type->dept == 's' && loadRental();
+    render::Tints tints;
+    tints.setAll(1.0f, 1.0f, 1.0f);
+    // The rental glove texture is a flat grey (mean 209 / 255) over the hand colour.
+    const float glove = rentalCloth ? 209.0f / 255.0f : 1.0f;
+    for (int i = 0; i < 4; i++) tints.rgba[render::kTintLeg][i] = info->hand[i] * (i < 3 ? glove : 1.0f);
+    const int d = deptIndex(type->dept);
+    const C3D_Tex* const* cloth = nullptr;
+    const C3D_Tex* rentalSlots[3] = {&rentalTex_[0], &rentalTex_[1], &rentalTex_[2]};
+    const C3D_Tex* deptSlots[3] = {&deptTex_[d][0], &deptTex_[d][1], &deptTex_[d][2]};
+    if (rentalCloth) cloth = rentalSlots;
+    else if (deptLoaded_) cloth = deptSlots;
+    const C3D_Tex* slot[render::kTexSlotCount] = {};
+    if (cloth) slot[1] = cloth[0], slot[2] = cloth[1], slot[3] = cloth[2];
+    C3D_Mtx m = world;
+    Mtx_Scale(&m, info->scale, info->scale, info->scale);
+    u32 fa, fb;
+    float blend;
+    render::sampleClip(clip, t, &fa, &fb, &blend);
+    renderer.drawMorph(body.model, clip, fa, fb, blend, m, &tints, cloth ? slot : nullptr);
+    C3D_Mtx attach;
+    clip.attach(fa, fb, blend, &attach);
+    Mtx_Multiply(head, &m, &attach);
+    Mtx_Scale(head, 1.0f / info->scale, 1.0f / info->scale, 1.0f / info->scale);
+    return true;
+}
+
 void SuitActors::shutdown() {
     assetBatch_.clear();
     for (Actor& a : actors_) {
@@ -254,7 +376,7 @@ void SuitActors::shutdown() {
     }
     graph_.unload();
     graphBranch_ = 0;
-    C3D_FrameSync();
+    ::tt::gpu::frameSync();
     model_.unload();
     for (Body& b : bodies_) {
         b.model.unload();
@@ -263,15 +385,16 @@ void SuitActors::shutdown() {
         for (int i = 0; i < Body::kClips; i++) {
             b.clips[i].unload();
             b.clipName[i][0] = 0;
+            b.clipEvicting[i] = false;
         }
         b.loseModel.unload();
         b.loseClip.unload();
-        b.loseTried = false;
+        b.loseTried = b.loseBad = false;
         b.tried = false;
     }
     for (Head& h : heads_) {
         h.model.unload();
-        h.tried = false;
+        h.tried = h.evicting = false;
     }
     if (deptLoaded_) {
         for (auto& d : deptTex_)
@@ -281,6 +404,13 @@ void SuitActors::shutdown() {
             }
     }
     deptLoaded_ = false;
+    if (rentalLoaded_) {
+        for (C3D_Tex& t : rentalTex_) {
+            tt::mem::LinearGuard g;
+            C3D_TexDelete(&t);
+        }
+    }
+    rentalTried_ = rentalLoaded_ = false;
 }
 
 void SuitActors::setZone(u32 zoneId) {
@@ -510,7 +640,8 @@ void SuitActors::draw(render::Renderer& renderer) {
             Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
             Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
             // ---- cogdo: model-space scale from CogdoMazeGameGlobals.SuitData ----
-            Mtx_Scale(&m, a.externalScale, a.externalScale, a.externalScale);
+            const float s = a.externalScale * a.battleScale;
+            Mtx_Scale(&m, s, s, s);
             // ---- end cogdo ----
             const float f = a.flash;
             renderer.setBaseTint(1.0f, 1.0f - f * 0.6f, 1.0f - f * 0.6f, 1.0f); // hit flash
@@ -524,7 +655,8 @@ void SuitActors::draw(render::Renderer& renderer) {
         Mtx_Identity(&m);
         Mtx_Translate(&m, a.pose.x, a.pose.y, a.pose.z, true);
         Mtx_RotateZ(&m, a.pose.h * kDegToRad, true);
-        Mtx_Scale(&m, w * a.externalScale, w * a.externalScale, h * a.externalScale); // cogdo
+        const float s = a.externalScale * a.battleScale; // cogdo, boss battle entrance
+        Mtx_Scale(&m, w * s, w * s, h * s);
         renderer.drawModel(model_, m);
     }
     renderer.setBaseTint(1.0f, 1.0f, 1.0f, 1.0f);
@@ -620,7 +752,7 @@ bool SuitActors::pose(u32 doId, float* x, float* y, float* z, float* h) const {
 }
 
 void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool hidden, float flash, u8 anim,
-                              s8 clipArg, u32 clipStartMs) {
+                              s8 clipArg, u32 clipStartMs, float battleScale) {
     for (Actor& a : actors_) {
         if (!a.active || a.doId != doId) continue;
         a.pose.x = x, a.pose.y = y, a.pose.z = a.pose.groundZ = z, a.pose.h = h;
@@ -632,6 +764,9 @@ void SuitActors::overridePose(u32 doId, float x, float y, float z, float h, bool
         a.pose.anim = anim;
         a.clipArg = clipArg;
         a.clipStartMs = clipStartMs;
+        a.battleScale = battleScale;
+        if (const SuitAsset* info = a.type >= 0 ? findSuitAsset(kSuitTypes[a.type].code) : nullptr)
+            loadLose(info->body - 'a' + (a.skelecog ? 3 : 0)); // ready before the Cog is defeated
     }
 }
 

@@ -737,7 +737,7 @@ not strand the player.
   - Host test: `tools/cog_thief_test/` compares barrel theft tracking, pie hits, and scoring against `cog_thief_ref.py`.
   - Network: `source/net/client.{h,cpp}` handles `updateGoal`, `carryBarrel`, `dropBarrel`, `barrelStolen`, and sends `throwPie`, `hitBySuit`, `pieHitSuit`, `hitBarrel`, `atReturnPos`. Registered in `tools/dcgen/dcgen.py` (DC hash 547155168).
   - Runtime: `source/game/cog_thief_game.{h,cpp}`: Circle Pad toon navigation, A button pie throwing with cooldown, barrel defense, bottom-screen barrel status and score display.
-  - Assets: `cogthief_ground.ttm`, `cogthief_barrel.ttm`, `cogthief_tank.ttm`, and Cog Thief audio (`mg_slice`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
+  - Assets: `cogthief_ground_<TT|DD|DG|MM|BR|DL>.ttm` (one hood floor each, as DistributedCogThiefGame.load shows), `cogthief_barrel.ttm`, `cogthief_tank.ttm`, and Cog Thief audio (`mg_slice`) baked into `sdmc-out/3ds/toontown3ds/data/minigames/`.
 - **What differs from upstream:** Dual-screen layout: top screen displays 3D court, bottom screen shows barrel defense status and time remaining.
 - **What to verify in Azahar:** Force `minigame-id 14`; board trolley; throw pies at incoming Cogs with A; defend gag barrels; verify jellybean reward and perfect bonus if all 4 barrels saved.
 
@@ -839,3 +839,21 @@ Trolley Tracks (`DistributedTravelGame`, ID 100) is the trolley metagame played 
 4. **Destination Resolution:**
    - Branching paths lead to different target minigames or bonus playground exits.
    - Upon reaching the end of the line, the final minigame is launched, or bonus beans are awarded directly.
+
+## Native ports re-checked against stock (2026-11-12)
+
+- **Maze**: `MazeData.mazeNames[numPlayers - 1]` with its collision table and treasures
+  (`tools/gen_maze_tables.py` -> `source/game/maze_tables.h`); onstage's `RandomNumGen(doId)`
+  order (start spots, a RNG per Toon, then the suit period shuffle and one RNG per suit);
+  4 x numPlayers Flunkies on MazeSuit's tic schedule; the hit flight to a random walkable
+  tile. `tools/maze_test` stage 2 compares the suit tile walk with the stock MazeSuit.
+- **Ring**: the hood's `difficultyPatterns` (`tools/gen_ring_tables.py`) and
+  `RingTrackGroups.getRandomRingTrackGroup` per group, one ring per player in
+  `setColorIndices`' colours, timed from `setGameStart`. `tools/ring_test` stage 2 compares
+  3,840 ring paths with the stock modules.
+- **Tag**: the AI's `DistributedTagTreasure` objects (ice cream), `requestGrab` on contact,
+  the AI's `setTreasureScore`.
+- **Diving**: NUMCRABS King Crabs per hood moved by `setCrabMoving`, SPEEDMULT per hood.
+- **Cannon**: the `__flyTask` camera. **Race**: the chance card and its text.
+  **Slingshot**: the blended cloud layers and FogOverlay.
+- Not ported: the Maze pitch spin, goal bar and score panels; Ring's success / missed text.

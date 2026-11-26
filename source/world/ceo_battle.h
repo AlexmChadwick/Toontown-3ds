@@ -39,6 +39,10 @@ private:
     Vec3 pitcher(int table) const;
 
     CeoAssets assets_;
+    ToonLook resistanceLook_;   // Good ol' Gil Giggles (the introduction's resistance Toon)
+    ToonAvatar resistanceToon_;
+    bool resistanceAcquired_ = false;
+    render::Model elevatorDoors_[2]; // data/cogbldg hqelev_bb_<left|right> (open at 0, closed at +-width)
     bool active_ = false;
     bool entered_ = false;
     uint32_t bossId_ = 0;

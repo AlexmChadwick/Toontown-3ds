@@ -1,0 +1,69 @@
+# source at gate start 581360cbf15751fe595b98a114abc8086544fea7
+# source now f5fd165afb748f55f0a1743e71af0452f2afb33f
+# app sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+# resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+# run_gate.sh 280s. compare_views exit 1. Same stock-pin failure as gate 1.
+# GATE2_START 2026-11-23T05:11:44Z GATE2_EXIT 1 2026-11-23T05:21:40Z
+
+
+FAIL stock: /tmp/gate/run2/stock: ttc_near stock_ttc_near.png is not the pinned stock render; dd_near stock_dd_near.png is not the pinned stock render
+FAIL ttc_near: ssim 1.000 mintile 1.000 diff 0.0% draws 77/77  texture detail missing or unverified stock render (see the stock line); off-edge detail missing or unverified stock render (see the stock line); high-pass missing or unverified stock render (see the stock line); overshoot missing or unverified stock render (see the stock line)
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 0)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    FAIL texture detail: missing or unverified stock render (see the stock line)
+    FAIL off-edge detail: missing or unverified stock render (see the stock line)
+    FAIL high-pass: missing or unverified stock render (see the stock line)
+    FAIL overshoot: missing or unverified stock render (see the stock line)
+    PASS old/new detail: old 442 new 443 (old >= 0.9x new)
+    PASS draws: 77/77 (old >= 0.9x new)
+PASS ttc_mid: ssim 1.000 mintile 1.000 diff 0.0% draws 65/65  
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 15)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS draws: 65/65 (old >= 0.9x new)
+PASS ttc_far: ssim 1.000 mintile 0.999 diff 0.0% draws 130/129  
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 0.999 (min 0.85, tile 33)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 38.8 new std 38.8 (min 4)
+    PASS draws: 130/129 (old >= 0.9x new)
+PASS ttc_tree: ssim 0.999 mintile 0.971 diff 0.0% draws 115/115  
+    PASS ssim: 0.999 (min 0.97)
+    PASS tile ssim: 0.971 (min 0.85, tile 13)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 38.9 new std 38.9 (min 4)
+    PASS draws: 115/115 (old >= 0.9x new)
+FAIL street_near: ssim 1.000 mintile 1.000 diff 0.0% draws 74/84  texture detail missing or unverified stock render (see the stock line); off-edge detail missing or unverified stock render (see the stock line); high-pass missing or unverified stock render (see the stock line); overshoot missing or unverified stock render (see the stock line)
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 0)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    FAIL texture detail: missing or unverified stock render (see the stock line)
+    FAIL off-edge detail: missing or unverified stock render (see the stock line)
+    FAIL high-pass: missing or unverified stock render (see the stock line)
+    FAIL overshoot: missing or unverified stock render (see the stock line)
+    PASS old/new detail: old 271 new 271 (old >= 0.9x new)
+    PASS draws: 74/84: draw ratio waived: frames identical (0 px differ), Old far LOD chunks 6/54
+PASS street_far: ssim 1.000 mintile 1.000 diff 0.0% draws 40/40  
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 13)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 28.4 new std 28.4 (min 4)
+    PASS draws: 40/40 (old >= 0.9x new)
+FAIL dd_near: ssim 1.000 mintile 1.000 diff 0.0% draws 74/74  texture detail missing or unverified stock render (see the stock line); off-edge detail missing or unverified stock render (see the stock line); high-pass missing or unverified stock render (see the stock line); overshoot missing or unverified stock render (see the stock line)
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 1.000 (min 0.85, tile 36)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    FAIL texture detail: missing or unverified stock render (see the stock line)
+    FAIL off-edge detail: missing or unverified stock render (see the stock line)
+    FAIL high-pass: missing or unverified stock render (see the stock line)
+    FAIL overshoot: missing or unverified stock render (see the stock line)
+    PASS old/new detail: old 257 new 257 (old >= 0.9x new)
+    PASS draws: 74/74 (old >= 0.9x new)
+PASS dd_far: ssim 1.000 mintile 0.999 diff 0.0% draws 88/88  
+    PASS ssim: 1.000 (min 0.97)
+    PASS tile ssim: 0.999 (min 0.85, tile 16)
+    PASS px differ: 0.0% >30 (max 1.0%)
+    PASS sky flat: old std 12.0 new std 12.0 (min 4)
+    PASS draws: 88/88 (old >= 0.9x new)
+compare_views exit 1

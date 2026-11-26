@@ -6,8 +6,11 @@
 
 #include "core/log.h"
 #include "ui/gag_data.h"
+#include "ui/sos_tables.h"
+#include "ui/theme.h"
 #include "world/battle_fx.h"
 #include "world/suit_tables.h"
+#include "world/toon_dna.h"
 // [cog attacks]
 #include "world/cog_attack_tables.h"
 #include "world/cog_attacks.h"
@@ -57,6 +60,7 @@ constexpr uint32_t kColorDamage = 0xFF2020E0; // ABGR, as ui::Balloons takes it
 constexpr uint32_t kColorHeal = 0xFF20A020;
 constexpr uint32_t kColorMiss = 0xFF707070;
 constexpr uint32_t kColorTaunt = 0xFF2030A0;
+constexpr uint32_t kColorSay = 0xFF202020; // chat balloon ink
 
 int popcount8(unsigned m) {
     int n = 0;
@@ -240,14 +244,12 @@ void Battle::handleEvent(const net::Event& ev, net::Client& client, uint32_t now
         if (phase_ == BattlePhase::Requested && !joining_) {
             phase_ = BattlePhase::Idle;
             cooldownUntilMs_ = nowMs + kRequestCooldownMs;
-            message_ = "That cog is too busy to fight right now.";
         }
         break;
     case EventType::BattleJoinDenied:
         if (phase_ == BattlePhase::Requested && joining_) {
             phase_ = BattlePhase::Idle;
-            joinCooldownMs_ = nowMs + 5000;
-            message_ = "That battle is full.";
+            joinCooldownMs_ = nowMs + 5000; // DistributedBattle.denyLocalToonJoin: back to walking, no message
         }
         break;
     default:
@@ -361,12 +363,12 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         a.isToon = false;
         a.doId = id;
         float x = bx_, y = by_, h = 0.0f, z = bz_;
-        bool placed = false;
+        bool placed = false, fromSource = false;
         if (i == 0 && nb.state == net::BattleStateId::FaceOff) {
             x = nb.sx, y = nb.sy; // the cog's pose at contact
             placed = true;
         } else if (cogs.pose && cogs.pose(cogs.user, id, &x, &y, &z, &h)) {
-            placed = true;
+            placed = fromSource = true;
         }
         if (!placed) toWorld(0.0f, 14.0f, &x, &y);
         a.x = x, a.y = y, a.z = bz_;
@@ -374,6 +376,10 @@ void Battle::syncMembers(net::Client& client, const net::Battle& nb, const CogPo
         net::Client::CogIdentity ns;
         const SuitInfo* info = client.cogIdentity(id, &ns) && ns.hasDna ? findSuitType(ns.name) : nullptr;
         a.height = info ? info->height : 5.0f;
+        if (fromSource && cogs.joinHeight > 0.0f) {
+            a.joinScale = cogs.joinHeight / a.height;
+            a.joinGrowMs = nowMs + 1500u;
+        }
         // [cog attacks]
         if (ns.hasDna && ns.name[0]) {
             snprintf(a.cogCode, sizeof(a.cogCode), "%s", ns.name);
@@ -560,7 +566,7 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         } else if (localActive) {
             phase_ = BattlePhase::Input;
             inputEndMs_ = nb.stateMs + kInputTimeoutMs;
-            autoAtMs_ = nowMs + 700;
+            autoAtMs_ = nowMs + autoDelayMs_;
         } else {
             phase_ = BattlePhase::Waiting; // pending: joined mid-round, active from the next one
         }
@@ -584,13 +590,16 @@ void Battle::onState(net::Client& client, const net::Battle& nb, uint32_t nowMs)
         break;
     default:
         if (phase_ != BattlePhase::Reward) phase_ = BattlePhase::Waiting;
+        if (finalBattle_ && !strcmp(nb.stateName, "ReservesJoining")) camera_.startSuitsJoining(nowMs);
         break;
     }
 }
 
 void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs) {
     (void)client;
+    seenMovie_ = nb.movieSeq;
     movieSent_ = false;
+    movieRetryMs_ = 0;
     numFx_ = fxCursor_ = 0;
     movieStartMs_ = nowMs;
     if (!nb.movie.active) {
@@ -599,7 +608,7 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
         movieEndMs_ = nowMs + 400;
         return;
     }
-    buildMovie(nb.movie);
+    buildMovie(client, nb.movie);
     camera_.buildMovie(battleId_, ++round_, *this, nb.movie, movieStartMs_);
     moviePlaying_ = true;
 }
@@ -607,68 +616,199 @@ void Battle::startMovie(net::Client& client, const net::Battle& nb, uint32_t now
 const char* const kBattleClipNames[kNumBattleClips] = {
     "throw", "pushbutton", "cringe", "sidestep-left", "victory", "lose",
     // [cog attacks]
-    "conked", "sidestep-right", "duck", "slip-forward", "slip-backward"
+    "conked", "sidestep-right", "duck", "slip-forward", "slip-backward",
+    // gag clips
+    "tickle", "smooch", "happy-dance", "sprinkle-dust", "juggle", "climb", "toss", "battlecast",
+    "hold-magnet", "hypnotize", "sound", "spit", "water-gun", "hold-bottle", "firehose"
 };
+
+BattleClip toonAttackClip(int track, int level) {
+    switch (track) {
+    case kTrackHeal: { // MovieHeal: __healTickle, Joke, Smooch, Dance, Sprinkle, Juggle, Dive
+        static const BattleClip kHeal[7] = {kClipTickle, kClipSound, kClipSmooch, kClipHappyDance,
+                                            kClipSprinkleDust, kClipJuggle, kClipClimb};
+        return kHeal[level >= 0 && level < 7 ? level : 0];
+    }
+    case kTrackTrap: // MovieTrap: thrown traps toss, placed ones (quicksand, trapdoor, train) push a button
+        return level == 3 || level == 4 || level == 6 ? kClipPushButton : kClipToss;
+    case kTrackLure: // MovieLure: fishing poles cast, magnets, goggles; the slideshow's button
+        return level == 1 || level == 3 ? kClipHoldMagnet : level == 5 ? kClipHypnotize
+             : level == 6 ? kClipPushButton : kClipBattlecast;
+    case kTrackSound: return kClipSound;
+    case kTrackThrow: return kClipThrow;
+    case kTrackSquirt: { // MovieSquirt: flower, glass, gun, seltzer, hose, storm cloud, geyser
+        static const BattleClip kSquirt[7] = {kClipPushButton, kClipSpit, kClipWaterGun, kClipHoldBottle,
+                                              kClipFirehose, kClipPushButton, kClipPushButton};
+        return kSquirt[level >= 0 && level < 7 ? level : 0];
+    }
+    default: return kClipPushButton; // MovieDrop
+    }
+}
 
 void Battle::addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track, int level) {
     if (numFx_ >= kMaxFx) return;
     fx_[numFx_++] = Fx{at, kind, who, other, int16_t(value), int8_t(track), int8_t(level)};
 }
 
-// Plays the round in the order Movie.py does (toon tracks in track order, levels ascending, then
-// the cogs).
-void Battle::buildMovie(const net::BattleMovie& m) {
-    uint32_t t = 300;
-    int order[4];
+int Battle::addSay(const char* text) {
+    if (numSays_ >= kMaxSays) return -1;
+    snprintf(says_[numSays_], sizeof(says_[0]), "%.*s", int(sizeof(says_[0])) - 1, text);
+    return numSays_++;
+}
+
+namespace {
+
+// Movie.__doToonAttacks: FIRE, then SOS, NPCSOS specials and PETSOS, then the gag tracks
+// (HEAL..DROP) in track order, levels ascending. An NPC SOS Toon with a gag ability plays in its
+// gag's place (Movie.__genToonAttackDicts turns it into that track and level).
+struct ResolvedAttack {
+    int index;      // into BattleMovie::toonAttacks
+    int rank;       // sort key: -4 fire, -3 sos, -2 npc special, -1 pet, 0..6 gag track
+    int track, level;
+    const ui::SosCardDef* npc; // NPCSOS: the Rescued Toon
+};
+
+int resolveToonAttacks(const net::BattleMovie& m, ResolvedAttack* out) {
     int n = 0;
     for (int i = 0; i < 4; ++i) {
         const net::BattleToonAttack& a = m.toonAttacks[i];
-        if (a.track < 0 || a.track > 6 || a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        if (a.toonIdx < 0 || a.toonIdx >= m.numToons) continue;
+        ResolvedAttack r{i, a.track, a.track, a.level, nullptr};
+        if (a.track == kAttackFire) {
+            r.rank = -4;
+        } else if (a.track == kAttackSos) {
+            r.rank = -3;
+        } else if (a.track == kAttackNpcSos) {
+            r.npc = a.target > 0 && a.target < 0x10000 ? ui::findSosCard(uint16_t(a.target)) : nullptr;
+            if (r.npc && r.npc->track <= kTrackDrop) {
+                r.rank = r.track = r.npc->track;
+                r.level = r.npc->level;
+            } else {
+                r.rank = -2;
+            }
+        } else if (a.track == kAttackPetSos) {
+            r.rank = -1;
+        } else if (a.track < 0 || a.track > kTrackDrop) {
+            continue; // PASS, NO_ATTACK, UN_ATTACK
+        }
         int pos = n++;
         while (pos > 0) {
-            const net::BattleToonAttack& p = m.toonAttacks[order[pos - 1]];
-            if (p.track < a.track || (p.track == a.track && p.level <= a.level)) break;
-            order[pos] = order[pos - 1];
+            const ResolvedAttack& p = out[pos - 1];
+            if (p.rank < r.rank || (p.rank == r.rank && p.level <= r.level)) break;
+            out[pos] = out[pos - 1];
             --pos;
         }
-        order[pos] = i;
+        out[pos] = r;
     }
+    return n;
+}
+
+} // namespace
+
+// Plays the round in the order Movie.py does (see resolveToonAttacks, then the cogs).
+void Battle::buildMovie(const net::Client& client, const net::BattleMovie& m) {
+    numSteps_ = 0;
+    numSays_ = 0;
+    uint32_t t = 300;
+    ResolvedAttack order[4];
+    const int n = resolveToonAttacks(m, order);
     for (int k = 0; k < n; ++k) {
-        const net::BattleToonAttack& a = m.toonAttacks[order[k]];
+        const ResolvedAttack& r = order[k];
+        const net::BattleToonAttack& a = m.toonAttacks[r.index];
         const uint32_t who = m.toons[a.toonIdx];
+        const char* whoName = client.avatarName(who);
+        if (!whoName || !whoName[0]) whoName = "Toon";
+        char line[48];
+
+        if (r.rank == -4) {
+            // MovieFire: the toon throws a pink slip at the cog, who is fired (flies off).
+            const uint32_t suit = a.target >= 0 && a.target < m.numSuits ? m.suits[a.target] : 0;
+            addFx(t, kFxGesture, who, suit, 2600);
+            if (suit) addFx(t + 1600, kFxSay, suit, 0, addSay("Fired!"));
+            uint32_t dur = 2600;
+            for (int j = 0; j < m.numSuits; ++j) {
+                if ((a.died >> j) & 1) {
+                    addFx(t + 1900, kFxDie, m.suits[j], 0, 0);
+                    dur = 1900 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
+                }
+            }
+            addStep(BattleMovieStep::kSpecial, t, dur, who, suit, a.track, -1);
+            t += dur;
+            continue;
+        }
+        if (r.rank == -3 || r.rank == -1) {
+            // MovieSOS: the caller (or an observer) calls out; MoviePetSOS: a doodle trick heals.
+            if (r.rank == -3) {
+                const uint32_t friendId = uint32_t(a.target);
+                const char* friendName = friendId ? client.avatarName(friendId) : nullptr;
+                if (friendName && friendName[0]) snprintf(line, sizeof line, "%s HELP!", friendName); // MovieSOSCallHelp
+                else snprintf(line, sizeof line, "HELP!");                                          // MovieSOSObserverHelp
+                addFx(t + 500, kFxSay, who, 0, addSay(line));
+            } else {
+                for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
+                    if (a.hp[j] > 0) addFx(t + 1500, kFxHeal, m.toons[j], who, a.hp[j]);
+                }
+            }
+            addStep(BattleMovieStep::kSpecial, t, 2500, who, 0, a.track, -1);
+            t += 2500;
+            continue;
+        }
+        if (r.npc || a.track == kAttackNpcSos) {
+            // MovieNPCSOS.teleportIn: "Hi <caller>! Glad to help!" (MovieNPCSOSGreeting).
+            snprintf(line, sizeof line, "%s: Hi %s!", r.npc ? r.npc->name : "SOS Toon", whoName);
+            addFx(t, kFxSay, who, 0, addSay(line));
+        }
+        if (r.rank == -2) {
+            // NPC_TOONS_HIT / NPC_COGS_MISS / NPC_RESTOCK_GAGS: the Toon's announcement.
+            const int track = r.npc ? r.npc->track : -1;
+            if (track == 8) snprintf(line, sizeof line, "Toons Always Hit!");
+            else if (track == 9) snprintf(line, sizeof line, "Cogs Always Miss!");
+            else if (track == 7 && r.npc->level >= 0 && r.npc->level <= kTrackDrop)
+                snprintf(line, sizeof line, "Restocking %s gags!", ui::theme::kTrackTitles[r.npc->level]);
+            else snprintf(line, sizeof line, "Restocking All gags!");
+            addFx(t + 1200, kFxSay, who, 0, addSay(line));
+            addStep(BattleMovieStep::kSpecial, t, 3200, who, 0, a.track, -1);
+            t += 3200;
+            continue;
+        }
+        if (r.npc) t += 1200; // the greeting before the Toon's gag
+
         uint32_t target = 0;
-        if (a.target >= 0) {
-            if (a.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
-            else if (a.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
+        if (a.target >= 0 && !r.npc) {
+            if (r.track == kTrackHeal && a.target < m.numToons) target = m.toons[a.target];
+            else if (r.track != kTrackHeal && a.target < m.numSuits) target = m.suits[a.target];
         }
 
         uint32_t attackDur = 2200;
         uint32_t hitAt = t + 1500;
-        if (a.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
-        else if (a.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
-        else if (a.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
-        else if (a.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
-        else if (a.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
-        else if (a.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
+        if (r.track == kTrackHeal)        { attackDur = 3200; hitAt = t + 2000; }
+        else if (r.track == kTrackTrap)   { attackDur = 3500; hitAt = t + 2500; }
+        else if (r.track == kTrackLure)   { attackDur = 4500; hitAt = t + 3000; }
+        else if (r.track == kTrackSound)  { attackDur = 3500; hitAt = t + 2500; }
+        else if (r.track == kTrackThrow)  { attackDur = 3500; hitAt = t + 3000; }
+        else if (r.track == kTrackSquirt) { attackDur = 3300; hitAt = t + 2700; }
+        else if (r.track == kTrackDrop)   { attackDur = 4500; hitAt = t + 3800; }
 
-        addFx(t, kFxAttack, who, target, attackDur, a.track, a.level);
+        addFx(t, kFxAttack, who, target, attackDur, r.track, r.level);
         bool any = false;
-        if (a.track == kTrackHeal) {
+        if (r.track == kTrackHeal) {
             for (int j = 0; j < a.numHp && j < m.numToons; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHeal, m.toons[j], who, a.hp[j], r.track, r.level);
                     any = true;
                 }
             }
         } else {
             for (int j = 0; j < a.numHp && j < m.numSuits; ++j) {
                 if (a.hp[j] > 0) {
-                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], a.track, a.level);
+                    addFx(hitAt, kFxHit, m.suits[j], who, a.hp[j], r.track, r.level);
                     any = true;
                 }
             }
-            if (!any && a.target >= 0 && a.target < m.numSuits) addFx(hitAt, kFxMiss, m.suits[a.target], who, 0, a.track, a.level);
+            // A squirt or throw with no damage and no resolved suit still has to show a miss.
+            // Otherwise the toon plays the gag and the cog never reacts (the round looks empty).
+            if (!any && !target && m.numSuits > 0) target = m.suits[0];
+            if (!any && target) addFx(hitAt, kFxMiss, target, who, 0, r.track, r.level);
         }
         uint32_t dur = attackDur;
         for (int j = 0; j < m.numSuits; ++j) {
@@ -677,6 +817,7 @@ void Battle::buildMovie(const net::BattleMovie& m) {
                 dur = (hitAt - t) + 500 + uint32_t((kLoseSec + kDieSec) * 1000.0f);
             }
         }
+        addStep(BattleMovieStep::kToonGag, t, dur, who, target, r.track, r.level);
         t += dur;
     }
     for (int i = 0; i < 4; ++i) {
@@ -701,6 +842,8 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             missAt = t + (info->dodgeDelayMs > 0 ? info->dodgeDelayMs : 1000);
         }
 
+        // MovieSuitAttacks announces the attack by name before it plays.
+        if (info && info->name && info->name[0]) addFx(t, kFxSay, who, 0, addSay(info->name));
         addFx(t, kFxAttack, who, target, attackDur, -1, s.attack);
         bool any = false;
         for (int j = 0; j < s.numHp && j < m.numToons; ++j) {
@@ -710,10 +853,11 @@ void Battle::buildMovie(const net::BattleMovie& m) {
             }
         }
         if (!any && s.target >= 0 && s.target < m.numToons) addFx(missAt, kFxMiss, m.toons[s.target], who, 0, -1, s.attack);
+        addStep(BattleMovieStep::kSuit, t, attackDur, who, target, -1, s.attack, s.target < 0);
         t += attackDur;
     }
     movieEndMs_ = movieStartMs_ + t + 300;
-    TT_LOG("battle: movie: %d effects, %u ms", numFx_, unsigned(t + 300));
+    TT_LOG("battle: movie: %d effects, %d steps, %u ms", numFx_, numSteps_, unsigned(t + 300));
 }
 
 void Battle::addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs, float rise) {
@@ -740,7 +884,15 @@ void Battle::runFx(uint32_t nowMs) {
     while (fxCursor_ < numFx_ && int32_t(nowMs - (movieStartMs_ + fx_[fxCursor_].at)) >= 0) {
         const Fx& f = fx_[fxCursor_++];
         Actor* a = findActor(f.who);
-        if (!a) continue;
+        if (!a) {
+            // The gag still has to make contact even when the suit actor is not in the pose list.
+            if (battleFx_ && (f.kind == kFxHit || f.kind == kFxMiss)) {
+                battleFx_->onHit(f.who, f.other, f.track, f.level, f.kind == kFxHit ? f.value : 0,
+                                 f.kind == kFxMiss, this);
+            }
+            TT_LOG("battle: effect %u has no actor (kind %u)", unsigned(f.who), unsigned(f.kind));
+            continue;
+        }
         char text[16];
         switch (f.kind) {
         case kFxAttack: {
@@ -748,6 +900,7 @@ void Battle::runFx(uint32_t nowMs) {
             a->attackEnd = nowMs + uint32_t(f.value);
             // [cog attacks] Gag track (>=0) or suit attack index (0..5)
             a->attackTrack = f.track >= 0 ? f.track : f.level;
+            a->attackLevel = f.level;
             a->clipStartMs = nowMs;
             if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
                 a->faceH = headingTo(a->x, a->y, t->x, t->y);
@@ -826,6 +979,19 @@ void Battle::runFx(uint32_t nowMs) {
             a->clipStartMs = nowMs;
             if (battleFx_) battleFx_->onHit(f.who, f.other, f.track, f.level, 0, true, this);
             break;
+        case kFxSay: // a line from the movie in a speech balloon over the speaker
+            if (f.value >= 0 && f.value < numSays_) addPopup(*a, says_[f.value], kColorSay, nowMs, 2400, 0.0f);
+            break;
+        case kFxGesture: // the throw clip toward the target, no gag prop (MovieFire's pink slip)
+            a->attackStart = nowMs;
+            a->attackEnd = nowMs + uint32_t(f.value);
+            a->attackTrack = kTrackThrow;
+            a->clipStartMs = nowMs;
+            if (const Actor* t = f.other ? findActor(f.other) : nullptr) {
+                a->faceH = headingTo(a->x, a->y, t->x, t->y);
+                a->faceUntil = a->attackEnd + 300;
+            }
+            break;
         case kFxDie:
             a->dying = true;
             a->dieStart = nowMs;
@@ -874,7 +1040,7 @@ void Battle::autoPick(net::Client& client, const net::Battle& nb) {
 
     // Throw, squirt, sound, drop, then toon-up; against several cogs sound first (it hits them
     // all). Trap and lure do no damage on their own, so autoplay only uses them when forced.
-    static const int kTrackOrder[5] = {4, 5, 3, 6, 0};
+    static const int kTrackOrder[5] = {3, 4, 5, 6, 0};
     static const int kGroupOrder[5] = {3, 4, 5, 6, 0};
     int active = 0;
     for (int i = 0; i < nb.numSuits; ++i) active += (nb.suitsActive >> i) & 1;
@@ -922,6 +1088,15 @@ void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs)
             phase_ = BattlePhase::Chosen;
         }
         break;
+    case BattleAction::NpcSos: // DistributedBattleBase.__handleInventoryResponse 'NPCSOS'
+    case BattleAction::Fire:   // ... 'Fire': the cog's doId
+        if (phase_ != BattlePhase::Input || chose_ || a.target == 0) return;
+        if (client.sendBattleRequestAttack(id, int8_t(a.kind == BattleAction::Fire ? kAttackFire : kAttackNpcSos), -1,
+                                           int32_t(a.target))) {
+            chose_ = true;
+            phase_ = BattlePhase::Chosen;
+        }
+        break;
     case BattleAction::Run:
         if (phase_ != BattlePhase::Input || chose_) return;
         if (client.sendBattleRequestRun(id)) {
@@ -933,7 +1108,9 @@ void Battle::perform(net::Client& client, const BattleAction& a, uint32_t nowMs)
     case BattleAction::Continue:
         if (phase_ != BattlePhase::Reward || rewardSent_) return;
         // ---- tutorial ----
-        if (tutorial_) return; // the tutorial reward movie decides (finishTutorialReward)
+        // No reward timer in the tutorial (Movie.playTutorialReward waits for the player's
+        // acknowledgement); Continue is that acknowledgement, the same as finishTutorialReward.
+        if (tutorial_) TT_LOG("tutorial: acknowledged Flunky reward");
         // ---- end tutorial ----
         if (client.sendBattleRewardDone(id)) rewardSent_ = true;
         break;
@@ -963,6 +1140,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
         }
         return;
     }
+    finalBattle_ = cogs.joinHeight > 0.0f; // boss battles (DistributedBattleFinal)
     if (battleId_ != nb->doId) begin(client, *nb, cogs, nowMs);
 
     if (nb->membersSeq != seenMembers_) {
@@ -976,7 +1154,7 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
                 phase_ = BattlePhase::Input;
                 chose_ = timeoutSent_ = false;
                 inputEndMs_ = nowMs + kInputTimeoutMs; // startTimer() with no elapsed time
-                autoAtMs_ = nowMs + 700;
+                autoAtMs_ = nowMs + autoDelayMs_;
             } else if (runningNow && phase_ == BattlePhase::Input) {
                 phase_ = BattlePhase::Waiting;
             }
@@ -987,6 +1165,11 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
         seenState_ = nb->stateSeq;
         onState(client, *nb, nowMs);
         if (phase_ == BattlePhase::Idle) return; // Resume
+    }
+    // setMovie can land after setState('PlayMovie'). Replay it; an empty startMovie
+    // would otherwise send movieDone for a round that has not been shown.
+    if (phase_ == BattlePhase::Movie && nb->movie.active && nb->movieSeq != seenMovie_) {
+        startMovie(client, *nb, nowMs);
     }
     retarget(*nb, nowMs);
     if (nb->adjustSeq != seenAdjust_) {
@@ -1058,9 +1241,15 @@ void Battle::update(net::Client& client, uint32_t nowMs, float dt, const CogPose
             }
         }
         runFx(nowMs);
-        if (!movieSent_ && int32_t(nowMs - movieEndMs_) >= 0) {
-            client.sendBattleMovieDone(battleId_);
-            movieSent_ = true;
+        // movieDone is legal any time in PlayMovie. A send that fails, or one the AI drops
+        // because it has not entered PlayMovie yet, used to be recorded as delivered and the
+        // round sat on "playing out" until the server's movie timer.
+        if (int32_t(nowMs - movieEndMs_) >= 0 &&
+            (!movieSent_ || int32_t(nowMs - movieRetryMs_) >= 1000)) {
+            if (client.sendBattleMovieDone(battleId_)) {
+                movieSent_ = true;
+                movieRetryMs_ = nowMs;
+            }
         }
     }
     if (phase_ == BattlePhase::Reward && !rewardSent_ && !tutorial_) { // ---- tutorial: finishTutorialReward
@@ -1117,15 +1306,19 @@ void Battle::computePoses(uint32_t nowMs) {
         }
         out->hop = hop;
         out->scale = scale;
+        out->joinScale = 1.0f;
+        if (!isToon && a.joinScale != 1.0f) {
+            const float gu = clamp01(float(int32_t(nowMs - a.joinGrowMs)) / 1500.0f);
+            out->joinScale = a.joinScale + (1.0f - a.joinScale) * gu;
+            if (gu >= 1.0f) a.joinScale = 1.0f;
+        }
         out->flash = flash;
         out->hidden = hidden;
         if (isToon) {
-            // MovieThrow: pie-throw; MovieSquirt (flower): press-button; others: wave for now.
+            // The gag's own clip (toonAttackClip: MovieHeal, MovieTrap, MovieLure, ...).
             uint8_t anim = a.moving ? kBattleAnimRun : kBattleAnimNeutral;
             if (attacking) {
-                anim = a.attackTrack == kTrackThrow    ? uint8_t(kBattleAnimClip0 + kClipThrow)
-                       : a.attackTrack == kTrackSquirt ? uint8_t(kBattleAnimClip0 + kClipPushButton)
-                                                       : kBattleAnimAttack;
+                anim = uint8_t(kBattleAnimClip0 + toonAttackClip(a.attackTrack, a.attackLevel));
             } else if (a.reactUntil && int32_t(a.reactUntil - nowMs) > 0) {
                 // [cog attacks] Reaction clip
                 const int clip = a.reactClip >= 0 ? a.reactClip : (a.reactHit ? int(kClipCringe) : int(kClipSidestep));
@@ -1187,12 +1380,12 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
     const net::Battle* nb = battleId_ ? client.findBattle(battleId_) : nullptr;
     switch (phase_) {
     case BattlePhase::Requested: v->status = "Getting ready to fight..."; break;
-    case BattlePhase::FaceOff: v->status = "The cog wants a fight!"; break;
+    case BattlePhase::FaceOff: v->status = "The Cog wants a fight!"; break;
     case BattlePhase::Waiting: v->status = running_ ? "Running away!" : "Waiting for the next round..."; break;
     case BattlePhase::Input: v->status = "Choose a gag!"; break;
-    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for the other toons..."; break;
+    case BattlePhase::Chosen: v->status = running_ ? "Running away!" : "Waiting for other players..."; break;
     case BattlePhase::Movie: v->status = "The round is playing out..."; break;
-    case BattlePhase::Reward: v->status = "You beat the cogs!"; break;
+    case BattlePhase::Reward: v->status = "You beat the Cogs!"; break;
     default: break;
     }
     // ---- tutorial ----
@@ -1207,8 +1400,16 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         v->secondsLeft = (ms + 999) / 1000;
         if (v->secondsLeft > int(kInputTimeoutMs / 1000)) v->secondsLeft = int(kInputTimeoutMs / 1000);
     }
-    v->canRun = phase_ == BattlePhase::Input;
+    v->canRun = phase_ == BattlePhase::Input && !tutorial_; // ---- tutorial ---- no RUN in the Toontorial
     v->rewardSent = rewardSent_;
+    // InventoryNew.battleActivate: Fire is live with a pink slip; the tutorial shows neither.
+    v->pinkSlips = client.bossPinkSlips();
+    v->canSos = phase_ == BattlePhase::Input && !tutorial_;
+    v->canFire = v->canSos && v->pinkSlips > 0;
+    const net::OwnBookStats& book = client.ownBook();
+    for (int i = 0; i < book.numSosCards && v->numSosCards < 16; ++i) {
+        v->sosCards[v->numSosCards++] = BattleView::SosCard{book.sosCards[i].npcId, book.sosCards[i].count};
+    }
     if (!nb) return;
     v->floorReward = nb->levelDoId != 0 && !strcmp(nb->stateName, "Reward");
     if (phase_ == BattlePhase::Reward && v->floorReward) v->status = "Cogs cleared! Onward...";
@@ -1221,9 +1422,13 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         snprintf(c.name, sizeof(c.name), "Cog");
         c.level = 0;
         c.hp = c.maxHp = 0;
+        c.code[0] = '\0';
+        c.skelecog = false;
         net::Client::CogIdentity ident;
         if (client.cogIdentity(c.doId, &ident)) {
             const net::Client::CogIdentity* s = &ident;
+            if (s->hasDna) snprintf(c.code, sizeof(c.code), "%.3s", s->name);
+            c.skelecog = s->skelecog;
             c.hp = s->hp;
             for (const Actor& a : suits_) {
                 if (a.used && a.doId == c.doId && a.baseHp == s->hp) c.hp = s->hp - a.damage;
@@ -1245,6 +1450,40 @@ void Battle::fillView(const net::Client& client, uint32_t nowMs, BattleView* v) 
         t.local = t.doId == localId_;
         const char* name = client.avatarName(t.doId);
         snprintf(t.name, sizeof(t.name), "%s", name && name[0] ? name : "Toon");
+        const uint8_t* dnaBytes = nullptr;
+        t.hp = t.maxHp = 0;
+        if (t.local) {
+            t.hp = client.ownStats().hp;
+            t.maxHp = client.ownStats().maxHp;
+            dnaBytes = client.avatarDna();
+        } else if (const net::RemoteToon* rt = client.findToon(t.doId)) {
+            t.hp = rt->hp;
+            t.maxHp = rt->maxHp;
+            if (rt->hasDna) dnaBytes = rt->dna;
+        }
+        ToonDna dna;
+        if (!dnaBytes || !parseNetString(dnaBytes, net::kDnaSize, &dna)) dna = defaultToonDna();
+        t.species = static_cast<int>(species(dna));
+        const float* rgb = bodyColor(dna.headColor);
+        for (int k = 0; k < 3; ++k) t.rgb[k] = rgb[k];
+        // TownBattle.updateChosenAttacks: only this round's picks (a new WaitForInput clears them).
+        t.choice = BattleToonView::kChoiceNone;
+        t.chosenTrack = t.chosenLevel = -1;
+        for (int k = 0; nb->chosenStateSeq == nb->stateSeq && k < nb->numChosen; ++k) {
+            if (nb->chosenIds[k] != t.doId) continue;
+            const int track = nb->chosenTrack[k], level = nb->chosenLevel[k];
+            if (track >= 0 && track < 7 && level >= 0 && level < 7) {
+                t.choice = BattleToonView::kChoiceGag;
+                t.chosenTrack = int8_t(track);
+                t.chosenLevel = int8_t(level);
+            } else if (track == 98) { // BattleBase.PASS
+                t.choice = BattleToonView::kChoicePass;
+            } else if (track == 99 || track == 97 || track == 96) { // SOS / NPCSOS / PETSOS
+                t.choice = BattleToonView::kChoiceSos;
+            } else if (track == 100) { // FIRE
+                t.choice = BattleToonView::kChoiceFire;
+            }
+        }
     }
     // Experience earned this battle (setBattleExperience block for our toon).
     // RewardPanel shows a bar for every track the toon has, gained experience or not.

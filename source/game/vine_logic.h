@@ -32,6 +32,7 @@ struct VineSpec {
     float length;
     float baseAngleDeg;
     float period;
+    float spiderPeriod = 0.0f; // SwingVine.spiderPeriod: 0 = no spider on this vine
 };
 
 // Toon physics and attachment, in the game's (x, z) plane.
@@ -46,7 +47,21 @@ struct VineToonState {
     float velZ = 0.0f;
     float jumpTime = 0.0f; // game clock at the last jump (JumpTimeBuffer)
     bool facingRight = true;
+    uint8_t falling = 0;   // DistributedVineGame.FallingNot / FallingSpider (2) / FallingBat (3)
 };
+
+constexpr uint8_t kFallingSpider = 2;
+constexpr uint8_t kFallingBat = 3;
+constexpr float kHazardRadius = 1.7f; // VineSpider.RADIUS / VineBat.RADIUS
+
+// SwingVine.updateSpiders: the spider's point on the cable and its roll (Panda R, degrees).
+// spiderIval eases t 0 -> 1 over half a spider period and back (easeInOut), from enterPlay.
+bool spiderPose(int vineIndex, const VineSpec& vine, float gameTime, float* x, float* z, float* rollDeg);
+
+// Swing frame of the 144-frame 'swing' clip a held Toon shows (SwingVine.setupSwingAnimFull / Small /
+// Minimal, chosen by calcSwingAnimType from t * baseAngle), from the vine's swing phase.
+float swingFrame(const VineSpec& vine, float gameTime, float t, bool facingRight);
+constexpr float kJumpingFrame = 128.0f; // DistributedVineGame.JumpingFrame: posed while airborne
 
 // Fills the course for the server's vineSections (VineGameGlobals.CourseSections). Each section
 // contributes kVinesPerSection vines in order. Returns false for an out-of-range section.

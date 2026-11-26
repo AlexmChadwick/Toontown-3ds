@@ -38,7 +38,7 @@ int main() {
     assert(near(emoteDuration(7),94/24.0f));assert(near(emoteDuration(15),20/18.0f));
     assert(near(headGesture(.95f,true),0) && near(headGesture(.95f,false),0));
     int menu=-1,emotes=0;
-    for(int i=0;i<tt::sc::kNumMenus;i++) if(!std::strcmp(tt::sc::kMenus[i].title,"Emotes")) menu=i;
+    for(int i=0;i<tt::sc::kNumMenus;i++) if(!std::strcmp(tt::sc::kMenus[i].title,"EMOTIONS")) menu=i;
     assert(menu>=0);
     const auto& m=tt::sc::kMenus[menu];
     for(int i=0;i<m.numItems;i++) {const auto& item=tt::sc::kItems[m.firstItem+i];assert(item.value==65535 && item.emote>=0 && item.emote<25 && item.emote!=16);++emotes;}

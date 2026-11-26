@@ -5,6 +5,8 @@
 #include <cstring>
 
 #include "ui/projection.h"
+#include "world/suits.h"
+#include "world/suit_tables.h"
 #include "ui/speedchat_data.h"
 #include "net/net_platform.h"
 
@@ -19,8 +21,11 @@ constexpr float kSmoothTau = 0.1f;
 // Snap instead of gliding when a toon teleports or we missed many samples.
 constexpr float kSnapDistance = 30.0f;
 constexpr float kSpeedTau = 0.25f; // smoothing for the derived speed (avoids walk/run flicker)
-constexpr float kLowLodDistSq = 45.0f * 45.0f;
-constexpr float kHighLodDistSq = 35.0f * 35.0f;
+// The far plane is about 120. Toons inside it stay on LOD 500 (full detail in this
+// client; there is no LOD 1000 asset). LOD 250 is the pink low-detail body, and it
+// used to switch in at 45 units, which is still "nearby" on a street.
+constexpr float kLowLodDistSq = 120.0f * 120.0f;
+constexpr float kHighLodDistSq = 100.0f * 100.0f;
 constexpr float kMaxBalloonDistSq = 90.0f * 90.0f;
 
 
@@ -78,6 +83,14 @@ void RemoteToons::applyDna(Remote& r, const net::RemoteToon& t) {
         r.hasDna = true;
     }
     refreshLook(r);
+}
+
+// DistributedToon.setCogIndex: Toon.putOnSuit / takeOffSuit.
+void RemoteToons::applyDisguise(Remote& r, const net::RemoteToon& t) {
+    memcpy(r.cogTypes, t.cogTypes, sizeof(r.cogTypes));
+    memcpy(r.cogParts, t.cogParts, sizeof(r.cogParts));
+    memcpy(r.cogLevels, t.cogLevels, sizeof(r.cogLevels));
+    r.netSuit = disguiseCode(t.cogIndex, t.cogTypes, t.cogParts, &r.netRental);
 }
 
 void RemoteToons::refreshLook(Remote& r) {
@@ -139,9 +152,11 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         snprintf(r->name, sizeof(r->name), "%s", t->name);
         applyDna(*r, *t);
         r->stateAnim = animFromState(t->animState, &r->locomotion);
+        r->swimPitch = !strcmp(t->animState, "swim");
         r->avatar.play(r->stateAnim, 1.0f);
         r->stateRate=t->animRate;
         if(t->emoteSerial) { r->emoteSerial=t->emoteSerial;r->avatar.playEmote(t->emoteId,clipElapsed(net::plat::nowMs(),t->emoteMs)); }
+        applyDisguise(*r, *t);
         break;
     }
     case EventType::CatchHitBySuit:
@@ -170,7 +185,8 @@ void RemoteToons::handleEvent(const net::Event& ev, const net::Client& client) {
         }
         break;
     case EventType::Anim:
-        if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate; }
+        if (r && t) { r->stateAnim = animFromState(t->animState, &r->locomotion); r->stateRate=t->animRate;
+                      r->swimPitch = !strcmp(t->animState, "swim"); applyDisguise(*r, *t); }
         break;
     case EventType::TunnelOut:
         if (r && t) {
@@ -250,10 +266,43 @@ void RemoteToons::placeExternal(u32 doId, float x, float y, float z, float h) {
     r->gamePlaced = true;
 }
 
+void RemoteToons::setBattlePose(u32 doId, float x, float y, float z, float h, ToonAnim anim, bool once,
+                                u32 clipStartMs) {
+    Remote* r = find(doId);
+    if (!r) return;
+    r->x = r->tx = x;
+    r->y = r->ty = y;
+    r->z = r->tz = z;
+    r->h = r->th = h;
+    r->parent = net::kParentRender;
+    r->battlePosed = true;
+    r->battleAnim = anim;
+    r->battleOnce = once;
+    r->battleClipMs = clipStartMs;
+}
+
+void RemoteToons::clearBattlePoses() {
+    for (Remote& r : toons_) r.battlePosed = false;
+}
+
 void RemoteToons::update(float dt) {
     const float k = 1.0f - expf(-dt / kSmoothTau);
     for (Remote& r : toons_) {
         if (!r.active) continue;
+        if (r.battlePosed) {
+            r.speed = r.turnRate = 0.0f;
+            if (r.battleOnce) {
+                r.avatar.playAction(r.battleAnim, ClipMode::Once);
+                r.avatar.seek(float(int32_t(net::plat::nowMs() - r.battleClipMs)) / 1000.0f);
+            } else {
+                r.avatar.play(r.battleAnim, 1.0f);
+            }
+            r.avatar.setBodyPose(0.0f);
+            updateWorldPose(r);
+            r.avatar.update(dt);
+            r.phraseAge += dt;
+            continue;
+        }
         const float px=r.x,py=r.y,ph=r.h;
         if (r.inTunnelTrack) {
             r.tunnelAge += dt;
@@ -352,6 +401,7 @@ void RemoteToons::update(float dt) {
                 r.stateAnim==kAnimSitStart || r.stateAnim==kAnimTeleport || r.stateAnim==kAnimJump;
             r.avatar.playAction(r.stateAnim,once?ClipMode::Once:ClipMode::Loop,r.stateRate);
         }
+        r.avatar.setBodyPose(r.swimPitch ? -89.0f : 0.0f);
         updateWorldPose(r);
         r.avatar.update(dt);
         r.phraseAge += dt;
@@ -382,6 +432,10 @@ void RemoteToons::draw(render::Renderer& renderer, float cx, float cy) {
         Mtx_Identity(&m);
         Mtx_Translate(&m, r.wx, r.wy, r.wz, true);
         Mtx_RotateZ(&m, r.wh * kDegToRad, true);
+        bool rental = r.netRental;
+        const char* suit = suitMode_ == kSuitNet ? r.netSuit : disguiseCode(suitMode_, r.cogTypes, r.cogParts, &rental);
+        r.avatar.setDisguise(suit, rental);
+        r.shownSuit = suit;
         r.avatar.draw(renderer, m);
     }
 }
@@ -414,8 +468,20 @@ void RemoteToons::addBalloons(ui::Balloons& balloons, const C3D_Mtx& proj, const
     for (const Remote& r : toons_) {
         if (!r.active || r.distSq > kMaxBalloonDistSq) continue;
         float sx, sy, depth;
-        if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + r.look.nametagHeight, &sx, &sy, &depth)) {
-            balloons.addSpeaker(sx, sy, r.name, r.phrase, r.phraseAge, depth);
+        // Toon.putOnSuit: SuitBaseNameWithLevel ("name / suit / Level n") at the suit's height + 1.3.
+        const SuitInfo* suit = nullptr;
+        for (const SuitInfo& info : kSuitTypes)
+            if (r.shownSuit && !strcmp(info.code, r.shownSuit)) suit = &info;
+        char label[96];
+        const char* name = r.name;
+        if (suit) {
+            const int dept = suit->dept == 'c' ? 0 : suit->dept == 'l' ? 1 : suit->dept == 'm' ? 2 : 3;
+            snprintf(label, sizeof(label), "%s\n%s\nLevel %d", r.name, suit->name, r.cogLevels[dept] + 1);
+            name = label;
+        }
+        const float tagZ = suit ? suit->height + 1.3f : r.look.nametagHeight;
+        if (ui::projectToScreen(proj, view, r.wx, r.wy, r.wz + tagZ, &sx, &sy, &depth)) {
+            balloons.addSpeaker(sx, sy, name, r.phrase, r.phraseAge, depth);
         }
     }
 }

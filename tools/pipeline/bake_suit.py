@@ -25,25 +25,35 @@ def clothes(base,actor,dept='c'):
         part.setColor(1,1,1,1)
 
 
-def pack(base,path):
+def write_ttx(base,path,files,counts):
     import extract
     textures=[]
-    for dept in DEPTS:
-        for _,suffix,_ in SLOTS:
-            tex=base.loader.loadTexture(f'phase_3.5/maps/{dept}_{suffix}.jpg')
-            px,n,fmt=extract.texture_pixels(tex,64)
-            textures.append(ttm.Texture(f'{dept}_{suffix}',px,extract.choose_format(px,n,fmt)))
-    # TTX1's four table counts are reused as 3 entries per department, not Toon DNA.
-    names=32; entries=56; cursor=ttm._align(entries+48*len(textures));out=bytearray(cursor)
-    struct.pack_into('<4sHH4HII2I',out,0,b'TTX1',1,12,3,3,3,3,names,entries,0,0)
-    struct.pack_into('<12H',out,names,*range(12))
+    for name in files:
+        tex=base.loader.loadTexture(f'phase_3.5/maps/{name}.jpg')
+        px,n,fmt=extract.texture_pixels(tex,64)
+        textures.append(ttm.Texture(name,px,extract.choose_format(px,n,fmt)))
+    # TTX1's four table counts are reused as entries per department, not Toon DNA.
+    names=32; entries=(names+2*len(textures)+3)&~3; cursor=ttm._align(entries+48*len(textures));out=bytearray(cursor)
+    struct.pack_into('<4sHH4HII2I',out,0,b'TTX1',1,len(textures),*counts,names,entries,0,0)
+    struct.pack_into(f'<{len(textures)}H',out,names,*range(len(textures)))
     for i,t in enumerate(textures):
         struct.pack_into('<HHBBBBII32s',out,entries+i*48,t.w,t.h,t.fmt,t.mips,t.wrap_s,t.wrap_t,
                          cursor,len(t.data),t.name.encode().ljust(32,b'\0'))
         out.extend(t.data);cursor=ttm._align(len(out));out.extend(bytes(cursor-len(out)))
     path.write_bytes(out)
-    return dict(file=path.name,bytes=len(out),texture_bytes=sum(len(t.data) for t in textures),
-                departments=list(DEPTS),slots={node:slot for node,_,slot in SLOTS})
+    return dict(file=path.name,bytes=len(out),texture_bytes=sum(len(t.data) for t in textures))
+
+
+def pack(base,path):
+    stats=write_ttx(base,path,[f'{dept}_{suffix}' for dept in DEPTS for _,suffix,_ in SLOTS],(3,3,3,3))
+    return dict(stats,departments=list(DEPTS),slots={node:slot for node,_,slot in SLOTS})
+
+
+# Suit.makeRentalSuit: the Sellbot rental blazer / sleeve / leg (counts 3, 0, 0, 0; slots as
+# departments.ttx). Its hand texture is a flat grey glove (mean 209 / 255): the runtime scales the
+# hand tint instead. Only Sellbot has a rental suit; other departments keep their own cloth.
+def rental(base,path):
+    return write_ttx(base,path,[f'tt_t_ene_sellbotRental_{suffix}' for _,suffix,_ in SLOTS],(3,0,0,0))
 
 
 def head(base,out,code,spec):
@@ -73,8 +83,12 @@ def main():
     ap.add_argument('--out',type=Path,default=DATA/'suit')
     ap.add_argument('--no-variants',action='store_true')
     ap.add_argument('--heads-only',action='store_true',help='refresh heads in an existing complete bake')
+    ap.add_argument('--rental-only',action='store_true',help='write rental.ttx only (the manifest is left alone)')
     args=ap.parse_args();args.out.mkdir(parents=True,exist_ok=True)
-    base=ShowBase();specs,tables,anim_of=source_data()
+    base=ShowBase()
+    if args.rental_only:
+        print(rental(base,args.out/'rental.ttx'));base.destroy();return
+    specs,tables,anim_of=source_data()
     if args.heads_only:
         manifest=json.loads((args.out/'suit_manifest.json').read_text())
         for code,spec in specs.items():manifest['heads'][code]=head(base,args.out,code,spec)
@@ -85,7 +99,8 @@ def main():
                 entry['max_actor_texture_bytes']=entry['texture_bytes']+max(h['texture_bytes'] for h in heads)
                 assert entry['max_actor_texture_bytes']<=96*1024
         write_json(args.out/'suit_manifest.json',manifest);base.destroy();return
-    manifest=dict(version=1,fps=12,bodies={},heads={},attacks={},clothes=pack(base,args.out/'departments.ttx'))
+    manifest=dict(version=1,fps=12,bodies={},heads={},attacks={},clothes=pack(base,args.out/'departments.ttx'),
+                  rental=rental(base,args.out/'rental.ttx'))
     for code,spec in specs.items():
         manifest['heads'][code]=head(base,args.out,code,spec)
     for body in 'abc':
@@ -95,17 +110,17 @@ def main():
             species={c:{atk:(anim_of[atk] if anim_of[atk] in counts else 'throw-paper') for atk in s['attacks']}
                      for c,s in specs.items() if s['body']==body})
         manifest['bodies'][body]=bake_actor(base,args.out,prefix,f'phase_3.5/models/char/{prefix}-mod',clips,
-            {'full':1400,'low':327},lambda a:clothes(base,a),TINT_RULES,'joint_head')
+            {'full':1400,'low':327},lambda a:clothes(base,a),TINT_RULES,'joint_head',keep_cull=True)
         if not args.no_variants:
             phase=3.5 if body=='c' else 4
             lose={"lose":f'phase_{phase:g}/models/char/{prefix}-lose'}
             manifest['bodies'][body+'_lose']=bake_actor(base,args.out,prefix+'_lose',
                 f'phase_{phase:g}/models/char/{prefix}-lose-mod',lose,{'full':1400,'low':327},
-                lambda a:clothes(base,a),TINT_RULES,'joint_head')
+                lambda a:clothes(base,a),TINT_RULES,'joint_head',keep_cull=True)
             manifest['bodies'][body+'_skeleton']=bake_actor(base,args.out,prefix+'_skeleton',
-                f'phase_5/models/char/cog{body.upper()}_robot-zero',clips,{'full':1500,'low':400})
+                f'phase_5/models/char/cog{body.upper()}_robot-zero',clips,{'full':1500,'low':400},keep_cull=True)
             manifest['bodies'][body+'_skeleton_lose']=bake_actor(base,args.out,prefix+'_skeleton_lose',
-                f'phase_5/models/char/cog{body.upper()}_robot-lose-mod',lose,{'full':1500,'low':400})
+                f'phase_5/models/char/cog{body.upper()}_robot-lose-mod',lose,{'full':1500,'low':400},keep_cull=True)
     for body in 'abc':
         heads=[h for h in manifest['heads'].values() if h['body']==body]
         for lod,limit in [('full',1500),('low',400)]:

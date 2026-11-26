@@ -9,6 +9,8 @@ namespace tt::log {
 void init();
 void shutdown();
 void flush(); // force buffered lines to the SD card
+// On (the default, for boot): flush after every line. Off: at most once a second.
+void setFlushEveryLine(bool on);
 void write(const char* fmt, ...) __attribute__((format(printf, 1, 2)));
 
 constexpr int kRingLines = 8;

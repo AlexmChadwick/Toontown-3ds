@@ -124,6 +124,9 @@ struct CfoChild {
     bool rejected = false;
     bool grabbed = false;
     uint16_t style = 0;
+    // Treasures: setFinalPosition's flight from the goon (the setPosition before it).
+    float flyFromX = 0, flyFromY = 0, flyFromZ = 0;
+    uint32_t flyMs = 0;
 };
 CfoKind cfoKind(uint16_t classId);
 bool applyCfoField(CfoChild& state, uint16_t fieldId, DatagramReader& reader, uint32_t nowMs);

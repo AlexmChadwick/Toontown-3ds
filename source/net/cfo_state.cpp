@@ -81,6 +81,10 @@ bool applyCfoField(CfoChild& state, uint16_t fieldId, DatagramReader& reader, ui
     } else if (named("setStyle")) {
         next.style = reader.u16();
     } else if (named("setPosition") || named("setFinalPosition")) {
+        if (named("setFinalPosition")) {
+            next.flyFromX = next.x, next.flyFromY = next.y, next.flyFromZ = next.z;
+            next.flyMs = nowMs ? nowMs : 1;
+        }
         next.x = reader.i16() / 10.0f;
         next.y = reader.i16() / 10.0f;
         next.z = reader.i16() / 10.0f;

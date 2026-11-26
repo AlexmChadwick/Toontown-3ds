@@ -9,6 +9,7 @@
 #include "core/log.h"
 #include "net/msg_types.h"
 #include "game/name_tables.h"
+#include "quest/quest_text.h"
 #include "world/toon_dna.h"
 
 namespace tt::net {
@@ -386,6 +387,7 @@ bool Client::start(Transport& transport, const ClientConfig& cfg) {
     cfg_.playToken = token_;
     fatal_ = false;
     backoffMs_ = 0;
+    everConnected_ = false;
     error_ = "";
     ejectCode_ = 0;
     rejoinAvatarId_ = 0;
@@ -400,11 +402,19 @@ bool Client::connect() {
     now_ = plat::nowMs();
     fatal_ = false;
     backoffMs_ = 0;
+    everConnected_ = false;
     error_ = "";
     ejectCode_ = 0;
     rejoinAvatarId_ = 0;
     resetWorld();
     beginConnect();
+    return true;
+}
+
+bool Client::takeRelocation(uint32_t* zone) {
+    if (!relocatedZone_ || state_ != State::InZone || cfg_.zoneId != relocatedZone_) return false;
+    *zone = relocatedZone_;
+    relocatedZone_ = 0;
     return true;
 }
 
@@ -488,6 +498,21 @@ void Client::fail(const char* why, bool retry) {
     }
     transport_->disconnect();
     resetWorld();
+    // Every other zone from DynamicZonesBegin up (facility floors, minigames, estates, races,
+    // golf) is allocated for its riders and freed when they leave, so a disconnect destroys it:
+    // rejoining it gives an empty world. Go back to the last zone that outlives us (the facility
+    // lobby, the playground); a street cell becomes its playground, which needs no vis list.
+    if (cfg_.zoneId >= kDynamicZonesBegin) {
+        uint32_t back = lastStaticZone_ ? lastStaticZone_ : kTtcPlayground;
+        const bool streetCell = back < 10000 && back % 1000 != 0 && back % 1000 < 500;
+        if (streetCell) back -= back % 1000;
+        TT_LOG("net: zone %u is dynamic and dies with us; rejoining at zone %u", unsigned(cfg_.zoneId),
+               unsigned(back));
+        cfg_.zoneId = back;
+        targetZone_ = back;
+        numVisZones_ = 0;
+        relocatedZone_ = back;
+    }
     if (!retry || fatal_) {
         setState(State::Failed);
         return;
@@ -526,6 +551,7 @@ void Client::resetWorld() {
         if (c.active) pushEvent(EventType::CCharGone, c.doId);
         c.active = false;
     }
+    clearButterflies();
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearBattles();
@@ -536,6 +562,11 @@ void Client::resetWorld() {
     // [interior life]
     clearInteriorObjects();
     // [end interior life]
+    // A race or golf course from the dead session must not outlive it: Racing rebuilt itself
+    // from the stale race after a reconnect and acked its barrier, and Astron ejects a client
+    // that updates an object it no longer sees (117).
+    clearRacing();
+    clearGolfObjects();
     if (hadWorld) pushEvent(EventType::LeftZone, 0);
     clearFishing();
     for (District& d : districts_) d.active = false;
@@ -545,6 +576,7 @@ void Client::resetWorld() {
     ownBook_.initDefaults();
     movieHead_ = movieTail_ = 0;
     ownerReceived_ = false;
+    ownTutorialAck_ = -1;
     shardId_ = 0;
     timeManagerId_ = 0;
     tutorialManagerId_ = 0;
@@ -562,6 +594,7 @@ void Client::onSessionStart() {
     session_ = transport_->session();
     nextContext_ = 1;
     ejectCode_ = 0;
+    everConnected_ = true;
     sendHello();
     setState(State::Hello);
 }
@@ -612,6 +645,7 @@ void Client::update(uint32_t nowMs) {
 
     friendsUpdate(); // friends hook (client_friends.cpp)
     maybeFinishEnterZone();
+    if (state_ == State::InZone && cfg_.zoneId < kDynamicZonesBegin) lastStaticZone_ = cfg_.zoneId;
     // ChooseAvatar waits for the player; the heartbeat keeps the session alive.
     if (state_ != State::InZone && state_ != State::ChooseAvatar && now_ - stateSince_ > kStepTimeoutMs) {
         fail("server did not answer (timeout)", true);
@@ -796,6 +830,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
             }
             memset(t, 0, sizeof(*t));
             t->scIndex = -1;
+            t->cogIndex = -1;
             t->doId = doId;
             t->animRate = 1.0f;
             strcpy(t->animState, "neutral");
@@ -939,6 +974,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         handleGolfEnter(doId, classId, r, req, reqCount, other);
         return;
     }
+    if (handleButterflyEnter(doId, classId, r, req, reqCount, other)) return; // client_butterfly.cpp
     if (handleCogdoEnter(doId, classId, r, req, reqCount, other)) return; // cogdo
     if (handleBossEnter(doId, classId, r, req, reqCount, other)) return; // bosses
     if (handleLevelEnter(doId, classId, r, req, reqCount, other)) return; // client_level.cpp
@@ -971,7 +1007,7 @@ void Client::handleEnter(DatagramReader& r, uint16_t type) {
         return;
     }
     if (classHasField(*cls, dc::DistributedTreasure::k_requestGrab)) {
-        handleTreasureEnter(doId, r, req, reqCount, other);
+        handleTreasureEnter(doId, classId, r, req, reqCount, other);
         return;
     }
     if (classHasField(*cls, dc::DistributedCCharBase::k_setWalk)) {
@@ -1073,6 +1109,7 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
         handleTailorMovie(r, doId);
         return;
     }
+    if (handleButterflyField(r, doId, fieldId)) return;
     if (handleTrolleyField(r, doId, fieldId)) return;
     if (handleGolfField(r, doId, fieldId)) return;
     if (handleLevelField(r, doId, fieldId)) return; // client_level.cpp
@@ -1180,10 +1217,12 @@ void Client::handleSetField(DatagramReader& r, uint32_t doId, uint16_t fieldId) 
 }
 
 void Client::handleLeaving(uint32_t doId) {
+    if (butterflyLeft(doId)) return;
     // ---- clerks: a removed clerk cannot retain transaction authority ----
     if (clerkNewsManager_ == doId) {
         clerkNewsManager_ = 0;
         clerkFishHoliday_ = false;
+        sillyMeterHoliday_ = false;
         ++clerkProfile_.version;
     }
     if (clerkSession_.pending == doId || clerkSession_.movie.clerk == doId)
@@ -1286,6 +1325,10 @@ void Client::handleLeaving(uint32_t doId) {
             su.active = false;
             pushEvent(EventType::SuitGone, doId);
         }
+    }
+    if (tutorialSuitId_ && doId == tutorialSuitId_) { // the beaten Flunky: TutorialManager moves on
+        TT_LOG("net: tutorial Flunky %u gone", unsigned(doId));
+        tutorialSuitId_ = 0;
     }
     for (SuitPlanner& sp : planners_) {
         if (sp.active && sp.doId == doId) sp.active = false;
@@ -1586,7 +1629,8 @@ const char* Client::progressText() const {
     case State::EnterZone: return "Entering Toontown Central...";
     case State::InZone: return "In Toontown";
     case State::ChangingZone: return "Travelling...";
-    case State::Backoff: return "Connection lost. Reconnecting soon...";
+    case State::Backoff:
+        return everConnected_ ? "Connection lost. Reconnecting soon..." : "Can't reach the server. Trying again...";
     case State::Failed: return "Disconnected";
     }
     return "";
@@ -1608,6 +1652,12 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
     if (friendsOwnField(r, fieldId)) return r.ok(); // friends hook (client_friends.cpp)
     if (fieldId == dc::DistributedToon::k_setName) {
         r.string(ownName_, sizeof(ownName_));
+    } else if (fieldId == dc::DistributedToon::k_setCogIndex) {
+        ownCogIndex_ = r.i8();
+        TT_LOG("net: our cog index %d", int(ownCogIndex_));
+    } else if (fieldId == dc::DistributedToon::k_setTutorialAck) {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setTutorialAck, "u8"), "setTutorialAck layout changed");
+        ownTutorialAck_ = r.u8();
     } else if (fieldId == dc::DistributedToon::k_setDNAString) {
         Bytes b = r.blob();
         if (r.ok()) memcpy(ownDna_, b.data, b.len < kDnaSize ? b.len : kDnaSize);
@@ -1626,6 +1676,39 @@ bool Client::applyOwnField(DatagramReader& r, uint16_t fieldId) {
         if (fieldId == dc::DistributedToon::k_setMoney) ownStats_.money = v;
         if (fieldId == dc::DistributedToon::k_setMaxMoney) ownStats_.maxMoney = v;
         if (fieldId == dc::DistributedToon::k_setBankMoney) ownStats_.bankMoney = v;
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_toonUp || fieldId == dc::DistributedToon::k_takeDamage) {
+        // DistributedToon.toonUp / takeDamage: the AI's setHp follows; the gain is clamped to maxHp
+        static_assert(dc::sigEq(dc::DistributedToon::sig_toonUp, "u16"), "toonUp layout changed");
+        static_assert(dc::sigEq(dc::DistributedToon::sig_takeDamage, "u16"), "takeDamage layout changed");
+        const int v = r.u16();
+        if (!r.ok()) return false;
+        const int old = ownStats_.hp > 0 ? ownStats_.hp : 0;
+        int hp;
+        if (fieldId == dc::DistributedToon::k_toonUp) hp = old + v < ownStats_.maxHp ? old + v : ownStats_.maxHp;
+        else hp = old - v > 0 ? old - v : 0;
+        if (ownStats_.hp > 0 || fieldId == dc::DistributedToon::k_toonUp) ownStats_.hp = int16_t(hp);
+        if (hp != old) {
+            ownStats_.hpTextValue = int16_t(hp - old);
+            ownStats_.hpTextMs = now_ ? now_ : 1;
+        }
+        pushEvent(EventType::Stats, avatarId_);
+    } else if (fieldId == dc::DistributedToon::k_setTeleportAccess ||
+               fieldId == dc::DistributedToon::k_setHoodsVisited) {
+        uint32_t bits = 0;
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 4 && r.ok(); i++) {
+            const uint32_t hood = r.u32();
+            if (hood % 1000 == 0 && hood / 1000 < 32) bits |= 1u << (hood / 1000);
+        }
+        r.skip(bytes & 3); // malformed length: stay aligned with the next field
+        if (!r.ok()) return false;
+        if (fieldId == dc::DistributedToon::k_setTeleportAccess) {
+            ownStats_.teleportAccess = bits;
+            ownStats_.hasTeleportAccess = true;
+        } else {
+            ownStats_.hoodsVisited = bits;
+        }
         pushEvent(EventType::Stats, avatarId_);
     } else if (fieldId == dc::DistributedToon::k_setDefaultZone) {
         ownStats_.defaultZone = r.u32(); // where a sad toon goes (DistributedToon.died)
@@ -1744,8 +1827,8 @@ bool Client::handleNpcEnter(const dc::ClassDesc& cls, uint32_t doId, uint16_t cl
     return true;
 }
 
-bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_t* req, uint16_t reqCount,
-                                 bool other) {
+bool Client::handleTreasureEnter(uint32_t doId, uint16_t classId, DatagramReader& r, const uint16_t* req,
+                                 uint16_t reqCount, bool other) {
     Treasure* t = nullptr;
     for (Treasure& s : treasures_) {
         if (s.active && s.doId == doId) t = &s;
@@ -1756,6 +1839,7 @@ bool Client::handleTreasureEnter(uint32_t doId, DatagramReader& r, const uint16_
     if (!t) return false;
     Treasure tmp{};
     tmp.doId = doId;
+    tmp.classId = classId;
     bool ok = true;
     for (uint16_t i = 0; i < reqCount && ok; ++i) ok = applyTreasureField(tmp, r, req[i]);
     if (ok && other) {
@@ -2080,6 +2164,25 @@ bool Client::parseBattleMembers(Battle& b, DatagramReader& r) {
     return true;
 }
 
+bool Client::parseChosenToonAttacks(Battle& b, DatagramReader& r) {
+    // setChosenToonAttacks(uint32 ids[], int16 tracks[], int16 levels[], int32 targets[])
+    uint32_t ids[kBattleToons] = {};
+    int16_t tracks[kBattleToons] = {}, levels[kBattleToons] = {};
+    const int n = readU32Array(r, ids, kBattleToons);
+    const int nt = readI16Array(r, tracks, kBattleToons);
+    const int nl = readI16Array(r, levels, kBattleToons);
+    skipArray(r); // targets: the panel shows who chose what, not at whom
+    if (!r.ok()) return false;
+    b.numChosen = uint8_t(n < nt ? (n < nl ? n : nl) : (nt < nl ? nt : nl));
+    for (int i = 0; i < b.numChosen; ++i) {
+        b.chosenIds[i] = ids[i];
+        b.chosenTrack[i] = tracks[i];
+        b.chosenLevel[i] = levels[i];
+    }
+    b.chosenStateSeq = b.stateSeq;
+    return true;
+}
+
 bool Client::parseBattleMovie(Battle& b, DatagramReader& r) {
     BattleMovie m{};
     m.active = r.i8() == 1;
@@ -2161,6 +2264,9 @@ bool Client::applyBattleField(Battle& b, DatagramReader& r, uint16_t fieldId, bo
         break;
     case dc::DistributedBattle::k_setMovie:
         if (parseBattleMovie(b, r) && live && b.movie.active) pushEvent(EventType::BattleMovie, b.doId);
+        break;
+    case dc::DistributedBattle::k_setChosenToonAttacks:
+        if (parseChosenToonAttacks(b, r) && live) TT_LOG("net: battle %u chosen %d", unsigned(b.doId), int(b.numChosen));
         break;
     case dc::DistributedBattle::k_setBattleExperience:
         if (parseBattleExperience(b, r) && live) pushEvent(EventType::BattleExperience, b.doId);
@@ -2669,6 +2775,28 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         t.chat[0] = '\0';
         t.scIndex = index;
         t.chatMs = now_;
+        // Cross-play tests assert on these lines (the log prefix is the arrival time in ms).
+        TT_LOG("net: chat rx sc %u from %u", unsigned(index), unsigned(t.doId));
+        if (t.active) pushEvent(EventType::Chat, t.doId);
+        break;
+    }
+    case dc::DistributedToon::k_setSCToontask: {
+        // DistributedToon.setSCToontask: the receiver builds the sentence from the task tuple
+        // (TTSCToontaskTerminal.decodeTTSCToontaskMsg); an unknown one is dropped, as upstream.
+        const uint32_t taskId = r.u32(), toNpc = r.u32(), progress = r.u32();
+        const uint8_t msgIndex = r.u8();
+        if (!r.ok()) return false;
+        char text[quest::kScLen];
+        if (!quest::decodeScToontask(taskId, toNpc, progress, msgIndex, text, sizeof(text))) {
+            TT_LOG("net: chat rx sctask %u/%u/%u/%u from %u undecodable", unsigned(taskId), unsigned(toNpc),
+                   unsigned(progress), unsigned(msgIndex), unsigned(t.doId));
+            break;
+        }
+        snprintf(t.chat, sizeof(t.chat), "%.*s", int(sizeof(t.chat)) - 1, text); // phrases are <= 85 chars
+        t.scIndex = -1;
+        t.chatMs = now_;
+        TT_LOG("net: chat rx sctask %u/%u from %u \"%.80s\"", unsigned(taskId), unsigned(msgIndex), unsigned(t.doId),
+               t.chat);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2682,6 +2810,33 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
     case dc::DistributedToon::k_setMaxHp:
         t.maxHp = r.i16();
         break;
+    case dc::DistributedToon::k_setCogIndex:
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogIndex, "i8"), "setCogIndex layout changed");
+        t.cogIndex = r.i8();
+        if (t.active) pushEvent(EventType::Anim, t.doId); // RemoteToons re-reads the disguise
+        break;
+    case dc::DistributedToon::k_setCogTypes: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogTypes, "u8[]"), "setCogTypes layout changed");
+        const Bytes b = r.blob();
+        for (uint32_t i = 0; r.ok() && i < b.len && i < 4; i++) t.cogTypes[i] = b.data[i];
+        break;
+    }
+    case dc::DistributedToon::k_setCogLevels: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogLevels, "u8[]"), "setCogLevels layout changed");
+        const Bytes b = r.blob();
+        for (uint32_t i = 0; r.ok() && i < b.len && i < 4; i++) t.cogLevels[i] = b.data[i];
+        break;
+    }
+    case dc::DistributedToon::k_setCogParts: {
+        static_assert(dc::sigEq(dc::DistributedToon::sig_setCogParts, "u32[]"), "setCogParts layout changed");
+        const uint16_t bytes = r.u16();
+        for (uint16_t i = 0; i < bytes / 4 && r.ok(); i++) {
+            const uint32_t v = r.u32();
+            if (i < 4) t.cogParts[i] = v;
+        }
+        r.skip(bytes % 4);
+        break;
+    }
     case dc::DistributedToon::k_setTalk: {
         r.u32(); // from avatar
         r.u32(); // from account
@@ -2693,6 +2848,7 @@ bool Client::applyToonField(RemoteToon& t, DatagramReader& r, uint16_t fieldId) 
         copyBytes(t.chat, sizeof(t.chat), chat);
         t.scIndex = -1;
         t.chatMs = now_;
+        TT_LOG("net: chat rx talk from %u \"%.80s\"", unsigned(t.doId), t.chat);
         if (t.active) pushEvent(EventType::Chat, t.doId);
         break;
     }
@@ -2876,6 +3032,7 @@ void Client::dropZoneObjects() {
         if (c.active) pushEvent(EventType::CCharGone, c.doId);
         c.active = false;
     }
+    clearButterflies();
     if (boat_.active) pushEvent(EventType::BoatGone, boat_.doId);
     boat_.active = false;
     clearFishing();
@@ -3053,6 +3210,14 @@ void Client::sendRequestServerTime() {
     finish(w);
 }
 
+void Client::sendCheckTeleportAccess(uint32_t hoodId) {
+    if (state_ != State::InZone || !avatarId_) return;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, checkTeleportAccess);
+    w.u16(static_cast<uint16_t>(hoodId));
+    finish(w);
+}
+
 void Client::sendSetParent(uint32_t token) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedNode, setParent);
@@ -3116,6 +3281,21 @@ bool Client::sendAnimState(const char* name, float rate) {
     return finish(w);
 }
 
+// DistributedToon.b_squish(damage): a Cashbot HQ train ran us over (Train.__handleCollisionSphereEnter).
+bool Client::sendSquish(uint8_t damage) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, squish);
+    w.u8(damage);
+    return finish(w);
+}
+
+double Client::networkSeconds(uint32_t nowMs) const {
+    // globalClockDelta.getRealNetworkTime(bits=32) / NetworkTimePrecision
+    const int64_t ticks = ticksOf(int64_t(nowMs) - clockDeltaMs_);
+    return int32_t(uint32_t(uint64_t(ticks))) / 100.0;
+}
+
 bool Client::sendEmote(int id,float multiplier) {
     if (state_!=State::InZone || id < -1 || id>=25 || !std::isfinite(multiplier)) return false;
     if (id>=0 && (!ownStats_.hasEmotes || !ownStats_.emoteAccess[id])) return false;
@@ -3141,7 +3321,24 @@ bool Client::sendSpeedChat(uint16_t msgIndex) {
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
     TT_NET_OWN_UPDATE(w, DistributedToon, setSC);
     w.u16(msgIndex);
-    return finish(w);
+    if (!finish(w)) return false;
+    TT_LOG("net: chat tx sc %u", unsigned(msgIndex));
+    return true;
+}
+
+// TTSCToontaskMenu phrase: LocalToon.b_setSCToontask (ownsend broadcast).
+bool Client::sendSCToontask(uint32_t taskId, uint32_t toNpc, uint32_t progress, uint8_t msgIndex) {
+    if (state_ != State::InZone) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_OWN_UPDATE(w, DistributedToon, setSCToontask);
+    w.u32(taskId);
+    w.u32(toNpc);
+    w.u32(progress);
+    w.u8(msgIndex);
+    if (!finish(w)) return false;
+    TT_LOG("net: chat tx sctask %u/%u/%u/%u", unsigned(taskId), unsigned(toNpc), unsigned(progress),
+           unsigned(msgIndex));
+    return true;
 }
 
 // ---- Transitions (source/world/transition.*, docs/design/transitions.md) ----
@@ -3747,13 +3944,19 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (announce) pushEventArg(EventType::DivingFishSpawn, m.doId, int32_t((m.divingFishSpawnerId << 16) | (m.divingFishSpawnCode & 0xffff)));
     } else if (fieldId == dc::DistributedDivingGame::k_setCrabMoving) {
         m.divingCrabId = r.u32();
-        r.i16(); // ts
+        const int16_t ts = r.i16();
         m.divingCrabRand1 = r.i8();
         m.divingCrabRand2 = r.i8();
         m.divingCrabX = r.i16();
         m.divingCrabDir = r.i8();
         if (!r.ok()) return false;
-        if (announce) pushEventArg(EventType::DivingCrabMoving, m.doId, int32_t(m.divingCrabId));
+        // The whole update rides in the event (two crabs can move in one turn): doId = timestamp,
+        // arg = crabId | rand1 << 4 | rand2 << 8 | (dir < 0) << 12 | crabX << 16.
+        if (announce)
+            pushEventArg(EventType::DivingCrabMoving, uint32_t(uint16_t(ts)),
+                         int32_t((m.divingCrabId & 0xfu) | (uint32_t(m.divingCrabRand1) & 0xfu) << 4 |
+                                 (uint32_t(m.divingCrabRand2) & 0xfu) << 8 | uint32_t(m.divingCrabDir < 0) << 12 |
+                                 uint32_t(uint16_t(m.divingCrabX)) << 16));
     } else if (fieldId == dc::DistributedDivingGame::k_setTreasureDropped) {
         const uint32_t av = r.u32();
         const int16_t ts = r.i16();
@@ -4119,13 +4322,25 @@ bool Client::applyMinigameField(Minigame& m, DatagramReader& r, uint16_t fieldId
         if (!r.ok()) return false;
         if (announce) pushEvent(EventType::RaceChancePositions, m.doId);
     } else if (fieldId == dc::DistributedRaceGame::k_setServerChoices) {
+        // int8[] / uint8[] / int8[]: numPlayers entries per server turn (a chance reward adds a turn).
+        // Every byte is read; the first 16 (four turns of four) are kept.
+        constexpr uint16_t kKeep = sizeof(m.raceServerChoices);
         const uint16_t c1 = r.u16();
-        m.raceServerChoiceCount = c1;
-        for (uint16_t i = 0; i < c1 && i < 16 && r.ok(); ++i) m.raceServerChoices[i] = r.i8();
+        m.raceServerChoiceCount = c1 < kKeep ? c1 : kKeep;
+        for (uint16_t i = 0; i < c1 && r.ok(); ++i) {
+            const int8_t v = r.i8();
+            if (i < kKeep) m.raceServerChoices[i] = v;
+        }
         const uint16_t c2 = r.u16();
-        for (uint16_t i = 0; i < c2 && i < 16 && r.ok(); ++i) m.raceServerPositions[i] = r.u8();
+        for (uint16_t i = 0; i < c2 && r.ok(); ++i) {
+            const uint8_t v = r.u8();
+            if (i < kKeep) m.raceServerPositions[i] = v;
+        }
         const uint16_t c3 = r.u16();
-        for (uint16_t i = 0; i < c3 && i < 16 && r.ok(); ++i) m.raceServerRewards[i] = r.i8();
+        for (uint16_t i = 0; i < c3 && r.ok(); ++i) {
+            const int8_t v = r.i8();
+            if (i < kKeep) m.raceServerRewards[i] = v;
+        }
         if (!r.ok()) return false;
         if (announce) pushEvent(EventType::RaceServerChoices, m.doId);
 
@@ -4524,6 +4739,37 @@ bool Client::sendVineJumpingFromVine(uint32_t avId, int8_t vineIndex, int8_t fac
     return finish(w);
 }
 
+bool Client::sendVineFallingFromVine(uint32_t avId, int8_t vineIndex, int8_t facingRight, float posX, float posZ,
+                                     float velX, float velZ, int8_t fallingInfo) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setFallingFromVine);
+    w.u32(avId);
+    w.i8(vineIndex);
+    w.i8(facingRight);
+    w.i32(int32_t(posX * 100.0f));
+    w.i16(clampInt16(posZ * 100.0f));
+    w.i16(clampInt16(velX * 100.0f));
+    w.i16(clampInt16(velZ));
+    w.i8(fallingInfo);
+    return finish(w);
+}
+
+bool Client::sendVineFallingFromMidair(uint32_t avId, int8_t facingRight, float posX, float posZ, float velX, float velZ,
+                                       int8_t fallingInfo) {
+    if (!minigame_.active) return false;
+    DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
+    TT_NET_UPDATE(w, minigame_.doId, DistributedVineGame, setFallingFromMidair);
+    w.u32(avId);
+    w.i8(facingRight);
+    w.i32(int32_t(posX * 100.0f));
+    w.i16(clampInt16(posZ * 100.0f));
+    w.i16(clampInt16(velX * 100.0f));
+    w.i16(clampInt16(velZ));
+    w.i8(fallingInfo);
+    return finish(w);
+}
+
 bool Client::sendVineReachedEndVine(int8_t vineIndex) {
     if (!minigame_.active) return false;
     DatagramWriter w = beginMessage(msg::CLIENT_OBJECT_SET_FIELD);
@@ -4859,6 +5105,23 @@ uint32_t Client::findDoor(uint32_t block, uint8_t doorIndex) const {
     return 0;
 }
 
+uint32_t Client::findCogDoor(uint8_t doorIndex) const {
+    constexpr uint8_t kDoorExtCogHq = 7, kDoorIntCogHq = 8; // DoorTypes.EXT_COGHQ / INT_COGHQ
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if ((doors_[i].doorType == kDoorExtCogHq || doors_[i].doorType == kDoorIntCogHq) && doors_[i].doorIndex == doorIndex) {
+            return doors_[i].doId;
+        }
+    }
+    return 0;
+}
+
+bool Client::knowsDoor(uint32_t doId) const {
+    for (size_t i = 0; i < numDoors_; ++i) {
+        if (doors_[i].doId == doId) return true;
+    }
+    return false;
+}
+
 const CogBuilding* Client::findCogBuilding(uint32_t doId) const {
     for (const CogBuilding& b : cogBuildings_) if (b.active && b.doId == doId) return &b;
     return nullptr;
@@ -4898,6 +5161,10 @@ bool Client::applyCogBuildingField(CogBuilding& b, DatagramReader& r, uint16_t f
         // ---- end cogdo exterior states ----
         else b.state = CogBuildingState::Other;
         b.cogdoVictory = !strcmp(state, "waitForVictorsFromCogdo"); // cogdo
+        b.suitVictory = !strcmp(state, "waitForVictors");
+        if (strcmp(state, "toon") && strcmp(state, "suit") && strcmp(state, "cogdo")) // transitions only
+            TT_LOG("net: building %lu block %lu -> %s", static_cast<unsigned long>(b.doId),
+                   static_cast<unsigned long>(b.block), state);
         return r.ok();
     }
     return skipField(r, fieldId);

@@ -116,6 +116,24 @@ void PhotoGame::draw(render::Renderer& renderer) {
     (void)renderer; // the owning scene draws its real playground, not camera props as subjects
 }
 
+int PhotoGame::numSubjects() const {
+    const auto* data = photogame::getHoodPhotoData(sim_.safezoneId);
+    return data ? data->numPaths : 0;
+}
+
+bool PhotoGame::subjectPose(int i, float* x, float* y, float* z, float* h, const char** clip) const {
+    if (i < 0 || i >= numSubjects()) return false;
+    static photogame::SubjectPose pose[16];
+    if (i >= 16) return false;
+    sim_.getSubjectPose(i, elapsed_, pose[i]);
+    *x = pose[i].x;
+    *y = pose[i].y;
+    *z = pose[i].z;
+    *h = pose[i].h;
+    *clip = pose[i].poseName;
+    return true;
+}
+
 void PhotoGame::camera(C3D_FVec* eye, C3D_FVec* target) const {
     if (eye) {
         eye->x = eyeX_;

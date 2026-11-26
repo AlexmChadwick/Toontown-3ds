@@ -38,10 +38,18 @@ and runtime execution for the five facility room games across Cog Headquarters:
 #### Upstream Behaviour & Client Duties:
 1. **Grid Transform**: Spans `[0, gridScaleX]` in local X and `[0, gridScaleY]` in local Y.
    - Tile indices: `tileX = floor(localX / (gridScaleX / gridNumX))`, `tileY = floor(localY / (gridScaleY / gridNumY))`.
-2. **Visuals**:
-   - Ceiling projector node at `(gridScaleX * 0.5, gridScaleY * 0.5, 25.0)`.
-   - Grid wireframe / lines connecting cell borders on the floor (`zFloat = 0.05`).
-   - Active symbols drawn at tile centers (Minesweeper numbers 1-9, bombs, skulls, colored tiles).
+2. **Visuals** (`createGrid`, drawn by `Renderer::drawAdditive`): no floor model. Each tile whose
+   `setField` symbol is non-zero gets that symbol's outline (`makeGridSymbols`, generated into
+   `source/world/laser_symbols.h` by `tools/gen_laser_symbols.py`) as a 1-pixel wire in symbol colour
+   x 0.25, plus a beam fan from the spec `projector` point (black there, symbol colour x 0.04 on the
+   floor), all additive (`ColorBlendAttrib.MAdd`) with no depth write at `zFloat = 0.05`. The Toon's tile
+   adds `symbolSelect`. `genGrid` only runs while `activeLF`, so the drawn grid freezes when the AI
+   turns the field off.
+   - `setField` is `[gridNumX, gridNumY, column-major tiles]`: tile (x, y) is `fieldData[2 + x * numY + y]`.
+   - Traps (`sendFail`) are symbols 11 (hidden bomb) and 12 (skull). 13 is the harmless green triangle.
+   - In range (`__detect`, 0.75 of the larger side from the centre) the camera goes to
+     (0, -20 h / 3, h + 8) and the stage shows the game name (`LaserGame*`; stock uses the suit font,
+     we have only the sign font).
 3. **Interactivity**:
    - As the local toon moves onto a tile, detect index change and send `hit(newX, newY, oldX, oldY)`.
    - Stepping on a hazard tile (skull/bomb in Avoid/Minesweeper) sends `trapFire()`.
@@ -61,18 +69,15 @@ and runtime execution for the five facility room games across Cog Headquarters:
 | `trapFire` | `()` | airecv clsend | C→S | Toon caught in camera spotlight |
 
 #### Upstream Behaviour & Client Duties:
-1. **Tracking Mechanics**:
-   - Projector anchored at `(0, 0, 25.0)` in entity space.
-   - Floor target `(trackX, trackY)` smoothly pursues `(targetX, targetY)` of target entity 1, 2, or 3:
-     - `accel = 0.5`, `maxVel = 1.0`, `deccel = 1.0 - 7.0 * dt`.
-     - Direction vector normalized and scaled by component proportions.
-2. **Detection**:
-   - Spotlight radius: `self.radius = 5.0` units on the floor.
-   - Distance: `sqrt((localToonX - trackX)^2 + (localToonY - trackY)^2)`.
-   - If `distance < radius` and `canDamage`:
-     - Plays alarm `CHQ_GOON_tractor_beam_alarmed.tsnd` and shutter `LB_camera_shutter_2.tsnd`.
-     - Spot turns from green/white to red alert.
-     - Sends `trapFire()`. Cooldown period: 2.0 s.
+1. **Tracking**: nothing moves until `setTarget` arrives. `targetHash % 3` counts through the spec's
+   `trackTarget1..3` that are set; the floor spot (starting at (10, -5)) chases that entity with the
+   spec's `accel` / `maxVel` (per frame, as upstream), decelerating within `radius / 2 + 1`.
+2. **Visuals**: `square_stomper` (baked whole as `security_camera.ttm`) at (0, 1, 0) under a node at the
+   spec `projector` that looks at the spot (`hideModel` hides it); a beam fan from the projector (grey
+   0.2 there, black on the floor) and a floor disk (grey 0.2, red for 2 s after `trapFire`), additive,
+   one-sided, no depth write.
+3. **Detection**: the Toon within `radius` of the spot (x / y) sends `trapFire` at most every 2 s, with
+   the alarm and shutter sounds.
 
 ---
 
@@ -119,8 +124,12 @@ and runtime execution for the five facility room games across Cog Headquarters:
 ---
 
 ### 2.2 `DistributedGrid` & `DistributedGridGoon`
-- **`DistributedGrid`**: Renders textured floor wear quad `phase_9/models/cogHQ/FloorWear.bam` sized to `(cellSize * numCol, cellSize * numRow)`.
+- **`DistributedGrid`**: `FloorWear.bam` (`grid_floor.ttm`) scaled `cellSize / 6` times the long and short
+  sides (turned 90 when there are more rows than columns), flipped (`P 180`) and centred 0.025 above the
+  grid. Its own colour (white, alpha 0.36) wins over the node's `setColor`, so stock shows faint white scuffs.
 - **`DistributedGridGoon`**: Inherits from `DistributedGoon`, receives `setPathPts(xi, yi, zi, xf, yf, zf)` to navigate grid lanes between crate obstacles.
+- **Crushed crates** (`crushTask`): squashed to (1.2, 1.2, minScale) under the stomper and set back to
+  scale 1 two seconds later; we use 0.25 for minScale.
 
 ---
 
@@ -207,40 +216,44 @@ and runtime execution for the five facility room games across Cog Headquarters:
 
 ---
 
-## 5. Golf Greens: Bust-a-Cog (`DistributedGolfGreenGame`)
+## 5. Golf Greens: Bust-a-Cog (`DistributedGolfGreenGame`, `world/bust_a_cog.*`)
 
 - **Base class**: `BattleBlocker`
-- **Rooms**:
-  - `BossbotCountryClubGreenRoom_Action00`
-  - `BossbotCountryClubGreenRoom_Action01`
-  - `BossbotCountryClubGreenRoom_Action02`
-- **Models**:
-  - Board hole: `phase_12/models/bossbotHQ/bust_a_cog_hole.bam`
-  - Ball: `phase_6/models/golf/golf_ball.bam`
+- **Rooms**: `BossbotCountryClubGreenRoom_Action00..02` (`timeToPlay` 120 s, `puzzleBase` 3 + 1 per Toon).
+- **Models** (`bake_level_props.py golf bustacog`): on the floor `bust_a_cog_golf_green` (0.24) and its
+  flag (0.5, H -45 at (3, 4, 0), hidden while playing); the board `bust_a_cog_background`, the shooter
+  (`moving_part` baked apart, turned by the aim), the holes (`bust_a_cog_hole`) and GameSprite3D's balls
+  `bust_a_cog_ball_*`; sounds as `bac_*.tsnd` next to them.
 
 #### Network Surface (`toon.dc`):
-| Field | Type | Keywords | Direction | Purpose |
-|---|---|---|---|---|
-| `requestJoin` | `()` | airecv clsend | C→S | Toon stepped on golf tee-off spot |
-| `leaveGame` | `()` | airecv clsend | C→S | Toon exited golf spot |
-| `acceptJoin` | `uint16 boardsLeft, int32 timer, uint32 joined[]` | broadcast ram | S→C | Joins player into game session |
-| `requestBoard` | `uint8 index` | airecv clsend | C→S | Request puzzle board data |
-| `startBoard` | `golfGreenGameBoardData board[], uint8 choices[]` | broadcast | S→C | Initial board ball layout |
-| `signalDone` | `uint8 boardIndex` | broadcast ram | C→S | Board cleared |
-| `scoreData` | `uint8 boardsLeft, uint8 total, scoreData[]` | broadcast ram | S→C | Score and remaining boards update |
+| Field | Type | Direction | Purpose |
+|---|---|---|---|
+| `requestJoin` | `()` | C→S | the Toon entered the 11.5 sphere at the green |
+| `leaveGame` | `()` | C→S | Exit for Now, or after `signalDone` |
+| `acceptJoin` | `uint16 time, int32 timestamp, uint32 avIds[]` | S→C | joined Toons; with us newly in it: start, then `requestBoard(0)` |
+| `requestBoard` | `uint8 success` | C→S | the last board's result; asks for the next |
+| `startBoard` | `{posX, posZ, typeIndex}[], uint8 attackPattern[]` | S→C (to us) | a board |
+| `boardCleared` | `uint32 avId` | S→C (to us) | someone else cleared our board: fail it |
+| `helpOthers` | `uint32 avId` | S→C | another Toon solved one: our next ball is a bomb |
+| `informGag` | `uint8 track, uint8 level` | S→C (to us) | the gag won (bonus board, not drawn yet) |
+| `scoreData` | `uint8 total, uint8 closed, {avId, score}[]` | S→C | Puzzles Left = total - closed |
+| `setTimerStart` | `uint16 time, int32 timestamp` | S→C | the ToontownTimer |
+| `signalDone` | `uint8 success` | S→C | all done (Success! / Out of Time!); a failure costs every joined Toon 20 laff |
 
-#### Upstream Behaviour & Client Duties:
-1. **Golf Spots**:
-   - 4 tee-off spots: `(3, 13, 0)`, `(6, 13, 0)`, `(-3, 13, 0)`, `(-6, 13, 0)`.
-   - Stepping onto a spot sends `requestJoin()`. Server accepts with `acceptJoin()`.
-2. **Board Puzzle**:
-   - 9 columns × 15 rows staggered hexagonal grid.
-   - Colored spheres (Red, Blue, Green, Yellow, Wild, Bomb).
-   - Clearing matches of 3 or more of the same color eliminates rows.
-   - When board is cleared, sends `signalDone(boardIndex)`.
-3. **Blocker Resolution**:
-   - When all required boards are cleared (`boardsLeft == 0`), game is won and blocker opens.
-   - If timer runs out or toons choose combat, battle blocker initiates Cog fight.
+#### Game (client side, from `DistributedGolfGreenGame` + `GameSprite3D`)
+- Board frame: under the green at (0, 10, 2), P 90 (lying flat), seen from `__setCamera`: (0, 12, 27),
+  H 180, P -70, vertical fov 46.8. The Toon stands at `toonPoints[index]` facing H 180.
+- 9 x 15 hex grid, cell 1.4 x 1.12; balls of radius 0.7. Types: 0 red, 1 blue, 2 green, 3 the Cog ball,
+  4 black, 5 purple, 6 yellow, 7 bomb (orange / black), 8 wild (cycling colours), 9 steel (unbreakable),
+  10 fire (gives a bomb), 11 unknown (gives a wild ball).
+- The attack pattern feeds the shooter and the waiting ball; a shot flies at 14 units/s, bounces off the
+  side walls, sticks to the nearest open cell with a neighbour (any cell at the top). Three or more of a
+  colour (wild matches any) clear; balls no longer connected to the top fall; bombs clear their
+  neighbours. Every 10 s the board rolls down a row (warning bump at 3, 2, 1); a ball at the bottom
+  row fails the board. No Cog balls left = solved. Each result goes back as `requestBoard`.
+- 3DS controls: Circle Pad or D-Pad turns the aim, A shoots, B is Exit for Now.
+- Not drawn yet: the Toon head score panels, the bonus board (`informGag` / `helpOthers`), the How to
+  Play dialog, the Quit / timer buttons' QuitBtn art (the row countdown is not shown), the kapow on bombs.
 
 ---
 

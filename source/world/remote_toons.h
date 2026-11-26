@@ -32,6 +32,14 @@ public:
     // A game that places players from its own state (Race lanes, Pattern rows): the toon walks
     // (smoothed, with the speed-chosen clip) to this pose instead of its last broadcast sample.
     void placeExternal(u32 doId, float x, float y, float z, float h);
+    // DistributedBattle runs the movie on every client: a Toon in our battle stands where the
+    // battle puts it and plays the movie's clip (once from clipStartMs, or looped), this frame.
+    void setBattlePose(u32 doId, float x, float y, float z, float h, ToonAnim anim, bool once, u32 clipStartMs);
+    void clearBattlePoses();
+    // DistributedBossCog.putToonInCogSuit / loseCogSuits for every toon in the scene: draw() suits
+    // them in department `dept` (0..3), or none (-1), instead of their setCogIndex (kSuitNet).
+    static constexpr int kSuitNet = -2;
+    void setSuitMode(int dept) { suitMode_ = dept; }
     // Draws the nearest kMax toons to (cx, cy).
     void draw(render::Renderer& renderer, float cx, float cy);
     // Adds nametags/balloons for toons in front of the camera.
@@ -52,6 +60,12 @@ private:
         u32 parent = 0;                       // setParent token last applied to the pose
         float tx = 0, ty = 0, tz = 0, th = 0; // latest network sample
         char name[32] = {};
+        u8 cogTypes[4] = {};   // setCogTypes / setCogParts: the suit a boss scene puts on
+        u32 cogParts[4] = {};
+        u8 cogLevels[4] = {};
+        const char* netSuit = nullptr; // setCogIndex's disguise
+        const char* shownSuit = nullptr; // the suit draw() put on (nametag)
+        bool netRental = false;
         const char* phrase = nullptr;
         float phraseAge = 99.0f;
         ToonDna dna = defaultToonDna();
@@ -61,6 +75,7 @@ private:
         ToonAvatar avatar;
         bool locomotion = true; // anim state "run"/"walk"/"Happy": clip follows speed
         ToonAnim stateAnim = kAnimNeutral;
+        bool swimPitch = false; // Toon.enterSwim: geomNode P -89 (not swimhold)
         float stateRate = 1;
         u32 emoteSerial = 0;
         float catchFallAge = 2;
@@ -69,6 +84,10 @@ private:
         float distSq = 0;
         // Tunnel transition playback (source/world/transition.*)
         bool gamePlaced = false; // placeExternal owns the pose; broadcast samples are ignored
+        bool battlePosed = false; // setBattlePose owns pose and clip this frame
+        ToonAnim battleAnim = kAnimNeutral;
+        bool battleOnce = false;
+        u32 battleClipMs = 0;
         bool inTunnelTrack = false;
         bool isTunnelOut = false;
         float tunnelAge = 0.0f;
@@ -79,6 +98,8 @@ private:
         float tunnelOriginX = 0.0f, tunnelOriginY = 0.0f, tunnelOriginZ = 0.0f, tunnelOriginH = 0.0f;
     };
     Remote* find(u32 doId);
+    void applyDisguise(Remote& r, const net::RemoteToon& t);
+    int suitMode_ = kSuitNet;
     void applyDna(Remote& r, const net::RemoteToon& t);
     void refreshLook(Remote& r);
     void despawn(Remote& r);

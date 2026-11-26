@@ -10,12 +10,16 @@ void C2D_TextBufClear(C2D_TextBuf buffer) {
     buffer->glyphs = 0;
     ++buffer->generation;
 }
-void C2D_TextParse(C2D_Text* text, C2D_TextBuf buffer, const char* value) {
+namespace tt::render {
+C2D_Font uiFont() { return nullptr; }
+}
+const char* C2D_TextFontParse(C2D_Text* text, C2D_Font, C2D_TextBuf buffer, const char* value) {
     ++parses;
     text->begin = buffer->glyphs;
     buffer->glyphs += std::strlen(value);
     text->end = buffer->glyphs;
     text->generation = buffer->generation;
+    return value + std::strlen(value);
 }
 void C2D_TextOptimize(C2D_Text*) {}
 int main() {

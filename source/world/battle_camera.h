@@ -64,6 +64,8 @@ public:
     // Mode transitions
     void startFaceOff(uint32_t suitId, uint32_t startMs, uint32_t faceoffWalkMs);
     void startWaitForInput();
+    // DistributedBattleFinal.showSuitsJoining: camera at battle (20, -4, 7) h 60, or mirrored.
+    void startSuitsJoining(uint32_t startMs);
     void startReward(uint32_t localToonId, uint32_t startMs, uint32_t durationMs);
 
     // Build timeline of shots for an entire battle movie

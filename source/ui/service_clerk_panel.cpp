@@ -1,6 +1,9 @@
+#include "render/ui_font.h"
 #include "ui/service_clerk_panel.h"
 #include "core/log.h"
 #include "ui/clerk_tables.h"
+#include "ui/purchase_art.h"
+#include "ui/theme.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -21,6 +24,64 @@ void ServiceClerkPanel::result(const char *message) {
     resultUntil_ = now_ + 5000;
     active_ = dirty_ = true;
 }
+// The NPC's setMovie line, said with setChatAbsolute(CFSpeech | CFTimeout) over it (TTLocalizer);
+// the clerk's GUI is gone by then, so the panel closes.
+void ServiceClerkPanel::speak(const net::ClerkMovie &movie) {
+    const char *said = nullptr;
+    if (movie.mode == 8) {
+        said = "Need more time to think?"; // STOREOWNER_TOOKTOOLONG
+    } else if (kind_ == net::ClerkKind::Party) {
+        switch (movie.mode) { // PARTY_MOVIE_*
+        case 2: said = "Have fun planning your party!"; break;
+        case 3: said = "You can only host one party at a time, sorry."; break;
+        case 4: said = "Maybe next time.  Have a good day!"; break;
+        case 5: said = "Only paid toons can host a party, sorry."; break;
+        case 6: said = "Parties are coming soon! Try again later."; break;
+        case 7: said = "It costs a minimum of 100 jellybeans to plan a party."; break; // MinimumPartyCost
+        default: break;
+        }
+    } else if (movie.mode == clerks::kSellTrophy) {
+        std::snprintf(speech_, sizeof(speech_),
+                      "Wow! You collected %u of %u fish. That deserves a trophy and a Laff boost!",
+                      unsigned(movie.extra[0]), unsigned(movie.extra[1]));
+    } else {
+        const bool pets = kind_ == net::ClerkKind::Pet, kart = kind_ == net::ClerkKind::Kart;
+        switch (movie.mode) { // SELL_MOVIE_*
+        case 2:
+            said = kart ? "See you later!"
+                 : pets ? "These are some fine specimens! Thanks."
+                        : "Thanks! The Pet Shop will love these. Bye!";
+            break;
+        case clerks::kSellNoFish:
+            said = "Come back here to sell fish to the Pet Shop for jellybeans.";
+            break;
+        case 9: said = "Don't worry.  We'll find a good home for your Doodle."; break;
+        case 10:
+            said = "Congratulations on purchasing a Doodle! You can play with your new friend at your estate.";
+            break;
+        case 11:
+            said = kart ? "See you later!"
+                        : "Remember, if you see a Doodle you like, make sure to adopt him before someone else does!";
+            break;
+        default: break; // NO_MONEY: "should not be called", no line
+        }
+    }
+    if (said)
+        std::snprintf(speech_, sizeof(speech_), "%s", said);
+    if (said || movie.mode == clerks::kSellTrophy) {
+        speechClerk_ = clerk_;
+        speechUntil_ = now_ + 10000;
+    }
+    active_ = false;
+}
+
+const char *ServiceClerkPanel::clerkSpeech(uint32_t now, uint32_t *clerkDoId) const {
+    if (!speech_[0] || int32_t(speechUntil_ - now) <= 0)
+        return nullptr;
+    *clerkDoId = speechClerk_;
+    return speech_;
+}
+
 void ServiceClerkPanel::update(net::Client &client, uint32_t now) {
     client_ = &client;
     now_ = now;
@@ -43,56 +104,8 @@ void ServiceClerkPanel::update(net::Client &client, uint32_t now) {
             dirty_ = true;
         } else if (movie.mode == 255)
             result("The clerk is busy. Please try again.");
-        else if (movie.mode == 8)
-            result("Need more time to think? Your session expired.");
-        else if (kind_ == net::ClerkKind::Party) {
-            switch (movie.mode) {
-            case 6:
-                result("Parties are not available yet.");
-                break;
-            case 7:
-                result("You need more jellybeans to plan a party.");
-                break;
-            case 3:
-                result("You are already hosting too many parties.");
-                break;
-            case 5:
-                result("Only paid accounts can host parties.");
-                break;
-            default:
-                result("Maybe next time! Party planning is unavailable here.");
-                break;
-            }
-        } else {
-            switch (movie.mode) {
-            case 2:
-                result(kind_ == net::ClerkKind::Kart ? "Thanks for visiting the kart shop!"
-                                                     : "Thank you for the fish!");
-                break;
-            case clerks::kSellNoFish:
-                result("Your fish tank is empty.");
-                break;
-            case clerks::kSellTrophy:
-                std::snprintf(message_, sizeof(message_), "Fishing trophy! %u of %u species collected.",
-                              unsigned(movie.extra[0]), unsigned(movie.extra[1]));
-                page_ = Page::Result;
-                resultUntil_ = now + 5000;
-                active_ = dirty_ = true;
-                break;
-            case 9:
-                result("Your Doodle has been returned.");
-                break;
-            case 10:
-                result("Enjoy your new Doodle!");
-                break;
-            case 11:
-                result("See you later! Adoption cancelled.");
-                break;
-            default:
-                result("The clerk ended the transaction.");
-                break;
-            }
-        }
+        else
+            speak(movie);
     }
     if (!active_)
         return;
@@ -349,8 +362,12 @@ void ServiceClerkPanel::rebuild() {
     for (auto &line : strings_)
         line[0] = 0;
     std::snprintf(strings_[0], 128, "%s", title);
-    std::snprintf(strings_[1], 128, "Jar %d + bank %d  Tickets %u  %ds", money_, bank_, unsigned(tickets_),
-                  std::max(0, second_));
+    if (kind_ == net::ClerkKind::Kart)
+        std::snprintf(strings_[1], 128, "Jellybeans %d   Bank %d   Tickets %u", money_, bank_, unsigned(tickets_));
+    else
+        std::snprintf(strings_[1], 128, "Jellybeans %d   Bank %d", money_, bank_);
+    if (page_ != Page::Result)
+        std::snprintf(strings_[2], 128, "%d:%02d", std::max(0, second_) / 60, std::max(0, second_) % 60);
     if (page_ == Page::Result)
         std::snprintf(strings_[3], 128, "%s", message_);
     else if (page_ == Page::Menu) {
@@ -360,12 +377,12 @@ void ServiceClerkPanel::rebuild() {
                                                                      : "Return Doodle (confirm)";
             const char *rows[] = {"Sell fish", "Adopt a Doodle", returnLabel, "Done"};
             for (int index = 0; index < 4; ++index)
-                std::snprintf(strings_[3 + index], 128, "%s %s", selection_ == index ? ">" : " ", rows[index]);
+                std::snprintf(strings_[3 + index], 128, "%s", rows[index]);
             std::snprintf(strings_[7], 128, "Tank: %d fish, value %d beans", tank_, client_->clerkFishTotal());
         } else if (kind_ == net::ClerkKind::Kart) {
             const char *rows[] = {"Kart bodies", "Accessories", "Done"};
             for (int index = 0; index < 3; ++index)
-                std::snprintf(strings_[3 + index], 128, "%s %s", selection_ == index ? ">" : " ", rows[index]);
+                std::snprintf(strings_[3 + index], 128, "%s", rows[index]);
         } else if (kind_ == net::ClerkKind::Fisherman)
             std::snprintf(strings_[3], 128, "Sell %d fish for %d jellybeans?", tank_,
                           client_->clerkFishTotal());
@@ -413,25 +430,68 @@ void ServiceClerkPanel::rebuild() {
     }
     if (kind_ == net::ClerkKind::Kart && previewFailed_)
         std::snprintf(strings_[8], 128, "Preview assets unavailable. Install clerks/karts.");
-    std::snprintf(strings_[9], 128, "Prev       Next       A: choose       B: back");
+    std::snprintf(strings_[9], 128, "%s", page_ == Page::Result ? "OK" : "Choose");
     C2D_TextBufClear(buffer_);
     count_ = 10;
     for (int index = 0; index < count_; ++index) {
-        C2D_TextParse(&texts_[index], buffer_, strings_[index]);
+        tt::render::textParse(&texts_[index], buffer_, strings_[index]);
         C2D_TextOptimize(&texts_[index]);
+    }
+    static const char* const kButtons[3] = {"< Prev", "Next >", "Back"};
+    for (int index = 0; index < 3; ++index) {
+        tt::render::textParse(&btnText_[index], buffer_, kButtons[index]);
+        C2D_TextOptimize(&btnText_[index]);
     }
     dirty_ = false;
 }
+// Upstream's clerk GUIs are cream DirectGui panels; here the paper card with the countdown badge,
+// SpeedChat-style menu rows and the Prev / Next / Choose / Back buttons (handleInput's touch columns).
 void ServiceClerkPanel::draw() {
     if (!client_)
         return;
     if (dirty_)
         rebuild();
-    C2D_DrawRectSolid(0, 0, .1f, 320, 240, C2D_Color32(25, 37, 60, 255));
-    for (int index = 0; index < count_; ++index) {
-        const float y = index == 9 ? 212 : index * 23 + 6;
-        C2D_DrawText(&texts_[index], C2D_WithColor, 8, y, .6f, index == 0 ? .6f : .38f, index == 0 ? .6f : .38f,
-                     C2D_Color32(255, 255, 255, 255));
+    theme::sky();
+    theme::paper(4, 4, 312, 194, 8.0f);
+    auto line = [&](int index, float x, float y, float scale, u32 color) {
+        if (index < count_ && strings_[index][0])
+            theme::textFit(texts_[index], x, y, scale, color, 300 - x);
+    };
+    line(0, 14, 9, 0.62f, theme::kRedDark);
+    if (strings_[2][0]) { // the AI's deadline, like the battle timer
+        const bool low = second_ <= 10;
+        theme::roundRect(268, 9, 40, 20, 7, low ? theme::kRed : theme::kYellow);
+        theme::textCentered(texts_[2], 288, 10, theme::kTextBody, low ? theme::kWhite : theme::kInk, 36);
+    }
+    drawJarIcon(13, 29, 18); // our jellybeans (InventoryPage.moneyDisplay's jar)
+    line(1, 32, 33, theme::kTextSmall, theme::kInkSoft);
+    C2D_DrawRectSolid(12, 52, 0.5f, 296, 2, theme::kPaperShade);
+    const int rows = page_ != Page::Menu ? 0 : kind_ == net::ClerkKind::Pet ? 4 : kind_ == net::ClerkKind::Kart ? 3 : 0;
+    for (int index = 3; index <= 8; ++index) {
+        const float y = index * 23 + 6;
+        if (index - 3 < rows) {
+            const bool on = selection_ == index - 3;
+            theme::roundRect(12, y - 2, 296, 22, 5, theme::kScFrameEdge);
+            theme::roundRect(13, y - 1, 294, 20, 4, on ? theme::kScRollover : theme::kScFrame);
+            line(index, 22, y, theme::kTextBody, theme::kScText);
+        } else {
+            line(index, 14, y, theme::kTextBody, index == 7 && page_ != Page::Menu ? theme::kRedDark : theme::kInk);
+        }
+    }
+    // Bottom buttons in the touch columns (x < 75 Prev, < 150 Next, < 235 A, else B).
+    // Toontown's quit_button pills: the page arrows yellow, the main action cyan, cancel red.
+    struct Btn { float x, w; theme::Pill style; const C2D_Text* label; };
+    const Btn btns[4] = {{4, 68, theme::Pill::Yellow, &btnText_[0]},
+                         {79, 68, theme::Pill::Yellow, &btnText_[1]},
+                         {154, 78, theme::Pill::Cyan, &texts_[9]},
+                         {239, 77, theme::Pill::Red, &btnText_[2]}};
+    for (int i = 0; i < 4; ++i) {
+        if (i == 3 && page_ == Page::Result) continue; // a result only needs OK
+        // Prev / Next only where they page or move: not on a result, nor on a one-choice menu.
+        if (i < 2 && (page_ == Page::Result || (page_ == Page::Menu && rows <= 1))) continue;
+        const Btn& b = btns[i];
+        theme::pill(b.x, 206, b.w, 30, b.style);
+        theme::textCentered(*b.label, b.x + b.w * 0.5f, 212, theme::kTextBody, theme::pillInk(b.style), b.w - 14);
     }
 }
 } // namespace tt::ui

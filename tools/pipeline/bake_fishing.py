@@ -14,8 +14,9 @@ Outputs (all deterministic):
                    rod's own frame (butt at the origin, tip along +Y); rods.json has the
                    joint_attachBill (line start) position per rod.
   bob.ttm          fishing_bob, scaled 1.5 like upstream, origin at its centre.
-  line.ttm         unit ribbon from (0,0,0) to (0,1,0) (two crossed quads, white); the runtime
-                   scales it to the rod-tip -> bob distance. Upstream draws a Rope (alpha 0.4).
+  line.ttm         unit ribbon from (0,0,0) to (0,1,0) (two crossed quads, white, blended); the
+                   runtime scales it to the rod-tip -> bob distance and about a pixel wide, at
+                   upstream's Rope colour (1, 1, 1, 0.4).
   splash1.tsnd, splash2.tsnd   TT_splash1/2.ogg as PCM16 (bake_audio.bake_sfx)
 """
 import argparse
@@ -45,7 +46,7 @@ def line_batch():
             verts.append([-ax * w, y, -az * w, 0.0, 0.0, *white])
             verts.append([ax * w, y, az * w, 0.0, 0.0, *white])
         idx += [base, base + 1, base + 3, base, base + 3, base + 2]
-    return ttm.Batch(None, ttm.BLEND_OPAQUE, True, 0, 0, np.array(verts, dtype=np.float64),
+    return ttm.Batch(None, ttm.BLEND_ALPHA, True, 0, 0, np.array(verts, dtype=np.float64),
                      np.array(idx, dtype=np.int64))
 
 

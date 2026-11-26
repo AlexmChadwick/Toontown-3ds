@@ -52,7 +52,7 @@ public:
     using Fn = void (*)(void*);
     // prio/core are only used on 3DS (0x18..0x3F, lower = more urgent).
     bool start(Fn fn, void* arg, int prio, int core, size_t stackSize);
-    void join();
+    bool join(); // 3DS: bounded (500 ms); false = still running, leave its data alone
     bool running() const { return started_; }
 
 private:
@@ -69,14 +69,21 @@ bool socketsInit();
 void socketsExit();
 
 // Blocking-with-timeout TCP connect; the returned socket is non-blocking.
-// Returns -1 on failure (err describes why).
-int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err);
-// Waits until the socket is readable (or, if wantWrite, writable). Returns
-// false on timeout; true when ready or on error (the next recv/send reports it).
-bool tcpWait(int fd, bool wantWrite, int timeoutMs);
+// Returns -1 on failure; err then names the failing step, errno and poll revents
+// ("Couldn't connect: connect-recheck errno 113 (revents 0x08)").
+// abort (optional): polled every ~10 ms; set it to give up early (app exit).
+int tcpConnect(const char* host, uint16_t port, uint32_t timeoutMs, const char** err,
+               const volatile bool* abort = nullptr);
+// Waits until the socket is readable (or, if wantWrite, writable). Returns a mask of
+// kTcpReadable / kTcpWritable, 0 on timeout. Errors and hang-ups count as readable, so
+// the next recv reports them.
+constexpr int kTcpReadable = 1, kTcpWritable = 2;
+int tcpWait(int fd, bool wantWrite, int timeoutMs);
 // > 0 bytes moved; 0 would block; -1 closed by peer or error.
 int tcpRecv(int fd, void* buf, int len);
 int tcpSend(int fd, const void* buf, int len);
+// Step + errno of the last tcpRecv / tcpSend failure ("recv errno 104"), "" if none.
+const char* tcpLastIoError();
 void tcpClose(int fd);
 
 } // namespace tt::net::plat

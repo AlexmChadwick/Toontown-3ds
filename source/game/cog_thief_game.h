@@ -23,7 +23,9 @@ public:
     }
     CogThiefGame() = default;
 
-    bool init(const char* root, int numCogs = 5, float cogSpeed = cogthief::kCogSpeedTTC);
+    // hood: the trolley's playground (MinigameGlobals.getSafezoneId), which picks the floor and,
+    // with the player count, CogThiefGameGlobals' cog count and speed.
+    bool init(const char* root, u32 hood, int numPlayers);
     void shutdown();
 
     void update(net::Client& client, const circlePosition& pad, u32 keysDown, float dt, u32 nowMs);

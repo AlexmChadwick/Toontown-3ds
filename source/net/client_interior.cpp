@@ -130,18 +130,18 @@ bool Client::decodeLeaderboardPickle(const uint8_t* data, size_t len, HQLeaderbo
             stack[top++].type = PkType::Tuple;
             break;
         }
-        case '\x85': { // TUPLE1
+        case 0x85: { // TUPLE1
             if (top < 1) return false;
             stack[top - 1].type = PkType::Tuple;
             break;
         }
-        case '\x86': { // TUPLE2
+        case 0x86: { // TUPLE2
             if (top < 2) return false;
             --top;
             stack[top - 1].type = PkType::Tuple;
             break;
         }
-        case '\x87': { // TUPLE3
+        case 0x87: { // TUPLE3
             if (top < 3) return false;
             top -= 2;
             stack[top - 1].type = PkType::Tuple;

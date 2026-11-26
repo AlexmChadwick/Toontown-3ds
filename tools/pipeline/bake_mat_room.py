@@ -1,0 +1,174 @@
+#!/usr/bin/env python3
+"""Bake Make-A-Toon's room (phase_3/models/makeatoon/tt_m_ara_mat_room) for the front end.
+
+MakeAToon.load reparents the room's `floor` and `background` to render and keeps one shop's
+walls + props on screen at a time (genderWalls / genderProps, bodyWalls / ..., clothWalls /
+clothProps, nameWalls / nameProps). Moving between shops, dropRoom puts the new shop's walls and
+props on roomAnim_model's droppingJoint and plays roomAnim_roomDrop (they fall from 15 units up and
+bounce), while squishRoom / squishProp flatten the old ones on scalingJoint / propJoint
+(roomAnim_roomSquish / propSquish). All four joints are identity at rest, so every part is baked
+in room coordinates:
+
+    mat_room_common.ttm              floor, background and the translucent `spotlight` cone at its
+                                     default spotlightJoint placement (colour 1,1,1,0.3,
+                                     setPos(1.18, -1.27, 0.41), scale 2.6)
+    mat_room_<shop>_walls.ttm        one shop's walls       (gender, body, color, clothes, name)
+    mat_room_<shop>_props.ttm        one shop's props
+    mat_room_smoke_<1..6>.ttm        tt_m_ara_mat_smoke's frames (the SequenceNode dropRoom shows,
+                                     reversed from findAllMatches order as MakeAToon.load does)
+    source/ui/mat_room_tracks.h      the three joint tracks (21 frames at 24 fps: z offset, z scale)
+
+Textures: max 256 (the room fills the whole top screen), ETC1 by the usual rules. All parts draw
+from the same 15 makeatoon palettes, so the models are pooled (TTM v2 + one textures.ttp,
+tools/pipeline/ttm_pool.py): each payload is stored once, and a part loads only the ones it uses.
+
+    .venv/bin/python -I tools/pipeline/bake_mat_room.py [--res ref/resources] [--out romfs/baked/mat_room]
+"""
+import argparse
+import json
+import os
+import sys
+from pathlib import Path
+
+sys.dont_write_bytecode = True
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from panda3d.core import Filename, NodePath, TransparencyAttrib, loadPrcFileData  # noqa: E402
+
+loadPrcFileData('', 'window-type none\naudio-library-name null\nnotify-level warning\n'
+                'textures-power-2 none')
+from direct.actor.Actor import Actor  # noqa: E402
+from direct.showbase.ShowBase import ShowBase  # noqa: E402
+
+import extract  # noqa: E402
+import ttm  # noqa: E402
+import ttm_pool  # noqa: E402
+
+ROOT = Path(__file__).resolve().parents[2]
+HEADER = ROOT / 'source' / 'ui' / 'mat_room_tracks.h'
+# (output name, walls node, props node), in FrontEnd's kRoom* order.
+SHOPS = (
+    ('gender', 'genderWalls', 'genderProps'),
+    ('body', 'bodyWalls', 'bodyProps'),
+    ('color', 'colorWalls', 'colorProps'),
+    ('clothes', 'clothWalls', 'clothProps'),
+    ('name', 'nameWalls', 'nameProps'),
+)
+# roomAnim_model's spotlightJoint at rest (roomAnim_spotlightShake frame 0): a pure translation.
+SPOTLIGHT_JOINT = (-4.41766, -6.02209, 1.99801)
+SPOT_POS, SPOT_SCALE = (1.18, -1.27, 0.41), 2.6
+# (header array, animation file, joint)
+TRACKS = (
+    ('kMatRoomDrop', 'roomAnim_roomDrop', 'droppingJoint'),
+    ('kMatRoomSquish', 'roomAnim_roomSquish', 'scalingJoint'),
+    ('kMatPropSquish', 'roomAnim_propSquish', 'propJoint'),
+)
+MAX_TEX = 256
+
+
+def bake_part(room, path, nodes, out):
+    scene = NodePath(out.stem)
+    for node in nodes:
+        found = room.find('**/' + node)
+        if found.isEmpty():
+            sys.exit(f'{path} is missing {node}')
+        copy = found.copyTo(scene)
+        copy.setTransform(found.getTransform(room))
+    return scene
+
+
+def write(scene, out):
+    ex = extract.Extractor(max_tex=MAX_TEX)
+    ex.add(scene)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    stats = ttm.write(str(out), ex.textures, ex.batches())
+    print(f'{out}: {json.dumps(stats)}')
+
+
+def sample_tracks(base, res):
+    """Each joint's (z offset, z scale) per frame; x / y stay identity in all three."""
+    folder = res / 'phase_3' / 'models' / 'makeatoon'
+    rows = []
+    for name, anim, joint in TRACKS:
+        actor = Actor(str(folder / 'roomAnim_model.bam'), {'a': str(folder / (anim + '.bam'))})
+        actor.reparentTo(base.render)
+        exposed = actor.exposeJoint(None, 'modelRoot', joint)
+        frames = []
+        for f in range(actor.getNumFrames('a')):
+            actor.pose('a', f)
+            actor.update(force=True)
+            m = exposed.getMat(base.render)
+            x, y, z = m.getRow3(0).length(), m.getRow3(1).length(), m.getRow3(2).length()
+            t = m.getRow3(3)
+            if abs(x - 1) > 1e-3 or abs(y - 1) > 1e-3 or abs(t[0]) > 1e-3 or abs(t[1]) > 1e-3:
+                sys.exit(f'{anim}: frame {f} is not a pure z offset / scale')
+            frames.append((round(t[2], 4), round(z, 4)))
+        rows.append((name, anim, joint, actor.getFrameRate('a'), frames))
+        actor.cleanup()
+        actor.removeNode()
+    return rows
+
+
+def write_header(rows):
+    lines = ['// GENERATED by tools/pipeline/bake_mat_room.py. Do not edit.',
+             "// MakeAToon's room animations (roomAnim_model joints): per frame, the joint's z offset and z scale.",
+             '#pragma once', '', 'namespace tt::ui {', '',
+             'struct MatRoomKey {', '    float z, scaleZ;', '};']
+    rate, count = rows[0][3], len(rows[0][4])
+    if any(r[3] != rate or len(r[4]) != count for r in rows):
+        sys.exit('room tracks differ in rate or length')
+    lines += [f'constexpr float kMatRoomFps = {rate:.1f}f;', f'constexpr int kMatRoomFrames = {count};']
+    for name, anim, joint, _, frames in rows:
+        lines.append(f'constexpr MatRoomKey {name}[kMatRoomFrames] = {{ // {anim}, {joint}')
+        for z, s in frames:
+            lines.append(f'    {{{z:.4f}f, {s:.4f}f}},')
+        lines.append('};')
+    lines += ['', '} // namespace tt::ui', '']
+    HEADER.write_text('\n'.join(lines))
+    print(HEADER)
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--res', default=str(ROOT / 'ref' / 'resources'))
+    ap.add_argument('--out', default=str(ROOT / 'romfs' / 'baked' / 'mat_room'))
+    args = ap.parse_args()
+    res = Path(args.res).resolve()
+    out_dir = Path(args.out)
+    base = ShowBase()
+    path = res / 'phase_3' / 'models' / 'makeatoon' / 'tt_m_ara_mat_room.bam'
+    room = base.loader.loadModel(Filename.fromOsSpecific(str(path)))
+
+    common = bake_part(room, path, ('floor', 'background'), out_dir / 'mat_room_common.ttm')
+    spot = room.find('**/spotlight')
+    if spot.isEmpty():
+        sys.exit(f'{path} is missing spotlight')
+    spot = spot.copyTo(common)
+    spot.setPosHprScale(SPOTLIGHT_JOINT[0] + SPOT_POS[0], SPOTLIGHT_JOINT[1] + SPOT_POS[1],
+                        SPOTLIGHT_JOINT[2] + SPOT_POS[2], 0, 0, 0, SPOT_SCALE, SPOT_SCALE, SPOT_SCALE)
+    spot.setColor(1, 1, 1, 0.3)
+    spot.setTransparency(TransparencyAttrib.MAlpha)
+    write(common, out_dir / 'mat_room_common.ttm')
+    for name, walls, props in SHOPS:
+        for part, node in (('walls', walls), ('props', props)):
+            out = out_dir / f'mat_room_{name}_{part}.ttm'
+            write(bake_part(room, path, (node,), out), out)
+    smoke_path = res / 'phase_3' / 'models' / 'makeatoon' / 'tt_m_ara_mat_smoke.bam'
+    smoke = base.loader.loadModel(Filename.fromOsSpecific(str(smoke_path)))
+    frames = list(smoke.findAllMatches('**/smoke_*'))
+    frames.reverse()
+    if len(frames) != 6:
+        sys.exit(f'{smoke_path}: expected 6 smoke frames, found {len(frames)}')
+    for i, frame in enumerate(frames):
+        scene = NodePath(f'smoke_{i + 1}')
+        copy = frame.copyTo(scene)
+        copy.setTransform(frame.getTransform(smoke))
+        write(scene, out_dir / f'mat_room_smoke_{i + 1}.ttm')
+    write_header(sample_tracks(base, res))
+    ttm_pool.run(out_dir)
+    total = sum(f.stat().st_size for f in out_dir.iterdir())
+    print(f'{out_dir}: {total} bytes pooled')
+
+
+if __name__ == '__main__':
+    main()

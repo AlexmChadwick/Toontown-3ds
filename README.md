@@ -87,7 +87,7 @@ do not replace it. The result looks like this:
 
 ```
 sdmc:/3ds/toontown3ds/toontown3ds.3dsx   Homebrew Launcher app
-sdmc:/3ds/toontown3ds/data/             baked SD data set, about 480 MB
+sdmc:/3ds/toontown3ds/data/             baked SD data set, about 600 MB
 sdmc:/3ds/toontown3ds/server.txt        server settings (see below)
 ```
 
@@ -159,6 +159,12 @@ tools/server/start.sh --reset   # wipe accounts and toons first
 
 `start.sh` needs `ref/open-toontown` and `ref/resources`. The prebuilt `astrond` is
 x86_64, so on Apple silicon it runs under Rosetta. Logs go to `tools/server/logs/`.
+
+On Linux x86_64, run `tools/server/setup_linux.sh` once instead of `setup.sh`. It needs
+only curl and git (no sudo, no system compiler): it fetches a conda-forge toolchain with
+micromamba into `tools/server/.deps/`, builds `astrond` from Astron and the Panda3D fork
+from source, and creates `tools/server/.venv`. `start.sh` and `stop.sh` work on both
+systems.
 Test the server from the PC with `tools/server/smoke_test.py` before you involve the
 3DS. Then set `host=` in `server.txt` to the PC's LAN address.
 
@@ -209,7 +215,8 @@ see [docs/test-log.md](docs/test-log.md). Record results there.
 | `tools/pipeline` | offline bam/DNA → 3DS asset baker (Python) |
 | `tools/dev` | dev helpers (render-target dump decoder) |
 | `tools/toolchain` | from-source devkitARM bootstrap |
-| `meta` | icon, banner, CIA `app.rsf` |
+| `meta` | icon, 3D HOME banner (`banner.bnr` / `banner.cgfx`), CIA `app.rsf` |
+| `tools/banner` | Regenerate HOME Menu CBMD + BCWAV from `ref/resources` (see `tools/banner/README.md`) |
 | `ref` | upstream submodules: open-toontown (code) and resources (assets) |
 
 ## License

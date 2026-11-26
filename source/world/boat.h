@@ -8,6 +8,10 @@
 //   sdmc:/3ds/toontown3ds/data/zones/1000_boat.ttc   deck collision (boat-local frame): the local toon
 //                                                    rides it (Player::setPlatform), see deck()
 //   sdmc:/3ds/toontown3ds/data/audio/boat_{bell,foghorn,creak,lap}.tsnd   (tools/pipeline/bake_audio.py --set boat)
+//   sdmc:/3ds/toontown3ds/data/zones/1000_pier_{east,west}.ttm/.ttc   the two pier ramps, pier-pivot local
+//                                                    (bake_moving_props.py; boat.md "Bakefix pier handoff")
+// The piers are drawn whenever the toon is in the Donald's Dock playground, also with no boat
+// (then at the model's raised pose): the zone bake leaves them out of the static mesh.
 // The model loads on the shared background loader (world/asset_loader.h); nothing is drawn until
 // it is ready. Collision (4 KB) loads synchronously, sounds one per frame after spawn.
 #pragma once
@@ -21,6 +25,7 @@
 #include "render/renderer.h"
 #include "world/asset_loader.h"
 #include "world/collision.h"
+#include "world/player.h"
 
 namespace tt::world {
 
@@ -30,6 +35,10 @@ public:
     static constexpr float kDonaldOffset[3] = {0.0f, -1.0f, 3.95f};
 
     void handleEvent(const net::Event& ev, const net::Client& client);
+    // The current place: the piers load in the Donald's Dock playground (1000) and unload elsewhere.
+    void setZone(u32 zone);
+    // Floor and walls of the two piers at their current pitch (nullptr outside Donald's Dock).
+    const DynamicSolids* pierSolids() const { return piersReady_ ? &pierSolids_ : nullptr; }
     void update(u32 nowMs);
     // Listener (camera) for the boat's positional sounds; call before update().
     void setListener(float eyeX, float eyeY, float targetX, float targetY) {
@@ -52,6 +61,22 @@ public:
     float heading() const { return h_; }
 
 private:
+    struct Pier {
+        render::Model model;
+        LoadTicket ticket = kNoTicket;
+        CollisionWorld collision;
+        float pitch = 0.0f;        // degrees; the world transform is T(pivot) * Rz(heading) * Rx(pitch)
+        C3D_Mtx matrix;
+        CollTri world[16];         // the collision triangles at this pitch, in zone space
+        int numWorld = 0;
+    };
+    static constexpr int kPiers = 2; // east, west
+    void updatePiers(u32 nowMs);
+    void placePier(int i, float pitch);
+    void unloadPiers();
+    static bool pierFloor(void* self, float x, float y, float z, float* top);
+    static void pierPush(void* self, float* x, float* y, float z, float radius);
+
     void pose(u32 nowMs);
     void updateSounds();
     void playAt(int sfx, float x, float y);
@@ -76,6 +101,9 @@ private:
     float x_ = 0, y_ = 0, z_ = 0, h_ = 0;
     float sailT_ = 0; // seconds into the current Sailing* state
     C3D_Mtx matrix_;
+    Pier piers_[kPiers];
+    bool piersWanted_ = false, piersReady_ = false;
+    DynamicSolids pierSolids_;
 };
 
 } // namespace tt::world

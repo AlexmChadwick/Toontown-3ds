@@ -43,9 +43,27 @@ enum BattleClip : uint8_t {
     kClipDuck,
     kClipSlipForward,
     kClipSlipBackward,
+    // Gag clips (Movie*.py): Toon-Up, Trap, Lure, Sound, Squirt (toonAttackClip)
+    kClipTickle,
+    kClipSmooch,
+    kClipHappyDance,
+    kClipSprinkleDust,
+    kClipJuggle,
+    kClipClimb,
+    kClipToss,
+    kClipBattlecast,
+    kClipHoldMagnet,
+    kClipHypnotize,
+    kClipSound,
+    kClipSpit,
+    kClipWaterGun,
+    kClipHoldBottle,
+    kClipFirehose,
     kNumBattleClips
 };
 extern const char* const kBattleClipNames[kNumBattleClips];
+// The Toon's clip for a gag (track, level), as the stock movies play it.
+BattleClip toonAttackClip(int track, int level);
 // Cog battle clips (suit bake; BattleActorPose::clipArg = attack index for kSuitAnimAttack).
 constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAttack = 12, kSuitAnimLose = 13,
                   kSuitAnimDodge = 14;
@@ -53,6 +71,7 @@ constexpr uint8_t kSuitAnimReactPie = 10, kSuitAnimReactSquirt = 11, kSuitAnimAt
 // ToontownBattleGlobals track ids and BattleBase special values.
 enum BattleTrack : int { kTrackHeal = 0, kTrackTrap, kTrackLure, kTrackSound, kTrackThrow, kTrackSquirt, kTrackDrop };
 constexpr int kAttackPass = 98;  // BattleBase.PASS
+constexpr int kAttackSos = 99, kAttackNpcSos = 97, kAttackPetSos = 96, kAttackFire = 100; // SOS, NPCSOS, PETSOS, FIRE
 constexpr int kAttackNone = -1;  // NO_ATTACK
 
 // BattleBase.attackAffectsGroup(track, level) (AvPropTargetCat[AvPropTarget[track]][level]).
@@ -64,6 +83,7 @@ struct BattleActorPose {
     float x, y, z, h;   // feet, heading (degrees)
     float hop;          // extra height while attacking (shadow stays on the ground)
     float scale;        // 1 = normal
+    float joinScale;    // cogs: boss battle entrance scale (showSuitsJoining), 1 once grown
     float flash;        // 0..1 hit tint
     uint8_t anim;       // kBattleAnim* (toons) or SuitAnim / kSuitAnim* (cogs)
     int8_t clipArg;     // cogs: the attack index for kSuitAnimAttack
@@ -76,7 +96,7 @@ struct BattlePopup {
     float x, y, z;
     float age;          // seconds
     float rise;         // screen pixels per second to float up (0 = stay put)
-    char text[24];
+    char text[40];      // a damage number, or a line said in a movie ("Hi Peach! Glad to help!")
     uint32_t color;     // ABGR, as ui::Balloons takes it
 };
 
@@ -95,13 +115,25 @@ struct BattleCogView {
     uint32_t doId;
     char name[28];  // "Flunky"
     int level;      // displayed level
-    int hp, maxHp;
+    int hp, maxHp;  // maxHp 0 = not known yet (drawn full: a Cog joins at full health)
     bool active, lured, trapped;
+    char code[4];   // SuitDNA head code ("f", "tbc"); empty until the DNA arrives
+    bool skelecog;
 };
+constexpr int kBattleToonCards = 4; // net::kBattleToons (a battle holds four toons)
 struct BattleToonView {
     uint32_t doId;
     char name[24];
     bool active, running, local;
+    // TownBattleToonPanel's laff meter: broadcast setHp / setMaxHp (maxHp 0 = not known yet),
+    // the head species and head colour from the toon's DNA.
+    int hp, maxHp;
+    int species;     // world::Species
+    float rgb[3];
+    // This round's pick (setChosenToonAttacks): kChoiceNone until the toon chooses, else
+    // kChoiceGag (chosenTrack / chosenLevel), kChoicePass or kChoiceSos.
+    enum Choice : uint8_t { kChoiceNone, kChoiceGag, kChoicePass, kChoiceSos, kChoiceFire } choice;
+    int8_t chosenTrack, chosenLevel;
 };
 struct BattleRewardRow {
     int track;
@@ -128,12 +160,34 @@ struct BattleView {
     // DistributedBattleTutorial: InventoryNew.show with tutorialFlag points arrows at the
     // throw and squirt buttons under "Click a gag to attack" (TTLocalizer.InventoryClickToAttack).
     bool tutorialArrows = false;
+    // Movie.playTutorialReward's TTDialog (MovieTutorialReward1 / 2) over the RewardPanel, or null.
+    const char* tutorialDialog = nullptr;
     // ---- end tutorial ----
+    // InventoryNew's battle buttons: Fire needs a pink slip (setPinkSlips); SOS lists our
+    // Rescued Toons (setNPCFriendsDict: NPC id, calls left). The tutorial hides both.
+    int pinkSlips = 0;
+    bool canSos = false, canFire = false;
+    int numSosCards = 0;
+    struct SosCard {
+        uint16_t npcId;
+        uint8_t count;
+    } sosCards[16] = {};
+};
+
+// One step of the round's movie in the order Movie.py plays it, as Battle::buildMovie timed it
+// (ms after the movie starts), so the battle camera frames exactly what is on screen.
+struct BattleMovieStep {
+    enum Kind : uint8_t { kToonGag, kSpecial, kSuit } kind;
+    uint32_t startMs, durMs;
+    uint32_t who, target;  // doIds (target 0 = none / group)
+    int8_t track, level;   // kToonGag: the gag played (an SOS Toon's own gag too); kSuit: level = attack
+    bool group;            // kSuit: every toon is a target
 };
 
 // What the panel asks for.
 struct BattleAction {
-    enum Kind : uint8_t { None, Attack, Pass, Run, Continue } kind = None;
+    // NpcSos: call Rescued Toon `target` (an NPC id). Fire: pink-slip the cog `target`.
+    enum Kind : uint8_t { None, Attack, Pass, Run, Continue, NpcSos, Fire } kind = None;
     int track = 0, level = 0;
     uint32_t target = 0; // cog doId (toon doId for single target heals); 0 for group attacks
 };
@@ -142,7 +196,18 @@ struct BattleAction {
 struct CogPoseSource {
     bool (*pose)(void* user, uint32_t doId, float* x, float* y, float* z, float* h) = nullptr;
     void* user = nullptr;
+    // DistributedBattleFinal: a joiner leaves the boss at scale joinHeight / height and grows to 1
+    // over 1.5 s starting 1.5 s into its walk (0: no entrance scale).
+    float joinHeight = 0.0f;
 };
+// DistributedBattleFinal.showSuitsJoining: a boss battle's joining Cogs walk out of the boss
+// cog (setPos(bossCog, 0, 0, 0)), not from where their actors stand. user: float[3] position.
+constexpr float kBossJoinHeight = 3.8f; // suit.setScale(3.8 / suit.height)
+inline bool bossCogOrigin(void* user, uint32_t, float* x, float* y, float* z, float* h) {
+    const float* p = static_cast<const float*>(user);
+    *x = p[0], *y = p[1], *z = p[2], *h = 0.0f;
+    return true;
+}
 
 class Battle {
 public:
@@ -174,8 +239,18 @@ public:
     // forcedTrack: a gag track 0..6, -1 for the normal choice, or kAutoPass to pass every round.
     static constexpr int kAutoPass = 7;
     void setAutoPlay(bool on, int forcedTrack = -1) { autoPlay_ = on; forcedTrack_ = forcedTrack; }
+    void setAutoDelay(uint32_t ms) { autoDelayMs_ = ms ? ms : 700; } // test-only: the pick's wait
     void setForcedTrack(int track) { forcedTrack_ = track; }
     int forcedTrack() const { return forcedTrack_; }
+
+    int numMovieSteps() const { return numSteps_; }
+    // buildMovie records each step here (public for the camera host test).
+    void addStep(BattleMovieStep::Kind kind, uint32_t start, uint32_t dur, uint32_t who, uint32_t target, int track,
+                 int level, bool group = false) {
+        if (numSteps_ < kMaxSteps)
+            steps_[numSteps_++] = BattleMovieStep{kind, start, dur, who, target, int8_t(track), int8_t(level), group};
+    }
+    const BattleMovieStep& movieStep(int i) const { return steps_[i]; }
 
     BattleCamera& camera() { return camera_; }
     const BattleCamera& camera() const { return camera_; }
@@ -243,6 +318,7 @@ private:
         // lowers suit.currHP locally; the AI only resends it after the battle).
         int damage = 0;
         int8_t attackTrack = -1;     // toons: gag of the current attack; cogs: attack index
+        int8_t attackLevel = 0;      // toons: the gag level (picks the Movie*.py clip)
         int8_t reactTrack = -1;      // cogs: the gag track that hit them (pie vs squirt react)
         uint32_t clipStartMs = 0;
         uint32_t reactUntil = 0;     // toons: cringe (hit) / sidestep (miss) until then
@@ -253,8 +329,12 @@ private:
         int baseHp = -1;
         uint32_t faceUntil = 0;
         float faceH = 0;
+        float joinScale = 1.0f;      // boss battle entrance: scale until joinGrowMs, then grows to 1
+        uint32_t joinGrowMs = 0;
     };
-    enum FxKind : uint8_t { kFxAttack, kFxHit, kFxMiss, kFxHeal, kFxDie };
+    // kFxSay: `value` indexes says_ (a line over `who`); kFxGesture: the throw clip toward `other`
+    // with no gag prop (MovieFire's pink slip).
+    enum FxKind : uint8_t { kFxAttack, kFxHit, kFxMiss, kFxHeal, kFxDie, kFxSay, kFxGesture };
     struct Fx {
         uint32_t at;     // ms after the movie started
         uint8_t kind;
@@ -275,7 +355,7 @@ private:
     void goTo(Actor& a, float tx, float ty, float th, float speed, uint32_t startMs, float durOverride);
     void onState(net::Client& client, const net::Battle& nb, uint32_t nowMs);
     void startMovie(net::Client& client, const net::Battle& nb, uint32_t nowMs);
-    void buildMovie(const net::BattleMovie& m);
+    void buildMovie(const net::Client& client, const net::BattleMovie& m);
     void runFx(uint32_t nowMs);
     void addFx(uint32_t at, uint8_t kind, uint32_t who, uint32_t other, int value, int track = -1, int level = 0);
     void addPopup(const Actor& a, const char* text, uint32_t color, uint32_t nowMs, uint32_t lifeMs = 1600,
@@ -321,14 +401,22 @@ private:
     bool running_ = false;
     bool autoPlay_ = false;
     uint32_t autoAtMs_ = 0;
+    uint32_t autoDelayMs_ = 700;
     bool wentSad_ = false;
     const char* message_ = nullptr;
     bool tauntShown_ = false;
 
     // movie
+    static constexpr int kMaxSteps = 8, kMaxSays = 8;
+    BattleMovieStep steps_[kMaxSteps] = {};
+    int numSteps_ = 0;
+    char says_[kMaxSays][40] = {};
+    int numSays_ = 0;
+    int addSay(const char* text);
     Fx fx_[kMaxFx];
     int numFx_ = 0, fxCursor_ = 0;
     uint32_t movieStartMs_ = 0, movieEndMs_ = 0;
+    uint32_t movieRetryMs_ = 0; // last movieDone attempt; resent while PlayMovie ignores the first
     bool movieSent_ = false;
     bool moviePlaying_ = false;
     BattleFx* battleFx_ = nullptr;
@@ -338,6 +426,7 @@ private:
     uint32_t popupLifeMs_[kMaxPopups] = {};
     int numPopups_ = 0;
 
+    bool finalBattle_ = false;
     BattleActorPose suitPoses_[net::kBattleSuits];
     BattleActorPose toonPoses_[net::kBattleToons];
     int numSuitPoses_ = 0, numToonPoses_ = 0;

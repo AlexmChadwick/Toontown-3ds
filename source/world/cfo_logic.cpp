@@ -23,6 +23,69 @@ const CfoPlacement kCfoSafes[9] = {
     {{107, -274.7f, 0}, 180}, {{134.2f, -274.7f, 0}, 180}
 };
 
+namespace {
+struct PosHpr {
+    float x, y, z, h, p;
+};
+Vec3 lerp(Vec3 a, Vec3 b, float u) {
+    return {a.x + (b.x - a.x) * u, a.y + (b.y - a.y) * u, a.z + (b.z - a.z) * u};
+}
+float window(float t, float start, float length) { return std::clamp((t - start) / length, 0.0f, 1.0f); }
+// Panda camera pos / hpr -> eye and a look-at point 10 units ahead.
+void aim(const PosHpr& a, const PosHpr& b, float u, Vec3* eye, Vec3* target) {
+    const float h = (a.h + (b.h - a.h) * u) * kDegrees, p = (a.p + (b.p - a.p) * u) * kDegrees;
+    *eye = lerp({a.x, a.y, a.z}, {b.x, b.y, b.z}, u);
+    *target = {eye->x - std::sin(h) * std::cos(p) * 10, eye->y + std::cos(h) * std::cos(p) * 10,
+               eye->z + std::sin(p) * 10};
+}
+}
+
+void cfoIntro(float t, CfoIntroShot* out) {
+    // Cue times (s) of the stock Sequence: Wait(3), camera 4 s alongside the walk (3 s) and door2
+    // (3 s), door1 2 s, the boss roll (35 units at BossCogRollSpeed 7.5 then a 90 degree turn at
+    // BossCogTurnSpeed 20), DiscoverToons 1.5 + 4 s, both loseCogSuits (1 s + Wait 1 each), the run.
+    constexpr float kWalk = 3, kTooLate = 9, kRoll = 11, kTurn = kRoll + 35 / 7.5f, kDiscover = kTurn + 4.5f;
+    constexpr float kSuitsOff = kDiscover + 5.5f, kBusy = kSuitsOff + 3, kRun = kBusy + 1, kAttack = kRun + 4;
+    static const PosHpr kStart{82, -219, 5, 267, 0}, kDoor{108, -244, 4, 211.5f, 0}, kVault{61.1f, -228.8f, 10.2f, -90, 0},
+        kLow{93.3f, -230, 0.7f, -92.9f, 39.7f}, kToons{113, -228, 10, 90, 0}, kRuth{133, -243, 5, 143, 0};
+    if (t < kWalk) aim(kStart, kStart, 0, &out->eye, &out->target);
+    else if (t < kTooLate) aim(kStart, kDoor, window(t, kWalk, 4), &out->eye, &out->target);
+    else if (t < kDiscover) aim(kVault, kVault, 0, &out->eye, &out->target);
+    else if (t < kSuitsOff) aim(kVault, kLow, window(t, kDiscover, 1.5f), &out->eye, &out->target);
+    else if (t < kSuitsOff + 2) aim(kToons, kToons, 0, &out->eye, &out->target);
+    else if (t < kAttack) aim(kRuth, kRuth, 0, &out->eye, &out->target);
+    else aim(kLow, kLow, 0, &out->eye, &out->target);
+
+    // CashbotRTBattleOneStartPosHpr, walk to the vault door, face back, run off to the cranes.
+    out->resistance = lerp({94, -220, 0}, {120, -255, 0}, window(t, kWalk, 3));
+    out->resistanceHeading = t < kWalk ? 110 : t < kTooLate ? 110 + 70 * window(t, kWalk, 1) : 0;
+    if (t >= kRun) {
+        out->resistanceHeading = 180 * window(t, kRun, 1);
+        out->resistance = t < kRun + 2.5f ? lerp({120, -255, 0}, {109, -294, 0}, window(t, kRun + 1, 1.5f))
+                                           : lerp({109, -294, 0}, {93.935f, -341.065f, 2}, window(t, kRun + 2.5f, 1.5f));
+    }
+    out->resistanceRunning = (t >= kWalk && t < kWalk + 3) || (t >= kRun && t < kAttack);
+
+    out->boss = lerp({120, -195, 0}, {120, -230, 0}, window(t, kRoll, kTurn - kRoll));
+    out->bossHeading = 180 - 90 * window(t, kTurn, 4.5f);
+    out->bossVisible = t >= kRoll;
+    out->toonsSuited = t < kSuitsOff + 0.3f;
+    out->suitsOff = kSuitsOff;
+    out->resistanceSuited = t < kSuitsOff + 2.3f;
+
+    out->resistanceChat = nullptr, out->resistanceChatAge = 0;
+    if (t < kWalk + 2) out->resistanceChat = "Hey, you made it!  Follow me to the main vault before the C.F.O. finds us!",
+        out->resistanceChatAge = t;
+    else if (t >= kTooLate && t < kRoll + 3) out->resistanceChat = "Blast it!  We're too late!", out->resistanceChatAge = t - kTooLate;
+    else if (t >= kBusy && t < kAttack) out->resistanceChat = "Keep him busy!  I'm going to set a trap!",
+        out->resistanceChatAge = t - kBusy;
+    out->bossChat = nullptr, out->bossChatAge = 0;
+    if (t >= kDiscover && t < kDiscover + 1.5f) out->bossChat = "Ah-HAH!", out->bossChatAge = t - kDiscover;
+    else if (t >= kDiscover + 1.5f && t < kSuitsOff)
+        out->bossChat = "I thought I smelled something a little toony in here!  Imposters!", out->bossChatAge = t - kDiscover - 1.5f;
+    else if (t >= kAttack && t < kAttack + 2) out->bossChat = "Get them!!!", out->bossChatAge = t - kAttack;
+}
+
 Vec3 cfoToWorld(Vec3 local, CfoPlacement placement) {
     const float sine = std::sin(placement.heading * kDegrees);
     const float cosine = std::cos(placement.heading * kDegrees);
@@ -117,6 +180,7 @@ const char* cfoClip(const net::BossState& state, uint32_t nowMs) {
         return age < 2 ? "Fb_firstHit" : age < 5.5f ? "Fb_down2Up" : "Ff_neutral";
     }
     if (!std::strcmp(state.phase, "BattleThree") && state.attack == net::kBossDizzy) return "Fb_downNeutral";
+    if (!std::strcmp(state.phase, "Introduction")) return "Ff_neutral"; // the intro rolls in on Ff_neutral
     return vpClip(state, nowMs);
 }
 } // namespace tt::world

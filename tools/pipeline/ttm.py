@@ -13,12 +13,14 @@ section pointers straight to the GPU after copying into linear memory):
       u8 wrapS; u8 wrapT (GPU_TEXTURE_WRAP_PARAM); u32 dataOffset; u32 dataSize; char[32] name
     Batch entry (24 bytes)
       u16 texture (0xFFFF = none); u8 blend (0 opaque, 1 alpha test, 2 alpha blend)
-      u8 flags (bit0 two-sided); u8 tintSlot (0 = none); u8 layer (draw-in-front order)
+      u8 flags (bit0 two-sided; bit1 the texture's source is anisotropic: the runtime
+      samples it one mip finer, kAnisoLodBias); u8 tintSlot (0 = none); u8 layer (draw-in-front order)
       u8 texSlot (0 = own texture; 1 shirt, 2 sleeve, 3 bottom: the runtime binds the
       toon's DNA clothing texture instead, see bake_toon.py); u8 pad
       u32 firstVertex; u32 numVertices; u32 firstIndex; u32 numIndices
     Vertex (16 bytes): s16 pos[3], s16 pad, s16 uv[2] (x/1024), u8 rgba[4]
-    Index: u16, relative to the batch's firstVertex
+    Index: u16. Header flags bit0: indices already address the whole vertex buffer
+    (set when the model has <= 65535 vertices). Otherwise relative to firstVertex.
 
 Must stay in sync with source/render/model.cpp.
 """
@@ -135,12 +137,18 @@ def mip_chain(pixels, min_size=8):
 
 
 class Texture:
-    def __init__(self, name, pixels, fmt, wrap_s=GPU_REPEAT, wrap_t=GPU_REPEAT, mipmaps=True):
-        h, w = pixels.shape[:2]
+    def __init__(self, name, pixels, fmt, wrap_s=GPU_REPEAT, wrap_t=GPU_REPEAT, mipmaps=True,
+                 levels=None):
+        # `levels` is a prebuilt chain (largest first). Atlas pages pass one so each
+        # mip is downsampled per tile and gutters do not bleed into the neighbour.
+        if levels is None:
+            h, w = pixels.shape[:2]
+            levels = mip_chain(pixels) if mipmaps else [pixels]
+        else:
+            h, w = levels[0].shape[:2]
         assert w >= 8 and h >= 8 and w & (w - 1) == 0 and h & (h - 1) == 0, (name, w, h)
         self.name, self.w, self.h, self.fmt = name, w, h, fmt
         self.wrap_s, self.wrap_t = wrap_s, wrap_t
-        levels = mip_chain(pixels) if mipmaps else [pixels]
         self.mips = len(levels)
         if fmt in ETC_FORMATS:
             # One call for the whole chain (better vectorization); levels are
@@ -152,9 +160,10 @@ class Texture:
 
 
 class Batch:
-    def __init__(self, texture, blend, two_sided, tint, layer, verts, indices):
+    def __init__(self, texture, blend, two_sided, tint, layer, verts, indices, sign=False):
         self.texture, self.blend, self.two_sided = texture, blend, two_sided
         self.tint, self.layer = tint, layer
+        self.sign = bool(sign)
         self.verts = verts      # (n, 9) float: x y z u v r g b a (rgba 0..1)
         self.indices = indices  # (m,) int, relative to this batch
 
@@ -192,7 +201,10 @@ def write(path, textures, batches):
     offset = (lo + hi) / 2
     scale = np.maximum((hi - lo) / 2 / 32767.0, 1e-6)
 
-    vert_chunks, idx_chunks, batch_entries = [], [], []
+    def aniso(b):
+        return b.texture is not None and getattr(textures[b.texture], 'aniso', False)
+
+    vert_chunks, idx_chunks, batch_entries, bases = [], [], [], []
     first_v = first_i = 0
     uv_clamped = 0
     for b in batches:
@@ -208,13 +220,24 @@ def write(path, textures, batches):
         rec['uv'] = uv
         rec['c'] = rgba
         vert_chunks.append(rec.tobytes())
+        bases.append(first_v)
         idx_chunks.append(b.indices.astype('<u2').tobytes())
         batch_entries.append(struct.pack('<HBBBBBBIIII', 0xFFFF if b.texture is None else b.texture,
-                                         b.blend, 1 if b.two_sided else 0, b.tint, b.layer,
+                                         b.blend, (1 if b.two_sided else 0) | (2 if aniso(b) else 0),
+                                         b.tint, b.layer,
                                          getattr(b, 'tex_slot', 0), 0,
                                          first_v, n, first_i, len(b.indices)))
         first_v += n
         first_i += len(b.indices)
+    # Absolute indices let the loader memcpy the index buffer. u16 cannot name a
+    # vertex at 65536 or above, so those models stay batch-relative (flags 0).
+    absolute = first_v <= 0x10000
+    if absolute:
+        rebuilt = []
+        for base, raw in zip(bases, idx_chunks):
+            arr = np.frombuffer(raw, dtype='<u2').astype(np.uint32) + np.uint32(base)
+            rebuilt.append(arr.astype('<u2').tobytes())
+        idx_chunks = rebuilt
 
     header_size = 64
     tex_table = header_size
@@ -230,7 +253,8 @@ def write(path, textures, batches):
         cursor = _align(cursor + len(t.data))
 
     out = bytearray(cursor)
-    header = struct.pack('<4sHHHHII3f3fIIIII', MAGIC, VERSION, 0, len(textures), len(batches),
+    header = struct.pack('<4sHHHHII3f3fIIIII', MAGIC, VERSION, 1 if absolute else 0,
+                         len(textures), len(batches),
                          first_v, first_i, *scale, *offset,
                          tex_table, batch_table, vertex_off, index_off, 0)
     assert len(header) == header_size

@@ -513,7 +513,7 @@ void BattleMovies::draw(render::Renderer& renderer, const Battle& battle, Battle
                 Mtx_RotateX(&m, flip * 160.0f * kDegToRad, true);
             } else if (t.level == 5) { // TNT explosion
                 if (age > 0.5f && age < 1.1f) {
-                    fx.drawExplosion(renderer, t.x, t.y, t.z + 1.0f);
+                    fx.drawExplosion(renderer, t.x, t.y, t.z + 1.0f, age - 0.5f);
                 }
             } else if (t.level == 0 || t.level == 2) { // Banana / marbles slide
                 const float slide = clamp(age * 2.0f, 0.0f, 1.0f);

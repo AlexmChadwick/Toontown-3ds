@@ -1,7 +1,9 @@
 #include "ui/racing_view.h" // ---- racing2 ----
 #include "ui/panel_owner.h" // qafix
 #include "render/text_cache.h"
-// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Settings / Debug panels.
+#include "ui/page_text.h"
+// Bottom-screen UI (citro2d): tab bar + Map / Chat / Toon / Gags / Book panels, and the Debug
+// panel (SELECT or the book's Options page; docs/design/ui_theme.md).
 #pragma once
 
 #include <3ds.h>
@@ -18,15 +20,19 @@
 #include "ui/closet_panel.h"
 #include "ui/minigame_purchase_panel.h"
 #include "ui/book.h"
+#include "ui/laff_meter.h"
+#include "ui/toontown_timer.h"
 
 namespace tt::ui {
 
-enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabSettings, kTabDebug, kTabCount };
+enum Tab : int { kTabMap = 0, kTabChat, kTabToon, kTabGags, kTabBook, kTabDebug, kTabCount };
+// The Debug tab is in the bar only while State::debugOverlay is on.
+constexpr int kNumPlayerTabs = kTabDebug;
 
 // Persistent UI-controlled settings the game reads each frame.
 struct State {
-    int tab = kTabDebug;
-    bool stereo = false; // opt-in; AGENTS.md display rules
+    int tab = kTabMap;
+    bool stereo = true; // follows the 3D slider (one eye at 0); Options page can turn it off
     int stressToons = 0; // extra toon instances for the M1.6 stress test
     int colorTarget = 0; // 0 body, 1 shirt, 2 shorts
     int bodyColor = 17;  // index into kToonColors (ToonDNA.allColorsList)
@@ -34,6 +40,7 @@ struct State {
     int bottomColor = 18;
     // Map tab teleport: hood zone id the player tapped (main clears it), 0 = none.
     unsigned teleportRequest = 0;
+    bool teleportFromMap = false; // the request came from the Map: send checkTeleportAccess first
     bool homeRequest = false;
     // Chat tab: SpeedChat goes to this toon as a whisper (0 = say it out loud).
     unsigned whisperTo = 0;
@@ -42,6 +49,7 @@ struct State {
     int musicVol = 80;
     int sfxVol = 100;
     bool quitRequested = false;
+    bool infoButtonPressed = false; // the info panel's button (Context::infoButton) was pressed
 };
 
 struct MapMarker {
@@ -55,8 +63,15 @@ struct Context {
     float zoneMinX, zoneMinY, zoneMaxX, zoneMaxY;
     const MapMarker* markers;
     int numMarkers;
+    // Indoors the map shows the place outside (its markers, the arrow at the building's door).
+    bool mapOutside = false;
+    bool mapNoArrow = false; // ...when we did not come in from there, without our arrow
     // Teleport row on the Map tab: which hoods are installed (bit i = kTeleportHoods[i]).
     unsigned hoodsAvailable = 0;
+    // setTeleportAccess / setHoodsVisited in the same bit order (offline: every hood).
+    unsigned hoodsTeleport = ~0u;
+    unsigned hoodsVisited = ~0u;
+    bool homeAvailable = false; // the server has an EstateManager
     unsigned currentHood = 0;
     unsigned currentZone = 0;
     // Debug
@@ -73,12 +88,19 @@ struct Context {
     int numNearby = 0;
     unsigned nearbyIds[8] = {};
     const char* nearbyNames[8] = {};
+    // Toon tab: our name and laff meter face (online only).
+    const char* toonName = nullptr;
+    float headRgb[3] = {0.7f, 0.7f, 0.8f};
+    int species = 0;
     // Our ToonTasks (Toon tab task list); null = offline.
     const net::OwnQuests* quests = nullptr;
     // A full-screen info panel (minigames): title plus up to 3 lines; null = none.
     const RacingView* racing = nullptr; // ---- racing2 ----
     const char* infoTitle = nullptr;
     const char* infoLines[3] = {};
+    // A button on the info panel (the trolley's Hop off, the Cog elevator's exit); A or a tap
+    // presses it, and it acts as B (State::infoButtonPressed). null = none.
+    const char* infoButton = nullptr;
     // Gags tab (owner view of our toon); null = offline.
     const uint16_t* gagExp = nullptr;            // [7]
     const uint8_t (*gagCount)[7] = nullptr;      // [7][7]
@@ -116,6 +138,10 @@ public:
     // Oldest SpeedChat phrase the player chose: send DistributedPlayer.setSC(uint16 msgIndex).
     void setEmoteAccess(const uint8_t* access) { chat_.setEmoteAccess(access); }
     bool popSpeech(int& msgIndex) { return chat_.popSpeech(msgIndex); }
+    // SpeedChat TOONTASKS > MY TASKS: rebuilt when our quests change (null = offline).
+    void setChatTasks(const net::OwnQuests* quests) { chat_.setTasks(quests); }
+    // A popSpeech value >= ChatMenu::kTaskCode is a ToonTask phrase.
+    const ChatMenu::TaskPhrase* chatTaskPhrase(int code) const { return chat_.taskPhrase(code); }
     // Gag shop panel (docs/design/shop.md): while active it owns the whole bottom screen.
     ServiceClerkPanel& serviceClerks() { return serviceClerks_; } // clerks
     ShopPanel& shop() { return shop_; }
@@ -144,12 +170,39 @@ public:
     // interior = none). Loads sdmc:/3ds/toontown3ds/data/zones/<id>.tmap (bake_minimap.py);
     // if absent the Map tab keeps its marker-only view. Main thread only (allocates linear).
     void setMapZone(unsigned fileZone);
+    // The last drawn bottom screen showed our laff meter (the tab bar's pocket or the battle
+    // panel's Toon cards), so the top HUD leaves it off the world.
+    bool laffShown() const { return hudLaff_ && (lastOwner_ == PanelOwner::Tabs || lastOwner_ == PanelOwner::Battle); }
+    // PlayGame.enterTutorialHood: the Toontorial obscures the book button (here the Book, Map,
+    // Gags and Toon tabs, whose upstream pages live in the Shticker Book, and START), the laff
+    // meter (the tab bar's pocket) and SpeedChat (the Chat tab) until its lessons reveal them.
+    // Call every frame; all true outside the Toontorial.
+    void setTutorialHud(bool book, bool laff, bool speedChat) {
+        hudBook_ = book;
+        hudLaff_ = laff;
+        hudChat_ = speedChat;
+    }
+    // QuestParser ARROWS_ON / ARROWS_OFF: BlinkingArrows at what the lesson asks for, here the
+    // 3DS control in its place (the talk panel's Shticker Book button, the book's Next and close
+    // buttons, the Chat tab). Call every frame.
+    void setTutorialArrows(bool on) {
+        if (on && !arrowsOn_) arrowsSinceMs_ = osGetTime();
+        arrowsOn_ = on;
+    }
+    // The Chat tab's recent-chat strip: what was said nearby, by us, or whispered to us.
+    // `you` marks our own lines; nothing is drawn after kChatLogMs without new chat.
+    void logChat(const char* name, const char* text, bool whisper, bool you, u32 nowMs);
 
 private:
     // ---- qafix ----
     PanelOwner resolveOwner(bool fishing, bool info);
+public:
+    // The fishing panel's touch gesture this frame (consumed by world::Fishing).
+    FishingPanel& fishingPanel() { return fishingPanel_; }
+private:
     PanelOwner lastOwner_ = PanelOwner::Tabs;
     bool drawnInfo_ = false; // the last drawn frame showed an info panel (ctx.infoTitle)
+    bool drawnInfoButton_ = false; // ...with its button (ctx.infoButton)
     unsigned contextZone_ = 0;
     bool contextFishing_ = false, contextInfo_ = false;
     bool contextRacing_ = false; // ---- racing2 ----
@@ -165,10 +218,11 @@ private:
     void text(float x, float y, float scale, u32 color, const char* fmt, ...) __attribute__((format(printf, 6, 7)));
     void debugLine(float x, float y, float scale, u32 color, const char* fmt, ...)
         __attribute__((format(printf, 6, 7)));
-    void drawTabs(const State& s);
+    void drawTabs(const State& s, const Context& c);
+    float chatBottom() const;
     void drawMap(const Context& c);
     void drawToon(const State& s, const Context& c);
-    void drawSettings(const State& s);
+    void drawBookTab(const State& s);
     void drawGags(const Context& c);
     void drawInfo(const Context& c);
     void drawDebug(const Context& c);
@@ -185,10 +239,30 @@ private:
     unsigned mapW_ = 0, mapH_ = 0;
 
     render::TextCache textCache_;
+    PageText gagText_; // the Gags tab's table (cached per string)
+    PageText chatLogText_;
+    PageText toonText_; // the Toon tab's header and task posters
+    struct ChatLine {
+        char name[24];
+        char text[96];
+        u32 ms;
+        bool whisper, you;
+    };
+    static constexpr int kChatLog = 2;
+    static constexpr u32 kChatLogMs = 60000;
+    ChatLine chatLog_[kChatLog] = {};
+    int chatLogCount_ = 0;
+    u32 chatNowMs_ = 0;
+    bool chatLogShown() const;
+    void drawChatLog(float y0, float y1);
     C2D_TextBuf textBuf_ = nullptr;   // per-frame text
     C2D_TextBuf staticBuf_ = nullptr; // parsed once (tab labels)
     C2D_TextBuf debugBuf_ = nullptr;  // re-parsed every kDebugRefreshFrames
     C2D_Text tabText_[kTabCount];
+    C2D_Text bookText_[9]; // Book tab page buttons
+    C2D_Text bookTitle_, bookHint_, bookOpen_;
+    LaffDisplay laff_; // the tab bar's laff pocket
+    ToontownTimer timer_; // minigame countdowns on the info card
     CachedLine debugLines_[kMaxDebugLines];
     int numDebugLines_ = 0;
     unsigned frame_ = 0;
@@ -213,6 +287,13 @@ private:
     u32 handleTabPad(u32 down, const touchPosition& touch, State& s);
     void activateTabControl(int id, State& s);
     void cycleWhisper(State& s);
+    int numTabs(const State& s) const { return s.debugOverlay ? kTabCount : kNumPlayerTabs; }
+    bool tabShown(int tab) const; // not obscured by the Toontorial (setTutorialHud)
+    int firstShownTab(const State& s) const; // -1: the Toontorial hides every tab
+    bool hudBook_ = true, hudLaff_ = true, hudChat_ = true;
+    void drawTutorialArrows(PanelOwner owner, const State& s) const;
+    bool arrowsOn_ = false;
+    u64 arrowsSinceMs_ = 0;
     FocusGroup tabFocus_{"tab"};
     bool toonOnline_ = false; // the Toon tab's last drawn layout (ToonTasks + book, or colours)
     // ---- end padnav ----

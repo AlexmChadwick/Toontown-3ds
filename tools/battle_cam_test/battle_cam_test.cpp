@@ -225,6 +225,13 @@ void testMovieDeterminism() {
     movie.suitAttacks[0].numHp = 1;
     for (int i = 1; i < 4; ++i) movie.suitAttacks[i].attack = -1;
 
+    // Battle::buildMovie's steps for this movie: Sound (track 3) before Throw, then the Cog.
+    battle.addStep(tt::world::BattleMovieStep::kToonGag, 300, 3500, 101, 200, 3, 1);
+    battle.addStep(tt::world::BattleMovieStep::kToonGag, 3800, 3500, 100, 200, 4, 2);
+    battle.addStep(tt::world::BattleMovieStep::kSuit, 7300, 2600, 200, 100, -1, 2);
+    // An SOS special (NPCSOS Toons Hit / Fire) is framed with an SOS shot.
+    battle.addStep(tt::world::BattleMovieStep::kSpecial, 9900, 2500, 100, 0, 97, -1);
+
     tt::world::BattleCamera camA;
     tt::world::BattleCamera camB;
 

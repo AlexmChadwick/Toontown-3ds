@@ -59,6 +59,7 @@ private:
     cannongame::FlightResult flight_;
 
     float toonX_ = 0.0f, toonY_ = 0.0f, toonZ_ = 0.0f, toonH_ = 0.0f, toonPitch_ = 0.0f;
+    float camPullback_ = 20.0f;
     float camEyeX_ = 0.0f, camEyeY_ = 0.0f, camEyeZ_ = 0.0f;
     float camTgtX_ = 0.0f, camTgtY_ = 0.0f, camTgtZ_ = 0.0f;
 

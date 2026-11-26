@@ -53,6 +53,9 @@ ToonDna defaultToonDna();
 
 Species species(const ToonDna& dna);
 const char* speciesName(Species s); // "dog", "cat", ...
+// The name the server gives a Toon that was never named: "<head colour> <species>"
+// (AstronLoginManagerUD.__handleCreateAvatar: TTLocalizer.NumToColor[headColor] + AnimalToSpecies).
+void defaultName(const ToonDna& dna, char* out, size_t size);
 float bodyScale(const ToonDna& dna); // OTPGlobals.toonBodyScales: scale the whole toon
 // legHeight + torsoHeight scaled by body scale, plus headHeight (Toon.resetHeight).
 float toonHeight(const ToonDna& dna);

@@ -11,5 +11,6 @@ struct C2D_Text {
 };
 size_t C2D_TextBufGetNumGlyphs(C2D_TextBuf);
 void C2D_TextBufClear(C2D_TextBuf);
-void C2D_TextParse(C2D_Text*, C2D_TextBuf, const char*);
+using C2D_Font = struct FakeFont*;
+const char* C2D_TextFontParse(C2D_Text*, C2D_Font, C2D_TextBuf, const char*);
 void C2D_TextOptimize(C2D_Text*);

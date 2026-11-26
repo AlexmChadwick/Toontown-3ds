@@ -1,6 +1,7 @@
 #include "world/toon_dna.h"
 
 #include "world/toon_dna_tables.h"
+#include <cstdio>
 
 #ifdef __3DS__
 #include "render/model.h"
@@ -129,6 +130,21 @@ Species species(const ToonDna& dna) {
 const char* speciesName(Species s) {
     const unsigned i = static_cast<unsigned>(s);
     return i < t::kNumSpecies ? t::kSpeciesNames[i] : "?";
+}
+
+void defaultName(const ToonDna& dna, char* out, size_t size) {
+    // TTLocalizerEnglish.NumToColor and AnimalToSpecies (species in toonSpeciesTypes order).
+    static const char* const kNumToColor[] = {
+        "White", "Peach", "Bright Red", "Red", "Maroon", "Sienna", "Brown", "Tan", "Coral",
+        "Orange", "Yellow", "Cream", "Citrine", "Lime", "Sea Green", "Green", "Light Blue", "Aqua",
+        "Blue", "Periwinkle", "Royal Blue", "Slate Blue", "Purple", "Lavender", "Pink", "Plum", "Black"};
+    static const char* const kSpecies[] = {"Dog", "Cat", "Horse", "Mouse", "Rabbit", "Duck", "Monkey", "Bear", "Pig"};
+    const unsigned s = static_cast<unsigned>(species(dna));
+    const char* color = dna.headColor < sizeof kNumToColor / sizeof kNumToColor[0] ? kNumToColor[dna.headColor] : nullptr;
+    if (color && s < sizeof kSpecies / sizeof kSpecies[0])
+        std::snprintf(out, size, "%s %s", color, kSpecies[s]);
+    else
+        std::snprintf(out, size, "Toon");
 }
 
 float bodyScale(const ToonDna& dna) { return t::kBodyScale[static_cast<unsigned>(species(dna))]; }

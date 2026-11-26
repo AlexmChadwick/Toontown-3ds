@@ -23,6 +23,7 @@
 #include "ui/fishing_panel.h"
 #include "world/fish_logic.h"
 #include "world/player.h"
+#include "world/battle_fx.h" // JntTrack
 
 namespace tt::world {
 
@@ -46,6 +47,12 @@ public:
     // circle pad, A and B from `in` (so the toon does not walk or jump). canEnter is false while
     // a zone transition runs.
     void handleInput(Input& in, float dt, u32 nowMs, bool canEnter);
+    // This frame's touch gesture from the bottom-screen panel (call before handleInput).
+    void setTouch(const ui::FishingTouch& t) {
+        const bool started = touch_.started, released = touch_.released, exit = touch_.exit;
+        touch_ = t;
+        touch_.started |= started, touch_.released |= released, touch_.exit |= exit;
+    }
     // After Player::update: overrides the follow camera while fishing.
     void applyCamera();
     void draw(render::Renderer& renderer);
@@ -82,6 +89,14 @@ private:
     void updateRodPitch(float dt);
     void landBob(u32 nowMs);
     void rodMatrix(C3D_Mtx* out) const;
+    // The pole is parented to the Toon's right hands (DistributedFishingSpot.__holdPole): the
+    // local Toon's torso frame x its clip's def_joint_right_hold (torso_<key>_<clip>.jnt).
+    bool handMatrix(C3D_Mtx* out) const;
+    mutable const ToonAvatar* avatar_ = nullptr; // the Toon applyAnimation last posed
+    static constexpr int kJntSlots = 9; // pole, pole-neutral, castlong, cast, fish-neutral, reel, reel-neutral, fish-again, fish-end
+    struct JntSlot { char path[96]; JntTrack track; u32 used; bool failed; };
+    mutable JntSlot jnt_[kJntSlots] = {};
+    mutable u32 jntClock_ = 0;
     void rodTip(float* tip) const;
     void syncView();
     int currentRod() const;
@@ -108,6 +123,8 @@ private:
     u32 sessionSpot_ = 0; // doId of the spot we are fishing at (server mode)
 
     float aim_ = 0.0f;     // degrees, + = left, relative to the spot heading
+    ui::FishingTouch touch_{};
+    bool touchCharge_ = false; // this charge follows a drag from the touch Cast button
     u32 dpadAimHeld_ = 0;  // padnav: D-Left / D-Right held last frame (logs the aim on release)
     float power_ = 0.0f;   // 0..1
     float castPower_ = 0.0f, castAim_ = 0.0f;
@@ -120,6 +137,7 @@ private:
     float reelTime_ = 0.0f;
     fish::Catch pending_{};
     bool pendingNewEntry_ = false;
+    bool pendingNewRecord_ = false; // FishItemNewRecord (pendingNewEntry_ covers both)
     bool gotResult_ = false;
     float rodPitch_ = 35.0f;
     float bobBob_ = 0.0f;
@@ -134,6 +152,11 @@ private:
     int casts_ = 0;
 
     render::Model rod_, bob_, line_;
+    // Ripples (toontown/effects/Ripples) where the bob lands: 24 flipbook frames at 24 fps, once.
+    render::Model ripples_;
+    u32 rippleStartMs_ = 0;
+    bool rippleOn_ = false;
+    float rippleX_ = 0, rippleY_ = 0, rippleZ_ = 0, rippleH_ = 0;
     int loadedRod_ = -1;
     bool linesLoaded_ = false;
     audio::SfxId splash_[2] = {audio::kInvalidSfx, audio::kInvalidSfx};

@@ -1,0 +1,39 @@
+ttc_tree SSIM cause proof (unfixed client, before holdTime)
+Build: toontown3ds.3dsx sha256 prefix 742653b0caa37684 (source at 4f6e4d22, anim props not pinned)
+Data: sdmc-out zone 2000 baked from ref/resources d00df01af876cc9c5d1a22329f394a9a50245e9c
+Emulator: Azahar 2126.2, Xvfb, audio null (ndspInit failed, silent). AUTOTEST_ONLY="view: ttc_tree", 100 s.
+Scorer: tools/fidelity/compare_views.py ssim_map (gaussian sigma 1.5). Tile grid 48x50. Gate: mean SSIM >= 0.97, min tile >= 0.85, pixels differing by >30 <= 1%.
+
+Official grabs (view_grabs.py, both 7993 ms into the step by the log clock):
+  old1 vs new1: ssim 0.994  min tile 0.823 (tile 5)  px>30 0.36%   TILE FAIL (min 0.85)
+  same pair with the differing-pixel box masked (x 216-322, y 9-166): ssim 1.000  min tile 1.000  px>30 0.0%
+  same pair with differing pixels (>8) dilated 3 px masked (1128 px): ssim 1.000  min tile 1.000  px>30 0.0%
+
+Where the pixels differ (old1 vs new1, |rgb| mean > 15, 371 px):
+  component 1  n=228  x 266-293  y 13-29   pet-shop fish bowl
+  component 2  n=53   x 311-318  y 20-31   pet-shop fish bowl
+  component 3  n=42   x 256-263  y 22-31   pet-shop fish bowl
+  components 4-15     x 262-289  y 70-77   pet-shop window (48 px)
+  component 16 n=1    x 220      y 162     single pixel
+Nothing outside that window differs. The building, toon, sky and pond match.
+
+Same Old run, grabs inside the step (fish phase moves with the system tick; geometry is still streaming at the earliest grab):
+  3981 ms vs 7993 ms: ssim 0.972  min tile 0.813 (tile 5)  px>30 1.28%   FAIL
+  5052 ms vs 7993 ms: ssim 0.975  min tile 0.840 (tile 9)  px>30 1.09%   FAIL
+  5987 ms vs 7993 ms: ssim 0.976  min tile 0.840 (tile 9)  px>30 1.15%   FAIL
+  6990 ms vs 7993 ms: ssim 0.994  min tile 0.839 (tile 5)  px>30 0.29%   TILE FAIL
+  3981 ms vs 7993 ms with the >8 box masked: ssim 1.000  min tile 1.000
+
+petshop_fish.tta: 80 frames at 12 fps (6.67 s loop). Old and New can share a log-clock offset into the step and still sample different system-tick phases. Masking the fish window removes the failure; the scorer is not changed.
+
+Pinned client (holdTime(0) on view:/pose: steps): toontown3ds.3dsx sha256 a8d32845fb332edee0cb21ddd53d41c857ddb84c20d5b5ea5b00a28ddeb816b6
+Same zone 2000, same scorer, AUTOTEST_ONLY="view: ttc_tree", 160 s, audio null. Each log has one line "animprops: autotest hold 0.000s".
+Official grabs (view_grabs.py): oldp1 grab 0012 at 7993 ms, newp1 grab 0012 at 6990 ms, oldp2 grab 0012 at 7993 ms.
+  oldp1 vs newp1: ssim 0.999227  min tile 0.970837 (tile 13)  px>30 0.0281%   PASS
+  oldp2 vs newp1: ssim 0.999227  min tile 0.970837 (tile 13)  px>30 0.0281%   PASS (same numbers as oldp1)
+  oldp1 vs oldp2: ssim 1.000000  min tile 1.000000  px>30 0
+Within oldp1, late grabs 6990 ms vs 7993 ms: ssim 1.000, min tile 1.000, diff 0. Fish-bowl window (x 240-330, y 5-45) oldp1 vs newp1: 0 px >8.
+Residual old vs new (81 px >8, max 69), identical on both Old runs, so it is not a phase:
+  pet-shop sign lettering  n=80  x 262-289  y 69-77
+  one pixel                n=1   x 220      y 162  rgb (55,189,153) vs (105,134,51)
+The fish bowl no longer moves. The leftover sign pixels stay under the tile bar (0.971 vs 0.85). Thresholds, masks and waivers are unchanged.

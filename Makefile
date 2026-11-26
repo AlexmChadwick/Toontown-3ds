@@ -33,8 +33,10 @@ ICON            := meta/icon.png
 
 # CIA metadata
 CIA_RSF         := meta/app.rsf
+CIA_BANNER_BNR  := meta/banner.bnr
 CIA_BANNER_IMG  := meta/banner.png
 CIA_BANNER_SND  := meta/banner.wav
+BANNER_BUILD    := tools/banner/build.sh
 
 #---------------------------------------------------------------------------------
 ARCH     := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
@@ -43,7 +45,7 @@ CFLAGS   := -g -Wall -Wextra -O2 -mword-relocations -ffunction-sections \
             $(ARCH) $(INCLUDE) -D__3DS__
 CXXFLAGS := $(CFLAGS) -std=gnu++17 -fno-rtti -fno-exceptions
 ASFLAGS  := -g $(ARCH)
-LDFLAGS   = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+LDFLAGS   = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map) -Wl,--wrap=svcBreak,--wrap=abort,--wrap=fopen,--wrap=stat
 
 LIBS     := -lcitro2d -lcitro3d -lctru -lm
 LIBDIRS  := $(CTRULIB)
@@ -79,7 +81,7 @@ export APP_ICON := $(TOPDIR)/$(ICON)
 export _3DSXDEPS := $(OUTPUT).smdh
 export _3DSXFLAGS += --smdh=$(OUTPUT).smdh --romfs=$(CURDIR)/$(ROMFS)
 
-.PHONY: all clean cia cia-check assets
+.PHONY: all clean cia cia-check assets banner
 
 all: $(BUILD)
 	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
@@ -102,8 +104,12 @@ cia-check:
 		fi; \
 	done
 
-cia: cia-check all
-	@PATH="$(CIA_TOOL_PATH)" bannertool makebanner -i $(CIA_BANNER_IMG) -a $(CIA_BANNER_SND) -o $(BUILD)/banner.bnr
+banner:
+	@bash $(BANNER_BUILD)
+
+cia: cia-check all banner
+	@if [ -f $(CIA_BANNER_BNR) ]; then cp $(CIA_BANNER_BNR) $(BUILD)/banner.bnr; else \
+		PATH="$(CIA_TOOL_PATH)" bannertool makebanner -i $(CIA_BANNER_IMG) -a $(CIA_BANNER_SND) -o $(BUILD)/banner.bnr; fi
 	@PATH="$(CIA_TOOL_PATH)" bannertool makesmdh -s "$(APP_TITLE)" -l "$(APP_DESCRIPTION)" -p "$(APP_AUTHOR)" \
 		-i $(ICON) -o $(BUILD)/icon.icn
 	@PATH="$(CIA_TOOL_PATH)" makerom -f cia -o $(OUTPUT).cia -elf $(OUTPUT).elf -rsf $(CIA_RSF) \

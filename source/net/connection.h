@@ -94,6 +94,9 @@ public:
     // Totals since init (approximate; read without locking).
     uint32_t bytesIn() const { return bytesIn_; }
     uint32_t bytesOut() const { return bytesOut_; }
+    // Diagnostics (approximate, unlocked): ms since the last queued heartbeat, send backlog.
+    uint32_t heartbeatAgeMs() const { return heartbeat_ ? plat::nowMs() - lastHeartbeatMs_ : 0; }
+    uint32_t sendBacklog() const { return send_.used(); }
 
 private:
     static void threadEntry(void* self);
@@ -124,6 +127,8 @@ private:
     volatile uint32_t bytesIn_ = 0;
     volatile uint32_t bytesOut_ = 0;
     const char* volatile error_ = "";
+    char errorBuf_[128] = {}; // detailed connect / disconnect reason (error_ points here)
+    bool loggedDrop_ = false; // first disconnect of a session is logged with its step + errno
 
     int fd_ = -1;
     uint32_t lastHeartbeatMs_ = 0;

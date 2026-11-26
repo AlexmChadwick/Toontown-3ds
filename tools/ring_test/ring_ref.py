@@ -28,44 +28,19 @@ MM = 4000
 TB = 3000
 DDL = 9000
 
-difficultyPatterns = {
-    TTC: [
-        [0] * 16,
-        [0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1],
-        [0, 0, 1, 1] * 4,
-    ],
-    DD: [
-        [0] * 8 + [1] * 8,
-        [0, 0, 1, 1, 1, 1, 1, 1] * 2,
-        [0, 1, 1, 1] * 4,
-        [0, 0, 1, 1, 2, 2, 2, 2] * 2,
-    ],
-    DG: [
-        [0] * 4 + [1] * 12,
-        [0, 1, 1, 1] * 4,
-        [0, 1, 1, 2, 0, 1, 1, 2] * 2,
-        [0, 1, 2, 1, 0, 1, 2, 1] * 2,
-    ],
-    MM: [
-        [1] * 16,
-        [1, 1, 1, 2] * 4,
-        [1, 1, 2, 2] * 4,
-        [1, 2, 1, 2] * 4,
-    ],
-    TB: [
-        [1] * 8 + [2] * 8,
-        [1, 1, 1, 1, 1, 2, 2, 2] * 2,
-        [0, 1, 1, 1, 0, 2, 2, 2] * 2,
-        [0, 1, 1, 2, 0, 1, 2, 2] * 2,
-        [0, 1, 2, 1, 0, 1, 2, 2] * 2,
-    ],
-    DDL: [
-        [0] * 2 + [1] * 6 + [2] * 8,
-        [0, 1, 1, 1, 2, 2, 2, 2] * 2,
-        [0, 1, 1, 2, 2, 1, 2, 2] * 2,
-        [0, 1, 2, 1, 2, 1, 2, 2] * 2,
-    ],
-}
+
+def upstreamPatterns():
+    """DistributedRingGame.__generateRings' difficultyPatterns, read from the source."""
+    import ast
+    src = open(os.path.join(OTT, 'toontown/minigame/DistributedRingGame.py')).read()
+    node = next(n for n in ast.walk(ast.parse(src)) if isinstance(n, ast.Assign) and len(n.targets) == 1
+                and isinstance(n.targets[0], ast.Name) and n.targets[0].id == 'difficultyPatterns')
+    g = type('ToontownGlobals', (), dict(ToontownCentral=TTC, DonaldsDock=DD, DaisyGardens=DG,
+                                         MinniesMelodyland=MM, TheBrrrgh=TB, DonaldsDreamland=DDL))
+    return eval(compile(ast.Expression(node.value), 'difficultyPatterns', 'eval'), {'ToontownGlobals': g})
+
+
+difficultyPatterns = upstreamPatterns()
 
 MAX_TOONXZ = 10.0
 RING_RADIUS = MAX_TOONXZ / 3.0 * 0.9  # 3.0

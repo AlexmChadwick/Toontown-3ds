@@ -10,7 +10,7 @@ clang++ "${FLAGS[@]}" tools/racing_test/progress.cpp source/world/racing_logic.c
 .venv/bin/python -I -B tools/racing_test/reference.py > "$OUT/physics-reference.txt"
 .venv/bin/python -I -B tools/racing_test/check.py
 .venv/bin/python -I -B tools/racing_test/vectors.py
-SOURCES=(source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp source/world/toon_dna.cpp source/world/suit_path.cpp source/world/level_spec.cpp tools/nettest/log_host.cpp)
+SOURCES=(source/net/*.cpp source/game/*_logic.cpp source/game/name_tables.cpp source/quest/quest_data.cpp source/quest/quest_text.cpp source/world/toon_dna.cpp source/world/suit_path.cpp source/world/level_spec.cpp tools/nettest/log_host.cpp)
 clang++ "${FLAGS[@]}" tools/racing_test/client.cpp "${SOURCES[@]}" -lpthread -o "$OUT/client"
 "$OUT/client" > "$OUT/client.log"
 tail -1 "$OUT/client.log"

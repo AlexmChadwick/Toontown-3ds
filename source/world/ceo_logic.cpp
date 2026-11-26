@@ -77,15 +77,45 @@ float ceoRollSpeed(const net::BossState& state, uint32_t nowMs) {
     return kCeoRollSpeedMax - (kCeoRollSpeedMax - kCeoRollSpeedMin) * damageFraction;
 }
 
+void ceoIntro(float t, CeoIntroShot* out) {
+    // BossbotElevCamPosHpr, then the close-up 20 forward / 2 down with pitch 5; loseCogSuits at
+    // the resistance Toon's spot + (0, -5, 4) h 180 for 1 s + Wait(2); back to the close-up with
+    // FightWaiter, Wait(1), LerpHprInterval(2) to h -15; the walk-off; Wait(3).
+    const Vec3 elevator{0, -100.544f, 7.18258f}, closeUp{0, -80.544f, 5.18258f};
+    if (t < 3) {
+        const float u = t / 3;
+        bossCameraAim({0, elevator.y + 20 * u, elevator.z - 2 * u}, 0, 5 * u, &out->eye, &out->target);
+    } else if (t < 6 || (t >= 9 && t < 10)) {
+        bossCameraAim(closeUp, 0, 5, &out->eye, &out->target);
+    } else if (t < 9) {
+        bossCameraAim({0, -69, 4}, 180, 0, &out->eye, &out->target);
+    } else {
+        bossCameraAim(closeUp, -15 * std::clamp((t - 10) / 2, 0.0f, 1.0f), 5, &out->eye, &out->target);
+    }
+    out->resistance = {40 * std::clamp((t - 13) / 2.5f, 0.0f, 1.0f), -64, 0};
+    out->resistanceHeading = 180 + 90 * std::clamp(t - 12, 0.0f, 1.0f);
+    out->resistanceVisible = t < kCeoIntroSeconds;
+    out->resistanceWalking = t >= 12 && t < 15.5f;
+    out->chat = nullptr, out->chatAge = 0;
+    if (t < 3) out->chat = "You toons will need different disguises.", out->chatAge = t;
+    else if (t < 6) out->chat = "First take off your cog suits...", out->chatAge = t - 3;
+    else if (t >= 9) out->chat = "and then fight these waiters.", out->chatAge = t - 9;
+}
+
+void ceoElevator(float t, bool riding, CeoElevatorShot* out) {
+    bossCameraAim({-0.001f, -101.487f, 6.983f + (riding ? bossElevatorBob(t) : 0)}, 0, 0, &out->eye, &out->target);
+    out->doorOpen = riding ? std::clamp((t - 8) / 4, 0.0f, 1.0f) : 0;
+}
+
 float ceoBarrierDelay(const char* phase) {
     if (!std::strcmp(phase, "WaitForToons")) {
         return 0.5f;
     }
     if (!std::strcmp(phase, "Elevator")) {
-        return 6.0f;
+        return 12.0f; // two 4 s rides + ELEVATOR_BB openTime 4
     }
     if (!std::strcmp(phase, "Introduction")) {
-        return 20.0f;
+        return kCeoIntroSeconds;
     }
     if (!std::strcmp(phase, "PrepareBattleTwo")) {
         return 15.0f;

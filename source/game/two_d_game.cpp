@@ -24,10 +24,12 @@ bool TwoDGame::init(const char* root, unsigned hood) {
     std::snprintf(path, sizeof(path), "%stwod_wall.ttm", root); assetBatch_.load(wallModel_, path);
     std::snprintf(path, sizeof(path), "%stwod_pipe.ttm", root); assetBatch_.load(pipeModel_, path);
     std::snprintf(path, sizeof(path), "%stwod_elevator.ttm", root); assetBatch_.load(elevatorModel_, path);
-    std::snprintf(path, sizeof(path), "%stwod_stomper.ttm", root); assetBatch_.load(stomperModel_, path);
+    std::snprintf(path, sizeof(path), "%stwod_stomper_head.ttm", root); assetBatch_.load(stomperHead_, path);
+    std::snprintf(path, sizeof(path), "%stwod_stomper_shaft.ttm", root); assetBatch_.load(stomperShaft_, path);
+    std::snprintf(path, sizeof(path), "%stwod_stomper_block.ttm", root); assetBatch_.load(stomperBlock_, path);
+    std::snprintf(path, sizeof(path), "%stwod_background.ttm", root); assetBatch_.load(backgroundModel_, path);
     std::snprintf(path, sizeof(path), "%stwod_arrow.ttm", root); assetBatch_.load(arrowModel_, path);
     std::snprintf(path, sizeof(path), "%stwod_treasure.ttm", root); assetBatch_.load(treasureModel_, path);
-    assetBatch_.load(suitPlaceholder_, "romfs:/baked/suit_placeholder.ttm");
     TT_LOG("mgpass: twod start hood=%u waiting for setSectionsSelected", hood_);
     return true;
 }
@@ -35,8 +37,9 @@ bool TwoDGame::init(const char* root, unsigned hood) {
 void TwoDGame::shutdown() {
     assetBatch_.clear();
     for (auto& model : blockModels_) model.unload();
-    wallModel_.unload(); pipeModel_.unload(); elevatorModel_.unload(); stomperModel_.unload();
-    arrowModel_.unload(); treasureModel_.unload(); suitPlaceholder_.unload();
+    wallModel_.unload(); pipeModel_.unload(); elevatorModel_.unload();
+    stomperHead_.unload(); stomperShaft_.unload(); stomperBlock_.unload();
+    arrowModel_.unload(); treasureModel_.unload(); backgroundModel_.unload();
     isDone_ = true;
 }
 
@@ -157,15 +160,66 @@ void TwoDGame::draw(render::Renderer& renderer) {
         Mtx_Translate(&model, sim_.treasureX(i), 0.0f, sim_.treasureZ(i), false);
         renderer.drawModel(treasureModel_, model);
     }
-    if (suitPlaceholder_.loaded()) for (int i = 0; i < course_.numEnemies; ++i) {
+    // ToonBlitzAssetMgr.background at the world origin.
+    if (backgroundModel_.loaded()) {
+        Mtx_Identity(&model);
+        renderer.drawModel(backgroundModel_, model);
+    }
+    // TwoDSectionMgr.setupStartSection (x -48) / setupEndSection (the end section's x).
+    struct Piece { render::Model* m; float sx, x, y, z, scale; };
+    const Piece pieces[] = {
+        {&wallModel_, -48.0f, -28.0f, 0.0f, 4.0f, 0.8f},   {&pipeModel_, -48.0f, 12.0f, 0.0f, 44.0f, 1.0f},
+        {&arrowModel_, -48.0f, 23.0f, 1.5f, 12.76f, 1.0f},
+        {&wallModel_, course_.endSectionX, 100.0f, 0.0f, 4.0f, 0.8f},
+        {&arrowModel_, course_.endSectionX, 6.0f, 1.5f, 12.76f, 1.0f},
+        {&elevatorModel_, course_.endSectionX, 52.0f, -2.0f, 12.7f, 1.0f}};
+    for (const Piece& p : pieces) {
+        if (!p.m->loaded()) continue;
+        Mtx_Identity(&model);
+        Mtx_Translate(&model, p.sx + p.x, p.y, p.z, true);
+        Mtx_Scale(&model, p.scale, p.scale, p.scale);
+        renderer.drawModel(*p.m, model);
+    }
+    // TwoDStomper: model at its pos and scale; head at its z, the shaft (shaft_group z 2) scaled
+    // in z, the block (block_group z 2) at 1 / scale.
+    if (stomperHead_.loaded() && stomperShaft_.loaded() && stomperBlock_.loaded())
+        for (int i = 0; i < course_.numStompers; ++i) {
+            const auto& st = course_.stompers[i];
+            const float sc = st.type->scale;
+            C3D_Mtx base;
+            Mtx_Identity(&base);
+            Mtx_Translate(&base, st.x, 0.0f, st.z, true);
+            Mtx_Scale(&base, sc, sc, sc);
+            model = base;
+            Mtx_Translate(&model, 0.0f, 0.0f, course_.stomperHeadZ(i, timer_), true);
+            renderer.drawModel(stomperHead_, model);
+            model = base;
+            Mtx_Translate(&model, 0.0f, 0.0f, 2.0f, true);
+            Mtx_Scale(&model, 1.0f, 1.0f, course_.stomperShaftScale(i, timer_));
+            renderer.drawModel(stomperShaft_, model);
+            model = base;
+            Mtx_Translate(&model, 0.0f, 0.0f, 2.0f, true);
+            Mtx_Scale(&model, 1.0f / sc, 1.0f / sc, 1.0f / sc);
+            renderer.drawModel(stomperBlock_, model);
+        }
+}
+
+int TwoDGame::cogs(MinigameCog* out, int max) const {
+    if (!courseAssembled_) return 0;
+    int n = 0;
+    for (int i = 0; i < course_.numEnemies && n < max; ++i) {
         if (!sim_.enemyAlive(i)) continue;
         float x, z, h;
         course_.enemyPose(i, timer_, &x, &z, &h);
-        Mtx_Identity(&model);
-        Mtx_Translate(&model, x, 0.0f, z, false);
-        Mtx_RotateZ(&model, h * 0.0174532925f, false);
-        renderer.drawModel(suitPlaceholder_, model);
+        MinigameCog& c = out[n++];
+        c.x = x;
+        c.y = 0.0f;
+        c.z = z;
+        c.h = h;
+        std::snprintf(c.code, sizeof(c.code), "%s", course_.enemies[i].suit);
+        c.walking = !course_.enemies[i].upDown;
     }
+    return n;
 }
 
 void TwoDGame::camera(C3D_FVec* eye, C3D_FVec* target) const {

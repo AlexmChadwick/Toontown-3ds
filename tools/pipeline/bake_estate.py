@@ -34,7 +34,7 @@ def bake(base, source, out):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--resources", default="/Users/alexchadwick/toontown-3ds/ref/resources")
+    ap.add_argument("--resources", default=str(ROOT / "ref/resources"))
     ap.add_argument("--out", default=str(ROOT / "sdmc-out/3ds/toontown3ds/data/estate"))
     args = ap.parse_args()
     from panda3d.core import loadPrcFileData
